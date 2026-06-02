@@ -1,0 +1,31 @@
+---
+title: Updates
+description: Keep AX Code App up to date on desktop, web, and VS Code.
+---
+
+# Updates
+
+How you update AX Code App depends on how you installed it. In every case you can check your current version at **Settings → AX Code App → About**.
+
+## Desktop app
+
+The desktop app checks for updates against GitHub releases. When one is available, AX Code App tells you, downloads it when you choose, and installs it on the next restart. You're always in control — nothing installs without your say-so.
+
+## Web / CLI
+
+If you installed the CLI, update it from **About** with the check and update buttons, or from the terminal:
+
+```bash
+openchamber update
+```
+
+AX Code App detects how it was installed (npm, pnpm, yarn, or bun) and runs the right update for you.
+
+## The AX Code server
+
+AX Code App and AX Code update separately. When a new AX Code version is available, AX Code App offers to update it and restarts the server afterward. See [AX Code Server](/ax-code-server/) for how that server is managed.
+
+## Related
+
+- [Install](/install/) — how each app is installed in the first place
+- [AX Code Server](/ax-code-server/) — updating the underlying server

@@ -1,0 +1,30 @@
+---
+title: Zdalne instancje
+description: Połącz aplikację na komputerze z AX Code App na innej maszynie przez SSH.
+---
+
+# Zdalne instancje
+
+Aplikacja na komputerze może połączyć się z AX Code App działającym na innej maszynie przez SSH — serwer służbowy, maszyna w chmurze, homelab — i przenieść jego UI na Twój ekran, jakby był lokalny. Skonfiguruj to w **Settings → Remote Instances**.
+
+> Zdalne instancje to funkcja **tylko na komputerze**. W wersji webowej lub w VS Code połącz się ze zdalnym serwerem za pomocą zmiennych środowiskowych z [AX Code Server](/pl/ax-code-server/).
+
+## Dodaj zdalną instancję
+
+1. Otwórz **Settings → Remote Instances** i dodaj jedną.
+2. Podaj polecenie SSH, którego normalnie używasz, by dotrzeć do maszyny, oraz przydomek.
+3. Wybierz, jak AX Code App tam działa:
+   - **managed** — AX Code App instaluje i uruchamia się sam na zdalnej maszynie
+   - **external** — połącz się z tym, który już działa
+4. Połącz.
+
+AX Code App przeprowadza przez kolejne kroki — sprawdzenie połączenia, skonfigurowanie zdalnej maszyny, uruchomienie serwera i przekazanie portu — i pokazuje, na jakim etapie się znajduje. Gdy osiągnie stan **ready**, zdalne UI ładuje się lokalnie.
+
+## Poświadczenia
+
+Sam decydujesz, czy zapisać hasła SSH i UI, czy wpisywać je za każdym razem. Jeśli połączenie zostanie zerwane, AX Code App zgłasza, który krok zawiódł, byś mógł to naprawić — zobacz [Dostęp zdalny](/pl/troubleshooting/remote-access/).
+
+## Powiązane
+
+- [AX Code Server](/pl/ax-code-server/) — połącz się ze zdalnym serwerem w wersji webowej lub VS Code
+- [Dostęp zdalny](/pl/troubleshooting/remote-access/) — gdy połączenie nie chce się nawiązać

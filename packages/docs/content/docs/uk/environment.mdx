@@ -1,0 +1,134 @@
+---
+title: Змінні середовища
+description: Налаштуйте інтеграцію AX Code App і AX Code через змінні середовища.
+---
+
+# Змінні середовища
+
+AX Code App читає ці змінні під час запуску. Для startup-сервісів `openchamber startup enable` типово зберігає snapshot поточного середовища, тому після змін перезапустіть цю команду.
+
+## Сервер AX Code App
+
+### `OPENCHAMBER_HOST`
+
+Адреса, на якій слухає web-сервер AX Code App. Використовуйте `0.0.0.0`, щоб відкрити доступ з інших машин.
+
+### `OPENCHAMBER_UI_PASSWORD`
+
+Пароль для browser UI. Використовуйте його для доступу не лише з localhost, тунелів або reverse proxy.
+
+### `OPENCHAMBER_DATA_DIR`
+
+Перевизначає директорію даних AX Code App. Типово це `~/.config/openchamber`.
+
+### `OPENCHAMBER_COMPRESS_API`
+
+Керує стисненням API-відповідей. `true` або `1` вмикає, `false` або `0` вимикає.
+
+### `OPENCHAMBER_SKIP_API_COMPRESSION`
+
+Вимикає стиснення API-відповідей, якщо встановлено `true` або `1`. Має пріоритет над `OPENCHAMBER_COMPRESS_API`.
+
+### `OPENCHAMBER_VERBOSE_REQUEST_LOGS`
+
+Вмикає детальні HTTP request logs, якщо встановлено `true` або `1`.
+
+### `OPENCHAMBER_UPDATE_API_URL`
+
+Перевизначає endpoint для перевірки оновлень. Більшості користувачів це не потрібно.
+
+### `OPENCHAMBER_PACKAGE_MANAGER`
+
+Примусово задає package manager для оновлень, якщо auto-detection помилився.
+
+## Сервер AX Code
+
+### `AX_CODE_HOST`
+
+Підключає AX Code App до вже запущеного AX Code server. Значення має бути `http` або `https` origin з явним портом і без path, query або hash. `AX_CODE_HOST` має пріоритет над `AX_CODE_PORT`.
+
+### `AX_CODE_PORT`
+
+Задає порт AX Code server. Для managed AX Code це бажаний порт; з `AX_CODE_SKIP_START=true` AX Code App підключається до зовнішнього сервера на цьому порту.
+
+### `AX_CODE_SKIP_START`
+
+Не дає AX Code App запускати власний AX Code server, якщо встановлено `true`.
+
+### `OPENCHAMBER_AX_CODE_HOSTNAME`
+
+Hostname для AX Code server, яким керує AX Code App. Типово `127.0.0.1`.
+
+### `AX_CODE_BINARY`
+
+Шлях до executable `ax-code`, який має запускати AX Code App.
+
+### `AX_CODE_CONFIG`
+
+Шлях до конкретного config-файлу AX Code.
+
+### `AX_CODE_CONFIG_DIR`
+
+Шлях до директорії config AX Code для agents, skills, snippets і config discovery.
+
+### `AX_CODE_DATA_DIR`
+
+Власна директорія даних для managed AX Code server.
+
+### `AX_CODE_WSL_DISTRO`
+
+Вибирає WSL distro для інтеграції AX Code на Windows.
+
+### `OPENCHAMBER_AX_CODE_WSL_DISTRO`
+
+AX Code App-specific alias для вибору WSL distro. `AX_CODE_WSL_DISTRO` має пріоритет, якщо задані обидві змінні.
+
+### `AX_CODE_JWT_SECRET`
+
+Secret для підпису UI auth tokens. Для постійних service deployments використовуйте довге випадкове значення.
+
+## Terminal і Git
+
+### `OPENCHAMBER_TERMINAL_SHELL`
+
+Shell executable для terminal sessions в AX Code App.
+
+### `OPENCHAMBER_GIT_BINARY`
+
+Git executable для Git-функцій AX Code App.
+
+### `GIT_BINARY`
+
+Альтернативний override для Git executable. Для AX Code App-specific налаштувань краще використовуйте `OPENCHAMBER_GIT_BINARY`.
+
+### `OPENCHAMBER_GIT_READ_CACHE_TTL_MS`
+
+TTL у мілісекундах для cached Git-backed file reads. Встановіть `0`, щоб вимкнути cache під час debugging.
+
+## Voice і tunnels
+
+### `OPENAI_API_KEY`
+
+API key для voice-функцій AX Code App, які викликають OpenAI-compatible services.
+
+### `OPENCHAMBER_ALLOW_REMOTE_OPENAI_COMPAT_URLS`
+
+Дозволяє remote OpenAI-compatible base URLs для voice-функцій, якщо встановлено `true` або `1`.
+
+### `NGROK_AUTHTOKEN`
+
+ngrok auth token для tunnel-команд AX Code App. Також можна налаштувати ngrok через `ngrok config add-authtoken <token>`.
+
+## Runtime helpers
+
+### `BUN_BINARY`
+
+Bun executable, який AX Code App має використовувати для запуску daemon processes.
+
+### `BUN_INSTALL`
+
+Корінь інсталяції Bun. AX Code App використовує його, щоб знайти `bin/bun` для daemon startup і updates.
+
+### `VITE_AX_CODE_URL`
+
+Build-time API base URL для Vite-built web app. Для звичайного CLI або desktop usage більшості користувачів це не потрібно.

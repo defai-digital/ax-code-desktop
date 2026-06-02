@@ -1,0 +1,686 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (skip publishing)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+
+permissions:
+  contents: write
+
+jobs:
+  preflight:
+    name: Test, type-check, lint, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: true
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Test
+        run: bun run test
+
+      - name: Type check
+        run: bun run type-check
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Build
+        run: bun run build
+
+  create-release:
+    needs: preflight
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      release_upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=0.0.0-dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract changelog for release
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const version = process.env.VERSION;
+          const changelogPath = 'CHANGELOG.md';
+          if (!fs.existsSync(changelogPath)) {
+            throw new Error('CHANGELOG.md not found; add it before releasing.');
+          }
+          const changelog = fs.readFileSync(changelogPath, 'utf8');
+          const sections = changelog.split(/^## /m);
+          const section = sections.find(s => s.startsWith('[' + version + ']'));
+          if (!section) {
+            throw new Error('Changelog section [' + version + '] not found. Add a section like "## [' + version + '] - YYYY-MM-DD".');
+          }
+          const content = ('## ' + section).trim();
+          fs.mkdirSync('artifacts', { recursive: true });
+          fs.writeFileSync('artifacts/release-notes.md', content + '\n');
+          NODE
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          draft: true
+          generate_release_notes: false
+          body_path: artifacts/release-notes.md
+          name: OpenChamber v${{ steps.get_version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-npm:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build packages
+        run: bun run build
+
+      - name: Create npm tarball
+        working-directory: packages/web
+        run: npm pack
+
+      - name: Upload npm tarball to release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: packages/web/*.tgz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to npm
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        working-directory: packages/web
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  build-desktop-electron-macos:
+    needs: create-release
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: arm64
+            platform: darwin-aarch64
+          - target: x86_64-apple-darwin
+            arch: x64
+            platform: darwin-x86_64
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Apple Certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/electron-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "$APPLE_CERTIFICATE" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      - name: Build Electron app
+        working-directory: packages/electron
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # rebuild-native.mjs reads this to target the right arch when
+          # cross-building (runner is arm64; x64 matrix needs the hint).
+          ELECTRON_BUILDER_ARCH: ${{ matrix.arch }}
+        run: |
+          bun run build:web-assets
+          bun run bundle:main
+          # npmRebuild=false in package.json, so electron-builder won't
+          # recompile native deps on its own — we must rebuild against the
+          # target Electron ABI before packaging, otherwise better-sqlite3/
+          # node-pty/bun-pty crash on require inside the packaged app.
+          bun run rebuild:native
+          bunx electron-builder --mac --${{ matrix.arch }} --publish=never
+
+      - name: Verify signature + entitlements + notarization
+        run: |
+          set -euo pipefail
+
+          APP_DIR="packages/electron/dist/mac"
+          [ -d "packages/electron/dist/mac-arm64" ] && APP_DIR="packages/electron/dist/mac-arm64"
+
+          APP_PATH=$(find "$APP_DIR" -maxdepth 2 -name "*.app" -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: .app not found under packages/electron/dist/mac*"
+            ls -la packages/electron/dist/
+            exit 1
+          fi
+
+          echo "Verifying $APP_PATH"
+          codesign -vv --deep --strict "$APP_PATH"
+
+          # Require hardened runtime
+          CS_INFO=$(codesign -dv --verbose=4 "$APP_PATH" 2>&1)
+          echo "$CS_INFO"
+          if ! echo "$CS_INFO" | grep -q "flags=.*runtime"; then
+            echo "Error: hardened runtime flag missing"
+            exit 1
+          fi
+
+          # Require notary ticket stapled
+          xcrun stapler validate "$APP_PATH"
+
+          ENTITLEMENTS=$(codesign -d --entitlements :- "$APP_PATH" 2>&1 || true)
+          if echo "$ENTITLEMENTS" | grep -q "com.apple.security.app-sandbox"; then
+            echo "Error: app sandbox entitlement is present"
+            exit 1
+          fi
+          for key in \
+            com.apple.security.cs.allow-jit \
+            com.apple.security.cs.allow-unsigned-executable-memory \
+            com.apple.security.cs.disable-library-validation
+          do
+            if ! echo "$ENTITLEMENTS" | grep -q "<key>$key</key>"; then
+              echo "Error: required entitlement missing: $key"
+              exit 1
+            fi
+          done
+
+      - name: Upload DMG / ZIP / blockmaps to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: |
+            packages/electron/dist/*.dmg
+            packages/electron/dist/*.zip
+            packages/electron/dist/*.blockmap
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Stage signed Electron app for Tauri updater repackage
+        run: |
+          set -euo pipefail
+
+          APP_DIR="packages/electron/dist/mac"
+          [ -d "packages/electron/dist/mac-arm64" ] && APP_DIR="packages/electron/dist/mac-arm64"
+
+          APP_PATH=$(find "$APP_DIR" -maxdepth 2 -name "*.app" -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: .app not found under packages/electron/dist/mac*"
+            ls -la packages/electron/dist/
+            exit 1
+          fi
+
+          rm -rf electron-app-artifact
+          mkdir -p electron-app-artifact
+          cp -R "$APP_PATH" electron-app-artifact/OpenChamber.app
+          tar -C electron-app-artifact -czf electron-app-${{ matrix.arch }}.tar.gz OpenChamber.app
+
+      - name: Upload signed Electron app for Tauri updater repackage
+        uses: actions/upload-artifact@v7
+        with:
+          name: electron-app-${{ matrix.arch }}
+          path: electron-app-${{ matrix.arch }}.tar.gz
+          retention-days: 1
+
+      - name: Upload per-arch latest-mac.yml for merge
+        uses: actions/upload-artifact@v7
+        with:
+          name: latest-yml-${{ matrix.target }}
+          path: packages/electron/dist/latest-mac.yml
+          retention-days: 1
+
+  build-desktop-electron-windows:
+    if: ${{ false }} # Windows artifact is disabled until the build is release-ready.
+    needs: create-release
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+            platform: win32-x64
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build web assets
+        working-directory: packages/electron
+        run: bun run build:web-assets
+
+      - name: Bundle main process
+        working-directory: packages/electron
+        run: bun run bundle:main
+
+      - name: Rebuild native modules
+        working-directory: packages/electron
+        shell: bash
+        # npmRebuild=false in package.json, so electron-builder won't
+        # recompile native deps on its own — we must rebuild against the
+        # target Electron ABI before packaging.
+        run: node ./scripts/rebuild-native.mjs
+
+      - name: Build Windows app
+        working-directory: packages/electron
+        shell: bash
+        run: node ./scripts/package.mjs --win --${{ matrix.arch }} --publish=never
+
+      - name: Upload installer to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: |
+            packages/electron/dist/*.exe
+            packages/electron/dist/*.blockmap
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload update manifest as artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: latest-yml-${{ matrix.target }}
+          path: packages/electron/dist/latest.yml
+          retention-days: 1
+
+  repackage-electron-as-tauri-update:
+    needs: [create-release, build-desktop-electron-macos]
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            platform: darwin-aarch64
+          - arch: x64
+            platform: darwin-x86_64
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Download signed Electron app
+        uses: actions/download-artifact@v4
+        with:
+          name: electron-app-${{ matrix.arch }}
+          path: staged
+
+      - name: Tar and sign Electron app as Tauri update payload
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [ -f staged/electron-app-${{ matrix.arch }}.tar.gz ]; then
+            tar -C staged -xzf staged/electron-app-${{ matrix.arch }}.tar.gz
+          elif [ ! -d staged/OpenChamber.app ] && [ -d staged/Contents ]; then
+            mkdir -p staged/OpenChamber.app
+            mv staged/Contents staged/OpenChamber.app/Contents
+          fi
+
+          if [ ! -d staged/OpenChamber.app ]; then
+            echo "Error: staged/OpenChamber.app not found"
+            ls -la staged
+            exit 1
+          fi
+
+          APP_EXECUTABLE=$(find staged/OpenChamber.app/Contents/MacOS -type f -maxdepth 1 -print -quit)
+          if [ -z "$APP_EXECUTABLE" ] || [ ! -x "$APP_EXECUTABLE" ]; then
+            echo "Error: Electron app executable is missing or not executable"
+            ls -la staged/OpenChamber.app/Contents/MacOS
+            exit 1
+          fi
+
+          cd staged
+          TARBALL="OpenChamber.app.tar.gz"
+          tar -czf "$TARBALL" OpenChamber.app
+
+          bun run --cwd ../packages/desktop tauri signer sign "$PWD/$TARBALL"
+
+          mv "$TARBALL" "OpenChamber-${VERSION}-${{ matrix.platform }}.app.tar.gz"
+          mv "${TARBALL}.sig" "OpenChamber-${VERSION}-${{ matrix.platform }}.app.tar.gz.sig"
+
+      - name: Generate Tauri latest platform manifest
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          SIG=$(cat staged/OpenChamber-${VERSION}-${{ matrix.platform }}.app.tar.gz.sig)
+          TAR="OpenChamber-${VERSION}-${{ matrix.platform }}.app.tar.gz"
+          jq -n \
+            --arg version "$VERSION" \
+            --arg notes "OpenChamber has moved to Electron. This update replaces the Tauri shell with the Electron build. Subsequent updates will be delivered via the Electron auto-updater." \
+            --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg platform "${{ matrix.platform }}" \
+            --arg signature "$SIG" \
+            --arg url "https://github.com/${REPO}/releases/download/v${VERSION}/${TAR}" \
+            '{ version: $version, notes: $notes, pub_date: $pub_date, platforms: { ($platform): { signature: $signature, url: $url } } }' \
+            > staged/latest-${{ matrix.platform }}.json
+
+      - name: Upload tarball and signature to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: |
+            staged/*.app.tar.gz
+            staged/*.app.tar.gz.sig
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload per-platform Tauri manifest for merge
+        uses: actions/upload-artifact@v7
+        with:
+          name: tauri-manifest-${{ matrix.platform }}
+          path: staged/latest-${{ matrix.platform }}.json
+          retention-days: 1
+
+  combine-manifests:
+    needs: [create-release, repackage-electron-as-tauri-update]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Tauri updater manifests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tauri-manifest-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Combine manifests
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ needs.create-release.outputs.version }}"
+          PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          if [ ! -f artifacts/latest-darwin-aarch64.json ]; then
+            echo "Error: aarch64 manifest not found"
+            exit 1
+          fi
+
+          if [ ! -f artifacts/latest-darwin-x86_64.json ]; then
+            echo "Error: x86_64 manifest not found"
+            exit 1
+          fi
+
+          if ! jq empty artifacts/latest-darwin-aarch64.json 2>/dev/null; then
+            echo "Error: aarch64 manifest is not valid JSON"
+            exit 1
+          fi
+
+          if ! jq empty artifacts/latest-darwin-x86_64.json 2>/dev/null; then
+            echo "Error: x86_64 manifest is not valid JSON"
+            exit 1
+          fi
+
+          if ! jq -e '.platforms["darwin-aarch64"]' artifacts/latest-darwin-aarch64.json > /dev/null; then
+            echo "Error: darwin-aarch64 platform data not found in manifest"
+            exit 1
+          fi
+
+          if ! jq -e '.platforms["darwin-x86_64"]' artifacts/latest-darwin-x86_64.json > /dev/null; then
+            echo "Error: darwin-x86_64 platform data not found in manifest"
+            exit 1
+          fi
+
+          jq -n \
+            --arg version "$VERSION" \
+            --arg notes "OpenChamber has moved to Electron. This update replaces the Tauri shell with the Electron build. Subsequent updates will be delivered via the Electron auto-updater." \
+            --arg pub_date "$PUB_DATE" \
+            --slurpfile aarch64 artifacts/latest-darwin-aarch64.json \
+            --slurpfile x86_64 artifacts/latest-darwin-x86_64.json \
+            '{
+              version: $version,
+              notes: $notes,
+              pub_date: $pub_date,
+              platforms: {
+                "darwin-aarch64": $aarch64[0].platforms["darwin-aarch64"],
+                "darwin-x86_64": $x86_64[0].platforms["darwin-x86_64"]
+              }
+            }' > artifacts/latest.json
+
+          cat artifacts/latest.json
+
+      - name: Upload combined Tauri updater manifest
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: artifacts/latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  combine-electron-manifests:
+    needs: [create-release, build-desktop-electron-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Download per-arch latest-mac.yml
+        uses: actions/download-artifact@v4
+        with:
+          pattern: latest-yml-*-apple-darwin
+          path: artifacts
+
+      - name: Finalize combined latest-mac.yml
+        env:
+          LATEST_YML_DIR: ${{ github.workspace }}/artifacts
+          GH_REPO: ${{ github.repository }}
+          OPENCHAMBER_VERSION: ${{ needs.create-release.outputs.version }}
+        run: node packages/electron/scripts/finalize-latest-yml.mjs
+
+      - name: Upload combined manifests to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: |
+            ${{ runner.temp }}/latest-mac.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  finalize-release:
+    needs: [create-release, build-desktop-electron-macos, repackage-electron-as-tauri-update, publish-npm, combine-manifests, combine-electron-manifests]
+    runs-on: ubuntu-latest
+    env:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      DISCORD_UPDATE_ROLE_ID: ${{ secrets.DISCORD_UPDATE_ROLE_ID }}
+    steps:
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Send release to Discord
+        if: ${{ env.DISCORD_WEBHOOK_URL != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+          UPDATE_ROLE_ID: ${{ env.DISCORD_UPDATE_ROLE_ID }}
+        run: |
+          node - <<'NODE'
+          (async () => {
+            const tag = `v${process.env.VERSION}`;
+            const repo = process.env.REPOSITORY;
+            const rawRoleId = (process.env.UPDATE_ROLE_ID || '').trim();
+            const updateRoleId = /^\d+$/.test(rawRoleId) ? rawRoleId : '';
+
+            const releaseRes = await fetch(`https://api.github.com/repos/${repo}/releases/tags/${tag}`, {
+              headers: {
+                Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+                Accept: 'application/vnd.github+json',
+              },
+            });
+
+            if (!releaseRes.ok) {
+              const body = await releaseRes.text();
+              throw new Error(`Failed to fetch release ${tag}: ${releaseRes.status} ${body}`);
+            }
+
+            const release = await releaseRes.json();
+            const description = (release.body || `OpenChamber ${tag} released.`).slice(0, 4096);
+            const mention = updateRoleId ? `<@&${updateRoleId}>` : '';
+
+            const payload = {
+              username: 'OpenChamber Releases',
+              ...(mention ? { content: mention } : {}),
+              ...(updateRoleId
+                ? {
+                    allowed_mentions: {
+                      roles: [updateRoleId],
+                    },
+                  }
+                : {}),
+              embeds: [
+                {
+                  title: release.name || `OpenChamber ${tag}`,
+                  url: release.html_url,
+                  description,
+                  color: 2105893,
+                  footer: { text: 'OpenChamber Changelog' },
+                },
+              ],
+            };
+
+            const discordRes = await fetch(process.env.DISCORD_WEBHOOK_URL, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+
+            if (!discordRes.ok) {
+              const body = await discordRes.text();
+              throw new Error(`Failed to send Discord release: ${discordRes.status} ${body}`);
+            }
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Trigger openchamber-website site refresh (optional)
+        env:
+          WEBSITE_REPO: openchamber/openchamber-website
+          WEBSITE_TOKEN: ${{ secrets.OPENCHAMBER_WEBSITE_REPO_TOKEN }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          if [ -z "$WEBSITE_TOKEN" ]; then
+            echo "OPENCHAMBER_WEBSITE_REPO_TOKEN not set; skip site refresh dispatch."
+            exit 0
+          fi
+
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $WEBSITE_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/$WEBSITE_REPO/dispatches \
+            -d @- <<JSON
+          {
+            "event_type": "site_refresh_requested",
+            "client_payload": {
+              "source_repo": "${{ github.repository }}",
+              "release_tag": "v$VERSION"
+            }
+          }
+          JSON

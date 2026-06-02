@@ -1,0 +1,33 @@
+---
+title: Встановлення
+description: Встановіть AX Code App для десктопа, вебу або VS Code.
+---
+
+# Встановлення
+
+Є три способи запустити AX Code App:
+
+- десктоп-застосунок для macOS
+- вебзастосунок на базі CLI, який можна встановити як застосунок на телефоні (PWA)
+- розширення для VS Code
+
+## Передумова
+
+Спершу встановіть [AX Code](https://ax-code.ai) — AX Code App працює поверх нього.
+
+## Веб + PWA
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
+openchamber --ui-password be-creative-here
+```
+
+Відкрийте URL, який вивів CLI (зазвичай `http://localhost:3000`). Ви маєте побачити список сесій AX Code App. Щоб він був під рукою, скористайтеся опцією «Install» в адресному рядку браузера й додайте його як застосунок.
+
+## Десктоп
+
+Завантажте найновішу десктопну збірку зі сторінки релізів на GitHub або зі сторінки завантаження AX Code App. Відкрийте її та увійдіть у свій звичний робочий процес AX Code.
+
+## VS Code
+
+Встановіть із VS Code Marketplace і увійдіть у свій звичний робочий процес AX Code. Після цього вікно AX Code App відкриється на бічній панелі.

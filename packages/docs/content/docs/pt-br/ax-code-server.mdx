@@ -1,0 +1,81 @@
+---
+title: AX Code Server
+description: Conecte o AX Code App a um servidor AX Code local ou remoto.
+---
+
+# AX Code Server
+
+O AX Code App roda sobre um servidor AX Code. Por padrão, ele inicia um para você, então não precisa fazer nada. Você só precisa desta página se quiser apontar o AX Code App para um servidor que já executa, ou gerenciar o que ele inicia.
+
+## Como o AX Code App encontra um servidor
+
+Quando o AX Code App inicia, ele procura por um servidor nesta ordem:
+
+1. reutilizar um servidor que ele já iniciou
+2. conectar a um servidor externo, se você indicou (veja abaixo)
+3. detectar automaticamente um servidor na porta padrão (`4096`)
+4. caso contrário, iniciar e gerenciar o seu próprio
+
+Se nada estiver configurado, o passo 4 acontece automaticamente e você já está pronto para usar.
+
+## Conectar a um servidor que você já executa
+
+Defina estas variáveis antes de iniciar o AX Code App:
+
+```bash
+AX_CODE_HOST=http://localhost:4096 AX_CODE_SKIP_START=true ax-code-openchamber
+```
+
+- `AX_CODE_HOST` — o endereço completo do seu servidor AX Code, incluindo a porta (um valor como `http://localhost:4096`). Ele não deve ter um caminho no final.
+- `AX_CODE_SKIP_START=true` — diz ao AX Code App para não iniciar o próprio servidor.
+
+Se você só precisa mudar a porta, defina `AX_CODE_PORT` em vez de `AX_CODE_HOST`.
+
+Se faltar a porta em `AX_CODE_HOST` ou se ele tiver um caminho, o AX Code App o ignora e volta a iniciar o próprio servidor. Fique de olho nos logs de inicialização para um aviso `[config]` caso uma conexão esperada não aconteça.
+
+## Gerenciar o servidor pela CLI
+
+```bash
+openchamber status
+openchamber logs
+openchamber restart
+openchamber stop
+```
+
+`openchamber` sozinho inicia o servidor em segundo plano. Adicione `--foreground` para mantê-lo anexado ao seu terminal.
+
+## Iniciar o AX Code App no login
+
+Use `startup enable` para instalar um serviço nativo do usuário. O AX Code App usa `launchd` no macOS, `systemd --user` no Linux e Task Scheduler no Windows.
+
+```bash
+openchamber startup enable
+openchamber startup status
+openchamber startup disable
+```
+
+Para proteger a UI, defina a senha ao habilitar o serviço:
+
+```bash
+OPENCHAMBER_UI_PASSWORD='secret' openchamber startup enable
+```
+
+`startup enable` salva um snapshot do ambiente atual no serviço para que a inicialização se pareça mais com executar `openchamber` na mesma shell. Isso preserva tokens de provedores, `PATH`, configurações do agente SSH e outras variáveis CLI de auth/config. Use `--no-env-snapshot` se quiser um ambiente de serviço mínimo.
+
+Você ainda pode gerenciar túneis de forma independente para esse serviço em execução:
+
+```bash
+openchamber tunnel start --port 3000
+openchamber tunnel stop --port 3000
+```
+
+Parar o túnel não reinicia o serviço nem o app.
+
+## "AX Code is restarting"
+
+Enquanto o servidor está iniciando ou reiniciando, o AX Code App mostra um estado "AX Code is restarting" e pausa as requisições até ele estar pronto. Isso é normal logo após a inicialização ou um reinício. Se nunca sair desse estado, veja [Conexão com o AX Code](/pt-br/troubleshooting/ax-code-connection/).
+
+## Relacionado
+
+- [Provedores, Modelos e Agentes](/pt-br/providers/) — configure com o que o servidor conversa
+- [Conexão com o AX Code](/pt-br/troubleshooting/ax-code-connection/) — se ele não conectar

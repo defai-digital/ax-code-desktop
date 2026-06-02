@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AX Code App</title>
+    <style>
+      :root {
+        --splash-background-dark: #151313;
+        --splash-stroke-dark: #CECDC3;
+        --splash-background-light: #FFFCF0;
+        --splash-stroke-light: #100F0F;
+
+        --splash-background: var(--splash-background-dark);
+        --splash-stroke: var(--splash-stroke-dark);
+        --splash-face-fill: rgba(255, 255, 255, 0.15);
+        --splash-cell-fill: rgba(255, 255, 255, 0.35);
+        --splash-logo-fill: var(--splash-stroke);
+      }
+
+      html[data-splash-variant='light'] {
+        --splash-background: var(--splash-background-light);
+        --splash-stroke: var(--splash-stroke-light);
+        --splash-face-fill: rgba(0, 0, 0, 0.15);
+        --splash-cell-fill: rgba(0, 0, 0, 0.4);
+      }
+
+      html[data-splash-variant='dark'] {
+        --splash-background: var(--splash-background-dark);
+        --splash-stroke: var(--splash-stroke-dark);
+      }
+
+      @supports (color: color-mix(in srgb, white 50%, transparent)) {
+        :root {
+          --splash-face-fill: color-mix(in srgb, var(--splash-stroke) 15%, transparent);
+          --splash-cell-fill: color-mix(in srgb, var(--splash-stroke) 35%, transparent);
+        }
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --splash-background: var(--splash-background-light);
+          --splash-stroke: var(--splash-stroke-light);
+          --splash-face-fill: rgba(0, 0, 0, 0.15);
+          --splash-cell-fill: rgba(0, 0, 0, 0.4);
+        }
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+
+      body {
+        background-color: var(--splash-background);
+        color: var(--splash-stroke);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+
+    </style>
+  </head>
+  <body>
+    <noscript>AX Code App requires JavaScript.</noscript>
+    <img src="/logo.png" alt="AX Code" width="120" height="120" draggable="false" style="object-fit: contain;" />
+  </body>
+</html>
