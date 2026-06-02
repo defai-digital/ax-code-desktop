@@ -4,7 +4,7 @@
 
 If you discover a security vulnerability in AX Code App, please report it responsibly.
 
-**Email:** [artmore@protonmail.com](mailto:artmore@protonmail.com)
+**Email:** [automatox@defai.digital](mailto:automatox@defai.digital)
 
 Please include:
 - Description of the vulnerability

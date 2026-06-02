@@ -66,6 +66,7 @@ workspaces/
 
 # Private / internal — not for public repo
 .internal/
+.ax-code/
 AGENTS.md
 CLAUDE.md
 logo/
