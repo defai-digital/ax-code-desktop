@@ -8,6 +8,7 @@ pnpm-debug.log*
 node_modules
 dist
 dist-ssr
+!vendor/ax-code-sdk/dist/
 release
 
 # changelog-card tool: cached webfonts + generated cards
