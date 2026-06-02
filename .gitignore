@@ -37,6 +37,7 @@ docs/personal/*
 
 # Build outputs
 build/
+!packages/electron/build/
 .gradle/
 .*.bun-build
 

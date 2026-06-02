@@ -107,7 +107,7 @@ jobs:
           draft: true
           generate_release_notes: false
           body_path: artifacts/release-notes.md
-          name: OpenChamber v${{ steps.get_version.outputs.version }}
+          name: AX Code App v${{ steps.get_version.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -309,7 +309,6 @@ jobs:
           retention-days: 1
 
   build-desktop-electron-windows:
-    if: ${{ false }} # Windows artifact is disabled until the build is release-ready.
     needs: create-release
     runs-on: windows-latest
     strategy:
@@ -344,10 +343,20 @@ jobs:
       - name: Rebuild native modules
         working-directory: packages/electron
         shell: bash
-        # npmRebuild=false in package.json, so electron-builder won't
-        # recompile native deps on its own — we must rebuild against the
-        # target Electron ABI before packaging.
+        # npmRebuild=false in electron-builder.yml, so we rebuild manually here
+        # to target the exact Electron ABI before packaging.
         run: node ./scripts/rebuild-native.mjs
+
+      - name: Decode and stage Windows code-signing certificate
+        if: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+        shell: bash
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$WINDOWS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          echo "WINDOWS_CERTIFICATE_FILE=$RUNNER_TEMP/certificate.p12" >> "$GITHUB_ENV"
+          echo "WINDOWS_CERTIFICATE_PASSWORD=$WINDOWS_CERTIFICATE_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Build Windows app
         working-directory: packages/electron
@@ -361,6 +370,7 @@ jobs:
           files: |
             packages/electron/dist/*.exe
             packages/electron/dist/*.blockmap
+            packages/electron/dist/latest.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -578,7 +588,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   finalize-release:
-    needs: [create-release, build-desktop-electron-macos, repackage-electron-as-tauri-update, publish-npm, combine-manifests, combine-electron-manifests]
+    needs: [create-release, build-desktop-electron-macos, build-desktop-electron-windows, repackage-electron-as-tauri-update, publish-npm, combine-manifests, combine-electron-manifests]
     runs-on: ubuntu-latest
     env:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

@@ -1,0 +1,71 @@
+appId: ai.defai.ax-code-app
+productName: AX Code App
+copyright: Copyright © 2025-2026 DEFAI Private Limited
+
+# We rebuild native modules manually via rebuild:native before packaging.
+npmRebuild: false
+
+directories:
+  buildResources: build
+  output: dist
+
+# Files packaged into app.asar
+files:
+  - dist/**/*
+  - "!dist/*.map"
+
+# Web assets sit outside the asar so the Express server can serve them as
+# plain files at runtime (asar cannot exec native code and express.static
+# does not support asar paths).
+extraResources:
+  - from: resources/web-dist
+    to: web-dist
+
+# Unpack native .node files — they cannot be required() from inside an asar.
+asarUnpack:
+  - "node_modules/better-sqlite3/**"
+  - "node_modules/node-pty/**"
+
+# ── macOS ──────────────────────────────────────────────────────────────────
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  icon: build/icon.icns
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  notarize:
+    teamId: ${APPLE_TEAM_ID}
+
+dmg:
+  sign: false
+
+# ── Windows ────────────────────────────────────────────────────────────────
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  # Code signing — only applied when the cert env vars are present.
+  # Set via CI secrets: WINDOWS_CERTIFICATE_FILE, WINDOWS_CERTIFICATE_PASSWORD
+  certificateFile: ${WINDOWS_CERTIFICATE_FILE}
+  certificatePassword: ${WINDOWS_CERTIFICATE_PASSWORD}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  menuCategory: DeFAI Digital
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+
+# ── Auto-update ────────────────────────────────────────────────────────────
+publish:
+  provider: github
+  owner: defai-digital
+  repo: ax-code-app

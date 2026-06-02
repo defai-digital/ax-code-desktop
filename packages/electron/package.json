@@ -1,0 +1,31 @@
+{
+  "name": "@ax-code/electron",
+  "version": "0.5.0",
+  "private": true,
+  "description": "AX Code App — Electron desktop shell",
+  "main": "dist/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "build:web-assets": "bun run --cwd ../web build && node scripts/copy-web-assets.mjs",
+    "bundle:main": "node scripts/bundle-main.mjs",
+    "rebuild:native": "node scripts/rebuild-native.mjs",
+    "build": "bun run build:web-assets && bun run bundle:main && bun run rebuild:native",
+    "type-check": "bun -e \"process.exit(0)\"",
+    "lint": "bun -e \"process.exit(0)\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "electron-updater": "^6.3.9",
+    "node-pty": "1.2.0-beta.12"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.2"
+  },
+  "build": {
+    "extends": null,
+    "config": "electron-builder.yml"
+  }
+}

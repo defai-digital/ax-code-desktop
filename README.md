@@ -11,7 +11,7 @@ AX Code App is a fork of the open-source [OpenChamber](https://github.com/opench
 | | AX Code App | OpenChamber |
 |---|---|---|
 | **Target CLI** | [AX Code](https://ax-code.ai) | Claude Code |
-| **Branding** | AX Code App / DEFAI | OpenChamber |
+| **Branding** | AX Code App / DEFAI Private Limited | OpenChamber |
 | **CLI command** | `ax-code-app` | `openchamber` |
 | **Config dir** | `~/.config/ax-code-app/` | `~/.config/openchamber/` |
 | **Env vars** | `AX_CODE_*` | `OPENCHAMBER_*` |
@@ -26,7 +26,7 @@ AX Code App is a fork of the open-source [OpenChamber](https://github.com/opench
 
 ### Desktop (macOS)
 
-Download from [Releases](https://github.com/openchamber/openchamber/releases).
+Download from [Releases](https://github.com/defai-digital/ax-code-app/releases).
 
 ### VS Code Extension
 
@@ -35,7 +35,7 @@ Search **AX Code App** in the Extensions panel.
 ### Web / PWA
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/defai-digital/ax-code-app/main/scripts/install.sh | bash
 ax-code-app --ui-password your-password
 ```
 

@@ -3,8 +3,8 @@
 ## Getting Started
 
 ```bash
-git clone https://github.com/openchamber/openchamber.git
-cd openchamber
+git clone https://github.com/defai-digital/ax-code-app.git
+cd ax-code-app
 bun install
 ```
 
@@ -89,4 +89,4 @@ You can still help:
 
 ## Questions?
 
-Open an [issue](https://github.com/openchamber/openchamber/issues) or ask in [Discord](https://discord.gg/ZYRSdnwwKA).
+Open an [issue](https://github.com/defai-digital/ax-code-app/issues) or visit [defai.digital](https://defai.digital).
