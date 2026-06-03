@@ -38,7 +38,8 @@ const shared = {
   sourcemap: false,
 }
 
-// Main process + preload (CJS, referenced by electron's "main" field)
+// Main process + preload (CJS, referenced by electron's "main" field).
+// server.js is built separately below, so exclude it from this bundle.
 await build({
   ...shared,
   entryPoints: [
@@ -46,6 +47,7 @@ await build({
     path.join(__dirname, '../src/preload.js'),
   ],
   outdir: outDir,
+  external: [...nativeExternals, './server.js'],
 })
 
 // Server bundle — the entire Express server inlined into a single CJS file.
