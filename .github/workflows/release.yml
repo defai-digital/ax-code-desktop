@@ -13,7 +13,7 @@ on:
       dry_run:
         description: 'Dry run (skip publishing)'
         required: false
-        default: false
+        default: 'false'
         type: boolean
 
 env:
@@ -324,6 +324,8 @@ jobs:
           - arch: x64
             target: x86_64-pc-windows-msvc
             platform: win32-x64
+    env:
+      HAS_WINDOWS_CERT: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -356,7 +358,7 @@ jobs:
         run: node ./scripts/rebuild-native.mjs
 
       - name: Decode and stage Windows code-signing certificate
-        if: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+        if: ${{ env.HAS_WINDOWS_CERT == 'true' }}
         shell: bash
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
