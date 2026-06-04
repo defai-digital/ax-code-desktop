@@ -127,6 +127,55 @@ describe('extractChangedFiles', () => {
     ]);
   });
 
+  test('derives metadata file stats from per-file patches when counts are absent', () => {
+    const files = extractChangedFiles([
+      toolPart({
+        id: 'tool-a',
+        metadata: {
+          files: [
+            {
+              relativePath: 'src/patched.ts',
+              patch: [
+                '--- a/src/patched.ts',
+                '+++ b/src/patched.ts',
+                '@@',
+                '-old',
+                '+new',
+                '+another',
+              ].join('\n'),
+            },
+          ],
+        },
+      }),
+      toolPart({
+        id: 'tool-b',
+        tool: 'multiedit',
+        metadata: {
+          results: [
+            {
+              filediff: {
+                file: 'src/result.ts',
+                patch: [
+                  '--- a/src/result.ts',
+                  '+++ b/src/result.ts',
+                  '@@',
+                  '-removed',
+                  '+added',
+                ].join('\n'),
+              },
+            },
+          ],
+        },
+      }),
+    ]);
+
+    expect(files.map((file) => file.path)).toEqual(['src/patched.ts', 'src/result.ts']);
+    expect(files.map(getFileStats)).toEqual([
+      { additions: 2, deletions: 1 },
+      { additions: 1, deletions: 1 },
+    ]);
+  });
+
   test('falls back to input paths and patch stats', () => {
     const files = extractChangedFiles([
       toolPart({

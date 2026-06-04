@@ -41,6 +41,20 @@ const parsePatchStats = (patch: string): { added: number; removed: number } => {
     return { added, removed };
 };
 
+const parseFileStats = (record: { additions?: unknown; deletions?: unknown; patch?: unknown }): {
+    additions?: number;
+    deletions?: number;
+    patch?: string;
+} => {
+    const patch = typeof record.patch === 'string' ? record.patch : undefined;
+    const patchStats = patch ? parsePatchStats(patch) : undefined;
+    return {
+        additions: parseCount(record.additions) ?? patchStats?.added,
+        deletions: parseCount(record.deletions) ?? patchStats?.removed,
+        patch,
+    };
+};
+
 export const extractChangedFiles = (parts: ToolPart[]): ChangedFile[] => {
     const files: ChangedFile[] = [];
     const seen = new Set<string>();
@@ -62,14 +76,15 @@ export const extractChangedFiles = (parts: ToolPart[]): ChangedFile[] => {
             const rawPath = record.relativePath || record.filePath || '';
             if (!rawPath || seen.has(rawPath)) continue;
             seen.add(rawPath);
+            const stats = parseFileStats(record);
             files.push({
                 path: rawPath,
                 tool: part.tool,
                 partId: part.id,
                 messageID: part.messageID,
-                additions: parseCount(record.additions) ?? undefined,
-                deletions: parseCount(record.deletions) ?? undefined,
-                patch: typeof record.patch === 'string' ? record.patch : undefined,
+                additions: stats.additions,
+                deletions: stats.deletions,
+                patch: stats.patch,
             });
         }
 
@@ -78,14 +93,15 @@ export const extractChangedFiles = (parts: ToolPart[]): ChangedFile[] => {
             const rawPath = typeof fd.file === 'string' ? fd.file : '';
             if (rawPath && !seen.has(rawPath)) {
                 seen.add(rawPath);
+                const stats = parseFileStats(fd);
                 files.push({
                     path: rawPath,
                     tool: part.tool,
                     partId: part.id,
                     messageID: part.messageID,
-                    additions: parseCount(fd.additions) ?? undefined,
-                    deletions: parseCount(fd.deletions) ?? undefined,
-                    patch: typeof fd.patch === 'string' ? fd.patch : undefined,
+                    additions: stats.additions,
+                    deletions: stats.deletions,
+                    patch: stats.patch,
                 });
             }
         }
@@ -98,14 +114,15 @@ export const extractChangedFiles = (parts: ToolPart[]): ChangedFile[] => {
                 const rawPath = typeof fd.file === 'string' ? fd.file : '';
                 if (!rawPath || seen.has(rawPath)) continue;
                 seen.add(rawPath);
+                const stats = parseFileStats(fd);
                 files.push({
                     path: rawPath,
                     tool: part.tool,
                     partId: part.id,
                     messageID: part.messageID,
-                    additions: parseCount(fd.additions) ?? undefined,
-                    deletions: parseCount(fd.deletions) ?? undefined,
-                    patch: typeof fd.patch === 'string' ? fd.patch : undefined,
+                    additions: stats.additions,
+                    deletions: stats.deletions,
+                    patch: stats.patch,
                 });
             }
         }
