@@ -7,6 +7,7 @@ import type { ShortcutCombo } from '@/lib/shortcuts';
 import type { DraftStarterRef } from '@/lib/draftStarters';
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, type MonoFontOption, type UiFontOption } from '@/lib/fontOptions';
 import { getStoredMobileKeyboardMode, type MobileKeyboardMode } from '@/lib/mobileKeyboardMode';
+import type { TimeFormatPreference } from '@/lib/timeFormat';
 
 export type MainTab = 'chat' | 'plan' | 'git' | 'diff' | 'terminal' | 'files' | 'context';
 export type RightSidebarTab = 'git' | 'files' | 'context';
@@ -16,7 +17,7 @@ export type UserMessageRenderingMode = 'markdown' | 'plain';
 export type ChatRenderMode = 'sorted' | 'live';
 export type ActivityRenderMode = 'collapsed' | 'summary';
 export type SessionRetentionAction = 'archive' | 'delete';
-export type TimeFormatPreference = 'auto' | '12h' | '24h';
+export type { TimeFormatPreference } from '@/lib/timeFormat';
 export type WeekStartPreference = 'auto' | 'sunday' | 'monday';
 
 type ContextPanelTab = {
@@ -600,6 +601,7 @@ interface UIStore {
   showToolFileIcons: boolean;
   showExpandedBashTools: boolean;
   showExpandedEditTools: boolean;
+  showTurnChangedFiles: boolean;
   timeFormatPreference: TimeFormatPreference;
   weekStartPreference: WeekStartPreference;
   mermaidRenderingMode: MermaidRenderingMode;
@@ -734,6 +736,7 @@ interface UIStore {
   setShowToolFileIcons: (value: boolean) => void;
   setShowExpandedBashTools: (value: boolean) => void;
   setShowExpandedEditTools: (value: boolean) => void;
+  setShowTurnChangedFiles: (value: boolean) => void;
   setTimeFormatPreference: (value: TimeFormatPreference) => void;
   setWeekStartPreference: (value: WeekStartPreference) => void;
   setMermaidRenderingMode: (value: MermaidRenderingMode) => void;
@@ -865,6 +868,7 @@ export const useUIStore = create<UIStore>()(
         showToolFileIcons: true,
         showExpandedBashTools: false,
         showExpandedEditTools: false,
+        showTurnChangedFiles: true,
         timeFormatPreference: 'auto',
         weekStartPreference: 'auto',
         mermaidRenderingMode: 'svg',
@@ -1923,6 +1927,9 @@ export const useUIStore = create<UIStore>()(
         setShowExpandedEditTools: (value) => {
           set({ showExpandedEditTools: value });
         },
+        setShowTurnChangedFiles: (value) => {
+          set({ showTurnChangedFiles: value });
+        },
 
         setTimeFormatPreference: (value) => {
           set({ timeFormatPreference: value });
@@ -2154,6 +2161,7 @@ export const useUIStore = create<UIStore>()(
           showToolFileIcons: state.showToolFileIcons,
           showExpandedBashTools: state.showExpandedBashTools,
           showExpandedEditTools: state.showExpandedEditTools,
+          showTurnChangedFiles: state.showTurnChangedFiles,
           timeFormatPreference: state.timeFormatPreference,
           weekStartPreference: state.weekStartPreference,
           mermaidRenderingMode: state.mermaidRenderingMode,

@@ -359,12 +359,13 @@ const UserMessageBody = React.memo(({ messageId, parts, isMobile, alwaysShowActi
 }) => {
     const { t } = useI18n();
     const chatSurfaceMode = useChatSurfaceMode();
+    const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
     const [copyHintVisible, setCopyHintVisible] = React.useState(false);
     const copyHintTimeoutRef = React.useRef<number | null>(null);
 
     const formattedUserTimestamp = React.useMemo(
-        () => (typeof messageCreatedAt === 'number' && messageCreatedAt > 0 ? formatTimestampForDisplay(messageCreatedAt) : null),
-        [messageCreatedAt]
+        () => (typeof messageCreatedAt === 'number' && messageCreatedAt > 0 ? formatTimestampForDisplay(messageCreatedAt, timeFormatPreference) : null),
+        [messageCreatedAt, timeFormatPreference]
     );
 
     const userContentParts = React.useMemo(() => {
@@ -1043,6 +1044,7 @@ const AssistantMessageBody = React.memo(({
     const [isPlanDialogOpen, setIsPlanDialogOpen] = React.useState(false);
     const [isSavingPlan, setIsSavingPlan] = React.useState(false);
     const chatRenderMode = useUIStore((state) => state.chatRenderMode);
+    const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
     const collapsibleThinkingBlocks = useUIStore((state) => state.collapsibleThinkingBlocks);
     const groupReasoningBlocks = useUIStore((state) => state.groupReasoningBlocks);
     const showSplitAssistantMessageActions = useUIStore((state) => state.showSplitAssistantMessageActions);
@@ -1755,9 +1757,9 @@ const AssistantMessageBody = React.memo(({
             : (typeof messageCreatedAt === 'number' && messageCreatedAt > 0 ? messageCreatedAt : null);
         if (timestamp === null) return null;
 
-        const formatted = formatTimestampForDisplay(timestamp);
+        const formatted = formatTimestampForDisplay(timestamp, timeFormatPreference);
         return formatted.length > 0 ? formatted : null;
-    }, [messageCompletedAt, messageCreatedAt]);
+    }, [messageCompletedAt, messageCreatedAt, timeFormatPreference]);
 
     const footerTimestampClassName = 'text-sm text-muted-foreground/60 tabular-nums flex items-center gap-1';
     const canOpenMessagePreview = !isMiniChatSurface && !isMobile && !isVSCode;
@@ -1816,6 +1818,8 @@ const AssistantMessageBody = React.memo(({
                         type="button"
                         size="icon"
                         variant="ghost"
+                        disabled={!hasCopyableText}
+                        aria-label={t('chat.messageBody.actions.startNewSession')}
                         className="h-8 w-8 text-muted-foreground bg-transparent hover:text-foreground hover:!bg-transparent active:!bg-transparent focus-visible:!bg-transparent focus-visible:ring-2 focus-visible:ring-primary/50"
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={handleForkClick}
@@ -1832,6 +1836,8 @@ const AssistantMessageBody = React.memo(({
                             type="button"
                             size="icon"
                             variant="ghost"
+                            disabled={!hasCopyableText}
+                            aria-label={t('chat.messageBody.actions.startNewMultiRun')}
                             className="h-8 w-8 text-muted-foreground bg-transparent hover:text-foreground hover:!bg-transparent active:!bg-transparent focus-visible:!bg-transparent focus-visible:ring-2 focus-visible:ring-primary/50"
                             onPointerDown={(event) => event.stopPropagation()}
                             onClick={handleForkMultiRunClick}

@@ -102,6 +102,11 @@ function areSessionStatusesEqual(left: SessionStatus | undefined, right: Session
   return true
 }
 
+function areMessagesEqual(left: Message, right: Message): boolean {
+  if (left === right) return true
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
 // ---------------------------------------------------------------------------
 // Global events
 // ---------------------------------------------------------------------------
@@ -269,11 +274,7 @@ export function applyDirectoryEvent(
       if (result.found) {
         // Skip message replacement if unchanged — preserves reference, avoids re-render
         const existing = messages[result.index]
-        const unchanged = existing.role === info.role
-          && (existing as { finish?: unknown }).finish === (info as { finish?: unknown }).finish
-          && (existing.time as { completed?: number })?.completed === (info.time as { completed?: number })?.completed
-          && (existing as { title?: unknown }).title === (info as { title?: unknown }).title
-        if (unchanged) {
+        if (areMessagesEqual(existing, info)) {
           syncDebug.reducer.messageUpdatedUnchanged(info.sessionID, info.id, info.role, (info as { finish?: unknown }).finish, (info.time as { completed?: number })?.completed)
           return false
         }

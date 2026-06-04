@@ -16,18 +16,8 @@ import { getAllModelFamilies, getDisplayModelName, sortModelFamilies, groupModel
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icon } from "@/components/icon/Icon";
 import { useI18n } from '@/lib/i18n';
-
-const formatTime = (timestamp: number | null) => {
-  if (!timestamp) return '-';
-  try {
-    return new Date(timestamp).toLocaleTimeString(undefined, {
-      hour: 'numeric',
-      minute: '2-digit'
-    });
-  } catch {
-    return '-';
-  }
-};
+import { formatClockTime } from '@/lib/timeFormat';
+import { useUIStore } from '@/stores/useUIStore';
 
 interface ModelInfo {
   name: string;
@@ -36,6 +26,11 @@ interface ModelInfo {
 
 export const UsagePage: React.FC = () => {
   const { t } = useI18n();
+  const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
+  const formatTime = React.useCallback(
+    (timestamp: number | null) => formatClockTime(timestamp, timeFormatPreference),
+    [timeFormatPreference],
+  );
   const results = useQuotaStore((state) => state.results);
   const selectedProviderId = useQuotaStore((state) => state.selectedProviderId);
   const setSelectedProvider = useQuotaStore((state) => state.setSelectedProvider);

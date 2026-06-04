@@ -41,6 +41,7 @@ import { UsageProgressBar } from '@/components/sections/usage/UsageProgressBar';
 import { PaceIndicator } from '@/components/sections/usage/PaceIndicator';
 import { updateDesktopSettings } from '@/lib/persistence';
 import { eventMatchesShortcut, formatShortcutForDisplay, getEffectiveShortcutCombo } from '@/lib/shortcuts';
+import { formatClockTime } from '@/lib/timeFormat';
 import {
   getAllModelFamilies,
   getDisplayModelName,
@@ -379,6 +380,11 @@ const DesktopServicesMenu = React.memo(function DesktopServicesMenu({
   showPredValues,
 }: DesktopServicesMenuProps) {
   const { t } = useI18n();
+  const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
+  const formatTime = React.useCallback(
+    (timestamp: number | null) => formatClockTime(timestamp, timeFormatPreference),
+    [timeFormatPreference],
+  );
   return (
     <DropdownMenu
       open={isDesktopServicesOpen}
@@ -673,18 +679,6 @@ const formatCompactHeaderLabel = (value: string): string => {
   return trimmed.length > 12 ? `${trimmed.slice(0, 9).trimEnd()}...` : trimmed;
 };
 
-const formatTime = (timestamp: number | null) => {
-  if (!timestamp) return '-';
-  try {
-    return new Date(timestamp).toLocaleTimeString(undefined, {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  } catch {
-    return '-';
-  }
-};
-
 const normalize = (value: string): string => {
   if (!value) return '';
   const replaced = value.replace(/\\/g, '/');
@@ -785,6 +779,11 @@ export const Header: React.FC<HeaderProps> = ({
   const fetchAllQuotas = useQuotaStore((state) => state.fetchAllQuotas);
   const isQuotaLoading = useQuotaStore((state) => state.isLoading);
   const quotaLastUpdated = useQuotaStore((state) => state.lastUpdated);
+  const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
+  const formatTime = React.useCallback(
+    (timestamp: number | null) => formatClockTime(timestamp, timeFormatPreference),
+    [timeFormatPreference],
+  );
   const quotaDisplayMode = useQuotaStore((state) => state.displayMode);
   const showPredValues = useQuotaStore((state) => state.showPredValues);
   const dropdownProviderIds = useQuotaStore((state) => state.dropdownProviderIds);

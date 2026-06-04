@@ -55,6 +55,7 @@ import { useSelectionStore } from "./selection-store"
 import { useViewportStore } from "./viewport-store"
 import { useSessionWorktreeStore } from "./session-worktree-store"
 import { getAttachedSessionDirectory } from "./session-worktree-contract"
+import { resolveAssistantForkSendChoice } from "./assistant-fork"
 
 export type { AttachedFile }
 
@@ -1073,22 +1074,29 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       (sid) => get().worktreeMetadata.get(sid),
     )
 
+    const { currentProviderId, currentModelId, currentAgentName } = useConfigStore.getState()
+    const sourceChoice = sourceSessionId ? get().getLastUserChoice(sourceSessionId) : null
+    const lastUsedProvider = useSelectionStore.getState().lastUsedProvider
+    const sendChoice = resolveAssistantForkSendChoice(sourceChoice, {
+      providerID: currentProviderId,
+      modelID: currentModelId,
+      agent: currentAgentName,
+      lastUsedProvider,
+    })
+
+    if (!sendChoice) return
+
     const session = await get().createSession(undefined, directory ?? null, null)
     if (!session) return
 
-    const { currentProviderId, currentModelId, currentAgentName } = useConfigStore.getState()
-    const pID = currentProviderId || useSelectionStore.getState().lastUsedProvider?.providerID
-    const mID = currentModelId || useSelectionStore.getState().lastUsedProvider?.modelID
-
-    if (!pID || !mID) return
-
     await axCodeClient.sendMessage({
       id: session.id,
-      providerID: pID,
-      modelID: mID,
+      providerID: sendChoice.providerID,
+      modelID: sendChoice.modelID,
       text: assistantPlanText,
       prefaceText: EXECUTION_FORK_META_TEXT,
-      agent: currentAgentName ?? undefined,
+      agent: sendChoice.agent,
+      variant: sendChoice.variant,
     })
   },
 

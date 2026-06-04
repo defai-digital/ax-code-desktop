@@ -1557,6 +1557,8 @@ export const settingsDict = {
   "settings.openchamber.visual.field.showSplitAssistantMessageActionsTooltip": "Показує «Скопіювати відповідь», «Зберегти як зображення» та озвучення для текстових блоків асистента, які з’являються перед пізнішими викликами інструментів у тій самій відповіді.",
   "settings.openchamber.visual.field.showToolFileIconsAria": "Показати значки файлів інструментів",
   "settings.openchamber.visual.field.showToolFileIcons": "Показати значки файлів інструментів",
+  "settings.openchamber.visual.field.showTurnChangedFilesAria": "Показувати змінені файли в завершених ходах",
+  "settings.openchamber.visual.field.showTurnChangedFiles": "Показувати змінені файли в ходах",
   "settings.openchamber.visual.field.showMobileStatusBarAria": "Показати рядок стану мобільного пристрою",
   "settings.openchamber.visual.field.showMobileStatusBar": "Показати мобільний рядок стану",
   "settings.openchamber.visual.field.showDotfilesAria": "Показати dotfiles",

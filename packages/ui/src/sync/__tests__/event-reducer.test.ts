@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { Event, Part, PermissionRequest, QuestionRequest, SessionStatus } from "@ax-code/sdk/v2/client"
+import type { Event, Message, Part, PermissionRequest, QuestionRequest, Session, SessionStatus } from "@ax-code/sdk/v2/client"
 import { applyDirectoryEvent } from "../event-reducer"
 import { INITIAL_STATE, type State } from "../types"
 
@@ -38,6 +38,37 @@ function partUpdatedEvent(): Event {
       },
     },
   } as Event
+}
+
+function session(id: string, title: string): Session {
+  return {
+    id,
+    title,
+    time: { created: 1, updated: 1 },
+    version: "1",
+  } as Session
+}
+
+function assistantMessage(overrides: Partial<Message> = {}): Message {
+  return {
+    id: "msg_1",
+    sessionID: "ses_1",
+    role: "assistant",
+    parentID: "msg_user_1",
+    providerID: "anthropic",
+    modelID: "claude",
+    mode: "build",
+    agent: "coder",
+    path: { cwd: "/repo", root: "/repo" },
+    time: { created: 1, completed: 2 },
+    tokens: {
+      input: 1,
+      output: 2,
+      reasoning: 0,
+      cache: { read: 0, write: 0 },
+    },
+    ...overrides,
+  } as Message
 }
 
 describe("applyDirectoryEvent", () => {
@@ -86,6 +117,65 @@ describe("applyDirectoryEvent", () => {
 
     expect(draft.part.msg_1.map((item) => item.id)).toEqual(["prt_1"])
     expect(result).toBe(true)
+  })
+
+  test("updates existing session metadata such as generated title", () => {
+    const draft = state({
+      session: [session("ses_1", "New session")],
+      sessionTotal: 1,
+    })
+
+    const result = applyDirectoryEvent(draft, {
+      type: "session.updated",
+      properties: { info: session("ses_1", "Generated title") },
+    } as Event)
+
+    expect(result).toBe(true)
+    expect(draft.session).toHaveLength(1)
+    expect(draft.session[0].title).toBe("Generated title")
+    expect(draft.sessionTotal).toBe(1)
+  })
+
+  test("merges late assistant message metadata", () => {
+    const initial = assistantMessage()
+    const draft = state({
+      message: { ses_1: [initial] },
+    })
+    const next = assistantMessage({
+      tokens: {
+        total: 10,
+        input: 3,
+        output: 7,
+        reasoning: 1,
+        cache: { read: 2, write: 0 },
+      },
+      variant: "thinking",
+    })
+
+    const result = applyDirectoryEvent(draft, {
+      type: "message.updated",
+      properties: { info: next },
+    } as Event)
+
+    expect(result).toBe(true)
+    expect(draft.message.ses_1[0]).not.toBe(initial)
+    expect((draft.message.ses_1[0] as Extract<Message, { role: "assistant" }>).tokens.total).toBe(10)
+    expect((draft.message.ses_1[0] as Extract<Message, { role: "assistant" }>).variant).toBe("thinking")
+  })
+
+  test("preserves message reference for duplicate message updates", () => {
+    const initial = assistantMessage()
+    const draft = state({
+      message: { ses_1: [initial] },
+    })
+
+    const result = applyDirectoryEvent(draft, {
+      type: "message.updated",
+      properties: { info: assistantMessage() },
+    } as Event)
+
+    expect(result).toBe(false)
+    expect(draft.message.ses_1[0]).toBe(initial)
   })
 
   test("skips duplicate session status events", () => {

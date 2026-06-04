@@ -2,7 +2,6 @@ import React from 'react';
 import type { ToolPart } from '@ax-code/sdk/v2';
 import { Popover } from '@base-ui/react/popover';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
-import { useIsGitRepo } from '@/stores/useGitStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { RuntimeAPIContext } from '@/contexts/runtimeAPIContext';
 import {
@@ -28,12 +27,11 @@ export const TurnChangedFilesDropdown: React.FC<TurnChangedFilesDropdownProps> =
     const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
     const triggerButtonRef = React.useRef<HTMLButtonElement | null>(null);
     const currentDirectory = useDirectoryStore((s) => s.currentDirectory);
+    const showTurnChangedFiles = useUIStore((s) => s.showTurnChangedFiles);
     const runtime = React.useContext(RuntimeAPIContext);
-    const isGitRepo = useIsGitRepo(currentDirectory);
 
     const changedFiles = React.useMemo<ChangedFile[]>(() => {
-        // Skip work entirely in git repos — the global PendingChangesBar handles those.
-        if (isGitRepo !== false) return [];
+        if (!showTurnChangedFiles) return [];
         if (!activityParts || activityParts.length === 0) return [];
         const toolParts: ToolPart[] = [];
         for (const activity of activityParts) {
@@ -44,7 +42,7 @@ export const TurnChangedFilesDropdown: React.FC<TurnChangedFilesDropdownProps> =
         }
         if (toolParts.length === 0) return [];
         return extractChangedFiles(toolParts);
-    }, [activityParts, isGitRepo]);
+    }, [activityParts, showTurnChangedFiles]);
 
     if (changedFiles.length === 0) return null;
 

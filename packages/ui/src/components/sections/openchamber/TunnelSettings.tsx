@@ -10,8 +10,10 @@ import { Icon } from "@/components/icon/Icon";
 import { requestFileAccess, type ManagedRemoteTunnelPreset } from '@/lib/desktop';
 import { updateDesktopSettings } from '@/lib/persistence';
 import { useI18n } from '@/lib/i18n';
+import { formatClockTime } from '@/lib/timeFormat';
 import { cn } from '@/lib/utils';
 import { openExternalUrl } from '@/lib/url';
+import { useUIStore } from '@/stores/useUIStore';
 
 type TunnelState =
   | 'checking'
@@ -201,10 +203,6 @@ const formatRemaining = (remainingMs: number): string => {
   return `${seconds}s`;
 };
 
-const formatAbsoluteTime = (timestamp: number): string => {
-  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-};
-
 const normalizePresetHostname = (value: string): string => {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -259,6 +257,11 @@ const createPresetId = (): string => {
 
 export const TunnelSettings: React.FC = () => {
   const { t } = useI18n();
+  const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
+  const formatAbsoluteTime = React.useCallback(
+    (timestamp: number) => formatClockTime(timestamp, timeFormatPreference, { includeSeconds: true }),
+    [timeFormatPreference],
+  );
   const tUnsafe = React.useCallback((key: string) => t(key as Parameters<typeof t>[0]), [t]);
   const [state, setState] = React.useState<TunnelState>('checking');
   const [tunnelInfo, setTunnelInfo] = React.useState<TunnelInfo | null>(null);

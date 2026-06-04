@@ -127,6 +127,7 @@ export type DesktopSettings = {
   showToolFileIcons?: boolean;
   showExpandedBashTools?: boolean;
   showExpandedEditTools?: boolean;
+  showTurnChangedFiles?: boolean;
   timeFormatPreference?: 'auto' | '12h' | '24h';
   weekStartPreference?: 'auto' | 'sunday' | 'monday';
   chatRenderMode?: 'sorted' | 'live';

@@ -4,6 +4,7 @@ import { getAgentColor } from '@/lib/agentColors';
 import { useProviderLogo } from '@/hooks/useProviderLogo';
 import { Icon } from "@/components/icon/Icon";
 import { formatTimestampForDisplay } from './timeFormat';
+import { useUIStore } from '@/stores/useUIStore';
 
 interface MessageHeaderProps {
     isUser: boolean;
@@ -16,9 +17,10 @@ interface MessageHeaderProps {
 }
 
 const MessageHeader: React.FC<MessageHeaderProps> = ({ isUser, providerID, agentName, modelName, variant, isDarkTheme, timestamp }) => {
+    const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
     const formattedTimestamp = React.useMemo(
-        () => (typeof timestamp === 'number' && timestamp > 0 ? formatTimestampForDisplay(timestamp) : null),
-        [timestamp]
+        () => (typeof timestamp === 'number' && timestamp > 0 ? formatTimestampForDisplay(timestamp, timeFormatPreference) : null),
+        [timeFormatPreference, timestamp]
     );
     const { src: logoSrc, onError: handleLogoError, hasLogo } = useProviderLogo(providerID);
 
