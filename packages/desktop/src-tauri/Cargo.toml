@@ -1,11 +1,11 @@
 [package]
-name = "openchamber-desktop"
+name = "ax-code-desktop"
 version = "0.6.1"
 edition = "2021"
 publish = false
 
 [[bin]]
-name = "openchamber-desktop"
+name = "ax-code-desktop"
 path = "src/main.rs"
 
 [features]

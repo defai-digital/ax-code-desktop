@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
-  "productName": "AX Code",
+  "productName": "AX Code Desktop",
   "version": "0.6.1",
   "identifier": "ai.ax-code.openchamber",
   "build": {
@@ -14,7 +14,7 @@
       {
         "label": "main",
         "create": false,
-        "title": "AX Code",
+        "title": "AX Code Desktop",
         "width": 1280,
         "height": 800,
         "resizable": true,

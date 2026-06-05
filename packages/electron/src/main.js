@@ -41,7 +41,7 @@ async function createWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    title: 'AX Code App',
+    title: 'AX Code Desktop',
     backgroundColor: '#151313',
     show: false,
     webPreferences: {

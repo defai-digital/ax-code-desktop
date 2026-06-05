@@ -2,7 +2,7 @@
   "name": "@ax-code/electron",
   "version": "0.6.1",
   "private": true,
-  "description": "AX Code App — Electron desktop shell",
+  "description": "AX Code Desktop — Electron desktop shell",
   "main": "dist/main.js",
   "type": "commonjs",
   "scripts": {

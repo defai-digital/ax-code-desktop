@@ -1,5 +1,5 @@
 appId: ai.defai.ax-code-app
-productName: AX Code App
+productName: AX Code Desktop
 copyright: Copyright © 2025-2026 DEFAI Private Limited
 
 # We rebuild native modules manually via rebuild:native before packaging.
