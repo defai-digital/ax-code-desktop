@@ -100,6 +100,7 @@ export function createUpstreamSseReader({
         signal?.addEventListener('abort', abortActive, { once: true });
 
         let abortReason = null;
+        let reader = null;
         let stallTimer = null;
         const clearStallTimer = () => {
           if (stallTimer) {
@@ -151,7 +152,7 @@ export function createUpstreamSseReader({
           onConnect?.({ response, lastEventId });
 
           const decoder = new TextDecoder();
-          const reader = response.body.getReader();
+          reader = response.body.getReader();
           let buffer = '';
 
           resetStallTimer();
@@ -211,6 +212,10 @@ export function createUpstreamSseReader({
           }
         } finally {
           clearStallTimer();
+          if (reader && typeof reader.cancel === 'function') {
+            await reader.cancel().catch(() => {});
+          }
+          reader = null;
           signal?.removeEventListener('abort', abortActive);
           if (activeController === controller) {
             activeController = null;

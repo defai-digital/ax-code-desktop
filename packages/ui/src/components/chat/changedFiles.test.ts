@@ -5,6 +5,7 @@ import {
   extractChangedFiles,
   getFileStats,
   isSyntheticDiffFile,
+  toRelativePath,
 } from './changedFiles';
 
 type ToolFixtureOptions = {
@@ -229,5 +230,25 @@ describe('extractChangedFiles', () => {
     ]);
 
     expect(files).toEqual([]);
+  });
+});
+
+describe('toRelativePath', () => {
+  test('strips the base directory from a child path', () => {
+    expect(toRelativePath('/home/user/project/src/app.ts', '/home/user/project')).toBe('src/app.ts');
+  });
+
+  test('tolerates a trailing slash on the base directory', () => {
+    expect(toRelativePath('/home/user/project/src/app.ts', '/home/user/project/')).toBe('src/app.ts');
+  });
+
+  test('does not treat a sibling directory sharing a prefix as a child', () => {
+    expect(toRelativePath('/home/user/project-old/src/app.ts', '/home/user/project')).toBe(
+      '/home/user/project-old/src/app.ts',
+    );
+  });
+
+  test('returns the path unchanged when it is outside the base directory', () => {
+    expect(toRelativePath('/etc/hosts', '/home/user/project')).toBe('/etc/hosts');
   });
 });

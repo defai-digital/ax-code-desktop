@@ -203,9 +203,6 @@ export const toRelativePath = (absolutePath: string, baseDirectory: string): str
     if (absPath.startsWith(base + '/')) {
         return absPath.slice(base.length + 1);
     }
-    if (absPath.startsWith(base)) {
-        return absPath.slice(base.length) || absPath;
-    }
     return absPath;
 };
 
