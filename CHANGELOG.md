@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-05
+
+- Desktop: renamed the packaged app to AX Code Desktop and removed the startup splash window.
+- Desktop: fixed packaged startup failures caused by missing bundled server assets and JSONC parser internals.
+- Chat: reduced send latency by lowering the upstream SSE reconnect delay.
+- Sync: fixed relative changed-file path matching and an upstream SSE reader leak.
+
 ## [1.11.7] - 2026-05-27
 
 - Git: commit history now includes a branch graph and commit-row actions in the history modal (thanks to @ermanhavuc).
