@@ -24,14 +24,12 @@ import { filterVisibleParts, normalizeParts } from './message/partUtils';
 import { normalizeUserDisplayParts } from './message/normalizeUserDisplayParts';
 import { flattenAssistantTextParts } from '@/lib/messages/messageText';
 import { isLikelyProviderAuthFailure, PROVIDER_AUTH_FAILURE_MESSAGE } from '@/lib/messages/providerAuthError';
-import { lazyWithChunkRecovery } from '@/lib/chunkLoadRecovery';
 import type { TurnGroupingContext } from './lib/turns/types';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { FadeInOnReveal } from './message/FadeInOnReveal';
 import { streamPerfCount } from '@/stores/utils/streamDebug';
 import { areOptionalRenderRelevantMessagesEqual, areRenderRelevantMessagesEqual, areRelevantTurnGroupingContextsEqual } from './message/renderCompare';
-
-const ToolOutputDialog = lazyWithChunkRecovery(() => import('./message/ToolOutputDialog'));
+import ToolOutputDialog from './message/ToolOutputDialog';
 
 const USER_BUBBLE_STYLE: React.CSSProperties = {
     backgroundColor: 'var(--chat-user-message-bg)',
@@ -1140,14 +1138,12 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                     )}
                 </div>
             </div>
-            <React.Suspense fallback={null}>
-                <ToolOutputDialog
-                    popup={popupContent}
-                    onOpenChange={handlePopupChange}
-                    syntaxTheme={syntaxTheme}
-                    isMobile={isMobile}
-                />
-            </React.Suspense>
+            <ToolOutputDialog
+                popup={popupContent}
+                onOpenChange={handlePopupChange}
+                syntaxTheme={syntaxTheme}
+                isMobile={isMobile}
+            />
         </>
     );
 };

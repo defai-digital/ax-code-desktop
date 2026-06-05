@@ -1872,7 +1872,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             else if (commandName === 'compact' && currentSessionId) {
                 try {
                     await sessionActions.waitForConnectionOrThrow();
-                    const { axCodeClient } = await import('@/lib/ax-code/client');
                     const sdk = axCodeClient.getSdkClient();
                     const configState = useConfigStore.getState();
                     await sdk.session.summarize({

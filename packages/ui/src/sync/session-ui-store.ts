@@ -23,6 +23,7 @@ import { useGlobalSessionsStore, resolveGlobalSessionDirectory } from "@/stores/
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSessionFoldersStore } from "@/stores/useSessionFoldersStore"
 import { useCommandsStore } from "@/stores/useCommandsStore"
+import { toast } from "@/components/ui"
 import { getSafeStorage } from "@/stores/utils/safeStorage"
 import { markPendingUserSendAnimation } from "@/lib/userSendAnimation"
 import { buildSessionContextUsage, findLatestAssistantTokenUsage } from "@/lib/messages/assistantTokens"
@@ -31,6 +32,7 @@ import { EXECUTION_FORK_META_TEXT } from "@/lib/messages/executionMeta"
 import { waitForWorktreeBootstrap } from "@/lib/worktrees/worktreeBootstrap"
 import { waitForPendingDraftWorktreeRequest } from "@/lib/worktrees/pendingDraftWorktree"
 import { resolveProjectForSessionDirectory } from "@/lib/projectResolution"
+import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 import {
   getSyncSessions,
   getAllSyncSessions,
@@ -49,6 +51,9 @@ import {
   unshareSession as unshareSessionAction,
   optimisticSend,
   refetchSessionMessages,
+  revertToMessage as revertToMessageAction,
+  unrevertSession,
+  forkFromMessage as forkFromMessageAction,
 } from "./session-actions"
 import { useInputStore, type SyntheticContextPart } from "./input-store"
 import { useSelectionStore } from "./selection-store"
@@ -936,8 +941,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     // Ensure the complete message range is present before applying the revert
     // marker. Reverted UI is derived from session.revert + stored messages.
     await refetchSessionMessages(sessionId)
-    const { revertToMessage: revert } = await import("./session-actions")
-    await revert(sessionId, messageId)
+    await revertToMessageAction(sessionId, messageId)
   },
 
   // ---------------------------------------------------------------------------
@@ -973,8 +977,6 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     // revertToMessage handles the redo stack push internally
     await get().revertToMessage(sessionId, targetMessage.id)
 
-    const { toast } = await import("sonner")
-    const { useI18nStore, formatMessage } = await import("@/lib/i18n/store")
     const { dictionary } = useI18nStore.getState()
     toast.success(formatMessage(dictionary, "chat.revert.toast.undo", { preview }))
   },
@@ -984,10 +986,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   // ---------------------------------------------------------------------------
   handleSlashRedo: async (sessionId, options) => {
     if (options?.fullUnrevert) {
-      const { unrevertSession } = await import("./session-actions")
       await unrevertSession(sessionId)
-      const { toast } = await import("sonner")
-      const { useI18nStore, formatMessage } = await import("@/lib/i18n/store")
       const { dictionary } = useI18nStore.getState()
       toast.success(formatMessage(dictionary, "chat.revert.toast.restored"))
       return
@@ -1005,17 +1004,12 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
 
     if (targetMessage) {
       await get().revertToMessage(sessionId, targetMessage.id, { skipRedoPush: true })
-      const { toast } = await import("sonner")
-      const { useI18nStore, formatMessage } = await import("@/lib/i18n/store")
       const { dictionary } = useI18nStore.getState()
       toast.success(formatMessage(dictionary, "chat.revert.toast.redo"))
       return
     }
 
-    const { unrevertSession } = await import("./session-actions")
     await unrevertSession(sessionId)
-    const { toast } = await import("sonner")
-    const { useI18nStore, formatMessage } = await import("@/lib/i18n/store")
     const { dictionary } = useI18nStore.getState()
     toast.success(formatMessage(dictionary, "chat.revert.toast.restored"))
   },
@@ -1029,14 +1023,11 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     if (!existingSession) return
 
     try {
-      const { forkFromMessage: fork } = await import("./session-actions")
-      await fork(sessionId, messageId)
+      await forkFromMessageAction(sessionId, messageId)
 
-      const { toast } = await import("sonner")
       toast.success(`Forked from ${existingSession.title}`)
     } catch (error) {
       console.error("Failed to fork session:", error)
-      const { toast } = await import("sonner")
       toast.error("Failed to fork session")
     }
   },

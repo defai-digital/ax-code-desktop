@@ -42,6 +42,7 @@ import type { SessionMessageRecord } from "@/types/sessionMessages"
 import * as sessionActions from "./session-actions"
 import { getSessionMaterializationStatus, materializeSessionSnapshots } from "./materialization"
 import { setSessionPrefetch } from "./session-prefetch-cache"
+import { useSessionUIStore } from "./session-ui-store"
 
 // ---------------------------------------------------------------------------
 // Context
@@ -283,11 +284,7 @@ const getPermissionToastKey = (sessionID?: string, requestID?: string) => {
 }
 
 const openSessionFromToast = (sessionID: string, directory: string) => {
-  void import("./session-ui-store")
-    .then(({ useSessionUIStore }) => {
-      useSessionUIStore.getState().setCurrentSession(sessionID, directory)
-    })
-    .catch(() => undefined)
+  useSessionUIStore.getState().setCurrentSession(sessionID, directory)
 }
 
 export function setActiveSession(directory: string, sessionId: string) {

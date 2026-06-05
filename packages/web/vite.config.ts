@@ -11,6 +11,40 @@ const packageJson = JSON.parse(readFileSync(path.resolve(__dirname, 'package.jso
 const pwaDevEnabled = process.env.OPENCHAMBER_DISABLE_PWA_DEV !== '1';
 const reactScanToggle = (process.env.VITE_ENABLE_REACT_SCAN ?? '').toLowerCase();
 const enableReactScan = reactScanToggle === '1' || reactScanToggle === 'true' || reactScanToggle === 'on' || reactScanToggle === 'yes';
+const nodeModulesSegment = 'node_modules/';
+
+process.noDeprecation = true;
+
+function getPackageNameFromNodeModuleId(id: string): string | null {
+  const markerIndex = id.lastIndexOf(nodeModulesSegment);
+  if (markerIndex < 0) {
+    return null;
+  }
+
+  const match = id.slice(markerIndex + nodeModulesSegment.length);
+  const segments = match.split('/');
+  if (!segments[0]) {
+    return null;
+  }
+
+  return match.startsWith('@') ? `${segments[0]}/${segments[1]}` : segments[0];
+}
+
+function getVendorChunkName(packageName: string): string | undefined {
+  if (packageName === 'react' || packageName === 'react-dom' || packageName === 'scheduler') return 'vendor-react';
+  if (packageName === 'zustand' || packageName === 'use-sync-external-store') return 'vendor-state';
+  if (packageName === '@ax-code/sdk') return 'vendor-ax-code-sdk';
+  if (packageName === '@base-ui/react' || packageName.startsWith('@base-ui') || packageName.startsWith('@radix-ui')) return 'vendor-ui';
+  if (packageName.startsWith('@codemirror') || packageName.startsWith('@lezer')) return 'vendor-codemirror';
+  if (packageName === '@shikijs/langs') return 'vendor-shiki-langs';
+  if (packageName === '@shikijs/themes') return 'vendor-shiki-themes';
+  if (packageName.startsWith('@shikijs') || packageName === 'shiki') return 'vendor-shiki-core';
+  if (packageName.includes('remark') || packageName.includes('rehype') || packageName.includes('micromark') || packageName === 'react-markdown' || packageName === 'unified') return 'vendor-markdown';
+  if (packageName.includes('react-syntax-highlighter') || packageName.includes('highlight.js') || packageName === 'refractor' || packageName === 'prismjs') return 'vendor-syntax';
+  if (packageName === '@xenova/transformers' || packageName === 'onnxruntime-web' || packageName === 'onnxruntime-common') return 'vendor-ml';
+  if (packageName.startsWith('@tauri-apps')) return 'vendor-tauri';
+  return undefined;
+}
 
 export default defineConfig({
   root: path.resolve(__dirname, '.'),
@@ -99,33 +133,27 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, 'dist'),
     emptyOutDir: true,
-    chunkSizeWarningLimit: 500,
+    chunkSizeWarningLimit: 8000,
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
         miniChat: path.resolve(__dirname, 'mini-chat.html'),
       },
       external: ['node:child_process', 'node:fs', 'node:path', 'node:url'],
+      onwarn(warning, warn) {
+        if (warning.code === 'EVAL' && warning.id?.includes('onnxruntime-web')) {
+          return;
+        }
+        warn(warning);
+      },
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
 
-          const match = id.split('node_modules/')[1];
-          if (!match) return undefined;
+          const packageName = getPackageNameFromNodeModuleId(id);
+          if (!packageName) return undefined;
 
-          const segments = match.split('/');
-          const packageName = match.startsWith('@') ? `${segments[0]}/${segments[1]}` : segments[0];
-
-          if (packageName === 'react' || packageName === 'react-dom') return 'vendor-react';
-          if (packageName === 'zustand' || packageName === 'zustand/middleware') return 'vendor-zustand';
-
-          if (packageName === '@ax-code/sdk') return 'vendor-ax-code-sdk';
-          if (packageName.includes('remark') || packageName.includes('rehype') || packageName === 'react-markdown') return 'vendor-markdown';
-          if (packageName === '@base-ui/react' || packageName.startsWith('@base-ui')) return 'vendor-base-ui';
-          if (packageName.includes('react-syntax-highlighter') || packageName.includes('highlight.js')) return 'vendor-syntax';
-
-          const sanitized = packageName.replace(/^@/, '').replace(/\//g, '-');
-          return `vendor-${sanitized}`;
+          return getVendorChunkName(packageName);
         },
       },
     },

@@ -5,6 +5,40 @@ import { fileURLToPath } from 'node:url'
 import { themeStoragePlugin } from './vite-theme-plugin'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const nodeModulesSegment = 'node_modules/'
+
+process.noDeprecation = true
+
+function getPackageNameFromNodeModuleId(id: string): string | null {
+  const markerIndex = id.lastIndexOf(nodeModulesSegment)
+  if (markerIndex < 0) {
+    return null
+  }
+
+  const match = id.slice(markerIndex + nodeModulesSegment.length)
+  const segments = match.split('/')
+  if (!segments[0]) {
+    return null
+  }
+
+  return match.startsWith('@') ? `${segments[0]}/${segments[1]}` : segments[0]
+}
+
+function getVendorChunkName(packageName: string): string | undefined {
+  if (packageName === 'react' || packageName === 'react-dom' || packageName === 'scheduler') return 'vendor-react'
+  if (packageName === 'zustand' || packageName === 'use-sync-external-store') return 'vendor-state'
+  if (packageName === '@ax-code/sdk') return 'vendor-ax-code-sdk'
+  if (packageName === '@base-ui/react' || packageName.startsWith('@base-ui') || packageName.startsWith('@radix-ui')) return 'vendor-ui'
+  if (packageName.startsWith('@codemirror') || packageName.startsWith('@lezer')) return 'vendor-codemirror'
+  if (packageName === '@shikijs/langs') return 'vendor-shiki-langs'
+  if (packageName === '@shikijs/themes') return 'vendor-shiki-themes'
+  if (packageName.startsWith('@shikijs') || packageName === 'shiki') return 'vendor-shiki-core'
+  if (packageName.includes('remark') || packageName.includes('rehype') || packageName.includes('micromark') || packageName === 'react-markdown' || packageName === 'unified') return 'vendor-markdown'
+  if (packageName.includes('react-syntax-highlighter') || packageName.includes('highlight.js') || packageName === 'refractor' || packageName === 'prismjs') return 'vendor-syntax'
+  if (packageName === '@xenova/transformers' || packageName === 'onnxruntime-web' || packageName === 'onnxruntime-common') return 'vendor-ml'
+  if (packageName.startsWith('@tauri-apps')) return 'vendor-tauri'
+  return undefined
+}
 
 export default defineConfig({
   plugins: [
@@ -31,28 +65,23 @@ export default defineConfig({
     include: ['@ax-code/sdk/v2'],
   },
   build: {
-    chunkSizeWarningLimit: 1200,
+    chunkSizeWarningLimit: 8000,
     rollupOptions: {
       external: ['node:child_process', 'node:fs', 'node:path', 'node:url'],
+      onwarn(warning, warn) {
+        if (warning.code === 'EVAL' && warning.id?.includes('onnxruntime-web')) {
+          return
+        }
+        warn(warning)
+      },
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined
 
-          const match = id.split('node_modules/')[1]
-          if (!match) return undefined
+          const packageName = getPackageNameFromNodeModuleId(id)
+          if (!packageName) return undefined
 
-          const segments = match.split('/')
-          const packageName = match.startsWith('@') ? `${segments[0]}/${segments[1]}` : segments[0]
-
-          if (packageName === 'react' || packageName === 'react-dom') return 'vendor-react'
-          if (packageName === 'zustand' || packageName === 'zustand/middleware') return 'vendor-zustand'
-          if (packageName === '@ax-code/sdk') return 'vendor-ax-code-sdk'
-          if (packageName.includes('remark') || packageName.includes('rehype') || packageName === 'react-markdown') return 'vendor-markdown'
-          if (packageName === '@base-ui/react' || packageName.startsWith('@base-ui')) return 'vendor-base-ui'
-          if (packageName.includes('react-syntax-highlighter') || packageName.includes('highlight.js')) return 'vendor-syntax'
-
-          const sanitized = packageName.replace(/^@/, '').replace(/\//g, '-')
-          return `vendor-${sanitized}`
+          return getVendorChunkName(packageName)
         },
       },
     },

@@ -24,14 +24,13 @@ import { cn } from '@/lib/utils';
 import { lazyWithChunkRecovery } from '@/lib/chunkLoadRecovery';
 
 import { ChatView } from '@/components/views/ChatView';
+import { DiffView } from '@/components/views/DiffView';
+import { FilesView } from '@/components/views/FilesView';
+import { GitView } from '@/components/views/GitView';
+import { PlanView } from '@/components/views/PlanView';
+import { SettingsView } from '@/components/views/SettingsView';
 
-// Heavy views loaded on-demand to reduce initial bundle parse time.
-const PlanView = lazyWithChunkRecovery(() => import('@/components/views/PlanView').then(m => ({ default: m.PlanView })));
-const GitView = lazyWithChunkRecovery(() => import('@/components/views/GitView').then(m => ({ default: m.GitView })));
-const DiffView = lazyWithChunkRecovery(() => import('@/components/views/DiffView').then(m => ({ default: m.DiffView })));
 const TerminalView = lazyWithChunkRecovery(() => import('@/components/views/TerminalView').then(m => ({ default: m.TerminalView })));
-const FilesView = lazyWithChunkRecovery(() => import('@/components/views/FilesView').then(m => ({ default: m.FilesView })));
-const SettingsView = lazyWithChunkRecovery(() => import('@/components/views/SettingsView').then(m => ({ default: m.SettingsView })));
 const SettingsWindow = lazyWithChunkRecovery(() => import('@/components/views/SettingsWindow').then(m => ({ default: m.SettingsWindow })));
 const MultiRunWindow = lazyWithChunkRecovery(() => import('@/components/views/MultiRunWindow').then(m => ({ default: m.MultiRunWindow })));
 
@@ -397,15 +396,15 @@ export const MainLayout: React.FC = () => {
     const secondaryView = React.useMemo(() => {
         switch (activeMainTab) {
             case 'plan':
-                return <React.Suspense fallback={null}><PlanView /></React.Suspense>;
+                return <PlanView />;
             case 'git':
-                return <React.Suspense fallback={null}><GitView /></React.Suspense>;
+                return <GitView />;
             case 'diff':
-                return <React.Suspense fallback={null}><DiffView /></React.Suspense>;
+                return <DiffView />;
             case 'terminal':
                 return <React.Suspense fallback={null}><TerminalView /></React.Suspense>;
             case 'files':
-                return <React.Suspense fallback={null}><FilesView /></React.Suspense>;
+                return <FilesView />;
             case 'context':
                 return <React.Suspense fallback={null}><ProjectContextPanel /></React.Suspense>;
             default:
@@ -511,7 +510,7 @@ export const MainLayout: React.FC = () => {
                             {mobileRightDrawerVisible && (
                                 <motion.div className="absolute inset-0 z-20 bg-sidebar" data-page-scroll-lock="true" style={{ x: rightDrawerX }} aria-hidden={!mobileRightSidebarOpen}>
                                     <ErrorBoundary>
-                                        <React.Suspense fallback={null}><GitView /></React.Suspense>
+                                        <GitView />
                                     </ErrorBoundary>
                                 </motion.div>
                             )}
@@ -525,9 +524,7 @@ export const MainLayout: React.FC = () => {
                             style={{ paddingTop: 'var(--oc-safe-area-top, 0px)' }}
                         >
                             <ErrorBoundary>
-                                <React.Suspense fallback={null}>
-                                    <SettingsView onClose={() => setSettingsDialogOpen(false)} />
-                                </React.Suspense>
+                                <SettingsView onClose={() => setSettingsDialogOpen(false)} />
                             </ErrorBoundary>
                         </div>
                     )}

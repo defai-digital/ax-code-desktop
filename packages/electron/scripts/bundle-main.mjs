@@ -17,6 +17,8 @@ const root = path.resolve(__dirname, '../../..')
 const outDir = path.join(__dirname, '../dist')
 
 await fs.mkdir(outDir, { recursive: true })
+await fs.rm(path.join(outDir, 'server.js'), { force: true })
+await fs.rm(path.join(outDir, 'server.mjs'), { force: true })
 
 // Modules that cannot be bundled (native .node binaries or the Electron
 // runtime itself). They are required at runtime from node_modules.
@@ -32,30 +34,30 @@ const shared = {
   bundle: true,
   platform: 'node',
   target: 'node20',
-  format: 'cjs',
   external: nativeExternals,
   minify: false,
   sourcemap: false,
 }
 
-// Main process + preload (CJS, referenced by electron's "main" field).
-// server.js is built separately below, so exclude it from this bundle.
+// Main process + preload stay CJS because Electron reads package.json "main".
+// The server is loaded dynamically from server.mjs at runtime.
 await build({
   ...shared,
+  format: 'cjs',
   entryPoints: [
     path.join(__dirname, '../src/main.js'),
     path.join(__dirname, '../src/preload.js'),
   ],
   outdir: outDir,
-  external: [...nativeExternals, './server.js'],
+  external: [...nativeExternals, './server.mjs'],
 })
 
-// Server bundle — the entire Express server inlined into a single CJS file.
-// esbuild automatically rewrites ESM import.meta.url → CJS equivalent.
+// Server bundle stays ESM so import.meta.url remains valid in server modules.
 await build({
   ...shared,
+  format: 'esm',
   entryPoints: [path.join(root, 'packages/web/server/index.js')],
-  outfile: path.join(outDir, 'server.js'),
+  outfile: path.join(outDir, 'server.mjs'),
 })
 
-console.log('[electron] bundle → dist/{main,preload,server}.js')
+console.log('[electron] bundle → dist/{main,preload}.js, dist/server.mjs')

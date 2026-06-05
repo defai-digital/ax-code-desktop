@@ -3,6 +3,7 @@
   "version": "0.6.1",
   "private": true,
   "description": "AX Code Desktop — Electron desktop shell",
+  "author": "DEFAI Private Limited",
   "main": "dist/main.js",
   "type": "commonjs",
   "scripts": {
