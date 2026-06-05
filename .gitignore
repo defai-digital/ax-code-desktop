@@ -45,6 +45,9 @@ build/
 # Built webview assets (generated during build)
 src/main/resources/webview/
 
+# Web assets copied into the Electron package for electron-builder (generated)
+packages/electron/resources/web-dist/
+
 # IDE
 *.iml
 *.ipr
