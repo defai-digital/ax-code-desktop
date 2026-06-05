@@ -172,7 +172,12 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
       let suggestedSec: number | null = null;
 
       if (runtime === 'desktop') {
-        let desktopInfo = await checkForDesktopUpdates();
+        // The desktop shell updates itself via its native updater
+        // (electron-updater against the AX Code App GitHub releases). That
+        // result is authoritative — do not consult the OpenChamber npm/web
+        // update API here, or the dialog would surface OpenChamber's package
+        // version and changelog instead of AX Code's.
+        const desktopInfo = await checkForDesktopUpdates();
         set({
           checking: false,
           available: desktopInfo?.available ?? false,
@@ -181,34 +186,7 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
           nextCheckInSec: null,
         });
 
-        const sidecarInfo = await checkForWebUpdates('desktop', desktopInfo?.currentVersion);
-        suggestedSec = sidecarInfo?.nextSuggestedCheckInSec ?? null;
-
-        if (sidecarInfo?.available && !desktopInfo?.available) {
-          const forcedDesktopInfo = await checkForDesktopUpdates();
-          if (forcedDesktopInfo) {
-            desktopInfo = forcedDesktopInfo;
-          }
-        }
-
-        if (sidecarInfo) {
-          const mergedInfo: UpdateInfo = {
-            ...(desktopInfo ?? { available: false, currentVersion: sidecarInfo.currentVersion ?? 'unknown' }),
-            ...sidecarInfo,
-            currentVersion: desktopInfo?.currentVersion ?? sidecarInfo.currentVersion ?? 'unknown',
-            available: sidecarInfo.available,
-          };
-
-          set({
-            available: mergedInfo.available,
-            info: mergedInfo,
-            nextCheckInSec: suggestedSec,
-          });
-        } else {
-          set({ nextCheckInSec: suggestedSec });
-        }
-
-        return suggestedSec;
+        return null;
       } else if (runtime === 'web') {
         info = await checkForWebUpdates('web');
         suggestedSec = info?.nextSuggestedCheckInSec ?? null;

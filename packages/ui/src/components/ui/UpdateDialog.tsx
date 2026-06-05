@@ -29,7 +29,7 @@ interface UpdateDialogProps {
   runtimeType?: 'desktop' | 'web' | 'vscode' | null;
 }
 
-const GITHUB_RELEASES_URL = 'https://github.com/btriapitsyn/openchamber/releases';
+const GITHUB_RELEASES_URL = 'https://github.com/defai-digital/ax-code-app/releases';
 
 type ChangelogSection = {
   version: string;
@@ -214,7 +214,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
     : 0;
 
   const isWebRuntime = runtimeType === 'web';
-  const updateCommand = info?.updateCommand || 'openchamber update';
+  const updateCommand = info?.updateCommand || 'ax-code-app update';
 
   // Reset state when dialog closes; clear any pending copied timer on unmount.
   useEffect(() => {
