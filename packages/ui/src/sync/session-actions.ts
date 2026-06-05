@@ -409,8 +409,6 @@ export async function optimisticSend(input: {
     throw new Error("Optimistic refs not set — is useSync() mounted?")
   }
 
-  await waitForConnectionOrThrow()
-
   const store = dirStore()
   const messageID = ascendingId("msg")
   const textPartId = ascendingId("prt")
@@ -455,6 +453,7 @@ export async function optimisticSend(input: {
   })
 
   try {
+    await waitForConnectionOrThrow()
     await input.send(messageID)
   } catch (error) {
     // Rollback via optimistic infrastructure

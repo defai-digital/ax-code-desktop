@@ -1,8 +1,27 @@
 import { describe, expect, test, beforeEach, mock } from "bun:test"
 import type { PermissionRequest } from "@/types/permission"
+import type { Message, Part } from "@ax-code/sdk/v2/client"
 
 // Mock SDK client that records permission.reply / question.reply calls
 const replyCalls: Array<{ method: string; params: Record<string, unknown> }> = []
+
+let configState: {
+  isConnected: boolean
+  hasEverConnected: boolean
+  probeConnection: (options?: { timeoutMs?: number }) => Promise<boolean>
+} = {
+  isConnected: true,
+  hasEverConnected: true,
+  probeConnection: () => Promise.resolve(true),
+}
+
+function resetConfigState() {
+  configState = {
+    isConnected: true,
+    hasEverConnected: true,
+    probeConnection: () => Promise.resolve(true),
+  }
+}
 
 const mockScopedClient = {
   permission: {
@@ -54,10 +73,7 @@ mock.module("@/lib/ax-code/client", () => ({
 // Mock useConfigStore
 mock.module("@/stores/useConfigStore", () => ({
   useConfigStore: {
-    getState: () => ({
-      isConnected: true,
-      hasEverConnected: true,
-    }),
+    getState: () => configState,
   },
 }))
 
@@ -117,6 +133,7 @@ function createChildStores(entries: Array<[string, StoreApi<DirectoryStore>]>) {
 describe("respondToPermission passes directory", () => {
   beforeEach(() => {
     replyCalls.length = 0
+    resetConfigState()
   })
 
   test("passes directory from child store when permission is found", async () => {
@@ -175,6 +192,7 @@ describe("respondToPermission passes directory", () => {
 describe("dismissPermission passes directory", () => {
   beforeEach(() => {
     replyCalls.length = 0
+    resetConfigState()
   })
 
   test("passes directory and reply=reject", async () => {
@@ -205,6 +223,7 @@ describe("dismissPermission passes directory", () => {
 describe("respondToQuestion passes directory", () => {
   beforeEach(() => {
     replyCalls.length = 0
+    resetConfigState()
   })
 
   test("passes directory to question.reply", async () => {
@@ -224,6 +243,7 @@ describe("respondToQuestion passes directory", () => {
 describe("rejectQuestion passes directory", () => {
   beforeEach(() => {
     replyCalls.length = 0
+    resetConfigState()
   })
 
   test("passes directory to question.reject", async () => {
@@ -237,5 +257,81 @@ describe("rejectQuestion passes directory", () => {
     expect(replyCalls.length).toBe(1)
     expect(replyCalls[0].params.requestID).toBe("q-2")
     expect(replyCalls[0].params.directory).toBe("/test/project")
+  })
+})
+
+describe("optimisticSend responsiveness", () => {
+  beforeEach(() => {
+    replyCalls.length = 0
+    resetConfigState()
+  })
+
+  test("inserts the optimistic user message before waiting for connection recovery", async () => {
+    const store = createStore({})
+    const childStores = createChildStores([["/test/project", store]])
+    let sawOptimisticBeforeProbe = false
+
+    configState = {
+      isConnected: false,
+      hasEverConnected: true,
+      probeConnection: () => {
+        sawOptimisticBeforeProbe = (store.getState().message["session-a"] ?? []).length === 1
+        configState = {
+          ...configState,
+          isConnected: true,
+        }
+        return Promise.resolve(true)
+      },
+    }
+
+    const { setActionRefs, setOptimisticRefs, optimisticSend } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    setOptimisticRefs(
+      ({ sessionID, message, parts }) => {
+        store.setState((state) => ({
+          message: {
+            ...state.message,
+            [sessionID]: [...(state.message[sessionID] ?? []), message],
+          },
+          part: {
+            ...state.part,
+            [message.id]: parts,
+          },
+        }))
+      },
+      ({ sessionID, messageID }) => {
+        store.setState((state) => {
+          const messages = state.message[sessionID] ?? []
+          const nextMessages = messages.filter((message) => message.id !== messageID)
+          const nextPart = { ...state.part }
+          delete nextPart[messageID]
+          return {
+            message: {
+              ...state.message,
+              [sessionID]: nextMessages,
+            },
+            part: nextPart,
+          }
+        })
+      },
+    )
+
+    let sendSawOptimistic = false
+    await optimisticSend({
+      sessionId: "session-a",
+      content: "hello",
+      providerID: "provider",
+      modelID: "model",
+      send: (messageID) => {
+        const state = store.getState()
+        sendSawOptimistic = state.message["session-a"]?.some((message: Message) => message.id === messageID) ?? false
+        expect(state.part[messageID]?.some((part: Part) => part.type === "text")).toBe(true)
+        return Promise.resolve()
+      },
+    })
+
+    expect(sawOptimisticBeforeProbe).toBe(true)
+    expect(sendSawOptimistic).toBe(true)
+    expect(store.getState().session_status["session-a"]).toEqual({ type: "busy" })
   })
 })

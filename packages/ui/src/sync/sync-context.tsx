@@ -161,8 +161,6 @@ const SESSION_MATERIALIZATION_MESSAGE_LIMIT = 30
 const RECONNECT_SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const ACTIVE_SESSION_WATCHDOG_INTERVAL_MS = 5_000
 const ACTIVE_SESSION_STATUS_POLL_INTERVAL_MS = 5_000
-const ACTIVE_SESSION_STALE_EVENT_MS = 20_000
-const ACTIVE_SESSION_FULL_RESYNC_COOLDOWN_MS = 15_000
 const requestSignature = (items: Array<{ id: string }> | undefined): string => {
   if (!items || items.length === 0) return ""
   return items
@@ -346,11 +344,6 @@ function toSessionStatus(status: Awaited<ReturnType<typeof axCodeClient.getSessi
     }
   }
   return undefined
-}
-
-function isStreamHeartbeatEvent(payload: Event): boolean {
-  const type = (payload as { type?: unknown }).type
-  return type === "server.heartbeat" || type === "openchamber:heartbeat"
 }
 
 function getActiveSessionCandidateIds(directory: string, state: DirectoryStore): string[] {
@@ -1400,12 +1393,9 @@ export function SyncProvider(props: {
   const routingIndexRef = useRef<EventRoutingIndex | null>(null)
   if (!routingIndexRef.current) routingIndexRef.current = createEventRoutingIndex()
   const routingIndex = routingIndexRef.current
-  const lastActiveEventAtByDirectoryRef = useRef(new Map<string, number>())
   const lastStatusPollAtByDirectoryRef = useRef(new Map<string, number>())
-  const lastFullResyncAtByDirectoryRef = useRef(new Map<string, number>())
   const resyncingDirectoriesRef = useRef(new Set<string>())
   const statusPollingDirectoriesRef = useRef(new Set<string>())
-  const pipelineReconnectRef = useRef<((reason?: string) => void) | null>(null)
 
   const system = useMemo<SyncSystem>(
     () => ({
@@ -1422,7 +1412,6 @@ export function SyncProvider(props: {
     const resyncing = resyncingDirectoriesRef.current
     if (resyncing.has(directory)) return
 
-    lastFullResyncAtByDirectoryRef.current.set(directory, Date.now())
     resyncing.add(directory)
     void resyncDirectoryAfterReconnect(directory, store, routingIndex)
       .catch(() => {
@@ -1551,9 +1540,6 @@ export function SyncProvider(props: {
         return resolveDirectoryFromRoutingIndex(routingIndex, directory, payload, childStores)
       },
       onEvent: (directory, payload) => {
-        if (!isStreamHeartbeatEvent(payload)) {
-          lastActiveEventAtByDirectoryRef.current.set(directory, Date.now())
-        }
         dispatchVSCodeRuntimeNotificationEvent(directory, payload)
         if (payload.type === "installation.update-available") {
           const version = typeof (payload.properties as { version?: unknown })?.version === "string"
@@ -1599,13 +1585,7 @@ export function SyncProvider(props: {
         }
       },
     })
-    pipelineReconnectRef.current = pipeline.reconnect
-    return () => {
-      if (pipelineReconnectRef.current === pipeline.reconnect) {
-        pipelineReconnectRef.current = null
-      }
-      pipeline.cleanup()
-    }
+    return () => pipeline.cleanup()
   }, [props.sdk, childStores, routingIndex, messageStreamTransport, triggerDirectoryResync])
 
   useEffect(() => {
@@ -1646,30 +1626,14 @@ export function SyncProvider(props: {
             const state = store.getState()
             const candidateSessionIds = getActiveSessionCandidateIds(directory, state)
             if (candidateSessionIds.length === 0) {
-              lastActiveEventAtByDirectoryRef.current.delete(directory)
               lastStatusPollAtByDirectoryRef.current.delete(directory)
-              lastFullResyncAtByDirectoryRef.current.delete(directory)
               continue
-            }
-
-            if (!lastActiveEventAtByDirectoryRef.current.has(directory)) {
-              lastActiveEventAtByDirectoryRef.current.set(directory, now)
             }
 
             const lastStatusPollAt = lastStatusPollAtByDirectoryRef.current.get(directory) ?? 0
             if (now - lastStatusPollAt >= ACTIVE_SESSION_STATUS_POLL_INTERVAL_MS) {
               lastStatusPollAtByDirectoryRef.current.set(directory, now)
               void pollDirectoryStatuses(directory, store, candidateSessionIds).catch(() => undefined)
-            }
-
-            const lastActiveEventAt = lastActiveEventAtByDirectoryRef.current.get(directory) ?? now
-            const lastFullResyncAt = lastFullResyncAtByDirectoryRef.current.get(directory) ?? 0
-            if (
-              now - lastActiveEventAt >= ACTIVE_SESSION_STALE_EVENT_MS
-              && now - lastFullResyncAt >= ACTIVE_SESSION_FULL_RESYNC_COOLDOWN_MS
-            ) {
-              pipelineReconnectRef.current?.("active_stream_stale")
-              triggerDirectoryResync(directory)
             }
           }
         })
