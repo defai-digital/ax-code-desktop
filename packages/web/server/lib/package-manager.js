@@ -622,13 +622,26 @@ export function getUpdateCommand(pm = detectPackageManager()) {
  * Get current installed version from package.json
  */
 export function getCurrentVersion() {
-  try {
-    const pkgPath = path.resolve(__dirname, '..', '..', 'package.json');
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    return pkg.version || 'unknown';
-  } catch {
-    return 'unknown';
+  // Running from source this module lives at server/lib/, so the package
+  // manifest is two levels up. The Electron build inlines the whole server
+  // into a single dist/server.js, collapsing __dirname to the bundle dir —
+  // there the manifest is one level up (the app's package.json). Probe both
+  // so the version resolves in either layout instead of falling back to
+  // 'unknown' inside the packaged desktop app.
+  const candidatePaths = [
+    path.resolve(__dirname, '..', '..', 'package.json'),
+    path.resolve(__dirname, '..', 'package.json'),
+  ];
+  for (const pkgPath of candidatePaths) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      if (pkg && typeof pkg.version === 'string' && pkg.version.trim().length > 0) {
+        return pkg.version.trim();
+      }
+    } catch {
+    }
   }
+  return 'unknown';
 }
 
 /**

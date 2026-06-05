@@ -67,8 +67,11 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
         const response = await fetch('/api/system/info');
         if (response.ok) {
           const data = await response.json();
-          if (typeof data.openchamberVersion === 'string' && data.openchamberVersion.trim()) {
-            setVersion(data.openchamberVersion);
+          const reported = typeof data.openchamberVersion === 'string' ? data.openchamberVersion.trim() : '';
+          // Ignore the server's 'unknown' sentinel so we fall through to the
+          // native shell version instead of rendering "unknown".
+          if (reported && reported !== 'unknown') {
+            setVersion(reported);
             return;
           }
         }
