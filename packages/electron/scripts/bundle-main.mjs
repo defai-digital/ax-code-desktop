@@ -57,6 +57,7 @@ await build({
 await build({
   ...shared,
   format: 'cjs',
+  mainFields: ['module', 'main'],
   entryPoints: [path.join(root, 'packages/web/server/index.js')],
   outfile: path.join(outDir, 'server.js'),
   banner: {
