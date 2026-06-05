@@ -682,6 +682,7 @@ const globalMessageStreamHub = createGlobalMessageStreamHub({
   buildAxCodeUrl,
   getAxCodeAuthHeaders,
   upstreamStallTimeoutMs: getUpstreamStallTimeoutMs,
+  upstreamReconnectDelayMs: 1000,
 });
 
 const axCodeWatcherRuntime = createAxCodeWatcherRuntime({
