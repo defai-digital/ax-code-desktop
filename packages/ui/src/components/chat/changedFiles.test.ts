@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import type { ToolPart } from '@ax-code/sdk/v2';
 
-import { extractChangedFiles, getFileStats } from './changedFiles';
+import {
+  extractChangedFiles,
+  getFileStats,
+  isSyntheticDiffFile,
+} from './changedFiles';
 
 type ToolFixtureOptions = {
   id?: string;
@@ -201,6 +205,8 @@ describe('extractChangedFiles', () => {
 
     expect(files.map((file) => file.path)).toEqual(['src/input.ts', 'Diff']);
     expect(getFileStats(files[1])).toEqual({ additions: 2, deletions: 1 });
+    expect(isSyntheticDiffFile(files[0])).toBe(false);
+    expect(isSyntheticDiffFile(files[1])).toBe(true);
   });
 
   test('ignores non-edit tools and unfinished tool calls', () => {

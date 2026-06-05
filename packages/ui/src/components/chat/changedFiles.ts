@@ -8,6 +8,7 @@ export interface ChangedFile {
     additions?: number;
     deletions?: number;
     patch?: string;
+    synthetic?: 'diff';
 }
 
 export interface GitChangedFile {
@@ -25,6 +26,8 @@ export type ChangedFileEntry = ChangedFile | GitChangedFile;
 export const FILE_EDIT_TOOLS = new Set(['edit', 'multiedit', 'write', 'apply_patch', 'create', 'file_write']);
 
 export const isGitFile = (file: ChangedFileEntry): file is GitChangedFile => 'insertions' in file;
+
+export const isSyntheticDiffFile = (file: ChangedFileEntry): boolean => !isGitFile(file) && file.synthetic === 'diff';
 
 const parseCount = (value: unknown): number | undefined => {
     if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.trunc(value));
@@ -157,6 +160,7 @@ export const extractChangedFiles = (parts: ToolPart[]): ChangedFile[] => {
                     messageID: part.messageID,
                     additions: parsed.added,
                     deletions: parsed.removed,
+                    synthetic: 'diff',
                 });
             }
         }

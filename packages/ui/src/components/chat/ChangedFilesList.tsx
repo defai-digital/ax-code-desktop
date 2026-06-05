@@ -1,6 +1,12 @@
 import React from 'react';
 import { FileTypeIcon } from '@/components/icons/FileTypeIcon';
-import { type ChangedFileEntry, getDisplayPath, getFileStats } from './changedFiles';
+import { cn } from '@/lib/utils';
+import {
+    type ChangedFileEntry,
+    getDisplayPath,
+    getFileStats,
+    isSyntheticDiffFile,
+} from './changedFiles';
 import { useI18n } from '@/lib/i18n';
 
 interface ChangedFilesListProps {
@@ -22,14 +28,21 @@ export const ChangedFilesList: React.FC<ChangedFilesListProps> = ({ files, curre
                 {files.map((file, index) => {
                     const { fileName, dirPart } = getDisplayPath(file, currentDirectory);
                     const stats = getFileStats(file);
+                    const canOpen = !isSyntheticDiffFile(file);
 
                     return (
                         <button
                             key={`${file.path}:${index}`}
                             type="button"
-                            className="relative flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1 typography-ui-label outline-hidden select-none text-left hover:bg-interactive-hover"
-                            title={t('chat.changedFiles.actions.openFileTitle', { path: file.path })}
-                            onClick={() => onOpenFile(file)}
+                            className={cn(
+                                "relative flex w-full items-center gap-2 rounded-lg px-2 py-1 typography-ui-label outline-hidden select-none text-left",
+                                canOpen ? "cursor-pointer hover:bg-interactive-hover" : "cursor-default opacity-80"
+                            )}
+                            title={canOpen ? t('chat.changedFiles.actions.openFileTitle', { path: file.path }) : file.path}
+                            disabled={!canOpen}
+                            onClick={() => {
+                                if (canOpen) onOpenFile(file);
+                            }}
                         >
                             <FileTypeIcon filePath={file.path} className="h-3.5 w-3.5 flex-shrink-0" />
                             <span className="min-w-0 flex-1 flex items-baseline overflow-hidden" title={file.path}>
