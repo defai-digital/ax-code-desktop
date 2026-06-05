@@ -48,6 +48,30 @@ describe('resolveAssistantForkSendChoice', () => {
     });
   });
 
+  test('does not mix provider and model choices from different sources', () => {
+    expect(resolveAssistantForkSendChoice(
+      {
+        providerID: 'source-provider',
+        agent: 'source-agent',
+        variant: 'source-variant',
+      },
+      {
+        providerID: 'current-provider',
+        modelID: '',
+        agent: 'current-agent',
+        lastUsedProvider: {
+          providerID: 'last-provider',
+          modelID: 'last-model',
+        },
+      },
+    )).toEqual({
+      providerID: 'last-provider',
+      modelID: 'last-model',
+      agent: 'source-agent',
+      variant: undefined,
+    });
+  });
+
   test('returns null before creating a session when provider or model is unavailable', () => {
     expect(resolveAssistantForkSendChoice(
       { providerID: 'source-provider' },

@@ -27,25 +27,31 @@ const nonEmpty = (value: string | null | undefined): string | undefined => {
   return trimmed ? trimmed : undefined;
 };
 
+const resolveCompleteModelChoice = (
+  choice: { providerID?: string | null; modelID?: string | null },
+): { providerID: string; modelID: string } | null => {
+  const providerID = nonEmpty(choice.providerID);
+  const modelID = nonEmpty(choice.modelID);
+  return providerID && modelID ? { providerID, modelID } : null;
+};
+
 export const resolveAssistantForkSendChoice = (
   sourceChoice: AssistantForkSourceChoice,
   currentChoice: AssistantForkCurrentChoice,
 ): AssistantForkSendChoice | null => {
-  const providerID = nonEmpty(sourceChoice?.providerID)
-    ?? nonEmpty(currentChoice.providerID)
-    ?? nonEmpty(currentChoice.lastUsedProvider?.providerID);
-  const modelID = nonEmpty(sourceChoice?.modelID)
-    ?? nonEmpty(currentChoice.modelID)
-    ?? nonEmpty(currentChoice.lastUsedProvider?.modelID);
+  const sourceModelChoice = sourceChoice ? resolveCompleteModelChoice(sourceChoice) : null;
+  const modelChoice = sourceModelChoice
+    ?? resolveCompleteModelChoice(currentChoice)
+    ?? (currentChoice.lastUsedProvider ? resolveCompleteModelChoice(currentChoice.lastUsedProvider) : null);
 
-  if (!providerID || !modelID) {
+  if (!modelChoice) {
     return null;
   }
 
   return {
-    providerID,
-    modelID,
+    providerID: modelChoice.providerID,
+    modelID: modelChoice.modelID,
     agent: nonEmpty(sourceChoice?.agent) ?? nonEmpty(currentChoice.agent),
-    variant: nonEmpty(sourceChoice?.variant),
+    variant: sourceModelChoice ? nonEmpty(sourceChoice?.variant) : undefined,
   };
 };
