@@ -1,6 +1,6 @@
 {
   "name": "@ax-code/electron",
-  "version": "0.5.0",
+  "version": "0.6.1",
   "private": true,
   "description": "AX Code App — Electron desktop shell",
   "main": "dist/main.js",

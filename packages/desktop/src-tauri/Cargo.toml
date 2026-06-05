@@ -1,6 +1,6 @@
 [package]
 name = "openchamber-desktop"
-version = "5.9.3"
+version = "0.6.1"
 edition = "2021"
 publish = false
 

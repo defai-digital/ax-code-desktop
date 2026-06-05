@@ -2742,7 +2742,7 @@ dependencies = [
 
 [[package]]
 name = "openchamber-desktop"
-version = "5.9.2"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
