@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Icon } from '@/components/icon/Icon';
 import type { IconName } from '@/components/icon/icons';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useI18n, type I18nKey } from '@/lib/i18n';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
@@ -70,32 +69,26 @@ export const ExecutionModeSelector: React.FC<ExecutionModeSelectorProps> = ({
 
     return (
         <DropdownMenu>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild>
-                        <button
-                            type="button"
-                            aria-label={title}
-                            className={cn(
-                                'flex h-7 items-center gap-1.5 rounded-md px-1.5 typography-meta text-muted-foreground outline-none hover:bg-interactive-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring',
-                                className,
-                            )}
-                        >
-                            <Icon
-                                name={pending ? 'loader-4' : (activeMeta?.icon ?? 'shield-user')}
-                                className={cn(iconSizeClass, 'flex-shrink-0', pending && 'animate-spin')}
-                            />
-                            <span className="truncate">
-                                {activeMeta ? t(activeMeta.labelKey) : title}
-                            </span>
-                            <Icon name="arrow-down-s" className="size-4 flex-shrink-0 opacity-50" />
-                        </button>
-                    </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={8}>
-                    {title}
-                </TooltipContent>
-            </Tooltip>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    aria-label={title}
+                    title={title}
+                    className={cn(
+                        'flex h-7 items-center gap-1.5 rounded-md border border-border/40 px-2 typography-meta text-foreground outline-none hover:bg-interactive-hover focus-visible:ring-2 focus-visible:ring-ring',
+                        className,
+                    )}
+                >
+                    <Icon
+                        name={pending ? 'loader-4' : (activeMeta?.icon ?? 'shield-user')}
+                        className={cn(iconSizeClass, 'flex-shrink-0', pending && 'animate-spin')}
+                    />
+                    <span className="truncate">
+                        {activeMeta ? t(activeMeta.labelKey) : title}
+                    </span>
+                    <Icon name="arrow-down-s" className="size-4 flex-shrink-0 opacity-50" />
+                </button>
+            </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-[260px]">
                 <DropdownMenuLabel className="typography-meta text-muted-foreground">
                     {title}
