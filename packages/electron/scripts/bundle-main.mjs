@@ -40,7 +40,6 @@ const shared = {
 }
 
 // Main process + preload stay CJS because Electron reads package.json "main".
-// The server is loaded dynamically from server.mjs at runtime.
 await build({
   ...shared,
   format: 'cjs',
@@ -49,15 +48,23 @@ await build({
     path.join(__dirname, '../src/preload.js'),
   ],
   outdir: outDir,
-  external: [...nativeExternals, './server.mjs'],
+  external: [...nativeExternals, './server.js'],
 })
 
-// Server bundle stays ESM so import.meta.url remains valid in server modules.
+// Server bundle stays CJS so bundled CommonJS dependencies can require built-ins.
+// `import.meta.url` is rewritten to a CJS-compatible URL before esbuild lowers
+// the bundle, avoiding the empty import_meta shim warning and runtime breakage.
 await build({
   ...shared,
-  format: 'esm',
+  format: 'cjs',
   entryPoints: [path.join(root, 'packages/web/server/index.js')],
-  outfile: path.join(outDir, 'server.mjs'),
+  outfile: path.join(outDir, 'server.js'),
+  banner: {
+    js: 'const importMetaUrl = require("url").pathToFileURL(__filename).href;',
+  },
+  define: {
+    'import.meta.url': 'importMetaUrl',
+  },
 })
 
-console.log('[electron] bundle → dist/{main,preload}.js, dist/server.mjs')
+console.log('[electron] bundle → dist/{main,preload,server}.js')

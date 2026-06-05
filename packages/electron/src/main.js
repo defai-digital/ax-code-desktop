@@ -4,7 +4,6 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const os = require('os')
-const { pathToFileURL } = require('url')
 
 // ── Resource paths ──────────────────────────────────────────────────────────
 // In production (packaged), extraResources land at process.resourcesPath/web-dist.
@@ -25,18 +24,12 @@ process.env.OPENCHAMBER_RUNTIME = 'desktop'
 let mainWindow = null
 let serverPort = 0
 let serverHandle = null
-let serverModulePromise = null
 
-function loadServerModule() {
-  if (!serverModulePromise) {
-    serverModulePromise = import(pathToFileURL(path.join(__dirname, 'server.mjs')).href)
-  }
-  return serverModulePromise
-}
+// Bundled server (dist/server.js produced by bundle-main.mjs).
+const { startWebUiServer } = require('./server.js')
 
 // ── Server ──────────────────────────────────────────────────────────────────
 async function launchServer() {
-  const { startWebUiServer } = await loadServerModule()
   serverHandle = await startWebUiServer({ port: 0 })
   serverPort = serverHandle.getPort()
 }
