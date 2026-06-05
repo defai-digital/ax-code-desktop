@@ -1071,6 +1071,62 @@ class AxCodeService {
     }
   }
 
+  // Execution modes (autonomous / super-long supervised long-run).
+  // These are global settings the server persists to ax-code.json, scoped by
+  // directory. Gets return null on failure so callers can distinguish a failed
+  // read from an authoritative `false`.
+  async getAutonomousEnabled(): Promise<boolean | null> {
+    try {
+      const result = await this.client.autonomous.get(
+        this.currentDirectory ? { directory: this.currentDirectory } : undefined,
+      );
+      if (result.error) return null;
+      return Boolean(result.data?.enabled);
+    } catch {
+      return null;
+    }
+  }
+
+  async setAutonomousEnabled(enabled: boolean): Promise<boolean | null> {
+    try {
+      const result = await this.client.autonomous.set({
+        enabled,
+        ...(this.currentDirectory ? { directory: this.currentDirectory } : {}),
+      });
+      if (result.error) return null;
+      return Boolean(result.data?.enabled);
+    } catch {
+      return null;
+    }
+  }
+
+  async getSuperLongEnabled(): Promise<boolean | null> {
+    try {
+      const result = await this.client.superLong.get(
+        this.currentDirectory ? { directory: this.currentDirectory } : undefined,
+      );
+      if (result.error) return null;
+      return Boolean(result.data?.enabled);
+    } catch {
+      return null;
+    }
+  }
+
+  // The server rejects enabling super-long while autonomous is off (409), so
+  // callers must enable autonomous first. Returns null on failure.
+  async setSuperLongEnabled(enabled: boolean): Promise<boolean | null> {
+    try {
+      const result = await this.client.superLong.set({
+        enabled,
+        ...(this.currentDirectory ? { directory: this.currentDirectory } : {}),
+      });
+      if (result.error) return null;
+      return Boolean(result.data?.enabled);
+    } catch {
+      return null;
+    }
+  }
+
   // Permissions
   async replyToPermission(
     requestId: string,
