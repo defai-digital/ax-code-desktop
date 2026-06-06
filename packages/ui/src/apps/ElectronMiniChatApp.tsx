@@ -16,13 +16,12 @@ import { useGitStore } from '@/stores/useGitStore';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { SyncProvider, useSessions } from '@/sync/sync-context';
 import { SyncRuntimeEffects } from './AppEffects';
+import { MINI_CHAT_PRESENCE_CHANNEL, type MiniChatPresenceMessage } from './miniChatPresence';
 import { useAppFontEffects } from './useAppFontEffects';
 import { useMiniChatKeyboardShortcuts } from '@/hooks/useMiniChatKeyboardShortcuts';
 import { listProjectWorktrees } from '@/lib/worktrees/worktreeManager';
 import type { WorktreeMetadata } from '@/types/worktree';
 import type { MiniChatMode } from '@/components/mini-chat/types';
-
-const MINI_CHAT_PRESENCE_CHANNEL = 'openchamber:mini-chat-presence';
 
 type MiniChatConfig = {
   mode: MiniChatMode;
@@ -194,12 +193,14 @@ const MiniChatPresencePublisher: React.FC = () => {
 
     const channel = new BroadcastChannel(MINI_CHAT_PRESENCE_CHANNEL);
     const postPresence = (viewed: boolean) => {
-      channel.postMessage({
+      const message = {
         type: 'mini-chat-session-presence',
         sessionId: currentSessionId,
         directory: currentDirectory,
         viewed,
-      });
+      } satisfies MiniChatPresenceMessage;
+
+      channel.postMessage(message);
     };
 
     postPresence(true);

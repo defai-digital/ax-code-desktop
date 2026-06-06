@@ -8,15 +8,7 @@ import { setOptimisticRefs } from '@/sync/session-actions';
 import { markSessionViewed } from '@/sync/notification-store';
 import { setExternallyViewedSession } from '@/sync/sync-context';
 import { useSync } from '@/sync/use-sync';
-
-const MINI_CHAT_PRESENCE_CHANNEL = 'openchamber:mini-chat-presence';
-
-type MiniChatPresenceMessage = {
-  type?: string;
-  sessionId?: string;
-  directory?: string;
-  viewed?: boolean;
-};
+import { MINI_CHAT_PRESENCE_CHANNEL, isMiniChatPresenceMessage } from './miniChatPresence';
 
 const SyncOptimisticBridge: React.FC = () => {
   const sync = useSync();
@@ -41,8 +33,8 @@ const MiniChatPresenceBridge: React.FC = () => {
 
     const channel = new BroadcastChannel(MINI_CHAT_PRESENCE_CHANNEL);
     channel.onmessage = (event) => {
-      const data = event.data as MiniChatPresenceMessage | null;
-      if (data?.type !== 'mini-chat-session-presence' || !data.sessionId || !data.directory) {
+      const data = event.data;
+      if (!isMiniChatPresenceMessage(data)) {
         return;
       }
 
