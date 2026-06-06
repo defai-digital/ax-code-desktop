@@ -1,6 +1,6 @@
 {
   "name": "ax-code-app",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "AX Code Desktop — AI coding assistant GUI, desktop runtime",
   "private": true,
   "type": "module",

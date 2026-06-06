@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-06
+
+- Git: surface fetch errors when resolving an existing remote branch instead of silently swallowing them.
+- Settings: align settings copy with desktop support status.
+- Cleanup: remove unused mobile context usage view, unused git sync translations, and redundant code paths.
+
 ## [0.7.0] - 2026-06-06
 
 - Runtimes: removed the unsupported VS Code extension and mobile/PWA runtimes — the app now targets the desktop and web experiences only, dropping the associated dead code, layouts, and update branches.

@@ -1,6 +1,6 @@
 {
   "name": "@openchamber/web",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "AX Code App web runtime, revamped from OpenChamber.",
   "private": false,
   "type": "module",
