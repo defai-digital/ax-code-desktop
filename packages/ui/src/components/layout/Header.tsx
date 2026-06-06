@@ -15,8 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { SortableTabsStrip, type SortableTabsStripItem } from '@/components/ui/sortable-tabs-strip';
 
-import { DiffIcon } from '@/components/icons/DiffIcon';
-import { useUIStore, type ContextPanelMode, type MainTab } from '@/stores/useUIStore';
+import { useUIStore, type ContextPanelMode } from '@/stores/useUIStore';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useSessionWorktreeStore } from '@/sync/session-worktree-store';
@@ -32,8 +31,7 @@ import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore';
 import { useGitHubAuthStore } from '@/stores/useGitHubAuthStore';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import { ContextUsageDisplay } from '@/components/ui/ContextUsageDisplay';
-import { useDeviceInfo } from '@/lib/device';
-import { cn, hasModifier } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { McpDropdownContent } from '@/components/mcp/McpDropdown';
 import { ProviderLogo } from '@/components/ui/ProviderLogo';
 import { formatQuotaValueLabel, formatQuotaResetLabel, formatWindowLabel, QUOTA_PROVIDERS, calculatePace, calculateExpectedUsagePercent } from '@/lib/quota';
@@ -72,7 +70,6 @@ import type { Session } from '@ax-code/sdk/v2/client';
 import type { IconName } from "@/components/icon/icons";
 
 const DESKTOP_HEADER_ICON_BUTTON_CLASS = 'app-region-no-drag inline-flex h-8 w-8 items-center justify-center gap-2 rounded-md typography-ui-label font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 hover:bg-interactive-hover transition-colors';
-const MOBILE_HEADER_ICON_BUTTON_CLASS = 'app-region-no-drag inline-flex h-9 w-9 items-center justify-center gap-2 p-2 rounded-md typography-ui-label font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 hover:text-foreground hover:bg-interactive-hover transition-colors';
 
 type HeaderIconActionButtonProps = {
   visible?: boolean;
@@ -200,7 +197,6 @@ const WindowsWindowControls = React.memo(function WindowsWindowControls({ visibl
 });
 
 type DesktopGitHubControlProps = {
-  isMobile: boolean;
   githubAuthStatus: GitHubAuthStatus | null;
   githubAccounts: Array<NonNullable<GitHubAuthStatus['accounts']>[number]>;
   githubAvatarUrl: string | null;
@@ -210,7 +206,6 @@ type DesktopGitHubControlProps = {
 };
 
 const DesktopGitHubControl = React.memo(function DesktopGitHubControl({
-  isMobile,
   githubAuthStatus,
   githubAccounts,
   githubAvatarUrl,
@@ -219,7 +214,7 @@ const DesktopGitHubControl = React.memo(function DesktopGitHubControl({
   handleGitHubAccountSwitch,
 }: DesktopGitHubControlProps) {
   const { t } = useI18n();
-  if (!githubAuthStatus?.connected || isMobile) {
+  if (!githubAuthStatus?.connected) {
     return null;
   }
 
@@ -698,14 +693,6 @@ const getActiveContextMode = (panelState: {
   return activeTab?.mode ?? null;
 };
 
-interface TabConfig {
-  id: MainTab;
-  label: string;
-  icon: IconName | 'diff';
-  badge?: number;
-  showDot?: boolean;
-}
-
 interface RateLimitGroup {
   providerId: string;
   providerName: string;
@@ -718,21 +705,8 @@ interface RateLimitGroup {
   }>;
 }
 
-interface HeaderProps {
-  onToggleLeftDrawer?: () => void;
-  onToggleRightDrawer?: () => void;
-  leftDrawerOpen?: boolean;
-  rightDrawerOpen?: boolean;
-}
-
-export const Header: React.FC<HeaderProps> = ({
-  onToggleLeftDrawer,
-  onToggleRightDrawer,
-  leftDrawerOpen,
-  rightDrawerOpen,
-}) => {
+export const Header: React.FC = () => {
   const { t } = useI18n();
-  const setSessionSwitcherOpen = useUIStore((state) => state.setSessionSwitcherOpen);
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
   const toggleBottomTerminal = useUIStore((state) => state.toggleBottomTerminal);
   const toggleRightSidebar = useUIStore((state) => state.toggleRightSidebar);
@@ -779,18 +753,12 @@ export const Header: React.FC<HeaderProps> = ({
   const fetchAllQuotas = useQuotaStore((state) => state.fetchAllQuotas);
   const isQuotaLoading = useQuotaStore((state) => state.isLoading);
   const quotaLastUpdated = useQuotaStore((state) => state.lastUpdated);
-  const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
-  const formatTime = React.useCallback(
-    (timestamp: number | null) => formatClockTime(timestamp, timeFormatPreference),
-    [timeFormatPreference],
-  );
   const quotaDisplayMode = useQuotaStore((state) => state.displayMode);
   const showPredValues = useQuotaStore((state) => state.showPredValues);
   const dropdownProviderIds = useQuotaStore((state) => state.dropdownProviderIds);
   const loadQuotaSettings = useQuotaStore((state) => state.loadSettings);
   const setQuotaDisplayMode = useQuotaStore((state) => state.setDisplayMode);
 
-  const { isMobile } = useDeviceInfo();
   const githubAuthStatus = useGitHubAuthStore((state) => state.status);
   const setGitHubAuthStatus = useGitHubAuthStore((state) => state.setStatus);
 
@@ -878,12 +846,10 @@ export const Header: React.FC<HeaderProps> = ({
     }
   }, [contextUsage, currentSessionId, isContextUsageResolvedForSession]);
 
-  const isSessionSwitcherOpen = useUIStore((state) => state.isSessionSwitcherOpen);
   const githubAvatarUrl = githubAuthStatus?.connected ? (githubAuthStatus.user?.avatarUrl ?? null) : null;
   const githubLogin = githubAuthStatus?.connected ? (githubAuthStatus.user?.login ?? null) : null;
   const githubAccounts = githubAuthStatus?.accounts ?? [];
   const [isSwitchingGitHubAccount, setIsSwitchingGitHubAccount] = React.useState(false);
-  const [isMobileRateLimitsOpen, setIsMobileRateLimitsOpen] = React.useState(false);
   const [isDesktopServicesOpen, setIsDesktopServicesOpen] = React.useState(false);
   const [isUsageRefreshSpinning, setIsUsageRefreshSpinning] = React.useState(false);
   const [currentInstanceLabel, setCurrentInstanceLabel] = React.useState('Local');
@@ -891,7 +857,6 @@ export const Header: React.FC<HeaderProps> = ({
   const [desktopServicesTab, setDesktopServicesTab] = React.useState<'instance' | 'usage' | 'mcp'>(
     isDesktopApp ? 'instance' : 'usage'
   );
-  const [mobileServicesTab, setMobileServicesTab] = React.useState<'usage' | 'mcp'>('usage');
   useEffect(() => {
     if (!isDesktopApp && desktopServicesTab === 'instance') {
       setDesktopServicesTab('usage');
@@ -1322,32 +1287,9 @@ export const Header: React.FC<HeaderProps> = ({
     }
   }, [isSwitchingGitHubAccount, runtimeApis.github, setGitHubAuthStatus]);
 
-  const blurActiveElement = React.useCallback(() => {
-    if (typeof document === 'undefined') {
-      return;
-    }
-
-    const active = document.activeElement as HTMLElement | null;
-    if (!active) {
-      return;
-    }
-
-    const tagName = active.tagName;
-    const isInput = tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
-
-    if (isInput || active.isContentEditable) {
-      active.blur();
-    }
-  }, []);
-
   const handleOpenSessionSwitcher = React.useCallback(() => {
-    if (isMobile) {
-      blurActiveElement();
-      setSessionSwitcherOpen(!isSessionSwitcherOpen);
-      return;
-    }
     toggleSidebar();
-  }, [blurActiveElement, isMobile, isSessionSwitcherOpen, setSessionSwitcherOpen, toggleSidebar]);
+  }, [toggleSidebar]);
 
   const handleOpenWindowsAppMenu = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -1458,46 +1400,6 @@ export const Header: React.FC<HeaderProps> = ({
   }, [contextPanelByDirectory, openDirectory]);
 
   const desktopHeaderIconButtonClass = DESKTOP_HEADER_ICON_BUTTON_CLASS;
-  const mobileHeaderIconButtonClass = MOBILE_HEADER_ICON_BUTTON_CLASS;
-  const mobileActiveHeaderItem = React.useMemo(() => {
-    if (isMobileRateLimitsOpen) {
-      return 'services';
-    }
-    if (leftDrawerOpen) {
-      return 'sessions';
-    }
-    if (rightDrawerOpen) {
-      return 'git';
-    }
-    return activeMainTab;
-  }, [activeMainTab, isMobileRateLimitsOpen, leftDrawerOpen, rightDrawerOpen]);
-
-  const closeMobileHeaderPanels = React.useCallback(() => {
-    setIsMobileRateLimitsOpen(false);
-    if (leftDrawerOpen && onToggleLeftDrawer) {
-      onToggleLeftDrawer();
-    }
-    if (rightDrawerOpen && onToggleRightDrawer) {
-      onToggleRightDrawer();
-    }
-    if (!onToggleLeftDrawer && isSessionSwitcherOpen) {
-      setSessionSwitcherOpen(false);
-    }
-  }, [isSessionSwitcherOpen, leftDrawerOpen, onToggleLeftDrawer, onToggleRightDrawer, rightDrawerOpen, setSessionSwitcherOpen]);
-
-  const handleMobileLeftDrawerToggle = React.useCallback(() => {
-    if (!leftDrawerOpen) {
-      setIsMobileRateLimitsOpen(false);
-    }
-    onToggleLeftDrawer?.();
-  }, [leftDrawerOpen, onToggleLeftDrawer]);
-
-  const handleMobileRightDrawerToggle = React.useCallback(() => {
-    if (!rightDrawerOpen) {
-      setIsMobileRateLimitsOpen(false);
-    }
-    onToggleRightDrawer?.();
-  }, [onToggleRightDrawer, rightDrawerOpen]);
 
   const desktopPaddingClass = React.useMemo(() => {
     if (isDesktopApp && isMacPlatform && !isDesktopWindowFullscreen) {
@@ -1627,7 +1529,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   useEffect(() => {
     updateHeaderHeight();
-  }, [updateHeaderHeight, isMobile, macosHeaderSizeClass]);
+  }, [updateHeaderHeight, macosHeaderSizeClass]);
 
   const handleDragStart = React.useCallback(async (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -1645,39 +1547,15 @@ export const Header: React.FC<HeaderProps> = ({
     }
   }, [isDesktopApp]);
 
-  const tabs: TabConfig[] = React.useMemo(() => {
-    if (isMobile) {
-      const base: TabConfig[] = [
-        { id: 'chat', label: t('layout.mainTab.chat'), icon: "chat-4" },
-      ];
-
-      if (showPlanTab) {
-        base.push({ id: 'plan', label: t('layout.mainTab.plan'), icon: "file-text" });
-      }
-
-      base.push(
-        { id: 'diff', label: t('layout.mainTab.diff'), icon: 'diff' },
-        { id: 'files', label: t('layout.mainTab.files'), icon: "folder-6" },
-        { id: 'terminal', label: t('layout.mainTab.terminal'), icon: "terminal-box" },
-        { id: 'context', label: t('layout.mainTab.context'), icon: "file-list-2" },
-      );
-
-      return base;
-    }
-
-    // Desktop: no tabs in header
-    return [];
-  }, [isMobile, showPlanTab, t]);
-
   const shortcutLabel = React.useCallback((actionId: string) => {
     return formatShortcutForDisplay(getEffectiveShortcutCombo(actionId, shortcutOverrides));
   }, [shortcutOverrides]);
 
   useEffect(() => {
-    if (!isMobile && (activeMainTab === 'git' || activeMainTab === 'terminal' || activeMainTab === 'diff' || activeMainTab === 'files' || activeMainTab === 'context')) {
+    if (activeMainTab === 'git' || activeMainTab === 'terminal' || activeMainTab === 'diff' || activeMainTab === 'files' || activeMainTab === 'context') {
       setActiveMainTab('chat');
     }
-  }, [activeMainTab, isMobile, setActiveMainTab]);
+  }, [activeMainTab, setActiveMainTab]);
 
   const servicesTabs = React.useMemo(() => {
     const base: Array<{ value: 'instance' | 'usage' | 'mcp'; label: string; icon: IconName }> = [];
@@ -1766,31 +1644,6 @@ export const Header: React.FC<HeaderProps> = ({
     return quotaDisplayTabs.map((tab) => ({ id: tab.value, label: tab.label }));
   }, [quotaDisplayTabs]);
 
-  const mobileServicesTabItems = React.useMemo<SortableTabsStripItem[]>(() => {
-    return [
-      { id: 'usage', label: t('layout.services.usage'), icon: <Icon name="timer" className="h-3.5 w-3.5" /> },
-      { id: 'mcp', label: 'MCP', icon: <Icon name="command" className="h-3.5 w-3.5" /> },
-    ];
-  }, [t]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (hasModifier(e) && !e.shiftKey && !e.altKey) {
-        const num = parseInt(e.key, 10);
-        if (num >= 1 && num <= tabs.length) {
-          e.preventDefault();
-          if (isMobile) {
-            blurActiveElement();
-            closeMobileHeaderPanels();
-          }
-          setActiveMainTab(tabs[num - 1].id);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [blurActiveElement, closeMobileHeaderPanels, isMobile, setActiveMainTab, tabs]);
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const toggleServicesCombo = getEffectiveShortcutCombo('toggle_services_menu', shortcutOverrides);
@@ -1850,55 +1703,6 @@ export const Header: React.FC<HeaderProps> = ({
     handleOpenContextPlan,
   ]);
 
-  const renderTab = (tab: TabConfig) => {
-    const isActive = activeMainTab === tab.id;
-    const isDiffTab = tab.icon === 'diff';
-    const tabIconName = isDiffTab ? null : (tab.icon as IconName);
-    const isChatTab = tab.id === 'chat';
-
-    const renderIcon = (iconSize: number) => {
-      if (isDiffTab) {
-        return <DiffIcon size={iconSize} />;
-      }
-      return tabIconName ? <Icon name={tabIconName} className={`h-${iconSize/4} w-${iconSize/4}`} /> : null;
-    };
-
-    const tabButton = (
-      <button
-        type="button"
-        onClick={() => setActiveMainTab(tab.id)}
-          className={cn(
-            'relative flex h-8 items-center gap-2 px-3 rounded-lg typography-ui-label font-medium transition-colors',
-            isActive
-              ? 'app-region-no-drag bg-interactive-selection text-interactive-selection-foreground shadow-none'
-              : 'app-region-no-drag text-muted-foreground hover:bg-interactive-hover/50 hover:text-foreground',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-            isChatTab && !isMobile && 'min-w-[100px] justify-center'
-          )}
-        aria-label={tab.label}
-        aria-selected={isActive}
-        role="tab"
-      >
-        {isMobile ? (
-          renderIcon(20)
-        ) : (
-          <>
-            {renderIcon(16)}
-            <span className="header-tab-label">{tab.label}</span>
-          </>
-        )}
-
-        {tab.badge !== undefined && tab.badge > 0 && (
-          <span className="header-tab-badge typography-micro text-status-info font-medium">
-            {tab.badge}
-          </span>
-        )}
-      </button>
-    );
-
-    return <React.Fragment key={tab.id}>{tabButton}</React.Fragment>;
-  };
-
   const desktopSidebarActions = (
     <>
       {showPlanTab && (
@@ -1954,15 +1758,13 @@ export const Header: React.FC<HeaderProps> = ({
         onClick={toggleBottomTerminal}
         Icon={'terminal-box'}
       />
-      {!isMobile ? (
-        <HeaderIconActionButton
-          title={t('contextPanel.browser.open')}
-          ariaLabel={t('contextPanel.browser.open')}
-          onClick={handleOpenContextBrowser}
-          pressed={isContextBrowserActive}
-          Icon={'global'}
-        />
-      ) : null}
+      <HeaderIconActionButton
+        title={t('contextPanel.browser.open')}
+        ariaLabel={t('contextPanel.browser.open')}
+        onClick={handleOpenContextBrowser}
+        pressed={isContextBrowserActive}
+        Icon={'global'}
+      />
       <HeaderIconActionButton
         title={t('header.actions.rightSidebarWithShortcut', { shortcut: shortcutLabel('toggle_right_sidebar') })}
         ariaLabel={t('header.actions.toggleRightSidebarAria')}
@@ -1970,7 +1772,6 @@ export const Header: React.FC<HeaderProps> = ({
         Icon={'layout-right'}
       />
       <DesktopGitHubControl
-        isMobile={isMobile}
         githubAuthStatus={githubAuthStatus}
         githubAccounts={githubAccounts}
         githubAvatarUrl={githubAvatarUrl}
@@ -2059,11 +1860,6 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </SessionSwitcherDropdown>
 
-        {tabs.length > 0 && (
-          <div className="flex items-center gap-1 rounded-lg bg-[var(--surface-muted)]/50 p-1">
-            {tabs.map((tab) => renderTab(tab))}
-          </div>
-        )}
 
         <div className="flex-1" />
 
@@ -2100,430 +1896,8 @@ export const Header: React.FC<HeaderProps> = ({
     </div>
   );
 
-  const renderMobile = () => (
-    <div className="app-region-drag relative flex items-center gap-2 px-3 py-2 select-none">
-      <div className="flex items-center gap-2 shrink-0">
-        {/* Use drawer toggle when onToggleLeftDrawer is provided, otherwise use legacy session switcher */}
-        {onToggleLeftDrawer ? (
-          <button
-            type="button"
-            onClick={handleMobileLeftDrawerToggle}
-            className={cn(
-              mobileHeaderIconButtonClass,
-              mobileActiveHeaderItem === 'sessions' && 'bg-interactive-selection text-interactive-selection-foreground'
-            )}
-            aria-label={leftDrawerOpen ? t('header.actions.closeSessionsAria') : t('header.actions.openSessionsAria')}
-          >
-            <Icon name="layout-left" className="h-5 w-5" />
-          </button>
-        ) : isSessionSwitcherOpen ? (
-          <button
-            type="button"
-            onClick={() => setSessionSwitcherOpen(false)}
-            className="app-region-no-drag h-9 w-9 p-2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md active:bg-interactive-active"
-            aria-label={t('header.actions.backAria')}
-          >
-            <Icon name="arrow-left-s" className="h-5 w-5" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleOpenSessionSwitcher}
-            className="app-region-no-drag h-9 w-9 p-2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md active:bg-interactive-active"
-            aria-label={t('header.actions.openSessionsAria')}
-          >
-            <Icon name="play-list-add" className="h-5 w-5" />
-          </button>
-        )}
-
-        {!onToggleLeftDrawer && isSessionSwitcherOpen && (
-          <span className="typography-ui-label font-semibold text-foreground">{t('header.sessions.title')}</span>
-        )}
-      </div>
-
-      {(!isSessionSwitcherOpen || Boolean(onToggleLeftDrawer)) && (
-        <>
-          <div className="app-region-no-drag flex min-w-0 flex-1 items-center">
-            <div className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden scrollbar-hidden touch-pan-x overscroll-x-contain">
-              <div className="flex w-max items-center gap-1 pr-1">
-                <div
-                  className="flex items-center gap-0.5 rounded-lg bg-[var(--surface-muted)]/50 p-0.5"
-                  role="tablist"
-                  aria-label={t('header.navigation.mainAria')}
-                >
-                  {tabs.map((tab) => {
-                    const isActive = activeMainTab === tab.id;
-                    const isDiffTab = tab.icon === 'diff';
-                    const tabIconName = isDiffTab ? null : (tab.icon as IconName);
-                    return (
-                      <Tooltip key={tab.id}>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (isMobile) {
-                                blurActiveElement();
-                                closeMobileHeaderPanels();
-                              }
-                              setActiveMainTab(tab.id);
-                            }}
-                            aria-label={tab.label}
-                            aria-selected={isActive}
-                            role="tab"
-                            className={cn(
-                              mobileHeaderIconButtonClass,
-                              'relative rounded-lg',
-                              mobileActiveHeaderItem === tab.id && 'bg-interactive-selection text-interactive-selection-foreground'
-                            )}
-                          >
-                            {isDiffTab ? (
-                              <DiffIcon className="h-5 w-5" />
-                            ) : tabIconName ? (
-                              <Icon name={tabIconName} className="h-5 w-5" />
-                            ) : null}
-                            {tab.badge !== undefined && tab.badge > 0 && (
-                              <span className="absolute -top-1 -right-1 text-[10px] font-semibold text-primary">
-                                {tab.badge}
-                              </span>
-                            )}
-                            {tab.showDot && (
-                              <span
-                                className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary"
-                                aria-label={t('header.changes.availableAria')}
-                              />
-                            )}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{tab.label}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1 shrink-0">
-            {projectActionsContext && (
-              <ProjectActionsButton
-                projectRef={projectActionsContext.projectRef}
-                directory={projectActionsContext.directory}
-                compact
-                allowMobile
-                className="h-9"
-              />
-            )}
-
-            {/* Mobile Services Menu (Usage + MCP) */}
-            <DropdownMenu
-              open={isMobileRateLimitsOpen}
-              onOpenChange={(open) => {
-                if (open) {
-                  if (leftDrawerOpen && onToggleLeftDrawer) {
-                    onToggleLeftDrawer();
-                  }
-                  if (rightDrawerOpen && onToggleRightDrawer) {
-                    onToggleRightDrawer();
-                  }
-                }
-                setIsMobileRateLimitsOpen(open);
-                if (open && quotaResults.length === 0) {
-                  fetchAllQuotas();
-                }
-              }}
-            >
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label={t('header.services.viewAria')}
-                      className={cn(
-                        mobileHeaderIconButtonClass,
-                        mobileActiveHeaderItem === 'services' && 'bg-interactive-selection text-interactive-selection-foreground'
-                      )}
-                    >
-                      <Icon name="stack" className="h-5 w-5" />
-                    </button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t('header.services.title')}</p>
-                </TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent
-                align="end"
-                sideOffset={0}
-                positionerClassName="!fixed !bottom-0 !left-0 !right-0 !top-[var(--oc-header-height,56px)] !transform-none"
-                className="h-full w-screen max-h-none rounded-none border-0 p-0 pt-1 overflow-hidden"
-              >
-                <div className="flex h-full flex-col bg-[var(--surface-elevated)]">
-                  <div className="sticky top-0 z-20 bg-[var(--surface-elevated)] px-2 py-px">
-                    <div className="flex items-center justify-between gap-2 px-3 py-0">
-                      <div className="h-10 min-w-0 flex-1">
-                        <SortableTabsStrip
-                          items={mobileServicesTabItems}
-                          activeId={mobileServicesTab}
-                          onSelect={(tabID) => {
-                            const value = tabID as 'usage' | 'mcp';
-                            setMobileServicesTab(value);
-                            if (value === 'usage' && quotaResults.length === 0) {
-                              fetchAllQuotas();
-                            }
-                          }}
-                          layoutMode="fit"
-                          variant="active-pill"
-                          activePillInsetClassName="gap-0.5 px-px py-0"
-                          activePillButtonClassName="h-8"
-                          className="h-full"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsMobileRateLimitsOpen(false)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-interactive-hover"
-                        aria-label={t('header.services.closeAria')}
-                      >
-                        <Icon name="close" className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {mobileServicesTab === 'mcp' && (
-                    <McpDropdownContent active={isMobileRateLimitsOpen && mobileServicesTab === 'mcp'} />
-                  )}
-
-                  {mobileServicesTab === 'usage' && (
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden pb-[calc(4rem+env(safe-area-inset-bottom))]">
-                      {/* Mobile usage header */}
-                      <div className="border-b border-[var(--interactive-border)]">
-                        <div className="flex items-center justify-between gap-3 px-4 py-3">
-                          <div className="flex flex-col min-w-0 gap-0.5">
-                            <span className="typography-ui-header font-semibold text-foreground">{t('header.services.rateLimits')}</span>
-                            <span className="truncate typography-micro text-muted-foreground">
-                              {formatTime(quotaLastUpdated)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div className="flex items-center h-6">
-                              <button
-                                type="button"
-                                onClick={() => handleDisplayModeChange('usage')}
-                                className={cn(
-                                  'typography-ui-label px-1 pb-0.5 transition-colors',
-                                  quotaDisplayMode === 'usage'
-                                    ? 'text-foreground border-b-2 border-[var(--primary-base)]'
-                                    : 'text-muted-foreground hover:text-foreground'
-                                )}
-                              >
-                                {t('header.services.used')}
-                              </button>
-                              <span className="text-muted-foreground typography-ui-label px-0.5">·</span>
-                              <button
-                                type="button"
-                                onClick={() => handleDisplayModeChange('remaining')}
-                                className={cn(
-                                  'typography-ui-label px-1 pb-0.5 transition-colors',
-                                  quotaDisplayMode === 'remaining'
-                                    ? 'text-foreground border-b-2 border-[var(--primary-base)]'
-                                    : 'text-muted-foreground hover:text-foreground'
-                                )}
-                              >
-                                {t('header.services.remaining')}
-                              </button>
-                            </div>
-                            <button
-                              type="button"
-                              className={cn(
-                                'inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors',
-                                'hover:text-foreground hover:bg-interactive-hover',
-                                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary'
-                              )}
-                              onClick={handleUsageRefresh}
-                              disabled={isQuotaLoading || isUsageRefreshSpinning}
-                              aria-label={t('header.services.refreshRateLimitsAria')}
-                            >
-                              <Icon name="refresh" className={cn('h-4 w-4', isUsageRefreshSpinning && 'animate-spin')} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {!hasRateLimits && (
-                        <div className="px-4 py-6 text-center">
-                          <span className="typography-ui-label text-muted-foreground">{t('header.services.noRateLimits')}</span>
-                        </div>
-                      )}
-
-                      {/* Mobile provider groups */}
-                      <div className="py-1">
-                        {rateLimitGroups.map((group, index) => (
-                          <React.Fragment key={group.providerId}>
-                            {index > 0 ? (
-                              <div className="mx-4 my-1 border-t border-[var(--interactive-border)]" />
-                            ) : null}
-
-                            {/* Provider header */}
-                            <div className="flex items-center gap-2 px-4 py-2">
-                              <ProviderLogo providerId={group.providerId} className="h-4 w-4" />
-                              <span className="typography-ui-label font-medium text-foreground">{group.providerName}</span>
-                            </div>
-
-                            {group.entries.length === 0 && (!group.modelFamilies || group.modelFamilies.length === 0) ? (
-                              <div className="px-4 pb-2">
-                                <span className="typography-ui-label text-muted-foreground">
-                                  {group.error ?? t('header.services.noRateLimitsReported')}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="space-y-3 px-4 pb-2">
-                                {/* Window-level entries */}
-                                {group.entries.map(([label, window]) => {
-                                  const displayPercent = quotaDisplayMode === 'remaining'
-                                    ? window.remainingPercent
-                                    : window.usedPercent;
-                                  const paceInfo = calculatePace(window.usedPercent, window.resetAt, window.windowSeconds, label);
-                                  const expectedMarker = paceInfo?.dailyAllocationPercent != null
-                                    ? (quotaDisplayMode === 'remaining'
-                                        ? 100 - calculateExpectedUsagePercent(paceInfo.elapsedRatio)
-                                        : calculateExpectedUsagePercent(paceInfo.elapsedRatio))
-                                    : null;
-                                  const metricLabel = formatQuotaValueLabel(window.valueLabel, displayPercent);
-                                  const resetLabel = formatQuotaResetLabel(window.resetAt, window.resetAfterFormatted ?? window.resetAtFormatted);
-                                  return (
-                                    <div key={`${group.providerId}-${label}`} className="flex flex-col gap-1.5">
-                                      <div className="flex min-w-0 items-center justify-between gap-3">
-                                        <div className="min-w-0 flex items-center gap-2">
-                                          <span className="truncate typography-ui-label text-foreground">{formatWindowLabel(label)}</span>
-                                          {resetLabel ? (
-                                            <span className="truncate typography-micro text-muted-foreground">
-                                              {resetLabel}
-                                            </span>
-                                          ) : null}
-                                        </div>
-                                        <span className="typography-ui-label text-foreground tabular-nums">
-                                          {metricLabel === '-' ? '' : metricLabel}
-                                        </span>
-                                      </div>
-                                      <UsageProgressBar
-                                        percent={displayPercent}
-                                        tonePercent={window.usedPercent}
-                                        className="h-1.5"
-                                        expectedMarkerPercent={expectedMarker}
-                                      />
-                                      {paceInfo && showPredValues ? (
-                                        <PaceIndicator paceInfo={paceInfo} compact />
-                                      ) : null}
-                                    </div>
-                                  );
-                                })}
-
-                                {/* Model family collapsibles */}
-                                {group.modelFamilies && group.modelFamilies.length > 0 && (
-                                  <div className="space-y-0.5">
-                                    {group.modelFamilies.map((family) => {
-                                      const providerExpandedFamilies = expandedFamilies[group.providerId] ?? [];
-                                      const isExpanded = providerExpandedFamilies.includes(family.familyId ?? 'other');
-
-                                      return (
-                                        <Collapsible
-                                          key={family.familyId ?? 'other'}
-                                          open={isExpanded}
-                                          onOpenChange={() => toggleFamilyExpanded(group.providerId, family.familyId ?? 'other')}
-                                        >
-                                          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-left hover:bg-[var(--interactive-hover)]/50 transition-colors">
-                                            <span className="typography-ui-label font-medium text-foreground">
-                                              {family.familyLabel}
-                                            </span>
-                                            {isExpanded ? (
-                                              <Icon name="arrow-down-s" className="h-4 w-4 text-muted-foreground" />
-                                            ) : (
-                                              <Icon name="arrow-right-s" className="h-4 w-4 text-muted-foreground" />
-                                            )}
-                                          </CollapsibleTrigger>
-                                          <CollapsibleContent>
-                                            <div className="space-y-2.5 pb-1 pl-1 pt-1">
-                                              {family.models.map(([modelName, window]) => {
-                                                const displayPercent = quotaDisplayMode === 'remaining'
-                                                  ? window.remainingPercent
-                                                  : window.usedPercent;
-                                                const paceInfo = calculatePace(window.usedPercent, window.resetAt, window.windowSeconds);
-                                                const expectedMarker = paceInfo?.dailyAllocationPercent != null
-                                                  ? (quotaDisplayMode === 'remaining'
-                                                      ? 100 - calculateExpectedUsagePercent(paceInfo.elapsedRatio)
-                                                      : calculateExpectedUsagePercent(paceInfo.elapsedRatio))
-                                                  : null;
-                                                const metricLabel = formatQuotaValueLabel(window.valueLabel, displayPercent);
-                                                return (
-                                                  <div key={`${group.providerId}-${modelName}`} className="flex flex-col gap-1.5">
-                                                    <div className="flex min-w-0 items-center justify-between gap-3">
-                                                      <span className="truncate typography-micro text-muted-foreground">{getDisplayModelName(modelName)}</span>
-                                                      <span className="typography-ui-label text-foreground tabular-nums">
-                                                        {metricLabel === '-' ? '' : metricLabel}
-                                                      </span>
-                                                    </div>
-                                                    <UsageProgressBar
-                                                      percent={displayPercent}
-                                                      tonePercent={window.usedPercent}
-                                                      className="h-1.5"
-                                                      expectedMarkerPercent={expectedMarker}
-                                                    />
-                                                    {paceInfo && showPredValues ? (
-                                                      <PaceIndicator paceInfo={paceInfo} compact />
-                                                    ) : null}
-                                                  </div>
-                                                );
-                                              })}
-                                            </div>
-                                          </CollapsibleContent>
-                                        </Collapsible>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {onToggleRightDrawer ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={handleMobileRightDrawerToggle}
-                    className={cn(
-                      mobileHeaderIconButtonClass,
-                      'relative',
-                      mobileActiveHeaderItem === 'git' && 'bg-interactive-selection text-interactive-selection-foreground'
-                    )}
-                    aria-label={rightDrawerOpen ? 'Close git sidebar' : 'Open git sidebar'}
-                  >
-                    <Icon name="layout-right" className="h-5 w-5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{rightDrawerOpen ? 'Close git sidebar' : 'Open git sidebar'}</p>
-                </TooltipContent>
-              </Tooltip>
-            ) : null}
-          </div>
-        </>
-      )}
-    </div>
-  );
-
   const headerClassName = cn(
-    'header-safe-area relative z-10',
-    isMobile ? 'border-b border-border/50 bg-background' : 'bg-sidebar'
+    'header-safe-area relative z-10 bg-sidebar'
   );
 
   return (
@@ -2532,7 +1906,7 @@ export const Header: React.FC<HeaderProps> = ({
       className={headerClassName}
       style={{ ['--padding-scale' as string]: '1' } as React.CSSProperties}
     >
-      {isMobile ? renderMobile() : renderDesktop()}
+      {renderDesktop()}
     </header>
   );
 };
