@@ -408,8 +408,9 @@ jobs:
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
           echo "$WINDOWS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
-          echo "WINDOWS_CERTIFICATE_FILE=$RUNNER_TEMP/certificate.p12" >> "$GITHUB_ENV"
-          echo "WINDOWS_CERTIFICATE_PASSWORD=$WINDOWS_CERTIFICATE_PASSWORD" >> "$GITHUB_ENV"
+          # electron-builder native Windows signing env vars.
+          echo "WIN_CSC_LINK=$RUNNER_TEMP/certificate.p12" >> "$GITHUB_ENV"
+          echo "WIN_CSC_KEY_PASSWORD=$WINDOWS_CERTIFICATE_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Build Windows app
         working-directory: packages/electron

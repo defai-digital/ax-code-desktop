@@ -28,13 +28,11 @@ const result = spawnSync(
     stdio: 'inherit',
     cwd: electronDir,
     shell: true,
-    env: {
-      ...process.env,
-      // electron-builder reads these for Windows code signing.
-      // They are injected by the CI signing step when a certificate is present.
-      WINDOWS_CERTIFICATE_FILE: process.env.WINDOWS_CERTIFICATE_FILE ?? '',
-      WINDOWS_CERTIFICATE_PASSWORD: process.env.WINDOWS_CERTIFICATE_PASSWORD ?? '',
-    },
+    // Windows signing is read natively by electron-builder from
+    // WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD, which the CI signing step sets only
+    // when a certificate is present; nothing to inject here. With no cert the
+    // installer + portable zip are built unsigned.
+    env: process.env,
   }
 )
 
