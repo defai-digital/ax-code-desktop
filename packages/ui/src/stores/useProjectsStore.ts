@@ -286,59 +286,14 @@ const persistProjects = (projects: ProjectEntry[], activeProjectId: string | nul
 };
 
 const initialProjects = readPersistedProjects();
-const getVSCodeWorkspaceProject = (): { projects: ProjectEntry[]; activeProjectId: string | null } | null => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const runtimeApis = (window as unknown as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } })
-    .__OPENCHAMBER_RUNTIME_APIS__;
-  if (!runtimeApis?.runtime?.isVSCode) {
-    return null;
-  }
-
-  const workspaceFolder = (window as unknown as { __VSCODE_CONFIG__?: { workspaceFolder?: unknown } }).__VSCODE_CONFIG__?.workspaceFolder;
-  if (typeof workspaceFolder !== 'string' || workspaceFolder.trim().length === 0) {
-    return null;
-  }
-
-  const normalizedPath = normalizeProjectPath(workspaceFolder);
-  if (!normalizedPath) {
-    return null;
-  }
-
-  const id = createProjectIdFromPath(normalizedPath);
-  const entry: ProjectEntry = {
-    id,
-    path: normalizedPath,
-    label: deriveProjectLabel(normalizedPath),
-    addedAt: Date.now(),
-    lastOpenedAt: Date.now(),
-  };
-
-  if (streamDebugEnabled()) {
-    console.log('[OpenChamber][VSCode][projects] Using workspace fallback project', entry);
-  }
-
-  return { projects: [entry], activeProjectId: id };
-};
-
-// VS Code runtime should behave as a single-project environment scoped to the workspace folder.
-// Always prefer the workspace project over any persisted multi-project registry.
-const vscodeWorkspace = getVSCodeWorkspaceProject();
-const effectiveInitialProjects = vscodeWorkspace?.projects ?? initialProjects;
-const persistedInitialActiveProjectId = vscodeWorkspace?.activeProjectId ?? readPersistedActiveProjectId();
-const initialActiveProjectId = effectiveInitialProjects.some((project) => project.id === persistedInitialActiveProjectId)
+const persistedInitialActiveProjectId = readPersistedActiveProjectId();
+const initialActiveProjectId = initialProjects.some((project) => project.id === persistedInitialActiveProjectId)
   ? persistedInitialActiveProjectId
-  : effectiveInitialProjects[0]?.id ?? null;
-
-if (vscodeWorkspace) {
-  cacheProjects(effectiveInitialProjects, initialActiveProjectId);
-}
+  : initialProjects[0]?.id ?? null;
 
 export const useProjectsStore = create<ProjectsStore>()(
   devtools((set, get) => ({
-    projects: effectiveInitialProjects,
+    projects: initialProjects,
     activeProjectId: initialActiveProjectId,
 
     validateProjectPath: (path: string): ProjectPathValidationResult => {
@@ -355,9 +310,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     },
 
     addProject: (path: string, options?: { label?: string; id?: string }) => {
-      if (vscodeWorkspace) {
-        return null;
-      }
       const { validateProjectPath } = get();
       const validation = validateProjectPath(path);
       if (!validation.ok || !validation.normalizedPath) {
@@ -396,9 +348,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     },
 
     removeProject: (id: string) => {
-      if (vscodeWorkspace) {
-        return;
-      }
       const current = get();
       const project = current.projects.find((p) => p.id === id);
       const nextProjects = current.projects.filter((project) => project.id !== id);
@@ -433,9 +382,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     },
 
     setActiveProject: (id: string) => {
-      if (vscodeWorkspace) {
-        return;
-      }
       const { projects, activeProjectId } = get();
       if (activeProjectId === id) {
         return;
@@ -458,9 +404,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     },
 
     setActiveProjectIdOnly: (id: string) => {
-      if (vscodeWorkspace) {
-        return;
-      }
       const { projects, activeProjectId } = get();
       if (activeProjectId === id) {
         return;
@@ -480,9 +423,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     },
 
     renameProject: (id: string, label: string) => {
-      if (vscodeWorkspace) {
-        return;
-      }
       const trimmed = label.trim();
       if (!trimmed) {
         return;
@@ -497,9 +437,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     },
 
     updateProjectMeta: (id: string, meta: { label?: string; icon?: string | null; color?: string | null; iconBackground?: string | null }) => {
-      if (vscodeWorkspace) {
-        return;
-      }
       const { projects, activeProjectId } = get();
       const nextProjects = projects.map((project) => {
         if (project.id !== id) return project;
@@ -520,10 +457,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     },
 
     uploadProjectIcon: async (id: string, file: File) => {
-      if (vscodeWorkspace) {
-        return { ok: false, error: 'Custom icons are not supported in this runtime' };
-      }
-
       const mime = resolveUploadMime(file);
       if (!mime) {
         return { ok: false, error: 'Only PNG, JPEG, and SVG are supported' };
@@ -565,10 +498,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     },
 
     removeProjectIcon: async (id: string) => {
-      if (vscodeWorkspace) {
-        return { ok: false, error: 'Custom icons are not supported in this runtime' };
-      }
-
       try {
         const response = await fetch(`/api/projects/${encodeURIComponent(id)}/icon`, {
           method: 'DELETE',
@@ -594,10 +523,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     },
 
     discoverProjectIcon: async (id: string, options?: { force?: boolean }) => {
-      if (vscodeWorkspace) {
-        return { ok: false, error: 'Custom icons are not supported in this runtime' };
-      }
-
       try {
         const response = await fetch(`/api/projects/${encodeURIComponent(id)}/icon/discover`, {
           method: 'POST',
@@ -635,9 +560,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     },
 
     reorderProjects: (fromIndex: number, toIndex: number) => {
-      if (vscodeWorkspace) {
-        return;
-      }
       const { projects, activeProjectId } = get();
       if (
         fromIndex < 0 ||
@@ -658,9 +580,6 @@ export const useProjectsStore = create<ProjectsStore>()(
     },
 
     synchronizeFromSettings: (settings: DesktopSettings) => {
-      if (vscodeWorkspace) {
-        return;
-      }
       const incomingProjects = sanitizeProjects(settings.projects ?? []);
       const incomingActive = typeof settings.activeProjectId === 'string' && settings.activeProjectId.trim()
         ? settings.activeProjectId.trim()
