@@ -51,6 +51,14 @@ import { applyMobileKeyboardMode } from '@/lib/mobileKeyboardMode';
 import { SyncAppEffects } from '@/apps/AppEffects';
 import { useAppFontEffects } from '@/apps/useAppFontEffects';
 import { AxCodeUpdateToast } from '@/components/update/AxCodeUpdateToast';
+import {
+  OPEN_DRAFT_SESSION_EVENT,
+  OPEN_PROJECT_EVENT,
+  OPEN_SESSION_EVENT,
+  parseOpenDraftSessionEvent,
+  parseOpenProjectEvent,
+  parseOpenSessionEvent,
+} from '@/lib/appOpenEvents';
 
 // Lazy-loaded heavy views — loaded on demand to reduce initial bundle size.
 const OnboardingScreen = lazyWithChunkRecovery(() =>
@@ -549,62 +557,51 @@ function App({ apis }: AppProps) {
     if (typeof window === 'undefined') return;
 
     const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ sessionId?: string; directory?: string }>).detail;
-      const sessionId = typeof detail?.sessionId === 'string' ? detail.sessionId.trim() : '';
-      if (!sessionId) return;
-      const directory = typeof detail?.directory === 'string' && detail.directory.trim().length > 0
-        ? detail.directory.trim()
-        : null;
+      const detail = parseOpenSessionEvent(event);
+      if (!detail) return;
       useUIStore.getState().setActiveMainTab('chat');
-      void useSessionUIStore.getState().setCurrentSession(sessionId, directory);
+      void useSessionUIStore.getState().setCurrentSession(detail.sessionId, detail.directory);
     };
 
-    window.addEventListener('openchamber:open-session', handler as EventListener);
-    return () => window.removeEventListener('openchamber:open-session', handler as EventListener);
+    window.addEventListener(OPEN_SESSION_EVENT, handler);
+    return () => window.removeEventListener(OPEN_SESSION_EVENT, handler);
   }, []);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ directory?: string; projectId?: string }>).detail;
-      const directory = typeof detail?.directory === 'string' && detail.directory.trim().length > 0
-        ? detail.directory.trim()
-        : null;
-      const projectId = typeof detail?.projectId === 'string' && detail.projectId.trim().length > 0
-        ? detail.projectId.trim()
-        : null;
+      const detail = parseOpenDraftSessionEvent(event);
       useUIStore.getState().setActiveMainTab('chat');
       useUIStore.getState().setSessionSwitcherOpen(false);
       useSessionUIStore.getState().openNewSessionDraft({
-        selectedProjectId: projectId,
-        directoryOverride: directory,
-        preserveDirectoryOverride: Boolean(directory),
+        selectedProjectId: detail.projectId,
+        directoryOverride: detail.directory,
+        preserveDirectoryOverride: Boolean(detail.directory),
       });
     };
 
-    window.addEventListener('openchamber:open-draft-session', handler as EventListener);
-    return () => window.removeEventListener('openchamber:open-draft-session', handler as EventListener);
+    window.addEventListener(OPEN_DRAFT_SESSION_EVENT, handler);
+    return () => window.removeEventListener(OPEN_DRAFT_SESSION_EVENT, handler);
   }, []);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ projectPath?: string }>).detail;
-      const projectPath = typeof detail?.projectPath === 'string' ? detail.projectPath.trim() : '';
-      if (!projectPath) return;
+      const detail = parseOpenProjectEvent(event);
+      if (!detail) return;
       const projectsStore = useProjectsStore.getState();
-      const existing = projectsStore.projects.find((project) => project.path === projectPath);
+      const existing = projectsStore.projects.find((project) => project.path === detail.projectPath);
       if (existing) {
         projectsStore.setActiveProject(existing.id);
       } else {
-        projectsStore.addProject(projectPath);
+        projectsStore.addProject(detail.projectPath);
       }
     };
 
-    window.addEventListener('openchamber:open-project', handler as EventListener);
-    return () => window.removeEventListener('openchamber:open-project', handler as EventListener);
+    window.addEventListener(OPEN_PROJECT_EVENT, handler);
+    return () => window.removeEventListener(OPEN_PROJECT_EVENT, handler);
   }, []);
 
   React.useEffect(() => {
