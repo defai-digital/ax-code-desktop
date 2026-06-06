@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-06-06
+
+- Branding: aligned the settings source namespace, notification fallbacks, issue template text, About dialog title, and theme metadata with AX Code App while preserving legacy OpenChamber compatibility paths.
+
 ## [0.6.4] - 2026-06-06
 
 - Release: fixed the desktop packaging pipeline — macOS and Windows builds now package correctly (electron-builder config and Windows binary resolution), and npm registry publishing is opt-in and non-fatal so it no longer blocks releases.
