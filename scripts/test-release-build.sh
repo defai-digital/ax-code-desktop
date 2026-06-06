@@ -15,8 +15,7 @@
 #
 # Targets:
 #   aarch64  - Build for Apple Silicon (arm64)
-#   x86_64   - Build for Intel Mac (x86_64)
-#   all      - Build for both architectures (default)
+#   all      - Build supported macOS architectures (Apple Silicon only)
 #
 # Options:
 #   --act            Force using act (Linux containers - limited macOS support)
@@ -26,7 +25,7 @@
 #   --no-bundle      Skip bundle creation (faster, just verify compilation)
 #
 # Examples:
-#   ./scripts/test-release-build.sh x86_64         # Test Intel Mac build natively
+#   ./scripts/test-release-build.sh aarch64        # Test Apple Silicon Mac build natively
 #   ./scripts/test-release-build.sh --act          # Run workflow via act
 #   ./scripts/test-release-build.sh --no-bundle    # Quick compilation check
 
@@ -80,8 +79,7 @@ usage() {
     echo ""
     echo "Targets:"
     echo "  aarch64, arm64, arm    Build for Apple Silicon"
-    echo "  x86_64, intel, x86     Build for Intel Mac"
-    echo "  all, both              Build for both architectures (default)"
+    echo "  all                    Build supported macOS architectures (Apple Silicon only)"
     echo ""
     echo "Options:"
     echo "  --act              Run via act (GitHub Actions in Docker - limited macOS)"
@@ -249,11 +247,7 @@ while [[ $# -gt 0 ]]; do
             TARGET="aarch64"
             shift
             ;;
-        x86_64|intel|x86)
-            TARGET="x86_64"
-            shift
-            ;;
-        all|both)
+        all)
             TARGET="all"
             shift
             ;;
@@ -293,11 +287,8 @@ case "$TARGET" in
     aarch64)
         TARGETS=("aarch64-apple-darwin")
         ;;
-    x86_64)
-        TARGETS=("x86_64-apple-darwin")
-        ;;
     all)
-        TARGETS=("aarch64-apple-darwin" "x86_64-apple-darwin")
+        TARGETS=("aarch64-apple-darwin")
         ;;
 esac
 

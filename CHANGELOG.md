@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-06-06
+
+- Release: macOS desktop artifacts are now Apple Silicon only; release, smoke, Electron updater, and legacy Tauri updater manifest paths no longer build or require macOS x64 artifacts.
+- Desktop/Windows: rebuilt the Windows app icon as a 256x256 ICO so electron-builder can produce the unsigned Windows installer and portable zip.
+
 ## [0.6.5] - 2026-06-06
 
 - Branding: aligned the settings source namespace, notification fallbacks, issue template text, About dialog title, and theme metadata with AX Code App while preserving legacy OpenChamber compatibility paths.

@@ -200,9 +200,6 @@ jobs:
           - target: aarch64-apple-darwin
             arch: arm64
             platform: darwin-aarch64
-          - target: x86_64-apple-darwin
-            arch: x64
-            platform: darwin-x86_64
     steps:
       - uses: actions/checkout@v6
 
@@ -248,8 +245,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # rebuild-native.mjs reads this to target the right arch when
-          # cross-building (runner is arm64; x64 matrix needs the hint).
+          # rebuild-native.mjs reads this to target the right arch.
           ELECTRON_BUILDER_ARCH: ${{ matrix.arch }}
           # With no signing certificate, disable identity auto-discovery so
           # electron-builder produces an unsigned build (and skips notarization,
@@ -448,8 +444,6 @@ jobs:
         include:
           - arch: arm64
             platform: darwin-aarch64
-          - arch: x64
-            platform: darwin-x86_64
     steps:
       - uses: actions/checkout@v6
 
@@ -564,18 +558,8 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f artifacts/latest-darwin-x86_64.json ]; then
-            echo "Error: x86_64 manifest not found"
-            exit 1
-          fi
-
           if ! jq empty artifacts/latest-darwin-aarch64.json 2>/dev/null; then
             echo "Error: aarch64 manifest is not valid JSON"
-            exit 1
-          fi
-
-          if ! jq empty artifacts/latest-darwin-x86_64.json 2>/dev/null; then
-            echo "Error: x86_64 manifest is not valid JSON"
             exit 1
           fi
 
@@ -584,24 +568,17 @@ jobs:
             exit 1
           fi
 
-          if ! jq -e '.platforms["darwin-x86_64"]' artifacts/latest-darwin-x86_64.json > /dev/null; then
-            echo "Error: darwin-x86_64 platform data not found in manifest"
-            exit 1
-          fi
-
           jq -n \
             --arg version "$VERSION" \
             --arg notes "OpenChamber has moved to Electron. This update replaces the Tauri shell with the Electron build. Subsequent updates will be delivered via the Electron auto-updater." \
             --arg pub_date "$PUB_DATE" \
             --slurpfile aarch64 artifacts/latest-darwin-aarch64.json \
-            --slurpfile x86_64 artifacts/latest-darwin-x86_64.json \
             '{
               version: $version,
               notes: $notes,
               pub_date: $pub_date,
               platforms: {
-                "darwin-aarch64": $aarch64[0].platforms["darwin-aarch64"],
-                "darwin-x86_64": $x86_64[0].platforms["darwin-x86_64"]
+                "darwin-aarch64": $aarch64[0].platforms["darwin-aarch64"]
               }
             }' > artifacts/latest.json
 

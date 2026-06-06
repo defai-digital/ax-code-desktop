@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
- * Merges per-arch latest-mac.yml files (arm64 + x64) produced by separate
- * electron-builder runs into a single latest-mac.yml that electron-updater
- * can use for universal macOS updates.
+ * Normalizes the arm64 latest-mac.yml produced by electron-builder into the
+ * release-level latest-mac.yml consumed by electron-updater.
  *
  * Environment variables (set by CI):
  *   LATEST_YML_DIR      – directory containing downloaded per-arch artifacts
@@ -62,29 +61,27 @@ function emitYml(obj) {
     lines.push(`    size: ${f.size}`)
     if (f.blockMapSize) lines.push(`    blockMapSize: ${f.blockMapSize}`)
   }
-  // electron-updater uses the first (or x64) entry as the canonical path/sha512
-  const canonical = obj.files.find(f => !f.url.includes('arm64')) ?? obj.files[0]
+  // electron-updater uses the first entry as the canonical path/sha512.
+  const canonical = obj.files[0]
   lines.push(`path: ${canonical.url}`)
   lines.push(`sha512: ${canonical.sha512}`)
   lines.push(`releaseDate: '${new Date().toISOString()}'`)
   return lines.join('\n') + '\n'
 }
 
-// Artifact download-artifact@v4 without merge-multiple creates subdirs named
+// Artifact download-artifact@v4 without merge-multiple creates a subdir named
 // after the artifact: latest-yml-aarch64-apple-darwin/latest-mac.yml
 const arm64File = path.join(latestYmlDir, 'latest-yml-aarch64-apple-darwin', 'latest-mac.yml')
-const x64File = path.join(latestYmlDir, 'latest-yml-x86_64-apple-darwin', 'latest-mac.yml')
 
 if (!fs.existsSync(arm64File)) throw new Error(`Not found: ${arm64File}`)
-if (!fs.existsSync(x64File)) throw new Error(`Not found: ${x64File}`)
 
 const arm64 = parseLatestYml(fs.readFileSync(arm64File, 'utf8'))
-const x64 = parseLatestYml(fs.readFileSync(x64File, 'utf8'))
 
-// Merge: combine file entries, deduplicate by url
+// Deduplicate by url in case electron-builder emits multiple entries pointing
+// at the same artifact.
 const seenUrls = new Set()
 const mergedFiles = []
-for (const f of [...x64.files, ...arm64.files]) {
+for (const f of arm64.files) {
   if (!seenUrls.has(f.url)) {
     seenUrls.add(f.url)
     mergedFiles.push(f)
