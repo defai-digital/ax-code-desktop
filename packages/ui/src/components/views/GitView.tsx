@@ -978,7 +978,7 @@ export const GitView: React.FC = () => {
     };
   }, [changeEntries, currentDirectory, git, prefetchDiffs, stagedChangeEntries, visibleChangePaths]);
 
-  const handleSyncAction = async (action: Exclude<SyncAction, null>, remote?: GitRemote) => {
+  const handleRemoteAction = async (action: Exclude<SyncAction, null>, remote?: GitRemote) => {
     if (!currentDirectory) return;
     setSyncAction(action);
 
@@ -994,6 +994,10 @@ export const GitView: React.FC = () => {
           rebase: true,
         };
       };
+      const refreshGitState = async () => {
+        await refreshStatusAndBranches(false);
+        await refreshLog();
+      };
 
       if (action === 'fetch') {
         if (!remote) {
@@ -1001,53 +1005,59 @@ export const GitView: React.FC = () => {
         }
         await git.gitFetch(currentDirectory, { remote: remote.name });
         toast.success(t('gitView.toast.fetchedFromRemote', { name: remote.name }));
-      } else if (action === 'sync') {
+      } else if (action === 'pull') {
         if (!remote) {
-          throw new Error('No remote available for sync');
+          throw new Error('No remote available for pull');
         }
         let pulledFileCount = 0;
-        let pushedChanges = false;
         await git.gitFetch(currentDirectory, { remote: remote.name });
         const afterFetch = await git.getGitStatus(currentDirectory);
 
         if ((afterFetch.behind ?? 0) > 0) {
           if ((afterFetch.files?.length ?? 0) > 0) {
             toast.error(t('gitView.toast.commitOrStashBeforeSync'));
+            await refreshGitState();
             return;
           }
           const pullResult = await git.gitPull(currentDirectory, getPullOptions(remote));
           pulledFileCount = pullResult.files.length;
         }
 
-        const afterPull = await git.getGitStatus(currentDirectory);
-        if ((afterPull.ahead ?? 0) > 0) {
-          await git.gitPush(currentDirectory);
-          pushedChanges = true;
-        }
-        if (pulledFileCount > 0 && pushedChanges) {
-          toast.success(
-            pulledFileCount === 1
-              ? t('gitView.toast.syncedPulledSingleAndPushed', { count: pulledFileCount, name: remote.name })
-              : t('gitView.toast.syncedPulledPluralAndPushed', { count: pulledFileCount, name: remote.name })
-          );
-        } else if (pulledFileCount > 0) {
+        if (pulledFileCount > 0) {
           toast.success(
             pulledFileCount === 1
               ? t('gitView.toast.pulledFilesSingle', { count: pulledFileCount, name: remote.name })
               : t('gitView.toast.pulledFilesPlural', { count: pulledFileCount, name: remote.name })
           );
-        } else if (pushedChanges) {
-          toast.success(t('gitView.toast.pushedToUpstream', { name: remote.name }));
         } else {
           toast.success(t('gitView.toast.alreadyUpToDate'));
         }
+      } else if (action === 'push') {
+        if (!remote) {
+          throw new Error('No remote available for push');
+        }
+        await git.gitFetch(currentDirectory, { remote: remote.name });
+        const afterFetch = await git.getGitStatus(currentDirectory);
+        if ((afterFetch.behind ?? 0) > 0) {
+          toast.error(t('gitView.toast.pullBeforePush', { count: afterFetch.behind, name: remote.name }));
+          await refreshGitState();
+          return;
+        }
+        if ((afterFetch.ahead ?? 0) === 0 && afterFetch.tracking) {
+          toast.success(t('gitView.toast.alreadyUpToDate'));
+          await refreshGitState();
+          return;
+        }
+        await git.gitPush(currentDirectory, { remote: remote.name });
+        toast.success(t('gitView.toast.pushedToUpstream', { name: remote.name }));
       }
 
-      await refreshStatusAndBranches(false);
-      await refreshLog();
+      await refreshGitState();
     } catch (err) {
-      const fallbackAction = action === 'sync'
-        ? t('gitView.sync.syncChanges')
+      const fallbackAction = action === 'pull'
+        ? t('gitView.sync.pullChanges')
+        : action === 'push'
+          ? t('gitView.sync.pushChanges')
         : remote
           ? t('gitView.sync.fetchFromRemote', { name: remote.name })
           : 'fetch';
@@ -2263,8 +2273,9 @@ export const GitView: React.FC = () => {
         branchInfo={branches?.branches}
         syncAction={syncAction}
         remotes={effectiveRemotes}
-        onFetch={(remote) => handleSyncAction('fetch', remote)}
-        onSync={(remote) => handleSyncAction('sync', remote)}
+        onFetch={(remote) => handleRemoteAction('fetch', remote)}
+        onPull={(remote) => handleRemoteAction('pull', remote)}
+        onPush={(remote) => handleRemoteAction('push', remote)}
         onRemoveRemote={handleRemoveRemote}
         removingRemoteName={removingRemoteName}
         onCheckoutBranch={handleCheckoutBranch}

@@ -17,7 +17,8 @@ interface SyncActionsProps {
   syncAction: SyncAction;
   remotes: GitRemote[];
   onFetch: (remote: GitRemote) => void;
-  onSync: (remote: GitRemote) => void;
+  onPull: (remote: GitRemote) => void;
+  onPush: (remote: GitRemote) => void;
   onRemoveRemote?: (remote: GitRemote) => void;
   disabled: boolean;
   removingRemoteName?: string | null;
@@ -31,7 +32,8 @@ export const SyncActions: React.FC<SyncActionsProps> = ({
   syncAction,
   remotes = [],
   onFetch,
-  onSync,
+  onPull,
+  onPush,
   onRemoveRemote,
   disabled,
   removingRemoteName = null,
@@ -43,29 +45,39 @@ export const SyncActions: React.FC<SyncActionsProps> = ({
   const { t } = useI18n();
   const skipRemoteSelectRef = React.useRef(false);
   const isRemovingRemote = Boolean(removingRemoteName);
+  const hasTrackingBranch = Boolean(trackingRemoteName);
   const trackingRemote = remotes.find((remote) => remote.name === trackingRemoteName) ?? remotes[0];
-  const blocksRebaseSync = behindCount > 0 && hasUncommittedChanges;
-  const isPrimaryDisabled = disabled || syncAction !== null || isRemovingRemote || !trackingRemote || blocksRebaseSync;
+  const primaryAction: Exclude<SyncAction, 'fetch' | null> =
+    !hasTrackingBranch || (aheadCount > 0 && behindCount === 0) ? 'push' : 'pull';
+  const blocksPull = primaryAction === 'pull' && behindCount > 0 && hasUncommittedChanges;
+  const isPrimaryDisabled = disabled || syncAction !== null || isRemovingRemote || !trackingRemote || blocksPull;
   const isDropdownDisabled = disabled || syncAction !== null || isRemovingRemote || remotes.length === 0;
-  const hasKnownSyncWork = aheadCount > 0 || behindCount > 0;
   const primaryLabel = [
-    t('gitView.sync.sync'),
-    behindCount > 0 ? `↓${behindCount}` : null,
-    aheadCount > 0 ? `↑${aheadCount}` : null,
+    primaryAction === 'push' ? t('gitView.sync.push') : t('gitView.sync.pull'),
+    primaryAction === 'push' && aheadCount > 0 ? `↑${aheadCount}` : null,
+    primaryAction === 'pull' && behindCount > 0 ? `↓${behindCount}` : null,
   ].filter(Boolean).join(' ');
-  const tooltipLabel = blocksRebaseSync
+  const tooltipLabel = blocksPull
     ? t('gitView.sync.commitOrStashTooltip')
     : trackingRemote
-    ? hasKnownSyncWork
-      ? t('gitView.sync.syncChangesTooltip', { ahead: aheadCount, behind: behindCount })
-      : t('gitView.sync.syncChanges')
+    ? primaryAction === 'push'
+      ? aheadCount > 0
+        ? t('gitView.sync.pushChangesTooltip', { ahead: aheadCount })
+        : t('gitView.sync.pushChanges')
+      : behindCount > 0
+        ? t('gitView.sync.pullChangesTooltip', { behind: behindCount })
+        : t('gitView.sync.pullChanges')
     : t('gitView.sync.noRemoteTooltip');
 
-  const handleSync = () => {
+  const handlePrimaryAction = () => {
     if (!trackingRemote) {
       return;
     }
-    onSync(trackingRemote);
+    if (primaryAction === 'push') {
+      onPush(trackingRemote);
+    } else {
+      onPull(trackingRemote);
+    }
   };
 
   return (
@@ -74,15 +86,15 @@ export const SyncActions: React.FC<SyncActionsProps> = ({
         <TooltipTrigger asChild>
           <button
             type="button"
-            onClick={handleSync}
+            onClick={handlePrimaryAction}
             disabled={isPrimaryDisabled}
             className={cn(
               'inline-flex h-7 items-center gap-1.5 px-2 typography-ui-label font-medium text-foreground',
               'transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50'
             )}
-            aria-label={t('gitView.sync.syncChanges')}
+            aria-label={primaryAction === 'push' ? t('gitView.sync.pushChanges') : t('gitView.sync.pullChanges')}
           >
-            {syncAction === 'sync' ? (
+            {syncAction === primaryAction ? (
               <Icon name="loader-4" className="size-4 animate-spin" />
             ) : (
               <Icon name="refresh" className="size-4" />

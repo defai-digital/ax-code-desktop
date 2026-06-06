@@ -30,7 +30,8 @@ interface GitHeaderProps {
   syncAction: SyncAction;
   remotes: GitRemote[];
   onFetch: (remote: GitRemote) => void;
-  onSync: (remote: GitRemote) => void;
+  onPull: (remote: GitRemote) => void;
+  onPush: (remote: GitRemote) => void;
   onRemoveRemote: (remote: GitRemote) => void;
   removingRemoteName: string | null;
   onCheckoutBranch: (branch: string) => void;
@@ -234,7 +235,8 @@ export const GitHeader: React.FC<GitHeaderProps> = ({
   syncAction,
   remotes,
   onFetch,
-  onSync,
+  onPull,
+  onPush,
   onRemoveRemote,
   removingRemoteName,
   onCheckoutBranch,
@@ -306,7 +308,8 @@ export const GitHeader: React.FC<GitHeaderProps> = ({
       syncAction={syncAction}
       remotes={remotes}
       onFetch={onFetch}
-      onSync={onSync}
+      onPull={onPull}
+      onPush={onPush}
       onRemoveRemote={onRemoveRemote}
       removingRemoteName={removingRemoteName}
       disabled={!status}
