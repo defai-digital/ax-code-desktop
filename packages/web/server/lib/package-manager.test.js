@@ -36,21 +36,39 @@ describe('checkForUpdates', () => {
   let fetchMock;
   let originalFetch;
 
+  const UPDATE_ENV = {
+    AX_CODE_UPDATE_API_URL: 'https://updates.ax-code.test/v1/update/check',
+    AX_CODE_UPDATE_NPM_PACKAGE: '@ax-code/web',
+    AX_CODE_UPDATE_CHANGELOG_URL: 'https://raw.ax-code.test/CHANGELOG.md',
+  };
+  let savedEnv;
+
   beforeEach(() => {
     fetchMock = createFetchMock();
     originalFetch = globalThis.fetch;
     globalThis.fetch = fetchMock;
+
+    // Remote update sources are opt-in; configure them explicitly per test.
+    savedEnv = {};
+    for (const [key, value] of Object.entries(UPDATE_ENV)) {
+      savedEnv[key] = process.env[key];
+      process.env[key] = value;
+    }
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   });
 
   // --- Scenario: API says update available, npm confirms ---
 
   it('returns available=true when both API and npm confirm a newer version', async () => {
     fetchMock
-      .when('api.openchamber.dev', {
+      .when('updates.ax-code.test', {
         ok: true,
         json: async () => ({
           latestVersion: '1.10.0',
@@ -64,7 +82,7 @@ describe('checkForUpdates', () => {
           'dist-tags': { latest: '1.10.0' },
         }),
       })
-      .when('raw.githubusercontent.com', {
+      .when('raw.ax-code.test', {
         ok: true,
         text: async () => '## [1.10.0] - 2026-05-01\n\n- Great new feature',
       });
@@ -80,7 +98,7 @@ describe('checkForUpdates', () => {
 
   it('returns available=false when API claims update but npm has same version', async () => {
     fetchMock
-      .when('api.openchamber.dev', {
+      .when('updates.ax-code.test', {
         ok: true,
         json: async () => ({
           latestVersion: '1.10.0',
@@ -102,7 +120,7 @@ describe('checkForUpdates', () => {
 
   it('returns available=false when npm only has a prerelease of the current version', async () => {
     fetchMock
-      .when('api.openchamber.dev', Promise.reject(new Error('Network error')))
+      .when('updates.ax-code.test', Promise.reject(new Error('Network error')))
       .when('registry.npmjs.org', {
         ok: true,
         json: async () => ({
@@ -117,7 +135,7 @@ describe('checkForUpdates', () => {
 
   it('does not cross-check desktop update claims against npm', async () => {
     fetchMock
-      .when('api.openchamber.dev', {
+      .when('updates.ax-code.test', {
         ok: true,
         json: async () => ({
           latestVersion: '1.10.0',
@@ -138,7 +156,7 @@ describe('checkForUpdates', () => {
 
   it('accepts electron desktop update claims without npm cross-checking', async () => {
     fetchMock
-      .when('api.openchamber.dev', {
+      .when('updates.ax-code.test', {
         ok: true,
         json: async () => ({
           latestVersion: '1.10.0',
@@ -159,7 +177,7 @@ describe('checkForUpdates', () => {
 
   it('returns available=false when API claims update but npm is behind', async () => {
     fetchMock
-      .when('api.openchamber.dev', {
+      .when('updates.ax-code.test', {
         ok: true,
         json: async () => ({
           latestVersion: '1.10.0',
@@ -182,7 +200,7 @@ describe('checkForUpdates', () => {
   // --- Scenario: API says no update, npm agrees ---
 
   it('returns available=false when API says no update and versions match', async () => {
-    fetchMock.when('api.openchamber.dev', {
+    fetchMock.when('updates.ax-code.test', {
       ok: true,
       json: async () => ({
         latestVersion: '1.9.10',
@@ -199,14 +217,14 @@ describe('checkForUpdates', () => {
 
   it('returns available=true from npm fallback when API is unreachable and npm has newer version', async () => {
     fetchMock
-      .when('api.openchamber.dev', Promise.reject(new Error('Network error')))
+      .when('updates.ax-code.test', Promise.reject(new Error('Network error')))
       .when('registry.npmjs.org', {
         ok: true,
         json: async () => ({
           'dist-tags': { latest: '1.10.0' },
         }),
       })
-      .when('raw.githubusercontent.com', {
+      .when('raw.ax-code.test', {
         ok: true,
         text: async () => '## [1.10.0] - 2026-05-01\n\n- Great new feature',
       });
@@ -219,7 +237,7 @@ describe('checkForUpdates', () => {
 
   it('returns available=false from npm fallback when API is unreachable and versions match', async () => {
     fetchMock
-      .when('api.openchamber.dev', Promise.reject(new Error('Network error')))
+      .when('updates.ax-code.test', Promise.reject(new Error('Network error')))
       .when('registry.npmjs.org', {
         ok: true,
         json: async () => ({
@@ -236,7 +254,7 @@ describe('checkForUpdates', () => {
 
   it('returns available=false when API returns non-ok status and versions match on npm', async () => {
     fetchMock
-      .when('api.openchamber.dev', {
+      .when('updates.ax-code.test', {
         ok: false,
         status: 500,
         json: async () => ({}),
@@ -257,11 +275,26 @@ describe('checkForUpdates', () => {
 
   it('returns available=false when both sources are unreachable', async () => {
     fetchMock
-      .when('api.openchamber.dev', Promise.reject(new Error('Network error')))
+      .when('updates.ax-code.test', Promise.reject(new Error('Network error')))
       .when('registry.npmjs.org', Promise.reject(new Error('Registry unreachable')));
 
     const result = await checkForUpdates({ currentVersion: '1.9.10' });
 
     expect(result.available).toBe(false);
+  });
+
+  // --- Scenario: no update source configured (safe default) ---
+
+  it('reports no update without remote calls or error when nothing is configured', async () => {
+    delete process.env.AX_CODE_UPDATE_API_URL;
+    delete process.env.AX_CODE_UPDATE_NPM_PACKAGE;
+    delete process.env.AX_CODE_UPDATE_CHANGELOG_URL;
+
+    const result = await checkForUpdates({ currentVersion: '1.9.10' });
+
+    expect(result.available).toBe(false);
+    expect(result.currentVersion).toBe('1.9.10');
+    expect(result.error).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -8,16 +8,60 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PACKAGE_NAME = '@openchamber/web';
+const firstConfiguredEnv = (...names) => {
+  for (const name of names) {
+    const value = process.env[name];
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  }
+  return '';
+};
+
+const readOwnPackageJsonField = (field) => {
+  // Running from source this module lives at server/lib/, so the manifest is
+  // two levels up. The Electron build inlines the server into a single
+  // dist/server.js, collapsing __dirname to the bundle dir — there it is one
+  // level up. Probe both layouts.
+  const candidatePaths = [
+    path.resolve(__dirname, '..', '..', 'package.json'),
+    path.resolve(__dirname, '..', 'package.json'),
+  ];
+  for (const pkgPath of candidatePaths) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      const value = pkg?.[field];
+      if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+    } catch {
+    }
+  }
+  return '';
+};
+
+// Identity of the installed package — drives global-install detection and the
+// update command. Sourced from this app's own package.json (single source of
+// truth) so it tracks the published name; overridable via env.
+const PACKAGE_NAME = firstConfiguredEnv('AX_CODE_NPM_PACKAGE', 'OPENCHAMBER_NPM_PACKAGE')
+  || readOwnPackageJsonField('name')
+  || 'ax-code-app';
 const PACKAGE_PATH_SEGMENTS = PACKAGE_NAME.split('/');
-const NPM_REGISTRY_URL = `https://registry.npmjs.org/${PACKAGE_NAME}`;
-const CHANGELOG_URL = 'https://raw.githubusercontent.com/btriapitsyn/openchamber/main/CHANGELOG.md';
+
+// Remote update sources are opt-in. A fork must not silently query the upstream
+// project's servers, so there are no hardcoded defaults — when a value is unset
+// the corresponding remote check is skipped. Resolved per call so deployments
+// (and tests) configure them via env without reloading the module.
+const resolveUpdateSources = () => {
+  const registryPackage = firstConfiguredEnv('AX_CODE_UPDATE_NPM_PACKAGE', 'OPENCHAMBER_UPDATE_NPM_PACKAGE');
+  return {
+    apiUrl: firstConfiguredEnv('AX_CODE_UPDATE_API_URL', 'OPENCHAMBER_UPDATE_API_URL'),
+    changelogUrl: firstConfiguredEnv('AX_CODE_UPDATE_CHANGELOG_URL', 'OPENCHAMBER_UPDATE_CHANGELOG_URL'),
+    registryUrl: registryPackage ? `https://registry.npmjs.org/${registryPackage}` : '',
+  };
+};
+
 let cachedDetectedPm = null;
 
 function getSpawnSyncBaseOptions() {
   return process.platform === 'win32' ? { windowsHide: true } : {};
 }
-const UPDATE_CHECK_URL = process.env.OPENCHAMBER_UPDATE_API_URL || 'https://api.openchamber.dev/v1/update/check';
 
 function getOpenChamberConfigDir() {
   if (process.platform === 'win32') {
@@ -85,6 +129,8 @@ function normalizeArch(value) {
 }
 
 async function checkForUpdatesFromApi(currentVersion, options = {}) {
+  const { apiUrl } = resolveUpdateSources();
+  if (!apiUrl) return null;
   try {
     const appType = normalizeAppType(options.appType);
     const hostPlatform = mapPlatform(process.platform);
@@ -103,7 +149,7 @@ async function checkForUpdatesFromApi(currentVersion, options = {}) {
       reportUsage: options.reportUsage !== false,
     };
 
-    const response = await fetch(UPDATE_CHECK_URL, {
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -622,34 +668,17 @@ export function getUpdateCommand(pm = detectPackageManager()) {
  * Get current installed version from package.json
  */
 export function getCurrentVersion() {
-  // Running from source this module lives at server/lib/, so the package
-  // manifest is two levels up. The Electron build inlines the whole server
-  // into a single dist/server.js, collapsing __dirname to the bundle dir —
-  // there the manifest is one level up (the app's package.json). Probe both
-  // so the version resolves in either layout instead of falling back to
-  // 'unknown' inside the packaged desktop app.
-  const candidatePaths = [
-    path.resolve(__dirname, '..', '..', 'package.json'),
-    path.resolve(__dirname, '..', 'package.json'),
-  ];
-  for (const pkgPath of candidatePaths) {
-    try {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-      if (pkg && typeof pkg.version === 'string' && pkg.version.trim().length > 0) {
-        return pkg.version.trim();
-      }
-    } catch {
-    }
-  }
-  return 'unknown';
+  return readOwnPackageJsonField('version') || 'unknown';
 }
 
 /**
  * Fetch latest version from npm registry
  */
 export async function getLatestVersion() {
+  const { registryUrl } = resolveUpdateSources();
+  if (!registryUrl) return null;
   try {
-    const response = await fetch(NPM_REGISTRY_URL, {
+    const response = await fetch(registryUrl, {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(10000),
     });
@@ -704,8 +733,10 @@ function compareVersions(left, right) {
  * Fetch changelog notes between versions
  */
 export async function fetchChangelogNotes(fromVersion, toVersion) {
+  const { changelogUrl } = resolveUpdateSources();
+  if (!changelogUrl) return undefined;
   try {
-    const response = await fetch(CHANGELOG_URL, {
+    const response = await fetch(changelogUrl, {
       signal: AbortSignal.timeout(10000),
     });
 
@@ -734,11 +765,12 @@ export async function checkForUpdates(options = {}) {
   const currentVersion = options.currentVersion || getCurrentVersion();
   const pm = detectPackageManager();
   const appType = normalizeAppType(options.appType);
+  const { registryUrl } = resolveUpdateSources();
 
   if (currentVersion !== 'unknown') {
     const remote = await checkForUpdatesFromApi(currentVersion, options);
     if (remote) {
-      if (remote.available && appType === 'web') {
+      if (remote.available && appType === 'web' && registryUrl) {
         const npmLatest = await getLatestVersion();
         if (!npmLatest || compareVersions(npmLatest, remote.version) < 0) {
           remote.available = false;
@@ -750,6 +782,17 @@ export async function checkForUpdates(options = {}) {
         updateCommand: 'ax-code-app update',
       };
     }
+  }
+
+  // No update API result. Without a configured npm package to compare against
+  // there's nothing more to check — report "no update" cleanly rather than an
+  // error: remote update checks are simply not configured for this build.
+  if (!registryUrl) {
+    return {
+      available: false,
+      currentVersion,
+      packageManager: pm,
+    };
   }
 
   const latestVersion = await getLatestVersion();
