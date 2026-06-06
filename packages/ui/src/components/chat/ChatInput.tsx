@@ -41,7 +41,7 @@ import { isTauriShell } from '@/lib/desktop';
 import { isIMECompositionEvent } from '@/lib/ime';
 import { StopIcon } from '@/components/icons/StopIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { getCycledPrimaryAgentName, type MobileControlsPanel } from './mobileControlsUtils';
+import { getCycledPrimaryAgentName, type ModelControlsPanel } from '@/lib/modelControlUtils';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -847,7 +847,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const [showSnippetAutocomplete, setShowSnippetAutocomplete] = React.useState(false);
     const [snippetQuery, setSnippetQuery] = React.useState('');
     const [textareaSize, setTextareaSize] = React.useState<{ height: number; maxHeight: number } | null>(null);
-    const [mobileControlsPanel, setMobileControlsPanel] = React.useState<MobileControlsPanel>(null);
+    const [mobileControlsPanel, setMobileControlsPanel] = React.useState<ModelControlsPanel>(null);
     // Message history navigation state (up/down arrow to recall previous messages)
     const [historyIndex, setHistoryIndex] = React.useState(-1); // -1 = not browsing, 0+ = index from most recent
     const [draftMessage, setDraftMessage] = React.useState(''); // Preserves input when entering history mode
@@ -1434,7 +1434,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     // Session activity for queue availability and controls
     const { phase: sessionPhase } = useCurrentSessionActivity();
 
-    const handleOpenMobilePanel = React.useCallback((panel: MobileControlsPanel) => {
+    const handleOpenMobilePanel = React.useCallback((panel: ModelControlsPanel) => {
         if (!isMobile) {
             return;
         }

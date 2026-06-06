@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useSelectionStore } from '@/sync/selection-store';
-import { getAgentDisplayName } from './mobileControlsUtils';
+import { getAgentDisplayName } from '@/lib/modelControlUtils';
 import { getAgentColor } from '@/lib/agentColors';
 
 interface MobileAgentButtonProps {

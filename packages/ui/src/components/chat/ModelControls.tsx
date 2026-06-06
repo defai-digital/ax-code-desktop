@@ -32,7 +32,7 @@ import { getSessionMaterializationStatus } from '@/sync/materialization';
 import { useUIStore } from '@/stores/useUIStore';
 import { useModelLists } from '@/hooks/useModelLists';
 import { useIsTextTruncated } from '@/hooks/useIsTextTruncated';
-import { formatEffortLabel, getCycledPrimaryAgentName, type MobileControlsPanel } from './mobileControlsUtils';
+import { formatEffortLabel, getCycledPrimaryAgentName, type ModelControlsPanel } from '@/lib/modelControlUtils';
 import { useI18n } from '@/lib/i18n';
 import { useAxCodeReadiness } from '@/hooks/useAxCodeReadiness';
 import { eventMatchesShortcut, getEffectiveShortcutCombo, normalizeCombo } from '@/lib/shortcuts';
@@ -276,8 +276,8 @@ const formatDate = (value?: string) => {
 
 interface ModelControlsProps {
     className?: string;
-    mobilePanel?: MobileControlsPanel;
-    onMobilePanelChange?: (panel: MobileControlsPanel) => void;
+    mobilePanel?: ModelControlsPanel;
+    onMobilePanelChange?: (panel: ModelControlsPanel) => void;
 }
 
 export const ModelControls: React.FC<ModelControlsProps> = ({
@@ -369,7 +369,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
     const { isMobile } = useDeviceInfo();
     const isDesktop = React.useMemo(() => isDesktopShell(), []);
     const isCompact = isMobile;
-    const [localMobilePanel, setLocalMobilePanel] = React.useState<MobileControlsPanel>(null);
+    const [localMobilePanel, setLocalMobilePanel] = React.useState<ModelControlsPanel>(null);
     const usingExternalMobilePanel = mobilePanel !== undefined && typeof onMobilePanelChange === 'function';
     const activeMobilePanel = usingExternalMobilePanel ? mobilePanel : localMobilePanel;
     const setActiveMobilePanel = usingExternalMobilePanel ? onMobilePanelChange : setLocalMobilePanel;

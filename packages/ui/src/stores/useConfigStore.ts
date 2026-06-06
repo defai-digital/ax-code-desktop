@@ -13,6 +13,7 @@ import { updateDesktopSettings } from "@/lib/persistence";
 import { useDirectoryStore } from "@/stores/useDirectoryStore";
 import { streamDebugEnabled } from "@/stores/utils/streamDebug";
 import { parseModelIdentifier } from "@/lib/modelIdentifier";
+import { isPrimaryMode } from "@/lib/modelControlUtils";
 import type { ProviderModel, ProviderWithModelList } from "@/types/providerModels";
 
 const MODELS_DEV_API_URL = "https://models.dev/api.json";
@@ -159,8 +160,6 @@ const parseModelString = (modelString: string): { providerId: string; modelId: s
 };
 
 const normalizeProviderId = (value: string) => value?.toLowerCase?.() ?? '';
-
-const isPrimaryMode = (mode?: string) => mode === "primary" || mode === "all" || mode === undefined || mode === null;
 
 type GitModelSelection = { providerId: string; modelId: string };
 

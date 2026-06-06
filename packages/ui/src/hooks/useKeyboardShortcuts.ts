@@ -12,7 +12,7 @@ import { showAxCodeStatus } from '@/lib/axCodeStatus';
 import { eventMatchesShortcut, getEffectiveShortcutCombo, normalizeCombo } from '@/lib/shortcuts';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
-import { getCycledPrimaryAgentName } from '@/components/chat/mobileControlsUtils';
+import { getCycledPrimaryAgentName } from '@/lib/modelControlUtils';
 
 export const useKeyboardShortcuts = () => {
   const openNewSessionDraft = useSessionUIStore((s) => s.openNewSessionDraft);

@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { useConfigStore } from '@/stores/useConfigStore';
-import { getModelDisplayName } from './mobileControlsUtils';
+import { getModelDisplayName } from '@/lib/modelControlUtils';
 
 interface MobileModelButtonProps {
     onOpenModel: () => void;

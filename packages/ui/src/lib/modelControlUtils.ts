@@ -1,6 +1,6 @@
 import type { Agent } from '@ax-code/sdk/v2';
 
-export type MobileControlsPanel = 'model' | 'agent' | 'variant' | null;
+export type ModelControlsPanel = 'model' | 'agent' | 'variant' | null;
 
 export const isPrimaryMode = (mode?: string) => mode === 'primary' || mode === 'all' || mode === undefined || mode === null;
 

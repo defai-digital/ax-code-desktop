@@ -16,7 +16,7 @@ import { ModelSelector } from '@/components/sections/agents/ModelSelector';
 import { AgentSelector } from '@/components/sections/commands/AgentSelector';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useAgentsStore } from '@/stores/useAgentsStore';
-import { isPrimaryMode } from '@/components/chat/mobileControlsUtils';
+import { isPrimaryMode } from '@/lib/modelControlUtils';
 import { Icon } from "@/components/icon/Icon";
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
