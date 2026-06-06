@@ -33,6 +33,11 @@ import {
 } from '@/lib/git/integrateWorktreeCommits';
 import type { WorktreeMetadata } from '@/types/worktree';
 import { useI18n } from '@/lib/i18n';
+import {
+  clearIntegrateConflictState,
+  readIntegrateConflictState,
+  saveIntegrateConflictState,
+} from './conflictStorage';
 
 type IntegrateUiState =
   | { kind: 'idle' }
@@ -87,43 +92,30 @@ export const IntegrateCommitsSection: React.FC<{
   const [showAllCommits, setShowAllCommits] = React.useState(false);
   const [commitSummaries, setCommitSummaries] = React.useState<Array<{ sha: string; short: string; subject: string }>>([]);
 
-  const conflictStorageKey = React.useMemo(() => {
-    if (!currentSessionId) return null;
-    return `openchamber.integrate.conflict:${currentSessionId}`;
-  }, [currentSessionId]);
-
   React.useEffect(() => {
-    if (!conflictStorageKey || typeof window === 'undefined') return;
-    const raw = window.localStorage.getItem(conflictStorageKey);
-    if (!raw) return;
     let cancelled = false;
-    try {
-      const parsed = JSON.parse(raw) as IntegrateInProgress;
-      if (!parsed?.tempWorktreePath || parsed.repoRoot !== repoRoot) {
-        window.localStorage.removeItem(conflictStorageKey);
+    const state = readIntegrateConflictState(currentSessionId, repoRoot);
+    if (!state) {
+      return;
+    }
+    void (async () => {
+      const ok = await isCherryPickInProgress(state.tempWorktreePath).catch(() => false);
+      if (cancelled) return;
+      if (!ok) {
+        clearIntegrateConflictState(currentSessionId);
         return;
       }
-      void (async () => {
-        const ok = await isCherryPickInProgress(parsed.tempWorktreePath).catch(() => false);
-        if (cancelled) return;
-        if (!ok) {
-          window.localStorage.removeItem(conflictStorageKey);
-          return;
-        }
-        const details = await getIntegrateConflictDetails(parsed.tempWorktreePath).catch(() => null);
-        if (cancelled) return;
-        if (!details) {
-          return;
-        }
-        setUi({ kind: 'conflict', state: parsed, details });
-      })();
-    } catch {
-      window.localStorage.removeItem(conflictStorageKey);
-    }
+      const details = await getIntegrateConflictDetails(state.tempWorktreePath).catch(() => null);
+      if (cancelled) return;
+      if (!details) {
+        return;
+      }
+      setUi({ kind: 'conflict', state, details });
+    })();
     return () => {
       cancelled = true;
     };
-  }, [conflictStorageKey, repoRoot]);
+  }, [currentSessionId, repoRoot]);
 
   React.useEffect(() => {
     if (!isEligible) {
@@ -277,9 +269,7 @@ export const IntegrateCommitsSection: React.FC<{
       if (result.kind === 'conflict') {
         toast.error(t('gitView.integrate.cherryPickConflictToast'), { description: t('gitView.integrate.cherryPickConflictDescription') });
         setUi({ kind: 'conflict', state: result.state, details: result.details });
-        if (conflictStorageKey && typeof window !== 'undefined') {
-          window.localStorage.setItem(conflictStorageKey, JSON.stringify(result.state));
-        }
+        saveIntegrateConflictState(currentSessionId, result.state);
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -288,22 +278,20 @@ export const IntegrateCommitsSection: React.FC<{
       if (next) setUi({ kind: 'ready', plan: next });
       else setUi({ kind: 'idle' });
     }
-  }, [ui, onRefresh, repoRoot, sourceBranch, targetBranch, conflictStorageKey, t]);
+  }, [ui, onRefresh, repoRoot, sourceBranch, targetBranch, currentSessionId, t]);
 
   const handleAbort = React.useCallback(async () => {
     if (ui.kind !== 'conflict') return;
     try {
       await abortIntegrate(ui.state);
       toast.message(t('gitView.integrate.cherryPickAbortedToast'));
-      if (conflictStorageKey && typeof window !== 'undefined') {
-        window.localStorage.removeItem(conflictStorageKey);
-      }
+      clearIntegrateConflictState(currentSessionId);
     } finally {
       const next = await computeIntegratePlan({ repoRoot, sourceBranch, targetBranch }).catch(() => null);
       if (next) setUi({ kind: 'ready', plan: next });
       else setUi({ kind: 'idle' });
     }
-  }, [ui, repoRoot, sourceBranch, targetBranch, conflictStorageKey, t]);
+  }, [ui, repoRoot, sourceBranch, targetBranch, currentSessionId, t]);
 
   const handleContinue = React.useCallback(async () => {
     if (ui.kind !== 'conflict') return;
@@ -314,23 +302,19 @@ export const IntegrateCommitsSection: React.FC<{
         const next = await computeIntegratePlan({ repoRoot, sourceBranch, targetBranch }).catch(() => null);
         if (next) setUi({ kind: 'ready', plan: next });
         else setUi({ kind: 'idle' });
-        if (conflictStorageKey && typeof window !== 'undefined') {
-          window.localStorage.removeItem(conflictStorageKey);
-        }
+        clearIntegrateConflictState(currentSessionId);
         onRefresh?.();
         return;
       }
       if (result.kind === 'conflict') {
         setUi({ kind: 'conflict', state: result.state, details: result.details });
-        if (conflictStorageKey && typeof window !== 'undefined') {
-          window.localStorage.setItem(conflictStorageKey, JSON.stringify(result.state));
-        }
+        saveIntegrateConflictState(currentSessionId, result.state);
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       toast.error(t('gitView.integrate.cherryPickContinueFailedToast'), { description: message });
     }
-  }, [ui, repoRoot, sourceBranch, targetBranch, onRefresh, conflictStorageKey, t]);
+  }, [ui, repoRoot, sourceBranch, targetBranch, onRefresh, currentSessionId, t]);
 
   if (!repoRoot || !sourceBranch) {
     return null;

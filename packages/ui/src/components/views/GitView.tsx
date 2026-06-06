@@ -57,6 +57,7 @@ import { StashDialog } from './git/StashDialog';
 import { InProgressOperationBanner } from './git/InProgressOperationBanner';
 import { BranchIntegrationSection, type OperationLogEntry } from './git/BranchIntegrationSection';
 import { createGitIndexMutationQueue, type GitIndexMutationDirection, type GitIndexMutationQueue } from './git/gitIndexMutationQueue';
+import { clearBranchConflictState, readBranchConflictState, saveBranchConflictState } from './git/conflictStorage';
 import type { GitRemote } from '@/lib/gitApi';
 import { getRootBranch } from '@/lib/worktrees/worktreeStatus';
 import { cn } from '@/lib/utils';
@@ -654,28 +655,17 @@ export const GitView: React.FC = () => {
   const [graphLogLoading, setGraphLogLoading] = React.useState(false);
   const [graphLogMaxCount, setGraphLogMaxCount] = React.useState(100);
 
-  // Conflict state persistence key
-  const conflictStorageKey = React.useMemo(() => {
-    if (!currentSessionId) return null;
-    return `openchamber.conflict:${currentSessionId}`;
-  }, [currentSessionId]);
-
-  // Save conflict state to localStorage
   const persistConflictState = React.useCallback((
     directory: string,
     files: string[],
     operation: 'merge' | 'rebase'
   ) => {
-    if (!conflictStorageKey || typeof window === 'undefined') return;
-    const payload = { directory, conflictFiles: files, operation };
-    window.localStorage.setItem(conflictStorageKey, JSON.stringify(payload));
-  }, [conflictStorageKey]);
+    saveBranchConflictState(currentSessionId, { directory, conflictFiles: files, operation });
+  }, [currentSessionId]);
 
-  // Clear conflict state from localStorage
   const clearConflictState = React.useCallback(() => {
-    if (!conflictStorageKey || typeof window === 'undefined') return;
-    window.localStorage.removeItem(conflictStorageKey);
-  }, [conflictStorageKey]);
+    clearBranchConflictState(currentSessionId);
+  }, [currentSessionId]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') {
@@ -684,34 +674,20 @@ export const GitView: React.FC = () => {
     window.localStorage.setItem(GIT_ACTION_TAB_STORAGE_KEY, actionTab);
   }, [actionTab]);
 
-  // Restore conflict state from localStorage on mount
   React.useEffect(() => {
-    if (!conflictStorageKey || typeof window === 'undefined' || !currentDirectory) return;
-
-    const raw = window.localStorage.getItem(conflictStorageKey);
-    if (!raw) return;
-
-    try {
-      const parsed = JSON.parse(raw) as {
-        directory: string;
-        conflictFiles: string[];
-        operation: 'merge' | 'rebase';
-      };
-
-      // Validate the stored state matches current directory
-      if (parsed.directory !== currentDirectory) {
-        window.localStorage.removeItem(conflictStorageKey);
-        return;
-      }
-
-      // Restore conflict state
-      setConflictFiles(parsed.conflictFiles ?? []);
-      setConflictOperation(parsed.operation ?? 'merge');
-      setConflictDialogOpen(true);
-    } catch {
-      window.localStorage.removeItem(conflictStorageKey);
+    if (!currentDirectory) {
+      return;
     }
-  }, [conflictStorageKey, currentDirectory]);
+
+    const state = readBranchConflictState(currentSessionId, currentDirectory);
+    if (!state) {
+      return;
+    }
+
+    setConflictFiles(state.conflictFiles);
+    setConflictOperation(state.operation);
+    setConflictDialogOpen(true);
+  }, [currentDirectory, currentSessionId]);
   const [stashDialogOpen, setStashDialogOpen] = React.useState(false);
   const [stashDialogOperation, setStashDialogOperation] = React.useState<'merge' | 'rebase'>('merge');
   const [stashDialogBranch, setStashDialogBranch] = React.useState('');
