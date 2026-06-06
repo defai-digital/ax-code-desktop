@@ -12,10 +12,8 @@ type Args = {
   currentSessionId: string | null;
   handleSessionSelect: (sessionId: string, sessionDirectory: string | null, isMissingDirectory: boolean, projectId?: string | null) => void;
   newSessionDraftOpen: boolean;
-  mobileVariant: boolean;
   openNewSessionDraft: (options?: { directoryOverride?: string | null }) => void;
   setActiveMainTab: (tab: MainTab) => void;
-  setSessionSwitcherOpen: (open: boolean) => void;
   sessions: Session[];
   worktreeMetadata: Map<string, { path?: string | null }>;
 };
@@ -29,10 +27,8 @@ export const useProjectSessionSelection = (args: Args): { currentSessionDirector
     currentSessionId,
     handleSessionSelect,
     newSessionDraftOpen,
-    mobileVariant,
     openNewSessionDraft,
     setActiveMainTab,
-    setSessionSwitcherOpen,
     sessions,
     worktreeMetadata,
   } = args;
@@ -112,9 +108,6 @@ export const useProjectSessionSelection = (args: Args): { currentSessionDirector
 
     if (!projectMap || projectMap.size === 0) {
       setActiveMainTab('chat');
-      if (mobileVariant) {
-        setSessionSwitcherOpen(false);
-      }
       openNewSessionDraft({ directoryOverride: section.project.normalizedPath });
       return;
     }
@@ -136,12 +129,10 @@ export const useProjectSessionSelection = (args: Args): { currentSessionDirector
     currentSessionId,
     handleSessionSelect,
     newSessionDraftOpen,
-    mobileVariant,
     openNewSessionDraft,
     projectSections,
     projectSessionMeta,
     setActiveMainTab,
-    setSessionSwitcherOpen,
     setActiveSessionByProject,
   ]);
 

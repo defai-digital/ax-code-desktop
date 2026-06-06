@@ -73,7 +73,6 @@ type Props = {
   createFolderAndStartRename: (scopeKey: string, parentId?: string | null) => { id: string } | null;
   openContextPanelTab: (directory: string, options: { mode: 'chat'; dedupeKey: string; label: string; readOnly?: boolean }) => void;
   handleDeleteSession: (session: Session, source?: { archivedBucket?: boolean }) => void;
-  mobileVariant: boolean;
   alwaysShowActions: boolean;
   renderSessionNode: (node: SessionNode, depth?: number, groupDirectory?: string | null, projectId?: string | null, archivedBucket?: boolean, secondaryMeta?: SessionSecondaryMeta | null, renderContext?: 'project' | 'recent') => React.ReactNode;
   secondaryMeta?: SessionSecondaryMeta | null;
@@ -197,7 +196,6 @@ const areEqual = (prev: Props, next: Props): boolean => {
 
   if ((prev.secondaryMeta?.projectLabel ?? null) !== (next.secondaryMeta?.projectLabel ?? null)) return false;
   if ((prev.secondaryMeta?.branchLabel ?? null) !== (next.secondaryMeta?.branchLabel ?? null)) return false;
-  if (prev.mobileVariant !== next.mobileVariant) return false;
   if (prev.alwaysShowActions !== next.alwaysShowActions) return false;
   if ((prev.renderContext ?? 'project') !== (next.renderContext ?? 'project')) return false;
   if (prev.renamingFolderId !== next.renamingFolderId) return false;
@@ -244,7 +242,6 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
     createFolderAndStartRename,
     openContextPanelTab,
     handleDeleteSession,
-    mobileVariant,
     alwaysShowActions,
     renderSessionNode,
     secondaryMeta,
@@ -258,13 +255,12 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
   const isElectron = React.useMemo(() => canUseElectronDesktopIPC(), []);
   const revealOnHoverClass = 'group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto';
   const hideOnHoverClass = 'group-hover:opacity-0 group-focus-within:opacity-0';
-  const showQuickArchiveAction = !archivedBucket && !mobileVariant;
+  const showQuickArchiveAction = !archivedBucket;
   const revealPaddingClass = isMinimalMode
     ? 'group-hover:pr-2 group-focus-within:pr-2'
     : (showQuickArchiveAction ? 'group-hover:pr-12 group-focus-within:pr-12' : 'group-hover:pr-5 group-focus-within:pr-5');
   const alwaysActionPaddingClass = showQuickArchiveAction ? 'pr-13' : 'pr-7';
   const suppressNextSelectRef = React.useRef(false);
-  const [isTouchPressed, setIsTouchPressed] = React.useState(false);
   const editingIdRef = React.useRef(editingId);
   editingIdRef.current = editingId;
   const pendingRenameRef = React.useRef<{ id: string; title: string } | null>(null);
@@ -655,17 +651,6 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
       suppressNextSelectRef.current = true;
     }
   };
-  const handleRowPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (mobileVariant && event.pointerType === 'touch') {
-      setIsTouchPressed(true);
-    }
-  };
-  const handleRowPointerEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (mobileVariant && event.pointerType === 'touch') {
-      setIsTouchPressed(false);
-    }
-  };
-
   const sessionMenuContent = (
     <DropdownMenuContent align="end" className="min-w-[180px]" finalFocus={() => (renamingFolderId || editingIdRef.current) ? false : true}>
       <DropdownMenuItem
@@ -808,9 +793,6 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
                   <button
                     type="button"
 	                    disabled={isMissingDirectory}
-	                    onPointerDown={handleRowPointerDown}
-	                    onPointerUp={handleRowPointerEnd}
-	                    onPointerCancel={handleRowPointerEnd}
 	                    onMouseDown={handleRowMouseDown}
 	                    onClick={(event) => handleRowSelect(event)}
                     onDoubleClick={(e) => {
@@ -819,7 +801,6 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
                     }}
                     className={cn(
 	                      'flex min-w-0 flex-1 cursor-pointer flex-col gap-0 overflow-hidden rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 text-foreground select-none disabled:cursor-not-allowed transition-[padding]',
-	                      isTouchPressed && 'bg-interactive-hover/70',
                       alwaysShowActions
                         ? alwaysActionPaddingClass
                         : revealPaddingClass,
@@ -872,9 +853,6 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
               <button
                 type="button"
 	                disabled={isMissingDirectory}
-	                onPointerDown={handleRowPointerDown}
-	                onPointerUp={handleRowPointerEnd}
-	                onPointerCancel={handleRowPointerEnd}
 	                onMouseDown={handleRowMouseDown}
 	                onClick={(event) => handleRowSelect(event)}
                 onDoubleClick={(e) => {
@@ -883,7 +861,6 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
                 }}
                 className={cn(
 	                  'flex min-w-0 flex-1 cursor-pointer flex-col gap-0 overflow-hidden rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 text-foreground select-none disabled:cursor-not-allowed transition-[padding]',
-	                  isTouchPressed && 'bg-interactive-hover/70',
                   alwaysShowActions
                     ? alwaysActionPaddingClass
                     : revealPaddingClass
@@ -913,7 +890,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
             )}
           </div>
 
-          {streamingIndicator && !mobileVariant ? (
+          {streamingIndicator ? (
             <div className={cn('absolute top-1/2 -translate-y-1/2 z-10', isMinimalMode ? 'right-0' : 'right-[30px]')}>
               {streamingIndicator}
             </div>

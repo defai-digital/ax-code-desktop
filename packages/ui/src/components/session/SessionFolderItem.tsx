@@ -22,7 +22,6 @@ interface SessionFolderItemProps<TSessionNode> {
   ) => React.ReactNode;
   groupDirectory?: string | null;
   projectId?: string | null;
-  mobileVariant?: boolean;
   alwaysShowActions?: boolean;
   isRenaming?: boolean;
   renameDraft?: string;
@@ -56,8 +55,7 @@ const SessionFolderItemBase = <TSessionNode,>({
   renderSessionNode,
   groupDirectory,
   projectId,
-  mobileVariant = false,
-  alwaysShowActions = mobileVariant,
+  alwaysShowActions = false,
   isRenaming = false,
   renameDraft = '',
   onRenameDraftChange,

@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
-import { formatDirectoryName, formatPathForDisplay, cn } from '@/lib/utils';
+import { formatDirectoryName, formatPathForDisplay } from '@/lib/utils';
 import type { ProjectSection, SessionGroup } from './types';
 import type { SortableDragHandleProps } from './sortableItems';
 import { SortableGroupItem, SortableProjectItem } from './sortableItems';
@@ -34,12 +34,10 @@ type Props = {
   projectRepoStatus: Map<string, boolean | null>;
   isDesktopShellRuntime: boolean;
   stuckProjectHeaders: Set<string>;
-  mobileVariant: boolean;
   alwaysShowActions: boolean;
   toggleProject: (id: string) => void;
   setActiveProjectIdOnly: (id: string) => void;
   setActiveMainTab: (tab: MainTab) => void;
-  setSessionSwitcherOpen: (open: boolean) => void;
   openNewSessionDraft: (options?: { directoryOverride?: string | null }) => void;
   openNewWorktreeDialog: () => void;
   openProjectEditDialog: (id: string) => void;
@@ -64,15 +62,15 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
   );
 
   if (props.projectSections.length === 0) {
-    return <ScrollableOverlay useScrollShadow scrollShadowSize={96} outerClassName="flex-1 min-h-0" className={cn('space-y-1 pb-1 pl-2.5 pr-2', props.mobileVariant ? '' : '')}>{props.topContent}{props.emptyState}</ScrollableOverlay>;
+    return <ScrollableOverlay useScrollShadow scrollShadowSize={96} outerClassName="flex-1 min-h-0" className="space-y-1 pb-1 pl-2.5 pr-2">{props.topContent}{props.emptyState}</ScrollableOverlay>;
   }
 
   if (props.sectionsForRender.length === 0) {
-    return <ScrollableOverlay useScrollShadow scrollShadowSize={96} outerClassName="flex-1 min-h-0" className={cn('space-y-1 pb-1 pl-2.5 pr-2', props.mobileVariant ? '' : '')}>{props.searchEmptyState}</ScrollableOverlay>;
+    return <ScrollableOverlay useScrollShadow scrollShadowSize={96} outerClassName="flex-1 min-h-0" className="space-y-1 pb-1 pl-2.5 pr-2">{props.searchEmptyState}</ScrollableOverlay>;
   }
 
   return (
-    <ScrollableOverlay useScrollShadow scrollShadowSize={96} outerClassName="flex-1 min-h-0" className={cn('space-y-1 pb-1 pl-2.5 pr-2', props.mobileVariant ? '' : '')}>
+    <ScrollableOverlay useScrollShadow scrollShadowSize={96} outerClassName="flex-1 min-h-0" className="space-y-1 pb-1 pl-2.5 pr-2">
       {props.topContent}
       {props.showOnlyMainWorkspace ? (
         <div className="space-y-[0.6rem] py-1">
@@ -156,19 +154,16 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
                     isDesktopShell={props.isDesktopShellRuntime}
                     isStuck={props.stuckProjectHeaders.has(projectKey)}
                     hideDirectoryControls={props.hideDirectoryControls}
-                    mobileVariant={props.mobileVariant}
                     alwaysShowActions={props.alwaysShowActions}
                     onToggle={() => props.toggleProject(projectKey)}
                     onNewSession={() => {
                       if (projectKey !== props.activeProjectId) props.setActiveProjectIdOnly(projectKey);
                       props.setActiveMainTab('chat');
-                      if (props.mobileVariant) props.setSessionSwitcherOpen(false);
                       props.openNewSessionDraft({ directoryOverride: project.normalizedPath });
                     }}
                     onNewWorktreeSession={() => {
                       if (projectKey !== props.activeProjectId) props.setActiveProjectIdOnly(projectKey);
                       props.setActiveMainTab('chat');
-                      if (props.mobileVariant) props.setSessionSwitcherOpen(false);
                       props.openNewWorktreeDialog();
                     }}
                     onRenameStart={() => props.openProjectEditDialog(projectKey)}

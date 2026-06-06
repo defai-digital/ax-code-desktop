@@ -54,12 +54,10 @@ type Props = {
   projectRepoStatus: Map<string, boolean | null>;
   lastRepoStatus: boolean;
   toggleGroupSessionLimit: (groupKey: string) => void;
-  mobileVariant: boolean;
   alwaysShowActions: boolean;
   activeProjectId: string | null;
   setActiveProjectIdOnly: (id: string) => void;
   setActiveMainTab: (tab: MainTab) => void;
-  setSessionSwitcherOpen: (open: boolean) => void;
   openNewSessionDraft: (options?: { directoryOverride?: string | null; targetFolderId?: string }) => void;
   addSessionToFolder: (scopeKey: string, folderId: string, sessionId: string) => void;
   createFolderAndStartRename: (scopeKey: string, parentId?: string | null) => { id: string } | null;
@@ -120,12 +118,10 @@ export function SessionGroupSection(props: Props): React.ReactNode {
     projectRepoStatus,
     lastRepoStatus,
     toggleGroupSessionLimit,
-    mobileVariant,
     alwaysShowActions,
     activeProjectId,
     setActiveProjectIdOnly,
     setActiveMainTab,
-    setSessionSwitcherOpen,
     openNewSessionDraft,
     addSessionToFolder,
     createFolderAndStartRename,
@@ -511,7 +507,6 @@ export function SessionGroupSection(props: Props): React.ReactNode {
             renderSessionNode={renderSessionNode}
             groupDirectory={group.directory}
             projectId={projectId}
-            mobileVariant={mobileVariant}
             alwaysShowActions={alwaysShowActions}
             isRenaming={renamingFolderId === folder.id}
             renameDraft={renamingFolderId === folder.id ? renameFolderDraft : undefined}
@@ -534,7 +529,6 @@ export function SessionGroupSection(props: Props): React.ReactNode {
             onNewSession={() => {
               if (projectId && projectId !== activeProjectId) setActiveProjectIdOnly(projectId);
               setActiveMainTab('chat');
-              if (mobileVariant) setSessionSwitcherOpen(false);
               openNewSessionDraft({ directoryOverride: group.directory, targetFolderId: folder.id });
             }}
             onNewSubFolder={depth === 0 ? () => {
@@ -879,7 +873,6 @@ export function SessionGroupSection(props: Props): React.ReactNode {
                     event.stopPropagation();
                     if (projectId && projectId !== activeProjectId) setActiveProjectIdOnly(projectId);
                     setActiveMainTab('chat');
-                    if (mobileVariant) setSessionSwitcherOpen(false);
                     openNewSessionDraft({ directoryOverride: group.directory });
                   }}
                   className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"

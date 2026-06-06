@@ -28,7 +28,6 @@ export interface SidebarSortableProjectItemProps {
   isDesktopShell: boolean;
   isStuck: boolean;
   hideDirectoryControls: boolean;
-  mobileVariant: boolean;
   alwaysShowActions: boolean;
   onToggle: () => void;
   onNewSession: () => void;

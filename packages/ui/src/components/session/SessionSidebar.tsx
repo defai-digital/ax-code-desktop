@@ -141,7 +141,6 @@ const isKnownActiveSessionDirectory = (session: Session, knownDirectories: Set<s
 const SIDEBAR_PR_NO_PR_RETRY_MS = 5 * 60_000;
 
 interface SessionSidebarProps {
-  mobileVariant?: boolean;
   onSessionSelected?: (sessionId: string) => void;
   allowReselect?: boolean;
   hideDirectoryControls?: boolean;
@@ -149,7 +148,6 @@ interface SessionSidebarProps {
 }
 
 export const SessionSidebar: React.FC<SessionSidebarProps> = ({
-  mobileVariant = false,
   onSessionSelected,
   allowReselect = false,
   hideDirectoryControls = false,
@@ -256,7 +254,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   const setSettingsDialogOpen = useUIStore((state) => state.setSettingsDialogOpen);
   const toggleHelpDialog = useUIStore((state) => state.toggleHelpDialog);
   const setAboutDialogOpen = useUIStore((state) => state.setAboutDialogOpen);
-  const setSessionSwitcherOpen = useUIStore((state) => state.setSessionSwitcherOpen);
   const setScheduledTasksDialogOpen = useUIStore((state) => state.setScheduledTasksDialogOpen);
   const openMultiRunLauncher = useUIStore((state) => state.openMultiRunLauncher);
   const notifyOnSubtasks = useUIStore((state) => state.notifyOnSubtasks);
@@ -443,7 +440,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   const isDesktopShellRuntime = React.useMemo(() => isDesktopShell(), []);
 
   const { isTablet } = useDeviceInfo();
-  const alwaysShowSidebarActions = mobileVariant || isTablet;
+  const alwaysShowSidebarActions = isTablet;
 
   const {
     buildGroupSearchText,
@@ -548,11 +545,8 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   }, [t, updateStore]);
 
   const handleOpenSettings = React.useCallback(() => {
-    if (mobileVariant) {
-      setSessionSwitcherOpen(false);
-    }
     setSettingsDialogOpen(true);
-  }, [mobileVariant, setSessionSwitcherOpen, setSettingsDialogOpen]);
+  }, [setSettingsDialogOpen]);
 
   const showSidebarUpdateButton =
     updateStore.available &&
@@ -578,7 +572,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     activeProjectId,
     currentDirectory,
     currentSessionId,
-    mobileVariant,
     allowReselect,
     onSessionSelected,
     isSessionSearchOpen,
@@ -587,8 +580,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     setIsSessionSearchOpen,
     setActiveProjectIdOnly,
     setDirectory,
-    setActiveMainTab,
-    setSessionSwitcherOpen,
     setCurrentSession,
     updateSessionTitle,
     shareSession,
@@ -841,10 +832,8 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     currentSessionId,
     handleSessionSelect,
     newSessionDraftOpen,
-    mobileVariant,
     openNewSessionDraft,
     setActiveMainTab,
-    setSessionSwitcherOpen,
     sessions,
     worktreeMetadata,
   });
@@ -1132,9 +1121,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
 
   const desktopHeaderActionButtonClass =
     'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md leading-none text-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed';
-  const mobileHeaderActionButtonClass =
-    'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md leading-none text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed';
-  const headerActionButtonClass = mobileVariant ? mobileHeaderActionButtonClass : desktopHeaderActionButtonClass;
+  const headerActionButtonClass = desktopHeaderActionButtonClass;
   const headerActionIconClass = 'h-4.5 w-4.5';
   const stuckProjectHeaders = useStickyProjectHeaders({
     isDesktopShellRuntime,
@@ -1189,7 +1176,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         createFolderAndStartRename={createFolderAndStartRename}
         openContextPanelTab={openContextPanelTab}
         handleDeleteSession={handleDeleteSession}
-        mobileVariant={mobileVariant}
         alwaysShowActions={alwaysShowSidebarActions}
         renderSessionNode={renderSessionNode}
         secondaryMeta={secondaryMeta}
@@ -1228,7 +1214,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       createFolderAndStartRename,
       openContextPanelTab,
       handleDeleteSession,
-      mobileVariant,
       alwaysShowSidebarActions,
     ],
   );
@@ -1288,12 +1273,10 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         projectRepoStatus={projectRepoStatus}
         lastRepoStatus={lastRepoStatusRef.current}
         toggleGroupSessionLimit={toggleGroupSessionLimit}
-        mobileVariant={mobileVariant}
         alwaysShowActions={alwaysShowSidebarActions}
         activeProjectId={activeProjectId}
         setActiveProjectIdOnly={setActiveProjectIdOnly}
         setActiveMainTab={setActiveMainTab}
-        setSessionSwitcherOpen={setSessionSwitcherOpen}
         openNewSessionDraft={openNewSessionDraft}
         addSessionToFolder={addSessionToFolder}
         createFolderAndStartRename={createFolderAndStartRename}
@@ -1324,12 +1307,10 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       currentSessionDirectory,
       projectRepoStatus,
       toggleGroupSessionLimit,
-      mobileVariant,
       alwaysShowSidebarActions,
       activeProjectId,
       setActiveProjectIdOnly,
       setActiveMainTab,
-      setSessionSwitcherOpen,
       openNewSessionDraft,
       addSessionToFolder,
       createFolderAndStartRename,
@@ -1515,26 +1496,20 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   }, [handleBulkDelete, isInlineEditing, multiSelectStoreApi, selectionModeEnabled]);
   const handleOpenMultiRunFromHeader = React.useCallback(() => {
     setActiveMainTab('chat');
-    if (mobileVariant) {
-      setSessionSwitcherOpen(false);
-    }
     openMultiRunLauncher();
-  }, [mobileVariant, openMultiRunLauncher, setActiveMainTab, setSessionSwitcherOpen]);
+  }, [openMultiRunLauncher, setActiveMainTab]);
 
   const handleOpenNewSessionDraftFromHeader = React.useCallback(() => {
     setActiveMainTab('chat');
-    if (mobileVariant) {
-      setSessionSwitcherOpen(false);
-    }
     openNewSessionDraft();
-  }, [mobileVariant, openNewSessionDraft, setActiveMainTab, setSessionSwitcherOpen]);
+  }, [openNewSessionDraft, setActiveMainTab]);
 
   return (
     <div
       ref={sessionSearchContainerRef}
       className={cn(
         'relative flex h-full flex-col text-foreground overflow-x-hidden',
-        mobileVariant ? '' : 'bg-transparent',
+        'bg-transparent',
       )}
     >
         <SidebarHeader
@@ -1576,12 +1551,10 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         projectRepoStatus={projectRepoStatus}
         isDesktopShellRuntime={isDesktopShellRuntime}
         stuckProjectHeaders={stuckProjectHeaders}
-        mobileVariant={mobileVariant}
         alwaysShowActions={alwaysShowSidebarActions}
         toggleProject={toggleProject}
         setActiveProjectIdOnly={setActiveProjectIdOnly}
         setActiveMainTab={setActiveMainTab}
-        setSessionSwitcherOpen={setSessionSwitcherOpen}
         openNewSessionDraft={openNewSessionDraft}
         openNewWorktreeDialog={openNewWorktreeDialog}
         openProjectEditDialog={setEditingProjectDialogId}
@@ -1655,9 +1628,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         onOpenChange={setNewWorktreeDialogOpen}
         onWorktreeCreated={(worktreePath, options) => {
           setActiveMainTab('chat');
-          if (mobileVariant) {
-            setSessionSwitcherOpen(false);
-          }
           if (options?.sessionId) {
             setCurrentSession(options.sessionId);
             return;
