@@ -34,7 +34,7 @@ interface GitHeaderProps {
   onRemoveRemote: (remote: GitRemote) => void;
   removingRemoteName: string | null;
   onCheckoutBranch: (branch: string) => void;
-  onCreateBranch: (name: string, remote?: GitRemote) => Promise<void>;
+  onCreateBranch: (name: string) => Promise<void>;
   onRenameBranch?: (oldName: string, newName: string) => Promise<void>;
   activeIdentityProfile: GitIdentityProfile | null;
   availableIdentities: GitIdentityProfile[];
@@ -354,7 +354,6 @@ export const GitHeader: React.FC<GitHeaderProps> = ({
               branchInfo={branchInfo}
               onCheckout={onCheckoutBranch}
               onCreate={onCreateBranch}
-              remotes={remotes}
             />
           )}
         </div>

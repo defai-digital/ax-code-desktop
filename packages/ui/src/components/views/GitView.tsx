@@ -1216,7 +1216,7 @@ export const GitView: React.FC = () => {
     return 'worktree is invalid';
   };
 
-  const handleCreateBranch = async (branchName: string, remote?: GitRemote) => {
+  const handleCreateBranch = async (branchName: string) => {
     if (!currentDirectory || !status) return;
 
     const blockingReasons = getMutationBlockingReasons(worktreeAttachment);
@@ -1226,43 +1226,14 @@ export const GitView: React.FC = () => {
     }
 
     const checkoutBase = status.current ?? null;
-    const remoteName = remote?.name ?? 'origin';
 
     try {
       await git.createBranch(currentDirectory, branchName, checkoutBase ?? 'HEAD');
-      toast.success(t('gitView.toast.createdBranch', { name: branchName }));
-
-      // Checkout the new branch and stay on it
       await git.checkoutBranch(currentDirectory, branchName);
-
-      let pushSucceeded = false;
-      try {
-        await git.gitPush(currentDirectory, {
-          remote: remoteName,
-          branch: branchName,
-          options: ['--set-upstream'],
-        });
-        pushSucceeded = true;
-      } catch (pushError) {
-        const message =
-          pushError instanceof Error
-            ? pushError.message
-            : `Unable to push new branch to ${remoteName}.`;
-        toast.warning(t('gitView.toast.branchCreatedLocally'), {
-          description: (
-            <span className="text-foreground/80 dark:text-foreground/70">
-              Upstream setup failed: {message}
-            </span>
-          ),
-        });
-      }
+      toast.success(t('gitView.toast.createdBranch', { name: branchName }));
 
       await refreshStatusAndBranches();
       await refreshLog();
-
-      if (pushSucceeded) {
-        toast.success(t('gitView.toast.upstreamSet', { branch: branchName, remote: remoteName }));
-      }
     } catch (err) {
       const message = err instanceof Error ? err.message : t('gitView.toast.createBranchFailed');
       toast.error(message);
