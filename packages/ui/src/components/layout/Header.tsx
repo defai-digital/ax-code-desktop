@@ -32,7 +32,7 @@ import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore';
 import { useGitHubAuthStore } from '@/stores/useGitHubAuthStore';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import { ContextUsageDisplay } from '@/components/ui/ContextUsageDisplay';
-import { useDeviceInfo, useTabletStandalonePwaRuntime } from '@/lib/device';
+import { useDeviceInfo } from '@/lib/device';
 import { cn, hasModifier } from '@/lib/utils';
 import { McpDropdownContent } from '@/components/mcp/McpDropdown';
 import { ProviderLogo } from '@/components/ui/ProviderLogo';
@@ -803,7 +803,6 @@ export const Header: React.FC<HeaderProps> = ({
     return isDesktopShell();
   });
   const hasElectronDesktopIPC = React.useMemo(() => canUseElectronDesktopIPC(), []);
-  const isTabletStandalonePwa = useTabletStandalonePwaRuntime();
   const [isDesktopWindowFullscreen, setIsDesktopWindowFullscreen] = React.useState(false);
 
   const isMacPlatform = React.useMemo(() => {
@@ -1501,11 +1500,11 @@ export const Header: React.FC<HeaderProps> = ({
   }, [onToggleRightDrawer, rightDrawerOpen]);
 
   const desktopPaddingClass = React.useMemo(() => {
-    if ((isDesktopApp && isMacPlatform && !isDesktopWindowFullscreen) || isTabletStandalonePwa) {
+    if (isDesktopApp && isMacPlatform && !isDesktopWindowFullscreen) {
       return 'pl-[5.5rem]';
     }
     return 'pl-3';
-  }, [isDesktopApp, isDesktopWindowFullscreen, isMacPlatform, isTabletStandalonePwa]);
+  }, [isDesktopApp, isDesktopWindowFullscreen, isMacPlatform]);
 
   useEffect(() => {
     if (!isDesktopApp || !isMacPlatform) {
@@ -1573,14 +1572,12 @@ export const Header: React.FC<HeaderProps> = ({
     }
 
     return {
-      paddingLeft: isTabletStandalonePwa
-        ? 'max(calc(0.75rem + var(--oc-wco-left-inset, 0px)), 5.5rem)'
-        : 'calc(0.75rem + var(--oc-wco-left-inset, 0px))',
+      paddingLeft: 'calc(0.75rem + var(--oc-wco-left-inset, 0px))',
       paddingRight: 'calc(0.75rem + var(--oc-wco-right-inset, 0px))',
       minHeight: 'max(3rem, var(--oc-wco-titlebar-height, 0px))',
       height: 'max(3rem, var(--oc-wco-titlebar-height, 0px))',
     };
-  }, [isDesktopApp, isTabletStandalonePwa, isWindowsElectronDesktop]);
+  }, [isDesktopApp, isWindowsElectronDesktop]);
 
   const updateHeaderHeight = React.useCallback(() => {
     if (typeof document === 'undefined') {
