@@ -2354,7 +2354,6 @@ export const dict: Record<I18nKey, string> = {
   'textarea.resizeHandleAria': '텍스트 영역 크기 조정',
   'sidebar.resize.leftPanelAria': '왼쪽 패널 크기 조정',
   'sidebar.resize.rightPanelAria': '오른쪽 패널 크기 조정',
-  'mainLayout.mobile.closeDrawerAria': '드로어 닫기',
   'sortableTabsStrip.aria.tabs': '탭',
   'openChamberLogo.aria.logo': 'AX Code App 로고',
   'markdownRenderer.table.actions.copyTitle': '표 복사',

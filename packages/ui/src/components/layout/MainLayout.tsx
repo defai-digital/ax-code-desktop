@@ -1,5 +1,4 @@
-import React, { useRef, useEffect } from 'react';
-import { animate, motion, useMotionValue } from 'motion/react';
+import React from 'react';
 import { Header } from './Header';
 import { BottomTerminalDock } from './BottomTerminalDock';
 import { Sidebar, SIDEBAR_CONTENT_WIDTH } from './Sidebar';
@@ -13,11 +12,8 @@ import { AxCodeStatusDialog } from '../ui/AxCodeStatusDialog';
 import { SessionSidebar } from '@/components/session/SessionSidebar';
 import { SessionDialogs } from '@/components/session/SessionDialogs';
 import { DiffWorkerProvider } from '@/contexts/DiffWorkerProvider';
-import { MultiRunLauncher } from '@/components/multirun';
-import { DrawerProvider } from '@/contexts/DrawerContext';
 
 import { useUIStore } from '@/stores/useUIStore';
-import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useUpdateStore } from '@/stores/useUpdateStore';
 import { useDeviceInfo } from '@/lib/device';
 import { cn } from '@/lib/utils';
@@ -28,7 +24,6 @@ import { DiffView } from '@/components/views/DiffView';
 import { FilesView } from '@/components/views/FilesView';
 import { GitView } from '@/components/views/GitView';
 import { PlanView } from '@/components/views/PlanView';
-import { SettingsView } from '@/components/views/SettingsView';
 
 const TerminalView = lazyWithChunkRecovery(() => import('@/components/views/TerminalView').then(m => ({ default: m.TerminalView })));
 const SettingsWindow = lazyWithChunkRecovery(() => import('@/components/views/SettingsWindow').then(m => ({ default: m.SettingsWindow })));
@@ -51,7 +46,6 @@ export const MainLayout: React.FC = () => {
     const setBottomTerminalOpen = useUIStore((state) => state.setBottomTerminalOpen);
     const activeMainTab = useUIStore((state) => state.activeMainTab);
     const setIsMobile = useUIStore((state) => state.setIsMobile);
-    const isSessionSwitcherOpen = useUIStore((state) => state.isSessionSwitcherOpen);
     const isSettingsDialogOpen = useUIStore((state) => state.isSettingsDialogOpen);
     const setSettingsDialogOpen = useUIStore((state) => state.setSettingsDialogOpen);
     const isMultiRunLauncherOpen = useUIStore((state) => state.isMultiRunLauncherOpen);
@@ -62,165 +56,6 @@ export const MainLayout: React.FC = () => {
     const rightSidebarWidth = useUIStore((state) => state.rightSidebarWidth);
     const rightSidebarAutoClosedRef = React.useRef(false);
     const bottomTerminalAutoClosedRef = React.useRef(false);
-    const mobilePanelsResetRef = React.useRef(false);
-
-    // Mobile drawer state
-    const [mobileLeftDrawerOpen, setMobileLeftDrawerOpen] = React.useState(false);
-    const [mobileRightSidebarOpen, setMobileRightSidebarOpen] = React.useState(false);
-    const [mobileLeftDrawerVisible, setMobileLeftDrawerVisible] = React.useState(false);
-    const [mobileRightDrawerVisible, setMobileRightDrawerVisible] = React.useState(false);
-    const setMobileSessionPanelOpen = React.useCallback((open: boolean) => {
-        setMobileLeftDrawerOpen(open);
-        useUIStore.getState().setSessionSwitcherOpen(open);
-    }, []);
-    const mobileRightDrawerOpenRef = React.useRef(false);
-    const initialDrawerWidthRef = React.useRef(typeof window === 'undefined' ? 0 : window.innerWidth);
-
-    // Left drawer motion value
-    const leftDrawerX = useMotionValue(-initialDrawerWidthRef.current);
-    const leftDrawerWidth = useRef(0);
-
-    // Right drawer motion value
-    const rightDrawerX = useMotionValue(initialDrawerWidthRef.current);
-    const rightDrawerWidth = useRef(0);
-
-    // Compute drawer width
-    useEffect(() => {
-        if (isMobile) {
-            leftDrawerWidth.current = window.innerWidth;
-            rightDrawerWidth.current = window.innerWidth;
-        }
-    }, [isMobile]);
-
-    // Sync left drawer state and motion value
-    useEffect(() => {
-        if (!isMobile) {
-            setMobileLeftDrawerVisible(false);
-            return;
-        }
-        if (mobileLeftDrawerOpen) {
-            setMobileLeftDrawerVisible(true);
-        }
-        animate(leftDrawerX, mobileLeftDrawerOpen ? 0 : -leftDrawerWidth.current, {
-            type: 'spring',
-            stiffness: 400,
-            damping: 35,
-            mass: 0.8,
-        });
-    }, [mobileLeftDrawerOpen, isMobile, leftDrawerX]);
-
-    // Sync right drawer state and motion value
-    useEffect(() => {
-        if (!isMobile) {
-            setMobileRightDrawerVisible(false);
-            return;
-        }
-        mobileRightDrawerOpenRef.current = mobileRightSidebarOpen;
-        if (mobileRightSidebarOpen) {
-            setMobileRightDrawerVisible(true);
-        }
-        animate(rightDrawerX, mobileRightSidebarOpen ? 0 : rightDrawerWidth.current, {
-            type: 'spring',
-            stiffness: 400,
-            damping: 35,
-            mass: 0.8,
-        });
-    }, [isMobile, mobileRightSidebarOpen, rightDrawerX]);
-
-    useEffect(() => {
-        if (!isMobile) return;
-        return leftDrawerX.on('change', (value) => {
-            const width = leftDrawerWidth.current || initialDrawerWidthRef.current;
-            const visible = mobileLeftDrawerOpen || value > -width + 0.5;
-            setMobileLeftDrawerVisible((previous) => previous === visible ? previous : visible);
-        });
-    }, [isMobile, leftDrawerX, mobileLeftDrawerOpen]);
-
-    useEffect(() => {
-        if (!isMobile) return;
-        return rightDrawerX.on('change', (value) => {
-            const width = rightDrawerWidth.current || initialDrawerWidthRef.current;
-            const visible = mobileRightSidebarOpen || value < width - 0.5;
-            setMobileRightDrawerVisible((previous) => previous === visible ? previous : visible);
-        });
-    }, [isMobile, mobileRightSidebarOpen, rightDrawerX]);
-
-    // Sync session switcher close events to left drawer.
-    useEffect(() => {
-        if (isMobile && !isSessionSwitcherOpen && mobileLeftDrawerOpen) {
-            setMobileSessionPanelOpen(false);
-        }
-    }, [isSessionSwitcherOpen, isMobile, mobileLeftDrawerOpen, setMobileSessionPanelOpen]);
-
-    useEffect(() => {
-        if (!isMobile) {
-            mobilePanelsResetRef.current = false;
-            return;
-        }
-
-        if (mobilePanelsResetRef.current) {
-            return;
-        }
-
-        mobilePanelsResetRef.current = true;
-        setMobileSessionPanelOpen(false);
-        setMobileRightSidebarOpen(false);
-        if (useUIStore.getState().isRightSidebarOpen) {
-            setRightSidebarOpen(false);
-        }
-    }, [isMobile, setMobileSessionPanelOpen, setRightSidebarOpen]);
-
-    useEffect(() => {
-        if (!isMobile || activeMainTab !== 'chat' || mobileLeftDrawerOpen || mobileRightSidebarOpen || isSettingsDialogOpen) {
-            return;
-        }
-
-        let disposed = false;
-        let timeoutId: number | undefined;
-
-        const scheduleDraftOpen = (delayMs: number) => {
-            timeoutId = window.setTimeout(() => {
-                if (disposed) {
-                    return;
-                }
-
-                const sessionState = useSessionUIStore.getState();
-                const uiState = useUIStore.getState();
-                if (uiState.activeMainTab !== 'chat' || uiState.isSettingsDialogOpen || sessionState.currentSessionId || sessionState.newSessionDraft?.open) {
-                    return;
-                }
-
-                if (sessionState.isLoading) {
-                    scheduleDraftOpen(250);
-                    return;
-                }
-
-                sessionState.openNewSessionDraft();
-            }, delayMs);
-        };
-
-        scheduleDraftOpen(500);
-
-        return () => {
-            disposed = true;
-            if (timeoutId !== undefined) {
-                window.clearTimeout(timeoutId);
-            }
-        };
-    }, [activeMainTab, isMobile, isSettingsDialogOpen, mobileLeftDrawerOpen, mobileRightSidebarOpen]);
-
-    // Ensure mobile drawers are closed when opening full-screen settings
-    useEffect(() => {
-        if (!isMobile || !isSettingsDialogOpen) {
-            return;
-        }
-
-        setMobileSessionPanelOpen(false);
-        setMobileRightSidebarOpen(false);
-        if (isRightSidebarOpen) {
-            setRightSidebarOpen(false);
-        }
-    }, [isMobile, isSettingsDialogOpen, isRightSidebarOpen, setMobileSessionPanelOpen, setRightSidebarOpen]);
 
     // Trigger initial update check shortly after mount, then repeat using server-suggested cadence.
     const checkForUpdates = useUpdateStore((state) => state.checkForUpdates);
@@ -386,13 +221,6 @@ export const MainLayout: React.FC = () => {
         };
     }, [isMobile, isTablet, setBottomTerminalOpen, setRightSidebarOpen]);
 
-    const handleToggleMobileRightDrawer = React.useCallback(() => {
-        if (mobileLeftDrawerOpen) {
-            setMobileSessionPanelOpen(false);
-        }
-        setMobileRightSidebarOpen(!mobileRightSidebarOpen);
-    }, [mobileLeftDrawerOpen, mobileRightSidebarOpen, setMobileSessionPanelOpen]);
-
     const secondaryView = React.useMemo(() => {
         switch (activeMainTab) {
             case 'plan':
@@ -428,7 +256,7 @@ export const MainLayout: React.FC = () => {
                 data-page-scroll-lock="true"
                 className={cn(
                     'main-content-safe-area',
-                    isMobile ? 'flex h-[100dvh] flex-col' : 'flex h-[100dvh]',
+                    'flex h-[100dvh]',
                     'bg-background'
                 )}
             >
@@ -437,104 +265,10 @@ export const MainLayout: React.FC = () => {
                 <AxCodeStatusDialog />
                 <SessionDialogs />
 
-                {isMobile ? (
-                <DrawerProvider value={{
-                    leftDrawerOpen: mobileLeftDrawerOpen,
-                    rightDrawerOpen: mobileRightSidebarOpen,
-                    toggleLeftDrawer: () => {
-                        const nextOpen = !mobileLeftDrawerOpen;
-                        if (mobileRightSidebarOpen) {
-                            setMobileRightSidebarOpen(false);
-                        }
-                        setMobileSessionPanelOpen(nextOpen);
-                    },
-                    toggleRightDrawer: handleToggleMobileRightDrawer,
-                    leftDrawerX,
-                    rightDrawerX,
-                    leftDrawerWidth,
-                    rightDrawerWidth,
-                    setMobileLeftDrawerOpen: setMobileSessionPanelOpen,
-                    setRightSidebarOpen: setMobileRightSidebarOpen,
-                }}>
-                    {/* Mobile: header + drawer mode */}
-                    {!isSettingsDialogOpen && <Header 
-                        onToggleLeftDrawer={() => {
-                            const nextOpen = !mobileLeftDrawerOpen;
-                            if (mobileRightSidebarOpen) {
-                                setMobileRightSidebarOpen(false);
-                            }
-                            setMobileSessionPanelOpen(nextOpen);
-                        }}
-                        onToggleRightDrawer={() => {
-                            handleToggleMobileRightDrawer();
-                        }}
-                        leftDrawerOpen={mobileLeftDrawerOpen}
-                        rightDrawerOpen={mobileRightSidebarOpen}
-                    />}
-                    
-                    {/* Main content area (fixed) */}
-                    <div
-                        data-page-scroll-lock="true"
-                        className={cn(
-                            'flex flex-1 overflow-hidden relative',
-                            isSettingsDialogOpen && 'hidden'
-                        )}
-                    >
-                        <main className="w-full h-full overflow-hidden bg-background relative" data-page-scroll-lock="true">
-                            <div className={cn('absolute inset-0', !isChatActive && 'invisible')}>
-                                <ErrorBoundary><ChatView /></ErrorBoundary>
-                            </div>
-                            {secondaryView && (
-                                <div className="absolute inset-0">
-                                    <ErrorBoundary>{secondaryView}</ErrorBoundary>
-                                </div>
-                            )}
-                            {isMultiRunLauncherOpen && (
-                                <div className="absolute inset-0 z-10 bg-background">
-                                    <ErrorBoundary>
-                                        <MultiRunLauncher
-                                            initialPrompt={multiRunLauncherPrefillPrompt}
-                                            onCreated={() => setMultiRunLauncherOpen(false)}
-                                            onCancel={() => setMultiRunLauncherOpen(false)}
-                                        />
-                                    </ErrorBoundary>
-                                </div>
-                            )}
-                            {mobileLeftDrawerVisible && (
-                                <motion.div className="absolute inset-0 z-20 bg-sidebar" data-page-scroll-lock="true" style={{ x: leftDrawerX }} aria-hidden={!mobileLeftDrawerOpen}>
-                                    <ErrorBoundary>
-                                        <SessionSidebar mobileVariant />
-                                    </ErrorBoundary>
-                                </motion.div>
-                            )}
-                            {mobileRightDrawerVisible && (
-                                <motion.div className="absolute inset-0 z-20 bg-sidebar" data-page-scroll-lock="true" style={{ x: rightDrawerX }} aria-hidden={!mobileRightSidebarOpen}>
-                                    <ErrorBoundary>
-                                        <GitView />
-                                    </ErrorBoundary>
-                                </motion.div>
-                            )}
-                        </main>
-                    </div>
-
-                    {/* Mobile settings: full screen */}
-                    {isSettingsDialogOpen && (
-                        <div
-                            className="absolute inset-0 z-10 bg-background"
-                            style={{ paddingTop: 'var(--oc-safe-area-top, 0px)' }}
-                        >
-                            <ErrorBoundary>
-                                <SettingsView onClose={() => setSettingsDialogOpen(false)} />
-                            </ErrorBoundary>
-                        </div>
-                    )}
-                </DrawerProvider>
-            ) : (
-                <>
-                    {/* Desktop: full-width Header above [Sidebar | chat-frame | RightSidebar] row */}
-                    <div className="flex flex-1 flex-col overflow-hidden">
-                        <Header />
-                        <div className="relative flex flex-1 min-h-0 overflow-hidden bg-sidebar" data-page-scroll-lock="true">
+                {/* Desktop: full-width Header above [Sidebar | chat-frame | RightSidebar] row */}
+                <div className="flex flex-1 flex-col overflow-hidden">
+                    <Header />
+                    <div className="relative flex flex-1 min-h-0 overflow-hidden bg-sidebar" data-page-scroll-lock="true">
                             <div
                                 aria-hidden
                                 className="pointer-events-none absolute top-0 z-0 bg-sidebar transition-[left,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
@@ -629,24 +363,22 @@ export const MainLayout: React.FC = () => {
                                 <ErrorBoundary><RightSidebarTabs /></ErrorBoundary>
                             </RightSidebar>
                         </div>
-                    </div>
+                </div>
 
-                    {/* Desktop settings: windowed dialog with blur */}
-                    <React.Suspense fallback={null}>
-                        <SettingsWindow
-                            open={isSettingsDialogOpen}
-                            onOpenChange={setSettingsDialogOpen}
-                        />
-                    </React.Suspense>
-                    <React.Suspense fallback={null}>
-                        <MultiRunWindow
-                            open={isMultiRunLauncherOpen}
-                            onOpenChange={setMultiRunLauncherOpen}
-                            initialPrompt={multiRunLauncherPrefillPrompt}
-                        />
-                    </React.Suspense>
-                </>
-            )}
+                {/* Desktop settings: windowed dialog with blur */}
+                <React.Suspense fallback={null}>
+                    <SettingsWindow
+                        open={isSettingsDialogOpen}
+                        onOpenChange={setSettingsDialogOpen}
+                    />
+                </React.Suspense>
+                <React.Suspense fallback={null}>
+                    <MultiRunWindow
+                        open={isMultiRunLauncherOpen}
+                        onOpenChange={setMultiRunLauncherOpen}
+                        initialPrompt={multiRunLauncherPrefillPrompt}
+                    />
+                </React.Suspense>
 
         </div>
     </DiffWorkerProvider>

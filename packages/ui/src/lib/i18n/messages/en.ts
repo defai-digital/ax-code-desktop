@@ -2358,7 +2358,6 @@ export const dict = {
   'textarea.resizeHandleAria': 'Resize textarea',
   'sidebar.resize.leftPanelAria': 'Resize left panel',
   'sidebar.resize.rightPanelAria': 'Resize right panel',
-  'mainLayout.mobile.closeDrawerAria': 'Close drawer',
   'sortableTabsStrip.aria.tabs': 'Tabs',
   'openChamberLogo.aria.logo': 'AX Code App logo',
   'markdownRenderer.table.actions.copyTitle': 'Copy table',

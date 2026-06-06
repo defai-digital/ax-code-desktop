@@ -2317,7 +2317,6 @@ export const dict: Record<I18nKey, string> = {
   'textarea.resizeHandleAria': '調整文字區域大小',
   'sidebar.resize.leftPanelAria': '調整左側面板大小',
   'sidebar.resize.rightPanelAria': '調整右側面板大小',
-  'mainLayout.mobile.closeDrawerAria': '關閉抽屜',
   'sortableTabsStrip.aria.tabs': '分頁',
   'openChamberLogo.aria.logo': 'AX Code App 標誌',
   'markdownRenderer.table.actions.copyTitle': '複製表格',

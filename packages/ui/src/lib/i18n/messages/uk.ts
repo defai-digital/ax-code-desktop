@@ -2320,7 +2320,6 @@ export const dict: Record<I18nKey, string> = {
   "textarea.resizeHandleAria": "Змінити розмір текстового поля",
   "sidebar.resize.leftPanelAria": "Змінити розмір лівої панелі",
   "sidebar.resize.rightPanelAria": "Змінити розмір правої панелі",
-  "mainLayout.mobile.closeDrawerAria": "Закрити панель",
   "sortableTabsStrip.aria.tabs": "Вкладки",
   "openChamberLogo.aria.logo": "Логотип AX Code App",
   "markdownRenderer.table.actions.copyTitle": "Скопіювати таблицю",

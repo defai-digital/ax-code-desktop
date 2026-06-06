@@ -1878,7 +1878,6 @@ export const dict: Record<I18nKey, string> = {
   'inlineComment.input.placeholder': 'Add a comment... (Cmd+Enter to save)',
   'inlineComment.range.lines': 'Lines {start}-{end}',
   'inlineComment.toast.selectSessionToSave': 'Select a session to save comment',
-  'mainLayout.mobile.closeDrawerAria': 'Zamknij szufladę',
   'markdownRenderer.mermaid.actions.copySourceTitle': 'Kopiuj źródło',
   'markdownRenderer.mermaid.actions.copyTitle': 'Kopiuj',
   'markdownRenderer.mermaid.actions.downloadSvgTitle': 'Pobierz SVG',

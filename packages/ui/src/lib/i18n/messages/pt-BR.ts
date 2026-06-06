@@ -2320,7 +2320,6 @@ export const dict: Record<I18nKey, string> = {
   "textarea.resizeHandleAria": "Ajustar área de texto",
   "sidebar.resize.leftPanelAria": "Ajustar painel esquerdo",
   "sidebar.resize.rightPanelAria": "Ajustar painel direito",
-  "mainLayout.mobile.closeDrawerAria": "Fechar gaveta",
   "sortableTabsStrip.aria.tabs": "Abas",
   "openChamberLogo.aria.logo": "Logo do AX Code App",
   "markdownRenderer.table.actions.copyTitle": "Copiar tabela",
