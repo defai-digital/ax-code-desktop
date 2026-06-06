@@ -36,6 +36,21 @@ import { useConfigStore } from '@/stores/useConfigStore';
 import { useServerTTS } from './useServerTTS';
 import { useSayTTS } from './useSayTTS';
 import { sanitizeForTTS } from '@/lib/voice/summarize';
+import {
+  BROWSER_VOICE_CONVERSATION_MODE_CHANGE_EVENT,
+  BROWSER_VOICE_CONVERSATION_MODE_STORAGE_KEY,
+  BROWSER_VOICE_LANGUAGE_CHANGE_EVENT,
+  BROWSER_VOICE_LANGUAGE_STORAGE_KEY,
+  getBrowserVoiceStorage,
+  getNavigatorSpeechLanguage,
+  readBrowserVoiceConversationMode,
+  readBrowserVoiceLanguage,
+  resolveBrowserVoiceConversationModeEvent,
+  resolveBrowserVoiceLanguageEvent,
+  sanitizeSpeechLanguage,
+  saveBrowserVoiceConversationMode,
+  saveBrowserVoiceLanguage,
+} from '@/lib/voice/browserVoicePreferences';
 
 export type BrowserVoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
@@ -68,27 +83,8 @@ export interface UseBrowserVoiceReturn {
   voiceProvider: 'browser' | 'openai' | 'openai-compatible' | 'say';
 }
 
-// Storage key for persisting language preference
-const LANGUAGE_STORAGE_KEY = 'browserVoiceLanguage';
-// Storage key for persisting conversation mode preference
-const CONVERSATION_MODE_STORAGE_KEY = 'browserVoiceConversationMode';
-const LANGUAGE_CHANGE_EVENT = 'openchamber:voice-language-changed';
-const CONVERSATION_MODE_CHANGE_EVENT = 'openchamber:voice-conversation-mode-changed';
 const FINAL_TRANSCRIPT_SETTLE_MS = 1200;
 const DEVICE_CHANGE_RESTART_DELAY_MS = 700;
-const BLOCKED_SPEECH_LANGUAGES = new Set(['ru', 'ru-RU']);
-
-const sanitizeSpeechLanguage = (lang: string): string => {
-  const normalized = (lang || '').trim();
-  if (!normalized) {
-    return 'en-US';
-  }
-  const base = normalized.split('-')[0].toLowerCase();
-  if (BLOCKED_SPEECH_LANGUAGES.has(normalized) || BLOCKED_SPEECH_LANGUAGES.has(base)) {
-    return 'en-US';
-  }
-  return normalized;
-};
 
 /**
  * Hook for managing browser-based voice conversations
@@ -97,20 +93,10 @@ export function useBrowserVoice(): UseBrowserVoiceReturn {
   const [status, setStatus] = useState<BrowserVoiceStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguageState] = useState<string>(() => {
-    // Try to load from localStorage, fallback to navigator.language
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-      if (saved) return sanitizeSpeechLanguage(saved);
-    }
-    return sanitizeSpeechLanguage(navigator.language || 'en-US');
+    return readBrowserVoiceLanguage(getBrowserVoiceStorage(), getNavigatorSpeechLanguage());
   });
   const [conversationMode, setConversationModeState] = useState<boolean>(() => {
-    // Try to load from localStorage, default to false
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(CONVERSATION_MODE_STORAGE_KEY);
-      return saved === 'true';
-    }
-    return false;
+    return readBrowserVoiceConversationMode(getBrowserVoiceStorage());
   });
   
   // Mobile detection
@@ -204,11 +190,10 @@ export function useBrowserVoice(): UseBrowserVoiceReturn {
   
   // Persist language preference
   const setLanguage = useCallback((lang: string) => {
-    const nextLang = sanitizeSpeechLanguage(lang);
+    const nextLang = saveBrowserVoiceLanguage(getBrowserVoiceStorage(), lang);
     setLanguageState(nextLang);
     if (typeof window !== 'undefined') {
-      localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLang);
-      window.dispatchEvent(new CustomEvent<string>(LANGUAGE_CHANGE_EVENT, { detail: nextLang }));
+      window.dispatchEvent(new CustomEvent<string>(BROWSER_VOICE_LANGUAGE_CHANGE_EVENT, { detail: nextLang }));
     }
   }, []);
 
@@ -218,24 +203,23 @@ export function useBrowserVoice(): UseBrowserVoiceReturn {
     }
 
     const handleLanguageEvent = (event: Event) => {
-      const customEvent = event as CustomEvent<string>;
-      const nextLang = sanitizeSpeechLanguage(customEvent.detail || localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en-US');
+      const nextLang = resolveBrowserVoiceLanguageEvent(event, getBrowserVoiceStorage());
       setLanguageState((prev) => (prev === nextLang ? prev : nextLang));
     };
 
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== LANGUAGE_STORAGE_KEY || !event.newValue) {
+      if (event.key !== BROWSER_VOICE_LANGUAGE_STORAGE_KEY || !event.newValue) {
         return;
       }
       const nextLang = sanitizeSpeechLanguage(event.newValue);
       setLanguageState((prev) => (prev === nextLang ? prev : nextLang));
     };
 
-    window.addEventListener(LANGUAGE_CHANGE_EVENT, handleLanguageEvent as EventListener);
+    window.addEventListener(BROWSER_VOICE_LANGUAGE_CHANGE_EVENT, handleLanguageEvent);
     window.addEventListener('storage', handleStorage);
 
     return () => {
-      window.removeEventListener(LANGUAGE_CHANGE_EVENT, handleLanguageEvent as EventListener);
+      window.removeEventListener(BROWSER_VOICE_LANGUAGE_CHANGE_EVENT, handleLanguageEvent);
       window.removeEventListener('storage', handleStorage);
     };
   }, []);
@@ -245,9 +229,9 @@ export function useBrowserVoice(): UseBrowserVoiceReturn {
     setConversationModeState((prev) => {
       const next = !prev;
       browserVoiceService.setConversationMode(next);
+      saveBrowserVoiceConversationMode(getBrowserVoiceStorage(), next);
       if (typeof window !== 'undefined') {
-        localStorage.setItem(CONVERSATION_MODE_STORAGE_KEY, String(next));
-        window.dispatchEvent(new CustomEvent<boolean>(CONVERSATION_MODE_CHANGE_EVENT, { detail: next }));
+        window.dispatchEvent(new CustomEvent<boolean>(BROWSER_VOICE_CONVERSATION_MODE_CHANGE_EVENT, { detail: next }));
       }
       return next;
     });
@@ -259,27 +243,26 @@ export function useBrowserVoice(): UseBrowserVoiceReturn {
     }
 
     const handleConversationModeEvent = (event: Event) => {
-      const customEvent = event as CustomEvent<boolean>;
-      const detail = customEvent.detail;
-      if (typeof detail !== 'boolean') {
+      const next = resolveBrowserVoiceConversationModeEvent(event);
+      if (next === null) {
         return;
       }
-      setConversationModeState((prev) => (prev === detail ? prev : detail));
+      setConversationModeState((prev) => (prev === next ? prev : next));
     };
 
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== CONVERSATION_MODE_STORAGE_KEY || event.newValue == null) {
+      if (event.key !== BROWSER_VOICE_CONVERSATION_MODE_STORAGE_KEY || event.newValue == null) {
         return;
       }
       const next = event.newValue === 'true';
       setConversationModeState((prev) => (prev === next ? prev : next));
     };
 
-    window.addEventListener(CONVERSATION_MODE_CHANGE_EVENT, handleConversationModeEvent as EventListener);
+    window.addEventListener(BROWSER_VOICE_CONVERSATION_MODE_CHANGE_EVENT, handleConversationModeEvent);
     window.addEventListener('storage', handleStorage);
 
     return () => {
-      window.removeEventListener(CONVERSATION_MODE_CHANGE_EVENT, handleConversationModeEvent as EventListener);
+      window.removeEventListener(BROWSER_VOICE_CONVERSATION_MODE_CHANGE_EVENT, handleConversationModeEvent);
       window.removeEventListener('storage', handleStorage);
     };
   }, []);
