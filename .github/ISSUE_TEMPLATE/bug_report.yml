@@ -18,9 +18,8 @@ body:
       label: Where does it happen?
       options:
         - Desktop (macOS)
-        - Desktop Web
-        - Mobile (Web/PWA)
-        - VS Code extension
+        - Desktop (Windows)
+        - Desktop Web (local development only)
         - Not sure
     validations:
       required: true
