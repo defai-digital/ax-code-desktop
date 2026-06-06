@@ -26,20 +26,9 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
         if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
         return true;
       };
-      const inferDeviceClass = (ua) => {
-        const value = (ua || '').toLowerCase();
-        if (!value) return 'unknown';
-        if (value.includes('ipad') || value.includes('tablet')) return 'tablet';
-        if (value.includes('mobi') || value.includes('android') || value.includes('iphone')) return 'mobile';
-        return 'desktop';
-      };
-      const userAgent = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : '';
-
       const updateInfo = await checkForUpdates({
         appType: parseString(req.query.appType),
-        deviceClass: parseString(req.query.deviceClass) || inferDeviceClass(userAgent),
-        platform: parseString(req.query.platform),
-        arch: parseString(req.query.arch),
+        deviceClass: parseString(req.query.deviceClass) || 'desktop',
         instanceMode: parseString(req.query.instanceMode),
         currentVersion: parseString(req.query.currentVersion),
         reportUsage: parseReportUsage(parseString(req.query.reportUsage)),

@@ -175,6 +175,47 @@ describe('checkForUpdates', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('normalizes unsupported runtime update metadata before calling the update API', async () => {
+    fetchMock
+      .when('updates.ax-code.test', {
+        ok: true,
+        json: async () => ({
+          latestVersion: '1.9.10',
+          updateAvailable: false,
+        }),
+      });
+
+    await checkForUpdates({
+      appType: 'vscode',
+      deviceClass: 'mobile',
+      platform: 'windows',
+      arch: 'x64',
+      currentVersion: '1.9.10',
+    });
+
+    const [, request] = fetchMock.mock.calls[0];
+    const payload = JSON.parse(request.body);
+    const expectedPlatform =
+      process.platform === 'darwin'
+        ? 'macos'
+        : process.platform === 'win32'
+          ? 'windows'
+          : process.platform === 'linux'
+            ? 'linux'
+            : 'web';
+    const expectedArch =
+      process.arch === 'arm64' || process.arch === 'aarch64'
+        ? 'arm64'
+        : process.arch === 'x64' || process.arch === 'amd64'
+          ? 'x64'
+          : 'unknown';
+
+    expect(payload.appType).toBe('web');
+    expect(payload.deviceClass).toBe('unknown');
+    expect(payload.platform).toBe(expectedPlatform);
+    expect(payload.arch).toBe(expectedArch);
+  });
+
   it('returns available=false when API claims update but npm is behind', async () => {
     fetchMock
       .when('updates.ax-code.test', {

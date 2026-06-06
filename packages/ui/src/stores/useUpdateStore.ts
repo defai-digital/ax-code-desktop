@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { UpdateInfo, UpdateProgress } from '@/lib/desktop';
-import { getDeviceInfo } from '@/lib/device';
 import { useUIStore } from './useUIStore';
 import {
   checkForDesktopUpdates,
@@ -35,45 +34,12 @@ interface UpdateStore extends UpdateState {
 
 type ClientRuntime = 'desktop' | 'web';
 
-function detectDeviceClass(): 'mobile' | 'tablet' | 'desktop' | 'unknown' {
-  if (typeof window === 'undefined') return 'unknown';
-  try {
-    const { deviceType } = getDeviceInfo();
-    return deviceType;
-  } catch {
-    return 'unknown';
-  }
-}
-
-function detectArch(): 'arm64' | 'x64' | 'unknown' {
-  const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { userAgentData?: { architecture?: string } }).userAgentData : undefined;
-  const fromUAData = nav?.architecture?.toLowerCase?.();
-  if (fromUAData === 'arm' || fromUAData === 'arm64' || fromUAData === 'aarch64') return 'arm64';
-  if (fromUAData === 'x86' || fromUAData === 'x64' || fromUAData === 'amd64') return 'x64';
-
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
-  if (ua.includes('aarch64') || ua.includes('arm64') || ua.includes('armv')) return 'arm64';
-  if (ua.includes('x86_64') || ua.includes('x64') || ua.includes('amd64') || ua.includes('win64')) return 'x64';
-  return 'unknown';
-}
-
-function detectPlatform(): 'macos' | 'windows' | 'linux' | 'web' {
-  if (typeof navigator === 'undefined') return 'web';
-  const platform = (navigator.platform || '').toLowerCase();
-  if (platform.includes('mac')) return 'macos';
-  if (platform.includes('win')) return 'windows';
-  if (platform.includes('linux')) return 'linux';
-  return 'web';
-}
-
 function mapRuntimeParams(runtime: ClientRuntime): URLSearchParams {
   // Check if user has opted out of usage reporting (default: true/enabled from UI store)
   const shouldReportUsage = useUIStore.getState().reportUsage;
-  
+
   const params = new URLSearchParams({ reportUsage: shouldReportUsage ? 'true' : 'false' });
-  params.set('deviceClass', detectDeviceClass());
-  params.set('arch', detectArch());
-  params.set('platform', detectPlatform());
+  params.set('deviceClass', 'desktop');
   if (runtime === 'desktop') {
     params.set('appType', isElectronShell() ? 'desktop-electron' : 'desktop-tauri');
     params.set('instanceMode', isDesktopLocalOriginActive() ? 'local' : 'remote');
