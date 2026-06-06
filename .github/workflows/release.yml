@@ -789,6 +789,8 @@ jobs:
             '  desc "AI coding assistant desktop app powered by AX Code"',
             '  homepage "https://github.com/defai-digital/ax-code-desktop"',
             '',
+            '  disable :quarantine, "not signed or notarized"',
+            '',
             '  app "AX Code Desktop.app"',
             '',
             '  zap trash: [',

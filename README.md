@@ -7,10 +7,8 @@ AX Code Desktop is the desktop UI for [AX Code](https://github.com/defai-digital
 The recommended way to install on macOS is via Homebrew:
 
 ```bash
-brew install --cask --no-quarantine defai-digital/ax-code-desktop/ax-code-desktop
+brew install --cask defai-digital/ax-code-desktop/ax-code-desktop
 ```
-
-The `--no-quarantine` flag prevents the macOS "damaged" error that affects unsigned apps downloaded from the internet. Future signed releases will not require it.
 
 To update:
 
@@ -125,7 +123,7 @@ brew upgrade --cask ax-code-desktop
 
 ## Security Notes
 
-macOS users installing via Homebrew with `--no-quarantine` bypass Gatekeeper automatically — no extra steps needed.
+macOS users installing via Homebrew bypass Gatekeeper automatically — no extra steps needed.
 
 For manual downloads, only use the official [Releases page](https://github.com/defai-digital/ax-code-desktop/releases). Windows SmartScreen may warn about unsigned builds; click **More info → Run anyway** if you trust the source.
 
