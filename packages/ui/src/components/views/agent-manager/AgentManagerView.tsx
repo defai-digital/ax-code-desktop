@@ -9,6 +9,12 @@ import { useMultiRunStore } from '@/stores/useMultiRunStore';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import type { CreateMultiRunParams } from '@/types/multirun';
+import {
+  VSCODE_CONNECTION_STATUS_EVENT,
+  parseVSCodeConnectionStatusEvent,
+  readWindowVSCodeConnectionStatus,
+  type VSCodeConnectionStatus,
+} from '@/lib/vscodeConnectionStatus';
 
 interface AgentManagerViewProps {
   className?: string;
@@ -21,12 +27,8 @@ export const AgentManagerView: React.FC<AgentManagerViewProps> = ({ className })
           .__OPENCHAMBER_RUNTIME_APIS__?.runtime?.isVSCode
       : false)
   );
-  const [connectionStatus, setConnectionStatus] = React.useState<'connecting' | 'connected' | 'error' | 'disconnected'>(
-    () =>
-      (typeof window !== 'undefined'
-        ? (window as unknown as { __OPENCHAMBER_CONNECTION__?: { status?: string } }).__OPENCHAMBER_CONNECTION__?.status as
-            'connecting' | 'connected' | 'error' | 'disconnected' | undefined
-        : 'connecting') || 'connecting'
+  const [connectionStatus, setConnectionStatus] = React.useState<VSCodeConnectionStatus>(
+    () => readWindowVSCodeConnectionStatus() ?? 'connecting'
   );
   const configInitialized = useConfigStore((s) => s.isInitialized);
   const initializeApp = useConfigStore((s) => s.initializeApp);
@@ -51,20 +53,17 @@ export const AgentManagerView: React.FC<AgentManagerViewProps> = ({ className })
   React.useEffect(() => {
     if (!isVSCodeRuntime) return;
 
-    const current =
-      (typeof window !== 'undefined'
-        ? (window as unknown as { __OPENCHAMBER_CONNECTION__?: { status?: string } }).__OPENCHAMBER_CONNECTION__?.status
-        : undefined) as 'connecting' | 'connected' | 'error' | 'disconnected' | undefined;
+    const current = readWindowVSCodeConnectionStatus();
     if (current) setConnectionStatus(current);
 
     const handler = (event: Event) => {
-      const status = (event as CustomEvent<{ status?: string }>).detail?.status;
-      if (status === 'connected' || status === 'connecting' || status === 'error' || status === 'disconnected') {
+      const status = parseVSCodeConnectionStatusEvent(event);
+      if (status) {
         setConnectionStatus(status);
       }
     };
-    window.addEventListener('openchamber:connection-status', handler as EventListener);
-    return () => window.removeEventListener('openchamber:connection-status', handler as EventListener);
+    window.addEventListener(VSCODE_CONNECTION_STATUS_EVENT, handler);
+    return () => window.removeEventListener(VSCODE_CONNECTION_STATUS_EVENT, handler);
   }, [isVSCodeRuntime]);
 
   React.useEffect(() => {

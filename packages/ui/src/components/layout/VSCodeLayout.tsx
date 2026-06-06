@@ -36,6 +36,12 @@ import { lazyWithChunkRecovery } from '@/lib/chunkLoadRecovery';
 import { buildSessionContextUsage, findLatestAssistantTokenUsage } from '@/lib/messages/assistantTokens';
 import type { UsageWindow } from '@/types';
 import type { SessionContextUsage } from '@/stores/types/sessionTypes';
+import {
+  VSCODE_CONNECTION_STATUS_EVENT,
+  parseVSCodeConnectionStatusEvent,
+  readWindowVSCodeConnectionStatus,
+  type VSCodeConnectionStatus,
+} from '@/lib/vscodeConnectionStatus';
 
 const SettingsView = lazyWithChunkRecovery(() => import('@/components/views/SettingsView').then(m => ({ default: m.SettingsView })));
 
@@ -165,11 +171,8 @@ export const VSCodeLayout: React.FC = () => {
     return false;
   });
   const openNewSessionDraft = useSessionUIStore((state) => state.openNewSessionDraft);
-  const [connectionStatus, setConnectionStatus] = React.useState<'connecting' | 'connected' | 'error' | 'disconnected'>(
-    () => (typeof window !== 'undefined'
-      ? (window as { __OPENCHAMBER_CONNECTION__?: { status?: string } }).__OPENCHAMBER_CONNECTION__?.status as
-        'connecting' | 'connected' | 'error' | 'disconnected' | undefined
-      : 'connecting') || 'connecting'
+  const [connectionStatus, setConnectionStatus] = React.useState<VSCodeConnectionStatus>(
+    () => readWindowVSCodeConnectionStatus() ?? 'connecting'
   );
   const configInitialized = useConfigStore((state) => state.isInitialized);
   const initializeConfig = useConfigStore((state) => state.initializeApp);
@@ -245,23 +248,19 @@ export const VSCodeLayout: React.FC = () => {
   React.useEffect(() => {
     // Catch up with the latest status even if the extension posted the connection message
     // before this component registered the event listener.
-    const current =
-      (typeof window !== 'undefined'
-        ? (window as { __OPENCHAMBER_CONNECTION__?: { status?: string } }).__OPENCHAMBER_CONNECTION__?.status
-        : undefined) as 'connecting' | 'connected' | 'error' | 'disconnected' | undefined;
-    if (current === 'connected' || current === 'connecting' || current === 'error' || current === 'disconnected') {
+    const current = readWindowVSCodeConnectionStatus();
+    if (current) {
       setConnectionStatus(current);
     }
 
     const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ status?: string; error?: string }>).detail;
-      const status = detail?.status;
-      if (status === 'connected' || status === 'connecting' || status === 'error' || status === 'disconnected') {
+      const status = parseVSCodeConnectionStatusEvent(event);
+      if (status) {
         setConnectionStatus(status);
       }
     };
-    window.addEventListener('openchamber:connection-status', handler as EventListener);
-    return () => window.removeEventListener('openchamber:connection-status', handler as EventListener);
+    window.addEventListener(VSCODE_CONNECTION_STATUS_EVENT, handler);
+    return () => window.removeEventListener(VSCODE_CONNECTION_STATUS_EVENT, handler);
   }, []);
 
   // Listen for navigation events from VS Code extension title bar buttons
