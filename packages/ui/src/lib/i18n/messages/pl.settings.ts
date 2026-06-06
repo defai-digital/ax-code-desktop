@@ -1,4 +1,6 @@
 export const settingsDict = {
+  'settings.appearance.language.label': 'Język',
+  'settings.appearance.language.select': 'Wybierz język',
   'settings.appearance.language.description': 'Wybierz język interfejsu.',
   'settings.agents.modelSelector.actions.addToFavorites': 'Dodaj do ulubionych',
   'settings.agents.modelSelector.actions.favorite': 'Ulubione',
@@ -687,6 +689,7 @@ export const settingsDict = {
   'settings.openchamber.keyboardShortcuts.action.open_command_palette.label': 'Otwórz paletę poleceń',
   'settings.openchamber.keyboardShortcuts.action.open_go_to_line.label': 'Przejdź do linii (edytor plików)',
   'settings.openchamber.keyboardShortcuts.action.open_help.label': 'Otwórz skróty klawiszowe',
+  'settings.openchamber.keyboardShortcuts.action.open_timeline_dialog.label': 'Otwórz oś czasu',
   'settings.openchamber.keyboardShortcuts.action.open_right_sidebar_files.label': 'Otwórz zakładkę Pliki w prawym pasku bocznym',
   'settings.openchamber.keyboardShortcuts.action.open_right_sidebar_git.label': 'Otwórz zakładkę Git w prawym pasku bocznym',
   'settings.openchamber.keyboardShortcuts.action.open_settings.label': 'Otwórz ustawienia',

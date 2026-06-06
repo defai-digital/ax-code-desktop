@@ -2292,9 +2292,6 @@ export const dict: Record<I18nKey, string> = {
 
   // Update dialog
   'updateDialog.changelog.title': 'Informacje o wersji',
-  'settings.appearance.language.label': 'Język',
-  'settings.appearance.language.select': 'Wybierz język',
-  'settings.openchamber.keyboardShortcuts.action.open_timeline_dialog.label': 'Otwórz oś czasu',
   'gitView.stashes.actions.apply': 'Zastosuj',
   'gitView.stashes.actions.drop': 'Usuń',
   'gitView.stashes.actions.pop': 'Przywróć i usuń',
