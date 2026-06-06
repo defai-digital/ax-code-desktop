@@ -40,6 +40,12 @@ import { TodoSendDialog, type TodoSendExecution } from '@/components/session/Tod
 import { Icon } from "@/components/icon/Icon";
 import { renderMagicPrompt } from '@/lib/magicPrompts';
 import { useI18n } from '@/lib/i18n';
+import {
+  getViewerModeStorage,
+  readPreviewViewModePreference,
+  savePreviewViewModePreference,
+  type PreviewViewMode,
+} from '@/lib/viewerModePreferences';
 
 type PlanViewProps = {
   targetPath?: string | null;
@@ -202,7 +208,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
   const sendPromptTitle = React.useMemo(() => parsedTitle.trim() || t('planView.title.default'), [parsedTitle, t]);
   const [loading, setLoading] = React.useState(false);
   const [copiedContent, setCopiedContent] = React.useState(false);
-  const [mdViewMode, setMdViewMode] = React.useState<'preview' | 'edit'>('edit');
+  const [mdViewMode, setMdViewMode] = React.useState<PreviewViewMode>('edit');
   const copiedContentTimeoutRef = React.useRef<number | null>(null);
 
   const [lineSelection, setLineSelection] = React.useState<LineRange | null>(null);
@@ -212,25 +218,12 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
   const MD_VIEWER_MODE_KEY = 'openchamber:plan:md-viewer-mode';
 
   React.useEffect(() => {
-    try {
-      const stored = localStorage.getItem(MD_VIEWER_MODE_KEY);
-      if (!stored) return;
-      const parsed = JSON.parse(stored) as unknown;
-      if (parsed === 'preview' || parsed === 'edit') {
-        setMdViewMode(parsed);
-      }
-    } catch {
-      // ignore
-    }
+    setMdViewMode(readPreviewViewModePreference(getViewerModeStorage(), MD_VIEWER_MODE_KEY, 'edit'));
   }, []);
 
-  const saveMdViewMode = React.useCallback((mode: 'preview' | 'edit') => {
+  const saveMdViewMode = React.useCallback((mode: PreviewViewMode) => {
     setMdViewMode(mode);
-    try {
-      localStorage.setItem(MD_VIEWER_MODE_KEY, JSON.stringify(mode));
-    } catch {
-      // ignore
-    }
+    savePreviewViewModePreference(getViewerModeStorage(), MD_VIEWER_MODE_KEY, mode);
   }, []);
   const isSelectingRef = React.useRef(false);
   const selectionStartRef = React.useRef<number | null>(null);

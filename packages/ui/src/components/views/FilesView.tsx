@@ -61,6 +61,15 @@ import { useI18n } from '@/lib/i18n';
 import { FileStatusDot } from '@/components/files/FileStatusDot';
 import { getFileStatusForPath } from '@/components/files/fileStatus';
 import type { FileNode, FileStatus } from '@/components/files/types';
+import {
+  getViewerModeStorage,
+  readJsonViewModePreference,
+  readPreviewViewModePreference,
+  saveJsonViewModePreference,
+  savePreviewViewModePreference,
+  type JsonViewMode,
+  type PreviewViewMode,
+} from '@/lib/viewerModePreferences';
 
 type FileStatSnapshot = {
   path: string;
@@ -662,11 +671,10 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
     return () => document.removeEventListener('mousedown', handler);
   }, [isClickInsidePortalledMenu, isFloatingToolbarOpen]);
   type TextViewMode = 'view' | 'edit';
-  type PreviewViewMode = 'preview' | 'edit';
 
   const [textViewMode, setTextViewMode] = React.useState<TextViewMode>('edit');
   const [mdViewMode, setMdViewMode] = React.useState<PreviewViewMode>('edit');
-  const [jsonViewMode, setJsonViewMode] = React.useState<'tree' | 'text'>('tree');
+  const [jsonViewMode, setJsonViewMode] = React.useState<JsonViewMode>('tree');
   const [htmlViewMode, setHtmlViewMode] = React.useState<PreviewViewMode>('edit');
   const textViewModeByPathRef = React.useRef<Record<string, TextViewMode>>({});
   const mdViewModeByPathRef = React.useRef<Record<string, PreviewViewMode>>({});
@@ -2135,39 +2143,16 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
     const defaultMode: TextViewMode = settingsDefaultFileViewerPreview ? 'view' : 'edit';
     setTextViewMode(textViewModeByPathRef.current[selectedPath] ?? defaultMode);
 
-    // Respect per-type localStorage preference when available,
-    // falling back to the setting-derived default when nothing is stored.
-    let mdDefault: PreviewViewMode = settingsDefaultFileViewerPreview ? 'preview' : 'edit';
-    try {
-      const stored = localStorage.getItem(MD_VIEWER_MODE_KEY);
-      if (stored === 'preview' || stored === 'edit') {
-        mdDefault = stored;
-      }
-    } catch {
-      // Ignore localStorage errors
-    }
+    const storage = getViewerModeStorage();
+    const previewDefault: PreviewViewMode = settingsDefaultFileViewerPreview ? 'preview' : 'edit';
+    const mdDefault = readPreviewViewModePreference(storage, MD_VIEWER_MODE_KEY, previewDefault);
     setMdViewMode(mdViewModeByPathRef.current[selectedPath] ?? mdDefault);
 
-    let htmlDefault: PreviewViewMode = settingsDefaultFileViewerPreview ? 'preview' : 'edit';
-    try {
-      const stored = localStorage.getItem(HTML_VIEWER_MODE_KEY);
-      if (stored === 'preview' || stored === 'edit') {
-        htmlDefault = stored;
-      }
-    } catch {
-      // Ignore localStorage errors
-    }
+    const htmlDefault = readPreviewViewModePreference(storage, HTML_VIEWER_MODE_KEY, previewDefault);
     setHtmlViewMode(htmlViewModeByPathRef.current[selectedPath] ?? htmlDefault);
 
-    let jsonDefault: 'tree' | 'text' = settingsDefaultFileViewerPreview ? 'tree' : 'text';
-    try {
-      const stored = localStorage.getItem(JSON_VIEWER_MODE_KEY);
-      if (stored === 'tree' || stored === 'text') {
-        jsonDefault = stored;
-      }
-    } catch {
-      // Ignore localStorage errors
-    }
+    const jsonFallback: JsonViewMode = settingsDefaultFileViewerPreview ? 'tree' : 'text';
+    const jsonDefault = readJsonViewModePreference(storage, JSON_VIEWER_MODE_KEY, jsonFallback);
     setJsonViewMode(jsonDefault);
   }, [selectedFile?.path, settingsDefaultFileViewerPreview]);
 
@@ -2185,24 +2170,16 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
       mdViewModeByPathRef.current[selectedPath] = mode;
     }
     setMdViewMode(mode);
-    try {
-      localStorage.setItem(MD_VIEWER_MODE_KEY, mode);
-    } catch {
-      // Ignore localStorage errors
-    }
+    savePreviewViewModePreference(getViewerModeStorage(), MD_VIEWER_MODE_KEY, mode);
   }, [selectedFile?.path]);
 
   const getMdViewMode = React.useCallback((): PreviewViewMode => {
     return mdViewMode;
   }, [mdViewMode]);
 
-  const saveJsonViewMode = React.useCallback((mode: 'tree' | 'text') => {
+  const saveJsonViewMode = React.useCallback((mode: JsonViewMode) => {
     setJsonViewMode(mode);
-    try {
-      localStorage.setItem(JSON_VIEWER_MODE_KEY, mode);
-    } catch {
-      // Ignore localStorage errors
-    }
+    saveJsonViewModePreference(getViewerModeStorage(), JSON_VIEWER_MODE_KEY, mode);
   }, []);
 
   const saveHtmlViewMode = React.useCallback((mode: PreviewViewMode) => {
@@ -2211,11 +2188,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
       htmlViewModeByPathRef.current[selectedPath] = mode;
     }
     setHtmlViewMode(mode);
-    try {
-      localStorage.setItem(HTML_VIEWER_MODE_KEY, mode);
-    } catch {
-      // Ignore localStorage errors
-    }
+    savePreviewViewModePreference(getViewerModeStorage(), HTML_VIEWER_MODE_KEY, mode);
   }, [selectedFile?.path]);
 
   const getHtmlViewMode = React.useCallback((): PreviewViewMode => {
