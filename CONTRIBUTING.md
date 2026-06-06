@@ -3,8 +3,8 @@
 ## Getting Started
 
 ```bash
-git clone https://github.com/defai-digital/ax-code-app.git
-cd ax-code-app
+git clone https://github.com/defai-digital/ax-code-desktop.git
+cd ax-code-desktop
 bun install
 ```
 
@@ -101,4 +101,4 @@ You can still help:
 
 ## Questions?
 
-Open an [issue](https://github.com/defai-digital/ax-code-app/issues) or visit [defai.digital](https://defai.digital).
+Open an [issue](https://github.com/defai-digital/ax-code-desktop/issues) or visit [defai.digital](https://defai.digital).

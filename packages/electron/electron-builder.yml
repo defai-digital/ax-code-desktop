@@ -76,4 +76,4 @@ nsis:
 publish:
   provider: github
   owner: defai-digital
-  repo: ax-code-app
+  repo: ax-code-desktop

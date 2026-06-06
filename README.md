@@ -8,22 +8,22 @@ The easiest way to use it is the desktop app from GitHub Releases.
 
 Get the latest release from:
 
-https://github.com/defai-digital/ax-code-app/releases
+https://github.com/defai-digital/ax-code-desktop/releases
 
 Current direct downloads:
 
-- [Download macOS Apple Silicon DMG](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-arm64.dmg)
-- [Download Windows x64 portable ZIP](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-win.zip)
-- [Download Windows x64 installer](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop.Setup.0.6.6.exe)
+- [Download macOS Apple Silicon DMG](https://github.com/defai-digital/ax-code-desktop/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-arm64.dmg)
+- [Download Windows x64 portable ZIP](https://github.com/defai-digital/ax-code-desktop/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-win.zip)
+- [Download Windows x64 installer](https://github.com/defai-digital/ax-code-desktop/releases/download/v0.6.6/AX.Code.Desktop.Setup.0.6.6.exe)
 
 ### Which file should I use?
 
 | Platform | Recommended download | Use when |
 | --- | --- | --- |
-| macOS Apple Silicon | [`.dmg`](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-arm64.dmg) | Normal install. Open the DMG, drag AX Code Desktop to Applications, then launch it. |
-| macOS Apple Silicon | [`.zip`](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-arm64-mac.zip) | Alternative manual install or update artifact. Extract it, move the app to Applications, then launch it. |
-| Windows x64 | [`.exe` installer](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop.Setup.0.6.6.exe) | Normal install. Runs the setup wizard and creates Start Menu/Desktop shortcuts. |
-| Windows x64 | [`.zip` portable build](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-win.zip) | No installer. Extract the whole folder and run `AX Code Desktop.exe` from the extracted folder. |
+| macOS Apple Silicon | [`.dmg`](https://github.com/defai-digital/ax-code-desktop/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-arm64.dmg) | Normal install. Open the DMG, drag AX Code Desktop to Applications, then launch it. |
+| macOS Apple Silicon | [`.zip`](https://github.com/defai-digital/ax-code-desktop/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-arm64-mac.zip) | Alternative manual install or update artifact. Extract it, move the app to Applications, then launch it. |
+| Windows x64 | [`.exe` installer](https://github.com/defai-digital/ax-code-desktop/releases/download/v0.6.6/AX.Code.Desktop.Setup.0.6.6.exe) | Normal install. Runs the setup wizard and creates Start Menu/Desktop shortcuts. |
+| Windows x64 | [`.zip` portable build](https://github.com/defai-digital/ax-code-desktop/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-win.zip) | No installer. Extract the whole folder and run `AX Code Desktop.exe` from the extracted folder. |
 | Linux | Not supported | There is no Linux desktop binary in this release line. |
 
 macOS Intel/x64 is not supported. Use an Apple Silicon Mac for the desktop build.
@@ -41,13 +41,27 @@ If `ax-code` is not found, install AX Code before launching AX Code App. The des
 
 ## Install On macOS
 
+### Homebrew (recommended)
+
+```bash
+brew install --cask --no-quarantine defai-digital/ax-code-desktop/ax-code-desktop
+```
+
+The `--no-quarantine` flag bypasses macOS Gatekeeper for unsigned builds so you won't see the "damaged" error. Future signed releases will not require it.
+
+### Manual DMG
+
 1. Download the latest Apple Silicon `.dmg` from Releases.
 2. Open the DMG.
 3. Drag **AX Code Desktop** into **Applications**.
 4. Launch **AX Code Desktop** from Applications.
 5. Choose or add a project folder.
 
-If macOS shows a security warning, the build may be unsigned or not notarized. Use **Right click -> Open** on the app, or approve it in **System Settings -> Privacy & Security**. Signed and notarized releases open normally.
+If macOS says the app is damaged, run this in Terminal:
+
+```bash
+xattr -cr "/Applications/AX Code Desktop.app"
+```
 
 ## Install On Windows
 
@@ -148,7 +162,7 @@ The web UI is available at `http://localhost:3000` by default.
 
 Only download desktop builds from the official Releases page:
 
-https://github.com/defai-digital/ax-code-app/releases
+https://github.com/defai-digital/ax-code-desktop/releases
 
 Unsigned builds can still run, but macOS Gatekeeper or Windows SmartScreen may warn before launch. Code signing improves trust prompts, but the app can still be distributed as DMG, installer, and ZIP without certificates.
 
