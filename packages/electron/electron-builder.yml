@@ -49,6 +49,11 @@ win:
   target:
     - target: nsis
       arch: [x64]
+    # Portable exe-in-zip alongside the installer. The zip holds the runnable
+    # AX Code Desktop.exe + resources (extract and run, no install). The NSIS
+    # installer above remains the auto-update channel (latest.yml).
+    - target: zip
+      arch: [x64]
   icon: build/icon.ico
   # Code signing — only applied when the cert env vars are present.
   # Set via CI secrets: WINDOWS_CERTIFICATE_FILE, WINDOWS_CERTIFICATE_PASSWORD

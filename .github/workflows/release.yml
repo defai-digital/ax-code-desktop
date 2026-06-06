@@ -138,7 +138,12 @@ jobs:
 
       - name: Create npm tarball
         working-directory: packages/web
-        run: npm pack
+        # The package name stays @openchamber/web for npm/backwards-compat, so
+        # `npm pack` emits openchamber-web-<version>.tgz. Rebrand the release
+        # asset to ax-code-web-<version>.tgz (contents/installability unchanged).
+        run: |
+          npm pack
+          mv openchamber-web-*.tgz "ax-code-web-${{ needs.create-release.outputs.version }}.tgz"
 
       - name: Upload npm tarball to release
         if: ${{ github.event.inputs.dry_run != 'true' }}
@@ -373,12 +378,13 @@ jobs:
         shell: bash
         run: node ./scripts/package.mjs --win --${{ matrix.arch }} --publish=never
 
-      - name: Upload installer to release
+      - name: Upload installer and portable zip to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
           files: |
             packages/electron/dist/*.exe
+            packages/electron/dist/*.zip
             packages/electron/dist/*.blockmap
             packages/electron/dist/latest.yml
         env:
