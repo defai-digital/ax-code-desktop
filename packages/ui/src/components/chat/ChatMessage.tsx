@@ -654,8 +654,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 
     const headerVariant = !isUser && modelHasVariants ? (headerVariantRaw ?? 'Default') : undefined;
 
-    // Summary body removed — flat rendering means text is always inline.
-
     const assistantError = React.useMemo(() => {
         if (isUser) {
             return undefined;

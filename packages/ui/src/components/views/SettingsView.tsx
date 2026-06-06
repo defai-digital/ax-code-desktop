@@ -429,8 +429,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     return getSettingsPageMeta(settingsSlug);
   }, [settingsSlug]);
 
-  // Nav is always open (collapsed state removed)
-
   const axCodeSectionBySlug: Partial<Record<SettingsPageSlug, AXCodeSection>> = React.useMemo(() => ({
     appearance: 'visual',
     chat: 'chat',

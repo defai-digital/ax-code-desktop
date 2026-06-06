@@ -1,7 +1,6 @@
 import React from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { BrowserVoiceButton } from '@/components/voice';
-// sessionStore removed — currentSessionId comes from useSessionUIStore
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useMessageQueueStore, type QueuedMessage } from '@/stores/messageQueueStore';
@@ -33,7 +32,6 @@ import { useChatSurfaceMode } from './useChatSurfaceMode';
 import { useCurrentSessionActivity } from '@/hooks/useSessionActivity';
 import { toast } from '@/components/ui';
 import { Button } from '@/components/ui/button';
-// useMessageStore removed — messages now come from sync system
 import { isTauriShell } from '@/lib/desktop';
 import { isIMECompositionEvent } from '@/lib/ime';
 import { StopIcon } from '@/components/icons/StopIcon';
