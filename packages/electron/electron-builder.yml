@@ -11,8 +11,10 @@ directories:
 
 # Files packaged into app.asar
 files:
-  - dist/**/*
-  - "!dist/*.map"
+  - package.json
+  - dist/main.js
+  - dist/preload.js
+  - dist/server.js
 
 # Web assets sit outside the asar so the Express server can serve them as
 # plain files at runtime (asar cannot exec native code and express.static

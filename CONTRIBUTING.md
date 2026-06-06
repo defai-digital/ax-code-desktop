@@ -8,6 +8,18 @@ cd ax-code-app
 bun install
 ```
 
+This repository pins `bun@1.3.14` in `package.json`; use that version for
+local installs so dependency resolution matches CI.
+
+On Apple Silicon with newer Node versions, the optional `sharp` dependency can
+fall back to a source build and require libvips. If `bun install` fails while
+linking `vips-cpp`, install the system library and retry:
+
+```bash
+brew install vips
+bun install
+```
+
 ## Dev Scripts
 
 ### Web
