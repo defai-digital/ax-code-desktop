@@ -10,14 +10,20 @@ Get the latest release from:
 
 https://github.com/defai-digital/ax-code-app/releases
 
+Current direct downloads:
+
+- [Download macOS Apple Silicon DMG](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-arm64.dmg)
+- [Download Windows x64 portable ZIP](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-win.zip)
+- [Download Windows x64 installer](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop.Setup.0.6.6.exe)
+
 ### Which file should I use?
 
 | Platform | Recommended download | Use when |
 | --- | --- | --- |
-| macOS Apple Silicon | `.dmg` | Normal install. Open the DMG, drag AX Code Desktop to Applications, then launch it. |
-| macOS Apple Silicon | `.zip` | Alternative manual install or update artifact. Extract it, move the app to Applications, then launch it. |
-| Windows x64 | `.exe` installer | Normal install. Runs the setup wizard and creates Start Menu/Desktop shortcuts. |
-| Windows x64 | `.zip` portable build | No installer. Extract the whole folder and run `AX Code Desktop.exe` from the extracted folder. |
+| macOS Apple Silicon | [`.dmg`](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-arm64.dmg) | Normal install. Open the DMG, drag AX Code Desktop to Applications, then launch it. |
+| macOS Apple Silicon | [`.zip`](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-arm64-mac.zip) | Alternative manual install or update artifact. Extract it, move the app to Applications, then launch it. |
+| Windows x64 | [`.exe` installer](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop.Setup.0.6.6.exe) | Normal install. Runs the setup wizard and creates Start Menu/Desktop shortcuts. |
+| Windows x64 | [`.zip` portable build](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-win.zip) | No installer. Extract the whole folder and run `AX Code Desktop.exe` from the extracted folder. |
 | Linux | Web/PWA mode | There is no Linux desktop binary in this release line. Use the web server or Docker path. |
 
 macOS Intel/x64 is not supported. Use an Apple Silicon Mac for the desktop build.
