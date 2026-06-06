@@ -129,10 +129,7 @@ export function groupModelsByFamilyWithGetter<T>(
  * - Gemini 3.x models
  * - All Claude models
  */
-export function getDefaultModels(
-  providerId: QuotaProviderId,
-  availableModels: string[]
-): string[] {
+export function getDefaultModels(availableModels: string[]): string[] {
   return availableModels.filter((model) => {
     const lower = model.toLowerCase();
     // Handle gemini/ and antigravity/ prefixes

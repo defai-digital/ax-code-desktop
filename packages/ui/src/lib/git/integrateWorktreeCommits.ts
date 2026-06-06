@@ -97,7 +97,7 @@ async function computeCleanWorktreesToSync(args: {
   return clean;
 }
 
-async function syncCleanTargetWorktrees(repoRoot: string, paths: string[]): Promise<void> {
+async function syncCleanTargetWorktrees(paths: string[]): Promise<void> {
   for (const path of paths) {
     await execCommand('git reset --hard', path).catch(() => undefined);
   }
@@ -298,7 +298,7 @@ export async function integrateWorktreeCommits(plan: IntegratePlan): Promise<Int
     }
 
     await removeTempWorktree(plan.repoRoot, tmpDir);
-    await syncCleanTargetWorktrees(plan.repoRoot, cleanTargetWorktrees).catch(() => undefined);
+    await syncCleanTargetWorktrees(cleanTargetWorktrees).catch(() => undefined);
     return { kind: 'success', moved: plan.commits.length };
   } catch (e) {
     // Cleanup on any non-conflict error.
@@ -360,6 +360,6 @@ export async function continueIntegrate(state: IntegrateInProgress): Promise<Int
   }
 
   await removeTempWorktree(state.repoRoot, state.tempWorktreePath);
-  await syncCleanTargetWorktrees(state.repoRoot, state.cleanTargetWorktrees).catch(() => undefined);
+  await syncCleanTargetWorktrees(state.cleanTargetWorktrees).catch(() => undefined);
   return { kind: 'success', moved: state.remainingCommits.length };
 }

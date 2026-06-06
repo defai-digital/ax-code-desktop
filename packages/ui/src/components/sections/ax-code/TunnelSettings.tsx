@@ -947,7 +947,7 @@ export const TunnelSettings: React.FC = () => {
     });
   }, [managedRemoteTunnelPresets, saveTunnelSettings, state]);
 
-  const persistSelectedPreset = React.useCallback(async (preset: ManagedRemoteTunnelPreset, presets: ManagedRemoteTunnelPreset[]) => {
+  const persistSelectedPreset = React.useCallback(async (presets: ManagedRemoteTunnelPreset[]) => {
     try {
       await updateDesktopSettings({
         managedRemoteTunnelPresets: presets,
@@ -965,7 +965,7 @@ export const TunnelSettings: React.FC = () => {
 
     setSelectedPresetId(preset.id);
     setManagedRemoteValidationError(null);
-    void persistSelectedPreset(preset, managedRemoteTunnelPresets);
+    void persistSelectedPreset(managedRemoteTunnelPresets);
   }, [managedRemoteTunnelPresets, persistSelectedPreset]);
 
   const handleSaveNewPreset = React.useCallback(async () => {

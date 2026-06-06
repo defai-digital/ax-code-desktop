@@ -271,7 +271,7 @@ export const useQuotaStore = create<QuotaStore>()(
         // Only apply if no prior selections exist
         if ((state.selectedModels[providerId]?.length ?? 0) > 0) return;
 
-        const defaults = getDefaultModels(providerId as QuotaProviderId, availableModels);
+        const defaults = getDefaultModels(availableModels);
         if (defaults.length === 0) return;
 
         set((s) => ({

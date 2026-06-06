@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { InlineCommentDraft } from '@/stores/useInlineCommentDraftStore';
 import { useOptionalThemeSystem } from '@/contexts/useThemeSystem';
 import {

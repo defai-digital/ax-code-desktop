@@ -1,4 +1,3 @@
-import React from 'react';
 import { InlineCommentCard } from './InlineCommentCard';
 import { InlineCommentInput } from './InlineCommentInput';
 import type { InlineCommentDraft } from '@/stores/useInlineCommentDraftStore';
