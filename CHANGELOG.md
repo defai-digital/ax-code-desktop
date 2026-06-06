@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-06-06
+
+- Release: the release workflow now skips signing, notarization, and npm publish gracefully when their secrets aren't configured, so a release still publishes unsigned desktop artifacts and the npm tarball instead of failing.
+
 ## [0.6.2] - 2026-06-05
 
 - Chat: added an execution-mode selector (Manual / Autonomous / Supervised long-run) to the composer toolbar.
