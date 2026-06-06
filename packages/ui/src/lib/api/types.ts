@@ -1,14 +1,12 @@
 import type { WorktreeMetadata } from '@/types/worktree';
 import type { DraftStarterRef } from '@/lib/draftStarters';
 
-export type RuntimePlatform = 'web' | 'desktop' | 'vscode';
+export type RuntimePlatform = 'web' | 'desktop';
 
 export interface RuntimeDescriptor {
   platform: RuntimePlatform;
 
   isDesktop: boolean;
-
-  isVSCode: boolean;
 
   label?: string;
 }
@@ -673,8 +671,6 @@ export interface SettingsPayload {
   openInAppId?: string;
   gitProviderId?: string;
   gitModelId?: string;
-  pwaAppName?: string;
-  mobileKeyboardMode?: 'native' | 'resize-content';
   draftStarters?: DraftStarterRef[];
 
   [key: string]: unknown;
@@ -742,32 +738,6 @@ export interface EditorAPI {
     label?: string,
     options?: { line?: number; patch?: string },
   ): Promise<void>;
-}
-
-export interface VSCodeAPI {
-  executeCommand(command: string, ...args: unknown[]): Promise<unknown>;
-  openAgentManager(): Promise<void>;
-  openExternalUrl(url: string): Promise<void>;
-}
-
-export interface PushSubscribePayload {
-  endpoint: string;
-  keys: {
-    p256dh: string;
-    auth: string;
-  };
-  origin?: string;
-}
-
-export interface PushUnsubscribePayload {
-  endpoint: string;
-}
-
-export interface PushAPI {
-  getVapidPublicKey(): Promise<{ publicKey: string } | null>;
-  subscribe(payload: PushSubscribePayload): Promise<{ ok: true } | null>;
-  unsubscribe(payload: PushUnsubscribePayload): Promise<{ ok: true } | null>;
-  setVisibility(payload: { visible: boolean }): Promise<{ ok: true } | null>;
 }
 
 export type GitHubUserSummary = {
@@ -1086,11 +1056,9 @@ export interface RuntimeAPIs {
   permissions: PermissionsAPI;
   notifications: NotificationsAPI;
   github?: GitHubAPI;
-  push?: PushAPI;
   diagnostics?: DiagnosticsAPI;
   tools: ToolsAPI;
   editor?: EditorAPI;
-  vscode?: VSCodeAPI;
   worktrees?: WorktreeMetadata[];
 }
 

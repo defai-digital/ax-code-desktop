@@ -9,7 +9,6 @@ import {
   isDesktopLocalOriginActive,
   isElectronShell,
   isTauriShell,
-  isVSCodeRuntime,
   isWebRuntime,
 } from '@/lib/desktop';
 
@@ -21,7 +20,7 @@ export type UpdateState = {
   info: UpdateInfo | null;
   progress: UpdateProgress | null;
   error: string | null;
-  runtimeType: 'desktop' | 'web' | 'vscode' | null;
+  runtimeType: 'desktop' | 'web' | null;
   lastChecked: number | null;
   nextCheckInSec: number | null;
 };
@@ -34,7 +33,7 @@ interface UpdateStore extends UpdateState {
   reset: () => void;
 }
 
-type ClientRuntime = 'desktop' | 'web' | 'vscode';
+type ClientRuntime = 'desktop' | 'web';
 
 function detectDeviceClass(): 'mobile' | 'tablet' | 'desktop' | 'unknown' {
   if (typeof window === 'undefined') return 'unknown';
@@ -47,12 +46,6 @@ function detectDeviceClass(): 'mobile' | 'tablet' | 'desktop' | 'unknown' {
 }
 
 function detectArch(): 'arm64' | 'x64' | 'unknown' {
-  const vscodeArch = typeof window !== 'undefined'
-    ? (window as { __VSCODE_CONFIG__?: { arch?: string } }).__VSCODE_CONFIG__?.arch?.toLowerCase?.()
-    : undefined;
-  if (vscodeArch === 'arm64' || vscodeArch === 'aarch64') return 'arm64';
-  if (vscodeArch === 'x64' || vscodeArch === 'amd64' || vscodeArch === 'x86_64') return 'x64';
-
   const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { userAgentData?: { architecture?: string } }).userAgentData : undefined;
   const fromUAData = nav?.architecture?.toLowerCase?.();
   if (fromUAData === 'arm' || fromUAData === 'arm64' || fromUAData === 'aarch64') return 'arm64';
@@ -87,12 +80,6 @@ function mapRuntimeParams(runtime: ClientRuntime): URLSearchParams {
     return params;
   }
 
-  if (runtime === 'vscode') {
-    params.set('appType', 'vscode');
-    params.set('instanceMode', 'local');
-    return params;
-  }
-
   params.set('appType', 'web');
   params.set('instanceMode', 'unknown');
   return params;
@@ -101,11 +88,7 @@ function mapRuntimeParams(runtime: ClientRuntime): URLSearchParams {
 async function checkForWebUpdates(runtime: ClientRuntime, currentVersion?: string): Promise<UpdateInfo | null> {
   try {
     const params = mapRuntimeParams(runtime);
-    const vscodeVersion = typeof window !== 'undefined'
-      ? (window as { __VSCODE_CONFIG__?: { extensionVersion?: string } }).__VSCODE_CONFIG__?.extensionVersion
-      : undefined;
     if (currentVersion) params.set('currentVersion', currentVersion);
-    else if (runtime === 'vscode' && vscodeVersion) params.set('currentVersion', vscodeVersion);
     const response = await fetch(`/api/openchamber/update-check?${params.toString()}`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
@@ -134,13 +117,12 @@ async function checkForWebUpdates(runtime: ClientRuntime, currentVersion?: strin
   }
 }
 
-function detectRuntimeType(): 'desktop' | 'web' | 'vscode' | null {
+function detectRuntimeType(): 'desktop' | 'web' | null {
   if (isTauriShell()) {
     // Only use Tauri updater when we're on the local instance.
     // When viewing a remote host inside the desktop shell, treat update as web update.
     return isDesktopLocalOriginActive() ? 'desktop' : 'web';
   }
-  if (isVSCodeRuntime()) return 'vscode';
   if (isWebRuntime()) return 'web';
   return null;
 }
@@ -190,15 +172,12 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
       } else if (runtime === 'web') {
         info = await checkForWebUpdates('web');
         suggestedSec = info?.nextSuggestedCheckInSec ?? null;
-      } else if (runtime === 'vscode') {
-        const vscodeInfo = await checkForWebUpdates('vscode');
-        suggestedSec = vscodeInfo?.nextSuggestedCheckInSec ?? null;
       }
 
       set({
         checking: false,
-        available: runtime === 'vscode' ? false : (info?.available ?? false),
-        info: runtime === 'vscode' ? null : info,
+        available: info?.available ?? false,
+        info,
         lastChecked: Date.now(),
         nextCheckInSec: suggestedSec,
       });

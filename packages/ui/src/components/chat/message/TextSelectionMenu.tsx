@@ -14,6 +14,7 @@ import { resolveProjectForSessionDirectory } from '@/lib/projectResolution';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { isVSCodeRuntime } from '@/lib/desktop';
 import { useI18n } from '@/lib/i18n';
+import { dispatchProjectNotesUpdated } from '@/lib/projectScopedEvents';
 
 interface TextSelectionMenuProps {
   containerRef: React.RefObject<HTMLElement | null>;
@@ -529,9 +530,7 @@ export const TextSelectionMenu: React.FC<TextSelectionMenuProps> = ({ containerR
         toast.error(t('chat.textSelection.toast.addToNotesFailed'));
         return;
       }
-      window.dispatchEvent(new CustomEvent('openchamber:project-notes-updated', {
-        detail: { projectId: currentProjectRef.id },
-      }));
+      dispatchProjectNotesUpdated(currentProjectRef.id);
       toast.success(t('chat.textSelection.toast.addToNotesSuccess'));
       hideMenu();
       window.getSelection()?.removeAllRanges();

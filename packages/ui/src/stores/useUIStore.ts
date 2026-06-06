@@ -6,7 +6,6 @@ import { SEMANTIC_TYPOGRAPHY, getTypographyVariable, type SemanticTypographyKey 
 import type { ShortcutCombo } from '@/lib/shortcuts';
 import type { DraftStarterRef } from '@/lib/draftStarters';
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, type MonoFontOption, type UiFontOption } from '@/lib/fontOptions';
-import { getStoredMobileKeyboardMode, type MobileKeyboardMode } from '@/lib/mobileKeyboardMode';
 import type { TimeFormatPreference } from '@/lib/timeFormat';
 
 export type MainTab = 'chat' | 'plan' | 'git' | 'diff' | 'terminal' | 'files' | 'context';
@@ -554,7 +553,6 @@ interface UIStore {
   padding: number;
   cornerRadius: number;
   inputBarOffset: number;
-  mobileKeyboardMode: MobileKeyboardMode;
 
   favoriteModels: Array<{ providerID: string; modelID: string }>;
   hiddenModels: Array<{ providerID: string; modelID: string }>;
@@ -688,7 +686,6 @@ interface UIStore {
   setPadding: (size: number) => void;
   setCornerRadius: (radius: number) => void;
   setInputBarOffset: (offset: number) => void;
-  setMobileKeyboardMode: (mode: MobileKeyboardMode) => void;
   applyTypography: () => void;
   applyPadding: () => void;
   updateProportionalSidebarWidths: () => void;
@@ -825,7 +822,6 @@ export const useUIStore = create<UIStore>()(
         padding: 100,
         cornerRadius: 18,
         inputBarOffset: 0,
-        mobileKeyboardMode: getStoredMobileKeyboardMode(),
         favoriteModels: [],
         hiddenModels: [],
         collapsedModelProviders: [],
@@ -1624,10 +1620,6 @@ export const useUIStore = create<UIStore>()(
  
         setInputBarOffset: (offset) => {
           set({ inputBarOffset: offset });
-        },
-
-        setMobileKeyboardMode: (mode) => {
-          set((state) => state.mobileKeyboardMode === mode ? state : { mobileKeyboardMode: mode });
         },
 
         toggleFavoriteModel: (providerID, modelID) => {

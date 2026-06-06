@@ -1,4 +1,3 @@
-import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 import { getTauriGlobal } from '@/lib/tauriGlobal';
 
 /**
@@ -111,16 +110,6 @@ export const openExternalUrl = async (url: string): Promise<boolean> => {
   }
 
   const normalizedTarget = parsed.toString();
-
-  const runtimeApis = getRegisteredRuntimeAPIs();
-  if (runtimeApis?.runtime?.isVSCode && runtimeApis.vscode?.openExternalUrl) {
-    try {
-      await runtimeApis.vscode.openExternalUrl(normalizedTarget);
-      return true;
-    } catch {
-      return false;
-    }
-  }
 
   const tauri = getTauriGlobal();
   if (tauri?.shell?.open) {

@@ -37,6 +37,7 @@ import {
   PROJECT_ACTION_ICONS,
   PROJECT_ACTIONS_UPDATED_EVENT,
 } from '@/lib/projectActions';
+import { dispatchProjectScopedEvent } from '@/lib/projectScopedEvents';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
@@ -171,11 +172,7 @@ export const ProjectActionsSection: React.FC<ProjectActionsSectionProps> = ({ pr
         return;
       }
       setInitialSnapshot(JSON.stringify({ actions }));
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent(PROJECT_ACTIONS_UPDATED_EVENT, {
-          detail: { projectId: projectRef.id },
-        }));
-      }
+      dispatchProjectScopedEvent(PROJECT_ACTIONS_UPDATED_EVENT, projectRef.id);
       toast.success(t('settings.projects.actions.toast.saved'));
     } catch {
       toast.error(t('settings.projects.actions.toast.saveFailed'));

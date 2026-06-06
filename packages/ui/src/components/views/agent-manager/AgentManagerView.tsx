@@ -6,35 +6,15 @@ import { AgentGroupDetail } from './AgentGroupDetail';
 import { cn } from '@/lib/utils';
 import { useAgentGroupsStore } from '@/stores/useAgentGroupsStore';
 import { useMultiRunStore } from '@/stores/useMultiRunStore';
-import { useConfigStore } from '@/stores/useConfigStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import type { CreateMultiRunParams } from '@/types/multirun';
-import {
-  VSCODE_CONNECTION_STATUS_EVENT,
-  parseVSCodeConnectionStatusEvent,
-  readWindowVSCodeConnectionStatus,
-  type VSCodeConnectionStatus,
-} from '@/lib/vscodeConnectionStatus';
 
 interface AgentManagerViewProps {
   className?: string;
 }
 
 export const AgentManagerView: React.FC<AgentManagerViewProps> = ({ className }) => {
-  const isVSCodeRuntime = Boolean(
-    (typeof window !== 'undefined'
-      ? (window as unknown as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } })
-          .__OPENCHAMBER_RUNTIME_APIS__?.runtime?.isVSCode
-      : false)
-  );
-  const [connectionStatus, setConnectionStatus] = React.useState<VSCodeConnectionStatus>(
-    () => readWindowVSCodeConnectionStatus() ?? 'connecting'
-  );
-  const configInitialized = useConfigStore((s) => s.isInitialized);
-  const initializeApp = useConfigStore((s) => s.initializeApp);
-  const setDirectory = useDirectoryStore((s) => s.setDirectory);
   const currentDirectory = useDirectoryStore((s) => s.currentDirectory);
-  const bootstrapAttemptAt = React.useRef<number>(0);
 
   const groups = useAgentGroupsStore((s) => s.groups);
   const selectedGroupName = useAgentGroupsStore((s) => s.selectedGroupName);
@@ -48,40 +28,6 @@ export const AgentManagerView: React.FC<AgentManagerViewProps> = ({ className })
     () => (selectedGroupName ? groups.find((g) => g.name === selectedGroupName) ?? null : null),
     [groups, selectedGroupName],
   );
-
-  // VS Code connection bootstrap
-  React.useEffect(() => {
-    if (!isVSCodeRuntime) return;
-
-    const current = readWindowVSCodeConnectionStatus();
-    if (current) setConnectionStatus(current);
-
-    const handler = (event: Event) => {
-      const status = parseVSCodeConnectionStatusEvent(event);
-      if (status) {
-        setConnectionStatus(status);
-      }
-    };
-    window.addEventListener(VSCODE_CONNECTION_STATUS_EVENT, handler);
-    return () => window.removeEventListener(VSCODE_CONNECTION_STATUS_EVENT, handler);
-  }, [isVSCodeRuntime]);
-
-  React.useEffect(() => {
-    if (!isVSCodeRuntime || connectionStatus !== 'connected') return;
-    const now = Date.now();
-    if (now - bootstrapAttemptAt.current < 750) return;
-    bootstrapAttemptAt.current = now;
-
-    const workspaceFolder = (typeof window !== 'undefined'
-      ? (window as unknown as { __VSCODE_CONFIG__?: { workspaceFolder?: unknown } }).__VSCODE_CONFIG__?.workspaceFolder
-      : null);
-
-    if (typeof workspaceFolder === 'string' && workspaceFolder.trim().length > 0) {
-      try { setDirectory(workspaceFolder, { showOverlay: false }); } catch { /* ignored */ }
-    }
-
-    if (!configInitialized) void initializeApp();
-  }, [connectionStatus, configInitialized, initializeApp, isVSCodeRuntime, setDirectory]);
 
   // Load groups on mount and when directory changes
   React.useEffect(() => {

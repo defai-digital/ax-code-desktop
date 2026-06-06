@@ -18,7 +18,7 @@ import { isDesktopLocalOriginActive, isDesktopShell, isVSCodeRuntime, isWebRunti
 import type { AXCodeSection } from './types';
 
 interface AXCodePageProps {
-    /** Which section to display. If undefined, shows all sections (mobile/legacy behavior) */
+    /** Which section to display. If undefined, shows all sections. */
     section?: AXCodeSection;
 }
 
@@ -28,7 +28,7 @@ export const AXCodePage: React.FC<AXCodePageProps> = ({ section }) => {
     const isVSCode = isVSCodeRuntime();
     const showDesktopNetworkSettings = isDesktopShell() && isDesktopLocalOriginActive();
 
-    // If no section specified, show all (mobile/legacy behavior)
+    // If no section specified, show all sections.
     if (!section) {
         return (
             <ScrollableOverlay
@@ -108,14 +108,11 @@ const ShortcutsSectionContent: React.FC = () => {
     return <KeyboardShortcutsSettings />;
 };
 
-// Visual section: Theme Mode, Font Size, Spacing, Input Bar Offset (mobile), Nav Rail
+// Visual section: Theme Mode, Font Size, Spacing, Input Bar Offset, Nav Rail
 const VisualSectionContent: React.FC = () => {
     const isVSCode = isVSCodeRuntime();
     return <AXCodeVisualSettings visibleSettings={[
         'theme',
-        'pwaInstallName',
-        'pwaOrientation',
-        'mobileKeyboardMode',
         'timeFormat',
         'weekStart',
         'fontSize',

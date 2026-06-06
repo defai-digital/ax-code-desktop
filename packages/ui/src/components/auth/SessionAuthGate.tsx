@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui';
-import { isDesktopShell, isVSCodeRuntime } from '@/lib/desktop';
+import { isDesktopShell } from '@/lib/desktop';
 import { syncDesktopSettings, initializeAppearancePreferences } from '@/lib/persistence';
 import { applyPersistedDirectoryPreferences } from '@/lib/directoryPersistence';
 import { DesktopHostSwitcherInline } from '@/components/desktop/DesktopHostSwitcher';
@@ -137,10 +137,9 @@ interface ErrorScreenProps {
 
 export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) => {
   const { t } = useI18n();
-  const vscodeRuntime = React.useMemo(() => isVSCodeRuntime(), []);
-  const skipAuth = vscodeRuntime;
-  const showHostSwitcher = React.useMemo(() => isDesktopShell() && !vscodeRuntime, [vscodeRuntime]);
-  const [state, setState] = React.useState<GateState>(() => (skipAuth ? 'authenticated' : 'pending'));
+  const skipAuth = false;
+  const showHostSwitcher = React.useMemo(() => isDesktopShell(), []);
+  const [state, setState] = React.useState<GateState>('pending');
   const [password, setPassword] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');

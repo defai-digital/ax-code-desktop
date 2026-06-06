@@ -45,6 +45,7 @@ import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { useI18n } from '@/lib/i18n';
 import { extractLoopbackUrls } from '@/lib/url';
 import { useDeviceInfo } from '@/lib/device';
+import { dispatchProjectPlanSaved } from '@/lib/projectScopedEvents';
 
 
 const CONTAIN_LAYOUT_STYLE = { contain: 'layout' as const, transform: 'translateZ(0)' };
@@ -1247,9 +1248,7 @@ const AssistantMessageBody = React.memo(({
                     toast.error(t('chat.messageBody.toast.savePlanFailed'));
                     return;
                 }
-                window.dispatchEvent(new CustomEvent('openchamber:project-plan-saved', {
-                    detail: { projectId: currentProjectRef.id },
-                }));
+                dispatchProjectPlanSaved(currentProjectRef.id);
                 setIsPlanDialogOpen(false);
                 toast.success(t('chat.messageBody.toast.planSaved'));
             } finally {

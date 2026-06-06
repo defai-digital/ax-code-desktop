@@ -6,7 +6,6 @@
 
 import type { FilesAPI, RuntimeAPIs } from './api/types';
 import { getDesktopHomeDirectory } from './desktop';
-import { isVSCodeRuntime } from './desktop';
 import { createProjectIdFromPath } from './projectId';
 import { sanitizeStarterRefs, type DraftStarterRef } from './draftStarters';
 
@@ -224,13 +223,9 @@ const resolveHomeDirectory = async (): Promise<string | null> => {
     // fall through
   }
 
-  // Fallback for environments where /api/fs/home is unavailable.
-  // VSCode intentionally avoids this because embedded home equals workspace path.
-  if (!isVSCodeRuntime()) {
-    const desktopHome = await getDesktopHomeDirectory().catch(() => null);
-    if (desktopHome && desktopHome.trim().length > 0) {
-      return normalize(desktopHome);
-    }
+  const desktopHome = await getDesktopHomeDirectory().catch(() => null);
+  if (desktopHome && desktopHome.trim().length > 0) {
+    return normalize(desktopHome);
   }
   return null;
 };

@@ -7,7 +7,6 @@ import { setDirectoryShowHidden } from '@/lib/directoryShowHidden';
 import { setFilesViewShowGitignored } from '@/lib/filesViewShowGitignored';
 import { loadAppearancePreferences, applyAppearancePreferences } from '@/lib/appearancePersistence';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
-import { normalizeMobileKeyboardMode, setStoredMobileKeyboardMode } from '@/lib/mobileKeyboardMode';
 import { sanitizeStarterRefs } from '@/lib/draftStarters';
 
 const persistToLocalStorage = (settings: DesktopSettings) => {
@@ -36,8 +35,8 @@ const persistToLocalStorage = (settings: DesktopSettings) => {
   if (settings.homeDirectory) {
     localStorage.setItem('homeDirectory', settings.homeDirectory);
     // Electron's preload exposes __OPENCHAMBER_HOME__ as a read-only
-    // contextBridge property; assignment throws TypeError there. In VSCode
-    // webview and plain web runtime the property is writable. Swallow the
+    // contextBridge property; assignment throws TypeError there. Plain web
+    // runtime may still expose a writable value. Swallow the
     // error in Electron — preload already seeded the value correctly.
     try {
       window.__OPENCHAMBER_HOME__ = settings.homeDirectory;
@@ -85,17 +84,6 @@ const persistToLocalStorage = (settings: DesktopSettings) => {
   }
   if (typeof settings.openInAppId === 'string' && settings.openInAppId.length > 0) {
     localStorage.setItem('openInAppId', settings.openInAppId);
-  }
-  if (typeof settings.pwaAppName === 'string') {
-    const normalized = settings.pwaAppName.trim().replace(/\s+/g, ' ').slice(0, 64);
-    if (normalized.length > 0) {
-      localStorage.setItem('openchamber.pwaName', normalized);
-    } else {
-      localStorage.removeItem('openchamber.pwaName');
-    }
-  }
-  if (typeof settings.mobileKeyboardMode === 'string') {
-    setStoredMobileKeyboardMode(settings.mobileKeyboardMode);
   }
   if (settings.sttProvider === 'browser' || settings.sttProvider === 'server') {
     localStorage.setItem('sttProvider', settings.sttProvider);
@@ -511,12 +499,6 @@ const applyDesktopUiPreferences = (settings: DesktopSettings) => {
   }
   if (typeof settings.inputBarOffset === 'number' && Number.isFinite(settings.inputBarOffset) && settings.inputBarOffset !== store.inputBarOffset) {
     store.setInputBarOffset(settings.inputBarOffset);
-  }
-  if (typeof settings.mobileKeyboardMode === 'string') {
-    const mode = normalizeMobileKeyboardMode(settings.mobileKeyboardMode, store.mobileKeyboardMode);
-    if (mode !== store.mobileKeyboardMode) {
-      store.setMobileKeyboardMode(mode);
-    }
   }
   if (configStoreApi && configStore) {
     const nextConfigState: Partial<typeof configStore> = {};
@@ -982,13 +964,6 @@ const sanitizeWebSettings = (payload: unknown): DesktopSettings | null => {
   if (typeof candidate.inputBarOffset === 'number' && Number.isFinite(candidate.inputBarOffset)) {
     result.inputBarOffset = candidate.inputBarOffset;
   }
-  if (typeof candidate.mobileKeyboardMode === 'string') {
-    const mode = normalizeMobileKeyboardMode(candidate.mobileKeyboardMode, undefined);
-    if (mode) {
-      result.mobileKeyboardMode = mode;
-    }
-  }
-
   const favoriteModels = sanitizeModelRefs(candidate.favoriteModels, 64);
   if (favoriteModels) {
     result.favoriteModels = favoriteModels;
@@ -1027,11 +1002,6 @@ const sanitizeWebSettings = (payload: unknown): DesktopSettings | null => {
   if (typeof candidate.openInAppId === 'string' && candidate.openInAppId.length > 0) {
     result.openInAppId = candidate.openInAppId;
   }
-  if (typeof candidate.pwaAppName === 'string') {
-    const normalized = candidate.pwaAppName.trim().replace(/\s+/g, ' ').slice(0, 64);
-    result.pwaAppName = normalized.length > 0 ? normalized : '';
-  }
-
   const skillCatalogs = sanitizeSkillCatalogs(candidate.skillCatalogs);
   if (skillCatalogs) {
     result.skillCatalogs = skillCatalogs;

@@ -7,7 +7,7 @@ import React, {
 import { flushSync } from 'react-dom';
 import type { Theme, ThemeMode } from '@/types/theme';
 import type { DesktopSettings } from '@/lib/desktop';
-import { isDesktopLocalOriginActive, isTauriShell, isVSCodeRuntime } from '@/lib/desktop';
+import { isDesktopLocalOriginActive, isTauriShell } from '@/lib/desktop';
 import { setDesktopWindowTheme } from '@/lib/desktopNative';
 import { CSSVariableGenerator } from '@/lib/theme/cssGenerator';
 import { updateDesktopSettings } from '@/lib/persistence';
@@ -19,7 +19,6 @@ import {
   DEFAULT_DARK_THEME_ID,
 } from '@/lib/theme/themes';
 import { ThemeSystemContext, type ThemeContextValue } from './theme-system-context';
-import type { VSCodeThemePayload } from '@/lib/theme/vscode/adapter';
 
 type ThemePreferences = {
   themeMode: ThemeMode;
@@ -210,14 +209,6 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => getSystemPreference());
   const [customThemes, setCustomThemes] = useState<Theme[]>([]);
   const [customThemesLoading, setCustomThemesLoading] = useState(false);
-  const [vscodeTheme, setVSCodeTheme] = useState<Theme | null>(() => {
-    if (typeof window === 'undefined' || !isVSCodeRuntime()) {
-      return null;
-    }
-    const existing = (window as unknown as { __OPENCHAMBER_VSCODE_THEME__?: Theme }).__OPENCHAMBER_VSCODE_THEME__;
-    return existing || null;
-  });
-  const isVSCode = useMemo(() => isVSCodeRuntime(), []);
   const isLocalDesktopOrigin = useMemo(() => isDesktopLocalOriginActive(), []);
   const isDesktopShell = useMemo(() => isTauriShell(), []);
 
@@ -232,16 +223,12 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
       merged.push(theme);
     };
 
-    if (isVSCode && vscodeTheme) {
-      add(vscodeTheme);
-    }
-
     // Custom themes first so they can override built-ins with the same id.
     customThemes.forEach(add);
     themes.forEach(add);
 
     return merged;
-  }, [customThemes, isVSCode, vscodeTheme]);
+  }, [customThemes]);
 
   const getThemeByIdFromAvailable = useCallback(
     (themeId: string): Theme | undefined => availableThemes.find((theme) => theme.metadata.id === themeId),
@@ -262,9 +249,6 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
   );
 
   const currentTheme = useMemo(() => {
-    if (isVSCode && vscodeTheme) {
-      return vscodeTheme;
-    }
     if (preferences.themeMode === 'light') {
       return ensureThemeById(preferences.lightThemeId, 'light');
     }
@@ -274,10 +258,10 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
     return systemPrefersDark
       ? ensureThemeById(preferences.darkThemeId, 'dark')
       : ensureThemeById(preferences.lightThemeId, 'light');
-  }, [ensureThemeById, isVSCode, preferences, systemPrefersDark, vscodeTheme]);
+  }, [ensureThemeById, preferences, systemPrefersDark]);
 
   const reloadCustomThemes = useCallback(async () => {
-    if (typeof window === 'undefined' || isVSCode) {
+    if (typeof window === 'undefined') {
       return;
     }
 
@@ -309,36 +293,11 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
     } finally {
       setCustomThemesLoading(false);
     }
-  }, [isLocalDesktopOrigin, isVSCode]);
+  }, [isLocalDesktopOrigin]);
 
   useEffect(() => {
     void reloadCustomThemes();
   }, [reloadCustomThemes]);
-
-  useEffect(() => {
-    if (!isVSCode) {
-      return;
-    }
-
-    const applyVSCodeTheme = (theme: Theme) => {
-      setVSCodeTheme(theme);
-    };
-
-    const handleThemeEvent = (event: Event) => {
-      const detail = (event as CustomEvent<VSCodeThemePayload>).detail;
-      if (detail?.theme) {
-        applyVSCodeTheme(detail.theme);
-      }
-    };
-
-    const existing = (window as unknown as { __OPENCHAMBER_VSCODE_THEME__?: Theme }).__OPENCHAMBER_VSCODE_THEME__;
-    if (existing) {
-      applyVSCodeTheme(existing);
-    }
-
-    window.addEventListener('openchamber:vscode-theme', handleThemeEvent as EventListener);
-    return () => window.removeEventListener('openchamber:vscode-theme', handleThemeEvent as EventListener);
-  }, [isVSCode]);
 
   const updateBrowserChrome = useCallback((theme: Theme) => {
     if (typeof document === 'undefined') {
@@ -372,20 +331,12 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
     metaThemeColorMedia.setAttribute('content', chromeColor);
   }, []);
 
-  const applyVSCodeRuntimeClass = useCallback((enabled: boolean) => {
-    if (typeof document === 'undefined') {
-      return;
-    }
-    document.documentElement.classList.toggle('vscode-runtime', enabled);
-  }, []);
-
   useIsomorphicLayoutEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
     const restoreTransitions = suppressTransitionsForThemeSwitch();
     cssGenerator.apply(currentTheme);
-    applyVSCodeRuntimeClass(isVSCode);
     updateBrowserChrome(currentTheme);
 
     const root = document.documentElement;
@@ -393,7 +344,7 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
     root.classList.add(currentTheme.metadata.variant);
 
     return restoreTransitions;
-  }, [applyVSCodeRuntimeClass, cssGenerator, currentTheme, isVSCode, updateBrowserChrome]);
+  }, [cssGenerator, currentTheme, updateBrowserChrome]);
 
   useEffect(() => {
     if (preferences.themeMode !== 'system' || typeof window === 'undefined') {

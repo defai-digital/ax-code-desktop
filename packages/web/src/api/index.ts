@@ -6,11 +6,10 @@ import { createWebSettingsAPI } from './settings';
 import { createWebPermissionsAPI } from './permissions';
 import { createWebNotificationsAPI } from './notifications';
 import { createWebToolsAPI } from './tools';
-import { createWebPushAPI } from './push';
 import { createWebGitHubAPI } from './github';
 
 export const createWebAPIs = (): RuntimeAPIs => ({
-  runtime: { platform: 'web', isDesktop: false, isVSCode: false, label: 'web' },
+  runtime: { platform: 'web', isDesktop: false, label: 'web' },
   terminal: createWebTerminalAPI(),
   git: createWebGitAPI(),
   files: createWebFilesAPI(),
@@ -18,6 +17,5 @@ export const createWebAPIs = (): RuntimeAPIs => ({
   permissions: createWebPermissionsAPI(),
   notifications: createWebNotificationsAPI(),
   github: createWebGitHubAPI(),
-  push: createWebPushAPI(),
   tools: createWebToolsAPI(),
 });

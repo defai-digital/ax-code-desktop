@@ -1686,7 +1686,7 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
   enableFileReferences = true,
 }) => {
   const currentTheme = useCurrentMermaidTheme();
-  const { editor, runtime } = useRuntimeAPIs();
+  const { editor } = useRuntimeAPIs();
   const containerRef = React.useRef<HTMLDivElement>(null);
   const effectiveDirectory = useEffectiveDirectory() ?? '';
   const mermaidBlocks = React.useMemo(() => extractMermaidBlocks(content), [content]);
@@ -1695,7 +1695,7 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
     containerRef,
     effectiveDirectory,
     editor,
-    preferRuntimeEditor: runtime.isVSCode,
+    preferRuntimeEditor: false,
     enabled: enableFileReferences && !isStreaming,
   });
   useExternalLinkInteractions({ containerRef });
@@ -1780,7 +1780,7 @@ const SimpleMarkdownRendererImpl: React.FC<{
   allowMermaidWheelZoom = false,
   enableFileReferences = true,
 }) => {
-  const { editor, runtime } = useRuntimeAPIs();
+  const { editor } = useRuntimeAPIs();
   const renderedContent = React.useMemo(
     () => (stripFrontmatter ? stripLeadingFrontmatter(content) : content),
     [content, stripFrontmatter],
@@ -1799,7 +1799,7 @@ const SimpleMarkdownRendererImpl: React.FC<{
     containerRef,
     effectiveDirectory,
     editor,
-    preferRuntimeEditor: runtime.isVSCode,
+    preferRuntimeEditor: false,
     enabled: enableFileReferences,
   });
   useExternalLinkInteractions({ containerRef, enabled: !disableLinkSafety });

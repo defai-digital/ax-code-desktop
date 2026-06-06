@@ -1,6 +1,6 @@
 # AX Code App
 
-AX Code App is a desktop and web UI for [AX Code](https://github.com/defai-digital/ax-code). It gives AX Code users a full workspace interface for chat sessions, file review, diffs, Git operations, terminals, project notes, and multi-agent workflows.
+AX Code App is the desktop UI for [AX Code](https://github.com/defai-digital/ax-code). It gives AX Code users a full workspace interface for chat sessions, file review, diffs, Git operations, terminals, project notes, and multi-agent workflows.
 
 The easiest way to use it is the desktop app from GitHub Releases.
 
@@ -24,9 +24,10 @@ Current direct downloads:
 | macOS Apple Silicon | [`.zip`](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-arm64-mac.zip) | Alternative manual install or update artifact. Extract it, move the app to Applications, then launch it. |
 | Windows x64 | [`.exe` installer](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop.Setup.0.6.6.exe) | Normal install. Runs the setup wizard and creates Start Menu/Desktop shortcuts. |
 | Windows x64 | [`.zip` portable build](https://github.com/defai-digital/ax-code-app/releases/download/v0.6.6/AX.Code.Desktop-0.6.6-win.zip) | No installer. Extract the whole folder and run `AX Code Desktop.exe` from the extracted folder. |
-| Linux | Web/PWA mode | There is no Linux desktop binary in this release line. Use the web server or Docker path. |
+| Linux | Not supported | There is no Linux desktop binary in this release line. |
 
 macOS Intel/x64 is not supported. Use an Apple Silicon Mac for the desktop build.
+Mobile and tablet browsers are not supported for AX Code Desktop.
 
 ## Before You Start
 
@@ -86,13 +87,12 @@ Desktop releases are published on GitHub. The release can include:
 - Windows installer `.exe`
 - Windows portable `.zip`
 - update manifests such as `latest-mac.yml` and `latest.yml`
-- the web package tarball
 
 When desktop auto-update metadata is available, the app can check GitHub releases for updates. If auto-update is not available in your environment, download the newest installer or archive manually from Releases.
 
-## Web / PWA Mode
+## Development Web UI
 
-Use Web/PWA mode when you want browser access, Linux support, a remote host, or mobile access over a tunnel.
+The web package is kept as the local UI substrate used by development and desktop packaging. It is not a supported end-user distribution mode, and it is not a PWA/mobile product.
 
 From a development checkout:
 
@@ -108,12 +108,6 @@ Common options:
 ax-code-app --port 8080
 ax-code-app --ui-password your-password
 AX_CODE_HOST=http://localhost:4095 AX_CODE_SKIP_START=true ax-code-app
-```
-
-Docker is also supported:
-
-```bash
-docker compose up -d
 ```
 
 The web UI is available at `http://localhost:3000` by default.
@@ -150,13 +144,6 @@ The web UI is available at `http://localhost:3000` by default.
 - Deep links and desktop menu actions.
 - Local runtime management for the web UI.
 
-### Web and Mobile
-
-- Browser access to the same UI.
-- PWA install support.
-- Mobile-friendly chat controls.
-- Cloudflare tunnel support for remote access.
-
 ## Security Notes
 
 Only download desktop builds from the official Releases page:
@@ -165,7 +152,7 @@ https://github.com/defai-digital/ax-code-app/releases
 
 Unsigned builds can still run, but macOS Gatekeeper or Windows SmartScreen may warn before launch. Code signing improves trust prompts, but the app can still be distributed as DMG, installer, and ZIP without certificates.
 
-For remote or shared access, always set a UI password and avoid exposing the app publicly without a reverse proxy or tunnel configuration you control.
+AX Code Desktop is intended for trusted desktop workstations. Do not expose the development web UI publicly, and do not use mobile or tablet browsers for enterprise workspace access.
 
 ## Platform Support
 
@@ -174,7 +161,8 @@ For remote or shared access, always set a UI password and avoid exposing the app
 | macOS Apple Silicon | Supported | DMG and ZIP release artifacts. |
 | macOS Intel/x64 | Not supported | No desktop artifact is built. |
 | Windows x64 | Supported | Installer and portable ZIP release artifacts. |
-| Linux | Web/PWA only | Use the web server or Docker. |
+| Linux | Not supported | No desktop artifact is built. |
+| Mobile/tablet browsers | Not supported | Blocked to reduce enterprise data-leakage risk. |
 
 ## Development
 
@@ -200,7 +188,7 @@ Package layout:
 | Package | Purpose |
 | --- | --- |
 | `packages/ui` | Shared React UI, stores, hooks, and components |
-| `packages/web` | Web app, Express server, and CLI entrypoints |
+| `packages/web` | Local web runtime used by development and desktop packaging |
 | `packages/electron` | Current desktop shell |
 | `packages/desktop` | Legacy Tauri shell, maintenance only |
 | `packages/docs` | Documentation source |

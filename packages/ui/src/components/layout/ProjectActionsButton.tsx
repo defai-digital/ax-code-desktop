@@ -30,6 +30,7 @@ import {
   resolveProjectActionDesktopForwardUrl,
   toProjectActionRunKey,
 } from '@/lib/projectActions';
+import { projectScopedEventMatchesProject } from '@/lib/projectScopedEvents';
 import { detectDevServerCommand, readPackageJsonScripts } from '@/lib/detectDevServer';
 import { connectTerminalStream } from '@/lib/terminalApi';
 
@@ -154,7 +155,7 @@ export const ProjectActionsButton = ({
   allowMobile = false,
 }: ProjectActionsButtonProps) => {
   const { t } = useI18n();
-  const { terminal, runtime } = useRuntimeAPIs();
+  const { terminal } = useRuntimeAPIs();
   const { isMobile } = useDeviceInfo();
   const isDesktopShellApp = React.useMemo(() => isDesktopShell(), []);
   const desktopSshInstances = useDesktopSshStore((state) => state.instances);
@@ -282,11 +283,10 @@ export const ProjectActionsButton = ({
     }
 
     const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ projectId?: string }>).detail;
       if (!projectId) {
         return;
       }
-      if (detail?.projectId && detail.projectId !== projectId) {
+      if (!projectScopedEventMatchesProject(event, projectId)) {
         return;
       }
       void loadActions();
@@ -433,7 +433,7 @@ export const ProjectActionsButton = ({
   ]);
 
   const runAction = React.useCallback(async (action: OpenChamberProjectAction) => {
-    if (runtime.isVSCode || (!allowMobile && isMobile)) {
+    if (!allowMobile && isMobile) {
       return;
     }
 
@@ -593,7 +593,6 @@ export const ProjectActionsButton = ({
     openExternal,
     openContextPreview,
     projectActionRuns,
-    runtime.isVSCode,
     removeProjectActionRun,
     setConnecting,
     setProjectActionRun,
@@ -699,7 +698,7 @@ export const ProjectActionsButton = ({
     setSettingsDialogOpen(true);
   }, [setSettingsDialogOpen, setSettingsPage, setSettingsProjectsSelectedId, stableProjectRef?.id]);
 
-  if (runtime.isVSCode || (!allowMobile && isMobile) || !stableProjectRef || !normalizedDirectory) {
+  if ((!allowMobile && isMobile) || !stableProjectRef || !normalizedDirectory) {
     return null;
   }
 

@@ -10,9 +10,7 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 // useEventStream removed — replaced by SyncProvider + SyncBridge
 import { useMenuActions } from '@/hooks/useMenuActions';
 import { useRouter } from '@/hooks/useRouter';
-import { usePushVisibilityBeacon } from '@/hooks/usePushVisibilityBeacon';
 import { useWebNotificationStream } from '@/hooks/useWebNotificationStream';
-import { usePwaInstallPrompt } from '@/hooks/usePwaInstallPrompt';
 import { useWindowTitle } from '@/hooks/useWindowTitle';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { hasModifier } from '@/lib/utils';
@@ -47,7 +45,7 @@ import { McpOAuthCallbackPage } from '@/components/sections/mcp/McpOAuthCallback
 import { MCP_OAUTH_CALLBACK_PATH } from '@/components/sections/mcp/mcpOAuth';
 import { lazyWithChunkRecovery } from '@/lib/chunkLoadRecovery';
 import { useI18n } from '@/lib/i18n';
-import { applyMobileKeyboardMode } from '@/lib/mobileKeyboardMode';
+import { getDeviceInfo } from '@/lib/device';
 import { SyncAppEffects } from '@/apps/AppEffects';
 import { useAppFontEffects } from '@/apps/useAppFontEffects';
 import { AxCodeUpdateToast } from '@/components/update/AxCodeUpdateToast';
@@ -96,6 +94,25 @@ const StartupInitializationRecovery: React.FC<{
     </div>
   );
 };
+
+const isUnsupportedMobileRuntime = (): boolean => {
+  if (typeof window === 'undefined' || isDesktopShell()) {
+    return false;
+  }
+  const device = getDeviceInfo();
+  return device.isMobile || device.isTablet;
+};
+
+const UnsupportedMobileRuntimeScreen: React.FC = () => (
+  <div className="flex h-full items-center justify-center bg-background px-6 text-foreground">
+    <div className="flex max-w-md flex-col gap-3 text-center">
+      <h1 className="typography-title text-foreground">Desktop Required</h1>
+      <p className="typography-body text-muted-foreground">
+        AX Code Desktop is intended for enterprise desktop workstations. Mobile and tablet browsers are not supported.
+      </p>
+    </div>
+  </div>
+);
 
 type AppProps = {
   apis: RuntimeAPIs;
@@ -154,9 +171,8 @@ const isMcpOAuthCallbackPath = (): boolean => {
 
 const EmbeddedSessionChatContent: React.FC<{
   embeddedSessionChat: EmbeddedSessionChatConfig;
-  isVSCodeRuntime: boolean;
   embeddedBackgroundWorkEnabled: boolean;
-}> = ({ embeddedSessionChat, isVSCodeRuntime, embeddedBackgroundWorkEnabled }) => {
+}> = ({ embeddedSessionChat, embeddedBackgroundWorkEnabled }) => {
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory);
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
   const setCurrentSession = useSessionUIStore((state) => state.setCurrentSession);
@@ -167,7 +183,6 @@ const EmbeddedSessionChatContent: React.FC<{
   const activeDirectory = normalizeEmbeddedDirectory(currentDirectory);
 
   React.useEffect(() => {
-    if (isVSCodeRuntime) return;
     if (expectedDirectory && activeDirectory !== expectedDirectory) return;
 
     const bootstrapKey = `${expectedDirectory}\n${embeddedSessionChat.sessionId}`;
@@ -184,7 +199,6 @@ const EmbeddedSessionChatContent: React.FC<{
     embeddedSessionChat.directory,
     embeddedSessionChat.sessionId,
     expectedDirectory,
-    isVSCodeRuntime,
     setCurrentSession,
     sync,
   ]);
@@ -218,14 +232,13 @@ function App({ apis }: AppProps) {
   const isSwitchingDirectory = useDirectoryStore((state) => state.isSwitchingDirectory);
   const [showMemoryDebug, setShowMemoryDebug] = React.useState(false);
   const refreshGitHubAuthStatus = useGitHubAuthStore((state) => state.refreshStatus);
-  const [isVSCodeRuntime, setIsVSCodeRuntime] = React.useState<boolean>(() => apis.runtime.isVSCode);
   const [isEmbeddedVisible, setIsEmbeddedVisible] = React.useState(true);
   const [initRetryExhausted, setInitRetryExhausted] = React.useState(false);
   const [initRetryEpoch, setInitRetryEpoch] = React.useState(0);
   const [manualInitRetrying, setManualInitRetrying] = React.useState(false);
   const wideChatLayoutEnabled = useUIStore((state) => state.wideChatLayoutEnabled);
-  const mobileKeyboardMode = useUIStore((state) => state.mobileKeyboardMode);
   const isDesktopRuntime = React.useMemo(() => isDesktopShell(), []);
+  const [isUnsupportedMobile, setIsUnsupportedMobile] = React.useState<boolean>(() => isUnsupportedMobileRuntime());
   const setPlanModeEnabled = useFeatureFlagsStore((state) => state.setPlanModeEnabled);
   const [bootInjectionStatus, setBootInjectionStatus] = React.useState<BootInjectionStatus>(() => {
     return getBootInjectionStatus();
@@ -249,12 +262,22 @@ function App({ apis }: AppProps) {
   }, [showMemoryDebug]);
 
   React.useEffect(() => {
-    applyMobileKeyboardMode(mobileKeyboardMode);
-  }, [mobileKeyboardMode]);
+    if (typeof window === 'undefined') {
+      return;
+    }
 
-  React.useEffect(() => {
-    setIsVSCodeRuntime(apis.runtime.isVSCode);
-  }, [apis.runtime.isVSCode]);
+    const updateUnsupportedMobile = () => {
+      setIsUnsupportedMobile(isUnsupportedMobileRuntime());
+    };
+
+    updateUnsupportedMobile();
+    window.addEventListener('resize', updateUnsupportedMobile);
+    window.addEventListener('orientationchange', updateUnsupportedMobile);
+    return () => {
+      window.removeEventListener('resize', updateUnsupportedMobile);
+      window.removeEventListener('orientationchange', updateUnsupportedMobile);
+    };
+  }, []);
 
   React.useEffect(() => {
     document.documentElement.classList.toggle('wide-chat-layout', wideChatLayoutEnabled);
@@ -363,16 +386,15 @@ function App({ apis }: AppProps) {
   }, [setPlanModeEnabled]);
 
   React.useEffect(() => {
-    // VS Code runtime bootstraps config + sessions after the managed AX Code instance reports "connected".
-    // Doing the default initialization here can race with startup and lead to one-shot failures.
-    if (isVSCodeRuntime) {
+    if (isUnsupportedMobile) {
       return;
     }
     void initializeApp();
-  }, [initializeApp, isVSCodeRuntime]);
+  }, [initializeApp, isUnsupportedMobile]);
 
   React.useEffect(() => {
-    if (isVSCodeRuntime || isInitialized) return;
+    if (isUnsupportedMobile) return;
+    if (isInitialized) return;
 
     let active = true;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -414,7 +436,7 @@ function App({ apis }: AppProps) {
       active = false;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [initRetryEpoch, isInitialized, isVSCodeRuntime]);
+  }, [initRetryEpoch, isInitialized, isUnsupportedMobile]);
 
   React.useEffect(() => {
     if (isInitialized) {
@@ -438,7 +460,8 @@ function App({ apis }: AppProps) {
   // loadProviders/loadAgents resolve normally even on failure (errors swallowed),
   // so a reactive effect can't detect failure — we need an interval.
   React.useEffect(() => {
-    if (isVSCodeRuntime || !isConnected) return;
+    if (isUnsupportedMobile) return;
+    if (!isConnected) return;
     if (providersCount > 0 && agentsCount > 0) return;
 
     let active = true;
@@ -460,15 +483,13 @@ function App({ apis }: AppProps) {
       void attempt();
     }, 2000);
     return () => { active = false; clearInterval(id); };
-  }, [isConnected, isVSCodeRuntime, loadAgents, loadProviders, providersCount, agentsCount]);
+  }, [isConnected, isUnsupportedMobile, loadAgents, loadProviders, providersCount, agentsCount]);
 
   React.useEffect(() => {
-    if (isSwitchingDirectory) {
+    if (isUnsupportedMobile) {
       return;
     }
-
-    // VS Code runtime loads sessions via VSCodeLayout bootstrap to avoid startup races.
-    if (isVSCodeRuntime) {
+    if (isSwitchingDirectory) {
       return;
     }
 
@@ -478,7 +499,7 @@ function App({ apis }: AppProps) {
     axCodeClient.setDirectory(currentDirectory);
 
     // Session loading is handled by the sync system's bootstrap — no manual loadSessions needed.
-  }, [currentDirectory, isSwitchingDirectory, isConnected, isVSCodeRuntime]);
+  }, [currentDirectory, isSwitchingDirectory, isConnected, isUnsupportedMobile]);
 
   React.useEffect(() => {
     if (!embeddedSessionChat || typeof window === 'undefined') {
@@ -519,7 +540,7 @@ function App({ apis }: AppProps) {
   }, [embeddedSessionChat]);
 
   React.useEffect(() => {
-    if (!embeddedSessionChat?.directory || isVSCodeRuntime) {
+    if (!embeddedSessionChat?.directory) {
       return;
     }
 
@@ -528,7 +549,7 @@ function App({ apis }: AppProps) {
     }
 
     setDirectory(embeddedSessionChat.directory, { showOverlay: false });
-  }, [currentDirectory, embeddedSessionChat, isVSCodeRuntime, setDirectory]);
+  }, [currentDirectory, embeddedSessionChat, setDirectory]);
 
   React.useEffect(() => {
     if (!embeddedSessionChat || typeof window === 'undefined') {
@@ -617,10 +638,7 @@ function App({ apis }: AppProps) {
 
   // Session attention now handled by notification-store via SSE events (session.idle/session.error)
 
-  usePushVisibilityBeacon({ enabled: embeddedBackgroundWorkEnabled });
   useWebNotificationStream({ enabled: embeddedBackgroundWorkEnabled });
-  usePwaInstallPrompt();
-
   useWindowTitle();
 
   useRouter();
@@ -757,6 +775,14 @@ function App({ apis }: AppProps) {
     return undefined;
   };
 
+  if (isUnsupportedMobile) {
+    return (
+      <ErrorBoundary>
+        <UnsupportedMobileRuntimeScreen />
+      </ErrorBoundary>
+    );
+  }
+
   // Desktop boot view routing.
   // When the boot outcome resolves to a non-main screen (chooser, recovery),
   // render OnboardingScreen with appropriate mode/variant.
@@ -810,7 +836,6 @@ function App({ apis }: AppProps) {
               <div className="h-full text-foreground bg-background">
                 <EmbeddedSessionChatContent
                   embeddedSessionChat={embeddedSessionChat}
-                  isVSCodeRuntime={isVSCodeRuntime}
                   embeddedBackgroundWorkEnabled={embeddedBackgroundWorkEnabled}
                 />
               </div>
@@ -829,7 +854,7 @@ function App({ apis }: AppProps) {
     );
   }
 
-  if (initRetryExhausted && !isInitialized && !isVSCodeRuntime && !embeddedSessionChat) {
+  if (initRetryExhausted && !isInitialized && !embeddedSessionChat) {
     return (
       <ErrorBoundary>
         <StartupInitializationRecovery

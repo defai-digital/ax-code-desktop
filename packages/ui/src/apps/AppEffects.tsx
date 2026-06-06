@@ -1,6 +1,5 @@
 import React from 'react';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { usePwaManifestSync } from '@/hooks/usePwaManifestSync';
 import { useQueuedMessageAutoSend } from '@/hooks/useQueuedMessageAutoSend';
 import { useSessionAutoCleanup } from '@/hooks/useSessionAutoCleanup';
 import { useWindowControlsOverlayLayout } from '@/hooks/useWindowControlsOverlayLayout';
@@ -63,7 +62,6 @@ export function SyncRuntimeEffects({ embeddedBackgroundWorkEnabled }: {
 export function SyncAppEffects({ embeddedBackgroundWorkEnabled }: {
   embeddedBackgroundWorkEnabled: boolean;
 }) {
-  usePwaManifestSync();
   useWindowControlsOverlayLayout();
   useKeyboardShortcuts();
 

@@ -43,6 +43,12 @@ import { createWorktreeSessionForNewBranch } from '@/lib/worktreeSessionCreator'
 import { cn } from '@/lib/utils';
 import { renderMagicPrompt } from '@/lib/magicPrompts';
 import { useI18n } from '@/lib/i18n';
+import {
+  PROJECT_NOTES_UPDATED_EVENT,
+  PROJECT_PLAN_SAVED_EVENT,
+  dispatchProjectPlanSaved,
+  projectScopedEventMatchesProject,
+} from '@/lib/projectScopedEvents';
 import { TodoSendDialog, type TodoSendExecution } from './TodoSendDialog';
 
 const TODO_PANEL_MIN_ITEMS = 5;
@@ -260,18 +266,17 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
     }
 
     const handleProjectContextRefresh = (event: Event) => {
-      const detail = (event as CustomEvent<{ projectId?: string }>).detail;
-      if (detail?.projectId && detail.projectId !== projectRef.id) {
+      if (!projectScopedEventMatchesProject(event, projectRef.id)) {
         return;
       }
       setContextReloadTick((previous) => previous + 1);
     };
 
-    window.addEventListener('openchamber:project-plan-saved', handleProjectContextRefresh);
-    window.addEventListener('openchamber:project-notes-updated', handleProjectContextRefresh);
+    window.addEventListener(PROJECT_PLAN_SAVED_EVENT, handleProjectContextRefresh);
+    window.addEventListener(PROJECT_NOTES_UPDATED_EVENT, handleProjectContextRefresh);
     return () => {
-      window.removeEventListener('openchamber:project-plan-saved', handleProjectContextRefresh);
-      window.removeEventListener('openchamber:project-notes-updated', handleProjectContextRefresh);
+      window.removeEventListener(PROJECT_PLAN_SAVED_EVENT, handleProjectContextRefresh);
+      window.removeEventListener(PROJECT_NOTES_UPDATED_EVENT, handleProjectContextRefresh);
     };
   }, [projectRef]);
 
@@ -588,9 +593,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
           return;
         }
         setPlans((previous) => previous.filter((entry) => entry.id !== planId));
-        window.dispatchEvent(new CustomEvent('openchamber:project-plan-saved', {
-          detail: { projectId: projectRef.id },
-        }));
+        dispatchProjectPlanSaved(projectRef.id);
       } finally {
         setDeletingPlanId(null);
       }
@@ -632,9 +635,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
           toast.error(t('rightSidebar.contextNotesTodo.toast.importPlanFailed'));
           return;
         }
-        window.dispatchEvent(new CustomEvent('openchamber:project-plan-saved', {
-          detail: { projectId: projectRef.id },
-        }));
+        dispatchProjectPlanSaved(projectRef.id);
         toast.success(t('rightSidebar.contextNotesTodo.toast.planImported'));
       } catch (error) {
         const description = error instanceof Error ? error.message : undefined;
@@ -666,9 +667,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
           toast.error(t('rightSidebar.contextNotesTodo.toast.importPlanFailed'));
           return;
         }
-        window.dispatchEvent(new CustomEvent('openchamber:project-plan-saved', {
-          detail: { projectId: projectRef.id },
-        }));
+        dispatchProjectPlanSaved(projectRef.id);
         toast.success(t('rightSidebar.contextNotesTodo.toast.planImported'));
       } catch (error) {
         const description = error instanceof Error ? error.message : undefined;

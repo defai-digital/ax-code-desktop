@@ -1,5 +1,4 @@
 import type { ProjectEntry } from '@/lib/api/types';
-import type { MobileKeyboardMode } from '@/lib/mobileKeyboardMode';
 import type { DraftStarterRef } from '@/lib/draftStarters';
 import { getTauriGlobal } from '@/lib/tauriGlobal';
 
@@ -120,9 +119,6 @@ export type DesktopSettings = {
   zenModel?: string;
   gitProviderId?: string;
   gitModelId?: string;
-  pwaAppName?: string;
-  pwaOrientation?: 'system' | 'portrait' | 'landscape';
-  mobileKeyboardMode?: MobileKeyboardMode;
   inputSpellcheckEnabled?: boolean;
   showToolFileIcons?: boolean;
   showExpandedBashTools?: boolean;
@@ -210,6 +206,8 @@ export const invokeDesktop = async <T = unknown>(command: string, args?: Record<
   if (typeof tauri?.core?.invoke !== 'function') return null;
   return tauri.core.invoke(command, args ?? {}) as Promise<T>;
 };
+
+export const isVSCodeRuntime = (): boolean => false;
 
 export type NativeFileSearchResult = {
   name: string;
@@ -373,12 +371,6 @@ export const startDesktopWindowDrag = async (): Promise<boolean> => {
   }
 };
 
-export const isVSCodeRuntime = (): boolean => {
-  if (typeof window === "undefined") return false;
-  const apis = (window as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } }).__OPENCHAMBER_RUNTIME_APIS__;
-  return apis?.runtime?.isVSCode === true;
-};
-
 export const isWebRuntime = (): boolean => {
   if (typeof window === "undefined") return false;
   const apis = (window as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { platform?: string } } }).__OPENCHAMBER_RUNTIME_APIS__;
@@ -386,11 +378,10 @@ export const isWebRuntime = (): boolean => {
   if (platform === 'web') {
     return true;
   }
-  if (platform === 'desktop' || platform === 'vscode') {
+  if (platform === 'desktop') {
     return false;
   }
-  // Default: anything that's not VSCode behaves like web (HTTP UI).
-  return !isVSCodeRuntime();
+  return true;
 };
 
 export const getDesktopHomeDirectory = async (): Promise<string | null> => {

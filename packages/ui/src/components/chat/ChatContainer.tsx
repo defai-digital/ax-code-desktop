@@ -51,7 +51,6 @@ import { getSessionMaterializationStatus } from '@/sync/materialization';
 import { usePlanDetection } from '@/hooks/usePlanDetection';
 import { getAllSyncSessions } from '@/sync/sync-refs';
 import { useI18n } from '@/lib/i18n';
-import { isVSCodeRuntime } from '@/lib/desktop';
 import { useProjectKnowledge } from '@/hooks/useProjectKnowledge';
 
 const EMPTY_MESSAGES: Array<{ info: Message; parts: Part[] }> = [];
@@ -554,12 +553,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
     }, [currentSessionId, sessionMessages.length, sessionPrefetchInfo, sync]);
 
     const { isMobile } = useDeviceInfo();
-    const isVSCode = isVSCodeRuntime();
     const chatSurfaceMode = useChatSurfaceMode();
     const draftOpen = Boolean(newSessionDraft?.open);
     const initError = useGlobalSyncStore((s) => s.error);
     const isDesktopExpandedInput = isExpandedInput && !isMobile;
-    const useCompactDraftLayout = isMobile || isVSCode || chatSurfaceMode === 'mini-chat';
+    const useCompactDraftLayout = isMobile || chatSurfaceMode === 'mini-chat';
     const messageListRef = React.useRef<MessageListHandle | null>(null);
     const draftProjectLabel = React.useMemo(() => {
         const selectedProject = newSessionDraft?.selectedProjectId

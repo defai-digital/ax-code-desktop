@@ -11,7 +11,6 @@ type TodoPriority = string;
 import { useUIStore } from "@/stores/useUIStore";
 import { useTodosPersistStore } from "@/stores/useTodosPersistStore";
 import { WorkingPlaceholder } from "./message/parts/WorkingPlaceholder";
-import { isVSCodeRuntime } from "@/lib/desktop";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Icon } from "@/components/icon/Icon";
 import { useI18n } from "@/lib/i18n";
@@ -176,7 +175,7 @@ export const StatusRow: React.FC<StatusRowProps> = ({
     return persistedSessionTodos ?? EMPTY_TODOS;
   }, [liveTodos, persistedSessionTodos, currentSessionId]);
   const isMobile = useUIStore((state) => state.isMobile);
-  const isCompact = isMobile || isVSCodeRuntime();
+  const isCompact = isMobile;
 
   // Filter out cancelled todos for display and keep original order.
   // This prevents items from jumping around when status changes.

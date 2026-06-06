@@ -5,7 +5,6 @@ import { registerRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { MiniChatLayout } from '@/components/mini-chat/MiniChatLayout';
-import { usePushVisibilityBeacon } from '@/hooks/usePushVisibilityBeacon';
 import { useWindowTitle } from '@/hooks/useWindowTitle';
 import { axCodeClient } from '@/lib/ax-code/client';
 import type { RuntimeAPIs } from '@/lib/api/types';
@@ -255,7 +254,6 @@ export function ElectronMiniChatApp({ apis }: ElectronMiniChatAppProps) {
 
   useAppFontEffects();
   useMiniChatKeyboardShortcuts();
-  usePushVisibilityBeacon({ enabled: true });
   useWindowTitle();
 
   return (
