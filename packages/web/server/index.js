@@ -73,13 +73,11 @@ import { runCliEntryIfMain } from './lib/ax-code/cli-entry-runtime.js';
 import { registerNotificationRoutes } from './lib/notifications/routes.js';
 import { createNotificationEmitterRuntime } from './lib/notifications/emitter-runtime.js';
 import { createNotificationTriggerRuntime } from './lib/notifications/runtime.js';
-import { createPushRuntime } from './lib/notifications/push-runtime.js';
 import { createNotificationTemplateRuntime } from './lib/notifications/template-runtime.js';
 import { createGracefulShutdownRuntime } from './lib/ax-code/shutdown-runtime.js';
 import { createProjectConfigRuntime } from './lib/projects/project-config.js';
 import { createPreviewProxyRuntime } from './lib/preview/proxy-runtime.js';
 import { createProxyMiddleware, responseInterceptor } from 'http-proxy-middleware';
-import webPush from 'web-push';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -262,7 +260,6 @@ const OPENCHAMBER_DATA_DIR = process.env.OPENCHAMBER_DATA_DIR
   ? path.resolve(process.env.OPENCHAMBER_DATA_DIR)
   : path.join(os.homedir(), '.config', 'openchamber');
 const SETTINGS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'settings.json');
-const PUSH_SUBSCRIPTIONS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'push-subscriptions.json');
 const CLOUDFLARE_MANAGED_REMOTE_TUNNELS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'cloudflare-managed-remote-tunnels.json');
 const CLOUDFLARE_LEGACY_NAMED_TUNNELS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'cloudflare-named-tunnels.json');
 const CLOUDFLARE_MANAGED_REMOTE_TUNNELS_VERSION = 1;
@@ -350,25 +347,6 @@ const requestSecurityRuntime = createRequestSecurityRuntime({
 });
 
 const getUiSessionTokenFromRequest = (...args) => requestSecurityRuntime.getUiSessionTokenFromRequest(...args);
-
-const pushRuntime = createPushRuntime({
-  fsPromises,
-  path,
-  webPush,
-  PUSH_SUBSCRIPTIONS_FILE_PATH,
-  readSettingsFromDiskMigrated,
-  writeSettingsToDisk,
-});
-
-const getOrCreateVapidKeys = (...args) => pushRuntime.getOrCreateVapidKeys(...args);
-const addOrUpdatePushSubscription = (...args) => pushRuntime.addOrUpdatePushSubscription(...args);
-const removePushSubscription = (...args) => pushRuntime.removePushSubscription(...args);
-const sendPushToAllUiSessions = (...args) => pushRuntime.sendPushToAllUiSessions(...args);
-const updateUiVisibility = (...args) => pushRuntime.updateUiVisibility(...args);
-const isAnyUiVisible = (...args) => pushRuntime.isAnyUiVisible(...args);
-const isUiVisible = (...args) => pushRuntime.isUiVisible(...args);
-const ensurePushInitialized = (...args) => pushRuntime.ensurePushInitialized(...args);
-const setPushInitialized = (...args) => pushRuntime.setPushInitialized(...args);
 
 const TERMINAL_INPUT_WS_MAX_REBINDS_PER_WINDOW = 128;
 const TERMINAL_INPUT_WS_REBIND_WINDOW_MS = 60 * 1000;
@@ -670,12 +648,11 @@ const notificationTriggerRuntime = createNotificationTriggerRuntime({
   shouldApplyResolvedTemplateMessage,
   emitDesktopNotification,
   broadcastUiNotification,
-  sendPushToAllUiSessions,
   buildAxCodeUrl,
   getAxCodeAuthHeaders,
 });
 
-const maybeSendPushForTrigger = (...args) => notificationTriggerRuntime.maybeSendPushForTrigger(...args);
+const maybeDispatchNotificationForTrigger = (...args) => notificationTriggerRuntime.maybeDispatchNotificationForTrigger(...args);
 const setAutoAcceptSession = (...args) => notificationTriggerRuntime.setAutoAcceptSession(...args);
 
 const globalMessageStreamHub = createGlobalMessageStreamHub({
@@ -693,7 +670,7 @@ const axCodeWatcherRuntime = createAxCodeWatcherRuntime({
   globalEventHub: globalMessageStreamHub,
   onPayload: (payload) => {
     maybeCacheSessionInfoFromEvent(payload);
-    void maybeSendPushForTrigger(payload);
+    void maybeDispatchNotificationForTrigger(payload);
     sessionRuntime.processAxCodeSsePayload(payload);
   },
 });
@@ -1130,19 +1107,12 @@ async function main(options = {}) {
     readSettingsFromDiskMigrated,
     normalizeTunnelSessionTtlMs,
     sayTTSCapability,
-    ensurePushInitialized,
     ensureGlobalWatcherStarted,
-    getOrCreateVapidKeys,
     getUiSessionTokenFromRequest,
     writeSettingsToDisk,
-    addOrUpdatePushSubscription,
-    removePushSubscription,
-    updateUiVisibility,
-    isUiVisible,
     getUiNotificationClients: () => uiNotificationClients,
     writeSseEvent,
     sessionRuntime,
-    setPushInitialized,
     fs,
     os,
     path,

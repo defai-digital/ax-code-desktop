@@ -9,7 +9,6 @@ export const createNotificationTriggerRuntime = (deps) => {
     shouldApplyResolvedTemplateMessage,
     emitDesktopNotification,
     broadcastUiNotification,
-    sendPushToAllUiSessions,
     buildAxCodeUrl,
     getAxCodeAuthHeaders,
   } = deps;
@@ -22,11 +21,11 @@ export const createNotificationTriggerRuntime = (deps) => {
     getIsWindowFocused = typeof cb === 'function' ? cb : null;
   };
 
-  const PUSH_READY_COOLDOWN_MS = 5000;
-  const PUSH_QUESTION_DEBOUNCE_MS = 500;
-  const PUSH_PERMISSION_DEBOUNCE_MS = 500;
-  const pushQuestionDebounceTimers = new Map();
-  const pushPermissionDebounceTimers = new Map();
+  const READY_NOTIFICATION_COOLDOWN_MS = 5000;
+  const QUESTION_NOTIFICATION_DEBOUNCE_MS = 500;
+  const PERMISSION_NOTIFICATION_DEBOUNCE_MS = 500;
+  const questionNotificationDebounceTimers = new Map();
+  const permissionNotificationDebounceTimers = new Map();
   const notifiedPermissionRequests = new Set();
   const lastReadyNotificationAt = new Map();
 
@@ -46,13 +45,6 @@ export const createNotificationTriggerRuntime = (deps) => {
     } else {
       autoAcceptingSessions.delete(sessionId);
     }
-  };
-
-  const buildSessionDeepLinkUrl = (sessionId) => {
-    if (!sessionId || typeof sessionId !== 'string') {
-      return '/';
-    }
-    return `/?session=${encodeURIComponent(sessionId)}`;
   };
 
   const getCachedSessionParentId = (sessionId) => {
@@ -189,7 +181,7 @@ export const createNotificationTriggerRuntime = (deps) => {
       .join(' ');
   };
 
-  const maybeSendPushForTrigger = async (payload) => {
+  const maybeDispatchNotificationForTrigger = async (payload) => {
     if (!payload || typeof payload !== 'object') {
       return;
     }
@@ -223,7 +215,7 @@ export const createNotificationTriggerRuntime = (deps) => {
 
         const now = Date.now();
         const lastAt = lastReadyNotificationAt.get(sessionId) ?? 0;
-        if (now - lastAt < PUSH_READY_COOLDOWN_MS) {
+        if (now - lastAt < READY_NOTIFICATION_COOLDOWN_MS) {
           return;
         }
         lastReadyNotificationAt.set(sessionId, now);
@@ -272,19 +264,6 @@ export const createNotificationTriggerRuntime = (deps) => {
           broadcastUiNotification(notificationPayload);
         }
 
-        await sendPushToAllUiSessions(
-          {
-            title,
-            body,
-            tag: `ready-${sessionId}`,
-            data: {
-              url: buildSessionDeepLinkUrl(sessionId),
-              sessionId,
-              type: 'ready',
-            },
-          },
-          { requireNoSse: true },
-        );
       }
 
       if (info?.role === 'assistant' && info?.finish === 'error' && sessionId) {
@@ -333,32 +312,19 @@ export const createNotificationTriggerRuntime = (deps) => {
           broadcastUiNotification(notificationPayload);
         }
 
-        await sendPushToAllUiSessions(
-          {
-            title,
-            body,
-            tag: `error-${sessionId}`,
-            data: {
-              url: buildSessionDeepLinkUrl(sessionId),
-              sessionId,
-              type: 'error',
-            },
-          },
-          { requireNoSse: true },
-        );
       }
 
       return;
     }
 
     if (payload.type === 'question.asked' && sessionId) {
-      const existingTimer = pushQuestionDebounceTimers.get(sessionId);
+      const existingTimer = questionNotificationDebounceTimers.get(sessionId);
       if (existingTimer) {
         clearTimeout(existingTimer);
       }
 
       const timer = setTimeout(async () => {
-        pushQuestionDebounceTimers.delete(sessionId);
+        questionNotificationDebounceTimers.delete(sessionId);
 
         const settings = await readSettingsFromDisk();
         if (settings.notifyOnQuestion === false) {
@@ -415,29 +381,16 @@ export const createNotificationTriggerRuntime = (deps) => {
           });
         }
 
-        void sendPushToAllUiSessions(
-          {
-            title,
-            body,
-            tag: `question-${sessionId}`,
-            data: {
-              url: buildSessionDeepLinkUrl(sessionId),
-              sessionId,
-              type: 'question',
-            },
-          },
-          { requireNoSse: true },
-        );
-      }, PUSH_QUESTION_DEBOUNCE_MS);
+      }, QUESTION_NOTIFICATION_DEBOUNCE_MS);
 
-      pushQuestionDebounceTimers.set(sessionId, timer);
+      questionNotificationDebounceTimers.set(sessionId, timer);
       return;
     }
 
     if (payload.type === 'permission.replied' && sessionId) {
       const requestId = payload.properties?.requestID ?? payload.properties?.requestId ?? payload.properties?.id;
       const requestKey = typeof requestId === 'string' ? `${sessionId}:${requestId}` : null;
-      const pendingNotification = pushPermissionDebounceTimers.get(sessionId);
+      const pendingNotification = permissionNotificationDebounceTimers.get(sessionId);
       if (!pendingNotification) {
         return;
       }
@@ -447,7 +400,7 @@ export const createNotificationTriggerRuntime = (deps) => {
       // showing stale permission notifications for auto-approved prompts.
       if (!requestKey || !pendingNotification.requestKey || pendingNotification.requestKey === requestKey) {
         clearTimeout(pendingNotification.timer);
-        pushPermissionDebounceTimers.delete(sessionId);
+        permissionNotificationDebounceTimers.delete(sessionId);
       }
       return;
     }
@@ -468,13 +421,13 @@ export const createNotificationTriggerRuntime = (deps) => {
         return;
       }
 
-      const existingTimer = pushPermissionDebounceTimers.get(sessionId);
+      const existingTimer = permissionNotificationDebounceTimers.get(sessionId);
       if (existingTimer) {
         clearTimeout(existingTimer.timer);
       }
 
       const timer = setTimeout(async () => {
-        pushPermissionDebounceTimers.delete(sessionId);
+        permissionNotificationDebounceTimers.delete(sessionId);
 
         if (await isSessionAutoAccepting(sessionId)) {
           if (requestKey) notifiedPermissionRequests.add(requestKey);
@@ -539,27 +492,14 @@ export const createNotificationTriggerRuntime = (deps) => {
           notifiedPermissionRequests.add(requestKey);
         }
 
-        void sendPushToAllUiSessions(
-          {
-            title,
-            body,
-            tag: `permission-${sessionId}`,
-            data: {
-              url: buildSessionDeepLinkUrl(sessionId),
-              sessionId,
-              type: 'permission',
-            },
-          },
-          { requireNoSse: true },
-        );
-      }, PUSH_PERMISSION_DEBOUNCE_MS);
+      }, PERMISSION_NOTIFICATION_DEBOUNCE_MS);
 
-      pushPermissionDebounceTimers.set(sessionId, { timer, requestKey });
+      permissionNotificationDebounceTimers.set(sessionId, { timer, requestKey });
     }
   };
 
   return {
-    maybeSendPushForTrigger,
+    maybeDispatchNotificationForTrigger,
     setAutoAcceptSession,
     setGetIsWindowFocused,
   };

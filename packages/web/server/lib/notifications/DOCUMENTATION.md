@@ -5,8 +5,7 @@ This module provides notification message preparation utilities for the web serv
 
 ## Entrypoints and structure
 - `packages/web/server/lib/notifications/index.js`: public entrypoint imported by `packages/web/server/index.js`.
-- `packages/web/server/lib/notifications/routes.js`: route registration for push, visibility, and session status/attention endpoints.
-- `packages/web/server/lib/notifications/push-runtime.js`: push subscription persistence, VAPID initialization, and UI visibility runtime.
+- `packages/web/server/lib/notifications/routes.js`: route registration for notification stream and session status/attention endpoints.
 - `packages/web/server/lib/notifications/emitter-runtime.js`: desktop/stdout + UI SSE notification emission runtime.
 - `packages/web/server/lib/notifications/runtime.js`: trigger runtime for AX Code event-driven notification fanout.
 - `packages/web/server/lib/notifications/template-runtime.js`: notification template variables and session text/title enrichment runtime. Zen-model helpers are retained as compatibility stubs only.
@@ -21,11 +20,7 @@ This module provides notification message preparation utilities for the web serv
 
 ### Route registration API (routes.js)
 - `registerNotificationRoutes(app, dependencies)`: Registers notification-owned endpoints:
-  - `GET /api/push/vapid-public-key`
-  - `POST /api/push/subscribe`
-  - `DELETE /api/push/subscribe`
-  - `POST /api/push/visibility`
-  - `GET /api/push/visibility`
+  - `GET /api/notifications/stream`
   - `GET /api/session-activity`
   - `GET /api/sessions/snapshot`
   - `GET /api/sessions/status`
@@ -39,25 +34,12 @@ This module provides notification message preparation utilities for the web serv
 ### Trigger runtime API (runtime.js)
 - `createNotificationTriggerRuntime(dependencies)`: creates runtime-owned debounced trigger handling for AX Code events.
 - Returned API:
-  - `maybeSendPushForTrigger(payload)`
+  - `maybeDispatchNotificationForTrigger(payload)`
 - Owns:
   - completion/error/question/permission trigger routing
   - session parent cache for subtask suppression
   - template resolution and fallback behavior
-  - native notification fanout and web push payload fanout
-
-### Push runtime API (push-runtime.js)
-- `createPushRuntime(dependencies)`: creates runtime for web push and UI visibility state.
-- Returned API:
-  - `getOrCreateVapidKeys()`
-  - `ensurePushInitialized()`
-  - `setPushInitialized(value)`
-  - `addOrUpdatePushSubscription(uiSessionToken, subscription, userAgent)`
-  - `removePushSubscription(uiSessionToken, endpoint)`
-  - `sendPushToAllUiSessions(payload, options?)`
-  - `updateUiVisibility(token, visible)`
-  - `isAnyUiVisible()`
-  - `isUiVisible(token)`
+  - native notification fanout and UI notification stream fanout
 
 ### Emitter runtime API (emitter-runtime.js)
 - `createNotificationEmitterRuntime(dependencies)`: creates runtime for unified notification emission channels.
