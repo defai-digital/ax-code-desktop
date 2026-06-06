@@ -10,7 +10,30 @@ permissions:
   contents: write
 
 jobs:
+  # This repo's release line does not currently ship a VS Code extension
+  # (packages/vscode is absent). Detect it so the publish job skips gracefully
+  # instead of failing every tag, and auto-runs if the package returns.
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      present: ${{ steps.check.outputs.present }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Detect VS Code package
+        id: check
+        run: |
+          if [ -f packages/vscode/package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::packages/vscode is not present — skipping VS Code extension publish."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
   publish:
+    needs: detect
+    if: ${{ needs.detect.outputs.present == 'true' }}
     runs-on: ubuntu-latest
     env:
       VSCE_PAT: ${{ secrets.VSCE_PAT }}
