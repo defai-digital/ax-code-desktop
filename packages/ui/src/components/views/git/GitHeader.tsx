@@ -310,8 +310,6 @@ export const GitHeader: React.FC<GitHeaderProps> = ({
       onRemoveRemote={onRemoveRemote}
       removingRemoteName={removingRemoteName}
       disabled={!status}
-      iconOnly={true}
-
       aheadCount={status.ahead}
       behindCount={status.behind}
       trackingRemoteName={status.tracking?.split('/')[0]}

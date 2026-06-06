@@ -21,7 +21,6 @@ interface SyncActionsProps {
   onRemoveRemote?: (remote: GitRemote) => void;
   disabled: boolean;
   removingRemoteName?: string | null;
-  iconOnly?: boolean;
   aheadCount?: number;
   behindCount?: number;
   trackingRemoteName?: string;

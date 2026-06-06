@@ -978,14 +978,6 @@ export const GitView: React.FC = () => {
     };
   }, [changeEntries, currentDirectory, git, prefetchDiffs, stagedChangeEntries, visibleChangePaths]);
 
-  const getPushedRemoteName = (result?: Awaited<ReturnType<typeof git.gitPush>>) => {
-    return result?.pushed[0]?.remote
-      || status?.tracking?.split('/')[0]
-      || effectiveRemotes.find((remote) => remote.name === 'origin')?.name
-      || effectiveRemotes[0]?.name
-      || 'origin';
-  };
-
   const handleSyncAction = async (action: Exclude<SyncAction, null>, remote?: GitRemote) => {
     if (!currentDirectory) return;
     setSyncAction(action);
@@ -1009,19 +1001,6 @@ export const GitView: React.FC = () => {
         }
         await git.gitFetch(currentDirectory, { remote: remote.name });
         toast.success(t('gitView.toast.fetchedFromRemote', { name: remote.name }));
-      } else if (action === 'pull') {
-        if (!remote) {
-          throw new Error('No remote available for pull');
-        }
-        const result = await git.gitPull(currentDirectory, getPullOptions(remote));
-        toast.success(
-          result.files.length === 1
-            ? t('gitView.toast.pulledFilesSingle', { count: result.files.length, name: remote.name })
-            : t('gitView.toast.pulledFilesPlural', { count: result.files.length, name: remote.name })
-        );
-      } else if (action === 'push') {
-        const result = await git.gitPush(currentDirectory);
-        toast.success(t('gitView.toast.pushedToUpstream', { name: getPushedRemoteName(result) }));
       } else if (action === 'sync') {
         if (!remote) {
           throw new Error('No remote available for sync');
@@ -1067,10 +1046,15 @@ export const GitView: React.FC = () => {
       await refreshStatusAndBranches(false);
       await refreshLog();
     } catch (err) {
+      const fallbackAction = action === 'sync'
+        ? t('gitView.sync.syncChanges')
+        : remote
+          ? t('gitView.sync.fetchFromRemote', { name: remote.name })
+          : 'fetch';
       const message =
         err instanceof Error
           ? err.message
-          : t('gitView.toast.syncActionFailed', { action: action === 'sync' ? t('gitView.sync.syncChanges') : action === 'pull' ? t('gitView.sync.pull') : action });
+          : t('gitView.toast.syncActionFailed', { action: fallbackAction });
       toast.error(message);
     } finally {
       setSyncAction(null);
