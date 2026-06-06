@@ -1565,8 +1565,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.showToolFileIcons': 'Show Tool File Icons',
   'settings.openchamber.visual.field.showTurnChangedFilesAria': 'Show changed files on completed turns',
   'settings.openchamber.visual.field.showTurnChangedFiles': 'Show Changed Files on Turns',
-  'settings.openchamber.visual.field.showMobileStatusBarAria': 'Show mobile status bar',
-  'settings.openchamber.visual.field.showMobileStatusBar': 'Show Mobile Status Bar',
   'settings.openchamber.visual.field.showDotfilesAria': 'Show dotfiles',
   'settings.openchamber.visual.field.showDotfiles': 'Show Dotfiles',
   'settings.openchamber.visual.field.queueMessagesByDefaultAria': 'Queue messages by default',

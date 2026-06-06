@@ -1453,8 +1453,6 @@
   'settings.openchamber.visual.field.showToolFileIcons': '顯示工具檔案圖示',
   'settings.openchamber.visual.field.showTurnChangedFilesAria': '在已完成回合顯示變更檔案',
   'settings.openchamber.visual.field.showTurnChangedFiles': '在回合顯示變更檔案',
-  'settings.openchamber.visual.field.showMobileStatusBarAria': '顯示行動裝置狀態列',
-  'settings.openchamber.visual.field.showMobileStatusBar': '顯示行動裝置狀態列',
   'settings.openchamber.visual.field.showDotfilesAria': '顯示點檔案',
   'settings.openchamber.visual.field.showDotfiles': '顯示點檔案',
   'settings.openchamber.visual.field.queueMessagesByDefaultAria': '預設排隊訊息',

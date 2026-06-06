@@ -905,8 +905,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.showDotfilesAria': 'Pokaż pliki ukryte',
   'settings.openchamber.visual.field.showExpandedBashToolsAria': 'Pokaż rozwinięte narzędzia bash',
   'settings.openchamber.visual.field.showExpandedEditToolsAria': 'Pokaż rozwinięte narzędzia edycji',
-  'settings.openchamber.visual.field.showMobileStatusBar': 'Pokaż mobilny pasek statusu',
-  'settings.openchamber.visual.field.showMobileStatusBarAria': 'Pokaż mobilny pasek statusu',
   'settings.openchamber.visual.field.showReasoningTraces': 'Pokaż ślady rozumowania',
   'settings.openchamber.visual.field.showReasoningTracesAria': 'Pokaż ślady rozumowania',
   'settings.openchamber.visual.field.collapsibleThinkingBlocks': 'Włącz zwijalne bloki rozumowania',

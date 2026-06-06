@@ -606,8 +606,6 @@ interface UIStore {
   userMessageRenderingMode: UserMessageRenderingMode;
   stickyUserHeader: boolean;
   showSplitAssistantMessageActions: boolean;
-  showMobileSessionStatusBar: boolean;
-  isMobileSessionStatusBarCollapsed: boolean;
   isExpandedInput: boolean;
   reportUsage: boolean;
   shortcutOverrides: Record<string, ShortcutCombo>;
@@ -740,8 +738,6 @@ interface UIStore {
   setUserMessageRenderingMode: (value: UserMessageRenderingMode) => void;
   setStickyUserHeader: (value: boolean) => void;
   setShowSplitAssistantMessageActions: (value: boolean) => void;
-  setShowMobileSessionStatusBar: (value: boolean) => void;
-  setIsMobileSessionStatusBarCollapsed: (value: boolean) => void;
   viewPagerPage: 'left' | 'center' | 'right';
   setViewPagerPage: (page: 'left' | 'center' | 'right') => void;
   toggleExpandedInput: () => void;
@@ -871,8 +867,6 @@ export const useUIStore = create<UIStore>()(
         userMessageRenderingMode: 'markdown',
         stickyUserHeader: true,
         showSplitAssistantMessageActions: false,
-        showMobileSessionStatusBar: false,
-        isMobileSessionStatusBarCollapsed: false,
         isExpandedInput: false,
         reportUsage: true,
         shortcutOverrides: {},
@@ -1942,12 +1936,6 @@ export const useUIStore = create<UIStore>()(
         setShowSplitAssistantMessageActions: (value) => {
           set({ showSplitAssistantMessageActions: value });
         },
-        setShowMobileSessionStatusBar: (value) => {
-          set({ showMobileSessionStatusBar: value });
-        },
-        setIsMobileSessionStatusBarCollapsed: (value) => {
-          set({ isMobileSessionStatusBarCollapsed: value });
-        },
         setReportUsage: (value) => {
           set({ reportUsage: value });
         },
@@ -2160,8 +2148,6 @@ export const useUIStore = create<UIStore>()(
           userMessageRenderingMode: state.userMessageRenderingMode,
           stickyUserHeader: state.stickyUserHeader,
           showSplitAssistantMessageActions: state.showSplitAssistantMessageActions,
-          showMobileSessionStatusBar: state.showMobileSessionStatusBar,
-          isMobileSessionStatusBarCollapsed: state.isMobileSessionStatusBarCollapsed,
           shortcutOverrides: state.shortcutOverrides,
         })
       }
