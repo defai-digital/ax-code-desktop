@@ -276,14 +276,10 @@ const formatDate = (value?: string) => {
 
 interface ModelControlsProps {
     className?: string;
-    mobilePanel?: ModelControlsPanel;
-    onMobilePanelChange?: (panel: ModelControlsPanel) => void;
 }
 
 export const ModelControls: React.FC<ModelControlsProps> = ({
     className,
-    mobilePanel,
-    onMobilePanelChange,
 }) => {
     const { t } = useI18n();
     const { isReady, isUnavailable } = useAxCodeReadiness();
@@ -370,9 +366,8 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
     const isDesktop = React.useMemo(() => isDesktopShell(), []);
     const isCompact = isMobile;
     const [localMobilePanel, setLocalMobilePanel] = React.useState<ModelControlsPanel>(null);
-    const usingExternalMobilePanel = mobilePanel !== undefined && typeof onMobilePanelChange === 'function';
-    const activeMobilePanel = usingExternalMobilePanel ? mobilePanel : localMobilePanel;
-    const setActiveMobilePanel = usingExternalMobilePanel ? onMobilePanelChange : setLocalMobilePanel;
+    const activeMobilePanel = localMobilePanel;
+    const setActiveMobilePanel = setLocalMobilePanel;
     const [mobileTooltipOpen, setMobileTooltipOpen] = React.useState<'model' | 'agent' | null>(null);
     const [mobileModelQuery, setMobileModelQuery] = React.useState('');
     const [expandedMobileModelKey, setExpandedMobileModelKey] = React.useState<string | null>(null);

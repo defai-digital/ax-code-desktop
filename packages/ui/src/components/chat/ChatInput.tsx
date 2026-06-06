@@ -30,8 +30,6 @@ import { parseAgentMentions } from '@/lib/messages/agentMentions';
 import { StatusRow } from './StatusRow';
 import { PendingChangesBar } from './PendingChangesBar';
 import { useChatSurfaceMode } from './useChatSurfaceMode';
-import { MobileAgentButton } from './MobileAgentButton';
-import { MobileModelButton } from './MobileModelButton';
 import { useCurrentSessionActivity } from '@/hooks/useSessionActivity';
 import { toast } from '@/components/ui';
 import { Button } from '@/components/ui/button';
@@ -40,7 +38,7 @@ import { isTauriShell } from '@/lib/desktop';
 import { isIMECompositionEvent } from '@/lib/ime';
 import { StopIcon } from '@/components/icons/StopIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { getCycledPrimaryAgentName, type ModelControlsPanel } from '@/lib/modelControlUtils';
+import { getCycledPrimaryAgentName } from '@/lib/modelControlUtils';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -247,8 +245,6 @@ const getProjectIconColor = (projectColor?: string | null): string | undefined =
 
 const MemoModelControls = React.memo(ModelControls);
 const MemoBrowserVoiceButton = React.memo(BrowserVoiceButton);
-const MemoMobileAgentButton = React.memo(MobileAgentButton);
-const MemoMobileModelButton = React.memo(MobileModelButton);
 const MemoStatusRow = React.memo(StatusRow);
 
 type RevertedMessageDockProps = {
@@ -846,7 +842,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const [showSnippetAutocomplete, setShowSnippetAutocomplete] = React.useState(false);
     const [snippetQuery, setSnippetQuery] = React.useState('');
     const [textareaSize, setTextareaSize] = React.useState<{ height: number; maxHeight: number } | null>(null);
-    const [mobileControlsPanel, setMobileControlsPanel] = React.useState<ModelControlsPanel>(null);
     // Message history navigation state (up/down arrow to recall previous messages)
     const [historyIndex, setHistoryIndex] = React.useState(-1); // -1 = not browsing, 0+ = index from most recent
     const [draftMessage, setDraftMessage] = React.useState(''); // Preserves input when entering history mode
@@ -1433,16 +1428,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     // Session activity for queue availability and controls
     const { phase: sessionPhase } = useCurrentSessionActivity();
 
-    const handleOpenMobilePanel = React.useCallback((panel: ModelControlsPanel) => {
-        if (!isMobile) {
-            return;
-        }
-        textareaRef.current?.blur();
-        requestAnimationFrame(() => {
-            setMobileControlsPanel(panel);
-        });
-    }, [isMobile]);
-
     // Consume pending input text (e.g., from revert action)
     React.useEffect(() => {
         if (pendingInputText !== null) {
@@ -1535,10 +1520,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
     const handleQueuedMessageSend = React.useCallback((messageId: string) => {
         void handleSubmitRef.current({ queuedOnly: true, queuedMessageId: messageId });
-    }, []);
-
-    const handleOpenAgentPanel = React.useCallback(() => {
-        setMobileControlsPanel('agent');
     }, []);
 
     const handleToggleExpandedInput = React.useCallback(() => {
@@ -2954,12 +2935,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     }, [currentSessionId, isMobile]);
 
     React.useEffect(() => {
-        if (!isMobile) {
-            setMobileControlsPanel(null);
-        }
-    }, [isMobile]);
-
-    React.useEffect(() => {
         if (abortPromptSessionId && abortPromptSessionId !== currentSessionId) {
             clearAbortPrompt();
         }
@@ -4163,14 +4138,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                         />
                                     </div>
                                     <div className="flex items-center min-w-0 gap-x-1 justify-end">
-                                        <div className="flex items-center gap-x-1 min-w-0 max-w-[60vw] flex-shrink">
-                                            <MemoMobileModelButton onOpenModel={() => handleOpenMobilePanel('model')} className="min-w-0 flex-shrink" />
-                                            <MemoMobileAgentButton
-                                                onOpenAgentPanel={handleOpenAgentPanel}
-                                                onCycleAgent={handleCycleAgent}
-                                                className="min-w-0 flex-shrink"
-                                            />
-                                        </div>
                                         <div className="flex items-center gap-x-1 flex-shrink-0">
                                             <MemoBrowserVoiceButton />
                                             <ComposerActionButtons
@@ -4190,11 +4157,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                         </div>
                                     </div>
                                 </div>
-                                <MemoModelControls
-                                    className="hidden"
-                                    mobilePanel={mobileControlsPanel}
-                                    onMobilePanelChange={setMobileControlsPanel}
-                                />
                             </>
                         ) : (
                             <>
