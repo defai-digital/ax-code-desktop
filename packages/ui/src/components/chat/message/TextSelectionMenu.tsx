@@ -12,7 +12,6 @@ import { Icon } from "@/components/icon/Icon";
 import { OPENCHAMBER_PROJECT_NOTES_MAX_LENGTH, getProjectNotesAndTodos, saveProjectNotesAndTodos } from '@/lib/openchamberConfig';
 import { resolveProjectForSessionDirectory } from '@/lib/projectResolution';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
-import { isVSCodeRuntime } from '@/lib/desktop';
 import { useI18n } from '@/lib/i18n';
 import { dispatchProjectNotesUpdated } from '@/lib/projectScopedEvents';
 
@@ -610,24 +609,22 @@ export const TextSelectionMenu: React.FC<TextSelectionMenuProps> = ({ containerR
             <span className="min-w-0 whitespace-normal">{t('chat.textSelection.actions.copy')}</span>
           </button>
 
-          {!isVSCodeRuntime() ? (
-            <button
-              onClick={handleAddToNotes}
-              disabled={isAddingToNotes}
-              className={cn(
-                'flex min-w-0 items-center gap-2 rounded-xl px-3 py-2.5 text-left',
-                'text-sm font-medium leading-tight',
-                'bg-[var(--surface-muted)] text-[var(--surface-foreground)]',
-                'active:opacity-80 disabled:opacity-60 disabled:cursor-not-allowed',
-                'transition-opacity duration-150'
-              )}
-              title={t('chat.textSelection.title.saveInsightToNotes')}
-              type="button"
-            >
-              {isAddingToNotes ? <Icon name="loader-4" className="h-5 w-5 flex-shrink-0 animate-spin" /> : <Icon name="booklet" className="h-5 w-5 flex-shrink-0" />}
-              <span className="min-w-0 whitespace-normal">{t('chat.textSelection.actions.addToNotes')}</span>
-            </button>
-          ) : null}
+          <button
+            onClick={handleAddToNotes}
+            disabled={isAddingToNotes}
+            className={cn(
+              'flex min-w-0 items-center gap-2 rounded-xl px-3 py-2.5 text-left',
+              'text-sm font-medium leading-tight',
+              'bg-[var(--surface-muted)] text-[var(--surface-foreground)]',
+              'active:opacity-80 disabled:opacity-60 disabled:cursor-not-allowed',
+              'transition-opacity duration-150'
+            )}
+            title={t('chat.textSelection.title.saveInsightToNotes')}
+            type="button"
+          >
+            {isAddingToNotes ? <Icon name="loader-4" className="h-5 w-5 flex-shrink-0 animate-spin" /> : <Icon name="booklet" className="h-5 w-5 flex-shrink-0" />}
+            <span className="min-w-0 whitespace-normal">{t('chat.textSelection.actions.addToNotes')}</span>
+          </button>
         </div>
       </div>,
       document.body
@@ -689,28 +686,24 @@ export const TextSelectionMenu: React.FC<TextSelectionMenuProps> = ({ containerR
           <span className="whitespace-nowrap">{t('chat.textSelection.actions.newSession')}</span>
         </button>
 
-        {!isVSCodeRuntime() ? (
-          <>
-            <div className="w-px h-4 bg-[var(--interactive-border)]" />
+        <div className="w-px h-4 bg-[var(--interactive-border)]" />
 
-            <button
-              onClick={handleAddToNotes}
-              disabled={isAddingToNotes}
-              className={cn(
-                'flex items-center gap-1.5 px-2 py-1 rounded-md',
-                'text-sm font-medium',
-                'text-[var(--surface-foreground)]',
-                'hover:bg-[var(--interactive-hover)] disabled:opacity-60 disabled:cursor-not-allowed',
-                'transition-colors duration-150'
-              )}
-              title={t('chat.textSelection.title.saveInsightToNotes')}
-              type="button"
-            >
-              {isAddingToNotes ? <Icon name="loader-4" className="h-4 w-4 animate-spin" /> : <Icon name="booklet" className="h-4 w-4" />}
-              <span className="whitespace-nowrap">{t('chat.textSelection.actions.addToNotes')}</span>
-            </button>
-          </>
-        ) : null}
+        <button
+          onClick={handleAddToNotes}
+          disabled={isAddingToNotes}
+          className={cn(
+            'flex items-center gap-1.5 px-2 py-1 rounded-md',
+            'text-sm font-medium',
+            'text-[var(--surface-foreground)]',
+            'hover:bg-[var(--interactive-hover)] disabled:opacity-60 disabled:cursor-not-allowed',
+            'transition-colors duration-150'
+          )}
+          title={t('chat.textSelection.title.saveInsightToNotes')}
+          type="button"
+        >
+          {isAddingToNotes ? <Icon name="loader-4" className="h-4 w-4 animate-spin" /> : <Icon name="booklet" className="h-4 w-4" />}
+          <span className="whitespace-nowrap">{t('chat.textSelection.actions.addToNotes')}</span>
+        </button>
       </div>
     </div>,
     document.body

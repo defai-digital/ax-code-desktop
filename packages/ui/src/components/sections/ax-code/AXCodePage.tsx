@@ -14,7 +14,7 @@ import { DesktopNetworkSettings } from './DesktopNetworkSettings';
 import { KeyboardShortcutsSettings } from './KeyboardShortcutsSettings';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { useDeviceInfo } from '@/lib/device';
-import { isDesktopLocalOriginActive, isDesktopShell, isVSCodeRuntime, isWebRuntime } from '@/lib/desktop';
+import { isDesktopLocalOriginActive, isDesktopShell, isWebRuntime } from '@/lib/desktop';
 import type { AXCodeSection } from './types';
 
 interface AXCodePageProps {
@@ -25,7 +25,6 @@ interface AXCodePageProps {
 export const AXCodePage: React.FC<AXCodePageProps> = ({ section }) => {
     const { isMobile } = useDeviceInfo();
     const showAbout = isMobile && isWebRuntime();
-    const isVSCode = isVSCodeRuntime();
     const showDesktopNetworkSettings = isDesktopShell() && isDesktopLocalOriginActive();
 
     // If no section specified, show all sections.
@@ -45,11 +44,9 @@ export const AXCodePage: React.FC<AXCodePageProps> = ({ section }) => {
                             <DesktopNetworkSettings />
                         </div>
                     )}
-                    {!isVSCode && (
-                        <div className="border-t border-border/40 pt-6">
-                            <AxCodeCliSettings />
-                        </div>
-                    )}
+                    <div className="border-t border-border/40 pt-6">
+                        <AxCodeCliSettings />
+                    </div>
                     <div className="border-t border-border/40 pt-6">
                         <SessionRetentionSettings />
                     </div>
@@ -110,7 +107,6 @@ const ShortcutsSectionContent: React.FC = () => {
 
 // Visual section: Theme Mode, Font Size, Spacing, Input Bar Offset, Nav Rail
 const VisualSectionContent: React.FC = () => {
-    const isVSCode = isVSCodeRuntime();
     return <AXCodeVisualSettings visibleSettings={[
         'theme',
         'timeFormat',
@@ -119,7 +115,7 @@ const VisualSectionContent: React.FC = () => {
         'terminalFontSize',
         'spacing',
         'inputBarOffset',
-        ...(!isVSCode ? ['terminalQuickKeys' as const] : []),
+        'terminalQuickKeys',
         'reportUsage',
     ]} />;
 };
@@ -131,7 +127,6 @@ const ChatSectionContent: React.FC = () => {
 
 // Sessions section: Default model & agent, Session retention
 const SessionsSectionContent: React.FC = () => {
-    const isVSCode = isVSCodeRuntime();
     const showDesktopNetworkSettings = isDesktopShell() && isDesktopLocalOriginActive();
     return (
         <div className="space-y-6">
@@ -141,11 +136,9 @@ const SessionsSectionContent: React.FC = () => {
                     <DesktopNetworkSettings />
                 </div>
             )}
-            {!isVSCode && (
-                <div className="border-t border-border/40 pt-6">
-                    <AxCodeCliSettings />
-                </div>
-            )}
+            <div className="border-t border-border/40 pt-6">
+                <AxCodeCliSettings />
+            </div>
             <div className="border-t border-border/40 pt-6">
                 <SessionRetentionSettings />
             </div>
@@ -167,9 +160,6 @@ const GitSectionContent: React.FC = () => {
 
 // GitHub section: Connect account for PR/issue workflows
 const GitHubSectionContent: React.FC = () => {
-    if (isVSCodeRuntime()) {
-        return null;
-    }
     return <GitHubSettings />;
 };
 
@@ -180,15 +170,9 @@ const NotificationSectionContent: React.FC = () => {
 
 // Voice section: Language selection and continuous mode
 const VoiceSectionContent: React.FC = () => {
-    if (isVSCodeRuntime()) {
-        return null;
-    }
     return <VoiceSettings />;
 };
 
 const TunnelSectionContent: React.FC = () => {
-    if (isVSCodeRuntime()) {
-        return null;
-    }
     return <TunnelSettings />;
 };

@@ -18,7 +18,6 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Icon } from "@/components/icon/Icon";
-import { isVSCodeRuntime } from '@/lib/desktop';
 import { useDeviceInfo } from '@/lib/device';
 import { updateDesktopSettings } from '@/lib/persistence';
 import { CODE_FONT_OPTIONS, DEFAULT_MONO_FONT, DEFAULT_UI_FONT, UI_FONT_OPTIONS, type MonoFontOption, type UiFontOption } from '@/lib/fontOptions';
@@ -439,8 +438,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
         return visibleSettings.includes(setting);
     };
 
-    const isVSCode = isVSCodeRuntime();
-    const hasThemeSettings = shouldShow('theme') && !isVSCode;
+    const hasThemeSettings = shouldShow('theme');
     const hasLocalizationSettings = shouldShow('theme') || shouldShow('timeFormat') || shouldShow('weekStart');
     const hasAppearanceSettings = hasLocalizationSettings;
     const hasLayoutSettings = shouldShow('fontSize') || shouldShow('terminalFontSize') || shouldShow('spacing') || shouldShow('inputBarOffset');
@@ -601,7 +599,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                                     </Select>
                                 </div>
 
-                                {!isVSCode && (shouldShow('timeFormat') || shouldShow('weekStart')) && (
+                                {(shouldShow('timeFormat') || shouldShow('weekStart')) && (
                                     <div className="grid grid-cols-1 gap-2 py-1.5 md:grid-cols-[14rem_auto] md:gap-x-8 md:gap-y-2">
                                         {shouldShow('timeFormat') && (
                                             <div className="flex min-w-0 items-center gap-2">
@@ -892,7 +890,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                 {hasBehaviorSettings && (
                     <div className="space-y-3">
 
-                            {(shouldShow('userMessageRendering') || shouldShow('mermaidRendering') || shouldShow('chatRenderMode') || shouldShow('messageTransport') || (shouldShow('activityRenderMode') && chatRenderMode === 'sorted') || (shouldShow('diffLayout') && !isVSCode)) && (
+                            {(shouldShow('userMessageRendering') || shouldShow('mermaidRendering') || shouldShow('chatRenderMode') || shouldShow('messageTransport') || (shouldShow('activityRenderMode') && chatRenderMode === 'sorted') || shouldShow('diffLayout')) && (
                                 <div className="grid grid-cols-1 gap-y-2 md:grid-cols-[minmax(0,16rem)_minmax(0,16rem)] md:justify-start md:gap-x-2">
                                     {shouldShow('chatRenderMode') && (
                                         <section className="p-2 md:col-span-2">
@@ -1162,7 +1160,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                                         </section>
                                     )}
 
-                                    {shouldShow('diffLayout') && !isVSCode && (
+                                    {shouldShow('diffLayout') && (
                                         <section className="p-2">
                                             <h4 className="typography-ui-header font-medium text-foreground">{t('settings.openchamber.visual.section.diffLayout')}</h4>
                                             <div role="radiogroup" aria-label={t('settings.openchamber.visual.section.diffLayoutAria')} className="mt-0.5 space-y-0">
@@ -1198,7 +1196,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                                         </section>
                                     )}
 
-                                    {shouldShow('diffLayout') && !isVSCode && (
+                                    {shouldShow('diffLayout') && (
                                         <section className="p-2">
                                             <h4 className="typography-ui-header font-medium text-foreground">{t('settings.openchamber.visual.section.diffViewMode')}</h4>
                                             <div role="radiogroup" aria-label={t('settings.openchamber.visual.section.diffViewModeAria')} className="mt-0.5 space-y-0">
@@ -1432,7 +1430,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                                         </div>
                                     )}
 
-                                    {shouldShow('dotfiles') && !isVSCodeRuntime() && (
+                                    {shouldShow('dotfiles') && (
                                         <div
                                             className="group flex cursor-pointer items-center gap-2 py-0.5"
                                             role="button"

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useUIStore } from '@/stores/useUIStore';
-import { isDesktopShell, isVSCodeRuntime } from '@/lib/desktop';
+import { isDesktopShell } from '@/lib/desktop';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/components/ui';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
@@ -37,8 +37,7 @@ const TEMPLATE_EVENT_LABEL_KEYS = {
 export const NotificationSettings: React.FC = () => {
   const { t } = useI18n();
   const isDesktop = React.useMemo(() => isDesktopShell(), []);
-  const isVSCode = React.useMemo(() => isVSCodeRuntime(), []);
-  const isBrowser = !isDesktop && !isVSCode;
+  const isBrowser = !isDesktop;
   const nativeNotificationsEnabled = useUIStore(state => state.nativeNotificationsEnabled);
   const setNativeNotificationsEnabled = useUIStore(state => state.setNativeNotificationsEnabled);
   const notificationMode = useUIStore(state => state.notificationMode);
@@ -98,7 +97,7 @@ export const NotificationSettings: React.FC = () => {
     }
   };
 
-  const canShowNotifications = isDesktop || isVSCode || (isBrowser && typeof Notification !== 'undefined' && Notification.permission === 'granted');
+  const canShowNotifications = isDesktop || (isBrowser && typeof Notification !== 'undefined' && Notification.permission === 'granted');
 
   const updateTemplate = (
     event: 'completion' | 'error' | 'question' | 'subtask',
@@ -228,13 +227,6 @@ export const NotificationSettings: React.FC = () => {
                   {t('settings.notifications.page.delivery.permissionGrantedButDisabled')}
                 </p>
               )}
-            </div>
-          )}
-          {isVSCode && (
-            <div className="mt-1 px-2">
-              <p className="typography-meta text-muted-foreground/70">
-                {t('settings.notifications.page.delivery.vscodeHint')}
-              </p>
             </div>
           )}
         </div>

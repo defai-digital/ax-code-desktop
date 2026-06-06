@@ -37,7 +37,7 @@ import { GitPage } from '@/components/sections/git-identities/GitPage';
 import type { AXCodeSection } from '@/components/sections/ax-code/types';
 import { AXCodePage } from '@/components/sections/ax-code/AXCodePage';
 import { useDeviceInfo } from '@/lib/device';
-import { isDesktopShell, isVSCodeRuntime, isWebRuntime } from '@/lib/desktop';
+import { isDesktopShell, isWebRuntime } from '@/lib/desktop';
 import { useI18n } from '@/lib/i18n';
 import { Icon } from "@/components/icon/Icon";
 import type { IconName } from "@/components/icon/icons";
@@ -102,9 +102,8 @@ const pageOrder: SettingsPageSlug[] = [
 const SNIPPETS_SETTINGS_ICON = { icon: 'chat-thread' } as const;
 
 function buildRuntimeContext(isDesktop: boolean): SettingsRuntimeContext {
-  const isVSCode = isVSCodeRuntime();
   const isWeb = !isDesktop && isWebRuntime();
-  return { isVSCode, isWeb, isDesktop };
+  return { isWeb, isDesktop };
 }
 
 function isPageAvailable(page: SettingsPageMeta, ctx: SettingsRuntimeContext): boolean {
@@ -309,7 +308,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
     return SETTINGS_PAGE_METADATA
       .filter((page) => page.slug !== 'home')
       .filter((page) => isPageAvailable(page, runtimeCtx))
-      .filter((page) => !(runtimeCtx.isVSCode && page.slug === 'projects'))
       .filter((page) => !(isMobile && page.slug === 'shortcuts'));
   }, [runtimeCtx, isMobile]);
 
@@ -386,7 +384,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
 
   // Load stores when project changes or when a page becomes active.
   React.useEffect(() => {
-    if (!isSettingsDialogOpen && !runtimeCtx.isVSCode && !isWindowed) {
+    if (!isSettingsDialogOpen && !isWindowed) {
       return;
     }
 
@@ -413,7 +411,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
     if (settingsSlug === 'snippets') {
       void useSnippetsStore.getState().loadSnippets();
     }
-  }, [activeProjectId, isSettingsDialogOpen, isWindowed, runtimeCtx.isVSCode, settingsSlug]);
+  }, [activeProjectId, isSettingsDialogOpen, isWindowed, settingsSlug]);
 
   const openPage = React.useCallback((slug: SettingsPageSlug) => {
     setSettingsPage(slug);
@@ -622,7 +620,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
   const shortcutKey = getModifierLabel();
 
   const pushMobileSplitDetailHistory = React.useCallback((slug: SettingsPageSlug) => {
-    if (typeof window === 'undefined' || runtimeCtx.isVSCode) {
+    if (typeof window === 'undefined') {
       return;
     }
 
@@ -639,7 +637,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
       '',
       window.location.href,
     );
-  }, [runtimeCtx.isVSCode]);
+  }, []);
 
   const handleMobilePageSidebarItemSelect = React.useCallback(() => {
     setMobileStage('page-content');
@@ -653,7 +651,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
       const currentDetail = typeof window !== 'undefined'
         ? getSettingsDetailHistoryEntry(window.history.state)
         : null;
-      if (currentDetail?.page === settingsSlug && !runtimeCtx.isVSCode) {
+      if (currentDetail?.page === settingsSlug) {
         window.history.back();
         return;
       }
@@ -662,10 +660,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
     }
 
     setMobileStage('nav');
-  }, [backButtonTargetsPageSidebar, runtimeCtx.isVSCode, settingsSlug]);
+  }, [backButtonTargetsPageSidebar, settingsSlug]);
 
   React.useEffect(() => {
-    if (!isMobile || runtimeCtx.isVSCode) {
+    if (!isMobile) {
       return;
     }
 
@@ -687,7 +685,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [isMobile, runtimeCtx.isVSCode, settingsSlug]);
+  }, [isMobile, settingsSlug]);
 
   const handleOpenPageSidebar = React.useCallback(() => {
     setMobileStage('page-sidebar');
@@ -738,27 +736,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
         {/* Footer */}
         <div className="overflow-hidden transition-opacity duration-150 opacity-100">
           <div className="border-t border-border bg-sidebar px-2 py-1 space-y-0.5">
-            {!runtimeCtx.isVSCode && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      'flex h-7 w-full items-center gap-2 rounded-md px-2 overflow-hidden whitespace-nowrap',
-                      'text-sm font-semibold text-sidebar-foreground/90',
-                      'hover:text-sidebar-foreground hover:bg-interactive-hover',
-                    )}
-                    onClick={() => void reloadAxCodeConfiguration({ message: 'Restarting ax-code…', mode: 'projects', scopes: ['all'] })}
-                  >
-                    <Icon name="restart" className="h-4 w-4 shrink-0" />
-                    <span>{t('settings.view.actions.reloadAxCode')}</span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {t('settings.view.actions.reloadAxCodeTooltip')}
-                </TooltipContent>
-              </Tooltip>
-            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    'flex h-7 w-full items-center gap-2 rounded-md px-2 overflow-hidden whitespace-nowrap',
+                    'text-sm font-semibold text-sidebar-foreground/90',
+                    'hover:text-sidebar-foreground hover:bg-interactive-hover',
+                  )}
+                  onClick={() => void reloadAxCodeConfiguration({ message: 'Restarting ax-code…', mode: 'projects', scopes: ['all'] })}
+                >
+                  <Icon name="restart" className="h-4 w-4 shrink-0" />
+                  <span>{t('settings.view.actions.reloadAxCode')}</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t('settings.view.actions.reloadAxCodeTooltip')}
+              </TooltipContent>
+            </Tooltip>
 
           </div>
         </div>
@@ -769,7 +765,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
   const renderMobileStage = () => {
     if (mobileStage === 'nav') {
       return (
-        <div className={cn('flex-1 min-h-0 overflow-hidden', runtimeCtx.isVSCode ? 'bg-background' : 'bg-sidebar')}>
+        <div className="flex-1 min-h-0 overflow-hidden bg-sidebar">
           <div className="flex h-full min-h-0 flex-col">
             <ErrorBoundary>{renderSettingsNav()}</ErrorBoundary>
           </div>
@@ -792,7 +788,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
         );
       }
       return (
-        <div className={cn('flex-1 min-h-0 overflow-hidden', runtimeCtx.isVSCode ? 'bg-background' : 'bg-sidebar')}>
+        <div className="flex-1 min-h-0 overflow-hidden bg-sidebar">
           <ErrorBoundary>
             {renderPageSidebar(settingsSlug, { onItemSelect: handleMobilePageSidebarItemSelect })}
           </ErrorBoundary>
@@ -818,7 +814,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
     if (activePageMeta.kind === 'split') {
       return (
         <div className="flex h-full min-h-0 overflow-hidden">
-          <div className={cn('w-[264px] min-w-[264px] border-r', runtimeCtx.isVSCode ? 'bg-background' : 'bg-sidebar')} style={{ borderColor: 'var(--interactive-border)' }}>
+          <div className="w-[264px] min-w-[264px] border-r bg-sidebar" style={{ borderColor: 'var(--interactive-border)' }}>
             <ErrorBoundary>{renderPageSidebar(settingsSlug, {})}</ErrorBoundary>
           </div>
           <div className="flex-1 min-h-0 overflow-hidden bg-background">
@@ -922,11 +918,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
             <div
               className={cn(
                 'relative flex h-full min-h-0 flex-col overflow-hidden border-r',
-                isDesktopApp
-                  ? 'bg-sidebar'
-                  : runtimeCtx.isVSCode
-                    ? 'bg-background'
-                    : 'bg-sidebar',
+                'bg-sidebar',
                 isResizing ? '' : 'transition-[width,min-width] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]'
               )}
               style={{

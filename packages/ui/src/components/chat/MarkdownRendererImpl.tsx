@@ -27,7 +27,6 @@ import { useDeviceInfo } from '@/lib/device';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import type { EditorAPI } from '@/lib/api/types';
-import { isVSCodeRuntime } from '@/lib/desktop';
 
 const useCurrentMermaidTheme = () => {
   const themeSystem = useOptionalThemeSystem();
@@ -716,7 +715,6 @@ const normalizeCodeBlockText = (code: string, language: string): string => {
 
 const CODE_HIGHLIGHT_SETTLE_MS = 300;
 const CODE_HIGHLIGHT_LINE_LIMIT = 1200;
-const VSCODE_CODE_HIGHLIGHT_LINE_LIMIT = 200;
 const CODE_SHARED_STYLE: React.CSSProperties = {
   margin: 0,
   background: 'transparent',
@@ -738,9 +736,7 @@ const exceedsLineLimit = (value: string, limit: number): boolean => {
   return false;
 };
 
-const getCodeHighlightLineLimit = (): number => (
-  isVSCodeRuntime() ? VSCODE_CODE_HIGHLIGHT_LINE_LIMIT : CODE_HIGHLIGHT_LINE_LIMIT
-);
+const getCodeHighlightLineLimit = (): number => CODE_HIGHLIGHT_LINE_LIMIT;
 
 const downloadTextFile = (content: string, filename: string, mimeType: string) => {
   if (typeof window === 'undefined') {
@@ -1045,20 +1041,14 @@ const MERMAID_BLOCK_SELECTOR = '[data-markdown="mermaid-block"]';
 const FILE_LINK_SELECTOR = '[data-openchamber-file-link="true"]';
 const FILE_REFERENCE_STAT_CONCURRENCY = 4;
 const FILE_REFERENCE_STAT_CACHE_MAX = 1000;
-const VSCODE_FILE_REFERENCE_STAT_CACHE_MAX = 200;
 const FILE_REFERENCE_LINK_LIMIT = 200;
-const VSCODE_FILE_REFERENCE_LINK_LIMIT = 40;
 const FILE_REFERENCE_STAT_CACHE = new Map<string, Promise<boolean>>();
 let activeFileReferenceStatCount = 0;
 const pendingFileReferenceStats: Array<() => void> = [];
 
-const getFileReferenceStatCacheMax = (): number => (
-  isVSCodeRuntime() ? VSCODE_FILE_REFERENCE_STAT_CACHE_MAX : FILE_REFERENCE_STAT_CACHE_MAX
-);
+const getFileReferenceStatCacheMax = (): number => FILE_REFERENCE_STAT_CACHE_MAX;
 
-const getFileReferenceLinkLimit = (): number => (
-  isVSCodeRuntime() ? VSCODE_FILE_REFERENCE_LINK_LIMIT : FILE_REFERENCE_LINK_LIMIT
-);
+const getFileReferenceLinkLimit = (): number => FILE_REFERENCE_LINK_LIMIT;
 
 type ParsedFileReference = {
   path: string;

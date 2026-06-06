@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { getSafeStorage } from './utils/safeStorage';
-import { isVSCodeRuntime } from '@/lib/desktop';
 
 // --- Types ---
 
@@ -54,24 +53,8 @@ let persistCollapsedTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingFoldersMap: SessionFoldersMap | null = null;
 let pendingCollapsedIds: Set<string> | null = null;
 
-const isVSCodeWebview = (): boolean => {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  if (isVSCodeRuntime()) {
-    return true;
-  }
-
-  return (window as { __VSCODE_CONFIG__?: unknown }).__VSCODE_CONFIG__ !== undefined;
-};
-
 const schedulePersistToDisk = (foldersMap: SessionFoldersMap, collapsedFolderIds: Set<string>): void => {
   if (typeof window === 'undefined') {
-    return;
-  }
-
-  if (isVSCodeWebview()) {
     return;
   }
 
@@ -491,11 +474,6 @@ export const useSessionFoldersStore = create<SessionFoldersStore>()(
 
 const hydrateSessionFoldersFromDisk = async (): Promise<void> => {
   if (diskHydrated || diskHydrationInFlight || typeof window === 'undefined') {
-    return;
-  }
-
-  if (isVSCodeWebview()) {
-    diskHydrated = true;
     return;
   }
 

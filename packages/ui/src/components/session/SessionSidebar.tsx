@@ -15,7 +15,6 @@ import { useProjectsStore } from '@/stores/useProjectsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { getSafeStorage } from '@/stores/utils/safeStorage';
 import { useGitStore, useGitAllBranches, useGitRepoStatusMap } from '@/stores/useGitStore';
-import { isVSCodeRuntime } from '@/lib/desktop';
 import { NewWorktreeDialog } from './NewWorktreeDialog';
 import { ScheduledTasksDialog } from './ScheduledTasksDialog';
 import { useSessionFoldersStore } from '@/stores/useSessionFoldersStore';
@@ -443,7 +442,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
 
   const isDesktopShellRuntime = React.useMemo(() => isDesktopShell(), []);
 
-  const isVSCode = React.useMemo(() => isVSCodeRuntime(), []);
   const { isTablet } = useDeviceInfo();
   const alwaysShowSidebarActions = mobileVariant || isTablet;
 
@@ -456,11 +454,9 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     worktreeMetadata,
     pinnedSessionIds,
     gitBranches,
-    isVSCode,
   });
 
   const { scheduleCollapsedProjectsPersist } = useSidebarPersistence({
-    isVSCode,
     hasLoadedGlobalSessions,
     safeStorage,
     keys: {
@@ -700,12 +696,10 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       try {
         safeStorage.setItem(PROJECT_COLLAPSE_STORAGE_KEY, JSON.stringify(Array.from(allIds)));
       } catch { /* ignored */ }
-      if (!isVSCode) {
-        scheduleCollapsedProjectsPersist(allIds);
-      }
+      scheduleCollapsedProjectsPersist(allIds);
       return allIds;
     });
-  }, [projects, isVSCode, safeStorage, scheduleCollapsedProjectsPersist]);
+  }, [projects, safeStorage, scheduleCollapsedProjectsPersist]);
 
   const expandAllProjects = React.useCallback(() => {
     ignoreIntersectionUntil.current = Date.now() + 150;
@@ -714,12 +708,10 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       try {
         safeStorage.setItem(PROJECT_COLLAPSE_STORAGE_KEY, JSON.stringify([]));
       } catch { /* ignored */ }
-      if (!isVSCode) {
-        scheduleCollapsedProjectsPersist(empty);
-      }
+      scheduleCollapsedProjectsPersist(empty);
       return empty;
     });
-  }, [isVSCode, safeStorage, scheduleCollapsedProjectsPersist]);
+  }, [safeStorage, scheduleCollapsedProjectsPersist]);
 
   const toggleProject = React.useCallback((projectId: string) => {
     // Ignore intersection events for a short period after toggling
@@ -736,12 +728,10 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       } catch { /* ignored */ }
 
       // Persist collapse state to server settings (web + desktop local/remote).
-      if (!isVSCode) {
-        scheduleCollapsedProjectsPersist(next);
-      }
+      scheduleCollapsedProjectsPersist(next);
       return next;
     });
-  }, [isVSCode, safeStorage, scheduleCollapsedProjectsPersist]);
+  }, [safeStorage, scheduleCollapsedProjectsPersist]);
 
   const normalizedProjects = React.useMemo(() => {
     return projects
@@ -787,13 +777,11 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     sessions,
     archivedSessions,
     normalizedProjects,
-    isVSCode,
     availableWorktreesByProject,
     cleanupSessions,
   });
 
   const { getSessionsForProject, getArchivedSessionsForProject } = useProjectSessionLists({
-    isVSCode,
     sessions,
     archivedSessions,
     availableWorktreesByProject,
@@ -804,7 +792,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     sessions,
     archivedSessions,
     availableWorktreesByProject,
-    isVSCode,
     isSessionsLoading,
     foldersMap,
     createFolder,
@@ -1010,7 +997,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   });
 
   const sectionsForSidebarRender = React.useMemo(() => {
-    if (isVSCode || hasSessionSearchQuery || recentSessionIds.size === 0) {
+    if (hasSessionSearchQuery || recentSessionIds.size === 0) {
       return sectionsForRender;
     }
 
@@ -1041,7 +1028,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         sessions: filterNodes(group.sessions),
       })),
     }));
-  }, [isVSCode, hasSessionSearchQuery, recentSessionIds, sectionsForRender]);
+  }, [hasSessionSearchQuery, recentSessionIds, sectionsForRender]);
 
   const prLookupKeys = React.useMemo(() => {
     const keys = new Set<string>();
@@ -1355,7 +1342,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     ],
   );
 
-  const topContent = showRecentSection && !isVSCode && !hasSessionSearchQuery ? (
+  const topContent = showRecentSection && !hasSessionSearchQuery ? (
     <SidebarActivitySections
       sections={activitySections}
       renderSessionNode={renderSessionNode}
@@ -1550,9 +1537,9 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         mobileVariant ? '' : 'bg-transparent',
       )}
     >
-      <SidebarHeader
+        <SidebarHeader
         hideDirectoryControls={hideDirectoryControls}
-        showRecentControls={!isVSCode}
+        showRecentControls
         handleOpenDirectoryDialog={handleOpenDirectoryDialog}
         openNewSessionDraft={handleOpenNewSessionDraftFromHeader}
         canOpenMultiRun={projects.length > 0}
@@ -1628,7 +1615,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         onOpenShortcuts={toggleHelpDialog}
         onOpenAbout={() => setAboutDialogOpen(true)}
         onOpenUpdate={handleOpenUpdateDialog}
-        showRuntimeButtons={!isVSCode}
+        showRuntimeButtons
         showUpdateButton={showSidebarUpdateButton}
       />
 

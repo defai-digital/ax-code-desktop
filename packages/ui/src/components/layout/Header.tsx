@@ -63,7 +63,7 @@ import { forceKillTerminal } from '@/lib/terminalApi';
 import { useTerminalStore } from '@/stores/useTerminalStore';
 import { ProjectActionsButton } from '@/components/layout/ProjectActionsButton';
 import { SessionSwitcherDropdown } from '@/components/session/SessionSwitcherDropdown';
-import { canUseElectronDesktopIPC, invokeDesktop, isDesktopShell, isVSCodeRuntime, startDesktopWindowDrag } from '@/lib/desktop';
+import { canUseElectronDesktopIPC, invokeDesktop, isDesktopShell, startDesktopWindowDrag } from '@/lib/desktop';
 import { desktopHostsGet, locationMatchesHost, redactSensitiveUrl } from '@/lib/desktopHosts';
 import { resolveSessionDiffStats } from '@/components/session/sidebar/utils';
 import { Icon } from "@/components/icon/Icon";
@@ -899,8 +899,7 @@ export const Header: React.FC<HeaderProps> = ({
     }
   }, [desktopServicesTab, isDesktopApp]);
 
-  const isVSCode = React.useMemo(() => isVSCodeRuntime(), []);
-  const showDesktopHeaderContextUsage = !isVSCode && activeMainTab === 'chat' && !!stableDesktopContextUsage && stableDesktopContextUsage.totalTokens > 0;
+  const showDesktopHeaderContextUsage = activeMainTab === 'chat' && !!stableDesktopContextUsage && stableDesktopContextUsage.totalTokens > 0;
   const desktopHeaderDisplayPercentage = stableDesktopContextUsage && stableDesktopContextUsage.contextLimit > 0
     ? Math.min(999, (stableDesktopContextUsage.totalTokens / stableDesktopContextUsage.contextLimit) * 100)
     : 0;
@@ -1569,7 +1568,7 @@ export const Header: React.FC<HeaderProps> = ({
   }, [isDesktopApp, isMacPlatform, macosMajorVersion]);
 
   const webWindowControlsOverlayStyle = React.useMemo<React.CSSProperties | undefined>(() => {
-    if ((isDesktopApp && !isWindowsElectronDesktop) || isVSCode) {
+    if (isDesktopApp && !isWindowsElectronDesktop) {
       return undefined;
     }
 
@@ -1581,7 +1580,7 @@ export const Header: React.FC<HeaderProps> = ({
       minHeight: 'max(3rem, var(--oc-wco-titlebar-height, 0px))',
       height: 'max(3rem, var(--oc-wco-titlebar-height, 0px))',
     };
-  }, [isDesktopApp, isTabletStandalonePwa, isVSCode, isWindowsElectronDesktop]);
+  }, [isDesktopApp, isTabletStandalonePwa, isWindowsElectronDesktop]);
 
   const updateHeaderHeight = React.useCallback(() => {
     if (typeof document === 'undefined') {
@@ -1706,10 +1705,9 @@ export const Header: React.FC<HeaderProps> = ({
   const showDevShutdown = React.useMemo(() => {
     if (typeof window === 'undefined') return false;
     if (isDesktopApp) return false;
-    if (isVSCode) return false;
     const host = window.location.hostname;
     return host === 'localhost' || host === '127.0.0.1' || host === '::1';
-  }, [isDesktopApp, isVSCode]);
+  }, [isDesktopApp]);
 
   const handleDevShutdown = React.useCallback(async () => {
     if (isDevShutdownInFlight) return;

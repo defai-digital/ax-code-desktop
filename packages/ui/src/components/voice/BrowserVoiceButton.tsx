@@ -14,7 +14,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useBrowserVoice } from '@/hooks/useBrowserVoice';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { browserVoiceService } from '@/lib/voice/browserVoiceService';
-import { isVSCodeRuntime } from '@/lib/desktop';
 import { Button } from '@/components/ui/button';
 import {
     Tooltip,
@@ -85,9 +84,8 @@ export function BrowserVoiceButton() {
     } = useBrowserVoice();
     
     const [isPressing, setIsPressing] = useState(false);
-    const isVSCode = isVSCodeRuntime();
-    const buttonSizeClass = isMobile ? 'h-8 w-8 min-h-[32px] min-w-[32px]' : (isVSCode ? 'h-5 w-5' : 'h-6 w-6');
-    const iconSizeClass = isMobile ? 'h-[18px] w-[18px]' : (isVSCode ? 'h-4 w-4' : 'h-[18px] w-[18px]');
+    const buttonSizeClass = isMobile ? 'h-8 w-8 min-h-[32px] min-w-[32px]' : 'h-6 w-6';
+    const iconSizeClass = 'h-[18px] w-[18px]';
     const continuousIconSizeClass = 'size-[18px]';
     const clearHoverBackgroundClass = 'bg-transparent hover:!bg-transparent active:!bg-transparent focus-visible:!bg-transparent';
     
@@ -360,7 +358,7 @@ export function BrowserVoiceButton() {
                             ) : (
                                 <VoiceStatusIndicator
                                     status={isError ? 'idle' : status}
-                                    size={isMobile || isVSCode ? 'sm' : 'md'}
+                                    size={isMobile ? 'sm' : 'md'}
                                 />
                             )}
                         </Button>

@@ -7,7 +7,7 @@ import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { useAssistantStatus } from '@/hooks/useAssistantStatus';
 import { createWorktreeSession } from '@/lib/worktreeSessionCreator';
 import { useConfigStore } from '@/stores/useConfigStore';
-import { canUseElectronDesktopIPC, invokeDesktop, isVSCodeRuntime } from '@/lib/desktop';
+import { canUseElectronDesktopIPC, invokeDesktop } from '@/lib/desktop';
 import { showAxCodeStatus } from '@/lib/axCodeStatus';
 import { eventMatchesShortcut, getEffectiveShortcutCombo, normalizeCombo } from '@/lib/shortcuts';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
@@ -150,7 +150,7 @@ export const useKeyboardShortcuts = () => {
         setActiveMainTab('chat');
         setSessionSwitcherOpen(false);
 
-        if (!isVSCodeRuntime() && matchedWorktreeShortcut) {
+        if (matchedWorktreeShortcut) {
           createWorktreeSession();
           return;
         }

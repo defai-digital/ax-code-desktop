@@ -207,8 +207,6 @@ export const invokeDesktop = async <T = unknown>(command: string, args?: Record<
   return tauri.core.invoke(command, args ?? {}) as Promise<T>;
 };
 
-export const isVSCodeRuntime = (): boolean => false;
-
 export type NativeFileSearchResult = {
   name: string;
   path: string;

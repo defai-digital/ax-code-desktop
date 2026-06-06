@@ -1,6 +1,5 @@
 import { useUIStore } from '@/stores/useUIStore';
 import { updateDesktopSettings } from '@/lib/persistence';
-import { isVSCodeRuntime } from '@/lib/desktop';
 
 type ModelRef = { providerID: string; modelID: string };
 
@@ -16,9 +15,6 @@ const refsEqual = (a: ModelRef[], b: ModelRef[]): boolean => {
 
 export const startModelPrefsAutoSave = () => {
   if (typeof window === 'undefined') {
-    return () => {};
-  }
-  if (isVSCodeRuntime()) {
     return () => {};
   }
 

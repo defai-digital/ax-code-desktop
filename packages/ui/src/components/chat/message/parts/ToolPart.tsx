@@ -17,7 +17,6 @@ import { getSyncChildStores } from '@/sync/sync-refs';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSessionActivity } from '@/hooks/useSessionActivity';
 import { axCodeClient } from '@/lib/ax-code/client';
-import { isVSCodeRuntime } from '@/lib/desktop';
 import { sessionEvents } from '@/lib/sessionEvents';
 import { ScrollShadow } from '@/components/ui/ScrollShadow';
 import { Text } from '@/components/ui/text';
@@ -169,9 +168,6 @@ const TASK_TOOL_POLL_HIDDEN_MS = 6000;
 const TASK_TOOL_INITIAL_FETCH_LIMIT = 500;
 const TASK_TOOL_ACTIVE_FETCH_LIMIT = 160;
 const TASK_TOOL_IDLE_FETCH_LIMIT = 80;
-const VSCODE_TASK_TOOL_INITIAL_FETCH_LIMIT = 30;
-const VSCODE_TASK_TOOL_ACTIVE_FETCH_LIMIT = 30;
-const VSCODE_TASK_TOOL_IDLE_FETCH_LIMIT = 30;
 const TASK_TOOL_NO_CHANGE_BACKOFF_AFTER_POLLS = 3;
 const TASK_TOOL_SETTLE_GRACE_MS = 2500;
 const TASK_TOOL_FALLBACK_RETRY_MS = 3000;
@@ -2175,7 +2171,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
                 const scopedClient = axCodeClient.getScopedSdkClient(currentDirectory);
                 const response = await scopedClient.session.messages({
                     sessionID: capturedSessionId,
-                    limit: isVSCodeRuntime() ? VSCODE_TASK_TOOL_INITIAL_FETCH_LIMIT : TASK_TOOL_INITIAL_FETCH_LIMIT,
+                    limit: TASK_TOOL_INITIAL_FETCH_LIMIT,
                 });
 
                 if (cancelled) {
@@ -2286,16 +2282,6 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
         };
 
         const resolveFetchLimit = (isInitialFetch: boolean) => {
-            if (isVSCodeRuntime()) {
-                if (isInitialFetch && childSessionTaskSummaryEntries.length === 0) {
-                    return VSCODE_TASK_TOOL_INITIAL_FETCH_LIMIT;
-                }
-                if (isActive || childSessionHasInFlightTools || childSessionActive) {
-                    return VSCODE_TASK_TOOL_ACTIVE_FETCH_LIMIT;
-                }
-                return VSCODE_TASK_TOOL_IDLE_FETCH_LIMIT;
-            }
-
             if (isInitialFetch && childSessionTaskSummaryEntries.length === 0) {
                 return TASK_TOOL_INITIAL_FETCH_LIMIT;
             }

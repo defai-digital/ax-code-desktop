@@ -2,7 +2,7 @@
  * Router module for URL-based navigation in OpenChamber.
  *
  * Provides bidirectional sync between URL query parameters and application state.
- * Works across web, desktop (Tauri), and VS Code (state-only mode).
+ * Works across web and desktop.
  *
  * URL Schema:
  * - `?session=<id>` - Navigate to specific session
@@ -17,7 +17,7 @@
  * - `/?tab=diff&file=src/main.ts` - Open diff view with file
  */
 
-export type { RouteState, RouterContext } from './types';
+export type { RouteState } from './types';
 export { VALID_TABS, VALID_SETTINGS_SECTIONS, ROUTE_PARAMS } from './types';
 
 export { parseRoute, hasRouteParams } from './parseRoute';

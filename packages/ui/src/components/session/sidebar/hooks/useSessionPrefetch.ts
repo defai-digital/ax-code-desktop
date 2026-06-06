@@ -2,7 +2,6 @@ import React from 'react';
 import type { Session } from '@ax-code/sdk/v2';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { getSyncSessionMaterializationStatus } from '@/sync/sync-refs';
-import { isVSCodeRuntime } from '@/lib/desktop';
 
 const SESSION_PREFETCH_HOVER_DELAY_MS = 180;
 const SESSION_PREFETCH_SETTLE_MS = 600;
@@ -20,10 +19,9 @@ export const useSessionPrefetch = ({ currentSessionId, sortedSessions, recentSes
   const sessionPrefetchTimersRef = React.useRef<Map<string, number>>(new Map());
   const sessionPrefetchQueueRef = React.useRef<string[]>([]);
   const sessionPrefetchInFlightRef = React.useRef<Set<string>>(new Set());
-  const prefetchDisabled = React.useMemo(() => isVSCodeRuntime(), []);
 
   const pumpSessionPrefetchQueue = React.useCallback(() => {
-    if (prefetchDisabled || typeof window === 'undefined') {
+    if (typeof window === 'undefined') {
       return;
     }
 
@@ -51,10 +49,10 @@ export const useSessionPrefetch = ({ currentSessionId, sortedSessions, recentSes
           pumpSessionPrefetchQueue();
         });
     }
-  }, [ensureSessionRenderable, prefetchDisabled]);
+  }, [ensureSessionRenderable]);
 
   const scheduleSessionPrefetch = React.useCallback((sessionId: string | null | undefined) => {
-    if (prefetchDisabled || !sessionId || sessionId === currentSessionId || typeof window === 'undefined') {
+    if (!sessionId || sessionId === currentSessionId || typeof window === 'undefined') {
       return;
     }
 
@@ -86,12 +84,12 @@ export const useSessionPrefetch = ({ currentSessionId, sortedSessions, recentSes
       pumpSessionPrefetchQueue();
     }, SESSION_PREFETCH_HOVER_DELAY_MS);
     sessionPrefetchTimersRef.current.set(sessionId, timer);
-  }, [currentSessionId, prefetchDisabled, pumpSessionPrefetchQueue]);
+  }, [currentSessionId, pumpSessionPrefetchQueue]);
 
   // Wait for the active session to finish loading before prefetching neighbors.
   // On rapid session switches the timer resets, so only the final session triggers prefetch.
   React.useEffect(() => {
-    if (prefetchDisabled || !currentSessionId || sortedSessions.length === 0) {
+    if (!currentSessionId || sortedSessions.length === 0) {
       return;
     }
     const timer = window.setTimeout(() => {
@@ -101,10 +99,10 @@ export const useSessionPrefetch = ({ currentSessionId, sortedSessions, recentSes
       scheduleSessionPrefetch(sortedSessions[currentIndex + 1]?.id);
     }, SESSION_PREFETCH_SETTLE_MS);
     return () => window.clearTimeout(timer);
-  }, [currentSessionId, prefetchDisabled, scheduleSessionPrefetch, sortedSessions]);
+  }, [currentSessionId, scheduleSessionPrefetch, sortedSessions]);
 
   React.useEffect(() => {
-    if (prefetchDisabled || !currentSessionId || recentSessionIds.length === 0) {
+    if (!currentSessionId || recentSessionIds.length === 0) {
       return;
     }
     const timer = window.setTimeout(() => {
@@ -114,7 +112,7 @@ export const useSessionPrefetch = ({ currentSessionId, sortedSessions, recentSes
       scheduleSessionPrefetch(recentSessionIds[currentIndex + 1]);
     }, SESSION_PREFETCH_SETTLE_MS);
     return () => window.clearTimeout(timer);
-  }, [currentSessionId, prefetchDisabled, recentSessionIds, scheduleSessionPrefetch]);
+  }, [currentSessionId, recentSessionIds, scheduleSessionPrefetch]);
 
   React.useEffect(() => {
     const prefetchTimers = sessionPrefetchTimersRef.current;

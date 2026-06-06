@@ -30,7 +30,6 @@ import { useProjectsStore } from '@/stores/useProjectsStore';
 import { TextSelectionMenu } from './TextSelectionMenu';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { useChatSurfaceMode } from '@/components/chat/useChatSurfaceMode';
-import { isVSCodeRuntime } from '@/lib/desktop';
 import { toPng } from 'html-to-image';
 import { toast } from '@/components/ui';
 import { Icon } from "@/components/icon/Icon";
@@ -157,7 +156,7 @@ const UserSubtaskPart: React.FC<{ part: SubtaskPartLike }> = ({ part }) => {
                         className="typography-meta text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
                         onClick={() => {
                             if (!effectiveDirectory) return;
-                            if (isMobile || isVSCodeRuntime()) {
+                            if (isMobile) {
                                 setCurrentSession(taskSessionID, effectiveDirectory);
                                 return;
                             }
@@ -1000,13 +999,12 @@ const AssistantMessageBody = React.memo(({
     const suggestedPlanTitle = React.useMemo(() => suggestPlanTitleFromText(assistantPlanText), [assistantPlanText]);
 
     const openContextPreview = useUIStore((state) => state.openContextPreview);
-    const isVSCode = isVSCodeRuntime();
     const isMiniChatSurface = chatSurfaceMode === 'mini-chat';
-    const canUseProjectPlanActions = !isVSCode && !isMiniChatSurface && !isMobile;
-    const canShowMultiRunAction = !isVSCode && !isMiniChatSurface && !isMobile;
+    const canUseProjectPlanActions = !isMiniChatSurface && !isMobile;
+    const canShowMultiRunAction = !isMiniChatSurface && !isMobile;
 
     const messagePreviewUrl = React.useMemo(() => {
-        if (isVSCode || isMobile || isMiniChatSurface) {
+        if (isMobile || isMiniChatSurface) {
             return null;
         }
 
@@ -1035,7 +1033,7 @@ const AssistantMessageBody = React.memo(({
             return url.includes('0.0.0.0') ? url.replace('0.0.0.0', '127.0.0.1') : url;
         }
         return null;
-    }, [assistantTextParts, isMobile, isMiniChatSurface, isVSCode, toolParts]);
+    }, [assistantTextParts, isMobile, isMiniChatSurface, toolParts]);
 
     const createSessionFromAssistantMessage = useSessionUIStore((state) => state.createSessionFromAssistantMessage);
     const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
@@ -1742,7 +1740,7 @@ const AssistantMessageBody = React.memo(({
     }, [messageCompletedAt, messageCreatedAt, timeFormatPreference]);
 
     const footerTimestampClassName = 'text-sm text-muted-foreground/60 tabular-nums flex items-center gap-1';
-    const canOpenMessagePreview = !isMiniChatSurface && !isMobile && !isVSCode;
+    const canOpenMessagePreview = !isMiniChatSurface && !isMobile;
 
     const finalTurnActionButtons = (
         <>

@@ -29,16 +29,6 @@ export const FONT_SIZE_SCALES = {
 
 export type FontSizeOption = keyof typeof FONT_SIZE_SCALES;
 
-export const VSCODE_TYPOGRAPHY = {
-  // Keep VS Code webview typography slightly tighter; VS Code UI chrome already provides density.
-  markdown: '0.9063rem',
-  code: '0.8750rem',
-  uiHeader: '0.9063rem',
-  uiLabel: '0.8438rem',
-  meta: '0.8438rem',
-  micro: '0.7813rem',
-} as const;
-
 export const SEMANTIC_TYPOGRAPHY_CSS = {
   '--text-markdown': SEMANTIC_TYPOGRAPHY.markdown,
   '--text-code': SEMANTIC_TYPOGRAPHY.code,

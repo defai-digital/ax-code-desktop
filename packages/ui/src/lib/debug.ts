@@ -24,7 +24,6 @@ type DebugGlobals = {
   __OPENCHAMBER_RUNTIME_APIS__?: {
     runtime?: {
       platform?: unknown;
-      isVSCode?: unknown;
     };
   };
   __TAURI__?: unknown;
@@ -372,7 +371,6 @@ export const debugUtils = {
       runtime: {
         platform: runtimeApis?.runtime?.platform ?? null,
         isDesktop: isTauriShell,
-        isVSCode: Boolean(runtimeApis?.runtime?.isVSCode),
         hasRuntimeApis: Boolean(runtimeApis),
         desktopServerOrigin: null,
       },

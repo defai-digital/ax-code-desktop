@@ -62,31 +62,10 @@ export const AgentManagerEmptyState: React.FC<AgentManagerEmptyStateProps> = ({
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory ?? null);
   const { isGitRepository, isLoading: isLoadingBranches } = useBranchOptions(currentDirectory);
   
-  const vscodeWorkspaceFolder = React.useMemo(() => {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-    const folder = (window as unknown as { __VSCODE_CONFIG__?: { workspaceFolder?: unknown } }).__VSCODE_CONFIG__?.workspaceFolder;
-    return typeof folder === 'string' && folder.trim().length > 0 ? folder.trim() : null;
-  }, []);
-
-  const isVSCodeRuntime = React.useMemo(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-    const apis = (window as unknown as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } }).__OPENCHAMBER_RUNTIME_APIS__;
-    return Boolean(apis?.runtime?.isVSCode);
-  }, []);
-
   // Get project directory for setup commands
   const activeProjectId = useProjectsStore((state) => state.activeProjectId);
   const projects = useProjectsStore((state) => state.projects);
   const projectRef = React.useMemo<ProjectRef | null>(() => {
-    // VS Code panel should always use the current workspace root.
-    if (isVSCodeRuntime && vscodeWorkspaceFolder) {
-      return { id: `vscode:${vscodeWorkspaceFolder}`, path: vscodeWorkspaceFolder };
-    }
-
     if (activeProjectId) {
       const project = projects.find((p) => p.id === activeProjectId);
       if (project?.path) {
@@ -99,7 +78,7 @@ export const AgentManagerEmptyState: React.FC<AgentManagerEmptyStateProps> = ({
     }
 
     return null;
-  }, [activeProjectId, projects, currentDirectory, vscodeWorkspaceFolder, isVSCodeRuntime]);
+  }, [activeProjectId, projects, currentDirectory]);
 
   // Load setup commands from config
   React.useEffect(() => {
