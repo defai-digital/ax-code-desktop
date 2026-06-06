@@ -69,8 +69,6 @@ type SettingsDetailHistoryEntry = {
 
 interface SettingsViewProps {
   onClose?: () => void;
-  /** Force mobile layout regardless of device detection */
-  forceMobile?: boolean;
   /** Rendered inside a window/dialog (skip traffic light padding) */
   isWindowed?: boolean;
 }
@@ -276,10 +274,10 @@ const SettingsHome: React.FC<{ onOpen: (slug: SettingsPageSlug) => void }> = ({ 
   );
 };
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile, isWindowed }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed }) => {
   const { t } = useI18n();
   const deviceInfo = useDeviceInfo();
-  const isMobile = forceMobile ?? deviceInfo.isMobile;
+  const isMobile = deviceInfo.isMobile;
 
   const settingsPageRaw = useUIStore((state) => state.settingsPage);
   const isSettingsDialogOpen = useUIStore((state) => state.isSettingsDialogOpen);
