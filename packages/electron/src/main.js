@@ -5,6 +5,10 @@ const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const os = require('os')
 
+// Override the package name so macOS menus show "AX Code Desktop" instead
+// of the scoped npm package name "@ax-code/electron".
+app.name = 'AX Code Desktop'
+
 // ── Resource paths ──────────────────────────────────────────────────────────
 // In production (packaged), extraResources land at process.resourcesPath/web-dist.
 // In development, point at the Vite build output directly.
