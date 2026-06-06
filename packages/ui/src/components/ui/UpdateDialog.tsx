@@ -26,7 +26,7 @@ interface UpdateDialogProps {
   onDownload: () => void;
   onRestart: () => void;
   /** Runtime type to show different UI for desktop vs web */
-  runtimeType?: 'desktop' | 'web' | 'vscode' | null;
+  runtimeType?: 'desktop' | 'web' | null;
 }
 
 const GITHUB_RELEASES_URL = 'https://github.com/defai-digital/ax-code-app/releases';

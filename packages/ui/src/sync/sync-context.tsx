@@ -1477,8 +1477,8 @@ export function SyncProvider(props: {
             }),
           })
 
-          // VS Code race: if sessions are still empty after bootstrap, AX Code
-          // wasn't ready yet (bridge returned 503). Retry a few times.
+          // Startup race: if sessions are still empty after bootstrap, AX Code
+          // may not be ready yet. Retry a few times before giving up.
           const state = store.getState()
           if (state.session.length === 0 && attempt < 5) {
             console.warn(`[bootstrap] sessions empty for ${directory} after attempt ${attempt + 1}; retrying in 2s`)

@@ -124,7 +124,7 @@ interface StatusRowProps {
   wasAborted?: boolean;
   abortActive?: boolean;
   retryInfo?: { attempt?: number; next?: number } | null;
-  // Abort state (for mobile/vscode)
+  // Abort state for compact layouts.
   showAbort?: boolean;
   onAbort?: () => void;
   // Abort status display
@@ -238,7 +238,7 @@ export const StatusRow: React.FC<StatusRowProps> = ({
     left: statusSummary.left,
   });
 
-  // Abort button for mobile/vscode
+  // Abort button for compact layouts.
   const abortButton = showAbort && onAbort ? (
     <button
       type="button"

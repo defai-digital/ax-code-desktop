@@ -54,7 +54,7 @@ export const PendingChangesBar: React.FC = React.memo(() => {
 
     // Mirror the onGitRefreshHint listener that lives in DiffView/GitView so the
     // bar refreshes after mutating tools (edit/write/apply_patch/bash/...) even
-    // when neither of those views is open — e.g. VS Code runtime.
+    // when neither of those views is open.
     React.useEffect(() => {
         if (!currentDirectory || !runtime?.git) return;
         const git = runtime.git;

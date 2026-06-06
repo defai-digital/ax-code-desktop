@@ -15,8 +15,6 @@ AX Code App server process and forwards requests to a **loopback** target
 | ------------------------------------------------------------------------ | ------------ |
 | Web UI in browser, AX Code App server on same host as dev server         | yes          |
 | Electron desktop, dev server on same host                                | yes          |
-| VS Code extension, dev server on same host                               | yes          |
-| Mobile/tablet hitting AX Code App over LAN, dev server on host           | yes          |
 | **Remote AX Code App** (cloud / shared / tunneled), dev server on user's local machine | **no**       |
 
 The blocked case is real: a user runs `openchamber serve` on a remote box (or a
