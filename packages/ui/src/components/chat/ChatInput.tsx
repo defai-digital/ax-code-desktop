@@ -15,7 +15,7 @@ import { useInlineCommentDraftStore, type InlineCommentDraft } from '@/stores/us
 import { useSnippetsStore } from '@/stores/useSnippetsStore';
 import { appendInlineComments } from '@/lib/messages/inlineComments';
 import { renderMagicPrompt } from '@/lib/magicPrompts';
-import { AttachedFilesList, AttachedVSCodeFileChips, ActiveEditorFileSuggestion } from './FileAttachment';
+import { AttachedFilesList } from './FileAttachment';
 import ToolOutputDialog from './message/ToolOutputDialog';
 import type { ToolPopupContent } from './message/types';
 import { QueuedMessageChips } from './QueuedMessageChips';
@@ -37,7 +37,7 @@ import { useCurrentSessionActivity } from '@/hooks/useSessionActivity';
 import { toast } from '@/components/ui';
 import { Button } from '@/components/ui/button';
 // useMessageStore removed — messages now come from sync system
-import { isTauriShell, isVSCodeRuntime } from '@/lib/desktop';
+import { isTauriShell } from '@/lib/desktop';
 import { isIMECompositionEvent } from '@/lib/ime';
 import { StopIcon } from '@/components/icons/StopIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -98,15 +98,6 @@ const PASTE_LINK_URL_PATTERN = /^(https?:\/\/|mailto:)\S+$/i;
 const INLINE_SKILL_TOKEN_PATTERN = /(^|\s)\/([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)/g;
 const CHAT_DRAFT_PERSIST_DEBOUNCE_MS = 500;
 const COMPACT_CHAT_PLACEHOLDER_MAX_WIDTH = 560;
-const VS_CODE_DROP_DATA_TYPES = [
-    'CodeFiles',
-    'codefiles',
-    'application/vnd.code.tree',
-    'application/vnd.code.tree.explorer',
-    'text/uri-list',
-    'text/plain',
-];
-
 const renameFileForAttachmentCitation = (file: File, filename: string): File => {
     if (file.name === filename) {
         return file;
@@ -209,93 +200,6 @@ const toServerFileUrl = (filepath: string): string => {
         return normalized;
     }
     return `file://${encodeFilePath(normalized)}`;
-};
-
-const isLikelyAbsolutePath = (value: string): boolean => (
-    value.startsWith('/')
-    || value.startsWith('\\\\')
-    || /^[A-Za-z]:[\\/]/.test(value)
-);
-
-const toLikelyFileDropReference = (value: string): string | null => {
-    const trimmed = value.trim().replace(/^['"]+|['"]+$/g, '');
-    if (!trimmed) {
-        return null;
-    }
-
-    if (/[\r\n]/.test(trimmed)) {
-        return null;
-    }
-
-    if (trimmed.toLowerCase().startsWith(FILE_URI_PREFIX)) {
-        return trimmed;
-    }
-
-    if (isLikelyAbsolutePath(trimmed)) {
-        return trimmed;
-    }
-
-    return null;
-};
-
-const collectStringLeaves = (input: unknown, output: Set<string>, depth = 0): void => {
-    if (depth > 6 || input == null) {
-        return;
-    }
-
-    if (typeof input === 'string') {
-        output.add(input);
-        return;
-    }
-
-    if (Array.isArray(input)) {
-        for (const item of input) {
-            collectStringLeaves(item, output, depth + 1);
-        }
-        return;
-    }
-
-    if (typeof input !== 'object') {
-        return;
-    }
-
-    for (const value of Object.values(input)) {
-        collectStringLeaves(value, output, depth + 1);
-    }
-};
-
-const parseDroppedFileReferences = (rawPayload: string): string[] => {
-    const extracted = new Set<string>();
-
-    const addCandidatesFromText = (value: string): void => {
-        const direct = toLikelyFileDropReference(value);
-        if (direct) {
-            extracted.add(direct);
-            return;
-        }
-
-        for (const line of value.split(/\r?\n/)) {
-            const candidate = toLikelyFileDropReference(line);
-            if (candidate) {
-                extracted.add(candidate);
-            }
-        }
-    };
-
-    addCandidatesFromText(rawPayload);
-
-    try {
-        const parsed = JSON.parse(rawPayload) as unknown;
-        const leaves = new Set<string>();
-        collectStringLeaves(parsed, leaves);
-        for (const leaf of leaves) {
-            addCandidatesFromText(leaf);
-        }
-    } catch {
-        // Ignore non-JSON payloads.
-    }
-
-    return Array.from(extracted);
 };
 
 const normalizePath = (value?: string | null): string | null => {
@@ -487,7 +391,6 @@ const RevertedMessageDock: React.FC<RevertedMessageDockProps> = React.memo(({ se
 RevertedMessageDock.displayName = 'RevertedMessageDock';
 
 type ComposerAttachmentControlsProps = {
-    isVSCode: boolean;
     footerIconButtonClass: string;
     iconSizeClass: string;
     fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -501,7 +404,6 @@ type ComposerAttachmentControlsProps = {
 const ComposerAttachmentControls = React.memo(function ComposerAttachmentControls(props: ComposerAttachmentControlsProps) {
     const { t } = useI18n();
     const {
-        isVSCode,
         footerIconButtonClass,
         iconSizeClass,
         fileInputRef,
@@ -524,56 +426,44 @@ const ComposerAttachmentControls = React.memo(function ComposerAttachmentControl
             />
 
             <div className="relative inline-flex">
-                {isVSCode ? (
-                    <button
-                        type="button"
-                        className={footerIconButtonClass}
-                        onClick={handlePickLocalFiles}
-                        title={t('chat.chatInput.actions.attachFiles')}
-                        aria-label={t('chat.chatInput.actions.attachFiles')}
-                    >
-                        <Icon name="attachment-2" className={cn(iconSizeClass, 'text-current')} />
-                    </button>
-                ) : (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                className={footerIconButtonClass}
-                                title={t('chat.chatInput.actions.addAttachment')}
-                                aria-label={t('chat.chatInput.actions.addAttachment')}
-                            >
-                                <Icon name="add-circle" className={cn(iconSizeClass, 'text-current')} />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                            <DropdownMenuItem
-                                onSelect={() => {
-                                    requestAnimationFrame(handlePickLocalFiles);
-                                }}
-                            >
-                                <Icon name="attachment-2"/>
-                                {t('chat.chatInput.actions.attachFiles')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                                onSelect={() => {
-                                    requestAnimationFrame(openIssuePicker);
-                                }}
-                            >
-                                <Icon name="github"/>
-                                {t('chat.chatInput.actions.linkGithubIssue')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                                onSelect={() => {
-                                    requestAnimationFrame(openPrPicker);
-                                }}
-                            >
-                                <Icon name="git-pull-request"/>
-                                {t('chat.chatInput.actions.linkGithubPr')}
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button
+                            type="button"
+                            className={footerIconButtonClass}
+                            title={t('chat.chatInput.actions.addAttachment')}
+                            aria-label={t('chat.chatInput.actions.addAttachment')}
+                        >
+                            <Icon name="add-circle" className={cn(iconSizeClass, 'text-current')} />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        <DropdownMenuItem
+                            onSelect={() => {
+                                requestAnimationFrame(handlePickLocalFiles);
+                            }}
+                        >
+                            <Icon name="attachment-2"/>
+                            {t('chat.chatInput.actions.attachFiles')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onSelect={() => {
+                                requestAnimationFrame(openIssuePicker);
+                            }}
+                        >
+                            <Icon name="github"/>
+                            {t('chat.chatInput.actions.linkGithubIssue')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onSelect={() => {
+                                requestAnimationFrame(openPrPicker);
+                            }}
+                        >
+                            <Icon name="git-pull-request"/>
+                            {t('chat.chatInput.actions.linkGithubPr')}
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
 
             {onOpenSettings ? (
@@ -590,8 +480,7 @@ const ComposerAttachmentControls = React.memo(function ComposerAttachmentControl
         </div>
     );
 }, (prev, next) => (
-    prev.isVSCode === next.isVSCode
-    && prev.footerIconButtonClass === next.footerIconButtonClass
+    prev.footerIconButtonClass === next.footerIconButtonClass
     && prev.iconSizeClass === next.iconSizeClass
     && prev.onOpenSettings === next.onOpenSettings
 ));
@@ -967,9 +856,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const previousMessageLengthRef = React.useRef(message.length);
     const dropZoneRef = React.useRef<HTMLDivElement>(null);
     const dragEnterCountRef = React.useRef(0);
-    const suppressNextFileDropTextInsertRef = React.useRef(false);
-    const suppressNextFileDropTextInsertTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-    const pendingDroppedAbsolutePathsRef = React.useRef<string[]>([]);
     const canAcceptDropRef = React.useRef(false);
     const nativeDragInsideDropZoneRef = React.useRef(false);
     const mentionRef = React.useRef<FileMentionHandle>(null);
@@ -1006,7 +892,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const saveSessionAgentSelection = useSelectionStore((s) => s.saveSessionAgentSelection);
     const consumePendingInputText = useInputStore((s) => s.consumePendingInputText);
     const pendingPresetSubmit = useInputStore((s) => s.pendingPresetSubmit);
-    const setPendingInputText = useInputStore((s) => s.setPendingInputText);
     const pendingInputText = useInputStore((s) => s.pendingInputText);
     const consumePendingSyntheticParts = useInputStore((s) => s.consumePendingSyntheticParts);
     const acknowledgeSessionAbort = useSessionUIStore((s) => s.acknowledgeSessionAbort);
@@ -2759,49 +2644,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         updateAutocompleteState(nextValue, cursorPosition);
     }, [adjustTextareaHeight, message, updateAutocompleteState]);
 
-    const clearDropTextSuppression = React.useCallback(() => {
-        suppressNextFileDropTextInsertRef.current = false;
-        pendingDroppedAbsolutePathsRef.current = [];
-        if (suppressNextFileDropTextInsertTimeoutRef.current) {
-            clearTimeout(suppressNextFileDropTextInsertTimeoutRef.current);
-            suppressNextFileDropTextInsertTimeoutRef.current = null;
-        }
-    }, []);
-
-    const scheduleDropTextSuppressionExpiry = React.useCallback(() => {
-        if (suppressNextFileDropTextInsertTimeoutRef.current) {
-            clearTimeout(suppressNextFileDropTextInsertTimeoutRef.current);
-        }
-        suppressNextFileDropTextInsertTimeoutRef.current = setTimeout(() => {
-            clearDropTextSuppression();
-        }, 700);
-    }, [clearDropTextSuppression]);
-
-    const handleBeforeInput = React.useCallback((e: React.FormEvent<HTMLTextAreaElement>) => {
-        if (!isVSCodeRuntime() || !suppressNextFileDropTextInsertRef.current) {
-            return;
-        }
-
-        const nativeInputEvent = e.nativeEvent as InputEvent | undefined;
-        if (nativeInputEvent?.inputType === 'insertFromDrop') {
-            e.preventDefault();
-            clearDropTextSuppression();
-        }
-    }, [clearDropTextSuppression]);
-
     const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const nativeInputEvent = e.nativeEvent as InputEvent | undefined;
-        if (isVSCodeRuntime() && suppressNextFileDropTextInsertRef.current) {
-            const candidateAbsolutePaths = pendingDroppedAbsolutePathsRef.current;
-            const isLikelyDropTextInsertion = nativeInputEvent?.inputType === 'insertFromDrop'
-                || candidateAbsolutePaths.some((path) => path.length > 0 && e.target.value.includes(path));
-
-            if (isLikelyDropTextInsertion) {
-                clearDropTextSuppression();
-                return;
-            }
-        }
-
         const value = e.target.value;
         const cursorPosition = e.target.selectionStart ?? value.length;
 
@@ -2827,12 +2670,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         adjustTextareaHeight();
         updateAutocompleteState(value, cursorPosition);
     };
-
-    React.useEffect(() => {
-        return () => {
-            clearDropTextSuppression();
-        };
-    }, [clearDropTextSuppression]);
 
     const handlePaste = React.useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
         // Pasting a URL over a selection wraps it as a markdown link:
@@ -3140,22 +2977,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             const types = Array.from(dataTransfer.types);
             const lowerTypes = types.map((type) => type.toLowerCase());
             if (lowerTypes.includes('files')) return true;
-            if (lowerTypes.includes('text/uri-list')) return true;
-            if (lowerTypes.includes('codefiles')) return true;
             if (lowerTypes.includes('application/x-openchamber-file-path')) return true;
-            if (lowerTypes.some((type) => type.includes('vnd.code.tree'))) return true;
-        }
-
-        for (const dataType of VS_CODE_DROP_DATA_TYPES) {
-            let payload = '';
-            try {
-                payload = dataTransfer.getData(dataType);
-            } catch {
-                continue;
-            }
-            if (payload && parseDroppedFileReferences(payload).length > 0) {
-                return true;
-            }
         }
 
         return false;
@@ -3175,30 +2997,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             .filter((file): file is File => Boolean(file));
 
         return fromItems;
-    }, []);
-
-    const collectDroppedFileUris = React.useCallback((dataTransfer: DataTransfer | null | undefined): string[] => {
-        if (!dataTransfer || typeof dataTransfer.getData !== 'function') return [];
-
-        const extracted = new Set<string>();
-
-        for (const dataType of VS_CODE_DROP_DATA_TYPES) {
-            let rawPayload = '';
-            try {
-                rawPayload = dataTransfer.getData(dataType);
-            } catch {
-                continue;
-            }
-            if (!rawPayload) {
-                continue;
-            }
-
-            for (const candidate of parseDroppedFileReferences(rawPayload)) {
-                extracted.add(candidate);
-            }
-        }
-
-        return Array.from(extracted);
     }, []);
 
     const normalizeDroppedPath = React.useCallback((rawPath: string): string => {
@@ -3239,29 +3037,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         return normalizedAbsolutePath;
     }, [chatSearchDirectory]);
 
-    const addVSCodeDroppedUrisAsMentions = React.useCallback((uris: string[]) => {
-        if (uris.length === 0) return;
-
-        const paths = uris
-            .map((entry) => normalizeDroppedPath(entry))
-            .map((entry) => toProjectRelativeMentionPath(entry))
-            .map((entry) => entry.trim().replace(/^\.\//, ''))
-            .filter((entry) => entry.length > 0);
-
-        for (const p of paths) {
-            confirmedMentionsRef.current.add(p);
-        }
-
-        const mentions = Array.from(new Set(paths.map((entry) => `@${entry}`)));
-
-        if (mentions.length === 0) {
-            return;
-        }
-
-        setPendingInputText(mentions.join(' '), 'append-inline');
-        toast.success(t('chat.chatInput.toast.addedFileMentions', { count: mentions.length }));
-    }, [normalizeDroppedPath, setPendingInputText, t, toProjectRelativeMentionPath]);
-
     const handleDragEnter = (e: React.DragEvent) => {
         if (!hasDraggedFiles(e.dataTransfer)) {
             return;
@@ -3298,7 +3073,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             dragEnterCountRef.current = 0;
             setIsDragging(false);
             setIsInternalDrag(false);
-            clearDropTextSuppression();
         }
     };
 
@@ -3306,14 +3080,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         dragEnterCountRef.current = 0;
         setIsDragging(false);
         setIsInternalDrag(false);
-        clearDropTextSuppression();
     };
 
     const handleDrop = async (e: React.DragEvent) => {
         dragEnterCountRef.current = 0;
         const draggedFiles = hasDraggedFiles(e.dataTransfer);
         if (!draggedFiles) {
-            clearDropTextSuppression();
             return;
         }
         e.preventDefault();
@@ -3349,25 +3121,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             } else {
                 setMessage((prev) => appendInlineText(prev, mention));
             }
-            clearDropTextSuppression();
             return;
         }
 
         const files = collectDroppedFiles(e.dataTransfer);
-
-        if (files.length === 0 && isVSCodeRuntime()) {
-            const droppedUris = collectDroppedFileUris(e.dataTransfer);
-            if (droppedUris.length > 0) {
-                pendingDroppedAbsolutePathsRef.current = droppedUris
-                    .map((entry) => normalizeDroppedPath(entry))
-                    .map((entry) => entry.trim())
-                    .filter((entry) => entry.length > 0);
-                addVSCodeDroppedUrisAsMentions(droppedUris);
-            } else {
-                clearDropTextSuppression();
-            }
-            return;
-        }
 
         if (files.length > 0) {
             for (const file of files) {
@@ -3379,19 +3136,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                 }
             }
         }
-        clearDropTextSuppression();
     };
 
     const handleDropCapture = (e: React.DragEvent) => {
         if (!hasDraggedFiles(e.dataTransfer)) {
             return;
         }
-        // Prevent native textarea drop text insertion for all runtimes
         e.preventDefault();
-        if (isVSCodeRuntime()) {
-            suppressNextFileDropTextInsertRef.current = true;
-            scheduleDropTextSuppressionExpiry();
-        }
     };
 
     // Tauri desktop: handle native file drops via onDragDropEvent
@@ -3524,57 +3275,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         }
     }, [addAttachedFile, t]);
 
-    const handleVSCodePickFiles = React.useCallback(async () => {
-        try {
-            const response = await fetch('/api/vscode/pick-files');
-            const data = await response.json();
-            const picked = Array.isArray(data?.files) ? data.files : [];
-            const skipped = Array.isArray(data?.skipped) ? data.skipped : [];
-
-            if (skipped.length > 0) {
-                const summary = skipped
-                    .map((s: { name?: string; reason?: string }) => `${s?.name || 'file'}: ${s?.reason || 'skipped'}`)
-                    .join('\n');
-                toast.error(t('chat.chatInput.toast.someFilesSkipped', { summary }));
-            }
-
-            const asFiles = picked
-                .map((file: { name: string; mimeType?: string; dataUrl?: string }) => {
-                    if (!file?.dataUrl) return null;
-                    try {
-                        const [meta, base64] = file.dataUrl.split(',');
-                        const mime = file.mimeType || (meta?.match(/data:(.*);base64/)?.[1] || 'application/octet-stream');
-                        if (!base64) return null;
-                        const binary = atob(base64);
-                        const bytes = new Uint8Array(binary.length);
-                        for (let i = 0; i < binary.length; i++) {
-                            bytes[i] = binary.charCodeAt(i);
-                        }
-                        const blob = new Blob([bytes], { type: mime });
-                        return new File([blob], file.name || 'file', { type: mime });
-                    } catch (err) {
-                        console.error('Failed to decode VS Code picked file', err);
-                        return null;
-                    }
-                })
-                .filter(Boolean) as File[];
-
-            if (asFiles.length > 0) {
-                await attachFiles(asFiles);
-            }
-        } catch (error) {
-            console.error('VS Code file pick failed', error);
-            toast.error(error instanceof Error ? error.message : t('chat.chatInput.toast.vscodePickFailed'));
-        }
-    }, [attachFiles, t]);
-
     const handlePickLocalFiles = React.useCallback(() => {
-        if (isVSCodeRuntime()) {
-            void handleVSCodePickFiles();
-            return;
-        }
         fileInputRef.current?.click();
-    }, [handleVSCodePickFiles]);
+    }, []);
 
     const handleLocalFileSelect = React.useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
@@ -3584,8 +3287,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     }, [attachFiles]);
 
     const footerGapClass = 'gap-x-1.5 gap-y-0';
-    const isVSCode = isVSCodeRuntime();
-    const showDraftTargetSelectors = newSessionDraftOpen && !isVSCode;
+    const showDraftTargetSelectors = newSessionDraftOpen;
 
     const selectedDraftProject = React.useMemo(() => {
         const explicit = newSessionDraft?.selectedProjectId
@@ -3872,11 +3574,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         });
     }, [draftBranchItems, newSessionDraft?.bootstrapPendingDirectory, newSessionDraft?.pendingWorktreeRequestId, newSessionDraft?.preserveDirectoryOverride, selectedDraftDirectory, selectedDraftProject, setNewSessionDraftTarget, showDraftTargetSelectors]);
 
-    const footerPaddingClass = isMobile ? 'px-1.5 py-1.5' : (isVSCode ? 'px-1.5 py-1' : 'px-2.5 py-1.5');
-    const buttonSizeClass = isMobile ? 'h-8 w-8' : (isVSCode ? 'h-5 w-5' : 'h-6 w-6');
-    const sendIconSizeClass = isMobile ? 'h-4 w-4' : (isVSCode ? 'h-3.5 w-3.5' : 'h-4 w-4');
-    const stopIconSizeClass = isMobile ? 'h-6 w-6' : (isVSCode ? 'h-4 w-4' : 'h-5 w-5');
-    const iconSizeClass = isMobile ? 'h-[18px] w-[18px]' : (isVSCode ? 'h-4 w-4' : 'h-[18px] w-[18px]');
+    const footerPaddingClass = isMobile ? 'px-1.5 py-1.5' : 'px-2.5 py-1.5';
+    const buttonSizeClass = isMobile ? 'h-8 w-8' : 'h-6 w-6';
+    const sendIconSizeClass = 'h-4 w-4';
+    const stopIconSizeClass = isMobile ? 'h-6 w-6' : 'h-5 w-5';
+    const iconSizeClass = isMobile ? 'h-[18px] w-[18px]' : 'h-[18px] w-[18px]';
 
     const iconButtonBaseClass = 'flex cursor-pointer items-center justify-center text-foreground transition-none outline-none focus:outline-none flex-shrink-0 disabled:cursor-not-allowed';
     const footerIconButtonClass = cn(iconButtonBaseClass, buttonSizeClass);
@@ -3937,7 +3639,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             )}
             style={isMobile && inputBarOffset > 0 ? { marginBottom: `${inputBarOffset}px` } : undefined}
         >
-            {newSessionDraftOpen && !isDesktopExpanded && !isMobile && !isVSCode && !isMiniChatSurface ? (
+            {newSessionDraftOpen && !isDesktopExpanded && !isMobile && !isMiniChatSurface ? (
                 <div className="chat-input-column mb-7 text-center">
                     <h1 className="text-balance text-2xl font-normal tracking-tight text-foreground md:text-3xl">
                         {renderDraftTitle(
@@ -4034,7 +3736,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                 )}
 
                 {/* Linked Issue row */}
-                {linkedIssue && !isVSCode && (
+                {linkedIssue && (
                     <div className="pb-2 w-full px-1">
                         <div className="flex w-full items-center gap-1.5 text-sm h-5 px-1">
                             <button
@@ -4084,7 +3786,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                         </div>
                     </div>
                 )}
-                {linkedPr && !isVSCode && (
+                {linkedPr && (
                     <div className="pb-2 w-full px-1">
                         <div className="flex w-full items-center gap-1.5 text-sm h-5 px-1">
                             <button
@@ -4343,10 +4045,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                         />
                     )}
                     <div className={cn("overflow-hidden", isDesktopExpanded && 'flex flex-1 min-h-0 flex-col')}>
-                        <div className="flex items-center gap-1 px-3 pt-1 flex-wrap relative z-10">
-                            <AttachedVSCodeFileChips onShowPopup={handleShowAttachmentPreview} />
-                            <ActiveEditorFileSuggestion />
-                        </div>
                         <div className={cn("relative overflow-hidden", isDesktopExpanded && 'flex flex-1 min-h-0 flex-col')}>
                             {highlightedComposerContent && (
                                 <div
@@ -4378,7 +4076,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                 data-chat-input="true"
                                 value={message}
                                 onChange={handleTextChange}
-                                onBeforeInput={handleBeforeInput}
                                 onKeyDown={handleKeyDown}
                                 onPaste={handlePaste}
                                 onDragEnter={handleDragEnter}
@@ -4449,7 +4146,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                 <div className="flex w-full items-center justify-between gap-x-1.5">
                                     <div className="flex items-center gap-x-1.5">
                                         <ComposerAttachmentControls
-                                            isVSCode={isVSCode}
                                             footerIconButtonClass={footerIconButtonClass}
                                             iconSizeClass={iconSizeClass}
                                             fileInputRef={fileInputRef}
@@ -4505,7 +4201,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                             <>
                                 <div className={cn("flex items-center flex-shrink-0", footerGapClass)}>
                                     <ComposerAttachmentControls
-                                        isVSCode={isVSCode}
                                         footerIconButtonClass={footerIconButtonClass}
                                         iconSizeClass={iconSizeClass}
                                         fileInputRef={fileInputRef}
@@ -4557,7 +4252,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                     {isMobile && <MobileSessionStatusBar />}
                 </div>
             </div>
-            {newSessionDraftOpen && !isDesktopExpanded && !isMobile && !isVSCode && !isMiniChatSurface ? (
+            {newSessionDraftOpen && !isDesktopExpanded && !isMobile && !isMiniChatSurface ? (
                 <DraftPresetChips onSubmit={submitPresetPrompt} className="chat-input-column mt-4" />
             ) : null}
         </form>

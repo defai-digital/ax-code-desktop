@@ -1332,32 +1332,12 @@ const AssistantMessageBody = React.memo(({
 
                 const fileName = `message-${messageId}.png`;
 
-                if (isVSCodeRuntime()) {
-                    const response = await fetch('/api/vscode/save-image', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ fileName, dataUrl }),
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to save image in VS Code');
-                    }
-
-                    const payload = await response.json() as { saved?: boolean; canceled?: boolean; error?: string };
-                    if (payload.saved !== true) {
-                        if (payload.canceled) {
-                            return;
-                        }
-                        throw new Error(payload.error || 'Failed to save image in VS Code');
-                    }
-                } else {
-                    const link = document.createElement('a');
-                    link.download = fileName;
-                    link.href = dataUrl;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                }
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
 
                 toast.success(t('chat.messageBody.toast.imageSaved'));
             } catch (error) {
