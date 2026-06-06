@@ -1,177 +1,209 @@
 # AX Code App
 
-A rich GUI interface for [AX Code](https://ax-code.ai). Review diffs, manage agents, run dev servers, and keep the big picture while your AI codes.
+AX Code App is a desktop and web UI for [AX Code](https://github.com/defai-digital/ax-code). It gives AX Code users a full workspace interface for chat sessions, file review, diffs, Git operations, terminals, project notes, and multi-agent workflows.
 
-AX Code App is a fork of the open-source [OpenChamber](https://github.com/openchamber/openchamber) project, rebranded and tailored specifically for the AX Code CLI. It ships as a desktop app, a web server you can access from any browser, and a VS Code extension.
+The easiest way to use it is the desktop app from GitHub Releases.
 
----
+## Download
 
-## What's different from OpenChamber?
+Get the latest release from:
 
-| | AX Code App | OpenChamber |
-|---|---|---|
-| **Target CLI** | [AX Code](https://ax-code.ai) | Claude Code |
-| **Branding** | AX Code App / DEFAI Private Limited | OpenChamber |
-| **CLI command** | `ax-code-app` | `openchamber` |
-| **Config dir** | `~/.config/ax-code-app/` | `~/.config/openchamber/` |
-| **Env vars** | `AX_CODE_*` | `OPENCHAMBER_*` |
+https://github.com/defai-digital/ax-code-app/releases
 
-> `OPENCHAMBER_*` environment variables and the `openchamber` CLI alias are kept for backwards compatibility.
+### Which file should I use?
 
----
+| Platform | Recommended download | Use when |
+| --- | --- | --- |
+| macOS Apple Silicon | `.dmg` | Normal install. Open the DMG, drag AX Code Desktop to Applications, then launch it. |
+| macOS Apple Silicon | `.zip` | Alternative manual install or update artifact. Extract it, move the app to Applications, then launch it. |
+| Windows x64 | `.exe` installer | Normal install. Runs the setup wizard and creates Start Menu/Desktop shortcuts. |
+| Windows x64 | `.zip` portable build | No installer. Extract the whole folder and run `AX Code Desktop.exe` from the extracted folder. |
+| Linux | Web/PWA mode | There is no Linux desktop binary in this release line. Use the web server or Docker path. |
 
-## Quick Start
+macOS Intel/x64 is not supported. Use an Apple Silicon Mac for the desktop build.
 
-**Prerequisite:** [AX Code](https://github.com/defai-digital/ax-code) CLI installed.
+## Before You Start
 
-### Desktop (macOS)
-
-Download from [Releases](https://github.com/defai-digital/ax-code-app/releases).
-
-### VS Code Extension
-
-Search **AX Code App** in the Extensions panel.
-
-### Web / PWA
+Install and sign in to the AX Code CLI first:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/defai-digital/ax-code-app/main/scripts/install.sh | bash
+ax-code --version
+```
+
+If `ax-code` is not found, install AX Code before launching AX Code App. The desktop app manages the local UI runtime, but it still needs the AX Code CLI available for coding sessions.
+
+## Install On macOS
+
+1. Download the latest Apple Silicon `.dmg` from Releases.
+2. Open the DMG.
+3. Drag **AX Code Desktop** into **Applications**.
+4. Launch **AX Code Desktop** from Applications.
+5. Choose or add a project folder.
+
+If macOS shows a security warning, the build may be unsigned or not notarized. Use **Right click -> Open** on the app, or approve it in **System Settings -> Privacy & Security**. Signed and notarized releases open normally.
+
+## Install On Windows
+
+### Installer
+
+1. Download the latest `.exe` installer from Releases.
+2. Run the installer.
+3. Choose the install location if prompted.
+4. Start **AX Code Desktop** from the Start Menu or Desktop shortcut.
+
+### Portable ZIP
+
+1. Download the latest Windows `.zip` from Releases.
+2. Extract the entire ZIP folder.
+3. Run `AX Code Desktop.exe` inside the extracted folder.
+
+Do not run the executable directly from inside the ZIP viewer. Extract the ZIP first so the app can find its bundled resources.
+
+If Windows SmartScreen warns that the app is from an unknown publisher, the release may be unsigned. Click **More info -> Run anyway** only if you downloaded it from the official GitHub release page.
+
+## First Run
+
+On first launch:
+
+1. Confirm AX Code CLI is detected.
+2. Add a project folder.
+3. Start or select a chat session.
+4. Use the Git, Files, Diff, Terminal, and Plan views as needed.
+
+The app can run local AX Code sessions, connect to existing AX Code servers, and open focused mini-chat windows for active sessions.
+
+## Updates
+
+Desktop releases are published on GitHub. The release can include:
+
+- macOS `.dmg` and `.zip`
+- Windows installer `.exe`
+- Windows portable `.zip`
+- update manifests such as `latest-mac.yml` and `latest.yml`
+- the web package tarball
+
+When desktop auto-update metadata is available, the app can check GitHub releases for updates. If auto-update is not available in your environment, download the newest installer or archive manually from Releases.
+
+## Web / PWA Mode
+
+Use Web/PWA mode when you want browser access, Linux support, a remote host, or mobile access over a tunnel.
+
+From a development checkout:
+
+```bash
+bun install
+bun run build
+bun run --cwd packages/web start -- --ui-password your-password
+```
+
+Common options:
+
+```bash
+ax-code-app --port 8080
 ax-code-app --ui-password your-password
+AX_CODE_HOST=http://localhost:4095 AX_CODE_SKIP_START=true ax-code-app
 ```
 
-<details>
-<summary>More CLI options</summary>
-
-```bash
-ax-code-app --port 8080                  # Custom port
-ax-code-app startup enable               # Start at login as a native service
-ax-code-app tunnel start --provider cloudflare --mode quick --qr
-ax-code-app tunnel start --provider cloudflare --mode managed-remote --hostname app.example.com --token <token>
-ax-code-app logs                         # Follow latest instance logs
-ax-code-app stop                         # Stop server
-ax-code-app update                       # Update to latest
-
-# Connect to an existing AX Code server
-AX_CODE_PORT=4096 AX_CODE_SKIP_START=true ax-code-app
-AX_CODE_HOST=https://myhost:4096 AX_CODE_SKIP_START=true ax-code-app
-```
-
-</details>
-
-<details>
-<summary>Docker</summary>
+Docker is also supported:
 
 ```bash
 docker compose up -d
 ```
 
-Available at `http://localhost:3000`.
+The web UI is available at `http://localhost:3000` by default.
 
-```yaml
-environment:
-  UI_PASSWORD: your_secure_password
-  OPENCHAMBER_TUNNEL_MODE: quick          # quick | managed-remote | managed-local
-  OPENCHAMBER_TUNNEL_PROVIDER: cloudflare
-```
+## What You Can Do
 
-</details>
+### Chat and Sessions
 
-<details>
-<summary>systemd service (VPN / LAN access)</summary>
+- Run AX Code chat sessions in a full workspace UI.
+- Branch, fork, undo, and redo conversation turns.
+- Queue messages and keep long-running sessions visible.
+- Use plan/build workflows and project notes.
+- Open mini-chat windows for focused work.
 
-**`~/.config/systemd/user/ax-code.service`**
-```ini
-[Unit]
-Description=AX Code Server
+### Git and GitHub
 
-[Service]
-Type=simple
-ExecStart=ax-code serve --port 4095
-Environment="PATH=/usr/local/bin:/usr/bin:/bin"
-Restart=on-failure
-RestartSec=5
+- Stage files, commit, push, pull, merge, and rebase.
+- Review diffs with inline or stacked views.
+- Manage branches and worktrees.
+- Create pull requests with generated descriptions.
+- Recover from merge/rebase conflicts with guided UI state.
 
-[Install]
-WantedBy=default.target
-```
+### Files and Terminal
 
-**`~/.config/systemd/user/ax-code-app.service`**
-```ini
-[Unit]
-Description=AX Code App Web Server
-After=ax-code.service
+- Browse and edit workspace files.
+- Inspect large diffs without loading the whole workspace at once.
+- Run integrated terminal sessions by project directory.
+- Keep project actions and dev servers close to the chat context.
 
-[Service]
-Type=simple
-ExecStart=ax-code-app serve --port 3000 --host 0.0.0.0 --ui-password your-password --foreground
-Environment="AX_CODE_HOST=http://localhost:4095"
-Environment="AX_CODE_SKIP_START=true"
-Restart=on-failure
-RestartSec=5
+### Desktop
 
-[Install]
-WantedBy=default.target
-```
+- Native desktop shell for macOS Apple Silicon and Windows x64.
+- Multi-window workflows.
+- Deep links and desktop menu actions.
+- Local runtime management for the web UI.
+
+### Web and Mobile
+
+- Browser access to the same UI.
+- PWA install support.
+- Mobile-friendly chat controls.
+- Cloudflare tunnel support for remote access.
+
+## Security Notes
+
+Only download desktop builds from the official Releases page:
+
+https://github.com/defai-digital/ax-code-app/releases
+
+Unsigned builds can still run, but macOS Gatekeeper or Windows SmartScreen may warn before launch. Code signing improves trust prompts, but the app can still be distributed as DMG, installer, and ZIP without certificates.
+
+For remote or shared access, always set a UI password and avoid exposing the app publicly without a reverse proxy or tunnel configuration you control.
+
+## Platform Support
+
+| Platform | Desktop support | Notes |
+| --- | --- | --- |
+| macOS Apple Silicon | Supported | DMG and ZIP release artifacts. |
+| macOS Intel/x64 | Not supported | No desktop artifact is built. |
+| Windows x64 | Supported | Installer and portable ZIP release artifacts. |
+| Linux | Web/PWA only | Use the web server or Docker. |
+
+## Development
+
+Requirements:
+
+- Bun 1.3.x
+- Node.js 20+
+- AX Code CLI
+
+Useful commands:
 
 ```bash
-systemctl --user daemon-reload
-systemctl --user enable --now ax-code ax-code-app
+bun install
+bun run type-check
+bun run lint
+bun run test
+bun run electron:dev
+bun run electron:build
 ```
 
-</details>
+Package layout:
 
----
+| Package | Purpose |
+| --- | --- |
+| `packages/ui` | Shared React UI, stores, hooks, and components |
+| `packages/web` | Web app, Express server, and CLI entrypoints |
+| `packages/electron` | Current desktop shell |
+| `packages/desktop` | Legacy Tauri shell, maintenance only |
+| `packages/docs` | Documentation source |
 
-## Features
+## OpenChamber Compatibility
 
-### Chat & Interaction
+AX Code App is based on the open-source [OpenChamber](https://github.com/openchamber/openchamber) project and is tailored for AX Code.
 
-- Branchable chat timeline with `/undo`, `/redo`, and one-click forks from any turn
-- Multi-agent runs from one prompt with isolated worktrees for safe side-by-side comparisons
-- Voice mode with speech input and read-aloud responses
-- Plan/Build mode with a dedicated plan view for drafting and iterating steps
-- Inline comment drafts on diffs, files, and plans
-- Token usage, cost breakdowns, and raw message inspection
-
-### Git & GitHub
-
-- Full Git sidebar: staging, commits, push/pull, branch management, rebase/merge
-- PR creation with AI-generated descriptions, status checks, and merge actions
-- Start sessions from GitHub issues and pull requests with context attached
-- Worktree integration with isolated sessions per branch
-
-### Files, Diff & Terminal
-
-- Workspace file browser with inline editing and syntax highlighting
-- Diff viewer with stacked/inline modes and lazy loading for large changesets
-- Integrated terminal with per-directory sessions and tabbed interface
-
-### Web / PWA
-
-- Cloudflare tunnel with quick, managed-remote, and managed-local modes
-- QR code onboarding for mobile devices
-- Mobile-optimized chat controls and keyboard-safe layouts
-- Installable as a PWA
-
-### Desktop (macOS)
-
-- Connect to remote AX Code App instances over SSH
-- Multi-window support for parallel project workflows
-- Native macOS menu and deep-link handling
-
-### VS Code Extension
-
-- Open files from tool output, keep sessions beside your code
-- Agent Manager for parallel multi-model runs
-- Right-click actions: add context, explain selections, improve code in-place
-
-### Customization
-
-- 18+ built-in themes with light/dark variants
-- Custom themes via JSON in `~/.config/openchamber/themes/`
-- Configurable keyboard shortcuts, font size, spacing, and layout
-
----
+Some internal package names, storage keys, environment variables, and config paths still use `openchamber` for compatibility with existing data and upstream code. New user-facing releases are branded as **AX Code App** / **AX Code Desktop**.
 
 ## Contributing
 
