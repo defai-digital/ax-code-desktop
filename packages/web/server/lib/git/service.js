@@ -999,9 +999,18 @@ const resolveBranchForExistingMode = async (primaryWorktree, existingBranch, pre
 
   const remoteExists = await runGitCommand(primaryWorktree, ['show-ref', '--verify', '--quiet', remoteRef.fullRef]);
   if (!remoteExists.success) {
-    await fetchRemoteBranchRef(primaryWorktree, remoteRef.remote, remoteRef.branch).catch(() => undefined);
+    // Best-effort fetch of the ref; remember the failure so a fetch error
+    // (network/auth/unreachable remote) isn't masked as "branch not found".
+    let fetchError = null;
+    await fetchRemoteBranchRef(primaryWorktree, remoteRef.remote, remoteRef.branch).catch((error) => {
+      fetchError = error;
+    });
     const recheck = await runGitCommand(primaryWorktree, ['show-ref', '--verify', '--quiet', remoteRef.fullRef]);
     if (!recheck.success) {
+      if (fetchError) {
+        const detail = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        throw new Error(`Failed to fetch remote branch "${requested}": ${detail}`);
+      }
       throw new Error(`Remote branch not found: ${requested}`);
     }
   }
