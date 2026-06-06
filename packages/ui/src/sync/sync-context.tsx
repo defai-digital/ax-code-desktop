@@ -7,7 +7,6 @@ import { useStore } from "zustand"
 import type { AxCodeClient } from "@ax-code/sdk/v2/client"
 import { Binary } from "./binary"
 import { createEventPipeline } from "./event-pipeline"
-import { isVSCodeRuntime } from "@/lib/desktop"
 import { isMobileSurfaceRuntime } from "@/lib/runtimeSurface"
 import { reduceGlobalEvent, applyGlobalProject, applyDirectoryEvent } from "./event-reducer"
 import { useGlobalSyncStore, type GlobalSyncStore } from "./global-sync-store"
@@ -423,15 +422,6 @@ type EventRoutingIndex = {
   sessionDirectoryById: Map<string, string>
   messageSessionById: Map<string, string>
   sessionMessageIdsById: Map<string, Set<string>>
-}
-
-const SHOULD_DISPATCH_VSCODE_NOTIFICATIONS = isVSCodeRuntime()
-
-const dispatchVSCodeRuntimeNotificationEvent = (directory: string, payload: Event) => {
-  if (!SHOULD_DISPATCH_VSCODE_NOTIFICATIONS || typeof window === "undefined") return
-  window.dispatchEvent(new CustomEvent("openchamber:vscode-notification-event", {
-    detail: { directory, payload },
-  }))
 }
 
 const createEventRoutingIndex = (): EventRoutingIndex => ({
@@ -1537,7 +1527,6 @@ export function SyncProvider(props: {
         return resolveDirectoryFromRoutingIndex(routingIndex, directory, payload, childStores)
       },
       onEvent: (directory, payload) => {
-        dispatchVSCodeRuntimeNotificationEvent(directory, payload)
         if (payload.type === "installation.update-available") {
           const version = typeof (payload.properties as { version?: unknown })?.version === "string"
             ? (payload.properties as { version: string }).version
@@ -2021,8 +2010,6 @@ type SessionMessageRecordsSnapshot = {
 }
 
 const SESSION_MESSAGE_RECORDS_CACHE_MAX = 40
-const VSCODE_SESSION_MESSAGE_RECORDS_CACHE_MAX = 4
-const VSCODE_SESSION_MESSAGE_RECORDS_CACHE_MAX_MESSAGES = 30
 const MOBILE_SESSION_MESSAGE_RECORDS_CACHE_MAX = 4
 const MOBILE_SESSION_MESSAGE_RECORDS_CACHE_MAX_MESSAGES = 30
 const sessionMessageRecordsCache = new WeakMap<StoreApi<DirectoryStore>, Map<string, SessionMessageRecordsSnapshot>>()
@@ -2062,22 +2049,18 @@ const rememberSessionMessageRecordsSnapshot = (
   if (!snapshot.sessionID) return
   const cache = getSessionMessageRecordsCache(store)
   const key = getSessionMessageRecordsCacheKey(snapshot.sessionID, snapshot.suspendPartUpdates)
-  const constrainedMaxMessages = isVSCodeRuntime()
-    ? VSCODE_SESSION_MESSAGE_RECORDS_CACHE_MAX_MESSAGES
-    : isMobileSurfaceRuntime()
-      ? MOBILE_SESSION_MESSAGE_RECORDS_CACHE_MAX_MESSAGES
-      : null
+  const constrainedMaxMessages = isMobileSurfaceRuntime()
+    ? MOBILE_SESSION_MESSAGE_RECORDS_CACHE_MAX_MESSAGES
+    : null
   if (constrainedMaxMessages !== null && snapshot.list.length > constrainedMaxMessages) {
     cache.delete(key)
     return
   }
   cache.delete(key)
   cache.set(key, snapshot)
-  const max = isVSCodeRuntime()
-    ? VSCODE_SESSION_MESSAGE_RECORDS_CACHE_MAX
-    : isMobileSurfaceRuntime()
-      ? MOBILE_SESSION_MESSAGE_RECORDS_CACHE_MAX
-      : SESSION_MESSAGE_RECORDS_CACHE_MAX
+  const max = isMobileSurfaceRuntime()
+    ? MOBILE_SESSION_MESSAGE_RECORDS_CACHE_MAX
+    : SESSION_MESSAGE_RECORDS_CACHE_MAX
   while (cache.size > max) {
     const oldest = cache.keys().next().value
     if (typeof oldest !== "string") break

@@ -12,7 +12,6 @@ import {
 import { dropCachedSessionMessageRecordsSnapshots, useDirectoryStore, useSyncSDK, useSyncDirectory, useChildStoreManager } from "./sync-context"
 import { dropSessionCaches, getProtectedSessionCacheIds } from "./session-cache"
 import { stripMessageDiffSnapshots } from "./sanitize"
-import { isVSCodeRuntime } from "@/lib/desktop"
 import { isMobileSurfaceRuntime } from "@/lib/runtimeSurface"
 import {
   shouldSkipSessionPrefetch,
@@ -24,12 +23,10 @@ import { getSessionMaterializationStatus, materializeSessionSnapshots } from "./
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const INITIAL_MESSAGE_PAGE_SIZE = 150
-const VSCODE_INITIAL_MESSAGE_PAGE_SIZE = 30
 const MOBILE_INITIAL_MESSAGE_PAGE_SIZE = 30
 const HISTORY_MESSAGE_PAGE_SIZE = 200
-const VSCODE_INITIAL_PAGE_EXPANSION_LIMITS = [50, 80, 120] as const
+const CONSTRAINED_INITIAL_PAGE_EXPANSION_LIMITS = [50, 80, 120] as const
 const MAX_SEEN_DIRS = 30
-const VSCODE_SESSION_CACHE_LIMIT = 4
 const MOBILE_SESSION_CACHE_LIMIT = 4
 
 // Shared across useSync() instances so cache eviction is based on app-level
@@ -47,15 +44,13 @@ type SyncMeta = {
   loading: boolean
 }
 
-const isConstrainedSessionRuntime = () => isVSCodeRuntime() || isMobileSurfaceRuntime()
-const getConstrainedInitialPageExpansionMax = () => VSCODE_INITIAL_PAGE_EXPANSION_LIMITS[VSCODE_INITIAL_PAGE_EXPANSION_LIMITS.length - 1]
+const isConstrainedSessionRuntime = () => isMobileSurfaceRuntime()
+const getConstrainedInitialPageExpansionMax = () => CONSTRAINED_INITIAL_PAGE_EXPANSION_LIMITS[CONSTRAINED_INITIAL_PAGE_EXPANSION_LIMITS.length - 1]
 const getEffectiveSessionCacheLimit = () => {
-  if (isVSCodeRuntime()) return VSCODE_SESSION_CACHE_LIMIT
   if (isMobileSurfaceRuntime()) return MOBILE_SESSION_CACHE_LIMIT
   return SESSION_CACHE_LIMIT
 }
 const getInitialMessagePageSize = () => {
-  if (isVSCodeRuntime()) return VSCODE_INITIAL_MESSAGE_PAGE_SIZE
   if (isMobileSurfaceRuntime()) return MOBILE_INITIAL_MESSAGE_PAGE_SIZE
   return INITIAL_MESSAGE_PAGE_SIZE
 }
@@ -291,13 +286,13 @@ export function useSync() {
         const limit = options?.before ? HISTORY_MESSAGE_PAGE_SIZE : m.limit
         let page = await fetchMessages(sessionID, limit, options?.before)
 
-        // Constrained shells keep the initial page small for switch performance. Some
-        // sessions have a very large final turn, so the latest 30 records can
+        // Constrained mobile surfaces keep the initial page small for switch performance.
+        // Some sessions have a very large final turn, so the latest 30 records can
         // contain only assistant/tool records and no user boundary. That makes
         // turn projection render an empty chat until the user manually loads
         // older messages. Expand only this initial tail fetch, with a hard cap.
         if (!options?.before && isConstrainedSessionRuntime() && !page.complete && !hasUserMessage(page.session)) {
-          for (const nextLimit of VSCODE_INITIAL_PAGE_EXPANSION_LIMITS) {
+          for (const nextLimit of CONSTRAINED_INITIAL_PAGE_EXPANSION_LIMITS) {
             if (nextLimit <= limit) continue
             page = await fetchMessages(sessionID, nextLimit)
             if (page.complete || hasUserMessage(page.session)) break

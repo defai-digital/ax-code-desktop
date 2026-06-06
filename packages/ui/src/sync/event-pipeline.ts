@@ -33,10 +33,10 @@ const WS_FALLBACK_WINDOW_MS = 60_000
 const DEFAULT_WS_READY_TIMEOUT_MS = 2_000
 // Retry pacing. Visible+online tabs probe quickly so the user sees connection
 // recovery in under a second of real outage; hidden/offline tabs back off
-// further so a backgrounded PWA on a flaky link doesn't burn battery probing
-// a dead network every few seconds. The browser would throttle hidden-tab
-// timers anyway, but this keeps the intent explicit and shrinks server load
-// from idle tabs.
+// further so a backgrounded browser tab on a flaky link doesn't burn battery
+// probing a dead network every few seconds. The browser would throttle
+// hidden-tab timers anyway, but this keeps the intent explicit and shrinks
+// server load from idle tabs.
 const RETRY_BACKOFF_BASE_MS = 250
 const RETRY_BACKOFF_CAP_VISIBLE_MS = 5_000
 const RETRY_BACKOFF_CAP_HIDDEN_OR_OFFLINE_MS = 60_000
@@ -782,8 +782,8 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
           // Exponential backoff so a hard-down server / dead network doesn't
           // spin the event loop. Caps lower (5s) when the user is foreground
           // and the browser thinks it's online; caps higher (60s) when hidden
-          // or offline so a backgrounded PWA on a flaky link doesn't burn
-          // battery. waitForRetry below resolves early on `online` or
+          // or offline so a backgrounded browser tab on a flaky link doesn't
+          // burn battery. waitForRetry below resolves early on `online` or
           // visibility-visible so recovery is still under a second.
           //
           // Override for permanent 4xx errors: stuck-path / bad-auth scenarios
