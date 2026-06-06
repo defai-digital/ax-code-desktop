@@ -2,7 +2,6 @@ import { Button } from '@/components/ui/button';
 import { CommitInput } from './CommitInput';
 import { AIHighlightsBox } from './AIHighlightsBox';
 import { useDeviceInfo } from '@/lib/device';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icon } from "@/components/icon/Icon";
 import { useI18n } from '@/lib/i18n';
 import type { CommitAction } from './types';
@@ -16,7 +15,6 @@ interface CommitSectionProps {
   onGenerateMessage: () => void;
   isGeneratingMessage: boolean;
   onCommit: () => void;
-  onCommitAndPush: () => void;
   commitAction: CommitAction;
   hasPendingIndexMutation?: boolean;
   gitmojiEnabled: boolean;
@@ -32,7 +30,6 @@ export const CommitSection: React.FC<CommitSectionProps> = ({
   onGenerateMessage,
   isGeneratingMessage,
   onCommit,
-  onCommitAndPush,
   commitAction,
   hasPendingIndexMutation = false,
   gitmojiEnabled,
@@ -132,50 +129,6 @@ export const CommitSection: React.FC<CommitSectionProps> = ({
             )}
           </Button>
 
-          {isMobile ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => onCommitAndPush()}
-                  disabled={!canCommit || isGeneratingMessage}
-                  className="h-7 w-7 p-0"
-                  aria-label={t('gitView.commit.pushAria')}
-                >
-                  {commitAction === 'commitAndPush' ? (
-                    <Icon name="loader-4" className="size-4 animate-spin" />
-                  ) : (
-                    <Icon name="arrow-up" className="size-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{t('gitView.commit.push')}</p>
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={() => onCommitAndPush()}
-              disabled={!canCommit || isGeneratingMessage}
-              className="commit-actions__btn"
-              aria-label={t('gitView.commit.pushAria')}
-            >
-              {commitAction === 'commitAndPush' ? (
-                <>
-                  <Icon name="loader-4" className="size-4 animate-spin" />
-                  <span className="commit-actions__label commit-actions__label--push">{t('gitView.commit.pushing')}</span>
-                </>
-              ) : (
-                <>
-                  <Icon name="arrow-up" className="size-3.5" />
-                  <span className="commit-actions__label commit-actions__label--push">{t('gitView.commit.push')}</span>
-                </>
-              )}
-            </Button>
-          )}
         </div>
       </div>
     </section>

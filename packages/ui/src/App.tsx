@@ -1,7 +1,6 @@
 import React from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { ChatView } from '@/components/views/ChatView';
-import { FireworksProvider } from '@/contexts/FireworksContext';
 import { Toaster } from '@/components/ui/sonner';
 import { Button } from '@/components/ui/button';
 import { MemoryDebugPanel } from '@/components/ui/MemoryDebugPanel';
@@ -866,35 +865,33 @@ function App({ apis }: AppProps) {
   }
 
   // Always mount the full provider tree to avoid remounts when isInitialized
-  // flips from false → true. FireworksProvider and VoiceProvider are lightweight
-  // shells; their heavy children are only activated when actually needed.
+  // flips from false → true. VoiceProvider is lightweight; its heavy children
+  // are only activated when actually needed.
   const isBootShell = !isInitialized && !isDesktopRuntime;
 
   return (
     <ErrorBoundary>
       <SyncProvider sdk={axCodeClient.getSdkClient()} directory={currentDirectory || ''}>
         <RuntimeAPIProvider apis={apis}>
-          <FireworksProvider>
-            <VoiceProvider>
-              <TooltipProvider delayDuration={300} skipDelayDuration={150}>
-                <div className={isDesktopRuntime ? 'h-full text-foreground bg-transparent' : 'h-full text-foreground bg-background'}>
-                  <SyncAppEffects embeddedBackgroundWorkEnabled={embeddedBackgroundWorkEnabled} />
-                  <AxCodeUpdateToast />
-                  <MainLayout />
-                  <Toaster />
-                  {!isBootShell && (
-                    <>
-                      <ConfigUpdateOverlay />
-                      <AboutDialogWrapper />
-                      {showMemoryDebug && (
-                        <MemoryDebugPanel onClose={() => setShowMemoryDebug(false)} />
-                      )}
-                    </>
-                  )}
-                </div>
-              </TooltipProvider>
-            </VoiceProvider>
-          </FireworksProvider>
+          <VoiceProvider>
+            <TooltipProvider delayDuration={300} skipDelayDuration={150}>
+              <div className={isDesktopRuntime ? 'h-full text-foreground bg-transparent' : 'h-full text-foreground bg-background'}>
+                <SyncAppEffects embeddedBackgroundWorkEnabled={embeddedBackgroundWorkEnabled} />
+                <AxCodeUpdateToast />
+                <MainLayout />
+                <Toaster />
+                {!isBootShell && (
+                  <>
+                    <ConfigUpdateOverlay />
+                    <AboutDialogWrapper />
+                    {showMemoryDebug && (
+                      <MemoryDebugPanel onClose={() => setShowMemoryDebug(false)} />
+                    )}
+                  </>
+                )}
+              </div>
+            </TooltipProvider>
+          </VoiceProvider>
         </RuntimeAPIProvider>
       </SyncProvider>
     </ErrorBoundary>

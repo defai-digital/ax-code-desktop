@@ -1,7 +1,6 @@
 import React from 'react';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useConfigStore } from '@/stores/useConfigStore';
-import { useFireworksCelebration } from '@/contexts/FireworksContext';
 import type { GitIdentityProfile, CommitFileEntry, GitStatus } from '@/lib/api/types';
 import { useGitIdentitiesStore } from '@/stores/useGitIdentitiesStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -543,7 +542,6 @@ export const GitView: React.FC = () => {
   const [commitAction, setCommitAction] = React.useState<CommitAction>(null);
   const [logMaxCountLocal, setLogMaxCountLocal] = React.useState<number>(25);
   const [isSettingIdentity, setIsSettingIdentity] = React.useState(false);
-  const { triggerFireworks } = useFireworksCelebration();
 
   const autoAppliedDefaultRef = React.useRef<Map<string, string>>(new Map());
   const identityApplyCountRef = React.useRef(0);
@@ -1108,7 +1106,7 @@ export const GitView: React.FC = () => {
     }
   }, [currentDirectory, git, refreshRemotes, refreshStatusAndBranches, t]);
 
-  const handleCommit = async (options: { pushAfter?: boolean } = {}) => {
+  const handleCommit = async () => {
     if (!currentDirectory) return;
     if (!commitMessage.trim()) {
       toast.error(t('gitView.toast.enterCommitMessage'));
@@ -1121,8 +1119,7 @@ export const GitView: React.FC = () => {
       return;
     }
 
-    const action: CommitAction = options.pushAfter ? 'commitAndPush' : 'commit';
-    setCommitAction(action);
+    setCommitAction('commit');
 
     try {
       await git.createGitCommit(currentDirectory, commitMessage.trim(), {
@@ -1136,14 +1133,7 @@ export const GitView: React.FC = () => {
 
       await refreshStatusAndBranches();
 
-      if (options.pushAfter) {
-        const result = await git.gitPush(currentDirectory);
-        toast.success(t('gitView.toast.pushedToUpstream', { name: getPushedRemoteName(result) }));
-        triggerFireworks();
-        await refreshStatusAndBranches(false);
-      } else {
-        await refreshStatusAndBranches(false);
-      }
+      await refreshStatusAndBranches(false);
 
       await refreshLog();
       setIntegrateRefreshKey((v) => v + 1);
@@ -1152,9 +1142,6 @@ export const GitView: React.FC = () => {
       toast.error(message);
     } finally {
       setCommitAction(null);
-      if (options.pushAfter) {
-        setSyncAction(null);
-      }
     }
   };
 
@@ -2362,8 +2349,7 @@ export const GitView: React.FC = () => {
                         onInsertHighlights={handleInsertHighlights}
                         onGenerateMessage={handleGenerateCommitMessage}
                         isGeneratingMessage={isGeneratingMessage}
-                        onCommit={() => handleCommit({ pushAfter: false })}
-                        onCommitAndPush={() => handleCommit({ pushAfter: true })}
+                        onCommit={() => handleCommit()}
                         commitAction={commitAction}
                         hasPendingIndexMutation={hasPendingIndexMutation}
                         gitmojiEnabled={settingsGitmojiEnabled}

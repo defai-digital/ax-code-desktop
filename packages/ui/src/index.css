@@ -715,19 +715,6 @@ html:not(.dark) .chat-scroll {
   }
 }
 
-/* Commit actions: collapse labels when narrow. */
-@container commit-actions (max-width: 21rem) {
-  .commit-actions__label--long {
-    display: none;
-  }
-}
-
-@container commit-actions (max-width: 22rem) {
-  .commit-actions__label--push {
-    display: none;
-  }
-}
-
 @container commit-actions (max-width: 19rem) {
   .commit-actions__label {
     display: none;
