@@ -32,6 +32,10 @@ console.log(`Bumping version to ${newVersion}\n`);
 // Update package.json files
 for (const pkgPath of PACKAGES) {
   const fullPath = path.join(ROOT, pkgPath);
+  if (!fs.existsSync(fullPath)) {
+    console.log(`  ${pkgPath}: not present, skipping`);
+    continue;
+  }
   const pkg = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
   const oldVersion = pkg.version;
   pkg.version = newVersion;
@@ -64,7 +68,7 @@ const cargoLockPath = path.join(ROOT, CARGO_LOCK);
 if (fs.existsSync(cargoLockPath)) {
   try {
     let lockContent = fs.readFileSync(cargoLockPath, 'utf8');
-    const anchor = 'name = "openchamber-desktop"';
+    const anchor = 'name = "ax-code-desktop"';
     const anchorIndex = lockContent.indexOf(anchor);
     if (anchorIndex !== -1) {
       // find the next version line after the anchor
