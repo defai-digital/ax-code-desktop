@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-06-05
+
+- Chat: added an execution-mode selector (Manual / Autonomous / Supervised long-run) to the composer toolbar.
+- Desktop: the in-app updater now uses AX Code's own release channel instead of surfacing OpenChamber's package and release notes.
+- Updates: the web/CLI update source is now configurable via env and no longer defaults to OpenChamber's endpoints; with nothing configured it reports no update without phoning home.
+- Desktop/Windows: added a portable zip build alongside the installer, and renamed the published npm tarball to ax-code-web.
+- Chat: fixed a scroll-spy bookkeeping leak that retained detached nodes.
+
 ## [0.6.1] - 2026-06-05
 
 - Desktop: renamed the packaged app to AX Code Desktop and removed the startup splash window.
