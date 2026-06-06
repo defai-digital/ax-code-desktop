@@ -285,8 +285,6 @@ function buildTunnelStartReplayCommand({
   hostname,
   connectTtlMs,
   sessionTtlMs,
-  qr,
-  noQr,
   includeTokenPlaceholder,
   tokenViaStdin,
   tokenFileProvided,
@@ -318,8 +316,6 @@ function buildTunnelStartReplayCommand({
   if (sessionTtl) {
     parts.push('--session-ttl', sessionTtl);
   }
-  if (qr) parts.push('--qr');
-  if (noQr) parts.push('--no-qr');
 
   if (includeTokenPlaceholder) {
     if (tokenViaStdin) {
@@ -530,32 +526,6 @@ function getPreferredServerRuntime() {
   return isBunInstalled() ? 'bun' : 'node';
 }
 
-async function displayTunnelQrCode(url) {
-  try {
-    const qrcode = await import('qrcode-terminal');
-    console.log('\n📱 Scan this QR code to access the tunnel:\n');
-    qrcode.default.generate(url, { small: true });
-    console.log('');
-  } catch (error) {
-    console.warn(`Warning: Could not generate QR code: ${error.message}`);
-  }
-}
-
-function isTruthyEnv(value) {
-  if (typeof value !== 'string') return false;
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return false;
-  return normalized !== '0' && normalized !== 'false' && normalized !== 'no';
-}
-
-function shouldDisplayTunnelQr(options) {
-  if (options?.json) return false;
-  if (options?.quiet) return false;
-  if (options?.explicitQr === true) return options.qr === true;
-  if (!process.stdout?.isTTY) return false;
-  return !isTruthyEnv(process.env.CI);
-}
-
 function splitOptionToken(arg) {
   if (!arg.startsWith('-')) return null;
   if (arg.startsWith('--')) {
@@ -594,8 +564,6 @@ function parseArgs(argv = process.argv.slice(2)) {
     hostname: undefined,
     connectTtl: undefined,
     sessionTtl: undefined,
-    qr: false,
-    explicitQr: false,
     force: false,
     showSecrets: false,
     dryRun: false,
@@ -768,14 +736,6 @@ function parseArgs(argv = process.argv.slice(2)) {
         }
         break;
       }
-      case 'qr':
-        options.qr = true;
-        options.explicitQr = true;
-        break;
-      case 'no-qr':
-        options.qr = false;
-        options.explicitQr = true;
-        break;
       case 'force':
         options.force = true;
         break;
@@ -813,7 +773,7 @@ function parseArgs(argv = process.argv.slice(2)) {
         removedFlagErrors.push('`--try-cf-tunnel` was removed. Use: ax-code-app tunnel start --provider cloudflare --mode quick');
         break;
       case 'tunnel-qr':
-        removedFlagErrors.push('`--tunnel-qr` was removed. Use: ax-code-app tunnel start ... --qr');
+        removedFlagErrors.push('`--tunnel-qr` was removed. Copy the generated connect link instead.');
         break;
       case 'tunnel-password-url':
         removedFlagErrors.push('`--tunnel-password-url` was removed. Use UI password auth directly after tunnel start.');
@@ -958,8 +918,6 @@ START OPTIONS:
   --hostname <hostname>   Managed-remote hostname
   --connect-ttl <value>   Connect-link TTL (e.g. 30m, 24h, 1d)
   --session-ttl <value>   Session TTL (e.g. 8h, 24h, 1d)
-  --qr                    Print QR code for resulting tunnel URL
-  --no-qr                 Disable QR output
   --dry-run               Validate inputs without applying changes
 
 OUTPUT OPTIONS:
@@ -990,7 +948,6 @@ EXAMPLES:
   ax-code-app tunnel ready --provider cloudflare
   ax-code-app tunnel doctor --provider cloudflare
   ax-code-app tunnel status
-  ax-code-app tunnel start --qr
   ax-code-app tunnel start --profile prod-main
   ax-code-app tunnel start --provider cloudflare --mode managed-remote --token-file ~/.secrets/cf-token --hostname app.example.com
   ax-code-app tunnel start --provider cloudflare --mode managed-local --config ~/.cloudflared/config.yml
@@ -1018,7 +975,7 @@ _openchamber_tunnel() {
   tunnel_commands="help providers ready doctor status start stop profile completion"
   profile_commands="list show add remove"
   common_flags="--port --foreground --no-daemon --json --all --help --version --plain --quiet"
-  start_flags="--provider --mode --profile --config --token --token-file --token-stdin --hostname --connect-ttl --session-ttl --qr --no-qr --dry-run --show-secrets"
+  start_flags="--provider --mode --profile --config --token --token-file --token-stdin --hostname --connect-ttl --session-ttl --dry-run --show-secrets"
 
   if [[ \${COMP_CWORD} -eq 1 ]]; then
     COMPREPLY=( $(compgen -W "\${commands}" -- "\${cur}") )
@@ -1148,7 +1105,6 @@ complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_
 complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l token-stdin -d 'Read token from stdin'
 complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l hostname -d 'Hostname'
 complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l dry-run -d 'Validate without applying'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l qr -d 'Show QR code'
 `;
   }
 
@@ -4340,18 +4296,6 @@ const commands = {
                 ],
               });
             }
-
-            if (isManagedRemote && hasTokenIssue) {
-              troubleshootingHints.push({
-                key: 'managed-remote-token',
-                code: '[QR_PREFETCH_TOKEN]',
-                lines: [
-                  'Some QR readers pre-fetch scanned URLs.',
-                  'Pre-fetch can consume one-time bootstrap tokens.',
-                  'If validation fails, generate a fresh token/QR and use it immediately in one browser/device.',
-                ],
-              });
-            }
           }
         }
         clackOutro(totalBlockers > 0 ? `Done (${totalBlockers} ${totalBlockers === 1 ? 'issue' : 'issues'})` : 'All modes ready');
@@ -4859,8 +4803,6 @@ const commands = {
           hostname,
           connectTtlMs,
           sessionTtlMs,
-          qr: options.qr === true,
-          noQr: options.noQr === true,
           includeTokenPlaceholder: !selectedProfile && mode === 'managed-remote' && typeof token === 'string' && token.trim().length > 0,
           tokenViaStdin: options.tokenStdin === true,
           tokenFileProvided: typeof options.tokenFile === 'string' && options.tokenFile.trim().length > 0,
@@ -4910,12 +4852,6 @@ const commands = {
 
         setCancelCleanup(null);
 
-        if (shouldDisplayTunnelQr(options)) {
-          const url = body.connectUrl || body.url;
-          if (typeof url === 'string' && url.length > 0) {
-            await displayTunnelQrCode(url);
-          }
-        }
         return;
       }
       case 'stop': {
@@ -5434,7 +5370,6 @@ export {
   commands,
   parseArgs,
   hasUiPasswordConfigured,
-  shouldDisplayTunnelQr,
   isValidTunnelDoctorResponse,
   readDesktopLocalPortFromSettings,
   getPidFilePath,

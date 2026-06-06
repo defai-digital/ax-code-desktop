@@ -335,18 +335,6 @@
           }
         },
         {
-          "label": "PWA & Mobile",
-          "link": "/mobile/",
-          "translations": {
-            "uk": "PWA та мобільний доступ",
-            "zh-CN": "PWA 与移动端",
-            "es": "PWA y móvil",
-            "pt-BR": "PWA e celular",
-            "ko": "PWA 및 모바일",
-            "pl": "PWA i urządzenia mobilne"
-          }
-        },
-        {
           "label": "Security",
           "link": "/security/",
           "translations": {

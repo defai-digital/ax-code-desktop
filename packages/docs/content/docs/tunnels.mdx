@@ -1,11 +1,11 @@
 ---
 title: Tunnels
-description: Expose AX Code App safely for remote and mobile access.
+description: Expose AX Code App safely for trusted workstation access.
 ---
 
 # Tunnels
 
-A tunnel is a public link to your AX Code App, so you can reach it from your phone or another network. Use `openchamber tunnel` to create one for a running instance.
+A tunnel is a public link to your AX Code App for controlled remote workstation access. Use `openchamber tunnel` to create one for a running instance.
 
 ## Prerequisites
 
@@ -48,9 +48,9 @@ openchamber tunnel start --provider ngrok --mode quick
 openchamber tunnel status
 ```
 
-When the tunnel is up, `status` shows a public URL. Open it, or scan the QR code, to reach AX Code App from anywhere.
+When the tunnel is up, `status` shows a public URL. Open it from a trusted workstation.
 
-By default, AX Code App prints a QR code in interactive TTY sessions. Use `--qr` to force QR output, or `--no-qr` to disable it.
+Copy the generated connect link only to trusted workstation browsers.
 
 ## Providers
 
@@ -110,5 +110,4 @@ openchamber tunnel stop --port 3000
 
 - [Security](/security/) — protect the UI before exposing it
 - [Desktop Tunnels](/desktop-tunnels/) — desktop app tunnel setup without CLI startup
-- [PWA & Mobile](/mobile/) — reach AX Code App from your phone
 - [Troubleshooting](/troubleshooting/) — if the tunnel link doesn't work

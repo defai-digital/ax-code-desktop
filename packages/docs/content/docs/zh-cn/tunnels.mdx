@@ -1,11 +1,10 @@
 ---
 title: 隧道
-description: 安全地将 AX Code App 开放给远程和移动访问。
+description: 安全地将 AX Code App 开放给可信工作站访问。
 ---
 
 # 隧道
 
-隧道是指向你的 AX Code App 的一个公开链接，让你可以从手机或另一个网络访问它。使用 `openchamber tunnel` 为正在运行的实例创建一个隧道。
 
 ## 前置要求
 
@@ -48,9 +47,9 @@ openchamber tunnel start --provider ngrok --mode quick
 openchamber tunnel status
 ```
 
-隧道建立后，`status` 会显示一个公开 URL。打开它，或扫描二维码，即可从任何地方访问 AX Code App。
+隧道建立后，`status` 会显示一个公开 URL。只从可信工作站打开它。
 
-默认情况下，AX Code App 会在交互式 TTY 会话中输出二维码。使用 `--qr` 强制输出二维码，或使用 `--no-qr` 将其禁用。
+只将生成的连接链接复制到可信工作站浏览器。
 
 ## 提供商
 
@@ -110,5 +109,4 @@ openchamber tunnel stop --port 3000
 
 - [安全](/zh-cn/security/) — 在开放访问前保护 UI
 - [桌面端隧道](/zh-cn/desktop-tunnels/) — 无需从 CLI 启动即可在桌面应用中设置隧道
-- [PWA 与移动访问](/zh-cn/mobile/) — 从手机访问 AX Code App
 - [问题排查](/zh-cn/troubleshooting/) — 如果隧道链接无法使用

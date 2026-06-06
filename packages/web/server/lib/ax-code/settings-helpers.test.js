@@ -63,26 +63,6 @@ describe('settings helpers', () => {
     });
   });
 
-  it('accepts mobileKeyboardMode as a persisted shared setting', () => {
-    const helpers = createTestHelpers();
-
-    expect(helpers.sanitizeSettingsUpdate({ mobileKeyboardMode: 'native' })).toEqual({
-      mobileKeyboardMode: 'native',
-    });
-    expect(helpers.sanitizeSettingsUpdate({ mobileKeyboardMode: 'resize-content' })).toEqual({
-      mobileKeyboardMode: 'resize-content',
-    });
-    expect(helpers.sanitizeSettingsUpdate({ mobileKeyboardMode: ' resize-content ' })).toEqual({
-      mobileKeyboardMode: 'resize-content',
-    });
-  });
-
-  it('rejects invalid mobileKeyboardMode values', () => {
-    const helpers = createTestHelpers();
-
-    expect(helpers.sanitizeSettingsUpdate({ mobileKeyboardMode: 'fixed-layout' })).toEqual({});
-  });
-
   it('accepts collapsibleThinkingBlocks as a persisted shared setting', () => {
     const helpers = createTestHelpers();
 

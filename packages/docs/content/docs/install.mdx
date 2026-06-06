@@ -1,33 +1,28 @@
 ---
 title: Install
-description: Install AX Code App for desktop, web, or VS Code.
+description: Install AX Code App for desktop or local web development.
 ---
 
 # Install
 
-There are three ways to run AX Code App:
+There are two supported ways to run AX Code App:
 
 - desktop app for macOS
-- web app hosted by the CLI, which you can install like a phone app (a PWA)
-- VS Code extension
+- local web UI hosted by the CLI for development and controlled workstation access
 
 ## Prerequisite
 
 Install [AX Code](https://ax-code.ai) first — AX Code App runs on top of it.
 
-## Web + PWA
+## Local web UI
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash
 openchamber --ui-password be-creative-here
 ```
 
-Open the URL the CLI prints (usually `http://localhost:3000`). You should see the AX Code App session list. To keep it handy, use your browser's "Install" option in the address bar to add it as an app.
+Open the URL the CLI prints (usually `http://localhost:3000`). You should see the AX Code App session list.
 
 ## Desktop
 
 Download the latest desktop build from the GitHub releases page or the AX Code App download page. Open it and sign into your usual AX Code workflow.
-
-## VS Code
-
-Install from the VS Code Marketplace and sign into your usual AX Code workflow. The AX Code App view then opens in the sidebar.

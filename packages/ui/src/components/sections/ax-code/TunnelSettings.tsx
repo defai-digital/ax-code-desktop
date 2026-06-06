@@ -1,5 +1,4 @@
 import React from 'react';
-import QRCode from 'qrcode';
 import { toast } from '@/components/ui';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -266,7 +265,6 @@ export const TunnelSettings: React.FC = () => {
   const [state, setState] = React.useState<TunnelState>('checking');
   const [tunnelInfo, setTunnelInfo] = React.useState<TunnelInfo | null>(null);
   const [activeTunnelMode, setActiveTunnelMode] = React.useState<TunnelMode | null>(null);
-  const [qrDataUrl, setQrDataUrl] = React.useState<string | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [managedRemoteValidationError, setManagedRemoteValidationError] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
@@ -483,32 +481,6 @@ export const TunnelSettings: React.FC = () => {
     void checkAvailabilityAndStatus(controller.signal);
     return () => controller.abort();
   }, [checkAvailabilityAndStatus]);
-
-  React.useEffect(() => {
-    if (!tunnelInfo?.connectUrl) {
-      setQrDataUrl(null);
-      return;
-    }
-
-    let cancelled = false;
-    QRCode.toDataURL(tunnelInfo.connectUrl, {
-      width: 256,
-      margin: 2,
-      color: { dark: '#000000', light: '#ffffff' },
-    }).then((dataUrl) => {
-      if (!cancelled) {
-        setQrDataUrl(dataUrl);
-      }
-    }).catch(() => {
-      if (!cancelled) {
-        setQrDataUrl(null);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [tunnelInfo?.connectUrl]);
 
   React.useEffect(() => {
     if (!tunnelInfo?.bootstrapExpiresAt) {
@@ -920,7 +892,6 @@ export const TunnelSettings: React.FC = () => {
       }
       setTunnelInfo(null);
       setActiveTunnelMode(null);
-      setQrDataUrl(null);
       setState('idle');
       toast.success(t('settings.openchamber.tunnel.toast.stopped'));
     } catch {
@@ -1734,12 +1705,6 @@ export const TunnelSettings: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex flex-col items-center gap-2 rounded-lg border border-border/50 bg-[var(--surface-elevated)] p-4">
-                  {qrDataUrl
-                    ? <img src={qrDataUrl} alt={t('settings.openchamber.tunnel.field.connectQrAlt')} className="size-48" />
-                    : <div className="size-48 rounded bg-muted/30" />}
-                  <p className="typography-meta text-muted-foreground">{t('settings.openchamber.tunnel.note.scanQrToConnect')}</p>
-                </div>
               </>
             )}
           </div>

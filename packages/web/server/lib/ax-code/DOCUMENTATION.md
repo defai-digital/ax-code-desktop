@@ -23,14 +23,13 @@ This module provides ax-code server integration utilities for the web server run
 - `packages/web/server/lib/ax-code/core-routes.js`: server status/system routes, auth/access guard routes, and settings utility route registration.
 - `packages/web/server/lib/ax-code/shutdown-runtime.js`: graceful shutdown orchestration runtime for watcher/session/terminal/process/server teardown.
 - `packages/web/server/lib/ax-code/server-startup-runtime.js`: server listen/startup tunnel flow and process/signal handler orchestration runtime.
-- `packages/web/server/lib/ax-code/static-routes-runtime.js`: static asset/SPA fallback route registration and manifest route wiring.
+- `packages/web/server/lib/ax-code/static-routes-runtime.js`: static asset and SPA fallback route registration.
 - `packages/web/server/lib/ax-code/feature-routes-runtime.js`: feature route composition runtime for dynamic import-backed config/skill/provider route registration.
 - `packages/web/server/lib/ax-code/ax-code-resolution-runtime.js`: ax-code binary resolution snapshot runtime for settings routes and diagnostics.
 - `packages/web/server/lib/ax-code/tunnel-wiring-runtime.js`: tunnel service/routes composition runtime and active-port wiring for main server startup.
 - `packages/web/server/lib/ax-code/startup-pipeline-runtime.js`: server startup tail orchestration runtime for terminal/proxy/static/start-listen flow.
 - `packages/web/server/lib/ax-code/server-utils-runtime.js`: shared server runtime utilities for ax-code proxy wiring, AX Code port/readiness helpers, and snapshot fetchers.
 - `packages/web/server/lib/ax-code/openchamber-routes.js`: OpenChamber update and models metadata route registration.
-- `packages/web/server/lib/ax-code/pwa-manifest-routes.js`: PWA manifest route registration with recent-session shortcut resolution and short-lived caching.
 - `packages/web/server/lib/ax-code/project-icon-routes.js`: project icon upload/read/discovery route registration and icon storage orchestration.
 - `packages/web/server/lib/ax-code/skill-routes.js`: route registration for skill config CRUD, supporting files, and skills catalog scan/install flows.
 - `packages/web/server/lib/ax-code/settings-runtime.js`: Settings persistence runtime (disk IO, migrations, normalization, project validation, and persisted update serialization).
@@ -317,10 +316,6 @@ This module provides ax-code server integration utilities for the web server run
   - `POST /api/openchamber/update-install`
   - `GET /api/openchamber/models-metadata`
   - `GET /api/zen/models`
-
-## Public exports (pwa-manifest-routes.js)
-- `registerPwaManifestRoute(app, dependencies)`: registers PWA manifest endpoint with dynamic app-name resolution and recent-session shortcuts:
-  - `GET /manifest.webmanifest`
 
 ## Public exports (project-icon-routes.js)
 - `registerProjectIconRoutes(app, dependencies)`: registers project icon routes and owns icon storage/discovery flow:

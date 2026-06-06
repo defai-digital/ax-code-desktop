@@ -1,5 +1,3 @@
-import { registerPwaManifestRoute } from './pwa-manifest-routes.js';
-
 export const createStaticRoutesRuntime = (dependencies) => {
   const {
     fs,
@@ -7,12 +5,6 @@ export const createStaticRoutesRuntime = (dependencies) => {
     process,
     __dirname,
     express,
-    resolveProjectDirectory,
-    buildAxCodeUrl,
-    getAxCodeAuthHeaders,
-    readSettingsFromDiskMigrated,
-    normalizePwaAppName,
-    normalizePwaOrientation,
   } = dependencies;
 
   const resolveDistPath = () => {
@@ -36,16 +28,6 @@ export const createStaticRoutesRuntime = (dependencies) => {
           }
         },
       }));
-
-      registerPwaManifestRoute(app, {
-        process,
-        resolveProjectDirectory,
-        buildAxCodeUrl,
-        getAxCodeAuthHeaders,
-        readSettingsFromDiskMigrated,
-        normalizePwaAppName,
-        normalizePwaOrientation,
-      });
 
       app.get(/^(?!\/api|.*\.(js|css|svg|png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|map)).*$/, (_req, res) => {
         res.sendFile(path.join(distPath, 'index.html'));

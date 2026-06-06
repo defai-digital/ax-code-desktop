@@ -1,11 +1,10 @@
 ---
 title: 터널
-description: 원격 및 모바일 접근을 위해 AX Code App를 안전하게 공개하세요.
+description: 신뢰할 수 있는 워크스테이션 접근을 위해 AX Code App를 안전하게 공개하세요.
 ---
 
 # 터널
 
-터널은 AX Code App로 연결되는 공개 링크로, 휴대폰이나 다른 네트워크에서 접근할 수 있게 해줍니다. 실행 중인 인스턴스에 터널을 만들려면 `openchamber tunnel`을 사용하세요.
 
 ## 사전 요구 사항
 
@@ -48,9 +47,9 @@ openchamber tunnel start --provider ngrok --mode quick
 openchamber tunnel status
 ```
 
-터널이 올라오면 `status`에 공개 URL이 표시됩니다. 그 URL을 열거나 QR 코드를 스캔하면 어디서든 AX Code App에 접근할 수 있습니다.
+터널이 올라오면 `status`에 공개 URL이 표시됩니다. 신뢰할 수 있는 워크스테이션에서만 그 URL을 여세요.
 
-기본적으로 AX Code App는 대화형 TTY 세션에서 QR 코드를 출력합니다. `--qr`로 QR 출력을 강제하거나 `--no-qr`로 비활성화하세요.
+생성된 연결 링크는 신뢰할 수 있는 워크스테이션 브라우저에만 복사하세요.
 
 ## 공급자
 
@@ -110,5 +109,4 @@ openchamber tunnel stop --port 3000
 
 - [보안](/ko/security/) — 외부에 공개하기 전에 UI를 보호하세요
 - [데스크톱 터널](/ko/desktop-tunnels/) — CLI 시작 없이 데스크톱 앱에서 터널 설정
-- [PWA 및 모바일 접속](/ko/mobile/) — 휴대폰에서 AX Code App에 접속하세요
 - [문제 해결](/ko/troubleshooting/) — 터널 링크가 작동하지 않을 때

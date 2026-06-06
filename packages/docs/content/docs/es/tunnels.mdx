@@ -1,11 +1,11 @@
 ---
 title: Túneles
-description: Expón AX Code App de forma segura para acceso remoto y móvil.
+description: Expón AX Code App de forma segura para estaciones de trabajo de confianza.
 ---
 
 # Túneles
 
-Un túnel es un enlace público a tu AX Code App, para que puedas acceder a él desde tu teléfono u otra red. Usa `openchamber tunnel` para crear uno para una instancia en marcha.
+Un túnel es un enlace público a tu AX Code App para acceso controlado desde una estación de trabajo de confianza. Usa `openchamber tunnel` para crear uno para una instancia en marcha.
 
 ## Requisitos previos
 
@@ -48,9 +48,9 @@ openchamber tunnel start --provider ngrok --mode quick
 openchamber tunnel status
 ```
 
-Cuando el túnel está activo, `status` muestra una URL pública. Ábrela, o escanea el código QR, para acceder a AX Code App desde cualquier lugar.
+Cuando el túnel está activo, `status` muestra una URL pública. Ábrela solo desde una estación de trabajo de confianza.
 
-Por defecto, AX Code App imprime un código QR en sesiones TTY interactivas. Usa `--qr` para forzar la salida del QR, o `--no-qr` para desactivarla.
+Copia el enlace de conexión generado solo en navegadores de estaciones de trabajo de confianza.
 
 ## Proveedores
 
@@ -110,5 +110,4 @@ openchamber tunnel stop --port 3000
 
 - [Seguridad](/es/security/) — protege la interfaz antes de exponerla
 - [Túneles de escritorio](/es/desktop-tunnels/) — configuración de túneles en la app de escritorio sin iniciar desde CLI
-- [PWA y acceso móvil](/es/mobile/) — accede a AX Code App desde tu teléfono
 - [Resolución de problemas](/es/troubleshooting/) — si el enlace del túnel no funciona
