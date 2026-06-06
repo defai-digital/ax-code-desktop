@@ -175,16 +175,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # npm registry publish is opt-in: the package name (@openchamber/web) is
+      # kept for backwards-compat, but publishing it requires owning that scope.
+      # Enable by setting repo variable PUBLISH_NPM=true with a publishable
+      # package and NPM_TOKEN. Kept non-fatal so a publish error never blocks the
+      # release — the tarball is attached to the GitHub release regardless.
       - name: Publish to npm
-        if: ${{ github.event.inputs.dry_run != 'true' && env.HAS_NPM_TOKEN == 'true' }}
+        if: ${{ github.event.inputs.dry_run != 'true' && vars.PUBLISH_NPM == 'true' && env.HAS_NPM_TOKEN == 'true' }}
+        continue-on-error: true
         working-directory: packages/web
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Skip npm publish (no token)
-        if: ${{ env.HAS_NPM_TOKEN != 'true' }}
-        run: echo "::notice::NPM_TOKEN not configured — skipping npm publish; the tarball was still attached to the release."
 
   build-desktop-electron-macos:
     needs: create-release

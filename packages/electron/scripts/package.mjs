@@ -18,13 +18,16 @@ const electronDir = path.join(__dirname, '..')
 // e.g. ['--win', '--x64', '--publish=never']
 const args = process.argv.slice(2)
 
+// Resolve electron-builder via bun (it's hoisted to the workspace root, not
+// packages/electron/node_modules/.bin), matching how the macOS job invokes it.
+// shell:true so `bunx` resolves on the Windows runner.
 const result = spawnSync(
-  process.execPath,
-  [path.join(electronDir, 'node_modules/.bin/electron-builder'), ...args],
+  'bunx',
+  ['electron-builder', ...args],
   {
     stdio: 'inherit',
     cwd: electronDir,
-    shell: false,
+    shell: true,
     env: {
       ...process.env,
       // electron-builder reads these for Windows code signing.
