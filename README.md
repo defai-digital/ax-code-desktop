@@ -22,7 +22,7 @@ AX Code App is a fork of the open-source [OpenChamber](https://github.com/opench
 
 ## Quick Start
 
-**Prerequisite:** [AX Code CLI](https://ax-code.ai) installed.
+**Prerequisite:** [AX Code](https://github.com/defai-digital/ax-code) CLI installed.
 
 ### Desktop (macOS)
 

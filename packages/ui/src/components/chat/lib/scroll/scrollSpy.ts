@@ -255,6 +255,7 @@ export const createScrollSpy = (input: ScrollSpyInput) => {
         if (previous && previous !== element) {
             io?.unobserve(previous);
             ro?.unobserve(previous);
+            idByElement.delete(previous);
         }
 
         nodes.set(key, element);
@@ -278,6 +279,7 @@ export const createScrollSpy = (input: ScrollSpyInput) => {
         io?.unobserve(element);
         ro?.unobserve(element);
         nodes.delete(key);
+        idByElement.delete(element);
         visible.delete(key);
         dirty = true;
         schedule();
