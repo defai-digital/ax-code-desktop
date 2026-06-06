@@ -3,7 +3,7 @@ import type { Message, Part } from "@ax-code/sdk/v2/client"
 import { Binary } from "./binary"
 import { retry } from "./retry"
 import { compareIds, sortPartsById } from "./part-ordering"
-import { SESSION_CACHE_LIMIT, type State } from "./types"
+import { SESSION_CACHE_LIMIT } from "./types"
 import { pickSessionCacheEvictions } from "./session-cache"
 import {
   mergeOptimisticPage,
@@ -12,7 +12,6 @@ import {
 import { dropCachedSessionMessageRecordsSnapshots, useDirectoryStore, useSyncSDK, useSyncDirectory, useChildStoreManager } from "./sync-context"
 import { dropSessionCaches, getProtectedSessionCacheIds } from "./session-cache"
 import { stripMessageDiffSnapshots } from "./sanitize"
-import { isMobileSurfaceRuntime } from "@/lib/runtimeSurface"
 import {
   shouldSkipSessionPrefetch,
   getSessionPrefetch,
@@ -23,11 +22,8 @@ import { getSessionMaterializationStatus, materializeSessionSnapshots } from "./
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const INITIAL_MESSAGE_PAGE_SIZE = 150
-const MOBILE_INITIAL_MESSAGE_PAGE_SIZE = 30
 const HISTORY_MESSAGE_PAGE_SIZE = 200
-const CONSTRAINED_INITIAL_PAGE_EXPANSION_LIMITS = [50, 80, 120] as const
 const MAX_SEEN_DIRS = 30
-const MOBILE_SESSION_CACHE_LIMIT = 4
 
 // Shared across useSync() instances so cache eviction is based on app-level
 // session recency, not whichever component happened to call sync first.
@@ -44,17 +40,7 @@ type SyncMeta = {
   loading: boolean
 }
 
-const isConstrainedSessionRuntime = () => isMobileSurfaceRuntime()
-const getConstrainedInitialPageExpansionMax = () => CONSTRAINED_INITIAL_PAGE_EXPANSION_LIMITS[CONSTRAINED_INITIAL_PAGE_EXPANSION_LIMITS.length - 1]
-const getEffectiveSessionCacheLimit = () => {
-  if (isMobileSurfaceRuntime()) return MOBILE_SESSION_CACHE_LIMIT
-  return SESSION_CACHE_LIMIT
-}
-const getInitialMessagePageSize = () => {
-  if (isMobileSurfaceRuntime()) return MOBILE_INITIAL_MESSAGE_PAGE_SIZE
-  return INITIAL_MESSAGE_PAGE_SIZE
-}
-const getDefaultMeta = (): SyncMeta => ({ limit: getInitialMessagePageSize(), cursor: undefined, complete: false, loading: false })
+const getDefaultMeta = (): SyncMeta => ({ limit: INITIAL_MESSAGE_PAGE_SIZE, cursor: undefined, complete: false, loading: false })
 
 function getPrefetchMeta(directory: string, sessionID: string): SyncMeta | undefined {
   const info = getSessionPrefetch(directory, sessionID)
@@ -65,22 +51,6 @@ function getPrefetchMeta(directory: string, sessionID: string): SyncMeta | undef
     complete: info.complete,
     loading: false,
   }
-}
-
-function isHeavyConstrainedSessionCache(state: Pick<State, "message" | "part">, sessionID: string): boolean {
-  const messages = state.message[sessionID]
-  if (!messages || messages.length === 0) return false
-  return messages.length > getInitialMessagePageSize()
-}
-
-function isUserMessage(message: Message): boolean {
-  const info = message as Message & { clientRole?: unknown; role?: unknown }
-  const role = typeof info.clientRole === "string" ? info.clientRole : info.role
-  return role === "user"
-}
-
-function hasUserMessage(messages: Message[] | undefined): boolean {
-  return Boolean(messages?.some(isUserMessage))
 }
 
 // ---------------------------------------------------------------------------
@@ -185,34 +155,13 @@ export function useSync() {
     (sessionID: string) => {
       const s = seenFor()
       const protectedIds = getProtectedSessionCacheIds(store.getState())
-      const cacheLimit = getEffectiveSessionCacheLimit()
       const stale = pickSessionCacheEvictions({
         seen: s,
         keep: sessionID,
-        limit: cacheLimit,
+        limit: SESSION_CACHE_LIMIT,
         preserve: protectedIds,
       })
       evict(directory, stale)
-
-      if (isConstrainedSessionRuntime()) {
-        const state = store.getState()
-        const keep = new Set([sessionID, ...s, ...protectedIds])
-        const prefetched = Object.keys(state.message).filter((id) => !keep.has(id))
-        evict(directory, prefetched)
-
-        // One very large inactive session can create memory/GC pressure that
-        // makes later small-session switches feel slow. Keep it while active,
-        // but do not retain it as a warm cache in constrained shells.
-        const afterPrefetchEviction = prefetched.length > 0 ? store.getState() : state
-        const heavyInactive = Object.keys(afterPrefetchEviction.message).filter((id) => {
-          if (id === sessionID || protectedIds.has(id)) return false
-          return isHeavyConstrainedSessionCache(afterPrefetchEviction, id)
-        })
-        if (heavyInactive.length > 0) {
-          for (const id of heavyInactive) s.delete(id)
-          evict(directory, heavyInactive)
-        }
-      }
     },
     [directory, seenFor, evict, store],
   )
@@ -284,20 +233,7 @@ export function useSync() {
 
       try {
         const limit = options?.before ? HISTORY_MESSAGE_PAGE_SIZE : m.limit
-        let page = await fetchMessages(sessionID, limit, options?.before)
-
-        // Constrained mobile surfaces keep the initial page small for switch performance.
-        // Some sessions have a very large final turn, so the latest 30 records can
-        // contain only assistant/tool records and no user boundary. That makes
-        // turn projection render an empty chat until the user manually loads
-        // older messages. Expand only this initial tail fetch, with a hard cap.
-        if (!options?.before && isConstrainedSessionRuntime() && !page.complete && !hasUserMessage(page.session)) {
-          for (const nextLimit of CONSTRAINED_INITIAL_PAGE_EXPANSION_LIMITS) {
-            if (nextLimit <= limit) continue
-            page = await fetchMessages(sessionID, nextLimit)
-            if (page.complete || hasUserMessage(page.session)) break
-          }
-        }
+        const page = await fetchMessages(sessionID, limit, options?.before)
 
         // Merge optimistic items
         const items = getOptimistic(sessionID)
@@ -353,31 +289,16 @@ export function useSync() {
       const materialization = getSessionMaterializationStatus(current, sessionID)
       const cached = materialization.hasMessages && materialization.renderable && m.limit > 0
       const prefetchInfo = !force ? getSessionPrefetch(directory, sessionID) : undefined
-      const knownCachedLimit = Math.max(m.limit, prefetchInfo?.limit ?? 0)
-      const needsConstrainedInitialTurnBoundary = isConstrainedSessionRuntime()
-        && cached
-        && !hasUserMessage(current.message[sessionID])
-        && knownCachedLimit < getConstrainedInitialPageExpansionMax()
-        && !m.complete
-        && prefetchInfo?.complete !== true
-        && Boolean(m.cursor ?? prefetchInfo?.cursor)
-      if (needsConstrainedInitialTurnBoundary && prefetchInfo && prefetchInfo.limit > m.limit) {
-        setMetaFor(sessionID, {
-          limit: prefetchInfo.limit,
-          cursor: prefetchInfo.cursor,
-          complete: prefetchInfo.complete,
-        })
-      }
-      const cachedReady = cached && !needsConstrainedInitialTurnBoundary
+      const cachedReady = cached
       const hasSession = Binary.has(current.session, sessionID, (s) => s.id)
       if (cachedReady && hasSession && !force) return
 
       // Skip if recently fetched (TTL)
-      if (!force && !needsConstrainedInitialTurnBoundary) {
+      if (!force) {
         if (shouldSkipSessionPrefetch({
           hasMessages: cachedReady,
           info: prefetchInfo,
-          pageSize: getInitialMessagePageSize(),
+          pageSize: INITIAL_MESSAGE_PAGE_SIZE,
         })) return
       }
 
@@ -421,7 +342,7 @@ export function useSync() {
       })
       return promise
     },
-    [store, sdk, keyFor, touch, getMetaFor, setMetaFor, loadMessages, directory],
+    [store, sdk, keyFor, touch, getMetaFor, loadMessages, directory],
   )
 
   // Load more (pagination)

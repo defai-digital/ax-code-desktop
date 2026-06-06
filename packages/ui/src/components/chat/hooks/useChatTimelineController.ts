@@ -13,7 +13,6 @@ import {
 } from '../lib/turns/windowTurns';
 import type { TurnHistorySignals } from '../lib/turns/historySignals';
 import { getMemoryLimits } from '@/stores/types/sessionTypes';
-import { isMobileSurfaceRuntime } from '@/lib/runtimeSurface';
 
 type TimelineViewportAnchor = { messageId: string; offsetTop: number };
 
@@ -69,28 +68,13 @@ export interface UseChatTimelineControllerResult {
 
 const TURN_MODEL_CACHE_MAX = 30
 const HISTORY_SCROLL_THRESHOLD = 200
-const MOBILE_TURN_MODEL_CACHE_MAX = 4
-const MOBILE_TURN_MODEL_CACHE_MAX_MESSAGES = 30
 const HISTORY_RENDER_WAIT_TIMEOUT_MS = 250
 const HISTORY_INTERACTION_GUARD_MS = 2000
 const turnModelCache = new Map<string, { messages: ChatMessageEntry[]; model: TurnWindowModel }>()
-const getTurnModelCacheMax = () => {
-    if (isMobileSurfaceRuntime()) return MOBILE_TURN_MODEL_CACHE_MAX
-    return TURN_MODEL_CACHE_MAX
-}
-
-const shouldCacheTurnModelMessages = (messages: ChatMessageEntry[]): boolean => {
-    if (isMobileSurfaceRuntime()) return messages.length <= MOBILE_TURN_MODEL_CACHE_MAX_MESSAGES
-    return true
-}
 
 const rememberTurnModel = (key: string, value: { messages: ChatMessageEntry[]; model: TurnWindowModel }) => {
     turnModelCache.delete(key)
-    if (!shouldCacheTurnModelMessages(value.messages)) {
-        return
-    }
-    const max = getTurnModelCacheMax()
-    while (turnModelCache.size >= max) {
+    while (turnModelCache.size >= TURN_MODEL_CACHE_MAX) {
         const oldest = turnModelCache.keys().next().value
         if (typeof oldest !== 'string') break
         turnModelCache.delete(oldest)

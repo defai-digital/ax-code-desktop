@@ -1,6 +1,5 @@
 import type { RuntimeAPIs } from '@/lib/api/types';
 import type { DesktopBootOutcome } from '@/lib/desktopBoot';
-import type { HostedSurface } from '@/lib/runtimeSurface';
 import type { useAgentsStore } from '@/stores/useAgentsStore';
 import type { useCommandsStore } from '@/stores/useCommandsStore';
 import type { useConfigStore } from '@/stores/useConfigStore';
@@ -40,7 +39,6 @@ declare global {
     __OPENCHAMBER_PANEL_TYPE__?: 'chat' | 'agentManager';
     __OPENCHAMBER_PLATFORM__?: string;
     __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
-    __OPENCHAMBER_SURFACE__?: HostedSurface;
     __openchamberStreamPerfState?: StreamPerfState;
     __zustand_agents_store__?: typeof useAgentsStore;
     __zustand_commands_store__?: typeof useCommandsStore;
