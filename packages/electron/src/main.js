@@ -61,8 +61,17 @@ async function createWindow() {
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Keep internal navigation inside the window; open everything else in the
-    // default OS browser.
-    if (url.startsWith(`http://localhost:${serverPort}`)) {
+    // default OS browser. Match host+port exactly via URL parsing — a prefix
+    // check (startsWith) would treat e.g. `http://localhost:<port>@evil.com` or
+    // `http://localhost:<port>9` as internal and load it in the trusted window
+    // (which runs with webSecurity disabled and the preload IPC bridge).
+    let parsed
+    try {
+      parsed = new URL(url)
+    } catch {
+      parsed = null
+    }
+    if (parsed && parsed.protocol === 'http:' && parsed.hostname === 'localhost' && parsed.port === String(serverPort)) {
       return { action: 'allow' }
     }
     shell.openExternal(url)
@@ -144,6 +153,10 @@ app.whenReady().then(async () => {
     autoUpdater.checkForUpdatesAndNotify().catch(() => {})
   } catch (err) {
     console.error('[electron] startup failed:', err)
+    // app.exit() does not fire 'before-quit', so stop the in-process server
+    // (and any ax-code child it spawned) here to avoid orphaning it when the
+    // server booted but window creation failed.
+    await serverHandle?.stop({ exitProcess: false }).catch(() => {})
     app.exit(1)
   }
 })

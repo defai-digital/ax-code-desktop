@@ -123,6 +123,11 @@ export function createGlobalMessageStreamHub({
     controller = null;
     everConnected = false;
     buildUrlFailed = false;
+    // Full teardown (no clients remain). Drop buffered events so a later fresh
+    // session can't replay events from this one into a reconnecting client.
+    // Brief upstream blips are handled inside the reader and never call stop(),
+    // so this does not affect mid-session reconnect catch-up.
+    replay.length = 0;
   };
 
   return {

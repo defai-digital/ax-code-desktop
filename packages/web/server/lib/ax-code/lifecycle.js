@@ -271,7 +271,12 @@ export const createAxCodeLifecycleRuntime = (deps) => {
 
       const onStdout = (chunk) => {
         stdout += chunk.toString();
-        const lines = stdout.split('\n');
+        // Only parse newline-terminated lines. The trailing segment may be an
+        // incomplete chunk (the ready line can arrive split across stdout reads);
+        // matching it would resolve a truncated URL and yield the wrong port.
+        const lastNewline = stdout.lastIndexOf('\n');
+        if (lastNewline === -1) return;
+        const lines = stdout.slice(0, lastNewline).split('\n');
         for (const line of lines) {
           if (!line.startsWith('ax-code server listening')) continue;
           const match = line.match(/on\s+(https?:\/\/[^\s]+)/);
@@ -301,6 +306,11 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       };
 
       const timer = setTimeout(() => {
+        // On timeout the caller never receives a handle to close(), so kill the
+        // spawned child here to avoid orphaning a still-running ax-code process
+        // (which typically still holds the port). startAxCode retries, so leaving
+        // it alive would compound a leak across attempts.
+        void closeManagedAxCodeChild(child);
         finish(reject, new Error(`Timeout waiting for ax-code to start after ${timeout}ms`));
       }, timeout);
 

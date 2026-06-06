@@ -3782,8 +3782,13 @@ export async function rebase(directory, options = {}) {
 
   try {
     const { onto } = options;
-    if (!onto) {
+    if (!onto || typeof onto !== 'string') {
       throw new Error('onto parameter is required for rebase');
+    }
+    // Reject refs starting with '-' so they can't be interpreted as git options
+    // (e.g. `--exec=<cmd>`, which would run arbitrary commands during rebase).
+    if (onto.startsWith('-')) {
+      throw new Error('Invalid onto ref for rebase');
     }
 
     await git.rebase([onto]);
@@ -3830,8 +3835,13 @@ export async function merge(directory, options = {}) {
 
   try {
     const { branch } = options;
-    if (!branch) {
+    if (!branch || typeof branch !== 'string') {
       throw new Error('branch parameter is required for merge');
+    }
+    // Reject refs starting with '-' so they can't be interpreted as git options
+    // (option injection via a positional argument).
+    if (branch.startsWith('-')) {
+      throw new Error('Invalid branch ref for merge');
     }
 
     await git.merge([branch]);

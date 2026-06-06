@@ -151,7 +151,10 @@ export function createGlobalMessageStreamWsBridge({
     }, heartbeatIntervalMs);
 
     const heartbeatInterval = setInterval(() => {
-      if (!globalHub.isConnected()) {
+      // Only send to ready clients — the heartbeat is an event frame, and the
+      // protocol requires the `ready` frame to precede any event frame (the
+      // real-event forwarder applies the same readyClients guard).
+      if (!globalHub.isConnected() || !readyClients.has(socket)) {
         return;
       }
 

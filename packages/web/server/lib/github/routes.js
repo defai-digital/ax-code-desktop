@@ -453,7 +453,11 @@ export function registerGitHubRoutes(app) {
         return res.json({ connected: false });
       }
       if (isGitHubResourceUnavailable(error)) {
-        return sendJson({
+        // Respond directly (not via sendJson, which is scoped to the try block and
+        // would throw a ReferenceError here). Also intentionally avoid caching: a 403
+        // can be a transient rate-limit, and caching repo:null would persist it for
+        // the full TTL even after access is restored.
+        return res.json({
           connected: true,
           repo: null,
           branch: typeof req.query?.branch === 'string' ? req.query.branch.trim() : '',
