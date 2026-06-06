@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-06
+
+- Runtimes: removed the unsupported VS Code extension and mobile/PWA runtimes — the app now targets the desktop and web experiences only, dropping the associated dead code, layouts, and update branches.
+- Git: clarified push behavior and removed the implicit auto-push of commits and branches.
+- Docs: rewrote the README around desktop downloads and added direct release download links.
+- Internal: centralized viewer-mode, browser-voice, and git-conflict preferences, moved Polish settings translations, and removed unused exports/parameters and stale comments.
+
 ## [0.6.6] - 2026-06-06
 
 - Release: macOS desktop artifacts are now Apple Silicon only; release, smoke, Electron updater, and legacy Tauri updater manifest paths no longer build or require macOS x64 artifacts.
