@@ -102,6 +102,11 @@ export const IntegrateCommitsSection: React.FC<{
       const ok = await isCherryPickInProgress(state.tempWorktreePath).catch(() => false);
       if (cancelled) return;
       if (!ok) {
+        // The cherry-pick is no longer in progress in this abandoned temp
+        // worktree. Remove the leftover worktree (and its git registration)
+        // before clearing persisted state so it doesn't leak under
+        // ~/.config/openchamber/tmp.
+        await abortIntegrate(state).catch(() => undefined);
         clearIntegrateConflictState(currentSessionId);
         return;
       }
