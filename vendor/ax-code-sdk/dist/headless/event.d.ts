@@ -62,6 +62,49 @@ export type HeadlessRequestEvent = {
         requestID: string;
     };
 };
+export type WorkflowRunStatus = "queued" | "running" | "blocked" | "paused" | "completed" | "failed" | "cancelled";
+export type WorkflowPhaseStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export type WorkflowChildStatus = "queued" | "running" | "blocked_permission" | "blocked_question" | "completed" | "failed" | "cancelled";
+export interface WorkflowRunProperties {
+    id: string;
+    status: WorkflowRunStatus;
+    error?: string;
+    sourceTemplateID?: string;
+}
+export interface WorkflowPhaseProperties {
+    id: string;
+    runID: string;
+    name: string;
+    status: WorkflowPhaseStatus;
+    error?: string;
+}
+export interface WorkflowChildProperties {
+    id: string;
+    runID: string;
+    phaseID: string;
+    status: WorkflowChildStatus;
+    outputSummary?: string;
+    error?: string;
+}
+export interface WorkflowArtifactProperties {
+    id: string;
+    runID: string;
+    phaseID?: string;
+    childID?: string;
+    kind: string;
+    summary?: string;
+    specArtifactID?: string;
+}
+export interface WorkflowBudgetProperties {
+    id: string;
+    runID: string;
+    kind: string;
+    message?: string;
+}
+export interface WorkflowVerificationProperties {
+    id: string;
+    envelopeIDs: string[];
+}
 export type HeadlessRuntimeStatusEvent = {
     type: "mcp.tools.changed";
 } | {
@@ -77,76 +120,76 @@ export type HeadlessRuntimeStatusEvent = {
     };
 } | {
     type: "workflow.run.created";
-    properties: Record<string, unknown>;
+    properties: WorkflowRunProperties;
 } | {
     type: "workflow.run.updated";
-    properties: Record<string, unknown>;
+    properties: WorkflowRunProperties;
 } | {
     type: "workflow.run.started";
-    properties: Record<string, unknown>;
+    properties: WorkflowRunProperties;
 } | {
     type: "workflow.run.blocked";
-    properties: Record<string, unknown>;
+    properties: WorkflowRunProperties;
 } | {
     type: "workflow.run.paused";
-    properties: Record<string, unknown>;
+    properties: WorkflowRunProperties;
 } | {
     type: "workflow.run.resumed";
-    properties: Record<string, unknown>;
+    properties: WorkflowRunProperties;
 } | {
     type: "workflow.run.completed";
-    properties: Record<string, unknown>;
+    properties: WorkflowRunProperties;
 } | {
     type: "workflow.run.failed";
-    properties: Record<string, unknown>;
+    properties: WorkflowRunProperties;
 } | {
     type: "workflow.run.cancelled";
-    properties: Record<string, unknown>;
+    properties: WorkflowRunProperties;
 } | {
     type: "workflow.phase.updated";
-    properties: Record<string, unknown>;
+    properties: WorkflowPhaseProperties;
 } | {
     type: "workflow.phase.started";
-    properties: Record<string, unknown>;
+    properties: WorkflowPhaseProperties;
 } | {
     type: "workflow.phase.completed";
-    properties: Record<string, unknown>;
+    properties: WorkflowPhaseProperties;
 } | {
     type: "workflow.phase.failed";
-    properties: Record<string, unknown>;
+    properties: WorkflowPhaseProperties;
 } | {
     type: "workflow.child.created";
-    properties: Record<string, unknown>;
+    properties: WorkflowChildProperties;
 } | {
     type: "workflow.child.updated";
-    properties: Record<string, unknown>;
+    properties: WorkflowChildProperties;
 } | {
     type: "workflow.child.started";
-    properties: Record<string, unknown>;
+    properties: WorkflowChildProperties;
 } | {
     type: "workflow.child.completed";
-    properties: Record<string, unknown>;
+    properties: WorkflowChildProperties;
 } | {
     type: "workflow.child.failed";
-    properties: Record<string, unknown>;
+    properties: WorkflowChildProperties;
 } | {
     type: "workflow.child.cancelled";
-    properties: Record<string, unknown>;
+    properties: WorkflowChildProperties;
 } | {
     type: "workflow.artifact.written";
-    properties: Record<string, unknown>;
+    properties: WorkflowArtifactProperties;
 } | {
     type: "workflow.budget.appended";
-    properties: Record<string, unknown>;
+    properties: WorkflowBudgetProperties;
 } | {
     type: "workflow.budget.warning";
-    properties: Record<string, unknown>;
+    properties: WorkflowBudgetProperties;
 } | {
     type: "workflow.budget.exceeded";
-    properties: Record<string, unknown>;
+    properties: WorkflowBudgetProperties;
 } | {
     type: "workflow.verification.attached";
-    properties: Record<string, unknown>;
+    properties: WorkflowVerificationProperties;
 };
 export type HeadlessRuntimeProbeKey = "mcp" | "lsp" | "debug-engine" | "workflow";
 export type HeadlessSessionEvent<TSession extends {

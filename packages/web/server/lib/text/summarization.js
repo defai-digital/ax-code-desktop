@@ -2,12 +2,12 @@
  * Shared text summarization service.
  *
  * Modes:
- * - tts: concise speakable text
+ * - summary: concise plain text
  * - notification: concise notification text
  * - note: distilled project note
  */
 
-export function sanitizeForTTS(text) {
+export function sanitizeForSummary(text) {
   if (!text || typeof text !== 'string') return '';
 
   return text
@@ -65,7 +65,7 @@ export function sanitizeForNote(text) {
 function sanitizeByMode(text, mode) {
   if (mode === 'note') return sanitizeForNote(text);
   if (mode === 'notification') return sanitizeForNotification(text);
-  return sanitizeForTTS(text);
+  return sanitizeForSummary(text);
 }
 
 function distillNoteFallback(text, maxLength) {
@@ -116,7 +116,7 @@ function fallbackByMode(text, maxLength, mode) {
   return sanitizeByMode(text, mode);
 }
 
-export async function summarizeText({ text, threshold = 200, maxLength = 500, zenModel, mode = 'tts' }) {
+export async function summarizeText({ text, threshold = 200, maxLength = 500, zenModel, mode = 'summary' }) {
   void zenModel;
 
   const summary = fallbackByMode(text || '', maxLength, mode);

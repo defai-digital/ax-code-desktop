@@ -14,7 +14,7 @@ This module provides ax-code server integration utilities for the web server run
 - `packages/web/server/lib/ax-code/env-runtime.js`: ax-code CLI/binary resolution and shell environment runtime.
 - `packages/web/server/lib/ax-code/env-config.js`: ax-code-related environment variable parsing and validation (host/port/hostname).
 - `packages/web/server/lib/ax-code/hmr-state-runtime.js`: HMR-persistent runtime state initialization, auth-state bootstrap, and HMR sync helpers.
-- `packages/web/server/lib/ax-code/bootstrap-runtime.js`: base app bootstrap runtime for status/auth/tts/notification compatibility route wiring.
+- `packages/web/server/lib/ax-code/bootstrap-runtime.js`: base app bootstrap runtime for status/auth/notification compatibility route wiring.
 - `packages/web/server/lib/ax-code/network-runtime.js`: ax-code URL construction, health-probe readiness checks, and API prefix runtime.
 - `packages/web/server/lib/ax-code/project-directory-runtime.js`: request-scoped and settings-backed project directory resolution/validation runtime.
 - `packages/web/server/lib/ax-code/config-entity-routes.js`: route registration for agent/command/MCP config orchestration and reload semantics.
@@ -22,11 +22,10 @@ This module provides ax-code server integration utilities for the web server run
 - `packages/web/server/lib/ax-code/cli-options.js`: CLI/environment option parsing for server startup arguments.
 - `packages/web/server/lib/ax-code/core-routes.js`: server status/system routes, auth/access guard routes, and settings utility route registration.
 - `packages/web/server/lib/ax-code/shutdown-runtime.js`: graceful shutdown orchestration runtime for watcher/session/terminal/process/server teardown.
-- `packages/web/server/lib/ax-code/server-startup-runtime.js`: server listen/startup tunnel flow and process/signal handler orchestration runtime.
+- `packages/web/server/lib/ax-code/server-startup-runtime.js`: server listen flow and process/signal handler orchestration runtime.
 - `packages/web/server/lib/ax-code/static-routes-runtime.js`: static asset and SPA fallback route registration.
 - `packages/web/server/lib/ax-code/feature-routes-runtime.js`: feature route composition runtime for dynamic import-backed config/skill/provider route registration.
 - `packages/web/server/lib/ax-code/ax-code-resolution-runtime.js`: ax-code binary resolution snapshot runtime for settings routes and diagnostics.
-- `packages/web/server/lib/ax-code/tunnel-wiring-runtime.js`: tunnel service/routes composition runtime and active-port wiring for main server startup.
 - `packages/web/server/lib/ax-code/startup-pipeline-runtime.js`: server startup tail orchestration runtime for terminal/proxy/static/start-listen flow.
 - `packages/web/server/lib/ax-code/server-utils-runtime.js`: shared server runtime utilities for ax-code proxy wiring, AX Code port/readiness helpers, and snapshot fetchers.
 - `packages/web/server/lib/ax-code/openchamber-routes.js`: legacy compatibility update and models metadata route registration.
@@ -34,7 +33,7 @@ This module provides ax-code server integration utilities for the web server run
 - `packages/web/server/lib/ax-code/skill-routes.js`: route registration for skill config CRUD, supporting files, and skills catalog scan/install flows.
 - `packages/web/server/lib/ax-code/settings-runtime.js`: Settings persistence runtime (disk IO, migrations, normalization, project validation, and persisted update serialization).
 - `packages/web/server/lib/ax-code/settings-helpers.js`: Settings payload sanitization/format helpers runtime for response shaping and persisted merge prep.
-- `packages/web/server/lib/ax-code/settings-normalization-runtime.js`: path/settings/tunnel normalization and sanitization helpers runtime used by settings/routes/config wiring.
+- `packages/web/server/lib/ax-code/settings-normalization-runtime.js`: path/settings normalization and sanitization helpers runtime used by settings/routes/config wiring.
 - `packages/web/server/lib/ax-code/theme-runtime.js`: custom theme JSON validation and theme directory loading runtime for settings utility routes.
 - `packages/web/server/lib/ax-code/proxy.js`: ax-code API/SSE forwarding and readiness-gate route registration.
 - `packages/web/server/lib/ax-code/session-runtime.js`: session status/attention/activity runtime for ax-code SSE events.
@@ -180,16 +179,11 @@ This module provides ax-code server integration utilities for the web server run
   - `formatSettingsResponse(settings)`
 
 ## Public exports (settings-normalization-runtime.js)
-- `createSettingsNormalizationRuntime(dependencies)`: creates normalization/sanitization runtime for shared settings and tunnel helper logic.
+- `createSettingsNormalizationRuntime(dependencies)`: creates normalization/sanitization runtime for shared settings helper logic.
 - Returned API:
   - `normalizeDirectoryPath(value)`
   - `normalizePathForPersistence(value)`
   - `normalizeSettingsPaths(input)`
-  - `normalizeTunnelBootstrapTtlMs(value)`
-  - `normalizeTunnelSessionTtlMs(value)`
-  - `normalizeManagedRemoteTunnelHostname(value)`
-  - `normalizeManagedRemoteTunnelPresets(value)`
-  - `normalizeManagedRemoteTunnelPresetTokens(value)`
   - `isUnsafeSkillRelativePath(value)`
   - `sanitizeTypographySizesPartial(input)`
   - `normalizeStringArray(input)`
@@ -241,9 +235,8 @@ This module provides ax-code server integration utilities for the web server run
    - `GET /api/passkeys`
    - `DELETE /api/passkeys/:id`
    - `POST /api/auth/reset`
-   - `GET /connect`
    - `POST /api/system/probe-url`
-   - `app.use('/api', ...)` auth/tunnel guard
+   - `app.use('/api', ...)` auth guard
 - `registerSettingsUtilityRoutes(app, dependencies)`: registers small settings utility endpoints:
   - `GET /api/config/themes`
   - `POST /api/config/reload`
@@ -255,8 +248,6 @@ This module provides ax-code server integration utilities for the web server run
 ## Public exports (cli-options.js)
 - `parseServeCliOptions(options)`: parses serve CLI flags and environment-derived defaults:
   - Port/host/ui-password
-  - Tunnel provider/mode/config/token/hostname
-  - Legacy `--tunnel` shorthand normalization
 
 ## Public exports (cli-entry-runtime.js)
 - `runCliEntryIfMain(dependencies)`: detects direct CLI execution and runs server startup with parsed CLI options.
@@ -279,10 +270,10 @@ This module provides ax-code server integration utilities for the web server run
   - `gracefulShutdown(options?)`
 
 ## Public exports (server-startup-runtime.js)
-- `createServerStartupRuntime(dependencies)`: creates runtime for server bind/startup tunnel and process handler wiring.
+- `createServerStartupRuntime(dependencies)`: creates runtime for server bind/listen and process handler wiring.
 - Returned API:
   - `resolveBindHost(host)`
-  - `startListeningAndMaybeTunnel(options)`
+  - `startListening(options)`
   - `attachProcessHandlers(options)`
 
 ## Public exports (static-routes-runtime.js)
@@ -299,11 +290,6 @@ This module provides ax-code server integration utilities for the web server run
 - `createAX CodeResolutionRuntime(dependencies)`: creates runtime for AX Code binary/source snapshot resolution.
 - Returned API:
   - `getAX CodeResolutionSnapshot(settings)`: returns configured/resolved AX Code binary details plus effective managed-launch fields (`launchBinary`, `launchArgs`, `launchWrapperType`) when applicable.
-
-## Public exports (tunnel-wiring-runtime.js)
-- `createTunnelWiringRuntime(dependencies)`: creates runtime for tunnel service construction and tunnel route registration.
-- Returned API:
-  - `initialize(app, initialPort)`
 
 ## Public exports (startup-pipeline-runtime.js)
 - `createStartupPipelineRuntime(dependencies)`: creates runtime for terminal wiring, proxy/bootstrap scheduling, static route registration, and server startup/listen flow.
@@ -364,4 +350,3 @@ This module provides ax-code server integration utilities for the web server run
 - All file writes include automatic backup before modification.
 - Config merging follows priority: custom > project > user.
 - UI auth uses scrypt for password hashing with constant-time comparison.
-- Tunnel auth treats `host.docker.internal` as local-only when the socket remote IP is private/loopback.

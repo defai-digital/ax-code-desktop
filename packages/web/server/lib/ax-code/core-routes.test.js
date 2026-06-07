@@ -48,13 +48,6 @@ describe('core-routes', () => {
 
     registerAuthAndAccessRoutes(app, {
       express,
-      tunnelAuthController: {
-        classifyRequestScope: () => 'local',
-        requireTunnelSession: vi.fn(),
-        getTunnelSessionFromRequest: vi.fn(),
-        clearTunnelSessionCookie: vi.fn(),
-        exchangeBootstrapToken: vi.fn(),
-      },
       uiAuthController: {
         requireAuth: (_req, res) => res.status(401).json({ error: 'Unauthorized' }),
         handleSessionStatus: vi.fn(),
@@ -68,8 +61,6 @@ describe('core-routes', () => {
         handlePasskeyRevoke: vi.fn(),
         handleResetAuth: vi.fn(),
       },
-      readSettingsFromDiskMigrated: vi.fn(async () => ({})),
-      normalizeTunnelSessionTtlMs: vi.fn(),
     });
 
     try {

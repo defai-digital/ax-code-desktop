@@ -174,8 +174,6 @@ static QUIT_RISK_HAS_RUNNING_SCHEDULED_TASKS: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 static QUIT_RISK_ENABLED_SCHEDULED_TASKS_COUNT: AtomicU32 = AtomicU32::new(0);
 static QUIT_RISK_RUNNING_SCHEDULED_TASKS_COUNT: AtomicU32 = AtomicU32::new(0);
-static QUIT_RISK_HAS_ACTIVE_TUNNEL: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
 static QUIT_RISK_POLLER_STARTED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
@@ -186,8 +184,7 @@ const QUIT_RISK_POLL_INTERVAL: Duration = Duration::from_secs(5);
 fn should_require_quit_confirmation() -> bool {
     use std::sync::atomic::Ordering;
 
-    QUIT_RISK_HAS_ACTIVE_TUNNEL.load(Ordering::Relaxed)
-        || QUIT_RISK_HAS_RUNNING_SCHEDULED_TASKS.load(Ordering::Relaxed)
+    QUIT_RISK_HAS_RUNNING_SCHEDULED_TASKS.load(Ordering::Relaxed)
         || QUIT_RISK_HAS_ENABLED_SCHEDULED_TASKS.load(Ordering::Relaxed)
 }
 
@@ -195,14 +192,10 @@ fn should_require_quit_confirmation() -> bool {
 fn quit_confirmation_message() -> String {
     use std::sync::atomic::Ordering;
 
-    let has_active_tunnel = QUIT_RISK_HAS_ACTIVE_TUNNEL.load(Ordering::Relaxed);
     let running_tasks_count = QUIT_RISK_RUNNING_SCHEDULED_TASKS_COUNT.load(Ordering::Relaxed);
     let enabled_tasks_count = QUIT_RISK_ENABLED_SCHEDULED_TASKS_COUNT.load(Ordering::Relaxed);
 
     let mut reasons: Vec<String> = Vec::new();
-    if has_active_tunnel {
-        reasons.push("an active tunnel".to_string());
-    }
     if running_tasks_count > 0 {
         reasons.push(format!(
             "{} running scheduled task{}",
@@ -2128,13 +2121,6 @@ struct ScheduledTasksQuitRiskResponse {
 }
 
 #[cfg(target_os = "macos")]
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct TunnelStatusResponse {
-    active: bool,
-}
-
-#[cfg(target_os = "macos")]
 async fn refresh_quit_risk_flags(local_base_url: &str) {
     use std::sync::atomic::Ordering;
 
@@ -2153,11 +2139,8 @@ async fn refresh_quit_risk_flags(local_base_url: &str) {
     };
 
     let scheduled_url = format!("{trimmed}/api/openchamber/scheduled-tasks/status");
-    let tunnel_url = format!("{trimmed}/api/openchamber/tunnel/status");
 
-    let scheduled_future = client.get(scheduled_url).send();
-    let tunnel_future = client.get(tunnel_url).send();
-    let (scheduled_result, tunnel_result) = tokio::join!(scheduled_future, tunnel_future);
+    let scheduled_result = client.get(scheduled_url).send().await;
 
     if let Ok(response) = scheduled_result {
         if response.status().is_success() {
@@ -2170,14 +2153,6 @@ async fn refresh_quit_risk_flags(local_base_url: &str) {
                     .store(payload.has_enabled_scheduled_tasks || enabled_count > 0, Ordering::Relaxed);
                 QUIT_RISK_HAS_RUNNING_SCHEDULED_TASKS
                     .store(payload.has_running_scheduled_tasks || running_count > 0, Ordering::Relaxed);
-            }
-        }
-    }
-
-    if let Ok(response) = tunnel_result {
-        if response.status().is_success() {
-            if let Ok(payload) = response.json::<TunnelStatusResponse>().await {
-                QUIT_RISK_HAS_ACTIVE_TUNNEL.store(payload.active, Ordering::Relaxed);
             }
         }
     }

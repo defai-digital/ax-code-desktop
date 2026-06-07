@@ -50,7 +50,7 @@ export class PermissionError extends AxCodeError {
     permission;
     patterns;
     constructor(permission, patterns = []) {
-        super(`Permission denied: ${permission} (${patterns.join(", ")})`, "PERMISSION_DENIED");
+        super(`Permission denied: ${permission}${patterns.length ? ` (${patterns.join(", ")})` : ""}`, "PERMISSION_DENIED");
         this.name = "PermissionError";
         this.permission = permission;
         this.patterns = patterns;

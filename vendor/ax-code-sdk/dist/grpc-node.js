@@ -316,7 +316,7 @@ async function preparePtyBidiInput(input) {
         cursor: typeof firstValue?.cursor === "number" ? firstValue.cursor : undefined,
     };
     async function* events() {
-        if (firstValue)
+        if (firstValue && hasPtyClientEventPayload(firstValue))
             yield normalizePtyClientEvent(firstValue);
         for (;;) {
             const next = await iterator.next();
@@ -326,6 +326,14 @@ async function preparePtyBidiInput(input) {
         }
     }
     return { request, input: events() };
+}
+function hasPtyClientEventPayload(value) {
+    return (typeof value.type === "string" ||
+        typeof value.data === "string" ||
+        typeof value.cols === "number" ||
+        typeof value.rows === "number" ||
+        typeof value.code === "number" ||
+        typeof value.reason === "string");
 }
 function normalizePtyClientEvent(value) {
     const type = typeof value.type === "string" ? value.type : undefined;
@@ -657,7 +665,7 @@ function errorMessage(error) {
 class GrpcFrameDecoder {
     buffer = new Uint8Array(0);
     push(chunk) {
-        this.buffer = new Uint8Array(concatBytes([this.buffer, chunk]));
+        this.buffer = concatBytes([this.buffer, chunk]);
         const frames = [];
         let offset = 0;
         while (this.buffer.byteLength - offset >= 5) {

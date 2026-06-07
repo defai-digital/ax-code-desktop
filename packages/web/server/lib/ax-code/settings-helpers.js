@@ -2,24 +2,12 @@ export const createSettingsHelpers = (dependencies) => {
   const {
     normalizePathForPersistence,
     normalizeDirectoryPath,
-    normalizeTunnelBootstrapTtlMs,
-    normalizeTunnelSessionTtlMs,
-    normalizeTunnelProvider,
-    normalizeTunnelMode,
-    normalizeOptionalPath,
-    normalizeManagedRemoteTunnelHostname,
-    normalizeManagedRemoteTunnelPresets,
-    normalizeManagedRemoteTunnelPresetTokens,
     sanitizeTypographySizesPartial,
     normalizeStringArray,
     sanitizeModelRefs,
     sanitizeSkillCatalogs,
     sanitizeProjects,
   } = dependencies;
-
-  const STT_SERVER_URL_MAX_LENGTH = 2048;
-  const STT_MODEL_MAX_LENGTH = 256;
-  const STT_LANGUAGE_MAX_LENGTH = 64;
 
   const sanitizeSettingsUpdate = (payload) => {
     if (!payload || typeof payload !== 'object') {
@@ -217,51 +205,6 @@ export const createSettingsHelpers = (dependencies) => {
       const normalizedDays = Math.max(1, Math.min(365, Math.round(candidate.autoDeleteAfterDays)));
       result.autoDeleteAfterDays = normalizedDays;
     }
-    if (candidate.tunnelBootstrapTtlMs === null) {
-      result.tunnelBootstrapTtlMs = null;
-    } else if (typeof candidate.tunnelBootstrapTtlMs === 'number' && Number.isFinite(candidate.tunnelBootstrapTtlMs)) {
-      result.tunnelBootstrapTtlMs = normalizeTunnelBootstrapTtlMs(candidate.tunnelBootstrapTtlMs);
-    }
-    if (typeof candidate.tunnelSessionTtlMs === 'number' && Number.isFinite(candidate.tunnelSessionTtlMs)) {
-      result.tunnelSessionTtlMs = normalizeTunnelSessionTtlMs(candidate.tunnelSessionTtlMs);
-    }
-    if (typeof candidate.tunnelProvider === 'string') {
-      const provider = normalizeTunnelProvider(candidate.tunnelProvider);
-      if (provider) {
-        result.tunnelProvider = provider;
-      }
-    }
-    if (typeof candidate.tunnelMode === 'string') {
-      result.tunnelMode = normalizeTunnelMode(candidate.tunnelMode);
-    }
-    if (candidate.managedLocalTunnelConfigPath === null) {
-      result.managedLocalTunnelConfigPath = null;
-    } else if (typeof candidate.managedLocalTunnelConfigPath === 'string') {
-      const trimmed = candidate.managedLocalTunnelConfigPath.trim();
-      result.managedLocalTunnelConfigPath = trimmed.length > 0 ? normalizeOptionalPath(trimmed) : null;
-    }
-    if (typeof candidate.managedRemoteTunnelHostname === 'string') {
-      const hostname = normalizeManagedRemoteTunnelHostname(candidate.managedRemoteTunnelHostname);
-      result.managedRemoteTunnelHostname = hostname;
-    }
-    if (candidate.managedRemoteTunnelToken === null) {
-      result.managedRemoteTunnelToken = null;
-    } else if (typeof candidate.managedRemoteTunnelToken === 'string') {
-      result.managedRemoteTunnelToken = candidate.managedRemoteTunnelToken.trim();
-    }
-    const managedRemoteTunnelPresets = normalizeManagedRemoteTunnelPresets(candidate.managedRemoteTunnelPresets);
-    if (managedRemoteTunnelPresets) {
-      result.managedRemoteTunnelPresets = managedRemoteTunnelPresets;
-    }
-    const managedRemoteTunnelPresetTokens = normalizeManagedRemoteTunnelPresetTokens(candidate.managedRemoteTunnelPresetTokens);
-    if (managedRemoteTunnelPresetTokens) {
-      result.managedRemoteTunnelPresetTokens = managedRemoteTunnelPresetTokens;
-    }
-    if (typeof candidate.managedRemoteTunnelSelectedPresetId === 'string') {
-      const id = candidate.managedRemoteTunnelSelectedPresetId.trim();
-      result.managedRemoteTunnelSelectedPresetId = id || undefined;
-    }
-
     const typography = sanitizeTypographySizesPartial(candidate.typographySizes);
     if (typography) {
       result.typographySizes = typography;
@@ -573,46 +516,6 @@ export const createSettingsHelpers = (dependencies) => {
       }
     }
 
-    if (typeof candidate.sttProvider === 'string') {
-      const provider = candidate.sttProvider.trim();
-      if (provider === 'browser' || provider === 'server' || provider === 'wasm') {
-        result.sttProvider = provider;
-      }
-    }
-    if (typeof candidate.sttServerUrl === 'string') {
-      const trimmed = candidate.sttServerUrl.trim();
-      if (trimmed.length <= STT_SERVER_URL_MAX_LENGTH) {
-        result.sttServerUrl = trimmed;
-      }
-    }
-    if (typeof candidate.sttModel === 'string') {
-      const trimmed = candidate.sttModel.trim();
-      if (trimmed.length <= STT_MODEL_MAX_LENGTH) {
-        result.sttModel = trimmed;
-      }
-    }
-    if (typeof candidate.wasmSttModel === 'string') {
-      const trimmed = candidate.wasmSttModel.trim();
-      if (trimmed.length <= 256) {
-        result.wasmSttModel = trimmed;
-      }
-    }
-    if (typeof candidate.sttLanguage === 'string') {
-      const trimmed = candidate.sttLanguage.trim();
-      if (trimmed.length <= STT_LANGUAGE_MAX_LENGTH) {
-        result.sttLanguage = trimmed;
-      }
-    }
-    if (typeof candidate.sttSilenceThresholdDb === 'number' && Number.isFinite(candidate.sttSilenceThresholdDb)) {
-      result.sttSilenceThresholdDb = Math.max(-100, Math.min(0, candidate.sttSilenceThresholdDb));
-    }
-    if (typeof candidate.sttSilenceHoldMs === 'number' && Number.isFinite(candidate.sttSilenceHoldMs)) {
-      result.sttSilenceHoldMs = Math.max(250, Math.min(10000, Math.round(candidate.sttSilenceHoldMs)));
-    }
-    if (typeof candidate.sttTranscribeOnStop === 'boolean') {
-      result.sttTranscribeOnStop = candidate.sttTranscribeOnStop;
-    }
-
     return result;
   };
 
@@ -676,13 +579,10 @@ export const createSettingsHelpers = (dependencies) => {
 
   const formatSettingsResponse = (settings) => {
     const sanitized = sanitizeSettingsUpdate(settings);
-    delete sanitized.managedRemoteTunnelToken;
     const approved = normalizeStringArray(settings.approvedDirectories);
     const bookmarks = normalizeStringArray(settings.securityScopedBookmarks);
-    const hasManagedRemoteTunnelToken = typeof settings?.managedRemoteTunnelToken === 'string' && settings.managedRemoteTunnelToken.trim().length > 0;
     return {
       ...sanitized,
-      hasManagedRemoteTunnelToken,
       approvedDirectories: approved,
       securityScopedBookmarks: bookmarks,
       pinnedDirectories: normalizeStringArray(settings.pinnedDirectories),

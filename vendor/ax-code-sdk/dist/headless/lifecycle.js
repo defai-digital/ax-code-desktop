@@ -37,6 +37,10 @@ export async function startHeadlessBackend(options = {}) {
             ...(options.config ? { AX_CODE_CONFIG_CONTENT: JSON.stringify(options.config) } : {}),
         },
     });
+    const closed = new Promise((resolve) => {
+        proc.once("exit", () => resolve());
+        proc.once("error", () => resolve());
+    });
     const url = await new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
             failStartup(new Error(`ax-code backend did not become ready within ${timeout}ms\nCaptured output:\n${capturedOutput}`));
@@ -44,6 +48,7 @@ export async function startHeadlessBackend(options = {}) {
         let capturedOutput = "";
         let settled = false;
         let stdoutBuf = "";
+        let stderrBuf = "";
         const onReadyUrl = (urlStr) => {
             void waitForBackendHealth({
                 url: urlStr,
@@ -95,7 +100,10 @@ export async function startHeadlessBackend(options = {}) {
         const onStderr = (chunk) => {
             const text = chunk.toString();
             capturedOutput += text;
-            for (const line of text.split("\n")) {
+            stderrBuf += text;
+            const lines = stderrBuf.split("\n");
+            stderrBuf = lines.pop() ?? "";
+            for (const line of lines) {
                 if (line.trim())
                     options.onStderr?.(line);
             }
@@ -120,6 +128,7 @@ export async function startHeadlessBackend(options = {}) {
     return {
         url,
         headers,
+        closed,
         async close() {
             await killProc(proc);
         },
@@ -182,8 +191,6 @@ async function waitForBackendHealth(input) {
         const text = await response.text().catch(() => "");
         throw new Error(`ax-code backend health check failed (${response.status}): ${text || response.statusText}`);
     }
-    // Drain the success response body to return the connection to the pool.
-    response.body?.cancel();
 }
 async function killProc(proc) {
     if (proc.exitCode !== null || proc.signalCode !== null)

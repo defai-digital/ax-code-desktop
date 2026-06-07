@@ -13,6 +13,7 @@ export interface HeadlessProjectionState<TSession extends {
 } = {
     id: string;
 }> {
+    stream_health: HeadlessStreamHealth;
     permission: Record<string, PermissionRequest[]>;
     question: Record<string, QuestionRequest[]>;
     todo: Record<string, TTodo[]>;
@@ -29,6 +30,7 @@ export interface HeadlessProjectionState<TSession extends {
         branch: string;
     } | undefined;
 }
+export type HeadlessStreamHealth = "fixture" | "connecting" | "connected" | "unavailable" | "error";
 export type HeadlessProjectionEffect = {
     type: "permission.auto_reply";
     requestID: string;
@@ -58,7 +60,9 @@ export declare function createHeadlessProjectionState<TSession extends {
     id: string;
 } = {
     id: string;
-}>(): HeadlessProjectionState<TSession, TTodo, TDiff, TStatus, TMessage, TPart, TRisk, TGoal, TTaskQueueItem>;
+}>(input?: {
+    streamHealth?: HeadlessStreamHealth;
+}): HeadlessProjectionState<TSession, TTodo, TDiff, TStatus, TMessage, TPart, TRisk, TGoal, TTaskQueueItem>;
 export declare function applyHeadlessProjectionEvent<TSession extends {
     id: string;
 }, TTodo, TDiff, TStatus, TMessage extends {

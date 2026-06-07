@@ -50,5 +50,6 @@ Payload includes:
 The downstream website's `deploy-docs.yml` listens for this event
 (`repository_dispatch: types: [docs_source_updated]`), checks out
 this repo at `source_ref`, runs `docs:sync`, builds `apps/docs`, and deploys
-to Cloudflare Pages. That repo needs its own secrets: `AX_CODE_DESKTOP_REPO_TOKEN`
-(read access to this repo), `CLOUDFLARE_API_TOKEN`, and `CLOUDFLARE_ACCOUNT_ID`.
+to the configured static hosting provider. That repo needs its own
+`AX_CODE_DESKTOP_REPO_TOKEN` secret with read access to this repo, plus any
+provider-specific deployment secrets.

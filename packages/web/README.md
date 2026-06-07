@@ -59,20 +59,6 @@ AX_CODE_HOST=https://myhost:4096 AX_CODE_SKIP_START=true ax-code-desktop
 | `OPENCHAMBER_AX_CODE_HOSTNAME` | Legacy-prefixed bind hostname for the managed AX Code server. |
 | `OPENCHAMBER_HOST` | Legacy-prefixed bind hostname for the AX Code Desktop web server. |
 
-## Tunnels
-
-Tunnel commands expose a trusted workstation runtime through a provider such as
-Cloudflare or ngrok:
-
-```bash
-ax-code-desktop tunnel providers
-ax-code-desktop tunnel start --provider cloudflare --mode quick
-ax-code-desktop tunnel status --all
-ax-code-desktop tunnel stop --port 3000
-```
-
-Use a UI password before exposing the runtime outside localhost.
-
 ## Startup Service
 
 ```bash

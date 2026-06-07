@@ -5,6 +5,4 @@ export type AXCodeSection =
   | 'sessions'
   | 'git'
   | 'github'
-  | 'notifications'
-  | 'voice'
-  | 'tunnel';
+  | 'notifications';

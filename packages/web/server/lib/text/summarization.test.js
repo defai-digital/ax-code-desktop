@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { sanitizeForTTS, summarizeText } from './summarization.js';
+import { sanitizeForSummary, summarizeText } from './summarization.js';
 
 describe('text summarization stubs', () => {
-  it('removes code from TTS text before stripping markdown punctuation', () => {
-    expect(sanitizeForTTS('Read `const value = 1` aloud')).toBe('Read aloud');
-    expect(sanitizeForTTS('Before\n```js\nconst value = 1\n```\nAfter')).toBe('Before After');
+  it('removes code from summary text before stripping markdown punctuation', () => {
+    expect(sanitizeForSummary('Read `const value = 1` aloud')).toBe('Read aloud');
+    expect(sanitizeForSummary('Before\n```js\nconst value = 1\n```\nAfter')).toBe('Before After');
   });
 
   it('does not call the retired zen provider', async () => {

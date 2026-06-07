@@ -4,7 +4,6 @@ export const createBootstrapRuntime = (dependencies) => {
     registerServerStatusRoutes,
     registerCommonRequestMiddleware,
     registerAuthAndAccessRoutes,
-    registerTtsRoutes,
     registerNotificationRoutes,
     registerOpenChamberRoutes,
     express,
@@ -20,10 +19,7 @@ export const createBootstrapRuntime = (dependencies) => {
       getHealthSnapshot,
       verboseRequestLogs,
       uiPassword,
-      tunnelAuthController,
       readSettingsFromDiskMigrated,
-      normalizeTunnelSessionTtlMs,
-      sayTTSCapability,
       ensureGlobalWatcherStarted,
       getUiSessionTokenFromRequest,
       getUiNotificationClients,
@@ -64,13 +60,8 @@ export const createBootstrapRuntime = (dependencies) => {
 
     registerAuthAndAccessRoutes(app, {
       express,
-      tunnelAuthController,
       uiAuthController,
-      readSettingsFromDiskMigrated,
-      normalizeTunnelSessionTtlMs,
     });
-
-    registerTtsRoutes(app, { sayTTSCapability });
 
     registerNotificationRoutes(app, {
       uiAuthController,

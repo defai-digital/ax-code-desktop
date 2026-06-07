@@ -18,29 +18,11 @@ import type { ProviderModel, ProviderWithModelList } from "@/types/providerModel
 
 const MODELS_DEV_API_URL = "https://models.dev/api.json";
 const MODELS_DEV_PROXY_URL = "/api/openchamber/models-metadata";
-const STT_SILENCE_THRESHOLD_DB_MIN = -100;
-const STT_SILENCE_THRESHOLD_DB_MAX = 0;
-const STT_SILENCE_HOLD_MS_MIN = 250;
-const STT_SILENCE_HOLD_MS_MAX = 10000;
 
 const FALLBACK_PROVIDER_ID = "ax-code";
 const FALLBACK_MODEL_ID = "big-pickle";
 const GIT_UTILITY_PROVIDER_ID = "zen";
 const GIT_UTILITY_PREFERRED_MODEL_ID = "big-pickle";
-
-const normalizeSttSilenceThresholdDb = (value: unknown): number | undefined => {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-        return undefined;
-    }
-    return Math.max(STT_SILENCE_THRESHOLD_DB_MIN, Math.min(STT_SILENCE_THRESHOLD_DB_MAX, value));
-};
-
-const normalizeSttSilenceHoldMs = (value: unknown): number | undefined => {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-        return undefined;
-    }
-    return Math.max(STT_SILENCE_HOLD_MS_MIN, Math.min(STT_SILENCE_HOLD_MS_MAX, Math.round(value)));
-};
 
 interface OpenChamberDefaults {
     defaultModel?: string;
@@ -51,13 +33,6 @@ interface OpenChamberDefaults {
     defaultFileViewerPreview?: boolean;
     zenModel?: string;
     messageStreamTransport?: 'auto' | 'ws' | 'sse';
-    sttProvider?: 'browser' | 'server' | 'wasm';
-    sttServerUrl?: string;
-    wasmSttModel?: string;
-    sttModel?: string;
-    sttLanguage?: string;
-    sttSilenceThresholdDb?: number;
-    sttSilenceHoldMs?: number;
 }
 
 const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
@@ -79,12 +54,6 @@ const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
                         data?.messageStreamTransport === 'ws' || data?.messageStreamTransport === 'sse' || data?.messageStreamTransport === 'auto'
                             ? data.messageStreamTransport
                             : undefined;
-                    const sttProvider = data?.sttProvider === 'browser' || data?.sttProvider === 'server' || data?.sttProvider === 'wasm' ? data.sttProvider : undefined;
-                    const sttServerUrl = typeof data?.sttServerUrl === 'string' ? data.sttServerUrl.trim() : undefined;
-                    const sttModel = typeof data?.sttModel === 'string' ? data.sttModel.trim() : undefined;
-                    const sttLanguage = typeof data?.sttLanguage === 'string' ? data.sttLanguage.trim() : undefined;
-                    const sttSilenceThresholdDb = normalizeSttSilenceThresholdDb(data?.sttSilenceThresholdDb);
-                    const sttSilenceHoldMs = normalizeSttSilenceHoldMs(data?.sttSilenceHoldMs);
 
                     return {
                         defaultModel: defaultModel.length > 0 ? defaultModel : undefined,
@@ -95,12 +64,6 @@ const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
                         defaultFileViewerPreview,
                         zenModel: zenModel.length > 0 ? zenModel : undefined,
                         messageStreamTransport,
-                        sttProvider,
-                        sttServerUrl,
-                        sttModel,
-                        sttLanguage,
-                        sttSilenceThresholdDb,
-                        sttSilenceHoldMs,
                     };
                 }
             } catch {
@@ -127,12 +90,6 @@ const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
             data?.messageStreamTransport === 'ws' || data?.messageStreamTransport === 'sse' || data?.messageStreamTransport === 'auto'
                 ? data.messageStreamTransport
                 : undefined;
-        const sttProvider = data?.sttProvider === 'browser' || data?.sttProvider === 'server' ? data.sttProvider : undefined;
-        const sttServerUrl = typeof data?.sttServerUrl === 'string' ? data.sttServerUrl.trim() : undefined;
-        const sttModel = typeof data?.sttModel === 'string' ? data.sttModel.trim() : undefined;
-        const sttLanguage = typeof data?.sttLanguage === 'string' ? data.sttLanguage.trim() : undefined;
-        const sttSilenceThresholdDb = normalizeSttSilenceThresholdDb(data?.sttSilenceThresholdDb);
-        const sttSilenceHoldMs = normalizeSttSilenceHoldMs(data?.sttSilenceHoldMs);
 
         return {
             defaultModel: defaultModel.length > 0 ? defaultModel : undefined,
@@ -143,12 +100,6 @@ const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
             defaultFileViewerPreview,
             zenModel: zenModel.length > 0 ? zenModel : undefined,
             messageStreamTransport,
-            sttProvider,
-            sttServerUrl,
-            sttModel,
-            sttLanguage,
-            sttSilenceThresholdDb,
-            sttSilenceHoldMs,
         };
     } catch {
         return {};
@@ -528,64 +479,6 @@ interface ConfigStore {
     settingsDefaultFileViewerPreview: boolean;
     settingsZenModel: string | undefined;
     settingsMessageStreamTransport: 'auto' | 'ws' | 'sse';
-    // Voice provider preference ('browser', 'openai', 'openai-compatible', or 'say' for macOS)
-    voiceProvider: 'browser' | 'openai' | 'openai-compatible' | 'say';
-    setVoiceProvider: (provider: 'browser' | 'openai' | 'openai-compatible' | 'say') => void;
-    // TTS settings
-    speechRate: number;
-    speechPitch: number;
-    speechVolume: number;
-    sayVoice: string;
-    browserVoice: string;
-    openaiVoice: string;
-    openaiApiKey: string;
-    openaiCompatibleUrl: string;
-    openaiCompatibleApiKey: string;
-    openaiCompatibleVoice: string;
-    openaiCompatibleTtsModel: string;
-    // STT (speech-to-text) settings
-    sttProvider: 'browser' | 'server' | 'wasm';
-    sttServerUrl: string;
-    sttApiKey: string;
-    sttModel: string;
-    wasmSttModel: string;
-    sttLanguage: string;
-    sttSilenceThresholdDb: number;
-    sttSilenceHoldMs: number;
-    sttTranscribeOnStop: boolean;
-    showMessageTTSButtons: boolean;
-    voiceModeEnabled: boolean;
-    // Summarization settings
-    summarizeMessageTTS: boolean;
-    summarizeVoiceConversation: boolean;
-    summarizeCharacterThreshold: number;
-    summarizeMaxLength: number;
-    setSpeechRate: (rate: number) => void;
-    setSpeechPitch: (pitch: number) => void;
-    setSpeechVolume: (volume: number) => void;
-    setSayVoice: (voice: string) => void;
-    setBrowserVoice: (voice: string) => void;
-    setOpenaiVoice: (voice: string) => void;
-    setOpenaiApiKey: (apiKey: string) => void;
-    setOpenaiCompatibleUrl: (url: string) => void;
-    setOpenaiCompatibleApiKey: (apiKey: string) => void;
-    setOpenaiCompatibleVoice: (voice: string) => void;
-    setOpenaiCompatibleTtsModel: (model: string) => void;
-    setSttProvider: (provider: 'browser' | 'server' | 'wasm') => void;
-    setSttServerUrl: (url: string) => void;
-    setSttApiKey: (apiKey: string) => void;
-    setSttModel: (model: string) => void;
-    setWasmSttModel: (model: string) => void;
-    setSttLanguage: (lang: string) => void;
-    setSttSilenceThresholdDb: (db: number) => void;
-    setSttSilenceHoldMs: (ms: number) => void;
-    setSttTranscribeOnStop: (enabled: boolean) => void;
-    setShowMessageTTSButtons: (show: boolean) => void;
-    setVoiceModeEnabled: (enabled: boolean) => void;
-    setSummarizeMessageTTS: (enabled: boolean) => void;
-    setSummarizeVoiceConversation: (enabled: boolean) => void;
-    setSummarizeCharacterThreshold: (threshold: number) => void;
-    setSummarizeMaxLength: (maxLength: number) => void;
 
     activateDirectory: (directory: string | null | undefined) => Promise<void>;
 
@@ -657,234 +550,6 @@ export const useConfigStore = create<ConfigStore>()(
                 settingsDefaultFileViewerPreview: false,
                 settingsZenModel: undefined,
                 settingsMessageStreamTransport: 'auto',
-                // Voice provider preference - load from localStorage or default to 'browser'
-                voiceProvider: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('voiceProvider');
-                        if (saved === 'openai' || saved === 'browser' || saved === 'say' || saved === 'openai-compatible') return saved;
-                    }
-                    return 'browser';
-                })(),
-                // TTS settings - load from localStorage with defaults
-                speechRate: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('speechRate');
-                        if (saved) {
-                            const parsed = parseFloat(saved);
-                            if (!isNaN(parsed) && parsed >= 0.5 && parsed <= 2) return parsed;
-                        }
-                    }
-                    return 1;
-                })(),
-                speechPitch: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('speechPitch');
-                        if (saved) {
-                            const parsed = parseFloat(saved);
-                            if (!isNaN(parsed) && parsed >= 0.5 && parsed <= 2) return parsed;
-                        }
-                    }
-                    return 1;
-                })(),
-                speechVolume: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('speechVolume');
-                        if (saved) {
-                            const parsed = parseFloat(saved);
-                            if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) return parsed;
-                        }
-                    }
-                    return 1;
-                })(),
-                // macOS Say voice - load from localStorage or default to 'Samantha'
-                sayVoice: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('sayVoice');
-                        if (saved) return saved;
-                    }
-                    return 'Samantha';
-                })(),
-                // Browser voice - load from localStorage or default to empty (auto-select)
-                browserVoice: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('browserVoice');
-                        if (saved) return saved;
-                    }
-                    return '';
-                })(),
-                // OpenAI voice - load from localStorage or default to 'nova'
-                openaiVoice: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('openaiVoice');
-                        if (saved) return saved;
-                    }
-                    return 'nova';
-                })(),
-                // OpenAI API key for TTS - load from localStorage or default to empty
-                openaiApiKey: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('openaiApiKey');
-                        if (saved) return saved;
-                    }
-                    return '';
-                })(),
-                // OpenAI-compatible custom server URL
-                openaiCompatibleUrl: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('openaiCompatibleUrl');
-                        if (saved) return saved;
-                    }
-                    return '';
-                })(),
-                // OpenAI-compatible custom server API key
-                openaiCompatibleApiKey: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('openaiCompatibleApiKey');
-                        if (saved) return saved;
-                    }
-                    return '';
-                })(),
-                // OpenAI-compatible custom server voice
-                openaiCompatibleVoice: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('openaiCompatibleVoice');
-                        if (saved) return saved;
-                    }
-                    return 'af_sky';
-                })(),
-                // OpenAI-compatible custom server TTS model
-                openaiCompatibleTtsModel: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('openaiCompatibleTtsModel');
-                        if (saved && saved !== 'speaches-ai/Kokoro-82M-v1.0-ONNX') return saved;
-                    }
-                    return 'kokoro';
-                })(),
-                // STT provider: 'browser' (Web Speech API), 'server' (OpenAI-compat), 'wasm' (local Whisper)
-                sttProvider: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('sttProvider');
-                        if (saved === 'browser' || saved === 'server' || saved === 'wasm') return saved;
-                        // Electron/Chromium's Web Speech API requires Google API keys
-                        // not available in Electron, so default to WASM local Whisper.
-                        const electron = (window as unknown as { __OPENCHAMBER_ELECTRON__?: { runtime?: string } }).__OPENCHAMBER_ELECTRON__;
-                        if (electron?.runtime === 'electron') return 'wasm' as const;
-                    }
-                    return 'browser' as const;
-                })(),
-                sttServerUrl: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('sttServerUrl');
-                        if (saved) return saved;
-                    }
-                    return 'http://localhost:8001/v1';
-                })(),
-                sttApiKey: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('sttApiKey');
-                        if (saved) return saved;
-                    }
-                    return '';
-                })(),
-                sttModel: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('sttModel');
-                        if (saved) return saved;
-                    }
-                    return 'deepdml/faster-whisper-large-v3-turbo-ct2';
-                })(),
-                wasmSttModel: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('wasmSttModel');
-                        if (saved) return saved;
-                    }
-                    return 'Xenova/whisper-base.en';
-                })(),
-                sttLanguage: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('sttLanguage');
-                        if (saved !== null) return saved;
-                    }
-                    return '';
-                })(),
-                sttSilenceThresholdDb: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('sttSilenceThresholdDb');
-                        if (saved) {
-                            const parsed = parseFloat(saved);
-                            if (!isNaN(parsed)) return parsed;
-                        }
-                    }
-                    return -45;
-                })(),
-                sttSilenceHoldMs: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('sttSilenceHoldMs');
-                        if (saved) {
-                            const parsed = parseInt(saved, 10);
-                            if (!isNaN(parsed)) return parsed;
-                        }
-                    }
-                    return 1500;
-                })(),
-                sttTranscribeOnStop: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('sttTranscribeOnStop');
-                        if (saved === 'true') return true;
-                    }
-                    return false;
-                })(),
-                // Show TTS buttons on messages - disabled by default until user enables it
-                showMessageTTSButtons: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('showMessageTTSButtons');
-                        if (saved === 'true') return true;
-                    }
-                    return false;
-                })(),
-                // Voice mode enabled - load from localStorage or default to false
-                voiceModeEnabled: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('voiceModeEnabled');
-                        if (saved === 'true') return true;
-                    }
-                    return false;
-                })(),
-                // Summarization settings
-                summarizeMessageTTS: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('summarizeMessageTTS');
-                        if (saved === 'true') return true;
-                    }
-                    return false;
-                })(),
-                summarizeVoiceConversation: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('summarizeVoiceConversation');
-                        if (saved === 'true') return true;
-                    }
-                    return false;
-                })(),
-                summarizeCharacterThreshold: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('summarizeCharacterThreshold');
-                        if (saved) {
-                            const parsed = parseInt(saved, 10);
-                            if (!isNaN(parsed) && parsed >= 50 && parsed <= 2000) return parsed;
-                        }
-                    }
-                    return 200;
-                })(),
-                summarizeMaxLength: (() => {
-                    if (typeof window !== 'undefined') {
-                        const saved = localStorage.getItem('summarizeMaxLength');
-                        if (saved) {
-                            const parsed = parseInt(saved, 10);
-                            if (!isNaN(parsed) && parsed >= 50 && parsed <= 2000) return parsed;
-                        }
-                    }
-                    return 500;
-                })(),
                 activateDirectory: async (directory) => {
                     const directoryKey = toDirectoryKey(directory);
 
@@ -1371,12 +1036,6 @@ export const useConfigStore = create<ConfigStore>()(
                                     settingsDefaultFileViewerPreview: openChamberDefaults.defaultFileViewerPreview ?? false,
                                     settingsZenModel: resolvedZenModel,
                                     settingsMessageStreamTransport: openChamberDefaults.messageStreamTransport ?? state.settingsMessageStreamTransport ?? 'auto',
-                                    sttProvider: openChamberDefaults.sttProvider ?? state.sttProvider,
-                                    sttServerUrl: openChamberDefaults.sttServerUrl ?? state.sttServerUrl,
-                                    sttModel: openChamberDefaults.sttModel ?? state.sttModel,
-                                    sttLanguage: openChamberDefaults.sttLanguage ?? state.sttLanguage,
-                                    sttSilenceThresholdDb: openChamberDefaults.sttSilenceThresholdDb ?? state.sttSilenceThresholdDb,
-                                    sttSilenceHoldMs: openChamberDefaults.sttSilenceHoldMs ?? state.sttSilenceHoldMs,
                                     directoryScoped: {
                                         ...state.directoryScoped,
                                         [directoryKey]: nextSnapshot,
@@ -1821,208 +1480,6 @@ export const useConfigStore = create<ConfigStore>()(
                     });
                 },
 
-                setVoiceProvider: (provider: 'browser' | 'openai' | 'openai-compatible' | 'say') => {
-                    set({ voiceProvider: provider });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('voiceProvider', provider);
-                    }
-                },
-
-                setSpeechRate: (rate: number) => {
-                    const clampedRate = Math.max(0.5, Math.min(2, rate));
-                    set({ speechRate: clampedRate });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('speechRate', String(clampedRate));
-                    }
-                },
-
-                setSpeechPitch: (pitch: number) => {
-                    const clampedPitch = Math.max(0.5, Math.min(2, pitch));
-                    set({ speechPitch: clampedPitch });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('speechPitch', String(clampedPitch));
-                    }
-                },
-
-                setSpeechVolume: (volume: number) => {
-                    const clampedVolume = Math.max(0, Math.min(1, volume));
-                    set({ speechVolume: clampedVolume });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('speechVolume', String(clampedVolume));
-                    }
-                },
-
-                setSayVoice: (voice: string) => {
-                    set({ sayVoice: voice });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('sayVoice', voice);
-                    }
-                },
-
-                setBrowserVoice: (voice: string) => {
-                    set({ browserVoice: voice });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('browserVoice', voice);
-                    }
-                },
-
-                setOpenaiVoice: (voice: string) => {
-                    set({ openaiVoice: voice });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('openaiVoice', voice);
-                    }
-                },
-
-                setOpenaiApiKey: (apiKey: string) => {
-                    set({ openaiApiKey: apiKey });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('openaiApiKey', apiKey);
-                    }
-                },
-
-                setOpenaiCompatibleUrl: (url: string) => {
-                    set({ openaiCompatibleUrl: url });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('openaiCompatibleUrl', url);
-                    }
-                },
-
-                setOpenaiCompatibleApiKey: (apiKey: string) => {
-                    set({ openaiCompatibleApiKey: apiKey });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('openaiCompatibleApiKey', apiKey);
-                    }
-                },
-
-                setOpenaiCompatibleVoice: (voice: string) => {
-                    set({ openaiCompatibleVoice: voice });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('openaiCompatibleVoice', voice);
-                    }
-                },
-
-                setOpenaiCompatibleTtsModel: (model: string) => {
-                    set({ openaiCompatibleTtsModel: model });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('openaiCompatibleTtsModel', model);
-                    }
-                },
-
-                setSttProvider: (provider: 'browser' | 'server' | 'wasm') => {
-                    set({ sttProvider: provider });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('sttProvider', provider);
-                    }
-                    updateDesktopSettings({ sttProvider: provider }).catch(() => {});
-                },
-
-                setSttServerUrl: (url: string) => {
-                    set({ sttServerUrl: url });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('sttServerUrl', url);
-                    }
-                    updateDesktopSettings({ sttServerUrl: url }).catch(() => {});
-                },
-
-                setSttApiKey: (apiKey: string) => {
-                    set({ sttApiKey: apiKey });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('sttApiKey', apiKey);
-                    }
-                },
-
-                setSttModel: (model: string) => {
-                    set({ sttModel: model });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('sttModel', model);
-                    }
-                    updateDesktopSettings({ sttModel: model }).catch(() => {});
-                },
-
-                setWasmSttModel: (model: string) => {
-                    set({ wasmSttModel: model });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('wasmSttModel', model);
-                    }
-                    updateDesktopSettings({ wasmSttModel: model }).catch(() => {});
-                },
-
-                setSttLanguage: (lang: string) => {
-                    set({ sttLanguage: lang });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('sttLanguage', lang);
-                    }
-                    updateDesktopSettings({ sttLanguage: lang }).catch(() => {});
-                },
-
-                setSttSilenceThresholdDb: (db: number) => {
-                    set({ sttSilenceThresholdDb: db });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('sttSilenceThresholdDb', String(db));
-                    }
-                    updateDesktopSettings({ sttSilenceThresholdDb: db }).catch(() => {});
-                },
-
-                setSttSilenceHoldMs: (ms: number) => {
-                    set({ sttSilenceHoldMs: ms });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('sttSilenceHoldMs', String(ms));
-                    }
-                    updateDesktopSettings({ sttSilenceHoldMs: ms }).catch(() => {});
-                },
-
-                setSttTranscribeOnStop: (enabled: boolean) => {
-                    set({ sttTranscribeOnStop: enabled });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('sttTranscribeOnStop', String(enabled));
-                    }
-                    updateDesktopSettings({ sttTranscribeOnStop: enabled }).catch(() => {});
-                },
-
-                setShowMessageTTSButtons: (show: boolean) => {
-                    set({ showMessageTTSButtons: show });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('showMessageTTSButtons', String(show));
-                    }
-                },
-
-                setVoiceModeEnabled: (enabled: boolean) => {
-                    set({ voiceModeEnabled: enabled });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('voiceModeEnabled', String(enabled));
-                    }
-                },
-
-                setSummarizeMessageTTS: (enabled: boolean) => {
-                    set({ summarizeMessageTTS: enabled });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('summarizeMessageTTS', String(enabled));
-                    }
-                },
-
-                setSummarizeVoiceConversation: (enabled: boolean) => {
-                    set({ summarizeVoiceConversation: enabled });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('summarizeVoiceConversation', String(enabled));
-                    }
-                },
-
-                setSummarizeCharacterThreshold: (threshold: number) => {
-                    const clamped = Math.max(50, Math.min(2000, threshold));
-                    set({ summarizeCharacterThreshold: clamped });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('summarizeCharacterThreshold', String(clamped));
-                    }
-                },
-
-                setSummarizeMaxLength: (maxLength: number) => {
-                    const clamped = Math.max(50, Math.min(2000, maxLength));
-                    set({ summarizeMaxLength: clamped });
-                    if (typeof window !== 'undefined') {
-                        localStorage.setItem('summarizeMaxLength', String(clamped));
-                    }
-                },
-
                 probeConnection: async (options?: { timeoutMs?: number }) => {
                     const isHealthy = await probeAxCodeHealth(options?.timeoutMs);
                     if (isHealthy) {
@@ -2198,9 +1655,6 @@ export const useConfigStore = create<ConfigStore>()(
                     settingsDefaultFileViewerPreview: state.settingsDefaultFileViewerPreview,
                     settingsZenModel: state.settingsZenModel,
                     settingsMessageStreamTransport: state.settingsMessageStreamTransport,
-                    speechRate: state.speechRate,
-                    speechPitch: state.speechPitch,
-                    speechVolume: state.speechVolume,
                 }),
              },
          ),

@@ -35,7 +35,6 @@ function getVendorChunkName(packageName: string): string | undefined {
   if (packageName.startsWith('@shikijs') || packageName === 'shiki') return 'vendor-shiki-core'
   if (packageName.includes('remark') || packageName.includes('rehype') || packageName.includes('micromark') || packageName === 'react-markdown' || packageName === 'unified') return 'vendor-markdown'
   if (packageName.includes('react-syntax-highlighter') || packageName.includes('highlight.js') || packageName === 'refractor' || packageName === 'prismjs') return 'vendor-syntax'
-  if (packageName === '@xenova/transformers' || packageName === 'onnxruntime-web' || packageName === 'onnxruntime-common') return 'vendor-ml'
   if (packageName.startsWith('@tauri-apps')) return 'vendor-tauri'
   return undefined
 }
@@ -69,9 +68,6 @@ export default defineConfig({
     rollupOptions: {
       external: ['node:child_process', 'node:fs', 'node:path', 'node:url'],
       onwarn(warning, warn) {
-        if (warning.code === 'EVAL' && warning.id?.includes('onnxruntime-web')) {
-          return
-        }
         warn(warning)
       },
       output: {

@@ -29,7 +29,6 @@ const createRuntime = (server) => createGracefulShutdownRuntime({
   setUiAuthController: vi.fn(),
   getActiveTunnelController: () => null,
   setActiveTunnelController: vi.fn(),
-  tunnelAuthController: { clearActiveTunnel: vi.fn() },
 });
 
 describe('graceful shutdown runtime', () => {

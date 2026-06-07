@@ -111,10 +111,6 @@
       "label": "Remote access",
       "items": [
         {
-          "label": "Tunnels",
-          "link": "/tunnels/"
-        },
-        {
           "label": "Reverse Proxy",
           "link": "/reverse-proxy/"
         },
@@ -136,10 +132,6 @@
           "link": "/notifications/"
         },
         {
-          "label": "Voice Mode",
-          "link": "/voice/"
-        },
-        {
           "label": "Project Icons",
           "link": "/project-icons/"
         }
@@ -155,10 +147,6 @@
         {
           "label": "Desktop Browser",
           "link": "/desktop-browser/"
-        },
-        {
-          "label": "Desktop Tunnels",
-          "link": "/desktop-tunnels/"
         },
         {
           "label": "Updates",

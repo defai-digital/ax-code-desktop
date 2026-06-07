@@ -5,7 +5,7 @@ description: Configure AX Code Desktop correctly behind Nginx, Nginx Proxy Manag
 
 # Reverse Proxy
 
-Use this page if you run AX Code Desktop behind Nginx, Nginx Proxy Manager, Caddy, Cloudflare, or another reverse proxy.
+Use this page if you run AX Code Desktop behind Nginx, Nginx Proxy Manager, Caddy, or another reverse proxy.
 
 ## Before you proxy it
 
@@ -327,15 +327,14 @@ Caddy handles WebSocket upgrades automatically — no extra configuration needed
 
 ## CDN and double-compression warning
 
-If you place a CDN (such as Cloudflare) in front of your reverse proxy, be aware of double compression:
+If you place a CDN in front of your reverse proxy, be aware of double compression:
 
 - AX Code Desktop compresses HTTP responses with gzip (threshold 1 KB).
-- Cloudflare and other CDNs also compress responses by default.
+- CDNs often compress responses by default.
 - This can cause double-compressed responses or incorrect `Content-Encoding` headers.
 
 To avoid this, disable compression at **one** layer:
 
-- **Cloudflare:** Rules → Compression → disable (or use "Passthrough" mode).
 - **Nginx:** `gzip off` (already shown in the examples above).
 - **Caddy:** Caddy does not re-compress by default if the upstream already sends compressed content.
 
@@ -343,5 +342,4 @@ SSE streaming routes are excluded from compression by AX Code Desktop, but the C
 
 ## Related
 
-- [Tunnels](/tunnels/)
 - [Troubleshooting](/troubleshooting/)

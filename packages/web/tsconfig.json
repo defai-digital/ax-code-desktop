@@ -13,7 +13,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "baseUrl": ".",
-    "types": ["vite/client", "@types/dom-speech-recognition", "node"],
+    "types": ["vite/client", "node"],
     "paths": {
       "@/*": ["../ui/src/*", "./src/*"],
       "@web/*": ["./src/*"],

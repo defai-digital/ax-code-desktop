@@ -1,5 +1,6 @@
-export function createHeadlessProjectionState() {
+export function createHeadlessProjectionState(input = {}) {
     return {
+        stream_health: input.streamHealth ?? "connecting",
         permission: {},
         question: {},
         todo: {},
@@ -20,8 +21,10 @@ export function applyHeadlessProjectionEvent(state, event, options = {}) {
     switch (event.type) {
         case "server.connected":
         case "server.heartbeat":
+            state.stream_health = "connected";
             return { handled: true, effects };
         case "server.instance.disposed":
+            state.stream_health = "unavailable";
             effects.push({ type: "bootstrap.reload" });
             return { handled: true, effects };
         case "permission.asked":
@@ -142,7 +145,8 @@ export function applyHeadlessProjectionEvent(state, event, options = {}) {
             return { handled: true, effects };
     }
     const _exhaustive = event;
-    return { handled: false, effects: _exhaustive };
+    void _exhaustive;
+    return { handled: false, effects };
 }
 export function runtimeProbeKeysForEvent(event) {
     switch (event.type) {
@@ -200,7 +204,7 @@ function upsertByID(list, item) {
     list.splice(result.index, 0, item);
 }
 function deleteSessionState(state, sessionID) {
-    state.session = state.session.filter((session) => session.id !== sessionID);
+    removeByID(state.session, sessionID);
     for (const message of state.message[sessionID] ?? []) {
         delete state.part[message.id];
     }

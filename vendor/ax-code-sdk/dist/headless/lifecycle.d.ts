@@ -24,6 +24,7 @@ export type HeadlessBackendOptions = {
 export type HeadlessBackendHandle = {
     url: string;
     headers: Record<string, string>;
+    closed: Promise<void>;
     close(): Promise<void>;
 };
 export declare function startHeadlessBackend(options?: HeadlessBackendOptions): Promise<HeadlessBackendHandle>;

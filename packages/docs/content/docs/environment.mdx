@@ -19,7 +19,7 @@ Bind address for the AX Code Desktop web server. Use `0.0.0.0` to allow access f
 
 ### `OPENCHAMBER_UI_PASSWORD`
 
-Password for the browser UI. Use this when binding outside localhost, using tunnels, or running behind a reverse proxy.
+Password for the browser UI. Use this when binding outside localhost or running behind a reverse proxy.
 
 ### `OPENCHAMBER_DATA_DIR`
 
@@ -108,20 +108,6 @@ Alternative Git executable override. Prefer `OPENCHAMBER_GIT_BINARY` for AX Code
 ### `OPENCHAMBER_GIT_READ_CACHE_TTL_MS`
 
 Time-to-live, in milliseconds, for cached Git-backed file reads. Set `0` to disable this cache while debugging.
-
-## Voice and tunnels
-
-### `OPENAI_API_KEY`
-
-API key used by AX Code Desktop voice features that call OpenAI-compatible services.
-
-### `OPENCHAMBER_ALLOW_REMOTE_OPENAI_COMPAT_URLS`
-
-Allows remote OpenAI-compatible base URLs for voice features when set to `true` or `1`.
-
-### `NGROK_AUTHTOKEN`
-
-ngrok auth token used by AX Code Desktop tunnel commands. You can also configure ngrok with `ngrok config add-authtoken <token>`.
 
 ## Runtime helpers
 

@@ -20,7 +20,7 @@ stays the same no matter who is writing.
 ### Keep it short
 
 - Lead with the task, not background. The first line should say what the page is
-  for ("Use `ax-code-desktop tunnel` to expose a running AX Code Desktop instance.").
+  for ("Use `ax-code-desktop startup` to launch AX Code Desktop at login.").
 - Cut anything that doesn't change what the reader does next.
 - A basic page should fit in a screen or two. Long, dense reference pages (like
   Reverse Proxy) are the exception — and they say so in their first line ("Use
@@ -43,9 +43,7 @@ running.
 
 ### Plain language
 
-- Explain a term the first time it appears, in parentheses, in everyday words:
-  - good: start a tunnel (a public link to your local AX Code Desktop)
-  - bad: start a tunnel — the reader doesn't know what that is yet
+- Explain a term the first time it appears, in parentheses, in everyday words.
 - Prefer common words over internal ones. "App", "version", "page" beat
   "surface", "instance", "route" when the meaning is the same. If an internal
   term is unavoidable, define it once.

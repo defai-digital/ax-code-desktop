@@ -1883,6 +1883,7 @@ export class Session2 extends HeyApiClient {
                     { in: "query", key: "directory" },
                     { in: "body", key: "title" },
                     { in: "body", key: "time" },
+                    { in: "body", key: "metadata" },
                 ],
             },
         ]);
@@ -3541,6 +3542,21 @@ export class Command extends HeyApiClient {
         });
     }
 }
+export class Capability extends HeyApiClient {
+    /**
+     * List capabilities
+     *
+     * Get a unified catalog of reusable commands, skills, agents, and workflow templates.
+     */
+    list(parameters, options) {
+        const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }]);
+        return (options?.client ?? this.client).get({
+            url: "/capability",
+            ...options,
+            ...params,
+        });
+    }
+}
 export class App extends HeyApiClient {
     /**
      * Write log
@@ -3879,6 +3895,10 @@ export class OpencodeClient extends HeyApiClient {
     _command;
     get command() {
         return (this._command ??= new Command({ client: this.client }));
+    }
+    _capability;
+    get capability() {
+        return (this._capability ??= new Capability({ client: this.client }));
     }
     _app;
     get app() {

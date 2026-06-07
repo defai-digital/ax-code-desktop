@@ -10,12 +10,12 @@ This module provides shared text transformation helpers that are not owned by a 
 
 ### Summarization (summarization.js)
 - `summarizeText({ text, threshold, maxLength, zenModel, mode })`: Retired summarization entrypoint retained as an API-compatible stub. `zenModel` is ignored.
-- `sanitizeForTTS(text)`: Sanitizes text for speech output.
+- `sanitizeForSummary(text)`: Sanitizes text for compact plain-text summary output.
 - `sanitizeForNotification(text)`: Sanitizes text for compact notification output.
 - `sanitizeForNote(text)`: Sanitizes text for short note/distillation output.
 
 ## Modes
-- `tts`: Speakable summary for TTS flows.
+- `summary`: Compact plain-text summary.
 - `notification`: Short plain-text summary for notification bodies.
 - `note`: Distilled short project-memory note.
 
@@ -30,6 +30,6 @@ Returns object with:
 - `summaryLength`: Optional final summary length.
 
 ## Notes for contributors
-- Keep this module neutral. Do not re-couple it to TTS-specific naming or routing.
+- Keep this module neutral. Do not couple it to surface-specific naming or routing.
 - Add new mode semantics here when multiple product surfaces need the same text pipeline.
 - Prefer mode-specific prompt and sanitize behavior over creating duplicated summarizers in unrelated modules.

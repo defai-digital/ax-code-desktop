@@ -20,9 +20,7 @@ export type SettingsPageSlug =
   | 'sessions'
   | 'magic-prompts'
   | 'snippets'
-  | 'notifications'
-  | 'voice'
-  | 'tunnel';
+  | 'notifications';
 
 export type SettingsPageGroup =
   | 'appearance'
@@ -81,7 +79,7 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
     title: 'Remote Instances',
     group: 'projects',
     kind: 'split',
-    keywords: ['ssh', 'remote', 'instances', 'tunnels', 'forwarding', 'connection'],
+    keywords: ['ssh', 'remote', 'instances', 'forwarding', 'connection'],
     isAvailable: (ctx) => ctx.isDesktop && !ctx.isWeb,
   },
   {
@@ -198,8 +196,6 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
   },
 
   { slug: 'notifications', title: 'Notifications', group: 'general', kind: 'single', keywords: ['alerts', 'native', 'summary', 'summarization'], },
-  { slug: 'voice', title: 'Voice', group: 'advanced', kind: 'single', keywords: ['tts', 'speech', 'voice'] },
-  { slug: 'tunnel', title: 'Remote Tunnel', group: 'advanced', kind: 'single', keywords: ['tunnel', 'cloudflare', 'remote', 'share'] },
 ] as const;
 
 export const LEGACY_SIDEBAR_SECTION_TO_SETTINGS_SLUG: Record<SidebarSection, SettingsPageSlug> = {

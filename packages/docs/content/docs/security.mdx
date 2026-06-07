@@ -17,7 +17,7 @@ ax-code-desktop --ui-password be-creative-here
 
 You can also set it with the `OPENCHAMBER_UI_PASSWORD` environment variable instead of putting it on the command line. After signing in, AX Code Desktop remembers the device for a while so you're not asked every time.
 
-Always set a password if the instance is reachable by anyone else — especially over a [tunnel](/tunnels/) or the public internet.
+Always set a password if the instance is reachable by anyone else, especially on a shared network or the public internet.
 
 ## Passkeys
 
@@ -28,10 +28,9 @@ Passkeys are tied to the current password. If you change or remove the password,
 ## Before you expose it
 
 - By default AX Code Desktop only listens on your own machine (`127.0.0.1`). It takes a deliberate change to listen more widely, and you should set a password first.
-- Prefer a [tunnel](/tunnels/) or a private network (like a VPN) over opening a port to the internet.
+- Prefer a private network, VPN, or tightly controlled reverse proxy over opening a port to the internet.
 - If you put AX Code Desktop behind your own HTTPS server, see [Reverse Proxy](/reverse-proxy/).
 
 ## Related
 
-- [Tunnels](/tunnels/) — the recommended way to reach an instance remotely
 - [Reverse Proxy](/reverse-proxy/) — run AX Code Desktop behind your own server

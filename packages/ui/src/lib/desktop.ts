@@ -30,12 +30,6 @@ export type SkillCatalogConfig = {
   gitIdentityId?: string;
 };
 
-export type ManagedRemoteTunnelPreset = {
-  id: string;
-  name: string;
-  hostname: string;
-};
-
 export type DesktopSettings = {
   themeId?: string;
   useSystemTheme?: boolean;
@@ -99,17 +93,6 @@ export type DesktopSettings = {
   autoDeleteEnabled?: boolean;
   autoDeleteAfterDays?: number;
   sessionRetentionAction?: 'archive' | 'delete';
-  tunnelProvider?: string;
-  tunnelMode?: 'quick' | 'managed-remote' | 'managed-local';
-  tunnelBootstrapTtlMs?: number | null;
-  tunnelSessionTtlMs?: number;
-  managedLocalTunnelConfigPath?: string | null;
-  managedRemoteTunnelHostname?: string;
-  managedRemoteTunnelToken?: string | null;
-  hasManagedRemoteTunnelToken?: boolean;
-  managedRemoteTunnelPresets?: ManagedRemoteTunnelPreset[];
-  managedRemoteTunnelSelectedPresetId?: string;
-  managedRemoteTunnelPresetTokens?: Record<string, string>;
   defaultModel?: string; // format: "provider/model"
   defaultVariant?: string;
   defaultAgent?: string;
@@ -164,14 +147,6 @@ export type DesktopSettings = {
   responseStyleEnabled?: boolean;
   responseStylePreset?: 'concise' | 'detailed' | 'mentor' | 'pushback' | 'noFiller' | 'matchEnergy' | 'warmPeer' | 'custom';
   responseStyleCustomInstructions?: string;
-  sttProvider?: 'browser' | 'server' | 'wasm';
-  sttServerUrl?: string;
-  sttModel?: string;
-  wasmSttModel?: string;
-  sttLanguage?: string;
-  sttSilenceThresholdDb?: number;
-  sttSilenceHoldMs?: number;
-  sttTranscribeOnStop?: boolean;
   // Global draft welcome starters (pinned commands/skills), persisted to settings.json
   draftStarters?: DraftStarterRef[];
 };

@@ -23,7 +23,7 @@ Download from [Releases](https://github.com/openchamber/openchamber/releases). A
 - **Local + remote switching** - jump between local and remote AX Code App instances
 - **Native macOS integration** - menus, deep-links, auto-update, and polished window management
 
-Plus everything from the shared AX Code App UI: branchable timeline, Git sidebar, terminal, voice mode, and more.
+Plus everything from the shared AX Code App UI: branchable timeline, Git sidebar, terminal, and more.
 
 ## Features
 
@@ -43,14 +43,6 @@ Plus everything from the shared AX Code App UI: branchable timeline, Git sidebar
 - "Open In" shortcuts for Finder, Terminal, and your preferred editor
 - Fast switching between local and remote instances
 - Workspace-first startup flow with directory picker and steadier window restore behavior
-
-### Remote Tunnel (Desktop)
-
-- Configure in **Settings -> AX Code App -> Remote Tunnel**.
-- Supported Cloudflare modes: **Quick**, **Managed Remote**, **Managed Local**.
-- One active tunnel per Desktop instance. Starting a different mode replaces the current tunnel.
-- Replacing or stopping a tunnel revokes existing connect links and invalidates remote tunnel sessions.
-- Connect links are one-time tokens; generate a new link for each new connection attempt.
 
 ## Development
 

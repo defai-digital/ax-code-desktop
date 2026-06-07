@@ -4,7 +4,7 @@
  * Domain data (sessions, messages, parts, permissions, questions, status)
  * lives in sync child stores. This store owns ONLY transient UI concerns:
  * current selection, draft state, viewport anchors, model/agent preferences,
- * voice state, abort prompts, attached files, worktree metadata.
+ * abort prompts, attached files, worktree metadata.
  *
  * Session↔worktree attachments are the authoritative exception: they live in
  * session-worktree-store (shared sync), and session-ui-store routes through it.
@@ -174,7 +174,6 @@ function notifyMessageSent(sessionId: string): void {
 
 export type { SyntheticContextPart } from "./input-store"
 export type { SessionMemoryState } from "./viewport-store"
-export type { VoiceStatus, VoiceMode } from "./voice-store"
 
 export type NewSessionDraftState = {
   open: boolean

@@ -1,6 +1,6 @@
 ---
 title: Remote Access
-description: Fix tunnels, remote instances, and reaching AX Code Desktop from another device.
+description: Fix remote instances and reaching AX Code Desktop from another trusted device.
 ---
 
 # Remote Access
@@ -11,14 +11,6 @@ When you can't reach AX Code Desktop from another trusted workstation, the fix d
 
 - open `http://localhost:3000` on the same computer first — if that fails, it's not a remote problem; see [AX Code connection](/troubleshooting/ax-code-connection/)
 - confirm the server is running with `ax-code-desktop status`
-
-## Tunnel link doesn't work
-
-- run `ax-code-desktop tunnel status --all`
-- restart the tunnel from the same instance and port
-- regenerate the connect link if the previous one was already used
-
-See [Tunnels](/tunnels/) for the full setup.
 
 ## Remote instance won't connect (desktop)
 
@@ -34,5 +26,5 @@ If you put AX Code Desktop behind a reverse proxy and it loads oddly or won't co
 
 ## Related
 
-- [Tunnels](/tunnels/) · [Remote Instances](/remote-instances/) · [Reverse Proxy](/reverse-proxy/)
+- [Remote Instances](/remote-instances/) · [Reverse Proxy](/reverse-proxy/)
 - [Security](/security/) — protect the UI before exposing it

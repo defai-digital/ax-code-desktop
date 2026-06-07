@@ -5,8 +5,9 @@
  * spawned — the agent runs directly in your Node.js process with
  * 10-40x faster startup than the server-based path.
  *
- * For the HTTP-server-based client (the default in 1.4.0), use:
- *   import { createAxCode } from "@ax-code/sdk/http"
+ * For GUI or app shell integrations, use:
+ *   import { startHeadlessBackend } from "@ax-code/sdk/headless"
+ *   import { createAxCodeGrpcClient } from "@ax-code/sdk/grpc"
  *
  * @example
  * ```ts

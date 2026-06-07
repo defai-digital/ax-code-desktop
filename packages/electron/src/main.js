@@ -194,8 +194,8 @@ ipcMain.handle('desktop_get_lan_address', () => {
 app.whenReady().then(async () => {
   // Deny all permission requests except clipboard and fullscreen.
   // Chromium enumerates media devices on startup, which triggers macOS
-  // permission prompts for camera, microphone, music, and photos — none
-  // of which this app needs.
+  // permission prompts for device and media libraries, none of which this
+  // app needs.
   const ALLOWED_PERMISSIONS = new Set(['fullscreen', 'clipboard-read', 'clipboard-sanitized-write'])
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(ALLOWED_PERMISSIONS.has(permission))

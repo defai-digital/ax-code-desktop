@@ -24,8 +24,6 @@ import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useUIStore } from '@/stores/useUIStore';
 import { flattenAssistantTextParts, suggestPlanTitleFromText } from '@/lib/messages/messageText';
 import { MULTIRUN_EXECUTION_FORK_PROMPT_META_TEXT } from '@/lib/messages/executionMeta';
-import { useMessageTTS } from '@/hooks/useMessageTTS';
-import { useConfigStore } from '@/stores/useConfigStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
 import { TextSelectionMenu } from './TextSelectionMenu';
 import { copyTextToClipboard } from '@/lib/clipboard';
@@ -616,7 +614,6 @@ interface AssistantMessageActionButtonsProps {
     isTouchContext: boolean;
     onCopyMessage?: () => void | boolean | Promise<void | boolean>;
     onShareImage: (sourceElement?: HTMLElement | null) => Promise<void>;
-    ttsText: string;
 }
 
 const AssistantMessageActionButtons = React.memo(({
@@ -624,13 +621,9 @@ const AssistantMessageActionButtons = React.memo(({
     isTouchContext,
     onCopyMessage,
     onShareImage,
-    ttsText,
 }: AssistantMessageActionButtonsProps) => {
     const { t } = useI18n();
     const chatSurfaceMode = useChatSurfaceMode();
-    const { isPlaying: isTTSPlaying, play: playTTS, stop: stopTTS } = useMessageTTS();
-    const showMessageTTSButtons = useConfigStore((state) => state.showMessageTTSButtons);
-    const voiceProvider = useConfigStore((state) => state.voiceProvider);
     const [copyHintVisible, setCopyHintVisible] = React.useState(false);
     const [isMessageCopied, setIsMessageCopied] = React.useState(false);
     const [isSharing, setIsSharing] = React.useState(false);
@@ -732,37 +725,6 @@ const AssistantMessageActionButtons = React.memo(({
         [hasCopyableText, isSharing, onShareImage]
     );
 
-    const readAloudTooltip = React.useMemo(() => {
-        if (isTTSPlaying) {
-            return t('chat.messageBody.tts.stopSpeaking');
-        }
-        const providerLabel = voiceProvider === 'browser'
-            ? 'Browser'
-            : voiceProvider === 'openai'
-                ? 'OpenAI'
-                : voiceProvider === 'openai-compatible'
-                    ? 'Custom'
-                    : 'Say';
-        return t('chat.messageBody.tts.readAloudWithProvider', { provider: providerLabel });
-    }, [isTTSPlaying, t, voiceProvider]);
-
-    const handleTTSClick = React.useCallback(
-        (event: React.MouseEvent<HTMLButtonElement>) => {
-            event.stopPropagation();
-            event.preventDefault();
-
-            if (isTTSPlaying) {
-                stopTTS();
-                return;
-            }
-
-            if (ttsText.trim()) {
-                void playTTS(ttsText);
-            }
-        },
-        [isTTSPlaying, playTTS, stopTTS, ttsText]
-    );
-
     return (
         <>
             {onCopyMessage && (
@@ -830,31 +792,6 @@ const AssistantMessageActionButtons = React.memo(({
                 </TooltipTrigger>
                 <TooltipContent sideOffset={6}>{isSharing ? t('chat.messageBody.actions.savingImage') : t('chat.messageBody.actions.saveAsImage')}</TooltipContent>
             </Tooltip> : null}
-            {chatSurfaceMode !== 'mini-chat' && showMessageTTSButtons && hasCopyableText && (
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className={cn(
-                                'h-8 w-8 bg-transparent hover:!bg-transparent active:!bg-transparent focus-visible:!bg-transparent focus-visible:ring-2 focus-visible:ring-primary/50',
-                                isTTSPlaying ? 'text-green-500' : 'text-muted-foreground hover:text-foreground'
-                            )}
-                            aria-label={isTTSPlaying ? t('chat.messageBody.tts.stopSpeaking') : t('chat.messageBody.tts.readAloud')}
-                            onPointerDown={(event) => event.stopPropagation()}
-                            onClick={handleTTSClick}
-                        >
-                            {isTTSPlaying ? (
-                                <Icon name="stop" className="h-3.5 w-3.5" />
-                            ) : (
-                                <Icon name="volume-up" className="h-3.5 w-3.5" />
-                            )}
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent sideOffset={6}>{readAloudTooltip}</TooltipContent>
-                </Tooltip>
-            )}
         </>
     );
 });
@@ -1419,9 +1356,8 @@ const AssistantMessageBody = React.memo(({
             isTouchContext={isTouchContext}
             onCopyMessage={onCopyMessage}
             onShareImage={shareMessageAsImage}
-            ttsText={assistantPlanText}
         />
-    ), [assistantPlanText, hasCopyableText, isTouchContext, onCopyMessage, shareMessageAsImage]);
+    ), [hasCopyableText, isTouchContext, onCopyMessage, shareMessageAsImage]);
 
     const renderJustificationActions = React.useCallback((activity: NonNullable<TurnGroupingContext['activityParts']>[number]) => {
         if (!showSplitAssistantMessageActions || !isSortedRenderMode) {
@@ -1444,7 +1380,6 @@ const AssistantMessageBody = React.memo(({
                 isTouchContext={isTouchContext}
                 onCopyMessage={copyJustificationText}
                 onShareImage={shareMessageAsImage}
-                ttsText={text}
             />
         );
     }, [isSortedRenderMode, isTouchContext, shareMessageAsImage, showSplitAssistantMessageActions]);

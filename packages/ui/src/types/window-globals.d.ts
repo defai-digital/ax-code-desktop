@@ -45,8 +45,6 @@ declare global {
     __zustand_config_store__?: typeof useConfigStore;
     __zustand_git_identities_store__?: typeof useGitIdentitiesStore;
     __zustand_skills_store__?: typeof useSkillsStore;
-    SpeechRecognition: { new(): SpeechRecognition };
-    webkitSpeechRecognition: { new(): SpeechRecognition };
   }
 }
 

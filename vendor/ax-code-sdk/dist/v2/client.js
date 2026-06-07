@@ -13,8 +13,9 @@ export function createAxCodeClient(config) {
             if (input instanceof Request) {
                 ;
                 input.timeout = false;
+                return fetch(input, init);
             }
-            return fetch(input, init);
+            return fetch(input, { timeout: false, ...init });
         });
         config = {
             ...config,

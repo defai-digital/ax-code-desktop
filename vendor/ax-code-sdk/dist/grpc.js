@@ -533,7 +533,6 @@ export function createAxCodeGrpcNativeIpcStream(subscribe) {
                     }
                 },
                 async return() {
-                    start();
                     await cleanup();
                     return { value: undefined, done: true };
                 },
@@ -1622,11 +1621,12 @@ function createAsyncQueue() {
     const values = [];
     const waiters = [];
     let closed = false;
+    let hasFailed = false;
     let failure;
     const next = () => {
         if (values.length)
             return Promise.resolve({ value: values.shift(), done: false });
-        if (failure)
+        if (hasFailed)
             return Promise.reject(failure);
         if (closed)
             return Promise.resolve({ value: undefined, done: true });
@@ -1636,7 +1636,7 @@ function createAsyncQueue() {
         while (waiters.length && values.length) {
             waiters.shift().resolve({ value: values.shift(), done: false });
         }
-        if (failure) {
+        if (hasFailed) {
             while (waiters.length)
                 waiters.shift().reject(failure);
             return;
@@ -1653,7 +1653,7 @@ function createAsyncQueue() {
             },
         },
         push(value) {
-            if (closed || failure)
+            if (closed || hasFailed)
                 return;
             values.push(value);
             flush();
@@ -1663,6 +1663,7 @@ function createAsyncQueue() {
             flush();
         },
         fail(error) {
+            hasFailed = true;
             failure = error;
             flush();
         },

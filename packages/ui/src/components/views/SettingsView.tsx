@@ -93,8 +93,6 @@ const pageOrder: SettingsPageSlug[] = [
   'usage',
   'skills.installed',
   'skills.catalog',
-  'voice',
-  'tunnel',
 ];
 
 const SNIPPETS_SETTINGS_ICON = { icon: 'chat-thread' } as const;
@@ -187,10 +185,6 @@ export function getSettingsNavIcon(slug: SettingsPageSlug): IconName | null {
 
     case 'usage':
       return 'bar-chart-2';
-    case 'voice':
-      return 'mic';
-    case 'tunnel':
-      return 'global';
     case 'home':
       return null;
     default:
@@ -435,8 +429,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     shortcuts: 'shortcuts',
     sessions: 'sessions',
     notifications: 'notifications',
-    voice: 'voice',
-    tunnel: 'tunnel',
   }), []);
 
   const getPageTitle = React.useCallback((slug: SettingsPageSlug): string => {
@@ -479,10 +471,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
         return t('settings.page.snippets.title');
       case 'notifications':
         return t('settings.page.notifications.title');
-      case 'voice':
-        return t('settings.page.voice.title');
-      case 'tunnel':
-        return t('settings.page.tunnel.title');
       case 'home':
       default:
         return t('settings.view.home.title');
@@ -570,9 +558,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
       case 'chat':
       case 'shortcuts':
       case 'sessions':
-      case 'notifications':
-      case 'voice':
-      case 'tunnel': {
+      case 'notifications': {
         const section = axCodeSectionBySlug[slug] ?? 'visual';
         return <AXCodePage section={section} />;
       }
@@ -715,11 +701,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
                       <Icon name={iconName} className="h-4 w-4 shrink-0" />
                       <span className="flex items-center gap-1.5 whitespace-nowrap overflow-hidden transition-opacity duration-150 opacity-100">
                         <span className="typography-ui-label font-normal truncate">{getPageTitle(page.slug)}</span>
-                        {(page.slug === 'voice' || page.slug === 'tunnel') && (
-                          <span className="shrink-0 typography-micro px-1 rounded leading-none pb-px text-[var(--status-warning)] bg-[var(--status-warning)]/10">
-                            {t('settings.view.badge.beta')}
-                          </span>
-                        )}
                       </span>
                     </button>
                   </TooltipTrigger>

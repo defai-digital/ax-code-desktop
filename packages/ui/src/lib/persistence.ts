@@ -85,27 +85,6 @@ const persistToLocalStorage = (settings: DesktopSettings) => {
   if (typeof settings.openInAppId === 'string' && settings.openInAppId.length > 0) {
     localStorage.setItem('openInAppId', settings.openInAppId);
   }
-  if (settings.sttProvider === 'browser' || settings.sttProvider === 'server') {
-    localStorage.setItem('sttProvider', settings.sttProvider);
-  }
-  if (typeof settings.sttServerUrl === 'string') {
-    localStorage.setItem('sttServerUrl', settings.sttServerUrl);
-  }
-  if (typeof settings.sttModel === 'string') {
-    localStorage.setItem('sttModel', settings.sttModel);
-  }
-  if (typeof settings.sttLanguage === 'string') {
-    localStorage.setItem('sttLanguage', settings.sttLanguage);
-  }
-  if (typeof settings.sttSilenceThresholdDb === 'number' && Number.isFinite(settings.sttSilenceThresholdDb)) {
-    localStorage.setItem('sttSilenceThresholdDb', String(settings.sttSilenceThresholdDb));
-  }
-  if (typeof settings.sttSilenceHoldMs === 'number' && Number.isFinite(settings.sttSilenceHoldMs)) {
-    localStorage.setItem('sttSilenceHoldMs', String(settings.sttSilenceHoldMs));
-  }
-  if (typeof settings.sttTranscribeOnStop === 'boolean') {
-    localStorage.setItem('sttTranscribeOnStop', String(settings.sttTranscribeOnStop));
-  }
 };
 
 const dispatchSettingsSynced = (settings: DesktopSettings): void => {
@@ -249,51 +228,6 @@ const sanitizeProjects = (value: unknown): DesktopSettings['projects'] | undefin
   return result.length > 0 ? result : undefined;
 };
 
-const sanitizeManagedRemoteTunnelPresets = (value: unknown): DesktopSettings['managedRemoteTunnelPresets'] | undefined => {
-  if (!Array.isArray(value)) {
-    return undefined;
-  }
-
-  const result: NonNullable<DesktopSettings['managedRemoteTunnelPresets']> = [];
-  const seenIds = new Set<string>();
-  const seenHostnames = new Set<string>();
-
-  for (const entry of value) {
-    if (!entry || typeof entry !== 'object') continue;
-    const candidate = entry as Record<string, unknown>;
-
-    const id = typeof candidate.id === 'string' ? candidate.id.trim() : '';
-    const name = typeof candidate.name === 'string' ? candidate.name.trim() : '';
-    const hostname = typeof candidate.hostname === 'string' ? candidate.hostname.trim().toLowerCase() : '';
-
-    if (!id || !name || !hostname) continue;
-    if (seenIds.has(id) || seenHostnames.has(hostname)) continue;
-    seenIds.add(id);
-    seenHostnames.add(hostname);
-
-    result.push({ id, name, hostname });
-  }
-
-  return result;
-};
-
-const sanitizeManagedRemoteTunnelPresetTokens = (value: unknown): DesktopSettings['managedRemoteTunnelPresetTokens'] | undefined => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return undefined;
-  }
-
-  const candidate = value as Record<string, unknown>;
-  const result: Record<string, string> = {};
-  for (const [key, tokenValue] of Object.entries(candidate)) {
-    const id = key.trim();
-    const token = typeof tokenValue === 'string' ? tokenValue.trim() : '';
-    if (!id || !token) continue;
-    result[id] = token;
-  }
-
-  return Object.keys(result).length > 0 ? result : undefined;
-};
-
 const sanitizeModelRefs = (value: unknown, limit: number): Array<{ providerID: string; modelID: string }> | undefined => {
   if (!Array.isArray(value)) {
     return undefined;
@@ -332,9 +266,6 @@ const applyDesktopUiPreferences = (settings: DesktopSettings) => {
   const store = useUIStore.getState();
   const configStore = typeof window !== 'undefined'
     ? window.__zustand_config_store__?.getState?.() ?? null
-    : null;
-  const configStoreApi = typeof window !== 'undefined'
-    ? window.__zustand_config_store__ ?? null
     : null;
   const queueStore = useMessageQueueStore.getState();
 
@@ -497,34 +428,6 @@ const applyDesktopUiPreferences = (settings: DesktopSettings) => {
   if (typeof settings.inputBarOffset === 'number' && Number.isFinite(settings.inputBarOffset) && settings.inputBarOffset !== store.inputBarOffset) {
     store.setInputBarOffset(settings.inputBarOffset);
   }
-  if (configStoreApi && configStore) {
-    const nextConfigState: Partial<typeof configStore> = {};
-    if ((settings.sttProvider === 'browser' || settings.sttProvider === 'server') && settings.sttProvider !== configStore.sttProvider) {
-      nextConfigState.sttProvider = settings.sttProvider;
-    }
-    if (typeof settings.sttServerUrl === 'string' && settings.sttServerUrl !== configStore.sttServerUrl) {
-      nextConfigState.sttServerUrl = settings.sttServerUrl;
-    }
-    if (typeof settings.sttModel === 'string' && settings.sttModel !== configStore.sttModel) {
-      nextConfigState.sttModel = settings.sttModel;
-    }
-    if (typeof settings.sttLanguage === 'string' && settings.sttLanguage !== configStore.sttLanguage) {
-      nextConfigState.sttLanguage = settings.sttLanguage;
-    }
-    if (typeof settings.sttSilenceThresholdDb === 'number' && Number.isFinite(settings.sttSilenceThresholdDb) && settings.sttSilenceThresholdDb !== configStore.sttSilenceThresholdDb) {
-      nextConfigState.sttSilenceThresholdDb = settings.sttSilenceThresholdDb;
-    }
-    if (typeof settings.sttSilenceHoldMs === 'number' && Number.isFinite(settings.sttSilenceHoldMs) && settings.sttSilenceHoldMs !== configStore.sttSilenceHoldMs) {
-      nextConfigState.sttSilenceHoldMs = settings.sttSilenceHoldMs;
-    }
-    if (typeof settings.sttTranscribeOnStop === 'boolean' && settings.sttTranscribeOnStop !== configStore.sttTranscribeOnStop) {
-      nextConfigState.sttTranscribeOnStop = settings.sttTranscribeOnStop;
-    }
-    if (Object.keys(nextConfigState).length > 0) {
-      configStoreApi.setState(nextConfigState);
-    }
-  }
-
   if (Array.isArray(settings.favoriteModels)) {
     const current = store.favoriteModels;
     const next = settings.favoriteModels;
@@ -652,52 +555,6 @@ const sanitizeWebSettings = (payload: unknown): DesktopSettings | null => {
   }
   if (candidate.sessionRetentionAction === 'archive' || candidate.sessionRetentionAction === 'delete') {
     result.sessionRetentionAction = candidate.sessionRetentionAction;
-  }
-  if (typeof candidate.tunnelProvider === 'string') {
-    const provider = candidate.tunnelProvider.trim().toLowerCase();
-    if (provider.length > 0) {
-      result.tunnelProvider = provider;
-    }
-  }
-  if (typeof candidate.tunnelMode === 'string') {
-    const mode = candidate.tunnelMode.trim().toLowerCase();
-    if (mode === 'quick' || mode === 'managed-remote' || mode === 'managed-local') {
-      result.tunnelMode = mode;
-    }
-  }
-  if (candidate.tunnelBootstrapTtlMs === null) {
-    result.tunnelBootstrapTtlMs = null;
-  } else if (typeof candidate.tunnelBootstrapTtlMs === 'number' && Number.isFinite(candidate.tunnelBootstrapTtlMs)) {
-    result.tunnelBootstrapTtlMs = candidate.tunnelBootstrapTtlMs;
-  }
-  if (typeof candidate.tunnelSessionTtlMs === 'number' && Number.isFinite(candidate.tunnelSessionTtlMs)) {
-    result.tunnelSessionTtlMs = candidate.tunnelSessionTtlMs;
-  }
-  if (candidate.managedLocalTunnelConfigPath === null) {
-    result.managedLocalTunnelConfigPath = null;
-  } else if (typeof candidate.managedLocalTunnelConfigPath === 'string') {
-    const trimmed = candidate.managedLocalTunnelConfigPath.trim();
-    result.managedLocalTunnelConfigPath = trimmed.length > 0 ? trimmed : null;
-  }
-  if (typeof candidate.managedRemoteTunnelHostname === 'string') {
-    result.managedRemoteTunnelHostname = candidate.managedRemoteTunnelHostname.trim();
-  }
-  if (candidate.managedRemoteTunnelToken === null) {
-    result.managedRemoteTunnelToken = null;
-  } else if (typeof candidate.managedRemoteTunnelToken === 'string') {
-    result.managedRemoteTunnelToken = candidate.managedRemoteTunnelToken.trim();
-  }
-  const managedRemoteTunnelPresets = sanitizeManagedRemoteTunnelPresets(candidate.managedRemoteTunnelPresets);
-  if (managedRemoteTunnelPresets) {
-    result.managedRemoteTunnelPresets = managedRemoteTunnelPresets;
-  }
-  if (typeof candidate.managedRemoteTunnelSelectedPresetId === 'string') {
-    const trimmed = candidate.managedRemoteTunnelSelectedPresetId.trim();
-    result.managedRemoteTunnelSelectedPresetId = trimmed.length > 0 ? trimmed : undefined;
-  }
-  const managedRemoteTunnelPresetTokens = sanitizeManagedRemoteTunnelPresetTokens(candidate.managedRemoteTunnelPresetTokens);
-  if (managedRemoteTunnelPresetTokens) {
-    result.managedRemoteTunnelPresetTokens = managedRemoteTunnelPresetTokens;
   }
   if (typeof candidate.defaultModel === 'string' && candidate.defaultModel.length > 0) {
     result.defaultModel = candidate.defaultModel;
@@ -1025,27 +882,6 @@ const sanitizeWebSettings = (payload: unknown): DesktopSettings | null => {
   }
   if (typeof candidate.responseStyleCustomInstructions === 'string') {
     result.responseStyleCustomInstructions = candidate.responseStyleCustomInstructions;
-  }
-  if (candidate.sttProvider === 'browser' || candidate.sttProvider === 'server') {
-    result.sttProvider = candidate.sttProvider;
-  }
-  if (typeof candidate.sttServerUrl === 'string') {
-    result.sttServerUrl = candidate.sttServerUrl.trim();
-  }
-  if (typeof candidate.sttModel === 'string') {
-    result.sttModel = candidate.sttModel.trim();
-  }
-  if (typeof candidate.sttLanguage === 'string') {
-    result.sttLanguage = candidate.sttLanguage.trim();
-  }
-  if (typeof candidate.sttSilenceThresholdDb === 'number' && Number.isFinite(candidate.sttSilenceThresholdDb)) {
-    result.sttSilenceThresholdDb = candidate.sttSilenceThresholdDb;
-  }
-  if (typeof candidate.sttSilenceHoldMs === 'number' && Number.isFinite(candidate.sttSilenceHoldMs)) {
-    result.sttSilenceHoldMs = candidate.sttSilenceHoldMs;
-  }
-  if (typeof candidate.sttTranscribeOnStop === 'boolean') {
-    result.sttTranscribeOnStop = candidate.sttTranscribeOnStop;
   }
 
   return result;

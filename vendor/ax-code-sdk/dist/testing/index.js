@@ -35,6 +35,7 @@ function makeMockResult(text, toolCalls) {
 }
 function makeMockStreamHandle(text, toolCalls) {
     const result = makeMockResult(text, toolCalls);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const listeners = {};
     let cancelled = false;
     async function* gen() {
@@ -79,6 +80,7 @@ function makeMockStreamHandle(text, toolCalls) {
         async result() {
             return result;
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         on(event, callback) {
             if (!listeners[event])
                 listeners[event] = [];

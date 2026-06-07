@@ -14,10 +14,6 @@
 	<string>AX Code needs access to work with your projects.</string>
 	<key>NSDownloadsFolderUsageDescription</key>
 	<string>AX Code needs access to work with your projects.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>AX Code needs microphone access for voice input.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>AX Code needs speech recognition to transcribe voice input.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoadsInWebContent</key>
