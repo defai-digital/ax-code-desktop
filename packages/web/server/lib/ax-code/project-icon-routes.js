@@ -30,6 +30,15 @@ export const registerProjectIconRoutes = (app, dependencies) => {
     dark: '#f5f5f5',
   };
   const projectIconHexColorPattern = /^#(?:[\da-fA-F]{3}|[\da-fA-F]{4}|[\da-fA-F]{6}|[\da-fA-F]{8})$/;
+  const projectFaviconNames = [
+    'favicon.ico',
+    'favicon.png',
+    'favicon.svg',
+    'favicon.jpg',
+    'favicon.jpeg',
+    'favicon.webp',
+  ];
+  const projectFaviconDirectories = ['', 'public', 'app', 'src'];
 
   const normalizeProjectIconMime = (value) => {
     if (typeof value !== 'string') {
@@ -167,6 +176,52 @@ export const registerProjectIconRoutes = (app, dependencies) => {
       return { projects, index: -1, project: null };
     }
     return { projects, index, project: projects[index] };
+  };
+
+  const projectFaviconPathCandidates = (projectPath) => {
+    const root = typeof projectPath === 'string' ? projectPath.trim() : '';
+    if (!root) {
+      return [];
+    }
+
+    const candidates = [];
+    for (const dir of projectFaviconDirectories) {
+      for (const name of projectFaviconNames) {
+        candidates.push(dir ? path.join(root, dir, name) : path.join(root, name));
+      }
+    }
+    return candidates;
+  };
+
+  const findBoundedProjectFavicon = async (projectPath) => {
+    for (const candidate of projectFaviconPathCandidates(projectPath)) {
+      try {
+        const stats = await fsPromises.stat(candidate);
+        if (stats.isFile()) {
+          return { path: candidate };
+        }
+      } catch (error) {
+        if (!error || typeof error !== 'object' || error.code !== 'ENOENT') {
+          throw error;
+        }
+      }
+    }
+    return null;
+  };
+
+  const findDeepScannedProjectFavicon = async (projectPath) => {
+    const faviconCandidates = await fsSearchRuntime.searchFilesystemFiles(projectPath, {
+      limit: 200,
+      query: 'favicon',
+      includeHidden: true,
+      respectGitignore: false,
+    });
+
+    const filtered = faviconCandidates
+      .filter((entry) => /(^|\/)favicon\.(ico|png|svg|jpg|jpeg|webp)$/i.test(entry.path))
+      .sort((a, b) => a.path.length - b.path.length);
+
+    return filtered[0] || null;
   };
 
   const fsSearchRuntime = createFsSearchRuntime({
@@ -338,18 +393,9 @@ export const registerProjectIconRoutes = (app, dependencies) => {
         });
       }
 
-      const faviconCandidates = await fsSearchRuntime.searchFilesystemFiles(project.path, {
-        limit: 200,
-        query: 'favicon',
-        includeHidden: true,
-        respectGitignore: false,
-      });
-
-      const filtered = faviconCandidates
-        .filter((entry) => /(^|\/)favicon\.(ico|png|svg|jpg|jpeg|webp)$/i.test(entry.path))
-        .sort((a, b) => a.path.length - b.path.length);
-
-      const selected = filtered[0];
+      const deepScan = req.body?.deepScan === true;
+      const selected = await findBoundedProjectFavicon(project.path)
+        || (deepScan ? await findDeepScannedProjectFavicon(project.path) : null);
       if (!selected) {
         return res.status(404).json({ error: 'No favicon found in project' });
       }

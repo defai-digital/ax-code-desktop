@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { axCodeClient, type ProjectFileSearchHit } from '@/lib/ax-code/client';
-import { searchFilesNative, isTauriShell } from '@/lib/desktop';
+import { searchFilesNative, isElectronShell, isTauriShell } from '@/lib/desktop';
 
 const CACHE_TTL_MS = 30_000;
 const MAX_CACHE_ENTRIES = 40;
@@ -47,6 +47,8 @@ const cacheKeyMatchesDirectory = (cacheKey: string, directory: string) => {
   }
 };
 
+const canUseNativeFileSearch = (): boolean => isTauriShell() && !isElectronShell();
+
 export const useFileSearchStore = create<FileSearchStoreState>()(
   devtools(
     (set, get) => ({
@@ -76,12 +78,11 @@ export const useFileSearchStore = create<FileSearchStoreState>()(
           return inflight;
         }
 
-        // File-only queries use the Tauri native command on desktop (no subprocess spawns).
-        // Directory queries and web builds always use the HTTP endpoint.
-        // isTauriShell() is checked synchronously to avoid introducing a microtask
-        // delay in non-Tauri environments (which would break in-flight deduplication timing).
+        // File-only queries may use the legacy Tauri native command. Electron
+        // exposes a Tauri-compatible IPC shim but does not register this
+        // command, so keep Electron on the AX Code find.files path.
         const fetchFiles: Promise<ProjectFileSearchHit[]> =
-          type === 'file' && isTauriShell()
+          type === 'file' && canUseNativeFileSearch()
             ? searchFilesNative(normalizedDirectory, normalizedQuery, { limit, includeHidden, respectGitignore }).then(
                 (native) =>
                   native ??

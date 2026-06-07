@@ -1098,6 +1098,20 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
     await loadDirectory(normalized);
   }, [loadDirectory, refreshRoot]);
 
+  const getBackgroundRefreshDirectories = React.useCallback(() => {
+    if (!root) {
+      return [] as string[];
+    }
+
+    const directories = [root];
+    const selectedParent = selectedFilePath ? getParentDirectoryPath(selectedFilePath) : null;
+    if (selectedParent && selectedParent !== root && isPathWithinRoot(selectedParent, root)) {
+      directories.push(selectedParent);
+    }
+
+    return Array.from(new Set(directories));
+  }, [root, selectedFilePath]);
+
   const lastFilesViewDirRef = React.useRef<string>('');
   const lastFilesViewTreeKeyRef = React.useRef<string>('');
 
@@ -1133,13 +1147,15 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
     }
   }, [loadDirectory, root, showGitignored, showHidden]);
 
-  // Auto-refresh expanded directories when user returns to the tab
+  // Refresh only the focused tree scope when user returns to the tab. A full
+  // expanded-tree refresh can fan out to hundreds of directory listings in
+  // large repos and compete with AX Code indexing.
   React.useEffect(() => {
     if (!files.listDirectory) return;
 
     const handleVisibilityChange = () => {
-      if (!document.hidden && expandedPaths.length > 0) {
-        for (const dir of expandedPaths) {
+      if (!document.hidden) {
+        for (const dir of getBackgroundRefreshDirectories()) {
           void refreshDirectory(dir);
         }
       }
@@ -1147,22 +1163,23 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [expandedPaths, files.listDirectory, refreshDirectory]);
+  }, [files.listDirectory, getBackgroundRefreshDirectories, refreshDirectory]);
 
-  // Poll expanded directories for external changes
+  // Poll the focused tree scope for external changes. Manual refresh still
+  // reloads the full root when the user needs a broader update.
   React.useEffect(() => {
     if (!files.listDirectory) return;
-    if (expandedPaths.length === 0) return;
+    if (!root) return;
 
     const interval = setInterval(() => {
       if (document.hidden) return;
-      for (const dir of expandedPaths) {
+      for (const dir of getBackgroundRefreshDirectories()) {
         void refreshDirectory(dir);
       }
-    }, 8000);
+    }, 30000);
 
     return () => clearInterval(interval);
-  }, [expandedPaths, files.listDirectory, refreshDirectory]);
+  }, [files.listDirectory, getBackgroundRefreshDirectories, refreshDirectory, root]);
 
   const handleDialogSubmit = React.useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();

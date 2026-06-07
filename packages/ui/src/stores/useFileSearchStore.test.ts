@@ -23,6 +23,13 @@ const searchFilesMock = mock(() => {
   searchRequests.push(request);
   return request.promise;
 });
+const nativeSearchRequests: Array<{ directory: string; query: string }> = [];
+const searchFilesNativeMock = mock(async (directory: string, query: string) => {
+  nativeSearchRequests.push({ directory, query });
+  return null;
+});
+let isTauriShellValue = false;
+let isElectronShellValue = false;
 
 mock.module('@/lib/ax-code/client', () => ({
   axCodeClient: {
@@ -30,16 +37,25 @@ mock.module('@/lib/ax-code/client', () => ({
   },
 }));
 
+mock.module('@/lib/desktop', () => ({
+  searchFilesNative: searchFilesNativeMock,
+  isTauriShell: () => isTauriShellValue,
+  isElectronShell: () => isElectronShellValue,
+}));
+
 const { useFileSearchStore } = await import('./useFileSearchStore');
 
 describe('useFileSearchStore', () => {
   beforeEach(() => {
     searchRequests.length = 0;
+    nativeSearchRequests.length = 0;
     useFileSearchStore.setState({
       cache: {},
       cacheKeys: [],
       inFlight: {},
     });
+    isTauriShellValue = false;
+    isElectronShellValue = false;
   });
 
   test('does not cache a stale in-flight search after invalidation', async () => {
@@ -100,5 +116,18 @@ describe('useFileSearchStore', () => {
 
     searchRequests[1].resolve([{ path: 'second.ts' }]);
     expect(await secondPromise).toEqual([{ path: 'second.ts' }]);
+  });
+
+  test('does not probe native file search in Electron', async () => {
+    isTauriShellValue = true;
+    isElectronShellValue = true;
+
+    const searchPromise = useFileSearchStore.getState().searchFiles('/project', 'foo', 10, { type: 'file' });
+
+    expect(nativeSearchRequests).toEqual([]);
+    expect(searchRequests).toHaveLength(1);
+
+    searchRequests[0].resolve([{ path: 'from-ax-code.ts' }]);
+    expect(await searchPromise).toEqual([{ path: 'from-ax-code.ts' }]);
   });
 });
