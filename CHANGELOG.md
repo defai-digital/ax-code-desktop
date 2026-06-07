@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-06
+
+- Release: added a guarded GitHub release publishing script with local validation, tag creation, workflow watching, and optional minisign signature upload.
+- Release: documented minisign key generation, artifact signing, and the GitHub publishing workflow.
+- Branding: refreshed web favicon and logo assets, including a 512px touch icon.
+
 ## [0.8.0] - 2026-06-06
 
 - Git: surface fetch errors when resolving an existing remote branch instead of silently swallowing them.

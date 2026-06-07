@@ -1,6 +1,6 @@
 {
   "name": "ax-code-app",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "AX Code Desktop — AI coding assistant GUI, desktop runtime",
   "private": true,
   "type": "module",
@@ -54,6 +54,9 @@
     "themes:port:ax-code": "tsx scripts/port-ax-code-theme.ts",
     "version:bump": "node scripts/bump-version.mjs",
     "release:prepare": "bun run build && bun run type-check && bun run lint",
+    "sign:keygen": "./scripts/minisign-keygen.sh",
+    "release:sign": "./scripts/minisign-artifacts.sh",
+    "publish:github": "./scripts/publish-github-release.sh",
     "release:test": "./scripts/test-release-build.sh",
     "release:test:arm": "./scripts/test-release-build.sh aarch64"
   },

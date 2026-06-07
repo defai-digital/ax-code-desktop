@@ -123,11 +123,9 @@ export function createGlobalMessageStreamHub({
     controller = null;
     everConnected = false;
     buildUrlFailed = false;
-    // Full teardown (no clients remain). Drop buffered events so a later fresh
-    // session can't replay events from this one into a reconnecting client.
-    // Brief upstream blips are handled inside the reader and never call stop(),
-    // so this does not affect mid-session reconnect catch-up.
-    replay.length = 0;
+    // Keep the bounded replay buffer across full teardown so the last browser
+    // client can reconnect with Last-Event-ID and recover events it already saw
+    // advertised by the previous upstream connection.
   };
 
   return {
