@@ -8,10 +8,7 @@ import { ThemeSystemProvider } from './contexts/ThemeSystemContext'
 import { ThemeProvider } from './components/providers/ThemeProvider'
 import './lib/debug'
 import { syncDesktopSettings, initializeAppearancePreferences } from './lib/persistence'
-import { startAppearanceAutoSave } from './lib/appearanceAutoSave'
 import { applyPersistedDirectoryPreferences } from './lib/directoryPersistence'
-import { startTypographyWatcher } from './lib/typographyWatcher'
-import { startModelPrefsAutoSave } from './lib/modelPrefsAutoSave'
 import { initializeLocale, I18nProvider } from './lib/i18n'
 
 const runtimeAPIs = (typeof window !== 'undefined' && window.__OPENCHAMBER_RUNTIME_APIS__) || (() => {
@@ -33,9 +30,21 @@ void initializeAppearancePreferences().then(() => {
   });
 
   // Start watchers regardless of whether secondary settings succeed.
-  startAppearanceAutoSave();
-  startModelPrefsAutoSave();
-  startTypographyWatcher();
+  void import('./lib/appearanceAutoSave')
+    .then(({ startAppearanceAutoSave }) => startAppearanceAutoSave())
+    .catch((err) => {
+      console.error('[main] appearance autosave init failed:', err);
+    });
+  void import('./lib/modelPrefsAutoSave')
+    .then(({ startModelPrefsAutoSave }) => startModelPrefsAutoSave())
+    .catch((err) => {
+      console.error('[main] model preferences autosave init failed:', err);
+    });
+  void import('./lib/typographyWatcher')
+    .then(({ startTypographyWatcher }) => startTypographyWatcher())
+    .catch((err) => {
+      console.error('[main] typography watcher init failed:', err);
+    });
 }).catch((err) => {
   console.error('[main] appearance init failed:', err);
 });

@@ -15,6 +15,7 @@
   },
   "scripts": {
     "dev": "bun run build:watch",
+    "dev:vite": "vite --host 127.0.0.1 --strictPort",
     "dev:server": "bun server/index.js --port ${OPENCHAMBER_PORT:-3001}",
     "dev:server:watch": "nodemon --watch server --ext js --exec \"bun server/index.js --port ${OPENCHAMBER_PORT:-3001}\"",
     "build": "vite build",

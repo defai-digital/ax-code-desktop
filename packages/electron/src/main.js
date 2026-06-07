@@ -19,6 +19,21 @@ function getWebDistPath() {
   return path.join(__dirname, '..', '..', '..', 'packages', 'web', 'dist')
 }
 
+function getDevRendererUrl() {
+  if (app.isPackaged) return null
+  const raw = process.env.OPENCHAMBER_ELECTRON_RENDERER_URL
+  if (!raw) return null
+  try {
+    const parsed = new URL(raw)
+    if (parsed.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(parsed.hostname)) {
+      return null
+    }
+    return parsed.toString().replace(/\/$/, '')
+  } catch {
+    return null
+  }
+}
+
 // Must be set before the server module is required so the server picks them up
 // at module init time.
 process.env.OPENCHAMBER_DIST_DIR = getWebDistPath()
@@ -34,7 +49,8 @@ const { startWebUiServer } = require('./server.js')
 
 // ── Server ──────────────────────────────────────────────────────────────────
 async function launchServer() {
-  serverHandle = await startWebUiServer({ port: 0 })
+  const configuredPort = Number.parseInt(process.env.OPENCHAMBER_ELECTRON_SERVER_PORT || '', 10)
+  serverHandle = await startWebUiServer({ port: Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 0 })
   serverPort = serverHandle.getPort()
 }
 
@@ -71,7 +87,10 @@ async function createWindow() {
     } catch {
       parsed = null
     }
-    if (parsed && parsed.protocol === 'http:' && parsed.hostname === 'localhost' && parsed.port === String(serverPort)) {
+    const devRendererUrl = getDevRendererUrl()
+    const isServerUrl = parsed && parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(parsed.hostname) && parsed.port === String(serverPort)
+    const isDevRendererUrl = parsed && devRendererUrl && parsed.origin === new URL(devRendererUrl).origin
+    if (isServerUrl || isDevRendererUrl) {
       return { action: 'allow' }
     }
     shell.openExternal(url)
@@ -82,7 +101,7 @@ async function createWindow() {
     mainWindow = null
   })
 
-  await mainWindow.loadURL(`http://localhost:${serverPort}`)
+  await mainWindow.loadURL(getDevRendererUrl() || `http://localhost:${serverPort}`)
 }
 
 // ── Auto-update ───────────────────────────────────────────────────────────
