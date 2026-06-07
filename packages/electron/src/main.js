@@ -85,6 +85,32 @@ async function createWindow() {
   await mainWindow.loadURL(`http://localhost:${serverPort}`)
 }
 
+// ── Auto-update ───────────────────────────────────────────────────────────
+// Updates are user-driven through the in-app dialog: check → download (with a
+// live progress bar) → quit-and-install. Disable auto-download/auto-install so
+// the download only runs when the user clicks "Download" — otherwise
+// electron-updater fetches in the background and the progress events below
+// would replay against an already-downloaded file (the bar would jump straight
+// to done).
+autoUpdater.autoDownload = false
+autoUpdater.autoInstallOnAppQuit = false
+
+// Forward electron-updater download progress to the renderer using the same
+// event name and payload shape the shared UI expects from the Tauri updater
+// (see downloadDesktopUpdate in packages/ui/src/lib/desktop.ts).
+function sendUpdateProgress(event, data) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('openchamber:update-progress', { event, data })
+  }
+}
+
+autoUpdater.on('download-progress', (p) => {
+  sendUpdateProgress('Progress', { downloaded: p.transferred, total: p.total })
+})
+autoUpdater.on('update-downloaded', () => {
+  sendUpdateProgress('Finished', {})
+})
+
 // ── IPC handlers (Tauri-compatible surface) ─────────────────────────────────
 ipcMain.handle('desktop_get_launch_at_login', () => ({
   enabled: app.getLoginItemSettings().openAtLogin,
@@ -108,13 +134,23 @@ ipcMain.handle('desktop_check_for_updates', async () => {
       body: result.updateInfo.releaseNotes ?? undefined,
       date: result.updateInfo.releaseDate ?? undefined,
     }
-  } catch {
-    return { available: false, currentVersion: app.getVersion() }
+  } catch (err) {
+    // Surface the failure so the UI can distinguish "check failed" from "you're
+    // up to date" — both previously collapsed to available:false.
+    return {
+      available: false,
+      currentVersion: app.getVersion(),
+      error: err instanceof Error ? err.message : String(err),
+    }
   }
 })
 
 ipcMain.handle('desktop_download_and_install_update', async () => {
+  sendUpdateProgress('Started', {})
   await autoUpdater.downloadUpdate()
+})
+
+ipcMain.handle('desktop_quit_and_install', () => {
   autoUpdater.quitAndInstall()
 })
 
@@ -149,8 +185,11 @@ app.whenReady().then(async () => {
   try {
     await launchServer()
     await createWindow()
-    // Best-effort update check — failures must not crash the app.
-    autoUpdater.checkForUpdatesAndNotify().catch(() => {})
+    // Best-effort update check — failures must not crash the app. With
+    // autoDownload disabled, the in-app dialog (driven by the renderer's
+    // periodic check) handles surfacing and downloading; checkForUpdates just
+    // warms the cache here.
+    autoUpdater.checkForUpdates().catch(() => {})
   } catch (err) {
     console.error('[electron] startup failed:', err)
     // app.exit() does not fire 'before-quit', so stop the in-process server

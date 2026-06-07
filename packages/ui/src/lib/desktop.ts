@@ -9,6 +9,9 @@ export type UpdateInfo = {
   body?: string;
   date?: string;
   nextSuggestedCheckInSec?: number;
+  // Set when the update check itself failed, so callers can distinguish a
+  // failed check from "you're up to date" (both have available: false).
+  error?: string;
   // Web-specific fields
   packageManager?: string;
   updateCommand?: string;
@@ -182,6 +185,10 @@ const getElectronRuntime = (): ElectronRuntimeGlobal | null => {
   return (window as unknown as { __OPENCHAMBER_ELECTRON__?: ElectronRuntimeGlobal }).__OPENCHAMBER_ELECTRON__ ?? null;
 };
 
+// True whenever a desktop IPC bridge is present on `window.__TAURI__`. Despite
+// the name this is also true in the Electron shell: its preload
+// (packages/electron/src/preload.js) exposes a Tauri-compatible
+// `__TAURI__.core.invoke` shim so the shared UI drives both shells unchanged.
 export const isTauriShell = (): boolean => {
   if (typeof window === 'undefined') return false;
   const tauri = getTauriGlobal();
@@ -464,10 +471,16 @@ export const checkForDesktopUpdates = async (): Promise<UpdateInfo | null> => {
   try {
     const tauri = getTauriGlobal();
     const info = await tauri?.core?.invoke?.('desktop_check_for_updates');
-    return info as UpdateInfo;
+    return (info ?? null) as UpdateInfo | null;
   } catch (error) {
-    console.warn('Failed to check for updates (tauri)', error);
-    return null;
+    console.warn('Failed to check for updates (desktop)', error);
+    // Return an error-bearing result rather than null so the caller can report
+    // the failure instead of silently treating it as "up to date".
+    return {
+      available: false,
+      currentVersion: 'unknown',
+      error: error instanceof Error ? error.message : 'Failed to check for updates',
+    };
   }
 };
 
@@ -536,6 +549,20 @@ export const downloadDesktopUpdate = async (
 export const restartToApplyUpdate = async (): Promise<boolean> => {
   if (!isTauriShell() || !isDesktopLocalOriginActive()) {
     return false;
+  }
+
+  // Electron downloads the update but defers installation, so applying it means
+  // quitAndInstall (which relaunches). Tauri already installs during download,
+  // so a plain restart is enough there.
+  if (isElectronShell()) {
+    try {
+      const tauri = getTauriGlobal();
+      await tauri?.core?.invoke?.('desktop_quit_and_install');
+      return true;
+    } catch (error) {
+      console.warn('Failed to apply update (electron)', error);
+      return false;
+    }
   }
 
   return restartDesktopApp();

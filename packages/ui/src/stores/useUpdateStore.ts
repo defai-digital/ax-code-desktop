@@ -119,6 +119,16 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
         // update API here, or the dialog would surface OpenChamber's package
         // version and changelog instead of AX Code's.
         const desktopInfo = await checkForDesktopUpdates();
+        if (desktopInfo?.error) {
+          set({
+            checking: false,
+            available: false,
+            error: desktopInfo.error,
+            lastChecked: Date.now(),
+            nextCheckInSec: null,
+          });
+          return null;
+        }
         set({
           checking: false,
           available: desktopInfo?.available ?? false,
@@ -162,6 +172,9 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
 
     try {
       const desktopInfo = await checkForDesktopUpdates();
+      if (desktopInfo?.error) {
+        throw new Error(desktopInfo.error);
+      }
       if (!desktopInfo?.available) {
         throw new Error('Update detected, but desktop package is not ready yet. Retry in a moment.');
       }
