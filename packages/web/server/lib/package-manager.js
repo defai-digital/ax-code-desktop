@@ -1,7 +1,5 @@
 import { spawnSync } from 'child_process';
-import crypto from 'crypto';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -63,38 +61,6 @@ function getSpawnSyncBaseOptions() {
   return process.platform === 'win32' ? { windowsHide: true } : {};
 }
 
-function getOpenChamberConfigDir() {
-  if (process.platform === 'win32') {
-    const appData = process.env.APPDATA;
-    if (appData) return path.join(appData, 'openchamber');
-  }
-
-  return path.join(os.homedir(), '.config', 'openchamber');
-}
-
-function sanitizeInstallScope(scope) {
-  if (scope === 'desktop-electron' || scope === 'desktop-tauri' || scope === 'web') return scope;
-  return 'web';
-}
-
-function getOrCreateInstallId(scope = 'web') {
-  const configDir = getOpenChamberConfigDir();
-  const normalizedScope = sanitizeInstallScope(scope);
-  const idPath = path.join(configDir, `install-id-${normalizedScope}`);
-
-  try {
-    const existing = fs.readFileSync(idPath, 'utf8').trim();
-    if (existing) return existing;
-  } catch {
-    // Generate new id.
-  }
-
-  const installId = crypto.randomUUID();
-  fs.mkdirSync(configDir, { recursive: true });
-  fs.writeFileSync(idPath, `${installId}\n`, { encoding: 'utf8', mode: 0o600 });
-  return installId;
-}
-
 function mapPlatform(value) {
   if (value === 'darwin') return 'macos';
   if (value === 'win32') return 'windows';
@@ -113,11 +79,6 @@ function normalizeAppType(value) {
   return 'web';
 }
 
-function normalizeDeviceClass(value) {
-  if (value === 'desktop' || value === 'unknown') return value;
-  return 'unknown';
-}
-
 async function checkForUpdatesFromApi(currentVersion, options = {}) {
   const { apiUrl } = resolveUpdateSources();
   if (!apiUrl) return null;
@@ -127,14 +88,10 @@ async function checkForUpdatesFromApi(currentVersion, options = {}) {
     const hostArch = mapArch(process.arch);
     const payload = {
       appType,
-      deviceClass: normalizeDeviceClass(options.deviceClass),
       platform: hostPlatform,
       arch: hostArch,
       channel: 'stable',
       currentVersion,
-      installId: getOrCreateInstallId(appType),
-      instanceMode: options.instanceMode || 'unknown',
-      reportUsage: options.reportUsage !== false,
     };
 
     const response = await fetch(apiUrl, {

@@ -20,18 +20,9 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
     try {
       const { checkForUpdates } = await import('../package-manager.js');
       const parseString = (value) => (typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined);
-      const parseReportUsage = (value) => {
-        if (typeof value !== 'string') return true;
-        const normalized = value.trim().toLowerCase();
-        if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
-        return true;
-      };
       const updateInfo = await checkForUpdates({
         appType: parseString(req.query.appType),
-        deviceClass: parseString(req.query.deviceClass) || 'desktop',
-        instanceMode: parseString(req.query.instanceMode),
         currentVersion: parseString(req.query.currentVersion),
-        reportUsage: parseReportUsage(parseString(req.query.reportUsage)),
       });
       res.json(updateInfo);
     } catch (error) {

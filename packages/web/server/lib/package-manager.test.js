@@ -187,7 +187,6 @@ describe('checkForUpdates', () => {
 
     await checkForUpdates({
       appType: 'vscode',
-      deviceClass: 'mobile',
       platform: 'windows',
       arch: 'x64',
       currentVersion: '1.9.10',
@@ -211,7 +210,6 @@ describe('checkForUpdates', () => {
           : 'unknown';
 
     expect(payload.appType).toBe('web');
-    expect(payload.deviceClass).toBe('unknown');
     expect(payload.platform).toBe(expectedPlatform);
     expect(payload.arch).toBe(expectedArch);
   });

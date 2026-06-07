@@ -155,8 +155,6 @@ export type DesktopSettings = {
 
   // User-added skills catalogs (persisted to ~/.config/openchamber/settings.json)
   skillCatalogs?: SkillCatalogConfig[];
-  // Opt-in to send anonymous usage reports for update checks (default: true)
-  reportUsage?: boolean;
 
   // Global behavior prompt — synced to ~/.config/ax-code/AGENTS.md
   globalBehaviorPrompt?: string;

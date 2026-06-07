@@ -116,7 +116,6 @@ const VisualSectionContent: React.FC = () => {
         'spacing',
         'inputBarOffset',
         'terminalQuickKeys',
-        'reportUsage',
     ]} />;
 };
 

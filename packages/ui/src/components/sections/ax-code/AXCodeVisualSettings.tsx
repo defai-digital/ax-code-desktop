@@ -188,7 +188,7 @@ const normalizeUserMessageRenderingMode = (mode: unknown): 'markdown' | 'plain' 
     return mode === 'markdown' ? 'markdown' : 'plain';
 };
 
-export type VisibleSetting = 'theme' | 'timeFormat' | 'weekStart' | 'fontSize' | 'terminalFontSize' | 'spacing' | 'inputBarOffset' | 'mermaidRendering' | 'userMessageRendering' | 'chatRenderMode' | 'messageTransport' | 'activityRenderMode' | 'stickyUserHeader' | 'wideChatLayout' | 'splitAssistantMessageActions' | 'diffLayout' | 'dotfiles' | 'reasoning' | 'showToolFileIcons' | 'expandedTools' | 'showTurnChangedFiles' | 'queueMode' | 'terminalQuickKeys' | 'persistDraft' | 'inputSpellcheck' | 'reportUsage';
+export type VisibleSetting = 'theme' | 'timeFormat' | 'weekStart' | 'fontSize' | 'terminalFontSize' | 'spacing' | 'inputBarOffset' | 'mermaidRendering' | 'userMessageRendering' | 'chatRenderMode' | 'messageTransport' | 'activityRenderMode' | 'stickyUserHeader' | 'wideChatLayout' | 'splitAssistantMessageActions' | 'diffLayout' | 'dotfiles' | 'reasoning' | 'showToolFileIcons' | 'expandedTools' | 'showTurnChangedFiles' | 'queueMode' | 'terminalQuickKeys' | 'persistDraft' | 'inputSpellcheck';
 
 interface AXCodeVisualSettingsProps {
     /** Which settings to show. If undefined, shows all. */
@@ -272,15 +272,6 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
 
     const [themesReloading, setThemesReloading] = React.useState(false);
     const [chatRenderPreviewTick, setChatRenderPreviewTick] = React.useState(0);
-    const reportUsage = useUIStore(state => state.reportUsage);
-    const setReportUsage = useUIStore(state => state.setReportUsage);
-
-    // Sync reportUsage changes to server settings
-    const handleReportUsageChange = React.useCallback((enabled: boolean) => {
-        setReportUsage(enabled);
-        void updateDesktopSettings({ reportUsage: enabled });
-    }, [setReportUsage]);
-
     const shouldAnimateChatPreview = isSettingsDialogOpen
         && (visibleSettings ? visibleSettings.includes('chatRenderMode') : true);
 
@@ -1509,42 +1500,6 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                                 </section>
                             )}
 
-                    </div>
-                )}
-
-                {/* --- Privacy & Data --- */}
-                {shouldShow('reportUsage') && (
-                    <div className="space-y-3">
-                        <section className="px-2 pb-2 pt-0">
-                            <h4 className="typography-ui-header font-medium text-foreground mb-2">{t('settings.openchamber.visual.section.privacy')}</h4>
-                            <div className="flex items-start gap-2 py-1.5">
-                                <Checkbox
-                                    checked={reportUsage}
-                                    onChange={handleReportUsageChange}
-                                    ariaLabel={t('settings.openchamber.visual.field.sendAnonymousUsageReportsAria')}
-                                />
-                                <div className="flex min-w-0 flex-col gap-0.5">
-                                    <div
-                                        className="group flex cursor-pointer"
-                                        role="button"
-                                        tabIndex={0}
-                                        aria-pressed={reportUsage}
-                                        onClick={() => handleReportUsageChange(!reportUsage)}
-                                        onKeyDown={(event) => {
-                                            if (event.key === ' ' || event.key === 'Enter') {
-                                                event.preventDefault();
-                                                handleReportUsageChange(!reportUsage);
-                                            }
-                                        }}
-                                    >
-                                        <span className="typography-ui-label text-foreground">{t('settings.openchamber.visual.field.sendAnonymousUsageReports')}</span>
-                                    </div>
-                                    <span className="typography-meta text-muted-foreground pointer-events-none">
-                                        {t('settings.openchamber.visual.field.sendAnonymousUsageReportsHint')}
-                                    </span>
-                                </div>
-                            </div>
-                        </section>
                     </div>
                 )}
 

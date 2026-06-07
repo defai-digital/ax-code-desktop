@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { UpdateInfo, UpdateProgress } from '@/lib/desktop';
-import { useUIStore } from './useUIStore';
 import {
   checkForDesktopUpdates,
   downloadDesktopUpdate,
@@ -35,19 +34,13 @@ interface UpdateStore extends UpdateState {
 type ClientRuntime = 'desktop' | 'web';
 
 function mapRuntimeParams(runtime: ClientRuntime): URLSearchParams {
-  // Check if user has opted out of usage reporting (default: true/enabled from UI store)
-  const shouldReportUsage = useUIStore.getState().reportUsage;
-
-  const params = new URLSearchParams({ reportUsage: shouldReportUsage ? 'true' : 'false' });
-  params.set('deviceClass', 'desktop');
+  const params = new URLSearchParams();
   if (runtime === 'desktop') {
     params.set('appType', isElectronShell() ? 'desktop-electron' : 'desktop-tauri');
-    params.set('instanceMode', isDesktopLocalOriginActive() ? 'local' : 'remote');
     return params;
   }
 
   params.set('appType', 'web');
-  params.set('instanceMode', 'unknown');
   return params;
 }
 

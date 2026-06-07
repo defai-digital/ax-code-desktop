@@ -607,7 +607,6 @@ interface UIStore {
   stickyUserHeader: boolean;
   showSplitAssistantMessageActions: boolean;
   isExpandedInput: boolean;
-  reportUsage: boolean;
   shortcutOverrides: Record<string, ShortcutCombo>;
 
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
@@ -744,7 +743,6 @@ interface UIStore {
   setExpandedInput: (value: boolean) => void;
   openMultiRunLauncher: () => void;
   openMultiRunLauncherWithPrompt: (prompt: string) => void;
-  setReportUsage: (value: boolean) => void;
   setShortcutOverride: (actionId: string, combo: ShortcutCombo) => void;
   clearShortcutOverride: (actionId: string) => void;
   resetAllShortcutOverrides: () => void;
@@ -868,7 +866,6 @@ export const useUIStore = create<UIStore>()(
         stickyUserHeader: true,
         showSplitAssistantMessageActions: false,
         isExpandedInput: false,
-        reportUsage: true,
         shortcutOverrides: {},
 
         setTheme: (theme) => {
@@ -1935,9 +1932,6 @@ export const useUIStore = create<UIStore>()(
         },
         setShowSplitAssistantMessageActions: (value) => {
           set({ showSplitAssistantMessageActions: value });
-        },
-        setReportUsage: (value) => {
-          set({ reportUsage: value });
         },
         viewPagerPage: 'center',
         setViewPagerPage: (page: 'left' | 'center' | 'right') => {
