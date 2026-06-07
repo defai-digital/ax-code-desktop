@@ -834,14 +834,19 @@ export const useGitStore = create<GitStore>()(
 
         const fetchWithTimeout = async (filePath: string) => {
           const fetchPromise = git.getGitFileDiff(directory, { path: filePath });
+          let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
           const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error(`Timed out after ${DIFF_PREFETCH_TIMEOUT_MS}ms`)), DIFF_PREFETCH_TIMEOUT_MS);
+            timeoutHandle = setTimeout(() => reject(new Error(`Timed out after ${DIFF_PREFETCH_TIMEOUT_MS}ms`)), DIFF_PREFETCH_TIMEOUT_MS);
           });
-          const response = await Promise.race([fetchPromise, timeoutPromise]);
-          return {
-            path: filePath,
-            diff: { original: response.original ?? '', modified: response.modified ?? '', isBinary: response.isBinary },
-          };
+          try {
+            const response = await Promise.race([fetchPromise, timeoutPromise]);
+            return {
+              path: filePath,
+              diff: { original: response.original ?? '', modified: response.modified ?? '', isBinary: response.isBinary },
+            };
+          } finally {
+            if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+          }
         };
 
         const worker = async () => {
