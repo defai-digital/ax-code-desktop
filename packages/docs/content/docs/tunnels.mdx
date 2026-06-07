@@ -1,15 +1,15 @@
 ---
 title: Tunnels
-description: Expose AX Code App safely for trusted workstation access.
+description: Expose AX Code Desktop safely for trusted workstation access.
 ---
 
 # Tunnels
 
-A tunnel is a public link to your AX Code App for controlled remote workstation access. Use `openchamber tunnel` to create one for a running instance.
+A tunnel is a public link to your AX Code Desktop for controlled remote workstation access. Use `ax-code-desktop tunnel` to create one for a running instance.
 
 ## Prerequisites
 
-AX Code App starts the tunnel provider CLI on your machine. Install the provider you want to use first:
+AX Code Desktop starts the tunnel provider CLI on your machine. Install the provider you want to use first:
 
 ```bash
 brew install cloudflared
@@ -24,28 +24,28 @@ ngrok config add-authtoken <your-ngrok-token>
 
 ## Quick start
 
-1. Start AX Code App:
+1. Start AX Code Desktop:
 
 ```bash
-ax-code-openchamber
+ax-code-desktop
 ```
 
 2. Start a Cloudflare tunnel:
 
 ```bash
-openchamber tunnel start --provider cloudflare --mode quick
+ax-code-desktop tunnel start --provider cloudflare --mode quick
 ```
 
 Or start an Ngrok tunnel:
 
 ```bash
-openchamber tunnel start --provider ngrok --mode quick
+ax-code-desktop tunnel start --provider ngrok --mode quick
 ```
 
 3. Check status:
 
 ```bash
-openchamber tunnel status
+ax-code-desktop tunnel status
 ```
 
 When the tunnel is up, `status` shows a public URL. Open it from a trusted workstation.
@@ -64,7 +64,7 @@ Copy the generated connect link only to trusted workstation browsers.
 Use a token + hostname managed by Cloudflare:
 
 ```bash
-openchamber tunnel start --provider cloudflare --mode managed-remote --token-file ~/.secrets/cf-token --hostname app.example.com
+ax-code-desktop tunnel start --provider cloudflare --mode managed-remote --token-file ~/.secrets/cf-token --hostname app.example.com
 ```
 
 ### Managed local
@@ -72,7 +72,7 @@ openchamber tunnel start --provider cloudflare --mode managed-remote --token-fil
 Use a local `cloudflared` config:
 
 ```bash
-openchamber tunnel start --provider cloudflare --mode managed-local --config ~/.cloudflared/config.yml
+ax-code-desktop tunnel start --provider cloudflare --mode managed-local --config ~/.cloudflared/config.yml
 ```
 
 ## Profiles (managed-remote)
@@ -80,29 +80,29 @@ openchamber tunnel start --provider cloudflare --mode managed-local --config ~/.
 Save a reusable profile:
 
 ```bash
-openchamber tunnel profile add --provider cloudflare --mode managed-remote --name prod-main --hostname app.example.com --token-file ~/.secrets/cf-token
+ax-code-desktop tunnel profile add --provider cloudflare --mode managed-remote --name prod-main --hostname app.example.com --token-file ~/.secrets/cf-token
 ```
 
 Start using the saved profile:
 
 ```bash
-openchamber tunnel start --profile prod-main
+ax-code-desktop tunnel start --profile prod-main
 ```
 
 ## Useful commands
 
 ```bash
-openchamber tunnel providers
-openchamber tunnel ready --provider cloudflare
-openchamber tunnel ready --provider ngrok
-openchamber tunnel doctor --provider cloudflare
-openchamber tunnel doctor --provider ngrok
-openchamber tunnel stop --port 3000
+ax-code-desktop tunnel providers
+ax-code-desktop tunnel ready --provider cloudflare
+ax-code-desktop tunnel ready --provider ngrok
+ax-code-desktop tunnel doctor --provider cloudflare
+ax-code-desktop tunnel doctor --provider ngrok
+ax-code-desktop tunnel stop --port 3000
 ```
 
 ## Behavior notes
 
-- one active tunnel per AX Code App instance (port)
+- one active tunnel per AX Code Desktop instance (port)
 - starting a new mode/provider on same instance replaces previous tunnel
 - generating a new connect link revokes previous unused one
 

@@ -1,6 +1,6 @@
 # Docs Authoring Guide
 
-This package is docs content source-of-truth for AX Code App.
+This package is docs content source-of-truth for AX Code Desktop.
 
 ## Voice & style
 
@@ -14,17 +14,17 @@ stays the same no matter who is writing.
 ### Who you're writing for
 
 - Assume curiosity, not expertise. The reader knows what they want to do, not
-  how AX Code App works inside.
+  how AX Code Desktop works inside.
 - One page = one job. If a page is answering two unrelated questions, split it.
 
 ### Keep it short
 
 - Lead with the task, not background. The first line should say what the page is
-  for ("Use `openchamber tunnel` to expose a running AX Code App instance.").
+  for ("Use `ax-code-desktop tunnel` to expose a running AX Code Desktop instance.").
 - Cut anything that doesn't change what the reader does next.
 - A basic page should fit in a screen or two. Long, dense reference pages (like
   Reverse Proxy) are the exception — and they say so in their first line ("Use
-  this page if you run AX Code App behind...").
+  this page if you run AX Code Desktop behind...").
 
 ### Steps
 
@@ -34,17 +34,17 @@ stays the same no matter who is writing.
   they did it right.
 
 ```mdx
-3. Run `openchamber --ui-password be-creative-here`.
+3. Run `ax-code-desktop --ui-password be-creative-here`.
 4. Open the printed URL (usually `http://localhost:3000`).
 
-You should land on the AX Code App session list. If you see it, the server is
+You should land on the AX Code Desktop session list. If you see it, the server is
 running.
 ```
 
 ### Plain language
 
 - Explain a term the first time it appears, in parentheses, in everyday words:
-  - good: start a tunnel (a public link to your local AX Code App)
+  - good: start a tunnel (a public link to your local AX Code Desktop)
   - bad: start a tunnel — the reader doesn't know what that is yet
 - Prefer common words over internal ones. "App", "version", "page" beat
   "surface", "instance", "route" when the meaning is the same. If an internal
@@ -90,7 +90,7 @@ running.
    ```mdx
    ---
    title: Remote Access
-   description: Access AX Code App from outside your local network.
+   description: Access AX Code Desktop from outside your local network.
    ---
    ```
 
@@ -98,12 +98,8 @@ running.
    - `foo.mdx` -> `/foo/`
    - `folder/index.mdx` -> `/folder/`
    - `folder/bar.mdx` -> `/folder/bar/`
-4. Add translations for the page — see [Localization](#localization). Translations
-   are optional per page (a missing translation falls back to English), but ship
-   them together with the page when you can.
-5. If the page is linked from the sidebar, add its localized labels too — see
-   [Translate the sidebar](#translate-the-sidebar).
-6. Run validation:
+4. Keep the page in English. Do not add localized copies or `translations` maps.
+5. Run validation:
 
    ```bash
    bun run docs:validate
@@ -145,14 +141,10 @@ Rules:
 
 - co-locate images under `content/docs/` (e.g. `content/docs/images/`); a
   relative `./images/...` reference is resolved and optimized at build
-- always set meaningful `alt` text (and translate it in localized pages)
+- always set meaningful English `alt` text
 - do **not** put docs images in the website repo's `public/` — it is not the
   source of truth and the sync will not pick them up
 - keep originals reasonably sized; the build generates responsive variants
-
-For translations, reuse the same shared image when it carries no text. If a
-screenshot contains localized UI text, add a per-locale copy under that locale's
-folder (e.g. `uk/images/...`) and point the translated page at it.
 
 `docs:validate` only checks `.mdx`, so images never block validation.
 
@@ -183,134 +175,29 @@ import desktopDark from "./images/desktop-dark.png";
 Notes:
 
 - both files live under `content/docs/` like any other image and sync normally
-- give both the same `alt` (and translate it in localized pages)
+- give both the same English `alt`
 - if you only have one image, just use the normal `![alt](./path.png)` form
 
-## Localization
+## Language Policy
 
-The docs are translated into the same languages the AX Code App app ships in.
-English is the source of truth and lives at the root of `content/docs/`. Every
-other language mirrors the English files under a locale folder.
-
-### Supported locales
-
-| Language | Content folder | Sidebar `translations` key |
-| --- | --- | --- |
-| English | _(root, no folder)_ | `en` |
-| Ukrainian | `uk/` | `uk` |
-| Chinese (Simplified) | `zh-cn/` | `zh-CN` |
-| Spanish | `es/` | `es` |
-| Brazilian Portuguese | `pt-br/` | `pt-BR` |
-| Korean | `ko/` | `ko` |
-| Polish | `pl/` | `pl` |
-
-> [!IMPORTANT]
-> The **content folder** uses the lowercase locale key (`zh-cn`, `pt-br`); the
-> **sidebar `translations`** key uses the BCP-47 language tag (`zh-CN`, `pt-BR`).
-> They look similar but are not interchangeable — Starlight resolves them with
-> different rules. Everything else (`uk`, `es`, `ko`, `pl`, `en`) is identical
-> in both columns.
-
-This locale set is mirrored in the website at
-`openchamber-website/apps/docs/astro.config.mjs` (`locales`). If a language is
-added or removed, update both places.
-
-### Translate a page
-
-Mirror the English file under each locale folder, keeping the **exact same
-filename and path**. Starlight matches a translation to its English page by path.
-
-```
-content/docs/
-  install.mdx              # English (source of truth)
-  uk/install.mdx           # Ukrainian
-  zh-cn/install.mdx        # Chinese (Simplified)
-  es/install.mdx           # Spanish
-  pt-br/install.mdx        # Brazilian Portuguese
-  ko/install.mdx           # Korean
-  pl/install.mdx           # Polish
-
-  guides/tunnels.mdx       # nested English page
-  uk/guides/tunnels.mdx    # its Ukrainian translation
-```
-
-Each translated file needs its **own translated frontmatter** (`title` and
-`description` are required by validation):
-
-```mdx
----
-title: Встановлення
-description: Встановіть AX Code App для десктопа.
----
-```
-
-You do **not** have to translate every page at once. A page that is missing in a
-locale automatically falls back to the English version, so translations can land
-incrementally.
-
-### Translate the sidebar
-
-Do **not** create separate sidebar entries per language and do **not** add a
-locale prefix to `link` — Starlight prefixes the active locale automatically.
-Instead, add a `translations` map (keyed by the BCP-47 tag from the table above)
-to each section and item in `sidebar.config.json`:
-
-```json
-{
-  "label": "Start here",
-  "translations": {
-    "uk": "Почніть тут",
-    "zh-CN": "从这里开始",
-    "es": "Empieza aquí",
-    "pt-BR": "Comece aqui",
-    "ko": "여기서 시작",
-    "pl": "Zacznij tutaj"
-  },
-  "items": [
-    {
-      "label": "Install",
-      "link": "/install/",
-      "translations": {
-        "uk": "Встановлення",
-        "zh-CN": "安装",
-        "es": "Instalación",
-        "pt-BR": "Instalação",
-        "ko": "설치",
-        "pl": "Instalacja"
-      }
-    }
-  ]
-}
-```
-
-A label with no translation for the active locale falls back to the English
-`label`.
-
-### What not to translate
-
-- brand and product nouns: AX Code App, AX Code, GitHub, Discord,
-  macOS, SSH
-- code blocks, shell commands, file paths, flags, and config keys
-- the page filename and the sidebar `link` (these stay identical across locales)
+Docs are English only. Do not add locale folders, translated MDX pages, localized
+screenshots, or sidebar `translations` maps. Product UI may support additional
+languages, but this docs package does not.
 
 ### Validate
 
-`bun run docs:validate` walks every `.mdx` under `content/docs/` — **including
-translations** — and fails if any page is missing `title` or `description`
-frontmatter, or if a sidebar `link` does not resolve to an English page. Run it
-after adding or translating pages.
+`bun run docs:validate` walks every `.mdx` under `content/docs/` and fails if any
+page is missing `title` or `description` frontmatter, or if a sidebar `link` does
+not resolve to a page. Run it after adding or changing pages.
 
-## Sync into openchamber-website
+## Sync into the website
 
-`openchamber-website` renders/deploys docs via Starlight in `apps/docs`.
+The downstream website renders/deploys docs via Starlight in `apps/docs`.
 
 After docs content updates here:
 
-1. copy `packages/docs/content/docs/*` -> `openchamber-website/apps/docs/src/content/docs/*`
-   (this is recursive, so locale folders like `uk/` and `zh-cn/` carry over with
-   no extra steps)
-2. map `packages/docs/sidebar.config.json` into `openchamber-website/apps/docs/astro.config.mjs` sidebar
-   (the `translations` maps carry over as-is)
+1. copy `packages/docs/content/docs/*` -> `apps/docs/src/content/docs/*`
+2. map `packages/docs/sidebar.config.json` into `apps/docs/astro.config.mjs` sidebar
 3. run docs checks/build in website repo
 
 Automation support exists in `.github/workflows/docs-source.yml` (release/manual packaging of docs source artifact).

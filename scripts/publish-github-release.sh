@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Publish an AX Code App GitHub release without skipping the release gates.
+# Publish an AX Code Desktop GitHub release without skipping the release gates.
 
 set -euo pipefail
 
@@ -27,8 +27,8 @@ usage() {
 Usage: ./scripts/publish-github-release.sh [options]
 
 Runs the local release gates, creates/pushes the release tag, watches the
-GitHub release workflow, signs the published assets with minisign, and uploads
-the detached .minisig files.
+GitHub release workflow, and verifies that the workflow published detached
+minisign signatures for every release asset.
 
 Options:
   --version <x.y.z>        Release version (default: root package.json version)
@@ -41,8 +41,8 @@ Options:
   --allow-dirty            Allow a dirty working tree
   --allow-branch           Allow publishing from a non-release branch
   --skip-local-validation  Skip docs/test/type-check/lint/build
-  --skip-signing           Do not sign or upload .minisig release assets
-  --skip-signing-key-probe Do not probe the minisign key before pushing the tag
+  --skip-signing           Do not require .minisig release assets
+  --skip-signing-key-probe Deprecated; accepted for older command history
   --no-watch               Push the tag but do not wait for the GitHub run
   --help                   Show this help
 
@@ -158,8 +158,8 @@ NODE
 }
 
 validate_minisign_key() {
-  local secret_key="${MINISIGN_SECRET_KEY:-$KEY_DIR/ax-code-app.minisign.key}"
-  local public_key="${MINISIGN_PUBLIC_KEY:-$KEY_DIR/ax-code-app.minisign.pub}"
+  local secret_key="${MINISIGN_SECRET_KEY:-$KEY_DIR/ax-code-desktop.minisign.key}"
+  local public_key="${MINISIGN_PUBLIC_KEY:-$KEY_DIR/ax-code-desktop.minisign.pub}"
 
   [[ -f "$secret_key" ]] || fail "minisign secret key not found: $secret_key. Run: bun run sign:keygen"
   [[ -f "$public_key" ]] || fail "minisign public key not found: $public_key. Run: bun run sign:keygen"
@@ -171,10 +171,10 @@ validate_minisign_key() {
 
 probe_minisign_key() {
   local probe_dir
-  probe_dir="$(mktemp -d "${TMPDIR:-/tmp}/ax-code-app-signing-probe.XXXXXX")"
+  probe_dir="$(mktemp -d "${TMPDIR:-/tmp}/ax-code-desktop-signing-probe.XXXXXX")"
   trap 'rm -rf "$probe_dir"' RETURN
 
-  printf 'AX Code App signing key probe for %s\n' "$VERSION" > "$probe_dir/probe.txt"
+  printf 'AX Code Desktop signing key probe for %s\n' "$VERSION" > "$probe_dir/probe.txt"
   ./scripts/minisign-artifacts.sh --key-dir "$KEY_DIR" --force "$probe_dir/probe.txt" >/dev/null
   log "Minisign key probe succeeded"
 }
@@ -245,7 +245,7 @@ create_and_push_tag() {
   local tag="$1"
 
   log "Creating annotated tag $tag"
-  git tag -a "$tag" -m "AX Code App $tag"
+  git tag -a "$tag" -m "AX Code Desktop $tag"
 
   log "Pushing tag $tag to $REMOTE"
   git push "$REMOTE" "$tag"
@@ -292,7 +292,7 @@ download_sign_and_upload_assets() {
   local sig_files=()
   local file
 
-  download_dir="$(mktemp -d "${TMPDIR:-/tmp}/ax-code-app-release-assets.XXXXXX")"
+  download_dir="$(mktemp -d "${TMPDIR:-/tmp}/ax-code-desktop-release-assets.XXXXXX")"
   log "Downloading release assets into $download_dir"
   gh release download "$tag" --repo "$repo" --dir "$download_dir" --clobber
 
@@ -443,8 +443,10 @@ validate_package_versions
 validate_changelog
 
 if [[ "$SKIP_SIGNING" != true ]]; then
-  require_command minisign
-  validate_minisign_key
+  if [[ "$SIGNATURES_ONLY" == true ]]; then
+    require_command minisign
+    validate_minisign_key
+  fi
 fi
 
 REPO="$(resolve_repo)"
@@ -479,11 +481,6 @@ else
   log "Skipping local validation by request"
 fi
 
-if [[ "$SKIP_SIGNING" != true && "$SKIP_SIGNING_KEY_PROBE" != true ]]; then
-  log "Probing minisign key before publishing"
-  probe_minisign_key
-fi
-
 if [[ "$PUBLISH" != true ]]; then
   log "Dry run complete. Re-run with --publish to create and push $TAG."
   exit 0
@@ -500,10 +497,6 @@ fi
 RUN_ID="$(find_release_run "$TAG" "$HEAD_SHA")"
 log "Watching release workflow run $RUN_ID"
 gh run watch "$RUN_ID" --exit-status
-
-if [[ "$SKIP_SIGNING" != true ]]; then
-  download_sign_and_upload_assets "$TAG" "$REPO"
-fi
 
 release_url="$(verify_release_assets "$TAG" "$REPO")"
 log "GitHub release published: $release_url"

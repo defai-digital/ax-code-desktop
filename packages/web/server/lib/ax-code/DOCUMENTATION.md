@@ -14,7 +14,7 @@ This module provides ax-code server integration utilities for the web server run
 - `packages/web/server/lib/ax-code/env-runtime.js`: ax-code CLI/binary resolution and shell environment runtime.
 - `packages/web/server/lib/ax-code/env-config.js`: ax-code-related environment variable parsing and validation (host/port/hostname).
 - `packages/web/server/lib/ax-code/hmr-state-runtime.js`: HMR-persistent runtime state initialization, auth-state bootstrap, and HMR sync helpers.
-- `packages/web/server/lib/ax-code/bootstrap-runtime.js`: base app bootstrap runtime for status/auth/tts/notification/OpenChamber route wiring.
+- `packages/web/server/lib/ax-code/bootstrap-runtime.js`: base app bootstrap runtime for status/auth/tts/notification compatibility route wiring.
 - `packages/web/server/lib/ax-code/network-runtime.js`: ax-code URL construction, health-probe readiness checks, and API prefix runtime.
 - `packages/web/server/lib/ax-code/project-directory-runtime.js`: request-scoped and settings-backed project directory resolution/validation runtime.
 - `packages/web/server/lib/ax-code/config-entity-routes.js`: route registration for agent/command/MCP config orchestration and reload semantics.
@@ -29,7 +29,7 @@ This module provides ax-code server integration utilities for the web server run
 - `packages/web/server/lib/ax-code/tunnel-wiring-runtime.js`: tunnel service/routes composition runtime and active-port wiring for main server startup.
 - `packages/web/server/lib/ax-code/startup-pipeline-runtime.js`: server startup tail orchestration runtime for terminal/proxy/static/start-listen flow.
 - `packages/web/server/lib/ax-code/server-utils-runtime.js`: shared server runtime utilities for ax-code proxy wiring, AX Code port/readiness helpers, and snapshot fetchers.
-- `packages/web/server/lib/ax-code/openchamber-routes.js`: OpenChamber update and models metadata route registration.
+- `packages/web/server/lib/ax-code/openchamber-routes.js`: legacy compatibility update and models metadata route registration.
 - `packages/web/server/lib/ax-code/project-icon-routes.js`: project icon upload/read/discovery route registration and icon storage orchestration.
 - `packages/web/server/lib/ax-code/skill-routes.js`: route registration for skill config CRUD, supporting files, and skills catalog scan/install flows.
 - `packages/web/server/lib/ax-code/settings-runtime.js`: Settings persistence runtime (disk IO, migrations, normalization, project validation, and persisted update serialization).
@@ -311,7 +311,7 @@ This module provides ax-code server integration utilities for the web server run
   - `run(options)`
 
 ## Public exports (openchamber-routes.js)
-- `registerOpenChamberRoutes(app, dependencies)`: registers OpenChamber endpoints:
+- Legacy compatibility route registration:
   - `GET /api/openchamber/update-check`
   - `POST /api/openchamber/update-install`
   - `GET /api/openchamber/models-metadata`

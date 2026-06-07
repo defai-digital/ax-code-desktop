@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# OpenChamber Install Script
-# Usage: curl -fsSL https://raw.githubusercontent.com/btriapitsyn/openchamber/main/scripts/install.sh | bash
+# AX Code Desktop Install Script
+# Usage: curl -fsSL https://raw.githubusercontent.com/defai-digital/ax-code-desktop/main/scripts/install.sh | bash
 
 set -e
 
-PACKAGE_NAME="@openchamber/web"
+PACKAGE_NAME="ax-code-desktop"
 MIN_NODE_VERSION=20
 
 # Colors
@@ -147,8 +147,8 @@ main() {
   echo ""
   echo "  ╭───────────────────────────────────╮"
   echo "  │                                   │"
-  echo "  │   OpenChamber Installer           │"
-  echo "  │   Web interface for AX Code      │"
+  echo "  │   AX Code Desktop Installer       │"
+  echo "  │   Web interface for AX Code       │"
   echo "  │                                   │"
   echo "  ╰───────────────────────────────────╯"
   echo ""
@@ -186,17 +186,17 @@ main() {
 
   # Install
   echo ""
-  info "Installing OpenChamber..."
+  info "Installing AX Code Desktop..."
   echo "  Running: $INSTALL_CMD"
   echo ""
   
   if eval "$INSTALL_CMD"; then
     echo ""
-    success "OpenChamber installed successfully!"
+    success "AX Code Desktop installed successfully!"
     echo ""
     echo "  Get started:"
-    echo "    openchamber              # Start server on port 3000"
-    echo "    openchamber --help       # Show all options"
+    echo "    ax-code-desktop              # Start server on port 3000"
+    echo "    ax-code-desktop --help       # Show all options"
     echo ""
     echo "  Prerequisites:"
     echo "    Make sure AX Code is running: ax-code serve"

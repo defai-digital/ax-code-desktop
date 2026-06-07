@@ -8,20 +8,20 @@ Audience: contributors planning the next phase of the embedded preview feature.
 
 The current preview implementation (`packages/web/server/lib/preview/proxy-runtime.js`,
 `packages/ui/src/components/layout/ContextPanel.tsx`) terminates inside the
-AX Code App server process and forwards requests to a **loopback** target
+AX Code Desktop server process and forwards requests to a **loopback** target
 (`localhost`, `127.0.0.1`, `::1`, `0.0.0.0`). It works for these topologies:
 
 | Topology                                                                 | Works today? |
 | ------------------------------------------------------------------------ | ------------ |
-| Web UI in browser, AX Code App server on same host as dev server         | yes          |
+| Web UI in browser, AX Code Desktop server on same host as dev server         | yes          |
 | Electron desktop, dev server on same host                                | yes          |
-| **Remote AX Code App** (cloud / shared / tunneled), dev server on user's local machine | **no**       |
+| **Remote AX Code Desktop** (cloud / shared / tunneled), dev server on user's local machine | **no**       |
 
-The blocked case is real: a user runs `openchamber serve` on a remote box (or a
-hosted AX Code App instance) but their dev server (`vite`, `next dev`, etc.)
+The blocked case is real: a user runs `ax-code-desktop serve` on a remote box (or a
+hosted AX Code Desktop instance) but their dev server (`vite`, `next dev`, etc.)
 runs on their laptop. The proxy correctly refuses to talk to non-loopback
 targets — that is a deliberate SSRF gate, not a bug. We need a separate path
-that tunnels traffic from the remote AX Code App back to the user's laptop
+that tunnels traffic from the remote AX Code Desktop back to the user's laptop
 without weakening that gate.
 
 ## Non-goals
@@ -32,18 +32,18 @@ without weakening that gate.
   expose dev servers selected through the preview UI, scoped to the active
   user's session.
 - Providing a hosted relay service. The relay is something the user runs;
-  AX Code App provides the agent + the server endpoints.
+  AX Code Desktop provides the agent + the server endpoints.
 
 ## Constraints (carried forward from the loopback proxy)
 
-- Same-origin in the browser. The iframe must load from the AX Code App
+- Same-origin in the browser. The iframe must load from the AX Code Desktop
   origin so HTTPS, cookies, and CSP behave predictably.
 - Per-target cookie auth. A target id must not be guessable, and the cookie
   must be HttpOnly + scoped to that target's path.
 - WebSocket upgrade support (HMR is a hard requirement; without it the
   feature is uninteresting).
 - Strip frame-busting headers on the response.
-- Strip AX Code App credentials before forwarding to the dev server.
+- Strip AX Code Desktop credentials before forwarding to the dev server.
 - Survive partial failure cleanly: if the agent disconnects, the iframe
   should land on the existing "dev server is not responding" overlay, not a
   zombie hang.
@@ -57,18 +57,18 @@ Three components, in order of where they run.
 A small process the user starts on the same machine as the dev server. Two
 shipping options:
 
-- A subcommand of the existing CLI: `openchamber preview-agent`.
+- A subcommand of the existing CLI: `ax-code-desktop preview-agent`.
 - A standalone single-binary build for users who do not have the full UI
   installed locally.
 
 Responsibilities:
 
 - Open exactly one outbound, authenticated WebSocket to the remote
-  AX Code App server (`wss://<host>/api/preview/agent`). Outbound-only — no
+  AX Code Desktop server (`wss://<host>/api/preview/agent`). Outbound-only — no
   inbound port on the user's machine, so it works behind NAT, VPN,
   corporate firewall, etc.
 - Authenticate with a short-lived enrollment token issued by the remote
-  AX Code App server (see "Pairing flow").
+  AX Code Desktop server (see "Pairing flow").
 - Advertise the set of dev servers the user has authorised. Scope is
   loopback-only on the agent side (same allowlist as the existing proxy:
   `localhost`, `127.0.0.1`, `::1`, `0.0.0.0`). The agent never proxies to
@@ -82,11 +82,11 @@ Responsibilities:
 Deliberately out of scope for the agent:
 
 - TLS termination. The agent only talks to loopback over plain HTTP; the
-  outbound link to AX Code App is TLS via the server's existing cert.
+  outbound link to AX Code Desktop is TLS via the server's existing cert.
 - Anything that mutates the user's filesystem.
 - Acting as a general SOCKS/HTTP proxy. It is dev-server-scoped.
 
-### 2. Remote AX Code App server (extends `proxy-runtime.js`)
+### 2. Remote AX Code Desktop server (extends `proxy-runtime.js`)
 
 Adds two new surfaces alongside the existing loopback proxy:
 
@@ -137,7 +137,7 @@ server must be able to revoke that proof.
    UI session id, with a single allowed scope: `preview-agent.connect`. UI
    shows the command:
    ```
-   openchamber preview-agent --server https://<host> --token <enrollment-token>
+   ax-code-desktop preview-agent --server https://<host> --token <enrollment-token>
    ```
 3. Agent posts the enrollment token to `POST /api/preview/agent/enroll` and
    receives a long-lived `agentId` + `agentSecret`. Stored in the agent's
@@ -259,8 +259,8 @@ Out-of-scope hardening to revisit later:
 
 These need a decision before implementation, not before the doc lands.
 
-1. **CLI surface.** Is `openchamber preview-agent` the right verb, or should
-   it live under `openchamber agent preview`? Bias: the former; only one
+1. **CLI surface.** Is `ax-code-desktop preview-agent` the right verb, or should
+   it live under `ax-code-desktop agent preview`? Bias: the former; only one
    agent today, and we can rename without breaking anything if we ever ship
    a second.
 2. **Multi-agent UX.** When a user has two agents online (laptop + desktop)
@@ -305,12 +305,12 @@ sequence, not effort.
 ## Why not …?
 
 - **A reverse SSH tunnel from the agent.** Works but requires SSH server
-  on the AX Code App host, exposes a port, and breaks the same-origin
+  on the AX Code Desktop host, exposes a port, and breaks the same-origin
   guarantee unless we also reverse-proxy that port through the
-  AX Code App HTTP server. The control-WebSocket design avoids all of
+  AX Code Desktop HTTP server. The control-WebSocket design avoids all of
   that and keeps a single TLS endpoint.
 - **Cloudflare/ngrok-style hosted relay.** Would work but turns
-  AX Code App into a service that depends on a third party (or on us
+  AX Code Desktop into a service that depends on a third party (or on us
   hosting a relay). The agent design lets users run entirely
   self-hosted.
 - **WebRTC data channels.** Lower latency in theory, much harder to debug

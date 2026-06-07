@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Generate the local minisign keypair used for AX Code App release artifacts.
+# Generate the local minisign keypair used for AX Code Desktop release artifacts.
 
 set -euo pipefail
 
@@ -17,8 +17,8 @@ Usage: ./scripts/minisign-keygen.sh [options]
 
 Options:
   --key-dir <path>      Directory for generated keys (default: ~/signkey)
-  --secret-key <path>   Secret key path (default: <key-dir>/ax-code-app.minisign.key)
-  --public-key <path>   Public key path (default: <key-dir>/ax-code-app.minisign.pub)
+  --secret-key <path>   Secret key path (default: <key-dir>/ax-code-desktop.minisign.key)
+  --public-key <path>   Public key path (default: <key-dir>/ax-code-desktop.minisign.pub)
   --force               Overwrite an existing keypair
   --allow-unencrypted-test-key
                         Generate an unencrypted secret key for short-lived tests
@@ -92,8 +92,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-SECRET_KEY="${SECRET_KEY:-$KEY_DIR/ax-code-app.minisign.key}"
-PUBLIC_KEY="${PUBLIC_KEY:-$KEY_DIR/ax-code-app.minisign.pub}"
+SECRET_KEY="${SECRET_KEY:-$KEY_DIR/ax-code-desktop.minisign.key}"
+PUBLIC_KEY="${PUBLIC_KEY:-$KEY_DIR/ax-code-desktop.minisign.pub}"
 SECRET_KEY_DIR="$(dirname "$SECRET_KEY")"
 PUBLIC_KEY_DIR="$(dirname "$PUBLIC_KEY")"
 

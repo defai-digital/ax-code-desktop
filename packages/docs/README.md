@@ -1,14 +1,12 @@
-# AX Code App Docs Source
+# AX Code Desktop Docs Source
 
-This package is the source-of-truth for AX Code App public docs content.
+This package is the source-of-truth for AX Code Desktop public docs content.
 
 ## Layout
 
 - `content/docs/*.mdx` - English docs pages (source of truth)
-- `content/docs/<locale>/*.mdx` - translations, mirroring the English filenames
-  (e.g. `uk/`, `zh-cn/`, `pt-br/`); see `CONTRIBUTING.md` → Localization
 - `sidebar.config.json` - docs navigation structure for Starlight sidebar
-- `CONTRIBUTING.md` - authoring guide for adding pages, sections, and translations
+- `CONTRIBUTING.md` - authoring guide for adding pages and sections
 - `DEPLOYMENT.md` - release/manual packaging and sync trigger model
 
 ## Local validation
@@ -28,6 +26,7 @@ This validates:
 
 This repo owns docs content.
 
-Website rendering/deployment happens in `openchamber-website` (`apps/docs`).
+Website rendering/deployment happens in the downstream docs website repository
+(`apps/docs`).
 
 Use `.github/workflows/docs-source.yml` to package docs source on release or manual trigger.

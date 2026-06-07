@@ -125,7 +125,13 @@ brew upgrade --cask ax-code-desktop
 
 macOS users installing via Homebrew bypass Gatekeeper automatically — no extra steps needed.
 
-For manual downloads, only use the official [Releases page](https://github.com/defai-digital/ax-code-desktop/releases). Windows SmartScreen may warn about unsigned builds; click **More info → Run anyway** if you trust the source.
+For manual downloads, only use the official [Releases page](https://github.com/defai-digital/ax-code-desktop/releases). Release assets include detached `.minisig` signatures that can be verified with this pinned public key:
+
+```text
+RWS6la0s0/o4gdFUZ0Bk/BkrnN8qC2CFOfLXVP5OtQTrvm1BQeOvXgao
+```
+
+Windows SmartScreen may warn about unsigned builds; click **More info → Run anyway** if you trust the source.
 
 AX Code Desktop is intended for trusted desktop workstations. Do not expose the development web UI publicly.
 
@@ -171,11 +177,14 @@ Package layout:
 | `packages/electron` | Current desktop shell |
 | `packages/desktop` | Legacy Tauri shell, maintenance only |
 
-## OpenChamber Compatibility
+## Legacy Compatibility Notes
 
-AX Code Desktop is based on the open-source [OpenChamber](https://github.com/openchamber/openchamber) project and is tailored for AX Code.
+AX Code Desktop is the user-facing product name. Some internal package names,
+storage keys, environment variables, endpoint paths, and config directories
+still use `openchamber` so existing installs and migrated data continue to work.
 
-Some internal package names, storage keys, environment variables, and config paths still use `openchamber` for compatibility with existing data and upstream code. New user-facing releases are branded as **AX Code Desktop**.
+Treat those names as legacy compatibility details, not as the public product
+identity for new docs, releases, or UI copy.
 
 ## Contributing
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-- This module owns GitHub auth, Octokit access, repo resolution, and Pull Request status resolution for OpenChamber.
+- This module owns GitHub auth, Octokit access, repo resolution, and Pull Request status resolution for AX Code Desktop.
 - From user perspective, this is the layer that lets the app know which PR belongs to a local branch and keeps that UI feeling current.
 
 ## Entrypoints and structure
@@ -46,7 +46,7 @@
 
 ## Auth storage and config
 
-- Auth storage: `~/.config/openchamber/github-auth.json`
+- Auth storage: `~/.config/openchamber/github-auth.json` (legacy compatibility path)
 - Writes are atomic and file mode is `0o600`.
 - Client ID resolution order: `OPENCHAMBER_GITHUB_CLIENT_ID` -> `settings.json` -> default.
 - Scope resolution order: `OPENCHAMBER_GITHUB_SCOPES` -> `settings.json` -> default.
@@ -88,7 +88,7 @@
 
 ## Persistence
 
-- PR state is persisted in local storage under `openchamber.github-pr-status`.
+- PR state is persisted in local storage under `openchamber.github-pr-status` for compatibility.
 - Persisted fields include status, timestamps, identity, and resolved remote.
 - Runtime-only details are not persisted.
 - Persisted entries expire after 12 hours.

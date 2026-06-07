@@ -625,8 +625,125 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  finalize-release:
+  sign-release-assets:
     needs: [create-release, build-desktop-electron-macos, build-desktop-electron-windows, repackage-electron-as-tauri-update, publish-npm, combine-manifests, combine-electron-manifests]
+    if: >-
+      always() &&
+      needs.create-release.result == 'success' &&
+      needs.build-desktop-electron-macos.result == 'success' &&
+      needs.build-desktop-electron-windows.result == 'success' &&
+      needs.publish-npm.result == 'success' &&
+      needs.combine-electron-manifests.result == 'success' &&
+      needs.repackage-electron-as-tauri-update.result != 'failure' &&
+      needs.combine-manifests.result != 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install minisign
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y minisign
+
+      - name: Download release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          gh release download "v${VERSION}" --repo "$REPOSITORY" --dir release-assets --clobber
+
+      - name: Sign release assets
+        env:
+          AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 }}
+          AX_CODE_DESKTOP_MINISIGN_PASSWORD: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_PASSWORD }}
+          MINISIGN_PASSWORD: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64" ]; then
+            echo "::error::AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 is required to sign release assets"
+            exit 1
+          fi
+          if [ -z "$AX_CODE_DESKTOP_MINISIGN_PASSWORD" ]; then
+            echo "::error::AX_CODE_DESKTOP_MINISIGN_PASSWORD is required to unlock the release signing key"
+            exit 1
+          fi
+
+          SECRET_KEY="$RUNNER_TEMP/ax-code-desktop.minisign.key"
+          PUBLIC_KEY="$RUNNER_TEMP/ax-code-desktop.minisign.pub"
+          printf '%s' "$AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64" | base64 -d > "$SECRET_KEY"
+          chmod 600 "$SECRET_KEY"
+          cat > "$PUBLIC_KEY" <<'EOF'
+          untrusted comment: minisign public key 8138FAD32CAD95BA
+          RWS6la0s0/o4gdFUZ0Bk/BkrnN8qC2CFOfLXVP5OtQTrvm1BQeOvXgao
+          EOF
+
+          assets=()
+          while IFS= read -r -d '' file; do
+            case "$file" in
+              *.minisig|*.sig)
+                ;;
+              *)
+                assets+=("$file")
+                ;;
+            esac
+          done < <(find release-assets -type f -print0)
+
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "::error::No release assets found to sign"
+            exit 1
+          fi
+
+          ./scripts/minisign-artifacts.sh --secret-key "$SECRET_KEY" --public-key "$PUBLIC_KEY" --force "${assets[@]}"
+
+      - name: Upload minisign signatures
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          signatures=()
+          while IFS= read -r -d '' file; do
+            signatures+=("$file")
+          done < <(find release-assets -type f -name '*.minisig' -print0)
+          if [ "${#signatures[@]}" -eq 0 ]; then
+            echo "::error::No .minisig files were produced"
+            exit 1
+          fi
+          gh release upload "v${VERSION}" --repo "$REPOSITORY" --clobber "${signatures[@]}"
+
+      - name: Verify release signature coverage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          release_json="$(gh release view "v${VERSION}" --repo "$REPOSITORY" --json assets,isDraft)"
+          RELEASE_JSON="$release_json" node <<'NODE'
+          const release = JSON.parse(process.env.RELEASE_JSON);
+          const names = new Set(release.assets.map((asset) => asset.name));
+          const unsignedAssets = release.assets
+            .map((asset) => asset.name)
+            .filter((name) => !name.endsWith('.minisig') && !name.endsWith('.sig'));
+          const missing = unsignedAssets.filter((name) => !names.has(`${name}.minisig`));
+          if (missing.length > 0) {
+            console.error('Release assets missing minisign signatures:');
+            for (const name of missing) console.error(`  ${name}`);
+            process.exit(1);
+          }
+          if (release.isDraft !== true) {
+            console.error('Release was published before signature coverage was verified.');
+            process.exit(1);
+          }
+          NODE
+
+  finalize-release:
+    needs: [create-release, build-desktop-electron-macos, build-desktop-electron-windows, repackage-electron-as-tauri-update, publish-npm, combine-manifests, combine-electron-manifests, sign-release-assets]
     # Publish the release once the core artifacts are in place. The Tauri-updater
     # jobs are optional — allow them to be skipped (but not failed) so a missing
     # Tauri signing key doesn't leave the release stuck in draft.
@@ -637,6 +754,7 @@ jobs:
       needs.build-desktop-electron-windows.result == 'success' &&
       needs.publish-npm.result == 'success' &&
       needs.combine-electron-manifests.result == 'success' &&
+      needs.sign-release-assets.result == 'success' &&
       needs.repackage-electron-as-tauri-update.result != 'failure' &&
       needs.combine-manifests.result != 'failure'
     runs-on: ubuntu-latest
@@ -680,11 +798,11 @@ jobs:
             }
 
             const release = await releaseRes.json();
-            const description = (release.body || `OpenChamber ${tag} released.`).slice(0, 4096);
+            const description = (release.body || `AX Code App ${tag} released.`).slice(0, 4096);
             const mention = updateRoleId ? `<@&${updateRoleId}>` : '';
 
             const payload = {
-              username: 'OpenChamber Releases',
+              username: 'AX Code App Releases',
               ...(mention ? { content: mention } : {}),
               ...(updateRoleId
                 ? {
@@ -695,11 +813,11 @@ jobs:
                 : {}),
               embeds: [
                 {
-                  title: release.name || `OpenChamber ${tag}`,
+                  title: release.name || `AX Code App ${tag}`,
                   url: release.html_url,
                   description,
                   color: 2105893,
-                  footer: { text: 'OpenChamber Changelog' },
+                  footer: { text: 'AX Code App Changelog' },
                 },
               ],
             };
@@ -720,14 +838,14 @@ jobs:
           });
           NODE
 
-      - name: Trigger openchamber-website site refresh (optional)
+      - name: Trigger ax-code-website site refresh (optional)
         env:
-          WEBSITE_REPO: openchamber/openchamber-website
-          WEBSITE_TOKEN: ${{ secrets.OPENCHAMBER_WEBSITE_REPO_TOKEN }}
+          WEBSITE_REPO: defai-digital/ax-code-website
+          WEBSITE_TOKEN: ${{ secrets.AX_CODE_WEBSITE_REPO_TOKEN }}
           VERSION: ${{ needs.create-release.outputs.version }}
         run: |
           if [ -z "$WEBSITE_TOKEN" ]; then
-            echo "OPENCHAMBER_WEBSITE_REPO_TOKEN not set; skip site refresh dispatch."
+            echo "AX_CODE_WEBSITE_REPO_TOKEN not set; skip site refresh dispatch."
             exit 0
           fi
 
@@ -773,7 +891,7 @@ jobs:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           VERSION: ${{ needs.create-release.outputs.version }}
         run: |
-          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/defai-digital/homebrew-ax-code-desktop.git"
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/defai-digital/homebrew-ax-code-desktop.git" homebrew-tap
           cd homebrew-tap
           node - <<'NODE'
           const fs = require('fs');

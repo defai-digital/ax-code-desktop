@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Sign AX Code App release artifacts with the local minisign keypair.
+# Sign AX Code Desktop release artifacts with the local minisign keypair.
 
 set -euo pipefail
 
@@ -9,8 +9,12 @@ shopt -s nullglob
 KEY_DIR="${SIGNKEY_DIR:-$HOME/signkey}"
 SECRET_KEY="${MINISIGN_SECRET_KEY:-}"
 PUBLIC_KEY="${MINISIGN_PUBLIC_KEY:-}"
+PINNED_PUBLIC_KEY="${AX_CODE_DESKTOP_MINISIGN_PUBLIC_KEY:-RWS6la0s0/o4gdFUZ0Bk/BkrnN8qC2CFOfLXVP5OtQTrvm1BQeOvXgao}"
 TRUSTED_COMMENT="${MINISIGN_TRUSTED_COMMENT:-}"
-UNTRUSTED_COMMENT="${MINISIGN_UNTRUSTED_COMMENT:-signature from ax-code-app local signing key}"
+UNTRUSTED_COMMENT="${MINISIGN_UNTRUSTED_COMMENT:-signature from ax-code-desktop local signing key}"
+MINISIGN_KEY_PASSWORD="${AX_CODE_DESKTOP_MINISIGN_PASSWORD:-${MINISIGN_PASSWORD:-}}"
+KEYCHAIN_SERVICE="${AX_CODE_DESKTOP_MINISIGN_KEYCHAIN_SERVICE:-ax-code-desktop-minisign}"
+KEYCHAIN_ACCOUNT="${AX_CODE_DESKTOP_MINISIGN_KEYCHAIN_ACCOUNT:-ax-code-desktop-release}"
 DRY_RUN=false
 VERIFY=true
 FORCE=false
@@ -25,8 +29,8 @@ under packages/electron/dist and packages/web.
 
 Options:
   --key-dir <path>          Directory containing keys (default: ~/signkey)
-  --secret-key <path>       Secret key path (default: <key-dir>/ax-code-app.minisign.key)
-  --public-key <path>       Public key path (default: <key-dir>/ax-code-app.minisign.pub)
+  --secret-key <path>       Secret key path (default: <key-dir>/ax-code-desktop.minisign.key)
+  --public-key <path>       Public key path (default: <key-dir>/ax-code-desktop.minisign.pub)
   --trusted-comment <text>  Trusted minisign comment
   --untrusted-comment <text>
                             Untrusted minisign comment
@@ -63,6 +67,43 @@ public_key_id() {
   awk '/^untrusted comment: minisign public key / { print $NF; exit }' "$PUBLIC_KEY"
 }
 
+public_key_material() {
+  awk '/^RW/ { print $1; exit }' "$PUBLIC_KEY"
+}
+
+minisign_password_from_keychain() {
+  if [[ "$(uname -s)" != "Darwin" ]]; then
+    return 1
+  fi
+  if ! command -v security >/dev/null 2>&1; then
+    return 1
+  fi
+  security find-generic-password -w -s "$KEYCHAIN_SERVICE" -a "$KEYCHAIN_ACCOUNT" 2>/dev/null || return 1
+}
+
+minisign_password() {
+  if [[ -n "$MINISIGN_KEY_PASSWORD" ]]; then
+    printf '%s\n' "$MINISIGN_KEY_PASSWORD"
+    return 0
+  fi
+  minisign_password_from_keychain
+}
+
+require_pinned_public_key() {
+  local actual
+  actual="$(public_key_material)"
+  if [[ -z "$actual" ]]; then
+    echo "Could not read minisign public key material from $PUBLIC_KEY" >&2
+    exit 1
+  fi
+  if [[ "$actual" != "$PINNED_PUBLIC_KEY" ]]; then
+    echo "Minisign public key does not match the pinned AX Code Desktop release key: $PUBLIC_KEY" >&2
+    echo "Expected: $PINNED_PUBLIC_KEY" >&2
+    echo "Actual:   $actual" >&2
+    exit 1
+  fi
+}
+
 sha256_hex() {
   local file="$1"
   if command -v sha256sum >/dev/null 2>&1; then
@@ -84,7 +125,7 @@ trusted_comment_for_file() {
 
   basename="$(basename "$file")"
   hash="$(sha256_hex "$file")"
-  printf 'AX Code App release artifact: %s; sha256=%s; signed=%s\n' "$basename" "$hash" "$SIGNED_AT"
+  printf 'AX Code Desktop release artifact: %s; sha256=%s; signed=%s\n' "$basename" "$hash" "$SIGNED_AT"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -137,8 +178,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-SECRET_KEY="${SECRET_KEY:-$KEY_DIR/ax-code-app.minisign.key}"
-PUBLIC_KEY="${PUBLIC_KEY:-$KEY_DIR/ax-code-app.minisign.pub}"
+SECRET_KEY="${SECRET_KEY:-$KEY_DIR/ax-code-desktop.minisign.key}"
+PUBLIC_KEY="${PUBLIC_KEY:-$KEY_DIR/ax-code-desktop.minisign.pub}"
 SIGNED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 if ! command -v minisign >/dev/null 2>&1; then
@@ -189,6 +230,10 @@ if [[ "$DRY_RUN" != true && "$VERIFY" == true && ! -f "$PUBLIC_KEY" ]]; then
   exit 1
 fi
 
+if [[ "$DRY_RUN" != true && -f "$PUBLIC_KEY" ]]; then
+  require_pinned_public_key
+fi
+
 if [[ "$DRY_RUN" != true ]]; then
   ensure_private_permissions "$SECRET_KEY" "Secret key"
 fi
@@ -222,13 +267,20 @@ fi
 for file in "${SIGN_FILES[@]}"; do
   sig_file="$file.minisig"
   trusted_comment="$(trusted_comment_for_file "$file")"
-  minisign \
-    -S \
-    -s "$SECRET_KEY" \
-    -x "$sig_file" \
-    -c "$UNTRUSTED_COMMENT" \
-    -t "$trusted_comment" \
+  password="$(minisign_password || true)"
+  minisign_args=(
+    -S
+    -s "$SECRET_KEY"
+    -x "$sig_file"
+    -c "$UNTRUSTED_COMMENT"
+    -t "$trusted_comment"
     -m "$file"
+  )
+  if [[ -n "$password" ]]; then
+    printf '%s\n' "$password" | minisign "${minisign_args[@]}"
+  else
+    minisign "${minisign_args[@]}"
+  fi
 done
 
 if [[ "$VERIFY" == true ]]; then

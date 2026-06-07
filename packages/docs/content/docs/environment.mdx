@@ -1,17 +1,21 @@
 ---
 title: Environment Variables
-description: Configure AX Code App and AX Code integration with environment variables.
+description: Configure AX Code Desktop and AX Code integration with environment variables.
 ---
 
 # Environment Variables
 
-AX Code App reads these environment variables at startup. For startup services, `openchamber startup enable` snapshots the current environment by default, so rerun it after changing variables you want the service to use.
+AX Code Desktop reads these environment variables at startup. For startup services, `ax-code-desktop startup enable` snapshots the current environment by default, so rerun it after changing variables you want the service to use.
 
-## AX Code App server
+Some variables still use the `OPENCHAMBER_` prefix for compatibility with
+existing installs and storage paths. Use the names shown here; the prefix is a
+legacy implementation detail, not the product name.
+
+## AX Code Desktop server
 
 ### `OPENCHAMBER_HOST`
 
-Bind address for the AX Code App web server. Use `0.0.0.0` to allow access from other machines.
+Bind address for the AX Code Desktop web server. Use `0.0.0.0` to allow access from other machines.
 
 ### `OPENCHAMBER_UI_PASSWORD`
 
@@ -19,7 +23,7 @@ Password for the browser UI. Use this when binding outside localhost, using tunn
 
 ### `OPENCHAMBER_DATA_DIR`
 
-Overrides the AX Code App data directory. The default is `~/.config/openchamber`.
+Overrides the AX Code Desktop data directory. The default is `~/.config/openchamber`.
 
 ### `OPENCHAMBER_COMPRESS_API`
 
@@ -45,7 +49,7 @@ Forces the package manager used by update operations when auto-detection is wron
 
 ### `AX_CODE_HOST`
 
-Connects AX Code App to an existing AX Code server. The value must be an `http` or `https` origin with an explicit port and no path, query, or hash. `AX_CODE_HOST` takes precedence over `AX_CODE_PORT`.
+Connects AX Code Desktop to an existing AX Code server. The value must be an `http` or `https` origin with an explicit port and no path, query, or hash. `AX_CODE_HOST` takes precedence over `AX_CODE_PORT`.
 
 ### `AX_CODE_PORT`
 
@@ -53,15 +57,15 @@ Sets the AX Code server port. With managed AX Code this requests the managed por
 
 ### `AX_CODE_SKIP_START`
 
-Prevents AX Code App from starting its own AX Code server when set to `true`.
+Prevents AX Code Desktop from starting its own AX Code server when set to `true`.
 
 ### `OPENCHAMBER_AX_CODE_HOSTNAME`
 
-Bind hostname for the AX Code server managed by AX Code App. The default is `127.0.0.1`.
+Bind hostname for the AX Code server managed by AX Code Desktop. The default is `127.0.0.1`.
 
 ### `AX_CODE_BINARY`
 
-Path to the `ax-code` executable AX Code App should run.
+Path to the `ax-code` executable AX Code Desktop should run.
 
 ### `AX_CODE_CONFIG`
 
@@ -81,7 +85,7 @@ Selects the WSL distro used for AX Code integration on Windows.
 
 ### `OPENCHAMBER_AX_CODE_WSL_DISTRO`
 
-AX Code App-specific alias for selecting the WSL distro. `AX_CODE_WSL_DISTRO` takes precedence when both are set.
+AX Code Desktop-specific alias for selecting the WSL distro. `AX_CODE_WSL_DISTRO` takes precedence when both are set.
 
 ### `AX_CODE_JWT_SECRET`
 
@@ -91,15 +95,15 @@ Secret used to sign UI authentication tokens. Use a long random value for persis
 
 ### `OPENCHAMBER_TERMINAL_SHELL`
 
-Shell executable used for AX Code App terminal sessions.
+Shell executable used for AX Code Desktop terminal sessions.
 
 ### `OPENCHAMBER_GIT_BINARY`
 
-Git executable used by AX Code App Git features.
+Git executable used by AX Code Desktop Git features.
 
 ### `GIT_BINARY`
 
-Alternative Git executable override. Prefer `OPENCHAMBER_GIT_BINARY` for AX Code App-specific configuration.
+Alternative Git executable override. Prefer `OPENCHAMBER_GIT_BINARY` for AX Code Desktop-specific configuration.
 
 ### `OPENCHAMBER_GIT_READ_CACHE_TTL_MS`
 
@@ -109,7 +113,7 @@ Time-to-live, in milliseconds, for cached Git-backed file reads. Set `0` to disa
 
 ### `OPENAI_API_KEY`
 
-API key used by AX Code App voice features that call OpenAI-compatible services.
+API key used by AX Code Desktop voice features that call OpenAI-compatible services.
 
 ### `OPENCHAMBER_ALLOW_REMOTE_OPENAI_COMPAT_URLS`
 
@@ -117,17 +121,17 @@ Allows remote OpenAI-compatible base URLs for voice features when set to `true` 
 
 ### `NGROK_AUTHTOKEN`
 
-ngrok auth token used by AX Code App tunnel commands. You can also configure ngrok with `ngrok config add-authtoken <token>`.
+ngrok auth token used by AX Code Desktop tunnel commands. You can also configure ngrok with `ngrok config add-authtoken <token>`.
 
 ## Runtime helpers
 
 ### `BUN_BINARY`
 
-Bun executable AX Code App should use when spawning daemon processes.
+Bun executable AX Code Desktop should use when spawning daemon processes.
 
 ### `BUN_INSTALL`
 
-Bun installation root. AX Code App uses it to find `bin/bun` for daemon startup and updates.
+Bun installation root. AX Code Desktop uses it to find `bin/bun` for daemon startup and updates.
 
 ### `VITE_AX_CODE_URL`
 

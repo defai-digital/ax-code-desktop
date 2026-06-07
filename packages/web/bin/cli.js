@@ -33,7 +33,7 @@ const DAEMON_READY_TIMEOUT_MS = 30000;
 const LOG_ROTATE_MAX_BYTES = 10 * 1024 * 1024;
 const LOG_ROTATE_KEEP = 5;
 const STARTUP_SERVICE_ID = 'ai.ax-code.app.web';
-const SYSTEMD_SERVICE_NAME = 'ax-code-app.service';
+const SYSTEMD_SERVICE_NAME = 'ax-code-desktop.service';
 const TUNNEL_PROFILES_VERSION = 1;
 const TUNNEL_PROFILES_FILE_NAME = 'tunnel-profiles.json';
 const LEGACY_CLOUDFLARE_MANAGED_REMOTE_FILE_NAME = 'cloudflare-managed-remote-tunnels.json';
@@ -174,7 +174,7 @@ function buildLocalUrl(port, endpoint = '') {
 }
 
 function formatUnsafePortWarning(port) {
-  return `Port ${port} is browser-unsafe (ERR_UNSAFE_PORT) and is not supported for AX Code App UI at ${buildLocalUrl(port, '/')}.`;
+  return `Port ${port} is browser-unsafe (ERR_UNSAFE_PORT) and is not supported for AX Code Desktop UI at ${buildLocalUrl(port, '/')}.`;
 }
 
 function assertSafeBrowserPort(port, { context = 'This action' } = {}) {
@@ -770,7 +770,7 @@ function parseArgs(argv = process.argv.slice(2)) {
         // may still pass this when starting a remote server.
         break;
       case 'try-cf-tunnel':
-        removedFlagErrors.push('`--try-cf-tunnel` was removed. Use: ax-code-app tunnel start --provider cloudflare --mode quick');
+        removedFlagErrors.push('`--try-cf-tunnel` was removed. Use: ax-code-desktop tunnel start --provider cloudflare --mode quick');
         break;
       case 'tunnel-qr':
         removedFlagErrors.push('`--tunnel-qr` was removed. Copy the generated connect link instead.');
@@ -784,7 +784,7 @@ function parseArgs(argv = process.argv.slice(2)) {
       case 'tunnel-token':
       case 'tunnel-hostname':
       case 'tunnel':
-        removedFlagErrors.push(`\`--${name}\` was removed from top-level serve flow. Use: ax-code-app tunnel start ...`);
+        removedFlagErrors.push(`\`--${name}\` was removed from top-level serve flow. Use: ax-code-desktop tunnel start ...`);
         break;
       default:
         if (!long && name.length === 1) {
@@ -815,10 +815,10 @@ function parseArgs(argv = process.argv.slice(2)) {
 
 function showHelp() {
   console.log(`
- AX Code App - Web interface for the ax-code AI coding agent
+ AX Code Desktop - Web interface for the ax-code AI coding agent
 
 USAGE:
-  ax-code-app [COMMAND] [OPTIONS]
+  ax-code-desktop [COMMAND] [OPTIONS]
 
 COMMANDS:
   serve          Start the web server (daemon default)
@@ -827,7 +827,7 @@ COMMANDS:
   status         Show server status
   tunnel         Tunnel lifecycle commands
   startup        Manage launch at system startup
-  logs           Tail AX Code App logs
+  logs           Tail AX Code Desktop logs
   update         Check for and install updates
 
 OPTIONS:
@@ -842,28 +842,28 @@ OPTIONS:
 ENVIRONMENT:
   OPENCHAMBER_HOST             Bind address (e.g. 0.0.0.0 for all interfaces)
   OPENCHAMBER_UI_PASSWORD      Alternative to --ui-password flag
-  OPENCHAMBER_DATA_DIR         Override AX Code App data directory
+  OPENCHAMBER_DATA_DIR         Override AX Code Desktop data directory
   AX_CODE_HOST               External ax-code server base URL, e.g. http://hostname:4096
   AX_CODE_PORT               Port of external ax-code server to connect to
   AX_CODE_SKIP_START          Skip starting AX Code, use external server
   OPENCHAMBER_AX_CODE_HOSTNAME  Bind hostname for managed ax-code server (default: 127.0.0.1)
 
 EXAMPLES:
-  ax-code-app                    # Start in daemon mode on default port 3000 (or free port)
-  ax-code-app --port 8080        # Start on port 8080 (daemon)
-  ax-code-app serve --foreground # Start in foreground (for systemd Type=simple)
-  ax-code-app startup enable     # Start AX Code App at user login
-  ax-code-app tunnel help        # Show tunnel lifecycle help
-  ax-code-app logs               # Follow logs for latest running instance
+  ax-code-desktop                    # Start in daemon mode on default port 3000 (or free port)
+  ax-code-desktop --port 8080        # Start on port 8080 (daemon)
+  ax-code-desktop serve --foreground # Start in foreground (for systemd Type=simple)
+  ax-code-desktop startup enable     # Start AX Code Desktop at user login
+  ax-code-desktop tunnel help        # Show tunnel lifecycle help
+  ax-code-desktop logs               # Follow logs for latest running instance
 `);
 }
 
 function showStartupHelp() {
   console.log(`
- AX Code App Startup Commands
+ AX Code Desktop Startup Commands
 
 USAGE:
-  ax-code-app startup <SUBCOMMAND> [OPTIONS]
+  ax-code-desktop startup <SUBCOMMAND> [OPTIONS]
 
 SUBCOMMANDS:
   status      Show startup integration status
@@ -879,9 +879,9 @@ OPTIONS:
   -q, --quiet             Suppress non-essential output
 
 EXAMPLES:
-  ax-code-app startup enable
-  ax-code-app startup enable --port 3000
-  ax-code-app startup status --json
+  ax-code-desktop startup enable
+  ax-code-desktop startup enable --port 3000
+  ax-code-desktop startup status --json
 `);
 }
 
@@ -890,7 +890,7 @@ function showTunnelHelp() {
  Tunnel Lifecycle Commands
 
 USAGE:
-  ax-code-app tunnel <SUBCOMMAND> [OPTIONS]
+  ax-code-desktop tunnel <SUBCOMMAND> [OPTIONS]
 
 SUBCOMMANDS:
   help        Show this tunnel help
@@ -903,7 +903,7 @@ SUBCOMMANDS:
   profile     Manage saved managed-remote profiles
 
 COMMON OPTIONS:
-  -p, --port              Target AX Code App instance port
+  -p, --port              Target AX Code Desktop instance port
   --json                  Output machine-readable JSON
   --all                   Apply to all running instances (doctor default, stop)
 
@@ -927,35 +927,35 @@ OUTPUT OPTIONS:
   --json                  Output machine-readable JSON
 
 BEHAVIOR NOTES:
-  - One active tunnel per AX Code App instance.
+  - One active tunnel per AX Code Desktop instance.
   - Starting a different mode/provider replaces the current tunnel and revokes old connect links/sessions.
   - Connect links are one-time; generating a new link revokes the previous unused link.
 
 PROFILE USAGE:
-  ax-code-app tunnel profile list [--provider <id>] [--json]
-  ax-code-app tunnel profile show --name <name> [--provider <id>] [--json]
-  ax-code-app tunnel profile add --provider <id> --mode managed-remote --name <name> --hostname <host> --token <token> [--force] [--json]
-  ax-code-app tunnel profile add --provider <id> --mode managed-remote --name <name> --hostname <host> --token-file <path> [--force] [--json]
-  ax-code-app tunnel profile remove --name <name> [--provider <id>] [--json]
+  ax-code-desktop tunnel profile list [--provider <id>] [--json]
+  ax-code-desktop tunnel profile show --name <name> [--provider <id>] [--json]
+  ax-code-desktop tunnel profile add --provider <id> --mode managed-remote --name <name> --hostname <host> --token <token> [--force] [--json]
+  ax-code-desktop tunnel profile add --provider <id> --mode managed-remote --name <name> --hostname <host> --token-file <path> [--force] [--json]
+  ax-code-desktop tunnel profile remove --name <name> [--provider <id>] [--json]
 
 SHELL COMPLETION:
-  ax-code-app tunnel completion bash   Generate Bash completion script
-  ax-code-app tunnel completion zsh    Generate Zsh completion script
-  ax-code-app tunnel completion fish   Generate Fish completion script
+  ax-code-desktop tunnel completion bash   Generate Bash completion script
+  ax-code-desktop tunnel completion zsh    Generate Zsh completion script
+  ax-code-desktop tunnel completion fish   Generate Fish completion script
 
 EXAMPLES:
-  ax-code-app tunnel providers
-  ax-code-app tunnel ready --provider cloudflare
-  ax-code-app tunnel doctor --provider cloudflare
-  ax-code-app tunnel status
-  ax-code-app tunnel start --profile prod-main
-  ax-code-app tunnel start --provider cloudflare --mode managed-remote --token-file ~/.secrets/cf-token --hostname app.example.com
-  ax-code-app tunnel start --provider cloudflare --mode managed-local --config ~/.cloudflared/config.yml
-  ax-code-app tunnel start --dry-run --provider cloudflare --mode managed-remote --token-file ~/.secrets/cf-token --hostname app.example.com
-  echo "$TOKEN" | ax-code-app tunnel profile add --provider cloudflare --mode managed-remote --name prod-main --hostname app.example.com --token-stdin
-  ax-code-app tunnel profile list --provider cloudflare
-  ax-code-app tunnel profile list --json --show-secrets
-  ax-code-app tunnel stop --port 3000
+  ax-code-desktop tunnel providers
+  ax-code-desktop tunnel ready --provider cloudflare
+  ax-code-desktop tunnel doctor --provider cloudflare
+  ax-code-desktop tunnel status
+  ax-code-desktop tunnel start --profile prod-main
+  ax-code-desktop tunnel start --provider cloudflare --mode managed-remote --token-file ~/.secrets/cf-token --hostname app.example.com
+  ax-code-desktop tunnel start --provider cloudflare --mode managed-local --config ~/.cloudflared/config.yml
+  ax-code-desktop tunnel start --dry-run --provider cloudflare --mode managed-remote --token-file ~/.secrets/cf-token --hostname app.example.com
+  echo "$TOKEN" | ax-code-desktop tunnel profile add --provider cloudflare --mode managed-remote --name prod-main --hostname app.example.com --token-stdin
+  ax-code-desktop tunnel profile list --provider cloudflare
+  ax-code-desktop tunnel profile list --json --show-secrets
+  ax-code-desktop tunnel stop --port 3000
 `);
 }
 
@@ -963,8 +963,8 @@ function generateCompletionScript(shell) {
   const normalized = typeof shell === 'string' ? shell.trim().toLowerCase() : '';
 
   if (normalized === 'bash') {
-    return `# Bash completion for ax-code-app tunnel
-# Add to ~/.bashrc: eval "$(ax-code-app tunnel completion bash)"
+    return `# Bash completion for ax-code-desktop tunnel
+# Add to ~/.bashrc: eval "$(ax-code-desktop tunnel completion bash)"
 _openchamber_tunnel() {
   local cur prev commands tunnel_commands profile_commands common_flags start_flags
   COMPREPLY=()
@@ -1006,12 +1006,12 @@ _openchamber_tunnel() {
   COMPREPLY=( $(compgen -W "\${common_flags}" -- "\${cur}") )
   return 0
 }
-complete -F _openchamber_tunnel ax-code-app `;
+complete -F _openchamber_tunnel ax-code-desktop `;
   }
 
   if (normalized === 'zsh') {
-    return `#compdef ax-code-app # Zsh completion for ax-code-app tunnel
-# Add to ~/.zshrc: eval "$(ax-code-app tunnel completion zsh)"
+    return `#compdef ax-code-desktop # Zsh completion for ax-code-desktop tunnel
+# Add to ~/.zshrc: eval "$(ax-code-desktop tunnel completion zsh)"
 
 _openchamber() {
   local -a commands tunnel_commands profile_commands
@@ -1022,7 +1022,7 @@ _openchamber() {
     'restart:Stop and start the server'
     'status:Show server status'
     'tunnel:Tunnel lifecycle commands'
-    'logs:Tail AX Code App logs'
+    'logs:Tail AX Code Desktop logs'
     'update:Check for and install updates'
   )
 
@@ -1069,42 +1069,42 @@ _openchamber() {
   esac
 }
 
-compdef _openchamber ax-code-app `;
+compdef _openchamber ax-code-desktop `;
   }
 
   if (normalized === 'fish') {
-    return `# Fish completion for ax-code-app tunnel
-# Save to ~/.config/fish/completions/ax-code-app.fish
+    return `# Fish completion for ax-code-desktop tunnel
+# Save to ~/.config/fish/completions/ax-code-desktop.fish
 
-complete -c ax-code-app -n '__fish_use_subcommand' -a 'serve' -d 'Start the web server'
-complete -c ax-code-app -n '__fish_seen_subcommand_from serve' -l foreground -d 'Run in foreground (for systemd/process managers)'
-complete -c ax-code-app -n '__fish_seen_subcommand_from serve' -l no-daemon -d 'Run in foreground (alias for --foreground)'
-complete -c ax-code-app -n '__fish_use_subcommand' -a 'stop' -d 'Stop running instance(s)'
-complete -c ax-code-app -n '__fish_use_subcommand' -a 'restart' -d 'Stop and start the server'
-complete -c ax-code-app -n '__fish_use_subcommand' -a 'status' -d 'Show server status'
-complete -c ax-code-app -n '__fish_use_subcommand' -a 'tunnel' -d 'Tunnel lifecycle commands'
-complete -c ax-code-app -n '__fish_use_subcommand' -a 'logs' -d 'Tail logs'
-complete -c ax-code-app -n '__fish_use_subcommand' -a 'update' -d 'Check for updates'
+complete -c ax-code-desktop -n '__fish_use_subcommand' -a 'serve' -d 'Start the web server'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from serve' -l foreground -d 'Run in foreground (for systemd/process managers)'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from serve' -l no-daemon -d 'Run in foreground (alias for --foreground)'
+complete -c ax-code-desktop -n '__fish_use_subcommand' -a 'stop' -d 'Stop running instance(s)'
+complete -c ax-code-desktop -n '__fish_use_subcommand' -a 'restart' -d 'Stop and start the server'
+complete -c ax-code-desktop -n '__fish_use_subcommand' -a 'status' -d 'Show server status'
+complete -c ax-code-desktop -n '__fish_use_subcommand' -a 'tunnel' -d 'Tunnel lifecycle commands'
+complete -c ax-code-desktop -n '__fish_use_subcommand' -a 'logs' -d 'Tail logs'
+complete -c ax-code-desktop -n '__fish_use_subcommand' -a 'update' -d 'Check for updates'
 
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'help' -d 'Show tunnel help'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'providers' -d 'Show providers'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'ready' -d 'Check readiness'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'doctor' -d 'Run diagnostics'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'status' -d 'Show tunnel status'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'start' -d 'Start a tunnel'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'stop' -d 'Stop tunnel'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'profile' -d 'Manage profiles'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'completion' -d 'Generate completions'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'help' -d 'Show tunnel help'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'providers' -d 'Show providers'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'ready' -d 'Check readiness'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'doctor' -d 'Run diagnostics'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'status' -d 'Show tunnel status'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'start' -d 'Start a tunnel'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'stop' -d 'Stop tunnel'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'profile' -d 'Manage profiles'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and not __fish_seen_subcommand_from help providers ready doctor status start stop profile completion' -a 'completion' -d 'Generate completions'
 
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l provider -d 'Provider id'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l mode -d 'Tunnel mode'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l profile -d 'Profile name'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l config -d 'Config path'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l token -d 'Token'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l token-file -d 'Token file path'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l token-stdin -d 'Read token from stdin'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l hostname -d 'Hostname'
-complete -c ax-code-app -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l dry-run -d 'Validate without applying'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l provider -d 'Provider id'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l mode -d 'Tunnel mode'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l profile -d 'Profile name'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l config -d 'Config path'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l token -d 'Token'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l token-file -d 'Token file path'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l token-stdin -d 'Read token from stdin'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l hostname -d 'Hostname'
+complete -c ax-code-desktop -n '__fish_seen_subcommand_from tunnel; and __fish_seen_subcommand_from start' -l dry-run -d 'Validate without applying'
 `;
   }
 
@@ -1145,7 +1145,7 @@ function ensureLogsDir() {
 }
 
 function getLogFilePath(port) {
-  return path.join(getLogsDir(), `ax-code-app-${port}.log`);
+  return path.join(getLogsDir(), `ax-code-desktop-${port}.log`);
 }
 
 function getTunnelProfilesFilePath() {
@@ -1527,7 +1527,7 @@ function resolveProfileByName(profiles, profileName, provider) {
   });
 
   if (matches.length === 0) {
-    return { profile: null, error: `No tunnel profile found for name '${profileName}'. Run 'ax-code-app tunnel profile list'.` };
+    return { profile: null, error: `No tunnel profile found for name '${profileName}'. Run 'ax-code-desktop tunnel profile list'.` };
   }
   if (matches.length > 1) {
     return { profile: null, error: `Profile name '${profileName}' exists for multiple providers. Use --provider <id>.` };
@@ -1668,9 +1668,9 @@ async function resolveAvailablePort(desiredPort, explicitPort = false, onNotice)
   const occupant = await fetchSystemInfoFromPort(startPort);
   let message;
   if (occupant?.runtime === 'desktop') {
-    message = `Port ${startPort} is used by AX Code App Desktop; using a free port`;
+    message = `Port ${startPort} is used by AX Code Desktop; using a free port`;
   } else if (occupant?.runtime) {
-    message = `Port ${startPort} is used by an existing AX Code App instance; using a free port`;
+    message = `Port ${startPort} is used by an existing AX Code Desktop instance; using a free port`;
   } else {
     message = `Port ${startPort} in use; using a free port`;
   }
@@ -1753,7 +1753,7 @@ function getStartupEnvFilePath() {
 }
 
 function getMacosStartupWrapperPath() {
-  return path.join(getDataDir(), 'bin', 'AX Code App');
+  return path.join(getDataDir(), 'bin', 'AX Code Desktop');
 }
 
 function collectStartupEnv(options = {}) {
@@ -1869,7 +1869,7 @@ function buildMacosLaunchAgent(options = {}) {
   const wrapperPath = writeMacosStartupWrapper(options);
   const args = [wrapperPath];
   const env = collectStartupEnv(options);
-  const logDir = path.join(os.homedir(), 'Library', 'Logs', 'AX Code App');
+  const logDir = path.join(os.homedir(), 'Library', 'Logs', 'AX Code Desktop');
   const argXml = args.map((arg) => `    <string>${escapeXml(arg)}</string>`).join('\n');
   const envXml = Object.entries(env).length > 0
     ? `  <key>EnvironmentVariables</key>\n  <dict>\n${Object.entries(env).map(([key, value]) => `    <key>${escapeXml(key)}</key>\n    <string>${escapeXml(value)}</string>`).join('\n')}\n  </dict>\n`
@@ -1905,7 +1905,7 @@ function buildSystemdUserService(options = {}) {
   const args = buildStartupArgs(options).map((arg) => `"${systemdEscapeArg(arg)}"`).join(' ');
   const envFilePath = getStartupEnvFilePath();
   return `[Unit]
-Description=AX Code App web server
+Description=AX Code Desktop web server
 After=network-online.target
 
 [Service]
@@ -1977,7 +1977,7 @@ function enableStartupService(options = {}) {
   if (paths.platform === 'macos') {
     removeStartupEnvFile();
     fs.mkdirSync(path.dirname(paths.servicePath), { recursive: true, mode: 0o700 });
-    fs.mkdirSync(path.join(os.homedir(), 'Library', 'Logs', 'AX Code App'), { recursive: true, mode: 0o700 });
+    fs.mkdirSync(path.join(os.homedir(), 'Library', 'Logs', 'AX Code Desktop'), { recursive: true, mode: 0o700 });
     fs.writeFileSync(paths.servicePath, buildMacosLaunchAgent(options), { mode: 0o600 });
     runStartupCommand('/bin/launchctl', ['bootout', `gui/${process.getuid()}`, paths.servicePath], { allowFailure: true });
     runStartupCommand('/bin/launchctl', ['bootstrap', `gui/${process.getuid()}`, paths.servicePath]);
@@ -2039,11 +2039,11 @@ function disableStartupService() {
 }
 
 async function getPidFilePath(port) {
-  return path.join(getRunDir(), `ax-code-app-${port}.pid`);
+  return path.join(getRunDir(), `ax-code-desktop-${port}.pid`);
 }
 
 async function getInstanceFilePath(port) {
-  return path.join(getRunDir(), `ax-code-app-${port}.json`);
+  return path.join(getRunDir(), `ax-code-desktop-${port}.json`);
 }
 
 function readPidFile(pidFilePath) {
@@ -2369,7 +2369,7 @@ async function resolveDoctorPortStatuses(options = {}) {
         available: false,
         status: 'warning',
         line: `port ${requestedPort} not available (desktop runtime)`,
-        detail: 'Use a CLI instance port from `ax-code-app serve` for tunneling.',
+        detail: 'Use a CLI instance port from `ax-code-desktop serve` for tunneling.',
       });
       return { statuses, availableEntries: [] };
     }
@@ -2379,7 +2379,7 @@ async function resolveDoctorPortStatuses(options = {}) {
       available: false,
       status: 'error',
       line: `port ${requestedPort} not available (no running instance)`,
-      detail: `Start one with \`ax-code-app serve --port ${requestedPort}\`.`,
+      detail: `Start one with \`ax-code-desktop serve --port ${requestedPort}\`.`,
     });
     return { statuses, availableEntries: [] };
   }
@@ -2400,7 +2400,7 @@ async function resolveDoctorPortStatuses(options = {}) {
       available: false,
       status: 'warning',
       line: `port ${desktopEntry.port} not available (desktop runtime)`,
-      detail: 'Use a CLI instance port from `ax-code-app serve` for tunneling.',
+      detail: 'Use a CLI instance port from `ax-code-desktop serve` for tunneling.',
     });
   }
 
@@ -2410,7 +2410,7 @@ async function resolveDoctorPortStatuses(options = {}) {
       available: false,
       status: 'warning',
       line: 'no CLI ports available for tunneling',
-      detail: 'Start one with `ax-code-app serve`.',
+      detail: 'Start one with `ax-code-desktop serve`.',
     });
   }
 
@@ -2423,21 +2423,21 @@ async function discoverRunningInstances() {
   try {
     const files = fs.readdirSync(runDir);
     const pidFiles = files.filter((file) => (
-      file.startsWith('ax-code-app-') || file.startsWith('openchamber-')
+      file.startsWith('ax-code-desktop-') || file.startsWith('openchamber-')
     ) && file.endsWith('.pid'));
     for (const file of pidFiles) {
-      const port = parseInt(file.replace(/^(ax-code-app|openchamber)-/, '').replace('.pid', ''), 10);
+      const port = parseInt(file.replace(/^(ax-code-desktop|openchamber)-/, '').replace('.pid', ''), 10);
       if (!Number.isFinite(port) || port <= 0) continue;
       const pidFilePath = path.join(runDir, file);
       const pid = readPidFile(pidFilePath);
       if (!pid || !isProcessRunning(pid)) {
         removePidFile(pidFilePath);
-        removeInstanceFile(path.join(runDir, `ax-code-app-${port}.json`));
+        removeInstanceFile(path.join(runDir, `ax-code-desktop-${port}.json`));
         removeInstanceFile(path.join(runDir, `openchamber-${port}.json`));
         continue;
       }
-      const instanceFilePath = fs.existsSync(path.join(runDir, `ax-code-app-${port}.json`))
-        ? path.join(runDir, `ax-code-app-${port}.json`)
+      const instanceFilePath = fs.existsSync(path.join(runDir, `ax-code-desktop-${port}.json`))
+        ? path.join(runDir, `ax-code-desktop-${port}.json`)
         : path.join(runDir, `openchamber-${port}.json`);
       let mtime = 0;
       let startedAt = 0;
@@ -2586,7 +2586,7 @@ async function resolveTargetInstance({
 
   if (options.all && requireAll) {
     if (running.length === 0) {
-      throw new Error('No running AX Code App instance found. Start one with `ax-code-app serve`.');
+      throw new Error('No running AX Code Desktop instance found. Start one with `ax-code-desktop serve`.');
     }
     return running;
   }
@@ -2599,11 +2599,11 @@ async function resolveTargetInstance({
         if (!attachability.attachable) {
           if (attachability.reason === 'desktop') {
             throw new Error(
-              `Port ${options.port} is used by AX Code App Desktop app. Tunnel attach requires a CLI instance from \`ax-code-app serve\`.`
+              `Port ${options.port} is used by AX Code Desktop. Tunnel attach requires a CLI instance from \`ax-code-desktop serve\`.`
             );
           }
           throw new Error(
-            `Port ${options.port} is not an attachable AX Code App tunnel instance. Ensure it is healthy and running AX Code App CLI runtime.`
+            `Port ${options.port} is not an attachable AX Code Desktop tunnel instance. Ensure it is healthy and running AX Code Desktop CLI runtime.`
           );
         }
       }
@@ -2614,7 +2614,7 @@ async function resolveTargetInstance({
       const systemInfo = await fetchSystemInfoFromPort(options.port);
       if (systemInfo?.runtime === 'desktop') {
         throw new Error(
-          `Port ${options.port} is used by AX Code App Desktop app. Tunnel attach requires a CLI instance from \`ax-code-app serve\`.`
+          `Port ${options.port} is used by AX Code Desktop. Tunnel attach requires a CLI instance from \`ax-code-desktop serve\`.`
         );
       }
     }
@@ -2632,7 +2632,7 @@ async function resolveTargetInstance({
       const started = running.find((entry) => entry.port === options.port);
       if (started) return { ...started, autoStarted: true };
     }
-    throw new Error(`No running AX Code App instance found on port ${options.port}.`);
+    throw new Error(`No running AX Code Desktop instance found on port ${options.port}.`);
   }
 
   if (rejectDesktopRuntime) {
@@ -2654,7 +2654,7 @@ async function resolveTargetInstance({
 
     if (attachableEntries.length > 1) {
       const ports = attachableEntries.map((entry) => entry.port).join(', ');
-      throw new Error(`Multiple attachable AX Code App instances found: ${ports}. Use --port <port> or --all.`);
+      throw new Error(`Multiple attachable AX Code Desktop instances found: ${ports}. Use --port <port> or --all.`);
     }
 
     if (allowAutoStart) {
@@ -2671,10 +2671,10 @@ async function resolveTargetInstance({
     }
 
     if (sawDesktop) {
-      throw new Error('Only AX Code App Desktop instance(s) detected. Tunnel attach requires a CLI instance from `ax-code-app serve`.');
+      throw new Error('Only AX Code Desktop instance(s) detected. Tunnel attach requires a CLI instance from `ax-code-desktop serve`.');
     }
 
-    throw new Error('No attachable AX Code App instance found. Start one with `ax-code-app serve`.');
+    throw new Error('No attachable AX Code Desktop instance found. Start one with `ax-code-desktop serve`.');
   }
 
   if (running.length === 1) {
@@ -2693,11 +2693,11 @@ async function resolveTargetInstance({
       const started = running.find((entry) => entry.port === startedPort) || getLatestInstance(running);
       if (started) return { ...started, autoStarted: true };
     }
-    throw new Error('No running AX Code App instance found. Start one with `ax-code-app serve`.');
+    throw new Error('No running AX Code Desktop instance found. Start one with `ax-code-desktop serve`.');
   }
 
   const ports = running.map((entry) => entry.port).join(', ');
-  throw new Error(`Multiple AX Code App instances found: ${ports}. Use --port <port> or --all.`);
+  throw new Error(`Multiple AX Code Desktop instances found: ${ports}. Use --port <port> or --all.`);
 }
 
 async function resolveTunnelReadEntries(options) {
@@ -2706,13 +2706,13 @@ async function resolveTunnelReadEntries(options) {
   if (options.explicitPort) {
     const found = running.find((entry) => entry.port === options.port);
     if (!found) {
-      throw new Error(`No running AX Code App instance found on port ${options.port}.`);
+      throw new Error(`No running AX Code Desktop instance found on port ${options.port}.`);
     }
     return [found];
   }
 
   if (running.length === 0) {
-    throw new Error('No running AX Code App instance found. Start one with `ax-code-app serve`.');
+    throw new Error('No running AX Code Desktop instance found. Start one with `ax-code-desktop serve`.');
   }
 
   return running;
@@ -2826,10 +2826,10 @@ async function handleTunnelProfileSubcommand(options, action) {
     if (!isQuietMode(options)) {
       clackIntro('Tunnel Profile');
       logStatus('info', 'Available subcommands', 'list, show, add, remove');
-      clackLog.step('List profiles: `ax-code-app tunnel profile list`');
-      clackLog.step('Show one profile: `ax-code-app tunnel profile show --name <name>`');
-      clackLog.step('Add profile: `ax-code-app tunnel profile add --provider cloudflare --mode managed-remote --name <name> --hostname <host> --token <token>`');
-      clackLog.step('Remove profile: `ax-code-app tunnel profile remove --name <name>`');
+      clackLog.step('List profiles: `ax-code-desktop tunnel profile list`');
+      clackLog.step('Show one profile: `ax-code-desktop tunnel profile show --name <name>`');
+      clackLog.step('Add profile: `ax-code-desktop tunnel profile add --provider cloudflare --mode managed-remote --name <name> --hostname <host> --token <token>`');
+      clackLog.step('Remove profile: `ax-code-desktop tunnel profile remove --name <name>`');
       clackOutro('Choose a subcommand');
     }
     return;
@@ -3072,7 +3072,7 @@ async function handleTunnelProfileSubcommand(options, action) {
     clackIntro(boldText('Tunnel Profile Saved'));
     logStatus('success', `${added.name} (${added.provider}/${added.mode})`, `${added.hostname} ${formatProfileTokenStatus(added, options.showSecrets)}`);
     clackOutro('save complete');
-    logStatus('info', '[START_PROFILE]', `ax-code-app tunnel start --profile ${added.name}`);
+    logStatus('info', '[START_PROFILE]', `ax-code-desktop tunnel start --profile ${added.name}`);
     clackOutro('');
     return;
   }
@@ -3112,7 +3112,7 @@ async function handleTunnelProfileSubcommand(options, action) {
   const suggestion = findClosestMatch(sub, knownProfileActions);
   const hint = suggestion ? ` Did you mean '${suggestion}'?` : '';
   throw new TunnelCliError(
-    `Unknown tunnel profile subcommand '${sub}'.${hint} Use 'ax-code-app tunnel help'.`,
+    `Unknown tunnel profile subcommand '${sub}'.${hint} Use 'ax-code-desktop tunnel help'.`,
     EXIT_CODE.USAGE_ERROR
   );
 }
@@ -3153,25 +3153,25 @@ const commands = {
     const targetPort = await resolveAvailablePort(options.port, explicitPort, emitNotice);
 
     if (targetPort !== 0 && !options.suppressUnsafePortWarning) {
-      assertSafeBrowserPort(targetPort, { context: 'AX Code App serve' });
+      assertSafeBrowserPort(targetPort, { context: 'AX Code Desktop serve' });
     }
 
     if (targetPort !== 0) {
       const pidFilePath = await getPidFilePath(targetPort);
       const existingPid = readPidFile(pidFilePath);
       if (existingPid && isProcessRunning(existingPid)) {
-        throw new Error(`AX Code App is already running on port ${targetPort} (PID: ${existingPid})`);
+        throw new Error(`AX Code Desktop is already running on port ${targetPort} (PID: ${existingPid})`);
       }
 
       if (explicitPort && !(await isPortAvailable(targetPort, options.host))) {
         const systemInfo = await fetchSystemInfoFromPort(targetPort);
         if (systemInfo?.runtime === 'desktop') {
           throw new Error(
-            `Port ${targetPort} is used by AX Code App Desktop app. Choose another port or stop the desktop app.`
+            `Port ${targetPort} is used by AX Code Desktop. Choose another port or stop the desktop app.`
           );
         }
         if (systemInfo?.runtime) {
-          throw new Error(`AX Code App is already running on port ${targetPort}. Use \`ax-code-app status\` or \`ax-code-app stop --port ${targetPort}\`.`);
+          throw new Error(`AX Code Desktop is already running on port ${targetPort}. Use \`ax-code-desktop status\` or \`ax-code-desktop stop --port ${targetPort}\`.`);
         }
         throw new Error(`Port ${targetPort} is already in use by another process.`);
       }
@@ -3251,7 +3251,7 @@ const commands = {
       }
 
       if (!isQuietMode(options)) {
-        console.log(`Starting AX Code App on port ${targetPort === 0 ? 'auto' : targetPort} (foreground)`);
+        console.log(`Starting AX Code Desktop on port ${targetPort === 0 ? 'auto' : targetPort} (foreground)`);
       }
 
       const effectiveHost = typeof options.host === 'string' && options.host.length > 0
@@ -3346,7 +3346,7 @@ const commands = {
     });
 
     child.unref();
-    serveSpin?.start(`Starting AX Code App on port ${targetPort === 0 ? 'auto' : targetPort}...`);
+    serveSpin?.start(`Starting AX Code Desktop on port ${targetPort === 0 ? 'auto' : targetPort}...`);
 
     let resolvedPort;
     try {
@@ -3355,7 +3355,7 @@ const commands = {
         const timeout = setTimeout(() => {
           if (settled) return;
           settled = true;
-          reject(new Error(`AX Code App daemon did not report ready within ${DAEMON_READY_TIMEOUT_MS / 1000}s`));
+          reject(new Error(`AX Code Desktop daemon did not report ready within ${DAEMON_READY_TIMEOUT_MS / 1000}s`));
         }, DAEMON_READY_TIMEOUT_MS);
 
         child.on('message', (msg) => {
@@ -3378,7 +3378,7 @@ const commands = {
           if (settled) return;
           settled = true;
           clearTimeout(timeout);
-          reject(new Error(`AX Code App daemon exited before reporting ready${signal ? ` (${signal})` : ` (code ${code ?? 'unknown'})`}`));
+          reject(new Error(`AX Code Desktop daemon exited before reporting ready${signal ? ` (${signal})` : ` (code ${code ?? 'unknown'})`}`));
         });
       });
     } catch (error) {
@@ -3407,7 +3407,7 @@ const commands = {
     }
 
     if (!isProcessRunning(child.pid)) {
-      serveSpin?.error('Failed to start AX Code App');
+      serveSpin?.error('Failed to start AX Code Desktop');
       throw new Error('Failed to start server in daemon mode');
     }
 
@@ -3425,7 +3425,7 @@ const commands = {
       port: resolvedPort,
       pid: child.pid,
       url: buildLocalUrl(resolvedPort, '/'),
-      logs: `ax-code-app logs -p ${resolvedPort}`,
+      logs: `ax-code-desktop logs -p ${resolvedPort}`,
       launchMode: 'daemon',
     };
 
@@ -3445,7 +3445,7 @@ const commands = {
     serveSpin?.clear();
 
     if (!options.suppressStartupSummary && showOutput) {
-      clackIntro('AX Code App Started');
+      clackIntro('AX Code Desktop Started');
       logStatus('success', `port ${serveResult.port} (PID: ${serveResult.pid})`);
       logStatus('info', `visit: ${serveResult.url}`);
       logStatus('info', `logs: ${serveResult.logs}`);
@@ -3481,7 +3481,7 @@ const commands = {
     };
 
     if (showOutput) {
-      clackIntro('AX Code App Stop');
+      clackIntro('AX Code Desktop Stop');
     }
 
     let runningInstances = await discoverRunningInstances();
@@ -3490,7 +3490,7 @@ const commands = {
         printJson({ stoppedCount: 0, results: jsonResults });
       }
       if (showOutput) {
-        logStatus('info', 'No running AX Code App instances found');
+        logStatus('info', 'No running AX Code Desktop instances found');
         finish('nothing to stop');
       }
       printQuietStopResults();
@@ -3504,10 +3504,10 @@ const commands = {
         if (systemInfo?.runtime === 'desktop') {
           jsonResults.push({ port: options.port, runtime: 'desktop', stopped: false, reason: 'desktop-managed' });
           if (isJsonMode(options)) {
-            printJson({ stoppedCount: 0, results: jsonResults, messages: [{ level: 'warning', code: 'DESKTOP_MANAGED_PORT', message: `Port ${options.port} is managed by AX Code App Desktop and cannot be stopped with this command.` }] });
+            printJson({ stoppedCount: 0, results: jsonResults, messages: [{ level: 'warning', code: 'DESKTOP_MANAGED_PORT', message: `Port ${options.port} is managed by AX Code Desktop and cannot be stopped with this command.` }] });
           }
           if (showOutput) {
-            logStatus('warning', `port ${options.port} is managed by AX Code App Desktop`, 'cannot be stopped with this command');
+            logStatus('warning', `port ${options.port} is managed by AX Code Desktop`, 'cannot be stopped with this command');
             finish('no changes applied');
           }
           printQuietStopResults();
@@ -3517,9 +3517,9 @@ const commands = {
         if (systemInfo?.runtime) {
           const unmanagedStopSpin = showOutput ? createSpinner(options) : null;
           if (showOutput && !unmanagedStopSpin) {
-            logStatus('info', `found unmanaged AX Code App instance on port ${options.port}`, 'attempting shutdown');
+            logStatus('info', `found unmanaged AX Code Desktop instance on port ${options.port}`, 'attempting shutdown');
           }
-          unmanagedStopSpin?.start(`Stopping unmanaged AX Code App on port ${options.port}...`);
+          unmanagedStopSpin?.start(`Stopping unmanaged AX Code Desktop on port ${options.port}...`);
           const requested = await requestServerShutdown(options.port);
 
           if (Number.isFinite(systemInfo.pid) && isProcessRunning(systemInfo.pid)) {
@@ -3532,13 +3532,13 @@ const commands = {
 
           const stopped = await isPortAvailable(options.port);
           if (stopped) {
-            unmanagedStopSpin?.stop(`Stopped unmanaged AX Code App on port ${options.port}`);
+            unmanagedStopSpin?.stop(`Stopped unmanaged AX Code Desktop on port ${options.port}`);
             jsonResults.push({ port: options.port, runtime: 'unmanaged', stopped: true });
             if (isJsonMode(options)) {
               printJson({ stoppedCount: 1, results: jsonResults });
             }
             if (showOutput && !unmanagedStopSpin) {
-              logStatus('success', `stopped AX Code App on port ${options.port}`);
+              logStatus('success', `stopped AX Code Desktop on port ${options.port}`);
               finish('stop complete');
             }
             printQuietStopResults();
@@ -3559,18 +3559,18 @@ const commands = {
             }
             printQuietStopResults();
           } else {
-            unmanagedStopSpin?.error(`Could not stop AX Code App on port ${options.port}`);
+            unmanagedStopSpin?.error(`Could not stop AX Code Desktop on port ${options.port}`);
             jsonResults.push({ port: options.port, runtime: 'unmanaged', stopped: false, reason: 'stop-failed' });
             if (isJsonMode(options)) {
               printJson({
                 status: 'error',
                 stoppedCount: 0,
                 results: jsonResults,
-                messages: [{ level: 'error', code: 'STOP_FAILED', message: `Could not stop AX Code App on port ${options.port}.` }],
+                messages: [{ level: 'error', code: 'STOP_FAILED', message: `Could not stop AX Code Desktop on port ${options.port}.` }],
               });
             }
             if (showOutput && !unmanagedStopSpin) {
-              logStatus('error', `could not stop AX Code App on port ${options.port}`);
+              logStatus('error', `could not stop AX Code Desktop on port ${options.port}`);
               finish('failed');
             }
             printQuietStopResults();
@@ -3583,7 +3583,7 @@ const commands = {
           printJson({ stoppedCount: 0, results: jsonResults });
         }
         if (showOutput) {
-          logStatus('info', `no AX Code App instance found on port ${options.port}`);
+          logStatus('info', `no AX Code Desktop instance found on port ${options.port}`);
           finish('nothing to stop');
         }
         printQuietStopResults();
@@ -3596,7 +3596,7 @@ const commands = {
       if (showOutput && !stopSpin) {
         logStatus('info', `stopping port ${instance.port} (PID: ${instance.pid})`);
       }
-      stopSpin?.start(`Stopping AX Code App on port ${instance.port}...`);
+      stopSpin?.start(`Stopping AX Code Desktop on port ${instance.port}...`);
       try {
         const requested = await requestServerShutdown(instance.port);
         const stopped = await stopInstanceProcess(instance.pid, {
@@ -3609,13 +3609,13 @@ const commands = {
         }
         removePidFile(instance.pidFilePath);
         removeInstanceFile(instance.instanceFilePath);
-        stopSpin?.stop(`Stopped AX Code App on port ${instance.port}`);
+        stopSpin?.stop(`Stopped AX Code Desktop on port ${instance.port}`);
         jsonResults.push({ port: instance.port, pid: instance.pid, stopped: true });
         if (showOutput && !stopSpin) {
           logStatus('success', `stopped port ${instance.port}`);
         }
       } catch (error) {
-        stopSpin?.error(`Failed to stop AX Code App on port ${instance.port}`);
+        stopSpin?.error(`Failed to stop AX Code Desktop on port ${instance.port}`);
         jsonResults.push({ port: instance.port, pid: instance.pid, stopped: false, reason: error instanceof Error ? error.message : String(error) });
         if (showOutput) {
           logStatus('error', `error stopping port ${instance.port}`, error.message);
@@ -3645,7 +3645,7 @@ const commands = {
     const restarted = [];
 
     if (showOutput) {
-      clackIntro('AX Code App Restart');
+      clackIntro('AX Code Desktop Restart');
     }
 
     let runningInstances = await discoverRunningInstances();
@@ -3654,7 +3654,7 @@ const commands = {
         printJson({ restartedCount: 0, results: restarted });
       }
       if (showOutput) {
-        logStatus('info', 'No running AX Code App instances to restart');
+        logStatus('info', 'No running AX Code Desktop instances to restart');
         clackOutro('nothing to restart');
       } else if (isQuietMode(options)) {
         process.stdout.write('restarted 0\n');
@@ -3669,7 +3669,7 @@ const commands = {
           printJson({ restartedCount: 0, results: restarted });
         }
         if (showOutput) {
-          logStatus('warning', `no AX Code App instance found on port ${options.port}`);
+          logStatus('warning', `no AX Code Desktop instance found on port ${options.port}`);
           clackOutro('nothing to restart');
         } else if (isQuietMode(options)) {
           process.stdout.write('restarted 0\n');
@@ -3689,7 +3689,7 @@ const commands = {
       if (showOutput && !restartSpin) {
         logStatus('info', `restarting port ${instance.port}`, `mode: ${launchMode}`);
       }
-      restartSpin?.start(`Restarting AX Code App on port ${instance.port}...`);
+      restartSpin?.start(`Restarting AX Code Desktop on port ${instance.port}...`);
       try {
         await this.stop({
           explicitPort: true,
@@ -3724,13 +3724,13 @@ const commands = {
           suppressQuietOutput: true,
         });
         restarted.push({ fromPort: instance.port, toPort: restartedPort, launchMode, ok: true });
-        restartSpin?.stop(`Restarted AX Code App on port ${restartedPort}`);
+        restartSpin?.stop(`Restarted AX Code Desktop on port ${restartedPort}`);
         if (showOutput && !restartSpin) {
           logStatus('success', `port ${restartedPort} restarted`, `mode: ${launchMode}`);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        restartSpin?.error(`Failed to restart AX Code App on port ${instance.port}`);
+        restartSpin?.error(`Failed to restart AX Code Desktop on port ${instance.port}`);
         if (showOutput && !restartSpin) {
           logStatus('error', `failed to restart port ${instance.port}`, message);
         }
@@ -3812,7 +3812,7 @@ const commands = {
       return;
     }
 
-    clackIntro('AX Code App Status');
+    clackIntro('AX Code Desktop Status');
 
     if (runningCount === 0) {
       logStatus('warning', 'stopped');
@@ -4180,16 +4180,16 @@ const commands = {
           logStatus('error', `port ${entry.port} — No running instance`);
         }
         if (desktopUnavailablePorts.length > 0) {
-          clackLog.message('Only CLI instances (ax-code-app serve) support tunneling.');
+          clackLog.message('Only CLI instances (ax-code-desktop serve) support tunneling.');
         }
 
         if (cliPorts.length === 0 && unavailablePorts.length === 0) {
-          logStatus('warning', 'No running instances found', 'Start one with `ax-code-app serve`.');
+          logStatus('warning', 'No running instances found', 'Start one with `ax-code-desktop serve`.');
           clackOutro('No ports available');
           return;
         }
         if (cliPorts.length === 0) {
-          logStatus('warning', 'No CLI instances available for tunneling', 'Start one with `ax-code-app serve`.');
+          logStatus('warning', 'No CLI instances available for tunneling', 'Start one with `ax-code-desktop serve`.');
           clackOutro('No CLI ports available');
           return;
         }
@@ -4290,9 +4290,9 @@ const commands = {
                 key: 'managed-remote-port',
                 code: '[PORT_MISMATCH]',
                 lines: [
-                  'Cloudflare target must match the active AX Code App CLI port.',
+                  'Cloudflare target must match the active AX Code Desktop CLI port.',
                   'Example: `http://127.0.0.1:<port>`',
-                  'If CLI picked a different port, update Cloudflare or run `ax-code-app serve --port <port>`.',
+                  'If CLI picked a different port, update Cloudflare or run `ax-code-desktop serve --port <port>`.',
                 ],
               });
             }
@@ -4633,7 +4633,7 @@ const commands = {
             const safeInstances = runningInstances.filter((entry) => !isUnsafeBrowserPort(entry.port));
             if (safeInstances.length === 0) {
               throw new TunnelCliError(
-                'All discovered AX Code App instance ports are browser-unsafe. Start or target a safe port (3000, 5173, 8080, or high ephemeral).',
+                'All discovered AX Code Desktop instance ports are browser-unsafe. Start or target a safe port (3000, 5173, 8080, or high ephemeral).',
                 EXIT_CODE.USAGE_ERROR,
               );
             }
@@ -4650,13 +4650,13 @@ const commands = {
 
             if (attachableSafeInstances.length === 0) {
               throw new TunnelCliError(
-                'No attachable AX Code App CLI instances found on safe ports. Start one with `ax-code-app serve --port 3000`.',
+                'No attachable AX Code Desktop CLI instances found on safe ports. Start one with `ax-code-desktop serve --port 3000`.',
                 EXIT_CODE.USAGE_ERROR,
               );
             }
 
             const selectedPort = await clackSelect({
-              message: 'Select AX Code App instance port',
+              message: 'Select AX Code Desktop instance port',
               options: attachableSafeInstances.map((entry) => ({
                 value: entry.port,
                 label: `port ${entry.port}`,
@@ -4676,7 +4676,7 @@ const commands = {
           logStatus(
             'info',
             `Using auto-started instance on port ${instance.port}`,
-            `logs: ax-code-app logs -p ${instance.port}`,
+            `logs: ax-code-desktop logs -p ${instance.port}`,
           );
         }
 
@@ -4691,7 +4691,7 @@ const commands = {
 
         if (instance?.autoStarted) {
           const healthProgress = await createProgress(options, { max: 60 });
-          healthProgress?.start(`Waiting for AX Code App on port ${instance.port} to become healthy (up to 60s)...`);
+          healthProgress?.start(`Waiting for AX Code Desktop on port ${instance.port} to become healthy (up to 60s)...`);
           let progressedSeconds = 0;
           const healthy = await waitForServerHealth(instance.port, {
             timeoutMs: 60000,
@@ -4703,7 +4703,7 @@ const commands = {
               if (delta > 0) {
                 healthProgress.advance(delta);
                 progressedSeconds = elapsedSeconds;
-                healthProgress.message(`Waiting for AX Code App health (${progressedSeconds}s / 60s)...`);
+                healthProgress.message(`Waiting for AX Code Desktop health (${progressedSeconds}s / 60s)...`);
               }
               if (complete && progressedSeconds < 60) {
                 const remaining = 60 - progressedSeconds;
@@ -4715,12 +4715,12 @@ const commands = {
             },
           });
           if (!healthy) {
-            healthProgress?.stop('AX Code App is still starting');
+            healthProgress?.stop('AX Code Desktop is still starting');
             throw new Error(
-              `AX Code App on port ${instance.port} is still starting after 60s. Startup time can vary by machine performance. ` +
+              `AX Code Desktop on port ${instance.port} is still starting after 60s. Startup time can vary by machine performance. ` +
               `Wait another minute, then check health with \`curl -fsS ${buildLocalUrl(instance.port, '/health')}\`. ` +
-              `If health is OK, retry tunnel start with \`ax-code-app tunnel start --port ${instance.port}\`. ` +
-              `For diagnostics run \`ax-code-app logs -p ${instance.port}\`.`
+              `If health is OK, retry tunnel start with \`ax-code-desktop tunnel start --port ${instance.port}\`. ` +
+              `For diagnostics run \`ax-code-desktop logs -p ${instance.port}\`.`
             );
           }
           healthProgress?.stop(`Instance ${instance.port} is healthy`);
@@ -4772,12 +4772,12 @@ const commands = {
           if (error instanceof Error && /\/api\/openchamber\/tunnel\/start/.test(error.message) && /timed out/.test(error.message)) {
             spin?.error('Tunnel start timed out');
             throw new Error(
-              `Tunnel start timed out after 60s. cloudflared may still be starting; check with \`ax-code-app tunnel status --port ${instance.port}\`. Run \`ax-code-app logs -p ${instance.port}\` for details.`
+              `Tunnel start timed out after 60s. cloudflared may still be starting; check with \`ax-code-desktop tunnel status --port ${instance.port}\`. Run \`ax-code-desktop logs -p ${instance.port}\` for details.`
             );
           }
           spin?.error('Tunnel start failed');
           const message = error instanceof Error ? error.message : String(error);
-          throw new Error(`${message} Run \`ax-code-app logs -p ${instance.port}\` for details.`);
+          throw new Error(`${message} Run \`ax-code-desktop logs -p ${instance.port}\` for details.`);
         }
 
         if (!response.ok || !body?.ok) {
@@ -4787,7 +4787,7 @@ const commands = {
           const userError = isCloudflareTimeout
             ? `Cloudflare quick tunnel request timed out. ${baseError}`
             : baseError;
-          throw new Error(`${userError} Run \`ax-code-app logs -p ${instance.port}\` for details.`);
+          throw new Error(`${userError} Run \`ax-code-desktop logs -p ${instance.port}\` for details.`);
         }
 
         // Avoid duplicate "Tunnel started" lines: spinner completion is implied by
@@ -4831,15 +4831,15 @@ const commands = {
           clackOutro('');
 
           const optionalTips = [
-            { line: 'Check status', detail: 'ax-code-app tunnel status' },
-            { line: 'Stop tunnel', detail: 'ax-code-app tunnel stop' },
+            { line: 'Check status', detail: 'ax-code-desktop tunnel status' },
+            { line: 'Stop tunnel', detail: 'ax-code-desktop tunnel stop' },
             { line: 'If needed, repeat with same settings', detail: replayCommand },
           ];
 
           if (!selectedProfile && mode === 'managed-remote' && typeof hostname === 'string' && hostname.trim().length > 0) {
             const profileSaveCommand = buildTunnelProfileAddCommand({ provider, hostname });
             optionalTips.push({ line: 'Optional: save reusable profile (stores hostname + token locally)', detail: profileSaveCommand });
-            optionalTips.push({ line: 'Start from saved profile', detail: 'ax-code-app tunnel start --profile <name>' });
+            optionalTips.push({ line: 'Start from saved profile', detail: 'ax-code-desktop tunnel start --profile <name>' });
           }
 
           console.log('');
@@ -4936,7 +4936,7 @@ const commands = {
         const suggestion = findClosestMatch(subcommand, knownTunnelSubcommands);
         const hint = suggestion ? ` Did you mean '${suggestion}'?` : '';
         throw new TunnelCliError(
-          `Unknown tunnel subcommand '${subcommand}'.${hint} Use 'ax-code-app tunnel help'.`,
+          `Unknown tunnel subcommand '${subcommand}'.${hint} Use 'ax-code-desktop tunnel help'.`,
           EXIT_CODE.USAGE_ERROR
         );
       }
@@ -4952,18 +4952,18 @@ const commands = {
     if (options.all) {
       targets = running;
       if (targets.length === 0) {
-        throw new Error('No running AX Code App instance found.');
+        throw new Error('No running AX Code Desktop instance found.');
       }
     } else if (options.explicitPort) {
       const found = running.find((entry) => entry.port === options.port);
       if (!found) {
-        throw new Error(`No running AX Code App instance found on port ${options.port}.`);
+        throw new Error(`No running AX Code Desktop instance found on port ${options.port}.`);
       }
       targets = [found];
     } else {
       const latest = getLatestInstance(running);
       if (!latest) {
-        throw new Error('No running AX Code App instance found.');
+        throw new Error('No running AX Code Desktop instance found.');
       }
       targets = [latest];
       if (shouldRenderHumanOutput(options)) {
@@ -4973,7 +4973,7 @@ const commands = {
 
     if (isJsonMode(options)) {
       if (options.follow) {
-        throw new Error('`ax-code-app logs --json` requires `--no-follow` for deterministic JSON output.');
+        throw new Error('`ax-code-desktop logs --json` requires `--no-follow` for deterministic JSON output.');
       }
       const entries = targets.map((target) => {
         const logPath = getLogFilePath(target.port);
@@ -4988,7 +4988,7 @@ const commands = {
     }
 
     if (showFrames) {
-      clackIntro('AX Code App Logs');
+      clackIntro('AX Code Desktop Logs');
     }
 
     for (const target of targets) {
@@ -5044,7 +5044,7 @@ const commands = {
     const normalized = typeof action === 'string' ? action.trim().toLowerCase() : 'status';
     if (!['status', 'enable', 'disable'].includes(normalized)) {
       throw new TunnelCliError(
-        `Unknown startup subcommand '${action}'. Use 'ax-code-app startup --help'.`,
+        `Unknown startup subcommand '${action}'. Use 'ax-code-desktop startup --help'.`,
         EXIT_CODE.USAGE_ERROR
       );
     }
@@ -5067,7 +5067,7 @@ const commands = {
     }
     if (normalized === 'enable' && result.activeState === 'failed') {
       throw new TunnelCliError(
-        'Startup service was installed but failed to start. Run `journalctl --user -u ax-code-app.service -n 80 --no-pager` for details.',
+        'Startup service was installed but failed to start. Run `journalctl --user -u ax-code-desktop.service -n 80 --no-pager` for details.',
         EXIT_CODE.GENERAL_ERROR
       );
     }
@@ -5081,13 +5081,13 @@ const commands = {
       return;
     }
 
-    clackIntro('AX Code App Startup');
+    clackIntro('AX Code Desktop Startup');
     logStatus(result.enabled ? 'success' : 'info', `startup ${result.enabled ? 'enabled' : 'disabled'}`, result.servicePath || undefined);
     if (typeof result.activeState === 'string') {
       logStatus(result.active ? 'success' : result.activeState === 'failed' ? 'error' : 'warning', `service ${result.activeState}`);
     }
     if (normalized === 'enable') {
-      logStatus('info', 'service command', 'ax-code-app serve --foreground');
+      logStatus('info', 'service command', 'ax-code-desktop serve --foreground');
     }
     clackOutro(normalized === 'status' ? 'status complete' : `${normalized} complete`);
   },
@@ -5108,7 +5108,7 @@ const commands = {
     const currentVersion = getCurrentVersion();
 
     if (showOutput) {
-      clackIntro('AX Code App Update');
+      clackIntro('AX Code Desktop Update');
     }
 
     if (showOutput && !updateSpin) {
@@ -5288,7 +5288,7 @@ async function main() {
   await commands[command](options);
 }
 
-const isCliExecution = isModuleCliExecution(process.argv[1], import.meta.url, fs.realpathSync, 'ax-code-app');
+const isCliExecution = isModuleCliExecution(process.argv[1], import.meta.url, fs.realpathSync, 'ax-code-desktop');
 
 if (isCliExecution) {
   let isHandlingSigint = false;

@@ -13,7 +13,7 @@
 
 ## What this is
 
-AX Code App historically shipped as a Tauri app. A parallel Electron shell was
+AX Code Desktop historically shipped as a Tauri app. A parallel Electron shell was
 added on branch `electron-app` (merged to `main` as part of a larger migration).
 Since then, both desktop shells have been released in the same GitHub release
 and each has its own auto-update channel:
@@ -40,7 +40,7 @@ just replaces files.
 
 So: produce a `.tar.gz` of the Electron `.app`, sign it with the existing
 Tauri minisign key, point `latest.json` at it. Tauri users receive the update,
-their `AX Code App.app` becomes the Electron bundle in-place, and next launch
+their `AX Code Desktop.app` becomes the Electron bundle in-place, and next launch
 starts Electron. Subsequent updates go through `latest-mac.yml`
 (electron-updater). One-way migration, one-shot workflow change.
 
@@ -51,9 +51,9 @@ Check all of these before making any release:
 1. **Electron has shipped stable through its own `latest-mac.yml` path for at
    least 2 releases.** Verify:
    ```
-   gh release list --repo btriapitsyn/openchamber
-   gh release view vX.Y.Z --repo btriapitsyn/openchamber \
-     | grep -E 'AX Code App-.*\.zip|latest-mac\.yml'
+   gh release list --repo defai-digital/ax-code-desktop
+   gh release view vX.Y.Z --repo defai-digital/ax-code-desktop \
+     | grep -E 'AX Code Desktop-.*\.zip|latest-mac\.yml'
    ```
    A user on Electron should have successfully auto-updated at least once.
    If not, pause and stabilise that path first — don't stack risk.
@@ -96,10 +96,10 @@ create-release
 The transition works like this:
 
 1. `build-desktop-electron-macos` builds, signs, and notarizes the Electron app.
-2. It wraps the signed `AX Code App.app` in a tarball and uploads that tarball
+2. It wraps the signed `AX Code Desktop.app` in a tarball and uploads that tarball
    as a short-lived Actions artifact.
 3. `repackage-electron-as-tauri-update` downloads that Electron `.app`.
-4. It packs it into `AX Code App-<version>-darwin-*.app.tar.gz`.
+4. It packs it into `AX Code Desktop-<version>-darwin-*.app.tar.gz`.
 5. It signs that tarball with `tauri signer sign` and the existing Tauri signing key.
 6. It uploads the tarball and `.sig` to the GitHub release.
 7. It generates Tauri-compatible manifests and `combine-manifests` merges them into `latest.json`.
@@ -112,7 +112,7 @@ latest.json -> .app.tar.gz -> .sig
 
 But the payload inside the `.app.tar.gz` is Electron, not Tauri. Tauri's updater
 only verifies the signature and extracts the bundle over the existing
-`/Applications/AX Code App.app`. After restart, the app is Electron and future
+`/Applications/AX Code Desktop.app`. After restart, the app is Electron and future
 updates use `latest-mac.yml` through `electron-updater`.
 
 Note: do not upload the `.app` directory directly with `actions/upload-artifact`.
@@ -179,7 +179,7 @@ repackage-electron-as-tauri-update:
     # already produced. Either re-download the dmg and mount+copy the .app, or
     # (cleaner) modify build-desktop-electron-macos to upload the .app itself
     # as an artifact so this job can download it. Prefer the latter — adds one
-    # `actions/upload-artifact@v4` step uploading `packages/electron/dist/mac-<arch>/AX Code App.app`.
+    # `actions/upload-artifact@v4` step uploading `packages/electron/dist/mac-<arch>/AX Code Desktop.app`.
 
     - name: Download signed Electron .app
       uses: actions/download-artifact@v4
@@ -198,28 +198,28 @@ repackage-electron-as-tauri-update:
         # The tarball name convention Tauri's updater expects. Must end in
         # `.app.tar.gz`. Name stays stable — Tauri updater does not care about
         # the inner .app name.
-        TARBALL="AX Code App.app.tar.gz"
-        tar -czf "$TARBALL" AX Code App.app
+        TARBALL="AX Code Desktop.app.tar.gz"
+        tar -czf "$TARBALL" AX Code Desktop.app
 
         # Use Tauri's signer instead of minisign directly. The CI secret is in
         # the format consumed by TAURI_SIGNING_PRIVATE_KEY.
         bun run --cwd ../packages/desktop tauri signer sign "$PWD/$TARBALL"
 
         # Rename per platform so the release has distinct names for arm64/x64.
-        mv "$TARBALL" "AX Code App-${VERSION}-${{ matrix.platform }}.app.tar.gz"
-        mv "${TARBALL}.sig" "AX Code App-${VERSION}-${{ matrix.platform }}.app.tar.gz.sig"
+        mv "$TARBALL" "AX Code Desktop-${VERSION}-${{ matrix.platform }}.app.tar.gz"
+        mv "${TARBALL}.sig" "AX Code Desktop-${VERSION}-${{ matrix.platform }}.app.tar.gz.sig"
 
     - name: Generate Tauri latest-<platform>.json
       env:
         VERSION: ${{ needs.create-release.outputs.version }}
         REPO: ${{ github.repository }}
       run: |
-        SIG=$(cat staged/AX Code App-${VERSION}-${{ matrix.platform }}.app.tar.gz.sig)
-        TAR=AX Code App-${VERSION}-${{ matrix.platform }}.app.tar.gz
+        SIG=$(cat staged/AX Code Desktop-${VERSION}-${{ matrix.platform }}.app.tar.gz.sig)
+        TAR=AX Code Desktop-${VERSION}-${{ matrix.platform }}.app.tar.gz
         cat > staged/latest-${{ matrix.platform }}.json <<EOF
         {
           "version": "${VERSION}",
-          "notes": "AX Code App has moved to Electron. This update replaces the Tauri shell with the Electron build. Subsequent updates will be delivered via the Electron auto-updater.",
+          "notes": "AX Code Desktop has moved to Electron. This update replaces the Tauri shell with the Electron build. Subsequent updates will be delivered via the Electron auto-updater.",
           "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
           "platforms": {
             "${{ matrix.platform }}": {
@@ -323,14 +323,14 @@ skips re-uploading the npm tarball asset.
 You must manually validate with a real Tauri install. Do NOT skip this.
 
 1. Have the previous Tauri release installed locally
-   (`/Applications/AX Code App.app` with `Contents/Info.plist` showing
+   (`/Applications/AX Code Desktop.app` with `Contents/Info.plist` showing
    `CFBundleIdentifier = ai.ax-code.openchamber`).
 2. Tag the transition release to a test tag
    (e.g. `v2.0.0-migration-test`) and push.
 3. Let the workflow complete. Do not merge cleanup PR yet.
 4. In the running Tauri app, use the built-in "Check for updates".
 5. Accept the update. The app should download, verify, extract, restart.
-6. After restart, `Info.plist` under `/Applications/AX Code App.app/` should
+6. After restart, `Info.plist` under `/Applications/AX Code Desktop.app/` should
    now show `CFBundleIdentifier = dev.openchamber.desktop`.
 7. Settings should be intact: hosts list, default host, sessions history.
 8. In the new Electron app, "Check for updates" should report no update
@@ -347,7 +347,7 @@ If any step fails:
 If users report the Tauri → Electron update bricks their install:
 
 1. **Immediately** delete the latest release asset
-   `AX Code App-*.app.tar.gz` and `latest.json` from the GitHub release
+   `AX Code Desktop-*.app.tar.gz` and `latest.json` from the GitHub release
    (keep the DMGs so manual download still works).
 2. Re-upload the previous version's `latest.json` as the current latest so
    Tauri updaters see "up to date" instead of a broken update on next check.
