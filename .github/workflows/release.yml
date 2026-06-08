@@ -128,7 +128,7 @@ jobs:
           draft: true
           generate_release_notes: false
           body_path: artifacts/release-notes.md
-          name: AX Code App v${{ steps.get_version.outputs.version }}
+          name: AX Code Desktop v${{ steps.get_version.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -802,11 +802,11 @@ jobs:
             }
 
             const release = await releaseRes.json();
-            const description = (release.body || `AX Code App ${tag} released.`).slice(0, 4096);
+            const description = (release.body || `AX Code Desktop ${tag} released.`).slice(0, 4096);
             const mention = updateRoleId ? `<@&${updateRoleId}>` : '';
 
             const payload = {
-              username: 'AX Code App Releases',
+              username: 'AX Code Desktop Releases',
               ...(mention ? { content: mention } : {}),
               ...(updateRoleId
                 ? {
@@ -817,11 +817,11 @@ jobs:
                 : {}),
               embeds: [
                 {
-                  title: release.name || `AX Code App ${tag}`,
+                  title: release.name || `AX Code Desktop ${tag}`,
                   url: release.html_url,
                   description,
                   color: 2105893,
-                  footer: { text: 'AX Code App Changelog' },
+                  footer: { text: 'AX Code Desktop Changelog' },
                 },
               ],
             };

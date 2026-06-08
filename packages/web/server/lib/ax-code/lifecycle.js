@@ -296,7 +296,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       const onExit = (code, signal) => {
         const reason = signal ? `signal ${signal}` : `code ${code}`;
         const appBundleHint = process.platform === 'darwin' && /\/AX Code\.app\/Contents\/MacOS\/(?:AX Code|ax-code)$/i.test(binary)
-          ? ' The configured binary appears to point at the macOS desktop app bundle; AX Code App needs the standalone ax-code CLI.'
+          ? ' The configured binary appears to point at the macOS desktop app bundle; AX Code Desktop needs the standalone ax-code CLI.'
           : '';
         finish(reject, new Error(`AX Code process exited before serving with ${reason}. Binary used: ${binary}.${appBundleHint} ${formatCapturedOutput({ stdout, stderr })}`));
       };

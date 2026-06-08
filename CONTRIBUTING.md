@@ -1,4 +1,4 @@
-# Contributing to AX Code App
+# Contributing to AX Code Desktop
 
 ## Getting Started
 

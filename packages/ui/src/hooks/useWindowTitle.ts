@@ -4,7 +4,7 @@ import { isDesktopShell, isTauriShell } from '@/lib/desktop';
 import { desktopHostsGet, locationMatchesHost, redactSensitiveUrl } from '@/lib/desktopHosts';
 import { setDesktopWindowTitle } from '@/lib/desktopNative';
 
-const APP_TITLE = 'AX Code App';
+const APP_TITLE = 'AX Code Desktop';
 
 const formatProjectLabel = (label: string): string => {
   return label.replace(/[-_]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());

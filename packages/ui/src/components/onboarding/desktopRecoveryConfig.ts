@@ -98,7 +98,7 @@ export function getDesktopRecoveryConfig(
       const host = formatHostDisplay(hostLabel, hostUrl);
       return {
         title: 'Incompatible Server',
-        description: `The server at "${host || 'unknown'}" is not running AX Code App. Verify the address points to an AX Code App server.`,
+        description: `The server at "${host || 'unknown'}" is not running AX Code Desktop. Verify the address points to an AX Code Desktop server.`,
         titleKey: 'onboarding.desktopRecovery.incompatibleServer.title',
         descriptionKey: 'onboarding.desktopRecovery.incompatibleServer.description',
         descriptionParams: host ? { host } : undefined,

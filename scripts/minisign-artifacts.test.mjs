@@ -9,7 +9,7 @@ const script = path.join(repoRoot, "scripts/minisign-artifacts.sh")
 const pinnedPublicKey = "RWS6la0s0/o4gdFUZ0Bk/BkrnN8qC2CFOfLXVP5OtQTrvm1BQeOvXgao"
 
 function makeTempDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-app-minisign-test-"))
+  return fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-desktop-minisign-test-"))
 }
 
 function writeExecutable(file, body) {

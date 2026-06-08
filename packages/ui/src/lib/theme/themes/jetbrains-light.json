@@ -2,8 +2,8 @@
   "metadata": {
     "id": "jetbrains-light",
     "name": "JetBrains",
-    "description": "JetBrains IDE-inspired colors for AX Code App - light variant",
-    "author": "Artem Evsevev, adapted for AX Code App",
+    "description": "JetBrains IDE-inspired colors for AX Code Desktop - light variant",
+    "author": "Artem Evsevev, adapted for AX Code Desktop",
     "version": "1.0.0",
     "variant": "light",
     "tags": [

@@ -114,7 +114,7 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
 
       if (runtime === 'desktop') {
         // The desktop shell updates itself via its native updater
-        // (electron-updater against the AX Code App GitHub releases). That
+        // (electron-updater against the AX Code Desktop GitHub releases). That
         // result is authoritative — do not consult the OpenChamber npm/web
         // update API here, or the dialog would surface OpenChamber's package
         // version and changelog instead of AX Code's.

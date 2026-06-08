@@ -419,7 +419,7 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
                       )}
                       {isOpenChamberBadge ? (
                         <span className={NEUTRAL_BADGE_CLASS}>
-                          AX Code App
+                          AX Code Desktop
                         </span>
                       ) : isSystem ? (
                         <span className={NEUTRAL_BADGE_CLASS}>

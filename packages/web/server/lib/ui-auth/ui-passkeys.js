@@ -11,7 +11,7 @@ import {
 
 const DEFAULT_STORE_VERSION = 1;
 const DEFAULT_CHALLENGE_TTL_MS = 5 * 60 * 1000;
-const DEFAULT_RP_NAME = 'AX Code App';
+const DEFAULT_RP_NAME = 'AX Code Desktop';
 
 const OPENCHAMBER_DATA_DIR = process.env.OPENCHAMBER_DATA_DIR
   ? path.resolve(process.env.OPENCHAMBER_DATA_DIR)
@@ -331,7 +331,7 @@ export const createUiPasskeys = ({
       rpID,
       userID,
       userName: 'openchamber-ui',
-      userDisplayName: 'AX Code App UI',
+      userDisplayName: 'AX Code Desktop UI',
       attestationType: 'none',
       excludeCredentials: getPasskeysForRpId(store, rpID).map((passkey) => ({
         id: passkey.id,
@@ -471,7 +471,7 @@ export const createUiPasskeys = ({
     const passkey = store.passkeys.find((item) => item.id === response?.id);
 
     if (!passkey) {
-      const error = new Error('That passkey is not registered for this AX Code App instance');
+      const error = new Error('That passkey is not registered for this AX Code Desktop instance');
       error.statusCode = 404;
       throw error;
     }

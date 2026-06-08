@@ -34,7 +34,7 @@ export const createServerStartupRuntime = (dependencies) => {
 
           if (typeof process.send === 'function') {
             if (!process.connected) {
-              throw new Error('AX Code App startup IPC channel disconnected before ready notification');
+              throw new Error('AX Code Desktop startup IPC channel disconnected before ready notification');
             }
 
             await new Promise((resolveReadyNotification, rejectReadyNotification) => {
@@ -55,7 +55,7 @@ export const createServerStartupRuntime = (dependencies) => {
           const displayHost = (bindHost === '0.0.0.0' || bindHost === '::' || bindHost === '[::]')
             ? 'localhost'
             : (bindHost.includes(':') ? `[${bindHost}]` : bindHost);
-          console.log(`AX Code App server listening on ${bindHost}:${activePort}`);
+          console.log(`AX Code Desktop server listening on ${bindHost}:${activePort}`);
           console.log(`Health check: http://${displayHost}:${activePort}/health`);
           console.log(`Web interface: http://${displayHost}:${activePort}`);
 

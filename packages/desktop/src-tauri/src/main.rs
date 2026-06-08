@@ -215,7 +215,7 @@ fn quit_confirmation_message() -> String {
         "Background processes (sidecar, SSH sessions) will be stopped.".to_string()
     } else {
         format!(
-            "AX Code App detected {}. Quitting now will stop sidecar/background processes and may interrupt pending work.",
+            "AX Code Desktop detected {}. Quitting now will stop sidecar/background processes and may interrupt pending work.",
             reasons.join(", ")
         )
     }
@@ -250,7 +250,7 @@ unsafe extern "C-unwind" fn application_should_terminate_with_confirmation(
     let message = quit_confirmation_message();
     let confirmed = matches!(
         rfd::MessageDialog::new()
-            .set_title("Quit AX Code App?")
+            .set_title("Quit AX Code Desktop?")
             .set_description(&message)
             .set_level(rfd::MessageLevel::Warning)
             .set_buttons(rfd::MessageButtons::OkCancel)
@@ -338,7 +338,7 @@ fn request_quit_with_confirmation(app: &tauri::AppHandle) {
     let handle = app.clone();
     app.dialog()
         .message(message)
-        .title("Quit AX Code App?")
+        .title("Quit AX Code Desktop?")
         .buttons(MessageDialogButtons::OkCancel)
         .kind(tauri_plugin_dialog::MessageDialogKind::Warning)
         .show(move |confirmed| {
@@ -2344,7 +2344,7 @@ fn maybe_show_sidecar_notification(app: &tauri::AppHandle, payload: SidecarNotif
     let title = payload
         .title
         .filter(|t| is_nonempty_string(t))
-        .unwrap_or_else(|| "AX Code App".to_string());
+        .unwrap_or_else(|| "AX Code Desktop".to_string());
     let body = payload.body.filter(|b| is_nonempty_string(b));
     let _tag = payload.tag;
 
@@ -2763,7 +2763,7 @@ fn desktop_notify(
     let mut builder = app
         .notification()
         .builder()
-        .title(payload.title.unwrap_or_else(|| "AX Code App".to_string()));
+        .title(payload.title.unwrap_or_else(|| "AX Code Desktop".to_string()));
 
     if let Some(body) = payload.body {
         if is_nonempty_string(&body) {
@@ -3395,7 +3395,7 @@ fn create_window(
     };
 
     let mut builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(parsed))
-        .title("AX Code App")
+        .title("AX Code Desktop")
         .inner_size(1280.0, 800.0)
         .min_inner_size(MIN_WINDOW_WIDTH as f64, MIN_WINDOW_HEIGHT as f64)
         .decorations(true)
@@ -3447,7 +3447,7 @@ fn create_startup_window(app: &tauri::AppHandle, restore_geometry: bool) -> Resu
     let splash_script = build_startup_splash_script();
 
     let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-        .title("AX Code App")
+        .title("AX Code Desktop")
         .inner_size(1280.0, 800.0)
         .min_inner_size(MIN_WINDOW_WIDTH as f64, MIN_WINDOW_HEIGHT as f64)
         .decorations(true)

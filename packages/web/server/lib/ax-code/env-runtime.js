@@ -933,7 +933,7 @@ export const createAxCodeEnvRuntime = (deps) => {
   const createConfiguredAxCodeBinaryError = (raw, normalized) => {
     const configured = typeof raw === 'string' ? raw.trim() : '';
     const candidate = typeof normalized === 'string' && normalized.trim().length > 0 ? normalized.trim() : configured;
-    const messageSuffix = 'AX Code App needs the standalone ax-code CLI. Install it and set settings.axCodeBinary to the CLI path, for example ~/.ax-code/bin/ax-code, or leave the setting empty to use PATH lookup.';
+    const messageSuffix = 'AX Code Desktop needs the standalone ax-code CLI. Install it and set settings.axCodeBinary to the CLI path, for example ~/.ax-code/bin/ax-code, or leave the setting empty to use PATH lookup.';
     const error = (() => {
       if (isMacAxCodeAppBundlePath(candidate) || isMacAxCodeAppBundlePath(configured)) {
         return new Error(`Configured ax-code binary points at the macOS desktop app bundle, not the CLI: ${candidate}. ${messageSuffix}`);
@@ -965,7 +965,7 @@ export const createAxCodeEnvRuntime = (deps) => {
   };
 
   const createConfiguredWslAxCodeError = (raw) => new Error(
-    `Configured settings.axCodeBinary uses WSL but AX Code App could not resolve a WSL ax-code command: ${raw}. Ensure WSL is available and ax-code is installed in the configured distro.`
+    `Configured settings.axCodeBinary uses WSL but AX Code Desktop could not resolve a WSL ax-code command: ${raw}. Ensure WSL is available and ax-code is installed in the configured distro.`
   );
 
   const normalizeAxCodeBinarySetting = (raw) => {

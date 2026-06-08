@@ -29,7 +29,7 @@ interface UpdateDialogProps {
   runtimeType?: 'desktop' | 'web' | null;
 }
 
-const GITHUB_RELEASES_URL = 'https://github.com/defai-digital/ax-code-app/releases';
+const GITHUB_RELEASES_URL = 'https://github.com/defai-digital/ax-code-desktop/releases';
 
 type ChangelogSection = {
   version: string;
@@ -214,7 +214,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
     : 0;
 
   const isWebRuntime = runtimeType === 'web';
-  const updateCommand = info?.updateCommand || 'ax-code-app update';
+  const updateCommand = info?.updateCommand || 'ax-code-desktop update';
 
   // Reset state when dialog closes; clear any pending copied timer on unmount.
   useEffect(() => {

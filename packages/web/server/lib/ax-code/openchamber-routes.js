@@ -109,7 +109,7 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
         String(storedOptions.port),
       ];
       let restartCmdPrimary = restartParts.join(' ');
-      let restartCmdFallback = `ax-code-app serve --port ${storedOptions.port}`;
+      let restartCmdFallback = `ax-code-desktop serve --port ${storedOptions.port}`;
       if (storedOptions.host) {
         if (isWindows) {
           const escapedHost = storedOptions.host.replace(/"/g, '""');
@@ -136,7 +136,7 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
       const updateLogPath = path.join(openchamberDataDir, 'update-install.log');
       const logPreamble = [
         '',
-        `=== AX Code App update ${new Date().toISOString()} ===`,
+        `=== AX Code Desktop update ${new Date().toISOString()} ===`,
         `currentVersion=${updateInfo.currentVersion || 'unknown'}`,
         `targetVersion=${updateInfo.version || 'unknown'}`,
         `packageManager=${pm}`,
@@ -173,8 +173,8 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
             timeout /t 2 /nobreak >nul
             ${updateCmd}
             if %ERRORLEVEL% EQU 0 (
-              echo Update successful, restarting AX Code App...
-              ${restartCmd || 'echo Service manager will restart AX Code App.'}
+              echo Update successful, restarting AX Code Desktop...
+              ${restartCmd || 'echo Service manager will restart AX Code Desktop.'}
             ) else (
               echo Update failed
               exit /b 1
@@ -185,8 +185,8 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
             sleep 2
             ${updateCmd}
             if [ $? -eq 0 ]; then
-              echo "Update successful, restarting AX Code App..."
-              ${restartCmd || 'echo "Service manager will restart AX Code App."'}
+              echo "Update successful, restarting AX Code Desktop..."
+              ${restartCmd || 'echo "Service manager will restart AX Code Desktop."'}
             else
               echo "Update failed"
               exit 1

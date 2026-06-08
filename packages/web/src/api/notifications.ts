@@ -20,7 +20,7 @@ const notifyWithWebAPI = async (payload?: NotificationPayload): Promise<boolean>
   }
 
   try {
-    new Notification(payload?.title ?? 'AX Code App', {
+    new Notification(payload?.title ?? 'AX Code Desktop', {
       body: payload?.body,
       tag: payload?.tag,
     });

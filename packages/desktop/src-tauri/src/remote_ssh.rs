@@ -1173,7 +1173,7 @@ fn current_remote_openchamber_version(
     run_remote_command(
         parsed,
         control_path,
-        "ax-code-app --version 2>/dev/null || openchamber --version 2>/dev/null || true",
+        "ax-code-desktop --version 2>/dev/null || openchamber --version 2>/dev/null || true",
         DEFAULT_CONNECTION_TIMEOUT_SEC,
     )
     .ok()
@@ -1237,7 +1237,7 @@ fn install_openchamber_managed(
         }
     }
 
-    Err(last_error.unwrap_or_else(|| anyhow!("Failed to install AX Code App on remote host")))
+    Err(last_error.unwrap_or_else(|| anyhow!("Failed to install AX Code Desktop on remote host")))
 }
 
 fn parse_probe_status_line(line: Option<&str>, prefix: &str) -> Option<u16> {
@@ -1307,7 +1307,7 @@ fn probe_remote_system_info(
         if is_auth_http_status(info_status) {
             if openchamber_password.is_some() && auth_status != 200 {
                 return Err(anyhow!(format!(
-                    "Remote AX Code App requires UI authentication and configured password was rejected (auth status {auth_status})"
+                    "Remote AX Code Desktop requires UI authentication and configured password was rejected (auth status {auth_status})"
                 )));
             }
 
@@ -1316,14 +1316,14 @@ fn probe_remote_system_info(
             }
 
             return Err(anyhow!(
-                "Remote AX Code App requires UI authentication on /api/system/info; configure AX Code App UI password"
+                "Remote AX Code Desktop requires UI authentication on /api/system/info; configure AX Code Desktop UI password"
             ));
         }
     } else if is_liveness_http_status(health_status) {
         return Ok(RemoteSystemInfo::default());
     } else {
         return Err(anyhow!(format!(
-            "Remote AX Code App probe failed (info status {info_status}, health status {health_status})"
+            "Remote AX Code Desktop probe failed (info status {info_status}, health status {health_status})"
         )));
     }
 
@@ -1388,7 +1388,7 @@ fn start_remote_server_managed(
         env_prefix.push_str(&shell_quote(&secret));
     }
     let script = format!(
-        "{env_prefix} ax-code-app serve --daemon --hostname 127.0.0.1 --port {desired_port} || {env_prefix} openchamber serve --daemon --hostname 127.0.0.1 --port {desired_port}"
+        "{env_prefix} ax-code-desktop serve --daemon --hostname 127.0.0.1 --port {desired_port} || {env_prefix} openchamber serve --daemon --hostname 127.0.0.1 --port {desired_port}"
     );
     let output = run_remote_command(
         parsed,
@@ -1590,7 +1590,7 @@ fn wait_local_forward_ready(local_port: u16) -> Result<()> {
         poll_ms = (poll_ms * 2).min(2000);
     }
     Err(anyhow!(
-        "Timed out waiting for forwarded AX Code App health"
+        "Timed out waiting for forwarded AX Code Desktop health"
     ))
 }
 
@@ -1957,14 +1957,14 @@ impl DesktopSshManagerInner {
             DesktopSshRemoteMode::External => {
                 let Some(port) = instance.remote_openchamber.preferred_port else {
                     return Err(anyhow!(
-                        "External mode requires a preferred remote AX Code App port"
+                        "External mode requires a preferred remote AX Code Desktop port"
                     ));
                 };
                 self.set_status(
                     app,
                     &instance.id,
                     DesktopSshPhase::ServerDetecting,
-                    Some("Probing external AX Code App server".to_string()),
+                    Some("Probing external AX Code Desktop server".to_string()),
                     None,
                     None,
                     Some(port),
@@ -1980,7 +1980,7 @@ impl DesktopSshManagerInner {
                 )
                 .map_err(|err| {
                     anyhow!(format!(
-                        "External AX Code App server probe failed on configured remote port: {err}"
+                        "External AX Code Desktop server probe failed on configured remote port: {err}"
                     ))
                 })?;
                 Ok((port, false))
@@ -1990,7 +1990,7 @@ impl DesktopSshManagerInner {
                     app,
                     &instance.id,
                     DesktopSshPhase::RemoteProbe,
-                    Some("Checking remote AX Code App installation".to_string()),
+                    Some("Checking remote AX Code Desktop installation".to_string()),
                     None,
                     None,
                     None,
@@ -2005,7 +2005,7 @@ impl DesktopSshManagerInner {
                         app,
                         &instance.id,
                         DesktopSshPhase::Installing,
-                        Some("Installing AX Code App on remote host".to_string()),
+                        Some("Installing AX Code Desktop on remote host".to_string()),
                         None,
                         None,
                         None,
@@ -2025,7 +2025,7 @@ impl DesktopSshManagerInner {
                         &instance.id,
                         DesktopSshPhase::Updating,
                         Some(format!(
-                            "Updating remote AX Code App from {} to {}",
+                            "Updating remote AX Code Desktop from {} to {}",
                             installed_version
                                 .clone()
                                 .unwrap_or_else(|| "unknown".to_string()),
@@ -2050,7 +2050,7 @@ impl DesktopSshManagerInner {
                     app,
                     &instance.id,
                     DesktopSshPhase::ServerDetecting,
-                    Some("Detecting managed AX Code App server".to_string()),
+                    Some("Detecting managed AX Code Desktop server".to_string()),
                     None,
                     None,
                     None,
@@ -2078,7 +2078,7 @@ impl DesktopSshManagerInner {
                         app,
                         &instance.id,
                         DesktopSshPhase::ServerStarting,
-                        Some("Starting managed AX Code App server".to_string()),
+                        Some("Starting managed AX Code Desktop server".to_string()),
                         None,
                         None,
                         None,
@@ -2097,7 +2097,7 @@ impl DesktopSshManagerInner {
                 }
 
                 let Some(port) = remote_port else {
-                    return Err(anyhow!("Failed to determine remote AX Code App port"));
+                    return Err(anyhow!("Failed to determine remote AX Code Desktop port"));
                 };
 
                 if !remote_server_running(
@@ -2107,7 +2107,7 @@ impl DesktopSshManagerInner {
                     configured_openchamber_password(instance),
                 ) {
                     return Err(anyhow!(
-                        "Managed AX Code App server failed to become reachable"
+                        "Managed AX Code Desktop server failed to become reachable"
                     ));
                 }
 

@@ -39,7 +39,7 @@ const readOwnPackageJsonField = (field) => {
 // truth) so it tracks the published name; overridable via env.
 const PACKAGE_NAME = firstConfiguredEnv('AX_CODE_NPM_PACKAGE', 'OPENCHAMBER_NPM_PACKAGE')
   || readOwnPackageJsonField('name')
-  || 'ax-code-app';
+  || 'ax-code-desktop';
 const PACKAGE_PATH_SEGMENTS = PACKAGE_NAME.split('/');
 
 // Remote update sources are opt-in. A fork must not silently query the upstream
@@ -724,7 +724,7 @@ export async function checkForUpdates(options = {}) {
       return {
         ...remote,
         packageManager: pm,
-        updateCommand: 'ax-code-app update',
+        updateCommand: 'ax-code-desktop update',
       };
     }
   }
@@ -763,7 +763,7 @@ export async function checkForUpdates(options = {}) {
     body: changelog,
     packageManager: pm,
     // Show our CLI command, not raw package manager command
-    updateCommand: 'ax-code-app update',
+    updateCommand: 'ax-code-desktop update',
   };
 }
 

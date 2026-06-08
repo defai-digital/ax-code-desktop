@@ -893,7 +893,7 @@ async function main(options = {}) {
     notificationTriggerRuntime.setGetIsWindowFocused(options.getIsWindowFocused);
   }
 
-  console.log(`Starting AX Code App on port ${port === 0 ? 'auto' : port}`);
+  console.log(`Starting AX Code Desktop on port ${port === 0 ? 'auto' : port}`);
 
   const app = express();
   const serverStartedAt = new Date().toISOString();

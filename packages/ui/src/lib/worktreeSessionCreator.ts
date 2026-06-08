@@ -363,7 +363,7 @@ export async function createWorktreeSessionForBranch(
   try {
     const projectRef = resolveProjectRef(projectDirectory);
     if (!projectRef) {
-      throw new Error('Project is not registered in AX Code App');
+      throw new Error('Project is not registered in AX Code Desktop');
     }
 
     // Check if it's a git repo (root project path)
@@ -466,7 +466,7 @@ export async function createWorktreeSessionForNewBranch(
 
     const projectRef = resolveProjectRef(projectDirectory);
     if (!projectRef) {
-      throw new Error('Project is not registered in AX Code App');
+      throw new Error('Project is not registered in AX Code Desktop');
     }
 
     let isGitRepo = false;
