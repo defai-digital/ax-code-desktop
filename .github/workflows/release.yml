@@ -359,7 +359,9 @@ jobs:
 
   build-desktop-electron-windows:
     needs: create-release
-    runs-on: windows-latest
+    # x64 builds on the standard runner; arm64 needs a native Windows-on-ARM
+    # runner so native modules (better-sqlite3/node-pty) compile for the target.
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
@@ -367,6 +369,11 @@ jobs:
           - arch: x64
             target: x86_64-pc-windows-msvc
             platform: win32-x64
+            runner: windows-latest
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
+            platform: win32-arm64
+            runner: windows-11-arm
     env:
       HAS_WINDOWS_CERT: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
     steps:
@@ -425,10 +432,13 @@ jobs:
             packages/electron/dist/*.exe
             packages/electron/dist/*.zip
             packages/electron/dist/*.blockmap
-            packages/electron/dist/latest.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # latest.yml is named identically for every arch, so each arch uploads it
+      # as a per-target artifact and combine-electron-windows-manifests merges
+      # them into one release-level latest.yml (electron-updater picks the entry
+      # matching the running CPU arch).
       - name: Upload update manifest as artifact
         uses: actions/upload-artifact@v7
         with:
@@ -629,8 +639,41 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  combine-electron-windows-manifests:
+    needs: [create-release, build-desktop-electron-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Download per-arch Windows latest.yml
+        uses: actions/download-artifact@v4
+        with:
+          pattern: latest-yml-*-pc-windows-msvc
+          path: artifacts
+
+      - name: Finalize combined latest.yml
+        env:
+          LATEST_YML_DIR: ${{ github.workspace }}/artifacts
+          GH_REPO: ${{ github.repository }}
+          OPENCHAMBER_VERSION: ${{ needs.create-release.outputs.version }}
+        run: node packages/electron/scripts/finalize-windows-latest-yml.mjs
+
+      - name: Upload combined Windows manifest to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.create-release.outputs.version }}
+          files: |
+            ${{ runner.temp }}/latest.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   sign-release-assets:
-    needs: [create-release, build-desktop-electron-macos, build-desktop-electron-windows, repackage-electron-as-tauri-update, publish-npm, combine-manifests, combine-electron-manifests]
+    needs: [create-release, build-desktop-electron-macos, build-desktop-electron-windows, repackage-electron-as-tauri-update, publish-npm, combine-manifests, combine-electron-manifests, combine-electron-windows-manifests]
     if: >-
       always() &&
       needs.create-release.result == 'success' &&
@@ -638,6 +681,7 @@ jobs:
       needs.build-desktop-electron-windows.result == 'success' &&
       needs.publish-npm.result == 'success' &&
       needs.combine-electron-manifests.result == 'success' &&
+      needs.combine-electron-windows-manifests.result == 'success' &&
       needs.repackage-electron-as-tauri-update.result != 'failure' &&
       needs.combine-manifests.result != 'failure'
     runs-on: ubuntu-latest
@@ -747,7 +791,7 @@ jobs:
           NODE
 
   finalize-release:
-    needs: [create-release, build-desktop-electron-macos, build-desktop-electron-windows, repackage-electron-as-tauri-update, publish-npm, combine-manifests, combine-electron-manifests, sign-release-assets]
+    needs: [create-release, build-desktop-electron-macos, build-desktop-electron-windows, repackage-electron-as-tauri-update, publish-npm, combine-manifests, combine-electron-manifests, combine-electron-windows-manifests, sign-release-assets]
     # Publish the release once the core artifacts are in place. The Tauri-updater
     # jobs are optional — allow them to be skipped (but not failed) so a missing
     # Tauri signing key doesn't leave the release stuck in draft.
@@ -758,6 +802,7 @@ jobs:
       needs.build-desktop-electron-windows.result == 'success' &&
       needs.publish-npm.result == 'success' &&
       needs.combine-electron-manifests.result == 'success' &&
+      needs.combine-electron-windows-manifests.result == 'success' &&
       needs.sign-release-assets.result == 'success' &&
       needs.repackage-electron-as-tauri-update.result != 'failure' &&
       needs.combine-manifests.result != 'failure'

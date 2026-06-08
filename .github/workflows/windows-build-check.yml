@@ -1,0 +1,117 @@
+name: Windows Build Check
+
+# Manual, build-only validation of the Windows desktop packaging (x64 + arm64).
+#
+# This is a DRY RUN for the Windows-on-ARM build that release.yml cannot be used
+# to rehearse safely (its dry_run input still publishes a GitHub release on full
+# success). This workflow NEVER creates releases, publishes to npm, or touches
+# auto-update feeds — it only builds the installers, smoke-tests the per-arch
+# latest.yml merge, and uploads the results as workflow artifacts.
+#
+# Delete this file once Windows ARM64 is confirmed working in a real release.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+            runner: windows-latest
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
+            runner: windows-11-arm
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.14'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build web assets
+        working-directory: packages/electron
+        run: bun run build:web-assets
+
+      - name: Bundle main process
+        working-directory: packages/electron
+        run: bun run bundle:main
+
+      - name: Rebuild native modules (arch-native)
+        working-directory: packages/electron
+        shell: bash
+        # The riskiest step for arm64: better-sqlite3 / node-pty must compile
+        # against the Electron ABI for the runner's native arch.
+        run: node ./scripts/rebuild-native.mjs
+
+      - name: Build Windows app (${{ matrix.arch }})
+        working-directory: packages/electron
+        shell: bash
+        run: node ./scripts/package.mjs --win --${{ matrix.arch }} --publish=never
+
+      - name: List build output
+        working-directory: packages/electron
+        shell: bash
+        run: ls -la dist
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: win-${{ matrix.arch }}
+          path: |
+            packages/electron/dist/*.exe
+            packages/electron/dist/*.zip
+            packages/electron/dist/latest.yml
+          retention-days: 5
+
+      - name: Upload latest.yml for merge smoke test
+        uses: actions/upload-artifact@v7
+        with:
+          name: latest-yml-${{ matrix.target }}
+          path: packages/electron/dist/latest.yml
+          retention-days: 5
+
+  merge-smoke-test:
+    name: latest.yml merge smoke test
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Download per-arch latest.yml
+        uses: actions/download-artifact@v4
+        with:
+          pattern: latest-yml-*-pc-windows-msvc
+          path: artifacts
+
+      - name: Merge into one latest.yml and print it
+        env:
+          LATEST_YML_DIR: ${{ github.workspace }}/artifacts
+          OPENCHAMBER_VERSION: 0.0.0-dryrun
+        run: |
+          node packages/electron/scripts/finalize-windows-latest-yml.mjs
+          echo "----- merged latest.yml -----"
+          cat "$RUNNER_TEMP/latest.yml"

@@ -39,17 +39,6 @@ bun run desktop:dev
 
 Launches Tauri in dev mode with WebView devtools enabled and a distinct dev icon.
 
-### VS Code Extension
-
-```bash
-bun run vscode:dev    # Watch mode (extension + webview rebuild on save)
-```
-
-To test in VS Code:
-```bash
-bun run vscode:build && code --extensionDevelopmentPath="$(pwd)/packages/vscode"
-```
-
 ### Shared UI (`packages/ui`)
 
 No dev server — this is a source-level library consumed by other packages. During development, `bun run dev` runs type-checking in watch mode.
@@ -85,7 +74,6 @@ packages/
   ui/        Shared React components, hooks, stores, and theme system
   web/       Web server (Express) + frontend (Vite) + CLI
   desktop/   Tauri macOS app (thin shell around the web UI)
-  vscode/    VS Code extension (extension host + webview)
 ```
 
 See [AGENTS.md](./AGENTS.md) for detailed architecture reference.
