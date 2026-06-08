@@ -50,16 +50,19 @@ dmg:
 win:
   target:
     - target: nsis
-      arch: [x64, arm64]
     # Portable exe-in-zip alongside the installer. The zip holds the runnable
     # AX Code Desktop.exe + resources (extract and run, no install). The NSIS
     # installer above remains the auto-update channel (latest.yml).
     - target: zip
-      arch: [x64, arm64]
-  # x64 and arm64 are built in separate CI jobs (on separate runners), so each
-  # electron-builder run sees only one arch and would otherwise emit identically
-  # named artifacts that collide when uploaded to the same release. The ${arch}
-  # token keeps the installer/zip/blockmap names distinct per architecture.
+  # IMPORTANT: do NOT list `arch:` here. x64 and arm64 build in SEPARATE CI jobs
+  # on separate runners (native modules must compile for the target arch), and
+  # the arch is selected per job by the electron-builder CLI flag (--x64 /
+  # --arm64) passed through package.mjs. Listing both arches here makes every job
+  # build BOTH — producing an arm64 installer with x64-compiled native modules
+  # (and vice versa) plus a combined non-arch installer that collides between
+  # jobs. With no arch here, the CLI flag is the sole source and each job emits
+  # exactly its own arch. The ${arch} token keeps the per-arch installer/zip/
+  # blockmap names distinct on the shared release.
   artifactName: ${productName}-${version}-${arch}.${ext}
   icon: build/icon.ico
   # No certificateFile here: with no cert this would force signing against a
