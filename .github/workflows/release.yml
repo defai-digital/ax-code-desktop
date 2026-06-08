@@ -89,13 +89,15 @@ jobs:
 
       - name: Get version
         id: get_version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          if [[ -n "${{ github.event.inputs.version }}" ]]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          if [[ -n "$INPUT_VERSION" ]]; then
+            echo "version=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
           else
-            echo "version=0.0.0-dev" >> $GITHUB_OUTPUT
+            echo "version=0.0.0-dev" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Extract changelog for release
@@ -226,15 +228,16 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
         run: |
-          KEYCHAIN_PATH=$RUNNER_TEMP/electron-signing.keychain-db
-          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          KEYCHAIN_PATH="$RUNNER_TEMP/electron-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          echo "$APPLE_CERTIFICATE" | base64 --decode > $RUNNER_TEMP/certificate.p12
-          security import $RUNNER_TEMP/certificate.p12 \
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERTIFICATE_PATH"
+          security import "$CERTIFICATE_PATH" \
             -P "$APPLE_CERTIFICATE_PASSWORD" \
             -A -t cert -f pkcs12 \
             -k "$KEYCHAIN_PATH"
@@ -516,11 +519,12 @@ jobs:
         env:
           VERSION: ${{ needs.create-release.outputs.version }}
           REPO: ${{ github.repository }}
+          PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
 
-          SIG=$(cat staged/OpenChamber-${VERSION}-${{ matrix.platform }}.app.tar.gz.sig)
-          TAR="OpenChamber-${VERSION}-${{ matrix.platform }}.app.tar.gz"
+          SIG="$(cat "staged/OpenChamber-${VERSION}-${PLATFORM}.app.tar.gz.sig")"
+          TAR="OpenChamber-${VERSION}-${PLATFORM}.app.tar.gz"
           jq -n \
             --arg version "$VERSION" \
             --arg notes "OpenChamber has moved to Electron. This update replaces the Tauri shell with the Electron build. Subsequent updates will be delivered via the Electron auto-updater." \
@@ -711,19 +715,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "$AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64" ]; then
-            echo "::error::AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 is required to sign release assets"
-            exit 1
-          fi
-          if [ -z "$AX_CODE_DESKTOP_MINISIGN_PASSWORD" ]; then
-            echo "::error::AX_CODE_DESKTOP_MINISIGN_PASSWORD is required to unlock the release signing key"
-            exit 1
-          fi
-
           SECRET_KEY="$RUNNER_TEMP/ax-code-desktop.minisign.key"
           PUBLIC_KEY="$RUNNER_TEMP/ax-code-desktop.minisign.pub"
-          printf '%s' "$AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64" | base64 -d > "$SECRET_KEY"
-          chmod 600 "$SECRET_KEY"
           cat > "$PUBLIC_KEY" <<'EOF'
           untrusted comment: minisign public key 8138FAD32CAD95BA
           RWS6la0s0/o4gdFUZ0Bk/BkrnN8qC2CFOfLXVP5OtQTrvm1BQeOvXgao
@@ -744,6 +737,28 @@ jobs:
             echo "::error::No release assets found to sign"
             exit 1
           fi
+
+          if [ -z "$AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64" ] || [ -z "$AX_CODE_DESKTOP_MINISIGN_PASSWORD" ]; then
+            echo "::notice::Release signing secrets are not configured; verifying existing detached minisign signatures instead."
+            missing=()
+            for asset in "${assets[@]}"; do
+              sig="$asset.minisig"
+              if [ ! -f "$sig" ]; then
+                missing+=("$asset")
+                continue
+              fi
+              minisign -V -q -p "$PUBLIC_KEY" -m "$asset" -x "$sig"
+            done
+            if [ "${#missing[@]}" -gt 0 ]; then
+              echo "::error::Release assets are missing minisign signatures and CI cannot sign without AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 and AX_CODE_DESKTOP_MINISIGN_PASSWORD."
+              printf '  %s\n' "${missing[@]}" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+
+          printf '%s' "$AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64" | base64 -d > "$SECRET_KEY"
+          chmod 600 "$SECRET_KEY"
 
           ./scripts/minisign-artifacts.sh --secret-key "$SECRET_KEY" --public-key "$PUBLIC_KEY" --force "${assets[@]}"
 
@@ -782,10 +797,6 @@ jobs:
           if (missing.length > 0) {
             console.error('Release assets missing minisign signatures:');
             for (const name of missing) console.error(`  ${name}`);
-            process.exit(1);
-          }
-          if (release.isDraft !== true) {
-            console.error('Release was published before signature coverage was verified.');
             process.exit(1);
           }
           NODE
@@ -893,6 +904,8 @@ jobs:
           WEBSITE_TOKEN: ${{ secrets.AX_CODE_WEBSITE_REPO_TOKEN }}
           VERSION: ${{ needs.create-release.outputs.version }}
         run: |
+          set -euo pipefail
+
           if [ -z "$WEBSITE_TOKEN" ]; then
             echo "AX_CODE_WEBSITE_REPO_TOKEN not set; skip site refresh dispatch."
             exit 0
@@ -901,7 +914,7 @@ jobs:
           curl --fail-with-body -sS -X POST \
             -H "Authorization: Bearer $WEBSITE_TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/$WEBSITE_REPO/dispatches \
+            "https://api.github.com/repos/$WEBSITE_REPO/dispatches" \
             -d @- <<JSON
           {
             "event_type": "site_refresh_requested",

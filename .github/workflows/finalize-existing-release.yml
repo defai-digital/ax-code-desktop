@@ -1,0 +1,174 @@
+name: Finalize Existing Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to finalize (for example, 0.10.0 or v0.10.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  verify-release-signatures:
+    name: Verify release signatures
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Install minisign
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y minisign
+
+      - name: Normalize version
+        id: version
+        env:
+          RAW_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version="${RAW_VERSION#v}"
+          if [ -z "$version" ]; then
+            echo "::error::version input is required"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          gh release download "v${VERSION}" --repo "$REPOSITORY" --dir release-assets --clobber
+
+      - name: Verify detached minisign signatures
+        run: |
+          set -euo pipefail
+          public_key="$RUNNER_TEMP/ax-code-desktop.minisign.pub"
+          cat > "$public_key" <<'EOF'
+          untrusted comment: minisign public key 8138FAD32CAD95BA
+          RWS6la0s0/o4gdFUZ0Bk/BkrnN8qC2CFOfLXVP5OtQTrvm1BQeOvXgao
+          EOF
+
+          assets=()
+          while IFS= read -r -d '' file; do
+            case "$file" in
+              *.minisig|*.sig)
+                ;;
+              *)
+                assets+=("$file")
+                ;;
+            esac
+          done < <(find release-assets -type f -print0)
+
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "::error::No release assets found to verify"
+            exit 1
+          fi
+
+          missing=()
+          for asset in "${assets[@]}"; do
+            sig="$asset.minisig"
+            if [ ! -f "$sig" ]; then
+              missing+=("$(basename "$asset")")
+              continue
+            fi
+            minisign -V -q -p "$public_key" -m "$asset" -x "$sig"
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Release assets are missing minisign signatures:"
+            printf '  %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+          echo "Verified ${#assets[@]} release asset signature(s)."
+
+  publish-release:
+    name: Publish release
+    needs: verify-release-signatures
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ needs.verify-release-signatures.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release edit "v${VERSION}" --repo "$REPOSITORY" --draft=false
+
+  update-homebrew-tap:
+    name: Update Homebrew tap
+    needs: [verify-release-signatures, publish-release]
+    runs-on: ubuntu-latest
+    env:
+      HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+    steps:
+      - name: Skip if no tap token configured
+        if: ${{ env.HAS_TAP_TOKEN != 'true' }}
+        run: echo "::notice::HOMEBREW_TAP_TOKEN not configured; skipping Homebrew tap update."
+
+      - name: Download release DMG and compute SHA256
+        if: ${{ env.HAS_TAP_TOKEN == 'true' }}
+        env:
+          VERSION: ${{ needs.verify-release-signatures.outputs.version }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o release.dmg \
+            "https://github.com/defai-digital/ax-code-desktop/releases/download/v${VERSION}/AX.Code.Desktop-${VERSION}-arm64.dmg"
+          echo "DMG_SHA256=$(sha256sum release.dmg | awk '{print $1}')" >> "$GITHUB_ENV"
+
+      - name: Push updated cask to homebrew-tap
+        if: ${{ env.HAS_TAP_TOKEN == 'true' }}
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.verify-release-signatures.outputs.version }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/defai-digital/homebrew-ax-code-desktop.git" homebrew-tap
+          cd homebrew-tap
+          node - <<'NODE'
+          const fs = require('fs');
+          const version = process.env.VERSION;
+          const sha256 = process.env.DMG_SHA256;
+          const cask = [
+            'cask "ax-code-desktop" do',
+            `  version "${version}"`,
+            `  sha256 "${sha256}"`,
+            '',
+            '  url "https://github.com/defai-digital/ax-code-desktop/releases/download/v#{version}/AX.Code.Desktop-#{version}-arm64.dmg"',
+            '  name "AX Code Desktop"',
+            '  desc "AI coding assistant desktop app powered by AX Code"',
+            '  homepage "https://github.com/defai-digital/ax-code-desktop"',
+            '',
+            '  app "AX Code Desktop.app"',
+            '',
+            '  postflight do',
+            '    system_command "/usr/bin/xattr",',
+            '      args: ["-cr", "#{appdir}/AX Code Desktop.app"]',
+            '  end',
+            '',
+            '  zap trash: [',
+            '    "~/Library/Application Support/AX Code Desktop",',
+            '    "~/Library/Preferences/ai.defai.ax-code-app.plist",',
+            '    "~/Library/Caches/AX Code Desktop",',
+            '    "~/Library/Logs/AX Code Desktop",',
+            '  ]',
+            'end',
+            '',
+          ].join('\n');
+          fs.mkdirSync('Casks', { recursive: true });
+          fs.writeFileSync('Casks/ax-code-desktop.rb', cask);
+          NODE
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/ax-code-desktop.rb
+          git diff --cached --quiet && echo "No cask changes to commit." && exit 0
+          git commit -m "Update ax-code-desktop cask to ${VERSION}"
+          git push
