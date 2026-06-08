@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-06-08
+
+- UI: removed the remaining CSS mask rendering paths from scroll-shadow and reveal surfaces to avoid masked rendering artifacts.
+
 ## [0.10.1] - 2026-06-08
 
 - Desktop: isolated the bundled web server into an Electron `utilityProcess` and moved renderer hot paths off unbounded synchronous work.
