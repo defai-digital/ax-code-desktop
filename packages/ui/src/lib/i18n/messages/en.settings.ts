@@ -1,7 +1,4 @@
 export const settingsDict = {
-  'settings.appearance.language.label': 'Language',
-  'settings.appearance.language.description': 'Choose the interface language.',
-  'settings.appearance.language.select': 'Select language',
   'settings.window.description': 'AX Code Desktop settings window.',
   'settings.view.home.title': 'Settings',
   'settings.view.home.description': 'Jump to common pages.',
