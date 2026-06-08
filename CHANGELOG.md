@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-06-08
+
+- Desktop: isolated the bundled web server into an Electron `utilityProcess` and moved renderer hot paths off unbounded synchronous work.
+- Desktop: packaged the Electron server process explicitly and waits for graceful server shutdown before quit.
+- Git/Remote SSH: hardened remote command probing by shell-quoting command names before execution.
+- Sync/UI: kept sessions with pending questions visible while trimming event windows and bounded long-running in-memory Maps.
+- CI: split Windows release builds by architecture to avoid cross-architecture native module reuse.
+
 ## [0.10.0] - 2026-06-08
 
 - Security: removed browser/server voice, TTS, STT, and microphone permission surfaces from AX Code Desktop.
