@@ -42,18 +42,18 @@ const PACKAGE_NAME = firstConfiguredEnv('AX_CODE_NPM_PACKAGE', 'OPENCHAMBER_NPM_
   || 'ax-code-desktop';
 const PACKAGE_PATH_SEGMENTS = PACKAGE_NAME.split('/');
 
-// Remote update sources are opt-in. A fork must not silently query the upstream
-// project's servers, so there are no hardcoded defaults — when a value is unset
-// the corresponding remote check is skipped. Resolved per call so deployments
-// (and tests) configure them via env without reloading the module.
-const resolveUpdateSources = () => {
-  const registryPackage = firstConfiguredEnv('AX_CODE_UPDATE_NPM_PACKAGE', 'OPENCHAMBER_UPDATE_NPM_PACKAGE');
-  return {
-    apiUrl: firstConfiguredEnv('AX_CODE_UPDATE_API_URL', 'OPENCHAMBER_UPDATE_API_URL'),
-    changelogUrl: firstConfiguredEnv('AX_CODE_UPDATE_CHANGELOG_URL', 'OPENCHAMBER_UPDATE_CHANGELOG_URL'),
-    registryUrl: registryPackage ? `https://registry.npmjs.org/${registryPackage}` : '',
-  };
-};
+// Remote update sources are hard-disabled: the app must never contact
+// registry.npmjs.org or any external update API. Desktop builds update
+// themselves through their native updater (electron-updater / Tauri against
+// GitHub Releases), which does not go through this module. Returning empty
+// strings makes every downstream remote check (update-API POST, npm registry
+// lookup, changelog fetch) short-circuit cleanly to "no update". The
+// AX_CODE_UPDATE_* / OPENCHAMBER_UPDATE_* env vars are intentionally ignored.
+const resolveUpdateSources = () => ({
+  apiUrl: '',
+  changelogUrl: '',
+  registryUrl: '',
+});
 
 let cachedDetectedPm = null;
 

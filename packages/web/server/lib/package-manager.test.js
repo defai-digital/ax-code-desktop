@@ -8,34 +8,13 @@ vi.mock('node:child_process', () => ({
 
 const { checkForUpdates } = await import('./package-manager.js');
 
-/** Helper: create a fetch mock that routes by URL pattern */
-function createFetchMock() {
-  const handlers = new Map();
-
-  const mock = vi.fn((url, options) => {
-    const urlStr = typeof url === 'string' ? url : url.toString();
-
-    for (const [pattern, response] of handlers) {
-      if (urlStr.includes(pattern)) {
-        return Promise.resolve(response);
-      }
-    }
-
-    return Promise.reject(new Error(`Unexpected fetch call: ${urlStr}`));
-  });
-
-  mock.when = (pattern, response) => {
-    handlers.set(pattern, response);
-    return mock;
-  };
-
-  return mock;
-}
-
-describe('checkForUpdates', () => {
+describe('checkForUpdates (remote sources hard-disabled)', () => {
   let fetchMock;
   let originalFetch;
 
+  // These env vars used to enable remote update checks. They are now ignored:
+  // remote update sources are hard-disabled so the app never contacts npm or
+  // any external update API, even when the vars are set.
   const UPDATE_ENV = {
     AX_CODE_UPDATE_API_URL: 'https://updates.ax-code.test/v1/update/check',
     AX_CODE_UPDATE_NPM_PACKAGE: '@ax-code/web',
@@ -44,11 +23,11 @@ describe('checkForUpdates', () => {
   let savedEnv;
 
   beforeEach(() => {
-    fetchMock = createFetchMock();
+    // Any outbound fetch is a failure: the contract is "no network calls".
+    fetchMock = vi.fn(() => Promise.reject(new Error('Unexpected network call')));
     originalFetch = globalThis.fetch;
     globalThis.fetch = fetchMock;
 
-    // Remote update sources are opt-in; configure them explicitly per test.
     savedEnv = {};
     for (const [key, value] of Object.entries(UPDATE_ENV)) {
       savedEnv[key] = process.env[key];
@@ -64,276 +43,19 @@ describe('checkForUpdates', () => {
     }
   });
 
-  // --- Scenario: API says update available, npm confirms ---
-
-  it('returns available=true when both API and npm confirm a newer version', async () => {
-    fetchMock
-      .when('updates.ax-code.test', {
-        ok: true,
-        json: async () => ({
-          latestVersion: '1.10.0',
-          updateAvailable: true,
-          releaseNotes: '## [1.10.0] - 2026-05-01\n\n- Great new feature',
-        }),
-      })
-      .when('registry.npmjs.org', {
-        ok: true,
-        json: async () => ({
-          'dist-tags': { latest: '1.10.0' },
-        }),
-      })
-      .when('raw.ax-code.test', {
-        ok: true,
-        text: async () => '## [1.10.0] - 2026-05-01\n\n- Great new feature',
-      });
-
-    const result = await checkForUpdates({ currentVersion: '1.9.10' });
-
-    expect(result.available).toBe(true);
-    expect(result.version).toBe('1.10.0');
-    expect(result.currentVersion).toBe('1.9.10');
-  });
-
-  // --- Scenario (THE FIX): API says update available, npm does NOT have it ---
-
-  it('returns available=false when API claims update but npm has same version', async () => {
-    fetchMock
-      .when('updates.ax-code.test', {
-        ok: true,
-        json: async () => ({
-          latestVersion: '1.10.0',
-          updateAvailable: true,
-          releaseNotes: '## [1.10.0] - 2026-05-01\n\n- Great new feature',
-        }),
-      })
-      .when('registry.npmjs.org', {
-        ok: true,
-        json: async () => ({
-          'dist-tags': { latest: '1.9.10' },
-        }),
-      });
-
-    const result = await checkForUpdates({ currentVersion: '1.9.10' });
-
-    expect(result.available).toBe(false);
-  });
-
-  it('returns available=false when npm only has a prerelease of the current version', async () => {
-    fetchMock
-      .when('updates.ax-code.test', Promise.reject(new Error('Network error')))
-      .when('registry.npmjs.org', {
-        ok: true,
-        json: async () => ({
-          'dist-tags': { latest: '1.10.0-beta.1' },
-        }),
-      });
-
-    const result = await checkForUpdates({ currentVersion: '1.10.0' });
-
-    expect(result.available).toBe(false);
-  });
-
-  it('does not cross-check desktop update claims against npm', async () => {
-    fetchMock
-      .when('updates.ax-code.test', {
-        ok: true,
-        json: async () => ({
-          latestVersion: '1.10.0',
-          updateAvailable: true,
-          releaseNotes: '## [1.10.0] - 2026-05-01\n\n- Great new feature',
-        }),
-      });
-
-    const result = await checkForUpdates({
-      appType: 'desktop-tauri',
-      currentVersion: '1.9.10',
-    });
-
-    expect(result.available).toBe(true);
-    expect(result.version).toBe('1.10.0');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('accepts electron desktop update claims without npm cross-checking', async () => {
-    fetchMock
-      .when('updates.ax-code.test', {
-        ok: true,
-        json: async () => ({
-          latestVersion: '1.10.0',
-          updateAvailable: true,
-          releaseNotes: '## [1.10.0] - 2026-05-01\n\n- Great new feature',
-        }),
-      });
-
-    const result = await checkForUpdates({
-      appType: 'desktop-electron',
-      currentVersion: '1.9.10',
-    });
-
-    expect(result.available).toBe(true);
-    expect(result.version).toBe('1.10.0');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('normalizes unsupported runtime update metadata before calling the update API', async () => {
-    fetchMock
-      .when('updates.ax-code.test', {
-        ok: true,
-        json: async () => ({
-          latestVersion: '1.9.10',
-          updateAvailable: false,
-        }),
-      });
-
-    await checkForUpdates({
-      appType: 'vscode',
-      platform: 'windows',
-      arch: 'x64',
-      currentVersion: '1.9.10',
-    });
-
-    const [, request] = fetchMock.mock.calls[0];
-    const payload = JSON.parse(request.body);
-    const expectedPlatform =
-      process.platform === 'darwin'
-        ? 'macos'
-        : process.platform === 'win32'
-          ? 'windows'
-          : process.platform === 'linux'
-            ? 'linux'
-            : 'web';
-    const expectedArch =
-      process.arch === 'arm64' || process.arch === 'aarch64'
-        ? 'arm64'
-        : process.arch === 'x64' || process.arch === 'amd64'
-          ? 'x64'
-          : 'unknown';
-
-    expect(payload.appType).toBe('web');
-    expect(payload.platform).toBe(expectedPlatform);
-    expect(payload.arch).toBe(expectedArch);
-  });
-
-  it('returns available=false when API claims update but npm is behind', async () => {
-    fetchMock
-      .when('updates.ax-code.test', {
-        ok: true,
-        json: async () => ({
-          latestVersion: '1.10.0',
-          updateAvailable: true,
-          releaseNotes: '## [1.10.0] - 2026-05-01\n\n- Great new feature',
-        }),
-      })
-      .when('registry.npmjs.org', {
-        ok: true,
-        json: async () => ({
-          'dist-tags': { latest: '1.9.9' },
-        }),
-      });
-
-    const result = await checkForUpdates({ currentVersion: '1.9.10' });
-
-    expect(result.available).toBe(false);
-  });
-
-  // --- Scenario: API says no update, npm agrees ---
-
-  it('returns available=false when API says no update and versions match', async () => {
-    fetchMock.when('updates.ax-code.test', {
-      ok: true,
-      json: async () => ({
-        latestVersion: '1.9.10',
-        updateAvailable: false,
-      }),
-    });
-
-    const result = await checkForUpdates({ currentVersion: '1.9.10' });
-
-    expect(result.available).toBe(false);
-  });
-
-  // --- Scenario: API unreachable, npm fallback ---
-
-  it('returns available=true from npm fallback when API is unreachable and npm has newer version', async () => {
-    fetchMock
-      .when('updates.ax-code.test', Promise.reject(new Error('Network error')))
-      .when('registry.npmjs.org', {
-        ok: true,
-        json: async () => ({
-          'dist-tags': { latest: '1.10.0' },
-        }),
-      })
-      .when('raw.ax-code.test', {
-        ok: true,
-        text: async () => '## [1.10.0] - 2026-05-01\n\n- Great new feature',
-      });
-
-    const result = await checkForUpdates({ currentVersion: '1.9.10' });
-
-    expect(result.available).toBe(true);
-    expect(result.version).toBe('1.10.0');
-  });
-
-  it('returns available=false from npm fallback when API is unreachable and versions match', async () => {
-    fetchMock
-      .when('updates.ax-code.test', Promise.reject(new Error('Network error')))
-      .when('registry.npmjs.org', {
-        ok: true,
-        json: async () => ({
-          'dist-tags': { latest: '1.9.10' },
-        }),
-      });
-
-    const result = await checkForUpdates({ currentVersion: '1.9.10' });
-
-    expect(result.available).toBe(false);
-  });
-
-  // --- Scenario: API returns null (bad response), npm fallback ---
-
-  it('returns available=false when API returns non-ok status and versions match on npm', async () => {
-    fetchMock
-      .when('updates.ax-code.test', {
-        ok: false,
-        status: 500,
-        json: async () => ({}),
-      })
-      .when('registry.npmjs.org', {
-        ok: true,
-        json: async () => ({
-          'dist-tags': { latest: '1.9.10' },
-        }),
-      });
-
-    const result = await checkForUpdates({ currentVersion: '1.9.10' });
-
-    expect(result.available).toBe(false);
-  });
-
-  // --- Scenario: Both API and npm are unreachable ---
-
-  it('returns available=false when both sources are unreachable', async () => {
-    fetchMock
-      .when('updates.ax-code.test', Promise.reject(new Error('Network error')))
-      .when('registry.npmjs.org', Promise.reject(new Error('Registry unreachable')));
-
-    const result = await checkForUpdates({ currentVersion: '1.9.10' });
-
-    expect(result.available).toBe(false);
-  });
-
-  // --- Scenario: no update source configured (safe default) ---
-
-  it('reports no update without remote calls or error when nothing is configured', async () => {
-    delete process.env.AX_CODE_UPDATE_API_URL;
-    delete process.env.AX_CODE_UPDATE_NPM_PACKAGE;
-    delete process.env.AX_CODE_UPDATE_CHANGELOG_URL;
-
+  it('reports no update and makes no remote calls even when update env vars are set', async () => {
     const result = await checkForUpdates({ currentVersion: '1.9.10' });
 
     expect(result.available).toBe(false);
     expect(result.currentVersion).toBe('1.9.10');
     expect(result.error).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('makes no remote calls for desktop app types either', async () => {
+    const result = await checkForUpdates({ appType: 'desktop-electron', currentVersion: '1.9.10' });
+
+    expect(result.available).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
