@@ -1092,21 +1092,53 @@ const getProjectStoragePath = (projectID) => {
   return path.join(getAxCodeDataPath(), 'storage', 'project', `${projectID}.json`);
 };
 
+// Reuse a single long-lived better-sqlite3 connection instead of opening and
+// closing one per call. better-sqlite3 is synchronous and fast when the handle
+// is reused; the per-call open/close was the cost. The connection lifetime is
+// bounded by the (now isolated) server process; it is also closed on exit.
+let _axCodeDb = null;
+let _axCodeDbPath = null;
+let _selectSandboxesStmt = null;
+let _updateSandboxesStmt = null;
+
+const resetAxCodeDb = () => {
+  try { _axCodeDb?.close(); } catch { /* ignore */ }
+  _axCodeDb = null;
+  _axCodeDbPath = null;
+  _selectSandboxesStmt = null;
+  _updateSandboxesStmt = null;
+};
+
+const getAxCodeDb = () => {
+  const dbPath = path.join(getAxCodeDataPath(), 'ax-code.db');
+  if (_axCodeDb && _axCodeDb.open && _axCodeDbPath === dbPath) return _axCodeDb;
+  if (_axCodeDb) resetAxCodeDb();
+  if (!fs.existsSync(dbPath)) return null;
+  const Database = require('better-sqlite3');
+  _axCodeDb = new Database(dbPath);
+  _axCodeDbPath = dbPath;
+  _selectSandboxesStmt = null;
+  _updateSandboxesStmt = null;
+  return _axCodeDb;
+};
+
+if (typeof process !== 'undefined' && typeof process.once === 'function') {
+  process.once('exit', resetAxCodeDb);
+}
+
 const syncSandboxesToAxCodeDb = (projectID, sandboxes) => {
   try {
-    const Database = require('better-sqlite3');
-    const dbPath = path.join(getAxCodeDataPath(), 'ax-code.db');
-    if (!fs.existsSync(dbPath)) return;
-    const db = new Database(dbPath);
-    try {
-      const row = db.prepare('SELECT sandboxes FROM project WHERE id = ?').get(projectID);
-      if (!row) return;
-      const json = JSON.stringify(sandboxes);
-      db.prepare('UPDATE project SET sandboxes = ?, time_updated = ? WHERE id = ?').run(json, Date.now(), projectID);
-    } finally {
-      db.close();
-    }
+    const db = getAxCodeDb();
+    if (!db) return;
+    _selectSandboxesStmt ??= db.prepare('SELECT sandboxes FROM project WHERE id = ?');
+    const row = _selectSandboxesStmt.get(projectID);
+    if (!row) return;
+    _updateSandboxesStmt ??= db.prepare('UPDATE project SET sandboxes = ?, time_updated = ? WHERE id = ?');
+    const json = JSON.stringify(sandboxes);
+    _updateSandboxesStmt.run(json, Date.now(), projectID);
   } catch (error) {
+    // On any DB error, drop the cached handle so the next call reopens cleanly.
+    resetAxCodeDb();
     console.warn('Failed to sync sandboxes to AX Code DB:', error instanceof Error ? error.message : String(error));
   }
 };
@@ -1537,8 +1569,14 @@ export async function getStatus(directory, options = {}) {
     const newFileStats = [];
 
     if (!lightMode) {
+      // Select candidates with the cheap synchronous checks first (capped), then
+      // read them with bounded concurrency. The previous sequential await-per-file
+      // loop blocked the event loop for the duration of every stat+read; reads are
+      // independent, so running a small batch in parallel cuts wall-clock time.
+      const NEW_FILE_STAT_CONCURRENCY = 12;
+      const candidates = [];
       for (const file of status.files) {
-        if (newFileStats.length >= MAX_NEW_FILE_STATS) {
+        if (candidates.length >= MAX_NEW_FILE_STATS) {
           break;
         }
 
@@ -1555,32 +1593,31 @@ export async function getStatus(directory, options = {}) {
           continue;
         }
 
+        candidates.push(file);
+      }
+
+      const estimateNewFileStat = async (file) => {
+        const existing = diffStats[file.path];
         const absolutePath = path.join(repoRoot, file.path);
 
         try {
           const stat = await fsp.stat(absolutePath);
           if (!stat.isFile() || stat.size > MAX_NEW_FILE_STAT_SIZE) {
-            continue;
+            return null;
           }
 
           const buffer = await fsp.readFile(absolutePath);
           if (buffer.indexOf(0) !== -1) {
-            newFileStats.push({
+            return {
               path: file.path,
               insertions: existing?.insertions ?? 0,
               deletions: existing?.deletions ?? 0,
-            });
-            continue;
+            };
           }
 
           const normalized = buffer.toString('utf8').replace(/\r\n/g, '\n');
           if (!normalized.length) {
-            newFileStats.push({
-              path: file.path,
-              insertions: 0,
-              deletions: 0,
-            });
-            continue;
+            return { path: file.path, insertions: 0, deletions: 0 };
           }
 
           const segments = normalized.split('\n');
@@ -1588,16 +1625,22 @@ export async function getStatus(directory, options = {}) {
             segments.pop();
           }
 
-          const lineCount = segments.length;
-          newFileStats.push({
-            path: file.path,
-            insertions: lineCount,
-            deletions: 0,
-          });
+          return { path: file.path, insertions: segments.length, deletions: 0 };
         } catch (error) {
           if (error?.code !== 'ENOENT') {
             console.warn('Failed to estimate diff stats for new file', file.path, error);
           }
+          return null;
+        }
+      };
+
+      // Process candidates in fixed-size batches to bound concurrent open file
+      // descriptors while still parallelizing the IO.
+      for (let i = 0; i < candidates.length; i += NEW_FILE_STAT_CONCURRENCY) {
+        const batch = candidates.slice(i, i + NEW_FILE_STAT_CONCURRENCY);
+        const results = await Promise.all(batch.map(estimateNewFileStat));
+        for (const result of results) {
+          if (result) newFileStats.push(result);
         }
       }
     }

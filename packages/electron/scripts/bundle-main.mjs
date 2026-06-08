@@ -39,13 +39,16 @@ const shared = {
   sourcemap: false,
 }
 
-// Main process + preload stay CJS because Electron reads package.json "main".
+// Main process + preload + server-process entry stay CJS. The server-process
+// entry runs inside a utilityProcess and requires the sibling server bundle at
+// runtime, so './server.js' is kept external here just like in main.js.
 await build({
   ...shared,
   format: 'cjs',
   entryPoints: [
     path.join(__dirname, '../src/main.js'),
     path.join(__dirname, '../src/preload.js'),
+    path.join(__dirname, '../src/server-process.js'),
   ],
   outdir: outDir,
   external: [...nativeExternals, './server.js'],
@@ -68,4 +71,4 @@ await build({
   },
 })
 
-console.log('[electron] bundle → dist/{main,preload,server}.js')
+console.log('[electron] bundle → dist/{main,preload,server-process,server}.js')

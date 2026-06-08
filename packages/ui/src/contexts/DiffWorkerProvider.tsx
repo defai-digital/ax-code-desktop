@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import type { SupportedLanguages } from '@pierre/diffs';
 import { WorkerPoolManager } from '@pierre/diffs/worker';
 
@@ -77,27 +77,64 @@ const getWorkerPool = (style: WorkerPoolStyle): WorkerPoolManager | undefined =>
   return unifiedWorkerPool;
 };
 
+const syncPoolRenderTheme = (renderTheme: { light: string; dark: string }) => {
+  // Only sync pools that already exist — never create them here.
+  if (unifiedWorkerPool) {
+    void unifiedWorkerPool.setRenderOptions({
+      theme: renderTheme,
+      lineDiffType: WORKER_POOL_CONFIG.unified.lineDiffType,
+    });
+  }
+  if (splitWorkerPool) {
+    void splitWorkerPool.setRenderOptions({
+      theme: renderTheme,
+      lineDiffType: WORKER_POOL_CONFIG.split.lineDiffType,
+    });
+  }
+};
+
 const WorkerPoolWarmup: React.FC<{
   children: React.ReactNode;
   renderTheme: { light: string; dark: string };
 }> = ({ children, renderTheme }) => {
-  const unifiedPool = useWorkerPool('unified');
-  const splitPool = useWorkerPool('split');
+  const renderThemeRef = useRef(renderTheme);
+  renderThemeRef.current = renderTheme;
 
+  // Defer worker-pool creation off the cold-start critical path. Creating a pool
+  // loads the Shiki highlighter + preload languages inside the worker (a separate,
+  // chunk-split ~7MB payload); doing that during initial app load competes with
+  // first paint. Warm the pools once the main thread goes idle instead. If the
+  // user opens a diff before then, useWorkerPool creates the pool on demand and
+  // PierreDiffViewer passes its own per-diff theme, so nothing is lost by waiting.
   useEffect(() => {
-    if (unifiedPool) {
-      void unifiedPool.setRenderOptions({
-        theme: renderTheme,
-        lineDiffType: WORKER_POOL_CONFIG.unified.lineDiffType,
-      });
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+    const warm = () => {
+      if (cancelled) return;
+      getWorkerPool('unified');
+      getWorkerPool('split');
+      syncPoolRenderTheme(renderThemeRef.current);
+    };
+
+    const idle = window.requestIdleCallback;
+    if (typeof idle === 'function') {
+      const handle = idle(warm, { timeout: 2000 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(handle);
+      };
     }
-    if (splitPool) {
-      void splitPool.setRenderOptions({
-        theme: renderTheme,
-        lineDiffType: WORKER_POOL_CONFIG.split.lineDiffType,
-      });
-    }
-  }, [renderTheme, splitPool, unifiedPool]);
+    const handle = window.setTimeout(warm, 1000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, []);
+
+  // Keep already-warmed pools in sync with theme changes.
+  useEffect(() => {
+    syncPoolRenderTheme(renderTheme);
+  }, [renderTheme]);
 
   return <>{children}</>;
 };

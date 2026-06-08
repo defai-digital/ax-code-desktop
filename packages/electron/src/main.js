@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, ipcMain, shell, session } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, session, utilityProcess } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const os = require('os')
@@ -34,24 +34,96 @@ function getDevRendererUrl() {
   }
 }
 
-// Must be set before the server module is required so the server picks them up
-// at module init time.
-process.env.OPENCHAMBER_DIST_DIR = getWebDistPath()
-process.env.OPENCHAMBER_RUNTIME = 'desktop'
-
 // ── State ───────────────────────────────────────────────────────────────────
 let mainWindow = null
 let serverPort = 0
-let serverHandle = null
-
-// Bundled server (dist/server.js produced by bundle-main.mjs).
-const { startWebUiServer } = require('./server.js')
+let serverChild = null
 
 // ── Server ──────────────────────────────────────────────────────────────────
-async function launchServer() {
-  const configuredPort = Number.parseInt(process.env.OPENCHAMBER_ELECTRON_SERVER_PORT || '', 10)
-  serverHandle = await startWebUiServer({ port: Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 0 })
-  serverPort = serverHandle.getPort()
+// The web server runs in a dedicated utilityProcess (dist/server-process.js)
+// rather than in-process, so its CPU/IO never blocks the main event loop that
+// drives the window, IPC, and auto-update. The renderer reaches it over HTTP
+// loopback exactly as before — only where the server runs changes.
+const SERVER_START_TIMEOUT_MS = 30_000
+const SERVER_STOP_TIMEOUT_MS = 5_000
+
+function launchServer() {
+  return new Promise((resolve, reject) => {
+    const serverEntry = path.join(__dirname, 'server-process.js')
+    serverChild = utilityProcess.fork(serverEntry, [], {
+      serviceName: 'ax-code-server',
+      env: {
+        ...process.env,
+        // The server reads these at module-init time; previously set on the
+        // main process before require, now passed into the forked process.
+        OPENCHAMBER_DIST_DIR: getWebDistPath(),
+        OPENCHAMBER_RUNTIME: 'desktop',
+      },
+    })
+
+    let settled = false
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      try { serverChild?.kill() } catch { /* ignore */ }
+      reject(new Error('server process start timed out'))
+    }, SERVER_START_TIMEOUT_MS)
+
+    serverChild.on('message', (msg) => {
+      if (settled) return
+      if (msg?.type === 'ready') {
+        settled = true
+        clearTimeout(timer)
+        serverPort = msg.port
+        resolve()
+      } else if (msg?.type === 'error') {
+        settled = true
+        clearTimeout(timer)
+        reject(new Error(msg.message || 'server process failed to start'))
+      }
+    })
+
+    serverChild.on('exit', (code) => {
+      const wasReady = settled
+      serverChild = null
+      if (!settled) {
+        settled = true
+        clearTimeout(timer)
+        reject(new Error(`server process exited before ready (code ${code})`))
+      } else if (wasReady && code !== 0) {
+        console.error('[electron] server process exited unexpectedly with code', code)
+      }
+    })
+  })
+}
+
+// Ask the server to shut down gracefully (which also stops the ax-code child it
+// spawned), then ensure the process is gone. Resolves once the child exits or a
+// timeout forces a kill.
+function stopServer() {
+  const child = serverChild
+  if (!child) return Promise.resolve()
+  serverChild = null
+  return new Promise((resolve) => {
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      try { child.kill() } catch { /* ignore */ }
+      finish()
+    }, SERVER_STOP_TIMEOUT_MS)
+    child.once('exit', finish)
+    try {
+      child.postMessage({ type: 'stop' })
+    } catch {
+      try { child.kill() } catch { /* ignore */ }
+      finish()
+    }
+  })
 }
 
 // ── Window ──────────────────────────────────────────────────────────────────
@@ -211,10 +283,10 @@ app.whenReady().then(async () => {
     autoUpdater.checkForUpdates().catch(() => {})
   } catch (err) {
     console.error('[electron] startup failed:', err)
-    // app.exit() does not fire 'before-quit', so stop the in-process server
+    // app.exit() does not fire 'before-quit', so stop the server process
     // (and any ax-code child it spawned) here to avoid orphaning it when the
     // server booted but window creation failed.
-    await serverHandle?.stop({ exitProcess: false }).catch(() => {})
+    await stopServer().catch(() => {})
     app.exit(1)
   }
 })
@@ -222,7 +294,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   // On macOS, keep the server running so the user can reopen from the dock.
   if (process.platform !== 'darwin') {
-    serverHandle?.stop({ exitProcess: false }).catch(() => {}).finally(() => app.quit())
+    stopServer().finally(() => app.quit())
   }
 })
 
@@ -233,5 +305,5 @@ app.on('activate', () => {
 })
 
 app.on('before-quit', () => {
-  serverHandle?.stop({ exitProcess: false }).catch(() => {})
+  void stopServer()
 })
