@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-08
+
+- Security: removed browser/server voice, TTS, STT, and microphone permission surfaces from AX Code Desktop.
+- Security: removed built-in Cloudflare/ngrok public tunnel provisioning and related CLI, settings, docs, and server routes.
+- SDK: refreshed the vendored AX Code JavaScript SDK from `defai-digital/ax-code` and kept desktop integration on the current v2 app API.
+- Desktop: completed the AX Code Desktop naming cleanup, English-only UI cleanup, and canonical AX Code package usage for remote SSH installs.
+- Release: added Windows arm64 packaging support and per-architecture update manifest merging.
+
 ## [0.9.2] - 2026-06-07
 
 - Release: moved minisign signing into the GitHub release workflow, pinned the release public key, and requires signature coverage before publishing release drafts.
