@@ -98,7 +98,9 @@ const WorkerPoolWarmup: React.FC<{
   renderTheme: { light: string; dark: string };
 }> = ({ children, renderTheme }) => {
   const renderThemeRef = useRef(renderTheme);
-  renderThemeRef.current = renderTheme;
+  useEffect(() => {
+    renderThemeRef.current = renderTheme;
+  }, [renderTheme]);
 
   // Defer worker-pool creation off the cold-start critical path. Creating a pool
   // loads the Shiki highlighter + preload languages inside the worker (a separate,
