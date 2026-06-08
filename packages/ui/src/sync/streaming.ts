@@ -37,6 +37,9 @@ export const useStreamingStore = create<StreamingStore>()(() => ({
 /** Only update lastUpdateAt every this many ms to avoid 60Hz store churn */
 const STREAMING_HEARTBEAT_MS = 1000
 
+/** Drop completed stream states this long after completion to bound the map */
+const COMPLETED_RETENTION_MS = 60_000
+
 export function updateStreamingState(state: State) {
   const now = Date.now()
   const currentStore = useStreamingStore.getState()
@@ -123,6 +126,21 @@ export function updateStreamingState(state: State) {
     if (isStillBusy) continue
 
     completeStreamingMessage(sessionID, msgId)
+  }
+
+  // Prune long-completed entries so messageStreamStates does not grow unbounded
+  // over a session with many messages. Once a message finished streaming more
+  // than COMPLETED_RETENTION_MS ago it no longer needs lifecycle tracking;
+  // selectors fall back to null, which is correct for a settled message.
+  for (const [msgId, streamState] of nextStreamStates) {
+    if (
+      streamState.phase === "completed" &&
+      streamState.completedAt !== undefined &&
+      now - streamState.completedAt > COMPLETED_RETENTION_MS
+    ) {
+      nextStreamStates.delete(msgId)
+      changed = true
+    }
   }
 
   if (changed) {

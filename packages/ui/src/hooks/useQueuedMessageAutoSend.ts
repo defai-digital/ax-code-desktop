@@ -195,6 +195,20 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       nextStatusMap.set(sessionId, currentStatusType);
     });
 
+    // Prune sessions that are no longer tracked (deleted/archived/gone) so the
+    // status map does not grow unbounded over a long-running app session. A
+    // session that later reappears starts with no previous status, which
+    // correctly prevents a spurious idle-transition auto-send.
+    const activeSessionIds = new Set([
+      ...Object.keys(statusRecord),
+      ...Object.keys(queuedMessages),
+    ]);
+    for (const sessionId of nextStatusMap.keys()) {
+      if (!activeSessionIds.has(sessionId)) {
+        nextStatusMap.delete(sessionId);
+      }
+    }
+
     previousStatusRef.current = nextStatusMap;
   }, [enabled, queuedMessages, sessionStatusRecord]);
 }

@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import type { Message, SessionStatus } from "@ax-code/sdk/v2/client"
 import { INITIAL_STATE, type State } from "./types"
-import { updateStreamingState, useStreamingStore } from "./streaming"
+import { type MessageStreamState, updateStreamingState, useStreamingStore } from "./streaming"
+
+const completedAt = (at: number): MessageStreamState => ({
+  phase: "completed",
+  startedAt: at,
+  lastUpdateAt: at,
+  completedAt: at,
+})
 
 const message = (id: string, role: "user" | "assistant"): Message => ({
   id,
@@ -79,5 +86,28 @@ describe("updateStreamingState", () => {
 
     expect(useStreamingStore.getState().streamingMessageIds.get("ses_1")).toBeNull()
     expect(useStreamingStore.getState().messageStreamStates.get("msg_assistant_1")?.phase).toBe("completed")
+  })
+
+  test("prunes completed stream states older than the retention window", () => {
+    useStreamingStore.setState({
+      streamingMessageIds: new Map(),
+      messageStreamStates: new Map([["msg_old", completedAt(Date.now() - 61_000)]]),
+    })
+
+    // Any update tick runs the prune pass.
+    updateStreamingState({ ...INITIAL_STATE })
+
+    expect(useStreamingStore.getState().messageStreamStates.has("msg_old")).toBe(false)
+  })
+
+  test("keeps recently completed stream states within the retention window", () => {
+    useStreamingStore.setState({
+      streamingMessageIds: new Map(),
+      messageStreamStates: new Map([["msg_recent", completedAt(Date.now() - 1_000)]]),
+    })
+
+    updateStreamingState({ ...INITIAL_STATE })
+
+    expect(useStreamingStore.getState().messageStreamStates.get("msg_recent")?.phase).toBe("completed")
   })
 })
