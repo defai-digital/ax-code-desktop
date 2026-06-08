@@ -304,6 +304,15 @@ app.on('activate', () => {
   }
 })
 
-app.on('before-quit', () => {
-  void stopServer()
+let isQuitting = false
+app.on('before-quit', (event) => {
+  // Fire-and-forget would let the app exit before the server shuts down,
+  // orphaning ax-code-server (and its ax-code child) and leaving the port
+  // bound — the next launch then fails to rebind. Hold the quit, shut down
+  // gracefully, then quit for real. stopServer() nulls serverChild
+  // synchronously and the guard prevents intercepting the re-triggered quit.
+  if (isQuitting) return
+  isQuitting = true
+  event.preventDefault()
+  stopServer().finally(() => app.quit())
 })
