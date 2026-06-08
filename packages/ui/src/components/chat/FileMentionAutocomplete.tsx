@@ -533,7 +533,8 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
                     className="relative flex-1 min-w-0 overflow-hidden file-mention-marquee-container"
                     style={isSelected ? {
                       ['--file-mention-marquee-width' as string]: `${marqueeWidth}px`,
-                      ['--file-mention-marquee-duration' as string]: `${marqueeDuration}s`
+                      ['--file-mention-marquee-duration' as string]: `${marqueeDuration}s`,
+                      ['--file-mention-marquee-fade-bg' as string]: 'var(--interactive-selection)'
                     } : undefined}
                     aria-label={relativePath}
                   >
@@ -584,7 +585,8 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
                     className="relative flex-1 min-w-0 overflow-hidden file-mention-marquee-container"
                     style={isSelected ? {
                       ['--file-mention-marquee-width' as string]: `${marqueeWidth}px`,
-                      ['--file-mention-marquee-duration' as string]: `${marqueeDuration}s`
+                      ['--file-mention-marquee-duration' as string]: `${marqueeDuration}s`,
+                      ['--file-mention-marquee-fade-bg' as string]: 'var(--interactive-selection)'
                     } : undefined}
                     aria-label={relativePath}
                   >

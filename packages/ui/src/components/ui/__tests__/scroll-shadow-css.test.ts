@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
 const indexCss = readFileSync(new URL("../../../index.css", import.meta.url), "utf8");
+const mainLayoutSource = readFileSync(new URL("../../layout/MainLayout.tsx", import.meta.url), "utf8");
+const toolRevealSource = readFileSync(new URL("../../chat/message/parts/ToolRevealOnMount.tsx", import.meta.url), "utf8");
 
 function getScrollShadowCss() {
   const start = indexCss.indexOf('/* Scroll shadow fallback without CSS masks');
@@ -20,5 +22,14 @@ describe("scroll shadow css", () => {
     expect(scrollShadowCss).not.toContain("mask-image");
     expect(scrollShadowCss).not.toContain("-webkit-mask-image");
     expect(scrollShadowCss).toContain("box-shadow");
+  });
+
+  test("does not use CSS masks in known Electron rendering risk paths", () => {
+    expect(indexCss).not.toContain("mask-image");
+    expect(indexCss).not.toContain("-webkit-mask-image");
+    expect(mainLayoutSource).not.toContain("maskImage");
+    expect(mainLayoutSource).not.toContain("WebkitMaskImage");
+    expect(toolRevealSource).not.toContain("maskImage");
+    expect(toolRevealSource).not.toContain("webkitMaskImage");
   });
 });

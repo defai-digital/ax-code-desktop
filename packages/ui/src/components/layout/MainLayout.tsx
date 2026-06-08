@@ -33,6 +33,10 @@ const DESKTOP_SIDEBAR_MIN_WIDTH = 280;
 const DESKTOP_SIDEBAR_MAX_WIDTH = 500;
 const DESKTOP_RIGHT_SIDEBAR_MIN_WIDTH = 360;
 const DESKTOP_RIGHT_SIDEBAR_MAX_WIDTH = 860;
+const SIDEBAR_CORNER_SIZE = 10;
+
+const sidebarCornerBackground = (position: string) =>
+    `radial-gradient(circle at ${position}, transparent calc(${SIDEBAR_CORNER_SIZE}px - 1px), var(--sidebar) ${SIDEBAR_CORNER_SIZE}px)`;
 
 export const MainLayout: React.FC = () => {
     const RIGHT_SIDEBAR_AUTO_CLOSE_WIDTH = 1140;
@@ -277,8 +281,7 @@ export const MainLayout: React.FC = () => {
                                     opacity: isSidebarOpen ? 1 : 0,
                                     width: '10px',
                                     height: '10px',
-                                    WebkitMaskImage: 'radial-gradient(circle at 100% 100%, transparent calc(10px - 1px), black 10px)',
-                                    maskImage: 'radial-gradient(circle at 100% 100%, transparent calc(10px - 1px), black 10px)',
+                                    background: sidebarCornerBackground('100% 100%'),
                                 }}
                             />
                             <div
@@ -289,8 +292,7 @@ export const MainLayout: React.FC = () => {
                                     opacity: isSidebarOpen ? 1 : 0,
                                     width: '10px',
                                     height: '10px',
-                                    WebkitMaskImage: 'radial-gradient(circle at 100% 0%, transparent calc(10px - 1px), black 10px)',
-                                    maskImage: 'radial-gradient(circle at 100% 0%, transparent calc(10px - 1px), black 10px)',
+                                    background: sidebarCornerBackground('100% 0%'),
                                 }}
                             />
                             <div
@@ -301,8 +303,7 @@ export const MainLayout: React.FC = () => {
                                     opacity: isRightSidebarOpen ? 1 : 0,
                                     width: '10px',
                                     height: '10px',
-                                    WebkitMaskImage: 'radial-gradient(circle at 0 100%, transparent calc(10px - 1px), black 10px)',
-                                    maskImage: 'radial-gradient(circle at 0 100%, transparent calc(10px - 1px), black 10px)',
+                                    background: sidebarCornerBackground('0 100%'),
                                 }}
                             />
                             <div
@@ -313,8 +314,7 @@ export const MainLayout: React.FC = () => {
                                     opacity: isRightSidebarOpen ? 1 : 0,
                                     width: '10px',
                                     height: '10px',
-                                    WebkitMaskImage: 'radial-gradient(circle at 0 0, transparent calc(10px - 1px), black 10px)',
-                                    maskImage: 'radial-gradient(circle at 0 0, transparent calc(10px - 1px), black 10px)',
+                                    background: sidebarCornerBackground('0 0'),
                                 }}
                             />
                             <Sidebar

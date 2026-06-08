@@ -307,8 +307,18 @@ textarea[data-chat-input="true"]:focus-visible {
 .file-mention-marquee-container {
   --file-mention-marquee-width: 360px;
   --file-mention-marquee-duration: 4s;
-  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
+  --file-mention-marquee-fade-bg: var(--background);
+  --file-mention-marquee-fade-width: 24px;
+}
+
+.file-mention-marquee-container::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: min(var(--file-mention-marquee-fade-width), 40%);
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--file-mention-marquee-fade-bg) 85%);
 }
 
 .file-mention-marquee {
