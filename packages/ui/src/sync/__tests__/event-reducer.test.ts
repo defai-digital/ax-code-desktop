@@ -178,6 +178,66 @@ describe("applyDirectoryEvent", () => {
     expect(draft.message.ses_1[0]).toBe(initial)
   })
 
+  test("detects assistant message finish changes without deep serialization", () => {
+    const initial = assistantMessage()
+    const draft = state({
+      message: { ses_1: [initial] },
+    })
+
+    const result = applyDirectoryEvent(draft, {
+      type: "message.updated",
+      properties: { info: assistantMessage({ finish: "stop" }) },
+    } as Event)
+
+    expect(result).toBe(true)
+    expect(draft.message.ses_1[0]).not.toBe(initial)
+    expect((draft.message.ses_1[0] as Extract<Message, { role: "assistant" }>).finish).toBe("stop")
+  })
+
+  test("dedupes long delta overlaps after long accumulated text", () => {
+    const draft = state()
+    const longPrefix = "x".repeat(50_000)
+    const longOverlap = "abcdef".repeat(300)
+
+    applyDirectoryEvent(draft, {
+      type: "message.part.updated",
+      properties: {
+        part: {
+          id: "prt_long",
+          messageID: "msg_long",
+          sessionID: "ses_1",
+          type: "text",
+          text: longPrefix,
+        },
+      },
+    } as Event)
+
+    applyDirectoryEvent(draft, {
+      type: "message.part.updated",
+      properties: {
+        part: {
+          id: "prt_long",
+          messageID: "msg_long",
+          sessionID: "ses_1",
+          type: "text",
+          text: `${longPrefix}${longOverlap}`,
+        },
+      },
+    } as Event)
+
+    applyDirectoryEvent(draft, {
+      type: "message.part.delta",
+      properties: {
+        messageID: "msg_long",
+        partID: "prt_long",
+        field: "text",
+        delta: `${longOverlap}ghi`,
+      },
+    } as Event)
+
+    expect((draft.part.msg_long?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe(`${longPrefix}${longOverlap}ghi`)
+  })
+
   test("skips duplicate session status events", () => {
     const draft = state()
     const busyStatus = { type: "busy" } as SessionStatus

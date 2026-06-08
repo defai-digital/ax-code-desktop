@@ -18,6 +18,21 @@ import { syncDebug } from "./debug"
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const DELTA_OVERLAP_FIELDS = ["text", "output"] as const
 const FINAL_TOOL_STATUSES = new Set(["completed", "error", "aborted", "failed", "timeout", "cancelled"])
+const MESSAGE_COMMON_KEYS = new Set(["id", "sessionID", "role", "time", "summary"])
+const USER_MESSAGE_KEYS = new Set(["format", "agent", "model", "system", "tools", "isolation", "variant"])
+const ASSISTANT_MESSAGE_KEYS = new Set([
+  "error",
+  "parentID",
+  "modelID",
+  "providerID",
+  "mode",
+  "agent",
+  "path",
+  "tokens",
+  "structured",
+  "variant",
+  "finish",
+])
 
 type DedupeMetadata = {
   __dedupeNextDeltaFields?: string[]
@@ -27,14 +42,38 @@ function appendNonOverlappingDelta(existingValue: string | undefined, delta: str
   if (!existingValue || delta.length === 0) return (existingValue ?? "") + delta
   if (existingValue.endsWith(delta)) return existingValue
 
-  const maxOverlap = Math.min(existingValue.length, delta.length)
-  for (let overlap = maxOverlap; overlap > 0; overlap--) {
-    if (existingValue.endsWith(delta.slice(0, overlap))) {
-      return existingValue + delta.slice(overlap)
+  const overlap = longestSuffixPrefixOverlap(existingValue, delta)
+  if (overlap > 0) return existingValue + delta.slice(overlap)
+
+  return existingValue + delta
+}
+
+function longestSuffixPrefixOverlap(existingValue: string, delta: string): number {
+  const suffix = existingValue.slice(-delta.length)
+  const prefixLengths = new Array<number>(delta.length).fill(0)
+
+  for (let i = 1; i < delta.length; i++) {
+    let j = prefixLengths[i - 1]
+    while (j > 0 && delta[i] !== delta[j]) {
+      j = prefixLengths[j - 1]
+    }
+    if (delta[i] === delta[j]) {
+      j += 1
+    }
+    prefixLengths[i] = j
+  }
+
+  let overlap = 0
+  for (const char of suffix) {
+    while (overlap > 0 && char !== delta[overlap]) {
+      overlap = prefixLengths[overlap - 1]
+    }
+    if (char === delta[overlap]) {
+      overlap += 1
     }
   }
 
-  return existingValue + delta
+  return overlap
 }
 
 function getUpdatedDeltaFields(previous: Part, next: Part) {
@@ -104,7 +143,157 @@ function areSessionStatusesEqual(left: SessionStatus | undefined, right: Session
 
 function areMessagesEqual(left: Message, right: Message): boolean {
   if (left === right) return true
-  return JSON.stringify(left) === JSON.stringify(right)
+  if (left.id !== right.id || left.sessionID !== right.sessionID || left.role !== right.role) return false
+  if (!areMessageTimeEqual(left, right)) return false
+  if (!areKnownMessageKeysEqual(left, right)) return false
+  return areUnknownMessageKeysEqual(left, right)
+}
+
+function areMessageTimeEqual(left: Message, right: Message): boolean {
+  return left.time?.created === right.time?.created
+    && (left as { time?: { completed?: number } }).time?.completed === (right as { time?: { completed?: number } }).time?.completed
+}
+
+function areKnownMessageKeysEqual(left: Message, right: Message): boolean {
+  if (left.role === "user") {
+    return areUserMessagesEqual(left, right as Extract<Message, { role: "user" }>)
+  }
+  return areAssistantMessagesEqual(left, right as Extract<Message, { role: "assistant" }>)
+}
+
+function areUserMessagesEqual(left: Extract<Message, { role: "user" }>, right: Extract<Message, { role: "user" }>): boolean {
+  return left.agent === right.agent
+    && left.system === right.system
+    && left.variant === right.variant
+    && areModelRefsEqual(left.model, right.model)
+    && areOutputFormatsEqual(left.format, right.format)
+    && areUserSummariesEqual(left.summary, right.summary)
+    && areStringBooleanRecordsEqual(left.tools, right.tools)
+    && areIsolationEqual(left.isolation, right.isolation)
+}
+
+function areAssistantMessagesEqual(left: Extract<Message, { role: "assistant" }>, right: Extract<Message, { role: "assistant" }>): boolean {
+  return left.parentID === right.parentID
+    && left.modelID === right.modelID
+    && left.providerID === right.providerID
+    && left.mode === right.mode
+    && left.agent === right.agent
+    && left.summary === right.summary
+    && left.variant === right.variant
+    && left.finish === right.finish
+    && left.structured === right.structured
+    && arePathRefsEqual(left.path, right.path)
+    && areTokenUsageEqual(left.tokens, right.tokens)
+    && areMessageErrorsEqual(left.error, right.error)
+}
+
+function areModelRefsEqual(
+  left: Extract<Message, { role: "user" }>["model"] | undefined,
+  right: Extract<Message, { role: "user" }>["model"] | undefined,
+): boolean {
+  if (left === right) return true
+  if (!left || !right) return false
+  return left.providerID === right.providerID && left.modelID === right.modelID
+}
+
+function arePathRefsEqual(
+  left: Extract<Message, { role: "assistant" }>["path"] | undefined,
+  right: Extract<Message, { role: "assistant" }>["path"] | undefined,
+): boolean {
+  if (left === right) return true
+  if (!left || !right) return false
+  return left.cwd === right.cwd && left.root === right.root
+}
+
+function areTokenUsageEqual(
+  left: Extract<Message, { role: "assistant" }>["tokens"] | undefined,
+  right: Extract<Message, { role: "assistant" }>["tokens"] | undefined,
+): boolean {
+  if (left === right) return true
+  if (!left || !right) return false
+  return left.total === right.total
+    && left.input === right.input
+    && left.output === right.output
+    && left.reasoning === right.reasoning
+    && left.cache?.read === right.cache?.read
+    && left.cache?.write === right.cache?.write
+}
+
+function areMessageErrorsEqual(
+  left: Extract<Message, { role: "assistant" }>["error"] | undefined,
+  right: Extract<Message, { role: "assistant" }>["error"] | undefined,
+): boolean {
+  if (left === right) return true
+  if (!left || !right || left.name !== right.name) return false
+  return areFlatRecordsEqual(left.data, right.data)
+}
+
+function areOutputFormatsEqual(
+  left: Extract<Message, { role: "user" }>["format"] | undefined,
+  right: Extract<Message, { role: "user" }>["format"] | undefined,
+): boolean {
+  if (left === right) return true
+  if (!left || !right || left.type !== right.type) return false
+  return areFlatRecordsEqual(left as Record<string, unknown>, right as Record<string, unknown>)
+}
+
+function areUserSummariesEqual(
+  left: Extract<Message, { role: "user" }>["summary"] | undefined,
+  right: Extract<Message, { role: "user" }>["summary"] | undefined,
+): boolean {
+  if (left === right) return true
+  if (!left || !right) return false
+  return left.title === right.title
+    && left.body === right.body
+    && left.diffs === right.diffs
+}
+
+function areIsolationEqual(
+  left: Extract<Message, { role: "user" }>["isolation"] | undefined,
+  right: Extract<Message, { role: "user" }>["isolation"] | undefined,
+): boolean {
+  if (left === right) return true
+  if (!left || !right) return false
+  return left.mode === right.mode && left.network === right.network
+}
+
+function areStringBooleanRecordsEqual(left: Record<string, boolean> | undefined, right: Record<string, boolean> | undefined): boolean {
+  if (left === right) return true
+  if (!left || !right) return false
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  if (leftKeys.length !== rightKeys.length) return false
+  for (const key of leftKeys) {
+    if (left[key] !== right[key]) return false
+  }
+  return true
+}
+
+function areFlatRecordsEqual(left: Record<string, unknown> | undefined, right: Record<string, unknown> | undefined): boolean {
+  if (left === right) return true
+  if (!left || !right) return false
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  if (leftKeys.length !== rightKeys.length) return false
+  for (const key of leftKeys) {
+    if (!Object.is(left[key], right[key])) return false
+  }
+  return true
+}
+
+function areUnknownMessageKeysEqual(left: Message, right: Message): boolean {
+  const knownKeys = left.role === "user" ? USER_MESSAGE_KEYS : ASSISTANT_MESSAGE_KEYS
+  const seen = new Set<string>()
+  for (const key of Object.keys(left)) {
+    if (MESSAGE_COMMON_KEYS.has(key) || knownKeys.has(key)) continue
+    seen.add(key)
+    if (!Object.is((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key])) return false
+  }
+  for (const key of Object.keys(right)) {
+    if (MESSAGE_COMMON_KEYS.has(key) || knownKeys.has(key) || seen.has(key)) continue
+    if (!Object.is((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key])) return false
+  }
+  return true
 }
 
 // ---------------------------------------------------------------------------
