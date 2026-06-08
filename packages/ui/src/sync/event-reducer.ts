@@ -495,16 +495,21 @@ export function applyDirectoryEvent(
 
 function trimSessions(draft: State) {
   if (draft.session.length <= draft.limit) return
-  // Keep sessions that have pending permissions (they need to stay visible)
-  const hasPermission = new Set(
-    Object.entries(draft.permission ?? {})
-      .filter(([, perms]) => perms && perms.length > 0)
-      .map(([sessionID]) => sessionID),
-  )
+  // Keep sessions with a pending blocking request (permission or question) so
+  // they stay visible — matches getProtectedSessionIds / hasPendingBlockingRequests.
+  // Evicting a session with an unanswered question would hide the dialog and
+  // leave the agent blocked forever.
+  const protectedIds = new Set<string>()
+  for (const [sessionID, perms] of Object.entries(draft.permission ?? {})) {
+    if (perms && perms.length > 0) protectedIds.add(sessionID)
+  }
+  for (const [sessionID, questions] of Object.entries(draft.question ?? {})) {
+    if (questions && questions.length > 0) protectedIds.add(sessionID)
+  }
   while (draft.session.length > draft.limit) {
     // Remove from the beginning (oldest by sorted ID)
     const candidate = draft.session[0]
-    if (hasPermission.has(candidate.id)) break
+    if (protectedIds.has(candidate.id)) break
     draft.session.shift()
   }
 }

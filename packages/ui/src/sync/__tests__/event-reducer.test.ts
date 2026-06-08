@@ -296,4 +296,37 @@ describe("applyDirectoryEvent", () => {
     expect(draft.question.ses_1).not.toBe(afterReply)
     expect(draft.question.ses_1).toEqual([])
   })
+
+  test("does not evict a session with a pending question when trimming", () => {
+    const draft = state({
+      limit: 2,
+      session: [session("ses_1", "first"), session("ses_2", "second")],
+      question: { ses_1: [{ id: "ques_1", sessionID: "ses_1" } as QuestionRequest] },
+    })
+
+    applyDirectoryEvent(draft, {
+      type: "session.created",
+      properties: { info: session("ses_3", "third") },
+    } as Event)
+
+    // ses_1 is the oldest (would be evicted first) but has a pending question,
+    // so trimming must stop and keep it visible.
+    const ids = draft.session.map((s) => s.id)
+    expect(ids).toContain("ses_1")
+    expect(ids).toContain("ses_3")
+  })
+
+  test("evicts the oldest session when trimming and none are protected", () => {
+    const draft = state({
+      limit: 2,
+      session: [session("ses_1", "first"), session("ses_2", "second")],
+    })
+
+    applyDirectoryEvent(draft, {
+      type: "session.created",
+      properties: { info: session("ses_3", "third") },
+    } as Event)
+
+    expect(draft.session.map((s) => s.id)).toEqual(["ses_2", "ses_3"])
+  })
 })
