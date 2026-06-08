@@ -14,6 +14,8 @@ export const createServerUtilsRuntime = (dependencies) => {
     buildAxCodeUrl,
     ensureAxCodeApiPrefix,
     getUiNotificationClients,
+    sseMetrics,
+    recordStartupEvent,
     getAxCodePort,
     setAxCodePortState,
     syncToHmrState,
@@ -151,6 +153,8 @@ export const createServerUtilsRuntime = (dependencies) => {
       buildAxCodeUrl,
       ensureAxCodeApiPrefix,
       getUiNotificationClients,
+      sseMetrics,
+      recordStartupEvent,
     });
   };
 

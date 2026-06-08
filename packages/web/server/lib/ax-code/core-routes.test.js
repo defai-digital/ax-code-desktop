@@ -25,6 +25,30 @@ describe('core-routes', () => {
     expect(shutdownOpts).toEqual({ exitProcess: true });
   });
 
+  it('serves sanitized startup diagnostics when available', async () => {
+    const app = express();
+    registerServerStatusRoutes(app, {
+      gracefulShutdown: vi.fn(),
+      getHealthSnapshot: () => ({ status: 'ok' }),
+      getStartupDiagnosticsSnapshot: () => ({
+        bootId: 'boot-a',
+        events: [{ name: 'electron.app.ready' }],
+      }),
+      openchamberVersion: '1.0.0',
+      runtimeName: 'test',
+      express,
+    });
+
+    const response = await request(app)
+      .get('/api/desktop/diagnostics/startup')
+      .expect(200);
+
+    expect(response.body).toEqual({
+      bootId: 'boot-a',
+      events: [{ name: 'electron.app.ready' }],
+    });
+  });
+
   it('should parse JSON bodies for snippet config routes', async () => {
     const app = express();
     registerCommonRequestMiddleware(app, { express });

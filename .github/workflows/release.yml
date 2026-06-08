@@ -316,6 +316,29 @@ jobs:
             fi
           done
 
+      - name: Packaged app launch smoke
+        run: |
+          set -euo pipefail
+          APP_DIR="packages/electron/dist/mac"
+          [ -d "packages/electron/dist/mac-arm64" ] && APP_DIR="packages/electron/dist/mac-arm64"
+          APP_PATH=$(find "$APP_DIR" -maxdepth 2 -name "*.app" -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: .app not found under packages/electron/dist/mac*"
+            exit 1
+          fi
+          node packages/electron/scripts/smoke-packaged-app.mjs \
+            --app "$APP_PATH" \
+            --artifacts "$RUNNER_TEMP/desktop-smoke"
+
+      - name: Upload macOS smoke logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-release-smoke-logs-macos-${{ matrix.arch }}
+          path: ${{ runner.temp }}/desktop-smoke
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload DMG / ZIP / blockmaps to release
         uses: softprops/action-gh-release@v2
         with:

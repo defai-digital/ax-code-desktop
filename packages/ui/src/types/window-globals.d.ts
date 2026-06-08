@@ -32,7 +32,10 @@ declare global {
     __axCodeDebug?: AxCodeDebugTools;
     __OPENCHAMBER_DESKTOP_BOOT_OUTCOME__?: DesktopBootOutcome;
     __OPENCHAMBER_DESKTOP_SERVER__?: DesktopServerRuntime;
-    __OPENCHAMBER_ELECTRON__?: { runtime?: string };
+    __OPENCHAMBER_ELECTRON__?: {
+      runtime?: string;
+      recordStartupEvent?: (name: string, details?: Record<string, unknown>) => Promise<unknown>;
+    };
     __OPENCHAMBER_HOME__?: string;
     __OPENCHAMBER_LOCAL_ORIGIN__?: string;
     __OPENCHAMBER_MACOS_MAJOR__?: number;

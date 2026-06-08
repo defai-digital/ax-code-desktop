@@ -17,6 +17,7 @@ export const createBootstrapRuntime = (dependencies) => {
       serverStartedAt,
       gracefulShutdown,
       getHealthSnapshot,
+      getStartupDiagnosticsSnapshot,
       verboseRequestLogs,
       uiPassword,
       readSettingsFromDiskMigrated,
@@ -46,6 +47,7 @@ export const createBootstrapRuntime = (dependencies) => {
       serverStartedAt,
       gracefulShutdown,
       getHealthSnapshot,
+      getStartupDiagnosticsSnapshot,
     });
 
     registerCommonRequestMiddleware(app, { express, verboseRequestLogs });

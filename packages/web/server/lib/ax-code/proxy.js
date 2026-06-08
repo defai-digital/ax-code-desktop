@@ -54,7 +54,7 @@ export const waitForSseDrain = (res, signal) => new Promise((resolve) => {
   signal?.addEventListener?.('abort', onDone, { once: true });
 });
 
-export const writeSseChunkWithBackpressure = async (res, value, signal) => {
+export const writeSseChunkWithBackpressure = async (res, value, signal, onBackpressureWait) => {
   if (!value || value.length === 0 || signal?.aborted || res.writableEnded || res.destroyed) {
     return false;
   }
@@ -64,8 +64,130 @@ export const writeSseChunkWithBackpressure = async (res, value, signal) => {
     return true;
   }
 
+  const waitStartedAt = Date.now();
   await waitForSseDrain(res, signal);
+  if (typeof onBackpressureWait === 'function') {
+    onBackpressureWait(Math.max(0, Date.now() - waitStartedAt));
+  }
   return !signal?.aborted && !res.writableEnded && !res.destroyed;
+};
+
+export const createSseProxyMetrics = (options = {}) => {
+  const {
+    now = () => Date.now(),
+    maxRecentStreams = 20,
+  } = options;
+
+  let nextId = 1;
+  const active = new Map();
+  const recent = [];
+  const totals = {
+    started: 0,
+    completed: 0,
+    clientDisconnects: 0,
+    upstreamErrors: 0,
+    backpressureWaits: 0,
+  };
+
+  const pushRecent = (entry) => {
+    recent.push(entry);
+    while (recent.length > maxRecentStreams) {
+      recent.shift();
+    }
+  };
+
+  const begin = (requestPath) => {
+    const id = nextId++;
+    const startedAtEpochMs = now();
+    active.set(id, {
+      id,
+      requestPath,
+      startedAtEpochMs,
+      upstreamConnectedAtEpochMs: null,
+      firstChunkAtEpochMs: null,
+      firstChunkBytes: 0,
+      backpressureWaitMs: 0,
+      backpressureWaitCount: 0,
+    });
+    totals.started += 1;
+    return id;
+  };
+
+  const markUpstreamConnected = (id, details = {}) => {
+    const stream = active.get(id);
+    if (!stream || stream.upstreamConnectedAtEpochMs) return;
+    stream.upstreamConnectedAtEpochMs = now();
+    stream.upstreamStatus = details.status ?? null;
+  };
+
+  const markFirstChunk = (id, details = {}) => {
+    const stream = active.get(id);
+    if (!stream || stream.firstChunkAtEpochMs) return null;
+    stream.firstChunkAtEpochMs = now();
+    stream.firstChunkBytes = details.bytes ?? 0;
+    return {
+      firstChunkLatencyMs: Math.max(0, stream.firstChunkAtEpochMs - stream.startedAtEpochMs),
+      upstreamFirstChunkLatencyMs: stream.upstreamConnectedAtEpochMs
+        ? Math.max(0, stream.firstChunkAtEpochMs - stream.upstreamConnectedAtEpochMs)
+        : null,
+    };
+  };
+
+  const recordBackpressureWait = (id, waitMs) => {
+    const stream = active.get(id);
+    if (!stream) return;
+    stream.backpressureWaitCount += 1;
+    stream.backpressureWaitMs += Math.max(0, waitMs);
+    totals.backpressureWaits += 1;
+  };
+
+  const finish = (id, reason = 'complete', details = {}) => {
+    const stream = active.get(id);
+    if (!stream) return null;
+    active.delete(id);
+
+    const finishedAtEpochMs = now();
+    const entry = {
+      id,
+      requestPath: stream.requestPath,
+      reason,
+      startedAtEpochMs: stream.startedAtEpochMs,
+      finishedAtEpochMs,
+      durationMs: Math.max(0, finishedAtEpochMs - stream.startedAtEpochMs),
+      upstreamStatus: stream.upstreamStatus ?? null,
+      firstChunkLatencyMs: stream.firstChunkAtEpochMs
+        ? Math.max(0, stream.firstChunkAtEpochMs - stream.startedAtEpochMs)
+        : null,
+      upstreamFirstChunkLatencyMs: stream.firstChunkAtEpochMs && stream.upstreamConnectedAtEpochMs
+        ? Math.max(0, stream.firstChunkAtEpochMs - stream.upstreamConnectedAtEpochMs)
+        : null,
+      firstChunkBytes: stream.firstChunkBytes,
+      backpressureWaitCount: stream.backpressureWaitCount,
+      backpressureWaitMs: stream.backpressureWaitMs,
+      ...details,
+    };
+
+    totals.completed += 1;
+    if (reason === 'client-disconnect') totals.clientDisconnects += 1;
+    if (reason === 'upstream-error') totals.upstreamErrors += 1;
+    pushRecent(entry);
+    return entry;
+  };
+
+  const snapshot = () => ({
+    totals: { ...totals },
+    active: active.size,
+    recent: [...recent],
+  });
+
+  return {
+    begin,
+    markUpstreamConnected,
+    markFirstChunk,
+    recordBackpressureWait,
+    finish,
+    snapshot,
+  };
 };
 
 export const createSseBoundaryTracker = () => {
@@ -103,6 +225,8 @@ export const registerAxCodeProxy = (app, deps) => {
     getAxCodeAuthHeaders,
     buildAxCodeUrl,
     ensureAxCodeApiPrefix,
+    sseMetrics = null,
+    recordStartupEvent = null,
   } = deps;
 
   if (app.get('axCodeProxyConfigured')) {
@@ -163,12 +287,28 @@ export const registerAxCodeProxy = (app, deps) => {
 
   const forwardSseRequest = async (req, res) => {
     const abortController = new AbortController();
-    const closeUpstream = () => abortController.abort();
+    let closedByClient = false;
+    const closeUpstream = () => {
+      closedByClient = true;
+      abortController.abort();
+    };
     let upstream = null;
     let reader = null;
     let heartbeatTimer = null;
     let writeQueue = Promise.resolve(true);
     const sseBoundary = createSseBoundaryTracker();
+    let streamMetricId = null;
+    let upstreamPath = '';
+    let finishedMetric = false;
+
+    const finishMetric = (reason, details = {}) => {
+      if (!sseMetrics || !streamMetricId || finishedMetric) return;
+      finishedMetric = true;
+      const entry = sseMetrics.finish(streamMetricId, reason, details);
+      if (entry && reason !== 'complete') {
+        console.warn(`[proxy] ax-code SSE ${reason}: ${upstreamPath || 'unknown'} (${entry.durationMs}ms)`);
+      }
+    };
 
     req.on('close', closeUpstream);
 
@@ -176,7 +316,8 @@ export const registerAxCodeProxy = (app, deps) => {
       const requestUrl = typeof req.originalUrl === 'string' && req.originalUrl.length > 0
         ? req.originalUrl
         : (typeof req.url === 'string' ? req.url : '');
-      const upstreamPath = requestUrl.startsWith('/api') ? requestUrl.slice(4) || '/' : requestUrl;
+      upstreamPath = requestUrl.startsWith('/api') ? requestUrl.slice(4) || '/' : requestUrl;
+      streamMetricId = sseMetrics?.begin(upstreamPath) ?? null;
       const headers = collectForwardProxyHeaders(req.headers, getAxCodeAuthHeaders());
       headers.accept ??= 'text/event-stream';
       headers['cache-control'] ??= 'no-cache';
@@ -186,6 +327,7 @@ export const registerAxCodeProxy = (app, deps) => {
         headers,
         signal: abortController.signal,
       });
+      sseMetrics?.markUpstreamConnected(streamMetricId, { status: upstream.status });
 
       res.status(upstream.status);
       applyForwardProxyResponseHeaders(upstream.headers, res);
@@ -242,7 +384,9 @@ export const registerAxCodeProxy = (app, deps) => {
             if (!canContinue) {
               return false;
             }
-            return writeSseChunkWithBackpressure(res, value, abortController.signal);
+            return writeSseChunkWithBackpressure(res, value, abortController.signal, (waitMs) => {
+              sseMetrics?.recordBackpressureWait(streamMetricId, waitMs);
+            });
           });
         return writeQueue;
       };
@@ -256,6 +400,14 @@ export const registerAxCodeProxy = (app, deps) => {
           break;
         }
         if (value && value.length > 0) {
+          const firstChunk = sseMetrics?.markFirstChunk(streamMetricId, { bytes: value.length });
+          if (firstChunk && typeof recordStartupEvent === 'function') {
+            recordStartupEvent('stream.first_token', {
+              requestPath: upstreamPath,
+              firstChunkLatencyMs: firstChunk.firstChunkLatencyMs,
+              upstreamFirstChunkLatencyMs: firstChunk.upstreamFirstChunkLatencyMs,
+            }, { source: 'web-server', milestone: 'stream.first_token' });
+          }
           sseBoundary.observe(value);
           const canContinue = await enqueueSseWrite(value);
           if (!canContinue) {
@@ -265,11 +417,14 @@ export const registerAxCodeProxy = (app, deps) => {
       }
 
       res.end();
+      finishMetric(closedByClient ? 'client-disconnect' : 'complete');
     } catch (error) {
       if (isAbortError(error)) {
+        finishMetric(closedByClient ? 'client-disconnect' : 'aborted');
         return;
       }
       console.error('[proxy] ax-code SSE proxy error:', error?.message ?? error);
+      finishMetric('upstream-error', { error: error?.message ?? String(error) });
       if (!res.headersSent) {
         res.status(503).json({ error: 'ax-code service unavailable' });
       } else {
@@ -290,6 +445,7 @@ export const registerAxCodeProxy = (app, deps) => {
         }
       } catch {
       }
+      finishMetric(closedByClient ? 'client-disconnect' : 'complete');
     }
   };
 

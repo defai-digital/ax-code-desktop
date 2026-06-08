@@ -17,10 +17,27 @@ const { startWebUiServer } = require('./server.js')
 let serverHandle = null
 let stopping = false
 
+function parseStartupSnapshot() {
+  const raw = process.env.AX_CODE_DESKTOP_STARTUP_SNAPSHOT
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
 async function boot() {
   const configuredPort = Number.parseInt(process.env.OPENCHAMBER_ELECTRON_SERVER_PORT || '', 10)
   serverHandle = await startWebUiServer({
     port: Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 0,
+    startupDiagnosticsSnapshot: parseStartupSnapshot(),
+    onStartupDiagnostic: (event) => {
+      try {
+        process.parentPort.postMessage({ type: 'startup-event', event })
+      } catch {
+      }
+    },
   })
   process.parentPort.postMessage({ type: 'ready', port: serverHandle.getPort() })
 }
@@ -41,6 +58,10 @@ async function stop() {
 process.parentPort.on('message', (event) => {
   if (event?.data?.type === 'stop') {
     void stop()
+    return
+  }
+  if (event?.data?.type === 'desktop-startup-event') {
+    serverHandle?.recordDesktopStartupEvent?.(event.data.event)
   }
 })
 

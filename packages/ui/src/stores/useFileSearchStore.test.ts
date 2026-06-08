@@ -28,6 +28,7 @@ const searchFilesNativeMock = mock(async (directory: string, query: string) => {
   nativeSearchRequests.push({ directory, query });
   return null;
 });
+const recordDesktopStartupEventMock = mock(async () => {}) as (() => Promise<void>) & { mockClear: () => void };
 let isTauriShellValue = false;
 let isElectronShellValue = false;
 
@@ -41,6 +42,7 @@ mock.module('@/lib/desktop', () => ({
   searchFilesNative: searchFilesNativeMock,
   isTauriShell: () => isTauriShellValue,
   isElectronShell: () => isElectronShellValue,
+  recordDesktopStartupEvent: recordDesktopStartupEventMock,
 }));
 
 const { useFileSearchStore } = await import('./useFileSearchStore');
@@ -49,6 +51,7 @@ describe('useFileSearchStore', () => {
   beforeEach(() => {
     searchRequests.length = 0;
     nativeSearchRequests.length = 0;
+    recordDesktopStartupEventMock.mockClear();
     useFileSearchStore.setState({
       cache: {},
       cacheKeys: [],

@@ -3,7 +3,12 @@ import { EventEmitter } from 'node:events';
 import express from 'express';
 import path from 'path';
 
-import { createSseBoundaryTracker, registerAxCodeProxy, writeSseChunkWithBackpressure } from './lib/ax-code/proxy.js';
+import {
+  createSseBoundaryTracker,
+  createSseProxyMetrics,
+  registerAxCodeProxy,
+  writeSseChunkWithBackpressure,
+} from './lib/ax-code/proxy.js';
 
 const listen = (app, host = '127.0.0.1') => new Promise((resolve, reject) => {
   const server = app.listen(0, host, () => resolve(server));
@@ -112,6 +117,46 @@ describe('AX Code proxy SSE forwarding', () => {
     expect(tracker.observe(Buffer.from(':true}\n'))).toBe(false);
     expect(tracker.observe(Buffer.from('\n'))).toBe(true);
     expect(tracker.observe(Buffer.from('data: next\r\n\r\n'))).toBe(true);
+  });
+
+  it('records SSE latency, disconnect reason, and backpressure waits', () => {
+    let current = 1000;
+    const metrics = createSseProxyMetrics({ now: () => current });
+
+    const id = metrics.begin('/global/event');
+    current = 1020;
+    metrics.markUpstreamConnected(id, { status: 200 });
+    current = 1075;
+    expect(metrics.markFirstChunk(id, { bytes: 21 })).toEqual({
+      firstChunkLatencyMs: 75,
+      upstreamFirstChunkLatencyMs: 55,
+    });
+    metrics.recordBackpressureWait(id, 12);
+    current = 1100;
+    metrics.finish(id, 'client-disconnect');
+
+    expect(metrics.snapshot()).toMatchObject({
+      totals: {
+        started: 1,
+        completed: 1,
+        clientDisconnects: 1,
+        upstreamErrors: 0,
+        backpressureWaits: 1,
+      },
+      active: 0,
+      recent: [
+        {
+          requestPath: '/global/event',
+          reason: 'client-disconnect',
+          durationMs: 100,
+          firstChunkLatencyMs: 75,
+          upstreamFirstChunkLatencyMs: 55,
+          firstChunkBytes: 21,
+          backpressureWaitCount: 1,
+          backpressureWaitMs: 12,
+        },
+      ],
+    });
   });
 
   it('routes generic API requests through external AX Code base URL', async () => {

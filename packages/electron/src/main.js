@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, shell, session, utilityProcess } = require(
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const os = require('os')
+const { createStartupDiagnostics } = require('./startup-diagnostics')
 
 // Override the package name so macOS menus show "AX Code Desktop" instead
 // of the scoped npm package name "@ax-code/electron".
@@ -38,6 +39,27 @@ function getDevRendererUrl() {
 let mainWindow = null
 let serverPort = 0
 let serverChild = null
+const startupDiagnostics = createStartupDiagnostics({
+  logPath: process.platform === 'darwin'
+    ? path.join(os.homedir(), 'Library', 'Logs', 'AX Code Desktop', 'main.log')
+    : path.join(os.homedir(), '.ax-code-desktop', 'logs', 'main.log'),
+})
+
+function recordStartupEvent(name, details = {}, options = {}) {
+  const event = options.once === false
+    ? startupDiagnostics.record(name, details, options)
+    : startupDiagnostics.markOnce(name, details, options)
+  if (event && options.forward !== false && serverChild) {
+    try {
+      serverChild.postMessage({ type: 'desktop-startup-event', event })
+    } catch {
+      // The utilityProcess may not be accepting messages yet.
+    }
+  }
+  return event
+}
+
+recordStartupEvent('electron.process.start')
 
 // ── Server ──────────────────────────────────────────────────────────────────
 // The web server runs in a dedicated utilityProcess (dist/server-process.js)
@@ -50,6 +72,7 @@ const SERVER_STOP_TIMEOUT_MS = 5_000
 function launchServer() {
   return new Promise((resolve, reject) => {
     const serverEntry = path.join(__dirname, 'server-process.js')
+    recordStartupEvent('server.utilityProcess.launch')
     serverChild = utilityProcess.fork(serverEntry, [], {
       serviceName: 'ax-code-server',
       env: {
@@ -58,6 +81,7 @@ function launchServer() {
         // main process before require, now passed into the forked process.
         OPENCHAMBER_DIST_DIR: getWebDistPath(),
         OPENCHAMBER_RUNTIME: 'desktop',
+        AX_CODE_DESKTOP_STARTUP_SNAPSHOT: JSON.stringify(startupDiagnostics.snapshot()),
       },
     })
 
@@ -70,11 +94,21 @@ function launchServer() {
     }, SERVER_START_TIMEOUT_MS)
 
     serverChild.on('message', (msg) => {
+      if (msg?.type === 'startup-event' && msg.event?.name) {
+        recordStartupEvent(msg.event.name, msg.event.details ?? {}, {
+          source: msg.event.source || 'web-server',
+          atEpochMs: Number.isFinite(msg.event.atEpochMs) ? msg.event.atEpochMs : undefined,
+          forward: false,
+          milestone: msg.event.name,
+        })
+        return
+      }
       if (settled) return
       if (msg?.type === 'ready') {
         settled = true
         clearTimeout(timer)
         serverPort = msg.port
+        recordStartupEvent('server.utilityProcess.ready', { port: serverPort })
         resolve()
       } else if (msg?.type === 'error') {
         settled = true
@@ -127,6 +161,20 @@ function stopServer() {
 }
 
 // ── Window ──────────────────────────────────────────────────────────────────
+function isTrustedRendererNavigation(url) {
+  let parsed
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+
+  const devRendererUrl = getDevRendererUrl()
+  const isServerUrl = parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(parsed.hostname) && parsed.port === String(serverPort)
+  const isDevRendererUrl = devRendererUrl && parsed.origin === new URL(devRendererUrl).origin
+  return Boolean(isServerUrl || isDevRendererUrl)
+}
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -145,7 +193,10 @@ async function createWindow() {
     },
   })
 
-  mainWindow.once('ready-to-show', () => mainWindow.show())
+  mainWindow.once('ready-to-show', () => {
+    recordStartupEvent('renderer.ready-to-show')
+    mainWindow.show()
+  })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Keep internal navigation inside the window; open everything else in the
@@ -153,27 +204,42 @@ async function createWindow() {
     // check (startsWith) would treat e.g. `http://localhost:<port>@evil.com` or
     // `http://localhost:<port>9` as internal and load it in the trusted window
     // (which runs with webSecurity disabled and the preload IPC bridge).
-    let parsed
-    try {
-      parsed = new URL(url)
-    } catch {
-      parsed = null
-    }
-    const devRendererUrl = getDevRendererUrl()
-    const isServerUrl = parsed && parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(parsed.hostname) && parsed.port === String(serverPort)
-    const isDevRendererUrl = parsed && devRendererUrl && parsed.origin === new URL(devRendererUrl).origin
-    if (isServerUrl || isDevRendererUrl) {
+    if (isTrustedRendererNavigation(url)) {
       return { action: 'allow' }
     }
     shell.openExternal(url)
     return { action: 'deny' }
   })
 
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isTrustedRendererNavigation(url)) {
+      return
+    }
+    event.preventDefault()
+    shell.openExternal(url)
+  })
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    recordStartupEvent('renderer.did-finish-load')
+  })
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedUrl) => {
+    recordStartupEvent('renderer.did-fail-load', {
+      errorCode,
+      errorDescription,
+      url: validatedUrl,
+    }, { once: false })
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
 
-  await mainWindow.loadURL(getDevRendererUrl() || `http://localhost:${serverPort}`)
+  const rendererUrl = getDevRendererUrl() || `http://localhost:${serverPort}`
+  recordStartupEvent('renderer.load-url.start', {
+    devRenderer: Boolean(getDevRendererUrl()),
+  })
+  await mainWindow.loadURL(rendererUrl)
 }
 
 // ── Auto-update ───────────────────────────────────────────────────────────
@@ -262,8 +328,22 @@ ipcMain.handle('desktop_get_lan_address', () => {
   return null
 })
 
+ipcMain.handle('desktop_record_startup_event', (_event, payload) => {
+  const name = typeof payload?.name === 'string' ? payload.name.trim() : ''
+  if (!/^[a-z0-9._:-]{1,96}$/i.test(name)) {
+    return { ok: false, error: 'Invalid startup event name' }
+  }
+
+  recordStartupEvent(name, payload?.details ?? {}, {
+    source: 'renderer',
+    milestone: name,
+  })
+  return { ok: true }
+})
+
 // ── App lifecycle ───────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  recordStartupEvent('electron.app.ready')
   // Deny all permission requests except clipboard and fullscreen.
   // Chromium enumerates media devices on startup, which triggers macOS
   // permission prompts for device and media libraries, none of which this

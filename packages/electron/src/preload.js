@@ -6,6 +6,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 // Detected by isElectronShell() in packages/ui/src/lib/desktop.ts.
 contextBridge.exposeInMainWorld('__OPENCHAMBER_ELECTRON__', {
   runtime: 'electron',
+  recordStartupEvent: (name, details) => ipcRenderer.invoke('desktop_record_startup_event', { name, details: details ?? {} }),
 })
 
 // Tauri-compatible IPC shim.

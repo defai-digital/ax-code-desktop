@@ -31,6 +31,7 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     serverStartedAt,
     gracefulShutdown,
     getHealthSnapshot,
+    getStartupDiagnosticsSnapshot = null,
   } = dependencies;
 
   const allocateLoopbackPort = async () => {
@@ -168,6 +169,14 @@ export const registerServerStatusRoutes = (app, dependencies) => {
       timestamp: new Date().toISOString(),
       ...getHealthSnapshot(),
     });
+  });
+
+  app.get('/api/desktop/diagnostics/startup', (_req, res) => {
+    if (typeof getStartupDiagnosticsSnapshot !== 'function') {
+      return res.status(404).json({ error: 'Startup diagnostics are not available' });
+    }
+
+    return res.json(getStartupDiagnosticsSnapshot());
   });
 
   app.post('/api/system/shutdown', (_req, res) => {

@@ -10,12 +10,47 @@ import './lib/debug'
 import { syncDesktopSettings, initializeAppearancePreferences } from './lib/persistence'
 import { applyPersistedDirectoryPreferences } from './lib/directoryPersistence'
 import { initializeLocale, I18nProvider } from './lib/i18n'
+import { recordDesktopStartupEvent } from './lib/desktop'
 
 const runtimeAPIs = (typeof window !== 'undefined' && window.__OPENCHAMBER_RUNTIME_APIS__) || (() => {
   throw new Error('Runtime APIs not provided for legacy UI entrypoint.');
 })();
 
 initializeLocale();
+
+const recordRendererPaintMilestone = () => {
+  if (typeof window === 'undefined' || typeof performance === 'undefined') return;
+
+  const reportPaint = () => {
+    const paints = performance.getEntriesByType('paint');
+    const firstPaint = paints.find((entry) => entry.name === 'first-paint');
+    const firstContentfulPaint = paints.find((entry) => entry.name === 'first-contentful-paint');
+    void recordDesktopStartupEvent('renderer.first-paint', {
+      firstPaintMs: firstPaint ? Math.round(firstPaint.startTime) : null,
+      firstContentfulPaintMs: firstContentfulPaint ? Math.round(firstContentfulPaint.startTime) : null,
+    });
+  };
+
+  if ('PerformanceObserver' in window) {
+    try {
+      const observer = new PerformanceObserver(() => {
+        reportPaint();
+        observer.disconnect();
+      });
+      observer.observe({ type: 'paint', buffered: true });
+      return;
+    } catch {
+      // Fall back to a post-frame read below.
+    }
+  }
+
+  window.requestAnimationFrame(() => {
+    window.setTimeout(reportPaint, 0);
+  });
+};
+
+void recordDesktopStartupEvent('renderer.entry.start');
+recordRendererPaintMilestone();
 
 // Initialize settings asynchronously — the app renders with defaults first
 // and hydrates once persisted preferences are applied. Users with non-default

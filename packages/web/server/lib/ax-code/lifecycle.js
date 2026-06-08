@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
 import { startHeadlessBackend } from '@ax-code/sdk/headless';
+import { createManagedAxCodeRuntimeAdapter } from './managed-ax-code-runtime.js';
 
 // Mirrors the SDK v2.2.0 isLoopbackHostname guard so allowNetworkBind is only
 // set when the caller explicitly configured a non-loopback hostname.
@@ -53,7 +54,13 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     buildManagedAxCodePath,
     getManagedAxCodeShellEnvSnapshot,
     getActiveSessionCount = () => 0,
+    recordStartupEvent = null,
   } = deps;
+
+  const markStartup = (name, details = {}, options = {}) => {
+    if (typeof recordStartupEvent !== 'function') return null;
+    return recordStartupEvent(name, details, options);
+  };
 
   const portReadyCallbacks = [];
   let startupAbortController = null;
@@ -367,6 +374,13 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         via: 'legacy-spawn',
       };
       console.log('[AX Code] Launching managed server (Windows)', state.lastAxCodeLaunchDiagnostics);
+      markStartup('ax-code.process.launched', {
+        via: 'legacy-spawn',
+        platform: 'win32',
+        hostname,
+        port: port || 'auto',
+        wrapperType: launchWrapperType,
+      }, { source: 'web-server', milestone: 'ax-code.process.launched' });
       return createManagedAxCodeServerProcessLegacy({ hostname, port, timeout, cwd, env: processEnv, binary, args });
     }
 
@@ -396,6 +410,12 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         via: 'legacy-spawn',
       };
       console.log('[AX Code] Launching managed server via legacy spawn', state.lastAxCodeLaunchDiagnostics);
+      markStartup('ax-code.process.launched', {
+        via: 'legacy-spawn',
+        hostname,
+        port: port || 'auto',
+        wrapperType: launchWrapperType,
+      }, { source: 'web-server', milestone: 'ax-code.process.launched' });
       return createManagedAxCodeServerProcessLegacy({ hostname, port, timeout, cwd, env: processEnv, binary, args });
     }
 
@@ -415,6 +435,11 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       via: 'sdk-headless',
     };
     console.log('[AX Code] Launching managed server via SDK', state.lastAxCodeLaunchDiagnostics);
+    markStartup('ax-code.process.launched', {
+      via: 'sdk-headless',
+      hostname,
+      port: port || 'auto',
+    }, { source: 'web-server', milestone: 'ax-code.process.launched' });
 
     // Strip AX_CODE_SERVER_PASSWORD from the env spread — the SDK sets it from
     // auth.password, so passing it twice is confusing and redundant.
@@ -521,6 +546,15 @@ export const createAxCodeLifecycleRuntime = (deps) => {
 
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  const managedAxCodeRuntime = createManagedAxCodeRuntimeAdapter({
+    launchServerProcess: createManagedAxCodeServerProcess,
+    probeProcessHealth: isAxCodeProcessHealthy,
+    probeExternalServer: probeExternalAxCode,
+    killPort: killProcessOnPort,
+    waitForPortRelease,
+    isProcessAlive: isManagedAxCodeProcessAlive,
+  });
+
   const startAxCodeOnce = async () => {
     const currentAbortController = new AbortController();
     startupAbortController = currentAbortController;
@@ -541,7 +575,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       : {};
 
     try {
-      const serverInstance = await createManagedAxCodeServerProcess({
+      const serverInstance = await managedAxCodeRuntime.launchServerProcess({
         hostname: env.ENV_CONFIGURED_AX_CODE_HOSTNAME,
         port: requestedPort,
         timeout: 30000,
@@ -573,6 +607,11 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         state.isAxCodeReady = true;
         state.lastAxCodeError = null;
         state.axCodeNotReadySince = 0;
+        markStartup('ax-code.health.ready', {
+          port,
+          apiPrefix: prefix,
+          via: serverInstance.healthVerified ? 'sdk-headless' : 'legacy-health-check',
+        }, { source: 'web-server', milestone: 'ax-code.health.ready' });
 
         return serverInstance;
       }
@@ -643,13 +682,17 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         console.log('Re-probing external ax-code server...');
         const probePort = state.axCodePort || env.ENV_CONFIGURED_AX_CODE_PORT || 4096;
         const probeOrigin = state.axCodeBaseUrl ?? env.ENV_CONFIGURED_AX_CODE_HOST?.origin;
-        const healthy = await probeExternalAxCode(probePort, probeOrigin);
+        const healthy = await managedAxCodeRuntime.probeExternalServer(probePort, probeOrigin);
         if (healthy) {
           console.log(`External ax-code server on port ${probePort} is healthy`);
           setAxCodePortInternal(probePort);
           state.isAxCodeReady = true;
           state.lastAxCodeError = null;
           state.axCodeNotReadySince = 0;
+          markStartup('ax-code.health.ready', {
+            port: probePort,
+            via: 'external',
+          }, { source: 'web-server', milestone: 'ax-code.health.ready' });
           syncToHmrState();
         } else {
           state.lastAxCodeError = `External ax-code server on port ${probePort} is not responding`;
@@ -677,8 +720,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         syncToHmrState();
       }
 
-      killProcessOnPort(portToKill);
-      if (!(await waitForPortRelease(portToKill, 5000))) {
+      if (!(await managedAxCodeRuntime.releasePort(portToKill, 5000))) {
         console.warn(`Timed out waiting for ax-code port ${portToKill} to be released`);
       }
 
@@ -848,8 +890,12 @@ export const createAxCodeLifecycleRuntime = (deps) => {
   const bootstrapAxCodeAtStartup = async () => {
     try {
       syncFromHmrState();
-      if (await isAxCodeProcessHealthy()) {
+      if (await managedAxCodeRuntime.probeProcessHealth()) {
         console.log(`[HMR] Reusing existing AX Code process on port ${state.axCodePort}`);
+        markStartup('ax-code.health.ready', {
+          port: state.axCodePort,
+          via: 'hmr-reuse',
+        }, { source: 'web-server', milestone: 'ax-code.health.ready' });
       } else if (env.ENV_SKIP_AX_CODE_START && env.ENV_EFFECTIVE_PORT) {
         const label = env.ENV_CONFIGURED_AX_CODE_HOST ? env.ENV_CONFIGURED_AX_CODE_HOST.origin : `http://localhost:${env.ENV_EFFECTIVE_PORT}`;
         console.log(`Using external AX Code server at ${label} (skip-start mode)`);
@@ -859,8 +905,12 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         state.isExternalAxCode = true;
         state.lastAxCodeError = null;
         state.axCodeNotReadySince = 0;
+        markStartup('ax-code.health.ready', {
+          port: env.ENV_EFFECTIVE_PORT,
+          via: 'external-skip-start',
+        }, { source: 'web-server', milestone: 'ax-code.health.ready' });
         syncToHmrState();
-      } else if (env.ENV_EFFECTIVE_PORT && await probeExternalAxCode(env.ENV_EFFECTIVE_PORT, env.ENV_CONFIGURED_AX_CODE_HOST?.origin)) {
+      } else if (env.ENV_EFFECTIVE_PORT && await managedAxCodeRuntime.probeExternalServer(env.ENV_EFFECTIVE_PORT, env.ENV_CONFIGURED_AX_CODE_HOST?.origin)) {
         const label = env.ENV_CONFIGURED_AX_CODE_HOST ? env.ENV_CONFIGURED_AX_CODE_HOST.origin : `http://localhost:${env.ENV_EFFECTIVE_PORT}`;
         console.log(`Auto-detected existing AX Code server at ${label}`);
         state.axCodeBaseUrl = env.ENV_CONFIGURED_AX_CODE_HOST?.origin ?? null;
@@ -869,14 +919,22 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         state.isExternalAxCode = true;
         state.lastAxCodeError = null;
         state.axCodeNotReadySince = 0;
+        markStartup('ax-code.health.ready', {
+          port: env.ENV_EFFECTIVE_PORT,
+          via: 'external-auto-detected',
+        }, { source: 'web-server', milestone: 'ax-code.health.ready' });
         syncToHmrState();
-      } else if (!env.ENV_EFFECTIVE_PORT && await probeExternalAxCode(4096)) {
+      } else if (!env.ENV_EFFECTIVE_PORT && await managedAxCodeRuntime.probeExternalServer(4096)) {
         console.log('Auto-detected existing AX Code server on default port 4096');
         setAxCodePortInternal(4096);
         state.isAxCodeReady = true;
         state.isExternalAxCode = true;
         state.lastAxCodeError = null;
         state.axCodeNotReadySince = 0;
+        markStartup('ax-code.health.ready', {
+          port: 4096,
+          via: 'external-default-port',
+        }, { source: 'web-server', milestone: 'ax-code.health.ready' });
         syncToHmrState();
       } else {
         if (env.ENV_EFFECTIVE_PORT) {
@@ -937,7 +995,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       return healthProbePromise;
     }
 
-    healthProbePromise = isAxCodeProcessHealthy()
+    healthProbePromise = managedAxCodeRuntime.probeProcessHealth()
       .then((healthy) => {
         lastHealthProbeResult = { at: Date.now(), healthy };
         return healthy;
@@ -980,7 +1038,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     healthCheckCyclePromise = (async () => {
       const healthy = await probeAxCodeHealth();
       if (!healthy) {
-        if (!isManagedAxCodeProcessAlive()) {
+        if (!managedAxCodeRuntime.isProcessAlive()) {
           console.log(`[lifecycle] ${source} health check: ax-code process exited, restarting...`);
           consecutiveHealthFailures = 0;
           lastHealthProbeResult = null;

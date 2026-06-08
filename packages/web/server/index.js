@@ -50,6 +50,7 @@ import { createScheduledTasksRuntime } from './lib/scheduled-tasks/runtime.js';
 import { createServerStartupRuntime } from './lib/ax-code/server-startup-runtime.js';
 import { createStartupPipelineRuntime } from './lib/ax-code/startup-pipeline-runtime.js';
 import { runCliEntryIfMain } from './lib/ax-code/cli-entry-runtime.js';
+import { createStartupDiagnosticsRuntime } from './lib/desktop/startup-diagnostics.js';
 import { registerNotificationRoutes } from './lib/notifications/routes.js';
 import { createNotificationEmitterRuntime } from './lib/notifications/emitter-runtime.js';
 import { createNotificationTriggerRuntime } from './lib/notifications/runtime.js';
@@ -58,6 +59,7 @@ import { createGracefulShutdownRuntime } from './lib/ax-code/shutdown-runtime.js
 import { createProjectConfigRuntime } from './lib/projects/project-config.js';
 import { createPreviewProxyRuntime } from './lib/preview/proxy-runtime.js';
 import { createProxyMiddleware, responseInterceptor } from 'http-proxy-middleware';
+import { createSseProxyMetrics } from './lib/ax-code/proxy.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -315,6 +317,17 @@ const getUpstreamStallTimeoutMs = () => (
     ? UPSTREAM_STALL_TIMEOUT_CONCURRENT_MS
     : DEFAULT_UPSTREAM_STALL_TIMEOUT_MS
 );
+
+const sseProxyMetrics = createSseProxyMetrics();
+let startupDiagnosticsRuntime = null;
+
+const recordStartupEvent = (name, details = {}, options = {}) => {
+  if (!startupDiagnosticsRuntime) return null;
+  if (options.once === false) {
+    return startupDiagnosticsRuntime.record(name, details, options);
+  }
+  return startupDiagnosticsRuntime.markOnce(name, details, options);
+};
 
 const projectConfigRuntime = createProjectConfigRuntime({
   fsPromises,
@@ -663,6 +676,8 @@ const serverUtilsRuntime = createServerUtilsRuntime({
   buildAxCodeUrl,
   ensureAxCodeApiPrefix,
   getUiNotificationClients: () => uiNotificationClients,
+  sseMetrics: sseProxyMetrics,
+  recordStartupEvent,
   getAxCodePort: () => axCodePort,
   setAxCodePortState: (value) => {
     axCodePort = value;
@@ -771,6 +786,7 @@ const axCodeLifecycleRuntime = createAxCodeLifecycleRuntime({
   buildManagedAxCodePath,
   getManagedAxCodeShellEnvSnapshot: getLoginShellEnvSnapshot,
   getActiveSessionCount,
+  recordStartupEvent,
 });
 
 const restartAxCode = (...args) => axCodeLifecycleRuntime.restartAxCode(...args);
@@ -883,6 +899,15 @@ async function main(options = {}) {
   const port = Number.isFinite(options.port) && options.port >= 0 ? Math.trunc(options.port) : DEFAULT_PORT;
   const host = typeof options.host === 'string' && options.host.length > 0 ? options.host : undefined;
   const attachSignals = options.attachSignals !== false;
+  startupDiagnosticsRuntime = createStartupDiagnosticsRuntime({
+    initialSnapshot: options.startupDiagnosticsSnapshot ?? null,
+    source: 'web-server',
+    onEvent: typeof options.onStartupDiagnostic === 'function' ? options.onStartupDiagnostic : null,
+  });
+  recordStartupEvent('web.server.bootstrap.start', {
+    port: port === 0 ? 'auto' : port,
+    host: host || 'default',
+  }, { source: 'web-server' });
   if (typeof options.exitOnShutdown === 'boolean') {
     exitOnShutdown = options.exitOnShutdown;
   }
@@ -898,6 +923,26 @@ async function main(options = {}) {
   const app = express();
   const serverStartedAt = new Date().toISOString();
   app.set('trust proxy', true);
+  let firstApiResponseRecorded = false;
+  app.use((req, res, next) => {
+    if (firstApiResponseRecorded || !req.path.startsWith('/api')) {
+      next();
+      return;
+    }
+
+    const startedAt = Date.now();
+    res.once('finish', () => {
+      if (firstApiResponseRecorded) return;
+      firstApiResponseRecorded = true;
+      recordStartupEvent('api.first_response', {
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        durationMs: Math.max(0, Date.now() - startedAt),
+      }, { source: 'web-server', milestone: 'api.first_response' });
+    });
+    next();
+  });
   app.use(compression({
     filter: (req, res) => {
       if (shouldSkipCompression(req, res)) return false;
@@ -944,6 +989,13 @@ async function main(options = {}) {
         planModeExperimentalEnabled: PLAN_MODE_EXPERIMENT_ENABLED,
       };
     },
+    getStartupDiagnosticsSnapshot: () => (
+      startupDiagnosticsRuntime
+        ? startupDiagnosticsRuntime.snapshot({
+          sseProxy: sseProxyMetrics.snapshot(),
+        })
+        : { error: 'Startup diagnostics are not available' }
+    ),
     verboseRequestLogs: OPENCHAMBER_VERBOSE_REQUEST_LOGS,
     uiPassword,
     readSettingsFromDiskMigrated,
@@ -1055,6 +1107,9 @@ async function main(options = {}) {
   });
   terminalRuntime = startupPipelineResult.terminalRuntime;
   messageStreamRuntime = startupPipelineResult.messageStreamRuntime;
+  recordStartupEvent('web.server.ready', {
+    port: startupPipelineResult.activePort,
+  }, { source: 'web-server' });
 
   try {
     await scheduledTasksRuntime.start();
@@ -1070,6 +1125,21 @@ async function main(options = {}) {
     getQuitRiskStatus: () => ({
       scheduledTasks: scheduledTasksRuntime.getStatus(),
     }),
+    getStartupDiagnostics: () => (
+      startupDiagnosticsRuntime
+        ? startupDiagnosticsRuntime.snapshot({
+          sseProxy: sseProxyMetrics.snapshot(),
+        })
+        : null
+    ),
+    recordDesktopStartupEvent: (event) => {
+      if (!event || typeof event.name !== 'string') return null;
+      return recordStartupEvent(event.name, event.details ?? {}, {
+        source: typeof event.source === 'string' ? event.source : 'electron-main',
+        atEpochMs: Number.isFinite(event.atEpochMs) ? event.atEpochMs : undefined,
+        milestone: event.name,
+      });
+    },
     isReady: () => isAxCodeReady,
     restartAxCode: () => restartAxCode(),
     stop: (shutdownOptions = {}) =>

@@ -153,6 +153,7 @@ export type DesktopSettings = {
 
 type ElectronRuntimeGlobal = {
   runtime?: string;
+  recordStartupEvent?: (name: string, details?: Record<string, unknown>) => Promise<unknown>;
 };
 
 const getElectronRuntime = (): ElectronRuntimeGlobal | null => {
@@ -179,6 +180,20 @@ export const hasDesktopInvoke = (): boolean => {
 };
 
 export const canUseElectronDesktopIPC = (): boolean => isElectronShell() && hasDesktopInvoke();
+
+export const recordDesktopStartupEvent = async (
+  name: string,
+  details?: Record<string, unknown>
+): Promise<void> => {
+  if (typeof window === 'undefined') return;
+  const recorder = getElectronRuntime()?.recordStartupEvent;
+  if (typeof recorder !== 'function') return;
+  try {
+    await recorder(name, details ?? {});
+  } catch {
+    // Diagnostics must never affect app startup.
+  }
+};
 
 export const invokeDesktop = async <T = unknown>(command: string, args?: Record<string, unknown>): Promise<T | null> => {
   if (typeof window === 'undefined') return null;
