@@ -44,7 +44,8 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        shell: bash
+        run: ./scripts/ci-retry.sh bun install --frozen-lockfile
 
       - name: Build web assets
         working-directory: packages/electron
@@ -64,7 +65,7 @@ jobs:
       - name: Build Windows app (${{ matrix.arch }})
         working-directory: packages/electron
         shell: bash
-        run: node ./scripts/package.mjs --win --${{ matrix.arch }} --publish=never
+        run: ../../scripts/ci-retry.sh node ./scripts/package.mjs --win --${{ matrix.arch }} --publish=never
 
       - name: List build output
         working-directory: packages/electron
