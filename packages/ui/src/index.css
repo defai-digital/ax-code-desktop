@@ -231,64 +231,26 @@ textarea[data-chat-input="true"]:focus-visible {
   -webkit-appearance: none;
 }
 
-/* Scroll shadow (HeroUI) fallback styling to ensure visible gradients without the Tailwind plugin */
+/* Scroll shadow fallback without CSS masks; Electron/Metal can paint masked scroll layers black. */
 [data-scroll-shadow="true"] {
   --scroll-shadow-size: var(--scroll-shadow-size, 48px);
-}
-
-[data-scroll-shadow="true"][data-orientation="vertical"] {
-  mask-mode: alpha;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
+  --scroll-shadow-size-effective: min(var(--scroll-shadow-size), 32px);
+  --scroll-shadow-spread: calc(var(--scroll-shadow-size-effective) * -1);
+  --scroll-shadow-color: color-mix(in srgb, var(--foreground) 14%, transparent);
+  --scroll-shadow-top: inset 0 var(--scroll-shadow-size-effective) var(--scroll-shadow-size-effective) var(--scroll-shadow-spread) var(--scroll-shadow-color);
+  --scroll-shadow-bottom: inset 0 calc(var(--scroll-shadow-size-effective) * -1) var(--scroll-shadow-size-effective) var(--scroll-shadow-spread) var(--scroll-shadow-color);
 }
 
 [data-scroll-shadow="true"][data-orientation="vertical"][data-top-bottom-scroll="true"] {
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    #000 var(--scroll-shadow-size),
-    #000 calc(100% - var(--scroll-shadow-size)),
-    transparent 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    #000 var(--scroll-shadow-size),
-    #000 calc(100% - var(--scroll-shadow-size)),
-    transparent 100%
-  );
+  box-shadow: var(--scroll-shadow-top), var(--scroll-shadow-bottom);
 }
 
 [data-scroll-shadow="true"][data-orientation="vertical"][data-top-scroll="true"] {
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    #000 var(--scroll-shadow-size),
-    #000 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    #000 var(--scroll-shadow-size),
-    #000 100%
-  );
+  box-shadow: var(--scroll-shadow-top);
 }
 
 [data-scroll-shadow="true"][data-orientation="vertical"][data-bottom-scroll="true"] {
-  mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    #000 calc(100% - var(--scroll-shadow-size)),
-    transparent 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    #000 calc(100% - var(--scroll-shadow-size)),
-    transparent 100%
-  );
+  box-shadow: var(--scroll-shadow-bottom);
 }
 
 

@@ -1,0 +1,24 @@
+import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+
+const indexCss = readFileSync(new URL("../../../index.css", import.meta.url), "utf8");
+
+function getScrollShadowCss() {
+  const start = indexCss.indexOf('/* Scroll shadow fallback without CSS masks');
+  const end = indexCss.indexOf("@keyframes spin-once", start);
+
+  expect(start >= 0).toBe(true);
+  expect(end > start).toBe(true);
+
+  return indexCss.slice(start, end);
+}
+
+describe("scroll shadow css", () => {
+  test("does not use CSS masks for scroll shadows", () => {
+    const scrollShadowCss = getScrollShadowCss();
+
+    expect(scrollShadowCss).not.toContain("mask-image");
+    expect(scrollShadowCss).not.toContain("-webkit-mask-image");
+    expect(scrollShadowCss).toContain("box-shadow");
+  });
+});
