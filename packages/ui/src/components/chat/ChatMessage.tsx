@@ -689,6 +689,12 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                 variant: 'info' as const,
             };
         }
+        if (errorName === 'AutonomousLimitExceededError' || detail.includes('AutonomousLimitExceededError')) {
+            return {
+                text: 'Autonomous mode reached its built-in safety limit for a single run and stopped. Any changes made so far have been kept. To keep going, send a follow-up message (for example, “continue”) and AX Code will resume from where it left off.',
+                variant: 'info' as const,
+            };
+        }
         return {
             text: `AX Code failed to send message with error:\n\`${detail}\``,
             variant: 'error' as const,
