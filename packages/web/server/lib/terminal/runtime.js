@@ -579,7 +579,11 @@ export function createTerminalRuntime({
         res.write(': heartbeat\n\n');
       } catch (error) {
         console.error(`Heartbeat failed for client ${clientId}:`, error);
-        clearInterval(heartbeatInterval);
+        // Fully tear down, not just the interval: a write failure here may not
+        // be accompanied by a req 'close' event, so clearing only the interval
+        // would leak the pty onData/onExit disposables and the client entry.
+        // cleanup() is idempotent and also clears this interval.
+        cleanup();
       }
     }, 15000);
 

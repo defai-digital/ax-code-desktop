@@ -36,6 +36,11 @@ export type ViewportState = {
   updateViewportAnchor: (sessionId: string, anchor: number, scrollPosition?: SessionMemoryState['scrollPosition']) => void
 }
 
+// Cap the per-session memory map so it doesn't grow for every session ever
+// scrolled. Only the least-recently-accessed sessions past this many lose their
+// remembered scroll position, which is reconstructed on next view.
+const MAX_SESSION_MEMORY_ENTRIES = 200
+
 export const useViewportStore = create<ViewportState>()((set) => ({
   sessionMemoryState: new Map(),
   isSyncing: false,
@@ -55,6 +60,16 @@ export const useViewportStore = create<ViewportState>()((set) => ({
         ...(scrollPosition ? { scrollPosition } : {}),
         lastAccessedAt: Date.now(),
       })
+      if (map.size > MAX_SESSION_MEMORY_ENTRIES) {
+        // Evict the least-recently-accessed entries. The session just touched
+        // above has the newest lastAccessedAt, so it is never in the evicted set.
+        const oldestFirst = [...map.entries()].sort(
+          (a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt,
+        )
+        for (let i = 0; i < map.size - MAX_SESSION_MEMORY_ENTRIES; i++) {
+          map.delete(oldestFirst[i][0])
+        }
+      }
       return { sessionMemoryState: map }
     }),
 }))

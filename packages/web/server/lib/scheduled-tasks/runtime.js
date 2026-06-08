@@ -572,11 +572,27 @@ export const createScheduledTasksRuntime = (deps) => {
 
     try {
       const runPromise = runTaskWithWatchdog(projectID, task, reason);
+      let timedOut = false;
       let timeoutID;
       const timeoutPromise = new Promise((_, reject) => {
         timeoutID = setTimeout(() => {
+          timedOut = true;
           reject(new Error('scheduled task run timed out'));
         }, maxRunDurationMs);
+      });
+
+      // When the timeout wins the race below, runPromise stays pending and its
+      // fetch/SDK calls can still reject afterwards. With no handler attached
+      // that surfaces as an unhandled rejection (can crash the process), so log
+      // and swallow it. Guard on timedOut so a normal rejection (already
+      // surfaced by the race) isn't double-logged.
+      runPromise.catch((err) => {
+        if (timedOut) {
+          logger.warn?.(
+            '[ScheduledTasks] run rejected after timeout',
+            { projectID, taskID, error: err?.message ?? String(err) }
+          );
+        }
       });
 
       const result = await Promise.race([runPromise, timeoutPromise]).finally(() => {
