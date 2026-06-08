@@ -1194,26 +1194,26 @@ fn install_openchamber_managed(
     match preferred {
         DesktopSshInstallMethod::Bun => {
             if has_bun {
-                commands.push(format!("bun add -g @openchamber/web@{version}"));
+                commands.push(format!("bun add -g ax-code-desktop@{version}"));
             }
             if has_npm {
-                commands.push(format!("npm install -g @openchamber/web@{version}"));
+                commands.push(format!("npm install -g ax-code-desktop@{version}"));
             }
         }
         DesktopSshInstallMethod::Npm => {
             if has_npm {
-                commands.push(format!("npm install -g @openchamber/web@{version}"));
+                commands.push(format!("npm install -g ax-code-desktop@{version}"));
             }
             if has_bun {
-                commands.push(format!("bun add -g @openchamber/web@{version}"));
+                commands.push(format!("bun add -g ax-code-desktop@{version}"));
             }
         }
         DesktopSshInstallMethod::DownloadRelease | DesktopSshInstallMethod::UploadBundle => {
             if has_bun {
-                commands.push(format!("bun add -g @openchamber/web@{version}"));
+                commands.push(format!("bun add -g ax-code-desktop@{version}"));
             }
             if has_npm {
-                commands.push(format!("npm install -g @openchamber/web@{version}"));
+                commands.push(format!("npm install -g ax-code-desktop@{version}"));
             }
         }
     }
