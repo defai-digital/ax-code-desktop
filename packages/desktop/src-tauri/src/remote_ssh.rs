@@ -1138,7 +1138,7 @@ fn remote_command_exists(
         control_path,
         &format!(
             "command -v {} >/dev/null 2>&1 && echo yes || echo no",
-            command_name
+            shell_quote(command_name)
         ),
         DEFAULT_CONNECTION_TIMEOUT_SEC,
     )
