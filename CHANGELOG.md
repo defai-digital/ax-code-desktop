@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-08
+
+- Desktop: isolated the managed AX Code runtime behind desktop-only bridge headers and hardened server access against browser-origin requests.
+- Desktop: added startup diagnostics for packaged server failures, including manifest checks, executable checks, port checks, and log tailing.
+- Release: added a packaged Electron smoke test gate so desktop release builds verify app startup before publishing.
+
 ## [0.10.2] - 2026-06-08
 
 - UI: removed the remaining CSS mask rendering paths from scroll-shadow and reveal surfaces to avoid masked rendering artifacts.
