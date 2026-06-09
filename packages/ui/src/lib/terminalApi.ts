@@ -5,6 +5,7 @@ import type {
   TerminalTransportCapability,
   TerminalWebSocketDescriptor,
 } from '@/lib/api/types';
+import { HTTP_DEFAULTS } from './http';
 
 export type {
   CreateTerminalOptions,
@@ -53,7 +54,7 @@ type StreamSubscription = {
 const CONTROL_TAG_JSON = 0x01;
 const WS_READY_STATE_OPEN = 1;
 const WS_READY_STATE_CONNECTING = 0;
-const DEFAULT_TERMINAL_WS_PATH = '/api/terminal/ws';
+const DEFAULT_TERMINAL_WS_PATH = `${HTTP_DEFAULTS.apiPath.terminal}/ws`;
 const WS_SEND_WAIT_MS = 1200;
 const WS_RECONNECT_JITTER_MS = 250;
 const WS_KEEPALIVE_INTERVAL_MS = 20000;
@@ -735,9 +736,9 @@ const applyTerminalTransportCapabilities = (capabilities: TerminalSession['capab
 };
 
 const sendTerminalInputHttp = async (sessionId: string, data: string): Promise<void> => {
-  const response = await fetch(`/api/terminal/${sessionId}/input`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
+  const response = await fetch(`${HTTP_DEFAULTS.apiPath.terminal}/${sessionId}/input`, {
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.textPlain,
     body: data,
   });
 
@@ -748,9 +749,9 @@ const sendTerminalInputHttp = async (sessionId: string, data: string): Promise<v
 };
 
 export async function createTerminalSession(options: CreateTerminalOptions): Promise<TerminalSession> {
-  const response = await fetch('/api/terminal/create', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const response = await fetch(`${HTTP_DEFAULTS.apiPath.terminal}/create`, {
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({
       cwd: options.cwd,
       cols: options.cols ?? 80,
@@ -846,7 +847,7 @@ const connectTerminalStreamViaSse = (
       return;
     }
 
-    eventSource = new EventSource(`/api/terminal/${sessionId}/stream`);
+    eventSource = new EventSource(`${HTTP_DEFAULTS.apiPath.terminal}/${sessionId}/stream`);
     let opened = false;
 
     connectionTimeoutId = setTimeout(() => {
@@ -937,9 +938,9 @@ export async function resizeTerminal(
   cols: number,
   rows: number
 ): Promise<void> {
-  const response = await fetch(`/api/terminal/${sessionId}/resize`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const response = await fetch(`${HTTP_DEFAULTS.apiPath.terminal}/${sessionId}/resize`, {
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ cols, rows }),
   });
 
@@ -952,8 +953,8 @@ export async function resizeTerminal(
 export async function closeTerminal(sessionId: string): Promise<void> {
   getTerminalTransportGlobalState().manager?.unbindSession(sessionId);
 
-  const response = await fetch(`/api/terminal/${sessionId}`, {
-    method: 'DELETE',
+  const response = await fetch(`${HTTP_DEFAULTS.apiPath.terminal}/${sessionId}`, {
+    method: HTTP_DEFAULTS.method.delete,
   });
 
   if (!response.ok) {
@@ -968,9 +969,9 @@ export async function restartTerminalSession(
 ): Promise<TerminalSession> {
   getTerminalTransportGlobalState().manager?.unbindSession(currentSessionId);
 
-  const response = await fetch(`/api/terminal/${currentSessionId}/restart`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const response = await fetch(`${HTTP_DEFAULTS.apiPath.terminal}/${currentSessionId}/restart`, {
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({
       cwd: options.cwd,
       cols: options.cols ?? 80,
@@ -992,9 +993,9 @@ export async function forceKillTerminal(options: {
   sessionId?: string;
   cwd?: string;
 }): Promise<void> {
-  const response = await fetch('/api/terminal/force-kill', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const response = await fetch(`${HTTP_DEFAULTS.apiPath.terminal}/force-kill`, {
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(options),
   });
 

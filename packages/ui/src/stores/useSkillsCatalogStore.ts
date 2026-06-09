@@ -12,6 +12,7 @@ import type {
   SkillsInstallError,
   SkillsCatalogSourceResponse,
 } from '@/lib/api/types';
+import { API_ENDPOINTS } from '@/lib/http';
 
 import { refreshSkillsAfterAxCodeRestart, useSkillsStore } from '@/stores/useSkillsStore';
 import { axCodeClient } from '@/lib/ax-code/client';
@@ -139,7 +140,7 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
             const timeoutId = window.setTimeout(() => controller.abort(), 3000);
 
             try {
-              const response = await fetch(`/api/config/skills/catalog${refresh}`, {
+              const response = await fetch(`${API_ENDPOINTS.config.skillsCatalog}${refresh}`, {
                 method: 'GET',
                 headers: { Accept: 'application/json' },
                 signal: controller.signal,
@@ -216,7 +217,7 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
             ? `?directory=${encodeURIComponent(currentDirectory)}&sourceId=${encodeURIComponent(sourceId)}${refresh}`
             : `?sourceId=${encodeURIComponent(sourceId)}${refresh}`;
 
-          const response = await fetch(`/api/config/skills/catalog/source${queryParams}`, {
+          const response = await fetch(`${API_ENDPOINTS.config.skillsCatalogSource}${queryParams}`, {
             method: 'GET',
             headers: { Accept: 'application/json' },
           });
@@ -224,7 +225,7 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
           const payload = (await response.json().catch(() => null)) as SkillsCatalogSourceResponse | null;
           const hasItems = Array.isArray((payload as SkillsCatalogSourceResponse | null)?.items);
           if (!response.ok || (!payload?.ok && !hasItems)) {
-            const fallback = await fetch(`/api/config/skills/catalog${queryParams}`, {
+            const fallback = await fetch(`${API_ENDPOINTS.config.skillsCatalog}${queryParams}`, {
               method: 'GET',
               headers: { Accept: 'application/json' },
             });
@@ -291,7 +292,7 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
           }
           const queryParams = `?${parts.join('&')}`;
 
-          const response = await fetch(`/api/config/skills/catalog/source${queryParams}`, {
+          const response = await fetch(`${API_ENDPOINTS.config.skillsCatalogSource}${queryParams}`, {
             method: 'GET',
             headers: { Accept: 'application/json' },
           });
@@ -346,7 +347,7 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
           const currentDirectory = getCurrentDirectory();
           const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : '';
 
-          const response = await fetch(`/api/config/skills/scan${queryParams}`, {
+          const response = await fetch(`${API_ENDPOINTS.config.skillsCatalogScan}${queryParams}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
             body: JSON.stringify(request),
@@ -382,7 +383,7 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
           const currentDirectory = directoryOverride ?? getCurrentDirectory();
           const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : '';
 
-          const response = await fetch(`/api/config/skills/install${queryParams}`, {
+          const response = await fetch(`${API_ENDPOINTS.config.skillsCatalogInstall}${queryParams}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
             body: JSON.stringify(request),

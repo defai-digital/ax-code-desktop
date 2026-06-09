@@ -37,12 +37,13 @@ import { StopIcon } from '@/components/icons/StopIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { getCycledPrimaryAgentName } from '@/lib/modelControlUtils';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { API_ENDPOINTS } from '@/lib/http';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { GitHubIssuePickerDialog } from '@/components/session/GitHubIssuePickerDialog';
 import { GitHubPrPickerDialog } from '@/components/session/GitHubPrPickerDialog';
@@ -3193,7 +3194,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                     const blob = new Blob([byteArray], { type: result.mime || 'application/octet-stream' });
                                     file = new File([blob], fileName, { type: result.mime || 'application/octet-stream' });
                                 } else {
-                                    const response = await fetch(`/api/fs/raw?path=${encodeURIComponent(normalizedPath)}`);
+                                    const response = await fetch(`${API_ENDPOINTS.fs.raw}?path=${encodeURIComponent(normalizedPath)}`);
                                     if (!response.ok) {
                                         throw new Error(`Failed to read dropped file (${response.status})`);
                                     }

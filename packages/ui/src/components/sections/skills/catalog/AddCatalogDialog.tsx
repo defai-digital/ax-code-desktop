@@ -18,6 +18,7 @@ import {
   SelectTrigger,
 } from '@/components/ui/select';
 import { Icon } from "@/components/icon/Icon";
+import { API_ENDPOINTS } from '@/lib/http';
 
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 import { updateDesktopSettings } from '@/lib/persistence';
@@ -59,7 +60,7 @@ const loadSettings = async (): Promise<DesktopSettings | null> => {
       return (result?.settings || {}) as DesktopSettings;
     }
 
-    const response = await fetch('/api/config/settings', {
+    const response = await fetch(API_ENDPOINTS.config.settings, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });

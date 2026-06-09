@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import type { UpdateInfo, UpdateProgress } from '@/lib/desktop';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { openExternalUrl } from '@/lib/url';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from '@/lib/http';
 import { useI18n } from '@/lib/i18n';
 
 type WebUpdateState = 'idle' | 'updating' | 'restarting' | 'reconnecting' | 'error';
@@ -120,7 +121,7 @@ const WEB_UPDATE_MAX_WAIT_MS = 10 * 60 * 1000;
 
 async function installWebUpdate(): Promise<InstallWebUpdateResult> {
   try {
-    const response = await fetch('/api/openchamber/update-install', {
+    const response = await fetch(API_ENDPOINTS.openchamber.updateInstall, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -142,9 +143,9 @@ async function installWebUpdate(): Promise<InstallWebUpdateResult> {
 
 async function isServerReachable(): Promise<boolean> {
   try {
-    const response = await fetch('/health', {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
+    const response = await fetch(API_ENDPOINTS.debug.rootHealth, {
+      method: HTTP_DEFAULTS.method.get,
+      headers: HTTP_DEFAULTS.headers.acceptJson,
     });
     return response.ok;
   } catch {
@@ -159,7 +160,7 @@ async function waitForUpdateApplied(
 ): Promise<boolean> {
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const response = await fetch('/api/openchamber/update-check', {
+      const response = await fetch(API_ENDPOINTS.openchamber.updateCheck, {
         method: 'GET',
         headers: { Accept: 'application/json' },
       });

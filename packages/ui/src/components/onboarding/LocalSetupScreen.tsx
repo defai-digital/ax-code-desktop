@@ -6,6 +6,7 @@ import { Icon } from "@/components/icon/Icon";
 import { updateDesktopSettings } from '@/lib/persistence';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { restartDesktopApp } from '@/lib/desktop';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from '@/lib/http';
 import { useI18n } from '@/lib/i18n';
 import type { OnboardingPlatform } from './types';
 
@@ -98,7 +99,7 @@ export function LocalSetupScreen({
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch('/api/config/settings', { method: 'GET', headers: { Accept: 'application/json' } });
+        const response = await fetch(API_ENDPOINTS.config.settings, { method: 'GET', headers: { Accept: 'application/json' } });
         if (!response.ok) return;
         const data = (await response.json().catch(() => null)) as null | { axCodeBinary?: unknown };
         if (!data || cancelled) return;
@@ -133,7 +134,9 @@ export function LocalSetupScreen({
 
   const checkCliAvailability = React.useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch('/health');
+      const response = await fetch(API_ENDPOINTS.debug.rootHealth, {
+        method: HTTP_DEFAULTS.method.get,
+      });
       if (!response.ok) return false;
       const data = await response.json();
       return data.axCodeRunning === true || data.isAxCodeReady === true;
@@ -181,7 +184,7 @@ export function LocalSetupScreen({
         return;
       }
 
-      await fetch('/api/config/reload', { method: 'POST' });
+      await fetch(API_ENDPOINTS.config.reload, { method: 'POST' });
     } finally {
       setTimeout(() => setIsRetrying(false), 1000);
     }

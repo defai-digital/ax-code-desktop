@@ -8,6 +8,7 @@ import {
 } from "@/lib/configUpdate";
 import { getSafeStorage } from "./utils/safeStorage";
 import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection";
+import { API_ENDPOINTS, replacePathParams } from '@/lib/http';
 
 import { axCodeClient } from '@/lib/ax-code/client';
 
@@ -192,7 +193,7 @@ export const useSkillsStore = create<SkillsStore>()(
               try {
                 const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : '';
 
-                const response = await fetch(`/api/config/skills${queryParams}`);
+                const response = await fetch(`${API_ENDPOINTS.config.skills}${queryParams}`);
                 if (!response.ok) {
                   throw new Error(`Failed to list skills: ${response.status}`);
                 }
@@ -236,7 +237,7 @@ export const useSkillsStore = create<SkillsStore>()(
             const currentDirectory = getCurrentDirectory();
             const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : '';
             
-            const response = await fetch(`/api/config/skills/${encodeURIComponent(name)}${queryParams}`);
+            const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.skill, { name })}${queryParams}`);
             if (!response.ok) {
               return null;
             }
@@ -264,7 +265,7 @@ export const useSkillsStore = create<SkillsStore>()(
             const currentDirectory = getCurrentDirectory();
             const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : '';
 
-            const response = await fetch(`/api/config/skills/${encodeURIComponent(config.name)}${queryParams}`, {
+            const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.skill, { name: config.name })}${queryParams}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(skillConfig)
@@ -314,7 +315,7 @@ export const useSkillsStore = create<SkillsStore>()(
             const currentDirectory = getCurrentDirectory();
             const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : '';
 
-            const response = await fetch(`/api/config/skills/${encodeURIComponent(name)}${queryParams}`, {
+            const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.skill, { name })}${queryParams}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(skillConfig)
@@ -357,7 +358,7 @@ export const useSkillsStore = create<SkillsStore>()(
             const currentDirectory = getCurrentDirectory();
             const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : '';
 
-            const response = await fetch(`/api/config/skills/${encodeURIComponent(name)}${queryParams}`, {
+            const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.skill, { name })}${queryParams}`, {
               method: 'DELETE'
             });
 
@@ -407,7 +408,7 @@ export const useSkillsStore = create<SkillsStore>()(
             const queryParams = currentDirectory ? `&directory=${encodeURIComponent(currentDirectory)}` : '';
             
             const response = await fetch(
-              `/api/config/skills/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}?${queryParams.slice(1)}`
+              `${replacePathParams(API_ENDPOINTS.config.skill, { name: skillName })}/files/${encodeURIComponent(filePath)}${queryParams}`
             );
             if (!response.ok) {
               return null;
@@ -426,7 +427,7 @@ export const useSkillsStore = create<SkillsStore>()(
             const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : '';
             
             const response = await fetch(
-              `/api/config/skills/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}${queryParams}`,
+              `${replacePathParams(API_ENDPOINTS.config.skill, { name: skillName })}/files/${encodeURIComponent(filePath)}${queryParams}`,
               {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -446,7 +447,7 @@ export const useSkillsStore = create<SkillsStore>()(
             const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : '';
             
             const response = await fetch(
-              `/api/config/skills/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}${queryParams}`,
+              `${replacePathParams(API_ENDPOINTS.config.skill, { name: skillName })}/files/${encodeURIComponent(filePath)}${queryParams}`,
               { method: 'DELETE' }
             );
             

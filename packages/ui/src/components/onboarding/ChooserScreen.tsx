@@ -7,6 +7,7 @@ import { updateDesktopSettings } from '@/lib/persistence';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { restartDesktopApp } from '@/lib/desktop';
 import { cn } from '@/lib/utils';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from '@/lib/http';
 import { RemoteConnectionForm } from './RemoteConnectionForm';
 import { desktopHostsGet, desktopHostsSet } from '@/lib/desktopHosts';
 import { useI18n } from '@/lib/i18n';
@@ -77,7 +78,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch('/api/config/settings', { method: 'GET', headers: { Accept: 'application/json' } });
+        const response = await fetch(API_ENDPOINTS.config.settings, { method: 'GET', headers: { Accept: 'application/json' } });
         if (!response.ok) return;
         const data = (await response.json().catch(() => null)) as null | { axCodeBinary?: unknown };
         if (!data || cancelled) return;
@@ -104,7 +105,9 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
 
   const checkCliAvailability = React.useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch('/health');
+      const response = await fetch(API_ENDPOINTS.debug.rootHealth, {
+        method: HTTP_DEFAULTS.method.get,
+      });
       if (!response.ok) return false;
       const data = await response.json();
       return data.axCodeRunning === true || data.isAxCodeReady === true;
@@ -205,7 +208,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
         await restartDesktopApp();
         return;
       }
-      await fetch('/api/config/reload', { method: 'POST' });
+      await fetch(API_ENDPOINTS.config.reload, { method: 'POST' });
     } finally {
       setTimeout(() => setIsApplyingPath(false), 1000);
     }

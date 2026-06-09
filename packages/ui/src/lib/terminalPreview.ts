@@ -1,3 +1,5 @@
+import { API_ENDPOINTS, HTTP_DEFAULTS } from './http';
+
 const ANSI_ESCAPE_PREFIX = String.fromCharCode(27);
 const ANSI_ESCAPE_PATTERN = new RegExp(`${ANSI_ESCAPE_PREFIX}\\[[0-9;?]*[ -/]*[@-~]`, 'g');
 const LOOPBACK_URL_PATTERN = /(https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[(?:::1|::)\])(?::\d{2,5})?(?:\/[^\s<>'"`]*)?)/gi;
@@ -94,11 +96,11 @@ export const isTerminalPreviewUrlAvailable = async (url: string, timeoutMs = 150
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch('/api/system/probe-url', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch(API_ENDPOINTS.system.probeUrl, {
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.contentTypeJson,
       body: JSON.stringify({ url: parsed.toString() }),
-      cache: 'no-store',
+      cache: HTTP_DEFAULTS.cache.noStore,
       signal: controller.signal,
     });
     if (!response.ok) {

@@ -27,6 +27,7 @@ import { VirtualizedCodeBlock, type CodeLine } from './parts/VirtualizedCodeBloc
 import { JsonTreeView } from '@/components/ui/JsonTreeView';
 import { Icon } from "@/components/icon/Icon";
 import { useI18n } from '@/lib/i18n';
+import { API_ENDPOINTS } from '@/lib/http';
 
 interface ToolOutputDialogProps {
     popup: ToolPopupContent;
@@ -739,7 +740,7 @@ const MermaidPreviewDialog: React.FC<{
             if (!normalizedPath) {
                 sourcePromise = Promise.reject(new Error('Invalid local file path for Mermaid preview.'));
             } else {
-                sourcePromise = fetch(`/api/fs/raw?path=${encodeURIComponent(normalizedPath)}`)
+                sourcePromise = fetch(`${API_ENDPOINTS.fs.raw}?path=${encodeURIComponent(normalizedPath)}`)
                     .then((response) => {
                         if (!response.ok) {
                             return Promise.reject(new Error(`Failed to read diagram file (${response.status})`));

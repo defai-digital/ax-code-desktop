@@ -7,6 +7,7 @@ import { streamDebugEnabled } from '@/stores/utils/streamDebug';
 import { copyTextToClipboard as copyPlainTextToClipboard } from '@/lib/clipboard';
 import { getSyncSessions, getSyncMessages, getSyncParts } from '@/sync/sync-refs';
 import { useStreamingStore } from '@/sync/streaming';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from '@/lib/http';
 
 type SyncPart = ReturnType<typeof getSyncParts>[number];
 
@@ -305,19 +306,22 @@ export const debugUtils = {
     let axCodeHealth: unknown = null;
 
     const pathUrl = currentDirectory
-      ? `/api/path?directory=${encodeURIComponent(currentDirectory)}`
-      : '/api/path';
+      ? `${API_ENDPOINTS.debug.path}?directory=${encodeURIComponent(currentDirectory)}`
+      : API_ENDPOINTS.debug.path;
     pathInfo = await safeFetchJson(pathUrl);
 
     const projectUrl = currentDirectory
-      ? `/api/project/current?directory=${encodeURIComponent(currentDirectory)}`
-      : '/api/project/current';
+      ? `${API_ENDPOINTS.debug.projectCurrent}?directory=${encodeURIComponent(currentDirectory)}`
+      : API_ENDPOINTS.debug.projectCurrent;
     projectInfo = await safeFetchJson(projectUrl);
 
-    settingsInfo = await safeFetchJson('/api/config/settings');
+    settingsInfo = await safeFetchJson(API_ENDPOINTS.config.settings);
 
     try {
-      const resp = await fetch('/api/health');
+      const resp = await fetch(API_ENDPOINTS.debug.health, {
+        method: HTTP_DEFAULTS.method.get,
+        headers: HTTP_DEFAULTS.headers.acceptJson,
+      });
       const contentType = resp.headers.get('content-type') || '';
       const body = await safeText(resp);
       const isJson = contentType.toLowerCase().includes('application/json');

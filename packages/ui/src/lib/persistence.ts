@@ -8,6 +8,7 @@ import { setFilesViewShowGitignored } from '@/lib/filesViewShowGitignored';
 import { loadAppearancePreferences, applyAppearancePreferences } from '@/lib/appearancePersistence';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 import { sanitizeStarterRefs } from '@/lib/draftStarters';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from './http';
 
 const persistToLocalStorage = (settings: DesktopSettings) => {
   if (typeof window === 'undefined') {
@@ -915,9 +916,9 @@ const fetchWebSettings = async (): Promise<DesktopSettings | null> => {
     }
 
     try {
-      const response = await fetch('/api/config/settings', {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
+      const response = await fetch(API_ENDPOINTS.config.settings, {
+        method: HTTP_DEFAULTS.method.get,
+        headers: HTTP_DEFAULTS.headers.acceptJson,
       });
       if (!response.ok) {
         return null;
@@ -1030,12 +1031,9 @@ const _flushSettingsUpdate = async (): Promise<void> => {
   }
 
   try {
-    const response = await fetch('/api/config/settings', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+    const response = await fetch(API_ENDPOINTS.config.settings, {
+      method: HTTP_DEFAULTS.method.put,
+      headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
       body: JSON.stringify(changes),
     });
 

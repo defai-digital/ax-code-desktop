@@ -1,5 +1,6 @@
 import { createAxCodeClient, AxCodeClient } from "@ax-code/sdk/v2";
 import type { FilesAPI, RuntimeAPIs } from "../api/types";
+import { API_ENDPOINTS, HTTP_DEFAULTS, API_PATHS, replacePathParams } from '@/lib/http';
 import { getDesktopHomeDirectory } from "../desktop";
 import type {
   Session,
@@ -25,7 +26,7 @@ import {
 
 // Use relative path by default (works with both dev and nginx proxy server)
 // Can be overridden with VITE_AX_CODE_URL for absolute URLs in special deployments
-const DEFAULT_BASE_URL = import.meta.env.VITE_AX_CODE_URL || "/api";
+const DEFAULT_BASE_URL = import.meta.env.VITE_AX_CODE_URL || API_PATHS.base;
 
 /**
  * Render an SDK error payload into a short string for Error messages.
@@ -93,7 +94,7 @@ const isRetryableFetchError = (error: unknown): boolean => {
 };
 
 const ensureAbsoluteBaseUrl = (candidate: string): string => {
-  const normalized = typeof candidate === "string" && candidate.trim().length > 0 ? candidate.trim() : "/api";
+  const normalized = typeof candidate === "string" && candidate.trim().length > 0 ? candidate.trim() : API_PATHS.base;
 
   if (ABSOLUTE_URL_PATTERN.test(normalized)) {
     return normalized;
@@ -138,7 +139,7 @@ const resolveDesktopBaseUrl = (): string | null => {
     return null;
   }
 
-  return `${origin}/api`;
+  return `${origin.replace(/\/+$/, '')}${API_PATHS.base}`;
 };
 
 interface App {
@@ -492,18 +493,17 @@ class AxCodeService {
 
   async getSessionTodos(sessionId: string): Promise<Array<{ id: string; content: string; status: string; priority: string }>> {
     try {
-      const base = this.baseUrl.replace(/\/$/, "");
-      const url = new URL(`${base}/session/${encodeURIComponent(sessionId)}/todo`);
+      const base = this.baseUrl.replace(/\/+$/, '');
+      const path = replacePathParams(API_ENDPOINTS.session.todo, { sessionId });
+      const url = new URL(path, `${base}/`);
 
       if (this.currentDirectory && this.currentDirectory.length > 0) {
         url.searchParams.set("directory", this.currentDirectory);
       }
 
       const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
+        method: HTTP_DEFAULTS.method.get,
+        headers: HTTP_DEFAULTS.headers.acceptJson,
       });
 
       if (!response.ok) {
@@ -764,9 +764,10 @@ class AxCodeService {
     // for model work (SSE will deliver output/status).
     // This avoids 504s from proxy timeouts on long-running turns.
     const base = this.baseUrl.replace(/\/+$/, '');
+    const path = replacePathParams(API_ENDPOINTS.session.promptAsyncForSession, { sessionId: params.id });
     let url: URL;
     try {
-      url = new URL(`${base}/session/${encodeURIComponent(params.id)}/prompt_async`);
+      url = new URL(path, `${base}/`);
       if (this.currentDirectory) {
         url.searchParams.set('directory', this.currentDirectory);
       }
@@ -802,11 +803,8 @@ class AxCodeService {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         response = await fetch(url.toString(), {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            accept: 'application/json',
-          },
+          method: HTTP_DEFAULTS.method.post,
+          headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
           body: JSON.stringify({
             model: {
               providerID: params.providerID,
@@ -884,7 +882,8 @@ class AxCodeService {
     }
 
     const base = this.baseUrl.replace(/\/+$/, '');
-    const url = new URL(`${base}/session/${encodeURIComponent(params.id)}/command`);
+    const path = replacePathParams(API_ENDPOINTS.session.commandForSession, { sessionId: params.id });
+    const url = new URL(path, `${base}/`);
     if (this.currentDirectory) {
       url.searchParams.set('directory', this.currentDirectory);
     }
@@ -900,11 +899,8 @@ class AxCodeService {
     };
 
     const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-      },
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
       body: JSON.stringify(payload),
     });
 
@@ -985,8 +981,8 @@ class AxCodeService {
     directory: string | null | undefined
   ): Promise<Record<string, { type: "idle" | "busy" | "retry"; attempt?: number; message?: string; next?: number }> | null> {
     try {
-      const base = this.baseUrl.replace(/\/$/, "");
-      const url = new URL(`${base}/session/status`);
+      const base = this.baseUrl.replace(/\/+$/, '');
+      const url = new URL(API_ENDPOINTS.session.status, `${base}/`);
 
       const trimmedDirectory = typeof directory === "string" ? directory.trim() : "";
       if (trimmedDirectory.length > 0) {
@@ -994,10 +990,8 @@ class AxCodeService {
       }
 
       const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
+        method: HTTP_DEFAULTS.method.get,
+        headers: HTTP_DEFAULTS.headers.acceptJson,
       });
 
       if (!response.ok) {
@@ -1034,11 +1028,9 @@ class AxCodeService {
   > {
     try {
       // Web server endpoint - use relative path that works with both dev and prod
-      const response = await fetch('/api/session-activity', {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-        },
+      const response = await fetch(API_ENDPOINTS.session.activity, {
+        method: HTTP_DEFAULTS.method.get,
+        headers: HTTP_DEFAULTS.headers.acceptJson,
       });
 
       if (!response.ok) {
@@ -1281,13 +1273,11 @@ class AxCodeService {
   async updateConfig(config: Record<string, unknown>): Promise<Config> {
     // IMPORTANT: Do NOT pass directory parameter for config updates
     // The config should be global, not directory-specific
-    const url = `${this.baseUrl}/config`;
+    const url = `${this.baseUrl}${API_ENDPOINTS.config.base}`;
 
     const response = await fetch(url, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      method: HTTP_DEFAULTS.method.patch,
+      headers: HTTP_DEFAULTS.headers.contentTypeJson,
       body: JSON.stringify(config)
     });
 
@@ -1372,11 +1362,9 @@ class AxCodeService {
     try {
       // For now, we'll use a placeholder implementation
       // In a real implementation, this would call an API endpoint to read the file
-      const response = await fetch(`${this.baseUrl}/files/read`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.read}`, {
+        method: HTTP_DEFAULTS.method.post,
+        headers: HTTP_DEFAULTS.headers.contentTypeJson,
         body: JSON.stringify({
           path,
           directory: this.currentDirectory
@@ -1398,11 +1386,9 @@ class AxCodeService {
   async listFiles(directory?: string): Promise<Record<string, unknown>[]> {
     try {
       const targetDir = directory || this.currentDirectory || '/';
-      const response = await fetch(`${this.baseUrl}/files/list`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.list}`, {
+        method: HTTP_DEFAULTS.method.post,
+        headers: HTTP_DEFAULTS.headers.contentTypeJson,
         body: JSON.stringify({ directory: targetDir })
       });
 
@@ -1515,13 +1501,13 @@ class AxCodeService {
       // Health endpoint is at root, not under /api
       let healthUrl: string;
       const normalizedBase = this.baseUrl.endsWith('/') ? this.baseUrl.replace(/\/+$/, '') : this.baseUrl;
-      if (normalizedBase === '/api') {
-        healthUrl = '/health';
-      } else if (normalizedBase.endsWith('/api')) {
+      if (normalizedBase === API_PATHS.base) {
+        healthUrl = API_ENDPOINTS.debug.rootHealth;
+      } else if (normalizedBase.endsWith(API_PATHS.base)) {
         // Desktop: http://127.0.0.1:PORT/api -> http://127.0.0.1:PORT/health
-        healthUrl = `${normalizedBase.slice(0, -4)}/health`;
+        healthUrl = `${normalizedBase.slice(0, -API_PATHS.base.length) || '/'}${API_ENDPOINTS.debug.rootHealth.slice(1)}`;
       } else {
-        healthUrl = `${normalizedBase}/health`;
+        healthUrl = `${normalizedBase}${API_ENDPOINTS.debug.rootHealth}`;
       }
       const response = await fetch(healthUrl);
       if (!response.ok) {
@@ -1561,11 +1547,9 @@ class AxCodeService {
       ...(options?.allowOutsideWorkspace ? { allowOutsideWorkspace: true } : {}),
     };
 
-    const response = await fetch(`${this.baseUrl}/fs/mkdir`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.mkdir}`, {
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.contentTypeJson,
       body: JSON.stringify(payload),
     });
 
@@ -1579,12 +1563,9 @@ class AxCodeService {
   }
 
   async cloneRepository(input: { remoteUrl: string; destinationPath: string; gitIdentityId?: string | null }): Promise<{ success: boolean; path: string; output?: string }> {
-    const response = await fetch(`${this.baseUrl}/fs/clone`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+    const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.clone}`, {
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
       body: JSON.stringify(input),
     });
 
@@ -1645,7 +1626,7 @@ class AxCodeService {
         params.set('respectGitignore', 'true');
       }
       const query = params.toString();
-      const response = await fetch(`${this.baseUrl}/fs/list${query ? `?${query}` : ''}`);
+      const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.list}${query ? `?${query}` : ''}`);
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         const message = typeof error.error === 'string' ? error.error : 'Failed to list directory';
@@ -1733,11 +1714,9 @@ class AxCodeService {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/fs/home`, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json'
-        }
+      const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.home}`, {
+        method: HTTP_DEFAULTS.method.get,
+        headers: HTTP_DEFAULTS.headers.acceptJson,
       });
 
       if (!response.ok) {
@@ -1766,15 +1745,13 @@ class AxCodeService {
       return null;
     }
 
-    const url = `${this.baseUrl}/ax-code/directory`;
+    const url = `${this.baseUrl}${API_ENDPOINTS.session.directory}`;
     console.log('[AxCodeClient] POST', url, 'with path:', directoryPath);
 
     try {
       const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        method: HTTP_DEFAULTS.method.post,
+        headers: HTTP_DEFAULTS.headers.contentTypeJson,
         body: JSON.stringify({ path: directoryPath })
       });
 

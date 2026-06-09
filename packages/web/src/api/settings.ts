@@ -1,7 +1,8 @@
 import type { SettingsAPI, SettingsLoadResult, SettingsPayload } from '@openchamber/ui/api/types';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from './constants';
 
-const SETTINGS_ENDPOINT = '/api/config/settings';
-const RELOAD_ENDPOINT = '/api/config/reload';
+const SETTINGS_ENDPOINT = API_ENDPOINTS.config.settings;
+const RELOAD_ENDPOINT = API_ENDPOINTS.config.reload;
 
 const sanitizePayload = (data: unknown): SettingsPayload => {
   if (!data || typeof data !== 'object') {
@@ -13,8 +14,8 @@ const sanitizePayload = (data: unknown): SettingsPayload => {
 export const createWebSettingsAPI = (): SettingsAPI => ({
   async load(): Promise<SettingsLoadResult> {
     const response = await fetch(SETTINGS_ENDPOINT, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
+      method: HTTP_DEFAULTS.method.get,
+      headers: HTTP_DEFAULTS.headers.acceptJson,
     });
 
     if (!response.ok) {
@@ -30,11 +31,8 @@ export const createWebSettingsAPI = (): SettingsAPI => ({
 
   async save(changes: Partial<SettingsPayload>): Promise<SettingsPayload> {
     const response = await fetch(SETTINGS_ENDPOINT, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+      method: HTTP_DEFAULTS.method.put,
+      headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
       body: JSON.stringify(changes),
     });
 
@@ -48,7 +46,7 @@ export const createWebSettingsAPI = (): SettingsAPI => ({
   },
 
   async restartAxCode(): Promise<{ restarted: boolean }> {
-    const response = await fetch(RELOAD_ENDPOINT, { method: 'POST' });
+    const response = await fetch(RELOAD_ENDPOINT, { method: HTTP_DEFAULTS.method.post });
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
       throw new Error(error.error || 'Failed to restart ax-code');

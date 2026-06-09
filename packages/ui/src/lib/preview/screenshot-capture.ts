@@ -1,6 +1,7 @@
 import { snapdom } from '@zumer/snapdom';
 import { getFontEmbedCSS, toJpeg } from 'html-to-image';
 import { getTauriGlobal } from '@/lib/tauriGlobal';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from '../http';
 
 export type PreviewElementMetadata = {
   frame: 'top';
@@ -474,9 +475,9 @@ const getExternalResourceProxyUrl = async (url: URL): Promise<string> => {
   const existingRequest = previewProxyTargetRequests.get(targetKey);
   const request = existingRequest ?? (async () => {
     try {
-      const response = await fetch('/api/preview/targets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch(API_ENDPOINTS.preview.targets, {
+        method: HTTP_DEFAULTS.method.post,
+        headers: HTTP_DEFAULTS.headers.contentTypeJson,
         credentials: 'include',
         body: JSON.stringify({ url: url.toString(), allowExternal: true }),
       });

@@ -16,14 +16,15 @@ import type {
   TerminalSession,
   ForceKillOptions,
 } from '@openchamber/ui/api/types';
+import { HTTP_DEFAULTS } from './constants';
 
 const getRetryPolicy = (options?: TerminalStreamOptions) => {
   const retry = options?.retry;
   return {
-    maxRetries: retry?.maxRetries ?? 3,
-    initialRetryDelay: retry?.initialDelayMs ?? 1000,
-    maxRetryDelay: retry?.maxDelayMs ?? 8000,
-    connectionTimeout: options?.connectionTimeoutMs ?? 10000,
+    maxRetries: retry?.maxRetries ?? HTTP_DEFAULTS.terminal.defaultRetryMaxRetries,
+    initialRetryDelay: retry?.initialDelayMs ?? HTTP_DEFAULTS.terminal.defaultInitialRetryDelayMs,
+    maxRetryDelay: retry?.maxDelayMs ?? HTTP_DEFAULTS.terminal.defaultMaxRetryDelayMs,
+    connectionTimeout: options?.connectionTimeoutMs ?? HTTP_DEFAULTS.terminal.defaultConnectionTimeoutMs,
   };
 };
 

@@ -1,6 +1,7 @@
 import type { ProjectEntry } from '@/lib/api/types';
 import type { IconName } from "@/components/icon/icons";
 import type { ThemeVariant } from '@/types/theme';
+import { API_ENDPOINTS, replacePathParams } from './http';
 
 export const PROJECT_ICONS: Array<{ key: string; Icon: IconName; label: string }> = [
   { key: 'code',       Icon: 'code-box',      label: 'Code' },
@@ -60,5 +61,5 @@ export const getProjectIconImageUrl = (
     params.set('theme', options.themeVariant);
   }
 
-  return `/api/projects/${encodeURIComponent(project.id)}/icon?${params.toString()}`;
+  return `${replacePathParams(API_ENDPOINTS.projects.icon, { projectId: project.id })}?${params.toString()}`;
 };

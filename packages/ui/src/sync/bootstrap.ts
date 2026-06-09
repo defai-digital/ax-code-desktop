@@ -1,6 +1,7 @@
 import type { AxCodeClient, PermissionRequest, Project, QuestionRequest } from "@ax-code/sdk/v2/client"
 import { retry } from "./retry"
 import type { GlobalState, State } from "./types"
+import { API_ENDPOINTS } from "@/lib/http"
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
@@ -94,7 +95,7 @@ export async function bootstrapGlobal(
   if (errors.length === results.length) {
     let message = errors[0] instanceof Error ? errors[0].message : String(errors[0])
     try {
-      const healthRes = await fetch("/health", { signal: AbortSignal.timeout(4000) })
+      const healthRes = await fetch(API_ENDPOINTS.debug.rootHealth, { signal: AbortSignal.timeout(4000) })
       if (healthRes.ok) {
         const health = await healthRes.json()
         if (health.lastAxCodeError) {

@@ -15,6 +15,7 @@
 import type { Event, AxCodeClient, SessionStatus } from "@ax-code/sdk/v2/client"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { syncDebug } from "./debug"
+import { API_PATHS } from "@/lib/http"
 
 export type QueuedEvent = {
   directory: string
@@ -190,7 +191,7 @@ function resolveEventPayload(payload: unknown): Event | null {
 }
 
 function resolveAbsoluteUrl(candidate: string): string {
-  const normalized = typeof candidate === "string" && candidate.trim().length > 0 ? candidate.trim() : "/api"
+  const normalized = typeof candidate === "string" && candidate.trim().length > 0 ? candidate.trim() : API_PATHS.base
   if (ABSOLUTE_URL_PATTERN.test(normalized)) {
     return normalized
   }
@@ -214,14 +215,14 @@ function toWebSocketUrl(candidate: string): string {
 }
 
 function buildGlobalEventWsUrl(lastEventId?: string): string {
-  let baseUrl = "/api"
+  let baseUrl: string = API_PATHS.base
   try {
     const client = axCodeClient as { getBaseUrl?: () => string }
     if (typeof client.getBaseUrl === "function") {
       baseUrl = client.getBaseUrl()
     }
   } catch {
-    baseUrl = "/api"
+    baseUrl = API_PATHS.base
   }
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`
   const httpUrl = new URL("global/event/ws", resolveAbsoluteUrl(normalizedBase))

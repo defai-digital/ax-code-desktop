@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist, createJSONStorage } from 'zustand/middleware';
 import { getSafeStorage } from './utils/safeStorage';
+import { API_ENDPOINTS, replacePathParams } from '@/lib/http';
 import {
   startConfigUpdate,
   finishConfigUpdate,
@@ -165,7 +166,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             set({ isLoading: true });
             try {
               const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : '';
-              const response = await fetch(`/api/config/mcp${queryParams}`, {
+              const response = await fetch(`${API_ENDPOINTS.config.mcp}${queryParams}`, {
                 headers: configDirectory ? { 'x-ax-code-directory': configDirectory } : undefined,
               });
               if (!response.ok) {
@@ -197,7 +198,9 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             const body = buildMcpBody(config);
             const configDirectory = getConfigDirectory();
             const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : '';
-            const response = await fetch(`/api/config/mcp/${encodeURIComponent(config.name)}${queryParams}`, {
+              const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.mcpItem, {
+                name: config.name,
+              })}${queryParams}`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -251,7 +254,9 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             const body = buildMcpBody(config);
             const configDirectory = getConfigDirectory();
             const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : '';
-            const response = await fetch(`/api/config/mcp/${encodeURIComponent(name)}${queryParams}`, {
+            const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.mcpItem, {
+              name,
+            })}${queryParams}`, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
@@ -304,7 +309,9 @@ export const useMcpConfigStore = create<McpConfigStore>()(
           try {
             const configDirectory = getConfigDirectory();
             const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : '';
-            const response = await fetch(`/api/config/mcp/${encodeURIComponent(name)}${queryParams}`, {
+            const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.mcpItem, {
+              name,
+            })}${queryParams}`, {
               method: 'DELETE',
               headers: configDirectory ? { 'x-ax-code-directory': configDirectory } : undefined,
             });

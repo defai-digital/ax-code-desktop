@@ -4,6 +4,7 @@ import { DesktopConnectionRecovery, type RecoveryVariant } from './DesktopConnec
 import { RemoteConnectionForm } from './RemoteConnectionForm';
 import { resolveRecoveryNextStep } from './desktopRecoveryRouting';
 import { desktopHostsGet, desktopHostsSet } from '@/lib/desktopHosts';
+import { API_ENDPOINTS } from '@/lib/http';
 
 type RecoveryScreenProps = {
   /** Recovery variant */
@@ -62,7 +63,7 @@ export function RecoveryScreen({
       return;
     }
 
-    await fetch('/api/config/reload', { method: 'POST' });
+    await fetch(API_ENDPOINTS.config.reload, { method: 'POST' });
     onRetry?.();
   }, [onRetry]);
 

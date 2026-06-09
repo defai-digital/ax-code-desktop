@@ -41,6 +41,7 @@ import {
   getDirectoryState,
 } from "./sync-refs"
 import { markSessionViewed } from "./notification-store"
+import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
 import { setActiveSession } from "./sync-context"
 import {
   createSession as createSessionAction,
@@ -164,7 +165,7 @@ type SendMessageOptions = {
 }
 
 function notifyMessageSent(sessionId: string): void {
-  fetch(`/api/sessions/${sessionId}/message-sent`, { method: "POST" })
+  fetch(replacePathParams(API_ENDPOINTS.config.sessionsMessageSent, { sessionId }), { method: "POST" })
     .catch(() => { /* ignore */ })
 }
 

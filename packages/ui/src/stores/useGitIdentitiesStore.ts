@@ -16,6 +16,7 @@ import type {
 } from "@/lib/api/types";
 import { updateDesktopSettings } from "@/lib/persistence";
 import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry";
+import { API_ENDPOINTS } from "@/lib/http";
 
 export type {
   DiscoveredGitCredential,
@@ -144,7 +145,7 @@ export const useGitIdentitiesStore = create<GitIdentitiesStore>()(
 
             if (defaultId === null) {
               try {
-                const response = await fetch('/api/config/settings', {
+                const response = await fetch(API_ENDPOINTS.config.settings, {
                   method: 'GET',
                   headers: { Accept: 'application/json' },
                 });

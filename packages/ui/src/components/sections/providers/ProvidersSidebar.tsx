@@ -10,6 +10,7 @@ import { Icon } from "@/components/icon/Icon";
 import { axCodeClient } from '@/lib/ax-code/client';
 import { useI18n } from '@/lib/i18n';
 import type { ProviderSources } from './types';
+import { API_ENDPOINTS, replacePathParams } from '@/lib/http';
 
 const ADD_PROVIDER_ID = '__add_provider__';
 
@@ -50,7 +51,9 @@ export const ProvidersSidebar: React.FC<ProvidersSidebarProps> = ({ onItemSelect
       const tasks = providers.map(async (provider) => {
         try {
           const query = directory ? `?directory=${encodeURIComponent(directory)}` : '';
-          const response = await fetch(`/api/provider/${encodeURIComponent(provider.id)}/source${query}`, {
+          const response = await fetch(`${replacePathParams(API_ENDPOINTS.provider.source, {
+            providerId: provider.id,
+          })}${query}`, {
             method: 'GET',
             headers: { Accept: 'application/json' },
           });

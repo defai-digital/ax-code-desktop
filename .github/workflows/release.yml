@@ -52,6 +52,9 @@ jobs:
       - name: Check boundary imports
         run: bun run check:boundary
 
+      - name: Check endpoint contracts
+        run: bun run check:endpoint-contracts
+
       - name: Test
         run: bun run test
 

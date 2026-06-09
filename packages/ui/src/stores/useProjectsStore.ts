@@ -10,6 +10,7 @@ import { useDirectoryStore } from './useDirectoryStore';
 import { streamDebugEnabled } from '@/stores/utils/streamDebug';
 import { PROJECT_COLORS } from '@/lib/projectMeta';
 import { useSessionUIStore } from '@/sync/session-ui-store';
+import { API_ENDPOINTS, replacePathParams } from '@/lib/http';
 
 /** Pick a color key that's least used among existing projects */
 const pickAutoColor = (projects: ProjectEntry[]): string => {
@@ -472,7 +473,9 @@ export const useProjectsStore = create<ProjectsStore>()(
         const dataUrl = await readFileAsDataUrl(file);
         const normalizedDataUrl = dataUrl.replace(/^data:[^;]+;/i, `data:${mime};`);
 
-        const response = await fetch(`/api/projects/${encodeURIComponent(id)}/icon`, {
+        const response = await fetch(`${replacePathParams(API_ENDPOINTS.projects.icon, {
+          projectId: id,
+        })}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -499,7 +502,9 @@ export const useProjectsStore = create<ProjectsStore>()(
 
     removeProjectIcon: async (id: string) => {
       try {
-        const response = await fetch(`/api/projects/${encodeURIComponent(id)}/icon`, {
+        const response = await fetch(`${replacePathParams(API_ENDPOINTS.projects.icon, {
+          projectId: id,
+        })}`, {
           method: 'DELETE',
           headers: {
             Accept: 'application/json',
@@ -524,7 +529,9 @@ export const useProjectsStore = create<ProjectsStore>()(
 
     discoverProjectIcon: async (id: string, options?: { force?: boolean }) => {
       try {
-        const response = await fetch(`/api/projects/${encodeURIComponent(id)}/icon/discover`, {
+        const response = await fetch(`${replacePathParams(API_ENDPOINTS.projects.iconDiscover, {
+          projectId: id,
+        })}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

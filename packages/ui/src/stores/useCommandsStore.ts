@@ -10,6 +10,7 @@ import { emitConfigChange, scopeMatches, subscribeToConfigChanges } from "@/lib/
 import { getSafeStorage } from "./utils/safeStorage";
 import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection";
 import { useProjectsStore } from "@/stores/useProjectsStore";
+import { API_ENDPOINTS, replacePathParams } from "@/lib/http";
 
 
 export type CommandScope = 'user' | 'project';
@@ -160,7 +161,9 @@ export const useCommandsStore = create<CommandsStore>()(
                   configurableCommands.map(async (cmd) => {
                     try {
                       // Force no-cache
-                      const response = await fetch(`/api/config/commands/${encodeURIComponent(cmd.name)}${queryParams}`, {
+                      const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.command, {
+                        name: cmd.name,
+                      })}${queryParams}`, {
                         headers: {
                           'Cache-Control': 'no-cache',
                           ...(directory ? { 'x-ax-code-directory': directory } : {}),
@@ -244,7 +247,9 @@ export const useCommandsStore = create<CommandsStore>()(
             const directory = getRequestDirectory();
             const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : '';
 
-            const response = await fetch(`/api/config/commands/${encodeURIComponent(config.name)}${queryParams}`, {
+              const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.command, {
+                name: config.name,
+              })}${queryParams}`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -305,7 +310,9 @@ export const useCommandsStore = create<CommandsStore>()(
             const directory = getRequestDirectory();
             const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : '';
 
-            const response = await fetch(`/api/config/commands/${encodeURIComponent(name)}${queryParams}`, {
+              const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.command, {
+                name,
+              })}${queryParams}`, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
@@ -355,7 +362,9 @@ export const useCommandsStore = create<CommandsStore>()(
             const directory = getRequestDirectory();
             const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : '';
 
-            const response = await fetch(`/api/config/commands/${encodeURIComponent(name)}${queryParams}`, {
+              const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.command, {
+                name,
+              })}${queryParams}`, {
               method: 'DELETE',
               headers: directory ? { 'x-ax-code-directory': directory } : undefined,
             });
@@ -452,7 +461,7 @@ export async function reloadAxCodeConfiguration(options?: { message?: string; de
   startConfigUpdate(options?.message || "Reloading AX Code configuration…");
 
   try {
-    const response = await fetch('/api/config/reload', {
+    const response = await fetch(API_ENDPOINTS.config.reload, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });

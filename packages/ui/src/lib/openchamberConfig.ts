@@ -8,6 +8,7 @@ import type { FilesAPI, RuntimeAPIs } from './api/types';
 import { getDesktopHomeDirectory } from './desktop';
 import { createProjectIdFromPath } from './projectId';
 import { sanitizeStarterRefs, type DraftStarterRef } from './draftStarters';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from './http';
 
 type ProjectRef = { id: string; path: string };
 
@@ -15,6 +16,7 @@ const CONFIG_FILENAME = 'openchamber.json';
 // LEGACY_PROJECT_CONFIG: legacy per-project config root inside repo.
 const LEGACY_CONFIG_DIR = '.openchamber';
 const USER_PROJECTS_DIR_SEGMENTS = ['.config', 'openchamber', 'projects'];
+const FS_OPTIONAL_QUERY = 'optional';
 
 /**
  * Get the runtime Files API if available (Desktop/VSCode).
@@ -116,18 +118,23 @@ const getLegacyConfigPath = (projectDirectory: string): string => {
 };
 
 const getBaseUrl = (): string => {
-  const defaultBaseUrl = import.meta.env.VITE_AX_CODE_URL || '/api';
+  const defaultBaseUrl = import.meta.env.VITE_AX_CODE_URL || HTTP_DEFAULTS.apiPath.base;
   if (defaultBaseUrl.startsWith('/')) {
     return defaultBaseUrl;
   }
   return defaultBaseUrl;
 };
 
+const makeFsUrl = (template: string, query?: URLSearchParams): string => {
+  const queryString = query?.toString() ?? '';
+  return `${getBaseUrl()}${template}${queryString ? `?${queryString}` : ''}`;
+};
+
 const postJson = async <T>(url: string, body: unknown): Promise<{ ok: boolean; data: T | null }> => {
   try {
     const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.contentTypeJson,
       body: JSON.stringify(body),
     });
     if (!response.ok) {
@@ -153,7 +160,7 @@ const mkdirp = async (path: string): Promise<boolean> => {
     }
   }
 
-  const res = await postJson<{ success?: boolean }>(`${getBaseUrl()}/fs/mkdir`, { path });
+  const res = await postJson<{ success?: boolean }>(makeFsUrl(API_ENDPOINTS.fs.mkdir), { path });
   return Boolean(res.ok);
 };
 
@@ -170,10 +177,15 @@ const readTextFile = async (path: string): Promise<string | null> => {
   }
 
   try {
-    const response = await fetch(`${getBaseUrl()}/fs/read?path=${encodeURIComponent(path)}`,
+    const params = new URLSearchParams({
+      path,
+      [FS_OPTIONAL_QUERY]: HTTP_DEFAULTS.query.true,
+    });
+    const response = await fetch(
+      makeFsUrl(API_ENDPOINTS.fs.read, params),
       {
         // Avoid conditional requests (304 + empty body).
-        cache: 'no-store',
+        cache: HTTP_DEFAULTS.cache.noStore,
       }
     );
     if (!response.ok) {
@@ -198,7 +210,7 @@ const writeTextFile = async (path: string, content: string): Promise<boolean> =>
     }
   }
 
-  const res = await postJson<{ success?: boolean }>(`${getBaseUrl()}/fs/write`, { path, content });
+  const res = await postJson<{ success?: boolean }>(makeFsUrl(API_ENDPOINTS.fs.write), { path, content });
   return Boolean(res.ok);
 };
 
@@ -207,9 +219,9 @@ const resolveHomeDirectory = async (): Promise<string | null> => {
   // In some runtimes, window.__OPENCHAMBER_HOME__ can be workspace/project-root
   // scoped, which would incorrectly route writes into the project directory.
   try {
-    const response = await fetch(`${getBaseUrl()}/fs/home`, {
+    const response = await fetch(makeFsUrl(API_ENDPOINTS.fs.home), {
       // Avoid conditional requests (304 + empty body).
-      cache: 'no-store',
+      cache: HTTP_DEFAULTS.cache.noStore,
     });
     if (!response.ok) {
       throw new Error('Failed to resolve home directory from API');
@@ -785,7 +797,7 @@ const deleteFile = async (path: string): Promise<boolean> => {
     }
   }
 
-  const res = await postJson<{ success?: boolean }>(`${getBaseUrl()}/fs/delete`, { path });
+  const res = await postJson<{ success?: boolean }>(makeFsUrl(API_ENDPOINTS.fs.delete), { path });
   return Boolean(res.ok);
 };
 
@@ -926,7 +938,7 @@ async function deleteLegacyOpenChamberConfig(projectDirectory: string): Promise<
   }
 
   try {
-    await postJson(`${getBaseUrl()}/fs/delete`, { path: legacyPath });
+    await postJson(makeFsUrl(API_ENDPOINTS.fs.delete), { path: legacyPath });
   } catch {
     // ignored
   }

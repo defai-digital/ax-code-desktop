@@ -2,9 +2,8 @@ import React from 'react';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 import { isDesktopShell, isWebRuntime } from '@/lib/desktop';
 import { useUIStore } from '@/stores/useUIStore';
+import { API_ENDPOINTS } from '@/lib/http';
 import type { NotificationPayload } from '@/lib/api/types';
-
-const NOTIFICATION_STREAM_PATH = '/api/notifications/stream';
 
 const isFocused = () => {
   if (typeof document === 'undefined') return true;
@@ -33,7 +32,7 @@ export const useWebNotificationStream = (options?: { enabled?: boolean }) => {
       return;
     }
 
-    const source = new EventSource(NOTIFICATION_STREAM_PATH);
+    const source = new EventSource(API_ENDPOINTS.notifications.stream);
     source.onmessage = (event) => {
       let data: unknown;
       try {

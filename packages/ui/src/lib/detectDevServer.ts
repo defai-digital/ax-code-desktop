@@ -1,5 +1,6 @@
 import type { OpenChamberProjectAction } from './openchamberConfig';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from './http';
 
 type DevServerInfo = {
   command: string;
@@ -82,7 +83,7 @@ async function hasStaticIndexHtml(directory: string): Promise<boolean> {
 
 async function allocatePreviewPort(): Promise<number | null> {
   try {
-    const response = await fetch('/api/system/free-port', { cache: 'no-store' });
+    const response = await fetch(API_ENDPOINTS.system.freePort, { cache: HTTP_DEFAULTS.cache.noStore });
     if (!response.ok) return null;
     const body = await response.json().catch(() => null) as { port?: unknown } | null;
     const port = typeof body?.port === 'number' ? body.port : null;
@@ -177,8 +178,12 @@ async function readOptionalTextFile(path: string): Promise<string | null> {
   }
 
   try {
-    const response = await fetch(`/api/fs/read?path=${encodeURIComponent(path)}&optional=true`, {
-      cache: 'no-store',
+    const params = new URLSearchParams({
+      path,
+      optional: HTTP_DEFAULTS.query.true,
+    });
+    const response = await fetch(`${API_ENDPOINTS.fs.read}?${params.toString()}`, {
+      cache: HTTP_DEFAULTS.cache.noStore,
     });
     if (!response.ok) return null;
     return response.text();

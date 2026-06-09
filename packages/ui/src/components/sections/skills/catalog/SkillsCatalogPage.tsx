@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Icon } from "@/components/icon/Icon";
+import { API_ENDPOINTS } from '@/lib/http';
 
 import { useSkillsCatalogStore } from '@/stores/useSkillsCatalogStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -50,7 +51,7 @@ const loadSettings = async (): Promise<DesktopSettings | null> => {
       return (result?.settings || {}) as DesktopSettings;
     }
 
-    const response = await fetch('/api/config/settings', {
+    const response = await fetch(API_ENDPOINTS.config.settings, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });

@@ -15,6 +15,7 @@ import { useCommandsStore } from "@/stores/useCommandsStore";
 import { useProjectsStore } from "@/stores/useProjectsStore";
 import { useSkillsCatalogStore } from "@/stores/useSkillsCatalogStore";
 import { useSkillsStore } from "@/stores/useSkillsStore";
+import { API_ENDPOINTS, replacePathParams } from "@/lib/http";
 
 const getCurrentDirectory = (): string | null => {
   const axCodeDirectory = axCodeClient.getDirectory();
@@ -212,7 +213,9 @@ export const useAgentsStore = create<AgentsStore>()(
                   agents.map(async (agent) => {
                     try {
                       // Force no-cache to ensure we get the latest scope info
-                      const response = await fetch(`/api/config/agents/${encodeURIComponent(agent.name)}${queryParams}`, {
+                          const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.agent, {
+                            name: agent.name,
+                          })}${queryParams}`, {
                         headers: {
                           'Cache-Control': 'no-cache',
                           ...(configDirectory ? { 'x-ax-code-directory': configDirectory } : {}),
@@ -301,7 +304,9 @@ export const useAgentsStore = create<AgentsStore>()(
             const configDirectory = getConfigDirectory();
             const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : '';
 
-            const response = await fetch(`/api/config/agents/${encodeURIComponent(config.name)}${queryParams}`, {
+            const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.agent, {
+              name: config.name,
+            })}${queryParams}`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -362,7 +367,9 @@ export const useAgentsStore = create<AgentsStore>()(
             const configDirectory = getConfigDirectory();
             const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : '';
 
-            const response = await fetch(`/api/config/agents/${encodeURIComponent(name)}${queryParams}`, {
+            const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.agent, {
+              name,
+            })}${queryParams}`, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
@@ -412,7 +419,9 @@ export const useAgentsStore = create<AgentsStore>()(
             const configDirectory = getConfigDirectory();
             const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : '';
 
-            const response = await fetch(`/api/config/agents/${encodeURIComponent(name)}${queryParams}`, {
+            const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.agent, {
+              name,
+            })}${queryParams}`, {
               method: 'DELETE',
               headers: configDirectory ? { 'x-ax-code-directory': configDirectory } : undefined,
             });
@@ -610,7 +619,7 @@ export async function reloadAxCodeConfiguration(options?: {
 
   try {
 
-    const response = await fetch('/api/config/reload', {
+    const response = await fetch(API_ENDPOINTS.config.reload, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });

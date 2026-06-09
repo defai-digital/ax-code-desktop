@@ -1,5 +1,7 @@
 import type { NotificationPayload, NotificationsAPI } from '@openchamber/ui/api/types';
 
+const FALLBACK_NOTIFICATION_TITLE = 'AX Code Desktop' as const;
+
 const notifyWithWebAPI = async (payload?: NotificationPayload): Promise<boolean> => {
   if (typeof Notification === 'undefined') {
     console.info('Notifications not supported in this environment', payload);
@@ -20,7 +22,7 @@ const notifyWithWebAPI = async (payload?: NotificationPayload): Promise<boolean>
   }
 
   try {
-    new Notification(payload?.title ?? 'AX Code Desktop', {
+    new Notification(payload?.title ?? FALLBACK_NOTIFICATION_TITLE, {
       body: payload?.body,
       tag: payload?.tag,
     });

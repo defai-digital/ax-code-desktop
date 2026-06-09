@@ -20,6 +20,7 @@ import { useDeviceInfo } from '@/lib/device';
 import { MobileOverlayPanel } from '@/components/ui/MobileOverlayPanel';
 import { Icon } from "@/components/icon/Icon";
 import { axCodeClient } from '@/lib/ax-code/client';
+import { API_ENDPOINTS } from '@/lib/http';
 import {
   setDirectoryShowHidden,
   useDirectoryShowHidden,
@@ -120,7 +121,7 @@ const focusPathInput = (input: HTMLInputElement | null): void => {
 
 const resolveFreshFilesystemHome = async (): Promise<string | null> => {
   try {
-    const response = await fetch('/api/fs/home', {
+    const response = await fetch(API_ENDPOINTS.fs.home, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });

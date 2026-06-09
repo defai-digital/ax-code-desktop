@@ -1,9 +1,12 @@
 import type {
   DirectoryListResult,
+  FileReadOptions,
   FileSearchQuery,
   FileSearchResult,
+  ListDirectoryOptions,
   FilesAPI,
 } from '@openchamber/ui/api/types';
+import { API_ENDPOINTS, HTTP_DEFAULTS, HTTP_QUERY_STRINGS, buildQueryUrl } from './constants';
 
 const normalizePath = (path: string): string => path.replace(/\\/g, '/');
 
@@ -40,17 +43,17 @@ const toDirectoryListResult = (fallbackDirectory: string, payload: WebDirectoryL
 };
 
 export const createWebFilesAPI = (): FilesAPI => ({
-  async listDirectory(path: string, options): Promise<DirectoryListResult> {
+  async listDirectory(path: string, options?: ListDirectoryOptions): Promise<DirectoryListResult> {
     const target = normalizePath(path);
     const params = new URLSearchParams();
     if (target) {
       params.set('path', target);
     }
     if (options?.respectGitignore) {
-      params.set('respectGitignore', 'true');
+      params.set('respectGitignore', HTTP_QUERY_STRINGS.true);
     }
 
-    const response = await fetch(`/api/fs/list${params.toString() ? `?${params.toString()}` : ''}`);
+    const response = await fetch(buildQueryUrl(API_ENDPOINTS.files.fsList, params));
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
@@ -70,14 +73,14 @@ export const createWebFilesAPI = (): FilesAPI => ({
     }
 
     params.set('query', payload.query);
-    params.set('dirs', 'false');
+    params.set('dirs', HTTP_QUERY_STRINGS.false);
     params.set('type', 'file');
 
     if (typeof payload.maxResults === 'number' && Number.isFinite(payload.maxResults)) {
       params.set('limit', String(payload.maxResults));
     }
 
-    const response = await fetch(`/api/find/file?${params.toString()}`);
+    const response = await fetch(buildQueryUrl(API_ENDPOINTS.files.findFile, params));
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
@@ -95,9 +98,9 @@ export const createWebFilesAPI = (): FilesAPI => ({
 
   async createDirectory(path: string): Promise<{ success: boolean; path: string }> {
     const target = normalizePath(path);
-    const response = await fetch('/api/fs/mkdir', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch(API_ENDPOINTS.files.fsMkdir, {
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.contentTypeJson,
       body: JSON.stringify({ path: target }),
     });
 
@@ -113,13 +116,13 @@ export const createWebFilesAPI = (): FilesAPI => ({
     };
   },
 
-  async statFile(path: string, options): Promise<{ path: string; isFile: boolean; size: number; mtimeMs?: number }> {
+  async statFile(path: string, options?: FileReadOptions): Promise<{ path: string; isFile: boolean; size: number; mtimeMs?: number }> {
     const target = normalizePath(path);
     const params = new URLSearchParams({ path: target });
     if (options?.allowOutsideWorkspace) {
-      params.set('allowOutsideWorkspace', 'true');
+      params.set('allowOutsideWorkspace', HTTP_QUERY_STRINGS.true);
     }
-    const response = await fetch(`/api/fs/stat?${params.toString()}`);
+    const response = await fetch(buildQueryUrl(API_ENDPOINTS.files.fsStat, params));
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
@@ -135,17 +138,17 @@ export const createWebFilesAPI = (): FilesAPI => ({
     };
   },
 
-  async readFile(path: string, options): Promise<{ content: string; path: string }> {
+  async readFile(path: string, options?: FileReadOptions): Promise<{ content: string; path: string }> {
     const target = normalizePath(path);
     const params = new URLSearchParams({ path: target });
     if (options?.allowOutsideWorkspace) {
-      params.set('allowOutsideWorkspace', 'true');
+      params.set('allowOutsideWorkspace', HTTP_QUERY_STRINGS.true);
     }
     if (options?.optional) {
-      params.set('optional', 'true');
+      params.set('optional', HTTP_QUERY_STRINGS.true);
     }
-    const response = await fetch(`/api/fs/read?${params.toString()}`, {
-      cache: options?.optional ? 'no-store' : 'default',
+    const response = await fetch(buildQueryUrl(API_ENDPOINTS.files.fsRead, params), {
+      cache: options?.optional ? HTTP_DEFAULTS.cache.noStore : HTTP_DEFAULTS.cache.default,
     });
 
     if (!response.ok) {
@@ -159,9 +162,9 @@ export const createWebFilesAPI = (): FilesAPI => ({
 
   async writeFile(path: string, content: string): Promise<{ success: boolean; path: string }> {
     const target = normalizePath(path);
-    const response = await fetch('/api/fs/write', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch(API_ENDPOINTS.files.fsWrite, {
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.contentTypeJson,
       body: JSON.stringify({ path: target, content }),
     });
 
@@ -179,9 +182,9 @@ export const createWebFilesAPI = (): FilesAPI => ({
 
   async delete(path: string): Promise<{ success: boolean }> {
     const target = normalizePath(path);
-    const response = await fetch('/api/fs/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch(API_ENDPOINTS.files.fsDelete, {
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.contentTypeJson,
       body: JSON.stringify({ path: target }),
     });
 
@@ -197,9 +200,9 @@ export const createWebFilesAPI = (): FilesAPI => ({
   async rename(oldPath: string, newPath: string): Promise<{ success: boolean; path: string }> {
     const normalizedOld = normalizePath(oldPath);
     const normalizedNew = normalizePath(newPath);
-    const response = await fetch('/api/fs/rename', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch(API_ENDPOINTS.files.fsRename, {
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.contentTypeJson,
       body: JSON.stringify({ oldPath: normalizedOld, newPath: normalizedNew }),
     });
 
@@ -216,9 +219,9 @@ export const createWebFilesAPI = (): FilesAPI => ({
   },
 
   async revealPath(targetPath: string): Promise<{ success: boolean }> {
-    const response = await fetch('/api/fs/reveal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch(API_ENDPOINTS.files.fsReveal, {
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.contentTypeJson,
       body: JSON.stringify({ path: normalizePath(targetPath) }),
     });
 
@@ -233,7 +236,10 @@ export const createWebFilesAPI = (): FilesAPI => ({
 
   async downloadFile(path: string): Promise<void> {
     const target = normalizePath(path);
-    const url = `/api/fs/raw?path=${encodeURIComponent(target)}&download=true`;
+    const url = buildQueryUrl(API_ENDPOINTS.files.fsRaw, new URLSearchParams({
+      path: target,
+      download: HTTP_QUERY_STRINGS.true,
+    }));
     const a = document.createElement('a');
     a.href = url;
     a.download = target.split('/').pop() || 'file';

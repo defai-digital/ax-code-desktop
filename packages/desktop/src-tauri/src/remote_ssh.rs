@@ -21,6 +21,11 @@ const DEFAULT_CONTROL_PERSIST_SEC: u16 = 300;
 const DEFAULT_READY_TIMEOUT_SEC: u64 = 30;
 const DEFAULT_RECONNECT_MAX_ATTEMPTS: u32 = 5;
 const MAX_LOG_LINES_PER_INSTANCE: usize = 1200;
+const API_BASE_PATH: &str = "/api";
+const API_SYSTEM_INFO_PATH: &str = "/system/info";
+const API_HEALTH_PATH: &str = "/health";
+const API_SYSTEM_SHUTDOWN_PATH: &str = "/system/shutdown";
+const LOCAL_HOST: &str = "127.0.0.1";
 
 /// Monitor starts with fast polling and relaxes to steady-state after stabilization.
 const MONITOR_INITIAL_POLL_SECS: u64 = 2;
@@ -1287,7 +1292,7 @@ fn probe_remote_system_info(
         "0"
     };
     let script = format!(
-        "AUTH_STATUS=0; INFO_STATUS=0; HEALTH_STATUS=0; BODY_FILE=\"$(mktemp)\"; COOKIE_FILE=\"$(mktemp)\"; cleanup() {{ rm -f \"$BODY_FILE\" \"$COOKIE_FILE\"; }}; trap cleanup EXIT; if command -v curl >/dev/null 2>&1; then if [ \"{auth_enabled}\" = \"1\" ]; then AUTH_STATUS=\"$(curl -sS --max-time 3 -o /dev/null -w '%{{http_code}}' -c \"$COOKIE_FILE\" -H 'content-type: application/json' --data {auth_payload} http://127.0.0.1:{port}/auth/session || true)\"; if [ \"$AUTH_STATUS\" = \"200\" ]; then INFO_STATUS=\"$(curl -sS --max-time 3 -b \"$COOKIE_FILE\" -o \"$BODY_FILE\" -w '%{{http_code}}' http://127.0.0.1:{port}/api/system/info || true)\"; else INFO_STATUS=\"$(curl -sS --max-time 3 -o \"$BODY_FILE\" -w '%{{http_code}}' http://127.0.0.1:{port}/api/system/info || true)\"; fi; else INFO_STATUS=\"$(curl -sS --max-time 3 -o \"$BODY_FILE\" -w '%{{http_code}}' http://127.0.0.1:{port}/api/system/info || true)\"; fi; HEALTH_STATUS=\"$(curl -sS --max-time 3 -o /dev/null -w '%{{http_code}}' http://127.0.0.1:{port}/health || true)\"; elif command -v wget >/dev/null 2>&1; then wget -qO \"$BODY_FILE\" http://127.0.0.1:{port}/api/system/info >/dev/null 2>&1; if [ $? -eq 0 ]; then INFO_STATUS=200; fi; wget -qO- http://127.0.0.1:{port}/health >/dev/null 2>&1; if [ $? -eq 0 ]; then HEALTH_STATUS=200; fi; else exit 127; fi; printf 'INFO_STATUS=%s\\nAUTH_STATUS=%s\\nHEALTH_STATUS=%s\\n' \"$INFO_STATUS\" \"$AUTH_STATUS\" \"$HEALTH_STATUS\"; cat \"$BODY_FILE\" 2>/dev/null || true",
+        "AUTH_STATUS=0; INFO_STATUS=0; HEALTH_STATUS=0; BODY_FILE=\"$(mktemp)\"; COOKIE_FILE=\"$(mktemp)\"; cleanup() {{ rm -f \"$BODY_FILE\" \"$COOKIE_FILE\"; }}; trap cleanup EXIT; if command -v curl >/dev/null 2>&1; then if [ \"{auth_enabled}\" = \"1\" ]; then AUTH_STATUS=\"$(curl -sS --max-time 3 -o /dev/null -w '%{{http_code}}' -c \"$COOKIE_FILE\" -H 'content-type: application/json' --data {auth_payload} http://{LOCAL_HOST}:{port}/auth/session || true)\"; if [ \"$AUTH_STATUS\" = \"200\" ]; then INFO_STATUS=\"$(curl -sS --max-time 3 -b \"$COOKIE_FILE\" -o \"$BODY_FILE\" -w '%{{http_code}}' http://{LOCAL_HOST}:{port}{API_BASE_PATH}{API_SYSTEM_INFO_PATH} || true)\"; else INFO_STATUS=\"$(curl -sS --max-time 3 -o \"$BODY_FILE\" -w '%{{http_code}}' http://{LOCAL_HOST}:{port}{API_BASE_PATH}{API_SYSTEM_INFO_PATH} || true)\"; fi; else INFO_STATUS=\"$(curl -sS --max-time 3 -o \"$BODY_FILE\" -w '%{{http_code}}' http://{LOCAL_HOST}:{port}{API_BASE_PATH}{API_SYSTEM_INFO_PATH} || true)\"; fi; HEALTH_STATUS=\"$(curl -sS --max-time 3 -o /dev/null -w '%{{http_code}}' http://{LOCAL_HOST}:{port}{API_HEALTH_PATH} || true)\"; elif command -v wget >/dev/null 2>&1; then wget -qO \"$BODY_FILE\" http://{LOCAL_HOST}:{port}{API_BASE_PATH}{API_SYSTEM_INFO_PATH} >/dev/null 2>&1; if [ $? -eq 0 ]; then INFO_STATUS=200; fi; wget -qO- http://{LOCAL_HOST}:{port}{API_HEALTH_PATH} >/dev/null 2>&1; if [ $? -eq 0 ]; then HEALTH_STATUS=200; fi; else exit 127; fi; printf 'INFO_STATUS=%s\\nAUTH_STATUS=%s\\nHEALTH_STATUS=%s\\n' \"$INFO_STATUS\" \"$AUTH_STATUS\" \"$HEALTH_STATUS\"; cat \"$BODY_FILE\" 2>/dev/null || true",
         auth_payload = shell_quote(&auth_payload),
     );
     let output = run_remote_command(
@@ -1315,9 +1320,10 @@ fn probe_remote_system_info(
                 return Ok(RemoteSystemInfo::default());
             }
 
-            return Err(anyhow!(
-                "Remote AX Code Desktop requires UI authentication on /api/system/info; configure AX Code Desktop UI password"
-            ));
+            return Err(anyhow!(format!(
+                "Remote AX Code Desktop requires UI authentication on {}; configure AX Code Desktop UI password",
+                format!("{API_BASE_PATH}{API_SYSTEM_INFO_PATH}")
+            )));
         }
     } else if is_liveness_http_status(health_status) {
         return Ok(RemoteSystemInfo::default());
@@ -1412,7 +1418,7 @@ fn stop_remote_server_best_effort(
     remote_port: u16,
 ) {
     let script = format!(
-        "if command -v curl >/dev/null 2>&1; then curl -fsS -X POST http://127.0.0.1:{remote_port}/api/system/shutdown >/dev/null 2>&1 || true; elif command -v wget >/dev/null 2>&1; then wget -qO- --method=POST http://127.0.0.1:{remote_port}/api/system/shutdown >/dev/null 2>&1 || true; fi"
+        "if command -v curl >/dev/null 2>&1; then curl -fsS -X POST http://{LOCAL_HOST}:{remote_port}{API_BASE_PATH}{API_SYSTEM_SHUTDOWN_PATH} >/dev/null 2>&1 || true; elif command -v wget >/dev/null 2>&1; then wget -qO- --method=POST http://{LOCAL_HOST}:{remote_port}{API_BASE_PATH}{API_SYSTEM_SHUTDOWN_PATH} >/dev/null 2>&1 || true; fi"
     );
     let _ = run_remote_command(
         parsed,

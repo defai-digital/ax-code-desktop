@@ -35,6 +35,7 @@ import type {
   RevertCommitResponse,
   ResetToCommitResponse,
 } from './api/types';
+import { HTTP_DEFAULTS } from './http';
 
 const resolveBaseOrigin = (): string => {
   if (typeof window === 'undefined') {
@@ -47,7 +48,7 @@ const resolveBaseOrigin = (): string => {
   return window.location.origin;
 };
 
-const API_BASE = '/api/git';
+const API_BASE = HTTP_DEFAULTS.apiPath.git;
 const GIT_STATUS_CACHE_TTL_MS = 1200;
 const GIT_REPO_CHECK_CACHE_TTL_MS = 5000;
 
@@ -161,7 +162,7 @@ export async function getGitDiff(directory: string, options: GetGitDiffOptions):
   const response = await fetch(
     buildUrl(`${API_BASE}/diff`, directory, {
       path,
-      staged: staged ? 'true' : undefined,
+      staged: staged ? HTTP_DEFAULTS.query.true : undefined,
       context: contextLines,
     })
   );
@@ -182,7 +183,7 @@ export async function getGitFileDiff(directory: string, options: GetGitFileDiffO
   const response = await fetch(
     buildUrl(`${API_BASE}/file-diff`, directory, {
       path,
-      staged: staged ? 'true' : undefined,
+      staged: staged ? HTTP_DEFAULTS.query.true : undefined,
     })
   );
 
@@ -203,8 +204,8 @@ export async function revertGitFile(
   }
 
   const response = await fetch(buildUrl(`${API_BASE}/revert`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ path: filePath, scope: options?.scope }),
   });
 
@@ -228,8 +229,8 @@ export async function stageGitFiles(directory: string, filePaths: string[]): Pro
   }
 
   const response = await fetch(buildUrl(`${API_BASE}/stage`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ paths }),
   });
 
@@ -251,8 +252,8 @@ export async function unstageGitFiles(directory: string, filePaths: string[]): P
   }
 
   const response = await fetch(buildUrl(`${API_BASE}/unstage`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ paths }),
   });
 
@@ -288,8 +289,8 @@ export async function deleteGitBranch(directory: string, payload: GitDeleteBranc
   }
 
   const response = await fetch(buildUrl(`${API_BASE}/branches`, directory), {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.delete,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(payload),
   });
 
@@ -307,8 +308,8 @@ export async function deleteRemoteBranch(directory: string, payload: GitDeleteRe
   }
 
   const response = await fetch(buildUrl(`${API_BASE}/remote-branches`, directory), {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.delete,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(payload),
   });
 
@@ -327,8 +328,8 @@ export async function removeRemote(directory: string, payload: GitRemoveRemotePa
   }
 
   const response = await fetch(buildUrl(`${API_BASE}/remotes`, directory), {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.delete,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ remote }),
   });
 
@@ -361,8 +362,8 @@ export async function generateCommitMessage(
   }
 
   const response = await fetch(buildUrl(`${API_BASE}/commit-message`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(body),
   });
 
@@ -428,8 +429,8 @@ export async function generatePullRequestDescription(
   }
 
   const response = await fetch(buildUrl(`${API_BASE}/pr-description`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(requestBody),
   });
 
@@ -458,8 +459,8 @@ export async function listGitWorktrees(directory: string): Promise<GitWorktreeIn
 
 export async function validateGitWorktree(directory: string, payload: CreateGitWorktreePayload): Promise<GitWorktreeValidationResult> {
   const response = await fetch(buildUrl(`${API_BASE}/worktrees/validate`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(payload ?? {}),
   });
 
@@ -482,8 +483,8 @@ export async function getGitWorktreeBootstrapStatus(directory: string): Promise<
 
 export async function previewGitWorktree(directory: string, payload: CreateGitWorktreePayload): Promise<GitWorktreeCreateResult> {
   const response = await fetch(buildUrl(`${API_BASE}/worktrees/preview`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(payload ?? {}),
   });
 
@@ -497,8 +498,8 @@ export async function previewGitWorktree(directory: string, payload: CreateGitWo
 
 export async function createGitWorktree(directory: string, payload: CreateGitWorktreePayload): Promise<GitWorktreeCreateResult> {
   const response = await fetch(buildUrl(`${API_BASE}/worktrees`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(payload ?? {}),
   });
 
@@ -512,8 +513,8 @@ export async function createGitWorktree(directory: string, payload: CreateGitWor
 
 export async function deleteGitWorktree(directory: string, payload: RemoveGitWorktreePayload): Promise<{ success: boolean }> {
   const response = await fetch(buildUrl(`${API_BASE}/worktrees`, directory), {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.delete,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(payload ?? {}),
   });
 
@@ -531,8 +532,8 @@ export async function createGitCommit(
   options: CreateGitCommitOptions = {}
 ): Promise<GitCommitResult> {
   const response = await fetch(buildUrl(`${API_BASE}/commit`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({
       message,
       addAll: options.addAll ?? false,
@@ -552,8 +553,8 @@ export async function gitPush(
   options: { remote?: string; branch?: string; options?: string[] | Record<string, unknown> } = {}
 ): Promise<GitPushResult> {
   const response = await fetch(buildUrl(`${API_BASE}/push`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(options),
   });
   if (!response.ok) {
@@ -568,8 +569,8 @@ export async function gitPull(
   options: GitPullOptions = {}
 ): Promise<GitPullResult> {
   const response = await fetch(buildUrl(`${API_BASE}/pull`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(options),
   });
   if (!response.ok) {
@@ -584,8 +585,8 @@ export async function gitFetch(
   options: { remote?: string; branch?: string } = {}
 ): Promise<{ success: boolean }> {
   const response = await fetch(buildUrl(`${API_BASE}/fetch`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(options),
   });
   if (!response.ok) {
@@ -606,8 +607,8 @@ export async function listGitStashes(directory: string): Promise<{ stashes: GitS
 
 export async function countGitStashFiles(directory: string, refs: string[]): Promise<{ counts: Record<string, number> }> {
   const response = await fetch(buildUrl(`${API_BASE}/stashes/file-counts`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ refs }),
   });
   if (!response.ok) {
@@ -619,8 +620,8 @@ export async function countGitStashFiles(directory: string, refs: string[]): Pro
 
 export async function stashGitChanges(directory: string, options: { message?: string } = {}): Promise<{ success: boolean; created: boolean; message: string; output: string }> {
   const response = await fetch(buildUrl(`${API_BASE}/stash`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(options),
   });
   if (!response.ok) {
@@ -632,8 +633,8 @@ export async function stashGitChanges(directory: string, options: { message?: st
 
 const postStashRef = async (directory: string, path: string, options: { ref: string }): Promise<{ success: boolean; ref: string }> => {
   const response = await fetch(buildUrl(`${API_BASE}/${path}`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(options),
   });
   if (!response.ok) {
@@ -649,8 +650,8 @@ export const dropGitStash = (directory: string, options: { ref: string }) => pos
 
 export async function checkoutBranch(directory: string, branch: string): Promise<{ success: boolean; branch: string }> {
   const response = await fetch(buildUrl(`${API_BASE}/checkout`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ branch }),
   });
   if (!response.ok) {
@@ -666,8 +667,8 @@ export async function createBranch(
   startPoint?: string
 ): Promise<{ success: boolean; branch: string }> {
   const response = await fetch(buildUrl(`${API_BASE}/branches`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ name, startPoint }),
   });
   if (!response.ok) {
@@ -683,8 +684,8 @@ export async function renameBranch(
   newName: string
 ): Promise<{ success: boolean; branch: string }> {
   const response = await fetch(buildUrl(`${API_BASE}/branches/rename`, directory), {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.put,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ oldName, newName }),
   });
   if (!response.ok) {
@@ -704,7 +705,7 @@ export async function getGitLog(
       from: options.from,
       to: options.to,
       file: options.file,
-      all: options.all ? 'true' : undefined,
+      all: options.all ? HTTP_DEFAULTS.query.true : undefined,
     })
   );
   if (!response.ok) {
@@ -737,7 +738,7 @@ export async function getCommitFileDiff(
     buildUrl(`${API_BASE}/commit-file-diff`, directory, {
       hash,
       path: filePath,
-      binary: isBinary ? 'true' : undefined,
+      binary: isBinary ? HTTP_DEFAULTS.query.true : undefined,
     })
   );
   if (!response.ok) {
@@ -756,8 +757,8 @@ export async function getGitIdentities(): Promise<GitIdentityProfile[]> {
 
 export async function createGitIdentity(profile: GitIdentityProfile): Promise<GitIdentityProfile> {
   const response = await fetch(buildUrl(`${API_BASE}/identities`, undefined), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(profile),
   });
   if (!response.ok) {
@@ -769,8 +770,8 @@ export async function createGitIdentity(profile: GitIdentityProfile): Promise<Gi
 
 export async function updateGitIdentity(id: string, updates: GitIdentityProfile): Promise<GitIdentityProfile> {
   const response = await fetch(buildUrl(`${API_BASE}/identities/${id}`, undefined), {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.put,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(updates),
   });
   if (!response.ok) {
@@ -782,7 +783,7 @@ export async function updateGitIdentity(id: string, updates: GitIdentityProfile)
 
 export async function deleteGitIdentity(id: string): Promise<void> {
   const response = await fetch(buildUrl(`${API_BASE}/identities/${id}`, undefined), {
-    method: 'DELETE',
+    method: HTTP_DEFAULTS.method.delete,
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
@@ -842,8 +843,8 @@ export async function setGitIdentity(
   profileId: string
 ): Promise<{ success: boolean; profile: GitIdentityProfile }> {
   const response = await fetch(buildUrl(`${API_BASE}/set-identity`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ profileId }),
   });
   if (!response.ok) {
@@ -886,8 +887,8 @@ export async function rebase(
   options: { onto: string }
 ): Promise<{ success: boolean; conflict?: boolean; conflictFiles?: string[] }> {
   const response = await fetch(buildUrl(`${API_BASE}/rebase`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(options),
   });
   if (!response.ok) {
@@ -899,7 +900,7 @@ export async function rebase(
 
 export async function abortRebase(directory: string): Promise<{ success: boolean }> {
   const response = await fetch(buildUrl(`${API_BASE}/rebase/abort`, directory), {
-    method: 'POST',
+    method: HTTP_DEFAULTS.method.post,
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
@@ -913,8 +914,8 @@ export async function merge(
   options: { branch: string }
 ): Promise<{ success: boolean; conflict?: boolean; conflictFiles?: string[] }> {
   const response = await fetch(buildUrl(`${API_BASE}/merge`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify(options),
   });
   if (!response.ok) {
@@ -929,8 +930,8 @@ export async function checkoutCommit(
   hash: string
 ): Promise<CheckoutCommitResponse> {
   const response = await fetch(buildUrl(`${API_BASE}/checkout-commit`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ hash }),
   });
   if (!response.ok) {
@@ -945,8 +946,8 @@ export async function cherryPick(
   hash: string
 ): Promise<CherryPickResponse> {
   const response = await fetch(buildUrl(`${API_BASE}/cherry-pick`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ hash }),
   });
   if (!response.ok) {
@@ -961,8 +962,8 @@ export async function revertCommit(
   hash: string
 ): Promise<RevertCommitResponse> {
   const response = await fetch(buildUrl(`${API_BASE}/revert-commit`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ hash }),
   });
   if (!response.ok) {
@@ -979,8 +980,8 @@ export async function resetToCommit(
   force?: boolean
 ): Promise<ResetToCommitResponse> {
   const response = await fetch(buildUrl(`${API_BASE}/reset-to-commit`, directory), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ hash, mode, force }),
   });
   if (!response.ok) {
@@ -992,7 +993,7 @@ export async function resetToCommit(
 
 export async function abortMerge(directory: string): Promise<{ success: boolean }> {
   const response = await fetch(buildUrl(`${API_BASE}/merge/abort`, directory), {
-    method: 'POST',
+    method: HTTP_DEFAULTS.method.post,
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
@@ -1003,7 +1004,7 @@ export async function abortMerge(directory: string): Promise<{ success: boolean 
 
 export async function continueRebase(directory: string): Promise<{ success: boolean; conflict: boolean; conflictFiles?: string[] }> {
   const response = await fetch(buildUrl(`${API_BASE}/rebase/continue`, directory), {
-    method: 'POST',
+    method: HTTP_DEFAULTS.method.post,
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
@@ -1014,7 +1015,7 @@ export async function continueRebase(directory: string): Promise<{ success: bool
 
 export async function continueMerge(directory: string): Promise<{ success: boolean; conflict: boolean; conflictFiles?: string[] }> {
   const response = await fetch(buildUrl(`${API_BASE}/merge/continue`, directory), {
-    method: 'POST',
+    method: HTTP_DEFAULTS.method.post,
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
@@ -1054,8 +1055,8 @@ export async function validateWorktreeDirectory(
   resolvedCwd: string | null;
 }> {
   const response = await fetch(`${API_BASE}/validate-directory`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ directory, worktreeRoot }),
   });
   if (!response.ok) {
@@ -1077,8 +1078,8 @@ export async function canonicalizeWorktreeState(
   attentionReason?: 'merge' | 'rebase' | 'cherry-pick' | 'revert' | 'bisect' | null;
 }> {
   const response = await fetch(`${API_BASE}/canonicalize-worktree-state`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ directory }),
   });
   if (!response.ok) {

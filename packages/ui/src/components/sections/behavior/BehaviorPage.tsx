@@ -20,6 +20,7 @@ import {
   RESPONSE_STYLE_PRESETS,
   type ResponseStylePreset,
 } from '@/lib/responseStyle';
+import { API_ENDPOINTS } from '@/lib/http';
 import type { DesktopSettings } from '@/lib/desktop';
 
 const AGENTS_MD_PATH = '~/.config/ax-code/AGENTS.md';
@@ -69,7 +70,7 @@ const RESPONSE_STYLE_OPTION_LABEL_KEYS: Record<ResponseStylePreset, I18nKey> = {
 };
 
 const saveBehaviorSetting = async (settings: Partial<DesktopSettings>, fallbackError: string) => {
-  const response = await fetch('/api/config/settings', {
+  const response = await fetch(API_ENDPOINTS.config.settings, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -104,12 +105,12 @@ export const BehaviorPage: React.FC = () => {
     const load = async () => {
       try {
         const [settingsRes, agentsMdRes] = await Promise.all([
-          fetch('/api/config/settings', {
+          fetch(API_ENDPOINTS.config.settings, {
             method: 'GET',
             headers: { Accept: 'application/json' },
             signal: abort.signal,
           }),
-          fetch('/api/behavior/agents-md', {
+          fetch(API_ENDPOINTS.behavior.agentsMd, {
             method: 'GET',
             headers: { Accept: 'application/json' },
             signal: abort.signal,
@@ -204,7 +205,7 @@ export const BehaviorPage: React.FC = () => {
     setIsSaving(true);
     try {
       const content = normalizeAgentsMdContent(prompt);
-      const response = await fetch('/api/behavior/agents-md', {
+      const response = await fetch(API_ENDPOINTS.behavior.agentsMd, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -1,5 +1,6 @@
 import type { FilesAPI } from '@/lib/api/types';
 import { MAX_OPEN_FILE_LINES, countLinesWithLimit } from '@/lib/fileOpenLimits';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from './http';
 
 export type ContextFileOpenFailureReason = 'too-large' | 'missing' | 'unreadable';
 
@@ -31,9 +32,9 @@ const readFileContent = async (files: FilesAPI, path: string): Promise<string> =
   }
 
   const params = new URLSearchParams({ path, allowOutsideWorkspace: 'true', optional: 'true' });
-  const response = await fetch(`/api/fs/read?${params.toString()}`, {
+  const response = await fetch(`${API_ENDPOINTS.fs.read}?${params.toString()}`, {
     // Avoid conditional requests (304 + empty body).
-    cache: 'no-store',
+    cache: HTTP_DEFAULTS.cache.noStore,
   });
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({ error: response.statusText }));

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { GitHubAuthStatus, RuntimeAPIs } from '@/lib/api/types';
+import { API_ENDPOINTS } from '@/lib/http';
 
 type GitHubAuthStatusWithError = GitHubAuthStatus & { error?: string };
 
@@ -22,7 +23,7 @@ const fetchStatus = async (
     return payload as GitHubAuthStatus;
   }
 
-  const response = await fetch('/api/github/auth/status', {
+  const response = await fetch(API_ENDPOINTS.github.authStatus, {
     method: 'GET',
     headers: { Accept: 'application/json' },
   });

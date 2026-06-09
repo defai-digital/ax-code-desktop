@@ -28,6 +28,10 @@ const LOG_ROTATE_MAX_BYTES = 10 * 1024 * 1024;
 const LOG_ROTATE_KEEP = 5;
 const STARTUP_SERVICE_ID = 'ai.ax-code.app.web';
 const SYSTEMD_SERVICE_NAME = 'ax-code-desktop.service';
+const API_BASE_PATH = '/api';
+const API_HEALTH_PATH = '/health';
+const API_SYSTEM_INFO_PATH = `${API_BASE_PATH}/system/info`;
+const API_SYSTEM_SHUTDOWN_PATH = `${API_BASE_PATH}/system/shutdown`;
 const PACKAGE_JSON = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 
 let onCancelCleanup = null;
@@ -1281,7 +1285,7 @@ async function requestServerShutdown(port) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 1500);
   try {
-    const resp = await fetch(buildLocalUrl(port, '/api/system/shutdown'), {
+    const resp = await fetch(buildLocalUrl(port, API_SYSTEM_SHUTDOWN_PATH), {
       method: 'POST',
       signal: controller.signal,
     });
@@ -1332,7 +1336,7 @@ async function isServerHealthReady(port, timeoutMs = 1000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), requestTimeout);
   try {
-    const response = await fetch(buildLocalUrl(port, '/health'), {
+    const response = await fetch(buildLocalUrl(port, API_HEALTH_PATH), {
       headers: { Accept: 'text/plain' },
       signal: controller.signal,
     });
@@ -1430,7 +1434,7 @@ async function fetchSystemInfoFromPort(port, fetchImpl = globalThis.fetch) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 1500);
   try {
-    const response = await fetchImpl(buildLocalUrl(port, '/api/system/info'), {
+    const response = await fetchImpl(buildLocalUrl(port, API_SYSTEM_INFO_PATH), {
       headers: { Accept: 'application/json' },
       signal: controller.signal,
     });

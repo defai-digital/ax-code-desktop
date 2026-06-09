@@ -43,6 +43,7 @@ import { createWorktreeSessionForNewBranch } from '@/lib/worktreeSessionCreator'
 import { cn } from '@/lib/utils';
 import { renderMagicPrompt } from '@/lib/magicPrompts';
 import { useI18n } from '@/lib/i18n';
+import { API_ENDPOINTS } from '@/lib/http';
 import {
   PROJECT_NOTES_UPDATED_EVENT,
   PROJECT_PLAN_SAVED_EVENT,
@@ -619,7 +620,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
           path: result.path,
           allowOutsideWorkspace: 'true',
         });
-        const response = await fetch(`/api/fs/read?${params.toString()}`, { cache: 'no-store' });
+        const response = await fetch(`${API_ENDPOINTS.fs.read}?${params.toString()}`, { cache: 'no-store' });
         if (!response.ok) {
           toast.error(t('rightSidebar.contextNotesTodo.toast.readPlanFileFailed'));
           return;

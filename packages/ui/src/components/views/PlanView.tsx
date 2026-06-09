@@ -26,6 +26,7 @@ import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
 import { useSelectionStore } from '@/sync/selection-store';
+import { API_ENDPOINTS } from '@/lib/http';
 import { useUIStore } from '@/stores/useUIStore';
 import { useGitStore } from '@/stores/useGitStore';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
@@ -357,7 +358,11 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
         return result?.content ?? '';
       }
 
-      const response = await fetch(`/api/fs/read?path=${encodeURIComponent(path)}&optional=true`, {
+      const params = new URLSearchParams({
+        path,
+        optional: 'true',
+      });
+      const response = await fetch(`${API_ENDPOINTS.fs.read}?${params.toString()}`, {
         // Avoid conditional requests (304 + empty body).
         cache: 'no-store',
       });
@@ -461,7 +466,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
             throw new Error(t('planView.error.writeFailed'));
           }
         } else {
-          const response = await fetch('/api/fs/write', {
+          const response = await fetch(API_ENDPOINTS.fs.write, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ path: resolvedPath, content }),

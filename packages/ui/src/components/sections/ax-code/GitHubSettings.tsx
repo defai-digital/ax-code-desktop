@@ -10,6 +10,7 @@ import { openExternalUrl } from '@/lib/url';
 import { useI18n } from '@/lib/i18n';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icon } from "@/components/icon/Icon";
+import { API_ENDPOINTS } from '@/lib/http';
 
 type GitHubUser = {
   login: string;
@@ -81,7 +82,7 @@ export const GitHubSettings: React.FC = () => {
       const payload = runtimeGitHub
         ? await runtimeGitHub.authStart()
         : await (async () => {
-            const response = await fetch('/api/github/auth/start', {
+            const response = await fetch(API_ENDPOINTS.github.authStart, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -114,7 +115,7 @@ export const GitHubSettings: React.FC = () => {
       return runtimeGitHub.authComplete(deviceCode) as Promise<DeviceFlowCompleteResponse>;
     }
 
-    const response = await fetch('/api/github/auth/complete', {
+    const response = await fetch(API_ENDPOINTS.github.authComplete, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -181,7 +182,7 @@ export const GitHubSettings: React.FC = () => {
       if (runtimeGitHub) {
         await runtimeGitHub.authDisconnect();
       } else {
-        const response = await fetch('/api/github/auth', {
+        const response = await fetch(API_ENDPOINTS.github.auth, {
           method: 'DELETE',
           headers: { Accept: 'application/json' },
         });
@@ -206,7 +207,7 @@ export const GitHubSettings: React.FC = () => {
       const payload = runtimeGitHub
         ? await runtimeGitHub.authActivate(accountId)
         : await (async () => {
-            const response = await fetch('/api/github/auth/activate', {
+            const response = await fetch(API_ENDPOINTS.github.authActivate, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

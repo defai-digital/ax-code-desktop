@@ -60,6 +60,7 @@ import { eventMatchesShortcut, getEffectiveShortcutCombo } from '@/lib/shortcuts
 import { useI18n } from '@/lib/i18n';
 import { FileStatusDot } from '@/components/files/FileStatusDot';
 import { getFileStatusForPath } from '@/components/files/fileStatus';
+import { API_ENDPOINTS } from '@/lib/http';
 import type { FileNode, FileStatus } from '@/components/files/types';
 import {
   getViewerModeStorage,
@@ -1403,7 +1404,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
     if (options?.optional) {
       params.set('optional', 'true');
     }
-    const response = await fetch(`/api/fs/read?${params.toString()}`, {
+    const response = await fetch(`${API_ENDPOINTS.fs.read}?${params.toString()}`, {
       // Avoid conditional requests (304 + empty body).
       cache: options?.optional ? 'no-store' : 'default',
     });
@@ -2535,9 +2536,9 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
       ? (isSelectedSvg
         ? `data:${getImageMimeType(selectedFile.path)};utf8,${encodeURIComponent(fileContent)}`
         : desktopImageSrc)
-      : (isSelectedSvg
+        : (isSelectedSvg
         ? `data:${getImageMimeType(selectedFile.path)};utf8,${encodeURIComponent(fileContent)}`
-        : `/api/fs/raw?${new URLSearchParams({
+        : `${API_ENDPOINTS.fs.raw}?${new URLSearchParams({
           path: selectedFile.path,
           ...(selectedFileReadOptions.allowOutsideWorkspace ? { allowOutsideWorkspace: 'true' } : {}),
         }).toString()}`))

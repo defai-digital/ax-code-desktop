@@ -62,6 +62,7 @@ import { useTerminalStore } from '@/stores/useTerminalStore';
 import { ProjectActionsButton } from '@/components/layout/ProjectActionsButton';
 import { SessionSwitcherDropdown } from '@/components/session/SessionSwitcherDropdown';
 import { canUseElectronDesktopIPC, invokeDesktop, isDesktopShell, startDesktopWindowDrag } from '@/lib/desktop';
+import { API_ENDPOINTS } from '@/lib/http';
 import { desktopHostsGet, locationMatchesHost, redactSensitiveUrl } from '@/lib/desktopHosts';
 import { resolveSessionDiffStats } from '@/components/session/sidebar/utils';
 import { Icon } from "@/components/icon/Icon";
@@ -1262,7 +1263,7 @@ export const Header: React.FC = () => {
       const payload = runtimeApis.github
         ? await runtimeApis.github.authActivate(accountId)
         : await (async () => {
-          const response = await fetch('/api/github/auth/activate', {
+          const response = await fetch(API_ENDPOINTS.github.authActivate, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1612,7 +1613,7 @@ export const Header: React.FC = () => {
       }
 
       try {
-        const devRes = await fetch('/api/system/dev-shutdown', {
+        const devRes = await fetch(API_ENDPOINTS.system.devShutdown, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ previewUrls }),
@@ -1620,7 +1621,7 @@ export const Header: React.FC = () => {
         if (devRes.ok) {
           shutdownRequested = true;
         } else {
-          const shutdownRes = await fetch('/api/system/shutdown', { method: 'POST' });
+          const shutdownRes = await fetch(API_ENDPOINTS.system.shutdown, { method: 'POST' });
           shutdownRequested = shutdownRes.ok;
         }
       } catch {

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icon } from "@/components/icon/Icon";
 import { isDesktopShell, isTauriShell } from '@/lib/desktop';
+import { API_ENDPOINTS } from '@/lib/http';
 import { updateDesktopSettings } from '@/lib/persistence';
 import { reloadAxCodeConfiguration } from '@/stores/useAgentsStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -22,7 +23,7 @@ export const AxCodeCliSettings: React.FC = () => {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch('/api/config/settings', {
+        const response = await fetch(API_ENDPOINTS.config.settings, {
           method: 'GET',
           headers: { Accept: 'application/json' },
         });

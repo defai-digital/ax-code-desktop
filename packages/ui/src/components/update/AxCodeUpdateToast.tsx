@@ -5,6 +5,7 @@ import { reloadAxCodeConfiguration } from '@/stores/useAgentsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useI18n } from '@/lib/i18n';
 import { getSafeStorage } from '@/stores/utils/safeStorage';
+import { API_ENDPOINTS } from '@/lib/http';
 import {
   resolveAxCodeUpdateVersion,
   resolveAxCodeUpgradeStatusVersion,
@@ -51,7 +52,7 @@ export const AxCodeUpdateToast: React.FC = () => {
     });
 
     try {
-      const response = await fetch('/api/ax-code/upgrade', {
+      const response = await fetch(API_ENDPOINTS.axCode.upgrade, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +135,7 @@ export const AxCodeUpdateToast: React.FC = () => {
 
     const checkForUpdate = async (attempt: number) => {
       try {
-        const response = await fetch('/api/ax-code/upgrade-status', { headers: { Accept: 'application/json' } });
+        const response = await fetch(API_ENDPOINTS.axCode.upgradeStatus, { headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error(response.statusText || 'ax-code upgrade status check failed');
         const status = await response.json().catch(() => null) as AxCodeUpgradeStatusLike | null;
         const version = resolveAxCodeUpgradeStatusVersion(status);

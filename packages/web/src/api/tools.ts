@@ -1,9 +1,13 @@
 import type { ToolsAPI } from '@openchamber/ui/api/types';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from './constants';
 
 export const createWebToolsAPI = (): ToolsAPI => ({
   async getAvailableTools(): Promise<string[]> {
 
-    const response = await fetch('/api/experimental/tool/ids');
+    const response = await fetch(API_ENDPOINTS.tools.ids, {
+      method: HTTP_DEFAULTS.method.get,
+      headers: HTTP_DEFAULTS.headers.acceptJson,
+    });
 
     if (!response.ok) {
       throw new Error(`Tools API returned ${response.status} ${response.statusText}`);

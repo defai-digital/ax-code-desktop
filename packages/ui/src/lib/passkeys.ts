@@ -4,14 +4,15 @@ import {
   WebAuthnAbortService,
   WebAuthnError,
 } from '@simplewebauthn/browser';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from './http';
 
-const PASSKEY_AUTH_OPTIONS_ENDPOINT = '/auth/passkey/authenticate/options';
-const PASSKEY_AUTH_VERIFY_ENDPOINT = '/auth/passkey/authenticate/verify';
-const PASSKEY_REGISTER_OPTIONS_ENDPOINT = '/auth/passkey/register/options';
-const PASSKEY_REGISTER_VERIFY_ENDPOINT = '/auth/passkey/register/verify';
-const PASSKEY_LIST_ENDPOINT = '/api/passkeys';
-const PASSKEY_STATUS_ENDPOINT = '/auth/passkey/status';
-const AUTH_RESET_ENDPOINT = '/api/auth/reset';
+const PASSKEY_AUTH_OPTIONS_ENDPOINT = API_ENDPOINTS.auth.passkeys.authenticate.options;
+const PASSKEY_AUTH_VERIFY_ENDPOINT = API_ENDPOINTS.auth.passkeys.authenticate.verify;
+const PASSKEY_REGISTER_OPTIONS_ENDPOINT = API_ENDPOINTS.auth.passkeys.register.options;
+const PASSKEY_REGISTER_VERIFY_ENDPOINT = API_ENDPOINTS.auth.passkeys.register.verify;
+const PASSKEY_LIST_ENDPOINT = API_ENDPOINTS.passkeys;
+const PASSKEY_STATUS_ENDPOINT = API_ENDPOINTS.auth.passkeys.status;
+const AUTH_RESET_ENDPOINT = API_ENDPOINTS.auth.reset;
 
 export type PasskeyStatus = {
   enabled: boolean;
@@ -37,12 +38,9 @@ export const defaultPasskeyStatus: PasskeyStatus = {
 };
 
 const postJson = async (url: string, body?: unknown): Promise<Response> => fetch(url, {
-  method: 'POST',
+  method: HTTP_DEFAULTS.method.post,
   credentials: 'include',
-  headers: {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  },
+  headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
   body: body === undefined ? undefined : JSON.stringify(body),
 });
 
@@ -136,11 +134,9 @@ export const authenticateWithPasskey = async (trustDevice: boolean) => {
 
 export const fetchPasskeyStatus = async (): Promise<PasskeyStatus> => {
   const response = await fetch(PASSKEY_STATUS_ENDPOINT, {
-    method: 'GET',
+    method: HTTP_DEFAULTS.method.get,
     credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: HTTP_DEFAULTS.headers.acceptJson,
   });
 
   if (!response.ok) {
@@ -158,11 +154,9 @@ export const fetchPasskeyStatus = async (): Promise<PasskeyStatus> => {
 
 export const fetchStoredPasskeys = async (): Promise<StoredPasskey[]> => {
   const response = await fetch(PASSKEY_LIST_ENDPOINT, {
-    method: 'GET',
+    method: HTTP_DEFAULTS.method.get,
     credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: HTTP_DEFAULTS.headers.acceptJson,
   });
 
   if (!response.ok) {
@@ -175,11 +169,9 @@ export const fetchStoredPasskeys = async (): Promise<StoredPasskey[]> => {
 
 export const revokeStoredPasskey = async (id: string) => {
   const response = await fetch(`${PASSKEY_LIST_ENDPOINT}/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
+    method: HTTP_DEFAULTS.method.delete,
     credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: HTTP_DEFAULTS.headers.acceptJson,
   });
 
   if (!response.ok) {

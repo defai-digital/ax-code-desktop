@@ -15,6 +15,7 @@ import { toast } from '@/components/ui';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icon } from "@/components/icon/Icon";
 import type { IconName } from "@/components/icon/icons";
+import { API_ENDPOINTS, replacePathParams } from '@/lib/http';
 import { reloadAxCodeConfiguration, waitForQueuedAxCodeReload } from '@/stores/useAgentsStore';
 import { cn } from '@/lib/utils';
 import { copyTextToClipboard } from '@/lib/clipboard';
@@ -169,7 +170,7 @@ export const ProvidersPage: React.FC = () => {
     const loadAuthMethods = async () => {
       setAuthLoading(true);
       try {
-        const response = await fetch('/api/provider/auth', {
+        const response = await fetch(API_ENDPOINTS.provider.auth, {
           method: 'GET',
           headers: { Accept: 'application/json' },
         });
@@ -206,7 +207,7 @@ export const ProvidersPage: React.FC = () => {
       setAvailableLoading(true);
       setAvailableError(null);
       try {
-        const response = await fetch('/api/provider', {
+        const response = await fetch(API_ENDPOINTS.provider.base, {
           method: 'GET',
           headers: { Accept: 'application/json' },
         });
@@ -281,7 +282,9 @@ export const ProvidersPage: React.FC = () => {
 
     const loadSources = async () => {
       try {
-        const response = await fetch(`/api/provider/${encodeURIComponent(selectedProviderId)}/source`, {
+        const response = await fetch(replacePathParams(API_ENDPOINTS.provider.source, {
+          providerId: selectedProviderId,
+        }), {
           method: 'GET',
           headers: { Accept: 'application/json' },
         });
@@ -326,7 +329,9 @@ export const ProvidersPage: React.FC = () => {
     setAuthBusyKey(busyKey);
 
     try {
-      const response = await fetch(`/api/auth/${encodeURIComponent(providerId)}`, {
+      const response = await fetch(replacePathParams(API_ENDPOINTS.provider.authByProvider, {
+        providerId,
+      }), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'api', key: apiKey }),
@@ -359,7 +364,9 @@ export const ProvidersPage: React.FC = () => {
     setAuthBusyKey(busyKey);
 
     try {
-      const response = await fetch(`/api/provider/${encodeURIComponent(providerId)}/oauth/authorize`, {
+      const response = await fetch(replacePathParams(API_ENDPOINTS.provider.oauthAuthorize, {
+        providerId,
+      }), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ method: methodIndex }),
@@ -428,7 +435,9 @@ export const ProvidersPage: React.FC = () => {
         requestBody.code = code;
       }
 
-      const response = await fetch(`/api/provider/${encodeURIComponent(providerId)}/oauth/callback`, {
+      const response = await fetch(replacePathParams(API_ENDPOINTS.provider.oauthCallback, {
+        providerId,
+      }), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
@@ -482,7 +491,9 @@ export const ProvidersPage: React.FC = () => {
     setAuthBusyKey(busyKey);
 
     try {
-      const response = await fetch(`/api/provider/${encodeURIComponent(providerId)}/auth?scope=all`, {
+      const response = await fetch(`${replacePathParams(API_ENDPOINTS.provider.authAll, {
+        providerId,
+      })}?scope=all`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
       });

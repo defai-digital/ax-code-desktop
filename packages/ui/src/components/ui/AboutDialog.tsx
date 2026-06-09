@@ -8,6 +8,7 @@ import { debugUtils } from '@/lib/debug';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui';
 import { Icon } from "@/components/icon/Icon";
+import { API_ENDPOINTS } from '@/lib/http';
 import { useI18n } from '@/lib/i18n';
 import { getDesktopAppVersion } from '@/lib/desktopNative';
 
@@ -64,7 +65,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
 
     const fetchVersion = async () => {
       try {
-        const response = await fetch('/api/system/info');
+        const response = await fetch(API_ENDPOINTS.system.info);
         if (response.ok) {
           const data = await response.json();
           const reported = typeof data.openchamberVersion === 'string' ? data.openchamberVersion.trim() : '';
@@ -91,7 +92,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     let cancelled = false;
     const fetchAxCodeVersion = async () => {
       try {
-        const response = await fetch('/api/ax-code/upgrade-status', {
+        const response = await fetch(API_ENDPOINTS.axCode.upgradeStatus, {
           headers: { Accept: 'application/json' },
         });
         if (!response.ok) return;

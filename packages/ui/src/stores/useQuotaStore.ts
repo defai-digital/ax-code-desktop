@@ -6,6 +6,7 @@ import { QUOTA_PROVIDERS } from '@/lib/quota';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 import { getDefaultModels } from '@/lib/quota/model-families';
 import { updateDesktopSettings } from '@/lib/persistence';
+import { API_ENDPOINTS } from '@/lib/http';
 
 const DEFAULT_REFRESH_INTERVAL_MS = 60000;
 
@@ -111,7 +112,7 @@ const loadSettingsFromRuntime = async (): Promise<QuotaSettingsState> => {
     }
   }
 
-  const response = await fetch('/api/config/settings', {
+  const response = await fetch(API_ENDPOINTS.config.settings, {
     method: 'GET',
     headers: { Accept: 'application/json' }
   });
@@ -179,7 +180,7 @@ export const useQuotaStore = create<QuotaStore>()(
           isFetchingProvider: { ...state.isFetchingProvider, [providerId]: true }
         }));
         try {
-          const response = await fetch(`/api/quota/${encodeURIComponent(providerId)}`);
+          const response = await fetch(API_ENDPOINTS.quota.byProvider.replace(':providerId', encodeURIComponent(providerId)));
           const payload = await response.json().catch(() => null);
           if (!response.ok) {
             throw new Error(payload?.error || 'Failed to fetch quota');

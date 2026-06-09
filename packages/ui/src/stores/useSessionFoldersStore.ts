@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { getSafeStorage } from './utils/safeStorage';
+import { API_ENDPOINTS } from '@/lib/http';
 
 // --- Types ---
 
@@ -40,7 +41,7 @@ type SessionFoldersStore = SessionFoldersState & SessionFoldersActions;
 
 const FOLDERS_STORAGE_KEY = 'oc.sessions.folders';
 const COLLAPSED_STORAGE_KEY = 'oc.sessions.folderCollapse';
-const SESSION_FOLDERS_API_PATH = '/api/session-folders';
+const SESSION_FOLDERS_API_PATH = API_ENDPOINTS.sessionFolders;
 const DISK_WRITE_DEBOUNCE_MS = 250;
 const ARCHIVED_SCOPE_PREFIX = '__archived__:';
 

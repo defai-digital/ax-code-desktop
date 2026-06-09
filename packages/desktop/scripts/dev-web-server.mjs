@@ -3,6 +3,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const DESKTOP_DEV_PORT = 3901;
+const DESKTOP_HOST = '127.0.0.1';
+const DESKTOP_API_BASE_URL = `http://${DESKTOP_HOST}:${DESKTOP_DEV_PORT}`;
+const API_SYSTEM_SHUTDOWN_PATH = '/api/system/shutdown';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,7 +53,7 @@ const run = (cmd, args, cwd) => {
 console.log('[desktop] ensuring sidecar + web-dist...');
 run('node', ['./scripts/build-sidecar.mjs'], desktopDir);
 
-console.log(`[desktop] starting API server on http://127.0.0.1:${DESKTOP_DEV_PORT} ...`);
+console.log(`[desktop] starting API server on ${DESKTOP_API_BASE_URL} ...`);
 
 const apiChild = spawn(sidecarPath, ['--port', String(DESKTOP_DEV_PORT)], {
   cwd: repoRoot,
@@ -58,7 +61,7 @@ const apiChild = spawn(sidecarPath, ['--port', String(DESKTOP_DEV_PORT)], {
   detached: process.platform !== 'win32',
   env: {
     ...process.env,
-    OPENCHAMBER_HOST: '127.0.0.1',
+    OPENCHAMBER_HOST: DESKTOP_HOST,
     OPENCHAMBER_DIST_DIR: distDir,
     NO_PROXY: process.env.NO_PROXY || 'localhost,127.0.0.1',
     no_proxy: process.env.no_proxy || 'localhost,127.0.0.1',
@@ -122,7 +125,7 @@ function signalChild(child, signal) {
 }
 
 async function requestApiShutdown() {
-  const url = `http://127.0.0.1:${DESKTOP_DEV_PORT}/api/system/shutdown`;
+  const url = `${DESKTOP_API_BASE_URL}${API_SYSTEM_SHUTDOWN_PATH}`;
   try {
     await fetch(url, { method: 'POST' });
   } catch {

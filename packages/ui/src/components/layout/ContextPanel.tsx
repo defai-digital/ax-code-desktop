@@ -8,6 +8,7 @@ import { FilesView } from '@/components/views/FilesView';
 import { PlanView } from '@/components/views/PlanView';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { openExternalUrl } from '@/lib/url';
+import { API_ENDPOINTS } from '@/lib/http';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { cn } from '@/lib/utils';
@@ -499,7 +500,7 @@ const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
 
     void (async () => {
       try {
-        const response = await fetch('/api/preview/targets', {
+        const response = await fetch(API_ENDPOINTS.preview.targets, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -1275,7 +1276,7 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
 
     void (async () => {
       try {
-        const response = await fetch('/api/preview/targets', {
+        const response = await fetch(API_ENDPOINTS.preview.targets, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

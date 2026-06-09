@@ -6,6 +6,7 @@ import { useConfigStore } from '@/stores/useConfigStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 import { setFilesViewShowGitignored, useFilesViewShowGitignored } from '@/lib/filesViewShowGitignored';
+import { API_ENDPOINTS } from '@/lib/http';
 import { useI18n } from '@/lib/i18n';
 
 export const GitSettings: React.FC = () => {
@@ -63,7 +64,7 @@ export const GitSettings: React.FC = () => {
 
         // 2. Fetch API (Web/server)
         if (!data) {
-          const response = await fetch('/api/config/settings', {
+          const response = await fetch(API_ENDPOINTS.config.settings, {
             method: 'GET',
             headers: { Accept: 'application/json' },
           });

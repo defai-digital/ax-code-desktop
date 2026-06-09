@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { PluginEntry, PluginFile, RegistryResult } from './usePluginsStore';
+import { API_ENDPOINTS } from '@/lib/http';
 
 const activeProjectPath = '/workspace/project';
 
@@ -110,7 +111,7 @@ const resetStore = () => {
   });
 };
 
-const registryCalls = (): PluginRegistryFetchCall[] => fetchCalls.filter((call) => String(call.input).includes('/api/config/plugins/registry'));
+const registryCalls = (): PluginRegistryFetchCall[] => fetchCalls.filter((call) => String(call.input).includes(API_ENDPOINTS.config.pluginRegistry));
 
 const requestBody = (callIndex: number): unknown => {
   const init = fetchCalls[callIndex]?.init;

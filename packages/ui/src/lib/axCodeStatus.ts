@@ -1,6 +1,7 @@
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { getSyncSessions } from '@/sync/sync-refs';
 import { useUIStore } from '@/stores/useUIStore';
+import { API_ENDPOINTS, HTTP_DEFAULTS, API_PATHS } from './http';
 
 declare const __APP_VERSION__: string | undefined;
 
@@ -58,8 +59,8 @@ const safeFetch = async (input: string, timeoutMs = 6000): Promise<ProbeResult> 
 
   try {
     const resp = await fetch(input, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
+      method: HTTP_DEFAULTS.method.get,
+      headers: HTTP_DEFAULTS.headers.acceptJson,
       signal: controller.signal,
     });
 
@@ -152,16 +153,16 @@ export const buildAxCodeStatusReport = async (): Promise<string> => {
   const directory = getCurrentDirectory();
   const eventStreamStatus = useUIStore.getState().eventStreamStatus;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const apiBase = origin ? `${origin.replace(/\/+$/, '')}/api/` : '';
+  const apiBase = origin ? `${origin.replace(/\/+$/, '')}${API_PATHS.base}/` : '';
 
   const openChamberHealth: OpenChamberHealthSnapshot | null = await (async () => {
     if (!origin) return null;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-      const resp = await fetch(`${origin.replace(/\/+$/, '')}/health`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
+      const resp = await fetch(`${origin.replace(/\/+$/, '')}${API_ENDPOINTS.debug.rootHealth}`, {
+        method: HTTP_DEFAULTS.method.get,
+        headers: HTTP_DEFAULTS.headers.acceptJson,
         signal: controller.signal,
       });
       if (!resp.ok) return null;
@@ -184,9 +185,9 @@ export const buildAxCodeStatusReport = async (): Promise<string> => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 7000);
     try {
-      const resp = await fetch(`${origin.replace(/\/+$/, '')}/api/config/ax-code-resolution`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
+      const resp = await fetch(`${origin.replace(/\/+$/, '')}${API_ENDPOINTS.config.axCodeResolution}`, {
+        method: HTTP_DEFAULTS.method.get,
+        headers: HTTP_DEFAULTS.headers.acceptJson,
         signal: controller.signal,
       });
       const contentType = resp.headers.get('content-type') || '(none)';
@@ -230,15 +231,15 @@ export const buildAxCodeStatusReport = async (): Promise<string> => {
   };
 
   const probeTargets: Array<{ label: string; path: string; includeDirectory?: boolean; timeoutMs?: number }> = [
-    { label: 'health', path: '/global/health', includeDirectory: false },
-    { label: 'config', path: '/config', includeDirectory: true },
-    { label: 'providers', path: '/config/providers', includeDirectory: true },
-    { label: 'agents', path: '/agent', includeDirectory: true, timeoutMs: 12000 },
-    { label: 'commands', path: '/command', includeDirectory: true, timeoutMs: 10000 },
-    { label: 'project', path: '/project/current', includeDirectory: true },
-    { label: 'path', path: '/path', includeDirectory: true },
-    { label: 'sessions', path: '/session', includeDirectory: true, timeoutMs: 12000 },
-    { label: 'sessionStatus', path: '/session/status', includeDirectory: true },
+    { label: 'health', path: API_ENDPOINTS.debug.globalHealth, includeDirectory: false },
+    { label: 'config', path: API_ENDPOINTS.debug.config, includeDirectory: true },
+    { label: 'providers', path: API_ENDPOINTS.debug.configProviders, includeDirectory: true },
+    { label: 'agents', path: API_ENDPOINTS.debug.agent, includeDirectory: true, timeoutMs: 12000 },
+    { label: 'commands', path: API_ENDPOINTS.debug.command, includeDirectory: true, timeoutMs: 10000 },
+    { label: 'project', path: API_ENDPOINTS.debug.projectCurrent, includeDirectory: true },
+    { label: 'path', path: API_ENDPOINTS.debug.path, includeDirectory: true },
+    { label: 'sessions', path: API_ENDPOINTS.debug.session, includeDirectory: true, timeoutMs: 12000 },
+    { label: 'sessionStatus', path: API_ENDPOINTS.debug.sessionStatus, includeDirectory: true },
   ];
 
   const probes = apiBase
@@ -255,7 +256,7 @@ export const buildAxCodeStatusReport = async (): Promise<string> => {
   const lines: string[] = [];
   lines.push(`Time: ${now.toISOString()}`);
   lines.push(`AX Code Desktop version: ${appVersion}`);
-  lines.push(`Runtime: ${origin || '(unknown)'} (api=${origin ? origin + '/api' : '(unknown)'})`);
+  lines.push(`Runtime: ${origin || '(unknown)'} (api=${origin ? `${origin}${API_PATHS.base}` : '(unknown)'})`);
   lines.push(`Event stream: ${eventStreamStatus}`);
   lines.push(`Directory: ${directory || '(none)'}`);
   lines.push(`Platform: ${platform}`);

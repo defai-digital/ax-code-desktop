@@ -1,8 +1,9 @@
 import type { CommandExecResult, FilesAPI, RuntimeAPIs } from '@/lib/api/types';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from './http';
 
 type ExecCommandsResult = { success: boolean; results: CommandExecResult[] };
 
-const DEFAULT_BASE_URL = import.meta.env.VITE_AX_CODE_URL || '/api';
+const DEFAULT_BASE_URL = import.meta.env.VITE_AX_CODE_URL || HTTP_DEFAULTS.apiPath.base;
 
 const getBaseUrl = (): string => {
   if (typeof DEFAULT_BASE_URL === 'string' && DEFAULT_BASE_URL.startsWith('/')) {
@@ -26,9 +27,9 @@ export async function execCommands(commands: string[], cwd: string): Promise<Exe
     return runtimeFiles.execCommands(commands, cwd);
   }
 
-  const response = await fetch(`${getBaseUrl()}/fs/exec`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const response = await fetch(`${getBaseUrl()}${API_ENDPOINTS.fs.exec}`, {
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ commands, cwd, background: false }),
   });
 

@@ -9,6 +9,7 @@ import {
   isTauriShell,
   isWebRuntime,
 } from '@/lib/desktop';
+import { API_ENDPOINTS } from '@/lib/http';
 
 export type UpdateState = {
   checking: boolean;
@@ -48,7 +49,7 @@ async function checkForWebUpdates(runtime: ClientRuntime, currentVersion?: strin
   try {
     const params = mapRuntimeParams(runtime);
     if (currentVersion) params.set('currentVersion', currentVersion);
-    const response = await fetch(`/api/openchamber/update-check?${params.toString()}`, {
+    const response = await fetch(`${API_ENDPOINTS.openchamber.updateCheck}?${params.toString()}`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });

@@ -1,3 +1,5 @@
+import { API_ENDPOINTS, HTTP_DEFAULTS } from './http';
+
 export const RESPONSE_STYLE_PRESETS = ['concise', 'detailed', 'mentor', 'pushback', 'noFiller', 'matchEnergy', 'warmPeer'] as const;
 export type ResponseStylePreset = typeof RESPONSE_STYLE_PRESETS[number];
 
@@ -43,9 +45,9 @@ export const buildResponseStyleInstruction = ({
 };
 
 export const fetchResponseStyleInstruction = async (): Promise<string | null> => {
-  const response = await fetch('/api/config/settings', {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
+  const response = await fetch(API_ENDPOINTS.config.settings, {
+    method: HTTP_DEFAULTS.method.get,
+    headers: HTTP_DEFAULTS.headers.acceptJson,
   });
   if (!response.ok) return null;
   const settings = await response.json().catch(() => null) as {

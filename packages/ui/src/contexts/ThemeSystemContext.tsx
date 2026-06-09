@@ -11,6 +11,7 @@ import { isDesktopLocalOriginActive, isTauriShell } from '@/lib/desktop';
 import { setDesktopWindowTheme } from '@/lib/desktopNative';
 import { CSSVariableGenerator } from '@/lib/theme/cssGenerator';
 import { updateDesktopSettings } from '@/lib/persistence';
+import { API_ENDPOINTS } from '@/lib/http';
 import {
   themes,
   getThemeById,
@@ -267,7 +268,7 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
 
     setCustomThemesLoading(true);
     try {
-      const res = await fetch('/api/config/themes', {
+      const res = await fetch(API_ENDPOINTS.config.themes, {
         method: 'GET',
         credentials: isLocalDesktopOrigin ? 'omit' : 'include',
         headers: {

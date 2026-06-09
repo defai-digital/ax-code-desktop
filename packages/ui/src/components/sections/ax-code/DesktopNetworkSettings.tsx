@@ -11,6 +11,7 @@ import {
   restartDesktopApp,
   setDesktopLaunchAtLogin,
 } from '@/lib/desktop';
+import { API_ENDPOINTS } from '@/lib/http';
 import { useI18n } from '@/lib/i18n';
 
 export const DesktopNetworkSettings: React.FC = () => {
@@ -37,7 +38,7 @@ export const DesktopNetworkSettings: React.FC = () => {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch('/api/config/settings', {
+        const response = await fetch(API_ENDPOINTS.config.settings, {
           method: 'GET',
           headers: { Accept: 'application/json' },
         });
@@ -165,7 +166,7 @@ export const DesktopNetworkSettings: React.FC = () => {
     setError(null);
 
     try {
-      const response = await fetch('/api/config/settings', {
+      const response = await fetch(API_ENDPOINTS.config.settings, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

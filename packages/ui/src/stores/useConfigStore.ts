@@ -15,9 +15,10 @@ import { streamDebugEnabled } from "@/stores/utils/streamDebug";
 import { parseModelIdentifier } from "@/lib/modelIdentifier";
 import { isPrimaryMode } from "@/lib/modelControlUtils";
 import type { ProviderModel, ProviderWithModelList } from "@/types/providerModels";
+import { API_ENDPOINTS } from "@/lib/http";
 
 const MODELS_DEV_API_URL = "https://models.dev/api.json";
-const MODELS_DEV_PROXY_URL = "/api/openchamber/models-metadata";
+const MODELS_DEV_PROXY_URL = API_ENDPOINTS.openchamber.modelsMetadata;
 
 const FALLBACK_PROVIDER_ID = "ax-code";
 const FALLBACK_MODEL_ID = "big-pickle";
@@ -72,7 +73,7 @@ const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
         }
 
         // 2. Fetch API (Web/server)
-        const response = await fetch('/api/config/settings', {
+        const response = await fetch(API_ENDPOINTS.config.settings, {
             method: 'GET',
             headers: { Accept: 'application/json' },
         });

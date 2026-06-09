@@ -1,3 +1,5 @@
+import { API_ENDPOINTS } from './http';
+
 export type ScheduledTaskRanEvent = {
   type: 'scheduled-task-ran';
   projectId: string;
@@ -129,7 +131,7 @@ const connect = () => {
 
   cleanupSource();
 
-  const source = new EventSource('/api/openchamber/events');
+  const source = new EventSource(API_ENDPOINTS.openchamber.events);
   source.onopen = () => {
     resetHeartbeatTimer();
   };

@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useMcpStore } from '@/stores/useMcpStore';
 import { parseMcpOAuthCallbackContext, parseMcpOAuthCallbackStateKey } from '@/components/sections/mcp/mcpOAuth';
+import { API_ENDPOINTS } from '@/lib/http';
 
 const parseQueryParam = (params: URLSearchParams, key: string): string | null => {
   const value = params.get(key);
@@ -21,6 +22,9 @@ const normalizeMcpAuthErrorMessage = (error: unknown, fallback: string): string 
   return message;
 };
 
+const buildPendingAuthContextUrl = (stateKey: string): string =>
+  `${API_ENDPOINTS.mcp.authPending}?state=${encodeURIComponent(stateKey)}`;
+
 export const McpOAuthCallbackPage: React.FC = () => {
   const completeAuth = useMcpStore((state) => state.completeAuth);
   const [status, setStatus] = React.useState<'working' | 'success' | 'error'>('working');
@@ -39,11 +43,12 @@ export const McpOAuthCallbackPage: React.FC = () => {
     const callbackStateKey = parseMcpOAuthCallbackStateKey(params);
     const error = parseQueryParam(params, 'error');
     const errorDescription = parseQueryParam(params, 'error_description');
+    const pendingAuthContextUrl = callbackStateKey ? buildPendingAuthContextUrl(callbackStateKey) : null;
 
-    if (error) {
-      if (callbackStateKey) {
-        void fetch(`/api/mcp/auth/pending?state=${encodeURIComponent(callbackStateKey)}`, { method: 'DELETE' }).catch(() => undefined);
-      }
+      if (error) {
+        if (callbackStateKey) {
+          void fetch(pendingAuthContextUrl!, { method: 'DELETE' }).catch(() => undefined);
+        }
       setStatus('error');
       setMessage(errorDescription ?? error);
       return;
@@ -57,7 +62,7 @@ export const McpOAuthCallbackPage: React.FC = () => {
 
         let pendingContext = callbackContext;
         if (!pendingContext && callbackStateKey) {
-          const response = await fetch(`/api/mcp/auth/pending?state=${encodeURIComponent(callbackStateKey)}`);
+          const response = await fetch(pendingAuthContextUrl!);
           if (response.ok) {
             const payload = await response.json().catch(() => null) as { name?: string; directory?: string | null } | null;
             if (payload?.name?.trim()) {
@@ -75,13 +80,13 @@ export const McpOAuthCallbackPage: React.FC = () => {
 
         await completeAuth(pendingContext.name, code, pendingContext.directory);
         if (callbackStateKey) {
-          await fetch(`/api/mcp/auth/pending?state=${encodeURIComponent(callbackStateKey)}`, { method: 'DELETE' }).catch(() => undefined);
+          await fetch(pendingAuthContextUrl!, { method: 'DELETE' }).catch(() => undefined);
         }
         setStatus('success');
         setMessage('Authorization completed. You can close this tab and return to AX Code Desktop.');
       } catch (authError) {
         if (callbackStateKey) {
-          await fetch(`/api/mcp/auth/pending?state=${encodeURIComponent(callbackStateKey)}`, { method: 'DELETE' }).catch(() => undefined);
+          await fetch(pendingAuthContextUrl!, { method: 'DELETE' }).catch(() => undefined);
         }
         setStatus('error');
         setMessage(normalizeMcpAuthErrorMessage(authError, 'Failed to complete MCP authorization.'));

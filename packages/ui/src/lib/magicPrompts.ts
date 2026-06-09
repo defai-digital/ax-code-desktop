@@ -1,3 +1,5 @@
+import { API_ENDPOINTS, HTTP_DEFAULTS } from './http';
+
 export type MagicPromptId =
   | 'git.commit.generate.visible'
   | 'git.commit.generate.instructions'
@@ -54,7 +56,7 @@ export interface MagicPromptOverridesPayload {
   overrides: Record<string, string>;
 }
 
-const API_ENDPOINT = '/api/magic-prompts';
+const API_ENDPOINT = API_ENDPOINTS.magicPrompts;
 
 export const MAGIC_PROMPT_DEFINITIONS: readonly MagicPromptDefinition[] = [
   {
@@ -842,8 +844,8 @@ export const fetchMagicPromptOverrides = async (): Promise<Record<string, string
 
   if (!inFlightOverridesRequest) {
     inFlightOverridesRequest = fetch(API_ENDPOINT, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
+      method: HTTP_DEFAULTS.method.get,
+      headers: HTTP_DEFAULTS.headers.acceptJson,
     })
       .then(async (response) => {
         if (!response.ok) {
@@ -895,11 +897,8 @@ export const renderMagicPrompt = async (id: MagicPromptId, variables: Record<str
 
 export const saveMagicPromptOverride = async (id: MagicPromptId, text: string): Promise<MagicPromptOverridesPayload> => {
   const response = await fetch(`${API_ENDPOINT}/${encodeURIComponent(id)}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
+    method: HTTP_DEFAULTS.method.put,
+    headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
     body: JSON.stringify({ text }),
   });
   if (!response.ok) {
@@ -916,8 +915,8 @@ export const saveMagicPromptOverride = async (id: MagicPromptId, text: string): 
 
 export const resetMagicPromptOverride = async (id: MagicPromptId): Promise<MagicPromptOverridesPayload> => {
   const response = await fetch(`${API_ENDPOINT}/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers: { Accept: 'application/json' },
+    method: HTTP_DEFAULTS.method.delete,
+    headers: HTTP_DEFAULTS.headers.acceptJson,
   });
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({}));
@@ -933,8 +932,8 @@ export const resetMagicPromptOverride = async (id: MagicPromptId): Promise<Magic
 
 export const resetAllMagicPromptOverrides = async (): Promise<MagicPromptOverridesPayload> => {
   const response = await fetch(API_ENDPOINT, {
-    method: 'DELETE',
-    headers: { Accept: 'application/json' },
+    method: HTTP_DEFAULTS.method.delete,
+    headers: HTTP_DEFAULTS.headers.acceptJson,
   });
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({}));

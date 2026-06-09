@@ -8,6 +8,7 @@ import {
 import { refreshAfterAxCodeRestart } from '@/stores/useAgentsStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
 import { axCodeClient } from '@/lib/ax-code/client';
+import { API_ENDPOINTS, replacePathParams } from '@/lib/http';
 
 export type PluginScope = 'user' | 'project';
 export type PluginParsedKind = 'npm' | 'path';
@@ -171,7 +172,7 @@ export const usePluginsStore = create<PluginsStore>()(
           const request = (async () => {
             set({ isLoading: true });
             try {
-              const response = await fetch(buildPluginsUrl('/api/config/plugins', configDirectory), {
+              const response = await fetch(buildPluginsUrl(API_ENDPOINTS.config.plugin, configDirectory), {
                 headers: buildDirectoryHeaders(configDirectory),
               });
               if (!response.ok) {
@@ -241,7 +242,7 @@ export const usePluginsStore = create<PluginsStore>()(
 
         createEntry: async (input) => {
           const result = await runPluginMutation('Creating plugin entry…', async (configDirectory) => {
-            const response = await fetch(buildPluginsUrl('/api/config/plugins/entry', configDirectory), {
+            const response = await fetch(buildPluginsUrl(API_ENDPOINTS.config.pluginEntry, configDirectory), {
               method: 'POST',
               headers: buildJsonHeaders(configDirectory),
               body: JSON.stringify(buildEntryBody(input)),
@@ -258,7 +259,7 @@ export const usePluginsStore = create<PluginsStore>()(
           const existingSpec = get().entries.find((plugin) => plugin.id === id)?.spec;
           const nextSpec = input.spec ?? existingSpec;
           const result = await runPluginMutation('Updating plugin entry…', async (configDirectory) => {
-            const response = await fetch(buildPluginsUrl(`/api/config/plugins/entry/${encodeURIComponent(id)}`, configDirectory), {
+            const response = await fetch(buildPluginsUrl(buildPluginEntryUrl(id), configDirectory), {
               method: 'PATCH',
               headers: buildJsonHeaders(configDirectory),
               body: JSON.stringify(buildEntryBody(input)),
@@ -274,7 +275,7 @@ export const usePluginsStore = create<PluginsStore>()(
         deleteEntry: async (id) => {
           const entryToDelete = get().entries.find((plugin) => plugin.id === id);
           const result = await runPluginMutation('Deleting plugin entry…', async (configDirectory) => {
-            const response = await fetch(buildPluginsUrl(`/api/config/plugins/entry/${encodeURIComponent(id)}`, configDirectory), {
+            const response = await fetch(buildPluginsUrl(buildPluginEntryUrl(id), configDirectory), {
               method: 'DELETE',
               headers: buildDirectoryHeaders(configDirectory),
             });
@@ -295,7 +296,7 @@ export const usePluginsStore = create<PluginsStore>()(
         readFile: async (id) => {
           try {
             const configDirectory = getConfigDirectory();
-            const response = await fetch(buildPluginsUrl(`/api/config/plugins/file/${encodeURIComponent(id)}`, configDirectory), {
+            const response = await fetch(buildPluginsUrl(buildPluginFileUrl(id), configDirectory), {
               headers: buildDirectoryHeaders(configDirectory),
             });
             if (!response.ok) {
@@ -310,7 +311,7 @@ export const usePluginsStore = create<PluginsStore>()(
 
         createFile: async (input) => {
           return runPluginMutation('Creating plugin file…', async (configDirectory) => {
-            const response = await fetch(buildPluginsUrl('/api/config/plugins/file', configDirectory), {
+            const response = await fetch(buildPluginsUrl(API_ENDPOINTS.config.pluginFile, configDirectory), {
               method: 'POST',
               headers: buildJsonHeaders(configDirectory),
               body: JSON.stringify(input),
@@ -321,7 +322,7 @@ export const usePluginsStore = create<PluginsStore>()(
 
         updateFile: async (id, input) => {
           return runPluginMutation('Updating plugin file…', async (configDirectory) => {
-            const response = await fetch(buildPluginsUrl(`/api/config/plugins/file/${encodeURIComponent(id)}`, configDirectory), {
+            const response = await fetch(buildPluginsUrl(buildPluginFileUrl(id), configDirectory), {
               method: 'PUT',
               headers: buildJsonHeaders(configDirectory),
               body: JSON.stringify(input),
@@ -332,7 +333,7 @@ export const usePluginsStore = create<PluginsStore>()(
 
         deleteFile: async (id) => {
           const result = await runPluginMutation('Deleting plugin file…', async (configDirectory) => {
-            const response = await fetch(buildPluginsUrl(`/api/config/plugins/file/${encodeURIComponent(id)}`, configDirectory), {
+            const response = await fetch(buildPluginsUrl(buildPluginFileUrl(id), configDirectory), {
               method: 'DELETE',
               headers: buildDirectoryHeaders(configDirectory),
             });
@@ -364,13 +365,21 @@ function buildPluginsUrl(path: string, directory: string | null): string {
   return `${path}${queryParams}`;
 }
 
+function buildPluginEntryUrl(id: string): string {
+  return replacePathParams(API_ENDPOINTS.config.pluginEntryById, { id });
+}
+
+function buildPluginFileUrl(id: string): string {
+  return replacePathParams(API_ENDPOINTS.config.pluginFileById, { id });
+}
+
 function buildRegistryUrl(specs: string[], force: boolean, directory: string | null): string {
   const params = new URLSearchParams();
   if (force) params.set('refresh', 'true');
   if (directory) params.set('directory', directory);
   const suffix = params.toString();
   const specsParam = `specs=${specs.map(encodeURIComponent).join(',')}`;
-  return `/api/config/plugins/registry?${specsParam}${suffix ? `&${suffix}` : ''}`;
+  return `${API_ENDPOINTS.config.pluginRegistry}?${specsParam}${suffix ? `&${suffix}` : ''}`;
 }
 
 function dedupeSpecs(specs: string[]): string[] {

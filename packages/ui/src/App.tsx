@@ -46,6 +46,7 @@ import { getDeviceInfo } from '@/lib/device';
 import { SyncAppEffects } from '@/apps/AppEffects';
 import { useAppFontEffects } from '@/apps/useAppFontEffects';
 import { AxCodeUpdateToast } from '@/components/update/AxCodeUpdateToast';
+import { API_ENDPOINTS, HTTP_DEFAULTS } from '@/lib/http';
 import {
   OPEN_DRAFT_SESSION_EVENT,
   OPEN_PROJECT_EVENT,
@@ -364,7 +365,9 @@ function App({ apis }: AppProps) {
     let cancelled = false;
 
     const run = async () => {
-      const res = await fetch('/health', { method: 'GET' }).catch(() => null);
+      const res = await fetch(API_ENDPOINTS.debug.rootHealth, {
+        method: HTTP_DEFAULTS.method.get,
+      }).catch(() => null);
       if (!res || !res.ok || cancelled) return;
       const data = (await res.json().catch(() => null)) as null | {
         planModeExperimentalEnabled?: unknown;

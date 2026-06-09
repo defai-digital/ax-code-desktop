@@ -1387,6 +1387,11 @@ const LOCAL_SIDECAR_HEALTH_POLL_INITIAL_INTERVAL: Duration = Duration::from_mill
 const LOCAL_SIDECAR_HEALTH_POLL_MAX_INTERVAL: Duration = Duration::from_millis(1000);
 const STARTUP_REMOTE_PROBE_SOFT_TIMEOUT: Duration = Duration::from_secs(2);
 const STARTUP_REMOTE_PROBE_HARD_TIMEOUT: Duration = Duration::from_secs(10);
+const API_BASE_PATH: &str = "/api";
+const API_OPENCHAMBER_PATH: &str = "/openchamber";
+const API_SYSTEM_SHUTDOWN_PATH: &str = "/system/shutdown";
+const API_HEALTH_PATH: &str = "/health";
+const API_OPENCHAMBER_SCHEDULED_TASKS_STATUS_PATH: &str = "/scheduled-tasks/status";
 
 const DEFAULT_DESKTOP_PORT: u16 = 57123;
 const WINDOW_STATE_DEBOUNCE_MS: u64 = 300;
@@ -1592,7 +1597,7 @@ fn build_health_url(base_url: &str) -> Option<String> {
     let current_path = parsed.path();
     let trimmed_path = current_path.trim_end_matches('/');
     let health_path = if trimmed_path.is_empty() {
-        "/health".to_string()
+        API_HEALTH_PATH.to_string()
     } else {
         format!("{trimmed_path}/health")
     };
@@ -2138,7 +2143,12 @@ async fn refresh_quit_risk_flags(local_base_url: &str) {
         Err(_) => return,
     };
 
-    let scheduled_url = format!("{trimmed}/api/openchamber/scheduled-tasks/status");
+    let scheduled_url = format!(
+        "{trimmed}{}{}/{}",
+        API_BASE_PATH,
+        API_OPENCHAMBER_PATH,
+        API_OPENCHAMBER_SCHEDULED_TASKS_STATUS_PATH.trim_start_matches('/')
+    );
 
     let scheduled_result = client.get(scheduled_url).send().await;
 
@@ -2374,7 +2384,7 @@ async fn wait_for_health_with(
     };
 
     let deadline = std::time::Instant::now() + timeout;
-    let health_url = format!("{}/health", url.trim_end_matches('/'));
+    let health_url = format!("{}{API_HEALTH_PATH}", url.trim_end_matches('/'));
     let mut interval = initial_interval;
 
     while std::time::Instant::now() < deadline {
@@ -2406,7 +2416,7 @@ fn kill_sidecar(app: tauri::AppHandle) {
         if let Ok(parsed) = url::Url::parse(&url) {
             let host = parsed.host_str().unwrap_or("127.0.0.1");
             let port = parsed.port().unwrap_or(80);
-            let path = "/api/system/shutdown";
+            let path = format!("{API_BASE_PATH}{API_SYSTEM_SHUTDOWN_PATH}");
             if let Ok(mut stream) =
                 std::net::TcpStream::connect_timeout(
                     &format!("{host}:{port}").parse().unwrap(),

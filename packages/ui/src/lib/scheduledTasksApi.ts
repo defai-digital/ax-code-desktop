@@ -1,3 +1,5 @@
+import { API_ENDPOINTS, HTTP_DEFAULTS, replacePathParams } from './http';
+
 export type ScheduledTaskStatus = 'idle' | 'running' | 'success' | 'error';
 
 export type ScheduledTask = {
@@ -54,7 +56,7 @@ const ensureProjectID = (projectID: string): string => {
 
 export const fetchScheduledTasks = async (projectID: string): Promise<ScheduledTask[]> => {
   const safeProjectID = ensureProjectID(projectID);
-  const response = await fetch(`/api/projects/${encodeURIComponent(safeProjectID)}/scheduled-tasks`);
+  const response = await fetch(replacePathParams(API_ENDPOINTS.projects.scheduledTasksBase, { projectId: safeProjectID }));
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response, 'Failed to load scheduled tasks'));
   }
@@ -67,12 +69,9 @@ export const fetchScheduledTasks = async (projectID: string): Promise<ScheduledT
 
 export const upsertScheduledTask = async (projectID: string, task: Partial<ScheduledTask>): Promise<ScheduledTask[]> => {
   const safeProjectID = ensureProjectID(projectID);
-  const response = await fetch(`/api/projects/${encodeURIComponent(safeProjectID)}/scheduled-tasks`, {
-    method: 'PUT',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'application/json',
-    },
+  const response = await fetch(replacePathParams(API_ENDPOINTS.projects.scheduledTasksBase, { projectId: safeProjectID }), {
+    method: HTTP_DEFAULTS.method.put,
+    headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
     body: JSON.stringify({ task }),
   });
   if (!response.ok) {
@@ -88,12 +87,13 @@ export const upsertScheduledTask = async (projectID: string, task: Partial<Sched
 export const deleteScheduledTask = async (projectID: string, taskID: string): Promise<ScheduledTask[]> => {
   const safeProjectID = ensureProjectID(projectID);
   const safeTaskID = ensureProjectID(taskID);
-  const response = await fetch(`/api/projects/${encodeURIComponent(safeProjectID)}/scheduled-tasks/${encodeURIComponent(safeTaskID)}`, {
-    method: 'DELETE',
-    headers: {
-      accept: 'application/json',
-    },
-  });
+  const response = await fetch(
+    replacePathParams(API_ENDPOINTS.projects.scheduledTaskById, { projectId: safeProjectID, taskId: safeTaskID }),
+    {
+      method: HTTP_DEFAULTS.method.delete,
+      headers: HTTP_DEFAULTS.headers.acceptJson,
+    }
+  );
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response, 'Failed to delete scheduled task'));
   }
@@ -107,12 +107,13 @@ export const deleteScheduledTask = async (projectID: string, taskID: string): Pr
 export const runScheduledTaskNow = async (projectID: string, taskID: string): Promise<{ sessionId?: string }> => {
   const safeProjectID = ensureProjectID(projectID);
   const safeTaskID = ensureProjectID(taskID);
-  const response = await fetch(`/api/projects/${encodeURIComponent(safeProjectID)}/scheduled-tasks/${encodeURIComponent(safeTaskID)}/run`, {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-    },
-  });
+  const response = await fetch(
+    replacePathParams(API_ENDPOINTS.projects.scheduledTaskRun, { projectId: safeProjectID, taskId: safeTaskID }),
+    {
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.acceptJson,
+    }
+  );
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response, 'Failed to run scheduled task'));
   }
