@@ -49,6 +49,9 @@ jobs:
       - name: Check internal boundary
         run: bun run check:internal
 
+      - name: Check boundary imports
+        run: bun run check:boundary
+
       - name: Test
         run: bun run test
 

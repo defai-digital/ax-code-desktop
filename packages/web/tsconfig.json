@@ -15,11 +15,10 @@
     "baseUrl": ".",
     "types": ["vite/client", "node"],
     "paths": {
-      "@/*": ["../ui/src/*", "./src/*"],
+      "@/*": ["./src/*"],
       "@web/*": ["./src/*"],
-      "@openchamber/ui/*": ["../ui/src/*"],
       "@openchamber/web/*": ["./src/*"]
     }
   },
-  "include": ["src", "../ui/src", "../ui/src/types/**/*"]
+  "include": ["src"]
 }

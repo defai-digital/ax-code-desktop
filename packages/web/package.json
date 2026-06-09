@@ -26,6 +26,7 @@
     "start": "node bin/cli.js serve"
   },
   "dependencies": {
+    "@openchamber/ui": "workspace:*",
     "@clack/prompts": "^1.1.0",
     "@octokit/rest": "^22.0.1",
     "@simplewebauthn/server": "13.3.0",

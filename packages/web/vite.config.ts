@@ -78,9 +78,8 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: '@ax-code/sdk/v2', replacement: path.resolve(__dirname, '../../node_modules/@ax-code/sdk/dist/v2/client.js') },
-      { find: '@openchamber/ui', replacement: path.resolve(__dirname, '../ui/src') },
       { find: '@web', replacement: path.resolve(__dirname, './src') },
-      { find: '@', replacement: path.resolve(__dirname, '../ui/src') },
+      { find: '@', replacement: path.resolve(__dirname, './src') },
     ],
   },
   worker: {

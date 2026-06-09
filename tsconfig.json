@@ -11,11 +11,6 @@
     "moduleDetection": "force",
     "verbatimModuleSyntax": true,
     "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "paths": {
-      "@openchamber/ui/*": ["./packages/ui/src/*"],
-      "@openchamber/web/*": ["./packages/web/src/*"],
-      "@openchamber/desktop/*": ["./packages/desktop/src/*"]
-    }
+    "resolveJsonModule": true
   }
 }

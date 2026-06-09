@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "main": "src/main.tsx",
+  "files": [
+    "src"
+  ],
+  "exports": {
+    ".": "./src/main.tsx",
+    "./*": "./src/*"
+  },
   "scripts": {
     "dev": "tsc --noEmit --watch",
     "build": "tsc --noEmit",
