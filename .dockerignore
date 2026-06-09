@@ -19,6 +19,7 @@ pnpm-debug.log*
 .env
 .env.*
 .ax-code
+.internal
 data
 workspaces
 packages/desktop/src-tauri
