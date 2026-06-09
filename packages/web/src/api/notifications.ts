@@ -1,4 +1,4 @@
-import type { NotificationPayload, NotificationsAPI } from '@openchamber/ui/lib/api/types';
+import type { NotificationPayload, NotificationsAPI } from '@openchamber/ui/api/types';
 
 const notifyWithWebAPI = async (payload?: NotificationPayload): Promise<boolean> => {
   if (typeof Notification === 'undefined') {

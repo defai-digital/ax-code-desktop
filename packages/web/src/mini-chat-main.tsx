@@ -1,5 +1,5 @@
 import { createWebAPIs } from './api';
-import type { RuntimeAPIs } from '@openchamber/ui/lib/api/types';
+import type { RuntimeAPIs } from '@openchamber/ui/api/types';
 import '@openchamber/ui/index.css';
 import '@openchamber/ui/styles/fonts';
 
