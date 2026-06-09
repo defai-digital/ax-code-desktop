@@ -20,11 +20,11 @@ describe('waitForAxCodeConnection', () => {
     });
 
     expect(messages).toEqual([
-      'Waiting for ax-code… (attempt 1)',
-      'Waiting for ax-code… (attempt 2)',
-      'Waiting for ax-code… (attempt 3)',
+      'Waiting for AX Code… (attempt 1)',
+      'Waiting for AX Code… (attempt 2)',
+      'Waiting for AX Code… (attempt 3)',
     ]);
-    expect(sleeps).toEqual([300, 300, 300]);
+    expect(sleeps).toEqual([450, 300, 300]);
   });
 
   test('throws the last health check error after the wait budget expires', async () => {

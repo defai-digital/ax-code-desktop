@@ -500,10 +500,11 @@ const normalizeRefreshScopes = (scopes?: ConfigChangeScope[]): ConfigChangeScope
 async function performConfigRefresh(options: {
   message?: string;
   delayMs?: number;
+  maxWaitMs?: number;
   scopes?: ConfigChangeScope[];
   mode?: ConfigRefreshMode;
 } = {}) {
-  const { message, delayMs } = options;
+  const { message, delayMs, maxWaitMs } = options;
   const scopes = normalizeRefreshScopes(options.scopes);
   const mode: ConfigRefreshMode = options.mode ?? (scopes.includes("all") ? "projects" : "active");
 
@@ -514,7 +515,7 @@ async function performConfigRefresh(options: {
   }
 
   try {
-    await waitForAxCodeConnection(delayMs);
+    await waitForAxCodeConnection(delayMs, { maxWaitMs });
 
     const configStore = useConfigStore.getState();
     const agentConfigStore = useAgentsStore.getState();
@@ -570,7 +571,7 @@ async function performConfigRefresh(options: {
     updateConfigUpdateMessage("Refreshing configuration…");
     await Promise.all([...sdkRefreshTasks, ...uiRefreshTasks]);
   } catch {
-    updateConfigUpdateMessage("ax-code refresh failed. Please retry.");
+    updateConfigUpdateMessage("AX Code refresh failed. Please retry.");
     await sleep(1500);
   } finally {
     finishConfigUpdate();
@@ -580,19 +581,32 @@ async function performConfigRefresh(options: {
 export async function refreshAfterAxCodeRestart(options?: {
   message?: string;
   delayMs?: number;
+  maxWaitMs?: number;
   scopes?: ConfigChangeScope[];
   mode?: ConfigRefreshMode;
 }) {
   await performConfigRefresh(options);
 }
 
-export async function reloadAxCodeConfiguration(options?: {
+export async function waitForQueuedAxCodeReload(options?: {
   message?: string;
   delayMs?: number;
+  maxWaitMs?: number;
   scopes?: ConfigChangeScope[];
   mode?: ConfigRefreshMode;
 }) {
-  startConfigUpdate(options?.message || "Reloading ax-code configuration…");
+  startConfigUpdate(options?.message || "Waiting for AX Code to restart…");
+  await refreshAfterAxCodeRestart(options);
+}
+
+export async function reloadAxCodeConfiguration(options?: {
+  message?: string;
+  delayMs?: number;
+  maxWaitMs?: number;
+  scopes?: ConfigChangeScope[];
+  mode?: ConfigRefreshMode;
+}) {
+  startConfigUpdate(options?.message || "Reloading AX Code configuration…");
 
   try {
 
@@ -612,6 +626,7 @@ export async function reloadAxCodeConfiguration(options?: {
       ...options,
       scopes: options?.scopes ?? ["all"],
       mode: options?.mode ?? "projects",
+      maxWaitMs: typeof payload?.reloadTimeoutMs === "number" ? payload.reloadTimeoutMs : options?.maxWaitMs,
     };
 
     if (payload?.requiresReload) {

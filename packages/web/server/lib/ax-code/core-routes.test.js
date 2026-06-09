@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { registerAuthAndAccessRoutes, registerCommonRequestMiddleware, registerServerStatusRoutes } from './core-routes.js';
+import { registerAuthAndAccessRoutes, registerCommonRequestMiddleware, registerServerStatusRoutes, registerSettingsUtilityRoutes } from './core-routes.js';
 
 describe('core-routes', () => {
   it('should call gracefulShutdown with exitProcess: true on /api/system/shutdown', async () => {
@@ -62,6 +62,82 @@ describe('core-routes', () => {
       .expect(200);
 
     expect(response.body).toEqual({ body: { content: 'Snippet body' } });
+  });
+
+  it('responds to manual config reload before the AX Code restart settles', async () => {
+    const app = express();
+    let resolveReload;
+    const reloadPromise = new Promise((resolve) => {
+      resolveReload = resolve;
+    });
+    const refreshAxCodeAfterConfigChange = vi.fn(() => reloadPromise);
+
+    registerSettingsUtilityRoutes(app, {
+      readCustomThemesFromDisk: vi.fn(async () => []),
+      refreshAxCodeAfterConfigChange,
+      clientReloadDelayMs: 25,
+    });
+
+    const response = await request(app)
+      .post('/api/config/reload')
+      .expect(200);
+
+    expect(refreshAxCodeAfterConfigChange).toHaveBeenCalledWith('manual configuration reload', {
+      readyTimeoutMs: 360000,
+    });
+    expect(response.body).toMatchObject({
+      success: true,
+      requiresReload: true,
+      reloadInProgress: false,
+      reloadDelayMs: 1500,
+      reloadTimeoutMs: 360000,
+    });
+
+    resolveReload();
+    await reloadPromise;
+  });
+
+  it('deduplicates overlapping manual config reload requests', async () => {
+    const app = express();
+    const resolveReloads = [];
+    const reloadPromises = [];
+    const refreshAxCodeAfterConfigChange = vi.fn(() => {
+      const reloadPromise = new Promise((resolve) => {
+        resolveReloads.push(resolve);
+      });
+      reloadPromises.push(reloadPromise);
+      return reloadPromise;
+    });
+
+    registerSettingsUtilityRoutes(app, {
+      readCustomThemesFromDisk: vi.fn(async () => []),
+      refreshAxCodeAfterConfigChange,
+      clientReloadDelayMs: 2000,
+    });
+
+    await request(app)
+      .post('/api/config/reload')
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.reloadInProgress).toBe(false);
+        expect(response.body.reloadDelayMs).toBe(2000);
+      });
+
+    await request(app)
+      .post('/api/config/reload')
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.reloadInProgress).toBe(true);
+      });
+
+    expect(refreshAxCodeAfterConfigChange).toHaveBeenCalledTimes(1);
+
+    resolveReloads[0]();
+    await Promise.resolve();
+    expect(refreshAxCodeAfterConfigChange).toHaveBeenCalledTimes(2);
+
+    resolveReloads[1]();
+    await reloadPromises[1];
   });
 
   it('should require API auth before probing loopback preview URLs', async () => {

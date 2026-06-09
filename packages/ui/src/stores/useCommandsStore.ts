@@ -440,8 +440,8 @@ async function performFullConfigRefresh(options: { message?: string; delayMs?: n
 
     emitConfigChange("commands", { source: CONFIG_EVENT_SOURCE });
   } catch (error) {
-    console.error("[CommandsStore] Failed to refresh configuration after ax-code restart:", error);
-    updateConfigUpdateMessage("ax-code refresh failed. Please retry refreshing configuration manually.");
+    console.error("[CommandsStore] Failed to refresh configuration after AX Code restart:", error);
+    updateConfigUpdateMessage("AX Code refresh failed. Please retry refreshing configuration manually.");
     await sleep(1500);
   } finally {
     finishConfigUpdate();
@@ -449,7 +449,7 @@ async function performFullConfigRefresh(options: { message?: string; delayMs?: n
 }
 
 export async function reloadAxCodeConfiguration(options?: { message?: string; delayMs?: number }) {
-  startConfigUpdate(options?.message || "Reloading ax-code configuration…");
+  startConfigUpdate(options?.message || "Reloading AX Code configuration…");
 
   try {
     const response = await fetch('/api/config/reload', {

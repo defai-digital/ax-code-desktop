@@ -13,6 +13,7 @@ import { registerPluginRoutes } from './plugin-routes.js';
 import { getNpmInfo, clearCache as clearNpmCache } from './npm-registry.js';
 import { parseNpmSpec, parsePathSpec, isExactSemver } from './plugin-spec.js';
 import { registerAxCodeRoutes } from './routes.js';
+import { createBackgroundAxCodeReloader } from './background-reload.js';
 
 export const createFeatureRoutesRuntime = (dependencies) => {
   const {
@@ -64,11 +65,16 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     } = routeDependencies;
 
     const { getProviderSources, removeProviderConfig } = await import('./index.js');
+    const backgroundAxCodeReloader = createBackgroundAxCodeReloader({
+      refreshAxCodeAfterConfigChange,
+      clientReloadDelayMs,
+    });
 
     registerSettingsUtilityRoutes(app, {
       readCustomThemesFromDisk,
       refreshAxCodeAfterConfigChange,
       clientReloadDelayMs,
+      backgroundAxCodeReloader,
     });
 
     registerAxCodeRoutes(app, {
@@ -85,6 +91,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       getProviderSources,
       removeProviderConfig,
       refreshAxCodeAfterConfigChange,
+      backgroundAxCodeReloader,
       buildAxCodeUrl,
       getAxCodeAuthHeaders,
     });

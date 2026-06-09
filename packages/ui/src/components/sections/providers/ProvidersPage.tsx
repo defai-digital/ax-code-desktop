@@ -15,7 +15,7 @@ import { toast } from '@/components/ui';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icon } from "@/components/icon/Icon";
 import type { IconName } from "@/components/icon/icons";
-import { reloadAxCodeConfiguration } from '@/stores/useAgentsStore';
+import { reloadAxCodeConfiguration, waitForQueuedAxCodeReload } from '@/stores/useAgentsStore';
 import { cn } from '@/lib/utils';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { openExternalUrl } from '@/lib/url';
@@ -340,7 +340,11 @@ export const ProvidersPage: React.FC = () => {
 
       toast.success(t('settings.providers.page.toast.apiKeySaved'));
       setApiKeyInputs((prev) => ({ ...prev, [providerId]: '' }));
-      await reloadAxCodeConfiguration({ scopes: ["providers"], mode: "active" });
+      await reloadAxCodeConfiguration({
+        message: 'Restarting AX Code to load provider credentials…',
+        scopes: ["providers"],
+        mode: "active",
+      });
       setSelectedProvider(providerId);
     } catch (error) {
       console.error('Failed to save API key:', error);
@@ -439,7 +443,11 @@ export const ProvidersPage: React.FC = () => {
       toast.success(t('settings.providers.page.toast.oauthCompleted'));
       setOauthCodes((prev) => ({ ...prev, [codeKey]: '' }));
       setPendingOAuth(null);
-      await reloadAxCodeConfiguration({ scopes: ["providers"], mode: "active" });
+      await reloadAxCodeConfiguration({
+        message: 'Restarting AX Code to load provider credentials…',
+        scopes: ["providers"],
+        mode: "active",
+      });
       setSelectedProvider(providerId);
     } catch (error) {
       console.error('Failed to complete OAuth flow:', error);
@@ -486,7 +494,15 @@ export const ProvidersPage: React.FC = () => {
       }
 
       toast.success(t('settings.providers.page.toast.providerDisconnected'));
-      await reloadAxCodeConfiguration({ scopes: ["providers"], mode: "active" });
+      if (payload?.requiresReload) {
+        await waitForQueuedAxCodeReload({
+          message: payload.message,
+          delayMs: payload.reloadDelayMs,
+          maxWaitMs: payload.reloadTimeoutMs,
+          scopes: ["providers"],
+          mode: "active",
+        });
+      }
     } catch (error) {
       console.error('Failed to disconnect provider:', error);
       toast.error(t('settings.providers.page.toast.providerDisconnectFailed'));

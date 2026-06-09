@@ -28,9 +28,7 @@ export async function waitForAxCodeConnection(
   const now = options.now ?? Date.now;
   const maxWaitMs = options.maxWaitMs ?? MAX_HEALTH_WAIT_MS;
 
-  const initialPause = typeof delayMs === "number" && delayMs > 0
-    ? Math.min(delayMs, FAST_HEALTH_POLL_INTERVAL_MS)
-    : 0;
+  const initialPause = typeof delayMs === "number" && delayMs > 0 ? delayMs : 0;
 
   if (initialPause > 0) {
     await sleepMs(initialPause);
@@ -42,14 +40,19 @@ export async function waitForAxCodeConnection(
 
   while (now() - start < maxWaitMs) {
     attempt += 1;
-    updateMessage(`Waiting for ax-code… (attempt ${attempt})`);
+    const elapsedSeconds = Math.floor((now() - start) / 1000);
+    updateMessage(
+      elapsedSeconds >= 30
+        ? `Still waiting for AX Code… ${elapsedSeconds}s elapsed`
+        : `Waiting for AX Code… (attempt ${attempt})`,
+    );
 
     try {
       const isHealthy = await checkHealth();
       if (isHealthy) {
         return;
       }
-      lastError = new Error("ax-code health check reported not ready");
+      lastError = new Error("AX Code health check reported not ready");
     } catch (error) {
       lastError = error;
     }
@@ -68,5 +71,5 @@ export async function waitForAxCodeConnection(
     await sleepMs(waitMs);
   }
 
-  throw lastError || new Error("ax-code did not become ready in time");
+  throw lastError || new Error("AX Code did not become ready in time");
 }

@@ -1,4 +1,4 @@
-const DEFAULT_MESSAGE = "Updating ax-code configuration...";
+const DEFAULT_MESSAGE = "Updating AX Code configuration...";
 
 type ConfigUpdateListener = (state: {
   isUpdating: boolean;

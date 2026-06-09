@@ -18,6 +18,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
     getProviderSources,
     removeProviderConfig,
     refreshAxCodeAfterConfigChange,
+    backgroundAxCodeReloader,
     buildAxCodeUrl,
     getAxCodeAuthHeaders,
   } = dependencies;
@@ -344,16 +345,28 @@ export const registerAxCodeRoutes = (app, dependencies) => {
         return res.status(400).json({ error: 'Invalid scope' });
       }
 
+      let reload = null;
       if (removed) {
-        await refreshAxCodeAfterConfigChange(`provider ${providerId} disconnected (${scope})`);
+        if (backgroundAxCodeReloader) {
+          reload = backgroundAxCodeReloader.start(`provider ${providerId} disconnected (${scope})`);
+        } else {
+          await refreshAxCodeAfterConfigChange(`provider ${providerId} disconnected (${scope})`);
+          reload = { alreadyRunning: false, reloadDelayMs: clientReloadDelayMs };
+        }
       }
 
       return res.json({
         success: true,
         removed,
         requiresReload: removed,
-        message: removed ? 'Provider disconnected successfully' : 'Provider was not connected',
-        reloadDelayMs: removed ? clientReloadDelayMs : undefined,
+        reloadInProgress: reload?.alreadyRunning,
+        message: removed
+          ? reload?.alreadyRunning
+            ? 'Provider disconnected. AX Code is already restarting…'
+            : 'Provider disconnected. AX Code is restarting…'
+          : 'Provider was not connected',
+        reloadDelayMs: reload?.reloadDelayMs,
+        reloadTimeoutMs: reload?.reloadTimeoutMs,
       });
     } catch (error) {
       console.error('Failed to disconnect provider:', error);

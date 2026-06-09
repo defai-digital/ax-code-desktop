@@ -860,7 +860,10 @@ export const createAxCodeLifecycleRuntime = (deps) => {
   };
 
   const refreshAxCodeAfterConfigChange = async (reason, options = {}) => {
-    const { agentName } = options;
+    const { agentName, readyTimeoutMs } = options;
+    const effectiveReadyTimeoutMs = Number.isFinite(readyTimeoutMs) && readyTimeoutMs > 0
+      ? readyTimeoutMs
+      : undefined;
 
     console.log(`Refreshing ax-code after ${reason}`);
     clearResolvedAxCodeBinary();
@@ -869,7 +872,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     await restartAxCode();
 
     try {
-      await waitForAxCodeReady();
+      await waitForAxCodeReady(effectiveReadyTimeoutMs);
       state.isAxCodeReady = true;
       state.axCodeNotReadySince = 0;
 

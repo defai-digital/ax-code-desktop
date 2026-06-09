@@ -490,7 +490,7 @@ export async function refreshSkillsAfterAxCodeRestart(options?: { message?: stri
       emitConfigChange("skills", { source: CONFIG_EVENT_SOURCE });
     }
   } catch {
-    updateConfigUpdateMessage("ax-code refresh failed. Please retry.");
+    updateConfigUpdateMessage("AX Code refresh failed. Please retry.");
     await sleep(1500);
   } finally {
     finishConfigUpdate();

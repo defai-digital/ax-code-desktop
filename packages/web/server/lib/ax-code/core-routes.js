@@ -1,3 +1,5 @@
+import { createBackgroundAxCodeReloader } from './background-reload.js';
+
 const parseLoopbackUrl = (rawUrl) => {
   if (typeof rawUrl !== 'string') {
     return null;
@@ -395,7 +397,12 @@ export const registerSettingsUtilityRoutes = (app, dependencies) => {
     readCustomThemesFromDisk,
     refreshAxCodeAfterConfigChange,
     clientReloadDelayMs,
+    backgroundAxCodeReloader,
   } = dependencies;
+  const axCodeReloader = backgroundAxCodeReloader ?? createBackgroundAxCodeReloader({
+    refreshAxCodeAfterConfigChange,
+    clientReloadDelayMs,
+  });
 
   app.get('/api/config/themes', async (_req, res) => {
     try {
@@ -407,25 +414,20 @@ export const registerSettingsUtilityRoutes = (app, dependencies) => {
     }
   });
 
-  app.post('/api/config/reload', async (_req, res) => {
-    try {
-      console.log('[Server] Manual configuration reload requested');
+  app.post('/api/config/reload', (_req, res) => {
+    console.log('[Server] Manual configuration reload requested');
+    const reload = axCodeReloader.start('manual configuration reload');
 
-      await refreshAxCodeAfterConfigChange('manual configuration reload');
-
-      res.json({
-        success: true,
-        requiresReload: true,
-        message: 'Configuration reloaded successfully. Refreshing interface…',
-        reloadDelayMs: clientReloadDelayMs,
-      });
-    } catch (error) {
-      console.error('[Server] Failed to reload configuration:', error);
-      res.status(500).json({
-        error: error.message || 'Failed to reload configuration',
-        success: false,
-      });
-    }
+    res.json({
+      success: true,
+      requiresReload: true,
+      reloadInProgress: reload.alreadyRunning,
+      message: reload.alreadyRunning
+        ? 'AX Code is already restarting. Waiting for it to become ready…'
+        : 'AX Code is restarting. This can take a few minutes…',
+      reloadDelayMs: reload.reloadDelayMs,
+      reloadTimeoutMs: reload.reloadTimeoutMs,
+    });
   });
 };
 
