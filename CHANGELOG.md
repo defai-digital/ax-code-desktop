@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-06-08
+
+- Config: reload providers, agents, commands, and skills in the background so settings changes no longer block the UI.
+- Config: added shared background reload handling and route coverage for non-blocking AX Code config refreshes.
+
 ## [0.11.0] - 2026-06-08
 
 - Desktop: isolated the managed AX Code runtime behind desktop-only bridge headers and hardened server access against browser-origin requests.
