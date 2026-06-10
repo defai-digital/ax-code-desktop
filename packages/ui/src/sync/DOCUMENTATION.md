@@ -169,6 +169,23 @@ Keep this in sync with `handleDirectoryEvent` in `sync-context.tsx`:
 2. Add a corresponding case to the switch in `handleDirectoryEvent` (`sync-context.tsx`) that clones **only** the fields your reducer writes to
 3. If your event fires frequently (more than a few times per second), verify that unrelated components don't re-render — check with the stream perf counters
 
+## Cross-store selector memoization
+
+`useLiveSyncSelector` (sync-context.tsx) runs its selector over **all** child
+stores on every store notification. The hot streaming events clone only
+`part`/`message`, so the slices the sidebar aggregations read (`session`,
+`session_status`) keep their references — `live-selector-memo.ts` exploits
+this: each hook passes a deps extractor listing the slices its selector reads,
+and when those references are unchanged across all stores the cached result is
+returned without running the selector or its equality check at all.
+
+Invariants:
+
+- The deps extractor must list **every** slice the selector reads. A selector
+  that reads a slice not in its deps will serve stale results.
+- The "Event → field mapping" table above is the contract: if you add a slice
+  clone to a hot event, selectors watching that slice will recompute on it.
+
 ## Selector hygiene
 
 Select leaf values, not containers:

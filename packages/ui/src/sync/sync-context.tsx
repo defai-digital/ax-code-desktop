@@ -18,6 +18,12 @@ import {
   findLiveSession,
   findLiveSessionStatus,
 } from "./live-aggregate"
+import {
+  createLiveSnapshotMemo,
+  getSessionSliceDeps,
+  getSessionStatusSliceDeps,
+  getStatusOnlySliceDeps,
+} from "./live-selector-memo"
 import { bootstrapGlobal, bootstrapDirectory } from "./bootstrap"
 import { retry } from "./retry"
 import { updateStreamingState } from "./streaming"
@@ -71,21 +77,17 @@ function getLiveStates(childStores: ChildStoreManager): State[] {
   return Array.from(childStores.children.values(), (store) => store.getState())
 }
 
-function useLiveSyncSelector<T>(selector: (states: State[]) => T, isEqual: (left: T, right: T) => boolean = Object.is): T {
+function useLiveSyncSelector<T>(
+  selector: (states: State[]) => T,
+  isEqual: (left: T, right: T) => boolean = Object.is,
+  getDeps?: (states: State[]) => readonly unknown[],
+): T {
   const { childStores } = useSyncSystem()
-  const cacheRef = useRef<T | undefined>(undefined)
-  const initializedRef = useRef(false)
 
-  const getSnapshot = useCallback(() => {
-    const next = selector(getLiveStates(childStores))
-    if (initializedRef.current && isEqual(cacheRef.current as T, next)) {
-      return cacheRef.current as T
-    }
-
-    cacheRef.current = next
-    initializedRef.current = true
-    return next
-  }, [childStores, isEqual, selector])
+  const getSnapshot = useMemo(() => {
+    const memo = createLiveSnapshotMemo({ selector, isEqual, getDeps })
+    return () => memo(getLiveStates(childStores))
+  }, [childStores, isEqual, selector, getDeps])
 
   return React.useSyncExternalStore(
     useCallback((notify) => childStores.subscribeAll(notify), [childStores]),
@@ -104,6 +106,8 @@ function useLiveSyncSelector<T>(selector: (states: State[]) => T, isEqual: (left
 export function useGlobalSessionStatus(sessionId: string): SessionStatus | undefined {
   return useLiveSyncSelector(
     useCallback((states) => findLiveSessionStatus(states, sessionId), [sessionId]),
+    Object.is,
+    getSessionStatusSliceDeps,
   )
 }
 
@@ -112,6 +116,7 @@ export function useAllSessionStatuses(): Record<string, SessionStatus> {
   return useLiveSyncSelector(
     useCallback((states) => aggregateLiveSessionStatuses(states), []),
     areStatusMapsEquivalent,
+    getSessionStatusSliceDeps,
   )
 }
 
@@ -141,6 +146,7 @@ export function useLiveSessionStatusCounts(): LiveSessionStatusCounts {
       return running === 0 ? EMPTY_LIVE_SESSION_STATUS_COUNTS : { running }
     }, []),
     areLiveSessionStatusCountsEquivalent,
+    getStatusOnlySliceDeps,
   )
 }
 
@@ -148,6 +154,7 @@ export function useAllLiveSessions(): Session[] {
   return useLiveSyncSelector(
     useCallback((states) => aggregateLiveSessions(states), []),
     areSessionListsEquivalent,
+    getSessionSliceDeps,
   )
 }
 

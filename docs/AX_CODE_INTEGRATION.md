@@ -16,9 +16,11 @@ Upstream's SDK README defines the supported integration surfaces:
 
 This app uses the **headless** path: the web server launches the runtime via
 `startHeadlessBackend` (`packages/web/server/lib/ax-code/lifecycle.js`) and
-proxies its HTTP API to the frontend. On Windows/WSL and for wrapper or
-custom-named binaries it falls back to spawning `ax-code serve` directly,
-which matches upstream's documented HTTP contract.
+proxies its HTTP API to the frontend. On macOS/Linux it passes explicit
+`binary` and `args` into the SDK so wrapper launches and custom binary names
+still use SDK-owned readiness, auth, diagnostics, and shutdown behavior. On
+Windows/WSL it falls back to spawning `ax-code serve` directly, which matches
+upstream's documented HTTP contract.
 
 Typed access goes through the generated v2 client: source code imports only
 public SDK entry points (`@ax-code/sdk/v2`, `@ax-code/sdk/v2/client`,
@@ -26,11 +28,20 @@ public SDK entry points (`@ax-code/sdk/v2`, `@ax-code/sdk/v2/client`,
 allowed — the contract test in
 `packages/web/server/lib/ax-code/sdk-contract.test.js` pins the entry points.
 
-**Tracking:** upstream steers first-party desktop GUIs toward the gRPC/native
-transport (`@ax-code/sdk/grpc`, `packages/sdk/proto` upstream). The headless
-HTTP path is a valid documented choice and is what the Electron shell bundles
-today; revisit gRPC if upstream deprecates headless HTTP for desktop GUIs or
-when session streaming throughput becomes a bottleneck.
+**Tracking — gRPC status (verified 2026-06-10 against SDK 2.2.0 and upstream
+`docs/sdk-grpc-native.md`):** `@ax-code/sdk/grpc` is currently an API facade,
+not a transport change. `createAxCodeGrpcHttpBridge` implements every method
+over `createHeadlessClient` (the same HTTP client), `SubscribeEvents` consumes
+the same SSE route, `ConnectPty` uses WebSocket, and every method descriptor
+is flagged `httpBridge: true`. The ax-code runtime does not yet serve the
+native gRPC wire protocol — upstream describes the HTTP bridge as the interim
+"while the native server is being implemented" and calls
+`startAxCodeGrpcHeadlessBackend()` a "temporary fallback". Upstream also
+states the transport "is not the dominant latency source for normal agent
+turns". Conclusion: migrating to the gRPC facade today changes API shape but
+not performance. Adopt it (incrementally, as future-proofing) once upstream
+ships the native gRPC server, or earlier only if measurements from
+`scripts/ax-code-perf-report.mjs` show pipeline overhead actually matters.
 
 ## Version pinning and compatibility
 
@@ -47,21 +58,15 @@ Two version axes move independently:
 
 ## Upstream feature requests to file
 
-Workarounds in `lifecycle.js` exist only because the SDK lacks options; each
-should become an upstream issue against defai-digital/ax-code so the code can
-be deleted:
+Remaining workarounds in `lifecycle.js` exist because a few SDK internals are
+not exported yet; each should become an upstream issue against
+defai-digital/ax-code so the mirrored code can be deleted:
 
-1. **`startHeadlessBackend` should accept an explicit binary path/args.**
-   Today it spawns a hardcoded `ax-code` from `PATH`, forcing this app to
-   prepend the resolved binary's directory to `PATH` and to keep a legacy
-   spawn path for wrapper launches (mise/asdf shims, custom binary names) and
-   WSL.
-
-2. **Headless handles should expose child-process lifecycle fields.** The
+1. **Headless handles should expose child-process lifecycle fields.** The
    handle returned by `startHeadlessBackend` lacks `exitCode`/`signalCode`,
    so the app patches them to `null` to keep its liveness checks working.
 
-3. **Export the loopback-hostname guard.** The app mirrors the SDK's private
+2. **Export the loopback-hostname guard.** The app mirrors the SDK's private
    `isLoopbackHostname` to decide when to set `allowNetworkBind`; an exported
    helper (or an SDK option that takes precedence) would remove the drift
    risk.

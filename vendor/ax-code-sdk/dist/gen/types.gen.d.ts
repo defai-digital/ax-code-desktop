@@ -58,12 +58,6 @@ export type EventServerInstanceDisposed = {
         directory: string;
     };
 };
-export type EventProviderUpdated = {
-    type: "provider.updated";
-    properties: {
-        [key: string]: unknown;
-    };
-};
 export type EventLspClientDiagnostics = {
     type: "lsp.client.diagnostics";
     properties: {
@@ -82,28 +76,6 @@ export type EventLspUpdated = {
     type: "lsp.updated";
     properties: {
         [key: string]: unknown;
-    };
-};
-export type EventCodeIndexProgress = {
-    type: "code.index.progress";
-    properties: {
-        projectID: string;
-        completed: number;
-        total: number;
-    };
-};
-export type EventCodeIndexState = {
-    type: "code.index.state";
-    properties: {
-        projectID: string;
-        state: "idle" | "indexing" | "failed";
-        error?: string;
-    };
-};
-export type EventFileEdited = {
-    type: "file.edited";
-    properties: {
-        file: string;
     };
 };
 export type OutputFormatText = {
@@ -504,6 +476,12 @@ export type EventMessagePartRemoved = {
         partID: string;
     };
 };
+export type EventProviderUpdated = {
+    type: "provider.updated";
+    properties: {
+        [key: string]: unknown;
+    };
+};
 export type PermissionRequest = {
     id: string;
     sessionID: string;
@@ -664,20 +642,8 @@ export type EventSessionGoal = {
         } | null;
     };
 };
-export type EventTuiPromptAppend = {
-    type: "tui.prompt.append";
-    properties: {
-        text: string;
-    };
-};
-export type EventTuiCommandExecute = {
-    type: "tui.command.execute";
-    properties: {
-        command: "session.list" | "session.new" | "session.share" | "session.interrupt" | "session.compact" | "session.page.up" | "session.page.down" | "session.line.up" | "session.line.down" | "session.half.page.up" | "session.half.page.down" | "session.first" | "session.last" | "prompt.clear" | "prompt.submit" | "agent.cycle" | string;
-    };
-};
-export type EventTuiToastShow = {
-    type: "tui.toast.show";
+export type EventNotificationToastShow = {
+    type: "notification.toast.show";
     properties: {
         title?: string;
         message: string;
@@ -686,15 +652,6 @@ export type EventTuiToastShow = {
          * Duration in milliseconds
          */
         duration?: number;
-    };
-};
-export type EventTuiSessionSelect = {
-    type: "tui.session.select";
-    properties: {
-        /**
-         * Session ID to navigate to
-         */
-        sessionID: string;
     };
 };
 export type EventMcpToolsChanged = {
@@ -708,6 +665,12 @@ export type EventMcpBrowserOpenFailed = {
     properties: {
         mcpName: string;
         url: string;
+    };
+};
+export type EventFileEdited = {
+    type: "file.edited";
+    properties: {
+        file: string;
     };
 };
 export type EventCommandExecuted = {
@@ -1146,6 +1109,22 @@ export type EventWorkflowVerificationAttached = {
         verification: WorkflowVerificationAttachedEventRecord;
     };
 };
+export type EventCodeIndexProgress = {
+    type: "code.index.progress";
+    properties: {
+        projectID: string;
+        completed: number;
+        total: number;
+    };
+};
+export type EventCodeIndexState = {
+    type: "code.index.state";
+    properties: {
+        projectID: string;
+        state: "idle" | "indexing" | "failed";
+        error?: string;
+    };
+};
 export type PermissionAction = "allow" | "deny" | "ask";
 export type PermissionRule = {
     permission: string;
@@ -1219,10 +1198,37 @@ export type EventSessionError = {
         error?: ProviderAuthError | UnknownError | MessageOutputLengthError | MessageAbortedError | StructuredOutputError | ContextOverflowError | ApiError;
     };
 };
-export type EventVcsBranchUpdated = {
-    type: "vcs.branch.updated";
+export type EventTuiPromptAppend = {
+    type: "tui.prompt.append";
     properties: {
-        branch?: string;
+        text: string;
+    };
+};
+export type EventTuiCommandExecute = {
+    type: "tui.command.execute";
+    properties: {
+        command: "session.list" | "session.new" | "session.interrupt" | "session.compact" | "session.page.up" | "session.page.down" | "session.line.up" | "session.line.down" | "session.half.page.up" | "session.half.page.down" | "session.first" | "session.last" | "prompt.clear" | "prompt.submit" | "agent.cycle" | string;
+    };
+};
+export type EventTuiToastShow = {
+    type: "tui.toast.show";
+    properties: {
+        title?: string;
+        message: string;
+        variant: "info" | "success" | "warning" | "error";
+        /**
+         * Duration in milliseconds
+         */
+        duration?: number;
+    };
+};
+export type EventTuiSessionSelect = {
+    type: "tui.session.select";
+    properties: {
+        /**
+         * Session ID to navigate to
+         */
+        sessionID: string;
     };
 };
 export type EventTaskQueueCreated = {
@@ -1445,7 +1451,13 @@ export type EventScheduledTaskDeleted = {
         projectID: string;
     };
 };
-export type Event = EventInstallationUpdated | EventInstallationUpdateAvailable | EventProjectUpdated | EventServerConnected | EventGlobalDisposed | EventServerInstanceDisposed | EventProviderUpdated | EventLspClientDiagnostics | EventFileWatcherUpdated | EventLspUpdated | EventCodeIndexProgress | EventCodeIndexState | EventFileEdited | EventMessageUpdated | EventMessageRemoved | EventMessagePartUpdated | EventMessagePartDelta | EventMessagePartRemoved | EventPermissionAsked | EventPermissionReplied | EventSessionStatus | EventSessionIdle | EventQuestionAsked | EventQuestionReplied | EventQuestionRejected | EventSessionCompacted | EventTodoUpdated | EventSessionGoal | EventTuiPromptAppend | EventTuiCommandExecute | EventTuiToastShow | EventTuiSessionSelect | EventMcpToolsChanged | EventMcpBrowserOpenFailed | EventCommandExecuted | EventWorkflowRunCreated | EventWorkflowRunUpdated | EventWorkflowRunStarted | EventWorkflowRunBlocked | EventWorkflowRunPaused | EventWorkflowRunResumed | EventWorkflowRunCompleted | EventWorkflowRunFailed | EventWorkflowRunCancelled | EventWorkflowPhaseUpdated | EventWorkflowPhaseStarted | EventWorkflowPhaseCompleted | EventWorkflowPhaseFailed | EventWorkflowChildCreated | EventWorkflowChildUpdated | EventWorkflowChildStarted | EventWorkflowChildCompleted | EventWorkflowChildFailed | EventWorkflowChildCancelled | EventWorkflowArtifactWritten | EventWorkflowBudgetAppended | EventWorkflowBudgetWarning | EventWorkflowBudgetExceeded | EventWorkflowVerificationAttached | EventSessionCreated | EventSessionUpdated | EventSessionDeleted | EventSessionDiff | EventSessionError | EventVcsBranchUpdated | EventTaskQueueCreated | EventTaskQueueUpdated | EventTaskQueueDeleted | EventPtyCreated | EventPtyUpdated | EventPtyExited | EventPtyDeleted | EventWorktreeReady | EventWorktreeFailed | EventScheduledTaskCreated | EventScheduledTaskUpdated | EventScheduledTaskDeleted;
+export type EventVcsBranchUpdated = {
+    type: "vcs.branch.updated";
+    properties: {
+        branch?: string;
+    };
+};
+export type Event = EventInstallationUpdated | EventInstallationUpdateAvailable | EventProjectUpdated | EventServerConnected | EventGlobalDisposed | EventServerInstanceDisposed | EventLspClientDiagnostics | EventFileWatcherUpdated | EventLspUpdated | EventMessageUpdated | EventMessageRemoved | EventMessagePartUpdated | EventMessagePartDelta | EventMessagePartRemoved | EventProviderUpdated | EventPermissionAsked | EventPermissionReplied | EventSessionStatus | EventSessionIdle | EventQuestionAsked | EventQuestionReplied | EventQuestionRejected | EventSessionCompacted | EventTodoUpdated | EventSessionGoal | EventNotificationToastShow | EventMcpToolsChanged | EventMcpBrowserOpenFailed | EventFileEdited | EventCommandExecuted | EventWorkflowRunCreated | EventWorkflowRunUpdated | EventWorkflowRunStarted | EventWorkflowRunBlocked | EventWorkflowRunPaused | EventWorkflowRunResumed | EventWorkflowRunCompleted | EventWorkflowRunFailed | EventWorkflowRunCancelled | EventWorkflowPhaseUpdated | EventWorkflowPhaseStarted | EventWorkflowPhaseCompleted | EventWorkflowPhaseFailed | EventWorkflowChildCreated | EventWorkflowChildUpdated | EventWorkflowChildStarted | EventWorkflowChildCompleted | EventWorkflowChildFailed | EventWorkflowChildCancelled | EventWorkflowArtifactWritten | EventWorkflowBudgetAppended | EventWorkflowBudgetWarning | EventWorkflowBudgetExceeded | EventWorkflowVerificationAttached | EventCodeIndexProgress | EventCodeIndexState | EventSessionCreated | EventSessionUpdated | EventSessionDeleted | EventSessionDiff | EventSessionError | EventTuiPromptAppend | EventTuiCommandExecute | EventTuiToastShow | EventTuiSessionSelect | EventTaskQueueCreated | EventTaskQueueUpdated | EventTaskQueueDeleted | EventPtyCreated | EventPtyUpdated | EventPtyExited | EventPtyDeleted | EventWorktreeReady | EventWorktreeFailed | EventScheduledTaskCreated | EventScheduledTaskUpdated | EventScheduledTaskDeleted | EventVcsBranchUpdated;
 export type GlobalEvent = {
     directory: string;
     payload: Event;
@@ -1772,14 +1784,6 @@ export type Config = {
      */
     snapshot?: boolean;
     /**
-     * Control sharing behavior:'manual' allows manual sharing via commands, 'auto' enables automatic sharing, 'disabled' disables all sharing
-     */
-    share?: "manual" | "auto" | "disabled";
-    /**
-     * @deprecated Use 'share' field instead. Share newly created sessions automatically
-     */
-    autoshare?: boolean;
-    /**
      * Automatically update to the latest version. Set to true to auto-update, false to disable, or 'notify' to show update notifications
      */
     autoupdate?: boolean | "notify";
@@ -1901,12 +1905,6 @@ export type Config = {
      */
     tools?: {
         [key: string]: boolean;
-    };
-    enterprise?: {
-        /**
-         * Enterprise URL
-         */
-        url?: string;
     };
     /**
      * Session lifecycle management
@@ -3110,9 +3108,101 @@ export type GlobalHealthResponses = {
     200: {
         healthy: true;
         version: string;
+        startup: {
+            startedAt: number;
+            uptimeMs: number;
+            checkedAt: number;
+        };
+        readiness: {
+            processAlive: true;
+            apiReady: true;
+            providersReady: "ready" | "degraded" | "unknown";
+            indexReady: "ready" | "degraded" | "unknown";
+        };
+        runtime: {
+            directory: string;
+            services: Array<{
+                name: string;
+                /**
+                 * Lifecycle state for a runtime service
+                 */
+                state: "idle" | "starting" | "running" | "stopping" | "stopped" | "failed";
+                pendingTasks: number;
+                startedAt?: number;
+                stoppedAt?: number;
+                lastError?: string;
+            }>;
+            taskSummary: {
+                queued: number;
+                running: number;
+                completed: number;
+                failed: number;
+                aborted: number;
+            };
+        };
     };
 };
 export type GlobalHealthResponse = GlobalHealthResponses[keyof GlobalHealthResponses];
+export type GlobalCapabilitiesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: "/global/capabilities";
+};
+export type GlobalCapabilitiesResponses = {
+    /**
+     * Runtime capability metadata
+     */
+    200: {
+        schemaVersion: 1;
+        product: "ax-code";
+        version: string;
+        compatibility: {
+            minDesktopVersion: string | null;
+            sdkHeadless: {
+                schemaVersion: 1;
+                supportsManagedLifecycle: true;
+                supportsExplicitBinary: true;
+                supportsExplicitArgs: true;
+                supportsStructuredDiagnostics: true;
+                authSchemes: Array<"basic">;
+                defaultTransport: "http-sse";
+            };
+        };
+        endpoints: {
+            health: "/global/health";
+            events: "/global/event";
+            config: "/global/config";
+            capabilityCatalog: "/capability";
+            fileSearch: "/find/file";
+            sessions: "/session";
+            providers: "/config/providers";
+            agents: "/agent";
+        };
+        features: {
+            sessions: true;
+            asyncPrompt: true;
+            globalEvents: true;
+            fileSearch: true;
+            skills: true;
+            plugins: true;
+            mcp: true;
+            worktrees: true;
+            providerManagement: true;
+            usage: true;
+        };
+        events: {
+            heartbeat: "server.heartbeat";
+            connected: "server.connected";
+            sessionCreated: "session.created";
+            sessionStatus: "session.status";
+            sessionError: "session.error";
+            permission: "permission";
+            question: "question";
+        };
+    };
+};
+export type GlobalCapabilitiesResponse = GlobalCapabilitiesResponses[keyof GlobalCapabilitiesResponses];
 export type GlobalEventData = {
     body?: never;
     path?: never;
@@ -9446,62 +9536,6 @@ export type SessionAbortResponses = {
     200: boolean;
 };
 export type SessionAbortResponse = SessionAbortResponses[keyof SessionAbortResponses];
-export type SessionUnshareData = {
-    body?: never;
-    path: {
-        sessionID: string;
-    };
-    query?: {
-        directory?: string;
-    };
-    url: "/session/{sessionID}/share";
-};
-export type SessionUnshareErrors = {
-    /**
-     * Bad request
-     */
-    400: AppErrorEnvelope;
-    /**
-     * Not found
-     */
-    404: AppErrorEnvelope;
-};
-export type SessionUnshareError = SessionUnshareErrors[keyof SessionUnshareErrors];
-export type SessionUnshareResponses = {
-    /**
-     * Successfully unshared session
-     */
-    200: Session;
-};
-export type SessionUnshareResponse = SessionUnshareResponses[keyof SessionUnshareResponses];
-export type SessionShareData = {
-    body?: never;
-    path: {
-        sessionID: string;
-    };
-    query?: {
-        directory?: string;
-    };
-    url: "/session/{sessionID}/share";
-};
-export type SessionShareErrors = {
-    /**
-     * Bad request
-     */
-    400: AppErrorEnvelope;
-    /**
-     * Not found
-     */
-    404: AppErrorEnvelope;
-};
-export type SessionShareError = SessionShareErrors[keyof SessionShareErrors];
-export type SessionShareResponses = {
-    /**
-     * Successfully shared session
-     */
-    200: Session;
-};
-export type SessionShareResponse = SessionShareResponses[keyof SessionShareResponses];
 export type SessionDiffData = {
     body?: never;
     path: {
@@ -11182,6 +11216,21 @@ export type AppLogResponses = {
     200: boolean;
 };
 export type AppLogResponse = AppLogResponses[keyof AppLogResponses];
+export type AppAgentsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        directory?: string;
+    };
+    url: "/agent";
+};
+export type AppAgentsResponses = {
+    /**
+     * List of agents
+     */
+    200: Array<Agent>;
+};
+export type AppAgentsResponse = AppAgentsResponses[keyof AppAgentsResponses];
 export type AppContextData = {
     body?: never;
     path?: never;
@@ -11294,21 +11343,6 @@ export type AppContextMemoryClearResponses = {
     200: boolean;
 };
 export type AppContextMemoryClearResponse = AppContextMemoryClearResponses[keyof AppContextMemoryClearResponses];
-export type AppAgentsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        directory?: string;
-    };
-    url: "/agent";
-};
-export type AppAgentsResponses = {
-    /**
-     * List of agents
-     */
-    200: Array<Agent>;
-};
-export type AppAgentsResponse = AppAgentsResponses[keyof AppAgentsResponses];
 export type AppSkillsData = {
     body?: never;
     path?: never;
@@ -11341,6 +11375,115 @@ export type AppSkillsResponses = {
     }>;
 };
 export type AppSkillsResponse = AppSkillsResponses[keyof AppSkillsResponses];
+export type SkillCreateData = {
+    body?: {
+        name: string;
+        description: string;
+        path?: string;
+    };
+    path?: never;
+    query?: {
+        directory?: string;
+    };
+    url: "/skill";
+};
+export type SkillCreateErrors = {
+    /**
+     * Bad request
+     */
+    400: AppErrorEnvelope;
+    /**
+     * Conflict
+     */
+    409: AppErrorEnvelope;
+};
+export type SkillCreateError = SkillCreateErrors[keyof SkillCreateErrors];
+export type SkillCreateResponses = {
+    /**
+     * Created skill
+     */
+    200: {
+        path: string;
+    };
+};
+export type SkillCreateResponse = SkillCreateResponses[keyof SkillCreateResponses];
+export type SkillValidateData = {
+    body?: never;
+    path?: never;
+    query?: {
+        directory?: string;
+    };
+    url: "/skill/validate";
+};
+export type SkillValidateResponses = {
+    /**
+     * Skill validation report
+     */
+    200: {
+        total: number;
+        valid: number;
+        invalid: number;
+        issues: Array<{
+            name: string;
+            location: string;
+            issues: Array<string>;
+        }>;
+    };
+};
+export type SkillValidateResponse = SkillValidateResponses[keyof SkillValidateResponses];
+export type SkillDoctorData = {
+    body?: never;
+    path?: never;
+    query?: {
+        directory?: string;
+    };
+    url: "/skill/doctor";
+};
+export type SkillDoctorResponses = {
+    /**
+     * Skill doctor report
+     */
+    200: {
+        total: number;
+        valid: number;
+        invalid: number;
+        issues: Array<{
+            name: string;
+            location: string;
+            issues: Array<string>;
+        }>;
+        sources: {
+            [key: string]: number;
+        };
+    };
+};
+export type SkillDoctorResponse = SkillDoctorResponses[keyof SkillDoctorResponses];
+export type SkillTestTriggerData = {
+    body?: {
+        files?: Array<string>;
+    };
+    path?: never;
+    query?: {
+        directory?: string;
+    };
+    url: "/skill/test-trigger";
+};
+export type SkillTestTriggerResponses = {
+    /**
+     * Skill trigger report
+     */
+    200: {
+        files: Array<string>;
+        matched: Array<{
+            name: string;
+            description: string;
+            location: string;
+            sourceTool?: "ax-code" | "agents" | "opencode" | "claude" | "builtin" | "config";
+            scope?: "builtin" | "project" | "user" | "config" | "compat";
+        }>;
+    };
+};
+export type SkillTestTriggerResponse = SkillTestTriggerResponses[keyof SkillTestTriggerResponses];
 export type LspStatusData = {
     body?: never;
     path?: never;

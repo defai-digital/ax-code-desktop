@@ -25,11 +25,11 @@ Work through this list every time `vendor/ax-code-sdk` is replaced:
    `startHeadlessBackend` handle because SDK handles lack child-process fields.
    If the SDK starts returning these fields, remove the patch.
 
-4. **Re-verify the PATH-prepend workaround.** `startHeadlessBackend` does not
-   accept an explicit binary/args, so `lifecycle.js` prepends the resolved
-   binary's directory to `PATH`. If the SDK gains binary/args options, replace
-   the workaround (and drop the legacy spawn path for wrapper launches if it
-   becomes redundant).
+4. **Re-verify explicit launcher options.** `startHeadlessBackend` must keep
+   accepting `binary` and `args`. `lifecycle.js` depends on those options so
+   macOS/Linux wrapper launches and custom binary names stay on the SDK-owned
+   readiness/auth/diagnostics/shutdown path. If the SDK changes these options,
+   update lifecycle.js and the wrapper-launch fixtures before shipping.
 
 5. **Review the minimum supported runtime version.**
    `MIN_SUPPORTED_AX_CODE_VERSION` in

@@ -14,6 +14,87 @@ export type HeadlessCreateSessionInput = {
     title?: string;
 };
 export type HeadlessClient = ReturnType<typeof createHeadlessClient>;
+export type HeadlessGlobalHealth = {
+    healthy: true;
+    version: string;
+    startup?: {
+        startedAt: number;
+        uptimeMs: number;
+        checkedAt: number;
+    };
+    readiness?: {
+        processAlive: true;
+        apiReady: true;
+        providersReady: "ready" | "degraded" | "unknown";
+        indexReady: "ready" | "degraded" | "unknown";
+    };
+    runtime?: {
+        directory: string;
+        services: Array<{
+            name: string;
+            state: "idle" | "starting" | "running" | "stopping" | "stopped" | "failed";
+            pendingTasks: number;
+            startedAt?: number;
+            stoppedAt?: number;
+            lastError?: string;
+        }>;
+        taskSummary: {
+            queued: number;
+            running: number;
+            completed: number;
+            failed: number;
+            aborted: number;
+        };
+    };
+};
+export type HeadlessRuntimeCapabilities = {
+    schemaVersion: 1;
+    product: "ax-code";
+    version: string;
+    compatibility: {
+        minDesktopVersion: string | null;
+        sdkHeadless: {
+            schemaVersion: 1;
+            supportsManagedLifecycle: true;
+            supportsExplicitBinary: true;
+            supportsExplicitArgs: true;
+            supportsStructuredDiagnostics: true;
+            authSchemes: Array<"basic">;
+            defaultTransport: "http-sse";
+        };
+    };
+    endpoints: {
+        health: "/global/health";
+        events: "/global/event";
+        config: "/global/config";
+        capabilityCatalog: "/capability";
+        fileSearch: "/find/file";
+        sessions: "/session";
+        providers: "/config/providers";
+        agents: "/agent";
+    };
+    features: {
+        sessions: true;
+        asyncPrompt: true;
+        globalEvents: true;
+        fileSearch: true;
+        skills: true;
+        plugins: true;
+        mcp: true;
+        worktrees: true;
+        providerManagement: true;
+        usage: true;
+    };
+    events: {
+        heartbeat: "server.heartbeat";
+        connected: "server.connected";
+        sessionCreated: "session.created";
+        sessionStatus: "session.status";
+        sessionError: "session.error";
+        permission: "permission";
+        question: "question";
+    };
+};
 export type HeadlessTaskQueueKind = "prompt" | "command" | "shell" | "followup" | "subagent" | "review" | "automation";
 export type HeadlessTaskQueueStatus = "queued" | "waiting_for_idle" | "running" | "blocked_permission" | "blocked_question" | "paused" | "failed" | "completed" | "cancelled";
 export type HeadlessTaskQueueItem = {
@@ -196,6 +277,8 @@ export type HeadlessSessionEvidenceInput = {
 };
 export declare function createHeadlessClient(input: HeadlessClientOptions): {
     client: import("../v2/client.js").OpencodeClient;
+    health(): Promise<HeadlessGlobalHealth>;
+    capabilities(): Promise<HeadlessRuntimeCapabilities>;
     createSession(session?: HeadlessCreateSessionInput): Promise<import("../v2/client.js").Session>;
     send: (command: HeadlessRuntimeCommand) => Promise<HeadlessRuntimeCommandResult>;
     sendPrompt(sessionID: string, body: HeadlessPromptBody, options?: {

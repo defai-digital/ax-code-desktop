@@ -24,7 +24,7 @@
  * }
  * ```
  */
-export { startHeadlessBackend } from "./headless/lifecycle.js";
+export { HeadlessBackendStartupError, startHeadlessBackend } from "./headless/lifecycle.js";
 export { createHeadlessClient, parseHeadlessRuntimeJsonBody, parseHeadlessRuntimeResponseBody, } from "./headless/client.js";
 export { createHeadlessProjectionState, applyHeadlessProjectionEvent, runtimeProbeKeysForEvent, } from "./headless/projection.js";
 export { AppErrorEnvelopeSchema, DesktopDiagnosticExportSchema, HeadlessStreamHealthSchema, parseDesktopDiagnosticExport, redactDiagnosticValue, } from "./headless/diagnostics.js";

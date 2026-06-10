@@ -5,6 +5,14 @@ const SIGKILL_GRACE_MS = 300;
 const EXIT_WAIT_MS = 2_000;
 const STARTUP_TIMEOUT_MS = 10_000;
 const READY_LINE_PREFIX = "ax-code server listening on ";
+export class HeadlessBackendStartupError extends Error {
+    diagnostics;
+    constructor(message, diagnostics, options) {
+        super(message, options);
+        this.name = "HeadlessBackendStartupError";
+        this.diagnostics = diagnostics;
+    }
+}
 export async function startHeadlessBackend(options = {}) {
     const hostname = options.hostname ?? "127.0.0.1";
     assertSdkHttpLoopbackBind(hostname, options.allowNetworkBind);
@@ -23,8 +31,19 @@ export async function startHeadlessBackend(options = {}) {
     const password = options.auth?.password ?? randomBytes(24).toString("base64url");
     const authHeader = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
     const headers = { Authorization: authHeader };
-    const args = ["serve", `--hostname=${hostname}`, `--port=${port}`];
-    const proc = spawn("ax-code", args, {
+    const binary = options.binary?.trim() || "ax-code";
+    const args = options.args ?? ["serve", `--hostname=${hostname}`, `--port=${port}`];
+    const diagnostics = {
+        launchedAt: new Date().toISOString(),
+        binary,
+        args: [...args],
+        cwd: options.directory,
+        hostname,
+        port,
+        authUsername: username,
+        envKeys: Object.keys(options.env ?? {}).sort(),
+    };
+    const proc = spawn(binary, args, {
         cwd: options.directory,
         stdio: ["ignore", "pipe", "pipe"],
         detached: process.platform !== "win32",
@@ -50,11 +69,23 @@ export async function startHeadlessBackend(options = {}) {
         let stdoutBuf = "";
         let stderrBuf = "";
         const onReadyUrl = (urlStr) => {
+            diagnostics.readyUrl = urlStr;
             void waitForBackendHealth({
                 url: urlStr,
                 headers,
                 fetch: fetchFn,
-            }).then(() => succeed(urlStr), (error) => failStartup(error instanceof Error ? error : new Error(String(error))));
+            }).then((health) => {
+                diagnostics.health = health;
+                succeed(urlStr);
+            }, (error) => {
+                const message = error instanceof Error ? error.message : String(error);
+                diagnostics.health = {
+                    ok: false,
+                    status: 0,
+                    error: message,
+                };
+                failStartup(error instanceof Error ? error : new Error(message));
+            });
         };
         const succeed = (url) => {
             if (settled)
@@ -68,11 +99,15 @@ export async function startHeadlessBackend(options = {}) {
             if (settled)
                 return;
             settled = true;
+            diagnostics.capturedOutput = capturedOutput + stdoutBuf;
             clearTimeout(timer);
             cleanup();
+            const startupError = error instanceof HeadlessBackendStartupError
+                ? error
+                : new HeadlessBackendStartupError(error.message, diagnostics, { cause: error });
             void killProc(proc)
                 .catch(() => undefined)
-                .finally(() => reject(error));
+                .finally(() => reject(startupError));
         };
         const onAbort = () => {
             failStartup(new Error("startHeadlessBackend aborted"));
@@ -113,6 +148,7 @@ export async function startHeadlessBackend(options = {}) {
         };
         const onExit = (code, signal) => {
             const reason = signal ? `signal ${signal}` : `code ${code}`;
+            diagnostics.exit = { code, signal, beforeReady: !settled };
             failStartup(new Error(`ax-code backend exited before becoming ready (${reason})\nCaptured output:\n${capturedOutput}`));
         };
         options.signal?.addEventListener("abort", onAbort, { once: true });
@@ -128,6 +164,7 @@ export async function startHeadlessBackend(options = {}) {
     return {
         url,
         headers,
+        diagnostics,
         closed,
         async close() {
             await killProc(proc);
@@ -187,10 +224,19 @@ async function waitForBackendHealth(input) {
         method: "GET",
         headers: input.headers,
     });
+    const contentType = response.headers.get("content-type") ?? "";
+    const body = contentType.includes("application/json")
+        ? await response.json().catch(() => undefined)
+        : await response.text().catch(() => undefined);
     if (!response.ok) {
-        const text = await response.text().catch(() => "");
+        const text = typeof body === "string" ? body : body === undefined ? "" : JSON.stringify(body);
         throw new Error(`ax-code backend health check failed (${response.status}): ${text || response.statusText}`);
     }
+    return {
+        ok: true,
+        status: response.status,
+        body,
+    };
 }
 async function killProc(proc) {
     if (proc.exitCode !== null || proc.signalCode !== null)

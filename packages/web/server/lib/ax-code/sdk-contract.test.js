@@ -17,6 +17,10 @@ const EXPECTED_VENDORED_SDK_VERSION = '2.2.0';
 const vendorPackageJson = JSON.parse(
   readFileSync(new URL('../../../../../vendor/ax-code-sdk/package.json', import.meta.url), 'utf8')
 );
+const headlessLifecycleTypes = readFileSync(
+  new URL('../../../../../vendor/ax-code-sdk/dist/headless/lifecycle.d.ts', import.meta.url),
+  'utf8'
+);
 
 describe('vendored @ax-code/sdk contract', () => {
   it('is pinned to the version whose internals lifecycle.js mirrors', () => {
@@ -33,6 +37,12 @@ describe('vendored @ax-code/sdk contract', () => {
 
   it('still provides startHeadlessBackend for the managed runtime', () => {
     expect(typeof startHeadlessBackend).toBe('function');
+  });
+
+  it('supports explicit binary/args and startup diagnostics for the managed runtime', () => {
+    expect(headlessLifecycleTypes).toContain('binary?: string');
+    expect(headlessLifecycleTypes).toContain('args?: string[]');
+    expect(headlessLifecycleTypes).toContain('diagnostics: HeadlessBackendDiagnostics');
   });
 });
 

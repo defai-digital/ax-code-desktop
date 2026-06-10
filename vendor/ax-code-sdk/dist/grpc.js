@@ -1420,7 +1420,9 @@ function matchesEventSubscription(event, request = {}) {
         return false;
     if (!request.sessionID)
         return true;
-    if (event.type === "server.connected" || event.type === "server.heartbeat" || event.type === "server.instance.disposed") {
+    if (event.type === "server.connected" ||
+        event.type === "server.heartbeat" ||
+        event.type === "server.instance.disposed") {
         return true;
     }
     return eventSessionID(event) === request.sessionID;
@@ -1431,7 +1433,10 @@ function eventSessionID(event) {
         return undefined;
     if ("sessionID" in properties && typeof properties.sessionID === "string")
         return properties.sessionID;
-    if ("info" in properties && properties.info && typeof properties.info === "object" && "sessionID" in properties.info) {
+    if ("info" in properties &&
+        properties.info &&
+        typeof properties.info === "object" &&
+        "sessionID" in properties.info) {
         const sessionID = properties.info.sessionID;
         return typeof sessionID === "string" ? sessionID : undefined;
     }
@@ -1439,7 +1444,10 @@ function eventSessionID(event) {
         const id = properties.info.id;
         return typeof id === "string" ? id : undefined;
     }
-    if ("item" in properties && properties.item && typeof properties.item === "object" && "sessionID" in properties.item) {
+    if ("item" in properties &&
+        properties.item &&
+        typeof properties.item === "object" &&
+        "sessionID" in properties.item) {
         const sessionID = properties.item.sessionID;
         return typeof sessionID === "string" ? sessionID : undefined;
     }
@@ -1549,7 +1557,10 @@ function parsePtyServerEvent(data) {
         return;
     if (bytes[0] === 0) {
         const json = new TextDecoder().decode(bytes.slice(1));
-        return { type: "replay", ...JSON.parse(json) };
+        return {
+            type: "replay",
+            ...JSON.parse(json),
+        };
     }
     return { type: "output", data: new TextDecoder().decode(bytes) };
 }

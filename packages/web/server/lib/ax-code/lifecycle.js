@@ -1,6 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
-import path from 'node:path';
 import { startHeadlessBackend } from '@ax-code/sdk/headless';
 import { createManagedAxCodeRuntimeAdapter } from './managed-ax-code-runtime.js';
 import { evaluateAxCodeCompatibility } from './version-compat.js';
@@ -386,10 +385,10 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       return createManagedAxCodeServerProcessLegacy({ hostname, port, timeout, cwd, env: processEnv, binary, args });
     }
 
-    // macOS/Linux: prefer @ax-code/sdk startHeadlessBackend when the selected
-    // CLI can be resolved as `ax-code`. The SDK does not yet accept explicit
-    // binary/args, so keep the legacy spawn path for wrapper launches or
-    // custom binary names.
+    // macOS/Linux: use the SDK-owned headless launcher for all managed CLI
+    // shapes. The vendored SDK accepts explicit binary/args, so wrapper
+    // launches and custom binary names still get SDK readiness/auth/shutdown
+    // behavior instead of the older stdout-parsing spawn path.
     const launchSpec = resolveManagedAxCodeLaunchSpec(binary);
     if (launchSpec?.binary) {
       launchWrapperType = launchSpec.wrapperType || null;
@@ -397,42 +396,13 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       args = [...(Array.isArray(launchSpec.args) ? launchSpec.args : []), ...args];
     }
 
-    const canUseSdkHeadless =
-      !launchWrapperType &&
-      (binary === 'ax-code' || path.basename(binary) === 'ax-code');
-
-    if (!canUseSdkHeadless) {
-      const pathValue = typeof processEnv?.PATH === 'string' ? processEnv.PATH : '';
-      const pathEntryCount = pathValue ? pathValue.split(pathSep).filter(Boolean).length : 0;
-      state.lastAxCodeLaunchDiagnostics = {
-        launchedAt: new Date().toISOString(),
-        binary, args, cwd, hostname, port,
-        wrapperType: launchWrapperType, pathEntryCount,
-        hasShellEnv: shellEnvKeysCount > 0, shellEnvKeysCount,
-        via: 'legacy-spawn',
-      };
-      console.log('[AX Code] Launching managed server via legacy spawn', state.lastAxCodeLaunchDiagnostics);
-      markStartup('ax-code.process.launched', {
-        via: 'legacy-spawn',
-        hostname,
-        port: port || 'auto',
-        wrapperType: launchWrapperType,
-      }, { source: 'web-server', milestone: 'ax-code.process.launched' });
-      return createManagedAxCodeServerProcessLegacy({ hostname, port, timeout, cwd, env: processEnv, binary, args });
-    }
-
-    // If the binary is an absolute path, prepend its directory to PATH so
-    // the hardcoded spawn in the SDK resolves the correct binary.
-    let envPath = typeof processEnv?.PATH === 'string' ? processEnv.PATH : (process.env.PATH || '');
-    if (path.isAbsolute(binary)) {
-      envPath = path.dirname(binary) + pathSep + envPath;
-    }
-
+    const envPath = typeof processEnv?.PATH === 'string' ? processEnv.PATH : (process.env.PATH || '');
     const password = processEnv?.AX_CODE_SERVER_PASSWORD;
     const pathEntryCount = envPath ? envPath.split(pathSep).filter(Boolean).length : 0;
     state.lastAxCodeLaunchDiagnostics = {
       launchedAt: new Date().toISOString(),
-      binary, cwd, hostname, port, pathEntryCount,
+      binary, args, cwd, hostname, port,
+      wrapperType: launchWrapperType, pathEntryCount,
       hasShellEnv: shellEnvKeysCount > 0, shellEnvKeysCount,
       via: 'sdk-headless',
     };
@@ -441,6 +411,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       via: 'sdk-headless',
       hostname,
       port: port || 'auto',
+      wrapperType: launchWrapperType,
     }, { source: 'web-server', milestone: 'ax-code.process.launched' });
 
     // Strip AX_CODE_SERVER_PASSWORD from the env spread — the SDK sets it from
@@ -451,6 +422,8 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       directory: cwd,
       hostname,
       port: port > 0 ? port : undefined,
+      binary,
+      args,
       timeout,
       auth: { username: 'ax-code', password },
       allowNetworkBind: !isSdkLoopbackHostname(hostname),

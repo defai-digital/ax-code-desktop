@@ -23,6 +23,28 @@ export function createHeadlessClient(input) {
     });
     return {
         client,
+        health() {
+            return requestJson({
+                baseUrl: input.baseUrl,
+                fetch: fetchFn,
+                headers: input.headers,
+                directory: input.directory,
+                experimental_workspaceID: input.experimental_workspaceID,
+                path: "/global/health",
+                method: "GET",
+            });
+        },
+        capabilities() {
+            return requestJson({
+                baseUrl: input.baseUrl,
+                fetch: fetchFn,
+                headers: input.headers,
+                directory: input.directory,
+                experimental_workspaceID: input.experimental_workspaceID,
+                path: "/global/capabilities",
+                method: "GET",
+            });
+        },
         async createSession(session) {
             const result = await client.session.create(session ?? {});
             const created = result.data;

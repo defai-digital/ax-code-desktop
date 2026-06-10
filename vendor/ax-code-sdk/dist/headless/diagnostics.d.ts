@@ -26,8 +26,8 @@ export declare const DesktopDiagnosticExportSchema: z.ZodObject<{
     }>;
     backendHealth: z.ZodEnum<{
         unknown: "unknown";
-        unavailable: "unavailable";
         starting: "starting";
+        unavailable: "unavailable";
         healthy: "healthy";
     }>;
     streamHealth: z.ZodEnum<{

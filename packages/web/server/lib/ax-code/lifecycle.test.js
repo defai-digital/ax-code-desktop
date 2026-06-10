@@ -129,6 +129,8 @@ describe('ax-code lifecycle', () => {
     expect(options.directory).toBe('/tmp/project');
     expect(options.hostname).toBe('127.0.0.1');
     expect(options.port).toBe(45678);
+    expect(options.binary).toBe('ax-code');
+    expect(options.args).toEqual(['serve', '--hostname', '127.0.0.1', '--port', '45678']);
     expect(options.env.PATH).toBe('/home/user/.bun/bin:/usr/local/bin:/usr/bin');
     expect(options.env.SHELL_ONLY).toBe('yes');
     expect(options.env.AX_CODE_SERVER_PASSWORD).toBeUndefined();
@@ -221,14 +223,12 @@ describe('ax-code lifecycle', () => {
     await server.close();
   });
 
-  it('uses legacy spawn when the configured binary requires a wrapper', async () => {
+  it('uses SDK headless backend when the configured binary requires a wrapper', async () => {
     process.env.AX_CODE_BINARY = '/opt/ax-code/cli.js';
-    const child = createMockChild();
-    spawnMock.mockImplementationOnce(() => {
-      queueMicrotask(() => {
-        child.stdout.emit('data', 'ax-code server listening on http://127.0.0.1:45678\n');
-      });
-      return child;
+    startHeadlessBackendMock.mockResolvedValueOnce({
+      url: 'http://127.0.0.1:45678',
+      headers: { Authorization: 'Basic test' },
+      close: vi.fn(async () => undefined),
     });
 
     const runtime = createRuntime({
@@ -239,11 +239,11 @@ describe('ax-code lifecycle', () => {
       })),
     });
     const server = await runtime.startAxCode();
-    const [binary, args, options] = spawnMock.mock.calls[0];
+    const options = startHeadlessBackendMock.mock.calls[0][0];
 
-    expect(startHeadlessBackendMock).not.toHaveBeenCalled();
-    expect(binary).toBe('bun');
-    expect(args).toEqual(['/opt/ax-code/cli.js', 'serve', '--hostname', '127.0.0.1', '--port', '45678']);
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(options.binary).toBe('bun');
+    expect(options.args).toEqual(['/opt/ax-code/cli.js', 'serve', '--hostname', '127.0.0.1', '--port', '45678']);
     expect(options.env.PATH).toBe('/home/user/.bun/bin:/usr/local/bin:/usr/bin');
 
     await server.close();
@@ -251,20 +251,7 @@ describe('ax-code lifecycle', () => {
 
   it('reports the binary when managed ax-code exits before becoming ready', async () => {
     process.env.AX_CODE_BINARY = '/opt/ax-code/cli.js';
-    const firstChild = createMockChild();
-    const secondChild = createMockChild();
-    spawnMock.mockImplementationOnce(() => {
-      queueMicrotask(() => {
-        firstChild.emit('exit', null, 'SIGTERM');
-      });
-      return firstChild;
-    });
-    spawnMock.mockImplementationOnce(() => {
-      queueMicrotask(() => {
-        secondChild.emit('exit', null, 'SIGTERM');
-      });
-      return secondChild;
-    });
+    startHeadlessBackendMock.mockRejectedValue(new Error('ax-code backend exited before becoming ready (signal SIGTERM)'));
 
     const runtime = createRuntime({
       resolveManagedAxCodeLaunchSpec: vi.fn(() => ({
@@ -274,8 +261,18 @@ describe('ax-code lifecycle', () => {
       })),
     });
 
-    await expect(runtime.startAxCode()).rejects.toThrow('AX Code process exited before serving with signal SIGTERM. Binary used: bun. No stdout/stderr captured');
-    expect(spawnMock).toHaveBeenCalledTimes(2);
+    await expect(runtime.startAxCode()).rejects.toThrow('ax-code backend exited before becoming ready (signal SIGTERM)');
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(startHeadlessBackendMock).toHaveBeenCalledTimes(2);
+    expect(startHeadlessBackendMock.mock.calls[0][0].binary).toBe('bun');
+    expect(startHeadlessBackendMock.mock.calls[0][0].args).toEqual([
+      '/opt/ax-code/cli.js',
+      'serve',
+      '--hostname',
+      '127.0.0.1',
+      '--port',
+      '45678',
+    ]);
   });
 
   it('does not retry startup after shutdown() aborts the in-progress SDK launch', async () => {
@@ -339,19 +336,11 @@ describe('ax-code lifecycle', () => {
 
   it('retries managed ax-code startup once after a pre-ready exit', async () => {
     process.env.AX_CODE_BINARY = '/opt/ax-code/cli.js';
-    const firstChild = createMockChild();
-    const secondChild = createMockChild();
-    spawnMock.mockImplementationOnce(() => {
-      queueMicrotask(() => {
-        firstChild.emit('exit', null, 'SIGTERM');
-      });
-      return firstChild;
-    });
-    spawnMock.mockImplementationOnce(() => {
-      queueMicrotask(() => {
-        secondChild.stdout.emit('data', 'ax-code server listening on http://127.0.0.1:45678\n');
-      });
-      return secondChild;
+    startHeadlessBackendMock.mockRejectedValueOnce(new Error('ax-code backend exited before becoming ready (signal SIGTERM)'));
+    startHeadlessBackendMock.mockResolvedValueOnce({
+      url: 'http://127.0.0.1:45678',
+      headers: { Authorization: 'Basic test' },
+      close: vi.fn(async () => undefined),
     });
 
     const runtime = createRuntime({
@@ -363,7 +352,8 @@ describe('ax-code lifecycle', () => {
     });
     const server = await runtime.startAxCode();
 
-    expect(spawnMock).toHaveBeenCalledTimes(2);
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(startHeadlessBackendMock).toHaveBeenCalledTimes(2);
     await server.close();
   });
 });

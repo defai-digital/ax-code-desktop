@@ -24,10 +24,10 @@
  * }
  * ```
  */
-export { startHeadlessBackend } from "./headless/lifecycle.js";
-export type { HeadlessBackendOptions, HeadlessBackendHandle } from "./headless/lifecycle.js";
+export { HeadlessBackendStartupError, startHeadlessBackend } from "./headless/lifecycle.js";
+export type { HeadlessBackendDiagnostics, HeadlessBackendOptions, HeadlessBackendHandle } from "./headless/lifecycle.js";
 export { createHeadlessClient, parseHeadlessRuntimeJsonBody, parseHeadlessRuntimeResponseBody, } from "./headless/client.js";
-export type { HeadlessClient, HeadlessClientOptions, HeadlessCreateSessionInput, HeadlessSessionEvidence, HeadlessSessionEvidenceInput, HeadlessScheduledTask, HeadlessScheduledTaskCreateInput, HeadlessScheduledTaskListInput, HeadlessScheduledTaskRunNowResult, HeadlessScheduledTaskSchedule, HeadlessScheduledTaskStatus, HeadlessScheduledTaskUpdateInput, HeadlessSubscribeOptions, HeadlessTaskQueueEnqueueInput, HeadlessTaskQueueItem, HeadlessTaskQueueKind, HeadlessTaskQueueListInput, HeadlessTaskQueueStatus, } from "./headless/client.js";
+export type { HeadlessClient, HeadlessClientOptions, HeadlessCreateSessionInput, HeadlessGlobalHealth, HeadlessRuntimeCapabilities, HeadlessSessionEvidence, HeadlessSessionEvidenceInput, HeadlessScheduledTask, HeadlessScheduledTaskCreateInput, HeadlessScheduledTaskListInput, HeadlessScheduledTaskRunNowResult, HeadlessScheduledTaskSchedule, HeadlessScheduledTaskStatus, HeadlessScheduledTaskUpdateInput, HeadlessSubscribeOptions, HeadlessTaskQueueEnqueueInput, HeadlessTaskQueueItem, HeadlessTaskQueueKind, HeadlessTaskQueueListInput, HeadlessTaskQueueStatus, } from "./headless/client.js";
 export { createHeadlessProjectionState, applyHeadlessProjectionEvent, runtimeProbeKeysForEvent, } from "./headless/projection.js";
 export type { HeadlessProjectionState, HeadlessStreamHealth, HeadlessProjectionEffect, HeadlessProjectionApplyResult, } from "./headless/projection.js";
 export { AppErrorEnvelopeSchema, DesktopDiagnosticExportSchema, HeadlessStreamHealthSchema, parseDesktopDiagnosticExport, redactDiagnosticValue, } from "./headless/diagnostics.js";

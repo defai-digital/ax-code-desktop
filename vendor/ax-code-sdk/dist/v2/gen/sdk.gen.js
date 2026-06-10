@@ -65,6 +65,17 @@ export class Global extends HeyApiClient {
         });
     }
     /**
+     * Get runtime capabilities
+     *
+     * Get stable runtime capability metadata for desktop and app integrations. This endpoint describes supported API contracts; use /capability for user-facing commands, skills, agents, and workflows.
+     */
+    capabilities(options) {
+        return (options?.client ?? this.client).get({
+            url: "/global/capabilities",
+            ...options,
+        });
+    }
+    /**
      * Get global events
      *
      * Subscribe to global events from the ax-code system using server-sent events.
@@ -2183,46 +2194,6 @@ export class Session2 extends HeyApiClient {
         });
     }
     /**
-     * Unshare session
-     *
-     * Remove the shareable link for a session, making it private again.
-     */
-    unshare(parameters, options) {
-        const params = buildClientParams([parameters], [
-            {
-                args: [
-                    { in: "path", key: "sessionID" },
-                    { in: "query", key: "directory" },
-                ],
-            },
-        ]);
-        return (options?.client ?? this.client).delete({
-            url: "/session/{sessionID}/share",
-            ...options,
-            ...params,
-        });
-    }
-    /**
-     * Share session
-     *
-     * Create a shareable link for a session, allowing others to view the conversation.
-     */
-    share(parameters, options) {
-        const params = buildClientParams([parameters], [
-            {
-                args: [
-                    { in: "path", key: "sessionID" },
-                    { in: "query", key: "directory" },
-                ],
-            },
-        ]);
-        return (options?.client ?? this.client).post({
-            url: "/session/{sessionID}/share",
-            ...options,
-            ...params,
-        });
-    }
-    /**
      * Get message diff
      *
      * Get the file changes (diff) that resulted from a specific user message in the session.
@@ -3587,6 +3558,19 @@ export class App extends HeyApiClient {
         });
     }
     /**
+     * List agents
+     *
+     * Get a list of all available AI agents in the ax-code system.
+     */
+    agents(parameters, options) {
+        const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }]);
+        return (options?.client ?? this.client).get({
+            url: "/agent",
+            ...options,
+            ...params,
+        });
+    }
+    /**
      * Get project context
      *
      * Get instruction-file and cached-memory metadata for the current project context.
@@ -3651,19 +3635,6 @@ export class App extends HeyApiClient {
         });
     }
     /**
-     * List agents
-     *
-     * Get a list of all available AI agents in the ax-code system.
-     */
-    agents(parameters, options) {
-        const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }]);
-        return (options?.client ?? this.client).get({
-            url: "/agent",
-            ...options,
-            ...params,
-        });
-    }
-    /**
      * List skills
      *
      * Get a list of all available skills in the ax-code system.
@@ -3674,6 +3645,86 @@ export class App extends HeyApiClient {
             url: "/skill",
             ...options,
             ...params,
+        });
+    }
+}
+export class Skill extends HeyApiClient {
+    /**
+     * Create skill
+     *
+     * Create a local Agent Skill skeleton in the current worktree.
+     */
+    create(parameters, options) {
+        const params = buildClientParams([parameters], [
+            {
+                args: [
+                    { in: "query", key: "directory" },
+                    { in: "body", key: "name" },
+                    { in: "body", key: "description" },
+                    { in: "body", key: "path" },
+                ],
+            },
+        ]);
+        return (options?.client ?? this.client).post({
+            url: "/skill",
+            ...options,
+            ...params,
+            headers: {
+                "Content-Type": "application/json",
+                ...options?.headers,
+                ...params.headers,
+            },
+        });
+    }
+    /**
+     * Validate skills
+     *
+     * Validate discovered skills against the Agent Skills standard.
+     */
+    validate(parameters, options) {
+        const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }]);
+        return (options?.client ?? this.client).get({
+            url: "/skill/validate",
+            ...options,
+            ...params,
+        });
+    }
+    /**
+     * Diagnose skills
+     *
+     * Diagnose discovered skills, source breakdown, and compatibility metadata.
+     */
+    doctor(parameters, options) {
+        const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }]);
+        return (options?.client ?? this.client).get({
+            url: "/skill/doctor",
+            ...options,
+            ...params,
+        });
+    }
+    /**
+     * Test skill triggers
+     *
+     * Show which skills would be recommended for the given file paths.
+     */
+    testTrigger(parameters, options) {
+        const params = buildClientParams([parameters], [
+            {
+                args: [
+                    { in: "query", key: "directory" },
+                    { in: "body", key: "files" },
+                ],
+            },
+        ]);
+        return (options?.client ?? this.client).post({
+            url: "/skill/test-trigger",
+            ...options,
+            ...params,
+            headers: {
+                "Content-Type": "application/json",
+                ...options?.headers,
+                ...params.headers,
+            },
         });
     }
 }
@@ -3696,7 +3747,7 @@ export class DebugEngine extends HeyApiClient {
     /**
      * DRE status and pending refactor plans
      *
-     * Return the current project's pending refactor plans plus DRE health information (graph node count, last-indexed timestamp, registered tool count). The TUI footer uses the plans count for its chip; the TUI sidebar uses the graph and tool fields to render the DRE section empty state so users can tell at a glance whether DRE is ready to use. Fields default to zero / null when the experimental DRE flag is off, so callers can poll unconditionally. The `graph` and `toolCount` fields were added in v2.3.6 — older clients ignore unknown fields and continue to work against the original `{ count, plans }` shape.
+     * Return the current project's pending refactor plans plus DRE health information (graph node count, last-indexed timestamp, registered tool count). The TUI footer uses the plans count for its chip; the TUI sidebar uses the graph and tool fields to render the DRE section empty state so users can tell at a glance whether DRE is ready to use. Fields default to zero / null when the experimental DRE flag is off, so callers can poll unconditionally. The `graph` and `toolCount` fields were added in v2.3.6 - older clients ignore unknown fields and continue to work against the original `{ count, plans }` shape.
      */
     pendingPlans(parameters, options) {
         const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }]);
@@ -3903,6 +3954,10 @@ export class OpencodeClient extends HeyApiClient {
     _app;
     get app() {
         return (this._app ??= new App({ client: this.client }));
+    }
+    _skill;
+    get skill() {
+        return (this._skill ??= new Skill({ client: this.client }));
     }
     _lsp;
     get lsp() {

@@ -39,6 +39,7 @@
     "check:internal": "node scripts/check-internal-boundary.mjs",
     "check:boundary": "node scripts/check-boundary-imports.mjs",
     "check:endpoint-contracts": "node scripts/check-endpoint-contracts.mjs",
+    "perf:report": "node scripts/ax-code-perf-report.mjs",
     "clean": "bun run --filter '*' clean",
     "changelog-card": "node scripts/changelog-card/generate.mjs",
     "postinstall": "patch-package",

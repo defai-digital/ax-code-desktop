@@ -1,5 +1,5 @@
 import { type Client, type Options as Options2, type TDataShape } from "./client/index.js";
-import type { AgentPartInput, AppAgentsResponses, AppContextMemoryClearResponses, AppContextMemoryWarmupResponses, AppContextResponses, AppContextTemplateCreateResponses, AppLogErrors, AppLogResponses, AppSkillsResponses, AuditExportAllResponses, AuditExportResponses, AuditReplayResponses, Auth as Auth3, AuthRemoveErrors, AuthRemoveResponses, AuthSetErrors, AuthSetResponses, AutonomousGetResponses, AutonomousSetResponses, CapabilityListResponses, CommandListResponses, Config as Config3, ConfigGetResponses, ConfigProvidersResponses, ConfigUpdateErrors, ConfigUpdateResponses, DebugEnginePendingPlansResponses, EventSubscribeResponses, EventTuiCommandExecute, EventTuiPromptAppend, EventTuiSessionSelect, EventTuiToastShow, ExperimentalResourceListResponses, ExperimentalSessionListResponses, FileListResponses, FilePartInput, FileReadResponses, FileStatusResponses, FindFilesResponses, FindSymbolsResponses, FindTextResponses, FormatterStatusResponses, GetDreGraphSessionSessionIdFingerprintResponses, GetDreGraphSessionSessionIdResponses, GlobalConfigGetResponses, GlobalConfigUpdateErrors, GlobalConfigUpdateResponses, GlobalDisposeResponses, GlobalEventResponses, GlobalHealthResponses, GlobalUpgradeErrors, GlobalUpgradeResponses, GraphGetErrors, GraphGetResponses, GraphTopologyErrors, GraphTopologyResponses, InstanceDisposeResponses, InstanceRestartResponses, IsolationGetResponses, IsolationSetResponses, LspStatusResponses, McpAddErrors, McpAddResponses, McpAuthAuthenticateErrors, McpAuthAuthenticateResponses, McpAuthCallbackErrors, McpAuthCallbackResponses, McpAuthRemoveErrors, McpAuthRemoveResponses, McpAuthStartErrors, McpAuthStartResponses, McpConnectResponses, McpDisconnectResponses, McpLocalConfig, McpRemoteConfig, McpStatusResponses, OutputFormat, Part as Part2, PartDeleteErrors, PartDeleteResponses, PartUpdateErrors, PartUpdateResponses, PathGetResponses, PermissionListResponses, PermissionReplyErrors, PermissionReplyResponses, PermissionRespondErrors, PermissionRespondResponses, PermissionRuleset, ProjectCurrentResponses, ProjectInitGitResponses, ProjectListResponses, ProjectUpdateErrors, ProjectUpdateResponses, PromptHistoryAppendErrors, PromptHistoryAppendResponses, PromptHistoryListErrors, PromptHistoryListResponses, ProviderAuthResponses, ProviderListResponses, ProviderOauthAuthorizeErrors, ProviderOauthAuthorizeResponses, ProviderOauthCallbackErrors, ProviderOauthCallbackResponses, PtyConnectErrors, PtyConnectResponses, PtyCreateErrors, PtyCreateResponses, PtyGetErrors, PtyGetResponses, PtyListResponses, PtyRemoveErrors, PtyRemoveResponses, PtyUpdateErrors, PtyUpdateResponses, QuestionAnswer, QuestionListResponses, QuestionRejectErrors, QuestionRejectResponses, QuestionReplyErrors, QuestionReplyResponses, ScheduledTaskCreateErrors, ScheduledTaskCreateResponses, ScheduledTaskDeleteErrors, ScheduledTaskDeleteResponses, ScheduledTaskGetErrors, ScheduledTaskGetResponses, ScheduledTaskListErrors, ScheduledTaskListResponses, ScheduledTaskPauseErrors, ScheduledTaskPauseResponses, ScheduledTaskResumeErrors, ScheduledTaskResumeResponses, ScheduledTaskRunDueErrors, ScheduledTaskRunDueResponses, ScheduledTaskRunNowErrors, ScheduledTaskRunNowResponses, ScheduledTaskUpdateErrors, ScheduledTaskUpdateResponses, SessionAbortErrors, SessionAbortResponses, SessionBranchRankErrors, SessionBranchRankResponses, SessionChildrenErrors, SessionChildrenResponses, SessionCommandAsyncErrors, SessionCommandAsyncResponses, SessionCommandErrors, SessionCommandResponses, SessionCompareErrors, SessionCompareResponses, SessionCreateErrors, SessionCreateResponses, SessionDeleteErrors, SessionDeleteMessageErrors, SessionDeleteMessageResponses, SessionDeleteResponses, SessionDiffResponses, SessionDreErrors, SessionDreResponses, SessionForkResponses, SessionGetErrors, SessionGetResponses, SessionGoalErrors, SessionGoalResponses, SessionGraphErrors, SessionGraphResponses, SessionInitErrors, SessionInitResponses, SessionListResponses, SessionMessageErrors, SessionMessageResponses, SessionMessagesErrors, SessionMessagesResponses, SessionMetadata, SessionPromptAsyncErrors, SessionPromptAsyncResponses, SessionPromptErrors, SessionPromptResponses, SessionRevertErrors, SessionRevertResponses, SessionRiskErrors, SessionRiskResponses, SessionRollbackPointsErrors, SessionRollbackPointsResponses, SessionSemanticDiffErrors, SessionSemanticDiffResponses, SessionShareErrors, SessionShareResponses, SessionShellAsyncErrors, SessionShellAsyncResponses, SessionShellErrors, SessionShellResponses, SessionStatusErrors, SessionStatusResponses, SessionSummarizeErrors, SessionSummarizeResponses, SessionTodoErrors, SessionTodoResponses, SessionUnrevertErrors, SessionUnrevertResponses, SessionUnshareErrors, SessionUnshareResponses, SessionUpdateErrors, SessionUpdateResponses, SmartLlmGetResponses, SmartLlmSetResponses, SubtaskPartInput, SuperLongGetResponses, SuperLongSetErrors, SuperLongSetResponses, TaskQueueCancelErrors, TaskQueueCancelResponses, TaskQueueDeleteErrors, TaskQueueDeleteResponses, TaskQueueEditErrors, TaskQueueEditResponses, TaskQueueEnqueueErrors, TaskQueueEnqueueResponses, TaskQueueGetErrors, TaskQueueGetResponses, TaskQueueListErrors, TaskQueueListResponses, TaskQueuePauseErrors, TaskQueuePauseResponses, TaskQueueReorderErrors, TaskQueueReorderResponses, TaskQueueResumeErrors, TaskQueueResumeResponses, TaskQueueRetryErrors, TaskQueueRetryResponses, TaskQueueSendNowErrors, TaskQueueSendNowResponses, TaskQueueStatusErrors, TaskQueueStatusResponses, TextPartInput, ToolIdsErrors, ToolIdsResponses, ToolListErrors, ToolListResponses, TuiAppendPromptErrors, TuiAppendPromptResponses, TuiClearPromptResponses, TuiExecuteCommandErrors, TuiExecuteCommandResponses, TuiOpenHelpResponses, TuiOpenModelsResponses, TuiOpenSessionsResponses, TuiOpenThemesResponses, TuiPublishErrors, TuiPublishResponses, TuiSelectSessionErrors, TuiSelectSessionResponses, TuiShowToastResponses, TuiSubmitPromptResponses, VcsGetResponses, WorkflowRoutineCreateErrors, WorkflowRoutineCreateResponses, WorkflowRoutineListErrors, WorkflowRoutineListResponses, WorkflowRoutineRunErrors, WorkflowRoutineRunResponses, WorkflowRunArtifactsErrors, WorkflowRunArtifactsResponses, WorkflowRunCancelErrors, WorkflowRunCancelResponses, WorkflowRunCreateErrors, WorkflowRunCreateResponses, WorkflowRunDashboardErrors, WorkflowRunDashboardResponses, WorkflowRunEvalCaseErrors, WorkflowRunEvalCaseResponses, WorkflowRunEvalCasesErrors, WorkflowRunEvalCasesResponses, WorkflowRunEvalSummaryErrors, WorkflowRunEvalSummaryResponses, WorkflowRunGetErrors, WorkflowRunGetResponses, WorkflowRunListErrors, WorkflowRunListResponses, WorkflowRunPauseErrors, WorkflowRunPauseResponses, WorkflowRunResumeErrors, WorkflowRunResumeResponses, WorkflowRunRetryErrors, WorkflowRunRetryResponses, WorkflowRunSaveTemplateErrors, WorkflowRunSaveTemplateResponses, WorkflowRunStartErrors, WorkflowRunStartResponses, WorkflowTemplateGetErrors, WorkflowTemplateGetResponses, WorkflowTemplateListErrors, WorkflowTemplateListResponses, WorkflowTemplatePromoteErrors, WorkflowTemplatePromoteResponses, WorkflowTemplateSaveErrors, WorkflowTemplateSaveResponses, WorktreeCreateErrors, WorktreeCreateInput, WorktreeCreateResponses, WorktreeListResponses, WorktreeRemoveErrors, WorktreeRemoveInput, WorktreeRemoveResponses, WorktreeResetErrors, WorktreeResetInput, WorktreeResetResponses } from "./types.gen.js";
+import type { AgentPartInput, AppAgentsResponses, AppContextMemoryClearResponses, AppContextMemoryWarmupResponses, AppContextResponses, AppContextTemplateCreateResponses, AppLogErrors, AppLogResponses, AppSkillsResponses, AuditExportAllResponses, AuditExportResponses, AuditReplayResponses, Auth as Auth3, AuthRemoveErrors, AuthRemoveResponses, AuthSetErrors, AuthSetResponses, AutonomousGetResponses, AutonomousSetResponses, CapabilityListResponses, CommandListResponses, Config as Config3, ConfigGetResponses, ConfigProvidersResponses, ConfigUpdateErrors, ConfigUpdateResponses, DebugEnginePendingPlansResponses, EventSubscribeResponses, EventTuiCommandExecute, EventTuiPromptAppend, EventTuiSessionSelect, EventTuiToastShow, ExperimentalResourceListResponses, ExperimentalSessionListResponses, FileListResponses, FilePartInput, FileReadResponses, FileStatusResponses, FindFilesResponses, FindSymbolsResponses, FindTextResponses, FormatterStatusResponses, GetDreGraphSessionSessionIdFingerprintResponses, GetDreGraphSessionSessionIdResponses, GlobalCapabilitiesResponses, GlobalConfigGetResponses, GlobalConfigUpdateErrors, GlobalConfigUpdateResponses, GlobalDisposeResponses, GlobalEventResponses, GlobalHealthResponses, GlobalUpgradeErrors, GlobalUpgradeResponses, GraphGetErrors, GraphGetResponses, GraphTopologyErrors, GraphTopologyResponses, InstanceDisposeResponses, InstanceRestartResponses, IsolationGetResponses, IsolationSetResponses, LspStatusResponses, McpAddErrors, McpAddResponses, McpAuthAuthenticateErrors, McpAuthAuthenticateResponses, McpAuthCallbackErrors, McpAuthCallbackResponses, McpAuthRemoveErrors, McpAuthRemoveResponses, McpAuthStartErrors, McpAuthStartResponses, McpConnectResponses, McpDisconnectResponses, McpLocalConfig, McpRemoteConfig, McpStatusResponses, OutputFormat, Part as Part2, PartDeleteErrors, PartDeleteResponses, PartUpdateErrors, PartUpdateResponses, PathGetResponses, PermissionListResponses, PermissionReplyErrors, PermissionReplyResponses, PermissionRespondErrors, PermissionRespondResponses, PermissionRuleset, ProjectCurrentResponses, ProjectInitGitResponses, ProjectListResponses, ProjectUpdateErrors, ProjectUpdateResponses, PromptHistoryAppendErrors, PromptHistoryAppendResponses, PromptHistoryListErrors, PromptHistoryListResponses, ProviderAuthResponses, ProviderListResponses, ProviderOauthAuthorizeErrors, ProviderOauthAuthorizeResponses, ProviderOauthCallbackErrors, ProviderOauthCallbackResponses, PtyConnectErrors, PtyConnectResponses, PtyCreateErrors, PtyCreateResponses, PtyGetErrors, PtyGetResponses, PtyListResponses, PtyRemoveErrors, PtyRemoveResponses, PtyUpdateErrors, PtyUpdateResponses, QuestionAnswer, QuestionListResponses, QuestionRejectErrors, QuestionRejectResponses, QuestionReplyErrors, QuestionReplyResponses, ScheduledTaskCreateErrors, ScheduledTaskCreateResponses, ScheduledTaskDeleteErrors, ScheduledTaskDeleteResponses, ScheduledTaskGetErrors, ScheduledTaskGetResponses, ScheduledTaskListErrors, ScheduledTaskListResponses, ScheduledTaskPauseErrors, ScheduledTaskPauseResponses, ScheduledTaskResumeErrors, ScheduledTaskResumeResponses, ScheduledTaskRunDueErrors, ScheduledTaskRunDueResponses, ScheduledTaskRunNowErrors, ScheduledTaskRunNowResponses, ScheduledTaskUpdateErrors, ScheduledTaskUpdateResponses, SessionAbortErrors, SessionAbortResponses, SessionBranchRankErrors, SessionBranchRankResponses, SessionChildrenErrors, SessionChildrenResponses, SessionCommandAsyncErrors, SessionCommandAsyncResponses, SessionCommandErrors, SessionCommandResponses, SessionCompareErrors, SessionCompareResponses, SessionCreateErrors, SessionCreateResponses, SessionDeleteErrors, SessionDeleteMessageErrors, SessionDeleteMessageResponses, SessionDeleteResponses, SessionDiffResponses, SessionDreErrors, SessionDreResponses, SessionForkResponses, SessionGetErrors, SessionGetResponses, SessionGoalErrors, SessionGoalResponses, SessionGraphErrors, SessionGraphResponses, SessionInitErrors, SessionInitResponses, SessionListResponses, SessionMessageErrors, SessionMessageResponses, SessionMessagesErrors, SessionMessagesResponses, SessionMetadata, SessionPromptAsyncErrors, SessionPromptAsyncResponses, SessionPromptErrors, SessionPromptResponses, SessionRevertErrors, SessionRevertResponses, SessionRiskErrors, SessionRiskResponses, SessionRollbackPointsErrors, SessionRollbackPointsResponses, SessionSemanticDiffErrors, SessionSemanticDiffResponses, SessionShellAsyncErrors, SessionShellAsyncResponses, SessionShellErrors, SessionShellResponses, SessionStatusErrors, SessionStatusResponses, SessionSummarizeErrors, SessionSummarizeResponses, SessionTodoErrors, SessionTodoResponses, SessionUnrevertErrors, SessionUnrevertResponses, SessionUpdateErrors, SessionUpdateResponses, SkillCreateErrors, SkillCreateResponses, SkillDoctorResponses, SkillTestTriggerResponses, SkillValidateResponses, SmartLlmGetResponses, SmartLlmSetResponses, SubtaskPartInput, SuperLongGetResponses, SuperLongSetErrors, SuperLongSetResponses, TaskQueueCancelErrors, TaskQueueCancelResponses, TaskQueueDeleteErrors, TaskQueueDeleteResponses, TaskQueueEditErrors, TaskQueueEditResponses, TaskQueueEnqueueErrors, TaskQueueEnqueueResponses, TaskQueueGetErrors, TaskQueueGetResponses, TaskQueueListErrors, TaskQueueListResponses, TaskQueuePauseErrors, TaskQueuePauseResponses, TaskQueueReorderErrors, TaskQueueReorderResponses, TaskQueueResumeErrors, TaskQueueResumeResponses, TaskQueueRetryErrors, TaskQueueRetryResponses, TaskQueueSendNowErrors, TaskQueueSendNowResponses, TaskQueueStatusErrors, TaskQueueStatusResponses, TextPartInput, ToolIdsErrors, ToolIdsResponses, ToolListErrors, ToolListResponses, TuiAppendPromptErrors, TuiAppendPromptResponses, TuiClearPromptResponses, TuiExecuteCommandErrors, TuiExecuteCommandResponses, TuiOpenHelpResponses, TuiOpenModelsResponses, TuiOpenSessionsResponses, TuiOpenThemesResponses, TuiPublishErrors, TuiPublishResponses, TuiSelectSessionErrors, TuiSelectSessionResponses, TuiShowToastResponses, TuiSubmitPromptResponses, VcsGetResponses, WorkflowRoutineCreateErrors, WorkflowRoutineCreateResponses, WorkflowRoutineListErrors, WorkflowRoutineListResponses, WorkflowRoutineRunErrors, WorkflowRoutineRunResponses, WorkflowRunArtifactsErrors, WorkflowRunArtifactsResponses, WorkflowRunCancelErrors, WorkflowRunCancelResponses, WorkflowRunCreateErrors, WorkflowRunCreateResponses, WorkflowRunDashboardErrors, WorkflowRunDashboardResponses, WorkflowRunEvalCaseErrors, WorkflowRunEvalCaseResponses, WorkflowRunEvalCasesErrors, WorkflowRunEvalCasesResponses, WorkflowRunEvalSummaryErrors, WorkflowRunEvalSummaryResponses, WorkflowRunGetErrors, WorkflowRunGetResponses, WorkflowRunListErrors, WorkflowRunListResponses, WorkflowRunPauseErrors, WorkflowRunPauseResponses, WorkflowRunResumeErrors, WorkflowRunResumeResponses, WorkflowRunRetryErrors, WorkflowRunRetryResponses, WorkflowRunSaveTemplateErrors, WorkflowRunSaveTemplateResponses, WorkflowRunStartErrors, WorkflowRunStartResponses, WorkflowTemplateGetErrors, WorkflowTemplateGetResponses, WorkflowTemplateListErrors, WorkflowTemplateListResponses, WorkflowTemplatePromoteErrors, WorkflowTemplatePromoteResponses, WorkflowTemplateSaveErrors, WorkflowTemplateSaveResponses, WorktreeCreateErrors, WorktreeCreateInput, WorktreeCreateResponses, WorktreeListResponses, WorktreeRemoveErrors, WorktreeRemoveInput, WorktreeRemoveResponses, WorktreeResetErrors, WorktreeResetInput, WorktreeResetResponses } from "./types.gen.js";
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
      * You can provide a client instance returned by `createClient()` instead of
@@ -48,6 +48,12 @@ export declare class Global extends HeyApiClient {
      * Get health information about the ax-code server.
      */
     health<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<GlobalHealthResponses, unknown, ThrowOnError, "fields">;
+    /**
+     * Get runtime capabilities
+     *
+     * Get stable runtime capability metadata for desktop and app integrations. This endpoint describes supported API contracts; use /capability for user-facing commands, skills, agents, and workflows.
+     */
+    capabilities<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<GlobalCapabilitiesResponses, unknown, ThrowOnError, "fields">;
     /**
      * Get global events
      *
@@ -1478,24 +1484,6 @@ export declare class Session2 extends HeyApiClient {
         directory?: string;
     }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<SessionAbortResponses, SessionAbortErrors, ThrowOnError, "fields">;
     /**
-     * Unshare session
-     *
-     * Remove the shareable link for a session, making it private again.
-     */
-    unshare<ThrowOnError extends boolean = false>(parameters: {
-        sessionID: string;
-        directory?: string;
-    }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<SessionUnshareResponses, SessionUnshareErrors, ThrowOnError, "fields">;
-    /**
-     * Share session
-     *
-     * Create a shareable link for a session, allowing others to view the conversation.
-     */
-    share<ThrowOnError extends boolean = false>(parameters: {
-        sessionID: string;
-        directory?: string;
-    }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<SessionShareResponses, SessionShareErrors, ThrowOnError, "fields">;
-    /**
      * Get message diff
      *
      * Get the file changes (diff) that resulted from a specific user message in the session.
@@ -2193,6 +2181,14 @@ export declare class App extends HeyApiClient {
         };
     }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<AppLogResponses, AppLogErrors, ThrowOnError, "fields">;
     /**
+     * List agents
+     *
+     * Get a list of all available AI agents in the ax-code system.
+     */
+    agents<ThrowOnError extends boolean = false>(parameters?: {
+        directory?: string;
+    }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<AppAgentsResponses, unknown, ThrowOnError, "fields">;
+    /**
      * Get project context
      *
      * Get instruction-file and cached-memory metadata for the current project context.
@@ -2226,14 +2222,6 @@ export declare class App extends HeyApiClient {
         directory?: string;
     }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<AppContextMemoryClearResponses, unknown, ThrowOnError, "fields">;
     /**
-     * List agents
-     *
-     * Get a list of all available AI agents in the ax-code system.
-     */
-    agents<ThrowOnError extends boolean = false>(parameters?: {
-        directory?: string;
-    }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<AppAgentsResponses, unknown, ThrowOnError, "fields">;
-    /**
      * List skills
      *
      * Get a list of all available skills in the ax-code system.
@@ -2241,6 +2229,44 @@ export declare class App extends HeyApiClient {
     skills<ThrowOnError extends boolean = false>(parameters?: {
         directory?: string;
     }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<AppSkillsResponses, unknown, ThrowOnError, "fields">;
+}
+export declare class Skill extends HeyApiClient {
+    /**
+     * Create skill
+     *
+     * Create a local Agent Skill skeleton in the current worktree.
+     */
+    create<ThrowOnError extends boolean = false>(parameters?: {
+        directory?: string;
+        name?: string;
+        description?: string;
+        path?: string;
+    }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<SkillCreateResponses, SkillCreateErrors, ThrowOnError, "fields">;
+    /**
+     * Validate skills
+     *
+     * Validate discovered skills against the Agent Skills standard.
+     */
+    validate<ThrowOnError extends boolean = false>(parameters?: {
+        directory?: string;
+    }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<SkillValidateResponses, unknown, ThrowOnError, "fields">;
+    /**
+     * Diagnose skills
+     *
+     * Diagnose discovered skills, source breakdown, and compatibility metadata.
+     */
+    doctor<ThrowOnError extends boolean = false>(parameters?: {
+        directory?: string;
+    }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<SkillDoctorResponses, unknown, ThrowOnError, "fields">;
+    /**
+     * Test skill triggers
+     *
+     * Show which skills would be recommended for the given file paths.
+     */
+    testTrigger<ThrowOnError extends boolean = false>(parameters?: {
+        directory?: string;
+        files?: Array<string>;
+    }, options?: Options<never, ThrowOnError>): import("./client/types.gen.js").RequestResult<SkillTestTriggerResponses, unknown, ThrowOnError, "fields">;
 }
 export declare class Lsp extends HeyApiClient {
     /**
@@ -2256,7 +2282,7 @@ export declare class DebugEngine extends HeyApiClient {
     /**
      * DRE status and pending refactor plans
      *
-     * Return the current project's pending refactor plans plus DRE health information (graph node count, last-indexed timestamp, registered tool count). The TUI footer uses the plans count for its chip; the TUI sidebar uses the graph and tool fields to render the DRE section empty state so users can tell at a glance whether DRE is ready to use. Fields default to zero / null when the experimental DRE flag is off, so callers can poll unconditionally. The `graph` and `toolCount` fields were added in v2.3.6 — older clients ignore unknown fields and continue to work against the original `{ count, plans }` shape.
+     * Return the current project's pending refactor plans plus DRE health information (graph node count, last-indexed timestamp, registered tool count). The TUI footer uses the plans count for its chip; the TUI sidebar uses the graph and tool fields to render the DRE section empty state so users can tell at a glance whether DRE is ready to use. Fields default to zero / null when the experimental DRE flag is off, so callers can poll unconditionally. The `graph` and `toolCount` fields were added in v2.3.6 - older clients ignore unknown fields and continue to work against the original `{ count, plans }` shape.
      */
     pendingPlans<ThrowOnError extends boolean = false>(parameters?: {
         directory?: string;
@@ -2360,6 +2386,8 @@ export declare class OpencodeClient extends HeyApiClient {
     get capability(): Capability;
     private _app?;
     get app(): App;
+    private _skill?;
+    get skill(): Skill;
     private _lsp?;
     get lsp(): Lsp;
     private _debugEngine?;
