@@ -1,47 +1,31 @@
-export const API_BASE_PATH = '/api' as const;
+import { API_ENDPOINTS as UI_API_ENDPOINTS, API_PATHS } from '@openchamber/ui/api/endpoints';
+
+// Endpoint values are derived from the master catalog in
+// packages/ui/src/lib/http.ts (via the @openchamber/ui public API surface) so
+// each path is defined exactly once. Only the grouping below is web-specific.
+export const API_BASE_PATH = API_PATHS.base;
 
 export const API_ENDPOINTS = {
   config: {
-    settings: `${API_BASE_PATH}/config/settings`,
-    reload: `${API_BASE_PATH}/config/reload`,
+    settings: UI_API_ENDPOINTS.config.settings,
+    reload: UI_API_ENDPOINTS.config.reload,
   },
   files: {
-    findFile: `${API_BASE_PATH}/find/file`,
-    fsList: `${API_BASE_PATH}/fs/list`,
-    fsMkdir: `${API_BASE_PATH}/fs/mkdir`,
-    fsStat: `${API_BASE_PATH}/fs/stat`,
-    fsRead: `${API_BASE_PATH}/fs/read`,
-    fsWrite: `${API_BASE_PATH}/fs/write`,
-    fsDelete: `${API_BASE_PATH}/fs/delete`,
-    fsRename: `${API_BASE_PATH}/fs/rename`,
-    fsRaw: `${API_BASE_PATH}/fs/raw`,
-    fsReveal: `${API_BASE_PATH}/fs/reveal`,
+    findFile: UI_API_ENDPOINTS.find.file,
+    fsList: UI_API_ENDPOINTS.fs.list,
+    fsMkdir: UI_API_ENDPOINTS.fs.mkdir,
+    fsStat: UI_API_ENDPOINTS.fs.stat,
+    fsRead: UI_API_ENDPOINTS.fs.read,
+    fsWrite: UI_API_ENDPOINTS.fs.write,
+    fsDelete: UI_API_ENDPOINTS.fs.delete,
+    fsRename: UI_API_ENDPOINTS.fs.rename,
+    fsRaw: UI_API_ENDPOINTS.fs.raw,
+    fsReveal: UI_API_ENDPOINTS.fs.reveal,
   },
-  github: {
-    authStatus: `${API_BASE_PATH}/github/auth/status`,
-    authStart: `${API_BASE_PATH}/github/auth/start`,
-    authComplete: `${API_BASE_PATH}/github/auth/complete`,
-    auth: `${API_BASE_PATH}/github/auth`,
-    authActivate: `${API_BASE_PATH}/github/auth/activate`,
-    me: `${API_BASE_PATH}/github/me`,
-    prStatus: `${API_BASE_PATH}/github/pr/status`,
-    prCreate: `${API_BASE_PATH}/github/pr/create`,
-    prUpdate: `${API_BASE_PATH}/github/pr/update`,
-    prMerge: `${API_BASE_PATH}/github/pr/merge`,
-    prReady: `${API_BASE_PATH}/github/pr/ready`,
-    repoUpstream: `${API_BASE_PATH}/github/repo/upstream`,
-    repoBranches: `${API_BASE_PATH}/github/repo/branches`,
-    pullsList: `${API_BASE_PATH}/github/pulls/list`,
-    pullsContext: `${API_BASE_PATH}/github/pulls/context`,
-    issuesList: `${API_BASE_PATH}/github/issues/list`,
-    issuesGet: `${API_BASE_PATH}/github/issues/get`,
-    issuesComments: `${API_BASE_PATH}/github/issues/comments`,
-  },
-  tools: {
-    ids: `${API_BASE_PATH}/experimental/tool/ids`,
-  },
+  github: UI_API_ENDPOINTS.github,
+  tools: UI_API_ENDPOINTS.tools,
   notifications: {
-    stream: `${API_BASE_PATH}/notifications/stream`,
+    stream: UI_API_ENDPOINTS.notifications.stream,
   },
 } as const;
 

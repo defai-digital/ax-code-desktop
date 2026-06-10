@@ -1,4 +1,5 @@
 import { createProjectIdFromPath } from '../projects/project-id.js';
+import { compareVersions, evaluateAxCodeCompatibility, MIN_SUPPORTED_AX_CODE_VERSION } from './version-compat.js';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -40,29 +41,6 @@ export const registerAxCodeRoutes = (app, dependencies) => {
 
     const trimmed = value.trim();
     return trimmed || null;
-  };
-
-  const parseVersionForComparison = (value) => {
-    const normalized = String(value || '').replace(/^v/, '').split('+')[0];
-    const prereleaseIndex = normalized.indexOf('-');
-    const core = prereleaseIndex >= 0 ? normalized.slice(0, prereleaseIndex) : normalized;
-    const parts = core.split('.').map((part) => {
-      const parsed = Number.parseInt(part || '0', 10);
-      return Number.isFinite(parsed) ? parsed : 0;
-    });
-    return { parts, prerelease: prereleaseIndex >= 0 };
-  };
-
-  const compareVersions = (left, right) => {
-    const a = parseVersionForComparison(left);
-    const b = parseVersionForComparison(right);
-    const length = Math.max(a.parts.length, b.parts.length);
-    for (let index = 0; index < length; index += 1) {
-      const diff = (a.parts[index] || 0) - (b.parts[index] || 0);
-      if (diff !== 0) return diff;
-    }
-    if (a.prerelease !== b.prerelease) return a.prerelease ? -1 : 1;
-    return 0;
   };
 
   const fetchLatestAxCodeVersion = async () => {
@@ -162,14 +140,23 @@ export const registerAxCodeRoutes = (app, dependencies) => {
         });
       }
       const currentVersion = typeof health?.version === 'string' ? health.version.replace(/^v/, '') : null;
+      const compatibility = evaluateAxCodeCompatibility(currentVersion);
       if (!currentVersion || !latestVersion) {
-        return res.json({ available: null, currentVersion, latestVersion: latestVersion || null });
+        return res.json({
+          available: null,
+          currentVersion,
+          latestVersion: latestVersion || null,
+          minSupportedVersion: MIN_SUPPORTED_AX_CODE_VERSION,
+          compatible: compatibility.compatible,
+        });
       }
       const available = compareVersions(latestVersion, currentVersion) > 0;
       return res.json({
         available,
         currentVersion,
         latestVersion,
+        minSupportedVersion: MIN_SUPPORTED_AX_CODE_VERSION,
+        compatible: compatibility.compatible,
       });
     } catch (error) {
       return res.status(500).json({

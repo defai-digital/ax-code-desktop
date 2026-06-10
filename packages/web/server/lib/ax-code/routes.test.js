@@ -76,4 +76,47 @@ describe('ax-code routes', () => {
       message: 'Provider was not connected',
     });
   });
+
+  it('reports runtime version compatibility in upgrade status', async () => {
+    const { app } = createApp();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ healthy: true, version: '5.10.0' }),
+    }));
+
+    try {
+      const response = await request(app)
+        .get('/api/ax-code/upgrade-status')
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        currentVersion: '5.10.0',
+        compatible: false,
+      });
+      expect(typeof response.body.minSupportedVersion).toBe('string');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('returns null compatibility when the runtime version is unavailable', async () => {
+    const { app } = createApp();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ healthy: true }),
+    }));
+
+    try {
+      const response = await request(app)
+        .get('/api/ax-code/upgrade-status')
+        .expect(200);
+
+      expect(response.body.currentVersion).toBeNull();
+      expect(response.body.compatible).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

@@ -976,6 +976,8 @@ async function main(options = {}) {
         lastAxCodeLaunchDiagnostics,
         axCodeBinaryResolved: resolvedAxCodeBinary || null,
         axCodeBinarySource: resolvedAxCodeBinarySource || null,
+        axCodeVersion: axCodeLifecycleState.detectedAxCodeVersion || null,
+        axCodeVersionCompatibility: axCodeLifecycleState.axCodeVersionCompatibility || null,
         axCodeLaunchBinary: launchSpec?.binary || null,
         axCodeLaunchArgs: launchSpec?.args || [],
         axCodeLaunchWrapperType: launchSpec?.wrapperType || null,

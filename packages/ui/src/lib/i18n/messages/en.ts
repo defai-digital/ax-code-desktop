@@ -2261,6 +2261,8 @@ export const dict = {
   'axCodeUpdate.toast.failed.title': 'Could not update AX Code',
   'axCodeUpdate.toast.failed.description': 'The AX Code upgrade failed.',
   'axCodeUpdate.toast.reload.message': 'Restarting AX Code...',
+  'axCodeUpdate.toast.incompatible.title': 'AX Code is out of date',
+  'axCodeUpdate.toast.incompatible.description': 'Installed AX Code {version} is older than the minimum supported {minVersion}. Some features may not work until you update.',
   'memoryDebugPanel.title': 'Debug Panel',
   'memoryDebugPanel.tabs.memory': 'Memory',
   'memoryDebugPanel.tabs.streaming': 'Streaming',

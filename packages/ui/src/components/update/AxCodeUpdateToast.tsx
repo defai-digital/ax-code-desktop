@@ -7,6 +7,7 @@ import { useI18n } from '@/lib/i18n';
 import { getSafeStorage } from '@/stores/utils/safeStorage';
 import { API_ENDPOINTS } from '@/lib/http';
 import {
+  resolveAxCodeIncompatibility,
   resolveAxCodeUpdateVersion,
   resolveAxCodeUpgradeStatusVersion,
   shouldShowAxCodeUpdateToast,
@@ -15,6 +16,7 @@ import {
 
 const UPDATE_TOAST_ID = 'ax-code-update-available';
 const UPGRADE_TOAST_ID = 'ax-code-upgrade-progress';
+const INCOMPATIBLE_TOAST_ID = 'ax-code-incompatible-version';
 const INITIAL_CHECK_DELAY_MS = 5_000;
 const CHECK_RETRY_DELAYS_MS = [10_000, 60_000];
 const UPDATE_TOAST_DISMISSED_VERSION_KEY = 'ax-code-update-toast-dismissed-version';
@@ -24,6 +26,7 @@ export const AxCodeUpdateToast: React.FC = () => {
   const showAxCodeUpdateNotifications = useUIStore((state) => state.showAxCodeUpdateNotifications);
   const seenVersionsRef = React.useRef(new Set<string>());
   const upgradingRef = React.useRef(false);
+  const warnedIncompatibleVersionRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     if (!showAxCodeUpdateNotifications) {
@@ -133,13 +136,42 @@ export const AxCodeUpdateToast: React.FC = () => {
     let cancelled = false;
     const timeoutIds: Array<ReturnType<typeof setTimeout>> = [];
 
+    // The incompatibility warning is an error condition, not a notification:
+    // it shows regardless of the update-notification preference.
+    const showIncompatibleToast = (incompatibility: { version: string; minSupportedVersion: string }) => {
+      if (warnedIncompatibleVersionRef.current === incompatibility.version) {
+        return;
+      }
+      warnedIncompatibleVersionRef.current = incompatibility.version;
+
+      toast.warning(t('axCodeUpdate.toast.incompatible.title'), {
+        id: INCOMPATIBLE_TOAST_ID,
+        description: t('axCodeUpdate.toast.incompatible.description', {
+          version: incompatibility.version,
+          minVersion: incompatibility.minSupportedVersion,
+        }),
+        duration: Infinity,
+        action: {
+          label: t('axCodeUpdate.toast.actions.update'),
+          onClick: runUpgrade,
+        },
+      });
+    };
+
     const checkForUpdate = async (attempt: number) => {
       try {
         const response = await fetch(API_ENDPOINTS.axCode.upgradeStatus, { headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error(response.statusText || 'ax-code upgrade status check failed');
         const status = await response.json().catch(() => null) as AxCodeUpgradeStatusLike | null;
+        if (cancelled) return;
+
+        const incompatibility = resolveAxCodeIncompatibility(status);
+        if (incompatibility) {
+          showIncompatibleToast(incompatibility);
+        }
+
         const version = resolveAxCodeUpgradeStatusVersion(status);
-        if (!cancelled && version) {
+        if (version) {
           showUpdateAvailableToast(version);
         }
       } catch {
@@ -150,9 +182,7 @@ export const AxCodeUpdateToast: React.FC = () => {
       }
     };
 
-    if (showAxCodeUpdateNotifications) {
-      timeoutIds.push(setTimeout(() => { void checkForUpdate(0); }, INITIAL_CHECK_DELAY_MS));
-    }
+    timeoutIds.push(setTimeout(() => { void checkForUpdate(0); }, INITIAL_CHECK_DELAY_MS));
 
     window.addEventListener('openchamber:ax-code-update-available', onUpdateAvailable);
     return () => {

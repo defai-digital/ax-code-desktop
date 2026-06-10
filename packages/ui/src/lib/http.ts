@@ -56,6 +56,9 @@ export const API_ENDPOINTS = {
     sessionStatus: `${API_PATHS.base}/session/status`,
     project: `${API_PATHS.base}/project/current`,
   },
+  find: {
+    file: `${API_PATHS.base}/find/file`,
+  },
   fs: {
     base: `${API_PATHS.base}/fs`,
     read: `${API_PATHS.fs}/read`,
@@ -67,6 +70,7 @@ export const API_ENDPOINTS = {
     home: `${API_PATHS.fs}/home`,
     exec: `${API_PATHS.fs}/exec`,
     delete: `${API_PATHS.fs}/delete`,
+    rename: `${API_PATHS.fs}/rename`,
     reveal: `${API_PATHS.fs}/reveal`,
     stat: `${API_PATHS.fs}/stat`,
   },
@@ -118,6 +122,18 @@ export const API_ENDPOINTS = {
     auth: `${API_PATHS.base}/github/auth`,
     authActivate: `${API_PATHS.base}/github/auth/activate`,
     me: `${API_PATHS.base}/github/me`,
+    prStatus: `${API_PATHS.base}/github/pr/status`,
+    prCreate: `${API_PATHS.base}/github/pr/create`,
+    prUpdate: `${API_PATHS.base}/github/pr/update`,
+    prMerge: `${API_PATHS.base}/github/pr/merge`,
+    prReady: `${API_PATHS.base}/github/pr/ready`,
+    repoUpstream: `${API_PATHS.base}/github/repo/upstream`,
+    repoBranches: `${API_PATHS.base}/github/repo/branches`,
+    pullsList: `${API_PATHS.base}/github/pulls/list`,
+    pullsContext: `${API_PATHS.base}/github/pulls/context`,
+    issuesList: `${API_PATHS.base}/github/issues/list`,
+    issuesGet: `${API_PATHS.base}/github/issues/get`,
+    issuesComments: `${API_PATHS.base}/github/issues/comments`,
   },
   notifications: {
     autoAccept: `${API_PATHS.base}/notifications/auto-accept`,
@@ -150,6 +166,9 @@ export const API_ENDPOINTS = {
     base: API_PATHS.terminal,
     list: `${API_PATHS.terminal}/list`,
     preview: `${API_PATHS.terminal}/preview`,
+  },
+  tools: {
+    ids: `${API_PATHS.base}/experimental/tool/ids`,
   },
   system: {
     probeUrl: `${API_PATHS.base}/system/probe-url`,

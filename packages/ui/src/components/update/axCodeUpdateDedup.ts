@@ -54,6 +54,9 @@ export const resolveAxCodeUpdateVersion = (detail: unknown): string => {
 export interface AxCodeUpgradeStatusLike {
   readonly available?: boolean | null;
   readonly latestVersion?: string | null;
+  readonly currentVersion?: string | null;
+  readonly minSupportedVersion?: string | null;
+  readonly compatible?: boolean | null;
 }
 
 /**
@@ -68,4 +71,25 @@ export const resolveAxCodeUpgradeStatusVersion = (
   if (status.available !== true) return '';
   if (typeof status.latestVersion !== 'string') return '';
   return status.latestVersion.trim();
+};
+
+export interface AxCodeIncompatibility {
+  readonly version: string;
+  readonly minSupportedVersion: string;
+}
+
+/**
+ * Pulls an incompatibility report out of an `/api/ax-code/upgrade-status`
+ * JSON payload. Returns `null` unless the server explicitly reported
+ * `compatible: false` alongside both version strings.
+ */
+export const resolveAxCodeIncompatibility = (
+  status: AxCodeUpgradeStatusLike | null | undefined,
+): AxCodeIncompatibility | null => {
+  if (!status || status.compatible !== false) return null;
+  if (typeof status.currentVersion !== 'string' || typeof status.minSupportedVersion !== 'string') return null;
+  const version = status.currentVersion.trim();
+  const minSupportedVersion = status.minSupportedVersion.trim();
+  if (!version || !minSupportedVersion) return null;
+  return { version, minSupportedVersion };
 };

@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 
 import {
+    resolveAxCodeIncompatibility,
     resolveAxCodeUpdateVersion,
     resolveAxCodeUpgradeStatusVersion,
     shouldShowAxCodeUpdateToast,
@@ -173,5 +174,52 @@ describe('resolveAxCodeUpgradeStatusVersion', () => {
                 latestVersion: null,
             }),
         ).toBe('');
+    });
+});
+
+describe('resolveAxCodeIncompatibility', () => {
+    test('returns the report when the server flags an incompatible runtime', () => {
+        expect(
+            resolveAxCodeIncompatibility({
+                compatible: false,
+                currentVersion: '5.10.0',
+                minSupportedVersion: '5.11.1',
+            }),
+        ).toEqual({ version: '5.10.0', minSupportedVersion: '5.11.1' });
+    });
+
+    test('returns null when the runtime is compatible or compatibility is unknown', () => {
+        expect(
+            resolveAxCodeIncompatibility({
+                compatible: true,
+                currentVersion: '5.12.0',
+                minSupportedVersion: '5.11.1',
+            }),
+        ).toBeNull();
+        expect(
+            resolveAxCodeIncompatibility({
+                compatible: null,
+                currentVersion: null,
+                minSupportedVersion: '5.11.1',
+            }),
+        ).toBeNull();
+        expect(resolveAxCodeIncompatibility(null)).toBeNull();
+        expect(resolveAxCodeIncompatibility(undefined)).toBeNull();
+    });
+
+    test('returns null when version strings are missing or empty', () => {
+        expect(
+            resolveAxCodeIncompatibility({
+                compatible: false,
+                currentVersion: '',
+                minSupportedVersion: '5.11.1',
+            }),
+        ).toBeNull();
+        expect(
+            resolveAxCodeIncompatibility({
+                compatible: false,
+                currentVersion: '5.10.0',
+            }),
+        ).toBeNull();
     });
 });

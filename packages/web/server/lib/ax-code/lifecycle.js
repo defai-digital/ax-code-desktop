@@ -3,10 +3,12 @@ import net from 'node:net';
 import path from 'node:path';
 import { startHeadlessBackend } from '@ax-code/sdk/headless';
 import { createManagedAxCodeRuntimeAdapter } from './managed-ax-code-runtime.js';
+import { evaluateAxCodeCompatibility } from './version-compat.js';
 
 // Mirrors the SDK v2.2.0 isLoopbackHostname guard so allowNetworkBind is only
 // set when the caller explicitly configured a non-loopback hostname.
-const isSdkLoopbackHostname = (hostname) => {
+// Exported for the vendored-SDK contract test (sdk-contract.test.js).
+export const isSdkLoopbackHostname = (hostname) => {
   if (!hostname) return true;
   const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (normalized === 'localhost' || normalized === '::1') return true;
@@ -467,6 +469,20 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     return { ...handle, healthVerified: true, exitCode: null, signalCode: null };
   };
 
+  let warnedIncompatibleVersion = null;
+  const recordDetectedAxCodeVersion = (rawVersion) => {
+    const compatibility = evaluateAxCodeCompatibility(rawVersion);
+    state.detectedAxCodeVersion = compatibility.version;
+    state.axCodeVersionCompatibility = compatibility;
+    if (compatibility.compatible === false && warnedIncompatibleVersion !== compatibility.version) {
+      warnedIncompatibleVersion = compatibility.version;
+      console.warn(
+        `[AX Code] Installed ax-code runtime ${compatibility.version} is older than the minimum supported ` +
+        `${compatibility.minSupportedVersion}. Some features may not work — upgrade the ax-code CLI.`
+      );
+    }
+  };
+
   const isAxCodeProcessHealthy = async () => {
     if (!state.axCodeProcess || !state.axCodePort) {
       return false;
@@ -486,6 +502,9 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         return false;
       }
       const body = await response.json().catch(() => null);
+      if (typeof body?.version === 'string') {
+        recordDetectedAxCodeVersion(body.version);
+      }
       return body?.healthy === true;
     } catch {
       return false;
