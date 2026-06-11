@@ -1505,7 +1505,7 @@ class AxCodeService {
         healthUrl = API_ENDPOINTS.debug.rootHealth;
       } else if (normalizedBase.endsWith(API_PATHS.base)) {
         // Desktop: http://127.0.0.1:PORT/api -> http://127.0.0.1:PORT/health
-        healthUrl = `${normalizedBase.slice(0, -API_PATHS.base.length) || '/'}${API_ENDPOINTS.debug.rootHealth.slice(1)}`;
+        healthUrl = `${normalizedBase.slice(0, -API_PATHS.base.length) || '/'}${API_ENDPOINTS.debug.rootHealth}`;
       } else {
         healthUrl = `${normalizedBase}${API_ENDPOINTS.debug.rootHealth}`;
       }
