@@ -334,21 +334,13 @@ export async function updateSessionTitle(sessionId: string, title: string): Prom
 }
 
 export async function shareSession(sessionId: string): Promise<Session | null> {
-  const sessionDirectory = getSessionDirectory(sessionId)
-  const result = await sdk().session.share({ sessionID: sessionId, directory: sessionDirectory })
-  if (result.data) {
-    useGlobalSessionsStore.getState().upsertSession(result.data)
-  }
-  return result.data ?? null
+  console.warn("[session-actions] shareSession is unavailable in the current AX Code SDK", { sessionId })
+  return null
 }
 
 export async function unshareSession(sessionId: string): Promise<Session | null> {
-  const sessionDirectory = getSessionDirectory(sessionId)
-  const result = await sdk().session.unshare({ sessionID: sessionId, directory: sessionDirectory })
-  if (result.data) {
-    useGlobalSessionsStore.getState().upsertSession(result.data)
-  }
-  return result.data ?? null
+  console.warn("[session-actions] unshareSession is unavailable in the current AX Code SDK", { sessionId })
+  return null
 }
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-10
+
+- Desktop: tightened the AX Code runtime boundary with shared endpoint contracts, SDK version gates, and runtime readiness forwarding.
+- Server: tracked SDK handle exits and surfaced runtime readiness state through the desktop server health path.
+- Performance: reduced desktop runtime overhead and moved integration paths toward the public AX Code UI/API surface.
+- Internal: added boundary-hardening checks and planning docs for search index ownership and desktop runtime consolidation.
+
 ## [0.11.1] - 2026-06-08
 
 - Config: reload providers, agents, commands, and skills in the background so settings changes no longer block the UI.

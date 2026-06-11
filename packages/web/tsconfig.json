@@ -15,10 +15,12 @@
     "baseUrl": ".",
     "types": ["vite/client", "node"],
     "paths": {
-      "@/*": ["./src/*"],
+      "@/*": ["../ui/src/*"],
       "@web/*": ["./src/*"],
-      "@openchamber/web/*": ["./src/*"]
+      "@openchamber/web/*": ["./src/*"],
+      "@openchamber/ui": ["../ui/src/main.tsx"],
+      "@openchamber/ui/*": ["../ui/src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "../ui/src/types/**/*.d.ts", "../ui/src/vite-env.d.ts"]
 }
