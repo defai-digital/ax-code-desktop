@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-11
+
+- Desktop: hardened updater error handling, sidecar shutdown, resource path validation, and packaged search paths for the first stable AX Code Desktop release.
+- Server: preserved leading slashes in file-search requests so desktop search endpoints resolve correctly in packaged builds.
+
 ## [0.12.1] - 2026-06-11
 
 - Desktop: restored the leading slash in the packaged health-check URL so the desktop boot probe calls `/api/global/health` correctly.
