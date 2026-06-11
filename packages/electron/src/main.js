@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, ipcMain, shell, session, utilityProcess } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, shell, session, utilityProcess } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const os = require('os')
@@ -333,6 +333,53 @@ ipcMain.handle('desktop_get_lan_address', () => {
     }
   }
   return null
+})
+
+ipcMain.handle('desktop_dialog_open', async (_event, options = {}) => {
+  const properties = []
+  if (options?.directory === true) {
+    properties.push('openDirectory')
+  } else {
+    properties.push('openFile')
+  }
+  if (options?.multiple === true) {
+    properties.push('multiSelections')
+  }
+
+  const dialogOptions = {
+    properties,
+  }
+
+  if (typeof options?.title === 'string' && options.title.trim()) {
+    dialogOptions.title = options.title.trim()
+  }
+  if (typeof options?.defaultPath === 'string' && options.defaultPath.trim()) {
+    dialogOptions.defaultPath = options.defaultPath.trim()
+  }
+  if (Array.isArray(options?.filters)) {
+    dialogOptions.filters = options.filters
+      .filter((filter) => (
+        filter &&
+        typeof filter.name === 'string' &&
+        Array.isArray(filter.extensions) &&
+        filter.extensions.every((extension) => typeof extension === 'string' && extension.trim().length > 0)
+      ))
+      .map((filter) => ({
+        name: filter.name,
+        extensions: filter.extensions.map((extension) => extension.trim()),
+      }))
+  }
+
+  const ownerWindow = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined
+  const result = ownerWindow
+    ? await dialog.showOpenDialog(ownerWindow, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions)
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null
+  }
+
+  return options?.multiple === true ? result.filePaths : result.filePaths[0]
 })
 
 ipcMain.handle('desktop_record_startup_event', (_event, payload) => {

@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('__TAURI__', {
   core: {
     invoke: (command, args) => ipcRenderer.invoke(command, args ?? {}),
   },
+  dialog: {
+    open: (options) => ipcRenderer.invoke('desktop_dialog_open', options ?? {}),
+  },
   // Bridges Tauri's event.listen(name, cb) → Promise<unlisten>. The shared UI
   // uses this to receive 'openchamber:update-progress' from the main process.
   // Scoped to the openchamber: namespace so the renderer cannot subscribe to
