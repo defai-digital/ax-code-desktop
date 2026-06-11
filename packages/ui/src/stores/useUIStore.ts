@@ -576,6 +576,7 @@ interface UIStore {
   notifyOnCompletion: boolean;
   notifyOnError: boolean;
   notifyOnQuestion: boolean;
+  notifyOnPermission: boolean;
 
   // Per-event notification templates
   notificationTemplates: {
@@ -718,6 +719,7 @@ interface UIStore {
   setNotifyOnCompletion: (value: boolean) => void;
   setNotifyOnError: (value: boolean) => void;
   setNotifyOnQuestion: (value: boolean) => void;
+  setNotifyOnPermission: (value: boolean) => void;
   setNotificationTemplates: (templates: UIStore['notificationTemplates']) => void;
   setSummarizeLastMessage: (value: boolean) => void;
   setSummaryThreshold: (value: number) => void;
@@ -837,6 +839,7 @@ export const useUIStore = create<UIStore>()(
         notifyOnCompletion: true,
         notifyOnError: true,
         notifyOnQuestion: true,
+        notifyOnPermission: true,
         notificationTemplates: {
           completion: { ...EMPTY_NOTIFICATION_TEMPLATES.completion },
           error: { ...EMPTY_NOTIFICATION_TEMPLATES.error },
@@ -1884,6 +1887,7 @@ export const useUIStore = create<UIStore>()(
         setNotifyOnCompletion: (value) => { set({ notifyOnCompletion: value }); },
         setNotifyOnError: (value) => { set({ notifyOnError: value }); },
         setNotifyOnQuestion: (value) => { set({ notifyOnQuestion: value }); },
+        setNotifyOnPermission: (value: boolean) => { set({ notifyOnPermission: value }); },
         setNotificationTemplates: (templates) => { set({ notificationTemplates: templates }); },
         setSummarizeLastMessage: (value) => { set({ summarizeLastMessage: value }); },
         setSummaryThreshold: (value) => { set({ summaryThreshold: value }); },
@@ -2123,6 +2127,7 @@ export const useUIStore = create<UIStore>()(
           notifyOnCompletion: state.notifyOnCompletion,
           notifyOnError: state.notifyOnError,
           notifyOnQuestion: state.notifyOnQuestion,
+          notifyOnPermission: state.notifyOnPermission,
           notificationTemplates: state.notificationTemplates,
           summarizeLastMessage: state.summarizeLastMessage,
           summaryThreshold: state.summaryThreshold,

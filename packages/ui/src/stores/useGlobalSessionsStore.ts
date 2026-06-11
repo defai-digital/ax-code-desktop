@@ -14,6 +14,7 @@ type GlobalSessionsState = {
   activeSessions: Session[];
   archivedSessions: Session[];
   sessionsByDirectory: Map<string, Session[]>;
+  pendingRemoval: Set<string>;
   hasLoaded: boolean;
   status: GlobalSessionsStatus;
   loadSessions: (fallbackActive?: Session[]) => Promise<LoadResult>;
@@ -21,6 +22,9 @@ type GlobalSessionsState = {
   upsertSession: (session: Session) => void;
   removeSessions: (ids: Iterable<string>) => void;
   archiveSessions: (ids: Iterable<string>, archivedAt?: number) => void;
+  markPendingRemoval: (ids: Iterable<string>) => void;
+  clearPendingRemoval: (ids: Iterable<string>) => void;
+  consumePendingRemoval: () => string[];
 };
 
 const PAGE_SIZE = 500;
@@ -188,6 +192,7 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
   activeSessions: [],
   archivedSessions: [],
   sessionsByDirectory: new Map(),
+  pendingRemoval: new Set(),
   hasLoaded: false,
   status: 'idle',
 
@@ -330,6 +335,32 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
         sessionsByDirectory: buildSessionsByDirectory(nextActiveSessions),
       };
     });
+  },
+
+  markPendingRemoval: (ids) => {
+    const idArray = ids instanceof Set ? Array.from(ids) : Array.from(ids);
+    if (idArray.length === 0) return;
+    set((state) => {
+      const next = new Set(state.pendingRemoval);
+      for (const id of idArray) next.add(id);
+      return { pendingRemoval: next };
+    });
+  },
+
+  clearPendingRemoval: (ids) => {
+    const idArray = ids instanceof Set ? Array.from(ids) : Array.from(ids);
+    if (idArray.length === 0) return;
+    set((state) => {
+      const next = new Set(state.pendingRemoval);
+      for (const id of idArray) next.delete(id);
+      return { pendingRemoval: next };
+    });
+  },
+
+  consumePendingRemoval: () => {
+    const ids = Array.from(get().pendingRemoval);
+    set({ pendingRemoval: new Set() });
+    return ids;
   },
 }));
 

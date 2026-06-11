@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { ProviderLogo } from '@/components/ui/ProviderLogo';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
+import { UsageIndicator } from '@/components/chat/UsageIndicator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icon } from "@/components/icon/Icon";
 import type { IconName } from "@/components/icon/icons";
@@ -1773,6 +1774,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                     )}
                 >
                     {renderVariantSelector()}
+                    <UsageIndicator />
                     {renderModelSelector()}
                     {renderAgentSelector()}
                 </div>

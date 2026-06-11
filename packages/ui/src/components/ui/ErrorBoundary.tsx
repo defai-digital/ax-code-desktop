@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './card';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { useI18n } from '@/lib/i18n';
 import { Icon } from "@/components/icon/Icon";
+import { useUIStore } from '@/stores/useUIStore';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -15,6 +16,7 @@ interface ErrorBoundaryState {
 interface ErrorBoundaryProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
+  scope?: string;
 }
 
 interface ErrorBoundaryStrings {
@@ -26,6 +28,7 @@ interface ErrorBoundaryStrings {
   tryAgain: string;
   copied: string;
   copy: string;
+  openStatus: string;
 }
 
 interface InnerErrorBoundaryProps extends ErrorBoundaryProps {
@@ -68,13 +71,21 @@ class InnerErrorBoundary extends React.Component<InnerErrorBoundaryProps, ErrorB
     }
   };
 
+  handleOpenStatus = () => {
+    useUIStore.getState().setAxCodeStatusDialogOpen(true);
+  };
+
   render() {
-    const { strings } = this.props;
+    const { strings, scope } = this.props;
 
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;
       }
+
+      const title = scope
+        ? `${strings.title}: ${scope}`
+        : strings.title;
 
       return (
         <div className="p-4 flex items-center justify-center min-h-screen">
@@ -82,7 +93,7 @@ class InnerErrorBoundary extends React.Component<InnerErrorBoundaryProps, ErrorB
             <CardHeader className="text-center">
               <CardTitle className="flex items-center justify-center gap-2 text-destructive">
                 <Icon name="error-warning" className="h-5 w-5" />
-                {strings.title}
+                {title}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -105,6 +116,10 @@ class InnerErrorBoundary extends React.Component<InnerErrorBoundaryProps, ErrorB
                   <Icon name="restart" className="h-4 w-4 mr-2" />
                   {strings.tryAgain}
                 </Button>
+                <Button onClick={this.handleOpenStatus} variant="outline" className="flex-1">
+                  <Icon name="settings-3" className="h-4 w-4 mr-2" />
+                  {strings.openStatus}
+                </Button>
                 <Button onClick={this.handleCopy} variant="outline" className="flex-1">
                   {this.state.copied ? strings.copied : strings.copy}
                 </Button>
@@ -119,7 +134,7 @@ class InnerErrorBoundary extends React.Component<InnerErrorBoundaryProps, ErrorB
   }
 }
 
-export const ErrorBoundary: React.FC<ErrorBoundaryProps> = ({ children, fallback }) => {
+export const ErrorBoundary: React.FC<ErrorBoundaryProps> = ({ children, fallback, scope }) => {
   const { t } = useI18n();
 
   const strings: ErrorBoundaryStrings = React.useMemo(() => ({
@@ -131,10 +146,11 @@ export const ErrorBoundary: React.FC<ErrorBoundaryProps> = ({ children, fallback
     tryAgain: t('errorBoundary.actions.tryAgain'),
     copied: t('errorBoundary.actions.copied'),
     copy: t('errorBoundary.actions.copy'),
+    openStatus: t('errorBoundary.actions.openStatus'),
   }), [t]);
 
   return (
-    <InnerErrorBoundary fallback={fallback} strings={strings}>
+    <InnerErrorBoundary fallback={fallback} scope={scope} strings={strings}>
       {children}
     </InnerErrorBoundary>
   );

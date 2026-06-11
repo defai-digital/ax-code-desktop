@@ -27,6 +27,7 @@ import { ExecutionModeSelector } from './ExecutionModeSelector';
 import { parseAgentMentions } from '@/lib/messages/agentMentions';
 import { StatusRow } from './StatusRow';
 import { PendingChangesBar } from './PendingChangesBar';
+import { DoneNotCommittedNudge } from './DoneNotCommittedNudge';
 import { useChatSurfaceMode } from './useChatSurfaceMode';
 import { useCurrentSessionActivity } from '@/hooks/useSessionActivity';
 import { toast } from '@/components/ui';
@@ -3818,7 +3819,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                     showAbortStatus={showAbortStatus}
                     showAssistantStatus={false}
                     showTodos
-                    leftAccessory={newSessionDraftOpen || !hasPendingChanges ? null : <PendingChangesBar />}
+                    leftAccessory={newSessionDraftOpen || !hasPendingChanges ? null : (
+                      <div className="flex flex-col gap-1">
+                        <PendingChangesBar />
+                        <DoneNotCommittedNudge />
+                      </div>
+                    )}
                 />
                 {showDraftTargetSelectors && selectedDraftProject ? (
                     <div className="mb-1.5 flex min-w-0 items-center gap-1.5 px-0.5">

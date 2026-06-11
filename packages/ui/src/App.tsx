@@ -9,6 +9,7 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useMenuActions } from '@/hooks/useMenuActions';
 import { useRouter } from '@/hooks/useRouter';
 import { useWebNotificationStream } from '@/hooks/useWebNotificationStream';
+import { usePermissionNotifications } from '@/hooks/usePermissionNotifications';
 import { useWindowTitle } from '@/hooks/useWindowTitle';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { hasModifier } from '@/lib/utils';
@@ -639,7 +640,18 @@ function App({ apis }: AppProps) {
   // Session attention now handled by notification-store via SSE events (session.idle/session.error)
 
   useWebNotificationStream({ enabled: embeddedBackgroundWorkEnabled });
+  usePermissionNotifications();
   useWindowTitle();
+
+  React.useEffect(() => {
+    const handleBeforeUnload = () => {
+      import('@/sync/soft-removal').then(({ flushPendingRemovals }) => {
+        flushPendingRemovals();
+      });
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   useRouter();
 

@@ -26,6 +26,7 @@ import { useGroupOrdering } from './sidebar/hooks/useGroupOrdering';
 import { useSessionGrouping } from './sidebar/hooks/useSessionGrouping';
 import { useSessionSearchEffects } from './sidebar/hooks/useSessionSearchEffects';
 import { useSessionActions } from './sidebar/hooks/useSessionActions';
+import { softBulkArchive, softBulkDelete } from '@/sync/soft-removal';
 import { useSidebarPersistence } from './sidebar/hooks/useSidebarPersistence';
 import { useProjectRepoStatus } from './sidebar/hooks/useProjectRepoStatus';
 import { useProjectSessionLists } from './sidebar/hooks/useProjectSessionLists';
@@ -1405,33 +1406,14 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   const executeBulkDelete = React.useCallback(async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
+    const sessions = liveSessions.filter((s) => ids.includes(s.id));
     if (bulkScopeIsArchived) {
-      const { deletedIds, failedIds } = await deleteSessions(ids);
-      if (deletedIds.length > 0) {
-        toast.success(deletedIds.length === 1
-          ? t('sessions.sidebar.bulkActions.deletedSingle', { count: deletedIds.length })
-          : t('sessions.sidebar.bulkActions.deletedPlural', { count: deletedIds.length }));
-      }
-      if (failedIds.length > 0) {
-        toast.error(failedIds.length === 1
-          ? t('sessions.sidebar.bulkActions.failedDeleteSingle', { count: failedIds.length })
-          : t('sessions.sidebar.bulkActions.failedDeletePlural', { count: failedIds.length }));
-      }
+      softBulkDelete(sessions);
     } else {
-      const { archivedIds, failedIds } = await archiveSessions(ids);
-      if (archivedIds.length > 0) {
-        toast.success(archivedIds.length === 1
-          ? t('sessions.sidebar.bulkActions.archivedSingle', { count: archivedIds.length })
-          : t('sessions.sidebar.bulkActions.archivedPlural', { count: archivedIds.length }));
-      }
-      if (failedIds.length > 0) {
-        toast.error(failedIds.length === 1
-          ? t('sessions.sidebar.bulkActions.failedArchiveSingle', { count: failedIds.length })
-          : t('sessions.sidebar.bulkActions.failedArchivePlural', { count: failedIds.length }));
-      }
+      softBulkArchive(sessions);
     }
     useSessionMultiSelectStore.getState().clear();
-  }, [archiveSessions, bulkScopeIsArchived, deleteSessions, selectedIds, t]);
+  }, [bulkScopeIsArchived, liveSessions, selectedIds]);
 
   const handleBulkDelete = React.useCallback(() => {
     const count = selectedIds.size;

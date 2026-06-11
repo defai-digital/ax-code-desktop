@@ -9,11 +9,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Icon } from '@/components/icon/Icon';
 import { useSessionUIStore } from '@/sync/session-ui-store';
-import { useGlobalSessionStatus } from '@/sync/sync-context';
+import { useGlobalSessionStatus, useSessionPermissions } from '@/sync/sync-context';
 import { useSessionUnseenCount } from '@/sync/notification-store';
 import { useSwitcherItems } from '@/components/session/sidebar/hooks/useSwitcherItems';
 import { useUIStore } from '@/stores/useUIStore';
 import { resolveGlobalSessionDirectory } from '@/stores/useGlobalSessionsStore';
+import { computeSessionBadgeState, type SessionBadgeState } from '@/hooks/useSessionBadgeState';
+import { useGitStore } from '@/stores/useGitStore';
 import { formatSessionCompactDateLabel, resolveSessionDiffStats } from './sidebar/utils';
 import type { SessionNode, SessionSecondaryMeta, SessionSummaryMeta } from './sidebar/types';
 import { useI18n } from '@/lib/i18n';
@@ -190,6 +192,14 @@ function SwitcherRow({ session, depth, variant, secondaryMeta, hasChildren, isEx
   const notifyOnSubtasks = useUIStore((state) => state.notifyOnSubtasks);
 
   const sessionStatus = useGlobalSessionStatus(session.id);
+  const sessionPermissions = useSessionPermissions(session.id);
+  const sessionDirectory = resolveGlobalSessionDirectory(session);
+  const sessionGitDirty = useGitStore(
+    React.useCallback(
+      (s) => (sessionDirectory ? (s.directories.get(sessionDirectory)?.status?.isClean === false) : false),
+      [sessionDirectory],
+    ),
+  );
   const unseenCount = useSessionUnseenCount(session.id);
 
   const isActive = currentSessionId === session.id;
@@ -199,7 +209,13 @@ function SwitcherRow({ session, depth, variant, secondaryMeta, hasChildren, isEx
   const statusType = sessionStatus?.type ?? 'idle';
   const isStreaming = statusType === 'busy' || statusType === 'retry';
   const showUnreadDot = !isStreaming && needsAttention && !isActive;
-
+  const badgeState: SessionBadgeState = computeSessionBadgeState({
+    status: sessionStatus,
+    permissions: sessionPermissions,
+    isDirty: sessionGitDirty,
+    hasError: false,
+    hasUnreadAttention: showUnreadDot,
+  });
   const summary = session.summary as SessionSummaryMeta | undefined;
   const diffStats = resolveSessionDiffStats(summary);
   const timestamp = session.time?.updated || session.time?.created || Date.now();
@@ -297,13 +313,31 @@ function SwitcherRow({ session, depth, variant, secondaryMeta, hasChildren, isEx
         ) : null}
       </div>
 
-      {isStreaming || showUnreadDot ? (
+      {badgeState !== 'idle' ? (
         <span className="flex h-3 w-3 flex-shrink-0 items-center justify-center self-center">
-          {isStreaming ? (
+          {badgeState === 'running' ? (
             <span
               className="h-1.5 w-1.5 rounded-full bg-primary animate-busy-pulse"
               aria-label={t('sessions.sidebar.session.status.active')}
               title={t('sessions.sidebar.session.status.active')}
+            />
+          ) : badgeState === 'waiting_for_permission' ? (
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-[var(--status-warning)]"
+              aria-label={t('sessions.sidebar.session.status.waitingForPermission')}
+              title={t('sessions.sidebar.session.status.waitingForPermission')}
+            />
+          ) : badgeState === 'done_with_uncommitted' ? (
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-[var(--status-warning)]/60"
+              aria-label={t('sessions.sidebar.session.status.doneWithUncommitted')}
+              title={t('sessions.sidebar.session.status.doneWithUncommitted')}
+            />
+          ) : badgeState === 'error' ? (
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-[var(--status-error)]"
+              aria-label={t('sessions.sidebar.session.status.error')}
+              title={t('sessions.sidebar.session.status.error')}
             />
           ) : (
             <span

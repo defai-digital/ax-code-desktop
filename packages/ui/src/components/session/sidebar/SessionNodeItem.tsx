@@ -28,6 +28,8 @@ import { formatSessionCompactDateLabel, formatSessionDateLabel, normalizePath, r
 import { useSessionDisplayStore } from '@/stores/useSessionDisplayStore';
 import { useSessionUnseenCount } from '@/sync/notification-store';
 import { useSessionMultiSelectStore } from '@/stores/useSessionMultiSelectStore';
+import { computeSessionBadgeState, type SessionBadgeState } from '@/hooks/useSessionBadgeState';
+import { useGitStore } from '@/stores/useGitStore';
 import { useI18n } from '@/lib/i18n';
 import { parseMultiRunSessionTitle } from '@/lib/multirun/title';
 import { MultiRunFusionDialog } from '@/components/multirun/MultiRunFusionDialog';
@@ -306,6 +308,12 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
   );
   const sessionStatus = useGlobalSessionStatus(session.id);
   const sessionPermissions = useSessionPermissions(session.id, sessionDirectory ?? undefined);
+  const sessionGitDirty = useGitStore(
+    React.useCallback(
+      (s) => (sessionDirectory ? (s.directories.get(sessionDirectory)?.status?.isClean === false) : false),
+      [sessionDirectory],
+    ),
+  );
   const directoryState = sessionDirectory ? directoryStatus.get(sessionDirectory) : null;
   const isMissingDirectory = directoryState === 'missing';
   const isActive = currentSessionId === session.id;
@@ -510,22 +518,58 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
   const isStreaming = statusType === 'busy' || statusType === 'retry';
   const pendingPermissionCount = sessionPermissions.length;
   const showUnreadStatus = !isStreaming && needsAttention && !isActive;
-  const showStatusMarker = isStreaming || showUnreadStatus;
-  const statusMarkerContent = isStreaming
-    ? (
-        <span
-          className="h-1.5 w-1.5 rounded-full bg-primary animate-busy-pulse"
-          aria-label={t('sessions.sidebar.session.status.active')}
-          title={t('sessions.sidebar.session.status.active')}
-        />
-      )
-    : (
-        <span
-          className="h-1.5 w-1.5 rounded-full bg-[var(--status-info)]"
-          aria-label={t('sessions.sidebar.session.status.unread')}
-          title={t('sessions.sidebar.session.status.unread')}
-        />
-      );
+  const badgeState: SessionBadgeState = computeSessionBadgeState({
+    status: sessionStatus,
+    permissions: sessionPermissions,
+    isDirty: sessionGitDirty,
+    hasError: false,
+    hasUnreadAttention: showUnreadStatus,
+  });
+  const showStatusMarker = badgeState !== 'idle';
+  const statusMarkerContent = (() => {
+    switch (badgeState) {
+      case 'running':
+        return (
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-primary animate-busy-pulse"
+            aria-label={t('sessions.sidebar.session.status.active')}
+            title={t('sessions.sidebar.session.status.active')}
+          />
+        );
+      case 'waiting_for_permission':
+        return (
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-[var(--status-warning)]"
+            aria-label={t('sessions.sidebar.session.status.waitingForPermission')}
+            title={t('sessions.sidebar.session.status.waitingForPermission')}
+          />
+        );
+      case 'done_with_uncommitted':
+        return (
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-[var(--status-warning)]/60"
+            aria-label={t('sessions.sidebar.session.status.doneWithUncommitted')}
+            title={t('sessions.sidebar.session.status.doneWithUncommitted')}
+          />
+        );
+      case 'error':
+        return (
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-[var(--status-error)]"
+            aria-label={t('sessions.sidebar.session.status.error')}
+            title={t('sessions.sidebar.session.status.error')}
+          />
+        );
+      default:
+        return (
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-[var(--status-info)]"
+            aria-label={t('sessions.sidebar.session.status.unread')}
+            title={t('sessions.sidebar.session.status.unread')}
+          />
+        );
+    }
+  })();
   const leadingIndicators = showStatusMarker || isPinnedSession ? (
     <span
       className={cn(

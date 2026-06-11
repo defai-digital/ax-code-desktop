@@ -3,6 +3,7 @@ import type { Session } from '@ax-code/sdk/v2';
 import { toast } from '@/components/ui';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { useI18n } from '@/lib/i18n';
+import { softArchiveSession, softDeleteSession, softBulkArchive, softBulkDelete } from '@/sync/soft-removal';
 
 type DeleteSessionConfirmSetter = React.Dispatch<React.SetStateAction<{
   session: Session;
@@ -182,56 +183,29 @@ export const useSessionActions = (args: Args) => {
       precomputed?: { descendantIds: string[] },
     ) => {
       const shouldHardDelete = source?.archivedBucket === true;
-      // Use the snapshot taken when the dialog opened (if any) so the
-      // executed list matches what the user was told. Fall back to a fresh
-      // collection for direct-execute (no-dialog) callers.
       const descendantIds = precomputed?.descendantIds
         ?? filterDescendantsForAction(collectDescendants(session.id), shouldHardDelete).map((s) => s.id);
+
       if (descendantIds.length === 0) {
-        const success = shouldHardDelete
-          ? await args.deleteSession(session.id)
-          : await args.archiveSession(session.id);
-        if (success) {
-          toast.success(shouldHardDelete
-            ? t('sessions.sidebar.session.delete.success')
-            : t('sessions.sidebar.session.archive.success'));
+        if (shouldHardDelete) {
+          softDeleteSession(session);
         } else {
-          toast.error(shouldHardDelete
-            ? t('sessions.sidebar.session.delete.error')
-            : t('sessions.sidebar.session.archive.error'));
+          softArchiveSession(session);
         }
         return;
       }
 
-      const ids = [session.id, ...descendantIds];
+      const allSessions = [session];
+      const descendants = collectDescendants(session.id).filter((s) => descendantIds.includes(s.id));
+      allSessions.push(...descendants);
+
       if (shouldHardDelete) {
-        const { deletedIds, failedIds } = await args.deleteSessions(ids);
-        if (deletedIds.length > 0) {
-          toast.success(deletedIds.length === 1
-            ? t('sessions.sidebar.bulkActions.deletedSingle', { count: deletedIds.length })
-            : t('sessions.sidebar.bulkActions.deletedPlural', { count: deletedIds.length }));
-        }
-        if (failedIds.length > 0) {
-          toast.error(failedIds.length === 1
-            ? t('sessions.sidebar.bulkActions.failedDeleteSingle', { count: failedIds.length })
-            : t('sessions.sidebar.bulkActions.failedDeletePlural', { count: failedIds.length }));
-        }
-        return;
-      }
-
-      const { archivedIds, failedIds } = await args.archiveSessions(ids);
-      if (archivedIds.length > 0) {
-        toast.success(archivedIds.length === 1
-          ? t('sessions.sidebar.bulkActions.archivedSingle', { count: archivedIds.length })
-          : t('sessions.sidebar.bulkActions.archivedPlural', { count: archivedIds.length }));
-      }
-      if (failedIds.length > 0) {
-        toast.error(failedIds.length === 1
-          ? t('sessions.sidebar.bulkActions.failedArchiveSingle', { count: failedIds.length })
-          : t('sessions.sidebar.bulkActions.failedArchivePlural', { count: failedIds.length }));
+        softBulkDelete(allSessions);
+      } else {
+        softBulkArchive(allSessions);
       }
     },
-    [args, collectDescendants, filterDescendantsForAction, t],
+    [collectDescendants, filterDescendantsForAction],
   );
 
   const handleDeleteSession = React.useCallback(
