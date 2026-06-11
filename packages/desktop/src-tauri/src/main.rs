@@ -2417,11 +2417,15 @@ fn kill_sidecar(app: tauri::AppHandle) {
             let host = parsed.host_str().unwrap_or("127.0.0.1");
             let port = parsed.port().unwrap_or(80);
             let path = format!("{API_BASE_PATH}{API_SYSTEM_SHUTDOWN_PATH}");
-            if let Ok(mut stream) =
-                std::net::TcpStream::connect_timeout(
-                    &format!("{host}:{port}").parse().unwrap(),
-                    Duration::from_millis(1500),
-                )
+            // parse() only succeeds for literal IP hosts; skip the graceful
+            // POST otherwise (child.kill() below still runs).
+            if let Ok(mut stream) = format!("{host}:{port}")
+                .parse()
+                .map_err(|_| ())
+                .and_then(|addr: std::net::SocketAddr| {
+                    std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(1500))
+                        .map_err(|_| ())
+                })
             {
                 use std::io::Write;
                 let _ = stream.set_write_timeout(Some(Duration::from_millis(1500)));

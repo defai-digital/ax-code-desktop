@@ -91,7 +91,7 @@ export const createWebFilesAPI = (): FilesAPI => ({
     const files = Array.isArray(result) ? result : [];
 
     return files.map((relativePath) => ({
-      path: normalizePath(`${directory}/${relativePath}`),
+      path: normalizePath(directory ? `${directory}/${relativePath}` : relativePath),
       preview: [normalizePath(relativePath)],
     }));
   },
