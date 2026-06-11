@@ -108,6 +108,19 @@ export const buildVerdicts = ({ health = {}, startup = {}, streaming = {} }) => 
     );
   }
 
+  const readiness = health.axCodeRuntimeHealth?.readiness;
+  if (readiness) {
+    const warming = ['providersReady', 'indexReady']
+      .filter((key) => readiness[key] && readiness[key] !== 'ready')
+      .map((key) => `${key}=${readiness[key]}`);
+    if (warming.length > 0) {
+      verdicts.push(
+        `Runtime is up but not fully warm (${warming.join(', ')}) — "slow" right after launch ` +
+        'is likely provider/index warmup, not the desktop or the transport.'
+      );
+    }
+  }
+
   const launchedMs = startup.milestoneMs?.['ax-code.process.launched'];
   const readyMs = startup.milestoneMs?.['web.server.ready'];
   if (Number.isFinite(launchedMs) && Number.isFinite(readyMs)) {
@@ -165,6 +178,7 @@ export const buildReport = ({ health = {}, diagnostics = {} }) => {
       isAxCodeReady: health.isAxCodeReady ?? null,
       axCodeVersion: health.axCodeVersion ?? null,
       axCodeVersionCompatibility: health.axCodeVersionCompatibility ?? null,
+      axCodeRuntimeHealth: health.axCodeRuntimeHealth ?? null,
       axCodeBinarySource: health.axCodeBinarySource ?? null,
       lastAxCodeError: health.lastAxCodeError ?? null,
     },
@@ -188,6 +202,20 @@ export const formatReport = (report) => {
     (report.health.axCodeVersionCompatibility?.compatible === false
       ? `  (INCOMPATIBLE — min ${report.health.axCodeVersionCompatibility.minSupportedVersion})`
       : ''));
+  const runtimeHealth = report.health.axCodeRuntimeHealth;
+  if (runtimeHealth?.readiness) {
+    const r = runtimeHealth.readiness;
+    lines.push(`  readiness: providers=${r.providersReady ?? 'n/a'} index=${r.indexReady ?? 'n/a'} ` +
+      `api=${r.apiReady === true ? 'ready' : (r.apiReady ?? 'n/a')}`);
+  }
+  if (Number.isFinite(runtimeHealth?.startup?.uptimeMs)) {
+    lines.push(`  runtime uptime: ${Math.round(runtimeHealth.startup.uptimeMs / 1000)}s`);
+  }
+  if (runtimeHealth?.taskSummary) {
+    const tasks = runtimeHealth.taskSummary;
+    lines.push(`  tasks: ${tasks.queued ?? 0} queued, ${tasks.running ?? 0} running, ` +
+      `${tasks.completed ?? 0} completed, ${tasks.failed ?? 0} failed`);
+  }
   if (report.health.lastAxCodeError) {
     lines.push(`  last error: ${report.health.lastAxCodeError}`);
   }

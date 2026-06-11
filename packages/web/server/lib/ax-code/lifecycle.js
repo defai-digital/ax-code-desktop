@@ -418,28 +418,96 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     // auth.password, so passing it twice is confusing and redundant.
     const { AX_CODE_SERVER_PASSWORD: _pass, ...sdkEnv } = processEnv ?? {};
 
-    const handle = await startHeadlessBackend({
-      directory: cwd,
-      hostname,
-      port: port > 0 ? port : undefined,
-      binary,
-      args,
-      timeout,
-      auth: { username: 'ax-code', password },
-      allowNetworkBind: !isSdkLoopbackHostname(hostname),
-      signal,
-      env: {
-        ...sdkEnv,
-        PATH: envPath,
-      },
-      onStdout: (line) => console.log(`[ax-code] ${line}`),
-      onStderr: (line) => console.error(`[ax-code stderr] ${line}`),
-    });
-    // Set exitCode/signalCode to null so hasChildProcessExited() treats this handle
-    // as a live process. SDK handles lack these properties (undefined !== null = true),
-    // which would make isManagedAxCodeProcessAlive() always return false and cause
-    // every health check failure to trigger an immediate restart.
-    return { ...handle, healthVerified: true, exitCode: null, signalCode: null };
+    let handle;
+    try {
+      handle = await startHeadlessBackend({
+        directory: cwd,
+        hostname,
+        port: port > 0 ? port : undefined,
+        binary,
+        args,
+        timeout,
+        auth: { username: 'ax-code', password },
+        allowNetworkBind: !isSdkLoopbackHostname(hostname),
+        signal,
+        env: {
+          ...sdkEnv,
+          PATH: envPath,
+        },
+        onStdout: (line) => console.log(`[ax-code] ${line}`),
+        onStderr: (line) => console.error(`[ax-code stderr] ${line}`),
+      });
+    } catch (error) {
+      if (error?.diagnostics) {
+        state.lastAxCodeLaunchDiagnostics = {
+          ...state.lastAxCodeLaunchDiagnostics,
+          sdk: summarizeSdkLaunchDiagnostics(error.diagnostics, { includeCapturedOutput: true }),
+        };
+      }
+      throw error;
+    }
+
+    state.lastAxCodeLaunchDiagnostics = {
+      ...state.lastAxCodeLaunchDiagnostics,
+      sdk: summarizeSdkLaunchDiagnostics(handle.diagnostics),
+    };
+
+    // The SDK handle is not a ChildProcess; without exit fields,
+    // hasChildProcessExited() would treat it as dead (undefined !== null) and
+    // every health blip would trigger a restart. Track real exit state via the
+    // handle's `closed` promise instead of pinning the fields to null forever.
+    const managed = { ...handle, healthVerified: true, exitCode: null, signalCode: null };
+    if (typeof handle.closed?.then === 'function') {
+      void handle.closed.then(() => {
+        if (managed.exitCode === null && managed.signalCode === null) {
+          const exit = handle.diagnostics?.exit ?? null;
+          managed.signalCode = exit?.signal ?? null;
+          managed.exitCode = exit?.code ?? (managed.signalCode === null ? 0 : null);
+        }
+      });
+    }
+    return managed;
+  };
+
+  const summarizeSdkLaunchDiagnostics = (diagnostics, { includeCapturedOutput = false } = {}) => {
+    if (!diagnostics || typeof diagnostics !== 'object') {
+      return null;
+    }
+    return {
+      launchedAt: diagnostics.launchedAt ?? null,
+      binary: diagnostics.binary ?? null,
+      args: Array.isArray(diagnostics.args) ? [...diagnostics.args] : [],
+      hostname: diagnostics.hostname ?? null,
+      port: diagnostics.port ?? null,
+      readyUrl: diagnostics.readyUrl ?? null,
+      health: diagnostics.health
+        ? { ok: diagnostics.health.ok, status: diagnostics.health.status, error: diagnostics.health.error ?? null }
+        : null,
+      exit: diagnostics.exit ?? null,
+      envKeyCount: Array.isArray(diagnostics.envKeys) ? diagnostics.envKeys.length : null,
+      ...(includeCapturedOutput && typeof diagnostics.capturedOutput === 'string'
+        ? { capturedOutput: diagnostics.capturedOutput.slice(-2000) }
+        : {}),
+    };
+  };
+
+  // Newer runtimes (>= 5.12.3) report structured readiness on /global/health:
+  // readiness { processAlive, apiReady, providersReady, indexReady },
+  // startup { startedAt, uptimeMs, checkedAt }, runtime.taskSummary.
+  // Capture them so the desktop can show "runtime ready, providers warming"
+  // instead of a bare HTTP-ok. Older runtimes simply leave this null.
+  const recordAxCodeRuntimeHealth = (body) => {
+    if (!body || typeof body !== 'object') {
+      return;
+    }
+    const readiness = body.readiness && typeof body.readiness === 'object' ? body.readiness : null;
+    const startup = body.startup && typeof body.startup === 'object' ? body.startup : null;
+    const taskSummary = body.runtime?.taskSummary && typeof body.runtime.taskSummary === 'object'
+      ? body.runtime.taskSummary
+      : null;
+    state.axCodeRuntimeHealth = (readiness || startup || taskSummary)
+      ? { checkedAt: new Date().toISOString(), readiness, startup, taskSummary }
+      : null;
   };
 
   let warnedIncompatibleVersion = null;
@@ -478,6 +546,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       if (typeof body?.version === 'string') {
         recordDetectedAxCodeVersion(body.version);
       }
+      recordAxCodeRuntimeHealth(body);
       return body?.healthy === true;
     } catch {
       return false;
@@ -504,6 +573,10 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         return false;
       }
       const body = await response.json().catch(() => null);
+      if (typeof body?.version === 'string') {
+        recordDetectedAxCodeVersion(body.version);
+      }
+      recordAxCodeRuntimeHealth(body);
       return body?.healthy === true;
     } catch {
       return false;

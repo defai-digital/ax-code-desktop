@@ -49,29 +49,31 @@ const createMockChild = () => {
   return child;
 };
 
+const createLifecycleState = () => ({
+  axCodeWorkingDirectory: '/tmp/project',
+  axCodeProcess: null,
+  axCodePort: null,
+  axCodeBaseUrl: null,
+  currentRestartPromise: null,
+  isRestartingAxCode: false,
+  axCodeApiPrefix: '',
+  axCodeApiPrefixDetected: false,
+  axCodeApiDetectionTimer: null,
+  lastAxCodeError: null,
+  isAxCodeReady: false,
+  axCodeNotReadySince: 0,
+  isExternalAxCode: false,
+  isShuttingDown: false,
+  healthCheckInterval: null,
+  expressApp: null,
+  useWslForAxCode: false,
+  resolvedWslBinary: null,
+  resolvedWslAxCodePath: null,
+  resolvedWslDistro: null,
+});
+
 const createRuntime = (overrides = {}) => {
-  const state = {
-    axCodeWorkingDirectory: '/tmp/project',
-    axCodeProcess: null,
-    axCodePort: null,
-    axCodeBaseUrl: null,
-    currentRestartPromise: null,
-    isRestartingAxCode: false,
-    axCodeApiPrefix: '',
-    axCodeApiPrefixDetected: false,
-    axCodeApiDetectionTimer: null,
-    lastAxCodeError: null,
-    isAxCodeReady: false,
-    axCodeNotReadySince: 0,
-    isExternalAxCode: false,
-    isShuttingDown: false,
-    healthCheckInterval: null,
-    expressApp: null,
-    useWslForAxCode: false,
-    resolvedWslBinary: null,
-    resolvedWslAxCodePath: null,
-    resolvedWslDistro: null,
-  };
+  const state = overrides.state ?? createLifecycleState();
 
   return createAxCodeLifecycleRuntime({
     state,
@@ -332,6 +334,75 @@ describe('ax-code lifecycle', () => {
     expect(applyAxCodeBinaryFromSettings).toHaveBeenCalledTimes(1);
     expect(applyAxCodeBinaryFromSettings).toHaveBeenCalledWith({ strict: true });
     expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('marks the SDK handle as exited once its closed promise resolves', async () => {
+    delete process.env.AX_CODE_BINARY;
+    let resolveClosed;
+    const diagnostics = {
+      launchedAt: '2026-06-10T00:00:00.000Z',
+      binary: 'ax-code',
+      args: ['serve'],
+      hostname: '127.0.0.1',
+      port: 45678,
+      readyUrl: 'http://127.0.0.1:45678',
+      envKeys: ['PATH'],
+    };
+    startHeadlessBackendMock.mockResolvedValueOnce({
+      url: 'http://127.0.0.1:45678',
+      headers: { Authorization: 'Basic test' },
+      close: vi.fn(async () => undefined),
+      closed: new Promise((resolve) => { resolveClosed = resolve; }),
+      diagnostics,
+    });
+
+    const runtime = createRuntime();
+    const server = await runtime.startAxCode();
+
+    expect(server.exitCode).toBe(null);
+    expect(server.signalCode).toBe(null);
+
+    diagnostics.exit = { code: 1, signal: null, beforeReady: false };
+    resolveClosed();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(server.exitCode).toBe(1);
+    expect(server.signalCode).toBe(null);
+  });
+
+  it('surfaces SDK launch diagnostics in lastAxCodeLaunchDiagnostics', async () => {
+    delete process.env.AX_CODE_BINARY;
+    startHeadlessBackendMock.mockResolvedValueOnce({
+      url: 'http://127.0.0.1:45678',
+      headers: { Authorization: 'Basic test' },
+      close: vi.fn(async () => undefined),
+      closed: new Promise(() => {}),
+      diagnostics: {
+        launchedAt: '2026-06-10T00:00:00.000Z',
+        binary: '/opt/homebrew/bin/ax-code',
+        args: ['serve', '--hostname', '127.0.0.1', '--port', '45678'],
+        hostname: '127.0.0.1',
+        port: 45678,
+        readyUrl: 'http://127.0.0.1:45678',
+        health: { ok: true, status: 200 },
+        envKeys: ['PATH', 'HOME'],
+        capturedOutput: 'should not leak into state on success',
+      },
+    });
+
+    const state = createLifecycleState();
+    const runtime = createRuntime({ state });
+    const server = await runtime.startAxCode();
+
+    expect(state.lastAxCodeLaunchDiagnostics.sdk).toMatchObject({
+      binary: '/opt/homebrew/bin/ax-code',
+      readyUrl: 'http://127.0.0.1:45678',
+      health: { ok: true, status: 200, error: null },
+      envKeyCount: 2,
+    });
+    expect(state.lastAxCodeLaunchDiagnostics.sdk.capturedOutput).toBeUndefined();
+
+    await server.close();
   });
 
   it('retries managed ax-code startup once after a pre-ready exit', async () => {

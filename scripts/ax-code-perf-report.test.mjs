@@ -108,6 +108,36 @@ describe('buildVerdicts', () => {
     const verdicts = buildVerdicts({ streaming: { overhead: { samples: 0 }, totals: {} }, startup: {} });
     expect(verdicts.some((v) => v.includes('No completed SSE streams'))).toBe(true);
   });
+
+  test('flags provider/index warmup when runtime readiness is not ready', () => {
+    const verdicts = buildVerdicts({
+      health: {
+        axCodeRuntimeHealth: {
+          readiness: { processAlive: true, apiReady: true, providersReady: 'unknown', indexReady: 'degraded' },
+        },
+      },
+      startup: {},
+      streaming: { overhead: { samples: 1, medianMs: 5, maxMs: 5 }, totals: {} },
+    });
+    expect(verdicts.some((v) => v.includes('providersReady=unknown'))).toBe(true);
+    expect(verdicts.some((v) => v.includes('indexReady=degraded'))).toBe(true);
+  });
+
+  test('does not flag warmup when readiness is ready or absent', () => {
+    const ready = buildVerdicts({
+      health: { axCodeRuntimeHealth: { readiness: { providersReady: 'ready', indexReady: 'ready' } } },
+      startup: {},
+      streaming: { overhead: { samples: 1, medianMs: 5, maxMs: 5 }, totals: {} },
+    });
+    expect(ready.some((v) => v.includes('not fully warm'))).toBe(false);
+
+    const absent = buildVerdicts({
+      health: {},
+      startup: {},
+      streaming: { overhead: { samples: 1, medianMs: 5, maxMs: 5 }, totals: {} },
+    });
+    expect(absent.some((v) => v.includes('not fully warm'))).toBe(false);
+  });
 });
 
 describe('buildReport + formatReport', () => {
