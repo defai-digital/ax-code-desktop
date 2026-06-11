@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-06-11
+
+- Desktop: restored the leading slash in the packaged health-check URL so the desktop boot probe calls `/api/global/health` correctly.
+
 ## [0.12.0] - 2026-06-10
 
 - Desktop: tightened the AX Code runtime boundary with shared endpoint contracts, SDK version gates, and runtime readiness forwarding.
