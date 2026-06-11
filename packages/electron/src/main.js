@@ -267,6 +267,13 @@ autoUpdater.on('download-progress', (p) => {
 autoUpdater.on('update-downloaded', () => {
   sendUpdateProgress('Finished', {})
 })
+// electron-updater emits 'error' alongside rejecting its promises; without a
+// listener, Node's EventEmitter turns the emit into an uncaught exception that
+// crashes the main process. The IPC handlers already report failures to the
+// renderer, so logging here is enough.
+autoUpdater.on('error', (err) => {
+  console.warn('[updater] error:', err instanceof Error ? err.message : err)
+})
 
 // ── IPC handlers (Tauri-compatible surface) ─────────────────────────────────
 ipcMain.handle('desktop_get_launch_at_login', () => ({

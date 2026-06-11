@@ -88,6 +88,10 @@ for (const f of arm64.files) {
   }
 }
 
+if (mergedFiles.length === 0) {
+  throw new Error(`No file entries parsed from ${arm64File} — is the latest-mac.yml format still what parseLatestYml expects?`)
+}
+
 const merged = {
   version,
   files: mergedFiles,

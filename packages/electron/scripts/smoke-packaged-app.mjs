@@ -250,6 +250,7 @@ const main = async () => {
   } finally {
     child.kill('SIGTERM')
     setTimeout(() => child.kill('SIGKILL'), 3000).unref()
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
   }
 }
 

@@ -59,8 +59,8 @@ export const registerNotificationRoutes = (app, dependencies) => {
     });
   });
 
-  app.get('/api/session-activity', (_req, res) => {
-    void ensureSessionWatcher();
+  app.get('/api/session-activity', async (_req, res) => {
+    await ensureSessionWatcher();
     res.json(getSessionActivitySnapshot());
   });
 

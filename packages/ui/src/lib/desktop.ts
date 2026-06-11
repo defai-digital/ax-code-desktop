@@ -520,8 +520,11 @@ export const downloadDesktopUpdate = async (
     await tauri?.core?.invoke?.('desktop_download_and_install_update');
     return true;
   } catch (error) {
-    console.warn('Failed to download update (tauri)', error);
-    return false;
+    // Rethrow so the caller surfaces the real failure (network, disk,
+    // signature) — returning false here would make the store report the
+    // unrelated "only works on Local instance" message.
+    console.warn('Failed to download update (desktop)', error);
+    throw error instanceof Error ? error : new Error(String(error));
   } finally {
     if (unlisten) {
       try {
