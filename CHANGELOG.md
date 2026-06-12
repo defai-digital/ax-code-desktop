@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-06-12
+
+- UI: added session activity badges, permission notifications, done-not-committed prompts, diff comment summaries, and loading/error polish for desktop workflows.
+- Security: hardened AX Code integration startup/proxy handling and desktop-native path boundaries.
+- Windows: corrected session sorting and async file reads in the desktop server proxy.
+
 ## [1.0.0] - 2026-06-11
 
 - Desktop: hardened updater error handling, sidecar shutdown, resource path validation, and packaged search paths for the first stable AX Code Desktop release.
