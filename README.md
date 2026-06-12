@@ -197,3 +197,7 @@ MIT. AX Code Desktop is maintained by DEFAI Private Limited.
 This project includes software derived from OpenChamber. Upstream attribution is
 kept in [NOTICE](./NOTICE) for provenance and license compliance; public product
 branding should use AX Code Desktop.
+
+GitHub may display upstream OpenChamber contributors in repository contributor
+widgets. Those accounts are credited for upstream work and are not necessarily
+maintainers of, or direct contributors to, AX Code Desktop.

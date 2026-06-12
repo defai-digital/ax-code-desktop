@@ -9,5 +9,10 @@ The original OpenChamber source code is used as the foundation for this project
 and has been modified by DEFAI Private Limited. All modifications are the work
 of DEFAI Private Limited and are copyright DEFAI Private Limited.
 
+GitHub may display upstream OpenChamber contributors in repository contributor
+widgets because this project includes derived code. Those accounts are credited
+for upstream work and are not necessarily maintainers of, or direct contributors
+to, AX Code Desktop.
+
 See the LICENSE file for the full text of the MIT License as it applies to both
 this project and the original OpenChamber project.
