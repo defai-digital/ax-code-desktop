@@ -85,4 +85,5 @@ The `data/openchamber` path is retained for compatibility.
 
 ## License
 
-MIT
+MIT. This package is part of AX Code Desktop and follows the repository-level
+license and provenance notice in [../../NOTICE](../../NOTICE).

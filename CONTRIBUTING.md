@@ -60,6 +60,12 @@ bun run build        # Must succeed
 - Prefer early returns and `if/else`/`switch` over nested ternaries
 - Tailwind v4 for styling; typography via `packages/ui/src/lib/typography.ts`
 
+## Branding and Attribution
+
+- Use AX Code Desktop for public product names, release text, screenshots, and user-facing UI.
+- Keep `openchamber` names only where they are required for compatibility with existing data, APIs, package internals, or migration paths.
+- Do not remove upstream OpenChamber attribution from [NOTICE](./NOTICE). If a change imports or replaces code from another project, update `NOTICE` in the same pull request.
+
 ## Pull Requests
 
 1. Fork and create a branch

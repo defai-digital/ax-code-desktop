@@ -192,4 +192,8 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
-MIT
+MIT. AX Code Desktop is maintained by DEFAI Private Limited.
+
+This project includes software derived from OpenChamber. Upstream attribution is
+kept in [NOTICE](./NOTICE) for provenance and license compliance; public product
+branding should use AX Code Desktop.
