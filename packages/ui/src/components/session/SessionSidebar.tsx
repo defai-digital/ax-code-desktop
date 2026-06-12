@@ -1404,16 +1404,25 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   }, [removeSessionsFromFolders, selectedIds, derivedSelectionScope]);
 
   const executeBulkDelete = React.useCallback(async () => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-    const sessions = liveSessions.filter((s) => ids.includes(s.id));
-    if (bulkScopeIsArchived) {
-      softBulkDelete(sessions);
-    } else {
-      softBulkArchive(sessions);
+    if (selectedIds.size === 0) return;
+    // Archived sessions are not in the live sync stores — resolve selected
+    // ids against the global lists as well, or archived-bucket deletes
+    // silently miss sessions whose child stores were disposed.
+    const source = bulkScopeIsArchived
+      ? archivedSessions
+      : [...globalActiveSessions, ...liveSessions];
+    const byId = new Map(source.map((session) => [session.id, session]));
+    const sessions = Array.from(selectedIds, (id) => byId.get(id))
+      .filter((session): session is Session => Boolean(session));
+    if (sessions.length > 0) {
+      if (bulkScopeIsArchived) {
+        softBulkDelete(sessions);
+      } else {
+        softBulkArchive(sessions);
+      }
     }
     useSessionMultiSelectStore.getState().clear();
-  }, [bulkScopeIsArchived, liveSessions, selectedIds]);
+  }, [archivedSessions, bulkScopeIsArchived, globalActiveSessions, liveSessions, selectedIds]);
 
   const handleBulkDelete = React.useCallback(() => {
     const count = selectedIds.size;

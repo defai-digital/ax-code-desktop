@@ -20,6 +20,7 @@ import {
 } from "./live-aggregate"
 import {
   createLiveSnapshotMemo,
+  getPermissionSliceDeps,
   getSessionSliceDeps,
   getSessionStatusSliceDeps,
   getStatusOnlySliceDeps,
@@ -38,6 +39,7 @@ import { useConfigStore } from "@/stores/useConfigStore"
 import { useTodosPersistStore } from "@/stores/useTodosPersistStore"
 import { toast } from "@/components/ui"
 import { appendNotification } from "./notification-store"
+import { markSessionRunEnded } from "./run-state-store"
 import type { State } from "./types"
 import type { SessionStatus } from "@ax-code/sdk/v2/client"
 import type { PermissionRequest } from "@/types/permission"
@@ -155,6 +157,36 @@ export function useAllLiveSessions(): Session[] {
     useCallback((states) => aggregateLiveSessions(states), []),
     areSessionListsEquivalent,
     getSessionSliceDeps,
+  )
+}
+
+const EMPTY_PENDING_PERMISSION_SESSIONS: ReadonlySet<string> = new Set()
+
+const arePendingPermissionSetsEquivalent = (left: ReadonlySet<string>, right: ReadonlySet<string>): boolean => {
+  if (left === right) return true
+  if (left.size !== right.size) return false
+  for (const id of left) {
+    if (!right.has(id)) return false
+  }
+  return true
+}
+
+/** Ids of sessions with at least one pending permission request, across all directories */
+export function usePendingPermissionSessionIds(): ReadonlySet<string> {
+  return useLiveSyncSelector(
+    useCallback((states) => {
+      let result: Set<string> | null = null
+      for (const state of states) {
+        for (const [sessionID, requests] of Object.entries(state.permission ?? {})) {
+          if (requests && requests.length > 0) {
+            (result ??= new Set()).add(sessionID)
+          }
+        }
+      }
+      return result ?? EMPTY_PENDING_PERMISSION_SESSIONS
+    }, []),
+    arePendingPermissionSetsEquivalent,
+    getPermissionSliceDeps,
   )
 }
 
@@ -1359,6 +1391,11 @@ function handleEvent(
     if (session && (session as { parentID?: string }).parentID) {
       // subtask — skip notification
     } else if (sessionID) {
+      if (payload.type === "session.idle") {
+        // Record the run-ended transition so "finished with uncommitted
+        // changes" UI only fires for sessions whose agent actually ran.
+        markSessionRunEnded(sessionID)
+      }
       appendNotification({
         directory: resolvedDirectory,
         session: sessionID,

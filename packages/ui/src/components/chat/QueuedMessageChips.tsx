@@ -3,21 +3,22 @@ import { useMessageQueueStore, type QueuedMessage } from '@/stores/messageQueueS
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useInputStore } from '@/sync/input-store';
 import { useI18n } from '@/lib/i18n';
+import { useSessionHasError } from '@/sync/notification-store';
 import { Icon } from "@/components/icon/Icon";
 import { Button } from '@/components/ui/button';
 
 interface QueuedMessageChipProps {
     message: QueuedMessage;
     sessionId: string;
+    held: boolean;
     onEdit: (message: QueuedMessage) => void;
     onSend: (message: QueuedMessage) => void;
 }
 
-const QueuedMessageChip = memo(({ message, sessionId, onEdit, onSend }: QueuedMessageChipProps) => {
+const QueuedMessageChip = memo(({ message, sessionId, held, onEdit, onSend }: QueuedMessageChipProps) => {
     const { t } = useI18n();
     const removeFromQueue = useMessageQueueStore((state) => state.removeFromQueue);
 
-    // Get first line of message, truncated
     const firstLine = React.useMemo(() => {
         const lines = message.content.split('\n');
         const first = lines[0] || '';
@@ -32,12 +33,19 @@ const QueuedMessageChip = memo(({ message, sessionId, onEdit, onSend }: QueuedMe
 
     return (
         <div className="flex min-w-0 items-center gap-2 py-1">
-            <span className="min-w-0 flex-1 truncate typography-ui-label text-foreground">
-                {firstLine || t('chat.queuedMessage.empty')}
-                {attachmentCount > 0 && (
-                    <span className="ml-1 text-muted-foreground">{t('chat.queuedMessage.attachments', { count: attachmentCount })}</span>
+            <div className="min-w-0 flex-1">
+                <span className="min-w-0 truncate typography-ui-label text-foreground block">
+                    {firstLine || t('chat.queuedMessage.empty')}
+                    {attachmentCount > 0 && (
+                        <span className="ml-1 text-muted-foreground">{t('chat.queuedMessage.attachments', { count: attachmentCount })}</span>
+                    )}
+                </span>
+                {held && (
+                    <span className="typography-ui-label text-[var(--status-error)] block mt-0.5">
+                        {t('chat.queuedMessage.held')}
+                    </span>
                 )}
-            </span>
+            </div>
             <Button
                 type="button"
                 variant="secondary"
@@ -90,6 +98,7 @@ export const QueuedMessageChips = memo(({ onEditMessage, onSendMessage }: Queued
         )
     );
     const popToInput = useMessageQueueStore((state) => state.popToInput);
+    const hasError = useSessionHasError(currentSessionId ?? '');
 
     const handleEdit = React.useCallback((message: QueuedMessage) => {
         if (!currentSessionId) return;
@@ -112,14 +121,21 @@ export const QueuedMessageChips = memo(({ onEditMessage, onSendMessage }: Queued
         return null;
     }
 
+    const held = hasError;
+
     return (
         <div className="pb-2 w-full px-1">
             <div className="rounded-xl border border-border/60 bg-[var(--surface-elevated)] text-[var(--surface-elevated-foreground)] shadow-sm overflow-hidden">
                 <div className="flex w-full items-center gap-2 px-3 py-2 text-left">
+                    <Icon name={held ? "error-warning" : "time"} className={`h-4 w-4 flex-shrink-0 ${held ? 'text-[var(--status-error)]' : 'text-muted-foreground'}`} aria-hidden="true" />
                     <span className="typography-ui-label font-medium text-foreground flex-shrink-0">
-                        {t('chat.queuedMessage.title')} {queuedMessages.length}
+                        {held ? t('chat.queuedMessage.heldTitle') : t('chat.queuedMessage.title')} {queuedMessages.length}
                     </span>
-                    <Icon name="time" className="ml-auto h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    {!held && (
+                        <span className="typography-ui-label text-muted-foreground ml-1 truncate">
+                            {t('chat.queuedMessage.subtitle')}
+                        </span>
+                    )}
                 </div>
                 <div className="px-3 pb-3 flex flex-col gap-1.5 max-h-[10.5rem] overflow-y-auto">
                     {queuedMessages.map((message) => (
@@ -127,6 +143,7 @@ export const QueuedMessageChips = memo(({ onEditMessage, onSendMessage }: Queued
                             key={message.id}
                             message={message}
                             sessionId={currentSessionId}
+                            held={held}
                             onEdit={handleEdit}
                             onSend={handleSend}
                         />

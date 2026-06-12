@@ -14,7 +14,7 @@ import { useSessionUnseenCount } from '@/sync/notification-store';
 import { useSwitcherItems } from '@/components/session/sidebar/hooks/useSwitcherItems';
 import { useUIStore } from '@/stores/useUIStore';
 import { resolveGlobalSessionDirectory } from '@/stores/useGlobalSessionsStore';
-import { computeSessionBadgeState, type SessionBadgeState } from '@/hooks/useSessionBadgeState';
+import { useSessionBadgeState, type SessionBadgeState } from '@/hooks/useSessionBadgeState';
 import { useGitStore } from '@/stores/useGitStore';
 import { formatSessionCompactDateLabel, resolveSessionDiffStats } from './sidebar/utils';
 import type { SessionNode, SessionSecondaryMeta, SessionSummaryMeta } from './sidebar/types';
@@ -209,11 +209,10 @@ function SwitcherRow({ session, depth, variant, secondaryMeta, hasChildren, isEx
   const statusType = sessionStatus?.type ?? 'idle';
   const isStreaming = statusType === 'busy' || statusType === 'retry';
   const showUnreadDot = !isStreaming && needsAttention && !isActive;
-  const badgeState: SessionBadgeState = computeSessionBadgeState({
+  const badgeState: SessionBadgeState = useSessionBadgeState(session.id, {
     status: sessionStatus,
     permissions: sessionPermissions,
     isDirty: sessionGitDirty,
-    hasError: false,
     hasUnreadAttention: showUnreadDot,
   });
   const summary = session.summary as SessionSummaryMeta | undefined;

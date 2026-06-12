@@ -1,5 +1,6 @@
 import React from 'react';
 import { useProjectsStore } from '@/stores/useProjectsStore';
+import { useAttentionStore } from '@/stores/useAttentionStore';
 import { isDesktopShell, isTauriShell } from '@/lib/desktop';
 import { desktopHostsGet, locationMatchesHost, redactSensitiveUrl } from '@/lib/desktopHosts';
 import { setDesktopWindowTitle } from '@/lib/desktopNative';
@@ -95,7 +96,16 @@ export const useWindowTitle = () => {
     };
   }, []);
 
-  const title = React.useMemo(() => buildWindowTitle(projectLabel, instanceLabel), [projectLabel, instanceLabel]);
+  const pendingApprovalCount = useAttentionStore((state) => state.pendingApprovalCount);
+
+  const title = React.useMemo(() => {
+    const base = buildWindowTitle(projectLabel, instanceLabel);
+    // Desktop shells surface the count via the dock/taskbar badge instead.
+    if (pendingApprovalCount > 0 && !isDesktopShell()) {
+      return `(${pendingApprovalCount}) ${base}`;
+    }
+    return base;
+  }, [projectLabel, instanceLabel, pendingApprovalCount]);
 
   React.useEffect(() => {
     if (typeof document !== 'undefined') {

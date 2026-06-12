@@ -10,11 +10,18 @@ type LoadResult = {
   archivedSessions: Session[];
 };
 
+export type PendingRemovalKind = 'archive' | 'delete';
+
+export type PendingRemovalEntry = {
+  session: Session;
+  kind: PendingRemovalKind;
+};
+
 type GlobalSessionsState = {
   activeSessions: Session[];
   archivedSessions: Session[];
   sessionsByDirectory: Map<string, Session[]>;
-  pendingRemoval: Set<string>;
+  pendingRemoval: Map<string, PendingRemovalEntry>;
   hasLoaded: boolean;
   status: GlobalSessionsStatus;
   loadSessions: (fallbackActive?: Session[]) => Promise<LoadResult>;
@@ -22,9 +29,9 @@ type GlobalSessionsState = {
   upsertSession: (session: Session) => void;
   removeSessions: (ids: Iterable<string>) => void;
   archiveSessions: (ids: Iterable<string>, archivedAt?: number) => void;
-  markPendingRemoval: (ids: Iterable<string>) => void;
-  clearPendingRemoval: (ids: Iterable<string>) => void;
-  consumePendingRemoval: () => string[];
+  markPendingRemoval: (entries: PendingRemovalEntry[]) => void;
+  undoPendingRemoval: (ids: Iterable<string>) => void;
+  commitPendingRemoval: (ids: Iterable<string>) => void;
 };
 
 const PAGE_SIZE = 500;
@@ -153,18 +160,30 @@ const mergeSessionLists = (existing: Session[], incoming?: Session[]): Session[]
   return ordered;
 };
 
+const withoutPendingRemoval = (sessions: Session[], pendingRemoval: Map<string, PendingRemovalEntry>): Session[] => {
+  if (pendingRemoval.size === 0) {
+    return sessions;
+  }
+  const filtered = sessions.filter((session) => !pendingRemoval.has(session.id));
+  return filtered.length === sessions.length ? sessions : filtered;
+};
+
 const applySnapshot = (
   state: GlobalSessionsState,
   activeSessions: Session[],
   archivedSessions: Session[],
   status: GlobalSessionsStatus,
 ): Partial<GlobalSessionsState> | GlobalSessionsState => {
-  const nextActiveSessions = sameSessionList(state.activeSessions, activeSessions)
+  // Snapshots from the server may still contain sessions the user just
+  // soft-removed; keep them hidden until the removal commits or is undone.
+  const incomingActive = withoutPendingRemoval(activeSessions, state.pendingRemoval);
+  const incomingArchived = withoutPendingRemoval(archivedSessions, state.pendingRemoval);
+  const nextActiveSessions = sameSessionList(state.activeSessions, incomingActive)
     ? state.activeSessions
-    : activeSessions;
-  const nextArchivedSessions = sameSessionList(state.archivedSessions, archivedSessions)
+    : incomingActive;
+  const nextArchivedSessions = sameSessionList(state.archivedSessions, incomingArchived)
     ? state.archivedSessions
-    : archivedSessions;
+    : incomingArchived;
   const nextSessionsByDirectory = nextActiveSessions === state.activeSessions
     ? state.sessionsByDirectory
     : buildSessionsByDirectory(nextActiveSessions);
@@ -192,7 +211,7 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
   activeSessions: [],
   archivedSessions: [],
   sessionsByDirectory: new Map(),
-  pendingRemoval: new Set(),
+  pendingRemoval: new Map(),
   hasLoaded: false,
   status: 'idle',
 
@@ -250,6 +269,11 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
 
   upsertSession: (session) => {
     set((state) => {
+      // A session awaiting soft-removal commit must not be re-added by sync
+      // events arriving during the undo window.
+      if (state.pendingRemoval.has(session.id)) {
+        return state;
+      }
       const isArchived = Boolean(session.time?.archived);
       const nextActiveSessions = isArchived
         ? state.activeSessions.filter((candidate) => candidate.id !== session.id)
@@ -337,30 +361,70 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
     });
   },
 
-  markPendingRemoval: (ids) => {
-    const idArray = ids instanceof Set ? Array.from(ids) : Array.from(ids);
-    if (idArray.length === 0) return;
+  markPendingRemoval: (entries) => {
+    if (entries.length === 0) return;
     set((state) => {
-      const next = new Set(state.pendingRemoval);
-      for (const id of idArray) next.add(id);
-      return { pendingRemoval: next };
+      const nextPending = new Map(state.pendingRemoval);
+      const ids = new Set<string>();
+      for (const entry of entries) {
+        nextPending.set(entry.session.id, entry);
+        ids.add(entry.session.id);
+      }
+      const nextActiveSessions = state.activeSessions.filter((session) => !ids.has(session.id));
+      const nextArchivedSessions = state.archivedSessions.filter((session) => !ids.has(session.id));
+      return {
+        pendingRemoval: nextPending,
+        activeSessions: nextActiveSessions,
+        archivedSessions: nextArchivedSessions,
+        sessionsByDirectory: nextActiveSessions.length === state.activeSessions.length
+          ? state.sessionsByDirectory
+          : buildSessionsByDirectory(nextActiveSessions),
+      };
     });
   },
 
-  clearPendingRemoval: (ids) => {
-    const idArray = ids instanceof Set ? Array.from(ids) : Array.from(ids);
-    if (idArray.length === 0) return;
+  undoPendingRemoval: (ids) => {
     set((state) => {
-      const next = new Set(state.pendingRemoval);
-      for (const id of idArray) next.delete(id);
-      return { pendingRemoval: next };
+      const nextPending = new Map(state.pendingRemoval);
+      const restored: Session[] = [];
+      for (const id of ids) {
+        const entry = nextPending.get(id);
+        if (!entry) continue;
+        nextPending.delete(id);
+        restored.push(entry.session);
+      }
+      if (restored.length === 0) {
+        return state;
+      }
+      let nextActiveSessions = state.activeSessions;
+      let nextArchivedSessions = state.archivedSessions;
+      for (const session of restored) {
+        if (session.time?.archived) {
+          nextArchivedSessions = upsertSessionIntoList(nextArchivedSessions, session);
+        } else {
+          nextActiveSessions = upsertSessionIntoList(nextActiveSessions, session);
+        }
+      }
+      return {
+        pendingRemoval: nextPending,
+        activeSessions: nextActiveSessions,
+        archivedSessions: nextArchivedSessions,
+        sessionsByDirectory: nextActiveSessions === state.activeSessions
+          ? state.sessionsByDirectory
+          : buildSessionsByDirectory(nextActiveSessions),
+      };
     });
   },
 
-  consumePendingRemoval: () => {
-    const ids = Array.from(get().pendingRemoval);
-    set({ pendingRemoval: new Set() });
-    return ids;
+  commitPendingRemoval: (ids) => {
+    set((state) => {
+      const nextPending = new Map(state.pendingRemoval);
+      let changed = false;
+      for (const id of ids) {
+        if (nextPending.delete(id)) changed = true;
+      }
+      return changed ? { pendingRemoval: nextPending } : state;
+    });
   },
 }));
 

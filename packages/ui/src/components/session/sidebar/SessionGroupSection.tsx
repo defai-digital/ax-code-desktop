@@ -465,7 +465,9 @@ export function SessionGroupSection(props: Props): React.ReactNode {
         ...childFolders.flatMap(({ folder: child }) => collectFolderSessions(child.id)),
       ];
     };
-    const folderSessionsForDelete = group.isArchivedBucket ? collectFolderSessions(folder.id) : [];
+    const descendantSessions = collectFolderSessions(folder.id);
+    const descendantSessionIds = descendantSessions.map((session) => session.id);
+    const folderSessionsForDelete = group.isArchivedBucket ? descendantSessions : [];
 
     return (
       <DroppableFolderWrapper key={folder.id} folderId={folder.id}>
@@ -474,6 +476,7 @@ export function SessionGroupSection(props: Props): React.ReactNode {
             folder={folder}
             sessions={nodes}
             subFolderItems={subFolderItems}
+            descendantSessionIds={descendantSessionIds}
             isCollapsed={hasSessionSearchQuery ? false : collapsedFolderIds.has(folder.id)}
             onToggle={() => toggleFolderCollapse(folder.id)}
             onRename={(name) => {

@@ -2,22 +2,24 @@ import React from 'react';
 import type { SessionStatus } from '@ax-code/sdk/v2/client';
 import type { PermissionRequest } from '@/types/permission';
 import { useSessionHasError } from '@/sync/notification-store';
+import { useSessionRunEndedAt } from '@/sync/run-state-store';
 
 export type SessionBadgeState =
   | 'idle'
   | 'running'
   | 'waiting_for_permission'
   | 'done_with_uncommitted'
-  | 'error';
+  | 'error'
+  | 'unread';
 
 export function computeSessionBadgeState(args: {
   status: SessionStatus | undefined;
   permissions: readonly PermissionRequest[];
-  isDirty: boolean;
+  ranWithUncommitted: boolean;
   hasError: boolean;
   hasUnreadAttention: boolean;
 }): SessionBadgeState {
-  const { status, permissions, isDirty, hasError, hasUnreadAttention } = args;
+  const { status, permissions, ranWithUncommitted, hasError, hasUnreadAttention } = args;
 
   if (permissions.length > 0) return 'waiting_for_permission';
 
@@ -26,15 +28,21 @@ export function computeSessionBadgeState(args: {
 
   if (hasError) return 'error';
 
-  if (type === 'idle' && isDirty) return 'done_with_uncommitted';
+  if (ranWithUncommitted) return 'done_with_uncommitted';
 
-  if (hasUnreadAttention) return 'idle';
+  if (hasUnreadAttention) return 'unread';
 
   return 'idle';
 }
 
+/**
+ * Canonical per-session badge state for sidebar/switcher rows. Wires the
+ * error state from the notification store and scopes "done with uncommitted
+ * changes" to sessions whose agent actually finished a run this app session
+ * — a dirty directory alone (shared by sibling sessions) is not enough.
+ */
 export function useSessionBadgeState(
-  sessionId: string | null | undefined,
+  sessionId: string,
   options: {
     status: SessionStatus | undefined;
     permissions: readonly PermissionRequest[];
@@ -42,17 +50,19 @@ export function useSessionBadgeState(
     hasUnreadAttention: boolean;
   },
 ): SessionBadgeState {
-  const hasError = useSessionHasError(sessionId ?? '');
+  const hasError = useSessionHasError(sessionId);
+  const runEndedAt = useSessionRunEndedAt(sessionId);
+  const ranWithUncommitted = options.isDirty && runEndedAt !== null;
 
   return React.useMemo(
     () =>
       computeSessionBadgeState({
         status: options.status,
         permissions: options.permissions,
-        isDirty: options.isDirty,
+        ranWithUncommitted,
         hasError,
         hasUnreadAttention: options.hasUnreadAttention,
       }),
-    [options.status, options.permissions, options.isDirty, hasError, options.hasUnreadAttention],
+    [options.status, options.permissions, ranWithUncommitted, hasError, options.hasUnreadAttention],
   );
 }

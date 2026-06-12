@@ -28,7 +28,7 @@ import { formatSessionCompactDateLabel, formatSessionDateLabel, normalizePath, r
 import { useSessionDisplayStore } from '@/stores/useSessionDisplayStore';
 import { useSessionUnseenCount } from '@/sync/notification-store';
 import { useSessionMultiSelectStore } from '@/stores/useSessionMultiSelectStore';
-import { computeSessionBadgeState, type SessionBadgeState } from '@/hooks/useSessionBadgeState';
+import { useSessionBadgeState, type SessionBadgeState } from '@/hooks/useSessionBadgeState';
 import { useGitStore } from '@/stores/useGitStore';
 import { useI18n } from '@/lib/i18n';
 import { parseMultiRunSessionTitle } from '@/lib/multirun/title';
@@ -328,6 +328,16 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
   const isSubtaskSession = Boolean((resolvedSession as Session & { parentID?: string | null }).parentID);
   const unseenCount = useSessionUnseenCount(session.id);
   const needsAttention = unseenCount > 0 && (!isSubtaskSession || notifyOnSubtasks);
+  const statusType = sessionStatus?.type ?? 'idle';
+  const isStreaming = statusType === 'busy' || statusType === 'retry';
+  const showUnreadStatus = !isStreaming && needsAttention && !isActive;
+  // Hook call — must stay above the editing-mode early return.
+  const badgeState: SessionBadgeState = useSessionBadgeState(session.id, {
+    status: sessionStatus,
+    permissions: sessionPermissions,
+    isDirty: sessionGitDirty,
+    hasUnreadAttention: showUnreadStatus,
+  });
   const sessionSummary = resolvedSession.summary as SessionSummaryMeta | undefined;
   const sessionDiffStats = resolveSessionDiffStats(sessionSummary);
   const sessionTimestamp = resolvedSession.time?.updated || resolvedSession.time?.created || Date.now();
@@ -514,17 +524,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
     );
   }
 
-  const statusType = sessionStatus?.type ?? 'idle';
-  const isStreaming = statusType === 'busy' || statusType === 'retry';
   const pendingPermissionCount = sessionPermissions.length;
-  const showUnreadStatus = !isStreaming && needsAttention && !isActive;
-  const badgeState: SessionBadgeState = computeSessionBadgeState({
-    status: sessionStatus,
-    permissions: sessionPermissions,
-    isDirty: sessionGitDirty,
-    hasError: false,
-    hasUnreadAttention: showUnreadStatus,
-  });
   const showStatusMarker = badgeState !== 'idle';
   const statusMarkerContent = (() => {
     switch (badgeState) {
@@ -560,7 +560,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
             title={t('sessions.sidebar.session.status.error')}
           />
         );
-      default:
+      case 'unread':
         return (
           <span
             className="h-1.5 w-1.5 rounded-full bg-[var(--status-info)]"
@@ -568,6 +568,8 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
             title={t('sessions.sidebar.session.status.unread')}
           />
         );
+      default:
+        return null;
     }
   })();
   const leadingIndicators = showStatusMarker || isPinnedSession ? (

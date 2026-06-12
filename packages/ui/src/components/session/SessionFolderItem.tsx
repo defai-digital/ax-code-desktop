@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import type { SessionFolder } from '@/stores/useSessionFoldersStore';
+import { usePendingPermissionSessionIds } from '@/sync/sync-context';
 import { useI18n } from '@/lib/i18n';
 import { Icon } from "@/components/icon/Icon";
 
@@ -42,6 +43,8 @@ interface SessionFolderItemProps<TSessionNode> {
   hideActions?: boolean;
   /** Whether folder belongs to archived section */
   archivedBucket?: boolean;
+  /** Session ids in this folder and its sub-folders, for the collapsed waiting-approval badge */
+  descendantSessionIds?: readonly string[];
 }
 
 const SessionFolderItemBase = <TSessionNode,>({
@@ -68,8 +71,20 @@ const SessionFolderItemBase = <TSessionNode,>({
   depth = 0,
   hideActions = false,
   archivedBucket = false,
+  descendantSessionIds,
 }: SessionFolderItemProps<TSessionNode>) => {
   const { t } = useI18n();
+  const pendingPermissionIds = usePendingPermissionSessionIds();
+  const waitingApprovalCount = React.useMemo(() => {
+    if (!descendantSessionIds || descendantSessionIds.length === 0 || pendingPermissionIds.size === 0) {
+      return 0;
+    }
+    let count = 0;
+    for (const id of descendantSessionIds) {
+      if (pendingPermissionIds.has(id)) count += 1;
+    }
+    return count;
+  }, [descendantSessionIds, pendingPermissionIds]);
   const [localRenaming, setLocalRenaming] = React.useState(false);
   const [localDraft, setLocalDraft] = React.useState('');
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -230,6 +245,16 @@ const SessionFolderItemBase = <TSessionNode,>({
               <span className="typography-micro text-muted-foreground/70 flex-shrink-0">
                 • {sessions.length}
               </span>
+              {isCollapsed && waitingApprovalCount > 0 ? (
+                <span
+                  className="inline-flex flex-shrink-0 items-center gap-1 typography-micro text-[var(--status-warning)]"
+                  title={t('sessions.sidebar.folder.waitingApproval', { count: waitingApprovalCount })}
+                  aria-label={t('sessions.sidebar.folder.waitingApproval', { count: waitingApprovalCount })}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--status-warning)]" />
+                  {waitingApprovalCount}
+                </span>
+              ) : null}
               {isCollapsed ? (
                 <Icon name="arrow-right-s" className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
               ) : (

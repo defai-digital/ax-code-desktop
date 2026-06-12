@@ -1,6 +1,7 @@
 import React from 'react';
 
 import { useUIStore } from '@/stores/useUIStore';
+import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { useGitStore, useGitStatus, useIsGitRepo, useGitFileCount, useGitLoadingStatus } from '@/stores/useGitStore';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui';
+import { ViewLoadingSkeleton } from '@/components/ui/ViewLoadingSkeleton';
 
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { getLanguageFromExtension, isImageFile } from '@/lib/toolHelpers';
@@ -23,6 +25,7 @@ import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import { DiffViewToggle } from '@/components/chat/message/DiffViewToggle';
 import type { DiffViewMode } from '@/components/chat/message/types';
 import { PierreDiffViewer } from './PierreDiffViewer';
+import { DiffCommentSummaryBar } from './DiffCommentSummaryBar';
 import { useDeviceInfo } from '@/lib/device';
 import { FileTypeIcon } from '@/components/icons/FileTypeIcon';
 import { Icon } from "@/components/icon/Icon";
@@ -954,6 +957,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
     const { git, files } = useRuntimeAPIs();
     const effectiveDirectory = useEffectiveDirectory();
     const { screenWidth, isMobile } = useDeviceInfo();
+    const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
 
     const isGitRepo = useIsGitRepo(effectiveDirectory ?? null);
     const status = useGitStatus(effectiveDirectory ?? null);
@@ -1706,12 +1710,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
         }
 
         if (isLoadingStatus && !status) {
-            return (
-                <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
-                    <Icon name="loader-4" className="size-4 animate-spin" />
-                    {t('diffView.state.loadingRepositoryStatus')}
-                </div>
-            );
+            return <ViewLoadingSkeleton label={t('diffView.state.loadingRepositoryStatus')} />;
         }
 
         if (isGitRepo === false) {
@@ -1842,6 +1841,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
             </div>
 
             {renderContent()}
+            <DiffCommentSummaryBar sessionKey={currentSessionId ?? 'draft'} />
         </div>
     );
 };

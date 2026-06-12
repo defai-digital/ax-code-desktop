@@ -88,6 +88,26 @@ export const setDesktopWindowTitle = async (title: string): Promise<void> => {
   }
 };
 
+export const setDesktopBadgeCount = async (count: number): Promise<void> => {
+  if (!isDesktopShell()) {
+    return;
+  }
+
+  try {
+    if (isElectronDesktop()) {
+      await invokeDesktopCommand('desktop_set_badge_count', { count });
+      return;
+    }
+
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    // setBadgeCount(undefined) clears the badge; supported on macOS/Linux,
+    // rejects on other platforms.
+    await getCurrentWindow().setBadgeCount(count > 0 ? count : undefined);
+  } catch {
+    // badge is best-effort decoration
+  }
+};
+
 export const setDesktopWindowTheme = async (
   themeMode?: string,
   themeVariant?: string,

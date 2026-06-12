@@ -323,6 +323,12 @@ ipcMain.handle('desktop_restart', () => {
   app.exit(0)
 })
 
+ipcMain.handle('desktop_set_badge_count', (_, { count } = {}) => {
+  const value = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
+  // macOS dock and Linux launchers; returns false where unsupported (Windows).
+  return app.setBadgeCount(value)
+})
+
 ipcMain.handle('desktop_get_lan_address', () => {
   const nets = os.networkInterfaces()
   for (const name of Object.keys(nets)) {

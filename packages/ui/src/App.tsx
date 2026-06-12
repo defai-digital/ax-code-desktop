@@ -9,7 +9,8 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useMenuActions } from '@/hooks/useMenuActions';
 import { useRouter } from '@/hooks/useRouter';
 import { useWebNotificationStream } from '@/hooks/useWebNotificationStream';
-import { usePermissionNotifications } from '@/hooks/usePermissionNotifications';
+import { PermissionNotifications } from '@/components/notifications/PermissionNotifications';
+import { flushPendingRemovals, recoverPendingRemovals } from '@/sync/soft-removal';
 import { useWindowTitle } from '@/hooks/useWindowTitle';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { hasModifier } from '@/lib/utils';
@@ -640,14 +641,12 @@ function App({ apis }: AppProps) {
   // Session attention now handled by notification-store via SSE events (session.idle/session.error)
 
   useWebNotificationStream({ enabled: embeddedBackgroundWorkEnabled });
-  usePermissionNotifications();
   useWindowTitle();
 
   React.useEffect(() => {
+    void recoverPendingRemovals();
     const handleBeforeUnload = () => {
-      import('@/sync/soft-removal').then(({ flushPendingRemovals }) => {
-        flushPendingRemovals();
-      });
+      flushPendingRemovals();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -888,6 +887,7 @@ function App({ apis }: AppProps) {
           <TooltipProvider delayDuration={300} skipDelayDuration={150}>
             <div className={isDesktopRuntime ? 'h-full text-foreground bg-transparent' : 'h-full text-foreground bg-background'}>
               <SyncAppEffects embeddedBackgroundWorkEnabled={embeddedBackgroundWorkEnabled} />
+              <PermissionNotifications />
               <AxCodeUpdateToast />
               <MainLayout />
               <Toaster />

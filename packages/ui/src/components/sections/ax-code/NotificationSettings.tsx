@@ -50,6 +50,8 @@ export const NotificationSettings: React.FC = () => {
   const setNotifyOnError = useUIStore(state => state.setNotifyOnError);
   const notifyOnQuestion = useUIStore(state => state.notifyOnQuestion);
   const setNotifyOnQuestion = useUIStore(state => state.setNotifyOnQuestion);
+  const notifyOnPermission = useUIStore(state => state.notifyOnPermission);
+  const setNotifyOnPermission = useUIStore(state => state.setNotifyOnPermission);
   const notificationTemplates = useUIStore(state => state.notificationTemplates);
   const setNotificationTemplates = useUIStore(state => state.setNotificationTemplates);
 
@@ -308,6 +310,23 @@ export const NotificationSettings: React.FC = () => {
                 >
                   <Checkbox checked={notifyOnQuestion} onChange={setNotifyOnQuestion} ariaLabel={t('settings.notifications.page.events.questionAria')} />
                   <span className="typography-ui-label text-foreground">{t('settings.notifications.page.events.questionLabel')}</span>
+                </div>
+
+                <div
+                  className="group flex cursor-pointer items-center gap-2 py-1.5"
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={notifyOnPermission}
+                  onClick={() => setNotifyOnPermission(!notifyOnPermission)}
+                  onKeyDown={(event) => {
+                    if (event.key === ' ' || event.key === 'Enter') {
+                      event.preventDefault();
+                      setNotifyOnPermission(!notifyOnPermission);
+                    }
+                  }}
+                >
+                  <Checkbox checked={notifyOnPermission} onChange={setNotifyOnPermission} ariaLabel={t('settings.notifications.page.events.permissionAria')} />
+                  <span className="typography-ui-label text-foreground">{t('settings.notifications.page.events.permissionLabel')}</span>
                 </div>
               </section>
             </div>

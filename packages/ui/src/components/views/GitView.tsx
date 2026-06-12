@@ -19,6 +19,7 @@ import {
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { ScrollShadow } from '@/components/ui/ScrollShadow';
 import { toast } from '@/components/ui';
+import { ViewLoadingSkeleton } from '@/components/ui/ViewLoadingSkeleton';
 import {
   Dialog,
   DialogContent,
@@ -2221,14 +2222,7 @@ export const GitView: React.FC = () => {
   }
 
   if (isGitRepo === null || (isGitRepo === true && !status)) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Icon name="loader-4" className="size-4 animate-spin" />
-          <span className="typography-ui-label">{t('gitView.loading.checkingRepository')}</span>
-        </div>
-      </div>
-    );
+    return <ViewLoadingSkeleton label={t('gitView.loading.checkingRepository')} />;
   }
 
   if (isGitRepo === false) {

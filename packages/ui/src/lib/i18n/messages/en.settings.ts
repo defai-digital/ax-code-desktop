@@ -1280,6 +1280,8 @@ export const settingsDict = {
   'settings.notifications.page.events.errorLabel': 'Agent Errors',
   'settings.notifications.page.events.questionAria': 'Agent questions',
   'settings.notifications.page.events.questionLabel': 'Agent Questions',
+  'settings.notifications.page.events.permissionAria': 'Permission requests',
+  'settings.notifications.page.events.permissionLabel': 'Permission Requests',
   'settings.notifications.page.template.title': 'Notification Templates',
   'settings.notifications.page.template.variablesLabel': 'Variables:',
   'settings.notifications.page.template.event.completion': 'completion',
