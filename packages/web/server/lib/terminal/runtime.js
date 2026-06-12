@@ -174,6 +174,7 @@ export function createTerminalRuntime({
     delete next.BASH_XTRACEFD;
     delete next.BASH_ENV;
     delete next.ENV;
+    delete next.AX_CODE_SERVER_PASSWORD;
     return next;
   };
   const terminalTransportCapabilities = {

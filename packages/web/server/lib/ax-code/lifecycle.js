@@ -741,6 +741,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       state.isRestartingAxCode = true;
       state.isAxCodeReady = false;
       state.axCodeNotReadySince = Date.now();
+      lastHealthProbeResult = null;
       console.log('Restarting ax-code process...');
 
       if (state.isExternalAxCode) {

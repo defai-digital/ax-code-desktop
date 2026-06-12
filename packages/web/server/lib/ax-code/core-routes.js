@@ -34,6 +34,7 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     gracefulShutdown,
     getHealthSnapshot,
     getStartupDiagnosticsSnapshot = null,
+    uiAuthController = null,
   } = dependencies;
 
   const allocateLoopbackPort = async () => {
@@ -181,11 +182,24 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     return res.json(getStartupDiagnosticsSnapshot());
   });
 
-  app.post('/api/system/shutdown', (_req, res) => {
-    res.json({ ok: true });
-    gracefulShutdown({ exitProcess: true }).catch((error) => {
-      console.error('Shutdown request failed:', error?.message || error);
-    });
+  app.post('/api/system/shutdown', async (req, res, next) => {
+    try {
+      if (uiAuthController) {
+        await uiAuthController.requireAuth(req, res, () => {
+          res.json({ ok: true });
+          gracefulShutdown({ exitProcess: true }).catch((error) => {
+            console.error('Shutdown request failed:', error?.message || error);
+          });
+        });
+      } else {
+        res.json({ ok: true });
+        gracefulShutdown({ exitProcess: true }).catch((error) => {
+          console.error('Shutdown request failed:', error?.message || error);
+        });
+      }
+    } catch (err) {
+      next(err);
+    }
   });
 
   app.post('/api/system/dev-shutdown', express.json({ limit: '64kb' }), async (req, res) => {

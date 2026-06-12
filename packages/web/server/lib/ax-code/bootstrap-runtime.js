@@ -39,6 +39,14 @@ export const createBootstrapRuntime = (dependencies) => {
       setAutoAcceptSession,
     } = options;
 
+    const uiAuthController = createUiAuth({
+      password: uiPassword,
+      readSettingsFromDiskMigrated,
+    });
+    if (uiAuthController.enabled) {
+      console.log('UI password protection enabled for browser sessions');
+    }
+
     registerServerStatusRoutes(app, {
       express,
       process,
@@ -48,17 +56,10 @@ export const createBootstrapRuntime = (dependencies) => {
       gracefulShutdown,
       getHealthSnapshot,
       getStartupDiagnosticsSnapshot,
+      uiAuthController,
     });
 
     registerCommonRequestMiddleware(app, { express, verboseRequestLogs });
-
-    const uiAuthController = createUiAuth({
-      password: uiPassword,
-      readSettingsFromDiskMigrated,
-    });
-    if (uiAuthController.enabled) {
-      console.log('UI password protection enabled for browser sessions');
-    }
 
     registerAuthAndAccessRoutes(app, {
       express,
