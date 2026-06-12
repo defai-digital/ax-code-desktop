@@ -3,7 +3,7 @@ import { createRealpathCache } from '../path-realpath-cache.js';
 const EXEC_JOB_TTL_MS = 30 * 60 * 1000;
 
 const createCommandTimeoutMs = () => {
-  const raw = Number(process.env.OPENCHAMBER_FS_EXEC_TIMEOUT_MS);
+  const raw = Number(process.env.AX_CODE_DESKTOP_FS_EXEC_TIMEOUT_MS);
   if (Number.isFinite(raw) && raw > 0) return raw;
   return 5 * 60 * 1000;
 };
@@ -13,7 +13,7 @@ const createCommandTimeoutMs = () => {
 // absorbs the burst of identical lookups a fresh client (e.g. right after a
 // page reload) fires for every project. Set to 0 to disable caching.
 const createGitReadCacheTtlMs = () => {
-  const raw = Number(process.env.OPENCHAMBER_GIT_READ_CACHE_TTL_MS);
+  const raw = Number(process.env.AX_CODE_DESKTOP_GIT_READ_CACHE_TTL_MS);
   if (Number.isFinite(raw) && raw >= 0) return raw;
   return 30 * 1000;
 };
@@ -336,7 +336,7 @@ export const registerFsRoutes = (app, dependencies) => {
   // Non-cacheable commands always execute and are never stored.
   const runCommandWithGitReadCache = async ({ shell, shellFlag, command, resolvedCwd }) => {
     const cacheable = gitReadCacheTtlMs > 0 && isCacheableGitReadCommand(command);
-    const cacheKey = cacheable ? `${resolvedCwd} ${normalizeCommand(command)}` : null;
+    const cacheKey = cacheable ? `${resolvedCwd}::${normalizeCommand(command)}` : null;
 
     if (cacheKey) {
       const cached = gitReadCache.get(cacheKey);
