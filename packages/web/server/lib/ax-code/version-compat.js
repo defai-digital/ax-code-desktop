@@ -18,11 +18,13 @@ export const parseVersionForComparison = (value) => {
   const normalized = String(value || '').replace(/^v/, '').split('+')[0];
   const prereleaseIndex = normalized.indexOf('-');
   const core = prereleaseIndex >= 0 ? normalized.slice(0, prereleaseIndex) : normalized;
+  const suffix = prereleaseIndex >= 0 ? normalized.slice(prereleaseIndex + 1) : '';
+  const prerelease = /^(alpha|beta|rc|pre|preview|next)(?:[.-]|\d|$)/i.test(suffix);
   const parts = core.split('.').map((part) => {
     const parsed = Number.parseInt(part || '0', 10);
     return Number.isFinite(parsed) ? parsed : 0;
   });
-  return { parts, prerelease: prereleaseIndex >= 0 };
+  return { parts, prerelease };
 };
 
 export const compareVersions = (left, right) => {

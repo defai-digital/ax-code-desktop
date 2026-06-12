@@ -33,6 +33,8 @@ interface UpdateStore extends UpdateState {
 }
 
 type ClientRuntime = 'desktop' | 'web';
+const UPDATE_FAILED_MESSAGE = 'Update failed. Please try again or open the release page.';
+const RESTART_FAILED_MESSAGE = 'Failed to restart AX Code Desktop.';
 
 function mapRuntimeParams(runtime: ClientRuntime): URLSearchParams {
   const params = new URLSearchParams();
@@ -121,10 +123,11 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
         // version and changelog instead of AX Code's.
         const desktopInfo = await checkForDesktopUpdates();
         if (desktopInfo?.error) {
+          console.warn('Desktop update check failed:', desktopInfo.error);
           set({
             checking: false,
             available: false,
-            error: desktopInfo.error,
+            error: UPDATE_FAILED_MESSAGE,
             lastChecked: Date.now(),
             nextCheckInSec: null,
           });
@@ -152,10 +155,10 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
         nextCheckInSec: suggestedSec,
       });
       return suggestedSec;
-    } catch (error) {
+    } catch {
       set({
         checking: false,
-        error: error instanceof Error ? error.message : 'Failed to check for updates',
+        error: UPDATE_FAILED_MESSAGE,
       });
       return null;
     }
@@ -174,7 +177,8 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
     try {
       const desktopInfo = await checkForDesktopUpdates();
       if (desktopInfo?.error) {
-        throw new Error(desktopInfo.error);
+        console.warn('Desktop update recheck failed:', desktopInfo.error);
+        throw new Error(UPDATE_FAILED_MESSAGE);
       }
       if (!desktopInfo?.available) {
         throw new Error('Update detected, but desktop package is not ready yet. Retry in a moment.');
@@ -202,9 +206,10 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
       }
       set({ downloading: false, downloaded: true });
     } catch (error) {
+      console.warn('Failed to download desktop update:', error);
       set({
         downloading: false,
-        error: error instanceof Error ? error.message : 'Failed to download update',
+        error: UPDATE_FAILED_MESSAGE,
       });
     }
   },
@@ -222,8 +227,9 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
         throw new Error('Desktop restart only works on Local instance');
       }
     } catch (error) {
+      console.warn('Failed to restart for desktop update:', error);
       set({
-        error: error instanceof Error ? error.message : 'Failed to restart',
+        error: RESTART_FAILED_MESSAGE,
       });
     }
   },

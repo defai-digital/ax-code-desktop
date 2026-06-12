@@ -192,7 +192,7 @@ function getPrimaryUserConfigPath(userPaths, fallbackPath = CONFIG_FILE) {
   return fallbackPath;
 }
 
-function readConfigFile(filePath) {
+function readConfigFile(filePath, options = {}) {
   if (!filePath || !fs.existsSync(filePath)) {
     return {};
   }
@@ -205,6 +205,9 @@ function readConfigFile(filePath) {
     return parseJsonc(normalized, [], { allowTrailingComma: true });
   } catch (error) {
     console.error(`Failed to read config file: ${filePath}`, error);
+    if (options.tolerateParseErrors === true) {
+      return {};
+    }
     throw new Error('Failed to read ax-code configuration');
   }
 }
@@ -233,12 +236,12 @@ function mergeConfigs(base, override) {
   return result;
 }
 
-function readConfigLayers(workingDirectory) {
+function readConfigLayers(workingDirectory, options = {}) {
   const { userPaths, projectPath, customPath } = getConfigPaths(workingDirectory);
   const userPath = getPrimaryUserConfigPath(userPaths);
-  const userConfig = readConfigFile(userPath);
-  const projectConfig = readConfigFile(projectPath);
-  const customConfig = readConfigFile(customPath);
+  const userConfig = readConfigFile(userPath, options);
+  const projectConfig = readConfigFile(projectPath, options);
+  const customConfig = readConfigFile(customPath, options);
   const mergedConfig = mergeConfigs(mergeConfigs(userConfig, projectConfig), customConfig);
 
   return {

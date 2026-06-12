@@ -7,7 +7,7 @@ import {
 } from './shared.js';
 
 function getProviderSources(providerId, workingDirectory) {
-  const layers = readConfigLayers(workingDirectory);
+  const layers = readConfigLayers(workingDirectory, { tolerateParseErrors: true });
   const { userConfig, projectConfig, customConfig, paths } = layers;
 
   const customProviders = isPlainObject(customConfig?.provider) ? customConfig.provider : {};

@@ -457,6 +457,11 @@ export const registerAxCodeProxy = (app, deps) => {
 
   // Readiness gate — return 503 while ax-code is starting/restarting
   app.use('/api', (req, res, next) => {
+    const isProviderRequest =
+      req.path.startsWith('/config/providers') ||
+      req.path.startsWith('/provider/') ||
+      req.path.startsWith('/auth/');
+
     if (
       req.path.startsWith('/themes/custom') ||
       req.path.startsWith('/push') ||
@@ -476,8 +481,14 @@ export const registerAxCodeProxy = (app, deps) => {
       (!runtimeState.isAxCodeReady && (runtimeState.axCodeNotReadySince === 0 || waitElapsed < OPEN_CODE_READY_GRACE_MS)) ||
       runtimeState.isRestartingAxCode ||
       !runtimeState.axCodePort;
+    const providersReady = runtimeState.axCodeRuntimeHealth?.readiness?.providersReady;
+    const stillWaitingForProviders =
+      isProviderRequest &&
+      runtimeState.axCodeRuntimeHealth?.readiness &&
+      providersReady !== true &&
+      waitElapsed < OPEN_CODE_READY_GRACE_MS;
 
-    if (stillWaiting) {
+    if (stillWaiting || stillWaitingForProviders) {
       return res.status(503).json({
         error: 'ax-code is restarting',
         restarting: true,

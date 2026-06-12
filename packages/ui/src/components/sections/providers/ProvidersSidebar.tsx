@@ -29,6 +29,9 @@ interface ProvidersSidebarProps {
 export const ProvidersSidebar: React.FC<ProvidersSidebarProps> = ({ onItemSelect }) => {
   const { t } = useI18n();
   const providers = useConfigStore((state) => state.providers);
+  const providersLoading = useConfigStore((state) => state.providersLoading);
+  const providersError = useConfigStore((state) => state.providersError);
+  const loadProviders = useConfigStore((state) => state.loadProviders);
   const selectedProviderId = useConfigStore((state) => state.selectedProviderId);
   const setSelectedProvider = useConfigStore((state) => state.setSelectedProvider);
   const activeProjectId = useProjectsStore((s) => s.activeProjectId);
@@ -120,7 +123,27 @@ export const ProvidersSidebar: React.FC<ProvidersSidebarProps> = ({ onItemSelect
       </div>
 
       <ScrollableOverlay outerClassName="flex-1 min-h-0" className="space-y-1 px-3 py-2 overflow-x-hidden">
-        {providers.length === 0 ? (
+        {providersError && providers.length === 0 ? (
+          <div className="py-12 px-4 text-center text-muted-foreground">
+            <Icon name="error-warning" className="mx-auto mb-3 h-10 w-10 opacity-60" />
+            <p className="typography-ui-label font-medium">{t('settings.providers.sidebar.error.title')}</p>
+            <p className="typography-meta mt-1 opacity-75">{t('settings.providers.sidebar.error.description')}</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-4"
+              onClick={() => void loadProviders({ directory })}
+              disabled={providersLoading}
+            >
+              {providersLoading ? t('settings.providers.sidebar.error.retrying') : t('settings.providers.sidebar.error.retry')}
+            </Button>
+          </div>
+        ) : providersLoading && providers.length === 0 ? (
+          <div className="py-12 px-4 text-center text-muted-foreground">
+            <Icon name="loader" className="mx-auto mb-3 h-10 w-10 animate-spin opacity-50" />
+            <p className="typography-ui-label font-medium">{t('settings.providers.sidebar.loading.title')}</p>
+          </div>
+        ) : providers.length === 0 ? (
           <div className="py-12 px-4 text-center text-muted-foreground">
             <Icon name="stack" className="mx-auto mb-3 h-10 w-10 opacity-50" />
             <p className="typography-ui-label font-medium">{t('settings.providers.sidebar.empty.title')}</p>

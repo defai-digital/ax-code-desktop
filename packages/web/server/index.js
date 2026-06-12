@@ -674,6 +674,7 @@ const serverUtilsRuntime = createServerUtilsRuntime({
     axCodeNotReadySince,
     isAxCodeReady,
     isRestartingAxCode,
+    axCodeRuntimeHealth: axCodeLifecycleState.axCodeRuntimeHealth || null,
   }),
   getAxCodeAuthHeaders,
   buildAxCodeUrl,

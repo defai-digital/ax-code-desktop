@@ -457,6 +457,8 @@ interface ConfigStore {
     directoryScoped: Record<string, DirectoryScopedConfig>;
 
     providers: ProviderWithModelList[];
+    providersLoading: boolean;
+    providersError: string | null;
     agents: Agent[];
     currentProviderId: string;
     currentModelId: string;
@@ -529,6 +531,8 @@ export const useConfigStore = create<ConfigStore>()(
                 directoryScoped: {},
 
                 providers: [],
+                providersLoading: false,
+                providersError: null,
                 agents: [],
                 currentProviderId: "",
                 currentModelId: "",
@@ -568,6 +572,8 @@ export const useConfigStore = create<ConfigStore>()(
                                 selectedProviderId: snapshot.selectedProviderId,
                                 agentModelSelections: snapshot.agentModelSelections,
                                 defaultProviders: snapshot.defaultProviders,
+                                providersLoading: false,
+                                providersError: null,
                             };
                         }
 
@@ -581,6 +587,8 @@ export const useConfigStore = create<ConfigStore>()(
                             selectedProviderId: "",
                             agentModelSelections: {},
                             defaultProviders: {},
+                            providersLoading: false,
+                            providersError: null,
                         };
                     });
 
@@ -600,9 +608,12 @@ export const useConfigStore = create<ConfigStore>()(
                     if (existing) return existing;
 
                     const promise = (async () => {
+                    set((state) => state.activeDirectoryKey === directoryKey
+                        ? { providersLoading: true, providersError: null }
+                        : {});
                     let lastError: unknown = null;
 
-                    for (let attempt = 0; attempt < 3; attempt++) {
+                    for (let attempt = 0; attempt < 8; attempt++) {
                         try {
                             ensureModelsMetadataFetch(
                                 () => get().modelsMetadata,
@@ -652,6 +663,8 @@ export const useConfigStore = create<ConfigStore>()(
                                 if (state.activeDirectoryKey === directoryKey) {
                                     nextState.providers = processedProviders;
                                     nextState.defaultProviders = defaults;
+                                    nextState.providersLoading = false;
+                                    nextState.providersError = null;
 
                                     if (!state.currentProviderId && !state.currentModelId && state.settingsDefaultModel) {
                                         const parsed = parseModelString(state.settingsDefaultModel);
@@ -683,7 +696,7 @@ export const useConfigStore = create<ConfigStore>()(
                             return;
                         } catch (error) {
                             lastError = error;
-                            const waitMs = 200 * (attempt + 1);
+                            const waitMs = 250 * (attempt + 1);
                             await new Promise((resolve) => setTimeout(resolve, waitMs));
                         }
                     }
@@ -727,6 +740,8 @@ export const useConfigStore = create<ConfigStore>()(
                         if (state.activeDirectoryKey === directoryKey) {
                             nextState.providers = fallbackProviders;
                             nextState.defaultProviders = fallbackDefaults;
+                            nextState.providersLoading = false;
+                            nextState.providersError = "Unable to load providers";
 
                             if (!state.currentProviderId && !state.currentModelId && state.settingsDefaultModel) {
                                 const parsed = parseModelString(state.settingsDefaultModel);

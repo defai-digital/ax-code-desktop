@@ -17,6 +17,7 @@ describe('compareVersions', () => {
     expect(compareVersions('v5.12.0', '5.12.0')).toBe(0);
     expect(compareVersions('5.12.0+build.7', '5.12.0')).toBe(0);
     expect(compareVersions('5.12.0-beta.1', '5.12.0')).toBeLessThan(0);
+    expect(compareVersions('5.12.0-custombuild', '5.12.0')).toBe(0);
   });
 });
 

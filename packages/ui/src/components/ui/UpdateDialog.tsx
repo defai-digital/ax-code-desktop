@@ -255,8 +255,9 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
     const result = await installWebUpdate();
 
     if (!result.success) {
+      console.warn('Web update failed:', result.error);
       setWebUpdateState('error');
-      setWebError(result.error || t('updateDialog.error.updateFailed'));
+      setWebError(t('updateDialog.error.updateFailed'));
       return;
     }
 

@@ -68,6 +68,8 @@ export const AxCodeUpdateToast: React.FC = () => {
         throw new Error(payload?.error || response.statusText || t('axCodeUpdate.toast.failed.description'));
       }
 
+      warnedIncompatibleVersionRef.current = null;
+      toast.dismiss(INCOMPATIBLE_TOAST_ID);
       toast.success(t('axCodeUpdate.toast.updated.title'), {
         id: UPGRADE_TOAST_ID,
         description: payload?.version

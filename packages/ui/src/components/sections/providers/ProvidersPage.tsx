@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { ProviderLogo } from '@/components/ui/ProviderLogo';
 import { useConfigStore } from '@/stores/useConfigStore';
+import { useProjectsStore } from '@/stores/useProjectsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Icon } from "@/components/icon/Icon";
 import type { IconName } from "@/components/icon/icons";
 import { API_ENDPOINTS, replacePathParams } from '@/lib/http';
+import { axCodeClient } from '@/lib/ax-code/client';
 import { reloadAxCodeConfiguration, waitForQueuedAxCodeReload } from '@/stores/useAgentsStore';
 import { cn } from '@/lib/utils';
 import { copyTextToClipboard } from '@/lib/clipboard';
@@ -43,6 +45,7 @@ const formatTokens = (value?: number | null) => {
 };
 
 const ADD_PROVIDER_ID = '__add_provider__';
+const PROVIDER_REQUEST_RETRY_DELAYS_MS = [250, 500, 750, 1000, 1500, 2000, 2500, 3000];
 
 interface AuthMethod {
   type?: string;
@@ -130,9 +133,64 @@ const parseProvidersPayload = (payload: unknown): ProviderOption[] => {
   });
 };
 
+const getCurrentDirectory = (): string | null => {
+  const dir = axCodeClient.getDirectory();
+  if (typeof dir === 'string' && dir.trim().length > 0) {
+    return dir.trim();
+  }
+  return null;
+};
+
+const appendDirectoryQuery = (url: string, directory: string | null) => {
+  if (!directory) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}directory=${encodeURIComponent(directory)}`;
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchProviderJsonWithRetry = async (url: string, init: RequestInit) => {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt <= PROVIDER_REQUEST_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      const response = await fetch(url, init);
+      const payload = await response.json().catch(() => null);
+      if (response.ok) {
+        return payload;
+      }
+
+      const restarting = response.status === 503 && isRecord(payload) && payload.restarting === true;
+      if (restarting && attempt < PROVIDER_REQUEST_RETRY_DELAYS_MS.length) {
+        lastError = new Error('AX Code is restarting');
+        await sleep(PROVIDER_REQUEST_RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+
+      const message = isRecord(payload) && typeof payload.error === 'string'
+        ? payload.error
+        : `Provider request failed (${response.status})`;
+      throw Object.assign(new Error(message), { noRetry: true });
+    } catch (error) {
+      lastError = error;
+      if (isRecord(error) && error.noRetry === true) {
+        break;
+      }
+      if (attempt >= PROVIDER_REQUEST_RETRY_DELAYS_MS.length) {
+        break;
+      }
+      await sleep(PROVIDER_REQUEST_RETRY_DELAYS_MS[attempt]);
+      continue;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Provider request failed');
+};
+
 export const ProvidersPage: React.FC = () => {
   const { t } = useI18n();
   const providers = useConfigStore((state) => state.providers);
+  const providersLoading = useConfigStore((state) => state.providersLoading);
+  const providersError = useConfigStore((state) => state.providersError);
   const selectedProviderId = useConfigStore((state) => state.selectedProviderId);
   const setSelectedProvider = useConfigStore((state) => state.setSelectedProvider);
   const getModelMetadata = useConfigStore((state) => state.getModelMetadata);
@@ -140,6 +198,11 @@ export const ProvidersPage: React.FC = () => {
   const toggleHiddenModel = useUIStore((state) => state.toggleHiddenModel);
   const hideAllModels = useUIStore((state) => state.hideAllModels);
   const showAllModels = useUIStore((state) => state.showAllModels);
+  const activeProjectId = useProjectsStore((state) => state.activeProjectId);
+  const directory = React.useMemo(() => {
+    void activeProjectId;
+    return getCurrentDirectory();
+  }, [activeProjectId]);
 
   const [authMethodsByProvider, setAuthMethodsByProvider] = React.useState<Record<string, AuthMethod[]>>({});
   const [authLoading, setAuthLoading] = React.useState(false);
@@ -170,16 +233,10 @@ export const ProvidersPage: React.FC = () => {
     const loadAuthMethods = async () => {
       setAuthLoading(true);
       try {
-        const response = await fetch(API_ENDPOINTS.provider.auth, {
+        const payload = await fetchProviderJsonWithRetry(appendDirectoryQuery(API_ENDPOINTS.provider.auth, directory), {
           method: 'GET',
           headers: { Accept: 'application/json' },
         });
-
-        if (!response.ok) {
-          throw new Error(`Auth methods request failed (${response.status})`);
-        }
-
-        const payload = await response.json().catch(() => ({}));
         if (!isMounted) return;
         setAuthMethodsByProvider(parseAuthPayload(payload));
       } catch (error) {
@@ -198,7 +255,7 @@ export const ProvidersPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [t]);
+  }, [directory, t]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -207,16 +264,10 @@ export const ProvidersPage: React.FC = () => {
       setAvailableLoading(true);
       setAvailableError(null);
       try {
-        const response = await fetch(API_ENDPOINTS.provider.base, {
+        const payload = await fetchProviderJsonWithRetry(appendDirectoryQuery(API_ENDPOINTS.provider.base, directory), {
           method: 'GET',
           headers: { Accept: 'application/json' },
         });
-
-        if (!response.ok) {
-          throw new Error(`Provider list request failed (${response.status})`);
-        }
-
-        const payload = await response.json().catch(() => ({}));
         if (!isMounted) return;
         setAvailableProviders(parseProvidersPayload(payload));
       } catch (error) {
@@ -235,7 +286,7 @@ export const ProvidersPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [t]);
+  }, [directory, t]);
 
   const connectedProviderIds = React.useMemo(
     () => new Set(providers.map((provider) => provider.id)),
@@ -282,9 +333,9 @@ export const ProvidersPage: React.FC = () => {
 
     const loadSources = async () => {
       try {
-        const response = await fetch(replacePathParams(API_ENDPOINTS.provider.source, {
+        const response = await fetch(appendDirectoryQuery(replacePathParams(API_ENDPOINTS.provider.source, {
           providerId: selectedProviderId,
-        }), {
+        }), directory), {
           method: 'GET',
           headers: { Accept: 'application/json' },
         });
@@ -313,7 +364,7 @@ export const ProvidersPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedProviderId, t]);
+  }, [directory, selectedProviderId, t]);
 
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId);
   const selectedSources = selectedProviderId ? providerSources[selectedProviderId] : undefined;
@@ -329,27 +380,26 @@ export const ProvidersPage: React.FC = () => {
     setAuthBusyKey(busyKey);
 
     try {
-      const response = await fetch(replacePathParams(API_ENDPOINTS.provider.authByProvider, {
+      await fetchProviderJsonWithRetry(appendDirectoryQuery(replacePathParams(API_ENDPOINTS.provider.authByProvider, {
         providerId,
-      }), {
+      }), directory), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'api', key: apiKey }),
       });
 
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        const message = payload?.error || t('settings.providers.page.toast.apiKeySaveFailed');
-        throw new Error(message);
-      }
-
-      toast.success(t('settings.providers.page.toast.apiKeySaved'));
       setApiKeyInputs((prev) => ({ ...prev, [providerId]: '' }));
-      await reloadAxCodeConfiguration({
-        message: 'Restarting AX Code to load provider credentials…',
-        scopes: ["providers"],
-        mode: "active",
-      });
+      try {
+        await reloadAxCodeConfiguration({
+          message: 'Restarting AX Code to load provider credentials...',
+          scopes: ["providers"],
+          mode: "active",
+        });
+        toast.success(t('settings.providers.page.toast.apiKeySaved'));
+      } catch (reloadError) {
+        console.error('API key was saved, but AX Code reload failed:', reloadError);
+        toast.warning(t('settings.providers.page.toast.apiKeySavedRestartFailed'));
+      }
       setSelectedProvider(providerId);
     } catch (error) {
       console.error('Failed to save API key:', error);
@@ -364,19 +414,13 @@ export const ProvidersPage: React.FC = () => {
     setAuthBusyKey(busyKey);
 
     try {
-      const response = await fetch(replacePathParams(API_ENDPOINTS.provider.oauthAuthorize, {
+      const payload = await fetchProviderJsonWithRetry(appendDirectoryQuery(replacePathParams(API_ENDPOINTS.provider.oauthAuthorize, {
         providerId,
-      }), {
+      }), directory), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ method: methodIndex }),
       });
-
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        const message = payload?.error || t('settings.providers.page.toast.oauthStartFailed');
-        throw new Error(message);
-      }
 
       const payloadRecord = isRecord(payload) ? payload : {};
       const dataRecord = isRecord(payloadRecord.data) ? payloadRecord.data : payloadRecord;
@@ -435,28 +479,27 @@ export const ProvidersPage: React.FC = () => {
         requestBody.code = code;
       }
 
-      const response = await fetch(replacePathParams(API_ENDPOINTS.provider.oauthCallback, {
+      await fetchProviderJsonWithRetry(appendDirectoryQuery(replacePathParams(API_ENDPOINTS.provider.oauthCallback, {
         providerId,
-      }), {
+      }), directory), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
       });
 
-      const responsePayload = await response.json().catch(() => null);
-      if (!response.ok) {
-        const message = responsePayload?.error || t('settings.providers.page.toast.oauthCompleteFailed');
-        throw new Error(message);
-      }
-
-      toast.success(t('settings.providers.page.toast.oauthCompleted'));
       setOauthCodes((prev) => ({ ...prev, [codeKey]: '' }));
       setPendingOAuth(null);
-      await reloadAxCodeConfiguration({
-        message: 'Restarting AX Code to load provider credentials…',
-        scopes: ["providers"],
-        mode: "active",
-      });
+      try {
+        await reloadAxCodeConfiguration({
+          message: 'Restarting AX Code to load provider credentials...',
+          scopes: ["providers"],
+          mode: "active",
+        });
+        toast.success(t('settings.providers.page.toast.oauthCompleted'));
+      } catch (reloadError) {
+        console.error('OAuth completed, but AX Code reload failed:', reloadError);
+        toast.warning(t('settings.providers.page.toast.oauthCompletedRestartFailed'));
+      }
       setSelectedProvider(providerId);
     } catch (error) {
       console.error('Failed to complete OAuth flow:', error);
@@ -523,6 +566,29 @@ export const ProvidersPage: React.FC = () => {
   };
 
   const isAddMode = selectedProviderId === ADD_PROVIDER_ID;
+
+  if (!isAddMode && providersError && providers.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center text-muted-foreground">
+          <Icon name="error-warning" className="mx-auto mb-3 h-12 w-12 opacity-60" />
+          <p className="typography-body">{t('settings.providers.sidebar.error.title')}</p>
+          <p className="typography-meta mt-1 opacity-75">{t('settings.providers.sidebar.error.description')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAddMode && providersLoading && providers.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center text-muted-foreground">
+          <Icon name="loader" className="mx-auto mb-3 h-12 w-12 animate-spin opacity-50" />
+          <p className="typography-body">{t('settings.providers.sidebar.loading.title')}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAddMode && providers.length === 0) {
     return (
