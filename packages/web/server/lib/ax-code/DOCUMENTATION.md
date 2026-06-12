@@ -342,7 +342,7 @@ This module provides ax-code server integration utilities for the web server run
 - User config: `~/.config/ax-code/ax-code.json`.
 - Project config: `<workingDirectory>/.ax-code/ax-code.json` or `ax-code.json`.
 - Custom config: `AX_CODE_CONFIG` env var path.
-- Rate limit config: `OPENCHAMBER_RATE_LIMIT_MAX_ATTEMPTS`, `OPENCHAMBER_RATE_LIMIT_NO_IP_MAX_ATTEMPTS` env vars.
+- Rate limit config: `AX_CODE_DESKTOP_RATE_LIMIT_MAX_ATTEMPTS`, `AX_CODE_DESKTOP_RATE_LIMIT_NO_IP_MAX_ATTEMPTS` env vars.
 
 ## Notes for contributors
 - This module serves as foundation for AX Code-related server utilities.

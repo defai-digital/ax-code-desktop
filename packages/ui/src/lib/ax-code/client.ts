@@ -122,12 +122,12 @@ const resolveDesktopBaseUrl = (): string | null => {
     return null;
   }
   const desktopServer = (window as typeof window & {
-    __OPENCHAMBER_DESKTOP_SERVER__?: { origin: string; apiPrefix?: string };
-    __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
-  }).__OPENCHAMBER_DESKTOP_SERVER__;
+    __AX_CODE_DESKTOP_DESKTOP_SERVER__?: { origin: string; apiPrefix?: string };
+    __AX_CODE_DESKTOP_RUNTIME_APIS__?: RuntimeAPIs;
+  }).__AX_CODE_DESKTOP_DESKTOP_SERVER__;
 
   const isDesktop = Boolean(
-    (window as typeof window & { __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs }).__OPENCHAMBER_RUNTIME_APIS__?.runtime?.isDesktop
+    (window as typeof window & { __AX_CODE_DESKTOP_RUNTIME_APIS__?: RuntimeAPIs }).__AX_CODE_DESKTOP_RUNTIME_APIS__?.runtime?.isDesktop
   );
 
   if (!desktopServer || !isDesktop) {
@@ -196,7 +196,7 @@ const getDesktopFilesApi = (): FilesAPI | null => {
   if (typeof window === "undefined") {
     return null;
   }
-  const apis = (window as typeof window & { __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs }).__OPENCHAMBER_RUNTIME_APIS__;
+  const apis = (window as typeof window & { __AX_CODE_DESKTOP_RUNTIME_APIS__?: RuntimeAPIs }).__AX_CODE_DESKTOP_RUNTIME_APIS__;
   if (apis && apis.runtime?.isDesktop && apis.files) {
     return apis.files;
   }

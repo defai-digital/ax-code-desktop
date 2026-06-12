@@ -318,7 +318,7 @@ fn now_millis() -> u64 {
 }
 
 fn settings_file_path() -> PathBuf {
-    if let Ok(dir) = std::env::var("OPENCHAMBER_DATA_DIR") {
+    if let Ok(dir) = std::env::var("AX_CODE_DESKTOP_DATA_DIR") {
         if !dir.trim().is_empty() {
             return PathBuf::from(dir.trim()).join("settings.json");
         }
@@ -946,9 +946,9 @@ fn askpass_script_content() -> String {
     let script = r#"#!/bin/bash
 PROMPT="$1"
 
-if [[ -n "$OPENCHAMBER_SSH_ASKPASS_VALUE" ]]; then
+if [[ -n "$AX_CODE_DESKTOP_SSH_ASKPASS_VALUE" ]]; then
   if [[ "$PROMPT" == *"assword"* || "$PROMPT" == *"passphrase"* ]]; then
-    printf '%s\n' "$OPENCHAMBER_SSH_ASKPASS_VALUE"
+    printf '%s\n' "$AX_CODE_DESKTOP_SSH_ASKPASS_VALUE"
     exit 0
   fi
 fi
@@ -1020,7 +1020,7 @@ fn spawn_master_process(
         .env("DISPLAY", "1");
 
     if let Some(secret) = ssh_password.filter(|value| !value.trim().is_empty()) {
-        command.env("OPENCHAMBER_SSH_ASKPASS_VALUE", secret.trim());
+        command.env("AX_CODE_DESKTOP_SSH_ASKPASS_VALUE", secret.trim());
     }
 
     command.spawn().with_context(|| {
@@ -1380,7 +1380,7 @@ fn start_remote_server_managed(
     instance: &DesktopSshInstance,
     desired_port: u16,
 ) -> Result<u16> {
-    let mut env_prefix = "OPENCHAMBER_RUNTIME=ssh-remote".to_string();
+    let mut env_prefix = "AX_CODE_DESKTOP_RUNTIME=ssh-remote".to_string();
     if let Some(secret) = instance
         .auth
         .openchamber_password
@@ -1390,7 +1390,7 @@ fn start_remote_server_managed(
         .filter(|v| !v.is_empty())
     {
         env_prefix.push(' ');
-        env_prefix.push_str("OPENCHAMBER_UI_PASSWORD=");
+        env_prefix.push_str("AX_CODE_DESKTOP_UI_PASSWORD=");
         env_prefix.push_str(&shell_quote(&secret));
     }
     let script = format!(

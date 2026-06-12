@@ -5,7 +5,7 @@ export const parseServeCliOptions = ({
 }) => {
   const args = Array.isArray(argv) ? [...argv] : [];
   const envPassword =
-    env.OPENCHAMBER_UI_PASSWORD ||
+    env.AX_CODE_DESKTOP_UI_PASSWORD ||
     env.AX_CODE_UI_PASSWORD ||
     null;
   const options = {

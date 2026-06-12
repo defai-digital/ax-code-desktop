@@ -48,8 +48,8 @@
 
 - Auth storage: `~/.config/openchamber/github-auth.json` (legacy compatibility path)
 - Writes are atomic and file mode is `0o600`.
-- Client ID resolution order: `OPENCHAMBER_GITHUB_CLIENT_ID` -> `settings.json` -> default.
-- Scope resolution order: `OPENCHAMBER_GITHUB_SCOPES` -> `settings.json` -> default.
+- Client ID resolution order: `AX_CODE_DESKTOP_GITHUB_CLIENT_ID` -> `settings.json` -> default.
+- Scope resolution order: `AX_CODE_DESKTOP_GITHUB_SCOPES` -> `settings.json` -> default.
 - Account id resolution order: explicit `accountId` -> user login -> user id -> token prefix.
 
 ## PR integration overview

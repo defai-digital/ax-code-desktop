@@ -10,7 +10,7 @@ const packageJson = JSON.parse(readFileSync(path.resolve(__dirname, 'package.jso
 const reactScanToggle = (process.env.VITE_ENABLE_REACT_SCAN ?? '').toLowerCase();
 const enableReactScan = reactScanToggle === '1' || reactScanToggle === 'true' || reactScanToggle === 'on' || reactScanToggle === 'yes';
 const nodeModulesSegment = 'node_modules/';
-const configuredDevServerPort = Number.parseInt(process.env.OPENCHAMBER_RENDERER_PORT ?? '5173', 10);
+const configuredDevServerPort = Number.parseInt(process.env.AX_CODE_DESKTOP_RENDERER_PORT ?? '5173', 10);
 const devServerPort = Number.isFinite(configuredDevServerPort) && configuredDevServerPort > 0
   ? configuredDevServerPort
   : 5173;
@@ -98,15 +98,15 @@ export default defineConfig({
     port: devServerPort,
     proxy: {
       '/auth': {
-        target: `http://127.0.0.1:${process.env.OPENCHAMBER_PORT || 3001}`,
+        target: `http://127.0.0.1:${process.env.AX_CODE_DESKTOP_PORT || 3001}`,
         changeOrigin: true,
       },
       '/health': {
-        target: `http://127.0.0.1:${process.env.OPENCHAMBER_PORT || 3001}`,
+        target: `http://127.0.0.1:${process.env.AX_CODE_DESKTOP_PORT || 3001}`,
         changeOrigin: true,
       },
       '/api': {
-        target: `http://127.0.0.1:${process.env.OPENCHAMBER_PORT || 3001}`,
+        target: `http://127.0.0.1:${process.env.AX_CODE_DESKTOP_PORT || 3001}`,
         changeOrigin: true,
         ws: true,
       },

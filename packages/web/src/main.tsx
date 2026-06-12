@@ -6,10 +6,10 @@ import '@openchamber/ui/styles/fonts';
 
 declare global {
   interface Window {
-    __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
+    __AX_CODE_DESKTOP_RUNTIME_APIS__?: RuntimeAPIs;
   }
 }
 
-window.__OPENCHAMBER_RUNTIME_APIS__ = createWebAPIs();
+window.__AX_CODE_DESKTOP_RUNTIME_APIS__ = createWebAPIs();
 
 void import('@openchamber/ui/main');

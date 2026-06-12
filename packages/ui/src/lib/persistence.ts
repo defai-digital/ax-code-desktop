@@ -35,12 +35,12 @@ const persistToLocalStorage = (settings: DesktopSettings) => {
   }
   if (settings.homeDirectory) {
     localStorage.setItem('homeDirectory', settings.homeDirectory);
-    // Electron's preload exposes __OPENCHAMBER_HOME__ as a read-only
+    // Electron's preload exposes __AX_CODE_DESKTOP_HOME__ as a read-only
     // contextBridge property; assignment throws TypeError there. Plain web
     // runtime may still expose a writable value. Swallow the
     // error in Electron — preload already seeded the value correctly.
     try {
-      window.__OPENCHAMBER_HOME__ = settings.homeDirectory;
+      window.__AX_CODE_DESKTOP_HOME__ = settings.homeDirectory;
     } catch {
       /* read-only contextBridge property — leave preload-seeded value */
     }

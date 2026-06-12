@@ -41,7 +41,7 @@ const resolveBaseOrigin = (): string => {
   if (typeof window === 'undefined') {
     return '';
   }
-  const desktopOrigin = window.__OPENCHAMBER_DESKTOP_SERVER__?.origin;
+  const desktopOrigin = window.__AX_CODE_DESKTOP_DESKTOP_SERVER__?.origin;
   if (desktopOrigin) {
     return desktopOrigin;
   }

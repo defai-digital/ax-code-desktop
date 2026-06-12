@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 // Signal to the UI that it's running inside the Electron shell.
 // Detected by isElectronShell() in packages/ui/src/lib/desktop.ts.
-contextBridge.exposeInMainWorld('__OPENCHAMBER_ELECTRON__', {
+contextBridge.exposeInMainWorld('__AX_CODE_DESKTOP_ELECTRON__', {
   runtime: 'electron',
   recordStartupEvent: (name, details) => ipcRenderer.invoke('desktop_record_startup_event', { name, details: details ?? {} }),
 })

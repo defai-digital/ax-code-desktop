@@ -61,7 +61,7 @@ export const useWindowTitle = () => {
     const refreshInstanceLabel = async () => {
       try {
         const currentHref = window.location.href;
-        const localOrigin = window.__OPENCHAMBER_LOCAL_ORIGIN__ || window.location.origin;
+        const localOrigin = window.__AX_CODE_DESKTOP_LOCAL_ORIGIN__ || window.location.origin;
 
         if (locationMatchesHost(currentHref, localOrigin)) {
           if (!cancelled) {

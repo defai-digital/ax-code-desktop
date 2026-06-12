@@ -10,8 +10,8 @@ export const createServerStartupRuntime = (dependencies) => {
 
   const resolveBindHost = (host) =>
     host
-    || (typeof process.env.OPENCHAMBER_HOST === 'string' && process.env.OPENCHAMBER_HOST.trim().length > 0
-      ? process.env.OPENCHAMBER_HOST.trim()
+    || (typeof process.env.AX_CODE_DESKTOP_HOST === 'string' && process.env.AX_CODE_DESKTOP_HOST.trim().length > 0
+      ? process.env.AX_CODE_DESKTOP_HOST.trim()
       : '127.0.0.1');
 
   const startListening = async ({

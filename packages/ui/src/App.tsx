@@ -693,7 +693,7 @@ function App({ apis }: AppProps) {
   }, [clearError, embeddedSessionChat, error]);
 
   // Poll for the injected boot outcome until it becomes available (desktop only).
-  // The Rust backend sets window.__OPENCHAMBER_DESKTOP_BOOT_OUTCOME__ once the
+  // The Rust backend sets window.__AX_CODE_DESKTOP_DESKTOP_BOOT_OUTCOME__ once the
   // sidecar reaches a stable state. We poll with exponential backoff to handle
   // potential race conditions during startup and config writes.
   React.useEffect(() => {

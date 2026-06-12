@@ -37,7 +37,7 @@ const readOwnPackageJsonField = (field) => {
 // Identity of the installed package — drives global-install detection and the
 // update command. Sourced from this app's own package.json (single source of
 // truth) so it tracks the published name; overridable via env.
-const PACKAGE_NAME = firstConfiguredEnv('AX_CODE_NPM_PACKAGE', 'OPENCHAMBER_NPM_PACKAGE')
+const PACKAGE_NAME = firstConfiguredEnv('AX_CODE_NPM_PACKAGE', 'AX_CODE_DESKTOP_NPM_PACKAGE')
   || readOwnPackageJsonField('name')
   || 'ax-code-desktop';
 const PACKAGE_PATH_SEGMENTS = PACKAGE_NAME.split('/');
@@ -48,7 +48,7 @@ const PACKAGE_PATH_SEGMENTS = PACKAGE_NAME.split('/');
 // GitHub Releases), which does not go through this module. Returning empty
 // strings makes every downstream remote check (update-API POST, npm registry
 // lookup, changelog fetch) short-circuit cleanly to "no update". The
-// AX_CODE_UPDATE_* / OPENCHAMBER_UPDATE_* env vars are intentionally ignored.
+// AX_CODE_UPDATE_* / AX_CODE_DESKTOP_UPDATE_* env vars are intentionally ignored.
 const resolveUpdateSources = () => ({
   apiUrl: '',
   changelogUrl: '',
@@ -327,7 +327,7 @@ export function detectPackageManagerDetails() {
   // dozen spawnSync(pm, ['bin', '-g']) calls with 10s timeouts each; under
   // the in-process server every one blocks the Electron main event loop and
   // manifests as a multi-second UI freeze. Short-circuit here.
-  if (process.env.OPENCHAMBER_RUNTIME === 'desktop') {
+  if (process.env.AX_CODE_DESKTOP_RUNTIME === 'desktop') {
     return {
       packageManager: 'electron',
       reason: 'desktop-runtime',
@@ -347,7 +347,7 @@ export function detectPackageManagerDetails() {
       };
   }
 
-  const forcedPm = process.env.OPENCHAMBER_PACKAGE_MANAGER?.trim();
+  const forcedPm = process.env.AX_CODE_DESKTOP_PACKAGE_MANAGER?.trim();
   if (forcedPm && ['npm', 'pnpm', 'yarn', 'bun'].includes(forcedPm)) {
     const forcedPmCommand = resolvePackageManagerCommand(forcedPm);
     if (isCommandAvailable(forcedPmCommand)) {

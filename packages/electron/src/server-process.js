@@ -7,7 +7,7 @@
 // before — only *where* the server runs changes.
 //
 // Environment variables the server reads at module-init time
-// (OPENCHAMBER_DIST_DIR, OPENCHAMBER_RUNTIME, OPENCHAMBER_ELECTRON_SERVER_PORT)
+// (AX_CODE_DESKTOP_DIST_DIR, AX_CODE_DESKTOP_RUNTIME, AX_CODE_DESKTOP_ELECTRON_SERVER_PORT)
 // are supplied by the parent's utilityProcess.fork({ env }) call.
 
 // Bundled server (dist/server.js produced by bundle-main.mjs). Kept as an
@@ -28,7 +28,7 @@ function parseStartupSnapshot() {
 }
 
 async function boot() {
-  const configuredPort = Number.parseInt(process.env.OPENCHAMBER_ELECTRON_SERVER_PORT || '', 10)
+  const configuredPort = Number.parseInt(process.env.AX_CODE_DESKTOP_ELECTRON_SERVER_PORT || '', 10)
   serverHandle = await startWebUiServer({
     port: Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 0,
     startupDiagnosticsSnapshot: parseStartupSnapshot(),

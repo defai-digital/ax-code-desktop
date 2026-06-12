@@ -8,7 +8,7 @@ export const createStaticRoutesRuntime = (dependencies) => {
   } = dependencies;
 
   const resolveDistPath = () => {
-    const env = typeof process.env.OPENCHAMBER_DIST_DIR === 'string' ? process.env.OPENCHAMBER_DIST_DIR.trim() : '';
+    const env = typeof process.env.AX_CODE_DESKTOP_DIST_DIR === 'string' ? process.env.AX_CODE_DESKTOP_DIST_DIR.trim() : '';
     if (env) {
       return path.resolve(env);
     }

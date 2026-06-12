@@ -8,7 +8,7 @@ const restoreWindow = () => {
 const mockDesktopWindow = (dialogOpen: (options: Record<string, unknown>) => Promise<unknown>) => {
   (globalThis as Record<string, unknown>).window = {
     location: { origin: 'http://localhost:5173' },
-    __OPENCHAMBER_ELECTRON__: { runtime: 'electron' },
+    __AX_CODE_DESKTOP_ELECTRON__: { runtime: 'electron' },
     __TAURI__: {
       core: { invoke: async () => null },
       dialog: { open: dialogOpen },

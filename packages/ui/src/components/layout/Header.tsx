@@ -785,7 +785,7 @@ export const Header: React.FC = () => {
     if (typeof window === 'undefined') {
       return false;
     }
-    return Boolean(window.__OPENCHAMBER_ELECTRON__) && window.__OPENCHAMBER_PLATFORM__ === 'win32';
+    return Boolean(window.__AX_CODE_DESKTOP_ELECTRON__) && window.__AX_CODE_DESKTOP_PLATFORM__ === 'win32';
   }, []);
 
   const macosMajorVersion = React.useMemo(() => {
@@ -793,7 +793,7 @@ export const Header: React.FC = () => {
       return null;
     }
 
-    const injected = (window as unknown as { __OPENCHAMBER_MACOS_MAJOR__?: unknown }).__OPENCHAMBER_MACOS_MAJOR__;
+    const injected = (window as unknown as { __AX_CODE_DESKTOP_MACOS_MAJOR__?: unknown }).__AX_CODE_DESKTOP_MACOS_MAJOR__;
     if (typeof injected === 'number' && Number.isFinite(injected) && injected > 0) {
       return injected;
     }
@@ -877,7 +877,7 @@ export const Header: React.FC = () => {
     try {
       const cfg = await desktopHostsGet();
       const currentHref = window.location.href;
-      const localOrigin = window.__OPENCHAMBER_LOCAL_ORIGIN__ || window.location.origin;
+      const localOrigin = window.__AX_CODE_DESKTOP_LOCAL_ORIGIN__ || window.location.origin;
 
       if (locationMatchesHost(currentHref, localOrigin)) {
         setCurrentInstanceLabel('Local');

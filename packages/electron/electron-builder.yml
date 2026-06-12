@@ -9,6 +9,8 @@ directories:
   buildResources: build
   output: dist
 
+artifactName: AX-Code-Desktop-${version}-${arch}.${ext}
+
 # Files packaged into app.asar
 files:
   - package.json
@@ -66,7 +68,6 @@ win:
   # jobs. With no arch here, the CLI flag is the sole source and each job emits
   # exactly its own arch. The ${arch} token keeps the per-arch installer/zip/
   # blockmap names distinct on the shared release.
-  artifactName: ${productName}-${version}-${arch}.${ext}
   icon: build/icon.ico
   # No certificateFile here: with no cert this would force signing against a
   # missing file and fail the build. Windows signing, when desired, is picked

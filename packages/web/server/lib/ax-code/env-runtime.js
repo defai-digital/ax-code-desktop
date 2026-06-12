@@ -256,7 +256,7 @@ export const createAxCodeEnvRuntime = (deps) => {
       return null;
     }
 
-    const explicit = [process.env.WSL_BINARY, process.env.OPENCHAMBER_WSL_BINARY]
+    const explicit = [process.env.WSL_BINARY, process.env.AX_CODE_DESKTOP_WSL_BINARY]
       .map((v) => (typeof v === 'string' ? v.trim() : ''))
       .filter(Boolean);
 
@@ -371,8 +371,8 @@ export const createAxCodeEnvRuntime = (deps) => {
     const explicit = [
       process.env.AX_CODE_BINARY,
       process.env.AX_CODE_PATH,
-      process.env.OPENCHAMBER_AX_CODE_PATH,
-      process.env.OPENCHAMBER_AX_CODE_BIN,
+      process.env.AX_CODE_DESKTOP_AX_CODE_PATH,
+      process.env.AX_CODE_DESKTOP_AX_CODE_BIN,
     ]
       .map((v) => (typeof v === 'string' ? v.trim() : ''))
       .filter(Boolean);
@@ -490,7 +490,7 @@ export const createAxCodeEnvRuntime = (deps) => {
   };
 
   const resolveNodeCliPath = () => {
-    const explicit = [process.env.NODE_BINARY, process.env.OPENCHAMBER_NODE_BINARY]
+    const explicit = [process.env.NODE_BINARY, process.env.AX_CODE_DESKTOP_NODE_BINARY]
       .map((v) => (typeof v === 'string' ? v.trim() : ''))
       .filter(Boolean);
 
@@ -555,7 +555,7 @@ export const createAxCodeEnvRuntime = (deps) => {
   };
 
   const resolveBunCliPath = () => {
-    const explicit = [process.env.BUN_BINARY, process.env.OPENCHAMBER_BUN_BINARY]
+    const explicit = [process.env.BUN_BINARY, process.env.AX_CODE_DESKTOP_BUN_BINARY]
       .map((v) => (typeof v === 'string' ? v.trim() : ''))
       .filter(Boolean);
 
@@ -1122,7 +1122,7 @@ export const createAxCodeEnvRuntime = (deps) => {
       return state.resolvedGitBinary;
     }
 
-    const explicit = [process.env.GIT_BINARY, process.env.OPENCHAMBER_GIT_BINARY]
+    const explicit = [process.env.GIT_BINARY, process.env.AX_CODE_DESKTOP_GIT_BINARY]
       .map((value) => (typeof value === 'string' ? value.trim() : ''))
       .filter(Boolean);
     for (const candidate of explicit) {

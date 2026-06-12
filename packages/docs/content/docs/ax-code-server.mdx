@@ -57,7 +57,7 @@ ax-code-desktop startup disable
 To protect the UI, set the password when enabling the service:
 
 ```bash
-OPENCHAMBER_UI_PASSWORD='secret' ax-code-desktop startup enable
+AX_CODE_DESKTOP_UI_PASSWORD='secret' ax-code-desktop startup enable
 ```
 
 `startup enable` snapshots your current environment into the service so it behaves more like starting `ax-code-desktop` from the same shell. This keeps provider tokens, `PATH`, SSH agent settings, and other CLI auth/config variables available. Use `--no-env-snapshot` if you want a minimal service environment.

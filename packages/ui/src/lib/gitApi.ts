@@ -37,8 +37,8 @@ export type {
 } from './api/types';
 
 const getRuntimeGit = () => {
-  if (typeof window !== 'undefined' && window.__OPENCHAMBER_RUNTIME_APIS__?.git) {
-    return window.__OPENCHAMBER_RUNTIME_APIS__.git;
+  if (typeof window !== 'undefined' && window.__AX_CODE_DESKTOP_RUNTIME_APIS__?.git) {
+    return window.__AX_CODE_DESKTOP_RUNTIME_APIS__.git;
   }
   return null;
 };

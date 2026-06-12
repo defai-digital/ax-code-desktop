@@ -7,41 +7,41 @@ description: Configure AX Code Desktop and AX Code integration with environment 
 
 AX Code Desktop reads these environment variables at startup. For startup services, `ax-code-desktop startup enable` snapshots the current environment by default, so rerun it after changing variables you want the service to use.
 
-Some variables still use the `OPENCHAMBER_` prefix for compatibility with
+Some variables still use the `AX_CODE_DESKTOP_` prefix for compatibility with
 existing installs and storage paths. Use the names shown here; the prefix is a
 legacy implementation detail, not the product name.
 
 ## AX Code Desktop server
 
-### `OPENCHAMBER_HOST`
+### `AX_CODE_DESKTOP_HOST`
 
 Bind address for the AX Code Desktop web server. Use `0.0.0.0` to allow access from other machines.
 
-### `OPENCHAMBER_UI_PASSWORD`
+### `AX_CODE_DESKTOP_UI_PASSWORD`
 
 Password for the browser UI. Use this when binding outside localhost or running behind a reverse proxy.
 
-### `OPENCHAMBER_DATA_DIR`
+### `AX_CODE_DESKTOP_DATA_DIR`
 
 Overrides the AX Code Desktop data directory. The default is `~/.config/openchamber`.
 
-### `OPENCHAMBER_COMPRESS_API`
+### `AX_CODE_DESKTOP_COMPRESS_API`
 
 Controls API response compression. Use `true` or `1` to force it on, `false` or `0` to force it off.
 
-### `OPENCHAMBER_SKIP_API_COMPRESSION`
+### `AX_CODE_DESKTOP_SKIP_API_COMPRESSION`
 
-Disables API response compression when set to `true` or `1`. This takes precedence over `OPENCHAMBER_COMPRESS_API`.
+Disables API response compression when set to `true` or `1`. This takes precedence over `AX_CODE_DESKTOP_COMPRESS_API`.
 
-### `OPENCHAMBER_VERBOSE_REQUEST_LOGS`
+### `AX_CODE_DESKTOP_VERBOSE_REQUEST_LOGS`
 
 Enables verbose HTTP request logs when set to `true` or `1`.
 
-### `OPENCHAMBER_UPDATE_API_URL`
+### `AX_CODE_DESKTOP_UPDATE_API_URL`
 
 Overrides the update-check API endpoint. Most users should leave this unset.
 
-### `OPENCHAMBER_PACKAGE_MANAGER`
+### `AX_CODE_DESKTOP_PACKAGE_MANAGER`
 
 Forces the package manager used by update operations when auto-detection is wrong.
 
@@ -59,7 +59,7 @@ Sets the AX Code server port. With managed AX Code this requests the managed por
 
 Prevents AX Code Desktop from starting its own AX Code server when set to `true`.
 
-### `OPENCHAMBER_AX_CODE_HOSTNAME`
+### `AX_CODE_DESKTOP_AX_CODE_HOSTNAME`
 
 Bind hostname for the AX Code server managed by AX Code Desktop. The default is `127.0.0.1`.
 
@@ -83,7 +83,7 @@ Custom data directory for the managed AX Code server.
 
 Selects the WSL distro used for AX Code integration on Windows.
 
-### `OPENCHAMBER_AX_CODE_WSL_DISTRO`
+### `AX_CODE_DESKTOP_AX_CODE_WSL_DISTRO`
 
 AX Code Desktop-specific alias for selecting the WSL distro. `AX_CODE_WSL_DISTRO` takes precedence when both are set.
 
@@ -93,19 +93,19 @@ Secret used to sign UI authentication tokens. Use a long random value for persis
 
 ## Terminal and Git
 
-### `OPENCHAMBER_TERMINAL_SHELL`
+### `AX_CODE_DESKTOP_TERMINAL_SHELL`
 
 Shell executable used for AX Code Desktop terminal sessions.
 
-### `OPENCHAMBER_GIT_BINARY`
+### `AX_CODE_DESKTOP_GIT_BINARY`
 
 Git executable used by AX Code Desktop Git features.
 
 ### `GIT_BINARY`
 
-Alternative Git executable override. Prefer `OPENCHAMBER_GIT_BINARY` for AX Code Desktop-specific configuration.
+Alternative Git executable override. Prefer `AX_CODE_DESKTOP_GIT_BINARY` for AX Code Desktop-specific configuration.
 
-### `OPENCHAMBER_GIT_READ_CACHE_TTL_MS`
+### `AX_CODE_DESKTOP_GIT_READ_CACHE_TTL_MS`
 
 Time-to-live, in milliseconds, for cached Git-backed file reads. Set `0` to disable this cache while debugging.
 

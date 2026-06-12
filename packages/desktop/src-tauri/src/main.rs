@@ -1388,10 +1388,10 @@ const LOCAL_SIDECAR_HEALTH_POLL_MAX_INTERVAL: Duration = Duration::from_millis(1
 const STARTUP_REMOTE_PROBE_SOFT_TIMEOUT: Duration = Duration::from_secs(2);
 const STARTUP_REMOTE_PROBE_HARD_TIMEOUT: Duration = Duration::from_secs(10);
 const API_BASE_PATH: &str = "/api";
-const API_OPENCHAMBER_PATH: &str = "/openchamber";
+const API_AX_CODE_DESKTOP_PATH: &str = "/openchamber";
 const API_SYSTEM_SHUTDOWN_PATH: &str = "/system/shutdown";
 const API_HEALTH_PATH: &str = "/health";
-const API_OPENCHAMBER_SCHEDULED_TASKS_STATUS_PATH: &str = "/scheduled-tasks/status";
+const API_AX_CODE_DESKTOP_SCHEDULED_TASKS_STATUS_PATH: &str = "/scheduled-tasks/status";
 
 const DEFAULT_DESKTOP_PORT: u16 = 57123;
 const WINDOW_STATE_DEBOUNCE_MS: u64 = 300;
@@ -1403,7 +1403,7 @@ const MIN_RESTORE_WINDOW_HEIGHT: u32 = 560;
 const LOCAL_HOST_ID: &str = "local";
 
 /// Synthetic host ID used when the boot target is forced via
-/// `OPENCHAMBER_SERVER_URL` (no config-based host entry).
+/// `AX_CODE_DESKTOP_SERVER_URL` (no config-based host entry).
 const ENV_OVERRIDE_HOST_ID: &str = "__env";
 
 /// Synthetic host ID used when a window is opened at an explicit URL
@@ -1412,7 +1412,7 @@ const DIRECT_URL_HOST_ID: &str = "__direct";
 
 /// Compare two URL strings for "same server" identity using normalized
 /// origin + path. This avoids misclassification when one URL has a
-/// trailing slash and the other does not (e.g. `OPENCHAMBER_SERVER_URL`
+/// trailing slash and the other does not (e.g. `AX_CODE_DESKTOP_SERVER_URL`
 /// pointing at the local sidecar without a trailing `/`).
 fn same_server_url(a: &str, b: &str) -> bool {
     let parsed_a = url::Url::parse(a);
@@ -1438,7 +1438,7 @@ struct SidecarState {
 #[derive(Default)]
 struct DesktopUiInjectionState {
     /// Init scripts keyed by window label. Each window's script contains
-    /// the correct `__OPENCHAMBER_DESKTOP_BOOT_OUTCOME__` for that window.
+    /// the correct `__AX_CODE_DESKTOP_DESKTOP_BOOT_OUTCOME__` for that window.
     scripts: Mutex<std::collections::HashMap<String, String>>,
     /// Local origin — shared across all windows since the sidecar is global.
     local_origin: Mutex<Option<String>>,
@@ -1606,7 +1606,7 @@ fn build_health_url(base_url: &str) -> Option<String> {
 }
 
 fn settings_file_path() -> PathBuf {
-    if let Ok(dir) = env::var("OPENCHAMBER_DATA_DIR") {
+    if let Ok(dir) = env::var("AX_CODE_DESKTOP_DATA_DIR") {
         if !dir.trim().is_empty() {
             return PathBuf::from(dir.trim()).join("settings.json");
         }
@@ -1803,7 +1803,7 @@ fn write_desktop_hosts_config_to_path(path: &Path, config: &DesktopHostsConfig) 
 // ── Boot outcome resolution ──
 
 /// Authoritative desktop boot outcome injected into the webview as
-/// `window.__OPENCHAMBER_DESKTOP_BOOT_OUTCOME__`.
+/// `window.__AX_CODE_DESKTOP_DESKTOP_BOOT_OUTCOME__`.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DesktopBootOutcome {
@@ -2146,8 +2146,8 @@ async fn refresh_quit_risk_flags(local_base_url: &str) {
     let scheduled_url = format!(
         "{trimmed}{}{}/{}",
         API_BASE_PATH,
-        API_OPENCHAMBER_PATH,
-        API_OPENCHAMBER_SCHEDULED_TASKS_STATUS_PATH.trim_start_matches('/')
+        API_AX_CODE_DESKTOP_PATH,
+        API_AX_CODE_DESKTOP_SCHEDULED_TASKS_STATUS_PATH.trim_start_matches('/')
     );
 
     let scheduled_result = client.get(scheduled_url).send().await;
@@ -2585,8 +2585,8 @@ async fn spawn_local_server(app: &tauri::AppHandle) -> Result<String> {
     }
 
     for var in [
-        "OPENCHAMBER_AX_CODE_PATH",
-        "OPENCHAMBER_AX_CODE_BIN",
+        "AX_CODE_DESKTOP_AX_CODE_PATH",
+        "AX_CODE_DESKTOP_AX_CODE_BIN",
         "AX_CODE_PATH",
         "AX_CODE_BINARY",
     ] {
@@ -2639,11 +2639,11 @@ async fn spawn_local_server(app: &tauri::AppHandle) -> Result<String> {
             .sidecar(SIDECAR_NAME)
             .map_err(|err| anyhow!("Failed to resolve sidecar '{SIDECAR_NAME}': {err}"))?
             .args(["--port", &port.to_string()])
-            .env("OPENCHAMBER_HOST", sidecar_bind_host)
-            .env("OPENCHAMBER_DIST_DIR", dist_dir.clone())
-            .env("OPENCHAMBER_RUNTIME", "desktop")
-            .env("OPENCHAMBER_DESKTOP_NOTIFY", "true")
-            .env("OPENCHAMBER_SKIP_API_COMPRESSION", "true")
+            .env("AX_CODE_DESKTOP_HOST", sidecar_bind_host)
+            .env("AX_CODE_DESKTOP_DIST_DIR", dist_dir.clone())
+            .env("AX_CODE_DESKTOP_RUNTIME", "desktop")
+            .env("AX_CODE_DESKTOP_DESKTOP_NOTIFY", "true")
+            .env("AX_CODE_DESKTOP_SKIP_API_COMPRESSION", "true")
             .env("PATH", augmented_path.clone())
             .env("NO_PROXY", no_proxy)
             .env("no_proxy", no_proxy);
@@ -3153,7 +3153,7 @@ fn build_init_script(local_origin: &str, boot_outcome: Option<&DesktopBootOutcom
         .unwrap_or_else(|| "undefined".to_string());
 
     let mut init_script = format!(
-        "(function(){{try{{window.__OPENCHAMBER_HOME__={home_json};window.__OPENCHAMBER_MACOS_MAJOR__={macos_major};window.__OPENCHAMBER_LOCAL_ORIGIN__={local_json};window.__OPENCHAMBER_DESKTOP_BOOT_OUTCOME__={boot_outcome_json};}}catch(_e){{}}}})();"
+        "(function(){{try{{window.__AX_CODE_DESKTOP_HOME__={home_json};window.__AX_CODE_DESKTOP_MACOS_MAJOR__={macos_major};window.__AX_CODE_DESKTOP_LOCAL_ORIGIN__={local_json};window.__AX_CODE_DESKTOP_DESKTOP_BOOT_OUTCOME__={boot_outcome_json};}}catch(_e){{}}}})();"
     );
 
     // Cleanup: older builds injected a native-ish Instance switcher button into pages.
@@ -3661,7 +3661,7 @@ fn open_new_window(app: &tauri::AppHandle) {
         local_url.clone()
     };
 
-    let env_target = std::env::var("OPENCHAMBER_SERVER_URL")
+    let env_target = std::env::var("AX_CODE_DESKTOP_SERVER_URL")
         .ok()
         .and_then(|raw| normalize_server_url(&raw))
         .filter(|url| !same_server_url(url, &local_ui_url));
@@ -4362,7 +4362,7 @@ fn main() {
                 // Selected host: env override first, then desktop default host, else local.
                 // If env override points to the local server, ignore it and use
                 // config-based resolution instead.
-                let env_target = std::env::var("OPENCHAMBER_SERVER_URL")
+                let env_target = std::env::var("AX_CODE_DESKTOP_SERVER_URL")
                     .ok()
                     .and_then(|raw| normalize_server_url(&raw))
                     .filter(|url| !same_server_url(url, &local_ui_url));
@@ -4961,10 +4961,10 @@ mod tests {
             script.contains(r#""target":"local""#) && script.contains(r#""status":"unreachable""#),
             "init script should embed the structured boot outcome"
         );
-        // It must also set __OPENCHAMBER_DESKTOP_BOOT_OUTCOME__
+        // It must also set __AX_CODE_DESKTOP_DESKTOP_BOOT_OUTCOME__
         assert!(
-            script.contains("__OPENCHAMBER_DESKTOP_BOOT_OUTCOME__"),
-            "init script must set __OPENCHAMBER_DESKTOP_BOOT_OUTCOME__"
+            script.contains("__AX_CODE_DESKTOP_DESKTOP_BOOT_OUTCOME__"),
+            "init script must set __AX_CODE_DESKTOP_DESKTOP_BOOT_OUTCOME__"
         );
     }
 }

@@ -112,7 +112,7 @@ async function removeStateFile() {
 function spawnCli(cliPath, args) {
   const env = {
     ...process.env,
-    AX_CODE_PORT: process.env.AX_CODE_PORT || process.env.OPENCHAMBER_INTERNAL_PORT || '0',
+    AX_CODE_PORT: process.env.AX_CODE_PORT || process.env.AX_CODE_DESKTOP_INTERNAL_PORT || '0',
   };
   const cwd = process.env.AX_CODE_CWD || process.cwd();
 

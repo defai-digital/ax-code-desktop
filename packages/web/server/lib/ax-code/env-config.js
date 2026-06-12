@@ -5,7 +5,7 @@ export const resolveAxCodeEnvConfig = (options = {}) => {
   const configuredAxCodePort = (() => {
     const raw =
       env.AX_CODE_PORT ||
-      env.OPENCHAMBER_INTERNAL_PORT ||
+      env.AX_CODE_DESKTOP_INTERNAL_PORT ||
       env.AX_CODE_PORT_LEGACY;
     if (!raw) {
       return null;
@@ -50,7 +50,7 @@ export const resolveAxCodeEnvConfig = (options = {}) => {
   const effectivePort = configuredAxCodeHost?.port ?? configuredAxCodePort;
 
   const configuredAxCodeHostname = (() => {
-    const raw = env.AX_CODE_HOSTNAME || env.OPENCHAMBER_AX_CODE_HOSTNAME;
+    const raw = env.AX_CODE_HOSTNAME || env.AX_CODE_DESKTOP_AX_CODE_HOSTNAME;
     if (typeof raw !== 'string') {
       return '127.0.0.1';
     }

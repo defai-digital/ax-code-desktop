@@ -12,7 +12,7 @@
  *
  * Environment variables (set by CI):
  *   LATEST_YML_DIR      – directory containing downloaded per-arch artifacts
- *   OPENCHAMBER_VERSION / AX_CODE_DESKTOP_VERSION – release version (e.g. "0.9.2")
+ *   AX_CODE_DESKTOP_VERSION / AX_CODE_DESKTOP_VERSION – release version (e.g. "0.9.2")
  *
  * Output: $RUNNER_TEMP/latest.yml
  *
@@ -102,10 +102,10 @@ export function mergeLatestYmls(texts, version, releaseDate = new Date().toISOSt
 
 function main() {
   const latestYmlDir = process.env.LATEST_YML_DIR
-  const version = process.env.OPENCHAMBER_VERSION || process.env.AX_CODE_DESKTOP_VERSION
+  const version = process.env.AX_CODE_DESKTOP_VERSION || process.env.AX_CODE_DESKTOP_VERSION
 
   if (!latestYmlDir) throw new Error('LATEST_YML_DIR is not set')
-  if (!version) throw new Error('OPENCHAMBER_VERSION (or AX_CODE_DESKTOP_VERSION) is not set')
+  if (!version) throw new Error('AX_CODE_DESKTOP_VERSION (or AX_CODE_DESKTOP_VERSION) is not set')
 
   const texts = []
   let found = 0

@@ -121,7 +121,7 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSL -o release.dmg \
-            "https://github.com/defai-digital/ax-code-desktop/releases/download/v${VERSION}/AX.Code.Desktop-${VERSION}-arm64.dmg"
+            "https://github.com/defai-digital/ax-code-desktop/releases/download/v${VERSION}/AX-Code-Desktop-${VERSION}-arm64.dmg"
           echo "DMG_SHA256=$(sha256sum release.dmg | awk '{print $1}')" >> "$GITHUB_ENV"
 
       - name: Push updated cask to homebrew-tap
@@ -142,7 +142,7 @@ jobs:
             `  version "${version}"`,
             `  sha256 "${sha256}"`,
             '',
-            '  url "https://github.com/defai-digital/ax-code-desktop/releases/download/v#{version}/AX.Code.Desktop-#{version}-arm64.dmg"',
+            '  url "https://github.com/defai-digital/ax-code-desktop/releases/download/v#{version}/AX-Code-Desktop-#{version}-arm64.dmg"',
             '  name "AX Code Desktop"',
             '  desc "AI coding assistant desktop app powered by AX Code"',
             '  homepage "https://github.com/defai-digital/ax-code-desktop"',

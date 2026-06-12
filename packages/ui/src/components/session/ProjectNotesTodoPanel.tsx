@@ -24,9 +24,9 @@ import {
   deleteProjectPlanFile,
   getProjectContextData,
   importProjectPlanFileFromContent,
-  OPENCHAMBER_PROJECT_NOTES_MAX_LENGTH,
+  AX_CODE_DESKTOP_PROJECT_NOTES_MAX_LENGTH,
   readProjectPlanFile,
-  OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH,
+  AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH,
   saveProjectNotesAndTodos,
   type OpenChamberProjectPlanFileLink,
   type OpenChamberProjectTodoItem,
@@ -360,7 +360,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
 
     const nextTodos = insertTodoBeforeCompleted(todos, {
       id: createTodoId(),
-      text: trimmed.slice(0, OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH),
+      text: trimmed.slice(0, AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH),
       completed: false,
       createdAt: Date.now(),
     });
@@ -438,7 +438,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  const todoInputValue = newTodoText.slice(0, OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH);
+  const todoInputValue = newTodoText.slice(0, AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH);
   const completedTodoCount = todos.reduce((count, todo) => count + (todo.completed ? 1 : 0), 0);
 
   const routeToChat = React.useCallback(() => {
@@ -716,11 +716,11 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
               project: projectLabel?.trim() || projectRef.path.split('/').filter(Boolean).pop() || projectRef.path,
             })}
           </h3>
-          <span className="typography-meta text-muted-foreground">{notes.length}/{OPENCHAMBER_PROJECT_NOTES_MAX_LENGTH}</span>
+          <span className="typography-meta text-muted-foreground">{notes.length}/{AX_CODE_DESKTOP_PROJECT_NOTES_MAX_LENGTH}</span>
         </div>
         <Textarea
           value={notes}
-          onChange={(event) => setNotes(event.target.value.slice(0, OPENCHAMBER_PROJECT_NOTES_MAX_LENGTH))}
+          onChange={(event) => setNotes(event.target.value.slice(0, AX_CODE_DESKTOP_PROJECT_NOTES_MAX_LENGTH))}
           onBlur={handleNotesBlur}
           placeholder={t('rightSidebar.contextNotesTodo.notes.placeholder')}
           resizedHeight={notesPanelHeight}
@@ -751,13 +751,13 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
               {t('rightSidebar.contextNotesTodo.todo.clearCompleted')}
             </button>
           </div>
-          <span className="typography-meta text-muted-foreground">{todoInputValue.length}/{OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH}</span>
+          <span className="typography-meta text-muted-foreground">{todoInputValue.length}/{AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH}</span>
         </div>
 
         <div className="flex items-center gap-1.5">
           <Input
             value={todoInputValue}
-            onChange={(event) => setNewTodoText(event.target.value.slice(0, OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH))}
+            onChange={(event) => setNewTodoText(event.target.value.slice(0, AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH))}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();

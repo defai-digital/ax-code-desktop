@@ -10,10 +10,10 @@ const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const TRUSTED_DEVICE_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
-const RATE_LIMIT_MAX_ATTEMPTS = Number(process.env.OPENCHAMBER_RATE_LIMIT_MAX_ATTEMPTS) || 10;
+const RATE_LIMIT_MAX_ATTEMPTS = Number(process.env.AX_CODE_DESKTOP_RATE_LIMIT_MAX_ATTEMPTS) || 10;
 const RATE_LIMIT_LOCKOUT_MS = 15 * 60 * 1000;
 const RATE_LIMIT_CLEANUP_MS = 60 * 60 * 1000;
-const RATE_LIMIT_NO_IP_MAX_ATTEMPTS = Number(process.env.OPENCHAMBER_RATE_LIMIT_NO_IP_MAX_ATTEMPTS) || 3;
+const RATE_LIMIT_NO_IP_MAX_ATTEMPTS = Number(process.env.AX_CODE_DESKTOP_RATE_LIMIT_NO_IP_MAX_ATTEMPTS) || 3;
 
 const loginRateLimiter = new Map();
 let rateLimitCleanupTimer = null;
@@ -282,13 +282,13 @@ const normalizePassword = (candidate) => {
 
 const isTrustedDeviceRequest = (value) => value === true;
 
-const OPENCHAMBER_DATA_DIR = process.env.OPENCHAMBER_DATA_DIR
-  ? path.resolve(process.env.OPENCHAMBER_DATA_DIR)
+const AX_CODE_DESKTOP_DATA_DIR = process.env.AX_CODE_DESKTOP_DATA_DIR
+  ? path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR)
   : path.join(os.homedir(), '.config', 'openchamber');
-const JWT_SECRET_FILE = path.join(OPENCHAMBER_DATA_DIR, 'jwt-secret');
+const JWT_SECRET_FILE = path.join(AX_CODE_DESKTOP_DATA_DIR, 'jwt-secret');
 
 function getOrCreateJwtSecret() {
-  const envSecret = process.env.AX_CODE_JWT_SECRET || process.env.OPENCHAMBER_JWT_SECRET;
+  const envSecret = process.env.AX_CODE_JWT_SECRET || process.env.AX_CODE_DESKTOP_JWT_SECRET;
   if (envSecret) {
     return new TextEncoder().encode(envSecret);
   }
@@ -303,7 +303,7 @@ function getOrCreateJwtSecret() {
 
   const secret = crypto.randomBytes(32).toString('hex');
   try {
-    fs.mkdirSync(OPENCHAMBER_DATA_DIR, { recursive: true });
+    fs.mkdirSync(AX_CODE_DESKTOP_DATA_DIR, { recursive: true });
     fs.writeFileSync(JWT_SECRET_FILE, secret, { mode: 0o600 });
     console.log('[JWT] Generated and persisted new secret to', JWT_SECRET_FILE);
   } catch (e) {
@@ -314,13 +314,13 @@ function getOrCreateJwtSecret() {
 }
 
 function persistJwtSecret(secret) {
-  if (process.env.AX_CODE_JWT_SECRET || process.env.OPENCHAMBER_JWT_SECRET) {
+  if (process.env.AX_CODE_JWT_SECRET || process.env.AX_CODE_DESKTOP_JWT_SECRET) {
     const error = new Error('Global sign-out is unavailable while AX_CODE_JWT_SECRET is set');
     error.statusCode = 400;
     throw error;
   }
 
-  fs.mkdirSync(OPENCHAMBER_DATA_DIR, { recursive: true });
+  fs.mkdirSync(AX_CODE_DESKTOP_DATA_DIR, { recursive: true });
   fs.writeFileSync(JWT_SECRET_FILE, secret, { mode: 0o600 });
   return new TextEncoder().encode(secret);
 }

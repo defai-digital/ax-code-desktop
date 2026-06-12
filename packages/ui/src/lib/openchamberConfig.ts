@@ -23,7 +23,7 @@ const FS_OPTIONAL_QUERY = 'optional';
  */
 function getRuntimeFilesAPI(): FilesAPI | null {
   if (typeof window === 'undefined') return null;
-  const apis = (window as typeof window & { __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs }).__OPENCHAMBER_RUNTIME_APIS__;
+  const apis = (window as typeof window & { __AX_CODE_DESKTOP_RUNTIME_APIS__?: RuntimeAPIs }).__AX_CODE_DESKTOP_RUNTIME_APIS__;
   if (apis?.files) {
     return apis.files;
   }
@@ -88,15 +88,15 @@ export interface OpenChamberProjectContextData extends OpenChamberProjectNotesTo
   plans: OpenChamberProjectPlanFileLink[];
 }
 
-export const OPENCHAMBER_PROJECT_NOTES_MAX_LENGTH = 3000;
-export const OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH = 120;
-export const OPENCHAMBER_PROJECT_ACTION_NAME_MAX_LENGTH = 80;
-export const OPENCHAMBER_PROJECT_ACTION_COMMAND_MAX_LENGTH = 4000;
-export const OPENCHAMBER_PROJECT_ACTION_OPEN_URL_MAX_LENGTH = 2000;
-export const OPENCHAMBER_PROJECT_ACTION_DESKTOP_FORWARD_MAX_LENGTH = 300;
-export const OPENCHAMBER_PROJECT_PLAN_TITLE_MAX_LENGTH = 160;
+export const AX_CODE_DESKTOP_PROJECT_NOTES_MAX_LENGTH = 3000;
+export const AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH = 120;
+export const AX_CODE_DESKTOP_PROJECT_ACTION_NAME_MAX_LENGTH = 80;
+export const AX_CODE_DESKTOP_PROJECT_ACTION_COMMAND_MAX_LENGTH = 4000;
+export const AX_CODE_DESKTOP_PROJECT_ACTION_OPEN_URL_MAX_LENGTH = 2000;
+export const AX_CODE_DESKTOP_PROJECT_ACTION_DESKTOP_FORWARD_MAX_LENGTH = 300;
+export const AX_CODE_DESKTOP_PROJECT_PLAN_TITLE_MAX_LENGTH = 160;
 
-const OPENCHAMBER_ACTION_PLATFORM_SET = new Set<OpenChamberProjectActionPlatform>(['macos', 'linux', 'windows']);
+const AX_CODE_DESKTOP_ACTION_PLATFORM_SET = new Set<OpenChamberProjectActionPlatform>(['macos', 'linux', 'windows']);
 
 const normalize = (value: string): string => {
   if (!value) return '';
@@ -216,7 +216,7 @@ const writeTextFile = async (path: string, content: string): Promise<boolean> =>
 
 const resolveHomeDirectory = async (): Promise<string | null> => {
   // Use server-reported home as the source of truth for user config paths.
-  // In some runtimes, window.__OPENCHAMBER_HOME__ can be workspace/project-root
+  // In some runtimes, window.__AX_CODE_DESKTOP_HOME__ can be workspace/project-root
   // scoped, which would incorrectly route writes into the project directory.
   try {
     const response = await fetch(makeFsUrl(API_ENDPOINTS.fs.home), {
@@ -280,7 +280,7 @@ const sanitizeProjectNotes = (value: unknown): string => {
   if (typeof value !== 'string') {
     return '';
   }
-  return trimToMaxLength(value, OPENCHAMBER_PROJECT_NOTES_MAX_LENGTH);
+  return trimToMaxLength(value, AX_CODE_DESKTOP_PROJECT_NOTES_MAX_LENGTH);
 };
 
 const sanitizeProjectTodoItems = (value: unknown): OpenChamberProjectTodoItem[] => {
@@ -303,7 +303,7 @@ const sanitizeProjectTodoItems = (value: unknown): OpenChamberProjectTodoItem[] 
 
     const id = typeof record.id === 'string' ? record.id.trim() : '';
     const textRaw = typeof record.text === 'string' ? record.text : '';
-    const text = trimToMaxLength(textRaw.trim(), OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH);
+    const text = trimToMaxLength(textRaw.trim(), AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH);
     if (!id || !text) {
       continue;
     }
@@ -375,7 +375,7 @@ const sanitizeProjectActionPlatforms = (value: unknown): OpenChamberProjectActio
       continue;
     }
     const normalized = entry.trim().toLowerCase() as OpenChamberProjectActionPlatform;
-    if (!OPENCHAMBER_ACTION_PLATFORM_SET.has(normalized) || seen.has(normalized)) {
+    if (!AX_CODE_DESKTOP_ACTION_PLATFORM_SET.has(normalized) || seen.has(normalized)) {
       continue;
     }
     seen.add(normalized);
@@ -410,8 +410,8 @@ const sanitizeProjectActions = (value: unknown): OpenChamberProjectAction[] => {
     };
 
     const id = typeof record.id === 'string' ? record.id.trim() : '';
-    const name = trimToMaxLength(typeof record.name === 'string' ? record.name.trim() : '', OPENCHAMBER_PROJECT_ACTION_NAME_MAX_LENGTH);
-    const command = trimToMaxLength(typeof record.command === 'string' ? record.command.trim() : '', OPENCHAMBER_PROJECT_ACTION_COMMAND_MAX_LENGTH);
+    const name = trimToMaxLength(typeof record.name === 'string' ? record.name.trim() : '', AX_CODE_DESKTOP_PROJECT_ACTION_NAME_MAX_LENGTH);
+    const command = trimToMaxLength(typeof record.command === 'string' ? record.command.trim() : '', AX_CODE_DESKTOP_PROJECT_ACTION_COMMAND_MAX_LENGTH);
 
     if (!id || !name || !command || seenIds.has(id)) {
       continue;
@@ -422,13 +422,13 @@ const sanitizeProjectActions = (value: unknown): OpenChamberProjectAction[] => {
     const platforms = sanitizeProjectActionPlatforms(record.platforms);
     const autoOpenUrl = record.autoOpenUrl === true;
     const openUrlRaw = typeof record.openUrl === 'string' ? record.openUrl.trim() : '';
-    const openUrl = trimToMaxLength(openUrlRaw, OPENCHAMBER_PROJECT_ACTION_OPEN_URL_MAX_LENGTH);
+    const openUrl = trimToMaxLength(openUrlRaw, AX_CODE_DESKTOP_PROJECT_ACTION_OPEN_URL_MAX_LENGTH);
     const desktopOpenSshForwardRaw = typeof record.desktopOpenSshForward === 'string'
       ? record.desktopOpenSshForward.trim()
       : '';
     const desktopOpenSshForward = trimToMaxLength(
       desktopOpenSshForwardRaw,
-      OPENCHAMBER_PROJECT_ACTION_DESKTOP_FORWARD_MAX_LENGTH
+      AX_CODE_DESKTOP_PROJECT_ACTION_DESKTOP_FORWARD_MAX_LENGTH
     );
 
     sanitized.push({
@@ -498,7 +498,7 @@ const slugifyPlanTitle = (value: string): string => {
 };
 
 const sanitizePlanTitle = (value: string): string => {
-  return trimToMaxLength(value.trim(), OPENCHAMBER_PROJECT_PLAN_TITLE_MAX_LENGTH);
+  return trimToMaxLength(value.trim(), AX_CODE_DESKTOP_PROJECT_PLAN_TITLE_MAX_LENGTH);
 };
 
 const createProjectPlanId = (): string => {

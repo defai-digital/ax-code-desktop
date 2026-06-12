@@ -1178,7 +1178,7 @@ type DesktopBrowserPaneProps = {
 };
 
 const isElectronBrowserRuntime = (): boolean => {
-  return typeof window !== 'undefined' && Boolean(window.__OPENCHAMBER_ELECTRON__);
+  return typeof window !== 'undefined' && Boolean(window.__AX_CODE_DESKTOP_ELECTRON__);
 };
 
 const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, directory, tabID }) => {

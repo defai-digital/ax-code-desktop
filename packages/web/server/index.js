@@ -70,7 +70,10 @@ const uiNotificationClients = new Set();
 const uiNotificationWsClients = new Set();
 const uiOpenChamberEventClients = new Set();
 const HEALTH_CHECK_INTERVAL = 15000;
-const SHUTDOWN_TIMEOUT = 10000;
+const configuredShutdownTimeout = Number.parseInt(process.env.AX_CODE_DESKTOP_SHUTDOWN_TIMEOUT_MS || '', 10);
+const SHUTDOWN_TIMEOUT = Number.isFinite(configuredShutdownTimeout) && configuredShutdownTimeout > 0
+  ? configuredShutdownTimeout
+  : 10000;
 const MODELS_DEV_API_URL = 'https://models.dev/api.json';
 const MODELS_METADATA_CACHE_TTL = 5 * 60 * 1000;
 const CLIENT_RELOAD_DELAY_MS = 800;
@@ -127,7 +130,7 @@ function shouldSkipCompression(req, res) {
   return headerIncludesEventStream(res.getHeader('Content-Type'));
 }
 
-const OPENCHAMBER_VERSION = (() => {
+const AX_CODE_DESKTOP_VERSION = (() => {
   try {
     const packagePath = path.resolve(__dirname, '..', 'package.json');
     const raw = fs.readFileSync(packagePath, 'utf8');
@@ -155,13 +158,13 @@ const isEnvFlagDisabled = (value) => {
 };
 
 const shouldSkipApiCompression = () => {
-  if (isEnvFlagEnabled(process.env.OPENCHAMBER_SKIP_API_COMPRESSION)) return true;
-  if (isEnvFlagEnabled(process.env.OPENCHAMBER_COMPRESS_API)) return false;
-  if (isEnvFlagDisabled(process.env.OPENCHAMBER_COMPRESS_API)) return true;
-  return process.env.OPENCHAMBER_RUNTIME === 'desktop';
+  if (isEnvFlagEnabled(process.env.AX_CODE_DESKTOP_SKIP_API_COMPRESSION)) return true;
+  if (isEnvFlagEnabled(process.env.AX_CODE_DESKTOP_COMPRESS_API)) return false;
+  if (isEnvFlagDisabled(process.env.AX_CODE_DESKTOP_COMPRESS_API)) return true;
+  return process.env.AX_CODE_DESKTOP_RUNTIME === 'desktop';
 };
 
-const OPENCHAMBER_VERBOSE_REQUEST_LOGS = isEnvFlagEnabled(process.env.OPENCHAMBER_VERBOSE_REQUEST_LOGS);
+const AX_CODE_DESKTOP_VERBOSE_REQUEST_LOGS = isEnvFlagEnabled(process.env.AX_CODE_DESKTOP_VERBOSE_REQUEST_LOGS);
 
 const PLAN_MODE_EXPERIMENT_ENABLED =
   isEnvFlagEnabled(process.env.AX_CODE_EXPERIMENTAL_PLAN_MODE)
@@ -187,9 +190,9 @@ const sanitizeModelRefs = (...args) => settingsNormalizationRuntime.sanitizeMode
 const sanitizeSkillCatalogs = (...args) => settingsNormalizationRuntime.sanitizeSkillCatalogs(...args);
 const sanitizeProjects = (...args) => settingsNormalizationRuntime.sanitizeProjects(...args);
 
-const OPENCHAMBER_USER_CONFIG_ROOT = path.join(os.homedir(), '.config', 'openchamber');
-const OPENCHAMBER_USER_THEMES_DIR = path.join(OPENCHAMBER_USER_CONFIG_ROOT, 'themes');
-const OPENCHAMBER_PROJECTS_CONFIG_DIR = path.join(OPENCHAMBER_USER_CONFIG_ROOT, 'projects');
+const AX_CODE_DESKTOP_USER_CONFIG_ROOT = path.join(os.homedir(), '.config', 'openchamber');
+const AX_CODE_DESKTOP_USER_THEMES_DIR = path.join(AX_CODE_DESKTOP_USER_CONFIG_ROOT, 'themes');
+const AX_CODE_DESKTOP_PROJECTS_CONFIG_DIR = path.join(AX_CODE_DESKTOP_USER_CONFIG_ROOT, 'projects');
 
 const MAX_THEME_JSON_BYTES = 512 * 1024;
 
@@ -197,7 +200,7 @@ const MAX_THEME_JSON_BYTES = 512 * 1024;
 const themeRuntime = createThemeRuntime({
   fsPromises,
   path,
-  themesDir: OPENCHAMBER_USER_THEMES_DIR,
+  themesDir: AX_CODE_DESKTOP_USER_THEMES_DIR,
   maxThemeJsonBytes: MAX_THEME_JSON_BYTES,
   logger: console,
 });
@@ -218,10 +221,10 @@ const maybeCacheSessionInfoFromEvent = (...args) => notificationTemplateRuntime.
 const buildTemplateVariables = (...args) => notificationTemplateRuntime.buildTemplateVariables(...args);
 const getCachedZenModels = (...args) => notificationTemplateRuntime.getCachedZenModels(...args);
 
-const OPENCHAMBER_DATA_DIR = process.env.OPENCHAMBER_DATA_DIR
-  ? path.resolve(process.env.OPENCHAMBER_DATA_DIR)
+const AX_CODE_DESKTOP_DATA_DIR = process.env.AX_CODE_DESKTOP_DATA_DIR
+  ? path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR)
   : path.join(os.homedir(), '.config', 'openchamber');
-const SETTINGS_FILE_PATH = path.join(OPENCHAMBER_DATA_DIR, 'settings.json');
+const SETTINGS_FILE_PATH = path.join(AX_CODE_DESKTOP_DATA_DIR, 'settings.json');
 
 const settingsHelpers = createSettingsHelpers({
   normalizePathForPersistence,
@@ -332,7 +335,7 @@ const recordStartupEvent = (name, details = {}, options = {}) => {
 const projectConfigRuntime = createProjectConfigRuntime({
   fsPromises,
   path,
-  projectsDirPath: OPENCHAMBER_PROJECTS_CONFIG_DIR,
+  projectsDirPath: AX_CODE_DESKTOP_PROJECTS_CONFIG_DIR,
 });
 
 // HMR-persistent state via globalThis
@@ -423,13 +426,13 @@ const {
 });
 
 const ENV_SKIP_AX_CODE_START = process.env.AX_CODE_SKIP_START === 'true' ||
-                                    process.env.OPENCHAMBER_SKIP_AX_CODE_START === 'true';
+                                    process.env.AX_CODE_DESKTOP_SKIP_AX_CODE_START === 'true';
 const ENV_DESKTOP_NOTIFY = (() => {
-  if (process.env.OPENCHAMBER_DESKTOP_NOTIFY === 'true') {
+  if (process.env.AX_CODE_DESKTOP_DESKTOP_NOTIFY === 'true') {
     return true;
   }
 
-  if (process.env.OPENCHAMBER_RUNTIME === 'desktop') {
+  if (process.env.AX_CODE_DESKTOP_RUNTIME === 'desktop') {
     return true;
   }
 
@@ -483,7 +486,7 @@ const ensureAxCodeApiPrefix = (...args) => axCodeNetworkRuntime.ensureAxCodeApiP
 const scheduleAxCodeApiDetection = (...args) => axCodeNetworkRuntime.scheduleAxCodeApiDetection(...args);
 
 const ENV_CONFIGURED_API_PREFIX = normalizeApiPrefix(
-  process.env.AX_CODE_API_PREFIX || process.env.OPENCHAMBER_API_PREFIX || ''
+  process.env.AX_CODE_API_PREFIX || process.env.AX_CODE_DESKTOP_API_PREFIX || ''
 );
 
   if (ENV_CONFIGURED_API_PREFIX && ENV_CONFIGURED_API_PREFIX !== '') {
@@ -956,8 +959,8 @@ async function main(options = {}) {
   const uiPassword = typeof options.uiPassword === 'string' ? options.uiPassword : null;
   const bootstrapResult = bootstrapRuntime.setupBaseRoutes(app, {
     process,
-    openchamberVersion: OPENCHAMBER_VERSION,
-    runtimeName: process.env.OPENCHAMBER_RUNTIME || 'web',
+    openchamberVersion: AX_CODE_DESKTOP_VERSION,
+    runtimeName: process.env.AX_CODE_DESKTOP_RUNTIME || 'web',
     serverStartedAt,
     gracefulShutdown,
     getHealthSnapshot: () => {
@@ -999,7 +1002,7 @@ async function main(options = {}) {
         })
         : { error: 'Startup diagnostics are not available' }
     ),
-    verboseRequestLogs: OPENCHAMBER_VERBOSE_REQUEST_LOGS,
+    verboseRequestLogs: AX_CODE_DESKTOP_VERBOSE_REQUEST_LOGS,
     uiPassword,
     readSettingsFromDiskMigrated,
     ensureGlobalWatcherStarted,
@@ -1013,7 +1016,7 @@ async function main(options = {}) {
     path,
     server,
     __dirname,
-    openchamberDataDir: OPENCHAMBER_DATA_DIR,
+    openchamberDataDir: AX_CODE_DESKTOP_DATA_DIR,
     modelsDevApiUrl: MODELS_DEV_API_URL,
     modelsMetadataCacheTtl: MODELS_METADATA_CACHE_TTL,
     fetchFreeZenModels,
@@ -1031,8 +1034,8 @@ async function main(options = {}) {
     spawn,
     resolveGitBinaryForSpawn,
     createFsSearchRuntime: createFsSearchRuntimeFactory,
-    openchamberDataDir: OPENCHAMBER_DATA_DIR,
-    openchamberUserConfigRoot: OPENCHAMBER_USER_CONFIG_ROOT,
+    openchamberDataDir: AX_CODE_DESKTOP_DATA_DIR,
+    openchamberUserConfigRoot: AX_CODE_DESKTOP_USER_CONFIG_ROOT,
     normalizeDirectoryPath,
     resolveProjectDirectory,
     resolveOptionalProjectDirectory,

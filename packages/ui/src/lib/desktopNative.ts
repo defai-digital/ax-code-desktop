@@ -4,7 +4,7 @@ import { getTauriGlobal } from '@/lib/tauriGlobal';
 type InvokeArgs = Record<string, unknown>;
 
 const isElectronDesktop = (): boolean => {
-  return typeof window !== 'undefined' && Boolean((window as { __OPENCHAMBER_ELECTRON__?: unknown }).__OPENCHAMBER_ELECTRON__);
+  return typeof window !== 'undefined' && Boolean((window as { __AX_CODE_DESKTOP_ELECTRON__?: unknown }).__AX_CODE_DESKTOP_ELECTRON__);
 };
 
 const getInvoke = () => {

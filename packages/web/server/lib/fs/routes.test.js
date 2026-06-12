@@ -170,11 +170,11 @@ describe('fs write', () => {
 
 describe('fs exec git-read cache', () => {
   beforeEach(() => {
-    delete process.env.OPENCHAMBER_GIT_READ_CACHE_TTL_MS;
+    delete process.env.AX_CODE_DESKTOP_GIT_READ_CACHE_TTL_MS;
   });
 
   afterEach(() => {
-    delete process.env.OPENCHAMBER_GIT_READ_CACHE_TTL_MS;
+    delete process.env.AX_CODE_DESKTOP_GIT_READ_CACHE_TTL_MS;
   });
 
   it('caches an allowlisted git rev-parse across identical requests', async () => {
@@ -259,7 +259,7 @@ describe('fs exec git-read cache', () => {
   });
 
   it('disables caching when TTL is 0', async () => {
-    process.env.OPENCHAMBER_GIT_READ_CACHE_TTL_MS = '0';
+    process.env.AX_CODE_DESKTOP_GIT_READ_CACHE_TTL_MS = '0';
     const command = 'git rev-parse --absolute-git-dir';
     const { spawn, calls } = createSpawn({ stdoutByCommand: { [command]: '/repo/.git\n' } });
     const handler = registerExec({ spawn });

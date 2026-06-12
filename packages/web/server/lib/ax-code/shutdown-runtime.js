@@ -69,10 +69,27 @@ export const createGracefulShutdownRuntime = (dependencies) => {
 
       if (axCodeProcess) {
         console.log('Stopping ax-code process...');
+        let closeTimedOut = false;
+        let closeTimeout = null;
         try {
-          await axCodeProcess.close();
+          await Promise.race([
+            axCodeProcess.close(),
+            new Promise((resolve) => {
+              closeTimeout = setTimeout(() => {
+                closeTimedOut = true;
+                resolve();
+              }, Math.max(1000, shutdownTimeoutMs - 1000));
+            }),
+          ]);
         } catch (error) {
           console.warn('Error closing ax-code process:', error);
+        } finally {
+          if (closeTimeout) {
+            clearTimeout(closeTimeout);
+          }
+        }
+        if (closeTimedOut) {
+          console.warn('Timed out closing ax-code process; forcing port cleanup');
         }
         setAxCodeProcess(null);
       }

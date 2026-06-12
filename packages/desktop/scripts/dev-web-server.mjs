@@ -61,8 +61,8 @@ const apiChild = spawn(sidecarPath, ['--port', String(DESKTOP_DEV_PORT)], {
   detached: process.platform !== 'win32',
   env: {
     ...process.env,
-    OPENCHAMBER_HOST: DESKTOP_HOST,
-    OPENCHAMBER_DIST_DIR: distDir,
+    AX_CODE_DESKTOP_HOST: DESKTOP_HOST,
+    AX_CODE_DESKTOP_DIST_DIR: distDir,
     NO_PROXY: process.env.NO_PROXY || 'localhost,127.0.0.1',
     no_proxy: process.env.no_proxy || 'localhost,127.0.0.1',
   },
@@ -76,7 +76,7 @@ const webChild = spawn('bun', ['x', 'vite', '--host', '127.0.0.1', '--port', '51
   detached: process.platform !== 'win32',
   env: {
     ...process.env,
-    OPENCHAMBER_PORT: String(DESKTOP_DEV_PORT),
+    AX_CODE_DESKTOP_PORT: String(DESKTOP_DEV_PORT),
     NO_PROXY: process.env.NO_PROXY || 'localhost,127.0.0.1',
     no_proxy: process.env.no_proxy || 'localhost,127.0.0.1',
   },

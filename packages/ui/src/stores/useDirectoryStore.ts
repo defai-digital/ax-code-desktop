@@ -118,8 +118,8 @@ const getHomeDirectory = () => {
     if (cachedHomeDirectory) return cachedHomeDirectory;
 
     const desktopHome =
-      (typeof window.__OPENCHAMBER_HOME__ === 'string' && window.__OPENCHAMBER_HOME__.length > 0
-        ? window.__OPENCHAMBER_HOME__
+      (typeof window.__AX_CODE_DESKTOP_HOME__ === 'string' && window.__AX_CODE_DESKTOP_HOME__.length > 0
+        ? window.__AX_CODE_DESKTOP_HOME__
         : null);
 
     if (desktopHome && desktopHome.length > 0) {

@@ -59,8 +59,8 @@ if [ "${OH_MY_AX_CODE:-false}" = "true" ]; then
 fi
 
 # Docker containers need to listen on all interfaces for port mapping to work.
-OPENCHAMBER_HOST="${OPENCHAMBER_HOST:-0.0.0.0}"
-export OPENCHAMBER_HOST
+AX_CODE_DESKTOP_HOST="${AX_CODE_DESKTOP_HOST:-0.0.0.0}"
+export AX_CODE_DESKTOP_HOST
 
 echo "[entrypoint] starting..."
 

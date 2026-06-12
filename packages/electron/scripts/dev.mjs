@@ -9,7 +9,7 @@ const electronDir = path.resolve(__dirname, '..')
 const webDir = path.resolve(electronDir, '..', 'web')
 const root = path.resolve(electronDir, '..', '..')
 
-const rendererPort = Number.parseInt(process.env.OPENCHAMBER_RENDERER_PORT || '5173', 10)
+const rendererPort = Number.parseInt(process.env.AX_CODE_DESKTOP_RENDERER_PORT || '5173', 10)
 const rendererUrl = `http://127.0.0.1:${rendererPort}`
 
 const findFreePort = () => new Promise((resolve, reject) => {
@@ -79,7 +79,7 @@ const stopAll = (children) => {
 
 await run('node', [path.join(electronDir, 'scripts', 'bundle-main.mjs')], { cwd: electronDir })
 
-const serverPort = Number.parseInt(process.env.OPENCHAMBER_ELECTRON_SERVER_PORT || '', 10) || await findFreePort()
+const serverPort = Number.parseInt(process.env.AX_CODE_DESKTOP_ELECTRON_SERVER_PORT || '', 10) || await findFreePort()
 const children = new Set()
 
 const shutdown = () => {
@@ -97,8 +97,8 @@ process.once('exit', shutdown)
 
 const sharedEnv = {
   ...process.env,
-  OPENCHAMBER_PORT: String(serverPort),
-  OPENCHAMBER_RENDERER_PORT: String(rendererPort),
+  AX_CODE_DESKTOP_PORT: String(serverPort),
+  AX_CODE_DESKTOP_RENDERER_PORT: String(rendererPort),
 }
 
 const vite = spawnManaged(children, 'bun', ['run', 'dev:vite'], {
@@ -120,8 +120,8 @@ const electron = spawnManaged(children, 'bunx', ['electron', path.join(electronD
   cwd: root,
   env: {
     ...sharedEnv,
-    OPENCHAMBER_ELECTRON_RENDERER_URL: rendererUrl,
-    OPENCHAMBER_ELECTRON_SERVER_PORT: String(serverPort),
+    AX_CODE_DESKTOP_ELECTRON_RENDERER_URL: rendererUrl,
+    AX_CODE_DESKTOP_ELECTRON_SERVER_PORT: String(serverPort),
   },
 })
 

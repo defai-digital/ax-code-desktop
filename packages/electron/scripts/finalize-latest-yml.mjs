@@ -5,7 +5,7 @@
  *
  * Environment variables (set by CI):
  *   LATEST_YML_DIR      – directory containing downloaded per-arch artifacts
- *   OPENCHAMBER_VERSION – release version string (e.g. "0.5.0")
+ *   AX_CODE_DESKTOP_VERSION – release version string (e.g. "0.5.0")
  *
  * Output: $RUNNER_TEMP/latest-mac.yml
  */
@@ -14,10 +14,10 @@ import path from 'path'
 import os from 'os'
 
 const latestYmlDir = process.env.LATEST_YML_DIR
-const version = process.env.OPENCHAMBER_VERSION
+const version = process.env.AX_CODE_DESKTOP_VERSION
 
 if (!latestYmlDir) throw new Error('LATEST_YML_DIR is not set')
-if (!version) throw new Error('OPENCHAMBER_VERSION is not set')
+if (!version) throw new Error('AX_CODE_DESKTOP_VERSION is not set')
 
 // electron-updater YAML is simple enough to parse without a YAML library:
 // each file entry is an indented object inside a "files:" block.

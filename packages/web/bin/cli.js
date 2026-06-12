@@ -89,8 +89,8 @@ function isUnsafeBrowserPort(port) {
 }
 
 function resolveApiHost() {
-  const configured = typeof process.env.OPENCHAMBER_HOST === 'string'
-    ? process.env.OPENCHAMBER_HOST.trim()
+  const configured = typeof process.env.AX_CODE_DESKTOP_HOST === 'string'
+    ? process.env.AX_CODE_DESKTOP_HOST.trim()
     : '';
 
   if (!configured) {
@@ -235,7 +235,7 @@ function parseArgs(argv = process.argv.slice(2)) {
   const options = {
     port: DEFAULT_PORT,
     host: undefined,
-    uiPassword: process.env.OPENCHAMBER_UI_PASSWORD || undefined,
+    uiPassword: process.env.AX_CODE_DESKTOP_UI_PASSWORD || undefined,
     json: false,
     all: false,
     follow: true,
@@ -507,13 +507,13 @@ OPTIONS:
   -v, --version           Show version
 
 ENVIRONMENT:
-  OPENCHAMBER_HOST             Bind address (e.g. 0.0.0.0 for all interfaces)
-  OPENCHAMBER_UI_PASSWORD      Alternative to --ui-password flag
-  OPENCHAMBER_DATA_DIR         Override AX Code Desktop data directory
+  AX_CODE_DESKTOP_HOST             Bind address (e.g. 0.0.0.0 for all interfaces)
+  AX_CODE_DESKTOP_UI_PASSWORD      Alternative to --ui-password flag
+  AX_CODE_DESKTOP_DATA_DIR         Override AX Code Desktop data directory
   AX_CODE_HOST               External ax-code server base URL, e.g. http://hostname:4096
   AX_CODE_PORT               Port of external ax-code server to connect to
   AX_CODE_SKIP_START          Skip starting AX Code, use external server
-  OPENCHAMBER_AX_CODE_HOSTNAME  Bind hostname for managed ax-code server (default: 127.0.0.1)
+  AX_CODE_DESKTOP_AX_CODE_HOSTNAME  Bind hostname for managed ax-code server (default: 127.0.0.1)
 
 EXAMPLES:
   ax-code-desktop                    # Start in daemon mode on default port 3000 (or free port)
@@ -552,8 +552,8 @@ EXAMPLES:
 }
 
 function getDataDir() {
-  if (typeof process.env.OPENCHAMBER_DATA_DIR === 'string' && process.env.OPENCHAMBER_DATA_DIR.trim().length > 0) {
-    return path.resolve(process.env.OPENCHAMBER_DATA_DIR.trim());
+  if (typeof process.env.AX_CODE_DESKTOP_DATA_DIR === 'string' && process.env.AX_CODE_DESKTOP_DATA_DIR.trim().length > 0) {
+    return path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR.trim());
   }
   return path.join(os.homedir(), '.config', 'openchamber');
 }
@@ -824,10 +824,10 @@ function collectStartupEnv(options = {}) {
   }
   const uiPassword = hasUiPasswordConfigured(options.uiPassword) ? options.uiPassword : undefined;
   if (uiPassword) {
-    env.OPENCHAMBER_UI_PASSWORD = uiPassword;
+    env.AX_CODE_DESKTOP_UI_PASSWORD = uiPassword;
   }
-  if (typeof process.env.OPENCHAMBER_DATA_DIR === 'string' && process.env.OPENCHAMBER_DATA_DIR.trim().length > 0) {
-    env.OPENCHAMBER_DATA_DIR = path.resolve(process.env.OPENCHAMBER_DATA_DIR.trim());
+  if (typeof process.env.AX_CODE_DESKTOP_DATA_DIR === 'string' && process.env.AX_CODE_DESKTOP_DATA_DIR.trim().length > 0) {
+    env.AX_CODE_DESKTOP_DATA_DIR = path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR.trim());
   }
   return env;
 }
@@ -1599,8 +1599,8 @@ const commands = {
 
     const effectiveUiPassword = hasUiPasswordConfigured(options.uiPassword) ? options.uiPassword : undefined;
     if (!effectiveUiPassword && !options.suppressUiPasswordWarning) {
-      const warningLine = 'OPENCHAMBER_UI_PASSWORD is not set';
-      const warningDetail = 'browser UI is unsecured. Use --ui-password or OPENCHAMBER_UI_PASSWORD.';
+      const warningLine = 'AX_CODE_DESKTOP_UI_PASSWORD is not set';
+      const warningDetail = 'browser UI is unsecured. Use --ui-password or AX_CODE_DESKTOP_UI_PASSWORD.';
       if (showOutput) {
         logStatus('warning', warningLine, warningDetail);
       } else if (isJsonMode(options)) {
@@ -1631,7 +1631,7 @@ const commands = {
         process.env.AX_CODE_BINARY = axCodeBinary;
       }
       if (effectiveUiPassword) {
-        process.env.OPENCHAMBER_UI_PASSWORD = effectiveUiPassword;
+        process.env.AX_CODE_DESKTOP_UI_PASSWORD = effectiveUiPassword;
       }
 
       // In --quiet mode, redirect stdout/stderr to the log file so that
@@ -1746,11 +1746,11 @@ const commands = {
       stdio: ['ignore', logFd, logFd, 'ipc'],
       env: {
         ...process.env,
-        OPENCHAMBER_PORT: String(targetPort),
+        AX_CODE_DESKTOP_PORT: String(targetPort),
         AX_CODE_BINARY: axCodeBinary,
-        ...(effectiveHost ? { OPENCHAMBER_HOST: effectiveHost } : {}),
-        ...(effectiveUiPassword ? { OPENCHAMBER_UI_PASSWORD: effectiveUiPassword } : {}),
-        ...(process.env.AX_CODE_SKIP_START ? { OPENCHAMBER_SKIP_AX_CODE_START: process.env.AX_CODE_SKIP_START } : {}),
+        ...(effectiveHost ? { AX_CODE_DESKTOP_HOST: effectiveHost } : {}),
+        ...(effectiveUiPassword ? { AX_CODE_DESKTOP_UI_PASSWORD: effectiveUiPassword } : {}),
+        ...(process.env.AX_CODE_SKIP_START ? { AX_CODE_DESKTOP_SKIP_AX_CODE_START: process.env.AX_CODE_SKIP_START } : {}),
       },
     });
 

@@ -43,11 +43,11 @@ mock.module('@/lib/ax-code/client', () => ({
   },
 }));
 
-// gitApi stubs that delegate to window.__OPENCHAMBER_RUNTIME_APIS__.git when present,
+// gitApi stubs that delegate to window.__AX_CODE_DESKTOP_RUNTIME_APIS__.git when present,
 // so gitApi.test.ts (which installs runtime git in each test) still works correctly.
 const _getGitRuntime = (): Record<string, (...args: unknown[]) => unknown> | null => {
-  const w = globalThis as unknown as { window?: { __OPENCHAMBER_RUNTIME_APIS__?: { git?: Record<string, (...args: unknown[]) => unknown> } } };
-  return w.window?.__OPENCHAMBER_RUNTIME_APIS__?.git ?? null;
+  const w = globalThis as unknown as { window?: { __AX_CODE_DESKTOP_RUNTIME_APIS__?: { git?: Record<string, (...args: unknown[]) => unknown> } } };
+  return w.window?.__AX_CODE_DESKTOP_RUNTIME_APIS__?.git ?? null;
 };
 const _runtimeOrStub = <T>(name: string, stub: T) =>
   (...args: unknown[]) => {

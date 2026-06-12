@@ -22,7 +22,7 @@ function getWebDistPath() {
 
 function getDevRendererUrl() {
   if (app.isPackaged) return null
-  const raw = process.env.OPENCHAMBER_ELECTRON_RENDERER_URL
+  const raw = process.env.AX_CODE_DESKTOP_ELECTRON_RENDERER_URL
   if (!raw) return null
   try {
     const parsed = new URL(raw)
@@ -39,6 +39,8 @@ function getDevRendererUrl() {
 let mainWindow = null
 let serverPort = 0
 let serverChild = null
+let isQuitting = false
+let isRelaunchingServer = false
 const startupDiagnostics = createStartupDiagnostics({
   logPath: process.platform === 'darwin'
     ? path.join(os.homedir(), 'Library', 'Logs', 'AX Code Desktop', 'main.log')
@@ -61,6 +63,17 @@ function recordStartupEvent(name, details = {}, options = {}) {
 
 recordStartupEvent('electron.process.start')
 
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) {
+  app.quit()
+}
+
+app.on('second-instance', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.focus()
+})
+
 // ── Server ──────────────────────────────────────────────────────────────────
 // The web server runs in a dedicated utilityProcess (dist/server-process.js)
 // rather than in-process, so its CPU/IO never blocks the main event loop that
@@ -79,8 +92,9 @@ function launchServer() {
         ...process.env,
         // The server reads these at module-init time; previously set on the
         // main process before require, now passed into the forked process.
-        OPENCHAMBER_DIST_DIR: getWebDistPath(),
-        OPENCHAMBER_RUNTIME: 'desktop',
+        AX_CODE_DESKTOP_DIST_DIR: getWebDistPath(),
+        AX_CODE_DESKTOP_RUNTIME: 'desktop',
+        AX_CODE_DESKTOP_SHUTDOWN_TIMEOUT_MS: '4000',
         AX_CODE_DESKTOP_STARTUP_SNAPSHOT: JSON.stringify(startupDiagnostics.snapshot()),
       },
     })
@@ -124,11 +138,28 @@ function launchServer() {
         settled = true
         clearTimeout(timer)
         reject(new Error(`server process exited before ready (code ${code})`))
-      } else if (wasReady && code !== 0) {
+      } else if (wasReady && code !== 0 && !isQuitting) {
         console.error('[electron] server process exited unexpectedly with code', code)
+        restartServerAfterCrash().catch((err) => {
+          console.error('[electron] failed to recover server process:', err)
+        })
       }
     })
   })
+}
+
+async function restartServerAfterCrash() {
+  if (isRelaunchingServer || isQuitting) return
+  isRelaunchingServer = true
+  try {
+    serverPort = 0
+    await launchServer()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      await mainWindow.loadURL(`http://localhost:${serverPort}`)
+    }
+  } finally {
+    isRelaunchingServer = false
+  }
 }
 
 // Ask the server to shut down gracefully (which also stops the ax-code child it
@@ -188,8 +219,7 @@ async function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      // Allow loading from localhost — needed for the in-process server.
-      webSecurity: false,
+      webSecurity: true,
     },
   })
 
@@ -314,11 +344,18 @@ ipcMain.handle('desktop_download_and_install_update', async () => {
   await autoUpdater.downloadUpdate()
 })
 
-ipcMain.handle('desktop_quit_and_install', () => {
+async function shutdownForExit() {
+  isQuitting = true
+  await stopServer()
+}
+
+ipcMain.handle('desktop_quit_and_install', async () => {
+  await shutdownForExit()
   autoUpdater.quitAndInstall()
 })
 
-ipcMain.handle('desktop_restart', () => {
+ipcMain.handle('desktop_restart', async () => {
+  await shutdownForExit()
   app.relaunch()
   app.exit(0)
 })
@@ -332,7 +369,7 @@ ipcMain.handle('desktop_set_badge_count', (_, { count } = {}) => {
 ipcMain.handle('desktop_get_lan_address', () => {
   const nets = os.networkInterfaces()
   for (const name of Object.keys(nets)) {
-    for (const net of nets[name]) {
+    for (const net of nets[name] ?? []) {
       if (net.family === 'IPv4' && !net.internal) {
         return `http://${net.address}:${serverPort}`
       }
@@ -403,6 +440,10 @@ ipcMain.handle('desktop_record_startup_event', (_event, payload) => {
 
 // ── App lifecycle ───────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) {
+    return
+  }
+
   recordStartupEvent('electron.app.ready')
   // Deny all permission requests except clipboard and fullscreen.
   // Chromium enumerates media devices on startup, which triggers macOS
@@ -434,6 +475,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   // On macOS, keep the server running so the user can reopen from the dock.
   if (process.platform !== 'darwin') {
+    isQuitting = true
     stopServer().finally(() => app.quit())
   }
 })
@@ -444,7 +486,6 @@ app.on('activate', () => {
   }
 })
 
-let isQuitting = false
 app.on('before-quit', (event) => {
   // Fire-and-forget would let the app exit before the server shuts down,
   // orphaning ax-code-server (and its ax-code child) and leaving the port

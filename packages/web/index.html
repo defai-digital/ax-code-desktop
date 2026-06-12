@@ -149,7 +149,7 @@
       // Desktop shells manage their own splash via the injected boot outcome;
       // do not force-remove for desktop windows.
       setTimeout(function() {
-        if (typeof window.__OPENCHAMBER_LOCAL_ORIGIN__ === 'string' && window.__OPENCHAMBER_LOCAL_ORIGIN__.length > 0) {
+        if (typeof window.__AX_CODE_DESKTOP_LOCAL_ORIGIN__ === 'string' && window.__AX_CODE_DESKTOP_LOCAL_ORIGIN__.length > 0) {
           return;
         }
         var loading = document.getElementById('initial-loading');

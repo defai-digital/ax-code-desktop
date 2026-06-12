@@ -188,9 +188,9 @@ const main = async () => {
     env: {
       ...process.env,
       AX_CODE_BINARY: stubAxCode,
-      OPENCHAMBER_ELECTRON_SERVER_PORT: String(serverPort),
-      OPENCHAMBER_AX_CODE_HEALTH_TIMEOUT_MS: '1500',
-      OPENCHAMBER_AX_CODE_HEALTH_INTERVAL_MS: '0',
+      AX_CODE_DESKTOP_ELECTRON_SERVER_PORT: String(serverPort),
+      AX_CODE_DESKTOP_AX_CODE_HEALTH_TIMEOUT_MS: '1500',
+      AX_CODE_DESKTOP_AX_CODE_HEALTH_INTERVAL_MS: '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })

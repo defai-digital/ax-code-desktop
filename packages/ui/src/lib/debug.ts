@@ -22,7 +22,7 @@ type DebugPartInfo = {
 };
 
 type DebugGlobals = {
-  __OPENCHAMBER_RUNTIME_APIS__?: {
+  __AX_CODE_DESKTOP_RUNTIME_APIS__?: {
     runtime?: {
       platform?: unknown;
     };
@@ -271,7 +271,7 @@ export const debugUtils = {
     })();
 
     const runtimeApis = typeof window !== 'undefined'
-      ? (window as unknown as DebugGlobals).__OPENCHAMBER_RUNTIME_APIS__
+      ? (window as unknown as DebugGlobals).__AX_CODE_DESKTOP_RUNTIME_APIS__
       : null;
     const isTauriShell = typeof window !== 'undefined' && Boolean((window as unknown as DebugGlobals).__TAURI__);
 

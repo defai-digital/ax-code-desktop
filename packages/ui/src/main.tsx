@@ -12,7 +12,7 @@ import { applyPersistedDirectoryPreferences } from './lib/directoryPersistence'
 import { initializeLocale, I18nProvider } from './lib/i18n'
 import { recordDesktopStartupEvent } from './lib/desktop'
 
-const runtimeAPIs = (typeof window !== 'undefined' && window.__OPENCHAMBER_RUNTIME_APIS__) || (() => {
+const runtimeAPIs = (typeof window !== 'undefined' && window.__AX_CODE_DESKTOP_RUNTIME_APIS__) || (() => {
   throw new Error('Runtime APIs not provided for legacy UI entrypoint.');
 })();
 

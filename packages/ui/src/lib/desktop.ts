@@ -158,7 +158,7 @@ type ElectronRuntimeGlobal = {
 
 const getElectronRuntime = (): ElectronRuntimeGlobal | null => {
   if (typeof window === 'undefined') return null;
-  return (window as unknown as { __OPENCHAMBER_ELECTRON__?: ElectronRuntimeGlobal }).__OPENCHAMBER_ELECTRON__ ?? null;
+  return (window as unknown as { __AX_CODE_DESKTOP_ELECTRON__?: ElectronRuntimeGlobal }).__AX_CODE_DESKTOP_ELECTRON__ ?? null;
 };
 
 // True whenever a desktop IPC bridge is present on `window.__TAURI__`. Despite
@@ -315,7 +315,7 @@ export const isDesktopLocalOriginActive = (): boolean => {
   if (typeof window === 'undefined') return false;
   if (!isDesktopShell()) return false;
 
-  const local = typeof window.__OPENCHAMBER_LOCAL_ORIGIN__ === 'string' ? window.__OPENCHAMBER_LOCAL_ORIGIN__ : '';
+  const local = typeof window.__AX_CODE_DESKTOP_LOCAL_ORIGIN__ === 'string' ? window.__AX_CODE_DESKTOP_LOCAL_ORIGIN__ : '';
   const localUrl = parseUrl(local);
   const currentUrl = parseUrl(window.location.origin);
 
@@ -366,7 +366,7 @@ export const startDesktopWindowDrag = async (): Promise<boolean> => {
 
 export const isWebRuntime = (): boolean => {
   if (typeof window === "undefined") return false;
-  const apis = (window as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { platform?: string } } }).__OPENCHAMBER_RUNTIME_APIS__;
+  const apis = (window as { __AX_CODE_DESKTOP_RUNTIME_APIS__?: { runtime?: { platform?: string } } }).__AX_CODE_DESKTOP_RUNTIME_APIS__;
   const platform = apis?.runtime?.platform;
   if (platform === 'web') {
     return true;
@@ -379,7 +379,7 @@ export const isWebRuntime = (): boolean => {
 
 export const getDesktopHomeDirectory = async (): Promise<string | null> => {
   if (typeof window !== 'undefined') {
-    const embedded = window.__OPENCHAMBER_HOME__;
+    const embedded = window.__AX_CODE_DESKTOP_HOME__;
     if (embedded && embedded.length > 0) {
       return embedded;
     }

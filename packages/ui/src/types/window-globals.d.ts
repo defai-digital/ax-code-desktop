@@ -30,18 +30,18 @@ type AxCodeDebugTools = {
 declare global {
   interface Window {
     __axCodeDebug?: AxCodeDebugTools;
-    __OPENCHAMBER_DESKTOP_BOOT_OUTCOME__?: DesktopBootOutcome;
-    __OPENCHAMBER_DESKTOP_SERVER__?: DesktopServerRuntime;
-    __OPENCHAMBER_ELECTRON__?: {
+    __AX_CODE_DESKTOP_DESKTOP_BOOT_OUTCOME__?: DesktopBootOutcome;
+    __AX_CODE_DESKTOP_DESKTOP_SERVER__?: DesktopServerRuntime;
+    __AX_CODE_DESKTOP_ELECTRON__?: {
       runtime?: string;
       recordStartupEvent?: (name: string, details?: Record<string, unknown>) => Promise<unknown>;
     };
-    __OPENCHAMBER_HOME__?: string;
-    __OPENCHAMBER_LOCAL_ORIGIN__?: string;
-    __OPENCHAMBER_MACOS_MAJOR__?: number;
-    __OPENCHAMBER_PANEL_TYPE__?: 'chat' | 'agentManager';
-    __OPENCHAMBER_PLATFORM__?: string;
-    __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
+    __AX_CODE_DESKTOP_HOME__?: string;
+    __AX_CODE_DESKTOP_LOCAL_ORIGIN__?: string;
+    __AX_CODE_DESKTOP_MACOS_MAJOR__?: number;
+    __AX_CODE_DESKTOP_PANEL_TYPE__?: 'chat' | 'agentManager';
+    __AX_CODE_DESKTOP_PLATFORM__?: string;
+    __AX_CODE_DESKTOP_RUNTIME_APIS__?: RuntimeAPIs;
     __openchamberStreamPerfState?: StreamPerfState;
     __zustand_agents_store__?: typeof useAgentsStore;
     __zustand_commands_store__?: typeof useCommandsStore;

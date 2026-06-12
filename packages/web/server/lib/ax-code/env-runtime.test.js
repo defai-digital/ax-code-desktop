@@ -9,7 +9,7 @@ const originalComSpec = process.env.ComSpec;
 const originalPath = process.env.PATH;
 const originalSystemRoot = process.env.SystemRoot;
 const originalWslBinary = process.env.WSL_BINARY;
-const originalOpenChamberWslBinary = process.env.OPENCHAMBER_WSL_BINARY;
+const originalOpenChamberWslBinary = process.env.AX_CODE_DESKTOP_WSL_BINARY;
 const originalPlatform = process.platform;
 const tempDirs = [];
 const itIf = (condition) => condition ? it : it.skip;
@@ -66,9 +66,9 @@ afterEach(() => {
   }
 
   if (typeof originalOpenChamberWslBinary === 'string') {
-    process.env.OPENCHAMBER_WSL_BINARY = originalOpenChamberWslBinary;
+    process.env.AX_CODE_DESKTOP_WSL_BINARY = originalOpenChamberWslBinary;
   } else {
-    delete process.env.OPENCHAMBER_WSL_BINARY;
+    delete process.env.AX_CODE_DESKTOP_WSL_BINARY;
   }
 });
 
@@ -144,7 +144,7 @@ describe('AX Code env runtime', () => {
     process.env.PATH = dir;
     process.env.SystemRoot = dir;
     process.env.WSL_BINARY = path.join(dir, 'missing-wsl.exe');
-    process.env.OPENCHAMBER_WSL_BINARY = path.join(dir, 'missing-openchamber-wsl.exe');
+    process.env.AX_CODE_DESKTOP_WSL_BINARY = path.join(dir, 'missing-openchamber-wsl.exe');
     const { runtime } = createRuntime({ axCodeBinary: 'wsl:/usr/local/bin/ax-code' });
 
     const rejection = runtime.applyAxCodeBinaryFromSettings({ strict: true });
