@@ -512,7 +512,7 @@ export const registerAxCodeProxy = (app, deps) => {
         const settingsPath = path.join(os.homedir(), '.config', 'openchamber', 'settings.json');
         let projectDirs = [];
         try {
-          const settingsRaw = fs.readFileSync(settingsPath, 'utf8');
+          const settingsRaw = await fs.promises.readFile(settingsPath, 'utf8');
           const settings = JSON.parse(settingsRaw);
           projectDirs = (settings.projects || [])
             .map((project) => (typeof project?.path === 'string' ? project.path.trim() : ''))
@@ -560,8 +560,8 @@ export const registerAxCodeProxy = (app, deps) => {
 
         const merged = [...globalSessions, ...extraSessions];
         merged.sort((a, b) => {
-          const aTime = a && typeof a.time_updated === 'number' ? a.time_updated : 0;
-          const bTime = b && typeof b.time_updated === 'number' ? b.time_updated : 0;
+          const aTime = a && typeof a.time?.updated === 'number' ? a.time.updated : 0;
+          const bTime = b && typeof b.time?.updated === 'number' ? b.time.updated : 0;
           return bTime - aTime;
         });
         console.log(`[SessionMerge] ${globalSessions.length} global + ${extraSessions.length} extra = ${merged.length} total`);
