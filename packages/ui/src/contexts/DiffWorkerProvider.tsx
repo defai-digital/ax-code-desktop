@@ -1,10 +1,9 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import type { SupportedLanguages } from '@pierre/diffs';
-import { WorkerPoolManager } from '@pierre/diffs/worker';
+import type { WorkerPoolManager } from '@pierre/diffs/worker';
 
 import { useOptionalThemeSystem } from './useThemeSystem';
 import { workerFactory } from '@/lib/diff/workerFactory';
-import { ensurePierreThemeRegistered } from '@/lib/shiki/appThemeRegistry';
 import { getDefaultTheme } from '@/lib/theme/themes';
 // NOTE: keep provider lightweight; avoid main-thread diff parsing here.
 
@@ -40,10 +39,17 @@ const WORKER_POOL_CONFIG: Record<WorkerPoolStyle, { poolSize: number; totalASTLR
 
 let unifiedWorkerPool: WorkerPoolManager | undefined;
 let splitWorkerPool: WorkerPoolManager | undefined;
+let unifiedWorkerPoolPromise: Promise<WorkerPoolManager | undefined> | undefined;
+let splitWorkerPoolPromise: Promise<WorkerPoolManager | undefined> | undefined;
 
-const createWorkerPool = (style: WorkerPoolStyle) => {
+const createWorkerPool = async (style: WorkerPoolStyle): Promise<WorkerPoolManager | undefined> => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const { WorkerPoolManager: WorkerPoolManagerConstructor } = await import('@pierre/diffs/worker');
   const config = WORKER_POOL_CONFIG[style];
-  const pool = new WorkerPoolManager(
+  const pool = new WorkerPoolManagerConstructor(
     {
       workerFactory,
       poolSize: config.poolSize,
@@ -63,18 +69,34 @@ const createWorkerPool = (style: WorkerPoolStyle) => {
   return pool;
 };
 
-const getWorkerPool = (style: WorkerPoolStyle): WorkerPoolManager | undefined => {
+const getExistingWorkerPool = (style: WorkerPoolStyle): WorkerPoolManager | undefined => {
+  return style === 'split' ? splitWorkerPool : unifiedWorkerPool;
+};
+
+const ensureWorkerPool = (style: WorkerPoolStyle): Promise<WorkerPoolManager | undefined> => {
   if (typeof window === 'undefined') {
-    return undefined;
+    return Promise.resolve(undefined);
   }
 
   if (style === 'split') {
-    splitWorkerPool ??= createWorkerPool('split');
-    return splitWorkerPool;
+    if (splitWorkerPool) {
+      return Promise.resolve(splitWorkerPool);
+    }
+    splitWorkerPoolPromise ??= createWorkerPool('split').then((pool) => {
+      splitWorkerPool = pool;
+      return pool;
+    });
+    return splitWorkerPoolPromise;
   }
 
-  unifiedWorkerPool ??= createWorkerPool('unified');
-  return unifiedWorkerPool;
+  if (unifiedWorkerPool) {
+    return Promise.resolve(unifiedWorkerPool);
+  }
+  unifiedWorkerPoolPromise ??= createWorkerPool('unified').then((pool) => {
+    unifiedWorkerPool = pool;
+    return pool;
+  });
+  return unifiedWorkerPoolPromise;
 };
 
 const syncPoolRenderTheme = (renderTheme: { light: string; dark: string }) => {
@@ -113,9 +135,9 @@ const WorkerPoolWarmup: React.FC<{
     let cancelled = false;
     const warm = () => {
       if (cancelled) return;
-      getWorkerPool('unified');
-      getWorkerPool('split');
-      syncPoolRenderTheme(renderThemeRef.current);
+      void Promise.all([ensureWorkerPool('unified'), ensureWorkerPool('split')]).then(() => {
+        syncPoolRenderTheme(renderThemeRef.current);
+      });
     };
 
     const idle = window.requestIdleCallback;
@@ -157,8 +179,21 @@ export const DiffWorkerProvider: React.FC<DiffWorkerProviderProps> = ({ children
     themeSystem?.availableThemes.find((theme) => theme.metadata.id === darkThemeId) ??
     fallbackDark;
 
-  ensurePierreThemeRegistered(lightTheme);
-  ensurePierreThemeRegistered(darkTheme);
+  useEffect(() => {
+    let cancelled = false;
+
+    void import('@/lib/shiki/appThemeRegistry').then(({ ensurePierreThemeRegistered }) => {
+      if (cancelled) {
+        return;
+      }
+      ensurePierreThemeRegistered(lightTheme);
+      ensurePierreThemeRegistered(darkTheme);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [darkTheme, lightTheme]);
 
   const renderTheme = useMemo(
     () => ({
@@ -177,5 +212,21 @@ export const DiffWorkerProvider: React.FC<DiffWorkerProviderProps> = ({ children
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const useWorkerPool = (style: WorkerPoolStyle = 'unified'): WorkerPoolManager | undefined => {
-  return useMemo(() => getWorkerPool(style), [style]);
+  const [pool, setPool] = useState<WorkerPoolManager | undefined>(() => getExistingWorkerPool(style));
+
+  useEffect(() => {
+    let cancelled = false;
+    setPool(getExistingWorkerPool(style));
+    void ensureWorkerPool(style).then((nextPool) => {
+      if (!cancelled) {
+        setPool(nextPool);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [style]);
+
+  return pool;
 };

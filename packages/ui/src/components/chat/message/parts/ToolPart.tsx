@@ -2,14 +2,12 @@
 import React from 'react';
 import type { AnimationPlaybackControls } from 'motion';
 import { RuntimeAPIContext } from '@/contexts/runtimeAPIContext';
-import { PatchDiff } from '@pierre/diffs/react';
 import { cn } from '@/lib/utils';
 import { SimpleMarkdownRenderer } from '../../MarkdownRenderer';
 import { getToolMetadata } from '@/lib/toolHelpers';
 import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from '@ax-code/sdk/v2';
 import { toolDisplayStyles } from '@/lib/typography';
 import { LazySyntaxHighlighter as SyntaxHighlighter } from '@/components/ui/LazySyntaxHighlighter';
-import { useOptionalThemeSystem } from '@/contexts/useThemeSystem';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useDirectorySync, useSessionMessageRecords, useEnsureSessionMessages } from '@/sync/sync-context';
@@ -23,8 +21,6 @@ import { Text } from '@/components/ui/text';
 import { FileTypeIcon } from '@/components/icons/FileTypeIcon';
 import type { ContentChangeReason } from '@/hooks/useChatAutoFollow';
 import type { ToolPopupContent } from '../types';
-import { ensurePierreThemeRegistered } from '@/lib/shiki/appThemeRegistry';
-import { getDefaultTheme } from '@/lib/theme/themes';
 import type { MessageRecord } from '@/lib/messageCompletion';
 
 import {
@@ -45,6 +41,7 @@ import { resolveFallbackTaskSessionId } from './resolveFallbackTaskSessionId';
 import { areRenderRelevantPartsEqual } from '../renderCompare';
 import { useI18n } from '@/lib/i18n';
 import { getDiffPatchEntries, getPatchText } from './toolDiffUtils';
+import { LazyToolDiffPreview as DiffPreview } from './LazyToolDiffPreview';
 
 const TOOL_ROW_TEXT_CLASS = '!text-[length:var(--text-meta)] !leading-4 sm:!leading-6 tracking-normal';
 const TOOL_ROW_TITLE_CLASS = cn('typography-meta font-medium', TOOL_ROW_TEXT_CLASS);
@@ -526,40 +523,6 @@ const getToolDiagnosticSection = (
         displayPath: normalizedPath.startsWith('/') ? getRelativePath(normalizedPath, currentDirectory) : normalizedPath,
         diagnostics: visible,
         remaining: Math.max(0, diagnostics.length - visible.length),
-    };
-};
-
-const usePierreThemeConfig = () => {
-    const themeSystem = useOptionalThemeSystem();
-    const fallbackLightTheme = React.useMemo(() => getDefaultTheme(false), []);
-    const fallbackDarkTheme = React.useMemo(() => getDefaultTheme(true), []);
-
-    const availableThemes = React.useMemo(
-        () => themeSystem?.availableThemes ?? [fallbackLightTheme, fallbackDarkTheme],
-        [fallbackDarkTheme, fallbackLightTheme, themeSystem?.availableThemes],
-    );
-    const lightThemeId = themeSystem?.lightThemeId ?? fallbackLightTheme.metadata.id;
-    const darkThemeId = themeSystem?.darkThemeId ?? fallbackDarkTheme.metadata.id;
-
-    const lightTheme = React.useMemo(
-        () => availableThemes.find((theme) => theme.metadata.id === lightThemeId) ?? fallbackLightTheme,
-        [availableThemes, fallbackLightTheme, lightThemeId],
-    );
-    const darkTheme = React.useMemo(
-        () => availableThemes.find((theme) => theme.metadata.id === darkThemeId) ?? fallbackDarkTheme,
-        [availableThemes, darkThemeId, fallbackDarkTheme],
-    );
-
-    React.useEffect(() => {
-        ensurePierreThemeRegistered(lightTheme);
-        ensurePierreThemeRegistered(darkTheme);
-    }, [darkTheme, lightTheme]);
-
-    const currentVariant = themeSystem?.currentTheme.metadata.variant ?? 'light';
-
-    return {
-        pierreTheme: { light: lightTheme.metadata.id, dark: darkTheme.metadata.id },
-        pierreThemeType: currentVariant === 'dark' ? ('dark' as const) : ('light' as const),
     };
 };
 
@@ -1200,30 +1163,6 @@ const TaskToolSummary: React.FC<{
     );
 };
 
-interface ToolDiffPreviewProps {
-    diff: string;
-    pierreTheme: { light: string; dark: string };
-    pierreThemeType: 'light' | 'dark';
-    diffViewMode: DiffViewMode;
-}
-
-const TOOL_DIFF_UNSAFE_CSS = `
-  [data-diff-header],
-  [data-diff] {
-    [data-separator] {
-      height: 24px !important;
-    }
-  }
-`;
-
-const TOOL_DIFF_METRICS = {
-    hunkLineCount: 50,
-    lineHeight: 24,
-    diffHeaderHeight: 44,
-    hunkSeparatorHeight: 24,
-    fileGap: 0,
-};
-
 const TOOL_COLLAPSED_CUSTOM_STYLE: React.CSSProperties = {
     ...toolDisplayStyles.getCollapsedStyles(),
     padding: 0,
@@ -1334,73 +1273,6 @@ const PlainDiffFallback: React.FC<{ diff: string }> = ({ diff }) => (
     </pre>
 );
 
-class DiffPreviewErrorBoundary extends React.Component<{
-    resetKey: string;
-    fallback: React.ReactNode;
-    children: React.ReactNode;
-}, { hasError: boolean }> {
-    state = { hasError: false };
-
-    static getDerivedStateFromError(): { hasError: boolean } {
-        return { hasError: true };
-    }
-
-    componentDidUpdate(prevProps: { resetKey: string }) {
-        if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
-            this.setState({ hasError: false });
-        }
-    }
-
-    componentDidCatch(error: Error) {
-        if (process.env.NODE_ENV === 'development') {
-            console.warn('Tool diff preview failed; rendering raw patch instead.', error);
-        }
-    }
-
-    render() {
-        if (this.state.hasError) {
-            return this.props.fallback;
-        }
-        return this.props.children;
-    }
-}
-
-const DiffPreview: React.FC<ToolDiffPreviewProps> = React.memo(({ diff, pierreTheme, pierreThemeType, diffViewMode }) => {
-    const options = React.useMemo(
-        () => ({
-            diffStyle: diffViewMode === 'side-by-side' ? 'split' as const : 'unified' as const,
-            diffIndicators: 'none' as const,
-            hunkSeparators: 'line-info-basic' as const,
-            lineDiffType: 'none' as const,
-            disableFileHeader: true,
-            maxLineDiffLength: 1000,
-            expansionLineCount: 20,
-            overflow: 'wrap' as const,
-            theme: pierreTheme,
-            themeType: pierreThemeType,
-            unsafeCSS: TOOL_DIFF_UNSAFE_CSS,
-        }),
-        [diffViewMode, pierreTheme, pierreThemeType]
-    );
-
-    const fallback = <PlainDiffFallback diff={diff} />;
-
-    return (
-        <div className="typography-code px-1 pb-1 pt-0">
-            <DiffPreviewErrorBoundary resetKey={diff} fallback={fallback}>
-                <PatchDiff
-                    patch={diff}
-                    metrics={TOOL_DIFF_METRICS}
-                    options={options}
-                    className="block w-full"
-                />
-            </DiffPreviewErrorBoundary>
-        </div>
-    );
-});
-
-DiffPreview.displayName = 'DiffPreview';
-
 interface ToolExpandedContentProps {
     part: ToolPartType;
     state: ToolStateUnion;
@@ -1417,7 +1289,6 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(({
     onShowPopup,
 }) => {
     const { t } = useI18n();
-    const { pierreTheme, pierreThemeType } = usePierreThemeConfig();
     const [diffViewMode, setDiffViewMode] = React.useState<DiffViewMode>('unified');
     const stateWithData = state as ToolStateWithMetadata;
     const metadata = stateWithData.metadata;
@@ -1626,8 +1497,6 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(({
                             {entry.renderMode === 'diff' ? (
                                 <DiffPreview
                                     diff={entry.patch}
-                                    pierreTheme={pierreTheme}
-                                    pierreThemeType={pierreThemeType}
                                     diffViewMode={diffViewMode}
                                 />
                             ) : (
@@ -1696,8 +1565,6 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(({
                                 ) : isWriteLikeTool && writeLikeInputPatch ? (
                                     <DiffPreview
                                         diff={writeLikeInputPatch}
-                                        pierreTheme={pierreTheme}
-                                        pierreThemeType={pierreThemeType}
                                         diffViewMode={diffViewMode}
                                     />
                                 ) : (
