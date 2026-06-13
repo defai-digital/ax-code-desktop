@@ -78,7 +78,7 @@ const ascendingId = (prefix: "msg"): string => {
   }
   idCounter += 1;
 
-  const sortable = BigInt(timestamp) * BigInt(0x1000) + BigInt(idCounter);
+  const sortable = BigInt(timestamp) * BigInt(0x10000) + BigInt(idCounter);
   const timeBytes = new Uint8Array(6);
   for (let index = 0; index < 6; index += 1) {
     timeBytes[index] = Number((sortable >> BigInt(40 - 8 * index)) & BigInt(0xff));

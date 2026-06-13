@@ -348,7 +348,7 @@ export async function unshareSession(sessionId: string): Promise<Session | null>
 // ---------------------------------------------------------------------------
 
 // ID generator matching AX Code's Identifier.ascending format.
-// Uses BigInt(timestamp) * 0x1000 + counter, encoded as 6 hex bytes + random base62.
+// Uses BigInt(timestamp) * 0x10000 + counter, encoded as 6 hex bytes + random base62.
 // This ensures client-generated IDs sort correctly with server-generated ones.
 let lastIdTimestamp = 0
 let idCounter = 0
@@ -361,7 +361,7 @@ function ascendingId(prefix: string): string {
   }
   idCounter += 1
 
-  const value = BigInt(now) * BigInt(0x1000) + BigInt(idCounter)
+  const value = BigInt(now) * BigInt(0x10000) + BigInt(idCounter)
   const bytes = new Uint8Array(6)
   for (let i = 0; i < 6; i++) {
     bytes[i] = Number((value >> BigInt(40 - 8 * i)) & BigInt(0xff))
