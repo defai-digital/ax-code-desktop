@@ -173,7 +173,7 @@ repackage-electron-as-tauri-update:
     - uses: oven-sh/setup-bun@v2
     - uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '24'
 
     # Pull the signed+notarized Electron .app that build-desktop-electron-macos
     # already produced. Either re-download the dmg and mount+copy the .app, or

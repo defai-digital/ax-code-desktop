@@ -10,7 +10,7 @@ operator-managed deployments.
 ## Prerequisites
 
 - AX Code CLI installed and signed in
-- Node.js 20+
+- Node.js 24
 - Bun 1.3.x
 
 ## Development Start

@@ -154,7 +154,7 @@ The web UI is available at `http://localhost:3000` by default.
 Requirements:
 
 - Bun 1.3.x
-- Node.js 20+
+- Node.js 24
 - AX Code CLI
 
 Useful commands:

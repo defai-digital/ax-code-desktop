@@ -5,7 +5,7 @@
 set -e
 
 PACKAGE_NAME="ax-code-desktop"
-MIN_NODE_VERSION=20
+MIN_NODE_VERSION=24
 
 # Colors
 RED='\033[0;31m'
