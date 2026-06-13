@@ -2259,13 +2259,13 @@ fn is_nonempty_string(value: &str) -> bool {
 const CHANGELOG_URL: &str =
     "https://raw.githubusercontent.com/btriapitsyn/openchamber/main/CHANGELOG.md";
 
-fn parse_semver_num(value: &str) -> Option<u32> {
+fn parse_semver_num(value: &str) -> Option<(u32, u32, u32)> {
     let trimmed = value.trim().trim_start_matches('v');
     let mut parts = trimmed.split('.');
     let major: u32 = parts.next()?.parse().ok()?;
     let minor: u32 = parts.next()?.parse().ok()?;
     let patch: u32 = parts.next()?.parse().ok()?;
-    Some(major.saturating_mul(10_000) + minor.saturating_mul(100) + patch)
+    Some((major, minor, patch))
 }
 
 fn is_placeholder_release_notes(body: &Option<String>) -> bool {
@@ -2303,7 +2303,7 @@ async fn fetch_changelog_notes(from_version: &str, to_version: &str) -> Option<S
         return None;
     }
 
-    let mut markers: Vec<(usize, Option<u32>)> = Vec::new();
+    let mut markers: Vec<(usize, Option<(u32, u32, u32)>)> = Vec::new();
     let mut offset: usize = 0;
     for line in changelog.lines() {
         let line_trimmed = line.trim_end_matches('\r');
@@ -4688,6 +4688,23 @@ mod tests {
             .await
             .expect("probe should not error");
         assert_eq!(result.status, "ok");
+    }
+
+    #[test]
+    fn parse_semver_num_orders_versions_correctly_past_hundred_patch() {
+        // Regression: the previous major*10000+minor*100+patch packing collapsed
+        // 1.0.105 to 10105 and 1.1.0 to 10100, treating 1.0.105 as newer than
+        // 1.1.0. Tuple comparison must keep these in correct semver order.
+        let a = parse_semver_num("1.0.105").unwrap();
+        let b = parse_semver_num("1.1.0").unwrap();
+        assert!(a < b, "1.0.105 should sort before 1.1.0");
+        assert!(b > a, "1.1.0 should sort after 1.0.105");
+        // Sanity: an upgrade from a to b is a forward upgrade.
+        assert!(b > a);
+
+        // Two distinct versions that collided under the old packing.
+        assert!(parse_semver_num("1.2.150").unwrap() < parse_semver_num("1.3.50").unwrap());
+        assert_eq!(parse_semver_num("1.3.50").unwrap(), parse_semver_num("1.3.50").unwrap());
     }
 
     #[tokio::test]
