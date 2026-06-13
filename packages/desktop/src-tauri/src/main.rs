@@ -32,8 +32,7 @@ fn disable_pinch_zoom(window: &tauri::WebviewWindow) {
     let _ = window.with_webview(|webview| unsafe {
         use objc2::rc::Retained;
         use objc2_web_kit::WKWebView;
-        let wk_webview: Retained<WKWebView> =
-            Retained::retain(webview.inner().cast()).unwrap();
+        let wk_webview: Retained<WKWebView> = Retained::retain(webview.inner().cast()).unwrap();
         wk_webview.setAllowsMagnification(false);
     });
 }
@@ -272,12 +271,9 @@ unsafe extern "C-unwind" fn application_should_terminate_with_confirmation(
 fn install_macos_quit_confirmation_hook() {
     use objc2::ffi;
     use objc2::runtime::{AnyClass, AnyObject, Imp, Sel};
-    use std::ffi::CStr;
 
     unsafe {
-        let Some(delegate_class) = AnyClass::get(CStr::from_bytes_with_nul_unchecked(
-            b"TaoAppDelegateParent\0",
-        )) else {
+        let Some(delegate_class) = AnyClass::get(c"TaoAppDelegateParent") else {
             log::warn!("[desktop] TaoAppDelegateParent class not found; dock Quit confirmation hook skipped");
             return;
         };
@@ -296,7 +292,7 @@ fn install_macos_quit_confirmation_hook() {
             delegate_class as *const _ as *mut _,
             selector,
             imp,
-            b"q@:@\0".as_ptr().cast(),
+            c"q@:@".as_ptr().cast(),
         );
 
         if !added.as_bool() {
@@ -667,7 +663,7 @@ fn desktop_clear_cache(app: tauri::AppHandle) -> Result<(), String> {
         eval_in_all_windows(&app, "window.location.reload();");
 
         log::info!("[desktop] Cleared all webview browsing data and reloaded windows");
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -695,7 +691,7 @@ fn desktop_open_path(path: String, app: Option<String>) -> Result<(), String> {
         }
         command.arg(trimmed);
         command.spawn().map_err(|err| err.to_string())?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -744,13 +740,7 @@ fn run_open_command_chain(specs: &[OpenCommandSpec]) -> Result<(), String> {
 fn is_jetbrains_app_id(app_id: &str) -> bool {
     matches!(
         app_id,
-        "pycharm"
-            | "intellij"
-            | "webstorm"
-            | "phpstorm"
-            | "rider"
-            | "rustrover"
-            | "android-studio"
+        "pycharm" | "intellij" | "webstorm" | "phpstorm" | "rider" | "rustrover" | "android-studio"
     )
 }
 
@@ -869,7 +859,7 @@ fn desktop_open_in_app(
             });
         }
 
-        return run_open_command_chain(&specs);
+        run_open_command_chain(&specs)
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -927,7 +917,7 @@ fn desktop_filter_installed_apps(apps: Vec<String>) -> Result<Vec<String>, Strin
             }
         }
 
-        return Ok(installed);
+        Ok(installed)
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -1030,11 +1020,11 @@ fn desktop_get_installed_apps(
             });
         }
 
-        return Ok(InstalledAppsResponse {
+        Ok(InstalledAppsResponse {
             apps: cached_apps,
             has_cache,
             is_cache_stale,
-        });
+        })
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -1080,7 +1070,7 @@ fn desktop_fetch_app_icons(apps: Vec<String>) -> Result<Vec<AppIconPayload>, Str
             });
         }
 
-        return Ok(results);
+        Ok(results)
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -1533,7 +1523,10 @@ fn merge_desktop_hosts_config(
 /// Atomic read-merge-write: reads existing config from `path`, merges
 /// `input` into it, and writes the result — all while holding the process
 /// lock. Tests and the `desktop_hosts_set` command share this path.
-fn write_desktop_hosts_config_input_to_path(path: &Path, input: &DesktopHostsConfigInput) -> Result<()> {
+fn write_desktop_hosts_config_input_to_path(
+    path: &Path,
+    input: &DesktopHostsConfigInput,
+) -> Result<()> {
     let _guard = SETTINGS_FILE_MUTEX.lock().expect("desktop hosts mutex");
     let existing = read_desktop_hosts_config_from_path(path);
     let merged = merge_desktop_hosts_config(&existing, input);
@@ -1748,7 +1741,7 @@ fn write_desktop_window_state_to_disk(state: &DesktopWindowState) -> Result<()> 
     }
 
     root["desktopWindowState"] = serde_json::to_value(state).unwrap_or(serde_json::Value::Null);
-    fs::write(&path, serde_json::to_string_pretty(&root)?)?;
+    fs::write(path, serde_json::to_string_pretty(&root)?)?;
     Ok(())
 }
 
@@ -1757,7 +1750,7 @@ fn write_desktop_hosts_config_to_path(path: &Path, config: &DesktopHostsConfig) 
         fs::create_dir_all(parent)?;
     }
 
-    let mut root: serde_json::Value = if let Ok(raw) = fs::read_to_string(&path) {
+    let mut root: serde_json::Value = if let Ok(raw) = fs::read_to_string(path) {
         serde_json::from_str(&raw).unwrap_or(serde_json::json!({}))
     } else {
         serde_json::json!({})
@@ -1796,7 +1789,7 @@ fn write_desktop_hosts_config_to_path(path: &Path, config: &DesktopHostsConfig) 
     root["desktopInitialHostChoiceCompleted"] =
         serde_json::Value::Bool(config.initial_host_choice_completed);
 
-    fs::write(&path, serde_json::to_string_pretty(&root)?)?;
+    fs::write(path, serde_json::to_string_pretty(&root)?)?;
     Ok(())
 }
 
@@ -1808,7 +1801,7 @@ fn write_desktop_hosts_config_to_path(path: &Path, config: &DesktopHostsConfig) 
 #[serde(rename_all = "camelCase")]
 struct DesktopBootOutcome {
     target: Option<String>, // "local" | "remote" | null
-    status: String,          // "ok" | "not-configured" | "unreachable" | "wrong-service" | "missing"
+    status: String,         // "ok" | "not-configured" | "unreachable" | "wrong-service" | "missing"
     #[serde(skip_serializing_if = "Option::is_none")]
     host_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1848,13 +1841,10 @@ struct ProbeWithRetryResult {
 /// Shared probe policy: soft probe first, hard retry on failure.
 /// Used by both startup and open_new_window for consistency.
 async fn probe_with_retry(url: &str) -> ProbeWithRetryResult {
-    let soft_probe =
-        probe_host_with_timeout(url, STARTUP_REMOTE_PROBE_SOFT_TIMEOUT).await;
+    let soft_probe = probe_host_with_timeout(url, STARTUP_REMOTE_PROBE_SOFT_TIMEOUT).await;
 
     let (navigable, final_probe) = match &soft_probe {
-        Ok(probe) if matches!(probe.status.as_str(), "ok" | "auth") => {
-            (true, Some(probe.clone()))
-        }
+        Ok(probe) if matches!(probe.status.as_str(), "ok" | "auth") => (true, Some(probe.clone())),
         Ok(_) => {
             log::warn!(
                 "[desktop] host slow/unreachable ({}), retrying with extended timeout",
@@ -1963,10 +1953,7 @@ fn resolve_boot_outcome(
     }
 
     // Default is a remote host — find it
-    let host = cfg
-        .hosts
-        .iter()
-        .find(|h| h.id == default_id);
+    let host = cfg.hosts.iter().find(|h| h.id == default_id);
 
     let Some(host) = host else {
         return DesktopBootOutcome {
@@ -2180,10 +2167,14 @@ async fn refresh_quit_risk_flags(local_base_url: &str) {
                 let running_count = payload.running_scheduled_tasks_count;
                 QUIT_RISK_ENABLED_SCHEDULED_TASKS_COUNT.store(enabled_count, Ordering::Relaxed);
                 QUIT_RISK_RUNNING_SCHEDULED_TASKS_COUNT.store(running_count, Ordering::Relaxed);
-                QUIT_RISK_HAS_ENABLED_SCHEDULED_TASKS
-                    .store(payload.has_enabled_scheduled_tasks || enabled_count > 0, Ordering::Relaxed);
-                QUIT_RISK_HAS_RUNNING_SCHEDULED_TASKS
-                    .store(payload.has_running_scheduled_tasks || running_count > 0, Ordering::Relaxed);
+                QUIT_RISK_HAS_ENABLED_SCHEDULED_TASKS.store(
+                    payload.has_enabled_scheduled_tasks || enabled_count > 0,
+                    Ordering::Relaxed,
+                );
+                QUIT_RISK_HAS_RUNNING_SCHEDULED_TASKS.store(
+                    payload.has_running_scheduled_tasks || running_count > 0,
+                    Ordering::Relaxed,
+                );
             }
         }
     }
@@ -2213,9 +2204,7 @@ fn start_quit_risk_poller(_local_base_url: String) {}
 #[tauri::command]
 async fn desktop_host_probe(url: String) -> Result<HostProbeResult, String> {
     let result = probe_with_retry(&url).await;
-    result
-        .probe
-        .ok_or_else(|| "Probe failed".to_string())
+    result.probe.ok_or_else(|| "Probe failed".to_string())
 }
 
 #[derive(Clone, Serialize)]
@@ -2303,7 +2292,8 @@ async fn fetch_changelog_notes(from_version: &str, to_version: &str) -> Option<S
         return None;
     }
 
-    let mut markers: Vec<(usize, Option<(u32, u32, u32)>)> = Vec::new();
+    type ChangelogMarker = (usize, Option<(u32, u32, u32)>);
+    let mut markers: Vec<ChangelogMarker> = Vec::new();
     let mut offset: usize = 0;
     for line in changelog.lines() {
         let line_trimmed = line.trim_end_matches('\r');
@@ -2422,7 +2412,13 @@ async fn wait_for_health_with(
 }
 
 async fn wait_for_health(url: &str) -> bool {
-    wait_for_health_with(url, HEALTH_TIMEOUT, HEALTH_POLL_INITIAL_INTERVAL, HEALTH_POLL_MAX_INTERVAL).await
+    wait_for_health_with(
+        url,
+        HEALTH_TIMEOUT,
+        HEALTH_POLL_INITIAL_INTERVAL,
+        HEALTH_POLL_MAX_INTERVAL,
+    )
+    .await
 }
 
 fn kill_sidecar(app: tauri::AppHandle) {
@@ -2440,14 +2436,12 @@ fn kill_sidecar(app: tauri::AppHandle) {
             let path = format!("{API_BASE_PATH}{API_SYSTEM_SHUTDOWN_PATH}");
             // parse() only succeeds for literal IP hosts; skip the graceful
             // POST otherwise (child.kill() below still runs).
-            if let Ok(mut stream) = format!("{host}:{port}")
-                .parse()
-                .map_err(|_| ())
-                .and_then(|addr: std::net::SocketAddr| {
+            if let Ok(mut stream) = format!("{host}:{port}").parse().map_err(|_| ()).and_then(
+                |addr: std::net::SocketAddr| {
                     std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(1500))
                         .map_err(|_| ())
-                })
-            {
+                },
+            ) {
                 use std::io::Write;
                 let _ = stream.set_write_timeout(Some(Duration::from_millis(1500)));
                 let _ = stream.set_read_timeout(Some(Duration::from_millis(1500)));
@@ -2523,7 +2517,9 @@ fn kill_stale_sidecar_processes() {
 async fn spawn_local_server(app: &tauri::AppHandle) -> Result<String> {
     // Clean up stale sidecar processes on a blocking thread so the tokio
     // worker isn't held by the sync pkill + sleep inside the function.
-    tokio::task::spawn_blocking(kill_stale_sidecar_processes).await.ok();
+    tokio::task::spawn_blocking(kill_stale_sidecar_processes)
+        .await
+        .ok();
 
     let stored_port = read_desktop_local_port_from_disk();
     let mut candidates: Vec<Option<u16>> = Vec::new();
@@ -2553,7 +2549,11 @@ async fn spawn_local_server(app: &tauri::AppHandle) -> Result<String> {
     let desktop_settings = read_desktop_settings_json();
 
     let ax_code_binary_from_settings: Option<String> = (|| {
-        let value = desktop_settings.as_ref()?.get("axCodeBinary")?.as_str()?.trim();
+        let value = desktop_settings
+            .as_ref()?
+            .get("axCodeBinary")?
+            .as_str()?
+            .trim();
         if value.is_empty() {
             return None;
         }
@@ -2742,7 +2742,9 @@ async fn spawn_local_server(app: &tauri::AppHandle) -> Result<String> {
             // kill_sidecar does blocking I/O (TcpStream + sleep); run on a
             // dedicated thread so the tokio worker is not held.
             let app_for_kill = app.clone();
-            tokio::task::spawn_blocking(move || kill_sidecar(app_for_kill)).await.ok();
+            tokio::task::spawn_blocking(move || kill_sidecar(app_for_kill))
+                .await
+                .ok();
             continue;
         }
 
@@ -2795,10 +2797,11 @@ fn desktop_notify(
 
     use tauri_plugin_notification::NotificationExt;
 
-    let mut builder = app
-        .notification()
-        .builder()
-        .title(payload.title.unwrap_or_else(|| "AX Code Desktop".to_string()));
+    let mut builder = app.notification().builder().title(
+        payload
+            .title
+            .unwrap_or_else(|| "AX Code Desktop".to_string()),
+    );
 
     if let Some(body) = payload.body {
         if is_nonempty_string(&body) {
@@ -2963,7 +2966,9 @@ async fn desktop_new_window_at_url(app: tauri::AppHandle, url: String) -> Result
             let _ = tx.send(result);
         })
         .map_err(|e| e.to_string())?;
-        return rx.await.map_err(|_| "Window creation cancelled".to_string())?;
+        return rx
+            .await
+            .map_err(|_| "Window creation cancelled".to_string())?;
     }
 
     // Remote URL: probe with shared retry policy before opening.
@@ -3003,12 +3008,19 @@ async fn desktop_new_window_at_url(app: tauri::AppHandle, url: String) -> Result
     let (tx, rx) = tokio::sync::oneshot::channel();
     let handle = app.clone();
     app.run_on_main_thread(move || {
-        let result = create_window(&handle, &final_url, &local_origin, Some(&boot_outcome), false)
-            .map_err(|e| e.to_string());
+        let result = create_window(
+            &handle,
+            &final_url,
+            &local_origin,
+            Some(&boot_outcome),
+            false,
+        )
+        .map_err(|e| e.to_string());
         let _ = tx.send(result);
     })
     .map_err(|e| e.to_string())?;
-    rx.await.map_err(|_| "Window creation cancelled".to_string())?
+    rx.await
+        .map_err(|_| "Window creation cancelled".to_string())?
 }
 
 /// Read a file and return its content as base64 with mime type detection.
@@ -3188,7 +3200,10 @@ fn build_init_script(local_origin: &str, boot_outcome: Option<&DesktopBootOutcom
     init_script
 }
 
-fn parse_theme_override(theme_mode: Option<&str>, theme_variant: Option<&str>) -> Option<tauri::Theme> {
+fn parse_theme_override(
+    theme_mode: Option<&str>,
+    theme_variant: Option<&str>,
+) -> Option<tauri::Theme> {
     match theme_mode.map(str::trim) {
         Some("system") => None,
         Some("dark") => Some(tauri::Theme::Dark),
@@ -3553,12 +3568,10 @@ fn build_startup_splash_script() -> String {
         });
 
     let effective_mode = theme_mode
-        .or_else(|| {
-            if use_system_theme {
-                Some("system")
-            } else {
-                None
-            }
+        .or(if use_system_theme {
+            Some("system")
+        } else {
+            None
         })
         .or(theme_variant)
         .unwrap_or("system");
@@ -3625,7 +3638,9 @@ fn activate_main_window(
     }
 
     if let Some(window) = app.get_webview_window("main") {
-        window.navigate(parsed).map_err(|err| anyhow!(err.to_string()))?;
+        window
+            .navigate(parsed)
+            .map_err(|err| anyhow!(err.to_string()))?;
         let _ = window.set_focus();
         return Ok(());
     }
@@ -3706,16 +3721,12 @@ fn open_new_window(app: &tauri::AppHandle) {
     };
 
     // Compute boot outcome for the new window (no probe yet for sync local case).
-    let boot_outcome = resolve_boot_outcome(
-        &cfg,
-        None,
-        true,
-        env_target.as_deref(),
-    );
+    let boot_outcome = resolve_boot_outcome(&cfg, None, true, env_target.as_deref());
 
     // If the target is local, create the window immediately on this (main) thread.
     if same_server_url(&target_url, &local_ui_url) {
-        if let Err(err) = create_window(app, &target_url, &local_origin, Some(&boot_outcome), false) {
+        if let Err(err) = create_window(app, &target_url, &local_origin, Some(&boot_outcome), false)
+        {
             log::error!("[desktop] failed to create new window: {err}");
         }
         return;
@@ -3752,7 +3763,13 @@ fn open_new_window(app: &tauri::AppHandle) {
         let local = local_origin;
         let handle_clone = handle.clone();
         if let Err(err) = handle.run_on_main_thread(move || {
-            if let Err(err) = create_window(&handle_clone, &final_url, &local, Some(&final_boot_outcome), false) {
+            if let Err(err) = create_window(
+                &handle_clone,
+                &final_url,
+                &local,
+                Some(&final_boot_outcome),
+                false,
+            ) {
                 log::error!("[desktop] failed to create new window: {err}");
             }
         }) {
@@ -3826,7 +3843,7 @@ fn collect_candidates(
 
     let mut results = Vec::new();
     for entry in walker.build().flatten() {
-        if entry.file_type().map_or(false, |t| t.is_file()) {
+        if entry.file_type().is_some_and(|t| t.is_file()) {
             let abs = entry.path().to_string_lossy().into_owned();
             let rel = entry
                 .path()
@@ -3915,8 +3932,7 @@ fn search_files_impl(
                 .filter(|e| !e.is_empty());
 
             // Score against filename; fall back to relative path for path-based queries
-            let score = fuzzy_score(query, &name)
-                .or_else(|| fuzzy_score(query, &rel_path))?;
+            let score = fuzzy_score(query, &name).or_else(|| fuzzy_score(query, &rel_path))?;
 
             let len = name.len();
             Some((
@@ -3995,7 +4011,10 @@ mod search_tests {
         // Both are substring-at-start matches (score = 100 + 20 prefix bonus).
         // Length tie-breaking is handled by the sort in search_files_impl, not here.
         assert_eq!(fuzzy_score("util", "util.ts"), Some(120));
-        assert_eq!(fuzzy_score("util", "utilities-for-everything.ts"), Some(120));
+        assert_eq!(
+            fuzzy_score("util", "utilities-for-everything.ts"),
+            Some(120)
+        );
     }
 
     #[test]
@@ -4017,9 +4036,13 @@ mod search_tests {
     fn boundary_bonus_at_start_of_unicode_string() {
         // Query matching from the very start of a string with leading multi-byte chars
         assert_eq!(fuzzy_score("main", "main.rs"), Some(120)); // unchanged
-        // Match after a unicode separator
+                                                               // Match after a unicode separator
         let with_sep = fuzzy_score("main", "ré/main.ts");
-        assert!(with_sep.unwrap_or(0) >= 115, "expected word-boundary bonus, got {:?}", with_sep);
+        assert!(
+            with_sep.unwrap_or(0) >= 115,
+            "expected word-boundary bonus, got {:?}",
+            with_sep
+        );
     }
 }
 
@@ -4226,7 +4249,6 @@ fn main() {
                 }
                 if id == MENU_ITEM_QUIT_ID {
                     request_quit_with_confirmation(app);
-                    return;
                 }
             }
         })
@@ -4477,48 +4499,42 @@ fn main() {
 
     install_macos_quit_confirmation_hook();
 
-    app.run(|app_handle, event| {
-        match event {
-            tauri::RunEvent::ExitRequested { api, .. } => {
-                use std::sync::atomic::Ordering;
-                if !QUIT_CONFIRMED.load(Ordering::SeqCst) {
-                    api.prevent_exit();
-                    #[cfg(target_os = "macos")]
-                    request_quit_with_confirmation(app_handle);
-                    return;
-                }
-                if let Some(state) = app_handle.try_state::<DesktopSshManagerState>() {
-                    state.shutdown_all(app_handle);
-                }
-                kill_sidecar(app_handle.clone());
+    app.run(|app_handle, event| match event {
+        tauri::RunEvent::ExitRequested { api, .. } => {
+            use std::sync::atomic::Ordering;
+            if !QUIT_CONFIRMED.load(Ordering::SeqCst) {
+                api.prevent_exit();
+                #[cfg(target_os = "macos")]
+                request_quit_with_confirmation(app_handle);
+                return;
             }
-            tauri::RunEvent::Exit => {
-                if let Some(state) = app_handle.try_state::<DesktopSshManagerState>() {
-                    state.shutdown_all(app_handle);
-                }
-                kill_sidecar(app_handle.clone());
+            if let Some(state) = app_handle.try_state::<DesktopSshManagerState>() {
+                state.shutdown_all(app_handle);
             }
-            #[cfg(target_os = "macos")]
-            tauri::RunEvent::Reopen {
-                has_visible_windows,
-                ..
-            } => {
-                if !has_visible_windows {
-                    let windows = app_handle.webview_windows();
-                    let hidden = windows
-                        .values()
-                        .find(|w| !w.is_visible().unwrap_or(true));
-                    if let Some(w) = hidden {
-                        let _ = w.show();
-                        let _ = w.set_focus();
-                    } else {
-                        drop(windows);
-                        open_new_window(app_handle);
-                    }
-                }
-            }
-            _ => {}
+            kill_sidecar(app_handle.clone());
         }
+        tauri::RunEvent::Exit => {
+            if let Some(state) = app_handle.try_state::<DesktopSshManagerState>() {
+                state.shutdown_all(app_handle);
+            }
+            kill_sidecar(app_handle.clone());
+        }
+        #[cfg(target_os = "macos")]
+        tauri::RunEvent::Reopen {
+            has_visible_windows: false,
+            ..
+        } => {
+            let windows = app_handle.webview_windows();
+            let hidden = windows.values().find(|w| !w.is_visible().unwrap_or(true));
+            if let Some(w) = hidden {
+                let _ = w.show();
+                let _ = w.set_focus();
+            } else {
+                drop(windows);
+                open_new_window(app_handle);
+            }
+        }
+        _ => {}
     });
 }
 
@@ -4645,7 +4661,9 @@ mod tests {
     /// and `body`. Returns the base URL (e.g. `http://127.0.0.1:{port}`).
     async fn spawn_test_http_server(status_code: u16, body: &str) -> String {
         use tokio::net::TcpListener;
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test server");
         let port = listener.local_addr().unwrap().port();
         let body_owned = body.to_string();
 
@@ -4704,7 +4722,10 @@ mod tests {
 
         // Two distinct versions that collided under the old packing.
         assert!(parse_semver_num("1.2.150").unwrap() < parse_semver_num("1.3.50").unwrap());
-        assert_eq!(parse_semver_num("1.3.50").unwrap(), parse_semver_num("1.3.50").unwrap());
+        assert_eq!(
+            parse_semver_num("1.3.50").unwrap(),
+            parse_semver_num("1.3.50").unwrap()
+        );
     }
 
     #[tokio::test]
@@ -4721,7 +4742,9 @@ mod tests {
     async fn spawn_flaky_openchamber_health_server() -> String {
         use tokio::net::TcpListener;
 
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind flaky test server");
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind flaky test server");
         let port = listener.local_addr().unwrap().port();
         let request_count = Arc::new(AtomicUsize::new(0));
 
@@ -4823,12 +4846,9 @@ mod tests {
     }
 
     #[test]
-    fn resolve_boot_outcome_returns_recovery_no_default_host_when_choice_completed_but_default_missing() {
-        let cfg = make_config(
-            vec![("remote-a", "Remote A", "https://a.test")],
-            None,
-            true,
-        );
+    fn resolve_boot_outcome_returns_recovery_no_default_host_when_choice_completed_but_default_missing(
+    ) {
+        let cfg = make_config(vec![("remote-a", "Remote A", "https://a.test")], None, true);
         let probe: Option<&HostProbeResult> = None;
         let outcome = resolve_boot_outcome(&cfg, probe, true, None);
         assert_eq!(outcome.target, None);
@@ -4836,7 +4856,8 @@ mod tests {
     }
 
     #[test]
-    fn resolve_boot_outcome_returns_recovery_missing_default_host_when_default_id_has_no_matching_host() {
+    fn resolve_boot_outcome_returns_recovery_missing_default_host_when_default_id_has_no_matching_host(
+    ) {
         let cfg = make_config(vec![], Some("gone-1"), true);
         let probe: Option<&HostProbeResult> = None;
         let outcome = resolve_boot_outcome(&cfg, probe, true, None);
@@ -4855,7 +4876,8 @@ mod tests {
     }
 
     #[test]
-    fn resolve_boot_outcome_returns_recovery_local_unavailable_when_local_is_default_but_unavailable() {
+    fn resolve_boot_outcome_returns_recovery_local_unavailable_when_local_is_default_but_unavailable(
+    ) {
         let cfg = make_config(vec![], Some("local"), true);
         let probe: Option<&HostProbeResult> = None;
         let outcome = resolve_boot_outcome(&cfg, probe, false, None);

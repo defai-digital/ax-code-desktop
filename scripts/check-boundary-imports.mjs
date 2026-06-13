@@ -14,6 +14,39 @@ const disallowedPatterns = [
   /\.\.\/desktop\/src\b/,
 ];
 
+const allowedOpenChamberUiImports = [
+  /^@openchamber\/ui$/,
+  /^@openchamber\/ui\/main$/,
+  /^@openchamber\/ui\/index\.css$/,
+  /^@openchamber\/ui\/styles\/fonts$/,
+  /^@openchamber\/ui\/terminalApi$/,
+  /^@openchamber\/ui\/api\/(endpoints|gitApiHttp|types)$/,
+  /^@openchamber\/ui\/apps\/renderElectronMiniChatApp$/,
+];
+
+const importSpecifiers = [
+  /(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/g,
+  /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+];
+
+const packageDependencyRules = [
+  {
+    packageJsonPath: 'packages/ui/package.json',
+    dependencyNames: [
+      'better-sqlite3',
+      'bun-pty',
+      'electron',
+      'electron-updater',
+      'express',
+      'http-proxy-middleware',
+      'node-pty',
+      'simple-git',
+    ],
+    reason: 'server or desktop-shell dependency declared by UI package',
+  },
+];
+
 function collectFiles(baseDir, extensions) {
   const entries = readdirSync(baseDir, { withFileTypes: true });
   const files = [];
@@ -38,6 +71,26 @@ function collectFiles(baseDir, extensions) {
 
 const violations = [];
 
+function addViolation(file, lineNumber, lineText, reason) {
+  violations.push({
+    file,
+    lineNumber,
+    lineText: lineText.trim(),
+    reason,
+  });
+}
+
+function isAllowedOpenChamberUiImport(specifier) {
+  return allowedOpenChamberUiImports.some((pattern) => pattern.test(specifier));
+}
+
+function dependencyLineNumber(content, dependencyName) {
+  const lines = content.split(/\r?\n/);
+  const needle = `"${dependencyName}"`;
+  const index = lines.findIndex((line) => line.includes(needle));
+  return index === -1 ? 1 : index + 1;
+}
+
 for (const filePath of targetFiles) {
   const absolute = path.join(ROOT, filePath);
   const files = collectFiles(absolute, ['.ts', '.tsx', '.js', '.jsx']);
@@ -46,21 +99,64 @@ for (const filePath of targetFiles) {
     const lines = content.split(/\r?\n/);
     lines.forEach((line, index) => {
       if (disallowedPatterns.some((pattern) => pattern.test(line))) {
-        violations.push({
+        addViolation(
           file,
-          lineNumber: index + 1,
-          lineText: line.trim(),
-        });
+          index + 1,
+          line,
+          'sibling-package source import',
+        );
+      }
+
+      for (const pattern of importSpecifiers) {
+        pattern.lastIndex = 0;
+        let match;
+        while ((match = pattern.exec(line)) !== null) {
+          const specifier = match[1];
+          if (
+            specifier.startsWith('@openchamber/ui/') &&
+            !isAllowedOpenChamberUiImport(specifier)
+          ) {
+            addViolation(
+              file,
+              index + 1,
+              line,
+              `private @openchamber/ui import: ${specifier}`,
+            );
+          }
+        }
       }
     });
   }
 }
 
+for (const rule of packageDependencyRules) {
+  const file = path.join(ROOT, rule.packageJsonPath);
+  const content = readFileSync(file, 'utf8');
+  const manifest = JSON.parse(content);
+  const dependencyBlocks = [
+    manifest.dependencies ?? {},
+    manifest.devDependencies ?? {},
+    manifest.peerDependencies ?? {},
+    manifest.optionalDependencies ?? {},
+  ];
+
+  for (const dependencyName of rule.dependencyNames) {
+    if (dependencyBlocks.some((block) => Object.hasOwn(block, dependencyName))) {
+      addViolation(
+        file,
+        dependencyLineNumber(content, dependencyName),
+        `"${dependencyName}"`,
+        rule.reason,
+      );
+    }
+  }
+}
+
 if (violations.length > 0) {
-  console.error('Boundary import check failed: sibling-package source imports were found.');
+  console.error('Boundary import check failed.');
   for (const item of violations) {
     const relative = path.relative(ROOT, item.file);
-    console.error(`- ${relative}:${item.lineNumber}: ${item.lineText}`);
+    console.error(`- ${relative}:${item.lineNumber}: ${item.reason}: ${item.lineText}`);
   }
   process.exit(1);
 }

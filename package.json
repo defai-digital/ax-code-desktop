@@ -57,7 +57,7 @@
     "icons:generate": "bun run scripts/generate-icon-sprite.mjs",
     "themes:port:ax-code": "tsx scripts/port-ax-code-theme.ts",
     "version:bump": "node scripts/bump-version.mjs",
-    "release:prepare": "bun run check:internal && bun run check:boundary && bun run check:endpoint-contracts && bun run build && bun run type-check && bun run lint",
+    "release:prepare": "bun run check:internal && bun run check:boundary && bun run check:endpoint-contracts && bun run build && bun run type-check && bun run lint && bun run desktop:type-check",
     "sign:keygen": "./scripts/minisign-keygen.sh",
     "release:sign": "./scripts/minisign-artifacts.sh",
     "publish:github": "./scripts/publish-github-release.sh",

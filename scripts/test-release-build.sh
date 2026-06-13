@@ -152,15 +152,30 @@ run_native_build() {
 
     # Check Rust targets
     log_info "Checking Rust targets..."
+    local RUST_HOST_TARGET
+    RUST_HOST_TARGET="$(rustc -vV | awk '/^host:/ { print $2 }')"
+    local HAS_RUSTUP=false
+    if command -v rustup &> /dev/null; then
+        HAS_RUSTUP=true
+    fi
+
     for target in "${TARGETS[@]}"; do
-        if ! rustup target list --installed | grep -q "$target"; then
-            log_warn "Rust target $target not installed. Installing..."
-            if [[ "$DRY_RUN" == false ]]; then
-                rustup target add "$target"
+        if [[ "$HAS_RUSTUP" == true ]]; then
+            if ! rustup target list --installed | grep -q "$target"; then
+                log_warn "Rust target $target not installed. Installing..."
+                if [[ "$DRY_RUN" == false ]]; then
+                    rustup target add "$target"
+                fi
+                log_success "Installed $target"
+            else
+                log_success "Rust target $target is installed"
             fi
-            log_success "Installed $target"
+        elif [[ "$target" == "$RUST_HOST_TARGET" ]]; then
+            log_success "Rust host target $target is available via the active toolchain"
         else
-            log_success "Rust target $target is installed"
+            log_warn "Rust target $target not installed. Installing..."
+            log_error "rustup is required to add cross-compilation targets"
+            exit 1
         fi
     done
 
@@ -217,7 +232,7 @@ run_native_build() {
 
     for target in "${TARGETS[@]}"; do
         if [[ "$NO_BUNDLE" == true ]]; then
-            local BINARY_PATH="packages/desktop/src-tauri/target/$target/release/openchamber-desktop"
+            local BINARY_PATH="packages/desktop/src-tauri/target/$target/release/ax-code-desktop"
         else
             local BINARY_PATH="packages/desktop/src-tauri/target/$target/release/bundle/dmg"
         fi

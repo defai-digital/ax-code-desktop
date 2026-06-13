@@ -33,18 +33,10 @@ const MONITOR_STEADY_POLL_SECS: u64 = 10;
 /// Number of healthy ticks before switching from initial to steady-state polling.
 const MONITOR_STABILIZE_TICKS: u32 = 5;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopSshInstancesConfig {
     pub instances: Vec<DesktopSshInstance>,
-}
-
-impl Default for DesktopSshInstancesConfig {
-    fn default() -> Self {
-        Self {
-            instances: Vec::new(),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -54,32 +46,22 @@ pub struct DesktopSshParsedCommand {
     pub args: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DesktopSshRemoteMode {
+    #[default]
     Managed,
     External,
 }
 
-impl Default for DesktopSshRemoteMode {
-    fn default() -> Self {
-        Self::Managed
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DesktopSshInstallMethod {
     Npm,
+    #[default]
     Bun,
     DownloadRelease,
     UploadBundle,
-}
-
-impl Default for DesktopSshInstallMethod {
-    fn default() -> Self {
-        Self::Bun
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -125,17 +107,12 @@ impl Default for DesktopSshLocalForwardConfig {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DesktopSshSecretStore {
+    #[default]
     Never,
     Settings,
-}
-
-impl Default for DesktopSshSecretStore {
-    fn default() -> Self {
-        Self::Never
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -476,9 +453,7 @@ fn sanitize_forward(forward: &DesktopSshPortForward) -> Option<DesktopSshPortFor
             }
         }
         DesktopSshPortForwardType::Dynamic => {
-            if normalized.local_port.is_none() {
-                return None;
-            }
+            normalized.local_port?;
             normalized.remote_host = None;
             normalized.remote_port = None;
         }
@@ -542,7 +517,7 @@ fn sync_desktop_hosts_for_ssh(
         if id.is_empty() {
             return false;
         }
-        !(previous_ids.contains(id) && !next_ids.contains(id))
+        !previous_ids.contains(id) || next_ids.contains(id)
     });
 
     for instance in instances {
@@ -1311,26 +1286,26 @@ fn probe_remote_system_info(
     if is_liveness_http_status(info_status) {
         if is_auth_http_status(info_status) {
             if openchamber_password.is_some() && auth_status != 200 {
-                return Err(anyhow!(format!(
+                return Err(anyhow!(
                     "Remote AX Code Desktop requires UI authentication and configured password was rejected (auth status {auth_status})"
-                )));
+                ));
             }
 
             if is_liveness_http_status(health_status) {
                 return Ok(RemoteSystemInfo::default());
             }
 
-            return Err(anyhow!(format!(
+            return Err(anyhow!(
                 "Remote AX Code Desktop requires UI authentication on {}; configure AX Code Desktop UI password",
-                format!("{API_BASE_PATH}{API_SYSTEM_INFO_PATH}")
-            )));
+                format_args!("{API_BASE_PATH}{API_SYSTEM_INFO_PATH}")
+            ));
         }
     } else if is_liveness_http_status(health_status) {
         return Ok(RemoteSystemInfo::default());
     } else {
-        return Err(anyhow!(format!(
+        return Err(anyhow!(
             "Remote AX Code Desktop probe failed (info status {info_status}, health status {health_status})"
-        )));
+        ));
     }
 
     let mut info = serde_json::from_str::<RemoteSystemInfo>(&body).unwrap_or_default();
@@ -1570,9 +1545,7 @@ fn wait_local_forward_ready(local_port: u16) -> Result<()> {
     let addr: std::net::SocketAddr = format!("127.0.0.1:{local_port}").parse()?;
     let mut poll_ms: u64 = 250;
     while std::time::Instant::now() < deadline {
-        if let Ok(mut stream) =
-            TcpStream::connect_timeout(&addr, Duration::from_millis(1000))
-        {
+        if let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_millis(1000)) {
             use std::io::{Read as IoRead, Write};
             let _ = stream.set_read_timeout(Some(Duration::from_millis(1000)));
             let _ = stream.set_write_timeout(Some(Duration::from_millis(1000)));
@@ -1584,8 +1557,7 @@ fn wait_local_forward_ready(local_port: u16) -> Result<()> {
                 if let Ok(n) = stream.read(&mut buf) {
                     let head = std::str::from_utf8(&buf[..n]).unwrap_or("");
                     // Match "HTTP/1.x 2xx" or "HTTP/1.x 401"
-                    if head.starts_with("HTTP/1.")
-                        && (head.contains(" 2") || head.contains(" 401"))
+                    if head.starts_with("HTTP/1.") && (head.contains(" 2") || head.contains(" 401"))
                     {
                         return Ok(());
                     }
@@ -1699,6 +1671,10 @@ impl DesktopSshManagerInner {
             .unwrap_or_else(|| DesktopSshInstanceStatus::idle(id))
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "status updates mirror the emitted SSH status event payload"
+    )]
     fn set_status(
         &self,
         app: &AppHandle,
