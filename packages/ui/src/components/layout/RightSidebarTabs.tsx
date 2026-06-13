@@ -2,7 +2,6 @@ import React from 'react';
 
 import { SortableTabsStrip } from '@/components/ui/sortable-tabs-strip';
 import { ProjectNotesTodoPanel } from '@/components/session/ProjectNotesTodoPanel';
-import { GitView } from '@/components/views/GitView';
 import { Icon } from "@/components/icon/Icon";
 import { useGitStore } from '@/stores/useGitStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
@@ -11,8 +10,11 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { formatDirectoryName } from '@/lib/utils';
+import { lazyWithChunkRecovery } from '@/lib/chunkLoadRecovery';
 import { useI18n } from '@/lib/i18n';
 import { SidebarFilesTree } from './SidebarFilesTree';
+
+const GitView = lazyWithChunkRecovery(() => import('@/components/views/GitView').then((m) => ({ default: m.GitView })));
 
 type RightTab = 'git' | 'files' | 'context';
 
@@ -131,7 +133,11 @@ export const RightSidebarTabs: React.FC = () => {
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {rightSidebarTab === 'git' && <GitView />}
+        {rightSidebarTab === 'git' && (
+          <React.Suspense fallback={null}>
+            <GitView />
+          </React.Suspense>
+        )}
         {rightSidebarTab === 'files' && <SidebarFilesTree />}
         {rightSidebarTab === 'context' && <ProjectContextPanel />}
       </div>

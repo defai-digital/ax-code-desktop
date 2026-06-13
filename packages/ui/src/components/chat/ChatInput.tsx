@@ -79,7 +79,7 @@ import {
     type HighlightRange,
     type MentionRange,
 } from './composerHighlight';
-import { highlightFencedCode } from './composerCodeHighlight';
+import { importWithChunkRecovery } from '@/lib/chunkLoadRecovery';
 import {
     assignImageAttachmentFilenames,
     buildAttachmentCitationText,
@@ -90,6 +90,8 @@ import type { Message, Part } from '@ax-code/sdk/v2/client';
 const MAX_VISIBLE_TEXTAREA_LINES = 8;
 const EMPTY_QUEUE: QueuedMessage[] = [];
 const EMPTY_MESSAGES: Message[] = [];
+type FencedCodeHighlighter = (text: string) => HighlightRange[];
+const noFencedCodeHighlight: FencedCodeHighlighter = () => [];
 const FILE_MENTION_TOKEN = /^@[^\s]+$/;
 // Single-line URL pasted over a selection becomes a markdown link.
 const PASTE_LINK_URL_PATTERN = /^(https?:\/\/|mailto:)\S+$/i;
@@ -1087,6 +1089,27 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         }));
     }, [inputMode, message, sendableAttachedFiles]);
 
+    const [fencedCodeHighlighter, setFencedCodeHighlighter] = React.useState<FencedCodeHighlighter>(() => noFencedCodeHighlight);
+
+    React.useEffect(() => {
+        if (inputMode === 'shell' || (!message.includes('```') && !message.includes('~~~'))) {
+            return;
+        }
+
+        let cancelled = false;
+        void importWithChunkRecovery(() => import('./composerCodeHighlight')).then((module) => {
+            if (!cancelled) {
+                setFencedCodeHighlighter(() => module.highlightFencedCode);
+            }
+        }).catch((error) => {
+            console.warn('[ChatInput] Failed to load fenced code highlighter:', error);
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [inputMode, message]);
+
     // Combined source-mode highlight: markdown syntax + @mentions. Returns null
     // when there's nothing to highlight so the overlay stays off for plain text.
     const highlightedComposerContent = React.useMemo(() => {
@@ -1095,14 +1118,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         }
         const ranges = [
             ...tokenizeMarkdown(message),
-            ...highlightFencedCode(message),
+            ...fencedCodeHighlighter(message),
             ...mentionRangesToHighlightRanges(composerMentionRanges),
             ...composerCommandRanges,
             ...composerSnippetRanges,
             ...attachmentCitationRanges,
         ];
         return buildHighlightParts(message, ranges);
-    }, [attachmentCitationRanges, composerCommandRanges, composerSnippetRanges, composerMentionRanges, inputMode, message]);
+    }, [attachmentCitationRanges, composerCommandRanges, composerSnippetRanges, composerMentionRanges, fencedCodeHighlighter, inputMode, message]);
 
     const sanitizeAttachmentsForSend = React.useCallback(
         (files: AttachedFile[] | undefined): AttachedFile[] => (files ?? [])

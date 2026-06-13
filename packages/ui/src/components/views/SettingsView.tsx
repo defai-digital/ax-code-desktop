@@ -40,7 +40,6 @@ import { useDeviceInfo } from '@/lib/device';
 import { isDesktopShell, isWebRuntime } from '@/lib/desktop';
 import { useI18n } from '@/lib/i18n';
 import { Icon } from "@/components/icon/Icon";
-import type { IconName } from "@/components/icon/icons";
 import { reloadAxCodeConfiguration } from '@/stores/useAgentsStore';
 import {
   SETTINGS_PAGE_METADATA,
@@ -50,6 +49,7 @@ import {
   type SettingsRuntimeContext,
   type SettingsPageMeta,
 } from '@/lib/settings/metadata';
+import { getSettingsNavIcon } from '@/lib/settings/navIcons';
 
 // Same constraints as main sidebar
 const SETTINGS_NAV_MIN_WIDTH = 176;
@@ -95,8 +95,6 @@ const pageOrder: SettingsPageSlug[] = [
   'skills.catalog',
 ];
 
-const SNIPPETS_SETTINGS_ICON = { icon: 'chat-thread' } as const;
-
 function buildRuntimeContext(isDesktop: boolean): SettingsRuntimeContext {
   const isWeb = !isDesktop && isWebRuntime();
   return { isWeb, isDesktop };
@@ -138,58 +136,6 @@ function getCurrentHistoryState(): Record<string, unknown> {
     return {};
   }
   return window.history.state;
-}
-
-// eslint-disable-next-line react-refresh/only-export-components
-export function getSettingsNavIcon(slug: SettingsPageSlug): IconName | null {
-  switch (slug) {
-    case 'projects':
-      return 'folders';
-    case 'remote-instances':
-      return 'server';
-    case 'appearance':
-      return 'palette';
-    case 'chat':
-      return 'chat-ai-3';
-    case 'magic-prompts':
-      return 'ai-generate-2';
-    case 'snippets':
-      return SNIPPETS_SETTINGS_ICON.icon;
-    case 'notifications':
-      return 'notification-3';
-    case 'shortcuts':
-      return 'command';
-    case 'sessions':
-      return 'chat-history';
-
-    case 'providers':
-      return 'cloud';
-    case 'agents':
-      return 'ai-agent';
-    case 'behavior':
-      return 'brain';
-    case 'commands':
-      return 'slash-commands-2';
-    case 'mcp':
-      return 'plug-2';
-    case 'plugins':
-      return 'code-box';
-
-    case 'skills.installed':
-      return 'book-open';
-    case 'skills.catalog':
-      return 'book';
-
-    case 'git':
-      return 'git-branch';
-
-    case 'usage':
-      return 'bar-chart-2';
-    case 'home':
-      return null;
-    default:
-      return 'robot-2';
-  }
 }
 
 const SettingsHome: React.FC<{ onOpen: (slug: SettingsPageSlug) => void }> = ({ onOpen }) => {

@@ -33,7 +33,7 @@ import { createWorktreeSession } from '@/lib/worktreeSessionCreator';
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from '@/lib/shortcuts';
 import { canUseElectronDesktopIPC, invokeDesktop, isDesktopShell, isWebRuntime } from '@/lib/desktop';
 import { SETTINGS_PAGE_METADATA, type SettingsRuntimeContext } from '@/lib/settings/metadata';
-import { getSettingsNavIcon } from '@/components/views/SettingsView';
+import { getSettingsNavIcon } from '@/lib/settings/navIcons';
 import { Icon } from "@/components/icon/Icon";
 import { scoreByFuzzyQuery } from '@/lib/search/fuzzySearch';
 import { truncatePathMiddle } from '@/lib/utils';

@@ -20,14 +20,14 @@ import { cn } from '@/lib/utils';
 import { lazyWithChunkRecovery } from '@/lib/chunkLoadRecovery';
 
 import { ChatView } from '@/components/views/ChatView';
-import { DiffView } from '@/components/views/DiffView';
-import { FilesView } from '@/components/views/FilesView';
-import { GitView } from '@/components/views/GitView';
-import { PlanView } from '@/components/views/PlanView';
 
 const TerminalView = lazyWithChunkRecovery(() => import('@/components/views/TerminalView').then(m => ({ default: m.TerminalView })));
 const SettingsWindow = lazyWithChunkRecovery(() => import('@/components/views/SettingsWindow').then(m => ({ default: m.SettingsWindow })));
 const MultiRunWindow = lazyWithChunkRecovery(() => import('@/components/views/MultiRunWindow').then(m => ({ default: m.MultiRunWindow })));
+const DiffView = lazyWithChunkRecovery(() => import('@/components/views/DiffView').then(m => ({ default: m.DiffView })));
+const FilesView = lazyWithChunkRecovery(() => import('@/components/views/FilesView').then(m => ({ default: m.FilesView })));
+const GitView = lazyWithChunkRecovery(() => import('@/components/views/GitView').then(m => ({ default: m.GitView })));
+const PlanView = lazyWithChunkRecovery(() => import('@/components/views/PlanView').then(m => ({ default: m.PlanView })));
 
 const DESKTOP_SIDEBAR_MIN_WIDTH = 280;
 const DESKTOP_SIDEBAR_MAX_WIDTH = 500;
@@ -228,15 +228,15 @@ export const MainLayout: React.FC = () => {
     const secondaryView = React.useMemo(() => {
         switch (activeMainTab) {
             case 'plan':
-                return <PlanView />;
+                return <React.Suspense fallback={null}><PlanView /></React.Suspense>;
             case 'git':
-                return <GitView />;
+                return <React.Suspense fallback={null}><GitView /></React.Suspense>;
             case 'diff':
-                return <DiffView />;
+                return <React.Suspense fallback={null}><DiffView /></React.Suspense>;
             case 'terminal':
                 return <React.Suspense fallback={null}><TerminalView /></React.Suspense>;
             case 'files':
-                return <FilesView />;
+                return <React.Suspense fallback={null}><FilesView /></React.Suspense>;
             case 'context':
                 return <React.Suspense fallback={null}><ProjectContextPanel /></React.Suspense>;
             default:

@@ -3,9 +3,6 @@ import React from 'react';
 import { FileTypeIcon } from '@/components/icons/FileTypeIcon';
 import { Button } from '@/components/ui/button';
 import { SortableTabsStrip } from '@/components/ui/sortable-tabs-strip';
-import { DiffView } from '@/components/views/DiffView';
-import { FilesView } from '@/components/views/FilesView';
-import { PlanView } from '@/components/views/PlanView';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { openExternalUrl } from '@/lib/url';
 import { API_ENDPOINTS } from '@/lib/http';
@@ -22,6 +19,7 @@ import { ContextPanelContent } from './ContextSidebarTab';
 import { toast } from '@/components/ui';
 import { Icon } from "@/components/icon/Icon";
 import { AxCodeIcon } from "@/components/ui/AxCodeIcon";
+import { lazyWithChunkRecovery } from '@/lib/chunkLoadRecovery';
 import { invokeDesktopCommand } from '@/lib/desktopNative';
 import {
   type PreviewElementMetadata,
@@ -33,6 +31,10 @@ import {
   getBrowserProxyTargetKey,
   previewProxyTargetCache,
 } from '@/lib/preview/screenshot-capture';
+
+const DiffView = lazyWithChunkRecovery(() => import('@/components/views/DiffView').then((m) => ({ default: m.DiffView })));
+const FilesView = lazyWithChunkRecovery(() => import('@/components/views/FilesView').then((m) => ({ default: m.FilesView })));
+const PlanView = lazyWithChunkRecovery(() => import('@/components/views/PlanView').then((m) => ({ default: m.PlanView })));
 
 const CONTEXT_PANEL_MIN_WIDTH = 380;
 const CONTEXT_PANEL_MAX_WIDTH = 1400;
@@ -2186,21 +2188,23 @@ export const ContextPanel: React.FC = () => {
 
   const activeNonChatContent = activeTab?.mode === 'diff'
     ? (
-      <DiffView
-        key={activeTab.id}
-        hideStackedFileSidebar
-        stackedDefaultCollapsedAll
-        hideFileSelector
-        pinSelectedFileHeaderToTopOnNavigate
-        showOpenInEditorAction
-        diffScope={activeTab.stagedDiff ? 'staged' : 'working'}
-        targetFilePath={activeTab.targetPath}
-      />
+      <React.Suspense fallback={null}>
+        <DiffView
+          key={activeTab.id}
+          hideStackedFileSidebar
+          stackedDefaultCollapsedAll
+          hideFileSelector
+          pinSelectedFileHeaderToTopOnNavigate
+          showOpenInEditorAction
+          diffScope={activeTab.stagedDiff ? 'staged' : 'working'}
+          targetFilePath={activeTab.targetPath}
+        />
+      </React.Suspense>
     )
     : activeTab?.mode === 'context'
         ? <ContextPanelContent />
         : activeTab?.mode === 'plan'
-            ? <PlanView targetPath={activeTab.targetPath} />
+            ? <React.Suspense fallback={null}><PlanView targetPath={activeTab.targetPath} /></React.Suspense>
             : activeTab?.mode === 'preview'
                 ? <PreviewPane rawUrl={activeTab.targetPath ?? ''} onNavigate={(url) => openContextPreview(effectiveDirectory, url)} />
                 : (
@@ -2341,7 +2345,9 @@ export const ContextPanel: React.FC = () => {
       <div className={cn('relative min-h-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}>
         {hasFileTabs ? (
           <div className={cn('absolute inset-0', isFileTabActive ? 'block' : 'hidden')}>
-            <FilesView mode="editor-only" />
+            <React.Suspense fallback={null}>
+              <FilesView mode="editor-only" />
+            </React.Suspense>
           </div>
         ) : null}
         {chatTabs.map((tab) => {
