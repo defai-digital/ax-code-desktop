@@ -700,6 +700,52 @@ fn desktop_open_path(path: String, app: Option<String>) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+fn desktop_open_external_url(url: String) -> Result<(), String> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Err("URL is required".to_string());
+    }
+
+    let parsed = url::Url::parse(trimmed).map_err(|_| "Invalid URL".to_string())?;
+    match parsed.scheme() {
+        "http" | "https" => open_url_with_system_handler(parsed.as_str()),
+        _ => Err("Only http and https URLs can be opened externally".to_string()),
+    }
+}
+
+fn open_url_with_system_handler(url: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(url)
+            .spawn()
+            .map_err(|err| err.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("rundll32")
+            .args(["url.dll,FileProtocolHandler", url])
+            .spawn()
+            .map_err(|err| err.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Command::new("xdg-open")
+            .arg(url)
+            .spawn()
+            .map_err(|err| err.to_string())?;
+        return Ok(());
+    }
+
+    #[allow(unreachable_code)]
+    Err("Opening external URLs is not supported on this platform".to_string())
+}
+
 #[cfg(target_os = "macos")]
 #[derive(Clone)]
 struct OpenCommandSpec {
@@ -4304,6 +4350,7 @@ fn main() {
             desktop_new_window_at_url,
             desktop_clear_cache,
             desktop_open_path,
+            desktop_open_external_url,
             desktop_open_in_app,
             desktop_filter_installed_apps,
             desktop_get_installed_apps,

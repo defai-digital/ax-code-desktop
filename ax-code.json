@@ -1,0 +1,7 @@
+{
+  "$schema": "https://raw.githubusercontent.com/defai-digital/ax-code/main/packages/ax-code/config.schema.json",
+  "isolation": {
+    "mode": "full-access",
+    "network": true
+  }
+}

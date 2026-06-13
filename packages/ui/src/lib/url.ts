@@ -1,8 +1,9 @@
 import { getTauriGlobal } from '@/lib/tauriGlobal';
 
 /**
- * Utility for opening external URLs with Tauri shell support.
- * In desktop runtime, uses tauri.shell.open() for proper system browser handling.
+ * Utility for opening external URLs with desktop shell support.
+ * In Tauri desktop runtime, uses a narrow native command that only accepts
+ * http(s) URLs. Falls back to window.open() for web/runtime shims.
  * Falls back to window.open() for web runtime.
  */
 
@@ -84,7 +85,7 @@ export const extractLoopbackUrls = (text: string): string[] => {
 
 /**
  * Opens an external URL in the system browser.
- * In Tauri desktop runtime, uses tauri.shell.open() for proper handling.
+ * In Tauri desktop runtime, uses desktop_open_external_url for proper handling.
  * Falls back to window.open() for web runtime.
  *
  * @param url - The URL to open
@@ -112,9 +113,9 @@ export const openExternalUrl = async (url: string): Promise<boolean> => {
   const normalizedTarget = parsed.toString();
 
   const tauri = getTauriGlobal();
-  if (tauri?.shell?.open) {
+  if (tauri?.core?.invoke) {
     try {
-      await tauri.shell.open(normalizedTarget);
+      await tauri.core.invoke('desktop_open_external_url', { url: normalizedTarget });
       return true;
     } catch {
       // Fall through to window.open
