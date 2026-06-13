@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { File as PierreFile, PatchDiff } from '@pierre/diffs/react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { LazySyntaxHighlighter as SyntaxHighlighter } from '@/components/ui/LazySyntaxHighlighter';
 import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/utils';
@@ -29,7 +29,7 @@ import { Icon } from "@/components/icon/Icon";
 import { useI18n } from '@/lib/i18n';
 import { API_ENDPOINTS } from '@/lib/http';
 
-interface ToolOutputDialogProps {
+export interface ToolOutputDialogProps {
     popup: ToolPopupContent;
     onOpenChange: (open: boolean) => void;
     syntaxTheme: { [key: string]: React.CSSProperties };

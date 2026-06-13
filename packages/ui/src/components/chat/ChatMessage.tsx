@@ -29,7 +29,7 @@ import { copyTextToClipboard } from '@/lib/clipboard';
 import { FadeInOnReveal } from './message/FadeInOnReveal';
 import { streamPerfCount } from '@/stores/utils/streamDebug';
 import { areOptionalRenderRelevantMessagesEqual, areRenderRelevantMessagesEqual, areRelevantTurnGroupingContextsEqual } from './message/renderCompare';
-import ToolOutputDialog from './message/ToolOutputDialog';
+import { LazyToolOutputDialog } from './message/LazyToolOutputDialog';
 
 const USER_BUBBLE_STYLE: React.CSSProperties = {
     backgroundColor: 'var(--chat-user-message-bg)',
@@ -1142,7 +1142,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                     )}
                 </div>
             </div>
-            <ToolOutputDialog
+            <LazyToolOutputDialog
                 popup={popupContent}
                 onOpenChange={handlePopupChange}
                 syntaxTheme={syntaxTheme}

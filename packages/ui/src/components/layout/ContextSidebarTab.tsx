@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Message, Part } from '@ax-code/sdk/v2';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { LazySyntaxHighlighter as SyntaxHighlighter } from '@/components/ui/LazySyntaxHighlighter';
 
 import { deriveMessageRole } from '@/components/chat/message/messageRole';
 import { Icon } from "@/components/icon/Icon";

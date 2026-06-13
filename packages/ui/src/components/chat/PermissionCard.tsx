@@ -4,7 +4,7 @@ import type { PermissionRequest, PermissionResponse } from '@/types/permission';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useSessions } from '@/sync/sync-context';
 import * as sessionActions from '@/sync/session-actions';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { LazySyntaxHighlighter as SyntaxHighlighter } from '@/components/ui/LazySyntaxHighlighter';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { generateSyntaxTheme } from '@/lib/theme/syntaxThemeGenerator';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';

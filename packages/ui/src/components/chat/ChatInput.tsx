@@ -14,7 +14,7 @@ import { useSnippetsStore } from '@/stores/useSnippetsStore';
 import { appendInlineComments } from '@/lib/messages/inlineComments';
 import { renderMagicPrompt } from '@/lib/magicPrompts';
 import { AttachedFilesList } from './FileAttachment';
-import ToolOutputDialog from './message/ToolOutputDialog';
+import { LazyToolOutputDialog } from './message/LazyToolOutputDialog';
 import type { ToolPopupContent } from './message/types';
 import { QueuedMessageChips } from './QueuedMessageChips';
 import { PendingPermissionsChip } from './PendingPermissionsChip';
@@ -4260,7 +4260,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                 setLinkedIssue(null);
             }}
         />
-        <ToolOutputDialog
+        <LazyToolOutputDialog
             popup={attachmentPreview}
             onOpenChange={handleAttachmentPreviewOpenChange}
             syntaxTheme={{}}

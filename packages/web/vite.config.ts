@@ -127,6 +127,7 @@ export default defineConfig({
       },
       output: {
         manualChunks(id) {
+          if (id.includes('vite/preload-helper')) return 'vite-preload-helper';
           if (!id.includes('node_modules')) return undefined;
 
           const packageName = getPackageNameFromNodeModuleId(id);

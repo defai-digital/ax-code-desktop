@@ -1,5 +1,5 @@
 import React from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { LazySyntaxHighlighter as SyntaxHighlighter } from '@/components/ui/LazySyntaxHighlighter';
 import { cn } from '@/lib/utils';
 import { getLanguageFromExtension } from '@/lib/toolHelpers';
 import { parseDiffToUnified } from './message/toolRenderers';
