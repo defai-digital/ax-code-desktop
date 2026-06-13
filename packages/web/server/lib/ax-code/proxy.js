@@ -31,6 +31,8 @@ export const createDirectoryQueryCanonicalizer = ({ realpath, ...cacheOptions } 
   };
 };
 
+export const isAxCodeReadinessValueReady = (value) => value === true || value === 'ready';
+
 export const waitForSseDrain = (res, signal) => new Promise((resolve) => {
   if (signal?.aborted || res.writableEnded || res.destroyed) {
     resolve();
@@ -485,7 +487,7 @@ export const registerAxCodeProxy = (app, deps) => {
     const stillWaitingForProviders =
       isProviderRequest &&
       runtimeState.axCodeRuntimeHealth?.readiness &&
-      providersReady !== true &&
+      !isAxCodeReadinessValueReady(providersReady) &&
       waitElapsed < OPEN_CODE_READY_GRACE_MS;
 
     if (stillWaiting || stillWaitingForProviders) {

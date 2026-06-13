@@ -455,7 +455,7 @@ export function SessionGroupSection(props: Props): React.ReactNode {
   const renderOneFolderItem = (folder: SessionFolder, nodes: SessionNode[], depth: number): React.ReactNode => {
     const directSubFolders = allFoldersForGroup.filter(({ folder: f }) => f.parentId === folder.id);
     const subFolderItems = directSubFolders.length > 0
-      ? <>{directSubFolders.map(({ folder: sf, nodes: sn }) => renderOneFolderItem(sf, sn, depth + 1))}</>
+      ? directSubFolders.map(({ folder: sf, nodes: sn }) => renderOneFolderItem(sf, sn, depth + 1))
       : undefined;
     const collectFolderSessions = (targetFolderId: string): Session[] => {
       const directNodes = allFoldersForGroup.find(({ folder: candidate }) => candidate.id === targetFolderId)?.nodes ?? [];
@@ -605,7 +605,11 @@ export function SessionGroupSection(props: Props): React.ReactNode {
           })}
         </div>
       ) : (
-        visibleSessions.map((node) => renderSessionNode(node, 0, group.directory, projectId, group.isArchivedBucket === true))
+        visibleSessions.map((node) => (
+          <React.Fragment key={node.session.id}>
+            {renderSessionNode(node, 0, group.directory, projectId, group.isArchivedBucket === true)}
+          </React.Fragment>
+        ))
       )}
       {totalSessions === 0 && allFoldersForGroup.length === 0 ? (
         <div className="py-1 text-left typography-micro text-muted-foreground">

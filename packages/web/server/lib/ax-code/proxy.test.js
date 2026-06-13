@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { createDirectoryQueryCanonicalizer } from './proxy.js';
+import { createDirectoryQueryCanonicalizer, isAxCodeReadinessValueReady } from './proxy.js';
+
+describe('isAxCodeReadinessValueReady', () => {
+  it('accepts boolean and string ready values from ax-code health payloads', () => {
+    expect(isAxCodeReadinessValueReady(true)).toBe(true);
+    expect(isAxCodeReadinessValueReady('ready')).toBe(true);
+    expect(isAxCodeReadinessValueReady(false)).toBe(false);
+    expect(isAxCodeReadinessValueReady('starting')).toBe(false);
+    expect(isAxCodeReadinessValueReady(undefined)).toBe(false);
+  });
+});
 
 describe('createDirectoryQueryCanonicalizer', () => {
   it('canonicalizes directory query params and preserves other params', async () => {
