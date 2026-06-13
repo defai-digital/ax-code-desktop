@@ -2062,8 +2062,29 @@ async fn probe_host_with_timeout(url: &str, timeout: Duration) -> Result<HostPro
             let status = resp.status();
             let latency_ms = started.elapsed().as_millis() as u64;
             if status.is_success() {
+                // A 2xx status alone is not sufficient: any unrelated HTTP service
+                // (SPA catch-all, reverse proxy, another app's health endpoint) can
+                // return 200 on /health. Confirm this is actually an AX Code /
+                // openchamber server by inspecting the health payload markers.
+                let body = resp.text().await.unwrap_or_default();
+                let is_ax_code = serde_json::from_str::<serde_json::Value>(&body)
+                    .map(|value| {
+                        value
+                            .get("axCodeRunning")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                            || value
+                                .get("isAxCodeReady")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false)
+                    })
+                    .unwrap_or(false);
                 Ok(HostProbeResult {
-                    status: "ok".to_string(),
+                    status: if is_ax_code {
+                        "ok".to_string()
+                    } else {
+                        "wrong-service".to_string()
+                    },
                     latency_ms,
                 })
             } else if status.as_u16() == 401 || status.as_u16() == 403 {
