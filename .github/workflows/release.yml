@@ -19,6 +19,10 @@ on:
 env:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
+  # softprops/action-gh-release@v2 still bundles a Node.js 20 runtime, which
+  # GitHub deprecated. Force JS actions to run on Node.js 24 until the action
+  # ships a Node 24 runtime. setup-node's node-version does not affect this.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
   contents: write
