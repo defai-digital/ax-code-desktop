@@ -62,6 +62,7 @@ import { useTerminalStore } from '@/stores/useTerminalStore';
 import { ProjectActionsButton } from '@/components/layout/ProjectActionsButton';
 import { SessionSwitcherDropdown } from '@/components/session/SessionSwitcherDropdown';
 import { canUseElectronDesktopIPC, invokeDesktop, isDesktopShell, startDesktopWindowDrag } from '@/lib/desktop';
+import { isDesktopWindowFullscreen as isDesktopWindowFullscreenNative, onDesktopWindowResized } from '@/lib/desktopNative';
 import { API_ENDPOINTS } from '@/lib/http';
 import { desktopHostsGet, locationMatchesHost, redactSensitiveUrl } from '@/lib/desktopHosts';
 import { resolveSessionDiffStats } from '@/components/session/sidebar/utils';
@@ -1420,9 +1421,7 @@ export const Header: React.FC = () => {
 
     const syncFullscreenState = async () => {
       try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const currentWindow = getCurrentWindow();
-        const fullscreen = await currentWindow.isFullscreen();
+        const fullscreen = await isDesktopWindowFullscreenNative();
         if (!disposed) {
           setIsDesktopWindowFullscreen(fullscreen);
         }
@@ -1433,20 +1432,12 @@ export const Header: React.FC = () => {
       }
     };
 
-    const attach = async () => {
-      try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const currentWindow = getCurrentWindow();
-        unlistenResize = await currentWindow.onResized(() => {
-          void syncFullscreenState();
-        });
-      } catch {
-        // Ignore listener setup failures; fallback state remains false.
-      }
-    };
-
     void syncFullscreenState();
-    void attach();
+    // Electron has no native window-resize event listener exposed to the renderer,
+    // so observe DOM resize (which fires on enter/exit fullscreen) and re-sync.
+    unlistenResize = onDesktopWindowResized(() => {
+      void syncFullscreenState();
+    });
 
     return () => {
       disposed = true;

@@ -34,7 +34,8 @@ import { useChatSurfaceMode } from './useChatSurfaceMode';
 import { useCurrentSessionActivity } from '@/hooks/useSessionActivity';
 import { toast } from '@/components/ui';
 import { Button } from '@/components/ui/button';
-import { isTauriShell } from '@/lib/desktop';
+import { isDesktopShell } from '@/lib/desktop';
+import { listenDesktopNativeDragDrop, readDesktopFile } from '@/lib/desktopNative';
 import { isIMECompositionEvent } from '@/lib/ime';
 import { StopIcon } from '@/components/icons/StopIcon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -3142,17 +3143,17 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         e.preventDefault();
     };
 
-    // Tauri desktop: handle native file drops via onDragDropEvent
+    // Desktop native file drops. In Electron the renderer's DOM drag/drop events
+    // (handleDrop/handleDropCapture) handle this, so listenDesktopNativeDragDrop
+    // returns null and this effect is inert.
     React.useEffect(() => {
-        if (!isTauriShell()) return;
+        if (!isDesktopShell()) return;
         let cancelled = false;
         let unlisten: (() => void) | null = null;
 
         void (async () => {
             try {
-                const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-                const webviewWindow = getCurrentWebviewWindow();
-                const removeListener = await webviewWindow.onDragDropEvent(async (event) => {
+                const removeListener = await listenDesktopNativeDragDrop(async (event) => {
                     if (!canAcceptDropRef.current) return;
 
                     const payload = (event as { payload?: unknown }).payload;
@@ -3206,11 +3207,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                 const fileName = normalizedPath.split(/[\\/]/).pop() || normalizedPath;
                                 let file: File;
 
-                                // In Tauri shell, dropped paths are local machine paths.
+                                // In the desktop shell, dropped paths are local machine paths.
                                 // Read bytes via native command to avoid workspace-bound /api/fs/raw restrictions.
-                                if (isTauriShell()) {
-                                    const { invoke } = await import('@tauri-apps/api/core');
-                                    const result = await invoke<{ mime: string; base64: string }>('desktop_read_file', { path: normalizedPath });
+                                if (isDesktopShell()) {
+                                    const result = await readDesktopFile(normalizedPath);
                                     const byteCharacters = atob(result.base64);
                                     const byteNumbers = new Array(byteCharacters.length);
                                     for (let i = 0; i < byteCharacters.length; i++) {
@@ -3239,6 +3239,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                     }
                 });
 
+                if (!removeListener) {
+                    return;
+                }
                 if (cancelled) {
                     removeListener();
                     return;
@@ -3246,7 +3249,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                 unlisten = removeListener;
             } catch (error) {
                 if (!cancelled) {
-                    console.warn('Failed to register Tauri drag-drop listener:', error);
+                    console.warn('Failed to register desktop drag-drop listener:', error);
                 }
             }
         })();

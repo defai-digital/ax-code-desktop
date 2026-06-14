@@ -3,10 +3,6 @@ import { getTauriGlobal } from '@/lib/tauriGlobal';
 
 type InvokeArgs = Record<string, unknown>;
 
-const isElectronDesktop = (): boolean => {
-  return typeof window !== 'undefined' && Boolean((window as { __AX_CODE_DESKTOP_ELECTRON__?: unknown }).__AX_CODE_DESKTOP_ELECTRON__);
-};
-
 const getInvoke = () => {
   if (typeof window === 'undefined') {
     return null;
@@ -27,21 +23,10 @@ export const invokeDesktopCommand = async <TValue = unknown>(
 };
 
 export const startDesktopWindowDrag = async (): Promise<void> => {
-  if (!isDesktopShell()) {
-    return;
-  }
-
-  try {
-    if (isElectronDesktop()) {
-      await invokeDesktopCommand('desktop_start_window_drag');
-      return;
-    }
-
-    const { getCurrentWindow } = await import('@tauri-apps/api/window');
-    await getCurrentWindow().startDragging();
-  } catch {
-    // ignore
-  }
+  // Electron has no JS window-drag API. Window dragging is handled entirely via
+  // CSS `-webkit-app-region: drag` on the title-bar region (see `.app-region-drag`
+  // in index.css), so there is nothing to do here.
+  return;
 };
 
 export const isDesktopWindowFullscreen = async (): Promise<boolean> => {
@@ -50,11 +35,6 @@ export const isDesktopWindowFullscreen = async (): Promise<boolean> => {
   }
 
   try {
-    if (!isElectronDesktop()) {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      return await getCurrentWindow().isFullscreen();
-    }
-
     return Boolean(await invokeDesktopCommand('desktop_is_window_fullscreen'));
   } catch {
     return false;
@@ -76,12 +56,6 @@ export const setDesktopWindowTitle = async (title: string): Promise<void> => {
   }
 
   try {
-    if (!isElectronDesktop()) {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      await getCurrentWindow().setTitle(title);
-      return;
-    }
-
     await invokeDesktopCommand('desktop_set_window_title', { title });
   } catch {
     // ignore
@@ -94,15 +68,7 @@ export const setDesktopBadgeCount = async (count: number): Promise<void> => {
   }
 
   try {
-    if (isElectronDesktop()) {
-      await invokeDesktopCommand('desktop_set_badge_count', { count });
-      return;
-    }
-
-    const { getCurrentWindow } = await import('@tauri-apps/api/window');
-    // setBadgeCount(undefined) clears the badge; supported on macOS/Linux,
-    // rejects on other platforms.
-    await getCurrentWindow().setBadgeCount(count > 0 ? count : undefined);
+    await invokeDesktopCommand('desktop_set_badge_count', { count });
   } catch {
     // badge is best-effort decoration
   }
@@ -117,12 +83,6 @@ export const setDesktopWindowTheme = async (
   }
 
   try {
-    if (!isElectronDesktop()) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('desktop_set_window_theme', { themeMode, themeVariant });
-      return;
-    }
-
     await invokeDesktopCommand('desktop_set_window_theme', { themeMode, themeVariant });
   } catch {
     // ignore
@@ -135,11 +95,6 @@ export const getDesktopAppVersion = async (): Promise<string | null> => {
   }
 
   try {
-    if (!isElectronDesktop()) {
-      const { getVersion } = await import('@tauri-apps/api/app');
-      return await getVersion();
-    }
-
     const version = await invokeDesktopCommand('desktop_get_app_version');
     return typeof version === 'string' && version.trim().length > 0 ? version : null;
   } catch {
@@ -161,21 +116,8 @@ export const readDesktopFileAsDataUrl = async (path: string): Promise<string> =>
 export const listenDesktopNativeDragDrop = async (
   handler: (event: unknown) => void,
 ): Promise<(() => void) | null> => {
-  if (!isDesktopShell() || typeof window === 'undefined') {
-    return null;
-  }
-
   // Electron uses the renderer's native DOM drag/drop events instead of a
-  // separate webview drag listener.
-  if (isElectronDesktop()) {
-    return null;
-  }
-
-  try {
-    const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-    const webviewWindow = getCurrentWebviewWindow();
-    return await webviewWindow.onDragDropEvent(handler as never);
-  } catch {
-    return null;
-  }
+  // separate webview drag listener, so there is no native listener to attach.
+  void handler;
+  return null;
 };

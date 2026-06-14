@@ -350,18 +350,10 @@ export const isDesktopShell = (): boolean => {
 };
 
 export const startDesktopWindowDrag = async (): Promise<boolean> => {
-  if (!isDesktopShell() || !isTauriShell()) {
-    return false;
-  }
-
-  try {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window');
-    const appWindow = getCurrentWindow();
-    await appWindow.startDragging();
-    return true;
-  } catch {
-    return false;
-  }
+  // Electron has no JS window-drag API. Window dragging is handled entirely via
+  // CSS `-webkit-app-region: drag` on the title-bar region (see `.app-region-drag`
+  // in index.css). This remains an async no-op so existing callers keep working.
+  return isDesktopShell();
 };
 
 export const isWebRuntime = (): boolean => {

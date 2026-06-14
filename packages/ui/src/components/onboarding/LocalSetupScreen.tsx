@@ -1,5 +1,5 @@
 import React from 'react';
-import { isDesktopShell, isTauriShell } from '@/lib/desktop';
+import { isDesktopShell, isTauriShell, startDesktopWindowDrag } from '@/lib/desktop';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Icon } from "@/components/icon/Icon";
@@ -121,14 +121,10 @@ export function LocalSetupScreen({
       return;
     }
     if (e.button !== 0) return;
-    if (isDesktopApp && isTauriShell()) {
-      try {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        const window = getCurrentWindow();
-        await window.startDragging();
-      } catch (error) {
-        console.error('Failed to start window dragging:', error);
-      }
+    // Window dragging in Electron is handled by the CSS `-webkit-app-region: drag`
+    // region (see `.app-region-drag` on the container). This is a no-op.
+    if (isDesktopApp) {
+      await startDesktopWindowDrag();
     }
   }, [isDesktopApp]);
 
@@ -228,10 +224,10 @@ export function LocalSetupScreen({
 
   return (
     <div
-      className="h-full flex items-center justify-center bg-transparent p-8 relative cursor-default select-none"
+      className="app-region-drag h-full flex items-center justify-center bg-transparent p-8 relative cursor-default select-none"
       onMouseDown={handleDragStart}
     >
-      <div className="w-full max-w-lg space-y-4 text-center">
+      <div className="app-region-no-drag w-full max-w-lg space-y-4 text-center">
         <div className="flex items-center">
           <Button
             variant="ghost"

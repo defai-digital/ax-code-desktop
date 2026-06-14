@@ -1,14 +1,39 @@
 'use strict'
 
-const { app, BrowserWindow, dialog, ipcMain, shell, session, utilityProcess } = require('electron')
+const {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  shell,
+  session,
+  utilityProcess,
+  Menu,
+  nativeTheme,
+  Notification,
+  screen,
+  net: electronNet,
+  powerMonitor,
+  webContents,
+} = require('electron')
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const os = require('os')
+const fs = require('fs')
+const fsp = require('fs/promises')
+const dgram = require('dgram')
+const { execFile, spawn, spawnSync } = require('child_process')
+const { promisify } = require('util')
 const { createStartupDiagnostics } = require('./startup-diagnostics')
+const { ElectronSshManager } = require('./ssh-manager.mjs')
+const { createTrayController } = require('./tray.mjs')
+
+const execFileAsync = promisify(execFile)
 
 // Override the package name so macOS menus show "AX Code Desktop" instead
 // of the scoped npm package name "@ax-code/electron".
 app.name = 'AX Code Desktop'
+app.setAppUserModelId('ai.defai.ax-code-app')
 
 // ── Resource paths ──────────────────────────────────────────────────────────
 // In production (packaged), extraResources land at process.resourcesPath/web-dist.
@@ -223,8 +248,13 @@ async function createWindow() {
     },
   })
 
+  // Restore saved geometry before first paint, then persist future changes.
+  restoreMainWindowGeometry(mainWindow)
+  attachWindowStateListeners(mainWindow)
+
   mainWindow.once('ready-to-show', () => {
     recordStartupEvent('renderer.ready-to-show')
+    applyMacVibrancy(mainWindow)
     mainWindow.show()
   })
 
@@ -438,6 +468,1746 @@ ipcMain.handle('desktop_record_startup_event', (_event, payload) => {
   return { ok: true }
 })
 
+// ── Ported handlers & features (from upstream OpenChamber main.mjs) ──────────
+// Adapted to our CJS shell and single utilityProcess server model. The upstream
+// shell ran the web server in-process and supported multiple remote "hosts";
+// here we keep OUR server lifecycle untouched and the host list is purely a
+// renderer-side switcher convenience persisted to settings.json.
+
+const LOCAL_HOST_ID = 'local'
+const MIN_WINDOW_WIDTH = 800
+const MIN_WINDOW_HEIGHT = 520
+const MIN_RESTORE_WINDOW_WIDTH = 900
+const MIN_RESTORE_WINDOW_HEIGHT = 560
+const MAX_CAPTURE_PAGE_RECT_AREA = 4_000_000
+const INSTALLED_APPS_CACHE_TTL_SECS = 60 * 60 * 24
+const INSTALLED_APPS_CACHE_FILE = 'discovered-apps.json'
+
+// Broadcast a renderer event. Our preload listens on the literal `openchamber:*`
+// channels (a retained contract), so emit on the literal event name directly —
+// no `openchamber:emit` envelope.
+const emitToAllWindows = (event, detail) => {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) w.webContents.send(event, detail)
+  }
+}
+
+// ── Settings persistence ──────────────────────────────────────────────────
+const settingsFilePath = () => {
+  const dataDir = typeof process.env.AX_CODE_DESKTOP_DATA_DIR === 'string' && process.env.AX_CODE_DESKTOP_DATA_DIR.trim()
+    ? process.env.AX_CODE_DESKTOP_DATA_DIR.trim() : null
+  if (dataDir) return path.join(dataDir, 'settings.json')
+  return path.join(os.homedir(), '.config', 'openchamber', 'settings.json')
+}
+
+const readJsonFile = (filePath) => {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'))
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return {}
+    console.warn('[electron] failed to read JSON file', filePath, error)
+    return {}
+  }
+}
+
+const writeJsonFile = async (filePath, data) => {
+  await fsp.mkdir(path.dirname(filePath), { recursive: true })
+  // Atomic: write to a temp file then rename. Readers never see a partial JSON
+  // file that could parse-error and get coerced to {}.
+  const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  await fsp.writeFile(tmp, JSON.stringify(data, null, 2))
+  await fsp.rename(tmp, filePath)
+}
+
+const readSettingsRoot = () => {
+  const root = readJsonFile(settingsFilePath())
+  return root && typeof root === 'object' && !Array.isArray(root) ? root : {}
+}
+
+// Serializes read-modify-write of the settings file so interleaved RMW pairs
+// across awaits don't overwrite each other's just-persisted changes.
+let settingsMutationChain = Promise.resolve()
+const mutateSettingsRoot = (mutator) => {
+  const next = settingsMutationChain.then(async () => {
+    const current = readSettingsRoot()
+    const result = await mutator(current)
+    const nextRoot = result ?? current
+    await writeJsonFile(settingsFilePath(), nextRoot)
+  })
+  settingsMutationChain = next.catch(() => {})
+  return next
+}
+
+// ── SSH manager ───────────────────────────────────────────────────────────
+const sshManager = new ElectronSshManager({
+  settingsFilePath: settingsFilePath(),
+  appVersion: app.getVersion(),
+  emit: (event, detail) => emitToAllWindows(event, detail),
+})
+
+// ── Host list (renderer-side switcher; persisted to settings) ──────────────
+const normalizeHostUrl = (raw) => {
+  const trimmed = typeof raw === 'string' ? raw.trim() : ''
+  if (!trimmed) return null
+  try {
+    const parsed = new URL(trimmed)
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null
+    parsed.hash = ''
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
+const sanitizeHostUrlForStorage = (raw) => normalizeHostUrl(raw)
+const sanitizeClientTokenForStorage = (raw) => {
+  const token = typeof raw === 'string' ? raw.trim() : ''
+  return token.length > 0 ? token : null
+}
+
+const readDesktopLocalClientToken = () =>
+  sanitizeClientTokenForStorage(readSettingsRoot().desktopLocalClientToken) || ''
+
+const readDesktopHostsConfig = () => {
+  const root = readSettingsRoot()
+  const hostsRaw = Array.isArray(root.desktopHosts) ? root.desktopHosts : []
+  const hosts = hostsRaw
+    .map((entry) => {
+      const id = typeof entry?.id === 'string' ? entry.id.trim() : ''
+      const url = sanitizeHostUrlForStorage(entry?.url)
+      if (!id || id === LOCAL_HOST_ID || !url) return null
+      const apiUrl = sanitizeHostUrlForStorage(entry?.apiUrl) || url
+      const clientToken = sanitizeClientTokenForStorage(entry?.clientToken)
+      const label = typeof entry?.label === 'string' && entry.label.trim() ? entry.label.trim() : url
+      return { id, label, url, apiUrl, ...(clientToken ? { clientToken } : {}) }
+    })
+    .filter(Boolean)
+
+  return {
+    hosts,
+    defaultHostId: typeof root.desktopDefaultHostId === 'string' && root.desktopDefaultHostId.trim()
+      ? root.desktopDefaultHostId.trim()
+      : null,
+    initialHostChoiceCompleted: root.desktopInitialHostChoiceCompleted === true,
+  }
+}
+
+const writeDesktopHostsConfig = async (config) => {
+  await mutateSettingsRoot((root) => {
+    root.desktopHosts = Array.isArray(config?.hosts)
+      ? config.hosts
+          .map((entry) => {
+            const id = typeof entry?.id === 'string' ? entry.id.trim() : ''
+            const url = sanitizeHostUrlForStorage(entry?.url)
+            if (!id || id === LOCAL_HOST_ID || !url) return null
+            const apiUrl = sanitizeHostUrlForStorage(entry?.apiUrl) || url
+            const clientToken = sanitizeClientTokenForStorage(entry?.clientToken)
+            return {
+              id,
+              label: typeof entry?.label === 'string' && entry.label.trim() ? entry.label.trim() : url,
+              url,
+              apiUrl,
+              ...(clientToken ? { clientToken } : {}),
+            }
+          })
+          .filter(Boolean)
+      : []
+    root.desktopDefaultHostId = typeof config?.defaultHostId === 'string' && config.defaultHostId.trim()
+      ? config.defaultHostId.trim()
+      : null
+    if (typeof config?.initialHostChoiceCompleted === 'boolean') {
+      root.desktopInitialHostChoiceCompleted = config.initialHostChoiceCompleted
+    }
+    if (Object.prototype.hasOwnProperty.call(config || {}, 'localClientToken')) {
+      const localClientToken = sanitizeClientTokenForStorage(config.localClientToken)
+      if (localClientToken) {
+        root.desktopLocalClientToken = localClientToken
+      } else {
+        delete root.desktopLocalClientToken
+      }
+    }
+  })
+}
+
+// Our local origin is always the loopback server in this single-server model.
+const localOriginUrl = () => `http://localhost:${serverPort}`
+
+const resolveStoredClientTokenForUrl = (targetUrl, config = readDesktopHostsConfig()) => {
+  const normalizedTarget = normalizeHostUrl(targetUrl)
+  if (!normalizedTarget) return ''
+  for (const host of config.hosts || []) {
+    const hostUrl = normalizeHostUrl(host?.url || '')
+    const apiUrl = normalizeHostUrl(host?.apiUrl || host?.url || '')
+    if (normalizedTarget === hostUrl || normalizedTarget === apiUrl) {
+      return sanitizeClientTokenForStorage(host?.clientToken) || ''
+    }
+  }
+  return ''
+}
+
+// ── Host probe ─────────────────────────────────────────────────────────────
+const buildVersionUrl = (url) => {
+  try {
+    const parsed = new URL(url)
+    parsed.pathname = `${parsed.pathname.replace(/\/$/, '') || ''}/api/version`
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
+const classifyVersionPayload = (payload) => {
+  const compatibility = payload?.compatibility
+  if (!payload || payload.status !== 'ok' || !compatibility || typeof compatibility !== 'object') {
+    return 'wrong-service'
+  }
+  if (!Array.isArray(compatibility.capabilities) || !compatibility.capabilities.includes('api.runtime-url.v1')) {
+    return 'incompatible'
+  }
+  if (compatibility.apiVersion !== 1 || compatibility.minClientApiVersion > 1) {
+    return 'update-recommended'
+  }
+  return 'ok'
+}
+
+const fetchVersionPayload = async (versionUrl, { headers, timeoutMs }) => {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs)
+  try {
+    return await fetch(versionUrl, { signal: timeoutSignal, headers })
+  } catch (error) {
+    if (timeoutSignal.aborted) throw error
+    return await Promise.race([
+      electronNet.fetch(versionUrl, { headers }),
+      new Promise((_, reject) => setTimeout(() => reject(error), timeoutMs)),
+    ])
+  }
+}
+
+const probeHostWithTimeout = async (url, timeoutMs, clientToken = '') => {
+  const versionUrl = buildVersionUrl(url)
+  if (!versionUrl) throw new Error('Invalid URL')
+  const started = Date.now()
+  try {
+    const headers = { Accept: 'application/json' }
+    const token = typeof clientToken === 'string' ? clientToken.trim() : ''
+    if (token) headers.Authorization = `Bearer ${token}`
+    const response = await fetchVersionPayload(versionUrl, { headers, timeoutMs })
+    const status = response.status
+    if (status === 401 || status === 403) return { status: 'auth', latencyMs: Date.now() - started }
+    if (status < 200 || status >= 300) return { status: 'unreachable', latencyMs: Date.now() - started }
+    const payload = await response.json().catch(() => null)
+    return { status: classifyVersionPayload(payload), latencyMs: Date.now() - started }
+  } catch {
+    return { status: 'unreachable', latencyMs: Date.now() - started }
+  }
+}
+
+// ── LAN address detection ──────────────────────────────────────────────────
+const detectLanIPv4Address = async () => {
+  const ip = await new Promise((resolve) => {
+    const socket = dgram.createSocket('udp4')
+    const finish = (value) => {
+      try { socket.close() } catch {}
+      resolve(value)
+    }
+    socket.once('error', () => finish(null))
+    try {
+      socket.connect(80, '8.8.8.8', (error) => {
+        if (error) return finish(null)
+        try {
+          const addr = socket.address()
+          finish(addr && typeof addr.address === 'string' ? addr.address : null)
+        } catch {
+          finish(null)
+        }
+      })
+    } catch {
+      finish(null)
+    }
+  })
+  if (ip && ip !== '0.0.0.0' && !ip.startsWith('127.')) return ip
+  for (const entries of Object.values(os.networkInterfaces() || {})) {
+    for (const entry of entries || []) {
+      if (entry.family === 'IPv4' && !entry.internal && entry.address) return entry.address
+    }
+  }
+  return null
+}
+
+// ── Native notifications ───────────────────────────────────────────────────
+const normalizeNotificationInput = (raw) => {
+  if (!raw || typeof raw !== 'object') return {}
+  if (raw.payload && typeof raw.payload === 'object') return { ...raw, ...raw.payload }
+  return raw
+}
+
+const isAnyWindowFocused = () =>
+  BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isFocused())
+
+const focusForegroundWindow = () => {
+  const windows = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+  if (windows.length === 0) return
+  const target = (mainWindow && !mainWindow.isDestroyed())
+    ? mainWindow
+    : windows.find((w) => w.isVisible()) || windows[0]
+  if (process.platform === 'darwin') app.focus({ steal: true })
+  if (target.isMinimized()) target.restore()
+  target.show()
+  target.focus()
+  if (typeof target.moveTop === 'function') target.moveTop()
+}
+
+// Keep references to live notifications so click/close still fire (macOS GC bug).
+const activeNotifications = new Set()
+
+const maybeShowNativeNotification = (rawInput) => {
+  const payload = normalizeNotificationInput(rawInput)
+  const requireHidden = Boolean(payload.requireHidden ?? payload.require_hidden)
+  if (requireHidden && isAnyWindowFocused()) return
+  if (!Notification.isSupported()) return
+
+  const title = typeof payload.title === 'string' && payload.title.trim()
+    ? payload.title.trim()
+    : 'AX Code Desktop'
+  const body = typeof payload.body === 'string' ? payload.body : ''
+  const sessionId = typeof payload.sessionId === 'string' && payload.sessionId.trim()
+    ? payload.sessionId.trim()
+    : null
+  const directory = typeof payload.directory === 'string' && payload.directory.trim()
+    ? payload.directory.trim()
+    : null
+
+  const notification = new Notification({
+    title,
+    body,
+    silent: false,
+    ...(process.platform === 'darwin' ? { sound: 'Glass' } : {}),
+  })
+
+  activeNotifications.add(notification)
+  const release = () => { activeNotifications.delete(notification) }
+
+  notification.on('click', () => {
+    focusForegroundWindow()
+    if (sessionId) emitToAllWindows('openchamber:open-session', { sessionId, directory })
+    release()
+  })
+  notification.on('close', release)
+  notification.on('failed', release)
+
+  notification.show()
+}
+
+// ── Installed-app discovery / open-in-app (macOS + Windows) ────────────────
+const buildInstalledAppsCachePath = () => path.join(path.dirname(settingsFilePath()), INSTALLED_APPS_CACHE_FILE)
+
+const pathExists = async (candidate) => {
+  try {
+    await fsp.access(candidate)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const resolveAppBundlePath = async (appName) => {
+  if (process.platform !== 'darwin') return null
+  const bundleName = appName.endsWith('.app') ? appName : `${appName}.app`
+  const candidates = [
+    `/Applications/${bundleName}`,
+    `/System/Applications/${bundleName}`,
+    `/System/Applications/Utilities/${bundleName}`,
+    path.join(os.homedir(), 'Applications', bundleName),
+  ]
+  for (const candidate of candidates) {
+    if (await pathExists(candidate)) return candidate
+  }
+  try {
+    const { stdout } = await execFileAsync('mdfind', ['-name', bundleName], { encoding: 'utf8' })
+    const first = (stdout || '').split('\n').map((line) => line.trim()).find(Boolean)
+    return first || null
+  } catch {
+    return null
+  }
+}
+
+const isAppBundleInstalled = async (appName) => Boolean(await resolveAppBundlePath(appName))
+
+const iconToDataUrl = async (iconPath, appName) => {
+  if (!iconPath || !(await pathExists(iconPath))) return null
+  const safeName = String(appName || 'app').replace(/[^a-z0-9]/gi, '_')
+  const tempPath = path.join(os.tmpdir(), `ax-code-icon-${safeName}-${Date.now()}.png`)
+  try {
+    await execFileAsync('sips', ['-s', 'format', 'png', '-Z', '32', iconPath, '--out', tempPath], { stdio: 'ignore' })
+  } catch {
+    return null
+  }
+  if (!(await pathExists(tempPath))) return null
+  try {
+    const bytes = await fsp.readFile(tempPath)
+    return `data:image/png;base64,${bytes.toString('base64')}`
+  } finally {
+    await fsp.rm(tempPath, { force: true }).catch(() => {})
+  }
+}
+
+const resolveAppIconPath = async (appPath) => {
+  if (!appPath || !(await pathExists(appPath))) return null
+  const resourcesPath = path.join(appPath, 'Contents', 'Resources')
+  if (!(await pathExists(resourcesPath))) return null
+  let entries
+  try {
+    entries = await fsp.readdir(resourcesPath)
+  } catch {
+    return null
+  }
+  const icon = entries.find((entry) => entry.toLowerCase().endsWith('.icns'))
+  return icon ? path.join(resourcesPath, icon) : null
+}
+
+const buildInstalledApps = async (apps) => {
+  const seen = new Set()
+  const names = apps
+    .map((raw) => String(raw || '').trim())
+    .filter((raw) => raw && !seen.has(raw) && seen.add(raw))
+  const results = []
+  for (const name of names) {
+    const appPath = await resolveAppBundlePath(name)
+    if (!appPath) continue
+    const iconDataUrl = await iconToDataUrl(await resolveAppIconPath(appPath), name)
+    results.push({ name, iconDataUrl })
+  }
+  return results
+}
+
+const JETBRAINS_APP_IDS = new Set([
+  'pycharm', 'intellij', 'webstorm', 'phpstorm', 'rider', 'rustrover', 'android-studio',
+])
+
+const CLI_BY_APP_ID = {
+  vscode: 'code',
+  cursor: 'cursor',
+  vscodium: 'codium',
+  windsurf: 'windsurf',
+  zed: 'zed',
+}
+
+const WINDOWS_CLI_BY_APP_ID = {
+  vscode: 'code.cmd',
+  cursor: 'cursor.cmd',
+  vscodium: 'codium.cmd',
+  windsurf: 'windsurf.cmd',
+  zed: 'zed.cmd',
+}
+
+const WINDOWS_APP_EXECUTABLES = {
+  terminal: ['wt.exe', 'WindowsTerminal.exe'],
+  vscode: ['code.exe', 'code.cmd'],
+  cursor: ['cursor.exe', 'cursor.cmd'],
+  vscodium: ['codium.exe', 'codium.cmd'],
+  windsurf: ['windsurf.exe', 'windsurf.cmd'],
+  zed: ['zed.exe', 'zed.cmd'],
+  'visual-studio': ['devenv.exe'],
+  'sublime-text': ['subl.exe', 'sublime_text.exe'],
+}
+
+const WINDOWS_APP_ID_BY_NAME = new Map([
+  ['finder', 'finder'],
+  ['file explorer', 'finder'],
+  ['terminal', 'terminal'],
+  ['windows terminal', 'terminal'],
+  ['visual studio code', 'vscode'],
+  ['cursor', 'cursor'],
+  ['vscodium', 'vscodium'],
+  ['windsurf', 'windsurf'],
+  ['zed', 'zed'],
+  ['visual studio', 'visual-studio'],
+  ['sublime text', 'sublime-text'],
+])
+
+const getWindowsAppIdForName = (appName) =>
+  WINDOWS_APP_ID_BY_NAME.get(String(appName || '').trim().toLowerCase()) || ''
+
+const runWhere = (program) => {
+  const result = spawnSync('where.exe', [program], { encoding: 'utf8', windowsHide: true })
+  if (result.error || result.status !== 0) return null
+  const first = String(result.stdout || '').split(/\r?\n/).map((line) => line.trim()).find(Boolean)
+  return first || null
+}
+
+const findWindowsExecutable = (appId) => {
+  for (const program of WINDOWS_APP_EXECUTABLES[appId] || []) {
+    const resolved = runWhere(program)
+    if (resolved) return resolved
+  }
+  return null
+}
+
+const resolveWindowsScriptIconExecutable = (scriptPath) => {
+  if (!scriptPath || !/\.(?:cmd|bat)$/i.test(scriptPath)) return null
+  let source = ''
+  try {
+    source = fs.readFileSync(scriptPath, 'utf8')
+  } catch {
+    return null
+  }
+  const scriptDir = path.dirname(scriptPath)
+  const matches = [...source.matchAll(/(?:(?:%~dp0|%~dp0\\|%~dp0\/|\.\.\\|\.\.\/|[A-Za-z]:\\|[A-Za-z]:\/)[^"'\r\n]*?\.exe)/gi)]
+  for (const match of matches) {
+    const raw = String(match[0] || '').replace(/^%~dp0[\\/]?/i, '').trim()
+    const candidate = path.isAbsolute(raw) ? raw : path.resolve(scriptDir, raw)
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return null
+}
+
+let windowsTerminalPackagePathCache
+const resolveWindowsTerminalPackagePath = () => {
+  if (windowsTerminalPackagePathCache !== undefined) return windowsTerminalPackagePathCache
+  const powershell = runWhere('powershell.exe') || runWhere('pwsh.exe')
+  if (powershell) {
+    const command = '$packages = @(' +
+      'Get-AppxPackage -Name Microsoft.WindowsTerminal -ErrorAction SilentlyContinue;' +
+      'Get-AppxPackage -Name Microsoft.WindowsTerminalPreview -ErrorAction SilentlyContinue' +
+      ') | Where-Object { $_.InstallLocation } | Sort-Object Version -Descending; ' +
+      'if ($packages) { $packages[0].InstallLocation }'
+    const result = spawnSync(powershell, ['-NoProfile', '-NonInteractive', '-Command', command], {
+      encoding: 'utf8',
+      windowsHide: true,
+    })
+    if (!result.error && result.status === 0) {
+      const packagePath = String(result.stdout || '').split(/\r?\n/).map((line) => line.trim()).find(Boolean)
+      if (packagePath && fs.existsSync(packagePath)) {
+        windowsTerminalPackagePathCache = packagePath
+        return windowsTerminalPackagePathCache
+      }
+    }
+  }
+  const programFilesRoots = [process.env.ProgramW6432, process.env.ProgramFiles, 'C:\\Program Files']
+    .filter((value, index, values) => typeof value === 'string' && value && values.indexOf(value) === index)
+  for (const root of programFilesRoots) {
+    const windowsAppsPath = path.join(root, 'WindowsApps')
+    let entries = []
+    try {
+      entries = fs.readdirSync(windowsAppsPath, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    const packageNames = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => /^Microsoft\.WindowsTerminal(?:Preview)?_.*__8wekyb3d8bbwe$/i.test(name))
+      .sort()
+      .reverse()
+    const stable = packageNames.find((name) => /^Microsoft\.WindowsTerminal_/i.test(name))
+    const selected = stable || packageNames[0]
+    if (selected) {
+      windowsTerminalPackagePathCache = path.join(windowsAppsPath, selected)
+      return windowsTerminalPackagePathCache
+    }
+  }
+  windowsTerminalPackagePathCache = null
+  return windowsTerminalPackagePathCache
+}
+
+const resolveWindowsTerminalIconPath = () => {
+  const packagePath = resolveWindowsTerminalPackagePath()
+  if (!packagePath) return null
+  const candidates = [
+    path.join(packagePath, 'Images', 'Square44x44Logo.targetsize-96_altform-unplated.png'),
+    path.join(packagePath, 'Images', 'Square44x44Logo.targetsize-96.png'),
+    path.join(packagePath, 'Images', 'StoreLogo.scale-200.png'),
+    path.join(packagePath, 'Images', 'StoreLogo.scale-100.png'),
+  ]
+  return candidates.find((candidate) => fs.existsSync(candidate)) || null
+}
+
+const resolveWindowsTerminalExecutable = () => {
+  const packagePath = resolveWindowsTerminalPackagePath()
+  if (packagePath) {
+    const executable = path.join(packagePath, 'WindowsTerminal.exe')
+    if (fs.existsSync(executable)) return executable
+  }
+  return findWindowsExecutable('terminal')
+}
+
+const imageFileToDataUrl = (filePath) => {
+  if (!filePath) return null
+  try {
+    return `data:image/png;base64,${fs.readFileSync(filePath).toString('base64')}`
+  } catch {
+    return null
+  }
+}
+
+const findWindowsAppNameExecutable = (appName) => {
+  const program = `${String(appName || '').trim()}.exe`.replace(/\s+/g, '')
+  return program === '.exe' ? null : runWhere(program)
+}
+
+const resolveWindowsAppIconExecutable = ({ appId, appName }) => {
+  if (appId === 'finder') {
+    const explorerPath = path.join(process.env.SystemRoot || 'C:\\Windows', 'explorer.exe')
+    return fs.existsSync(explorerPath) ? explorerPath : 'explorer.exe'
+  }
+  if (appId === 'terminal') return resolveWindowsTerminalExecutable()
+  const executable = findWindowsExecutable(appId) || findWindowsAppNameExecutable(appName)
+  if (!executable) return null
+  if (/\.exe$/i.test(executable)) return executable
+  return resolveWindowsScriptIconExecutable(executable) || executable
+}
+
+const windowsIconToDataUrl = async (executablePath) => {
+  if (!executablePath) return null
+  try {
+    const image = await app.getFileIcon(executablePath, { size: 'normal' })
+    if (image.isEmpty()) return null
+    return image.toDataURL()
+  } catch {
+    return null
+  }
+}
+
+const isWindowsAppInstalled = ({ appId, appName }) => {
+  if (appId === 'finder') return true
+  if (appId === 'terminal') return Boolean(findWindowsExecutable('terminal'))
+  if (findWindowsExecutable(appId)) return true
+  return Boolean(findWindowsAppNameExecutable(appName))
+}
+
+const buildWindowsInstalledApps = async (apps) => {
+  const seen = new Set()
+  const names = (Array.isArray(apps) ? apps : [])
+    .map((appName) => String(appName || '').trim())
+    .filter((appName) => appName && !seen.has(appName) && seen.add(appName))
+    .filter((appName) => isWindowsAppInstalled({ appId: getWindowsAppIdForName(appName), appName }))
+  const results = []
+  for (const name of names) {
+    const appId = getWindowsAppIdForName(name)
+    const executablePath = resolveWindowsAppIconExecutable({ appId, appName: name })
+    const iconDataUrl = appId === 'terminal'
+      ? imageFileToDataUrl(resolveWindowsTerminalIconPath()) || await windowsIconToDataUrl(executablePath)
+      : await windowsIconToDataUrl(executablePath)
+    results.push({ name, iconDataUrl })
+  }
+  return results
+}
+
+const buildWindowsOpenProjectSpecs = ({ projectPath, appId, appName }) => {
+  if (appId === 'finder') return [{ program: 'explorer.exe', args: [projectPath] }]
+  if (appId === 'terminal') {
+    const specs = []
+    const terminal = findWindowsExecutable('terminal')
+    if (terminal) specs.push({ program: terminal, args: ['-d', projectPath] })
+    const shellProgram = runWhere('pwsh.exe') || runWhere('powershell.exe')
+    if (shellProgram) {
+      specs.push({ program: shellProgram, args: ['-NoExit', '-Command', `Set-Location -LiteralPath ${JSON.stringify(projectPath)}`], shellStart: true })
+    }
+    const commandPrompt = process.env.ComSpec || runWhere('cmd.exe')
+    if (commandPrompt) specs.push({ program: commandPrompt, args: ['/k', 'cd', '/d', projectPath], shellStart: true })
+    return specs
+  }
+  const specs = []
+  const cli = WINDOWS_CLI_BY_APP_ID[appId]
+  if (cli) {
+    const resolvedCli = runWhere(cli)
+    if (resolvedCli) specs.push({ program: resolvedCli, args: [projectPath] })
+  }
+  const exe = findWindowsExecutable(appId)
+  if (exe) specs.push({ program: exe, args: [projectPath] })
+  const namedExe = findWindowsAppNameExecutable(appName)
+  if (namedExe && !specs.some((spec) => spec.program === namedExe)) {
+    specs.push({ program: namedExe, args: [projectPath] })
+  }
+  return specs
+}
+
+const buildOpenProjectSpecs = ({ projectPath, appId, appName }) => {
+  if (appId === 'finder') return [{ program: 'open', args: [projectPath] }]
+  if (appId === 'terminal' || appId === 'iterm2' || appId === 'ghostty') {
+    return [{ program: 'open', args: ['-a', appName, projectPath] }]
+  }
+  const specs = []
+  const cli = CLI_BY_APP_ID[appId]
+  if (cli) specs.push({ program: cli, args: ['-n', projectPath] })
+  if (JETBRAINS_APP_IDS.has(appId)) specs.push({ program: 'open', args: ['-na', appName, '--args', projectPath] })
+  specs.push({ program: 'open', args: ['-a', appName, projectPath] })
+  return specs
+}
+
+const quoteWindowsCommandArg = (value) => `"${String(value).replace(/"/g, '""')}"`
+
+const resolveWindowsLaunchProgram = (program) => {
+  if (path.isAbsolute(program)) return fs.existsSync(program) ? program : null
+  return runWhere(program)
+}
+
+const launchWindowsCommandScript = (spec, program) => {
+  const commandLine = ['call', quoteWindowsCommandArg(program), ...spec.args.map(quoteWindowsCommandArg)].join(' ')
+  const child = spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', commandLine], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: false,
+    windowsVerbatimArguments: true,
+  })
+  child.unref()
+}
+
+const launchWindowsSpec = (spec) => {
+  const program = resolveWindowsLaunchProgram(spec.program)
+  if (!program) throw new Error('program not found')
+  if (spec.shellStart) {
+    const commandLine = ['start', '""', quoteWindowsCommandArg(program), ...spec.args.map(quoteWindowsCommandArg)].join(' ')
+    const child = spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', commandLine], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false,
+      windowsVerbatimArguments: true,
+    })
+    child.unref()
+    return
+  }
+  if (/\.(cmd|bat)$/i.test(program)) {
+    launchWindowsCommandScript(spec, program)
+    return
+  }
+  const child = spawn(program, spec.args, { detached: true, stdio: 'ignore', windowsHide: false })
+  child.unref()
+}
+
+const runSpecChain = (specs, appName) => {
+  if (!Array.isArray(specs) || specs.length === 0) {
+    throw new Error(`Failed to open in ${appName}: no launch candidates`)
+  }
+  if (process.platform === 'win32') {
+    const failures = []
+    for (const spec of specs) {
+      try {
+        launchWindowsSpec(spec)
+        return
+      } catch (error) {
+        failures.push(`${spec.program}: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+    throw new Error(`Failed to open in ${appName}: ${failures.join('; ')}`)
+  }
+  const failures = []
+  for (const spec of specs) {
+    const result = spawnSync(spec.program, spec.args, { stdio: 'ignore', windowsHide: true })
+    if (result.error) {
+      failures.push(`${spec.program}: ${result.error.message}`)
+      continue
+    }
+    if (result.status === 0) return
+    failures.push(`${spec.program} exited ${result.status}`)
+  }
+  throw new Error(`Failed to open in ${appName}: ${failures.join('; ')}`)
+}
+
+// ── Window-state persistence (main window geometry) ────────────────────────
+const windowGeometryTimers = new Map()
+const windowGeometryRevisions = new Map()
+
+const readWindowState = () => {
+  const stateValue = readSettingsRoot().desktopWindowState
+  return stateValue && typeof stateValue === 'object' ? stateValue : null
+}
+
+const clampWindowBoundsToVisibleWorkArea = (bounds) => {
+  const width = Math.max(MIN_RESTORE_WINDOW_WIDTH, Math.round(Number(bounds?.width) || 0))
+  const height = Math.max(MIN_RESTORE_WINDOW_HEIGHT, Math.round(Number(bounds?.height) || 0))
+  const x = Math.round(Number(bounds?.x))
+  const y = Math.round(Number(bounds?.y))
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return { width, height }
+  try {
+    const display = screen.getDisplayMatching({ x, y, width, height }) || screen.getPrimaryDisplay()
+    const workArea = display.workArea
+    const clampedWidth = Math.min(width, Math.max(MIN_WINDOW_WIDTH, workArea.width))
+    const clampedHeight = Math.min(height, Math.max(MIN_WINDOW_HEIGHT, workArea.height))
+    const maxX = workArea.x + workArea.width - clampedWidth
+    const maxY = workArea.y + workArea.height - clampedHeight
+    return {
+      x: clampedWidth >= workArea.width ? workArea.x : Math.min(Math.max(x, workArea.x), maxX),
+      y: clampedHeight >= workArea.height ? workArea.y : Math.min(Math.max(y, workArea.y), maxY),
+      width: clampedWidth,
+      height: clampedHeight,
+    }
+  } catch {
+    return { x, y, width, height }
+  }
+}
+
+const writeWindowState = async (browserWindow) => {
+  if (!browserWindow || browserWindow.isDestroyed()) return
+  if (!mainWindow || browserWindow.id !== mainWindow.id) return
+  const bounds = browserWindow.getBounds()
+  await mutateSettingsRoot((root) => {
+    if (!browserWindow || browserWindow.isDestroyed()) return root
+    root.desktopWindowState = {
+      x: bounds.x,
+      y: bounds.y,
+      width: Math.max(bounds.width, MIN_WINDOW_WIDTH),
+      height: Math.max(bounds.height, MIN_WINDOW_HEIGHT),
+      maximized: browserWindow.isMaximized(),
+      fullscreen: browserWindow.isFullScreen(),
+    }
+  })
+}
+
+const debounceWindowStatePersist = (browserWindow, immediate = false) => {
+  if (!browserWindow || browserWindow.isDestroyed()) return
+  const key = String(browserWindow.id)
+  const revision = (windowGeometryRevisions.get(key) || 0) + 1
+  windowGeometryRevisions.set(key, revision)
+  const existingTimer = windowGeometryTimers.get(key)
+  if (existingTimer) {
+    clearTimeout(existingTimer)
+    windowGeometryTimers.delete(key)
+  }
+  const persist = async () => {
+    if (windowGeometryRevisions.get(key) !== revision) return
+    windowGeometryTimers.delete(key)
+    await writeWindowState(browserWindow)
+  }
+  if (immediate) {
+    void persist()
+    return
+  }
+  const timer = setTimeout(() => { void persist() }, 300)
+  windowGeometryTimers.set(key, timer)
+}
+
+// Attach geometry-persist + vibrancy listeners to a window. Used for the main
+// window; restores saved geometry on the main window at creation time.
+const attachWindowStateListeners = (browserWindow) => {
+  if (!browserWindow || browserWindow.isDestroyed()) return
+  const onChange = () => debounceWindowStatePersist(browserWindow)
+  browserWindow.on('resize', onChange)
+  browserWindow.on('move', onChange)
+  browserWindow.on('maximize', onChange)
+  browserWindow.on('unmaximize', onChange)
+  browserWindow.on('close', () => debounceWindowStatePersist(browserWindow, true))
+}
+
+// Restore saved geometry onto the main window before it is shown.
+const restoreMainWindowGeometry = (browserWindow) => {
+  if (!browserWindow || browserWindow.isDestroyed()) return
+  const saved = readWindowState()
+  if (!saved || typeof saved.width !== 'number' || typeof saved.height !== 'number') return
+  const bounds = clampWindowBoundsToVisibleWorkArea(saved)
+  try {
+    browserWindow.setBounds(bounds)
+    if (saved.fullscreen) browserWindow.setFullScreen(true)
+    else if (saved.maximized) browserWindow.maximize()
+  } catch {}
+}
+
+// macOS vibrancy preference (persisted; takes effect on a fresh launch).
+const isVibrancyEnabled = () => readSettingsRoot().desktopVibrancy === true
+const applyMacVibrancy = (browserWindow) => {
+  if (process.platform !== 'darwin' || !browserWindow || browserWindow.isDestroyed()) return
+  if (!isVibrancyEnabled()) return
+  try {
+    browserWindow.setVibrancy('sidebar')
+  } catch {}
+}
+
+// ── Additional windows ─────────────────────────────────────────────────────
+// In our single-server model a new window simply loads the local server URL
+// (or, when a non-local default host is configured, that host's URL). We do not
+// inject runtime-config the way upstream's packaged-UI protocol did.
+const createAdditionalWindow = async (url) => {
+  const win = new BrowserWindow({
+    width: 1440,
+    height: 900,
+    minWidth: 800,
+    minHeight: 600,
+    title: 'AX Code Desktop',
+    backgroundColor: '#151313',
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: true,
+    },
+  })
+  win.once('ready-to-show', () => win.show())
+  win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
+    if (isTrustedRendererNavigation(targetUrl)) return { action: 'allow' }
+    shell.openExternal(targetUrl)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (event, targetUrl) => {
+    if (isTrustedRendererNavigation(targetUrl)) return
+    event.preventDefault()
+    shell.openExternal(targetUrl)
+  })
+  await win.loadURL(url)
+  return win
+}
+
+// ── Menu (native application menu) ─────────────────────────────────────────
+const dispatchMenuAction = (action) => {
+  const target = getMenuTargetWindow()
+  if (target && !target.isDestroyed()) target.webContents.send('openchamber:menu-action', action)
+}
+
+const dispatchCheckForUpdates = () => {
+  emitToAllWindows('openchamber:check-for-updates')
+}
+
+const getMenuTargetWindow = () => {
+  const focused = BrowserWindow.getFocusedWindow()
+  if (focused && !focused.isDestroyed()) return focused
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
+  const [firstWindow] = BrowserWindow.getAllWindows()
+  return firstWindow && !firstWindow.isDestroyed() ? firstWindow : null
+}
+
+const reloadMenuTargetWindow = () => {
+  const target = getMenuTargetWindow()
+  if (!target || target.isDestroyed()) return
+  target.webContents.reload()
+}
+
+const relaunchFromMenu = async () => {
+  await shutdownForExit()
+  app.relaunch()
+  app.exit(0)
+}
+
+const GITHUB_BUG_REPORT_URL = 'https://github.com/openchamber/openchamber/issues/new?template=bug_report.yml'
+const GITHUB_FEATURE_REQUEST_URL = 'https://github.com/openchamber/openchamber/issues/new?template=feature_request.yml'
+const DISCORD_INVITE_URL = 'https://discord.gg/ZYRSdnwwKA'
+
+const buildMacMenu = () => {
+  const dispatchAction = (action) => dispatchMenuAction(action)
+  const handleCopyAction = () => {
+    BrowserWindow.getFocusedWindow()?.webContents.copy()
+    dispatchAction('copy')
+  }
+  return Menu.buildFromTemplate([
+    {
+      label: app.name,
+      submenu: [
+        { label: 'About AX Code Desktop', click: () => dispatchAction('about') },
+        { label: 'Check for Updates', click: () => dispatchCheckForUpdates() },
+        { type: 'separator' },
+        { label: 'Settings', accelerator: 'Cmd+,', click: () => dispatchAction('settings') },
+        { label: 'Reload Webview', click: () => reloadMenuTargetWindow() },
+        { label: 'Restart', click: () => { void relaunchFromMenu() } },
+        { label: 'Command Palette', accelerator: 'Cmd+P', click: () => dispatchAction('command-palette') },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    {
+      label: 'File',
+      submenu: [
+        { label: 'New Window', accelerator: 'Cmd+Shift+Alt+N', click: () => { void handleNewWindow() } },
+        { type: 'separator' },
+        { label: 'New Session', accelerator: 'Cmd+N', click: () => dispatchAction('new-session') },
+        { label: 'New Worktree', accelerator: 'Cmd+Shift+N', click: () => dispatchAction('new-worktree-session') },
+        { type: 'separator' },
+        { label: 'Add Workspace', click: () => dispatchAction('change-workspace') },
+        { type: 'separator' },
+        { role: 'close' },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { label: 'Copy', accelerator: 'Cmd+C', click: () => handleCopyAction() },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Toggle Right Sidebar', accelerator: 'Cmd+B', click: () => dispatchAction('toggle-right-sidebar') },
+        { label: 'Open Git Sidebar', accelerator: 'Cmd+Shift+G', click: () => dispatchAction('open-right-sidebar-git') },
+        { label: 'Open Files Sidebar', accelerator: 'Cmd+Shift+F', click: () => dispatchAction('open-right-sidebar-files') },
+        { type: 'separator' },
+        { label: 'Toggle Terminal Dock', accelerator: 'Cmd+J', click: () => dispatchAction('toggle-terminal') },
+        { label: 'Toggle Terminal Expanded', accelerator: 'Cmd+Shift+J', click: () => dispatchAction('toggle-terminal-expanded') },
+        { type: 'separator' },
+        { label: 'Light Theme', click: () => dispatchAction('theme-light') },
+        { label: 'Dark Theme', click: () => dispatchAction('theme-dark') },
+        { label: 'System Theme', click: () => dispatchAction('theme-system') },
+        { type: 'separator' },
+        { label: 'Toggle Session Sidebar', accelerator: 'Cmd+L', click: () => dispatchAction('toggle-sidebar') },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        { role: 'close' },
+      ],
+    },
+    {
+      label: 'Help',
+      submenu: [
+        { label: 'Keyboard Shortcuts', accelerator: 'Cmd+.', click: () => dispatchAction('help-dialog') },
+        { label: 'Show Diagnostics', accelerator: 'Cmd+Shift+L', click: () => dispatchAction('download-logs') },
+        { type: 'separator' },
+        { label: 'Clear Cache', click: () => { void clearCacheAndReload() } },
+        { type: 'separator' },
+        { label: 'Report a Bug', click: () => shell.openExternal(GITHUB_BUG_REPORT_URL) },
+        { label: 'Request a Feature', click: () => shell.openExternal(GITHUB_FEATURE_REQUEST_URL) },
+        { type: 'separator' },
+        { label: 'Join Discord', click: () => shell.openExternal(DISCORD_INVITE_URL) },
+      ],
+    },
+  ])
+}
+
+const buildNonMacMenu = () => {
+  const dispatchAction = (action) => dispatchMenuAction(action)
+  const handleCopyAction = () => {
+    BrowserWindow.getFocusedWindow()?.webContents.copy()
+    dispatchAction('copy')
+  }
+  const isDev = !app.isPackaged
+  return Menu.buildFromTemplate([
+    {
+      label: 'AX Code Desktop',
+      submenu: [
+        { label: 'About AX Code Desktop', click: () => dispatchAction('about') },
+        { label: 'Check for Updates', click: () => dispatchCheckForUpdates() },
+        { type: 'separator' },
+        { label: 'Settings', accelerator: 'Ctrl+,', click: () => dispatchAction('settings') },
+        { label: 'Reload Webview', click: () => reloadMenuTargetWindow() },
+        { label: 'Restart', click: () => { void relaunchFromMenu() } },
+        { label: 'Command Palette', accelerator: 'Ctrl+P', click: () => dispatchAction('command-palette') },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    {
+      label: 'File',
+      submenu: [
+        { label: 'New Window', accelerator: 'Ctrl+Shift+Alt+N', click: () => { void handleNewWindow() } },
+        { type: 'separator' },
+        { label: 'New Session', accelerator: 'Ctrl+N', click: () => dispatchAction('new-session') },
+        { label: 'New Worktree', accelerator: 'Ctrl+Shift+N', click: () => dispatchAction('new-worktree-session') },
+        { type: 'separator' },
+        { label: 'Add Workspace', click: () => dispatchAction('change-workspace') },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { label: 'Copy', accelerator: 'Ctrl+C', click: () => handleCopyAction() },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        ...(isDev ? [{ role: 'toggleDevTools' }] : []),
+        { type: 'separator' },
+        { label: 'Toggle Right Sidebar', accelerator: 'Ctrl+B', click: () => dispatchAction('toggle-right-sidebar') },
+        { type: 'separator' },
+        { label: 'Light Theme', click: () => dispatchAction('theme-light') },
+        { label: 'Dark Theme', click: () => dispatchAction('theme-dark') },
+        { label: 'System Theme', click: () => dispatchAction('theme-system') },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Help',
+      submenu: [
+        { label: 'Keyboard Shortcuts', accelerator: 'Ctrl+.', click: () => dispatchAction('help-dialog') },
+        { label: 'Show Diagnostics', accelerator: 'Ctrl+Shift+L', click: () => dispatchAction('download-logs') },
+        { type: 'separator' },
+        { label: 'Clear Cache', click: () => { void clearCacheAndReload() } },
+        { type: 'separator' },
+        { label: 'Report a Bug', click: () => shell.openExternal(GITHUB_BUG_REPORT_URL) },
+        { label: 'Request a Feature', click: () => shell.openExternal(GITHUB_FEATURE_REQUEST_URL) },
+      ],
+    },
+  ])
+}
+
+const setupApplicationMenu = () => {
+  Menu.setApplicationMenu(process.platform === 'darwin' ? buildMacMenu() : buildNonMacMenu())
+}
+
+// ── Tray (macOS only; no-ops cleanly if icon assets are absent) ────────────
+let trayController = null
+const resourceRoot = () => (app.isPackaged ? process.resourcesPath : path.join(__dirname, 'resources'))
+
+const trayIconAssets = () => {
+  const dir = path.join(resourceRoot(), 'icons', 'tray')
+  const statusDir = path.join(dir, 'status')
+  const TRAY_BREATH_FRAME_COUNT = 16
+  return {
+    idleIconPath: path.join(dir, 'trayTemplate-idle.png'),
+    unseenIconPath: path.join(dir, 'trayTemplate-unseen.png'),
+    breathIconPaths: Array.from({ length: TRAY_BREATH_FRAME_COUNT }, (_, i) =>
+      path.join(dir, `trayTemplate-breath-${String(i).padStart(2, '0')}.png`)),
+    statusIconPaths: {
+      busy: path.join(statusDir, 'busy.png'),
+      retry: path.join(statusDir, 'retry.png'),
+      error: path.join(statusDir, 'error.png'),
+      unseen: path.join(statusDir, 'unseen.png'),
+      blank: path.join(statusDir, 'blank.png'),
+    },
+  }
+}
+
+const revealMainWindow = async () => {
+  let target = mainWindow
+  if ((!target || target.isDestroyed()) && serverPort > 0) {
+    await createWindow().catch(() => {})
+    target = mainWindow
+  }
+  if (target && !target.isDestroyed()) {
+    if (target.isMinimized()) target.restore()
+    target.show()
+    target.focus()
+  }
+  return target
+}
+
+const dispatchTrayAction = async (action) => {
+  if (!action || typeof action !== 'object') return
+  if (action.type === 'quit') {
+    app.quit()
+    return
+  }
+  if (action.type === 'respond-permission') {
+    const target = (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : await revealMainWindow()
+    if (target && !target.isDestroyed()) target.webContents.send('openchamber:tray-action', action)
+    return
+  }
+  if (action.type === 'new-mini-chat') {
+    const target = getMenuTargetWindow() || await revealMainWindow()
+    if (target && !target.isDestroyed()) target.webContents.send('openchamber:open-mini-chat')
+    return
+  }
+  if (action.type === 'focus-session') {
+    const target = await revealMainWindow()
+    if (target && !target.isDestroyed() && action.sessionId) {
+      target.webContents.send('openchamber:open-session', { sessionId: action.sessionId, directory: action.directory || '' })
+    }
+    return
+  }
+  const target = await revealMainWindow()
+  if (!target || target.isDestroyed()) return
+  if (action.type === 'new-session') {
+    target.webContents.send('openchamber:open-draft-session', { directory: '', projectId: '' })
+  }
+  // show-main-window: revealing the window above is the whole action.
+}
+
+const setupTray = () => {
+  if (process.platform !== 'darwin' || trayController) return
+  const assets = trayIconAssets()
+  if (!fs.existsSync(assets.idleIconPath)) {
+    console.warn('[electron] tray icon missing, skipping tray setup', { iconPath: assets.idleIconPath })
+    return
+  }
+  try {
+    trayController = createTrayController({
+      ...assets,
+      onAction: (action) => { void dispatchTrayAction(action) },
+    })
+    trayController.update({ sessions: [], approvals: [] })
+  } catch (error) {
+    console.warn('[electron] failed to set up tray', error)
+    trayController = null
+  }
+}
+
+// ── Shared command bodies (used by handlers and menu items) ────────────────
+const clearCacheAndReload = async () => {
+  await session.defaultSession.clearStorageData()
+  for (const browserWindow of BrowserWindow.getAllWindows()) {
+    browserWindow.webContents.reload()
+  }
+}
+
+const handleNewWindow = async () => {
+  const config = readDesktopHostsConfig()
+  let targetUrl = localOriginUrl()
+  if (config.defaultHostId && config.defaultHostId !== LOCAL_HOST_ID) {
+    const host = config.hosts.find((entry) => entry.id === config.defaultHostId)
+    if (host?.url) targetUrl = host.url
+  }
+  await createAdditionalWindow(targetUrl)
+}
+
+const applyWindowTheme = (browserWindow, args) => {
+  const mode = typeof args?.themeMode === 'string' ? args.themeMode : ''
+  const variant = typeof args?.themeVariant === 'string' ? args.themeVariant : ''
+  if (mode === 'system') nativeTheme.themeSource = 'system'
+  else if (mode === 'light') nativeTheme.themeSource = 'light'
+  else if (mode === 'dark') nativeTheme.themeSource = 'dark'
+  else if (variant === 'light') nativeTheme.themeSource = 'light'
+  else if (variant === 'dark') nativeTheme.themeSource = 'dark'
+  else nativeTheme.themeSource = 'system'
+}
+
+// ── IPC security gate ──────────────────────────────────────────────────────
+// The preload shim is injected into every webContents, including remote hosts
+// the user switches to via the host switcher. Filesystem, shell, installed-app
+// scans, ssh, dialogs, and hosts_set are gated to local senders; window/host
+// switcher operations are safe for any renderer.
+const isLocalSender = (wc) => {
+  try {
+    const raw = typeof wc?.getURL === 'function' ? wc.getURL() : ''
+    if (!raw) return false
+    const url = new URL(raw)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+    if (!['localhost', '127.0.0.1'].includes(url.hostname)) return false
+    // The local server is the only loopback origin we serve; treat any
+    // loopback http(s) page on our server port as local. Also accept the dev
+    // renderer origin.
+    if (serverPort > 0 && url.port === String(serverPort)) return true
+    const devRendererUrl = getDevRendererUrl()
+    if (devRendererUrl && url.origin === new URL(devRendererUrl).origin) return true
+    return false
+  } catch {
+    return false
+  }
+}
+
+// Registration helper for the NEW ported handlers: enforces the remote-origin
+// guard (a remote main-* window can only call commands flagged safeForRemote).
+// Existing per-command ipcMain.handle('desktop_*') registrations above stay as-is.
+const handleCommand = (name, fn, { safeForRemote = false } = {}) => {
+  ipcMain.handle(name, async (event, args) => {
+    if (!isLocalSender(event.sender) && !safeForRemote) {
+      throw new Error('IPC not available for this origin')
+    }
+    return fn(args || {}, event)
+  })
+}
+
+// ── New command handlers ───────────────────────────────────────────────────
+
+// File / app ops (local-only)
+handleCommand('desktop_open_path', async (args) => {
+  const targetPath = typeof args.path === 'string' ? args.path.trim() : ''
+  const appName = typeof args.app === 'string' ? args.app.trim() : ''
+  if (!targetPath) throw new Error('Path is required')
+  if (process.platform === 'darwin') {
+    const openArgs = appName ? ['-a', appName, targetPath] : [targetPath]
+    spawn('open', openArgs, { detached: true, stdio: 'ignore' }).unref()
+    return null
+  }
+  await shell.openPath(targetPath)
+  return null
+})
+
+handleCommand('desktop_open_external_url', async (args) => {
+  const target = typeof args.url === 'string' ? args.url.trim() : ''
+  if (!target) throw new Error('URL is required')
+  const parsed = new URL(target)
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Only HTTP URLs can be opened externally')
+  }
+  await shell.openExternal(parsed.toString())
+  return null
+})
+
+handleCommand('desktop_open_in_app', async (args) => {
+  const projectPath = typeof args.projectPath === 'string' ? args.projectPath.trim() : ''
+  const appId = typeof args.appId === 'string' ? args.appId.trim().toLowerCase() : ''
+  const appName = typeof args.appName === 'string' ? args.appName.trim() : ''
+  if (!projectPath || !appId || !appName) {
+    throw new Error('Project path, app id, and app name are required')
+  }
+  if (process.platform === 'win32') {
+    if (appId === 'finder') {
+      const error = await shell.openPath(projectPath)
+      if (error) throw new Error(error)
+      return null
+    }
+    runSpecChain(buildWindowsOpenProjectSpecs({ projectPath, appId, appName }), appName)
+    return null
+  }
+  if (process.platform !== 'darwin') {
+    throw new Error('desktop_open_in_app is only supported on macOS and Windows')
+  }
+  runSpecChain(buildOpenProjectSpecs({ projectPath, appId, appName }), appName)
+  return null
+})
+
+handleCommand('desktop_get_installed_apps', async (args) => {
+  const cachePath = buildInstalledAppsCachePath()
+  const now = Math.floor(Date.now() / 1000)
+  let cache = null
+  try {
+    cache = JSON.parse(await fsp.readFile(cachePath, 'utf8'))
+  } catch {}
+  const cachedApps = Array.isArray(cache?.apps) ? cache.apps : []
+  const hasCache = Boolean(cache)
+  const isCacheStale = !cache || (now - Number(cache.updatedAt || 0)) > INSTALLED_APPS_CACHE_TTL_SECS
+  const refresh = async () => {
+    const apps = process.platform === 'win32'
+      ? await buildWindowsInstalledApps(args.apps)
+      : await buildInstalledApps(Array.isArray(args.apps) ? args.apps : [])
+    await fsp.mkdir(path.dirname(cachePath), { recursive: true })
+    await fsp.writeFile(cachePath, JSON.stringify({ updatedAt: now, apps }, null, 2))
+    emitToAllWindows('openchamber:installed-apps-updated', apps)
+  }
+  if (process.platform !== 'darwin' && process.platform !== 'win32') {
+    throw new Error('desktop_get_installed_apps is only supported on macOS and Windows')
+  }
+  if (!hasCache || isCacheStale || args.force === true) void refresh()
+  return { apps: cachedApps, hasCache, isCacheStale }
+})
+
+handleCommand('desktop_filter_installed_apps', async (args) => {
+  if (process.platform === 'win32') {
+    return (await buildWindowsInstalledApps(args.apps)).map((a) => a.name)
+  }
+  if (process.platform !== 'darwin') {
+    throw new Error('desktop_filter_installed_apps is only supported on macOS')
+  }
+  if (!Array.isArray(args.apps)) return []
+  const results = await Promise.all(
+    args.apps.map(async (appName) => (await isAppBundleInstalled(String(appName))) ? String(appName) : null),
+  )
+  return results.filter(Boolean)
+})
+
+handleCommand('desktop_fetch_app_icons', async (args) => {
+  if (process.platform === 'win32') {
+    const names = Array.isArray(args.apps) ? args.apps : []
+    const results = []
+    for (const name of names) {
+      const appName = String(name || '').trim()
+      if (!appName) continue
+      const appId = getWindowsAppIdForName(appName)
+      const dataUrl = appId === 'terminal'
+        ? imageFileToDataUrl(resolveWindowsTerminalIconPath()) || await windowsIconToDataUrl(resolveWindowsAppIconExecutable({ appId, appName }))
+        : await windowsIconToDataUrl(resolveWindowsAppIconExecutable({ appId, appName }))
+      if (dataUrl) results.push({ app: appName, data_url: dataUrl })
+    }
+    return results
+  }
+  if (process.platform !== 'darwin') {
+    throw new Error('desktop_fetch_app_icons is only supported on macOS')
+  }
+  const names = Array.isArray(args.apps) ? args.apps : []
+  const results = []
+  for (const name of names) {
+    const appPath = await resolveAppBundlePath(String(name))
+    if (!appPath) continue
+    const dataUrl = await iconToDataUrl(await resolveAppIconPath(appPath), String(name))
+    if (dataUrl) results.push({ app: String(name), dataUrl })
+  }
+  return results
+})
+
+handleCommand('desktop_read_file', async (args) => {
+  const rawPath = typeof args.path === 'string' ? args.path : ''
+  if (!rawPath) throw new Error('Path is required')
+  // Defense in depth behind the IPC origin gate: resolve the path, require it
+  // under $HOME or tmpdir, and refuse known secret dirs / dotfiles.
+  const filePath = path.resolve(rawPath)
+  const home = os.homedir() || ''
+  const tmp = os.tmpdir() || ''
+  const underHome = home && (filePath === home || filePath.startsWith(home + path.sep))
+  const underTmp = tmp && (filePath === tmp || filePath.startsWith(tmp + path.sep))
+  if (!underHome && !underTmp) throw new Error('File is outside the allowed workspace')
+  const DENIED_SEGMENTS = ['.ssh', '.aws', '.gnupg', '.gpg', '.config/gh', '.config/openchamber/credentials']
+  const relFromHome = underHome ? filePath.slice(home.length + 1) : ''
+  const relNormalized = relFromHome.split(path.sep).join('/')
+  if (DENIED_SEGMENTS.some((segment) => relNormalized === segment || relNormalized.startsWith(`${segment}/`))) {
+    throw new Error('Access to this path is not allowed')
+  }
+  const basename = path.basename(filePath).toLowerCase()
+  if (basename === '.env' || basename.startsWith('.env.') || basename.endsWith('.pem') || basename.endsWith('.key')) {
+    throw new Error('Access to this path is not allowed')
+  }
+  const stats = await fsp.stat(filePath)
+  if (stats.size > 50 * 1024 * 1024) throw new Error('File is too large. Maximum size is 50MB.')
+  const bytes = await fsp.readFile(filePath)
+  const ext = path.extname(filePath).toLowerCase()
+  const mime = ({
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.bmp': 'image/bmp',
+    '.ico': 'image/x-icon',
+    '.pdf': 'application/pdf',
+    '.txt': 'text/plain',
+    '.md': 'text/markdown',
+    '.json': 'application/json',
+    '.js': 'text/javascript',
+    '.ts': 'text/typescript',
+    '.tsx': 'text/typescript-jsx',
+    '.jsx': 'text/javascript-jsx',
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.py': 'text/x-python',
+  })[ext] || 'application/octet-stream'
+  return { mime, base64: bytes.toString('base64'), size: bytes.length }
+})
+
+handleCommand('desktop_save_markdown_file', async (args, event) => {
+  const defaultPath = typeof args.defaultFileName === 'string' ? args.defaultFileName.trim() : ''
+  if (!defaultPath) throw new Error('Default file name is required')
+  const content = typeof args.content === 'string' ? args.content : ''
+  const ownerWindow = event ? BrowserWindow.fromWebContents(event.sender) : undefined
+  const result = await dialog.showSaveDialog(ownerWindow || undefined, {
+    defaultPath,
+    filters: [{ name: 'Markdown', extensions: ['md'] }],
+  })
+  if (result.canceled || !result.filePath) return null
+  await fsp.writeFile(result.filePath, content, 'utf8')
+  return result.filePath
+})
+
+// desktop_search_files: upstream main.mjs has no such handler; implement a
+// minimal recursive name search under an allowed root (HOME/tmp) so the
+// renderer contract is satisfied.
+// Matches the renderer contract in packages/ui/src/lib/desktop.ts:
+//   args:   { directory, query, options?: { limit, includeHidden, respectGitignore } }
+//   return: NativeFileSearchResult[] = { name, path, relativePath, extension? }
+// Searches the given (user-opened) project directory directly — no HOME/tmp
+// restriction, matching the previous Tauri desktop_search_files behaviour.
+// respectGitignore is honoured best-effort via the SKIP_DIRS denylist; the
+// renderer falls back to the gitignore-aware HTTP search when this returns null.
+handleCommand('desktop_search_files', async (args) => {
+  const root = typeof args.directory === 'string' ? args.directory.trim() : ''
+  const query = typeof args.query === 'string' ? args.query.trim().toLowerCase() : ''
+  if (!root || !path.isAbsolute(root)) throw new Error('An absolute directory is required')
+  if (!query) return []
+  const options = args.options && typeof args.options === 'object' ? args.options : {}
+  const includeHidden = options.includeHidden === true
+  const limit = Number.isFinite(options.limit) && options.limit > 0
+    ? Math.min(Math.floor(options.limit), 1000)
+    : 200
+  const resolvedRoot = path.resolve(root)
+  try {
+    if (!(await fsp.stat(resolvedRoot)).isDirectory()) return []
+  } catch {
+    return []
+  }
+  const SKIP_DIRS = new Set(['node_modules', '.git', '.hg', '.svn', 'dist', 'build', '.next', '.cache', 'target'])
+  const results = []
+  const walk = async (dir, depth) => {
+    if (results.length >= limit || depth > 12) return
+    let entries
+    try {
+      entries = await fsp.readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (results.length >= limit) return
+      if (entry.name.startsWith('.') && !includeHidden) continue
+      if (entry.isDirectory() && SKIP_DIRS.has(entry.name)) continue
+      const full = path.join(dir, entry.name)
+      if (entry.name.toLowerCase().includes(query)) {
+        const ext = entry.isDirectory() ? undefined : path.extname(entry.name).replace(/^\./, '') || undefined
+        results.push({
+          name: entry.name,
+          path: full,
+          relativePath: path.relative(resolvedRoot, full),
+          ...(ext ? { extension: ext } : {}),
+        })
+      }
+      if (entry.isDirectory()) await walk(full, depth + 1)
+    }
+  }
+  await walk(resolvedRoot, 0)
+  return results
+})
+
+handleCommand('desktop_clear_cache', async () => {
+  await clearCacheAndReload()
+  return null
+})
+
+handleCommand('desktop_notify', async (args) => {
+  maybeShowNativeNotification(args)
+  return null
+})
+
+// Window-rect screen capture (local-only by capability, but mirror upstream's
+// safe-for-remote allowlist? upstream lists desktop_capture_page_rect as safe).
+handleCommand('desktop_capture_page_rect', async (args, event) => {
+  const browserWindow = event ? BrowserWindow.fromWebContents(event.sender) : mainWindow
+  if (!browserWindow || browserWindow.isDestroyed()) throw new Error('Window is not available')
+  const bounds = browserWindow.getContentBounds()
+  const x = Number.isFinite(args.x) ? Math.max(0, Math.floor(args.x)) : 0
+  const y = Number.isFinite(args.y) ? Math.max(0, Math.floor(args.y)) : 0
+  const width = Number.isFinite(args.width) ? Math.max(1, Math.floor(args.width)) : 1
+  const height = Number.isFinite(args.height) ? Math.max(1, Math.floor(args.height)) : 1
+  const clampedX = Math.min(x, Math.max(0, bounds.width - 1))
+  const clampedY = Math.min(y, Math.max(0, bounds.height - 1))
+  const rect = {
+    x: clampedX,
+    y: clampedY,
+    width: Math.min(width, Math.max(1, bounds.width - clampedX)),
+    height: Math.min(height, Math.max(1, bounds.height - clampedY)),
+  }
+  if (rect.width * rect.height > MAX_CAPTURE_PAGE_RECT_AREA) throw new Error('Capture area is too large')
+  const image = await browserWindow.webContents.capturePage(rect)
+  const buffer = image.toJPEG(82)
+  return { mime: 'image/jpeg', base64: buffer.toString('base64'), width: image.getSize().width, height: image.getSize().height }
+}, { safeForRemote: true })
+
+handleCommand('desktop_browser_capture_page', async (args) => {
+  const wcId = Number.isFinite(args.webContentsId) ? Math.trunc(args.webContentsId) : null
+  if (wcId === null || wcId < 0) throw new Error('webContentsId is required')
+  const wc = webContents.fromId(wcId)
+  if (!wc || wc.isDestroyed()) throw new Error('WebContents not found')
+  const image = await wc.capturePage()
+  const buffer = image.toJPEG(82)
+  return { mime: 'image/jpeg', base64: buffer.toString('base64'), width: image.getSize().width, height: image.getSize().height }
+})
+
+// Hosts (switcher list) — get/probe safe-for-remote, set local-only.
+handleCommand('desktop_hosts_get', async () => ({
+  ...readDesktopHostsConfig(),
+  localOrigin: localOriginUrl(),
+}), { safeForRemote: true })
+
+handleCommand('desktop_hosts_set', async (args) => {
+  const nextConfigInput = args.input || args.config || {}
+  await writeDesktopHostsConfig(nextConfigInput)
+  return null
+})
+
+handleCommand('desktop_host_probe', async (args) =>
+  probeHostWithTimeout(String(args.url || ''), 2_000, String(args.clientToken || '')),
+{ safeForRemote: true })
+
+// Window / UI
+handleCommand('desktop_set_window_theme', async (args, event) => {
+  const browserWindow = event ? BrowserWindow.fromWebContents(event.sender) : getMenuTargetWindow()
+  applyWindowTheme(browserWindow, args)
+  return null
+}, { safeForRemote: true })
+
+handleCommand('desktop_set_vibrancy', async (args) => {
+  // Vibrancy is a window-creation option; persist the preference and relaunch.
+  const enabled = args.enabled === true
+  await mutateSettingsRoot((root) => { root.desktopVibrancy = enabled })
+  setImmediate(() => {
+    shutdownForExit().finally(() => {
+      app.relaunch()
+      app.exit(0)
+    })
+  })
+  return { enabled, requiresRestart: true }
+})
+
+handleCommand('desktop_new_window', async () => {
+  await handleNewWindow()
+  return null
+}, { safeForRemote: true })
+
+handleCommand('desktop_new_window_at_url', async (args) => {
+  const targetUrl = normalizeHostUrl(String(args.url || ''))
+  if (!targetUrl) throw new Error('Invalid URL')
+  await createAdditionalWindow(targetUrl)
+  return null
+}, { safeForRemote: true })
+
+// SSH (local-only) — mirror upstream's dispatch.
+handleCommand('desktop_ssh_instances_get', async () => sshManager.readInstances())
+handleCommand('desktop_ssh_instances_set', async (args) => {
+  await sshManager.setInstances(args.config || {})
+  return null
+})
+handleCommand('desktop_ssh_import_hosts', async () => sshManager.importHosts())
+handleCommand('desktop_ssh_connect', async (args) => {
+  await sshManager.connect(String(args.id || '').trim())
+  return null
+})
+handleCommand('desktop_ssh_disconnect', async (args) => {
+  await sshManager.disconnect(String(args.id || '').trim())
+  return null
+})
+handleCommand('desktop_ssh_status', async (args) =>
+  sshManager.statusesWithDefaults(String(args.id || '').trim() || undefined))
+handleCommand('desktop_ssh_logs', async (args) =>
+  sshManager.logsForInstance(String(args.id || '').trim(), Number(args.limit) || 200))
+handleCommand('desktop_ssh_logs_clear', async (args) => {
+  sshManager.clearLogsForInstance(String(args.id || '').trim())
+  return null
+})
+
+// ── Window controls, app menu & mini-chat windows ──────────────────────────
+const senderWindow = (event) => (event ? BrowserWindow.fromWebContents(event.sender) : null)
+
+// Mini-chat is a small companion window that loads the dedicated mini-chat.html
+// entry; the renderer (ElectronMiniChatApp) reads mode/sessionId/directory/
+// projectId from the URL query string.
+const createMiniChatWindow = async ({ mode, sessionId, directory, projectId }) => {
+  const win = new BrowserWindow({
+    width: 420,
+    height: 640,
+    minWidth: 360,
+    minHeight: 420,
+    title: 'AX Code Desktop',
+    backgroundColor: '#151313',
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: true,
+    },
+  })
+  win.once('ready-to-show', () => win.show())
+  win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
+    if (isTrustedRendererNavigation(targetUrl)) return { action: 'allow' }
+    shell.openExternal(targetUrl)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (event, targetUrl) => {
+    if (isTrustedRendererNavigation(targetUrl)) return
+    event.preventDefault()
+    shell.openExternal(targetUrl)
+  })
+  const params = new URLSearchParams()
+  params.set('mode', mode === 'session' ? 'session' : 'draft')
+  if (sessionId) params.set('sessionId', sessionId)
+  if (directory) params.set('directory', directory)
+  if (projectId) params.set('projectId', projectId)
+  const base = getDevRendererUrl() || `http://localhost:${serverPort}`
+  await win.loadURL(`${base}/mini-chat.html?${params.toString()}`)
+  return win
+}
+
+handleCommand('desktop_open_session_mini_chat_window', async (args) => {
+  const sessionId = typeof args.sessionId === 'string' ? args.sessionId.trim() : ''
+  if (!sessionId) throw new Error('Session id is required')
+  const directory = typeof args.directory === 'string' ? args.directory.trim() : ''
+  await createMiniChatWindow({ mode: 'session', sessionId, directory })
+  return null
+})
+
+handleCommand('desktop_open_draft_mini_chat_window', async (args) => {
+  const directory = typeof args.directory === 'string' ? args.directory.trim() : ''
+  const projectId = typeof args.projectId === 'string' ? args.projectId.trim() : ''
+  await createMiniChatWindow({ mode: 'draft', directory, projectId })
+  return null
+})
+
+handleCommand('desktop_set_window_pinned', async (args, event) => {
+  const win = senderWindow(event)
+  const pinned = Boolean(args && args.pinned === true)
+  if (win && !win.isDestroyed()) {
+    win.setAlwaysOnTop(pinned)
+    win.__ocPinned = pinned
+  }
+  return { pinned }
+})
+
+handleCommand('desktop_get_window_pinned', async (_args, event) => {
+  const win = senderWindow(event)
+  return { pinned: Boolean(win && win.__ocPinned) }
+})
+
+handleCommand('desktop_focus_main_window', async (args) => {
+  const sessionId = typeof args.sessionId === 'string' ? args.sessionId.trim() : ''
+  const directory = typeof args.directory === 'string' ? args.directory.trim() : ''
+  const mode = typeof args.mode === 'string' ? args.mode.trim() : ''
+  const projectId = typeof args.projectId === 'string' ? args.projectId.trim() : ''
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    await createWindow()
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+    if (sessionId) emitToAllWindows('openchamber:open-session', { sessionId, directory })
+    else if (mode === 'draft') emitToAllWindows('openchamber:open-draft-session', { directory, projectId })
+  }
+  return { focused: true }
+})
+
+handleCommand('desktop_close_current_window', async (_args, event) => {
+  const win = senderWindow(event)
+  if (win && !win.isDestroyed()) win.close()
+  return null
+}, { safeForRemote: true })
+
+handleCommand('desktop_minimize_current_window', async (_args, event) => {
+  const win = senderWindow(event)
+  if (win && !win.isDestroyed()) win.minimize()
+  return null
+}, { safeForRemote: true })
+
+handleCommand('desktop_toggle_current_window_maximized', async (_args, event) => {
+  const win = senderWindow(event)
+  if (win && !win.isDestroyed()) {
+    if (win.isMaximized()) win.unmaximize()
+    else win.maximize()
+    return { maximized: win.isMaximized() }
+  }
+  return { maximized: false }
+}, { safeForRemote: true })
+
+handleCommand('desktop_get_current_window_state', async (_args, event) => {
+  const win = senderWindow(event)
+  return { maximized: Boolean(win && !win.isDestroyed() && win.isMaximized()) }
+}, { safeForRemote: true })
+
+handleCommand('desktop_show_app_menu', async (args, event) => {
+  const win = senderWindow(event)
+  if (!win || win.isDestroyed()) return null
+  const menu = Menu.getApplicationMenu()
+  if (!menu) return null
+  const x = Number.isFinite(Number(args.x)) ? Math.max(0, Math.round(Number(args.x))) : undefined
+  const y = Number.isFinite(Number(args.y)) ? Math.max(0, Math.round(Number(args.y))) : undefined
+  menu.popup({ window: win, x, y })
+  return null
+})
+
+handleCommand('desktop_is_window_fullscreen', async (_args, event) => {
+  const win = senderWindow(event)
+  return Boolean(win && !win.isDestroyed() && win.isFullScreen())
+}, { safeForRemote: true })
+
+handleCommand('desktop_set_window_title', async (args, event) => {
+  const win = senderWindow(event)
+  const title = typeof args.title === 'string' ? args.title : ''
+  if (win && !win.isDestroyed() && title) win.setTitle(title)
+  return null
+}, { safeForRemote: true })
+
+handleCommand('desktop_get_app_version', async () => app.getVersion(), { safeForRemote: true })
+
 // ── App lifecycle ───────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) {
@@ -445,6 +2215,9 @@ app.whenReady().then(async () => {
   }
 
   recordStartupEvent('electron.app.ready')
+  nativeTheme.themeSource = 'system'
+  setupApplicationMenu()
+  setupTray()
   // Deny all permission requests except clipboard and fullscreen.
   // Chromium enumerates media devices on startup, which triggers macOS
   // permission prompts for device and media libraries, none of which this
@@ -462,6 +2235,12 @@ app.whenReady().then(async () => {
     // periodic check) handles surfacing and downloading; checkForUpdates just
     // warms the cache here.
     autoUpdater.checkForUpdates().catch(() => {})
+
+    // Notify renderer on OS wake-from-sleep so the SSE event pipeline can
+    // reconnect immediately instead of waiting for the heartbeat watchdog.
+    powerMonitor.on('resume', () => {
+      emitToAllWindows('openchamber:system-resume', { timestamp: Date.now() })
+    })
   } catch (err) {
     console.error('[electron] startup failed:', err)
     // app.exit() does not fire 'before-quit', so stop the server process

@@ -38,7 +38,7 @@ import { getLanguageFromExtension, getImageMimeType, isImageFile } from '@/lib/t
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import { EditorView } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { readDesktopFileAsDataUrl } from '@/lib/desktopNative';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { useUIStore } from '@/stores/useUIStore';
 import { useFilesViewTabsStore } from '@/stores/useFilesViewTabsStore';
@@ -2555,9 +2555,13 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
 
       setFileError(null);
 
+      // In Electron there is no Tauri asset protocol, so resolve binary images to
+      // a data URL. Prefer the API client's readFileBinary when available; otherwise
+      // read the file bytes via the desktop_read_file IPC command (base64 + mime),
+      // which works for paths outside the workspace (unlike /api/fs/raw).
       const srcPromise = files.readFileBinary
         ? files.readFileBinary(selectedFile.path, selectedFileReadOptions).then((result) => result.dataUrl)
-        : Promise.resolve(convertFileSrc(selectedFile.path, 'asset'));
+        : readDesktopFileAsDataUrl(selectedFile.path);
 
       await srcPromise
         .then((src) => {
