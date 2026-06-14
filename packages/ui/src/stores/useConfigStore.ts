@@ -519,6 +519,17 @@ interface ConfigStore {
 
 // In-flight dedup: prevent concurrent duplicate loadProviders/loadAgents calls for the same directory
 const _inFlightProviders = new Map<string, Promise<void>>();
+// While the engine is still starting, provider reads fail transiently. Instead
+// of surfacing a terminal "Unable to load providers" error, keep the loading
+// state and re-poll until this per-directory deadline, then give up.
+const _providerStartupPollUntil = new Map<string, number>();
+// Pending re-poll timers, keyed by directory. The in-flight dedup map only
+// covers a load that is actively running; this map reserves the directory
+// across the gap between a failed cycle returning and its re-poll firing, so
+// other callers don't fan out additional concurrent poll chains.
+const _providerPollTimer = new Map<string, ReturnType<typeof setTimeout>>();
+const PROVIDER_STARTUP_POLL_MS = 2000;
+const PROVIDER_STARTUP_POLL_WINDOW_MS = 30000;
 const _inFlightAgents = new Map<string, Promise<boolean>>();
 let _initializeAppInFlight: Promise<void> | null = null;
 
@@ -606,6 +617,9 @@ export const useConfigStore = create<ConfigStore>()(
                     // Dedup: if a load is already in-flight for this directory, reuse it
                     const existing = _inFlightProviders.get(directoryKey);
                     if (existing) return existing;
+                    // A startup re-poll is already pending for this directory — don't
+                    // fan out a second chain; the pending poll will perform the load.
+                    if (_providerPollTimer.has(directoryKey)) return;
 
                     const promise = (async () => {
                     set((state) => state.activeDirectoryKey === directoryKey
@@ -701,12 +715,42 @@ export const useConfigStore = create<ConfigStore>()(
                                 return nextState;
                             });
 
+                            _providerStartupPollUntil.delete(directoryKey);
+                            {
+                                const pending = _providerPollTimer.get(directoryKey);
+                                if (pending) { clearTimeout(pending); _providerPollTimer.delete(directoryKey); }
+                            }
                             return;
                         } catch (error) {
                             lastError = error;
                             const waitMs = 250 * (attempt + 1);
                             await new Promise((resolve) => setTimeout(resolve, waitMs));
                         }
+                    }
+
+                    // The engine is likely still starting (provider reads answer
+                    // 503 {restarting:true} until it is up). Keep the loading
+                    // state and re-poll until the deadline instead of showing a
+                    // terminal error that usually clears itself within seconds.
+                    {
+                        const now = Date.now();
+                        let pollUntil = _providerStartupPollUntil.get(directoryKey);
+                        if (pollUntil === undefined) {
+                            pollUntil = now + PROVIDER_STARTUP_POLL_WINDOW_MS;
+                            _providerStartupPollUntil.set(directoryKey, pollUntil);
+                        }
+                        if (now < pollUntil) {
+                            set((state) => state.activeDirectoryKey === directoryKey
+                                ? { providersLoading: true, providersError: null }
+                                : {});
+                            const timer = setTimeout(() => {
+                                _providerPollTimer.delete(directoryKey);
+                                void get().loadProviders({ directory: fromDirectoryKey(directoryKey) });
+                            }, PROVIDER_STARTUP_POLL_MS);
+                            _providerPollTimer.set(directoryKey, timer);
+                            return;
+                        }
+                        _providerStartupPollUntil.delete(directoryKey);
                     }
 
                     console.error("Failed to load providers:", lastError);
