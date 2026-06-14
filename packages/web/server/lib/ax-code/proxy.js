@@ -459,10 +459,18 @@ export const registerAxCodeProxy = (app, deps) => {
 
   // Readiness gate — return 503 while ax-code is starting/restarting
   app.use('/api', (req, res, next) => {
+    // The provider grace window exists only to avoid serving a stale/empty
+    // provider *list* while providers are still warming up — purely a read
+    // concern. Writes (adding/removing provider credentials, OAuth callbacks)
+    // are exactly how a user configures their first provider, so they must
+    // never be gated by provider readiness; otherwise a user with no ready
+    // providers yet can never add one. Only gate safe, read-only methods.
+    const isReadRequest = req.method === 'GET' || req.method === 'HEAD';
     const isProviderRequest =
-      req.path.startsWith('/config/providers') ||
-      req.path.startsWith('/provider/') ||
-      req.path.startsWith('/auth/');
+      isReadRequest &&
+      (req.path.startsWith('/config/providers') ||
+        req.path.startsWith('/provider/') ||
+        req.path.startsWith('/auth/'));
 
     if (
       req.path.startsWith('/themes/custom') ||

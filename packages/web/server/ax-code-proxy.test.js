@@ -159,6 +159,93 @@ describe('AX Code proxy SSE forwarding', () => {
     });
   });
 
+  it('lets provider auth writes through while providers are still warming', async () => {
+    const upstream = express();
+    let sawPut = false;
+    upstream.put('/auth/openai', (_req, res) => {
+      sawPut = true;
+      res.json({ ok: true });
+    });
+    upstream.get('/config/providers', (_req, res) => {
+      res.json({ providers: [] });
+    });
+    upstreamServer = await listen(upstream);
+    const upstreamPort = upstreamServer.address().port;
+
+    const app = express();
+    registerAxCodeProxy(app, {
+      fs: {},
+      os: {},
+      path,
+      OPEN_CODE_READY_GRACE_MS: 12000,
+      getRuntime: () => ({
+        axCodePort: upstreamPort,
+        isAxCodeReady: true,
+        axCodeNotReadySince: 0,
+        isRestartingAxCode: false,
+        axCodeRuntimeHealth: {
+          readiness: { providersReady: false },
+          startup: { uptimeMs: 100 },
+        },
+      }),
+      getAxCodeAuthHeaders: () => ({}),
+      buildAxCodeUrl: (requestPath) => `http://127.0.0.1:${upstreamPort}${requestPath}`,
+      ensureAxCodeApiPrefix: () => {},
+    });
+    proxyServer = await listen(app);
+    const proxyPort = proxyServer.address().port;
+
+    // Adding a provider (a write) must never be blocked by provider readiness.
+    const put = await fetch(`http://127.0.0.1:${proxyPort}/api/auth/openai`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'api', key: 'sk-test' }),
+    });
+    expect(put.status).toBe(200);
+    expect(sawPut).toBe(true);
+
+    // Reading the provider list is still gated during the warmup grace window.
+    const get = await fetch(`http://127.0.0.1:${proxyPort}/api/config/providers`);
+    expect(get.status).toBe(503);
+    expect(await get.json()).toMatchObject({ restarting: true });
+  });
+
+  it('stops gating provider reads once the grace window elapses', async () => {
+    const upstream = express();
+    upstream.get('/config/providers', (_req, res) => {
+      res.json({ providers: [] });
+    });
+    upstreamServer = await listen(upstream);
+    const upstreamPort = upstreamServer.address().port;
+
+    const app = express();
+    registerAxCodeProxy(app, {
+      fs: {},
+      os: {},
+      path,
+      OPEN_CODE_READY_GRACE_MS: 12000,
+      getRuntime: () => ({
+        axCodePort: upstreamPort,
+        isAxCodeReady: true,
+        axCodeNotReadySince: 0,
+        isRestartingAxCode: false,
+        axCodeRuntimeHealth: {
+          readiness: { providersReady: false },
+          startup: { uptimeMs: 60000 },
+        },
+      }),
+      getAxCodeAuthHeaders: () => ({}),
+      buildAxCodeUrl: (requestPath) => `http://127.0.0.1:${upstreamPort}${requestPath}`,
+      ensureAxCodeApiPrefix: () => {},
+    });
+    proxyServer = await listen(app);
+    const proxyPort = proxyServer.address().port;
+
+    const get = await fetch(`http://127.0.0.1:${proxyPort}/api/config/providers`);
+    expect(get.status).toBe(200);
+    expect(await get.json()).toEqual({ providers: [] });
+  });
+
   it('routes generic API requests through external AX Code base URL', async () => {
     const upstream = express();
     upstream.get('/config/providers', (_req, res) => {
