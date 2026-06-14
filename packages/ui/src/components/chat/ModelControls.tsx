@@ -1386,10 +1386,10 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                                     onClick={openAddProviderSettings}
                                     className="typography-meta group flex w-full items-center gap-1 rounded-md px-2 py-1.5 cursor-pointer hover:bg-interactive-hover/50"
                                 >
-                                    <span className="flex size-4 items-center justify-center text-muted-foreground">
+                                    <span className="flex size-4 items-center justify-center text-primary">
                                         <Icon name="add" className="size-4 -mr-0.5" />
                                     </span>
-                                    <span className="font-medium text-foreground">{t('chat.modelControls.addNewProvider')}</span>
+                                    <span className="font-medium text-primary">{t('chat.modelControls.addNewProvider')}</span>
                                 </button>
                             </div>
                             <ModelPickerList

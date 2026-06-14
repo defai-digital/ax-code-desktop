@@ -452,8 +452,14 @@ svg.animate-spin {
 
 .dark {
   color-scheme: dark;
-  --oc-scrollbar-thumb: oklch(0.6 0.02 80 / 0.3);
-  --oc-scrollbar-thumb-hover: oklch(0.6 0.02 80 / 0.5);
+}
+
+/* Scrollbar thumb uses the active theme's highlight (primary) color in both
+   light and dark — --primary is set per active theme on :root, so all
+   scrollbars (global + chat) follow it. */
+:root {
+  --oc-scrollbar-thumb: color-mix(in srgb, var(--primary) 50%, transparent);
+  --oc-scrollbar-thumb-hover: color-mix(in srgb, var(--primary) 80%, transparent);
 }
 
 [data-scrollbar="chat"]::-webkit-scrollbar-thumb {
