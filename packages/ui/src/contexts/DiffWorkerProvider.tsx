@@ -82,20 +82,34 @@ const ensureWorkerPool = (style: WorkerPoolStyle): Promise<WorkerPoolManager | u
     if (splitWorkerPool) {
       return Promise.resolve(splitWorkerPool);
     }
-    splitWorkerPoolPromise ??= createWorkerPool('split').then((pool) => {
-      splitWorkerPool = pool;
-      return pool;
-    });
+    splitWorkerPoolPromise ??= createWorkerPool('split')
+      .then((pool) => {
+        splitWorkerPool = pool;
+        return pool;
+      })
+      .catch((error) => {
+        // Clear the cached promise so a later call can retry instead of
+        // permanently resolving to a rejected import.
+        splitWorkerPoolPromise = undefined;
+        console.warn('[DiffWorkerProvider] Failed to create split worker pool:', error);
+        return undefined;
+      });
     return splitWorkerPoolPromise;
   }
 
   if (unifiedWorkerPool) {
     return Promise.resolve(unifiedWorkerPool);
   }
-  unifiedWorkerPoolPromise ??= createWorkerPool('unified').then((pool) => {
-    unifiedWorkerPool = pool;
-    return pool;
-  });
+  unifiedWorkerPoolPromise ??= createWorkerPool('unified')
+    .then((pool) => {
+      unifiedWorkerPool = pool;
+      return pool;
+    })
+    .catch((error) => {
+      unifiedWorkerPoolPromise = undefined;
+      console.warn('[DiffWorkerProvider] Failed to create unified worker pool:', error);
+      return undefined;
+    });
   return unifiedWorkerPoolPromise;
 };
 

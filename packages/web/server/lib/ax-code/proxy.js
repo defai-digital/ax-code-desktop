@@ -484,11 +484,22 @@ export const registerAxCodeProxy = (app, deps) => {
       runtimeState.isRestartingAxCode ||
       !runtimeState.axCodePort;
     const providersReady = runtimeState.axCodeRuntimeHealth?.readiness?.providersReady;
+    // Providers can keep warming after the core reports ready. Hold provider/auth
+    // requests for a grace period so the UI doesn't see an empty provider list,
+    // then let them through. We measure this against runtime uptime, not
+    // `waitElapsed` — once the core is ready `axCodeNotReadySince` is 0, so
+    // `waitElapsed` is pinned to 0 and the grace window would never expire,
+    // blocking provider/auth requests forever if providers never report ready.
+    const providerUptimeMs = runtimeState.axCodeRuntimeHealth?.startup?.uptimeMs;
+    const withinProviderGrace =
+      typeof providerUptimeMs === 'number'
+        ? providerUptimeMs < OPEN_CODE_READY_GRACE_MS
+        : false;
     const stillWaitingForProviders =
       isProviderRequest &&
       runtimeState.axCodeRuntimeHealth?.readiness &&
       !isAxCodeReadinessValueReady(providersReady) &&
-      waitElapsed < OPEN_CODE_READY_GRACE_MS;
+      withinProviderGrace;
 
     if (stillWaiting || stillWaitingForProviders) {
       return res.status(503).json({
