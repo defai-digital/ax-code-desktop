@@ -35,6 +35,18 @@ const execFileAsync = promisify(execFile)
 app.name = 'AX Code Desktop'
 app.setAppUserModelId('ai.defai.ax-code-app')
 
+// When run UNPACKAGED (e.g. `electron dist/main.js` for local testing), the dock
+// shows Electron's default icon and "Electron" as the name. A packaged build
+// gets these from its bundle; for dev runs, set the dock icon explicitly so the
+// app is recognizably AX Code Desktop. No-op when packaged (bundle wins).
+if (process.platform === 'darwin' && !app.isPackaged && app.dock) {
+  try {
+    app.dock.setIcon(path.join(__dirname, '..', 'build', 'icon.png'))
+  } catch {
+    // Best-effort branding; never block startup on it.
+  }
+}
+
 // ── Resource paths ──────────────────────────────────────────────────────────
 // In production (packaged), extraResources land at process.resourcesPath/web-dist.
 // In development, point at the Vite build output directly.

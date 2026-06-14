@@ -35,7 +35,10 @@ case "$(uname -s)" in
   *)      PLATFORM="--win" ;;
 esac
 
+# Run from packages/electron so electron-builder resolves package.json,
+# electron-builder.yml, dist/, resources/, and build/ as the project root
+# (matches the CI macOS/Windows jobs and scripts/package.mjs).
 # shellcheck disable=SC2086
-bunx electron-builder ${PLATFORM} ${BUILDER_ARCH} --publish=never --config packages/electron/electron-builder.yml
+node ./packages/electron/scripts/package.mjs ${PLATFORM} ${BUILDER_ARCH} --publish=never
 
 echo "==> Done. Artifacts in packages/electron/dist/"
