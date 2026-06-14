@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-06-14
+
+- Desktop: added macOS and Windows OS shell handling so dropping a folder onto AX Code Desktop can add or activate that project.
+- UI: fixed first-run provider loading and improved project knowledge detection for AGENTS.md files.
+- Tests: kept the Electron open-path coverage compatible with the repository's Bun/Vitest test runner split.
+
 ## [1.1.0] - 2026-06-14
 
 - Desktop: made the Electron shell the default desktop runtime and removed the legacy Tauri shell.

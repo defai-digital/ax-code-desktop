@@ -1,6 +1,6 @@
 {
   "name": "ax-code-desktop-monorepo",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "AX Code Desktop — AI coding assistant GUI, desktop runtime",
   "private": true,
   "type": "module",
