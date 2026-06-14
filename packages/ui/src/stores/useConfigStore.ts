@@ -613,7 +613,15 @@ export const useConfigStore = create<ConfigStore>()(
                         : {});
                     let lastError: unknown = null;
 
-                    for (let attempt = 0; attempt < 8; attempt++) {
+                    // Retry budget MUST exceed the ax-code proxy provider-readiness
+                    // grace window (OPEN_CODE_READY_GRACE_MS = 12s on the server).
+                    // A newly installed user has zero providers configured, so their
+                    // `providersReady` stays false for the full grace window and the
+                    // proxy gates GET /config/providers with 503 until uptime > 12s.
+                    // With 12 attempts and 250*(attempt+1) backoff, the last useful
+                    // attempt lands at ~16.5s — safely past the gate — so the
+                    // (possibly empty) list loads instead of surfacing a load error.
+                    for (let attempt = 0; attempt < 12; attempt++) {
                         try {
                             ensureModelsMetadataFetch(
                                 () => get().modelsMetadata,
