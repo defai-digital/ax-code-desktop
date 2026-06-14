@@ -25,6 +25,7 @@ const dgram = require('dgram')
 const { execFile, spawn, spawnSync } = require('child_process')
 const { promisify } = require('util')
 const { createStartupDiagnostics } = require('./startup-diagnostics')
+const { collectOpenPathCandidates } = require('./open-paths')
 const { ElectronSshManager } = require('./ssh-manager.mjs')
 const { createTrayController } = require('./tray.mjs')
 
@@ -78,6 +79,11 @@ let serverPort = 0
 let serverChild = null
 let isQuitting = false
 let isRelaunchingServer = false
+let rendererReadyForOpenProject = false
+let externalOpenPathDrainRunning = false
+let externalOpenPathHandlerReady = false
+const pendingExternalOpenRequests = []
+const pendingOpenProjectPaths = []
 const startupDiagnostics = createStartupDiagnostics({
   logPath: process.platform === 'darwin'
     ? path.join(os.homedir(), 'Library', 'Logs', 'AX Code Desktop', 'main.log')
@@ -105,10 +111,22 @@ if (!hasSingleInstanceLock) {
   app.quit()
 }
 
-app.on('second-instance', () => {
-  if (!mainWindow || mainWindow.isDestroyed()) return
-  if (mainWindow.isMinimized()) mainWindow.restore()
-  mainWindow.focus()
+app.on('second-instance', (_event, argv, cwd) => {
+  queueExternalOpenRequest({
+    argv,
+    cwd,
+    source: 'second-instance',
+  })
+  focusMainWindowIfPresent()
+})
+
+app.on('open-file', (event, filePath) => {
+  event.preventDefault()
+  queueExternalOpenRequest({
+    argv: [filePath],
+    cwd: process.cwd(),
+    source: 'open-file',
+  })
 })
 
 // ── Server ──────────────────────────────────────────────────────────────────
@@ -244,6 +262,7 @@ function isTrustedRendererNavigation(url) {
 }
 
 async function createWindow() {
+  rendererReadyForOpenProject = false
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -510,7 +529,7 @@ const INSTALLED_APPS_CACHE_FILE = 'discovered-apps.json'
 //    shim (menu-action, check-for-updates, update-progress, ssh-instance-status)
 //  - an envelope on 'ax-code:dom-event', which the preload re-dispatches as a DOM
 //    CustomEvent for consumers using window.addEventListener (open-session,
-//    open-draft-session, installed-apps-updated, system-resume).
+//    open-draft-session, open-project, installed-apps-updated, system-resume).
 const sendDesktopEvent = (webContents, event, detail) => {
   webContents.send(event, detail)
   webContents.send('ax-code:dom-event', { event, detail })
@@ -524,6 +543,106 @@ const emitToAllWindows = (event, detail) => {
 
 const emitToWindow = (win, event, detail) => {
   if (win && !win.isDestroyed()) sendDesktopEvent(win.webContents, event, detail)
+}
+
+function focusMainWindowIfPresent() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.focus()
+}
+
+function queueExternalOpenRequest(request) {
+  pendingExternalOpenRequests.push(request)
+  if (externalOpenPathHandlerReady) {
+    void drainExternalOpenRequests()
+  }
+}
+
+function enqueueOpenProjectPath(projectPath) {
+  const key = process.platform === 'win32' ? projectPath.toLowerCase() : projectPath
+  const alreadyPending = pendingOpenProjectPaths.some((candidate) => {
+    const candidateKey = process.platform === 'win32' ? candidate.toLowerCase() : candidate
+    return candidateKey === key
+  })
+  if (!alreadyPending) pendingOpenProjectPaths.push(projectPath)
+}
+
+async function revealMainWindowForOpenProject() {
+  if (!app.isReady() || serverPort <= 0) return
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    await createWindow()
+  }
+  focusMainWindowIfPresent()
+}
+
+function flushPendingOpenProjectPaths() {
+  if (!rendererReadyForOpenProject || !mainWindow || mainWindow.isDestroyed()) return
+
+  while (pendingOpenProjectPaths.length > 0) {
+    const projectPath = pendingOpenProjectPaths.shift()
+    if (projectPath) emitToWindow(mainWindow, 'openchamber:open-project', { projectPath })
+  }
+}
+
+async function handleExternalOpenRequest(request) {
+  const candidates = collectOpenPathCandidates(request.argv, {
+    appExecutablePath: process.execPath,
+    cwd: request.cwd,
+    platform: process.platform,
+  })
+  if (candidates.length === 0) return
+
+  const directoryPaths = []
+  for (const candidate of candidates) {
+    try {
+      const stat = await fsp.stat(candidate)
+      if (stat.isDirectory()) directoryPaths.push(candidate)
+    } catch {
+      // Dropped files or stale paths are ignored; only directories become projects.
+    }
+  }
+  if (directoryPaths.length === 0) return
+
+  for (const projectPath of directoryPaths) enqueueOpenProjectPath(projectPath)
+  recordStartupEvent('external-open.directories', {
+    source: request.source,
+    count: directoryPaths.length,
+  }, { once: false })
+
+  await revealMainWindowForOpenProject()
+  flushPendingOpenProjectPaths()
+}
+
+async function drainExternalOpenRequests() {
+  if (externalOpenPathDrainRunning) return
+  externalOpenPathDrainRunning = true
+  try {
+    while (pendingExternalOpenRequests.length > 0) {
+      const request = pendingExternalOpenRequests.shift()
+      if (request) await handleExternalOpenRequest(request)
+    }
+  } finally {
+    externalOpenPathDrainRunning = false
+    if (pendingExternalOpenRequests.length > 0) {
+      void drainExternalOpenRequests()
+    }
+  }
+}
+
+ipcMain.on('ax-code:renderer-app-ready', (event) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (event.sender !== mainWindow.webContents) return
+  rendererReadyForOpenProject = true
+  flushPendingOpenProjectPaths()
+})
+
+externalOpenPathHandlerReady = true
+if (hasSingleInstanceLock) {
+  queueExternalOpenRequest({
+    argv: process.argv,
+    cwd: process.cwd(),
+    source: 'startup-argv',
+  })
 }
 
 // ── Settings persistence ──────────────────────────────────────────────────

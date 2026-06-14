@@ -18,6 +18,10 @@ ipcRenderer.on('ax-code:dom-event', (_event, payload) => {
   }
 })
 
+window.addEventListener('openchamber:app-ready', () => {
+  ipcRenderer.send('ax-code:renderer-app-ready')
+}, { once: true })
+
 // Signal to the UI that it's running inside the Electron shell.
 // Detected by isElectronShell() in packages/ui/src/lib/desktop.ts.
 contextBridge.exposeInMainWorld('__AX_CODE_DESKTOP_ELECTRON__', {
