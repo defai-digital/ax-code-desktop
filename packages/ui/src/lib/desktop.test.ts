@@ -1,27 +1,47 @@
 import { describe, expect, test } from 'bun:test';
-import { requestDirectoryAccess } from './desktop';
+import {
+  checkForDesktopUpdates,
+  downloadDesktopUpdate,
+  requestDirectoryAccess,
+  restartToApplyUpdate,
+} from './desktop';
 
 const restoreWindow = () => {
   delete (globalThis as Record<string, unknown>).window;
 };
 
-const mockDesktopWindow = (dialogOpen: (options: Record<string, unknown>) => Promise<unknown>) => {
+type MockDesktopWindowOptions = {
+  dialogOpen?: (options: Record<string, unknown>) => Promise<unknown>;
+  invoke?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+  listen?: (event: string, handler: (evt: { payload?: unknown }) => void) => Promise<() => void>;
+  exposeTauri?: boolean;
+};
+
+const mockDesktopWindow = (options: MockDesktopWindowOptions = {}) => {
+  const exposeTauri = options.exposeTauri ?? true;
   (globalThis as Record<string, unknown>).window = {
     location: { origin: 'http://localhost:5173' },
     __AX_CODE_DESKTOP_ELECTRON__: { runtime: 'electron' },
-    __TAURI__: {
-      core: { invoke: async () => null },
-      dialog: { open: dialogOpen },
-    },
+    ...(exposeTauri
+      ? {
+        __TAURI__: {
+          core: { invoke: options.invoke ?? (async () => null) },
+          dialog: { open: options.dialogOpen ?? (async () => null) },
+          event: options.listen ? { listen: options.listen } : undefined,
+        },
+      }
+      : {}),
   };
 };
 
 describe('requestDirectoryAccess', () => {
   test('uses the desktop dialog bridge for local Electron directory selection', async () => {
     const calls: Record<string, unknown>[] = [];
-    mockDesktopWindow(async (options) => {
-      calls.push(options);
-      return '/Users/test/project';
+    mockDesktopWindow({
+      dialogOpen: async (options) => {
+        calls.push(options);
+        return '/Users/test/project';
+      },
     });
 
     const result = await requestDirectoryAccess('/Users/test');
@@ -38,13 +58,77 @@ describe('requestDirectoryAccess', () => {
   });
 
   test('reports cancellation when the desktop dialog returns no path', async () => {
-    mockDesktopWindow(async () => null);
+    mockDesktopWindow({ dialogOpen: async () => null });
 
     const result = await requestDirectoryAccess('/Users/test');
     expect(result).toEqual({
       success: false,
       error: 'Directory selection cancelled',
     });
+    restoreWindow();
+  });
+});
+
+describe('desktop updater IPC', () => {
+  test('checks for updates through the Electron desktop bridge', async () => {
+    const commands: string[] = [];
+    mockDesktopWindow({
+      invoke: async (command) => {
+        commands.push(command);
+        return { available: true, version: '1.1.2', currentVersion: '1.1.1' };
+      },
+    });
+
+    const result = await checkForDesktopUpdates();
+
+    expect(result).toEqual({ available: true, version: '1.1.2', currentVersion: '1.1.1' });
+    expect(commands).toEqual(['desktop_check_for_updates']);
+    restoreWindow();
+  });
+
+  test('does not report a desktop update check when the IPC bridge is unavailable', async () => {
+    mockDesktopWindow({ exposeTauri: false });
+
+    expect(await checkForDesktopUpdates()).toBeNull();
+    restoreWindow();
+  });
+
+  test('downloads updates through the Electron desktop bridge', async () => {
+    const commands: string[] = [];
+    mockDesktopWindow({
+      invoke: async (command) => {
+        commands.push(command);
+        return null;
+      },
+      listen: async (event, handler) => {
+        handler({ payload: { event: 'Started', data: { contentLength: 10 } } });
+        expect(event).toBe('openchamber:update-progress');
+        return () => {
+          commands.push('unlisten');
+        };
+      },
+    });
+    const progress: Array<{ downloaded: number; total?: number }> = [];
+
+    const result = await downloadDesktopUpdate((next) => progress.push(next));
+
+    expect(result).toBe(true);
+    expect(commands).toEqual(['desktop_download_and_install_update', 'unlisten']);
+    expect(progress).toEqual([{ downloaded: 0, total: 10 }]);
+    restoreWindow();
+  });
+
+  test('applies Electron updates through quit-and-install', async () => {
+    const commands: string[] = [];
+    mockDesktopWindow({
+      invoke: async (command) => {
+        commands.push(command);
+        return null;
+      },
+    });
+
+    expect(await restartToApplyUpdate()).toBe(true);
+    expect(commands).toEqual(['desktop_quit_and_install']);
     restoreWindow();
   });
 });

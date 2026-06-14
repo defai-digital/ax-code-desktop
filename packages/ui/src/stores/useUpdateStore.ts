@@ -5,8 +5,8 @@ import {
   downloadDesktopUpdate,
   restartToApplyUpdate,
   isDesktopLocalOriginActive,
+  isDesktopShell,
   isElectronShell,
-  isTauriShell,
   isWebRuntime,
 } from '@/lib/desktop';
 import { API_ENDPOINTS } from '@/lib/http';
@@ -80,8 +80,8 @@ async function checkForWebUpdates(runtime: ClientRuntime, currentVersion?: strin
 }
 
 function detectRuntimeType(): 'desktop' | 'web' | null {
-  if (isTauriShell()) {
-    // Only use Tauri updater when we're on the local instance.
+  if (isDesktopShell()) {
+    // Only use the native updater when we're on the local instance.
     // When viewing a remote host inside the desktop shell, treat update as web update.
     return isDesktopLocalOriginActive() ? 'desktop' : 'web';
   }
