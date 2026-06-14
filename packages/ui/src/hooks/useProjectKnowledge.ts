@@ -2,27 +2,36 @@ import React from 'react';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 
 export type ProjectKnowledgeState = {
+  /** True when any project knowledge file (CLAUDE.md or AGENTS.md) exists. */
   exists: boolean;
+  /** True when a project-level CLAUDE.md exists. */
+  claudeMd: boolean;
+  /** True when a project-level AGENTS.md exists. */
+  agentsMd: boolean;
   isLoading: boolean;
 };
+
+const EMPTY: ProjectKnowledgeState = { exists: false, claudeMd: false, agentsMd: false, isLoading: false };
 
 const cache = new Map<string, ProjectKnowledgeState>();
 
 /**
- * Detects whether a CLAUDE.md project knowledge file exists in the given
- * workspace directory. ax-code reads this file automatically at session start;
- * this hook surfaces the result in the UI (indicator + "create" shortcut).
+ * Detects whether project knowledge files exist in the given workspace
+ * directory. ax-code reads both CLAUDE.md and project-level AGENTS.md
+ * automatically at session start; this hook surfaces the result in the UI
+ * (indicator + "create" shortcut).
  */
 export function useProjectKnowledge(directory: string | null | undefined): ProjectKnowledgeState {
   const { files } = useRuntimeAPIs();
   const [state, setState] = React.useState<ProjectKnowledgeState>(() => {
-    if (!directory) return { exists: false, isLoading: false };
-    return cache.get(directory) ?? { exists: false, isLoading: true };
+    if (!directory) return EMPTY;
+    return cache.get(directory) ?? { ...EMPTY, isLoading: true };
   });
 
   React.useEffect(() => {
-    if (!directory || !files.readFile) {
-      setState({ exists: false, isLoading: false });
+    const readFile = files.readFile;
+    if (!directory || !readFile) {
+      setState(EMPTY);
       return;
     }
 
@@ -33,19 +42,21 @@ export function useProjectKnowledge(directory: string | null | undefined): Proje
     }
 
     let cancelled = false;
-    setState({ exists: false, isLoading: true });
+    setState({ ...EMPTY, isLoading: true });
 
-    const claudeMdPath = directory.replace(/\/$/, '') + '/CLAUDE.md';
-    files.readFile(claudeMdPath)
-      .then(() => {
+    const base = directory.replace(/\/$/, '');
+    const probe = (name: string) =>
+      readFile(`${base}/${name}`).then(() => true).catch(() => false);
+
+    Promise.all([probe('CLAUDE.md'), probe('AGENTS.md')])
+      .then(([claudeMd, agentsMd]) => {
         if (cancelled) return;
-        const next = { exists: true, isLoading: false };
-        cache.set(directory, next);
-        setState(next);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        const next = { exists: false, isLoading: false };
+        const next: ProjectKnowledgeState = {
+          exists: claudeMd || agentsMd,
+          claudeMd,
+          agentsMd,
+          isLoading: false,
+        };
         cache.set(directory, next);
         setState(next);
       });
@@ -54,4 +65,16 @@ export function useProjectKnowledge(directory: string | null | undefined): Proje
   }, [directory, files]);
 
   return state;
+}
+
+/**
+ * Builds a display label naming the detected project knowledge file(s),
+ * e.g. "CLAUDE.md", "AGENTS.md", or "CLAUDE.md + AGENTS.md". Returns an
+ * empty string when none are present.
+ */
+export function projectKnowledgeFileLabel(state: ProjectKnowledgeState): string {
+  const files: string[] = [];
+  if (state.claudeMd) files.push('CLAUDE.md');
+  if (state.agentsMd) files.push('AGENTS.md');
+  return files.join(' + ');
 }

@@ -1439,7 +1439,7 @@ export const dict = {
   'chat.draftPresets.summarise.label': 'Summarise codebase',
   'chat.draftPresets.findBugs.label': 'Find bugs in recent commits',
   'chat.draftPresets.writeTests.label': 'Write tests for recent changes',
-  'chat.projectKnowledge.loaded': 'CLAUDE.md loaded',
+  'chat.projectKnowledge.loaded': '{file} loaded',
   'chat.projectKnowledge.create': 'Create CLAUDE.md',
   'chat.projectKnowledge.createPrompt': 'Create a CLAUDE.md file for this project that documents the architecture, coding conventions, and key files',
   'chat.activity.aria': 'Agent activity: {label}',

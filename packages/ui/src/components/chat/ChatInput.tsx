@@ -53,7 +53,7 @@ import { GitHubIssuePickerDialog } from '@/components/session/GitHubIssuePickerD
 import { GitHubPrPickerDialog } from '@/components/session/GitHubPrPickerDialog';
 import { Icon } from "@/components/icon/Icon";
 import { DraftPresetChips } from './DraftPresetChips';
-import { useProjectKnowledge } from '@/hooks/useProjectKnowledge';
+import { useProjectKnowledge, projectKnowledgeFileLabel } from '@/hooks/useProjectKnowledge';
 import { useChatSearchDirectory } from '@/hooks/useChatSearchDirectory';
 import { axCodeClient } from '@/lib/ax-code/client';
 import { useProjectsStore } from '@/stores/useProjectsStore';
@@ -3654,7 +3654,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                             {projectKnowledge.exists ? (
                                 <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                    {t('chat.projectKnowledge.loaded')}
+                                    {t('chat.projectKnowledge.loaded', { file: projectKnowledgeFileLabel(projectKnowledge) })}
                                 </span>
                             ) : (
                                 <button

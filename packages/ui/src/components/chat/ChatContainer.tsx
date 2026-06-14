@@ -51,7 +51,7 @@ import { getSessionMaterializationStatus } from '@/sync/materialization';
 import { usePlanDetection } from '@/hooks/usePlanDetection';
 import { getAllSyncSessions } from '@/sync/sync-refs';
 import { useI18n } from '@/lib/i18n';
-import { useProjectKnowledge } from '@/hooks/useProjectKnowledge';
+import { useProjectKnowledge, projectKnowledgeFileLabel } from '@/hooks/useProjectKnowledge';
 
 const EMPTY_MESSAGES: Array<{ info: Message; parts: Part[] }> = [];
 const EMPTY_PERMISSIONS: PermissionRequest[] = [];
@@ -839,7 +839,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
 								{projectKnowledge.exists ? (
 									<span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400">
 										<span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-										{t('chat.projectKnowledge.loaded')}
+										{t('chat.projectKnowledge.loaded', { file: projectKnowledgeFileLabel(projectKnowledge) })}
 									</span>
 								) : (
 									<button
