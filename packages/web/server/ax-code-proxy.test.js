@@ -204,13 +204,15 @@ describe('AX Code proxy SSE forwarding', () => {
     expect(put.status).toBe(200);
     expect(sawPut).toBe(true);
 
-    // Reading the provider list is still gated during the warmup grace window.
+    // Provider reads are NOT gated by provider warmup: a first-run user with no
+    // providers configured must be able to load the (correctly empty) list to
+    // add their first provider, even while providersReady is still false.
     const get = await fetch(`http://127.0.0.1:${proxyPort}/api/config/providers`);
-    expect(get.status).toBe(503);
-    expect(await get.json()).toMatchObject({ restarting: true });
+    expect(get.status).toBe(200);
+    expect(await get.json()).toEqual({ providers: [] });
   });
 
-  it('stops gating provider reads once the grace window elapses', async () => {
+  it('serves provider reads once the core is ready, regardless of provider warmup', async () => {
     const upstream = express();
     upstream.get('/config/providers', (_req, res) => {
       res.json({ providers: [] });
@@ -230,8 +232,10 @@ describe('AX Code proxy SSE forwarding', () => {
         axCodeNotReadySince: 0,
         isRestartingAxCode: false,
         axCodeRuntimeHealth: {
+          // Early uptime + providersReady:false — the old code would have 503'd
+          // this; it must now pass through since the core is ready.
           readiness: { providersReady: false },
-          startup: { uptimeMs: 60000 },
+          startup: { uptimeMs: 100 },
         },
       }),
       getAxCodeAuthHeaders: () => ({}),

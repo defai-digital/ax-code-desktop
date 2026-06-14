@@ -46,6 +46,13 @@ const formatTokens = (value?: number | null) => {
 
 const ADD_PROVIDER_ID = '__add_provider__';
 const PROVIDER_REQUEST_RETRY_DELAYS_MS = [250, 500, 750, 1000, 1500, 2000, 2500, 3000];
+// While the engine is still starting it answers provider reads with
+// 503 {restarting:true}. Rather than dead-end the panel, we keep the loading
+// state and re-poll on this interval until the engine is up.
+const PROVIDER_RESTART_POLL_MS = 2000;
+
+const isRestartingError = (error: unknown): boolean =>
+  isRecord(error) && error.restarting === true;
 
 interface AuthMethod {
   type?: string;
@@ -169,7 +176,7 @@ const fetchProviderJsonWithRetry = async (url: string, init: RequestInit) => {
       const message = isRecord(payload) && typeof payload.error === 'string'
         ? payload.error
         : `Provider request failed (${response.status})`;
-      throw Object.assign(new Error(message), { noRetry: true });
+      throw Object.assign(new Error(message), { noRetry: true, restarting });
     } catch (error) {
       lastError = error;
       if (isRecord(error) && error.noRetry === true) {
@@ -229,6 +236,7 @@ export const ProvidersPage: React.FC = () => {
 
   React.useEffect(() => {
     let isMounted = true;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const loadAuthMethods = async () => {
       setAuthLoading(true);
@@ -239,14 +247,17 @@ export const ProvidersPage: React.FC = () => {
         });
         if (!isMounted) return;
         setAuthMethodsByProvider(parseAuthPayload(payload));
+        setAuthLoading(false);
       } catch (error) {
         if (!isMounted) return;
+        if (isRestartingError(error)) {
+          // Engine still starting — keep loading and poll instead of erroring.
+          retryTimer = setTimeout(loadAuthMethods, PROVIDER_RESTART_POLL_MS);
+          return;
+        }
         console.error('Failed to load provider auth methods:', error);
         toast.error(t('settings.providers.page.toast.authMethodsLoadFailed'));
-      } finally {
-        if (isMounted) {
-          setAuthLoading(false);
-        }
+        setAuthLoading(false);
       }
     };
 
@@ -254,11 +265,13 @@ export const ProvidersPage: React.FC = () => {
 
     return () => {
       isMounted = false;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [directory, t]);
 
   React.useEffect(() => {
     let isMounted = true;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const loadAvailableProviders = async () => {
       setAvailableLoading(true);
@@ -270,14 +283,18 @@ export const ProvidersPage: React.FC = () => {
         });
         if (!isMounted) return;
         setAvailableProviders(parseProvidersPayload(payload));
+        setAvailableLoading(false);
       } catch (error) {
         if (!isMounted) return;
+        if (isRestartingError(error)) {
+          // Engine still starting — keep loading and poll so the "Connect
+          // Provider" list populates once it is up instead of dead-ending.
+          retryTimer = setTimeout(loadAvailableProviders, PROVIDER_RESTART_POLL_MS);
+          return;
+        }
         console.error('Failed to load available providers:', error);
         setAvailableError(t('settings.providers.page.state.unableToLoadProviderList'));
-      } finally {
-        if (isMounted) {
-          setAvailableLoading(false);
-        }
+        setAvailableLoading(false);
       }
     };
 
@@ -285,6 +302,7 @@ export const ProvidersPage: React.FC = () => {
 
     return () => {
       isMounted = false;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [directory, t]);
 

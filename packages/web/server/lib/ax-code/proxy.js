@@ -459,19 +459,14 @@ export const registerAxCodeProxy = (app, deps) => {
 
   // Readiness gate — return 503 while ax-code is starting/restarting
   app.use('/api', (req, res, next) => {
-    // The provider grace window exists only to avoid serving a stale/empty
-    // provider *list* while providers are still warming up — purely a read
-    // concern. Writes (adding/removing provider credentials, OAuth callbacks)
-    // are exactly how a user configures their first provider, so they must
-    // never be gated by provider readiness; otherwise a user with no ready
-    // providers yet can never add one. Only gate safe, read-only methods.
-    const isReadRequest = req.method === 'GET' || req.method === 'HEAD';
-    const isProviderRequest =
-      isReadRequest &&
-      (req.path.startsWith('/config/providers') ||
-        req.path.startsWith('/provider/') ||
-        req.path.startsWith('/auth/'));
-
+    // Provider reads (provider list, auth methods) are intentionally NOT gated
+    // by provider "warmup" readiness. For a first-run user with no providers
+    // configured, `providersReady` can stay not-ready even though the
+    // (correctly empty) list is already serveable — gating it just turns a
+    // transient warmup into a hard "Unable to load providers" error and blocks
+    // the very flow used to add a first provider. Provider requests are gated
+    // only by genuine core readiness (below); the UI keeps polling a
+    // 503 {restarting:true} instead of dead-ending.
     if (
       req.path.startsWith('/themes/custom') ||
       req.path.startsWith('/push') ||
@@ -491,25 +486,7 @@ export const registerAxCodeProxy = (app, deps) => {
       (!runtimeState.isAxCodeReady && (runtimeState.axCodeNotReadySince === 0 || waitElapsed < OPEN_CODE_READY_GRACE_MS)) ||
       runtimeState.isRestartingAxCode ||
       !runtimeState.axCodePort;
-    const providersReady = runtimeState.axCodeRuntimeHealth?.readiness?.providersReady;
-    // Providers can keep warming after the core reports ready. Hold provider/auth
-    // requests for a grace period so the UI doesn't see an empty provider list,
-    // then let them through. We measure this against runtime uptime, not
-    // `waitElapsed` — once the core is ready `axCodeNotReadySince` is 0, so
-    // `waitElapsed` is pinned to 0 and the grace window would never expire,
-    // blocking provider/auth requests forever if providers never report ready.
-    const providerUptimeMs = runtimeState.axCodeRuntimeHealth?.startup?.uptimeMs;
-    const withinProviderGrace =
-      typeof providerUptimeMs === 'number'
-        ? providerUptimeMs < OPEN_CODE_READY_GRACE_MS
-        : false;
-    const stillWaitingForProviders =
-      isProviderRequest &&
-      runtimeState.axCodeRuntimeHealth?.readiness &&
-      !isAxCodeReadinessValueReady(providersReady) &&
-      withinProviderGrace;
-
-    if (stillWaiting || stillWaitingForProviders) {
+    if (stillWaiting) {
       return res.status(503).json({
         error: 'ax-code is restarting',
         restarting: true,
