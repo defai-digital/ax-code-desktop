@@ -385,7 +385,7 @@ jobs:
           - arch: x64
             target: x86_64-pc-windows-msvc
             platform: win32-x64
-            runner: windows-latest
+            runner: windows-2022
           - arch: arm64
             target: aarch64-pc-windows-msvc
             platform: win32-arm64
@@ -484,7 +484,7 @@ jobs:
         env:
           LATEST_YML_DIR: ${{ github.workspace }}/artifacts
           GH_REPO: ${{ github.repository }}
-          OPENCHAMBER_VERSION: ${{ needs.create-release.outputs.version }}
+          AX_CODE_DESKTOP_VERSION: ${{ needs.create-release.outputs.version }}
         run: node packages/electron/scripts/finalize-latest-yml.mjs
 
       - name: Upload combined manifests to release
@@ -517,7 +517,7 @@ jobs:
         env:
           LATEST_YML_DIR: ${{ github.workspace }}/artifacts
           GH_REPO: ${{ github.repository }}
-          OPENCHAMBER_VERSION: ${{ needs.create-release.outputs.version }}
+          AX_CODE_DESKTOP_VERSION: ${{ needs.create-release.outputs.version }}
         run: node packages/electron/scripts/finalize-windows-latest-yml.mjs
 
       - name: Upload combined Windows manifest to release

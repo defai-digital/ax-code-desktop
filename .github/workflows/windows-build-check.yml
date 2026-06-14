@@ -26,7 +26,7 @@ jobs:
         include:
           - arch: x64
             target: x86_64-pc-windows-msvc
-            runner: windows-latest
+            runner: windows-2022
           - arch: arm64
             target: aarch64-pc-windows-msvc
             runner: windows-11-arm
@@ -111,7 +111,7 @@ jobs:
       - name: Merge into one latest.yml and print it
         env:
           LATEST_YML_DIR: ${{ github.workspace }}/artifacts
-          OPENCHAMBER_VERSION: 0.0.0-dryrun
+          AX_CODE_DESKTOP_VERSION: 0.0.0-dryrun
         run: |
           node packages/electron/scripts/finalize-windows-latest-yml.mjs
           echo "----- merged latest.yml -----"
