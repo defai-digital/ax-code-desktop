@@ -374,9 +374,16 @@ ipcMain.handle('desktop_download_and_install_update', async () => {
   await autoUpdater.downloadUpdate()
 })
 
+// Stop the web server AND tear down SSH control-masters/forwards, so quitting
+// the app doesn't orphan `ssh -M` processes and bound local ports.
+const stopBackgroundServices = () => Promise.allSettled([
+  stopServer(),
+  sshManager.shutdownAll().catch(() => {}),
+])
+
 async function shutdownForExit() {
   isQuitting = true
-  await stopServer()
+  await stopBackgroundServices()
 }
 
 ipcMain.handle('desktop_quit_and_install', async () => {
@@ -486,10 +493,25 @@ const INSTALLED_APPS_CACHE_FILE = 'discovered-apps.json'
 // Broadcast a renderer event. Our preload listens on the literal `openchamber:*`
 // channels (a retained contract), so emit on the literal event name directly —
 // no `openchamber:emit` envelope.
+// Desktop events reach the renderer two ways, so send both:
+//  - the literal channel, consumed via the preload's __TAURI__.event.listen
+//    shim (menu-action, check-for-updates, update-progress, ssh-instance-status)
+//  - an envelope on 'ax-code:dom-event', which the preload re-dispatches as a DOM
+//    CustomEvent for consumers using window.addEventListener (open-session,
+//    open-draft-session, installed-apps-updated, system-resume).
+const sendDesktopEvent = (webContents, event, detail) => {
+  webContents.send(event, detail)
+  webContents.send('ax-code:dom-event', { event, detail })
+}
+
 const emitToAllWindows = (event, detail) => {
   for (const w of BrowserWindow.getAllWindows()) {
-    if (!w.isDestroyed()) w.webContents.send(event, detail)
+    if (!w.isDestroyed()) sendDesktopEvent(w.webContents, event, detail)
   }
+}
+
+const emitToWindow = (win, event, detail) => {
+  if (win && !win.isDestroyed()) sendDesktopEvent(win.webContents, event, detail)
 }
 
 // ── Settings persistence ──────────────────────────────────────────────────
@@ -2127,7 +2149,8 @@ handleCommand('desktop_set_window_pinned', async (args, event) => {
   const win = senderWindow(event)
   const pinned = Boolean(args && args.pinned === true)
   if (win && !win.isDestroyed()) {
-    win.setAlwaysOnTop(pinned)
+    win.setAlwaysOnTop(pinned, 'floating')
+    if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(pinned)
     win.__ocPinned = pinned
   }
   return { pinned }
@@ -2143,15 +2166,33 @@ handleCommand('desktop_focus_main_window', async (args) => {
   const directory = typeof args.directory === 'string' ? args.directory.trim() : ''
   const mode = typeof args.mode === 'string' ? args.mode.trim() : ''
   const projectId = typeof args.projectId === 'string' ? args.projectId.trim() : ''
-  if (!mainWindow || mainWindow.isDestroyed()) {
+
+  const emitOpen = () => {
+    // Target the main window only — broadcasting would also hit the mini-chat
+    // that requested the hand-off.
+    if (sessionId) emitToWindow(mainWindow, 'openchamber:open-session', { sessionId, directory })
+    else if (mode === 'draft') emitToWindow(mainWindow, 'openchamber:open-draft-session', { directory, projectId })
+  }
+
+  const hadWindow = Boolean(mainWindow && !mainWindow.isDestroyed())
+  if (!hadWindow) {
     await createWindow()
   }
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.show()
     mainWindow.focus()
-    if (sessionId) emitToAllWindows('openchamber:open-session', { sessionId, directory })
-    else if (mode === 'draft') emitToAllWindows('openchamber:open-draft-session', { directory, projectId })
+    if (hadWindow) {
+      emitOpen()
+    } else {
+      // A freshly created window's renderer hasn't mounted React (and attached
+      // the window 'openchamber:open-session' listener) by the time loadURL
+      // resolves, so emitting now would be lost. Wait for the document, then
+      // give the bundle a moment to mount before delivering the deep-link.
+      mainWindow.webContents.once('did-finish-load', () => {
+        setTimeout(emitOpen, 400)
+      })
+    }
   }
   return { focused: true }
 })
@@ -2255,7 +2296,7 @@ app.on('window-all-closed', () => {
   // On macOS, keep the server running so the user can reopen from the dock.
   if (process.platform !== 'darwin') {
     isQuitting = true
-    stopServer().finally(() => app.quit())
+    stopBackgroundServices().finally(() => app.quit())
   }
 })
 
@@ -2274,5 +2315,5 @@ app.on('before-quit', (event) => {
   if (isQuitting) return
   isQuitting = true
   event.preventDefault()
-  stopServer().finally(() => app.quit())
+  stopBackgroundServices().finally(() => app.quit())
 })

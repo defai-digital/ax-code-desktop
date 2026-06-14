@@ -2,6 +2,22 @@
 
 const { contextBridge, ipcRenderer } = require('electron')
 
+// Bridge main-process desktop events to DOM CustomEvents. Several UI consumers
+// listen via window.addEventListener('openchamber:...') (e.g. open-session,
+// open-draft-session, installed-apps-updated, system-resume) rather than the
+// __TAURI__.event.listen shim below, so the main process sends an envelope on
+// 'ax-code:dom-event' that we re-dispatch on window. Scoped to the openchamber:
+// namespace so the page cannot be fed arbitrary event names.
+ipcRenderer.on('ax-code:dom-event', (_event, payload) => {
+  const name = payload && typeof payload.event === 'string' ? payload.event : ''
+  if (!name.startsWith('openchamber:')) return
+  try {
+    window.dispatchEvent(new CustomEvent(name, { detail: payload.detail }))
+  } catch {
+    // window may not be ready yet; the event is best-effort.
+  }
+})
+
 // Signal to the UI that it's running inside the Electron shell.
 // Detected by isElectronShell() in packages/ui/src/lib/desktop.ts.
 contextBridge.exposeInMainWorld('__AX_CODE_DESKTOP_ELECTRON__', {
