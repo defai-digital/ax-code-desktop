@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-14
+
+- Desktop: made the Electron shell the default desktop runtime and removed the legacy Tauri shell.
+- Desktop: added VS Code-style zoom controls to the Electron View menu.
+- UI: added the AutomatosX theme defaults and aligned add-provider and scrollbar highlights with the active theme color.
+- Runtime: fixed desktop event delivery, SSH cleanup, and mini-chat hand-off reliability.
+
 ## [1.0.1] - 2026-06-12
 
 - UI: added session activity badges, permission notifications, done-not-committed prompts, diff comment summaries, and loading/error polish for desktop workflows.
