@@ -1,3 +1,5 @@
+import type { ProjectEntry } from '@/lib/api/types';
+
 export const OPEN_SESSION_EVENT = 'openchamber:open-session';
 export const OPEN_DRAFT_SESSION_EVENT = 'openchamber:open-draft-session';
 export const OPEN_PROJECT_EVENT = 'openchamber:open-project';
@@ -14,6 +16,13 @@ export type OpenDraftSessionEventDetail = {
 
 export type OpenProjectEventDetail = {
   readonly projectPath: string;
+};
+
+export type OpenProjectStoreAdapter = {
+  readonly projects: ReadonlyArray<Pick<ProjectEntry, 'id' | 'path'>>;
+  validateProjectPath: (path: string) => { ok: boolean; normalizedPath?: string };
+  setActiveProject: (id: string) => void;
+  addProject: (path: string) => ProjectEntry | null;
 };
 
 const getEventDetailRecord = (event: Event): Record<string, unknown> | null => {
@@ -57,4 +66,23 @@ export function parseOpenProjectEvent(event: Event): OpenProjectEventDetail | nu
   const detail = getEventDetailRecord(event);
   const projectPath = trimmedString(detail?.projectPath);
   return projectPath ? { projectPath } : null;
+}
+
+export function applyOpenProjectPathToStore(
+  projectPath: string,
+  projectsStore: OpenProjectStoreAdapter,
+): string | null {
+  const validation = projectsStore.validateProjectPath(projectPath);
+  const normalizedPath = validation.ok ? validation.normalizedPath : null;
+  if (!normalizedPath) {
+    return null;
+  }
+
+  const existing = projectsStore.projects.find((project) => project.path === normalizedPath);
+  if (existing) {
+    projectsStore.setActiveProject(existing.id);
+    return existing.id;
+  }
+
+  return projectsStore.addProject(normalizedPath)?.id ?? null;
 }

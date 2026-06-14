@@ -52,6 +52,7 @@ import { API_ENDPOINTS, HTTP_DEFAULTS } from '@/lib/http';
 import {
   OPEN_DRAFT_SESSION_EVENT,
   OPEN_PROJECT_EVENT,
+  applyOpenProjectPathToStore,
   OPEN_SESSION_EVENT,
   parseOpenDraftSessionEvent,
   parseOpenProjectEvent,
@@ -614,13 +615,7 @@ function App({ apis }: AppProps) {
     const handler = (event: Event) => {
       const detail = parseOpenProjectEvent(event);
       if (!detail) return;
-      const projectsStore = useProjectsStore.getState();
-      const existing = projectsStore.projects.find((project) => project.path === detail.projectPath);
-      if (existing) {
-        projectsStore.setActiveProject(existing.id);
-      } else {
-        projectsStore.addProject(detail.projectPath);
-      }
+      applyOpenProjectPathToStore(detail.projectPath, useProjectsStore.getState());
     };
 
     window.addEventListener(OPEN_PROJECT_EVENT, handler);

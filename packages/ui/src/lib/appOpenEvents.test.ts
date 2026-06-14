@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  applyOpenProjectPathToStore,
   parseOpenDraftSessionEvent,
   parseOpenProjectEvent,
   parseOpenSessionEvent,
@@ -44,5 +45,74 @@ describe('app open event parsers', () => {
     expect(parseOpenProjectEvent(new CustomEvent('open', {
       detail: null,
     }))).toBeNull();
+  });
+});
+
+describe('applyOpenProjectPathToStore', () => {
+  test('activates an existing normalized project instead of adding a duplicate', () => {
+    const activated: string[] = [];
+    const added: string[] = [];
+
+    const result = applyOpenProjectPathToStore('/repo/', {
+      projects: [{ id: 'project-repo', path: '/repo' }],
+      validateProjectPath: (path) => ({
+        ok: true,
+        normalizedPath: path.replace(/\/+$/, ''),
+      }),
+      setActiveProject: (id) => {
+        activated.push(id);
+      },
+      addProject: (path) => {
+        added.push(path);
+        return { id: 'new-project', path };
+      },
+    });
+
+    expect(result).toBe('project-repo');
+    expect(activated).toEqual(['project-repo']);
+    expect(added).toEqual([]);
+  });
+
+  test('adds a new project using the normalized path', () => {
+    const activated: string[] = [];
+    const added: string[] = [];
+
+    const result = applyOpenProjectPathToStore('/new-repo/', {
+      projects: [{ id: 'project-repo', path: '/repo' }],
+      validateProjectPath: (path) => ({
+        ok: true,
+        normalizedPath: path.replace(/\/+$/, ''),
+      }),
+      setActiveProject: (id) => {
+        activated.push(id);
+      },
+      addProject: (path) => {
+        added.push(path);
+        return { id: 'new-project', path };
+      },
+    });
+
+    expect(result).toBe('new-project');
+    expect(activated).toEqual([]);
+    expect(added).toEqual(['/new-repo']);
+  });
+
+  test('ignores invalid project paths', () => {
+    const added: string[] = [];
+
+    const result = applyOpenProjectPathToStore('', {
+      projects: [],
+      validateProjectPath: () => ({ ok: false }),
+      setActiveProject: () => {
+        throw new Error('setActiveProject should not be called');
+      },
+      addProject: (path) => {
+        added.push(path);
+        return { id: 'new-project', path };
+      },
+    });
+
+    expect(result).toBeNull();
+    expect(added).toEqual([]);
   });
 });
