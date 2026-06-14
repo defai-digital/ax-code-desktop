@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-06-14
+
+- Desktop: fixed Electron desktop update detection so the local desktop shell uses the native updater instead of the web update path.
+- Desktop: normalized OS open-project paths before matching existing projects, preventing duplicate handling for equivalent dropped folder paths.
+
 ## [1.1.1] - 2026-06-14
 
 - Desktop: added macOS and Windows OS shell handling so dropping a folder onto AX Code Desktop can add or activate that project.
