@@ -1,8 +1,11 @@
-const { describe, expect, test } = require('bun:test')
+import { createRequire } from 'node:module'
+import { describe, expect, test } from 'bun:test'
+
+const require = createRequire(import.meta.url)
 const {
   collectOpenPathCandidates,
   normalizeCandidate,
-} = require('./open-paths')
+} = require('./open-paths.js')
 
 describe('normalizeCandidate', () => {
   test('resolves relative paths against cwd', () => {
