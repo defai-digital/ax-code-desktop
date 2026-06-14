@@ -67,25 +67,6 @@ jobs:
       - name: Build
         run: bun run build
 
-  # Job-level `if:` cannot read the `secrets` context, so resolve which
-  # optional, secret-gated jobs can run here and expose the result as outputs.
-  gate:
-    name: Resolve release capabilities
-    runs-on: ubuntu-latest
-    outputs:
-      has_tauri_key: ${{ steps.check.outputs.has_tauri_key }}
-    steps:
-      - id: check
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "has_tauri_key=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_tauri_key=false (Tauri-updater repackage will be skipped)"
-            echo "has_tauri_key=false" >> "$GITHUB_OUTPUT"
-          fi
-
   create-release:
     needs: preflight
     runs-on: ubuntu-latest
@@ -482,167 +463,6 @@ jobs:
           path: packages/electron/dist/latest.yml
           retention-days: 1
 
-  # Legacy Tauri-updater migration payload. Requires the Tauri signing key;
-  # skipped (not failed) when it isn't configured.
-  repackage-electron-as-tauri-update:
-    needs: [gate, create-release, build-desktop-electron-macos]
-    if: ${{ needs.gate.outputs.has_tauri_key == 'true' }}
-    runs-on: macos-26
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            platform: darwin-aarch64
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.14'
-
-      - name: Install dependencies
-        run: ./scripts/ci-retry.sh bun install --frozen-lockfile
-
-      - name: Download signed Electron app
-        uses: actions/download-artifact@v4
-        with:
-          name: electron-app-${{ matrix.arch }}
-          path: staged
-
-      - name: Tar and sign Electron app as Tauri update payload
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          VERSION: ${{ needs.create-release.outputs.version }}
-        run: |
-          set -euo pipefail
-
-          if [ -f staged/electron-app-${{ matrix.arch }}.tar.gz ]; then
-            tar -C staged -xzf staged/electron-app-${{ matrix.arch }}.tar.gz
-          elif [ ! -d staged/OpenChamber.app ] && [ -d staged/Contents ]; then
-            mkdir -p staged/OpenChamber.app
-            mv staged/Contents staged/OpenChamber.app/Contents
-          fi
-
-          if [ ! -d staged/OpenChamber.app ]; then
-            echo "Error: staged/OpenChamber.app not found"
-            ls -la staged
-            exit 1
-          fi
-
-          APP_EXECUTABLE=$(find staged/OpenChamber.app/Contents/MacOS -type f -maxdepth 1 -print -quit)
-          if [ -z "$APP_EXECUTABLE" ] || [ ! -x "$APP_EXECUTABLE" ]; then
-            echo "Error: Electron app executable is missing or not executable"
-            ls -la staged/OpenChamber.app/Contents/MacOS
-            exit 1
-          fi
-
-          cd staged
-          TARBALL="OpenChamber.app.tar.gz"
-          tar -czf "$TARBALL" OpenChamber.app
-
-          bun run --cwd ../packages/desktop tauri signer sign "$PWD/$TARBALL"
-
-          mv "$TARBALL" "OpenChamber-${VERSION}-${{ matrix.platform }}.app.tar.gz"
-          mv "${TARBALL}.sig" "OpenChamber-${VERSION}-${{ matrix.platform }}.app.tar.gz.sig"
-
-      - name: Generate Tauri latest platform manifest
-        env:
-          VERSION: ${{ needs.create-release.outputs.version }}
-          REPO: ${{ github.repository }}
-          PLATFORM: ${{ matrix.platform }}
-        run: |
-          set -euo pipefail
-
-          SIG="$(cat "staged/OpenChamber-${VERSION}-${PLATFORM}.app.tar.gz.sig")"
-          TAR="OpenChamber-${VERSION}-${PLATFORM}.app.tar.gz"
-          jq -n \
-            --arg version "$VERSION" \
-            --arg notes "OpenChamber has moved to Electron. This update replaces the Tauri shell with the Electron build. Subsequent updates will be delivered via the Electron auto-updater." \
-            --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --arg platform "${{ matrix.platform }}" \
-            --arg signature "$SIG" \
-            --arg url "https://github.com/${REPO}/releases/download/v${VERSION}/${TAR}" \
-            '{ version: $version, notes: $notes, pub_date: $pub_date, platforms: { ($platform): { signature: $signature, url: $url } } }' \
-            > staged/latest-${{ matrix.platform }}.json
-
-      - name: Upload tarball and signature to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.create-release.outputs.version }}
-          files: |
-            staged/*.app.tar.gz
-            staged/*.app.tar.gz.sig
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload per-platform Tauri manifest for merge
-        uses: actions/upload-artifact@v7
-        with:
-          name: tauri-manifest-${{ matrix.platform }}
-          path: staged/latest-${{ matrix.platform }}.json
-          retention-days: 1
-
-  combine-manifests:
-    needs: [gate, create-release, repackage-electron-as-tauri-update]
-    if: ${{ needs.gate.outputs.has_tauri_key == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Tauri updater manifests
-        uses: actions/download-artifact@v4
-        with:
-          pattern: tauri-manifest-*
-          path: artifacts
-          merge-multiple: true
-
-      - name: Combine manifests
-        run: |
-          set -euo pipefail
-
-          VERSION="${{ needs.create-release.outputs.version }}"
-          PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-          if [ ! -f artifacts/latest-darwin-aarch64.json ]; then
-            echo "Error: aarch64 manifest not found"
-            exit 1
-          fi
-
-          if ! jq empty artifacts/latest-darwin-aarch64.json 2>/dev/null; then
-            echo "Error: aarch64 manifest is not valid JSON"
-            exit 1
-          fi
-
-          if ! jq -e '.platforms["darwin-aarch64"]' artifacts/latest-darwin-aarch64.json > /dev/null; then
-            echo "Error: darwin-aarch64 platform data not found in manifest"
-            exit 1
-          fi
-
-          jq -n \
-            --arg version "$VERSION" \
-            --arg notes "OpenChamber has moved to Electron. This update replaces the Tauri shell with the Electron build. Subsequent updates will be delivered via the Electron auto-updater." \
-            --arg pub_date "$PUB_DATE" \
-            --slurpfile aarch64 artifacts/latest-darwin-aarch64.json \
-            '{
-              version: $version,
-              notes: $notes,
-              pub_date: $pub_date,
-              platforms: {
-                "darwin-aarch64": $aarch64[0].platforms["darwin-aarch64"]
-              }
-            }' > artifacts/latest.json
-
-          cat artifacts/latest.json
-
-      - name: Upload combined Tauri updater manifest
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.create-release.outputs.version }}
-          files: artifacts/latest.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   combine-electron-manifests:
     needs: [create-release, build-desktop-electron-macos]
     runs-on: ubuntu-latest
@@ -710,7 +530,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   sign-release-assets:
-    needs: [create-release, build-desktop-electron-macos, build-desktop-electron-windows, repackage-electron-as-tauri-update, publish-npm, combine-manifests, combine-electron-manifests, combine-electron-windows-manifests]
+    needs: [create-release, build-desktop-electron-macos, build-desktop-electron-windows, publish-npm, combine-electron-manifests, combine-electron-windows-manifests]
     if: >-
       always() &&
       needs.create-release.result == 'success' &&
@@ -718,9 +538,7 @@ jobs:
       needs.build-desktop-electron-windows.result == 'success' &&
       needs.publish-npm.result == 'success' &&
       needs.combine-electron-manifests.result == 'success' &&
-      needs.combine-electron-windows-manifests.result == 'success' &&
-      needs.repackage-electron-as-tauri-update.result != 'failure' &&
-      needs.combine-manifests.result != 'failure'
+      needs.combine-electron-windows-manifests.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -835,10 +653,8 @@ jobs:
           NODE
 
   finalize-release:
-    needs: [create-release, build-desktop-electron-macos, build-desktop-electron-windows, repackage-electron-as-tauri-update, publish-npm, combine-manifests, combine-electron-manifests, combine-electron-windows-manifests, sign-release-assets]
-    # Publish the release once the core artifacts are in place. The Tauri-updater
-    # jobs are optional — allow them to be skipped (but not failed) so a missing
-    # Tauri signing key doesn't leave the release stuck in draft.
+    needs: [create-release, build-desktop-electron-macos, build-desktop-electron-windows, publish-npm, combine-electron-manifests, combine-electron-windows-manifests, sign-release-assets]
+    # Publish the release once the core artifacts are in place.
     if: >-
       always() &&
       needs.create-release.result == 'success' &&
@@ -847,9 +663,7 @@ jobs:
       needs.publish-npm.result == 'success' &&
       needs.combine-electron-manifests.result == 'success' &&
       needs.combine-electron-windows-manifests.result == 'success' &&
-      needs.sign-release-assets.result == 'success' &&
-      needs.repackage-electron-as-tauri-update.result != 'failure' &&
-      needs.combine-manifests.result != 'failure'
+      needs.sign-release-assets.result == 'success'
     runs-on: ubuntu-latest
     env:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

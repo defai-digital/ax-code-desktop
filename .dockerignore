@@ -22,6 +22,4 @@ pnpm-debug.log*
 .internal
 data
 workspaces
-packages/desktop/src-tauri
-packages/desktop/target
 packages/intellij

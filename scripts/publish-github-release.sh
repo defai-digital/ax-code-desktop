@@ -107,7 +107,6 @@ validate_package_versions() {
     'package.json',
     'packages/web/package.json',
     'packages/ui/package.json',
-    'packages/desktop/package.json',
     'packages/electron/package.json',
   ];
 

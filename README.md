@@ -174,8 +174,7 @@ Package layout:
 | --- | --- |
 | `packages/ui` | Shared React UI, stores, hooks, and components |
 | `packages/web` | Local web runtime used by development and desktop packaging |
-| `packages/electron` | Current desktop shell |
-| `packages/desktop` | Legacy Tauri shell, maintenance only |
+| `packages/electron` | Desktop shell (Electron) |
 
 ## Legacy Compatibility Notes
 
