@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-06-14
+
+- UI: fixed the first-run and cold-start provider load path so setup no longer dead-ends while provider configuration is still loading.
+- CI: retried dependency installs to absorb transient GitHub tarball download failures during the main verification workflow.
+
 ## [1.1.2] - 2026-06-14
 
 - Desktop: fixed Electron desktop update detection so the local desktop shell uses the native updater instead of the web update path.
