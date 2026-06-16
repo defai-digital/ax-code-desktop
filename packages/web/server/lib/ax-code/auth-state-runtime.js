@@ -55,7 +55,10 @@ export const createAxCodeAuthStateRuntime = (dependencies) => {
     return { Authorization: `Basic ${credentials}` };
   };
 
-  const isAxCodeConnectionSecure = () => Object.prototype.hasOwnProperty.call(getAxCodeAuthHeaders(), 'Authorization');
+  const isAxCodeConnectionSecure = () => {
+    const password = normalizeAxCodePassword(getAuthPassword() || process.env.AX_CODE_SERVER_PASSWORD || '');
+    return isValidAxCodePassword(password);
+  };
 
   const ensureLocalAxCodeServerPassword = async ({ rotateManaged = false } = {}) => {
     const userProvidedPassword = getUserProvidedPassword();

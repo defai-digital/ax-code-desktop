@@ -489,7 +489,7 @@ const ENV_CONFIGURED_API_PREFIX = normalizeApiPrefix(
   process.env.AX_CODE_API_PREFIX || process.env.AX_CODE_DESKTOP_API_PREFIX || ''
 );
 
-  if (ENV_CONFIGURED_API_PREFIX && ENV_CONFIGURED_API_PREFIX !== '') {
+if (ENV_CONFIGURED_API_PREFIX && ENV_CONFIGURED_API_PREFIX !== '') {
   console.warn('Ignoring configured ax-code API prefix; API runs at root.');
 }
 

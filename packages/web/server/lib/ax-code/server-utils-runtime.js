@@ -124,9 +124,11 @@ export const createServerUtilsRuntime = (dependencies) => {
     const response = await fetch(buildAxCodeUrl(route), {
       method: 'GET',
       headers: { Accept: 'application/json', ...getAxCodeAuthHeaders() },
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
+      response.body?.cancel();
       throw new Error(`Failed to fetch ${invalidMessage} (status ${response.status})`);
     }
 
