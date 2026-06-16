@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-06-16
+
 - Release: rotated the AX Code Desktop minisign release-signing key to a desktop-specific keypair (public key id `5B7AB63CD6D674BE`). The pinned public key in the signing script, verify workflows, README, and docs, plus the pinning tests, now reference the new key. Releases before this change were signed with the previous shared key (`8138FAD32CAD95BA`).
 
 ## [1.1.4] - 2026-06-16
