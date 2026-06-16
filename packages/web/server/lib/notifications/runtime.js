@@ -94,6 +94,7 @@ export const createNotificationTriggerRuntime = (deps) => {
         signal: AbortSignal.timeout(2000),
       });
       if (!response.ok) {
+        response.body?.cancel();
         return undefined;
       }
       const data = await response.json().catch(() => null);

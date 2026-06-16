@@ -75,6 +75,7 @@ export const fetchQuota = async () => {
     });
 
     if (!response.ok) {
+      response.body?.cancel();
       return buildResult({
         providerId,
         providerName,
@@ -133,6 +134,7 @@ export const fetchQuotaAddon = async () => {
     });
 
     if (!response.ok) {
+      response.body?.cancel();
       return buildResult({
         providerId: providerIdAddon,
         providerName: providerNameAddon,

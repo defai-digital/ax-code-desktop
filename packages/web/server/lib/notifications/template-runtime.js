@@ -141,7 +141,10 @@ export const createNotificationTemplateRuntime = (deps) => {
         signal: AbortSignal.timeout(3000),
       });
 
-      if (!response.ok) return '';
+      if (!response.ok) {
+        response.body?.cancel();
+        return '';
+      }
 
       const messages = await response.json().catch(() => null);
       if (!Array.isArray(messages)) return '';
@@ -203,6 +206,7 @@ export const createNotificationTemplateRuntime = (deps) => {
         signal: AbortSignal.timeout(2000),
       });
       if (!response.ok) {
+        response.body?.cancel();
         console.warn(`[Notification] fetchSessionInfo: ${response.status} for session ${sessionId}`);
         return null;
       }

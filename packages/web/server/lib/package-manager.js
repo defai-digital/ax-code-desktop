@@ -104,7 +104,10 @@ async function checkForUpdatesFromApi(currentVersion, options = {}) {
       signal: AbortSignal.timeout(10000),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      response.body?.cancel();
+      return null;
+    }
     const data = await response.json();
     if (typeof data?.latestVersion !== 'string') return null;
 
