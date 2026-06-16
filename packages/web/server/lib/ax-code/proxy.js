@@ -619,7 +619,26 @@ export const registerAxCodeProxy = (app, deps) => {
       error: (err, _req, res) => {
         console.error('[proxy] ax-code proxy error:', err.message);
         if (res && !res.headersSent && typeof res.status === 'function') {
-          res.status(503).json({ error: 'ax-code service unavailable' });
+          // When ax-code is unreachable (still starting, restarting, or
+          // temporarily down), signal `restarting: true` so clients keep
+          // polling instead of dead-ending on "Unable to load providers".
+          // Without this flag the Desktop treats a plain 503 as a terminal
+          // error, which is wrong when the upstream is simply not ready yet.
+          // Old users with cached providers are unaffected; new users — who
+          // have no cache — would otherwise see a permanent error until
+          // they manually retry.
+          let restarting = false;
+          try {
+            const runtimeState = getRuntime();
+            restarting = !runtimeState.isAxCodeReady || runtimeState.isRestartingAxCode;
+          } catch {
+            // If we can't read runtime state, assume transient failure.
+            restarting = true;
+          }
+          res.status(503).json({
+            error: 'ax-code service unavailable',
+            ...(restarting ? { restarting: true } : {}),
+          });
         }
       },
     },

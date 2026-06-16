@@ -284,4 +284,63 @@ describe('AX Code proxy SSE forwarding', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, source: 'external-host' });
   });
+
+  it('signals restarting:true in proxy error when ax-code is not ready', async () => {
+    // Point to a port where nothing is listening — the proxy middleware will
+    // get ECONNREFUSED and fire the error handler.  Because the runtime says
+    // the upstream is not ready yet, the 503 must include `restarting: true`
+    // so clients keep polling instead of dead-ending.
+    const app = express();
+    registerAxCodeProxy(app, {
+      fs: {},
+      os: {},
+      path,
+      OPEN_CODE_READY_GRACE_MS: 0,
+      getRuntime: () => ({
+        axCodePort: 1,  // nothing listening on port 1
+        isAxCodeReady: false,
+        axCodeNotReadySince: Date.now(),
+        isRestartingAxCode: false,
+      }),
+      getAxCodeAuthHeaders: () => ({}),
+      buildAxCodeUrl: (requestPath) => `http://127.0.0.1:1${requestPath}`,
+      ensureAxCodeApiPrefix: () => {},
+    });
+    proxyServer = await listen(app);
+    const proxyPort = proxyServer.address().port;
+
+    const response = await fetch(`http://127.0.0.1:${proxyPort}/api/config/providers`);
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.restarting).toBe(true);
+  });
+
+  it('omits restarting flag in proxy error when ax-code is ready but unreachable', async () => {
+    // Runtime says the upstream IS ready (e.g. it just crashed).  The 503
+    // should NOT include `restarting: true` — clients should treat this as a
+    // genuine failure rather than poll indefinitely.
+    const app = express();
+    registerAxCodeProxy(app, {
+      fs: {},
+      os: {},
+      path,
+      OPEN_CODE_READY_GRACE_MS: 0,
+      getRuntime: () => ({
+        axCodePort: 1,
+        isAxCodeReady: true,
+        axCodeNotReadySince: 0,
+        isRestartingAxCode: false,
+      }),
+      getAxCodeAuthHeaders: () => ({}),
+      buildAxCodeUrl: (requestPath) => `http://127.0.0.1:1${requestPath}`,
+      ensureAxCodeApiPrefix: () => {},
+    });
+    proxyServer = await listen(app);
+    const proxyPort = proxyServer.address().port;
+
+    const response = await fetch(`http://127.0.0.1:${proxyPort}/api/config/providers`);
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.restarting).toBeUndefined();
+  });
 });
