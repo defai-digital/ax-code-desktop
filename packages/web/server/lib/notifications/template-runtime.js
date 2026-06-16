@@ -202,7 +202,10 @@ export const createNotificationTemplateRuntime = (deps) => {
       const url = buildAxCodeUrl(`/session/${encodeURIComponent(sessionId)}`, '');
       const response = await fetch(url, {
         method: 'GET',
-        headers: { Accept: 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          ...getAxCodeAuthHeaders(),
+        },
         signal: AbortSignal.timeout(2000),
       });
       if (!response.ok) {
