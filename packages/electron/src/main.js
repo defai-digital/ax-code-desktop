@@ -261,6 +261,21 @@ function isTrustedRendererNavigation(url) {
   return Boolean(isServerUrl || isDevRendererUrl)
 }
 
+// Only allow safe protocols for shell.openExternal. Electron's docs explicitly
+// recommend validating the URL protocol to prevent launching arbitrary OS handlers
+// (file://, ms-settings:, javascript:, etc.) from the renderer.
+const SAFE_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:'])
+function safeOpenExternal(url) {
+  try {
+    const parsed = new URL(url)
+    if (SAFE_EXTERNAL_PROTOCOLS.has(parsed.protocol)) {
+      shell.openExternal(url)
+    }
+  } catch {
+    // Malformed URL — silently ignore
+  }
+}
+
 async function createWindow() {
   rendererReadyForOpenProject = false
   mainWindow = new BrowserWindow({
@@ -298,7 +313,7 @@ async function createWindow() {
     if (isTrustedRendererNavigation(url)) {
       return { action: 'allow' }
     }
-    shell.openExternal(url)
+    safeOpenExternal(url)
     return { action: 'deny' }
   })
 
@@ -307,7 +322,7 @@ async function createWindow() {
       return
     }
     event.preventDefault()
-    shell.openExternal(url)
+    safeOpenExternal(url)
   })
 
   mainWindow.webContents.on('did-finish-load', () => {
@@ -1527,13 +1542,13 @@ const createAdditionalWindow = async (url) => {
   win.once('ready-to-show', () => win.show())
   win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
     if (isTrustedRendererNavigation(targetUrl)) return { action: 'allow' }
-    shell.openExternal(targetUrl)
+    safeOpenExternal(targetUrl)
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (event, targetUrl) => {
     if (isTrustedRendererNavigation(targetUrl)) return
     event.preventDefault()
-    shell.openExternal(targetUrl)
+    safeOpenExternal(targetUrl)
   })
   await win.loadURL(url)
   return win
@@ -1999,24 +2014,32 @@ handleCommand('desktop_read_file', async (args) => {
   // Defense in depth behind the IPC origin gate: resolve the path, require it
   // under $HOME or tmpdir, and refuse known secret dirs / dotfiles.
   const filePath = path.resolve(rawPath)
+  // Resolve symlinks so a symlink inside $HOME pointing to /etc/shadow or
+  // ~/.ssh/id_rsa can't bypass the allowlist / DENIED_SEGMENTS check.
+  let realPath
+  try {
+    realPath = await fsp.realpath(filePath)
+  } catch {
+    throw new Error('Cannot resolve file path')
+  }
   const home = os.homedir() || ''
   const tmp = os.tmpdir() || ''
-  const underHome = home && (filePath === home || filePath.startsWith(home + path.sep))
-  const underTmp = tmp && (filePath === tmp || filePath.startsWith(tmp + path.sep))
+  const underHome = home && (realPath === home || realPath.startsWith(home + path.sep))
+  const underTmp = tmp && (realPath === tmp || realPath.startsWith(tmp + path.sep))
   if (!underHome && !underTmp) throw new Error('File is outside the allowed workspace')
   const DENIED_SEGMENTS = ['.ssh', '.aws', '.gnupg', '.gpg', '.config/gh', '.config/openchamber/credentials']
-  const relFromHome = underHome ? filePath.slice(home.length + 1) : ''
+  const relFromHome = underHome ? realPath.slice(home.length + 1) : ''
   const relNormalized = relFromHome.split(path.sep).join('/')
   if (DENIED_SEGMENTS.some((segment) => relNormalized === segment || relNormalized.startsWith(`${segment}/`))) {
     throw new Error('Access to this path is not allowed')
   }
-  const basename = path.basename(filePath).toLowerCase()
+  const basename = path.basename(realPath).toLowerCase()
   if (basename === '.env' || basename.startsWith('.env.') || basename.endsWith('.pem') || basename.endsWith('.key')) {
     throw new Error('Access to this path is not allowed')
   }
-  const stats = await fsp.stat(filePath)
+  const stats = await fsp.stat(realPath)
   if (stats.size > 50 * 1024 * 1024) throw new Error('File is too large. Maximum size is 50MB.')
-  const bytes = await fsp.readFile(filePath)
+  const bytes = await fsp.readFile(realPath)
   const ext = path.extname(filePath).toLowerCase()
   const mime = ({
     '.png': 'image/png',
@@ -2254,13 +2277,13 @@ const createMiniChatWindow = async ({ mode, sessionId, directory, projectId }) =
   win.once('ready-to-show', () => win.show())
   win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
     if (isTrustedRendererNavigation(targetUrl)) return { action: 'allow' }
-    shell.openExternal(targetUrl)
+    safeOpenExternal(targetUrl)
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (event, targetUrl) => {
     if (isTrustedRendererNavigation(targetUrl)) return
     event.preventDefault()
-    shell.openExternal(targetUrl)
+    safeOpenExternal(targetUrl)
   })
   const params = new URLSearchParams()
   params.set('mode', mode === 'session' ? 'session' : 'draft')

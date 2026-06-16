@@ -718,7 +718,12 @@ export const createSettingsRuntime = (deps) => {
   };
 
   const persistSettings = async (changes) => {
-    persistSettingsLock = persistSettingsLock.then(async () => {
+    persistSettingsLock = persistSettingsLock
+      // Always resolve so a rejection from one write doesn't permanently
+      // break the chain — every subsequent queued write would otherwise
+      // inherit the rejection and skip its callback.
+      .catch(() => undefined)
+      .then(async () => {
       console.log('[persistSettings] Called with changes:', JSON.stringify(changes, null, 2));
       const current = await readSettingsFromDisk();
       console.log('[persistSettings] Current projects count:', Array.isArray(current.projects) ? current.projects.length : 'N/A');
