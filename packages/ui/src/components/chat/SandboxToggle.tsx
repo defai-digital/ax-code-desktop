@@ -28,18 +28,15 @@ export const SandboxToggle: React.FC<SandboxToggleProps> = ({
     }, [currentDirectory, loadSandbox]);
 
     const isOn = sandbox === true;
-    const ariaLabel = isOn
-        ? t('chat.chatInput.sandbox.off')
-        : t('chat.chatInput.sandbox.on');
-    const tooltipLabel = isOn
+    const label = isOn
         ? t('chat.chatInput.sandbox.on')
         : t('chat.chatInput.sandbox.off');
 
     return (
         <button
             type="button"
-            aria-label={ariaLabel}
-            title={tooltipLabel}
+            aria-label={label}
+            title={label}
             aria-pressed={isOn}
             disabled={pending || sandbox === undefined}
             onClick={() => {
