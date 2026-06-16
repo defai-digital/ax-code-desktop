@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-06-16
+
+- CI: enabled automatic release-asset signing in GitHub Actions by configuring the `AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64` and `AX_CODE_DESKTOP_MINISIGN_PASSWORD` secrets and pinning the new desktop minisign public key in the verify workflows. Releases cut from this point forward are signed in CI directly, and the Homebrew cask is bumped automatically — no manual recovery signing or cask edit required.
+
 ## [1.1.5] - 2026-06-16
 
 - Release: rotated the AX Code Desktop minisign release-signing key to a desktop-specific keypair (public key id `5B7AB63CD6D674BE`). The pinned public key in the signing script, verify workflows, README, and docs, plus the pinning tests, now reference the new key. Releases before this change were signed with the previous shared key (`8138FAD32CAD95BA`).
