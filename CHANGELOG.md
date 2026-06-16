@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-06-16
+
+- Security: hardened the desktop IPC origin guard, session IDs, and HTTP headers.
+- Proxy: report `restarting` state when the AX Code upstream is unreachable so the UI surfaces the reconnect attempt instead of an opaque failure.
+- UI: corrected a "below" typo in the multirun fork prompt template.
+
 ## [1.1.3] - 2026-06-14
 
 - UI: fixed the first-run and cold-start provider load path so setup no longer dead-ends while provider configuration is still loading.
