@@ -507,6 +507,7 @@ class AxCodeService {
       });
 
       if (!response.ok) {
+        response.body?.cancel();
         return [];
       }
 
@@ -995,6 +996,7 @@ class AxCodeService {
       });
 
       if (!response.ok) {
+        response.body?.cancel();
         return null;
       }
 
@@ -1034,6 +1036,7 @@ class AxCodeService {
       });
 
       if (!response.ok) {
+        response.body?.cancel();
         return null;
       }
 
@@ -1514,6 +1517,7 @@ class AxCodeService {
       }
       const response = await fetch(healthUrl);
       if (!response.ok) {
+        response.body?.cancel();
         return false;
       }
 
