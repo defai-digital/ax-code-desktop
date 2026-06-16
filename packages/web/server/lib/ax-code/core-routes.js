@@ -387,6 +387,7 @@ export const registerAuthAndAccessRoutes = (app, dependencies) => {
             redirect: 'manual',
             signal: AbortSignal.timeout(1500),
           });
+          response.body?.cancel();
           return res.json({ ok: response.ok, status: response.status });
         } catch (error) {
           return res.json({ ok: false, error: error?.message || 'Probe failed' });

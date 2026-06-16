@@ -858,9 +858,11 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         ]);
 
         if (configResult instanceof Error) {
+          if (!(agentResult instanceof Error)) agentResult.body?.cancel();
           lastError = configResult;
         } else if (!configResult.ok) {
           configResult.body?.cancel();
+          if (!(agentResult instanceof Error)) agentResult.body?.cancel();
           lastError = new Error(`ax-code config endpoint responded with status ${configResult.status}`);
         } else if (agentResult instanceof Error) {
           configResult.body?.cancel();

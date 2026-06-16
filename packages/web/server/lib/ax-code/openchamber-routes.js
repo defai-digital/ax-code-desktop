@@ -249,6 +249,7 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
       });
 
       if (!response.ok) {
+        response.body?.cancel();
         throw new Error(`models.dev responded with status ${response.status}`);
       }
 
