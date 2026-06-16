@@ -1,5 +1,6 @@
 import { createProjectIdFromPath } from '../projects/project-id.js';
 import { compareVersions, evaluateAxCodeCompatibility, MIN_SUPPORTED_AX_CODE_VERSION } from './version-compat.js';
+import { AX_CODE_CONFIG_DIR } from './shared.js';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -445,7 +446,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
   });
 
   // Behavior / Global AGENTS.md endpoints
-  const AGENTS_MD_PATH = path.join(os.homedir(), '.config', 'ax-code', 'AGENTS.md');
+  const AGENTS_MD_PATH = path.join(AX_CODE_CONFIG_DIR, 'AGENTS.md');
   const MAX_BEHAVIOR_PROMPT_SIZE = 1024 * 1024; // 1 MB
 
   app.get('/api/behavior/agents-md', async (_req, res) => {

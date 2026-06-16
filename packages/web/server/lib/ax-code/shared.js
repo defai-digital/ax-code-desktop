@@ -6,7 +6,11 @@ import { parse as parseJsonc } from 'jsonc-parser';
 
 // ============== PATH CONSTANTS ==============
 
-const AX_CODE_CONFIG_DIR = path.join(os.homedir(), '.config', 'ax-code');
+// Respect XDG_CONFIG_HOME (used by ax-code via xdg-basedir) so the desktop
+// reads/writes config, agents, commands, and skills in the same directory even
+// when the user has customised XDG paths.
+const XDG_CONFIG_HOME = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
+const AX_CODE_CONFIG_DIR = path.join(XDG_CONFIG_HOME, 'ax-code');
 const AGENT_DIR = path.join(AX_CODE_CONFIG_DIR, 'agents');
 const COMMAND_DIR = path.join(AX_CODE_CONFIG_DIR, 'commands');
 const SKILL_DIR = path.join(AX_CODE_CONFIG_DIR, 'skills');
