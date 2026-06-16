@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.7] - 2026-06-16
+
+- Tooling: ported the hardened minisign signer feature set from ax-engine_v5 into `scripts/minisign-artifacts.sh` and `scripts/minisign-keygen.sh`, while keeping the desktop-specific release key (`5B7AB63CD6D674BE`). The signing script now supports `--public-key-string` (verify with a raw key string, no `.pub` file), `--signature-dir`, `--keychain-service`/`--keychain-account` flags, `--pinned-public-key` override, and verify-with-string-or-file, with robust passphrase resolution (env > macOS Keychain > prompt), up-front path validation for accurate dry-runs, and a pinned-key fail-closed check. This is release tooling only; it does not change the shipped app or how released artifacts verify.
+
 ## [1.1.6] - 2026-06-16
 
 - CI: enabled automatic release-asset signing in GitHub Actions by configuring the `AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64` and `AX_CODE_DESKTOP_MINISIGN_PASSWORD` secrets and pinning the new desktop minisign public key in the verify workflows. Releases cut from this point forward are signed in CI directly, and the Homebrew cask is bumped automatically — no manual recovery signing or cask edit required.
