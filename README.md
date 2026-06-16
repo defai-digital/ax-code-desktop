@@ -128,7 +128,7 @@ macOS users installing via Homebrew bypass Gatekeeper automatically — no extra
 For manual downloads, only use the official [Releases page](https://github.com/defai-digital/ax-code-desktop/releases). Release assets include detached `.minisig` signatures that can be verified with this pinned public key:
 
 ```text
-RWS6la0s0/o4gdFUZ0Bk/BkrnN8qC2CFOfLXVP5OtQTrvm1BQeOvXgao
+RWS+dNbWPLZ6W9TH486c9zdH84NiiuFnm4VpVTRlXoMHClyQx/fY7W2A
 ```
 
 Windows SmartScreen may warn about unsigned builds; click **More info → Run anyway** if you trust the source.

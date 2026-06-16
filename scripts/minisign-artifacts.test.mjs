@@ -6,7 +6,7 @@ import path from "node:path"
 
 const repoRoot = path.resolve(import.meta.dir, "..")
 const script = path.join(repoRoot, "scripts/minisign-artifacts.sh")
-const pinnedPublicKey = "RWS6la0s0/o4gdFUZ0Bk/BkrnN8qC2CFOfLXVP5OtQTrvm1BQeOvXgao"
+const pinnedPublicKey = "RWS+dNbWPLZ6W9TH486c9zdH84NiiuFnm4VpVTRlXoMHClyQx/fY7W2A"
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-desktop-minisign-test-"))
@@ -31,7 +31,7 @@ function createFixture() {
   fs.chmodSync(secretKey, 0o600)
   fs.writeFileSync(
     publicKey,
-    ["untrusted comment: minisign public key 8138FAD32CAD95BA", pinnedPublicKey, ""].join("\n"),
+    ["untrusted comment: minisign public key 5B7AB63CD6D674BE", pinnedPublicKey, ""].join("\n"),
   )
   fs.writeFileSync(asset, "asset")
 

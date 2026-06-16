@@ -8,7 +8,7 @@ public key.
 Pinned public key:
 
 ```text
-RWS6la0s0/o4gdFUZ0Bk/BkrnN8qC2CFOfLXVP5OtQTrvm1BQeOvXgao
+RWS+dNbWPLZ6W9TH486c9zdH84NiiuFnm4VpVTRlXoMHClyQx/fY7W2A
 ```
 
 The signing key lives outside the repository in `~/signkey` by default for
@@ -98,7 +98,7 @@ Users can verify a downloaded artifact with the pinned public key:
 
 ```bash
 minisign -V \
-  -P RWS6la0s0/o4gdFUZ0Bk/BkrnN8qC2CFOfLXVP5OtQTrvm1BQeOvXgao \
+  -P RWS+dNbWPLZ6W9TH486c9zdH84NiiuFnm4VpVTRlXoMHClyQx/fY7W2A \
   -m packages/electron/dist/AX.Code.Desktop-0.8.0-arm64.dmg \
   -x packages/electron/dist/AX.Code.Desktop-0.8.0-arm64.dmg.minisig
 ```
