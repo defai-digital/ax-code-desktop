@@ -668,6 +668,7 @@ const serverUtilsRuntime = createServerUtilsRuntime({
   process,
   axCodeReadyGraceMs: OPEN_CODE_READY_GRACE_MS,
   longRequestTimeoutMs: LONG_REQUEST_TIMEOUT_MS,
+  settingsFilePath: SETTINGS_FILE_PATH,
   getRuntime: () => ({
     axCodePort,
     axCodeBaseUrl,

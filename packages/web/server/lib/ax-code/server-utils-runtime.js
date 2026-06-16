@@ -23,6 +23,7 @@ export const createServerUtilsRuntime = (dependencies) => {
     setAxCodeNotReadySince,
     clearLastAxCodeError,
     getLoginShellPath,
+    settingsFilePath,
   } = dependencies;
 
   const setAxCodePort = (port) => {
@@ -139,9 +140,55 @@ export const createServerUtilsRuntime = (dependencies) => {
     return payload;
   };
 
+  const fetchObjectSnapshot = async (route, invalidMessage) => {
+    if (!getAxCodePort()) {
+      throw new Error('ax-code port is not available');
+    }
+
+    const response = await fetch(buildAxCodeUrl(route), {
+      method: 'GET',
+      headers: { Accept: 'application/json', ...getAxCodeAuthHeaders() },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      response.body?.cancel();
+      throw new Error(`Failed to fetch ${invalidMessage} (status ${response.status})`);
+    }
+
+    const payload = await response.json().catch(() => null);
+    if (!payload || typeof payload !== 'object') {
+      throw new Error(`Invalid payload from ax-code`);
+    }
+    return payload;
+  };
+
   const fetchAgentsSnapshot = () => fetchArraySnapshot('/agent', 'agents snapshot');
-  const fetchProvidersSnapshot = () => fetchArraySnapshot('/provider', 'providers snapshot');
-  const fetchModelsSnapshot = () => fetchArraySnapshot('/model', 'models snapshot');
+  const fetchProvidersSnapshot = async () => {
+    const result = await fetchObjectSnapshot('/provider', 'providers snapshot');
+    if (!Array.isArray(result.all)) {
+      throw new Error(`Invalid payload from ax-code`);
+    }
+    return result.all;
+  };
+  const fetchModelsSnapshot = async () => {
+    const result = await fetchObjectSnapshot('/provider', 'models snapshot');
+    if (!Array.isArray(result.all)) {
+      throw new Error(`Invalid payload from ax-code`);
+    }
+    // Flatten models from all providers into a single array.
+    const models = [];
+    for (const provider of result.all) {
+      if (provider && provider.models && typeof provider.models === 'object') {
+        for (const model of Object.values(provider.models)) {
+          if (model && typeof model === 'object') {
+            models.push({ ...model, providerID: provider.id });
+          }
+        }
+      }
+    }
+    return models;
+  };
 
   const setupProxy = (app) => {
     registerAxCodeProxy(app, {
@@ -157,6 +204,7 @@ export const createServerUtilsRuntime = (dependencies) => {
       getUiNotificationClients,
       sseMetrics,
       recordStartupEvent,
+      settingsFilePath,
     });
   };
 

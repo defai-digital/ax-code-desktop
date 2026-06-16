@@ -229,6 +229,7 @@ export const registerAxCodeProxy = (app, deps) => {
     ensureAxCodeApiPrefix,
     sseMetrics = null,
     recordStartupEvent = null,
+    settingsFilePath = null,
   } = deps;
 
   if (app.get('axCodeProxyConfigured')) {
@@ -518,7 +519,7 @@ export const registerAxCodeProxy = (app, deps) => {
         }
         const globalSessions = Array.isArray(globalPayload) ? globalPayload : [];
 
-        const settingsPath = path.join(os.homedir(), '.config', 'openchamber', 'settings.json');
+        const settingsPath = settingsFilePath || path.join(os.homedir(), '.config', 'openchamber', 'settings.json');
         let projectDirs = [];
         try {
           const settingsRaw = await fs.promises.readFile(settingsPath, 'utf8');
