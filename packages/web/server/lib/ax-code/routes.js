@@ -287,6 +287,41 @@ export const registerAxCodeRoutes = (app, dependencies) => {
     }
   });
 
+  // Remove provider auth via ax-code's API (uses file locking, encryption,
+  // and per-directory cache invalidation). Falls back to direct auth.json
+  // manipulation when ax-code is unreachable.
+  const removeProviderAuthViaApi = async (providerId) => {
+    try {
+      const url = buildAxCodeUrl(`/auth/${encodeURIComponent(providerId)}`, '');
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          Accept: 'application/json',
+          ...getAxCodeAuthHeaders(),
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (response.ok) {
+        await response.body?.cancel();
+        return true;
+      }
+      // 400-level errors mean the provider auth entry was not found or
+      // the request was invalid — treat as "nothing to remove".
+      if (response.status >= 400 && response.status < 500) {
+        await response.body?.cancel();
+        return false;
+      }
+      // 500-level: ax-code internal error, fall back to direct file removal.
+      await response.body?.cancel();
+      console.warn(`ax-code DELETE /auth/${providerId} returned ${response.status}, falling back to direct file removal`);
+    } catch (error) {
+      console.warn(`Failed to call ax-code DELETE /auth/${providerId}:`, error?.message || error, '— falling back to direct file removal');
+    }
+    // Fallback: direct auth.json manipulation
+    const { removeProviderAuth } = await getAuthLibrary();
+    return removeProviderAuth(providerId);
+  };
+
   app.delete('/api/provider/:providerId/auth', async (req, res) => {
     try {
       const { providerId } = req.params;
@@ -317,13 +352,11 @@ export const registerAxCodeRoutes = (app, dependencies) => {
 
       let removed = false;
       if (scope === 'auth') {
-        const { removeProviderAuth } = await getAuthLibrary();
-        removed = removeProviderAuth(providerId);
+        removed = await removeProviderAuthViaApi(providerId);
       } else if (scope === 'user' || scope === 'project' || scope === 'custom') {
         removed = removeProviderConfig(providerId, directory, scope);
       } else if (scope === 'all') {
-        const { removeProviderAuth } = await getAuthLibrary();
-        const authRemoved = removeProviderAuth(providerId);
+        const authRemoved = await removeProviderAuthViaApi(providerId);
         const userRemoved = removeProviderConfig(providerId, directory, 'user');
         const projectRemoved = directory ? removeProviderConfig(providerId, directory, 'project') : false;
         const customRemoved = removeProviderConfig(providerId, directory, 'custom');

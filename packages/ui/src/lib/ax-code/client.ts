@@ -1315,7 +1315,10 @@ class AxCodeService {
     const response = await this.client.config.providers(
       this.currentDirectory ? { directory: this.currentDirectory } : undefined
     );
-    if (!response.data) throw new Error('Failed to get providers');
+    if (!response.data) {
+      const errorDetail = response.error ? `: ${JSON.stringify(response.error)}` : '';
+      throw new Error(`Failed to get providers${errorDetail}`);
+    }
     return response.data;
   }
 

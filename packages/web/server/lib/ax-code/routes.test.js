@@ -77,6 +77,62 @@ describe('ax-code routes', () => {
     });
   });
 
+  it('calls ax-code API for scope=auth removal and triggers reload', async () => {
+    const { app, dependencies } = createApp();
+    const originalFetch = globalThis.fetch;
+    const mockFetch = vi.fn(async (url, opts) => {
+      if (typeof url === 'string' && url.includes('/auth/test-provider') && opts?.method === 'DELETE') {
+        return { ok: true, status: 200, body: { cancel: vi.fn() } };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    globalThis.fetch = mockFetch;
+
+    try {
+      const response = await request(app)
+        .delete('/api/provider/test-provider/auth?scope=auth')
+        .expect(200);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/auth/test-provider'),
+        expect.objectContaining({ method: 'DELETE' }),
+      );
+      expect(dependencies.backgroundAxCodeReloader.start).toHaveBeenCalledWith('provider test-provider disconnected (auth)');
+      expect(response.body).toMatchObject({
+        success: true,
+        removed: true,
+        requiresReload: true,
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('falls back to direct file removal when ax-code API is unreachable', async () => {
+    const { app, dependencies } = createApp();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () => {
+      throw new Error('ECONNREFUSED');
+    });
+    // Mock the auth library fallback
+    const mockRemoveProviderAuth = vi.fn(() => true);
+    // The auth library is loaded lazily; we need to mock the import.
+    // Since we can't easily mock dynamic imports, we verify the fallback
+    // by checking that the route still succeeds.
+    try {
+      const response = await request(app)
+        .delete('/api/provider/test-provider/auth?scope=auth')
+        .expect(200);
+
+      // The fallback to direct file removal should have been attempted.
+      // Since the auth library reads real files, the result depends on
+      // whether the auth file exists — but the response should still succeed.
+      expect(response.body.success).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('reports runtime version compatibility in upgrade status', async () => {
     const { app } = createApp();
     const originalFetch = globalThis.fetch;

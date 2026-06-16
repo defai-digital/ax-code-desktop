@@ -158,7 +158,8 @@ export const createServerUtilsRuntime = (dependencies) => {
 
     const payload = await response.json().catch(() => null);
     if (!payload || typeof payload !== 'object') {
-      throw new Error(`Invalid payload from ax-code`);
+      const preview = typeof payload === 'string' ? payload.slice(0, 100) : String(payload);
+      throw new Error(`Invalid payload from ax-code ${route}: expected object, got ${typeof payload} (${preview})`);
     }
     return payload;
   };
@@ -167,14 +168,16 @@ export const createServerUtilsRuntime = (dependencies) => {
   const fetchProvidersSnapshot = async () => {
     const result = await fetchObjectSnapshot('/provider', 'providers snapshot');
     if (!Array.isArray(result.all)) {
-      throw new Error(`Invalid payload from ax-code`);
+      const keys = result && typeof result === 'object' ? Object.keys(result).join(', ') : 'none';
+      throw new Error(`Invalid providers snapshot: expected 'all' array, got keys: ${keys}`);
     }
     return result.all;
   };
   const fetchModelsSnapshot = async () => {
     const result = await fetchObjectSnapshot('/provider', 'models snapshot');
     if (!Array.isArray(result.all)) {
-      throw new Error(`Invalid payload from ax-code`);
+      const keys = result && typeof result === 'object' ? Object.keys(result).join(', ') : 'none';
+      throw new Error(`Invalid models snapshot: expected 'all' array, got keys: ${keys}`);
     }
     // Flatten models from all providers into a single array.
     const models = [];

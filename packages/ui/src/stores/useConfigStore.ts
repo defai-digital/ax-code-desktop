@@ -530,6 +530,49 @@ const _providerStartupPollUntil = new Map<string, number>();
 const _providerPollTimer = new Map<string, ReturnType<typeof setTimeout>>();
 const PROVIDER_STARTUP_POLL_MS = 2000;
 const PROVIDER_STARTUP_POLL_WINDOW_MS = 30000;
+const PROVIDER_FETCH_TIMEOUT_MS = 10_000;
+
+/**
+ * Resolves settingsDefaultModel ("provider/model") into current selection IDs
+ * if the provider and model exist in the loaded provider list.
+ */
+const resolveSettingsDefaultSelection = (
+    providers: ProviderWithModelList[],
+    settingsDefaultModel: string | undefined,
+    settingsDefaultVariant: string | undefined,
+): { currentProviderId: string; currentModelId: string; currentVariant?: string; selectedProviderId: string } | null => {
+    if (!settingsDefaultModel) return null;
+    const parsed = parseModelString(settingsDefaultModel);
+    if (!parsed) return null;
+    const settingsProvider = providers.find((p) => p.id === parsed.providerId);
+    if (!settingsProvider?.models.some((m) => m.id === parsed.modelId)) return null;
+    const model = settingsProvider.models.find((m) => m.id === parsed.modelId);
+    const currentVariant = settingsDefaultVariant && (model as { variants?: Record<string, unknown> } | undefined)?.variants?.[settingsDefaultVariant]
+        ? settingsDefaultVariant
+        : undefined;
+    return {
+        currentProviderId: parsed.providerId,
+        currentModelId: parsed.modelId,
+        currentVariant: currentVariant,
+        selectedProviderId: parsed.providerId,
+    };
+};
+
+/**
+ * Safely transform provider.models (which may be a record, array, or missing)
+ * into a ProviderModel[].
+ */
+const normalizeProviderModels = (provider: { id?: string; models?: unknown }): ProviderModel[] => {
+    const modelRecord = provider.models;
+    if (Array.isArray(modelRecord)) {
+        return modelRecord as ProviderModel[];
+    }
+    if (modelRecord && typeof modelRecord === 'object') {
+        return Object.keys(modelRecord as Record<string, ProviderModel>).map((modelId) => (modelRecord as Record<string, ProviderModel>)[modelId]);
+    }
+    console.warn(`[loadProviders] Provider "${provider.id ?? 'unknown'}" has unexpected models shape:`, typeof modelRecord);
+    return [];
+};
 const _inFlightAgents = new Map<string, Promise<boolean>>();
 let _initializeAppInFlight: Promise<void> | null = null;
 
@@ -568,6 +611,17 @@ export const useConfigStore = create<ConfigStore>()(
                 settingsMessageStreamTransport: 'auto',
                 activateDirectory: async (directory) => {
                     const directoryKey = toDirectoryKey(directory);
+
+                    // Cancel pending provider poll timers for the previous directory
+                    // to prevent zombie re-polls after switching.
+                    {
+                        const prevKey = get().activeDirectoryKey;
+                        if (prevKey && prevKey !== directoryKey) {
+                            const pending = _providerPollTimer.get(prevKey);
+                            if (pending) { clearTimeout(pending); _providerPollTimer.delete(prevKey); }
+                            _providerStartupPollUntil.delete(prevKey);
+                        }
+                    }
 
                     set((state) => {
                         const snapshot = state.directoryScoped[directoryKey];
@@ -641,21 +695,22 @@ export const useConfigStore = create<ConfigStore>()(
                                 () => get().modelsMetadata,
                                 (metadata) => set({ modelsMetadata: metadata }),
                             );
-                            const apiResult = await axCodeClient.withDirectory(
-                                fromDirectoryKey(directoryKey),
-                                () => axCodeClient.getProviders()
-                            );
+                            const apiResult = await Promise.race([
+                                axCodeClient.withDirectory(
+                                    fromDirectoryKey(directoryKey),
+                                    () => axCodeClient.getProviders()
+                                ),
+                                sleep(PROVIDER_FETCH_TIMEOUT_MS).then((): never => {
+                                    throw new Error(`Provider request timed out after ${PROVIDER_FETCH_TIMEOUT_MS / 1000}s`);
+                                }),
+                            ]);
                             const providers = Array.isArray(apiResult?.providers) ? apiResult.providers : [];
                             const defaults = apiResult?.default || {};
 
-                            const processedProviders: ProviderWithModelList[] = providers.map((provider) => {
-                                const modelRecord = provider.models ?? {};
-                                const models: ProviderModel[] = Object.keys(modelRecord).map((modelId) => modelRecord[modelId]);
-                                return {
-                                    ...provider,
-                                    models,
-                                };
-                            });
+                            const processedProviders: ProviderWithModelList[] = providers.map((provider) => ({
+                                ...provider,
+                                models: normalizeProviderModels(provider),
+                            }));
 
                             set((state) => {
                                 const baseSnapshot: DirectoryScopedConfig = state.directoryScoped[directoryKey] ?? {
@@ -688,27 +743,14 @@ export const useConfigStore = create<ConfigStore>()(
                                     nextState.providersLoading = false;
                                     nextState.providersError = null;
 
-                                    if (!state.currentProviderId && !state.currentModelId && state.settingsDefaultModel) {
-                                        const parsed = parseModelString(state.settingsDefaultModel);
-                                        if (parsed) {
-                                            const settingsProvider = processedProviders.find((p) => p.id === parsed.providerId);
-                                            if (settingsProvider?.models.some((m) => m.id === parsed.modelId)) {
-                                                const model = settingsProvider.models.find((m) => m.id === parsed.modelId);
-                                                const currentVariant = state.settingsDefaultVariant && (model as { variants?: Record<string, unknown> } | undefined)?.variants?.[state.settingsDefaultVariant]
-                                                    ? state.settingsDefaultVariant
-                                                    : undefined;
-
-                                                nextState.currentProviderId = parsed.providerId;
-                                                nextState.currentModelId = parsed.modelId;
-                                                nextState.currentVariant = currentVariant;
-                                                nextState.selectedProviderId = parsed.providerId;
-
-                                                nextSnapshot.currentProviderId = parsed.providerId;
-                                                nextSnapshot.currentModelId = parsed.modelId;
-                                                nextSnapshot.currentVariant = currentVariant;
-                                                nextSnapshot.selectedProviderId = parsed.providerId;
-                                            }
-                                        }
+                                    const resolved = resolveSettingsDefaultSelection(
+                                        processedProviders,
+                                        state.settingsDefaultModel,
+                                        state.settingsDefaultVariant,
+                                    );
+                                    if (resolved && !state.currentProviderId && !state.currentModelId) {
+                                        Object.assign(nextState, resolved);
+                                        Object.assign(nextSnapshot, resolved);
                                     }
                                 }
 
@@ -720,6 +762,7 @@ export const useConfigStore = create<ConfigStore>()(
                                 const pending = _providerPollTimer.get(directoryKey);
                                 if (pending) { clearTimeout(pending); _providerPollTimer.delete(directoryKey); }
                             }
+                            _inFlightProviders.delete(directoryKey);
                             return;
                         } catch (error) {
                             lastError = error;
@@ -795,27 +838,14 @@ export const useConfigStore = create<ConfigStore>()(
                             nextState.providersLoading = false;
                             nextState.providersError = "Unable to load providers";
 
-                            if (!state.currentProviderId && !state.currentModelId && state.settingsDefaultModel) {
-                                const parsed = parseModelString(state.settingsDefaultModel);
-                                if (parsed) {
-                                    const settingsProvider = fallbackProviders.find((p) => p.id === parsed.providerId);
-                                    if (settingsProvider?.models.some((m) => m.id === parsed.modelId)) {
-                                        const model = settingsProvider.models.find((m) => m.id === parsed.modelId);
-                                        const currentVariant = state.settingsDefaultVariant && (model as { variants?: Record<string, unknown> } | undefined)?.variants?.[state.settingsDefaultVariant]
-                                            ? state.settingsDefaultVariant
-                                            : undefined;
-
-                                        nextState.currentProviderId = parsed.providerId;
-                                        nextState.currentModelId = parsed.modelId;
-                                        nextState.currentVariant = currentVariant;
-                                        nextState.selectedProviderId = parsed.providerId;
-
-                                        nextSnapshot.currentProviderId = parsed.providerId;
-                                        nextSnapshot.currentModelId = parsed.modelId;
-                                        nextSnapshot.currentVariant = currentVariant;
-                                        nextSnapshot.selectedProviderId = parsed.providerId;
-                                    }
-                                }
+                            const resolved = resolveSettingsDefaultSelection(
+                                fallbackProviders,
+                                state.settingsDefaultModel,
+                                state.settingsDefaultVariant,
+                            );
+                            if (resolved && !state.currentProviderId && !state.currentModelId) {
+                                Object.assign(nextState, resolved);
+                                Object.assign(nextSnapshot, resolved);
                             }
                         }
 
