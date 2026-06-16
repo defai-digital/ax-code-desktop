@@ -5,8 +5,8 @@
 set -euo pipefail
 
 KEY_DIR="${SIGNKEY_DIR:-$HOME/signkey}"
-SECRET_KEY="${MINISIGN_SECRET_KEY:-}"
-PUBLIC_KEY="${MINISIGN_PUBLIC_KEY:-}"
+SECRET_KEY="${AX_CODE_DESKTOP_MINISIGN_SECRET_KEY:-${MINISIGN_SECRET_KEY:-}}"
+PUBLIC_KEY="${AX_CODE_DESKTOP_MINISIGN_PUBLIC_KEY:-${MINISIGN_PUBLIC_KEY:-}}"
 FORCE=false
 NO_PASSWORD=false
 DRY_RUN=false
@@ -15,81 +15,98 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/minisign-keygen.sh [options]
 
+Generate the minisign keypair for signing AX Code Desktop release artifacts.
+
 Options:
-  --key-dir <path>      Directory for generated keys (default: ~/signkey)
-  --secret-key <path>   Secret key path (default: <key-dir>/ax-code-desktop.minisign.key)
-  --public-key <path>   Public key path (default: <key-dir>/ax-code-desktop.minisign.pub)
-  --force               Overwrite an existing keypair
+  --key-dir <path>          Directory for generated keys (default: ~/signkey)
+  --secret-key <path>       Secret key path (default: <key-dir>/ax-code-desktop.minisign.key)
+  --public-key <path>       Public key path (default: <key-dir>/ax-code-desktop.minisign.pub)
+  --force                   Overwrite an existing keypair
   --allow-unencrypted-test-key
-                        Generate an unencrypted secret key for short-lived tests
-  --dry-run             Print what would be done
-  --help                Show this help
+                            Generate an unencrypted secret key for short-lived
+                            tests (alias: --no-password)
+  --dry-run                 Print what would be done
+  -h, --help                Show this help
+
+Environment:
+  SIGNKEY_DIR                                Directory for generated keys.
+  AX_CODE_DESKTOP_MINISIGN_SECRET_KEY        Overrides the default secret key path.
+  MINISIGN_SECRET_KEY                        Fallback secret key path override.
+  AX_CODE_DESKTOP_MINISIGN_PUBLIC_KEY        Overrides the default public key path.
+  MINISIGN_PUBLIC_KEY                        Fallback public key path override.
 EOF
 }
 
-stat_permissions() {
+# Portable permission mode: stat -f (BSD/macOS) then stat -c (GNU/Linux).
+path_mode() {
   local path="$1"
-  if stat -f '%Lp' "$path" >/dev/null 2>&1; then
-    stat -f '%Lp' "$path"
-    return
-  fi
-  stat -c '%a' "$path"
+  stat -f '%Lp' "$path" 2>/dev/null || stat -c '%a' "$path" 2>/dev/null || true
 }
 
-ensure_private_permissions() {
+require_private_path() {
   local path="$1"
   local label="$2"
-  local chmod_hint="$3"
   local mode
 
-  mode="$(stat_permissions "$path")"
-  if (( (8#$mode & 8#077) != 0 )); then
-    echo "$label has group/other permission bits set ($mode): $path" >&2
-    echo "Run: chmod $chmod_hint '$path'" >&2
+  mode="$(path_mode "$path")"
+  if [[ -z "$mode" ]]; then
+    echo "error: could not inspect permissions for $label: $path" >&2
+    exit 1
+  fi
+  if (( 8#$mode & 8#077 )); then
+    echo "error: $label must not be group/world accessible: $path has mode $mode" >&2
+    echo "       run: chmod 600 '$path'" >&2
     exit 1
   fi
 }
 
 public_key_id() {
+  [[ -f "$PUBLIC_KEY" ]] || return 0
   awk '/^untrusted comment: minisign public key / { print $NF; exit }' "$PUBLIC_KEY"
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --key-dir)
-      KEY_DIR="${2:?Missing value for --key-dir}"
-      shift 2
+      shift
+      [[ -n "${1:-}" ]] || { echo "error: --key-dir requires an argument" >&2; exit 1; }
+      KEY_DIR="$1"
       ;;
     --secret-key)
-      SECRET_KEY="${2:?Missing value for --secret-key}"
-      shift 2
+      shift
+      [[ -n "${1:-}" ]] || { echo "error: --secret-key requires an argument" >&2; exit 1; }
+      SECRET_KEY="$1"
       ;;
     --public-key)
-      PUBLIC_KEY="${2:?Missing value for --public-key}"
-      shift 2
+      shift
+      [[ -n "${1:-}" ]] || { echo "error: --public-key requires an argument" >&2; exit 1; }
+      PUBLIC_KEY="$1"
       ;;
     --force)
       FORCE=true
-      shift
       ;;
     --allow-unencrypted-test-key|--no-password)
       NO_PASSWORD=true
-      shift
       ;;
     --dry-run)
       DRY_RUN=true
-      shift
       ;;
-    --help|-h)
+    -h|--help)
       usage
       exit 0
       ;;
+    --*)
+      echo "error: unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
     *)
-      echo "Unknown argument: $1" >&2
+      echo "error: unexpected argument: $1" >&2
       usage >&2
       exit 1
       ;;
   esac
+  shift
 done
 
 SECRET_KEY="${SECRET_KEY:-$KEY_DIR/ax-code-desktop.minisign.key}"
@@ -98,16 +115,16 @@ SECRET_KEY_DIR="$(dirname "$SECRET_KEY")"
 PUBLIC_KEY_DIR="$(dirname "$PUBLIC_KEY")"
 
 if ! command -v minisign >/dev/null 2>&1; then
-  echo "minisign is not installed. Install it first, for example: brew install minisign" >&2
+  echo "error: minisign is not installed (try: brew install minisign)" >&2
   exit 1
 fi
 
 if [[ "$FORCE" != true ]]; then
   if [[ -e "$SECRET_KEY" || -e "$PUBLIC_KEY" ]]; then
-    echo "Refusing to overwrite an existing keypair:" >&2
-    echo "  $SECRET_KEY" >&2
-    echo "  $PUBLIC_KEY" >&2
-    echo "Use --force only if you intentionally want to rotate the signing key." >&2
+    echo "error: refusing to overwrite an existing keypair:" >&2
+    echo "       $SECRET_KEY" >&2
+    echo "       $PUBLIC_KEY" >&2
+    echo "       pass --force only if you intentionally want to rotate the signing key" >&2
     exit 1
   fi
 fi
@@ -125,9 +142,9 @@ echo "Secret key:    $SECRET_KEY"
 echo "Public key:    $PUBLIC_KEY"
 
 if [[ "$DRY_RUN" == true ]]; then
-  printf 'Would ensure private secret-key directory: %q\n' "$SECRET_KEY_DIR"
-  printf 'Would ensure public-key directory exists: %q\n' "$PUBLIC_KEY_DIR"
-  printf 'Would run: minisign'
+  printf 'would ensure private secret-key directory: %s\n' "$SECRET_KEY_DIR"
+  printf 'would ensure public-key directory exists: %s\n' "$PUBLIC_KEY_DIR"
+  printf 'would run: minisign'
   printf ' %q' "${MINISIGN_ARGS[@]}"
   printf '\n'
   exit 0
@@ -135,7 +152,7 @@ fi
 
 umask 077
 if [[ -d "$SECRET_KEY_DIR" ]]; then
-  ensure_private_permissions "$SECRET_KEY_DIR" "Secret key directory" 700
+  require_private_path "$SECRET_KEY_DIR" "secret key directory"
 else
   mkdir -p "$SECRET_KEY_DIR"
   chmod 700 "$SECRET_KEY_DIR"
@@ -143,17 +160,17 @@ fi
 mkdir -p "$PUBLIC_KEY_DIR"
 
 if [[ "$NO_PASSWORD" == true ]]; then
-  echo "Warning: generating an unencrypted test key. Do not use it for releases." >&2
+  echo "warning: generating an unencrypted test key; do not use it for releases" >&2
 else
-  echo "minisign will prompt for a secret-key password. Keep it outside shell history and chat."
+  echo "minisign will prompt for a secret-key password; keep it out of shell history and chat."
 fi
 
 minisign "${MINISIGN_ARGS[@]}"
 
 chmod 600 "$SECRET_KEY"
 chmod 644 "$PUBLIC_KEY"
-ensure_private_permissions "$SECRET_KEY_DIR" "Secret key directory" 700
-ensure_private_permissions "$SECRET_KEY" "Secret key" 600
+require_private_path "$SECRET_KEY_DIR" "secret key directory"
+require_private_path "$SECRET_KEY" "secret key"
 
 echo ""
 echo "Generated minisign keypair."

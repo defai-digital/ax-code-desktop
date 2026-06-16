@@ -92,6 +92,59 @@ needs a fixed trusted comment:
 bun run release:sign -- --trusted-comment "AX Code Desktop 0.8.0 release"
 ```
 
+### Pin the release public key
+
+The desktop release public key is pinned in `scripts/minisign-artifacts.sh` and
+**enforced by default** — the signer fails closed if the local keypair does not
+match it. This prevents a rotated, wrong, or planted key from silently producing
+valid-looking signatures.
+
+Override the expected key (for example, during a deliberate rotation) with an
+env var or a flag:
+
+```bash
+AX_CODE_DESKTOP_MINISIGN_PINNED_PUBLIC_KEY='RWS...' ./scripts/minisign-artifacts.sh ...
+# or
+bun run release:sign -- --pinned-public-key 'RWS...'
+```
+
+### Verify without a public key file
+
+To sign and verify when only the public key *string* is available (no `.pub`
+file on disk), pass it explicitly. Pin enforcement then compares the string
+directly, and verification uses `minisign -P`:
+
+```bash
+bun run release:sign -- --public-key-string 'RWS+dNbWPLZ6W9TH486c9zdH84NiiuFnm4VpVTRlXoMHClyQx/fY7W2A' ...
+```
+
+### Write signatures to a separate directory
+
+Collect all `.minisig` outputs into one directory instead of beside each
+artifact (useful when collecting signatures for upload):
+
+```bash
+bun run release:sign -- --signature-dir ./signatures ...
+```
+
+### Other signing options
+
+```text
+--key-dir <path>          Directory containing keys (default: ~/signkey)
+--secret-key <path>       Secret key path
+--public-key <path>       Public key path
+--public-key-string <key> Verify with a raw public key string (no file needed)
+--pinned-public-key <key> Fail unless the public key matches this key
+--signature-dir <dir>     Write all .minisig files into this directory
+--trusted-comment <text>  Trusted minisign comment
+--untrusted-comment <text> Untrusted minisign comment
+--keychain-service <svc>  macOS Keychain service name (default: ax-code-desktop-minisign)
+--keychain-account <acct> macOS Keychain account name (default: ax-code-desktop-release)
+--force                   Replace existing .minisig files
+--no-verify               Skip verification after signing
+--dry-run                 Print what would be signed
+```
+
 ## Verify an artifact
 
 Users can verify a downloaded artifact with the pinned public key:
@@ -130,8 +183,16 @@ security add-generic-password -U \
 ```
 
 `scripts/minisign-artifacts.sh` reads that Keychain item automatically when
-`AX_CODE_DESKTOP_MINISIGN_PASSWORD` and `MINISIGN_PASSWORD` are not set. You can
-override the lookup names with:
+`AX_CODE_DESKTOP_MINISIGN_PASSWORD` and `MINISIGN_PASSWORD` are not set. The
+password resolution order is:
+
+```text
+AX_CODE_DESKTOP_MINISIGN_PASSWORD  >  MINISIGN_PASSWORD  >  macOS Keychain  >  interactive prompt
+```
+
+Override the Keychain lookup names with `AX_CODE_DESKTOP_MINISIGN_KEYCHAIN_SERVICE`
+/ `AX_CODE_DESKTOP_MINISIGN_KEYCHAIN_ACCOUNT` env vars or the
+`--keychain-service` / `--keychain-account` flags:
 
 ```text
 AX_CODE_DESKTOP_MINISIGN_KEYCHAIN_SERVICE

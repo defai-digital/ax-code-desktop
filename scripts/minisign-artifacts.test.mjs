@@ -144,4 +144,119 @@ exit 1
       fs.rmSync(fixture.dir, { recursive: true, force: true })
     }
   })
+
+  test("writes signatures to --signature-dir", () => {
+    const fixture = createFixture()
+    try {
+      const sigDir = path.join(fixture.dir, "sigs")
+      const result = runScript(
+        ["--secret-key", fixture.secretKey, "--public-key", fixture.publicKey, "--signature-dir", sigDir, fixture.asset],
+        fixture,
+        { AX_CODE_DESKTOP_MINISIGN_PASSWORD: "pw" },
+      )
+
+      expect(result.status).toBe(0)
+      expect(fs.existsSync(path.join(sigDir, "asset.zip.minisig"))).toBe(true)
+      // signature is not written beside the artifact
+      expect(fs.existsSync(`${fixture.asset}.minisig`)).toBe(false)
+    } finally {
+      fs.rmSync(fixture.dir, { recursive: true, force: true })
+    }
+  })
+
+  test("verifies with --public-key-string and no public key file", () => {
+    const fixture = createFixture()
+    try {
+      const missingPub = path.join(fixture.dir, "does-not-exist.pub")
+      const result = runScript(
+        [
+          "--secret-key", fixture.secretKey,
+          "--public-key", missingPub,
+          "--public-key-string", pinnedPublicKey,
+          fixture.asset,
+        ],
+        fixture,
+        { AX_CODE_DESKTOP_MINISIGN_PASSWORD: "pw" },
+      )
+
+      expect(result.status).toBe(0)
+      expect(fs.existsSync(`${fixture.asset}.minisig`)).toBe(true)
+    } finally {
+      fs.rmSync(fixture.dir, { recursive: true, force: true })
+    }
+  })
+
+  test("--keychain-service/--keychain-account route the Keychain lookup", () => {
+    const fixture = createFixture()
+    try {
+      writeExecutable(
+        path.join(fixture.bin, "uname"),
+        `#!/usr/bin/env bash
+printf 'Darwin\\n'
+`,
+      )
+      writeExecutable(
+        path.join(fixture.bin, "security"),
+        `#!/usr/bin/env bash
+if [ "$1" = "find-generic-password" ]; then
+  svc=""; acct=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -s) svc="$2"; shift 2 ;;
+      -a) acct="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  printf 'kc:%s/%s\\n' "$svc" "$acct"
+  exit 0
+fi
+exit 1
+`,
+      )
+
+      const result = runScript(
+        [
+          "--secret-key", fixture.secretKey,
+          "--public-key", fixture.publicKey,
+          "--keychain-service", "custom-svc",
+          "--keychain-account", "custom-acct",
+          fixture.asset,
+        ],
+        fixture,
+      )
+
+      expect(result.status).toBe(0)
+      expect(fs.existsSync(`${fixture.asset}.minisig`)).toBe(true)
+      expect(fs.readFileSync(fixture.stdinLog, "utf8")).toBe("kc:custom-svc/custom-acct")
+    } finally {
+      fs.rmSync(fixture.dir, { recursive: true, force: true })
+    }
+  })
+
+  test("--pinned-public-key override accepts a matching non-default key", () => {
+    const fixture = createFixture()
+    try {
+      const altKey = "RW00000000000000000000000000000000000000000000000000000000000"
+      fs.writeFileSync(
+        fixture.publicKey,
+        ["untrusted comment: minisign public key 0000000000000000", altKey, ""].join("\n"),
+      )
+
+      const result = runScript(
+        [
+          "--secret-key", fixture.secretKey,
+          "--public-key", fixture.publicKey,
+          "--pinned-public-key", altKey,
+          fixture.asset,
+        ],
+        fixture,
+        { AX_CODE_DESKTOP_MINISIGN_PASSWORD: "pw" },
+      )
+
+      expect(result.status).toBe(0)
+      expect(fs.existsSync(`${fixture.asset}.minisig`)).toBe(true)
+    } finally {
+      fs.rmSync(fixture.dir, { recursive: true, force: true })
+    }
+  })
 })
