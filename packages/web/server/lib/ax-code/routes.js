@@ -305,13 +305,14 @@ export const registerAxCodeRoutes = (app, dependencies) => {
         await response.body?.cancel();
         return true;
       }
-      // 400-level errors mean the provider auth entry was not found or
-      // the request was invalid — treat as "nothing to remove".
-      if (response.status >= 400 && response.status < 500) {
+      // 404 means the auth entry does not exist — nothing to remove.
+      if (response.status === 404) {
         await response.body?.cancel();
         return false;
       }
-      // 500-level: ax-code internal error, fall back to direct file removal.
+      // Other 4xx (401, 403, 408, etc.) and 5xx: fall back to direct
+      // file removal so the entry is cleaned up even when ax-code
+      // rejects the API call (e.g. auth header mismatch).
       await response.body?.cancel();
       console.warn(`ax-code DELETE /auth/${providerId} returned ${response.status}, falling back to direct file removal`);
     } catch (error) {

@@ -696,10 +696,19 @@ function trimSessions(draft: State) {
     if (questions && questions.length > 0) protectedIds.add(sessionID)
   }
   while (draft.session.length > draft.limit) {
-    // Remove from the beginning (oldest by sorted ID)
-    const candidate = draft.session[0]
-    if (protectedIds.has(candidate.id)) break
-    draft.session.shift()
+    // Find the oldest non-protected session. We can't simply shift from the
+    // front because a protected session (pending question/permission) at
+    // index 0 would block eviction of ALL other sessions, causing unbounded
+    // array growth.
+    let evictIdx = -1
+    for (let i = 0; i < draft.session.length; i++) {
+      if (!protectedIds.has(draft.session[i].id)) {
+        evictIdx = i
+        break
+      }
+    }
+    if (evictIdx < 0) break
+    draft.session.splice(evictIdx, 1)
   }
 }
 

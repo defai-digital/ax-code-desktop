@@ -38,6 +38,7 @@ type SyncMeta = {
   cursor: string | undefined
   complete: boolean
   loading: boolean
+  error?: boolean
 }
 
 const getDefaultMeta = (): SyncMeta => ({ limit: INITIAL_MESSAGE_PAGE_SIZE, cursor: undefined, complete: false, loading: false })
@@ -82,7 +83,7 @@ export function useSync() {
   )
 
   const setMetaFor = useCallback(
-    (sessionID: string, patch: Partial<{ limit: number; cursor: string | undefined; complete: boolean; loading: boolean }>) => {
+    (sessionID: string, patch: Partial<{ limit: number; cursor: string | undefined; complete: boolean; loading: boolean; error: boolean }>) => {
       const key = keyFor(sessionID)
       const current = meta.current.get(key) ?? getPrefetchMeta(directory, sessionID) ?? getDefaultMeta()
       meta.current.set(key, { ...current, ...patch })
@@ -258,6 +259,7 @@ export function useSync() {
           cursor: merged.cursor,
           complete: merged.complete,
           loading: false,
+          error: false,
         })
         store.setState({ message: materialized.message, part: materialized.part })
         setSessionPrefetch({
@@ -267,8 +269,9 @@ export function useSync() {
           cursor: merged.cursor,
           complete: merged.complete,
         })
-      } catch {
-        setMetaFor(sessionID, { loading: false })
+      } catch (error) {
+        console.error("[sync] failed to load messages", sessionID, error)
+        setMetaFor(sessionID, { loading: false, error: true })
       }
     },
     [store, fetchMessages, getMetaFor, setMetaFor, getOptimistic, clearOptimistic, directory],
@@ -287,7 +290,7 @@ export function useSync() {
       const current = store.getState()
       const m = getMetaFor(sessionID)
       const materialization = getSessionMaterializationStatus(current, sessionID)
-      const cached = materialization.hasMessages && materialization.renderable && m.limit > 0
+      const cached = materialization.hasMessages && materialization.renderable && m.limit > 0 && !m.error
       const prefetchInfo = !force ? getSessionPrefetch(directory, sessionID) : undefined
       const cachedReady = cached
       const hasSession = Binary.has(current.session, sessionID, (s) => s.id)
