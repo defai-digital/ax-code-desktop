@@ -1122,6 +1122,34 @@ class AxCodeService {
     }
   }
 
+  // Isolation / sandbox mode. The server persists isolation to ax-code.json
+  // scoped by directory. Sandbox is considered "on" when mode is not
+  // "full-access" (i.e. "read-only" or "workspace-write").
+  async getIsolation(): Promise<{ mode: string; network: boolean } | null> {
+    try {
+      const result = await this.client.isolation.get(
+        this.currentDirectory ? { directory: this.currentDirectory } : undefined,
+      );
+      if (result.error || !result.data) return null;
+      return { mode: result.data.mode, network: result.data.network };
+    } catch {
+      return null;
+    }
+  }
+
+  async setIsolation(mode: 'read-only' | 'workspace-write' | 'full-access'): Promise<{ mode: string; network: boolean } | null> {
+    try {
+      const result = await this.client.isolation.set({
+        mode,
+        ...(this.currentDirectory ? { directory: this.currentDirectory } : {}),
+      });
+      if (result.error || !result.data) return null;
+      return { mode: result.data.mode, network: result.data.network };
+    } catch {
+      return null;
+    }
+  }
+
   // Permissions
   async replyToPermission(
     requestId: string,

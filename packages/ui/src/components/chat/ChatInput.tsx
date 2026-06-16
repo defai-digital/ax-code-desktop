@@ -26,6 +26,7 @@ import { SnippetAutocomplete, type SnippetAutocompleteHandle } from './SnippetAu
 import { cn, formatDirectoryName, isMacOS } from '@/lib/utils';
 import { ModelControls } from './ModelControls';
 import { ExecutionModeSelector } from './ExecutionModeSelector';
+import { SandboxToggle } from './SandboxToggle';
 import { parseAgentMentions } from '@/lib/messages/agentMentions';
 import { StatusRow } from './StatusRow';
 import { PendingChangesBar } from './PendingChangesBar';
@@ -4217,6 +4218,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                         withTooltip
                                     />
                                     <ExecutionModeSelector iconSizeClass={iconSizeClass} />
+                                    <SandboxToggle iconSizeClass={iconSizeClass} />
                                 </div>
                                 <div className={cn('flex items-center flex-1 justify-end', footerGapClass, 'md:gap-x-3')}>
                                     <MemoModelControls className={cn('flex-1 min-w-0 justify-end')} />
