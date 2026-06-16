@@ -366,18 +366,54 @@ autoUpdater.on('error', (err) => {
   console.warn('[updater] error:', err instanceof Error ? err.message : err)
 })
 
-// ── IPC handlers (Tauri-compatible surface) ─────────────────────────────────
-ipcMain.handle('desktop_get_launch_at_login', () => ({
+// ── Origin guard & registration helper ───────────────────────────────────────
+// The preload shim is injected into every webContents, including remote hosts
+// the user switches to via the host switcher. Filesystem, shell, installed-app
+// scans, ssh, dialogs, and hosts_set are gated to local senders; window/host
+// switcher operations are safe for any renderer.
+const isLocalSender = (wc) => {
+  try {
+    const raw = typeof wc?.getURL === 'function' ? wc.getURL() : ''
+    if (!raw) return false
+    const url = new URL(raw)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+    if (!['localhost', '127.0.0.1'].includes(url.hostname)) return false
+    // The local server is the only loopback origin we serve; treat any
+    // loopback http(s) page on our server port as local. Also accept the dev
+    // renderer origin.
+    if (serverPort > 0 && url.port === String(serverPort)) return true
+    const devRendererUrl = getDevRendererUrl()
+    if (devRendererUrl && url.origin === new URL(devRendererUrl).origin) return true
+    return false
+  } catch {
+    return false
+  }
+}
+
+// Registration helper: enforces the remote-origin guard (a remote main-*
+// window can only call commands flagged safeForRemote).
+const handleCommand = (name, fn, { safeForRemote = false } = {}) => {
+  ipcMain.handle(name, async (event, args) => {
+    if (!isLocalSender(event.sender) && !safeForRemote) {
+      throw new Error('IPC not available for this origin')
+    }
+    return fn(args || {}, event)
+  })
+}
+
+// ── IPC handlers (Tauri-compatible surface, all guarded by handleCommand) ────
+handleCommand('desktop_get_launch_at_login', async () => ({
   enabled: app.getLoginItemSettings().openAtLogin,
   supported: true,
 }))
 
-ipcMain.handle('desktop_set_launch_at_login', (_, { enabled }) => {
+handleCommand('desktop_set_launch_at_login', async (args) => {
+  const { enabled } = args ?? {}
   app.setLoginItemSettings({ openAtLogin: Boolean(enabled) })
   return { enabled: Boolean(enabled), supported: true }
 })
 
-ipcMain.handle('desktop_check_for_updates', async () => {
+handleCommand('desktop_check_for_updates', async () => {
   try {
     const result = await autoUpdater.checkForUpdates()
     if (!result?.updateInfo) return { available: false, currentVersion: app.getVersion() }
@@ -400,7 +436,7 @@ ipcMain.handle('desktop_check_for_updates', async () => {
   }
 })
 
-ipcMain.handle('desktop_download_and_install_update', async () => {
+handleCommand('desktop_download_and_install_update', async () => {
   sendUpdateProgress('Started', {})
   await autoUpdater.downloadUpdate()
 })
@@ -417,24 +453,25 @@ async function shutdownForExit() {
   await stopBackgroundServices()
 }
 
-ipcMain.handle('desktop_quit_and_install', async () => {
+handleCommand('desktop_quit_and_install', async () => {
   await shutdownForExit()
   autoUpdater.quitAndInstall()
 })
 
-ipcMain.handle('desktop_restart', async () => {
+handleCommand('desktop_restart', async () => {
   await shutdownForExit()
   app.relaunch()
   app.exit(0)
 })
 
-ipcMain.handle('desktop_set_badge_count', (_, { count } = {}) => {
+handleCommand('desktop_set_badge_count', async (args) => {
+  const { count } = args ?? {}
   const value = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
   // macOS dock and Linux launchers; returns false where unsupported (Windows).
   return app.setBadgeCount(value)
 })
 
-ipcMain.handle('desktop_get_lan_address', () => {
+handleCommand('desktop_get_lan_address', async () => {
   const nets = os.networkInterfaces()
   for (const name of Object.keys(nets)) {
     for (const net of nets[name] ?? []) {
@@ -446,7 +483,8 @@ ipcMain.handle('desktop_get_lan_address', () => {
   return null
 })
 
-ipcMain.handle('desktop_dialog_open', async (_event, options = {}) => {
+handleCommand('desktop_dialog_open', async (args) => {
+  const options = args ?? {}
   const properties = []
   if (options?.directory === true) {
     properties.push('openDirectory')
@@ -493,7 +531,8 @@ ipcMain.handle('desktop_dialog_open', async (_event, options = {}) => {
   return options?.multiple === true ? result.filePaths : result.filePaths[0]
 })
 
-ipcMain.handle('desktop_record_startup_event', (_event, payload) => {
+handleCommand('desktop_record_startup_event', async (args) => {
+  const payload = args ?? {}
   const name = typeof payload?.name === 'string' ? payload.name.trim() : ''
   if (!/^[a-z0-9._:-]{1,96}$/i.test(name)) {
     return { ok: false, error: 'Invalid startup event name' }
@@ -1836,43 +1875,7 @@ const applyWindowTheme = (browserWindow, args) => {
   else nativeTheme.themeSource = 'system'
 }
 
-// ── IPC security gate ──────────────────────────────────────────────────────
-// The preload shim is injected into every webContents, including remote hosts
-// the user switches to via the host switcher. Filesystem, shell, installed-app
-// scans, ssh, dialogs, and hosts_set are gated to local senders; window/host
-// switcher operations are safe for any renderer.
-const isLocalSender = (wc) => {
-  try {
-    const raw = typeof wc?.getURL === 'function' ? wc.getURL() : ''
-    if (!raw) return false
-    const url = new URL(raw)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
-    if (!['localhost', '127.0.0.1'].includes(url.hostname)) return false
-    // The local server is the only loopback origin we serve; treat any
-    // loopback http(s) page on our server port as local. Also accept the dev
-    // renderer origin.
-    if (serverPort > 0 && url.port === String(serverPort)) return true
-    const devRendererUrl = getDevRendererUrl()
-    if (devRendererUrl && url.origin === new URL(devRendererUrl).origin) return true
-    return false
-  } catch {
-    return false
-  }
-}
-
-// Registration helper for the NEW ported handlers: enforces the remote-origin
-// guard (a remote main-* window can only call commands flagged safeForRemote).
-// Existing per-command ipcMain.handle('desktop_*') registrations above stay as-is.
-const handleCommand = (name, fn, { safeForRemote = false } = {}) => {
-  ipcMain.handle(name, async (event, args) => {
-    if (!isLocalSender(event.sender) && !safeForRemote) {
-      throw new Error('IPC not available for this origin')
-    }
-    return fn(args || {}, event)
-  })
-}
-
-// ── New command handlers ───────────────────────────────────────────────────
+// ── New command handlers (origin guard defined above) ─────────────────────────
 
 // File / app ops (local-only)
 handleCommand('desktop_open_path', async (args) => {

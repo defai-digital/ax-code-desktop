@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import {
   TERMINAL_INPUT_WS_MAX_PAYLOAD_BYTES,
@@ -520,8 +521,7 @@ export function createTerminalRuntime({
         return res.status(400).json({ error: 'Invalid working directory' });
       }
 
-      const sessionId = Math.random().toString(36).substring(2, 15) +
-                        Math.random().toString(36).substring(2, 15);
+      const sessionId = crypto.randomBytes(24).toString('hex');
 
       const envPath = buildAugmentedPath();
       const resolvedEnv = sanitizeTerminalEnv({ ...process.env, PATH: envPath });
@@ -567,7 +567,7 @@ export function createTerminalRuntime({
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    const clientId = Math.random().toString(36).substring(7);
+    const clientId = crypto.randomBytes(12).toString('hex');
     session.clients.add(clientId);
     session.lastActivity = Date.now();
 
@@ -749,8 +749,7 @@ export function createTerminalRuntime({
         return res.status(400).json({ error: 'Invalid working directory: not accessible' });
       }
 
-      const newSessionId = Math.random().toString(36).substring(2, 15) +
-                          Math.random().toString(36).substring(2, 15);
+      const newSessionId = crypto.randomBytes(24).toString('hex');
 
       const envPath = buildAugmentedPath();
       const resolvedEnv = sanitizeTerminalEnv({ ...process.env, PATH: envPath });
