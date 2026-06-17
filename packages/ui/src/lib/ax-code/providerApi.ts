@@ -1,5 +1,6 @@
 import { API_ENDPOINTS, replacePathParams } from '@/lib/http';
 import { axCodeClient } from './client';
+import type { ProviderSources } from '@/components/sections/providers/types';
 
 const PROVIDER_REQUEST_RETRY_DELAYS_MS = [250, 500, 750, 1000, 1500, 2000, 2500, 3000, 3000, 3000];
 const PROVIDER_RESTART_POLL_MS = 2000;
@@ -196,13 +197,26 @@ export const fetchProviderSources = async (providerId: string, directory: string
     replacePathParams(API_ENDPOINTS.provider.source, { providerId }),
     directory,
   );
-  const response = await fetch(url, {
+  const payload = await fetchProviderJsonWithRetry(url, {
     method: 'GET',
     headers: { Accept: 'application/json' },
   });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(payload?.error || 'Failed to load provider sources');
-  }
-  return (payload?.sources ?? payload?.data?.sources) as import('@/components/sections/providers/types').ProviderSources | undefined;
+  return (payload?.sources ?? payload?.data?.sources) as ProviderSources | undefined;
+};
+
+export const disconnectProviderAuth = async (providerId: string, directory: string | null, scope = 'all') => {
+  const baseUrl = buildDirectoryUrl(
+    replacePathParams(API_ENDPOINTS.provider.authAll, { providerId }),
+    directory,
+  );
+  const url = new URL(baseUrl, typeof window === 'undefined' ? 'http://localhost' : window.location.origin);
+  url.searchParams.set('scope', scope);
+  const requestUrl = typeof window === 'undefined'
+    ? `${url.pathname}${url.search}`
+    : url.toString();
+
+  return fetchProviderJsonWithRetry(requestUrl, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+  });
 };

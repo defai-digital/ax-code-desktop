@@ -19,6 +19,7 @@ import type { IconName } from "@/components/icon/icons";
 import { API_ENDPOINTS, replacePathParams } from '@/lib/http';
 import {
   buildDirectoryUrl,
+  disconnectProviderAuth,
   fetchAvailableProviders,
   fetchProviderAuthMethods,
   fetchProviderJsonWithRetry,
@@ -402,18 +403,7 @@ export const ProvidersPage: React.FC = () => {
     setAuthBusyKey(busyKey);
 
     try {
-      const response = await fetch(`${replacePathParams(API_ENDPOINTS.provider.authAll, {
-        providerId,
-      })}?scope=all`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        const message = payload?.error || t('settings.providers.page.toast.providerDisconnectFailed');
-        throw new Error(message);
-      }
+      const payload = await disconnectProviderAuth(providerId, directory, 'all');
 
       toast.success(t('settings.providers.page.toast.providerDisconnected'));
       if (payload?.requiresReload) {

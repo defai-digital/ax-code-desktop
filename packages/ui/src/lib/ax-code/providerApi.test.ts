@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   buildDirectoryUrl,
+  disconnectProviderAuth,
+  fetchProviderSources,
   isRestartingError,
   parseAuthMethodsPayload,
   parseAvailableProvidersPayload,
@@ -13,6 +15,9 @@ const setWindowStub = (stub: unknown): void => {
 };
 const clearWindowStub = (): void => {
   delete (globalThis as { window?: unknown }).window;
+};
+const setFetchStub = (stub: typeof fetch): void => {
+  (globalThis as { fetch: typeof fetch }).fetch = stub;
 };
 
 describe('buildDirectoryUrl (no window — server/SSR)', () => {
@@ -73,6 +78,59 @@ describe('isRestartingError', () => {
     expect(isRestartingError(null)).toBe(false);
     expect(isRestartingError('error')).toBe(false);
     expect(isRestartingError(undefined)).toBe(false);
+  });
+});
+
+describe('provider requests', () => {
+  test('disconnectProviderAuth resolves through the desktop server origin and preserves directory', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const originalFetch = globalThis.fetch;
+    setWindowStub({
+      __AX_CODE_DESKTOP_DESKTOP_SERVER__: { origin: 'http://127.0.0.1:54321' },
+      location: { origin: 'app://ax-code' },
+    });
+    setFetchStub((async (url: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return new Response(JSON.stringify({ requiresReload: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch);
+
+    try {
+      const result = await disconnectProviderAuth('openai', '/home/user/project', 'all');
+      expect(result).toEqual({ requiresReload: true });
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.url).toBe(
+        'http://127.0.0.1:54321/api/provider/openai/auth?directory=%2Fhome%2Fuser%2Fproject&scope=all'
+      );
+      expect(calls[0]?.init?.method).toBe('DELETE');
+    } finally {
+      setFetchStub(originalFetch);
+      clearWindowStub();
+    }
+  });
+
+  test('fetchProviderSources uses shared provider request handling', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls: string[] = [];
+    setFetchStub((async (url: RequestInfo | URL) => {
+      calls.push(String(url));
+      return new Response(JSON.stringify({ data: { sources: { user: { exists: true } } } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch);
+
+    try {
+      const result = await fetchProviderSources('openai', '/home/user/project');
+      expect(result).toEqual({
+        user: { exists: true },
+      });
+      expect(calls).toEqual(['/api/provider/openai/source?directory=%2Fhome%2Fuser%2Fproject']);
+    } finally {
+      setFetchStub(originalFetch);
+    }
   });
 });
 
