@@ -117,29 +117,36 @@ const getHomeDirectory = () => {
   if (typeof window !== 'undefined') {
     if (cachedHomeDirectory) return cachedHomeDirectory;
 
-    const desktopHome =
-      (typeof window.__AX_CODE_DESKTOP_HOME__ === 'string' && window.__AX_CODE_DESKTOP_HOME__.length > 0
-        ? window.__AX_CODE_DESKTOP_HOME__
-        : null);
+    // Reject "/" (filesystem root) as a home candidate. The desktop shell or a
+    // stale settings.json can report homeDirectory="/" before the real home is
+    // resolved asynchronously; accepting it here makes every directory-scoped
+    // request fire with directory=/, which the server rejects with 400
+    // ("Directory is not allowed") — breaking the Providers panel, fs, project,
+    // and skills endpoints. normalizeHomeCandidate already treats "/" as invalid;
+    // mirror that so async home resolution can seed a real path instead.
+    const desktopHome = normalizeHomeCandidate(window.__AX_CODE_DESKTOP_HOME__);
 
-    if (desktopHome && desktopHome.length > 0) {
+    if (desktopHome) {
       cachedHomeDirectory = desktopHome;
       safeStorage.setItem('homeDirectory', desktopHome);
       return desktopHome;
     }
 
-    const storedHome = getStoredHomeDirectory();
+    const storedHome = normalizeHomeCandidate(getStoredHomeDirectory());
     if (storedHome) {
       cachedHomeDirectory = storedHome;
       return storedHome;
     }
   }
 
-  const processHome = getProcessHomeDirectory();
+  const processHome = normalizeHomeCandidate(getProcessHomeDirectory());
   if (processHome) {
     return processHome;
   }
-  return '/';
+  // No real home available yet. Return "" rather than "/" so the module-init
+  // `if (initialCurrentDirectory)` guard skips setting a bad directory and async
+  // home resolution (synchronizeHomeDirectory) can fill in the real path.
+  return '';
 };
 
 
