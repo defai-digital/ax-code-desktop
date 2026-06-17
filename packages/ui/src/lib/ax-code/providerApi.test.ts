@@ -172,7 +172,10 @@ describe('fetchProviderJsonWithRetry', () => {
     }) as typeof fetch);
 
     try {
-      await fetchProviderJsonWithRetry('/api/test', { method: 'GET' });
+      await fetchProviderJsonWithRetry('/api/test', { method: 'GET' }, {
+        retryDelaysMs: [0],
+        sleep: async () => {},
+      });
       expect(true).toBe(false); // should not reach here
     } catch (error) {
       expect(error).toBeInstanceOf(Error);

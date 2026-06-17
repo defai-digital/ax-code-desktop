@@ -13,6 +13,7 @@ import { copyTextToClipboard } from '@/lib/clipboard';
 import { openExternalUrl } from '@/lib/url';
 import { API_ENDPOINTS, HTTP_DEFAULTS } from '@/lib/http';
 import { useI18n } from '@/lib/i18n';
+import { normalizeReleaseNotesForMarkdown } from './updateReleaseNotes';
 
 type WebUpdateState = 'idle' | 'updating' | 'restarting' | 'reconnecting' | 'error';
 
@@ -285,7 +286,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
       return null;
     }
 
-    const body = info.body.trim();
+    const body = normalizeReleaseNotesForMarkdown(info.body.trim());
     if (!body) {
       return null;
     }

@@ -16,7 +16,7 @@ import type {
 import type { PermissionRequest } from "@/types/permission";
 import type { QuestionRequest } from "@/types/question";
 import { waitForWorktreeBootstrap } from "@/lib/worktrees/worktreeBootstrap";
-import { normalizeAxCodeSdkBaseUrl } from "./baseUrl";
+import { buildAxCodeApiUrl, normalizeAxCodeSdkBaseUrl } from "./baseUrl";
 import {
   assertProviderCircuitClosed,
   recordProviderSuccess,
@@ -1305,7 +1305,7 @@ class AxCodeService {
   async updateConfig(config: Record<string, unknown>): Promise<Config> {
     // IMPORTANT: Do NOT pass directory parameter for config updates
     // The config should be global, not directory-specific
-    const url = `${this.baseUrl}${API_ENDPOINTS.config.base}`;
+    const url = buildAxCodeApiUrl(this.baseUrl, API_ENDPOINTS.config.base);
 
     const response = await fetch(url, {
       method: HTTP_DEFAULTS.method.patch,
@@ -1397,7 +1397,7 @@ class AxCodeService {
     try {
       // For now, we'll use a placeholder implementation
       // In a real implementation, this would call an API endpoint to read the file
-      const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.read}`, {
+      const response = await fetch(buildAxCodeApiUrl(this.baseUrl, API_ENDPOINTS.fs.read), {
         method: HTTP_DEFAULTS.method.post,
         headers: HTTP_DEFAULTS.headers.contentTypeJson,
         body: JSON.stringify({
@@ -1421,7 +1421,7 @@ class AxCodeService {
   async listFiles(directory?: string): Promise<Record<string, unknown>[]> {
     try {
       const targetDir = directory || this.currentDirectory || '/';
-      const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.list}`, {
+      const response = await fetch(buildAxCodeApiUrl(this.baseUrl, API_ENDPOINTS.fs.list), {
         method: HTTP_DEFAULTS.method.post,
         headers: HTTP_DEFAULTS.headers.contentTypeJson,
         body: JSON.stringify({ directory: targetDir })
@@ -1583,7 +1583,7 @@ class AxCodeService {
       ...(options?.allowOutsideWorkspace ? { allowOutsideWorkspace: true } : {}),
     };
 
-    const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.mkdir}`, {
+    const response = await fetch(buildAxCodeApiUrl(this.baseUrl, API_ENDPOINTS.fs.mkdir), {
       method: HTTP_DEFAULTS.method.post,
       headers: HTTP_DEFAULTS.headers.contentTypeJson,
       body: JSON.stringify(payload),
@@ -1599,7 +1599,7 @@ class AxCodeService {
   }
 
   async cloneRepository(input: { remoteUrl: string; destinationPath: string; gitIdentityId?: string | null }): Promise<{ success: boolean; path: string; output?: string }> {
-    const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.clone}`, {
+    const response = await fetch(buildAxCodeApiUrl(this.baseUrl, API_ENDPOINTS.fs.clone), {
       method: HTTP_DEFAULTS.method.post,
       headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
       body: JSON.stringify(input),
@@ -1662,7 +1662,7 @@ class AxCodeService {
         params.set('respectGitignore', 'true');
       }
       const query = params.toString();
-      const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.list}${query ? `?${query}` : ''}`);
+      const response = await fetch(`${buildAxCodeApiUrl(this.baseUrl, API_ENDPOINTS.fs.list)}${query ? `?${query}` : ''}`);
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         const message = typeof error.error === 'string' ? error.error : 'Failed to list directory';
@@ -1750,7 +1750,7 @@ class AxCodeService {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.fs.home}`, {
+      const response = await fetch(buildAxCodeApiUrl(this.baseUrl, API_ENDPOINTS.fs.home), {
         method: HTTP_DEFAULTS.method.get,
         headers: HTTP_DEFAULTS.headers.acceptJson,
       });
@@ -1781,7 +1781,7 @@ class AxCodeService {
       return null;
     }
 
-    const url = `${this.baseUrl}${API_ENDPOINTS.session.directory}`;
+    const url = buildAxCodeApiUrl(this.baseUrl, API_ENDPOINTS.session.directory);
     console.log('[AxCodeClient] POST', url, 'with path:', directoryPath);
 
     try {

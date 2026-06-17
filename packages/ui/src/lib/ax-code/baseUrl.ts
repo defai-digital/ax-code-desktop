@@ -1,3 +1,5 @@
+import { API_PATHS } from '@/lib/http';
+
 const API_CONFIG_SUFFIX_PATTERN = /(^|\/)api\/config$/;
 
 const stripTrailingSlashes = (value: string): string => (
@@ -30,4 +32,19 @@ export const normalizeAxCodeSdkBaseUrl = (baseUrl: string): string => {
   }
 
   return stripConfigApiSuffix(trimmed);
+};
+
+export const buildAxCodeApiUrl = (baseUrl: string, endpoint: string): string => {
+  const normalizedBase = stripTrailingSlashes(baseUrl.trim());
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+  if (!normalizedBase) {
+    return normalizedEndpoint;
+  }
+
+  if (normalizedBase.endsWith(API_PATHS.base) && normalizedEndpoint.startsWith(`${API_PATHS.base}/`)) {
+    return `${normalizedBase}${normalizedEndpoint.slice(API_PATHS.base.length)}`;
+  }
+
+  return `${normalizedBase}${normalizedEndpoint}`;
 };

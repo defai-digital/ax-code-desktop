@@ -12,6 +12,11 @@ export const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+interface ProviderRetryOptions {
+  retryDelaysMs?: readonly number[];
+  sleep?: (ms: number) => Promise<void>;
+}
+
 export const isRestartingError = (error: unknown): boolean =>
   isRecord(error) && error.restarting === true;
 
@@ -56,10 +61,12 @@ export const buildDirectoryUrl = (path: string, directory: string | null): strin
   return url.toString();
 };
 
-export const fetchProviderJsonWithRetry = async (url: string, init: RequestInit) => {
+export const fetchProviderJsonWithRetry = async (url: string, init: RequestInit, options: ProviderRetryOptions = {}) => {
+  const retryDelaysMs = options.retryDelaysMs ?? PROVIDER_REQUEST_RETRY_DELAYS_MS;
+  const sleepFor = options.sleep ?? sleep;
   let lastError: unknown = null;
   let lastRestarting = false;
-  for (let attempt = 0; attempt <= PROVIDER_REQUEST_RETRY_DELAYS_MS.length; attempt += 1) {
+  for (let attempt = 0; attempt <= retryDelaysMs.length; attempt += 1) {
     try {
       const response = await fetch(url, init);
       const payload = await response.json().catch(() => null);
@@ -69,9 +76,9 @@ export const fetchProviderJsonWithRetry = async (url: string, init: RequestInit)
 
       const restarting = response.status === 503 && isRecord(payload) && payload.restarting === true;
       lastRestarting = restarting;
-      if (restarting && attempt < PROVIDER_REQUEST_RETRY_DELAYS_MS.length) {
+      if (restarting && attempt < retryDelaysMs.length) {
         lastError = new Error('AX Code is restarting');
-        await sleep(PROVIDER_REQUEST_RETRY_DELAYS_MS[attempt]);
+        await sleepFor(retryDelaysMs[attempt] ?? 0);
         continue;
       }
 
@@ -81,14 +88,14 @@ export const fetchProviderJsonWithRetry = async (url: string, init: RequestInit)
       throw Object.assign(new Error(message), { noRetry: true, restarting });
     } catch (error) {
       lastError = error;
-      lastRestarting = false;
+      lastRestarting = isRecord(error) && error.restarting === true;
       if (isRecord(error) && error.noRetry === true) {
         break;
       }
-      if (attempt >= PROVIDER_REQUEST_RETRY_DELAYS_MS.length) {
+      if (attempt >= retryDelaysMs.length) {
         break;
       }
-      await sleep(PROVIDER_REQUEST_RETRY_DELAYS_MS[attempt]);
+      await sleepFor(retryDelaysMs[attempt] ?? 0);
       continue;
     }
   }

@@ -17,7 +17,7 @@ const ScrollToBottomButton: React.FC<ScrollToBottomButtonProps> = ({ visible, on
     return (
         <div
             className={cn(
-                'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 transition-all duration-150',
+                'absolute bottom-full left-1/2 z-40 -translate-x-1/2 mb-2 transition-all duration-150',
                 visible ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-2 scale-95 pointer-events-none',
             )}
         >
