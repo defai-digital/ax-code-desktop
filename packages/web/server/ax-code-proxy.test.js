@@ -315,10 +315,19 @@ describe('AX Code proxy SSE forwarding', () => {
     expect(body.restarting).toBe(true);
   });
 
-  it('omits restarting flag in proxy error when ax-code is ready but unreachable', async () => {
-    // Runtime says the upstream IS ready (e.g. it just crashed).  The 503
-    // should NOT include `restarting: true` — clients should treat this as a
-    // genuine failure rather than poll indefinitely.
+  it('signals restarting:true in proxy error even when runtime readiness is stale-healthy', async () => {
+    // The error callback ONLY fires when the proxy could not complete the
+    // upstream request (ECONNREFUSED / socket hangup / timeout). That is
+    // always transient from the client's perspective, so the 503 MUST include
+    // `restarting: true` regardless of the (possibly stale) runtime readiness
+    // flags. A health check can pass moments before ax-code crashes or becomes
+    // unreachable, leaving isAxCodeReady=true while the connection fails.
+    // Gating the flag on stale state previously emitted a bare 503 (no
+    // `restarting`), which the Desktop treated as a terminal error — surfacing
+    // "Failed to load provider authentication methods" on the Providers page
+    // even though the provider list (persisted in the config store) still
+    // appeared. Signalling `restarting: true` keeps the uncached auth-methods
+    // / available-providers loaders polling until the upstream recovers.
     const app = express();
     registerAxCodeProxy(app, {
       fs: {},
@@ -341,6 +350,6 @@ describe('AX Code proxy SSE forwarding', () => {
     const response = await fetch(`http://127.0.0.1:${proxyPort}/api/config/providers`);
     expect(response.status).toBe(503);
     const body = await response.json();
-    expect(body.restarting).toBeUndefined();
+    expect(body.restarting).toBe(true);
   });
 });

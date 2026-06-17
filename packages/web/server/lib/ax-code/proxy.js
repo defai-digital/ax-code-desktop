@@ -620,25 +620,26 @@ export const registerAxCodeProxy = (app, deps) => {
       error: (err, _req, res) => {
         console.error('[proxy] ax-code proxy error:', err.message);
         if (res && !res.headersSent && typeof res.status === 'function') {
-          // When ax-code is unreachable (still starting, restarting, or
-          // temporarily down), signal `restarting: true` so clients keep
-          // polling instead of dead-ending on "Unable to load providers".
-          // Without this flag the Desktop treats a plain 503 as a terminal
-          // error, which is wrong when the upstream is simply not ready yet.
-          // Old users with cached providers are unaffected; new users — who
-          // have no cache — would otherwise see a permanent error until
-          // they manually retry.
-          let restarting = false;
-          try {
-            const runtimeState = getRuntime();
-            restarting = !runtimeState.isAxCodeReady || runtimeState.isRestartingAxCode;
-          } catch {
-            // If we can't read runtime state, assume transient failure.
-            restarting = true;
-          }
+          // This callback only fires when the proxy could not complete the
+          // upstream request (ECONNREFUSED, socket hangup, timeout, etc.) —
+          // i.e. ax-code was unreachable for THIS request. That is always
+          // transient from the client's perspective, so signal
+          // `restarting: true` so clients keep polling instead of
+          // dead-ending on "Unable to load providers" / "Failed to load
+          // provider authentication methods".
+          //
+          // Do NOT gate this on the desktop's readiness flags: a health
+          // check can pass moments before ax-code crashes or becomes
+          // unreachable, leaving isAxCodeReady=true while the connection
+          // fails. Gating on stale state then emits a bare 503 (no
+          // `restarting`), which the Desktop treats as a terminal error.
+          // The provider list survives because it is persisted in the
+          // config store and silently re-polls, but the uncached
+          // auth-methods / available-providers loaders dead-end — making
+          // the panel look "loaded but broken".
           res.status(503).json({
             error: 'ax-code service unavailable',
-            ...(restarting ? { restarting: true } : {}),
+            restarting: true,
           });
         }
       },
