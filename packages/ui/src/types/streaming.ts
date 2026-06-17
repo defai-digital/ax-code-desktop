@@ -1,1 +1,1 @@
-export type StreamPhase = 'streaming' | 'cooldown' | 'completed';
+export type StreamPhase = 'prefill' | 'streaming' | 'cooldown' | 'completed';

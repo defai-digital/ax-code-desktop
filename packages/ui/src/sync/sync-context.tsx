@@ -7,6 +7,7 @@ import { useStore } from "zustand"
 import type { AxCodeClient } from "@ax-code/sdk/v2/client"
 import { Binary } from "./binary"
 import { createEventPipeline } from "./event-pipeline"
+import { setActiveMetricsTracker } from "./streaming-metrics"
 import { reduceGlobalEvent, applyGlobalProject, applyDirectoryEvent } from "./event-reducer"
 import { useGlobalSyncStore, type GlobalSyncStore } from "./global-sync-store"
 import { ChildStoreManager, type DirectoryStore } from "./child-store"
@@ -1737,7 +1738,12 @@ export function SyncProvider(props: {
         }
       },
     })
-    return () => pipeline.cleanup()
+    // Register metrics tracker globally so hooks can access it
+    setActiveMetricsTracker(pipeline.metrics)
+    return () => {
+      setActiveMetricsTracker(null)
+      pipeline.cleanup()
+    }
   }, [props.sdk, childStores, routingIndex, messageStreamTransport, triggerDirectoryResync])
 
   useEffect(() => {

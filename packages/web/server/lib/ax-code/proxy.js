@@ -110,6 +110,8 @@ export const createSseProxyMetrics = (options = {}) => {
       firstChunkBytes: 0,
       backpressureWaitMs: 0,
       backpressureWaitCount: 0,
+      chunkCount: 0,
+      totalBytes: 0,
     });
     totals.started += 1;
     return id;
@@ -143,6 +145,13 @@ export const createSseProxyMetrics = (options = {}) => {
     totals.backpressureWaits += 1;
   };
 
+  const recordChunk = (id, bytes = 0) => {
+    const stream = active.get(id);
+    if (!stream) return;
+    stream.chunkCount += 1;
+    stream.totalBytes += bytes;
+  };
+
   const finish = (id, reason = 'complete', details = {}) => {
     const stream = active.get(id);
     if (!stream) return null;
@@ -166,6 +175,8 @@ export const createSseProxyMetrics = (options = {}) => {
       firstChunkBytes: stream.firstChunkBytes,
       backpressureWaitCount: stream.backpressureWaitCount,
       backpressureWaitMs: stream.backpressureWaitMs,
+      chunkCount: stream.chunkCount,
+      totalBytes: stream.totalBytes,
       ...details,
     };
 
@@ -187,6 +198,7 @@ export const createSseProxyMetrics = (options = {}) => {
     markUpstreamConnected,
     markFirstChunk,
     recordBackpressureWait,
+    recordChunk,
     finish,
     snapshot,
   };
@@ -423,6 +435,7 @@ export const registerAxCodeProxy = (app, deps) => {
         }
         if (value && value.length > 0) {
           const firstChunk = sseMetrics?.markFirstChunk(streamMetricId, { bytes: value.length });
+          sseMetrics?.recordChunk(streamMetricId, value.length);
           if (firstChunk && typeof recordStartupEvent === 'function') {
             recordStartupEvent('stream.first_token', {
               requestPath: upstreamPath,

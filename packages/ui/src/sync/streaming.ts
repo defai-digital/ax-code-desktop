@@ -23,11 +23,14 @@ export type StreamingStore = {
   streamingMessageIds: Map<string, string | null>
   /** Lifecycle phase per message */
   messageStreamStates: Map<string, MessageStreamState>
+  /** Sessions currently in prefill phase (busy, no assistant message yet) */
+  prefillSessionIds: Set<string>
 }
 
 export const useStreamingStore = create<StreamingStore>()(() => ({
   streamingMessageIds: new Map(),
   messageStreamStates: new Map(),
+  prefillSessionIds: new Set(),
 }))
 
 /**
@@ -45,9 +48,11 @@ export function updateStreamingState(state: State) {
   const currentStore = useStreamingStore.getState()
   const currentStreamingIds = currentStore.streamingMessageIds
   const currentStreamStates = currentStore.messageStreamStates
+  const currentPrefillIds = currentStore.prefillSessionIds
 
   const nextStreamingIds = new Map<string, string | null>()
   const nextStreamStates = new Map(currentStreamStates)
+  const nextPrefillIds = new Set<string>()
   let changed = false
 
   // Fast path: only scan sessions that are actually busy.
@@ -61,8 +66,9 @@ export function updateStreamingState(state: State) {
 
   const completeStreamingMessage = (sessionID: string, msgId: string) => {
     nextStreamingIds.set(sessionID, null)
+    nextPrefillIds.delete(sessionID)
     const existing = nextStreamStates.get(msgId)
-    if (existing && existing.phase === "streaming") {
+    if (existing && (existing.phase === "streaming" || existing.phase === "prefill")) {
       nextStreamStates.set(msgId, {
         ...existing,
         phase: "completed",
@@ -74,7 +80,14 @@ export function updateStreamingState(state: State) {
 
   for (const sessionID of busySessionIds) {
     const messages = state.message[sessionID]
-    if (!messages || messages.length === 0) continue
+    if (!messages || messages.length === 0) {
+      // Session is busy but has no messages yet — mark as prefill
+      if (!currentPrefillIds.has(sessionID)) {
+        nextPrefillIds.add(sessionID)
+        changed = true
+      }
+      continue
+    }
 
     // Only the trailing assistant turn can be streaming. If a new user turn is
     // last, the next assistant message has not arrived yet.
@@ -90,11 +103,21 @@ export function updateStreamingState(state: State) {
     }
 
     if (!streamingMsg) {
+      // No assistant message yet — session is in prefill phase
+      nextPrefillIds.add(sessionID)
       const prevId = currentStreamingIds.get(sessionID)
       if (prevId) {
         completeStreamingMessage(sessionID, prevId)
+      } else if (!currentPrefillIds.has(sessionID)) {
+        changed = true
       }
       continue
+    }
+
+    // Assistant message found — transition from prefill to streaming
+    nextPrefillIds.delete(sessionID)
+    if (currentPrefillIds.has(sessionID)) {
+      changed = true
     }
 
     const prevId = currentStreamingIds.get(sessionID)
@@ -102,10 +125,18 @@ export function updateStreamingState(state: State) {
     nextStreamingIds.set(sessionID, streamingMsg.id)
 
     const existing = nextStreamStates.get(streamingMsg.id)
-    if (!existing || existing.phase !== "streaming") {
+    if (!existing || (existing.phase !== "streaming" && existing.phase !== "prefill")) {
       nextStreamStates.set(streamingMsg.id, {
         phase: "streaming",
         startedAt: existing?.startedAt ?? now,
+        lastUpdateAt: now,
+      })
+      changed = true
+    } else if (existing.phase === "prefill") {
+      // Transition from prefill to streaming
+      nextStreamStates.set(streamingMsg.id, {
+        ...existing,
+        phase: "streaming",
         lastUpdateAt: now,
       })
       changed = true
@@ -147,6 +178,7 @@ export function updateStreamingState(state: State) {
     useStreamingStore.setState({
       streamingMessageIds: nextStreamingIds,
       messageStreamStates: nextStreamStates,
+      prefillSessionIds: nextPrefillIds,
     })
   }
 }
@@ -160,3 +192,6 @@ export const selectMessageStreamState = (messageID: string) =>
 
 export const selectIsStreaming = (sessionID: string) =>
   (state: StreamingStore) => state.streamingMessageIds.get(sessionID) != null
+
+export const selectIsPrefilling = (sessionID: string) =>
+  (state: StreamingStore) => state.prefillSessionIds.has(sessionID)

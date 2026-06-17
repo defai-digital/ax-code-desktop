@@ -81,6 +81,8 @@ export const summarizeStreams = (sseProxy = {}) => {
       pipelineOverheadMs: delivered !== null && upstream !== null ? Math.max(0, delivered - upstream) : null,
       backpressureWaitCount: stream.backpressureWaitCount ?? 0,
       backpressureWaitMs: stream.backpressureWaitMs ?? 0,
+      chunkCount: stream.chunkCount ?? 0,
+      totalBytes: stream.totalBytes ?? 0,
     };
   });
 
@@ -98,7 +100,35 @@ export const summarizeStreams = (sseProxy = {}) => {
   };
 };
 
-export const buildVerdicts = ({ health = {}, startup = {}, streaming = {} }) => {
+// Streams with chunk count and duration sufficient to estimate throughput.
+const MIN_CHUNKS_FOR_RATE = 10;
+const MIN_DURATION_MS_FOR_RATE = 500;
+
+export const summarizeDecodeThroughput = (streams = []) => {
+  const withRate = streams
+    .filter((s) => s.chunkCount >= MIN_CHUNKS_FOR_RATE && s.durationMs >= MIN_DURATION_MS_FOR_RATE)
+    .map((s) => ({
+      ...s,
+      // Estimate chunks per second from chunkCount and durationMs.
+      chunksPerSecond: Math.round((s.chunkCount / (s.durationMs / 1000)) * 100) / 100,
+      bytesPerSecond: Math.round((s.totalBytes / (s.durationMs / 1000)) * 100) / 100,
+    }));
+
+  if (withRate.length === 0) {
+    return { streams: withRate, avgChunksPerSecond: null, avgBytesPerSecond: null };
+  }
+
+  const avgChunksPerSecond = withRate.reduce((sum, s) => sum + s.chunksPerSecond, 0) / withRate.length;
+  const avgBytesPerSecond = withRate.reduce((sum, s) => sum + s.bytesPerSecond, 0) / withRate.length;
+
+  return {
+    streams: withRate,
+    avgChunksPerSecond: Math.round(avgChunksPerSecond * 100) / 100,
+    avgBytesPerSecond: Math.round(avgBytesPerSecond * 100) / 100,
+  };
+};
+
+export const buildVerdicts = ({ health = {}, startup = {}, streaming = {}, decodeThroughput = {} }) => {
   const verdicts = [];
   const compatibility = health.axCodeVersionCompatibility;
   if (compatibility?.compatible === false) {
@@ -164,12 +194,33 @@ export const buildVerdicts = ({ health = {}, startup = {}, streaming = {} }) => 
     verdicts.push(`${upstreamErrors} upstream stream error(s) recorded — check ax-code backend stability.`);
   }
 
+  // Decode throughput verdicts
+  const { avgChunksPerSecond, avgBytesPerSecond, streams: throughputStreams } = decodeThroughput;
+  if (throughputStreams && throughputStreams.length > 0) {
+    if (avgChunksPerSecond !== null && avgChunksPerSecond < 30) {
+      verdicts.push(
+        `Average decode throughput is ${avgChunksPerSecond.toFixed(1)} chunks/s — this is low. ` +
+        'If pipeline overhead is also low, the backend inference engine is the bottleneck, not the desktop.'
+      );
+    } else if (avgChunksPerSecond !== null && avgChunksPerSecond >= 30 && medianMs !== null && medianMs < PIPELINE_OVERHEAD_THRESHOLD_MS) {
+      verdicts.push(
+        `Average decode throughput is ${avgChunksPerSecond.toFixed(1)} chunks/s with low pipeline overhead — ` +
+        'the desktop is delivering tokens as fast as the backend produces them.'
+      );
+    }
+  } else if (samples > 0) {
+    verdicts.push(
+      'No streams had enough chunks/duration to estimate decode throughput — run a longer session for better data.'
+    );
+  }
+
   return verdicts;
 };
 
 export const buildReport = ({ health = {}, diagnostics = {} }) => {
   const startup = summarizeStartupTimeline(diagnostics.events);
   const streaming = summarizeStreams(diagnostics.sseProxy);
+  const decodeThroughput = summarizeDecodeThroughput(streaming.streams);
   return {
     generatedAt: new Date().toISOString(),
     bootId: diagnostics.bootId ?? null,
@@ -184,7 +235,8 @@ export const buildReport = ({ health = {}, diagnostics = {} }) => {
     },
     startup,
     streaming,
-    verdicts: buildVerdicts({ health, startup, streaming }),
+    decodeThroughput,
+    verdicts: buildVerdicts({ health, startup, streaming, decodeThroughput }),
   };
 };
 
@@ -248,6 +300,23 @@ export const formatReport = (report) => {
     lines.push(`    ${stream.requestPath ?? '?'}  delivered=${formatMs(stream.deliveredFirstChunkMs)} ` +
       `upstream=${formatMs(stream.upstreamFirstChunkMs)} overhead=${formatMs(stream.pipelineOverheadMs)} ` +
       `duration=${formatMs(stream.durationMs)} (${stream.reason ?? '?'})`);
+  }
+  lines.push('');
+
+  lines.push('## Decode throughput');
+  const dt = report.decodeThroughput;
+  if (dt && dt.streams && dt.streams.length > 0) {
+    lines.push(`  streams with measurable throughput: ${dt.streams.length}`);
+    lines.push(`  avg chunks/s: ${dt.avgChunksPerSecond?.toFixed(1) ?? 'n/a'}  ` +
+      `avg bytes/s: ${dt.avgBytesPerSecond?.toFixed(0) ?? 'n/a'}`);
+    for (const stream of dt.streams.slice(-5)) {
+      lines.push(`    ${stream.requestPath ?? '?'}  ` +
+        `${stream.chunksPerSecond.toFixed(1)} chunks/s  ` +
+        `${(stream.bytesPerSecond / 1024).toFixed(1)} KB/s  ` +
+        `duration=${formatMs(stream.durationMs)}  chunks=${stream.chunkCount}`);
+    }
+  } else {
+    lines.push('  (no streams with sufficient data for throughput estimation)');
   }
   lines.push('');
 

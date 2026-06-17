@@ -16,6 +16,7 @@ import type { Event, AxCodeClient, SessionStatus } from "@ax-code/sdk/v2/client"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { syncDebug } from "./debug"
 import { API_PATHS } from "@/lib/http"
+import { createMetricsTracker, type MetricsTracker } from "./streaming-metrics"
 
 export type QueuedEvent = {
   directory: string
@@ -63,6 +64,7 @@ export type EventPipelineInput = {
 export type EventPipeline = {
   cleanup: () => void
   reconnect: (reason?: string) => void
+  metrics: MetricsTracker
 }
 
 type MessageStreamWsFrame = {
@@ -259,6 +261,7 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     wsReadyTimeoutMs = DEFAULT_WS_READY_TIMEOUT_MS,
   } = input
   const abort = new AbortController()
+  const metrics = createMetricsTracker()
   let disconnected = false
   let lastEventId: string | undefined
   let wsFallbackUntil = 0
@@ -307,6 +310,23 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     const props = payload.properties as { messageID?: string; partID?: string }
     if (typeof props.messageID !== "string" || typeof props.partID !== "string") return undefined
     return `message.part.updated:${props.messageID}:${props.partID}`
+  }
+  
+  /**
+   * Extract a session-level identifier from a delta event for metrics tracking.
+   * The SDK delta events carry messageID but may also carry sessionID as an
+   * untyped property. Falls back to using messageID as the grouping key since
+   * each message belongs to exactly one session and metrics are per-turn.
+   */
+  const extractSessionIdFromDelta = (payload: Event): string | null => {
+    const props = payload.properties as { sessionID?: unknown; messageID?: unknown }
+    if (typeof props.sessionID === "string" && props.sessionID.length > 0) {
+      return props.sessionID
+    }
+    if (typeof props.messageID === "string" && props.messageID.length > 0) {
+      return props.messageID
+    }
+    return null
   }
 
   const flushDir = (directory: string) => {
@@ -470,6 +490,26 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
   const enqueueEvent = (directory: string, payload: Event) => {
     const normalizedPayload = normalizeEventType(payload)
     const routedDirectory = routeDirectory?.(directory, normalizedPayload) || directory
+
+    // Track streaming metrics from session status and delta events
+    if (normalizedPayload.type === "session.status") {
+      const statusProps = normalizedPayload.properties as { sessionID: string; status: SessionStatus }
+      if (statusProps.status?.type === "busy") {
+        metrics.onSessionBusy(statusProps.sessionID)
+      } else if (statusProps.status?.type === "idle") {
+        metrics.onSessionIdle(statusProps.sessionID)
+      }
+    } else if (normalizedPayload.type === "session.error") {
+      const errorProps = normalizedPayload.properties as { sessionID: string }
+      metrics.onSessionIdle(errorProps.sessionID)
+    } else if (normalizedPayload.type === "message.part.delta") {
+      const deltaProps = normalizedPayload.properties as { delta: string }
+      const sessionID = extractSessionIdFromDelta(normalizedPayload)
+      if (sessionID) {
+        metrics.onDelta(sessionID, deltaProps.delta?.length ?? 0)
+      }
+    }
+
     const d = getOrCreateDir(routedDirectory)
     const updatedKeyInterruptedByDelta = updatedPartKeyForDelta(normalizedPayload)
     if (updatedKeyInterruptedByDelta) {
@@ -887,5 +927,5 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     flushAll()
   }
 
-  return { cleanup, reconnect }
+  return { cleanup, reconnect, metrics }
 }

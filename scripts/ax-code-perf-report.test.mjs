@@ -6,6 +6,7 @@ import {
   formatReport,
   median,
   parseArgs,
+  summarizeDecodeThroughput,
   summarizeStartupTimeline,
   summarizeStreams,
 } from './ax-code-perf-report.mjs';
@@ -75,6 +76,45 @@ describe('summarizeStreams', () => {
   });
 });
 
+describe('summarizeDecodeThroughput', () => {
+  test('computes per-stream rates and averages', () => {
+    const result = summarizeDecodeThroughput([
+      { chunkCount: 100, totalBytes: 5000, durationMs: 2000, requestPath: '/event' },
+      { chunkCount: 50, totalBytes: 2500, durationMs: 1000, requestPath: '/event' },
+    ]);
+    expect(result.streams).toHaveLength(2);
+    expect(result.streams[0].chunksPerSecond).toBe(50);
+    expect(result.streams[0].bytesPerSecond).toBe(2500);
+    expect(result.streams[1].chunksPerSecond).toBe(50);
+    expect(result.avgChunksPerSecond).toBe(50);
+    expect(result.avgBytesPerSecond).toBe(2500);
+  });
+
+  test('filters out streams below minimum thresholds', () => {
+    const result = summarizeDecodeThroughput([
+      { chunkCount: 5, totalBytes: 100, durationMs: 200, requestPath: '/event' },
+      { chunkCount: 100, totalBytes: 5000, durationMs: 2000, requestPath: '/event' },
+    ]);
+    expect(result.streams).toHaveLength(1);
+    expect(result.streams[0].chunkCount).toBe(100);
+  });
+
+  test('returns null averages when no streams qualify', () => {
+    const result = summarizeDecodeThroughput([
+      { chunkCount: 2, totalBytes: 50, durationMs: 100 },
+    ]);
+    expect(result.streams).toHaveLength(0);
+    expect(result.avgChunksPerSecond).toBeNull();
+    expect(result.avgBytesPerSecond).toBeNull();
+  });
+
+  test('handles empty input', () => {
+    const result = summarizeDecodeThroughput([]);
+    expect(result.streams).toHaveLength(0);
+    expect(result.avgChunksPerSecond).toBeNull();
+  });
+});
+
 describe('buildVerdicts', () => {
   test('declares the pipeline not the bottleneck under the threshold', () => {
     const verdicts = buildVerdicts({
@@ -83,6 +123,42 @@ describe('buildVerdicts', () => {
     });
     expect(verdicts.some((v) => v.includes('NOT the bottleneck'))).toBe(true);
     expect(verdicts.some((v) => v.includes('gRPC'))).toBe(true);
+  });
+
+  test('flags low decode throughput as backend bottleneck', () => {
+    const verdicts = buildVerdicts({
+      streaming: { overhead: { samples: 2, medianMs: 10, maxMs: 15 }, totals: {} },
+      startup: {},
+      decodeThroughput: {
+        streams: [{ chunkCount: 20, durationMs: 2000 }],
+        avgChunksPerSecond: 10,
+        avgBytesPerSecond: 500,
+      },
+    });
+    expect(verdicts.some((v) => v.includes('decode throughput is 10.0 chunks/s'))).toBe(true);
+    expect(verdicts.some((v) => v.includes('backend inference engine is the bottleneck'))).toBe(true);
+  });
+
+  test('reports good throughput when rate is high and overhead low', () => {
+    const verdicts = buildVerdicts({
+      streaming: { overhead: { samples: 2, medianMs: 10, maxMs: 15 }, totals: {} },
+      startup: {},
+      decodeThroughput: {
+        streams: [{ chunkCount: 200, durationMs: 2000 }],
+        avgChunksPerSecond: 100,
+        avgBytesPerSecond: 5000,
+      },
+    });
+    expect(verdicts.some((v) => v.includes('delivering tokens as fast as the backend produces'))).toBe(true);
+  });
+
+  test('notes insufficient data when streams exist but lack throughput data', () => {
+    const verdicts = buildVerdicts({
+      streaming: { overhead: { samples: 3, medianMs: 10, maxMs: 20 }, totals: {} },
+      startup: {},
+      decodeThroughput: { streams: [], avgChunksPerSecond: null, avgBytesPerSecond: null },
+    });
+    expect(verdicts.some((v) => v.includes('No streams had enough chunks/duration'))).toBe(true);
   });
 
   test('flags slow pipeline, backpressure, version, and startup issues', () => {
@@ -180,6 +256,7 @@ describe('buildReport + formatReport', () => {
     expect(text).toContain('stream.first_token');
     expect(text).toContain('median 10ms');
     expect(text).toContain('## Verdicts');
+    expect(text).toContain('## Decode throughput');
   });
 });
 
