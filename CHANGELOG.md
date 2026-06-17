@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-06-17
+
+- Security: the `/api/fs/reveal` endpoint (reveal in Finder / Explorer) now resolves the requested path through the shared `resolveWorkspaceOrApprovedPathFromContext` authorization helper, rejecting paths outside the project workspace and the user's approved directories with HTTP 400. Previously it called `path.resolve()` directly, which allowed arbitrary filesystem paths to be opened in the host file explorer. This closes the last authorization gap among the filesystem endpoints, which otherwise already enforced workspace/approved-directory containment.
+
 ## [1.2.0] - 2026-06-17
 
 - Release: minor version bump. No application changes since 1.1.9.
