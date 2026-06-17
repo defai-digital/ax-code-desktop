@@ -27,6 +27,7 @@ export function createTerminalRuntime({
   isExecutable,
   isRequestOriginAllowed,
   rejectWebSocketUpgrade,
+  validateCwd,
   TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS,
   TERMINAL_INPUT_WS_REBIND_WINDOW_MS,
   TERMINAL_INPUT_WS_MAX_REBINDS_PER_WINDOW,
@@ -177,6 +178,13 @@ export function createTerminalRuntime({
     delete next.ENV;
     delete next.AX_CODE_SERVER_PASSWORD;
     return next;
+  };
+
+  const resolveAllowedCwd = async (req, cwd) => {
+    if (typeof validateCwd !== 'function') {
+      return { ok: true, cwd };
+    }
+    return validateCwd(req, cwd);
   };
   const terminalTransportCapabilities = {
     input: {
@@ -507,12 +515,17 @@ export function createTerminalRuntime({
         return res.status(429).json({ error: 'Maximum terminal sessions reached' });
       }
 
-      const { cwd, cols, rows } = req.body;
+      let { cwd, cols, rows } = req.body;
       if (!cwd) {
         return res.status(400).json({ error: 'cwd is required' });
       }
 
       try {
+        const allowed = await resolveAllowedCwd(req, cwd);
+        if (!allowed.ok) {
+          return res.status(403).json({ error: allowed.error || 'Terminal cwd is not approved' });
+        }
+        cwd = allowed.cwd || cwd;
         const stats = await fs.promises.stat(cwd);
         if (!stats.isDirectory()) {
           return res.status(400).json({ error: 'Invalid working directory' });
@@ -724,7 +737,7 @@ export function createTerminalRuntime({
 
   app.post('/api/terminal/:sessionId/restart', async (req, res) => {
     const { sessionId } = req.params;
-    const { cwd, cols, rows } = req.body;
+    let { cwd, cols, rows } = req.body;
 
     if (!cwd) {
       return res.status(400).json({ error: 'cwd is required' });
@@ -741,6 +754,11 @@ export function createTerminalRuntime({
 
     try {
       try {
+        const allowed = await resolveAllowedCwd(req, cwd);
+        if (!allowed.ok) {
+          return res.status(403).json({ error: allowed.error || 'Terminal cwd is not approved' });
+        }
+        cwd = allowed.cwd || cwd;
         const stats = await fs.promises.stat(cwd);
         if (!stats.isDirectory()) {
           return res.status(400).json({ error: 'Invalid working directory: not a directory' });

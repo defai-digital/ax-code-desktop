@@ -47,6 +47,45 @@ function createRuntime(server, overrides = {}) {
 }
 
 describe('terminal runtime', () => {
+  it('rejects terminal working directories that are not approved', async () => {
+    const postRoutes = new Map();
+    const app = {
+      post(route, ...handlers) {
+        postRoutes.set(route, handlers.at(-1));
+      },
+      get() {},
+      delete() {},
+    };
+    const server = new EventEmitter();
+    const runtime = createRuntime(server, {
+      app,
+      fs: {
+        promises: {
+          stat: async () => {
+            throw new Error('stat should not run before cwd authorization');
+          },
+        },
+      },
+      validateCwd: async () => ({ ok: false, error: 'Path is outside of approved directories' }),
+      uiAuthController: { enabled: false },
+      buildAugmentedPath: () => '',
+      TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: 1000,
+      TERMINAL_INPUT_WS_REBIND_WINDOW_MS: 1000,
+    });
+
+    try {
+      const createRoute = postRoutes.get('/api/terminal/create');
+      const res = createResponse();
+
+      await createRoute({ body: { cwd: '/tmp/not-approved' } }, res);
+
+      expect(res.statusCode).toBe(403);
+      expect(res.body).toEqual({ error: 'Path is outside of approved directories' });
+    } finally {
+      await runtime.shutdown();
+    }
+  });
+
   it('rejects regular files as terminal working directories', async () => {
     const postRoutes = new Map();
     const app = {

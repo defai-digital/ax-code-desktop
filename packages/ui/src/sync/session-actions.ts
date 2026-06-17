@@ -21,6 +21,7 @@ const MESSAGE_REFETCH_LIMIT = 200
 const MESSAGE_REFETCH_SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const UNREVERT_REFETCH_ATTEMPTS = 3
 const UNREVERT_REFETCH_RETRY_MS = 150
+const ACCEPTED_PROMPT_NO_OUTPUT_MS = 12_000
 
 // Reference set by SyncProvider — allows actions to access SDK and stores
 let _sdk: AxCodeClient | null = null
@@ -73,6 +74,85 @@ function connectionLostError(): Error {
       ? ""
       : " (never connected)"
   return new Error(`Connection lost${suffix}. Please wait for reconnection.`)
+}
+
+function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): void {
+  const stores = _childStores
+  if (!stores) return
+  const directory = getSessionDirectory(sessionId) || dir()
+  if (!directory) return
+
+  globalThis.setTimeout(() => {
+    const store = stores.children.get(directory)
+    if (!store) return
+    const state = store.getState()
+    const messages = state.message[sessionId] ?? []
+    const userMessage = messages.find((message) => message.id === messageID)
+    if (!userMessage) return
+
+    const assistantResponse = messages.find((message) => (
+      message.role === "assistant" && message.parentID === messageID
+    ))
+    if (assistantResponse) {
+      const status = state.session_status?.[sessionId]
+      const completedAt = (assistantResponse as { time?: { completed?: number } }).time?.completed
+      const finish = (assistantResponse as { finish?: string }).finish
+      if ((status?.type === "busy" || status?.type === "retry") && (completedAt || finish === "stop")) {
+        store.setState((current) => ({
+          session_status: {
+            ...current.session_status,
+            [sessionId]: { type: "idle" as const },
+          },
+        }))
+      }
+      return
+    }
+
+    const status = state.session_status?.[sessionId]
+    if (status?.type === "busy" || status?.type === "retry") return
+
+    const assistantMessageID = ascendingId("msg")
+    const partID = ascendingId("prt")
+    const now = Date.now()
+    const assistantMessage = {
+      id: assistantMessageID,
+      role: "assistant" as const,
+      sessionID: sessionId,
+      parentID: messageID,
+      modelID: "",
+      providerID: "",
+      system: "",
+      agent: "",
+      model: "",
+      metadata: {
+        synthetic: true,
+        error: true,
+        source: "desktop-accepted-prompt-watchdog",
+      },
+      time: { created: now, completed: now },
+    } as unknown as Message
+    const textPart = {
+      id: partID,
+      type: "text",
+      messageID: assistantMessageID,
+      text: "The request was accepted, but no assistant response or error was produced. Please retry this message or start a new session.",
+    } as unknown as Part
+
+    store.setState((current) => ({
+      message: {
+        ...current.message,
+        [sessionId]: [...(current.message[sessionId] ?? []), assistantMessage],
+      },
+      part: {
+        ...current.part,
+        [assistantMessageID]: [textPart],
+      },
+      session_status: {
+        ...current.session_status,
+        [sessionId]: { type: "idle" as const },
+      },
+    }))
+  }, ACCEPTED_PROMPT_NO_OUTPUT_MS)
 }
 
 // Wait briefly for the pipeline to re-establish connection before failing a
@@ -447,6 +527,7 @@ export async function optimisticSend(input: {
   try {
     await waitForConnectionOrThrow()
     await input.send(messageID)
+    scheduleAcceptedPromptWatchdog(input.sessionId, messageID)
   } catch (error) {
     // Rollback via optimistic infrastructure
     _optimisticRemove({

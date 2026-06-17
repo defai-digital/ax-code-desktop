@@ -24,13 +24,27 @@ const createRouteRegistry = () => {
 const createMockResponse = () => {
   let statusCode = 200;
   let body = null;
+  let sent = null;
+  let contentType = null;
   return {
     status(code) {
       statusCode = code;
       return this;
     },
+    type(value) {
+      contentType = value;
+      return this;
+    },
     json(payload) {
       body = payload;
+      return this;
+    },
+    send(payload) {
+      sent = payload;
+      body = payload;
+      return this;
+    },
+    end() {
       return this;
     },
     get statusCode() {
@@ -38,6 +52,12 @@ const createMockResponse = () => {
     },
     get body() {
       return body;
+    },
+    get sent() {
+      return sent;
+    },
+    get contentType() {
+      return contentType;
     },
   };
 };
@@ -98,6 +118,7 @@ const registerExec = ({ spawn }) => {
     crypto: { randomUUID: (() => { let n = 0; return () => `job-${n++}`; })() },
     normalizeDirectoryPath: (p) => p,
     resolveProjectDirectory: async () => ({ directory: '/repo' }),
+    readSettingsFromDiskMigrated: async () => ({ approvedDirectories: ['/'] }),
     buildAugmentedPath: () => '/usr/bin',
     resolveGitBinaryForSpawn: () => 'git',
     openchamberUserConfigRoot: '/home/user/.config',
@@ -118,6 +139,7 @@ const registerWrite = (fsPromises) => {
     crypto: { randomUUID: () => 'job-0' },
     normalizeDirectoryPath: (p) => p,
     resolveProjectDirectory: async () => ({ directory: '/repo' }),
+    readSettingsFromDiskMigrated: async () => ({ approvedDirectories: [] }),
     buildAugmentedPath: () => '/usr/bin',
     resolveGitBinaryForSpawn: () => 'git',
     openchamberUserConfigRoot: '/home/user/.config',
@@ -134,6 +156,33 @@ const callExec = async (handler, body) => {
 const callWrite = async (handler, body) => {
   const res = createMockResponse();
   await handler({ body }, res);
+  return res;
+};
+
+const registerFs = (fsPromises, settings = { approvedDirectories: [] }) => {
+  const { app, getRoute } = createRouteRegistry();
+  registerFsRoutes(app, {
+    os: { homedir: () => '/home/user' },
+    path: path.posix,
+    fsPromises: {
+      realpath: async (targetPath) => targetPath,
+      ...fsPromises,
+    },
+    spawn: vi.fn(),
+    crypto: { randomUUID: () => 'job-0' },
+    normalizeDirectoryPath: (p) => p,
+    resolveProjectDirectory: async () => ({ directory: '/repo' }),
+    readSettingsFromDiskMigrated: async () => settings,
+    buildAugmentedPath: () => '/usr/bin',
+    resolveGitBinaryForSpawn: () => 'git',
+    openchamberUserConfigRoot: '/home/user/.config',
+  });
+  return { getRoute };
+};
+
+const callRoute = async (handler, req = {}) => {
+  const res = createMockResponse();
+  await handler({ query: {}, body: {}, ...req }, res);
   return res;
 };
 
@@ -165,6 +214,53 @@ describe('fs write', () => {
     expect(res.body).toEqual({ success: true, path: '/repo/file.txt' });
     expect(fsPromises.mkdir).toHaveBeenCalledWith('/repo', { recursive: true });
     expect(fsPromises.writeFile).toHaveBeenCalledWith('/repo/file.txt', 'new', 'utf8');
+  });
+});
+
+describe('fs outside workspace authorization', () => {
+  it('rejects allowOutsideWorkspace reads outside approved directories', async () => {
+    const { getRoute } = registerFs({
+      stat: vi.fn(async () => ({ isFile: () => true })),
+      readFile: vi.fn(async () => 'secret'),
+    });
+
+    const res = await callRoute(getRoute('GET', '/api/fs/read'), {
+      query: { path: '/tmp/secret.txt', allowOutsideWorkspace: 'true' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({ error: 'Path is outside of approved directories' });
+  });
+
+  it('allows outside-workspace reads inside an approved directory', async () => {
+    const fsPromises = {
+      stat: vi.fn(async () => ({ isFile: () => true })),
+      readFile: vi.fn(async () => 'approved'),
+    };
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: ['/tmp/approved'] });
+
+    const res = await callRoute(getRoute('GET', '/api/fs/read'), {
+      query: { path: '/tmp/approved/file.txt', allowOutsideWorkspace: 'true' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.sent).toBe('approved');
+    expect(fsPromises.readFile).toHaveBeenCalledWith('/tmp/approved/file.txt', 'utf8');
+  });
+
+  it('rejects mkdir outside workspace when the directory was not approved', async () => {
+    const fsPromises = {
+      mkdir: vi.fn(async () => undefined),
+    };
+    const { getRoute } = registerFs(fsPromises);
+
+    const res = await callRoute(getRoute('POST', '/api/fs/mkdir'), {
+      body: { path: '/tmp/new-project', allowOutsideWorkspace: true },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({ error: 'Path is outside of approved directories' });
+    expect(fsPromises.mkdir).not.toHaveBeenCalled();
   });
 });
 

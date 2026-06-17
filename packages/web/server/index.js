@@ -21,6 +21,7 @@ import {
   UPSTREAM_STALL_TIMEOUT_CONCURRENT_MS,
 } from './lib/event-stream/index.js';
 import { createFsSearchRuntime as createFsSearchRuntimeFactory } from './lib/fs/search.js';
+import { resolveWorkspaceOrApprovedPathFromContext } from './lib/fs/routes.js';
 import { createAxCodeLifecycleRuntime } from './lib/ax-code/lifecycle.js';
 import { createAxCodeEnvRuntime } from './lib/ax-code/env-runtime.js';
 import { resolveAxCodeEnvConfig } from './lib/ax-code/env-config.js';
@@ -1109,6 +1110,21 @@ async function main(options = {}) {
     terminalHeartbeatIntervalMs: TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS,
     terminalRebindWindowMs: TERMINAL_INPUT_WS_REBIND_WINDOW_MS,
     terminalMaxRebindsPerWindow: TERMINAL_INPUT_WS_MAX_REBINDS_PER_WINDOW,
+    validateTerminalCwd: async (req, cwd) => {
+      const resolved = await resolveWorkspaceOrApprovedPathFromContext({
+        req,
+        targetPath: cwd,
+        resolveProjectDirectory,
+        readSettingsFromDiskMigrated,
+        path,
+        os,
+        normalizeDirectoryPath,
+        openchamberUserConfigRoot: AX_CODE_DESKTOP_USER_CONFIG_ROOT,
+      });
+      return resolved.ok
+        ? { ok: true, cwd: resolved.resolved }
+        : { ok: false, error: resolved.error };
+    },
     setupProxy,
     scheduleAxCodeApiDetection,
     bootstrapAxCodeAtStartup,

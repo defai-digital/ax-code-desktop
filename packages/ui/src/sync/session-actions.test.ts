@@ -334,4 +334,74 @@ describe("optimisticSend responsiveness", () => {
     expect(sendSawOptimistic).toBe(true)
     expect(store.getState().session_status["session-a"]).toEqual({ type: "busy" })
   })
+
+  test("adds a visible fallback when an accepted prompt goes idle without assistant output", async () => {
+    const originalSetTimeout = globalThis.setTimeout
+    globalThis.setTimeout = ((callback: TimerHandler) => {
+      if (typeof callback === "function") callback()
+      return 0 as unknown as ReturnType<typeof setTimeout>
+    }) as unknown as typeof setTimeout
+
+    try {
+      const store = createStore({})
+      const childStores = createChildStores([["/test/project", store]])
+
+      const { setActionRefs, setOptimisticRefs, optimisticSend } = await import("./session-actions")
+      setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+      setOptimisticRefs(
+        ({ sessionID, message, parts }) => {
+          store.setState((state) => ({
+            message: {
+              ...state.message,
+              [sessionID]: [...(state.message[sessionID] ?? []), message],
+            },
+            part: {
+              ...state.part,
+              [message.id]: parts,
+            },
+          }))
+        },
+        ({ sessionID, messageID }) => {
+          store.setState((state) => {
+            const messages = state.message[sessionID] ?? []
+            const nextMessages = messages.filter((message) => message.id !== messageID)
+            const nextPart = { ...state.part }
+            delete nextPart[messageID]
+            return {
+              message: {
+                ...state.message,
+                [sessionID]: nextMessages,
+              },
+              part: nextPart,
+            }
+          })
+        },
+      )
+
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "hello",
+        providerID: "provider",
+        modelID: "model",
+        send: () => {
+          store.setState((state) => ({
+            session_status: {
+              ...state.session_status,
+              "session-a": { type: "idle" as const },
+            },
+          }))
+          return Promise.resolve()
+        },
+      })
+
+      const messages = store.getState().message["session-a"] ?? []
+      const fallback = messages.find((message) => message.role === "assistant")
+      expect(fallback).toBeTruthy()
+      expect((fallback as Message & { metadata?: Record<string, unknown> } | undefined)?.metadata?.source).toBe("desktop-accepted-prompt-watchdog")
+      expect((fallback as Message & { metadata?: Record<string, unknown> } | undefined)?.metadata?.error).toBe(true)
+      expect(store.getState().part[fallback?.id ?? ""]?.[0]?.type).toBe("text")
+    } finally {
+      globalThis.setTimeout = originalSetTimeout
+    }
+  })
 })

@@ -5,6 +5,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
+const PROMPT_ASYNC_IDEMPOTENCY_TTL_MS = 2 * 60 * 1000;
+
 export const registerAxCodeRoutes = (app, dependencies) => {
   const {
     crypto,
@@ -27,6 +29,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
 
   let authLibrary = null;
   const pendingMcpAuthContextByState = new Map();
+  const promptAsyncRequestsByKey = new Map();
   const PENDING_MCP_AUTH_TTL_MS = 30 * 60 * 1000;
   const getAuthLibrary = async () => {
     if (!authLibrary) {
@@ -58,6 +61,146 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       }
     }
   };
+
+  const prunePromptAsyncRequests = () => {
+    const now = Date.now();
+    for (const [key, entry] of promptAsyncRequestsByKey.entries()) {
+      const completedAt = typeof entry?.completedAt === 'number' ? entry.completedAt : 0;
+      const startedAt = typeof entry?.startedAt === 'number' ? entry.startedAt : 0;
+      const reference = completedAt || startedAt;
+      if (!reference || now - reference > PROMPT_ASYNC_IDEMPOTENCY_TTL_MS) {
+        promptAsyncRequestsByKey.delete(key);
+      }
+    }
+  };
+
+  const buildUpstreamPathWithQuery = (basePath, req) => {
+    const requestUrl = typeof req.originalUrl === 'string' ? req.originalUrl : req.url;
+    const parsed = new URL(requestUrl || '/', 'http://localhost');
+    return `${basePath}${parsed.search || ''}`;
+  };
+
+  const fetchAxCodeJsonRoute = async (req, upstreamPath) => {
+    const response = await fetch(buildAxCodeUrl(upstreamPath, ''), {
+      method: req.method,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...getAxCodeAuthHeaders(),
+      },
+      body: req.method === 'GET' || req.method === 'HEAD'
+        ? undefined
+        : JSON.stringify(req.body ?? {}),
+    });
+    const contentType = response.headers.get('content-type') || 'application/json';
+    const bodyText = await response.text().catch(() => '');
+    return {
+      status: response.status,
+      ok: response.ok,
+      contentType,
+      bodyText,
+    };
+  };
+
+  const sendAxCodeRouteResult = (res, result) => {
+    res.status(result.status);
+    if (result.contentType) {
+      res.type(result.contentType);
+    }
+    if (result.bodyText) {
+      return res.send(result.bodyText);
+    }
+    return res.end();
+  };
+
+  const parseJsonBodyText = (text) => {
+    if (!text || typeof text !== 'string') return null;
+    try {
+      const parsed = JSON.parse(text);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  app.post('/api/session/:sessionId/prompt_async', async (req, res) => {
+    const sessionId = typeof req.params?.sessionId === 'string' ? req.params.sessionId : '';
+    const messageId = typeof req.body?.messageID === 'string' ? req.body.messageID.trim() : '';
+    const key = sessionId && messageId ? `${sessionId}:${messageId}` : null;
+    const upstreamPath = buildUpstreamPathWithQuery(`/session/${encodeURIComponent(sessionId)}/prompt_async`, req);
+
+    try {
+      prunePromptAsyncRequests();
+      if (key) {
+        const existing = promptAsyncRequestsByKey.get(key);
+        if (existing?.result) {
+          return sendAxCodeRouteResult(res, existing.result);
+        }
+        if (existing?.promise) {
+          const result = await existing.promise;
+          return sendAxCodeRouteResult(res, result);
+        }
+      }
+
+      const promise = fetchAxCodeJsonRoute(req, upstreamPath);
+      if (key) {
+        promptAsyncRequestsByKey.set(key, { startedAt: Date.now(), promise });
+      }
+
+      const result = await promise;
+      if (key) {
+        if (result.ok) {
+          promptAsyncRequestsByKey.set(key, {
+            completedAt: Date.now(),
+            result,
+          });
+        } else {
+          promptAsyncRequestsByKey.delete(key);
+        }
+      }
+      return sendAxCodeRouteResult(res, result);
+    } catch (error) {
+      if (key) {
+        promptAsyncRequestsByKey.delete(key);
+      }
+      console.error('Failed to forward prompt_async:', error);
+      return res.status(503).json({
+        error: error instanceof Error ? error.message : 'Failed to send prompt',
+        restarting: true,
+      });
+    }
+  });
+
+  app.post('/api/session/:sessionId/command', async (req, res) => {
+    const sessionId = typeof req.params?.sessionId === 'string' ? req.params.sessionId : '';
+    const command = typeof req.body?.command === 'string' ? req.body.command.trim() : '';
+    const upstreamPath = buildUpstreamPathWithQuery(`/session/${encodeURIComponent(sessionId)}/command`, req);
+
+    try {
+      const result = await fetchAxCodeJsonRoute(req, upstreamPath);
+      const payload = parseJsonBodyText(result.bodyText);
+      if (
+        result.status === 500 &&
+        payload?.name === 'UnknownError' &&
+        typeof payload?.message === 'string' &&
+        payload.message.toLowerCase().includes('internal server error') &&
+        command
+      ) {
+        return res.status(400).json({
+          error: `Unknown command: ${command}`,
+          message: `Unknown command: ${command}`,
+          retryable: false,
+        });
+      }
+      return sendAxCodeRouteResult(res, result);
+    } catch (error) {
+      console.error('Failed to forward session command:', error);
+      return res.status(503).json({
+        error: error instanceof Error ? error.message : 'Failed to run command',
+        restarting: true,
+      });
+    }
+  });
 
   app.get('/api/config/settings', async (_req, res) => {
     try {

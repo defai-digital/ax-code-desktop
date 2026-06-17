@@ -288,6 +288,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       crypto,
       normalizeDirectoryPath,
       resolveProjectDirectory,
+      readSettingsFromDiskMigrated,
       buildAugmentedPath,
       resolveGitBinaryForSpawn,
       openchamberUserConfigRoot,

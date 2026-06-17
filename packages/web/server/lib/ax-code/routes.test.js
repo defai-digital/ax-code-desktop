@@ -175,4 +175,77 @@ describe('ax-code routes', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('maps unknown command upstream 500 responses to a client error', async () => {
+    const { app } = createApp();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+      name: 'UnknownError',
+      message: 'Internal server error',
+      status: 500,
+      retryable: false,
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    try {
+      const response = await request(app)
+        .post('/api/session/ses-1/command?directory=/tmp/project')
+        .send({
+          command: 'abc123',
+          arguments: 'manual API unknown command test',
+          model: 'provider/model',
+          messageID: 'msg-1',
+        })
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        error: 'Unknown command: abc123',
+        retryable: false,
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('deduplicates concurrent prompt_async requests for the same session message', async () => {
+    const { app } = createApp();
+    const originalFetch = globalThis.fetch;
+    let releaseFetch;
+    const fetchStarted = new Promise((resolve) => {
+      globalThis.fetch = vi.fn(async () => {
+        resolve(undefined);
+        await new Promise((release) => {
+          releaseFetch = release;
+        });
+        return new Response(JSON.stringify({ accepted: true }), {
+          status: 202,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      });
+    });
+
+    try {
+      const payload = {
+        model: { providerID: 'provider', modelID: 'model' },
+        messageID: 'msg-1',
+        parts: [{ type: 'text', text: 'hello' }],
+      };
+      const first = request(app).post('/api/session/ses-1/prompt_async').send(payload).then((response) => response);
+      await fetchStarted;
+      const second = request(app).post('/api/session/ses-1/prompt_async').send(payload).then((response) => response);
+      releaseFetch();
+
+      const [firstResponse, secondResponse] = await Promise.all([first, second]);
+
+      expect(firstResponse.status).toBe(202);
+      expect(secondResponse.status).toBe(202);
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      expect(firstResponse.body).toEqual({ accepted: true });
+      expect(secondResponse.body).toEqual({ accepted: true });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

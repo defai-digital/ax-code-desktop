@@ -38,13 +38,67 @@ const GIT_READ_CACHE_MAX_BYTES = 1024 * 1024;
 const gitReadEntryBytes = (key, result) =>
   key.length + (result?.stdout?.length || 0) + (result?.stderr?.length || 0);
 
-const isPathWithinRoot = (resolvedPath, rootPath, path, os) => {
+export const isPathWithinRoot = (resolvedPath, rootPath, path, os) => {
   const resolvedRoot = path.resolve(rootPath || os.homedir());
   const relative = path.relative(resolvedRoot, resolvedPath);
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
     return false;
   }
   return true;
+};
+
+const collectApprovedDirectories = (settings) => {
+  const approved = [];
+  if (Array.isArray(settings?.approvedDirectories)) {
+    approved.push(...settings.approvedDirectories);
+  }
+  if (typeof settings?.homeDirectory === 'string') {
+    approved.push(settings.homeDirectory);
+  }
+  if (typeof settings?.lastDirectory === 'string') {
+    approved.push(settings.lastDirectory);
+  }
+  if (Array.isArray(settings?.projects)) {
+    for (const project of settings.projects) {
+      if (typeof project?.path === 'string') {
+        approved.push(project.path);
+      }
+    }
+  }
+  return approved;
+};
+
+export const resolveApprovedPathFromSettings = async ({
+  targetPath,
+  readSettingsFromDiskMigrated,
+  path,
+  os,
+  normalizeDirectoryPath,
+}) => {
+  const normalized = normalizeDirectoryPath(targetPath);
+  if (!normalized || typeof normalized !== 'string') {
+    return { ok: false, error: 'Path is required' };
+  }
+
+  if (typeof readSettingsFromDiskMigrated !== 'function') {
+    return { ok: false, error: 'Outside-workspace access is not available' };
+  }
+
+  const resolved = path.resolve(normalized);
+  const settings = await readSettingsFromDiskMigrated();
+  const approvedDirectories = collectApprovedDirectories(settings);
+
+  for (const approvedDirectory of approvedDirectories) {
+    if (typeof approvedDirectory !== 'string' || !approvedDirectory.trim()) {
+      continue;
+    }
+    const approved = path.resolve(normalizeDirectoryPath(approvedDirectory));
+    if (isPathWithinRoot(resolved, approved, path, os)) {
+      return { ok: true, base: approved, resolved };
+    }
+  }
+
+  return { ok: false, error: 'Path is outside of approved directories' };
 };
 
 const resolveWorkspacePath = ({ targetPath, baseDirectory, path, os, normalizeDirectoryPath, openchamberUserConfigRoot }) => {
@@ -127,6 +181,38 @@ const resolveWorkspacePathFromContext = async ({ req, targetPath, resolveProject
   });
 };
 
+export const resolveWorkspaceOrApprovedPathFromContext = async ({
+  req,
+  targetPath,
+  resolveProjectDirectory,
+  readSettingsFromDiskMigrated,
+  path,
+  os,
+  normalizeDirectoryPath,
+  openchamberUserConfigRoot,
+}) => {
+  const workspace = await resolveWorkspacePathFromContext({
+    req,
+    targetPath,
+    resolveProjectDirectory,
+    path,
+    os,
+    normalizeDirectoryPath,
+    openchamberUserConfigRoot,
+  });
+  if (workspace.ok || workspace.error !== 'Path is outside of active workspace') {
+    return workspace;
+  }
+
+  return resolveApprovedPathFromSettings({
+    targetPath,
+    readSettingsFromDiskMigrated,
+    path,
+    os,
+    normalizeDirectoryPath,
+  });
+};
+
 const deriveCloneDirectoryName = (remoteUrl) => {
   const remote = typeof remoteUrl === 'string' ? remoteUrl.trim() : '';
   if (!remote) return '';
@@ -169,14 +255,18 @@ const escapeCloneSshKeyPath = (sshKeyPath) => {
   return `'${normalized.replace(/'/g, "'\\''")}'`;
 };
 
-const resolveReadPathFromContext = async ({ req, targetPath, resolveProjectDirectory, path, os, normalizeDirectoryPath, openchamberUserConfigRoot }) => {
+const resolveReadPathFromContext = async ({ req, targetPath, resolveProjectDirectory, readSettingsFromDiskMigrated, path, os, normalizeDirectoryPath, openchamberUserConfigRoot }) => {
   if (req.query?.allowOutsideWorkspace === 'true') {
-    const normalized = normalizeDirectoryPath(targetPath);
-    if (!normalized || typeof normalized !== 'string') {
-      return { ok: false, error: 'Path is required' };
-    }
-    const resolved = path.resolve(normalized);
-    return { ok: true, base: path.dirname(resolved), resolved };
+    return resolveWorkspaceOrApprovedPathFromContext({
+      req,
+      targetPath,
+      resolveProjectDirectory,
+      readSettingsFromDiskMigrated,
+      path,
+      os,
+      normalizeDirectoryPath,
+      openchamberUserConfigRoot,
+    });
   }
 
   return resolveWorkspacePathFromContext({
@@ -268,6 +358,7 @@ export const registerFsRoutes = (app, dependencies) => {
     crypto,
     normalizeDirectoryPath,
     resolveProjectDirectory,
+    readSettingsFromDiskMigrated,
     buildAugmentedPath,
     resolveGitBinaryForSpawn,
     openchamberUserConfigRoot,
@@ -442,24 +533,23 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(400).json({ error: 'Path is required' });
       }
 
-      let resolvedPath = '';
-      if (allowOutsideWorkspace) {
-        resolvedPath = path.resolve(normalizeDirectoryPath(dirPath));
-      } else {
-        const resolved = await resolveWorkspacePathFromContext({
-          req,
-          targetPath: dirPath,
-          resolveProjectDirectory,
-          path,
-          os,
-          normalizeDirectoryPath,
-          openchamberUserConfigRoot,
-        });
-        if (!resolved.ok) {
-          return res.status(400).json({ error: resolved.error });
-        }
-        resolvedPath = resolved.resolved;
+      const resolver = allowOutsideWorkspace
+        ? resolveWorkspaceOrApprovedPathFromContext
+        : resolveWorkspacePathFromContext;
+      const resolved = await resolver({
+        req,
+        targetPath: dirPath,
+        resolveProjectDirectory,
+        readSettingsFromDiskMigrated,
+        path,
+        os,
+        normalizeDirectoryPath,
+        openchamberUserConfigRoot,
+      });
+      if (!resolved.ok) {
+        return res.status(400).json({ error: resolved.error });
       }
+      const resolvedPath = resolved.resolved;
 
       await fsPromises.mkdir(resolvedPath, { recursive: true });
       return res.json({ success: true, path: resolvedPath });
@@ -523,6 +613,22 @@ export const registerFsRoutes = (app, dependencies) => {
         gitArgs.unshift(`core.sshCommand=ssh -i ${escapeCloneSshKeyPath(sshKeyPath)} -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new`);
         gitArgs.unshift('-c');
       }
+
+      const authorizedParent = await resolveWorkspaceOrApprovedPathFromContext({
+        req,
+        targetPath: parentPath,
+        resolveProjectDirectory,
+        readSettingsFromDiskMigrated,
+        path,
+        os,
+        normalizeDirectoryPath,
+        openchamberUserConfigRoot,
+      });
+      if (!authorizedParent.ok) {
+        return res.status(400).json({ error: authorizedParent.error });
+      }
+      parentPath = authorizedParent.resolved;
+      resolvedDestination = path.join(parentPath, directoryName);
 
       await fsPromises.mkdir(parentPath, { recursive: true });
       try {
@@ -589,6 +695,7 @@ export const registerFsRoutes = (app, dependencies) => {
         req,
         targetPath: filePath,
         resolveProjectDirectory,
+        readSettingsFromDiskMigrated,
         path,
         os,
         normalizeDirectoryPath,
@@ -638,6 +745,7 @@ export const registerFsRoutes = (app, dependencies) => {
         req,
         targetPath: filePath,
         resolveProjectDirectory,
+        readSettingsFromDiskMigrated,
         path,
         os,
         normalizeDirectoryPath,
@@ -947,7 +1055,20 @@ export const registerFsRoutes = (app, dependencies) => {
     pruneGitReadCache();
 
     try {
-      const resolvedCwd = path.resolve(normalizeDirectoryPath(cwd));
+      const authorizedCwd = await resolveWorkspaceOrApprovedPathFromContext({
+        req,
+        targetPath: cwd,
+        resolveProjectDirectory,
+        readSettingsFromDiskMigrated,
+        path,
+        os,
+        normalizeDirectoryPath,
+        openchamberUserConfigRoot,
+      });
+      if (!authorizedCwd.ok) {
+        return res.status(400).json({ error: authorizedCwd.error });
+      }
+      const resolvedCwd = authorizedCwd.resolved;
       const stats = await fsPromises.stat(resolvedCwd);
       if (!stats.isDirectory()) {
         return res.status(400).json({ error: 'Specified cwd is not a directory' });
@@ -1043,7 +1164,20 @@ export const registerFsRoutes = (app, dependencies) => {
     };
 
     try {
-      resolvedPath = await realpathCache.resolve(path.resolve(normalizeDirectoryPath(rawPath)));
+      const authorized = await resolveWorkspaceOrApprovedPathFromContext({
+        req,
+        targetPath: rawPath,
+        resolveProjectDirectory,
+        readSettingsFromDiskMigrated,
+        path,
+        os,
+        normalizeDirectoryPath,
+        openchamberUserConfigRoot,
+      });
+      if (!authorized.ok) {
+        return res.status(400).json({ error: authorized.error });
+      }
+      resolvedPath = await realpathCache.resolve(authorized.resolved);
 
       const stats = await fsPromises.stat(resolvedPath);
       if (!stats.isDirectory()) {
