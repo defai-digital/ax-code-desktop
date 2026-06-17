@@ -22,10 +22,37 @@ export const getCurrentDirectory = (): string | null => {
   return null;
 };
 
-export const buildDirectoryUrl = (url: string, directory: string | null): string => {
-  if (!directory) return url;
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}directory=${encodeURIComponent(directory)}`;
+// In the desktop app the renderer is served from its own local origin, which is
+// NOT the AX Code server. A bare relative "/api/..." fetch would resolve against
+// that renderer origin and never reach the server, surfacing as "Unable to load
+// provider list" / "Failed to load provider authentication methods". Resolve the
+// AX Code server origin first (mirrors gitApiHttp.ts resolveBaseOrigin), falling
+// back to window.location.origin on web where they coincide.
+const resolveBaseOrigin = (): string => {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  const desktopOrigin = window.__AX_CODE_DESKTOP_DESKTOP_SERVER__?.origin;
+  if (desktopOrigin) {
+    return desktopOrigin;
+  }
+  return window.location.origin;
+};
+
+export const buildDirectoryUrl = (path: string, directory: string | null): string => {
+  const origin = resolveBaseOrigin();
+  // On the server (no window) there is no origin to resolve against; keep the
+  // relative path and append the query manually.
+  if (!origin) {
+    if (!directory) return path;
+    const separator = path.includes('?') ? '&' : '?';
+    return `${path}${separator}directory=${encodeURIComponent(directory)}`;
+  }
+  const url = new URL(path, origin);
+  if (directory) {
+    url.searchParams.set('directory', directory);
+  }
+  return url.toString();
 };
 
 export const fetchProviderJsonWithRetry = async (url: string, init: RequestInit) => {
