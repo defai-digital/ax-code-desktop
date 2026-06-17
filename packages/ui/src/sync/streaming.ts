@@ -108,8 +108,6 @@ export function updateStreamingState(state: State) {
       const prevId = currentStreamingIds.get(sessionID)
       if (prevId) {
         completeStreamingMessage(sessionID, prevId)
-      } else if (!currentPrefillIds.has(sessionID)) {
-        changed = true
       }
       continue
     }
