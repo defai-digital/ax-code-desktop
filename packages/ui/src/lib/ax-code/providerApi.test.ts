@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   buildDirectoryUrl,
   disconnectProviderAuth,
+  fetchProviderJsonWithRetry,
   fetchProviderSources,
   isRestartingError,
   parseAuthMethodsPayload,
@@ -111,6 +112,32 @@ describe('provider requests', () => {
     }
   });
 
+  test('disconnectProviderAuth falls back to window.location.origin in web mode', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const originalFetch = globalThis.fetch;
+    setWindowStub({
+      location: { origin: 'https://app.example.com' },
+    });
+    setFetchStub((async (url: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch);
+
+    try {
+      await disconnectProviderAuth('anthropic', '/work', 'all');
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.url).toBe(
+        'https://app.example.com/api/provider/anthropic/auth?directory=%2Fwork&scope=all'
+      );
+    } finally {
+      setFetchStub(originalFetch);
+      clearWindowStub();
+    }
+  });
+
   test('fetchProviderSources uses shared provider request handling', async () => {
     const originalFetch = globalThis.fetch;
     const calls: string[] = [];
@@ -128,6 +155,48 @@ describe('provider requests', () => {
         user: { exists: true },
       });
       expect(calls).toEqual(['/api/provider/openai/source?directory=%2Fhome%2Fuser%2Fproject']);
+    } finally {
+      setFetchStub(originalFetch);
+    }
+  });
+});
+
+describe('fetchProviderJsonWithRetry', () => {
+  test('throws with restarting:true when all 503 restarting retries are exhausted', async () => {
+    const originalFetch = globalThis.fetch;
+    setFetchStub((async () => {
+      return new Response(JSON.stringify({ restarting: true }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch);
+
+    try {
+      await fetchProviderJsonWithRetry('/api/test', { method: 'GET' });
+      expect(true).toBe(false); // should not reach here
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as { restarting?: boolean }).restarting).toBe(true);
+    } finally {
+      setFetchStub(originalFetch);
+    }
+  });
+
+  test('throws without restarting flag for non-restarting errors', async () => {
+    const originalFetch = globalThis.fetch;
+    setFetchStub((async () => {
+      return new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch);
+
+    try {
+      await fetchProviderJsonWithRetry('/api/test', { method: 'GET' });
+      expect(true).toBe(false); // should not reach here
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as { restarting?: boolean }).restarting).toBeFalsy();
     } finally {
       setFetchStub(originalFetch);
     }

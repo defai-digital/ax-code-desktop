@@ -58,6 +58,7 @@ export const buildDirectoryUrl = (path: string, directory: string | null): strin
 
 export const fetchProviderJsonWithRetry = async (url: string, init: RequestInit) => {
   let lastError: unknown = null;
+  let lastRestarting = false;
   for (let attempt = 0; attempt <= PROVIDER_REQUEST_RETRY_DELAYS_MS.length; attempt += 1) {
     try {
       const response = await fetch(url, init);
@@ -67,6 +68,7 @@ export const fetchProviderJsonWithRetry = async (url: string, init: RequestInit)
       }
 
       const restarting = response.status === 503 && isRecord(payload) && payload.restarting === true;
+      lastRestarting = restarting;
       if (restarting && attempt < PROVIDER_REQUEST_RETRY_DELAYS_MS.length) {
         lastError = new Error('AX Code is restarting');
         await sleep(PROVIDER_REQUEST_RETRY_DELAYS_MS[attempt]);
@@ -79,6 +81,7 @@ export const fetchProviderJsonWithRetry = async (url: string, init: RequestInit)
       throw Object.assign(new Error(message), { noRetry: true, restarting });
     } catch (error) {
       lastError = error;
+      lastRestarting = false;
       if (isRecord(error) && error.noRetry === true) {
         break;
       }
@@ -90,7 +93,10 @@ export const fetchProviderJsonWithRetry = async (url: string, init: RequestInit)
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('Provider request failed');
+  // Preserve 503+restarting context so callers that poll on restart keep going.
+  throw lastError instanceof Error
+    ? (lastRestarting ? Object.assign(lastError, { restarting: true }) : lastError)
+    : new Error('Provider request failed');
 };
 
 export interface AuthMethod {
@@ -209,9 +215,10 @@ export const disconnectProviderAuth = async (providerId: string, directory: stri
     replacePathParams(API_ENDPOINTS.provider.authAll, { providerId }),
     directory,
   );
-  const url = new URL(baseUrl, typeof window === 'undefined' ? 'http://localhost' : window.location.origin);
+  const origin = resolveBaseOrigin();
+  const url = new URL(baseUrl, !origin ? 'http://localhost' : origin);
   url.searchParams.set('scope', scope);
-  const requestUrl = typeof window === 'undefined'
+  const requestUrl = !origin
     ? `${url.pathname}${url.search}`
     : url.toString();
 
