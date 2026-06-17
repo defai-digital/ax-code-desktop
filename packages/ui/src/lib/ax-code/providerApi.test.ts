@@ -1,0 +1,130 @@
+import { describe, expect, test } from 'bun:test';
+
+import {
+  buildDirectoryUrl,
+  isRestartingError,
+  parseAuthMethodsPayload,
+  parseAvailableProvidersPayload,
+  normalizeAuthType,
+} from './providerApi';
+
+describe('buildDirectoryUrl', () => {
+  test('returns the URL unchanged when directory is null', () => {
+    expect(buildDirectoryUrl('/api/provider/auth', null)).toBe('/api/provider/auth');
+  });
+
+  test('appends directory as a query parameter', () => {
+    expect(buildDirectoryUrl('/api/provider/auth', '/home/user/project')).toBe(
+      '/api/provider/auth?directory=%2Fhome%2Fuser%2Fproject'
+    );
+  });
+
+  test('uses & separator when URL already has a query string', () => {
+    expect(buildDirectoryUrl('/api/provider?foo=bar', '/home')).toBe(
+      '/api/provider?foo=bar&directory=%2Fhome'
+    );
+  });
+});
+
+describe('isRestartingError', () => {
+  test('returns true for objects with restarting: true', () => {
+    expect(isRestartingError({ restarting: true })).toBe(true);
+  });
+
+  test('returns false for objects without restarting flag', () => {
+    expect(isRestartingError({ error: 'not found' })).toBe(false);
+  });
+
+  test('returns false for non-objects', () => {
+    expect(isRestartingError(null)).toBe(false);
+    expect(isRestartingError('error')).toBe(false);
+    expect(isRestartingError(undefined)).toBe(false);
+  });
+});
+
+describe('parseAuthMethodsPayload', () => {
+  test('parses a record of provider auth methods', () => {
+    const payload = {
+      openai: [{ type: 'api', name: 'API Key' }],
+      anthropic: [{ type: 'oauth', name: 'OAuth' }],
+    };
+    const result = parseAuthMethodsPayload(payload);
+    expect(result).toEqual({
+      openai: [{ type: 'api', name: 'API Key' }],
+      anthropic: [{ type: 'oauth', name: 'OAuth' }],
+    });
+  });
+
+  test('returns empty object for non-record payloads', () => {
+    expect(parseAuthMethodsPayload(null)).toEqual({});
+    expect(parseAuthMethodsPayload('string')).toEqual({});
+    expect(parseAuthMethodsPayload(undefined)).toEqual({});
+  });
+
+  test('filters out non-array values', () => {
+    const payload = { openai: 'not-an-array', anthropic: [{ type: 'api' }] };
+    const result = parseAuthMethodsPayload(payload);
+    expect(result).toEqual({ anthropic: [{ type: 'api' }] });
+  });
+});
+
+describe('parseAvailableProvidersPayload', () => {
+  test('parses an array of provider entries', () => {
+    const payload = [{ id: 'openai', name: 'OpenAI' }, { id: 'anthropic' }];
+    const result = parseAvailableProvidersPayload(payload);
+    expect(result).toEqual([
+      { id: 'openai', name: 'OpenAI' },
+      { id: 'anthropic' },
+    ]);
+  });
+
+  test('parses a record with an "all" array', () => {
+    const payload = { all: [{ id: 'openai' }, { id: 'anthropic' }] };
+    const result = parseAvailableProvidersPayload(payload);
+    expect(result).toEqual([{ id: 'openai' }, { id: 'anthropic' }]);
+  });
+
+  test('parses a record with a "providers" array', () => {
+    const payload = { providers: [{ id: 'openai' }] };
+    const result = parseAvailableProvidersPayload(payload);
+    expect(result).toEqual([{ id: 'openai' }]);
+  });
+
+  test('deduplicates entries by id', () => {
+    const payload = [{ id: 'openai' }, { id: 'openai', name: 'OpenAI' }];
+    const result = parseAvailableProvidersPayload(payload);
+    expect(result).toEqual([{ id: 'openai' }]);
+  });
+
+  test('handles string entries', () => {
+    const payload = ['openai', 'anthropic'];
+    const result = parseAvailableProvidersPayload(payload);
+    expect(result).toEqual([{ id: 'openai' }, { id: 'anthropic' }]);
+  });
+
+  test('returns empty array for invalid payloads', () => {
+    expect(parseAvailableProvidersPayload(null)).toEqual([]);
+    expect(parseAvailableProvidersPayload('string')).toEqual([]);
+    expect(parseAvailableProvidersPayload({})).toEqual([]);
+  });
+});
+
+describe('normalizeAuthType', () => {
+  test('returns "oauth" for OAuth-type methods', () => {
+    expect(normalizeAuthType({ type: 'oauth' })).toBe('oauth');
+    expect(normalizeAuthType({ name: 'OAuth' })).toBe('oauth');
+  });
+
+  test('returns "api" for API-type methods', () => {
+    expect(normalizeAuthType({ type: 'api' })).toBe('api');
+    expect(normalizeAuthType({ label: 'API Key' })).toBe('api');
+  });
+
+  test('returns lowercase type for other methods', () => {
+    expect(normalizeAuthType({ type: 'DEVICE_CODE' })).toBe('device_code');
+  });
+
+  test('returns empty string for methods with no type info', () => {
+    expect(normalizeAuthType({})).toBe('');
+  });
+});

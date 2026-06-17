@@ -4,6 +4,7 @@ import express from 'express';
 import path from 'path';
 
 import {
+  createCompatibilityRewriteCounter,
   createSseBoundaryTracker,
   createSseProxyMetrics,
   registerAxCodeProxy,
@@ -248,6 +249,95 @@ describe('AX Code proxy SSE forwarding', () => {
     const get = await fetch(`http://127.0.0.1:${proxyPort}/api/config/providers`);
     expect(get.status).toBe(200);
     expect(await get.json()).toEqual({ providers: [] });
+  });
+
+  it('rewrites stale config-prefixed provider SDK paths to canonical provider paths', async () => {
+    const seenPaths = [];
+    const upstream = express();
+    upstream.get('/provider', (req, res) => {
+      seenPaths.push(req.path);
+      res.json({ all: [] });
+    });
+    upstream.get('/provider/auth', (req, res) => {
+      seenPaths.push(req.path);
+      res.json({});
+    });
+    upstream.get('/config/providers', (req, res) => {
+      seenPaths.push(req.path);
+      res.json({ providers: [] });
+    });
+    upstreamServer = await listen(upstream);
+    const upstreamPort = upstreamServer.address().port;
+
+    const app = express();
+    registerAxCodeProxy(app, {
+      fs: {},
+      os: {},
+      path,
+      OPEN_CODE_READY_GRACE_MS: 0,
+      getRuntime: () => ({
+        axCodePort: upstreamPort,
+        isAxCodeReady: true,
+        axCodeNotReadySince: 0,
+        isRestartingAxCode: false,
+      }),
+      getAxCodeAuthHeaders: () => ({}),
+      buildAxCodeUrl: (requestPath) => `http://127.0.0.1:${upstreamPort}${requestPath}`,
+      ensureAxCodeApiPrefix: () => {},
+    });
+    proxyServer = await listen(app);
+    const proxyPort = proxyServer.address().port;
+
+    const providerList = await fetch(`http://127.0.0.1:${proxyPort}/api/config/provider`);
+    const providerAuth = await fetch(`http://127.0.0.1:${proxyPort}/api/config/provider/auth`);
+    const configProviders = await fetch(`http://127.0.0.1:${proxyPort}/api/config/config/providers`);
+
+    expect(providerList.status).toBe(200);
+    expect(providerAuth.status).toBe(200);
+    expect(configProviders.status).toBe(200);
+    expect(seenPaths).toEqual(['/provider', '/provider/auth', '/config/providers']);
+  });
+
+  it('counts compatibility rewrites when stale provider paths are rewritten', async () => {
+    const upstream = express();
+    upstream.get('/provider', (_req, res) => res.json({ all: [] }));
+    upstream.get('/provider/auth', (_req, res) => res.json({}));
+    upstream.get('/config/providers', (_req, res) => res.json({ providers: [] }));
+    upstreamServer = await listen(upstream);
+    const upstreamPort = upstreamServer.address().port;
+
+    const rewriteCounter = createCompatibilityRewriteCounter();
+    const app = express();
+    registerAxCodeProxy(app, {
+      fs: {},
+      os: {},
+      path,
+      OPEN_CODE_READY_GRACE_MS: 0,
+      getRuntime: () => ({
+        axCodePort: upstreamPort,
+        isAxCodeReady: true,
+        axCodeNotReadySince: 0,
+        isRestartingAxCode: false,
+      }),
+      getAxCodeAuthHeaders: () => ({}),
+      buildAxCodeUrl: (requestPath) => `http://127.0.0.1:${upstreamPort}${requestPath}`,
+      ensureAxCodeApiPrefix: () => {},
+      rewriteCounter,
+    });
+    proxyServer = await listen(app);
+    const proxyPort = proxyServer.address().port;
+
+    expect(rewriteCounter.snapshot()).toEqual({ provider: 0, configProviders: 0, total: 0 });
+
+    await fetch(`http://127.0.0.1:${proxyPort}/api/config/provider`);
+    await fetch(`http://127.0.0.1:${proxyPort}/api/config/provider/auth`);
+    expect(rewriteCounter.snapshot()).toEqual({ provider: 2, configProviders: 0, total: 2 });
+
+    await fetch(`http://127.0.0.1:${proxyPort}/api/config/config/providers`);
+    expect(rewriteCounter.snapshot()).toEqual({ provider: 2, configProviders: 1, total: 3 });
+
+    await fetch(`http://127.0.0.1:${proxyPort}/api/provider/auth`);
+    expect(rewriteCounter.snapshot()).toEqual({ provider: 2, configProviders: 1, total: 3 });
   });
 
   it('routes generic API requests through external AX Code base URL', async () => {

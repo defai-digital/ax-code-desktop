@@ -7,20 +7,11 @@ import { useProjectsStore } from '@/stores/useProjectsStore';
 import { cn } from '@/lib/utils';
 import { SettingsProjectSelector } from '@/components/sections/shared/SettingsProjectSelector';
 import { Icon } from "@/components/icon/Icon";
-import { axCodeClient } from '@/lib/ax-code/client';
 import { useI18n } from '@/lib/i18n';
 import type { ProviderSources } from './types';
-import { API_ENDPOINTS, replacePathParams } from '@/lib/http';
+import { fetchProviderSources, getCurrentDirectory } from '@/lib/ax-code/providerApi';
 
 const ADD_PROVIDER_ID = '__add_provider__';
-
-const getCurrentDirectory = (): string | null => {
-  const dir = axCodeClient.getDirectory();
-  if (typeof dir === 'string' && dir.trim().length > 0) {
-    return dir.trim();
-  }
-  return null;
-};
 
 interface ProvidersSidebarProps {
   onItemSelect?: () => void;
@@ -53,22 +44,8 @@ export const ProvidersSidebar: React.FC<ProvidersSidebarProps> = ({ onItemSelect
     const loadAllSources = async () => {
       const tasks = providers.map(async (provider) => {
         try {
-          const query = directory ? `?directory=${encodeURIComponent(directory)}` : '';
-          const response = await fetch(`${replacePathParams(API_ENDPOINTS.provider.source, {
-            providerId: provider.id,
-          })}${query}`, {
-            method: 'GET',
-            headers: { Accept: 'application/json' },
-          });
-          if (!response.ok) {
-            return;
-          }
-          const payload = await response.json().catch(() => null);
-          const sources = (payload?.sources ?? payload?.data?.sources) as ProviderSources | undefined;
-          if (!sources) {
-            return;
-          }
-          if (cancelled) {
+          const sources = await fetchProviderSources(provider.id, directory);
+          if (!sources || cancelled) {
             return;
           }
           setSourcesByProvider((prev) => ({

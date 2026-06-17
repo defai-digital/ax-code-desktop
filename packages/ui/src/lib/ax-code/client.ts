@@ -16,6 +16,7 @@ import type {
 import type { PermissionRequest } from "@/types/permission";
 import type { QuestionRequest } from "@/types/question";
 import { waitForWorktreeBootstrap } from "@/lib/worktrees/worktreeBootstrap";
+import { normalizeAxCodeSdkBaseUrl } from "./baseUrl";
 import {
   assertProviderCircuitClosed,
   recordProviderSuccess,
@@ -215,7 +216,7 @@ class AxCodeService {
   constructor(baseUrl: string = DEFAULT_BASE_URL) {
     const desktopBase = resolveDesktopBaseUrl();
     const requestedBaseUrl = desktopBase || baseUrl;
-    this.baseUrl = ensureAbsoluteBaseUrl(requestedBaseUrl);
+    this.baseUrl = normalizeAxCodeSdkBaseUrl(ensureAbsoluteBaseUrl(requestedBaseUrl));
     this.client = createAxCodeClient({ baseUrl: this.baseUrl });
   }
 

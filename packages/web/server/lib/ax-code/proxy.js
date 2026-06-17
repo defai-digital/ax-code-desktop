@@ -192,6 +192,23 @@ export const createSseProxyMetrics = (options = {}) => {
   };
 };
 
+export const createCompatibilityRewriteCounter = () => {
+  const counts = { provider: 0, configProviders: 0 };
+
+  return {
+    increment(kind) {
+      if (kind in counts) counts[kind] += 1;
+    },
+    snapshot() {
+      return { ...counts, total: counts.provider + counts.configProviders };
+    },
+    reset() {
+      counts.provider = 0;
+      counts.configProviders = 0;
+    },
+  };
+};
+
 export const createSseBoundaryTracker = () => {
   const decoder = new TextDecoder();
   let tail = '';
@@ -228,6 +245,7 @@ export const registerAxCodeProxy = (app, deps) => {
     buildAxCodeUrl,
     ensureAxCodeApiPrefix,
     sseMetrics = null,
+    rewriteCounter = createCompatibilityRewriteCounter(),
     recordStartupEvent = null,
     settingsFilePath = null,
   } = deps;
@@ -243,6 +261,7 @@ export const registerAxCodeProxy = (app, deps) => {
     console.log('Setting up ax-code API gate (ax-code not started yet)');
   }
   app.set('axCodeProxyConfigured', true);
+  app.set('rewriteCounter', rewriteCounter);
 
   const isAbortError = (error) => error?.name === 'AbortError';
   const FALLBACK_PROXY_TARGET = 'http://127.0.0.1:3902';
@@ -465,6 +484,22 @@ export const registerAxCodeProxy = (app, deps) => {
   // Ensure API prefix is detected before proxying
   app.use('/api', (_req, _res, next) => {
     ensureAxCodeApiPrefix();
+    next();
+  });
+
+  // Compatibility for stale/misconfigured UI clients that used `/api/config`
+  // as the SDK base URL. SDK provider reads then become `/api/config/provider*`
+  // and config-provider reads become `/api/config/config/providers`, which
+  // upstream ax-code correctly returns as 404. Rewrite them to the canonical
+  // API root paths so the Providers page can recover without a manual reload.
+  app.use('/api', (req, _res, next) => {
+    if (req.url === '/config/provider' || req.url.startsWith('/config/provider?') || req.url.startsWith('/config/provider/')) {
+      req.url = req.url.replace(/^\/config\/provider(?=$|[/?])/, '/provider');
+      rewriteCounter.increment('provider');
+    } else if (req.url === '/config/config/providers' || req.url.startsWith('/config/config/providers?')) {
+      req.url = req.url.replace(/^\/config\/config\/providers(?=$|[/?])/, '/config/providers');
+      rewriteCounter.increment('configProviders');
+    }
     next();
   });
 

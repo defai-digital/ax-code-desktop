@@ -17,7 +17,22 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Icon } from "@/components/icon/Icon";
 import type { IconName } from "@/components/icon/icons";
 import { API_ENDPOINTS, replacePathParams } from '@/lib/http';
-import { axCodeClient } from '@/lib/ax-code/client';
+import {
+  buildDirectoryUrl,
+  fetchAvailableProviders,
+  fetchProviderAuthMethods,
+  fetchProviderJsonWithRetry,
+  fetchProviderSources,
+  getCurrentDirectory,
+  isRecord,
+  isRestartingError,
+  normalizeAuthType,
+  parseAuthMethodsPayload,
+  parseAvailableProvidersPayload,
+  PROVIDER_RESTART_POLL_MS,
+  type AuthMethod,
+  type ProviderOption,
+} from '@/lib/ax-code/providerApi';
 import { reloadAxCodeConfiguration, waitForQueuedAxCodeReload } from '@/stores/useAgentsStore';
 import { cn } from '@/lib/utils';
 import { copyTextToClipboard } from '@/lib/clipboard';
@@ -45,153 +60,6 @@ const formatTokens = (value?: number | null) => {
 };
 
 const ADD_PROVIDER_ID = '__add_provider__';
-const PROVIDER_REQUEST_RETRY_DELAYS_MS = [250, 500, 750, 1000, 1500, 2000, 2500, 3000];
-// While the engine is still starting it answers provider reads with
-// 503 {restarting:true}. Rather than dead-end the panel, we keep the loading
-// state and re-poll on this interval until the engine is up.
-const PROVIDER_RESTART_POLL_MS = 2000;
-
-const isRestartingError = (error: unknown): boolean =>
-  isRecord(error) && error.restarting === true;
-
-interface AuthMethod {
-  type?: string;
-  name?: string;
-  label?: string;
-  description?: string;
-  help?: string;
-  method?: number;
-  [key: string]: unknown;
-}
-
-interface ProviderOption {
-  id: string;
-  name?: string;
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
-
-const normalizeAuthType = (method: AuthMethod) => {
-  const raw = typeof method.type === 'string' ? method.type : '';
-  const label = `${method.name ?? ''} ${method.label ?? ''}`.toLowerCase();
-  const merged = `${raw} ${label}`.toLowerCase();
-  if (merged.includes('oauth')) return 'oauth';
-  if (merged.includes('api')) return 'api';
-  return raw.toLowerCase();
-};
-
-const parseAuthPayload = (payload: unknown): Record<string, AuthMethod[]> => {
-  if (!isRecord(payload)) {
-    return {};
-  }
-  const result: Record<string, AuthMethod[]> = {};
-  for (const [providerId, value] of Object.entries(payload)) {
-    if (Array.isArray(value)) {
-      result[providerId] = value.filter((entry) => isRecord(entry)) as AuthMethod[];
-    }
-  }
-  return result;
-};
-
-const normalizeProviderEntry = (entry: unknown): ProviderOption | null => {
-  if (typeof entry === 'string') {
-    return { id: entry };
-  }
-  if (!isRecord(entry)) {
-    return null;
-  }
-  const idCandidate =
-    (typeof entry.id === 'string' && entry.id) ||
-    (typeof entry.providerID === 'string' && entry.providerID) ||
-    (typeof entry.slug === 'string' && entry.slug) ||
-    (typeof entry.name === 'string' && entry.name);
-  if (!idCandidate) {
-    return null;
-  }
-  const nameCandidate = typeof entry.name === 'string' ? entry.name : undefined;
-  return { id: idCandidate, name: nameCandidate };
-};
-
-const parseProvidersPayload = (payload: unknown): ProviderOption[] => {
-  let entries: unknown[] = [];
-
-  if (Array.isArray(payload)) {
-    entries = payload;
-  } else if (isRecord(payload)) {
-    if (Array.isArray(payload.all)) {
-      entries = payload.all;
-    } else if (Array.isArray(payload.providers)) {
-      entries = payload.providers;
-    }
-  }
-
-  const mapped = entries
-    .map((entry) => normalizeProviderEntry(entry))
-    .filter((entry): entry is ProviderOption => Boolean(entry));
-
-  const seen = new Set<string>();
-  return mapped.filter((entry) => {
-    if (seen.has(entry.id)) {
-      return false;
-    }
-    seen.add(entry.id);
-    return true;
-  });
-};
-
-const getCurrentDirectory = (): string | null => {
-  const dir = axCodeClient.getDirectory();
-  if (typeof dir === 'string' && dir.trim().length > 0) {
-    return dir.trim();
-  }
-  return null;
-};
-
-const appendDirectoryQuery = (url: string, directory: string | null) => {
-  if (!directory) return url;
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}directory=${encodeURIComponent(directory)}`;
-};
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const fetchProviderJsonWithRetry = async (url: string, init: RequestInit) => {
-  let lastError: unknown = null;
-  for (let attempt = 0; attempt <= PROVIDER_REQUEST_RETRY_DELAYS_MS.length; attempt += 1) {
-    try {
-      const response = await fetch(url, init);
-      const payload = await response.json().catch(() => null);
-      if (response.ok) {
-        return payload;
-      }
-
-      const restarting = response.status === 503 && isRecord(payload) && payload.restarting === true;
-      if (restarting && attempt < PROVIDER_REQUEST_RETRY_DELAYS_MS.length) {
-        lastError = new Error('AX Code is restarting');
-        await sleep(PROVIDER_REQUEST_RETRY_DELAYS_MS[attempt]);
-        continue;
-      }
-
-      const message = isRecord(payload) && typeof payload.error === 'string'
-        ? payload.error
-        : `Provider request failed (${response.status})`;
-      throw Object.assign(new Error(message), { noRetry: true, restarting });
-    } catch (error) {
-      lastError = error;
-      if (isRecord(error) && error.noRetry === true) {
-        break;
-      }
-      if (attempt >= PROVIDER_REQUEST_RETRY_DELAYS_MS.length) {
-        break;
-      }
-      await sleep(PROVIDER_REQUEST_RETRY_DELAYS_MS[attempt]);
-      continue;
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error('Provider request failed');
-};
 
 export const ProvidersPage: React.FC = () => {
   const { t } = useI18n();
@@ -241,12 +109,9 @@ export const ProvidersPage: React.FC = () => {
     const loadAuthMethods = async () => {
       setAuthLoading(true);
       try {
-        const payload = await fetchProviderJsonWithRetry(appendDirectoryQuery(API_ENDPOINTS.provider.auth, directory), {
-          method: 'GET',
-          headers: { Accept: 'application/json' },
-        });
+        const payload = await fetchProviderAuthMethods(directory);
         if (!isMounted) return;
-        setAuthMethodsByProvider(parseAuthPayload(payload));
+        setAuthMethodsByProvider(parseAuthMethodsPayload(payload));
         setAuthLoading(false);
       } catch (error) {
         if (!isMounted) return;
@@ -277,12 +142,9 @@ export const ProvidersPage: React.FC = () => {
       setAvailableLoading(true);
       setAvailableError(null);
       try {
-        const payload = await fetchProviderJsonWithRetry(appendDirectoryQuery(API_ENDPOINTS.provider.base, directory), {
-          method: 'GET',
-          headers: { Accept: 'application/json' },
-        });
+        const payload = await fetchAvailableProviders(directory);
         if (!isMounted) return;
-        setAvailableProviders(parseProvidersPayload(payload));
+        setAvailableProviders(parseAvailableProvidersPayload(payload));
         setAvailableLoading(false);
       } catch (error) {
         if (!isMounted) return;
@@ -351,19 +213,7 @@ export const ProvidersPage: React.FC = () => {
 
     const loadSources = async () => {
       try {
-        const response = await fetch(appendDirectoryQuery(replacePathParams(API_ENDPOINTS.provider.source, {
-          providerId: selectedProviderId,
-        }), directory), {
-          method: 'GET',
-          headers: { Accept: 'application/json' },
-        });
-
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-          throw new Error(payload?.error || t('settings.providers.page.toast.providerSourcesLoadFailed'));
-        }
-
-        const sources = (payload?.sources ?? payload?.data?.sources) as ProviderSources | undefined;
+        const sources = await fetchProviderSources(selectedProviderId, directory);
         if (!cancelled && sources) {
           setProviderSources((prev) => ({
             ...prev,
@@ -398,7 +248,7 @@ export const ProvidersPage: React.FC = () => {
     setAuthBusyKey(busyKey);
 
     try {
-      await fetchProviderJsonWithRetry(appendDirectoryQuery(replacePathParams(API_ENDPOINTS.provider.authByProvider, {
+      await fetchProviderJsonWithRetry(buildDirectoryUrl(replacePathParams(API_ENDPOINTS.provider.authByProvider, {
         providerId,
       }), directory), {
         method: 'PUT',
@@ -432,7 +282,7 @@ export const ProvidersPage: React.FC = () => {
     setAuthBusyKey(busyKey);
 
     try {
-      const payload = await fetchProviderJsonWithRetry(appendDirectoryQuery(replacePathParams(API_ENDPOINTS.provider.oauthAuthorize, {
+      const payload = await fetchProviderJsonWithRetry(buildDirectoryUrl(replacePathParams(API_ENDPOINTS.provider.oauthAuthorize, {
         providerId,
       }), directory), {
         method: 'POST',
@@ -497,7 +347,7 @@ export const ProvidersPage: React.FC = () => {
         requestBody.code = code;
       }
 
-      await fetchProviderJsonWithRetry(appendDirectoryQuery(replacePathParams(API_ENDPOINTS.provider.oauthCallback, {
+      await fetchProviderJsonWithRetry(buildDirectoryUrl(replacePathParams(API_ENDPOINTS.provider.oauthCallback, {
         providerId,
       }), directory), {
         method: 'POST',

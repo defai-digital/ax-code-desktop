@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createDirectoryQueryCanonicalizer, isAxCodeReadinessValueReady } from './proxy.js';
+import { createCompatibilityRewriteCounter, createDirectoryQueryCanonicalizer, isAxCodeReadinessValueReady } from './proxy.js';
 
 describe('isAxCodeReadinessValueReady', () => {
   it('accepts boolean and string ready values from ax-code health payloads', () => {
@@ -78,5 +78,34 @@ describe('createDirectoryQueryCanonicalizer', () => {
     });
 
     await expect(canonicalize('/session?foo=1')).resolves.toBe('/session?foo=1');
+  });
+});
+
+describe('createCompatibilityRewriteCounter', () => {
+  it('starts at zero', () => {
+    const counter = createCompatibilityRewriteCounter();
+    expect(counter.snapshot()).toEqual({ provider: 0, configProviders: 0, total: 0 });
+  });
+
+  it('increments provider and configProviders counts independently', () => {
+    const counter = createCompatibilityRewriteCounter();
+    counter.increment('provider');
+    counter.increment('provider');
+    counter.increment('configProviders');
+    expect(counter.snapshot()).toEqual({ provider: 2, configProviders: 1, total: 3 });
+  });
+
+  it('ignores unknown counter kinds', () => {
+    const counter = createCompatibilityRewriteCounter();
+    counter.increment('unknown');
+    expect(counter.snapshot()).toEqual({ provider: 0, configProviders: 0, total: 0 });
+  });
+
+  it('resets all counts to zero', () => {
+    const counter = createCompatibilityRewriteCounter();
+    counter.increment('provider');
+    counter.increment('configProviders');
+    counter.reset();
+    expect(counter.snapshot()).toEqual({ provider: 0, configProviders: 0, total: 0 });
   });
 });
