@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
 import { getActiveMetricsTracker, type StreamingMetrics } from '@/sync/streaming-metrics';
 
 const DEFAULT_METRICS: StreamingMetrics = {
@@ -27,11 +27,34 @@ export function useStreamingMetrics(sessionID: string | null): StreamingMetrics 
     return () => clearInterval(intervalId);
   }, [sessionID]);
 
+  // useSyncExternalStore requires getSnapshot to return the same reference
+  // when data hasn't changed. tracker.getMetrics() always returns a fresh
+  // object, so we cache the last snapshot and compare structurally.
+  const cacheRef = useRef<{ sessionID: string | null; metrics: StreamingMetrics } | null>(null);
+
   const getSnapshot = useCallback((): StreamingMetrics => {
     if (!sessionID) return DEFAULT_METRICS;
     const tracker = getActiveMetricsTracker();
     if (!tracker) return DEFAULT_METRICS;
-    return tracker.getMetrics(sessionID);
+    const fresh = tracker.getMetrics(sessionID);
+
+    const cached = cacheRef.current;
+    if (
+      cached &&
+      cached.sessionID === sessionID &&
+      cached.metrics.phase === fresh.phase &&
+      cached.metrics.prefillMs === fresh.prefillMs &&
+      cached.metrics.decodeTps === fresh.decodeTps &&
+      cached.metrics.tokenCount === fresh.tokenCount &&
+      cached.metrics.totalBytes === fresh.totalBytes &&
+      cached.metrics.startedAt === fresh.startedAt &&
+      cached.metrics.lastDeltaAt === fresh.lastDeltaAt
+    ) {
+      return cached.metrics;
+    }
+
+    cacheRef.current = { sessionID, metrics: fresh };
+    return fresh;
   }, [sessionID]);
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
