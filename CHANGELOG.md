@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.8] - 2026-06-16
+
+- Proxy: the SSE forwarder (`/api/event`, `/api/global/event`) now signals `restarting: true` on its 503 when the AX Code upstream is unreachable, matching the established transient-unreachability contract from the generic API proxy error handler and the readiness gate. Previously it emitted a bare 503 (no `restarting`), which could dead-end EventSource clients instead of letting them reconnect/poll until ax-code recovers.
+
 ## [1.1.7] - 2026-06-16
 
 - Tooling: ported the hardened minisign signer feature set from ax-engine_v5 into `scripts/minisign-artifacts.sh` and `scripts/minisign-keygen.sh`, while keeping the desktop-specific release key (`5B7AB63CD6D674BE`). The signing script now supports `--public-key-string` (verify with a raw key string, no `.pub` file), `--signature-dir`, `--keychain-service`/`--keychain-account` flags, `--pinned-public-key` override, and verify-with-string-or-file, with robust passphrase resolution (env > macOS Keychain > prompt), up-front path validation for accurate dry-runs, and a pinned-key fail-closed check. This is release tooling only; it does not change the shipped app or how released artifacts verify.
