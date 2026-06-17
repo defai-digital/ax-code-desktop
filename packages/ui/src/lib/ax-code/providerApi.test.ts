@@ -8,7 +8,14 @@ import {
   normalizeAuthType,
 } from './providerApi';
 
-describe('buildDirectoryUrl', () => {
+const setWindowStub = (stub: unknown): void => {
+  (globalThis as { window?: unknown }).window = stub;
+};
+const clearWindowStub = (): void => {
+  delete (globalThis as { window?: unknown }).window;
+};
+
+describe('buildDirectoryUrl (no window — server/SSR)', () => {
   test('returns the URL unchanged when directory is null', () => {
     expect(buildDirectoryUrl('/api/provider/auth', null)).toBe('/api/provider/auth');
   });
@@ -23,6 +30,33 @@ describe('buildDirectoryUrl', () => {
     expect(buildDirectoryUrl('/api/provider?foo=bar', '/home')).toBe(
       '/api/provider?foo=bar&directory=%2Fhome'
     );
+  });
+});
+
+describe('buildDirectoryUrl (browser)', () => {
+  test('resolves relative paths against the desktop server origin', () => {
+    setWindowStub({
+      __AX_CODE_DESKTOP_DESKTOP_SERVER__: { origin: 'http://127.0.0.1:54321' },
+      location: { origin: 'app://ax-code' },
+    });
+    try {
+      expect(buildDirectoryUrl('/api/provider/auth', '/home/user/project')).toBe(
+        'http://127.0.0.1:54321/api/provider/auth?directory=%2Fhome%2Fuser%2Fproject'
+      );
+    } finally {
+      clearWindowStub();
+    }
+  });
+
+  test('falls back to window.location.origin when no desktop server is present (web)', () => {
+    setWindowStub({ location: { origin: 'https://app.example.com' } });
+    try {
+      expect(buildDirectoryUrl('/api/provider/auth', null)).toBe(
+        'https://app.example.com/api/provider/auth'
+      );
+    } finally {
+      clearWindowStub();
+    }
   });
 });
 
