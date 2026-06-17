@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.9] - 2026-06-17
+
+- Provider: centralized provider fetch logic into a shared `providerApi` module with retry, parsing, and three read functions; refactored ProvidersPage and ProvidersSidebar to use it. Added SDK base URL normalization to prevent stale `/api/config` suffixes from breaking provider endpoints. Added proxy compatibility rewrite counters for diagnostic visibility.
+- Desktop: prevented data loss in `moveDirectoryContents` and removed stale `useEffect` dependencies.
+
 ## [1.1.8] - 2026-06-16
 
 - Proxy: the SSE forwarder (`/api/event`, `/api/global/event`) now signals `restarting: true` on its 503 when the AX Code upstream is unreachable, matching the established transient-unreachability contract from the generic API proxy error handler and the readiness gate. Previously it emitted a bare 503 (no `restarting`), which could dead-end EventSource clients instead of letting them reconnect/poll until ax-code recovers.
