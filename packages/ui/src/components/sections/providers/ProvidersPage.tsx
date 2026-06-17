@@ -202,7 +202,7 @@ export const ProvidersPage: React.FC = () => {
     }
 
     setShowAuthPanel(false);
-  }, [selectedProviderId, t]);
+  }, [selectedProviderId]);
 
   React.useEffect(() => {
     if (!selectedProviderId || selectedProviderId === ADD_PROVIDER_ID) {
@@ -232,7 +232,7 @@ export const ProvidersPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [directory, selectedProviderId, t]);
+  }, [directory, selectedProviderId]);
 
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId);
   const selectedSources = selectedProviderId ? providerSources[selectedProviderId] : undefined;

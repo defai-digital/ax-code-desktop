@@ -159,10 +159,29 @@ export const createSettingsRuntime = (deps) => {
           await moveDirectoryContents(fromPath, toPath);
           continue;
         }
+        // Remove the destination if it already exists so we always overwrite
+        // (and so the subsequent rename/rename-fallback never skips the source
+        // file — the old code silently skipped existing destinations but then
+        // deleted the entire source directory, causing data loss on retried
+        // migrations).
         try {
           await fsPromises.access(toPath);
+          await fsPromises.rm(toPath, { force: true });
         } catch {
+          // destination does not exist — nothing to remove
+        }
+        try {
           await fsPromises.rename(fromPath, toPath);
+        } catch (renameErr) {
+          // EXDEV: source and destination are on different filesystems
+          // (symlinked mounts, external drives, etc.).  Fall back to
+          // copy-then-delete so the migration completes correctly.
+          if (renameErr && typeof renameErr === 'object' && renameErr.code === 'EXDEV') {
+            await fsPromises.copyFile(fromPath, toPath);
+            await fsPromises.rm(fromPath, { force: true });
+          } else {
+            throw renameErr;
+          }
         }
       }
 
