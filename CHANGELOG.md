@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-17
+
+- Release: minor version bump. No application changes since 1.1.9.
+
 ## [1.1.9] - 2026-06-17
 
 - Provider: centralized provider fetch logic into a shared `providerApi` module with retry, parsing, and three read functions; refactored ProvidersPage and ProvidersSidebar to use it. Added SDK base URL normalization to prevent stale `/api/config` suffixes from breaking provider endpoints. Added proxy compatibility rewrite counters for diagnostic visibility.
