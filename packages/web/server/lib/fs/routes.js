@@ -995,20 +995,33 @@ export const registerFsRoutes = (app, dependencies) => {
     }
 
     try {
-      const resolved = path.resolve(targetPath.trim());
-      await fsPromises.access(resolved);
+      const resolved = await resolveWorkspaceOrApprovedPathFromContext({
+        req,
+        targetPath,
+        resolveProjectDirectory,
+        readSettingsFromDiskMigrated,
+        path,
+        os,
+        normalizeDirectoryPath,
+        openchamberUserConfigRoot,
+      });
+      if (!resolved.ok) {
+        return res.status(400).json({ error: resolved.error });
+      }
+      const resolvedPath = resolved.resolved;
+      await fsPromises.access(resolvedPath);
 
       const platform = process.platform;
       if (platform === 'darwin') {
-        const stat = await fsPromises.stat(resolved);
+        const stat = await fsPromises.stat(resolvedPath);
         if (stat.isDirectory()) {
-          spawn('open', [resolved], { windowsHide: true, stdio: 'ignore', detached: true }).unref();
+          spawn('open', [resolvedPath], { windowsHide: true, stdio: 'ignore', detached: true }).unref();
         } else {
-          spawn('open', ['-R', resolved], { windowsHide: true, stdio: 'ignore', detached: true }).unref();
+          spawn('open', ['-R', resolvedPath], { windowsHide: true, stdio: 'ignore', detached: true }).unref();
         }
       } else if (platform === 'win32') {
-        const stat = await fsPromises.stat(resolved);
-        const escapedPath = resolved.replace(/'/g, "''");
+        const stat = await fsPromises.stat(resolvedPath);
+        const escapedPath = resolvedPath.replace(/'/g, "''");
         const explorerArg = stat.isDirectory() ? escapedPath : `/select,${escapedPath}`;
         const command = `Start-Process -FilePath explorer.exe -ArgumentList '${explorerArg}'`;
         await new Promise((resolve, reject) => {
@@ -1026,12 +1039,12 @@ export const registerFsRoutes = (app, dependencies) => {
           });
         });
       } else {
-        const stat = await fsPromises.stat(resolved);
-        const dir = stat.isDirectory() ? resolved : path.dirname(resolved);
+        const stat = await fsPromises.stat(resolvedPath);
+        const dir = stat.isDirectory() ? resolvedPath : path.dirname(resolvedPath);
         spawn('xdg-open', [dir], { windowsHide: true, stdio: 'ignore', detached: true }).unref();
       }
 
-      return res.json({ success: true, path: resolved });
+      return res.json({ success: true, path: resolvedPath });
     } catch (error) {
       const err = error;
       if (err && typeof err === 'object' && err.code === 'ENOENT') {

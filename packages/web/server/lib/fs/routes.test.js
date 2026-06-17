@@ -264,6 +264,86 @@ describe('fs outside workspace authorization', () => {
   });
 });
 
+describe('fs reveal authorization', () => {
+  it('rejects reveal for paths outside workspace and approved directories', async () => {
+    const { getRoute } = registerFs({
+      access: vi.fn(async () => undefined),
+      stat: vi.fn(async () => ({ isDirectory: () => false })),
+    });
+
+    const res = await callRoute(getRoute('POST', '/api/fs/reveal'), {
+      body: { path: '/etc/passwd' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/outside/);
+  });
+
+  it('allows reveal for paths inside the workspace', async () => {
+    const spawnMock = vi.fn(() => {
+      const child = { unref: () => {} };
+      return child;
+    });
+    const { app, getRoute } = createRouteRegistry();
+    registerFsRoutes(app, {
+      os: { homedir: () => '/home/user' },
+      path: path.posix,
+      fsPromises: {
+        realpath: async (p) => p,
+        access: vi.fn(async () => undefined),
+        stat: vi.fn(async () => ({ isDirectory: () => false })),
+      },
+      spawn: spawnMock,
+      crypto: { randomUUID: () => 'job-0' },
+      normalizeDirectoryPath: (p) => p,
+      resolveProjectDirectory: async () => ({ directory: '/repo' }),
+      readSettingsFromDiskMigrated: async () => ({ approvedDirectories: [] }),
+      buildAugmentedPath: () => '/usr/bin',
+      resolveGitBinaryForSpawn: () => 'git',
+      openchamberUserConfigRoot: '/home/user/.config',
+    });
+
+    const res = await callRoute(getRoute('POST', '/api/fs/reveal'), {
+      body: { path: '/repo/file.txt' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ success: true, path: '/repo/file.txt' });
+  });
+
+  it('allows reveal for paths inside approved directories', async () => {
+    const spawnMock = vi.fn(() => {
+      const child = { unref: () => {} };
+      return child;
+    });
+    const { app, getRoute } = createRouteRegistry();
+    registerFsRoutes(app, {
+      os: { homedir: () => '/home/user' },
+      path: path.posix,
+      fsPromises: {
+        realpath: async (p) => p,
+        access: vi.fn(async () => undefined),
+        stat: vi.fn(async () => ({ isDirectory: () => true })),
+      },
+      spawn: spawnMock,
+      crypto: { randomUUID: () => 'job-0' },
+      normalizeDirectoryPath: (p) => p,
+      resolveProjectDirectory: async () => ({ directory: '/repo' }),
+      readSettingsFromDiskMigrated: async () => ({ approvedDirectories: ['/approved'] }),
+      buildAugmentedPath: () => '/usr/bin',
+      resolveGitBinaryForSpawn: () => 'git',
+      openchamberUserConfigRoot: '/home/user/.config',
+    });
+
+    const res = await callRoute(getRoute('POST', '/api/fs/reveal'), {
+      body: { path: '/approved/folder' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ success: true, path: '/approved/folder' });
+  });
+});
+
 describe('fs exec git-read cache', () => {
   beforeEach(() => {
     delete process.env.AX_CODE_DESKTOP_GIT_READ_CACHE_TTL_MS;
