@@ -352,4 +352,38 @@ describe('AX Code proxy SSE forwarding', () => {
     const body = await response.json();
     expect(body.restarting).toBe(true);
   });
+
+  it('signals restarting:true in SSE forwarder when ax-code is unreachable', async () => {
+    // The SSE forwarder (forwardSseRequest) handles /api/event and
+    // /api/global/event. When the initial fetch to ax-code fails with
+    // ECONNREFUSED (upstream unreachable), the catch block must emit a 503
+    // with `restarting: true` — matching the apiProxy error handler and the
+    // readiness gate contract. A bare 503 (no `restarting`) would let
+    // clients dead-end on the unreachability instead of reconnecting/polling.
+    const app = express();
+    registerAxCodeProxy(app, {
+      fs: {},
+      os: {},
+      path,
+      OPEN_CODE_READY_GRACE_MS: 0,
+      getRuntime: () => ({
+        axCodePort: 1,  // nothing listening — fetch throws ECONNREFUSED
+        isAxCodeReady: true,
+        axCodeNotReadySince: 0,
+        isRestartingAxCode: false,
+      }),
+      getAxCodeAuthHeaders: () => ({}),
+      buildAxCodeUrl: (requestPath) => `http://127.0.0.1:1${requestPath}`,
+      ensureAxCodeApiPrefix: () => {},
+    });
+    proxyServer = await listen(app);
+    const proxyPort = proxyServer.address().port;
+
+    const response = await fetch(`http://127.0.0.1:${proxyPort}/api/global/event`, {
+      headers: { Accept: 'text/event-stream' },
+    });
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.restarting).toBe(true);
+  });
 });

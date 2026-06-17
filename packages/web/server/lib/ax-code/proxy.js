@@ -429,7 +429,17 @@ export const registerAxCodeProxy = (app, deps) => {
       console.error('[proxy] ax-code SSE proxy error:', error?.message ?? error);
       finishMetric('upstream-error', { error: error?.message ?? String(error) });
       if (!res.headersSent) {
-        res.status(503).json({ error: 'ax-code service unavailable' });
+        // This branch only fires when the initial fetch to ax-code failed
+        // (ECONNREFUSED / socket hangup / timeout) before any headers were
+        // flushed — i.e. ax-code was unreachable for THIS request. That is
+        // always transient from the client's perspective, so signal
+        // `restarting: true` to match the apiProxy error handler and the
+        // readiness gate contract. A bare 503 (no `restarting`) previously
+        // let EventSource clients dead-end instead of reconnecting/polling.
+        res.status(503).json({
+          error: 'ax-code service unavailable',
+          restarting: true,
+        });
       } else {
         res.end();
       }
