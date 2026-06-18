@@ -45,6 +45,16 @@ describe('parseSkillRepoSource', () => {
     });
   });
 
+  it('parses SSH sources with bracketed IPv6 hosts', () => {
+    expect(parseSkillRepoSource('git@[2001:db8::1]:group/repo.git')).toMatchObject({
+      ok: true,
+      host: '[2001:db8::1]',
+      owner: 'group',
+      repo: 'repo',
+      cloneUrlSsh: 'git@[2001:db8::1]:group/repo.git',
+    });
+  });
+
   it('rejects unsupported sources', () => {
     expect(parseSkillRepoSource('')).toMatchObject({ ok: false, error: { kind: 'invalidSource' } });
     expect(parseSkillRepoSource('https://github.com/owner')).toMatchObject({ ok: false, error: { kind: 'invalidSource' } });

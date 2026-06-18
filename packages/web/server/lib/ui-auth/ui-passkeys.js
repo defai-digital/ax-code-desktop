@@ -76,7 +76,11 @@ const getCurrentRequestOrigin = (req) => {
     return '';
   }
 
-  return `${protocol}://${host}`;
+  try {
+    return new URL(`${protocol}://${host}`).origin;
+  } catch {
+    return '';
+  }
 };
 
 const getCurrentRpId = (req) => {

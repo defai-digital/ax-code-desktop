@@ -26,29 +26,9 @@ import type { DesktopSettings, SkillCatalogConfig } from '@/lib/desktop';
 import { useSkillsCatalogStore } from '@/stores/useSkillsCatalogStore';
 import { useGitIdentitiesStore } from '@/stores/useGitIdentitiesStore';
 import { useI18n } from '@/lib/i18n';
+import { guessCatalogLabelFromSource } from './catalogSourceLabels';
 
 const generateCatalogId = () => `custom:${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-const guessLabelFromSource = (value: string) => {
-  const trimmed = value.trim();
-  const urlFormat = trimmed.startsWith("https://")
-    ? "https"
-    : trimmed.startsWith("git@")
-      ? "ssh"
-      : "shorthand";
-
-  if (urlFormat === 'ssh') {
-    return `${trimmed.split(":")[1].replace(/\.git$/i, '')}`;
-  }
-  if (urlFormat === 'https') {
-    return trimmed.split('/').slice(3).filter(Boolean).join('/').replace(/\.git$/i, '');
-  }
-  const shorthand = trimmed.match(/^([^/\s]+)\/([^/\s]+)(?:\/.+)?$/);
-  if (shorthand) {
-    return `${shorthand[1]}/${shorthand[2].replace(/\.git$/i, '')}`;
-  }
-  return trimmed;
-};
 
 type IdentityOption = { id: string; name: string };
 
@@ -150,7 +130,7 @@ export const AddCatalogDialog: React.FC<AddCatalogDialogProps> = ({ open, onOpen
     }
 
     if (!label.trim()) {
-      setLabel(guessLabelFromSource(trimmedSource));
+      setLabel(guessCatalogLabelFromSource(trimmedSource));
     }
 
     setScanOk(false);

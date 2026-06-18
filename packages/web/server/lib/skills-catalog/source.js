@@ -13,6 +13,33 @@ function splitNonEmptyPath(value) {
   return String(value || '').split('/').filter(Boolean);
 }
 
+function parseSshScpSource(raw) {
+  const atIndex = raw.indexOf('@');
+  if (atIndex === -1) {
+    return { host: '', pathSegments: [] };
+  }
+
+  const afterUser = raw.slice(atIndex + 1);
+  if (afterUser.startsWith('[')) {
+    const closingBracketIndex = afterUser.indexOf(']');
+    if (closingBracketIndex === -1 || afterUser[closingBracketIndex + 1] !== ':') {
+      return { host: afterUser, pathSegments: [] };
+    }
+    const host = afterUser.slice(0, closingBracketIndex + 1);
+    const pathValue = afterUser.slice(closingBracketIndex + 2);
+    return { host, pathSegments: splitNonEmptyPath(pathValue) };
+  }
+
+  const colonIndex = afterUser.indexOf(':');
+  if (colonIndex === -1) {
+    return { host: afterUser, pathSegments: [] };
+  }
+
+  const host = afterUser.slice(0, colonIndex);
+  const pathValue = afterUser.slice(colonIndex + 1);
+  return { host, pathSegments: splitNonEmptyPath(pathValue) };
+}
+
 function parseRemoteSource(raw, urlFormat) {
   if (urlFormat === 'https') {
     const url = new URL(raw);
@@ -21,9 +48,7 @@ function parseRemoteSource(raw, urlFormat) {
   }
 
   if (urlFormat === 'ssh') {
-    const [, afterUser = ''] = raw.split('@');
-    const [host, pathValue = ''] = afterUser.split(':');
-    return { host, pathSegments: splitNonEmptyPath(pathValue) };
+    return parseSshScpSource(raw);
   }
 
   return null;

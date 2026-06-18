@@ -1,6 +1,26 @@
 export const createRequestSecurityRuntime = (deps) => {
   const { readSettingsFromDiskMigrated } = deps;
 
+  const addHostOriginCandidates = (origins, protocol, host) => {
+    let parsed = null;
+    try {
+      parsed = new URL(`${protocol}://${host}`);
+    } catch {
+      return;
+    }
+
+    origins.add(parsed.origin);
+
+    const normalizedHost = parsed.hostname.toLowerCase();
+    const portSuffix = parsed.port ? `:${parsed.port}` : '';
+    if (normalizedHost === 'localhost') {
+      origins.add(`${parsed.protocol}//127.0.0.1${portSuffix}`);
+      origins.add(`${parsed.protocol}//[::1]${portSuffix}`);
+    } else if (normalizedHost === '127.0.0.1' || normalizedHost === '[::1]') {
+      origins.add(`${parsed.protocol}//localhost${portSuffix}`);
+    }
+  };
+
   const getUiSessionTokenFromRequest = (req) => {
     const cookieHeader = req?.headers?.cookie;
     if (!cookieHeader || typeof cookieHeader !== 'string') {
@@ -67,16 +87,7 @@ export const createRequestSecurityRuntime = (deps) => {
     const host = forwardedHost || (typeof req.headers.host === 'string' ? req.headers.host.trim() : '');
 
     if (host) {
-      origins.add(`${protocol}://${host}`);
-      const [hostname, port] = host.split(':');
-      const normalizedHost = typeof hostname === 'string' ? hostname.toLowerCase() : '';
-      const portSuffix = typeof port === 'string' && port.length > 0 ? `:${port}` : '';
-      if (normalizedHost === 'localhost') {
-        origins.add(`${protocol}://127.0.0.1${portSuffix}`);
-        origins.add(`${protocol}://[::1]${portSuffix}`);
-      } else if (normalizedHost === '127.0.0.1' || normalizedHost === '[::1]') {
-        origins.add(`${protocol}://localhost${portSuffix}`);
-      }
+      addHostOriginCandidates(origins, protocol, host);
     }
 
     try {

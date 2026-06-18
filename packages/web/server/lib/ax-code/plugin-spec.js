@@ -63,7 +63,7 @@ export function parseNpmSpec(spec) {
  * @returns {boolean}
  */
 export function isExactSemver(version) {
-  return /^\d+\.\d+\.\d+([-+][\w.-]+)?$/.test(version);
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version);
 }
 
 /**

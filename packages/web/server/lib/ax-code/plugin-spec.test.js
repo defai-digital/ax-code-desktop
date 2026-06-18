@@ -88,6 +88,10 @@ describe('isExactSemver', () => {
     expect(spec.isExactSemver('1.2.3+build.5')).toBe(true);
   });
 
+  test('semver with pre-release and build metadata', () => {
+    expect(spec.isExactSemver('1.2.3-beta.1+build.5')).toBe(true);
+  });
+
   test('range: caret', () => {
     expect(spec.isExactSemver('^1.2.0')).toBe(false);
   });
