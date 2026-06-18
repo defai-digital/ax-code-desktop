@@ -17,6 +17,8 @@ interface AboutDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+export const OPENCHAMBER_UPSTREAM_URL = 'https://github.com/btriapitsyn/openchamber';
+
 export const AboutDialog: React.FC<AboutDialogProps> = ({
   open,
   onOpenChange,
@@ -162,7 +164,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
             <p className="typography-meta text-muted-foreground/70">
               Forked from{' '}
               <a
-                href="https://github.com/openchamber/openchamber"
+                href={OPENCHAMBER_UPSTREAM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline underline-offset-2 hover:text-foreground transition-colors"
