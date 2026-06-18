@@ -155,7 +155,15 @@ export function createGlobalMessageStreamHub({
       }
 
       const index = replay.findIndex((entry) => entry.eventId === eventId);
-      return index === -1 ? [] : replay.slice(index + 1);
+      if (index !== -1) {
+        return replay.slice(index + 1);
+      }
+      // Anchor not in the buffer: it was evicted from the front because more
+      // than replayLimit events accumulated while the client was disconnected.
+      // The buffer is append-only and monotonic, so every retained entry is
+      // newer than the requested id — replay the whole buffer instead of
+      // silently dropping every event the client missed.
+      return replay.slice();
     },
   };
 }
