@@ -97,6 +97,50 @@ describe("createEventPipeline", () => {
     })).toEqual(["updated:a", "delta:b", "updated:ab"])
   })
 
+  test("preserves a delta that arrives after a full snapshot (delta → updated → delta)", async () => {
+    let resolveStreamFinished!: () => void
+    const streamFinished = new Promise<void>((resolve) => {
+      resolveStreamFinished = resolve
+    })
+    let resolveDelivered!: () => void
+    const deliveredAll = new Promise<void>((resolve) => {
+      resolveDelivered = resolve
+    })
+    const delivered: Event[] = []
+    const pipeline = createEventPipeline({
+      // Without the snapshot→delta coalesce invalidation, the trailing "b"
+      // delta merges into the pre-snapshot delta slot, reordering ahead of the
+      // "x" snapshot and getting silently dropped.
+      sdk: createSdk([
+        deltaEvent("a"),
+        partUpdatedEvent("x"),
+        deltaEvent("b"),
+      ], resolveStreamFinished),
+      onEvent: (_directory, payload) => {
+        delivered.push(payload)
+        if (delivered.length === 3) {
+          resolveDelivered()
+        }
+      },
+      transport: "sse",
+      heartbeatTimeoutMs: 1_000,
+    })
+
+    try {
+      await streamFinished
+      await Promise.race([deliveredAll, failAfter(500)])
+    } finally {
+      pipeline.cleanup()
+    }
+
+    expect(delivered.map((event) => {
+      if (event.type === "message.part.delta") {
+        return `delta:${(event.properties as { delta: string }).delta}`
+      }
+      return `updated:${((event.properties as { part: { text: string } }).part).text}`
+    })).toEqual(["delta:a", "updated:x", "delta:b"])
+  })
+
   test("normalizes openchamber session status events", async () => {
     let resolveStreamFinished!: () => void
     const streamFinished = new Promise<void>((resolve) => {

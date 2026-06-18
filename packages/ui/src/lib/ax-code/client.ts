@@ -926,6 +926,10 @@ class AxCodeService {
         console.warn(
           `[prompt] ${response.status} for ${params.providerID}/${params.modelID} (attempt ${attempt + 1}/3), retrying in ${delay}ms`
         );
+        // Release the unread error body before discarding this response on the
+        // next iteration — otherwise the stream stays open and leaks the
+        // connection (matches the cancel-on-early-return pattern used elsewhere).
+        response.body?.cancel().catch(() => { /* ignore */ });
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }

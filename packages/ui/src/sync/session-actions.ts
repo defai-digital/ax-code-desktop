@@ -22,6 +22,13 @@ const MESSAGE_REFETCH_SKIP_PARTS = new Set(["patch", "step-start", "step-finish"
 const UNREVERT_REFETCH_ATTEMPTS = 3
 const UNREVERT_REFETCH_RETRY_MS = 150
 const ACCEPTED_PROMPT_NO_OUTPUT_MS = 12_000
+// How long after an async prompt is accepted we still treat the session as
+// "starting up" even if an authoritative status snapshot reports it idle. The
+// prompt_async endpoint returns before the turn registers as busy server-side,
+// so a status poll / reconnect resync landing in that gap would otherwise see
+// "no active status" and prematurely flip the optimistic busy back to idle —
+// tripping the no-output watchdog. Kept comfortably above the watchdog window.
+const PROMPT_ACCEPTED_BUSY_GRACE_MS = 30_000
 
 // Reference set by SyncProvider — allows actions to access SDK and stores
 let _sdk: AxCodeClient | null = null
@@ -31,6 +38,29 @@ let _optimisticAdd: ((input: { sessionID: string; message: Message; parts: Part[
 let _optimisticRemove: ((input: { sessionID: string; messageID: string }) => void) | null = null
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// Timestamp of the last successfully-accepted async prompt per session. Used to
+// suppress premature idle downgrades from authoritative status snapshots while
+// the turn is still spinning up. See PROMPT_ACCEPTED_BUSY_GRACE_MS.
+const acceptedPromptAt = new Map<string, number>()
+
+function markPromptAccepted(sessionId: string): void {
+  acceptedPromptAt.set(sessionId, Date.now())
+}
+
+/**
+ * True when a prompt for this session was accepted within the grace window.
+ * The reconnect resync and status poll use this to avoid clobbering the
+ * optimistic busy status with a stale "idle" before the turn starts streaming.
+ */
+export function wasPromptRecentlyAccepted(sessionId: string, withinMs: number = PROMPT_ACCEPTED_BUSY_GRACE_MS): boolean {
+  const at = acceptedPromptAt.get(sessionId)
+  if (at === undefined) return false
+  if (Date.now() - at <= withinMs) return true
+  // Expired — drop so the map doesn't grow unbounded across long-lived sessions.
+  acceptedPromptAt.delete(sessionId)
+  return false
+}
 
 export function setActionRefs(
   sdk: AxCodeClient,
@@ -76,13 +106,57 @@ function connectionLostError(): Error {
   return new Error(`Connection lost${suffix}. Please wait for reconnection.`)
 }
 
+type WatchdogStore = ReturnType<ChildStoreManager["ensureChild"]>
+
+function findAssistantResponse(store: WatchdogStore, sessionId: string, messageID: string) {
+  const messages = store.getState().message[sessionId] ?? []
+  return messages.find((message) => message.role === "assistant" && message.parentID === messageID)
+}
+
+function isSessionWorking(store: WatchdogStore, sessionId: string): boolean {
+  const status = store.getState().session_status?.[sessionId]
+  return status?.type === "busy" || status?.type === "retry"
+}
+
+// Pull the authoritative message list from the server into the session's store.
+// The watchdog uses this to recover responses whose streamed events were dropped
+// (WS reconnect, coalescing, or directory mis-routing) before declaring failure.
+async function recoverAcceptedPromptFromServer(
+  sessionId: string,
+  directory: string,
+  store: WatchdogStore,
+): Promise<void> {
+  try {
+    const client = getSessionReplyClient(sessionId)
+    const result = await client.session.messages({ sessionID: sessionId, directory, limit: MESSAGE_REFETCH_LIMIT })
+    const records = (result.data ?? []).filter((record: { info?: { id?: string } }) => !!record?.info?.id)
+    if (records.length === 0) return
+    store.setState((state) => {
+      const materialized = materializeSessionSnapshots(
+        state,
+        sessionId,
+        records.map((record: { info: Message; parts?: Part[] }) => ({
+          info: stripMessageDiffSnapshots(record.info),
+          parts: record.parts ?? [],
+        })),
+        { skipPartTypes: MESSAGE_REFETCH_SKIP_PARTS },
+      )
+      return { message: materialized.message, part: materialized.part }
+    })
+  } catch (error) {
+    // Refetch failed (offline / server error) — fall through to the synthetic
+    // error so the user is never left staring at a silently stalled turn.
+    console.warn("[session-actions] accepted-prompt watchdog refetch failed", error)
+  }
+}
+
 function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): void {
   const stores = _childStores
   if (!stores) return
   const directory = getSessionDirectory(sessionId) || dir()
   if (!directory) return
 
-  globalThis.setTimeout(() => {
+  globalThis.setTimeout(async () => {
     const store = stores.children.get(directory)
     if (!store) return
     const state = store.getState()
@@ -108,8 +182,29 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
       return
     }
 
-    const status = state.session_status?.[sessionId]
-    if (status?.type === "busy" || status?.type === "retry") return
+    if (isSessionWorking(store, sessionId)) return
+
+    // No streamed assistant response and the session looks idle. Before
+    // fabricating a failure, verify with the server — the turn may have
+    // completed while its events were dropped in transit. If a real response
+    // comes back, surface it and stop; only fabricate when the server also
+    // has nothing.
+    await recoverAcceptedPromptFromServer(sessionId, directory, store)
+    if (findAssistantResponse(store, sessionId, messageID)) {
+      if (isSessionWorking(store, sessionId)) {
+        store.setState((current) => ({
+          session_status: {
+            ...current.session_status,
+            [sessionId]: { type: "idle" as const },
+          },
+        }))
+      }
+      return
+    }
+
+    // A late event may have flipped the session back to working during the
+    // refetch — don't clobber an in-progress turn with a synthetic error.
+    if (isSessionWorking(store, sessionId)) return
 
     const assistantMessageID = ascendingId("msg")
     const partID = ascendingId("prt")
@@ -527,6 +622,7 @@ export async function optimisticSend(input: {
   try {
     await waitForConnectionOrThrow()
     await input.send(messageID)
+    markPromptAccepted(input.sessionId)
     scheduleAcceptedPromptWatchdog(input.sessionId, messageID)
   } catch (error) {
     // Rollback via optimistic infrastructure

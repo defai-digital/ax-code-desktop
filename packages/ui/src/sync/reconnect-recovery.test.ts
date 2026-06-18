@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { Message, Part, SessionStatus } from "@ax-code/sdk/v2/client"
 import type { Session } from "@ax-code/sdk/v2"
-import { getReconnectCandidateSessionIds } from "./reconnect-recovery"
+import { getReconnectCandidateSessionIds, resolveResyncedSessionStatus, hasCompletedAssistantReply } from "./reconnect-recovery"
 
 function createSession(id: string, overrides: Partial<Session> = {}): Session {
   return {
@@ -86,5 +86,77 @@ describe("getReconnectCandidateSessionIds", () => {
       directory: "/repo-a",
       viewedSession: { directory: "/repo-b", sessionId: "active" },
     }).sort()).not.toContain("active")
+  })
+})
+
+describe("resolveResyncedSessionStatus", () => {
+  const busy = { type: "busy" } as SessionStatus
+  const idle = { type: "idle" } as SessionStatus
+
+  test("trusts an explicit server status", () => {
+    expect(resolveResyncedSessionStatus({
+      serverStatus: busy,
+      existingStatus: idle,
+      promptRecentlyAccepted: false,
+      hasCompletedAssistantReply: false,
+    })).toEqual(busy)
+  })
+
+  test("defaults to idle when the server reports no active status", () => {
+    expect(resolveResyncedSessionStatus({
+      serverStatus: undefined,
+      existingStatus: busy,
+      promptRecentlyAccepted: false,
+      hasCompletedAssistantReply: false,
+    })).toEqual(idle)
+  })
+
+  test("preserves optimistic busy during the accept→start gap (no reply yet)", () => {
+    // The core fix: a freshly accepted prompt whose turn hasn't started
+    // streaming must not be flipped to idle by an authoritative snapshot.
+    expect(resolveResyncedSessionStatus({
+      serverStatus: undefined,
+      existingStatus: busy,
+      promptRecentlyAccepted: true,
+      hasCompletedAssistantReply: false,
+    })).toEqual(busy)
+  })
+
+  test("goes idle once a completed assistant reply exists even within the grace window", () => {
+    expect(resolveResyncedSessionStatus({
+      serverStatus: undefined,
+      existingStatus: busy,
+      promptRecentlyAccepted: true,
+      hasCompletedAssistantReply: true,
+    })).toEqual(idle)
+  })
+
+  test("goes idle if the existing local status was already idle", () => {
+    expect(resolveResyncedSessionStatus({
+      serverStatus: undefined,
+      existingStatus: idle,
+      promptRecentlyAccepted: true,
+      hasCompletedAssistantReply: false,
+    })).toEqual(idle)
+  })
+})
+
+describe("hasCompletedAssistantReply", () => {
+  test("true when the last message is a completed assistant reply", () => {
+    expect(hasCompletedAssistantReply([createAssistantMessage("m-1", "s", 5)])).toBe(true)
+  })
+
+  test("false for an in-progress assistant reply", () => {
+    expect(hasCompletedAssistantReply([createAssistantMessage("m-1", "s")])).toBe(false)
+  })
+
+  test("false when the last message is a user message", () => {
+    const userMessage = { id: "m-1", sessionID: "s", role: "user", time: { created: 1 } } as unknown as Message
+    expect(hasCompletedAssistantReply([createAssistantMessage("m-1", "s", 5), userMessage])).toBe(false)
+  })
+
+  test("false for an empty/undefined message list", () => {
+    expect(hasCompletedAssistantReply([])).toBe(false)
+    expect(hasCompletedAssistantReply(undefined)).toBe(false)
   })
 })

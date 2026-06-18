@@ -1,5 +1,6 @@
 import type { Message, Part } from "@ax-code/sdk/v2/client"
 import { mergeMessages } from "./optimistic"
+import { areMessagesEqual } from "./event-reducer"
 import { compareIds, sortPartsById } from "./part-ordering"
 
 const STREAMING_PART_FIELDS = ["text", "output"] as const
@@ -134,7 +135,7 @@ export function materializeSessionSnapshots(
     .sort((left, right) => compareIds(left.info.id, right.info.id))
   const nextMessages = snapshots.map((record) => record.info)
   const currentMessages = state.message[sessionID] ?? []
-  const messages = mergeMessages(currentMessages, nextMessages)
+  const messages = mergeMessages(currentMessages, nextMessages, areMessagesEqual)
   const messagesChanged = messages !== currentMessages
 
   let partsChanged = false

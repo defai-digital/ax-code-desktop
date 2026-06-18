@@ -66,7 +66,11 @@ export const useViewportStore = create<ViewportState>()((set) => ({
         const oldestFirst = [...map.entries()].sort(
           (a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt,
         )
-        for (let i = 0; i < map.size - MAX_SESSION_MEMORY_ENTRIES; i++) {
+        // Capture the overflow count BEFORE deleting — map.size shrinks on every
+        // delete, so reading it in the loop condition would only evict half the
+        // excess and leave the map permanently over cap on bulk overflow.
+        const excess = map.size - MAX_SESSION_MEMORY_ENTRIES
+        for (let i = 0; i < excess; i++) {
           map.delete(oldestFirst[i][0])
         }
       }

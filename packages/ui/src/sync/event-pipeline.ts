@@ -311,6 +311,20 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     if (typeof props.messageID !== "string" || typeof props.partID !== "string") return undefined
     return `message.part.updated:${props.messageID}:${props.partID}`
   }
+
+  // Inverse of updatedPartKeyForDelta: a full part snapshot supersedes any
+  // pending deltas for that part. Returns the coalesce-key PREFIX (all fields)
+  // so the deltas' slots can be invalidated — otherwise a delta arriving after
+  // the snapshot would merge into a pre-snapshot delta slot, reordering it
+  // ahead of the snapshot and losing the post-snapshot delta.
+  const deltaKeyPrefixForUpdated = (payload: Event): string | undefined => {
+    if (payload.type !== "message.part.updated") return undefined
+    const props = payload.properties as { part?: { id?: string; messageID?: string } }
+    const partID = props.part?.id
+    const messageID = props.part?.messageID
+    if (typeof partID !== "string" || typeof messageID !== "string") return undefined
+    return `message.part.delta:${messageID}:${partID}:`
+  }
   
   /**
    * Extract a session-level identifier from a delta event for metrics tracking.
@@ -514,6 +528,14 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     const updatedKeyInterruptedByDelta = updatedPartKeyForDelta(normalizedPayload)
     if (updatedKeyInterruptedByDelta) {
       d.coalesced.delete(updatedKeyInterruptedByDelta)
+    }
+    const deltaPrefixInterruptedByUpdated = deltaKeyPrefixForUpdated(normalizedPayload)
+    if (deltaPrefixInterruptedByUpdated) {
+      for (const existingKey of d.coalesced.keys()) {
+        if (existingKey.startsWith(deltaPrefixInterruptedByUpdated)) {
+          d.coalesced.delete(existingKey)
+        }
+      }
     }
     const k = key(normalizedPayload)
     if (k) {

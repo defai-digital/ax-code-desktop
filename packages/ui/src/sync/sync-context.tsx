@@ -33,7 +33,7 @@ import { setActionRefs } from "./session-actions"
 import { setSyncRefs } from "./sync-refs"
 import { stripMessageDiffSnapshots, stripSessionDiffSnapshots } from "./sanitize"
 import { syncDebug } from "./debug"
-import { getReconnectCandidateSessionIds } from "./reconnect-recovery"
+import { getReconnectCandidateSessionIds, resolveResyncedSessionStatus, hasCompletedAssistantReply } from "./reconnect-recovery"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { usePermissionStore } from "@/stores/permissionStore"
 import { useConfigStore } from "@/stores/useConfigStore"
@@ -514,11 +514,17 @@ function getActiveSessionCandidateIds(directory: string, state: DirectoryStore):
 function buildRelevantSessionStatuses(
   nextStatuses: Awaited<ReturnType<typeof axCodeClient.getSessionStatusForDirectory>>,
   candidateSessionIds: string[],
+  state: DirectoryStore,
 ): Record<string, SessionStatus> | null {
   if (nextStatuses === null) return null
   const relevantStatuses: Record<string, SessionStatus> = {}
   for (const sessionId of candidateSessionIds) {
-    relevantStatuses[sessionId] = toSessionStatus(nextStatuses[sessionId]) ?? { type: "idle" }
+    relevantStatuses[sessionId] = resolveResyncedSessionStatus({
+      serverStatus: toSessionStatus(nextStatuses[sessionId]),
+      existingStatus: state.session_status?.[sessionId],
+      promptRecentlyAccepted: sessionActions.wasPromptRecentlyAccepted(sessionId),
+      hasCompletedAssistantReply: hasCompletedAssistantReply(state.message?.[sessionId]),
+    })
   }
   return relevantStatuses
 }
@@ -557,8 +563,10 @@ async function resyncDirectorySessionStatuses(
 ): Promise<Record<string, SessionStatus> | null> {
   const nextStatuses = await axCodeClient.getSessionStatusForDirectory(directory)
   // null = fetch failed; preserve existing state. {} or populated = authoritative
-  // snapshot of active sessions — candidates not listed are idle now.
-  const relevantStatuses = buildRelevantSessionStatuses(nextStatuses, candidateSessionIds)
+  // snapshot of active sessions — candidates not listed are idle now (unless a
+  // prompt was just accepted and hasn't started streaming; see
+  // resolveResyncedSessionStatus).
+  const relevantStatuses = buildRelevantSessionStatuses(nextStatuses, candidateSessionIds, store.getState())
   if (relevantStatuses === null) return null
   applySessionStatusSnapshot(store, relevantStatuses)
   return relevantStatuses
@@ -1758,6 +1766,11 @@ export function SyncProvider(props: {
       const polling = statusPollingDirectoriesRef.current
       if (polling.has(directory)) return
       polling.add(directory)
+      // Stamp the poll time only once we actually start a poll (past the
+      // in-flight dedup guard). Bumping it in the tick — even when this call
+      // is deduped — would silently push the next genuine poll a full interval
+      // later every time a slow poll overlaps a tick.
+      lastStatusPollAtByDirectoryRef.current.set(directory, Date.now())
       try {
         const before = store.getState()
         const statuses = await resyncDirectorySessionStatuses(directory, store, candidateSessionIds)
@@ -1790,7 +1803,6 @@ export function SyncProvider(props: {
 
             const lastStatusPollAt = lastStatusPollAtByDirectoryRef.current.get(directory) ?? 0
             if (now - lastStatusPollAt >= ACTIVE_SESSION_STATUS_POLL_INTERVAL_MS) {
-              lastStatusPollAtByDirectoryRef.current.set(directory, now)
               void pollDirectoryStatuses(directory, store, candidateSessionIds).catch(() => undefined)
             }
           }

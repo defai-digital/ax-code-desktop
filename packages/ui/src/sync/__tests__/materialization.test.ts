@@ -28,6 +28,24 @@ describe("materializeSessionSnapshots", () => {
     expect(result.partsChanged).toBe(true)
   })
 
+  test("updates an existing message whose info changed in the snapshot", () => {
+    // Reconnect recovery: an assistant reply that completed server-side while
+    // disconnected must overwrite the stale in-progress copy (same id).
+    const inProgress = { id: "msg_1", sessionID: "ses_1", role: "assistant", time: { created: 1 } } as Message
+    const completed = { id: "msg_1", sessionID: "ses_1", role: "assistant", time: { created: 1, completed: 9 }, finish: "stop" } as unknown as Message
+    const state = { message: { ses_1: [inProgress] }, part: { msg_1: [part("prt_1", "msg_1")] } }
+
+    const result = materializeSessionSnapshots(
+      state,
+      "ses_1",
+      [{ info: completed, parts: [part("prt_1", "msg_1")] }],
+    )
+
+    expect(result.messagesChanged).toBe(true)
+    const merged = result.message.ses_1.find((item) => item.id === "msg_1") as Message & { time?: { completed?: number } }
+    expect(merged.time?.completed).toBe(9)
+  })
+
   test("preserves unchanged references", () => {
     const existingMessage = message("msg_1")
     const existingPart = part("prt_1", "msg_1")

@@ -23,12 +23,23 @@ function resetConfigState() {
   }
 }
 
+// Configurable result for the session.messages refetch the accepted-prompt
+// watchdog performs before fabricating a failure. Defaults to "server has
+// nothing" so the watchdog falls through to the synthetic error.
+let scopedMessagesResult: { data: Array<{ info: Message; parts?: Part[] }> } = { data: [] }
+function resetScopedMessagesResult() {
+  scopedMessagesResult = { data: [] }
+}
+
 const mockScopedClient = {
   permission: {
     reply: mock((params: Record<string, unknown>) => {
       replyCalls.push({ method: "permission.reply", params })
       return Promise.resolve({ data: true })
     }),
+  },
+  session: {
+    messages: mock(() => Promise.resolve(scopedMessagesResult)),
   },
   question: {
     reply: mock((params: Record<string, unknown>) => {
@@ -336,6 +347,7 @@ describe("optimisticSend responsiveness", () => {
   })
 
   test("adds a visible fallback when an accepted prompt goes idle without assistant output", async () => {
+    resetScopedMessagesResult()
     const originalSetTimeout = globalThis.setTimeout
     globalThis.setTimeout = ((callback: TimerHandler) => {
       if (typeof callback === "function") callback()
@@ -394,12 +406,88 @@ describe("optimisticSend responsiveness", () => {
         },
       })
 
+      // The watchdog now verifies against the server before fabricating, so the
+      // synthetic fallback is injected after the (empty) refetch resolves.
+      await new Promise((resolve) => originalSetTimeout(resolve, 0))
+
       const messages = store.getState().message["session-a"] ?? []
       const fallback = messages.find((message) => message.role === "assistant")
       expect(fallback).toBeTruthy()
       expect((fallback as Message & { metadata?: Record<string, unknown> } | undefined)?.metadata?.source).toBe("desktop-accepted-prompt-watchdog")
       expect((fallback as Message & { metadata?: Record<string, unknown> } | undefined)?.metadata?.error).toBe(true)
       expect(store.getState().part[fallback?.id ?? ""]?.[0]?.type).toBe("text")
+    } finally {
+      globalThis.setTimeout = originalSetTimeout
+    }
+  })
+
+  test("recovers a server-side response instead of fabricating a failure", async () => {
+    resetScopedMessagesResult()
+    const originalSetTimeout = globalThis.setTimeout
+    globalThis.setTimeout = ((callback: TimerHandler) => {
+      if (typeof callback === "function") callback()
+      return 0 as unknown as ReturnType<typeof setTimeout>
+    }) as unknown as typeof setTimeout
+
+    try {
+      const store = createStore({})
+      const childStores = createChildStores([["/test/project", store]])
+
+      const { setActionRefs, setOptimisticRefs, optimisticSend } = await import("./session-actions")
+      setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+      setOptimisticRefs(
+        ({ sessionID, message, parts }) => {
+          store.setState((state) => ({
+            message: {
+              ...state.message,
+              [sessionID]: [...(state.message[sessionID] ?? []), message],
+            },
+            part: {
+              ...state.part,
+              [message.id]: parts,
+            },
+          }))
+        },
+        () => {},
+      )
+
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "hello",
+        providerID: "provider",
+        modelID: "model",
+        send: (messageID) => {
+          // Simulate a turn whose streamed events were dropped: the session
+          // goes idle locally, but the server actually has the assistant reply.
+          scopedMessagesResult = {
+            data: [
+              { info: { id: messageID, sessionID: "session-a", role: "user", time: { created: 1 } } as unknown as Message, parts: [] },
+              {
+                info: { id: "msg_assistant", sessionID: "session-a", role: "assistant", parentID: messageID, time: { created: 2, completed: 3 } } as unknown as Message,
+                parts: [{ id: "prt_assistant", type: "text", messageID: "msg_assistant", text: "real reply" } as unknown as Part],
+              },
+            ],
+          }
+          store.setState((state) => ({
+            session_status: {
+              ...state.session_status,
+              "session-a": { type: "idle" as const },
+            },
+          }))
+          return Promise.resolve()
+        },
+      })
+
+      await new Promise((resolve) => originalSetTimeout(resolve, 0))
+
+      const messages = store.getState().message["session-a"] ?? []
+      const synthetic = messages.find(
+        (message) => (message as Message & { metadata?: Record<string, unknown> }).metadata?.source === "desktop-accepted-prompt-watchdog",
+      )
+      expect(synthetic).toBeFalsy()
+      const recovered = messages.find((message) => message.role === "assistant")
+      expect(recovered?.id).toBe("msg_assistant")
+      expect(store.getState().part["msg_assistant"]?.[0]?.type).toBe("text")
     } finally {
       globalThis.setTimeout = originalSetTimeout
     }

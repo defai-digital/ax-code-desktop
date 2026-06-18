@@ -28,4 +28,27 @@ describe("viewport-store sessionMemoryState", () => {
     expect(map.has("ses_50")).toBe(true)
     expect(map.has("ses_249")).toBe(true)
   })
+
+  test("evicts the full excess when the map starts far over cap (single update)", () => {
+    // Seed the map well past the cap (as a persist rehydration would), then do
+    // ONE update. Eviction must bring it all the way down to the cap — a loop
+    // bound that re-reads the shrinking map.size would only remove half.
+    const seeded = new Map()
+    for (let i = 0; i < 300; i++) {
+      seeded.set(`old_${i}`, {
+        viewportAnchor: i,
+        isStreaming: false,
+        lastAccessedAt: i, // ascending → old_0 is least-recently accessed
+        backgroundMessageCount: 0,
+      })
+    }
+    useViewportStore.setState({ sessionMemoryState: seeded })
+
+    useViewportStore.getState().updateViewportAnchor("fresh", 1)
+
+    const map = useViewportStore.getState().sessionMemoryState
+    expect(map.size).toBe(200)
+    expect(map.has("fresh")).toBe(true)
+    expect(map.has("old_0")).toBe(false)
+  })
 })

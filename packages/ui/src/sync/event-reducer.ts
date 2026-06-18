@@ -141,7 +141,7 @@ function areSessionStatusesEqual(left: SessionStatus | undefined, right: Session
   return true
 }
 
-function areMessagesEqual(left: Message, right: Message): boolean {
+export function areMessagesEqual(left: Message, right: Message): boolean {
   if (left === right) return true
   if (left.id !== right.id || left.sessionID !== right.sessionID || left.role !== right.role) return false
   if (!areMessageTimeEqual(left, right)) return false

@@ -107,12 +107,27 @@ export function applyOptimisticRemove(draft: OptimisticStore, input: OptimisticR
 
 /** Merge two sorted message arrays by id, deduplicating.
  *  Preserves references from `a` for items that already exist — avoids
- *  unnecessary React re-renders when prepending older history. */
-export function mergeMessages<T extends { id: string }>(a: readonly T[], b: readonly T[]) {
+ *  unnecessary React re-renders when prepending older history.
+ *
+ *  When `isEqual` is supplied, an incoming item whose id already exists but
+ *  whose content differs REPLACES the existing one. This is required for
+ *  authoritative snapshot reconciliation (reconnect / refetch): a message that
+ *  changed server-side while disconnected (e.g. an assistant reply that
+ *  completed — gained `time.completed`/finish/tokens) must overwrite the stale
+ *  in-progress copy. Without a predicate the merge stays add-only. */
+export function mergeMessages<T extends { id: string }>(
+  a: readonly T[],
+  b: readonly T[],
+  isEqual?: (existing: T, incoming: T) => boolean,
+) {
   const existing = new Map(a.map((item) => [item.id, item] as const))
   let changed = false
   for (const item of b) {
-    if (!existing.has(item.id)) {
+    const prev = existing.get(item.id)
+    if (!prev) {
+      existing.set(item.id, item)
+      changed = true
+    } else if (isEqual && !isEqual(prev, item)) {
       existing.set(item.id, item)
       changed = true
     }
