@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-06-17
+
+- Client: `sendMessage` now parses structured backend error bodies and maps `ProviderModelNotFoundError` (returned by `prompt_async` when the provider/model pair is stale) to a clear "The selected model is no longer available" message instead of surfacing the raw 400 JSON. Fixes #40.
+- Client: `sendMessage` now omits the `agent` and `variant` fields from the prompt payload when they are unset, instead of serializing them as `null`. The AX Code backend rejects `null` for these fields with `InvalidRequestError` (400). The payload now uses conditional spread matching the `sendCommand` pattern.
+- Client: removed dead `readFile`/`listFiles` methods that were never called and used `POST` against `GET`-only `/api/fs/read` and `/api/fs/list` endpoints. The actual implementations in `RuntimeAPIs` (`packages/web/src/api/files.ts`) are unaffected and use the correct verbs.
+- Electron: support/help links now point at the desktop repository (`defai-digital/ax-code-desktop`) rather than the upstream CLI repo.
+
 ## [1.2.1] - 2026-06-17
 
 - Security: the `/api/fs/reveal` endpoint (reveal in Finder / Explorer) now resolves the requested path through the shared `resolveWorkspaceOrApprovedPathFromContext` authorization helper, rejecting paths outside the project workspace and the user's approved directories with HTTP 400. Previously it called `path.resolve()` directly, which allowed arbitrary filesystem paths to be opened in the host file explorer. This closes the last authorization gap among the filesystem endpoints, which otherwise already enforced workspace/approved-directory containment.
