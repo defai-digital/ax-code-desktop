@@ -47,6 +47,42 @@ function formatSdkError(error: unknown): string {
     return String(error);
   }
 }
+
+/**
+ * Render a non-OK prompt_async response body into a user-facing message.
+ *
+ * The backend returns structured error bodies for bad requests. A stale or
+ * invalid provider/model pair comes back as `{ "error": { "name": "ProviderModelNotFoundError" } }`
+ * (HTTP 400). Surfacing the raw body as
+ * `Failed to send message (400): {"name":"InvalidRequestError",...}` is not
+ * actionable, so this maps the known provider/model mismatch case to a clear
+ * instruction and leaves all other errors on the existing generic suffix form.
+ */
+export function formatPromptSendError(status: number, body: string): string {
+  const trimmed = body && body.trim().length > 0 ? body.trim() : '';
+
+  if (trimmed) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      const errObj =
+        parsed && typeof parsed === 'object'
+          ? ((parsed as { error?: unknown }).error ?? parsed)
+          : undefined;
+      const errName =
+        errObj && typeof errObj === 'object'
+          ? (errObj as { name?: unknown }).name
+          : undefined;
+      if (errName === 'ProviderModelNotFoundError') {
+        return 'The selected model is no longer available. Please choose another model.';
+      }
+    } catch {
+      // Body is not JSON — fall through to generic suffix form.
+    }
+    return `Failed to send message (${status}): ${trimmed}`;
+  }
+
+  return `Failed to send message (${status})`;
+}
 const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//;
 const ID_RANDOM_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const ID_RANDOM_LENGTH = 14;
@@ -853,8 +889,7 @@ class AxCodeService {
       } catch {
         // ignore
       }
-      const suffix = detail && detail.trim().length > 0 ? `: ${detail.trim()}` : '';
-      const error = new Error(`Failed to send message (${response.status})${suffix}`);
+      const error = new Error(formatPromptSendError(response.status, detail));
       recordProviderError(params.providerID, response.status);
       throw error;
     }
@@ -1391,53 +1426,6 @@ class AxCodeService {
 
   // SSE infrastructure removed — EventPipeline in sync/event-pipeline.ts handles
   // all SSE event ingestion via the SDK's global.event() async iterator.
-
-  // File Operations
-  async readFile(path: string): Promise<string> {
-    try {
-      // For now, we'll use a placeholder implementation
-      // In a real implementation, this would call an API endpoint to read the file
-      const response = await fetch(buildAxCodeApiUrl(this.baseUrl, API_ENDPOINTS.fs.read), {
-        method: HTTP_DEFAULTS.method.post,
-        headers: HTTP_DEFAULTS.headers.contentTypeJson,
-        body: JSON.stringify({
-          path,
-          directory: this.currentDirectory
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to read file: ${response.statusText}`);
-      }
-
-      const data = await response.text();
-      return data;
-    } catch {
-      // Return placeholder for development
-      return `// Content of ${path}\n// This would be loaded from the server`;
-    }
-  }
-
-  async listFiles(directory?: string): Promise<Record<string, unknown>[]> {
-    try {
-      const targetDir = directory || this.currentDirectory || '/';
-      const response = await fetch(buildAxCodeApiUrl(this.baseUrl, API_ENDPOINTS.fs.list), {
-        method: HTTP_DEFAULTS.method.post,
-        headers: HTTP_DEFAULTS.headers.contentTypeJson,
-        body: JSON.stringify({ directory: targetDir })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to list files: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data;
-    } catch {
-      // Return mock data for development
-      return [];
-    }
-  }
 
   // Command Management
   async listCommands(): Promise<Array<{ name: string; description?: string; agent?: string; model?: string; source?: string }>> {
