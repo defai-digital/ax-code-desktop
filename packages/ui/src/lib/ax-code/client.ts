@@ -52,11 +52,13 @@ function formatSdkError(error: unknown): string {
  * Render a non-OK prompt_async response body into a user-facing message.
  *
  * The backend returns structured error bodies for bad requests. A stale or
- * invalid provider/model pair comes back as `{ "error": { "name": "ProviderModelNotFoundError" } }`
- * (HTTP 400). Surfacing the raw body as
- * `Failed to send message (400): {"name":"InvalidRequestError",...}` is not
- * actionable, so this maps the known provider/model mismatch case to a clear
- * instruction and leaves all other errors on the existing generic suffix form.
+ * invalid provider/model pair is NOT surfaced as `name: "ProviderModelNotFoundError"`;
+ * the upstream error normalizer collapses `Provider.ModelNotFoundError` into the
+ * generic envelope `{ "name": "InvalidRequestError", "message": "Provider model
+ * not found", "status": 400, "details": { "resource": "providerModel" } }`
+ * (see ax-code `server/error.ts`). Matching on the name alone therefore never
+ * fired, so detection keys off `details.resource === 'providerModel'` (with the
+ * message text as a fallback). All other errors keep the generic suffix form.
  */
 export function formatPromptSendError(status: number, body: string): string {
   const trimmed = body && body.trim().length > 0 ? body.trim() : '';
@@ -68,12 +70,17 @@ export function formatPromptSendError(status: number, body: string): string {
         parsed && typeof parsed === 'object'
           ? ((parsed as { error?: unknown }).error ?? parsed)
           : undefined;
-      const errName =
-        errObj && typeof errObj === 'object'
-          ? (errObj as { name?: unknown }).name
-          : undefined;
-      if (errName === 'ProviderModelNotFoundError') {
-        return 'The selected model is no longer available. Please choose another model.';
+      if (errObj && typeof errObj === 'object') {
+        const err = errObj as { name?: unknown; message?: unknown; details?: { resource?: unknown } };
+        const resource =
+          err.details && typeof err.details === 'object' ? err.details.resource : undefined;
+        const isStaleModel =
+          err.name === 'ProviderModelNotFoundError' ||
+          resource === 'providerModel' ||
+          err.message === 'Provider model not found';
+        if (isStaleModel) {
+          return 'The selected model is no longer available. Please choose another model.';
+        }
       }
     } catch {
       // Body is not JSON — fall through to generic suffix form.
@@ -86,6 +93,20 @@ export function formatPromptSendError(status: number, body: string): string {
 const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//;
 const ID_RANDOM_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const ID_RANDOM_LENGTH = 14;
+
+// The backend brands message and part identifiers and rejects the entire
+// prompt with an opaque `InvalidRequestError` (400, "Invalid request") when a
+// `messageID` does not start with "msg" or any part `id` does not start with
+// "prt" (see ax-code `id/branded.ts` + `session/message-v2.ts` PartBase). UI
+// code only ever holds client-local ids (e.g. `inline-server-…`, timestamp-
+// based), which are not valid brands, so they must never be forwarded as part
+// ids on the wire — doing so fails the whole send, not just that part.
+const MESSAGE_ID_PREFIX = "msg";
+const PART_ID_PREFIX = "prt";
+const isValidPartId = (id: unknown): id is string =>
+  typeof id === "string" && id.startsWith(`${PART_ID_PREFIX}_`);
+const isValidMessageId = (id: unknown): id is string =>
+  typeof id === "string" && id.startsWith(MESSAGE_ID_PREFIX);
 
 let lastIdTimestamp = 0;
 let idCounter = 0;
@@ -694,8 +715,12 @@ class AxCodeService {
 
   private async toNormalizedFilePartInput(file: FileInputLite): Promise<FilePartInput> {
     const normalized = await this.normalizeFilePart(file);
+    // Only forward `id` when it is a real backend part id. A client-local id
+    // (UI key, timestamp, etc.) fails the backend's `prt`-prefix brand and
+    // rejects the whole prompt with a 400 "Invalid request"; let the server
+    // assign the part id instead.
     return {
-      ...(file.id ? { id: file.id } : {}),
+      ...(isValidPartId(file.id) ? { id: file.id } : {}),
       type: 'file',
       mime: normalized.mime,
       filename: normalized.filename,
@@ -740,7 +765,15 @@ class AxCodeService {
 
     // Reuse one client-side message ID across retries. The server accepts this
     // as the real user message ID, making ambiguous network retries idempotent.
-    const messageId = params.messageId ?? ascendingId("msg");
+    // A caller-supplied id that is not a valid `msg`-branded id would fail the
+    // backend's prompt validation (opaque 400), so fall back to a generated one.
+    let messageId = params.messageId ?? ascendingId("msg");
+    if (!isValidMessageId(messageId)) {
+      console.warn(
+        `[prompt] ignoring invalid caller messageId ${JSON.stringify(params.messageId)} (must start with "${MESSAGE_ID_PREFIX}"); generating a valid id`
+      );
+      messageId = ascendingId("msg");
+    }
 
     // Build parts array using SDK types (TextPartInput | FilePartInput) plus lightweight agent parts
     const parts: Array<TextPartInput | FilePartInput | AgentPartInputLite> = [];
@@ -906,7 +939,9 @@ class AxCodeService {
       // Instrumentation: the backend's `InvalidRequestError` (400) body carries
       // no field-level detail, so log the exact payload shape that was rejected.
       // Parts are summarized (type + size) instead of dumped to avoid logging
-      // large base64 file contents.
+      // large base64 file contents. The id fields are surfaced explicitly and
+      // flagged for prefix validity, since a bad `messageID`/part `id` prefix is
+      // the most common cause of an opaque "Invalid request" 400.
       console.error('[prompt] send rejected by backend', {
         status: response.status,
         sessionId: params.id,
@@ -916,15 +951,18 @@ class AxCodeService {
         agent: params.agent ?? null,
         variant: params.variant ?? null,
         messageID: messageId,
+        messageIdValid: isValidMessageId(messageId),
         hasFormat: Boolean(params.format),
         parts: parts.map((part) => {
+          const id = (part as { id?: unknown }).id;
+          const idInfo = id === undefined ? {} : { id, idValid: isValidPartId(id) };
           if (part.type === 'text') {
-            return { type: 'text', length: part.text?.length ?? 0, synthetic: part.synthetic ?? false };
+            return { type: 'text', length: part.text?.length ?? 0, synthetic: part.synthetic ?? false, ...idInfo };
           }
           if (part.type === 'file') {
-            return { type: 'file', mime: part.mime, filename: part.filename };
+            return { type: 'file', mime: part.mime, filename: part.filename, ...idInfo };
           }
-          return { type: part.type, name: part.name };
+          return { type: part.type, name: part.name, ...idInfo };
         }),
         detail,
       });

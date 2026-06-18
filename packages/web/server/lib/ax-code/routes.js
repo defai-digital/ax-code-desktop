@@ -80,7 +80,30 @@ export const registerAxCodeRoutes = (app, dependencies) => {
     return `${basePath}${parsed.search || ''}`;
   };
 
-  const fetchAxCodeJsonRoute = async (req, upstreamPath) => {
+  // Read the request body for proxy-style forwarding. `/api/session/*` routes
+  // are intentionally NOT run through express.json() (see
+  // registerCommonRequestMiddleware — they fall to the `next()` branch so the
+  // generic streaming proxy can forward them), so `req.body` is undefined here
+  // and the raw stream is still intact. Read it verbatim. If a body parser DID
+  // run for this path (other mounts), fall back to the parsed object so this
+  // helper stays correct regardless of how the route is wired.
+  const readForwardBodyText = (req) =>
+    new Promise((resolve, reject) => {
+      if (req.body !== undefined && req.body !== null) {
+        try {
+          resolve(JSON.stringify(req.body));
+        } catch {
+          resolve('{}');
+        }
+        return;
+      }
+      const chunks = [];
+      req.on('data', (chunk) => chunks.push(chunk));
+      req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8') || '{}'));
+      req.on('error', reject);
+    });
+
+  const fetchAxCodeJsonRoute = async (req, upstreamPath, forwardBody) => {
     const response = await fetch(buildAxCodeUrl(upstreamPath, ''), {
       method: req.method,
       headers: {
@@ -90,7 +113,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       },
       body: req.method === 'GET' || req.method === 'HEAD'
         ? undefined
-        : JSON.stringify(req.body ?? {}),
+        : (typeof forwardBody === 'string' ? forwardBody : JSON.stringify(req.body ?? {})),
     });
     const contentType = response.headers.get('content-type') || 'application/json';
     const bodyText = await response.text().catch(() => '');
@@ -125,7 +148,12 @@ export const registerAxCodeRoutes = (app, dependencies) => {
 
   app.post('/api/session/:sessionId/prompt_async', async (req, res) => {
     const sessionId = typeof req.params?.sessionId === 'string' ? req.params.sessionId : '';
-    const messageId = typeof req.body?.messageID === 'string' ? req.body.messageID.trim() : '';
+    // The body is not pre-parsed for this route, so read the raw payload and
+    // forward it verbatim. Parsing it here (rather than relying on req.body)
+    // also recovers the messageID used for the idempotency dedup key.
+    const bodyText = await readForwardBodyText(req);
+    const parsedBody = parseJsonBodyText(bodyText);
+    const messageId = typeof parsedBody?.messageID === 'string' ? parsedBody.messageID.trim() : '';
     const key = sessionId && messageId ? `${sessionId}:${messageId}` : null;
     const upstreamPath = buildUpstreamPathWithQuery(`/session/${encodeURIComponent(sessionId)}/prompt_async`, req);
 
@@ -142,7 +170,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
         }
       }
 
-      const promise = fetchAxCodeJsonRoute(req, upstreamPath);
+      const promise = fetchAxCodeJsonRoute(req, upstreamPath, bodyText);
       if (key) {
         promptAsyncRequestsByKey.set(key, { startedAt: Date.now(), promise });
       }
@@ -173,11 +201,13 @@ export const registerAxCodeRoutes = (app, dependencies) => {
 
   app.post('/api/session/:sessionId/command', async (req, res) => {
     const sessionId = typeof req.params?.sessionId === 'string' ? req.params.sessionId : '';
-    const command = typeof req.body?.command === 'string' ? req.body.command.trim() : '';
+    const bodyText = await readForwardBodyText(req);
+    const parsedBody = parseJsonBodyText(bodyText);
+    const command = typeof parsedBody?.command === 'string' ? parsedBody.command.trim() : '';
     const upstreamPath = buildUpstreamPathWithQuery(`/session/${encodeURIComponent(sessionId)}/command`, req);
 
     try {
-      const result = await fetchAxCodeJsonRoute(req, upstreamPath);
+      const result = await fetchAxCodeJsonRoute(req, upstreamPath, bodyText);
       const payload = parseJsonBodyText(result.bodyText);
       if (
         result.status === 500 &&

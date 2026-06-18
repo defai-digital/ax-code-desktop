@@ -24,6 +24,29 @@ describe('formatPromptSendError', () => {
     );
   });
 
+  test('maps the real stale-model envelope (details.resource = providerModel)', () => {
+    // This is the actual shape ax-code returns for a stale provider/model:
+    // Provider.ModelNotFoundError is normalized to InvalidRequestError with
+    // details.resource = "providerModel" (server/error.ts), NOT a
+    // ProviderModelNotFoundError name.
+    const body = JSON.stringify({
+      name: 'InvalidRequestError',
+      message: 'Provider model not found',
+      status: 400,
+      details: { resource: 'providerModel' },
+    });
+    expect(formatPromptSendError(400, body)).toBe(
+      'The selected model is no longer available. Please choose another model.'
+    );
+  });
+
+  test('maps the stale-model envelope by message when details are absent', () => {
+    const body = JSON.stringify({ name: 'InvalidRequestError', message: 'Provider model not found' });
+    expect(formatPromptSendError(400, body)).toBe(
+      'The selected model is no longer available. Please choose another model.'
+    );
+  });
+
   test('falls back to the generic suffix form for other structured 400s', () => {
     const body = JSON.stringify({ name: 'InvalidRequestError', message: 'Invalid request' });
     expect(formatPromptSendError(400, body)).toBe(`Failed to send message (400): ${body}`);

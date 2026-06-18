@@ -3,9 +3,15 @@ import express from 'express';
 import request from 'supertest';
 import { registerAxCodeRoutes } from './routes.js';
 
-const createApp = (overrides = {}) => {
+const createApp = (overrides = {}, { parseJson = true } = {}) => {
   const app = express();
-  app.use(express.json());
+  // Production deliberately does NOT run express.json() for `/api/session/*`
+  // (those stream through the proxy / dedicated handlers). Tests can opt out of
+  // global JSON parsing via `parseJson: false` to mirror that and exercise the
+  // raw-body forwarding path.
+  if (parseJson) {
+    app.use(express.json());
+  }
 
   const dependencies = {
     crypto: globalThis.crypto,
@@ -244,6 +250,70 @@ describe('ax-code routes', () => {
       expect(globalThis.fetch).toHaveBeenCalledTimes(1);
       expect(firstResponse.body).toEqual({ accepted: true });
       expect(secondResponse.body).toEqual({ accepted: true });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('forwards the real prompt_async body upstream when it is not pre-parsed', async () => {
+    // Regression: /api/session/* is not run through express.json() in
+    // production, so req.body is undefined and the handler must read the raw
+    // request stream. Previously it forwarded JSON.stringify(req.body ?? {})
+    // === "{}", so ax-code received a body with no model/parts and rejected
+    // every prompt with an opaque 400 "Invalid request".
+    const { app } = createApp({}, { parseJson: false });
+    const originalFetch = globalThis.fetch;
+    let forwardedBody = null;
+    globalThis.fetch = vi.fn(async (_url, init) => {
+      forwardedBody = init?.body ?? null;
+      return new Response(JSON.stringify({ accepted: true }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    try {
+      const payload = {
+        model: { providerID: 'provider', modelID: 'model' },
+        messageID: 'msg-raw-1',
+        parts: [{ type: 'text', text: 'hello' }],
+      };
+      const response = await request(app)
+        .post('/api/session/ses-1/prompt_async')
+        .set('Content-Type', 'application/json')
+        .send(JSON.stringify(payload))
+        .expect(202);
+
+      expect(response.body).toEqual({ accepted: true });
+      expect(forwardedBody).toBeTypeOf('string');
+      expect(JSON.parse(forwardedBody)).toEqual(payload);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('forwards the real command body upstream when it is not pre-parsed', async () => {
+    const { app } = createApp({}, { parseJson: false });
+    const originalFetch = globalThis.fetch;
+    let forwardedBody = null;
+    globalThis.fetch = vi.fn(async (_url, init) => {
+      forwardedBody = init?.body ?? null;
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    try {
+      const payload = { command: 'review', arguments: '', model: 'provider/model', messageID: 'msg-cmd-1' };
+      await request(app)
+        .post('/api/session/ses-1/command')
+        .set('Content-Type', 'application/json')
+        .send(JSON.stringify(payload))
+        .expect(200);
+
+      expect(forwardedBody).toBeTypeOf('string');
+      expect(JSON.parse(forwardedBody)).toEqual(payload);
     } finally {
       globalThis.fetch = originalFetch;
     }
