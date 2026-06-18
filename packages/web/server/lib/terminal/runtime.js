@@ -602,6 +602,7 @@ export function createTerminalRuntime({
     }, 15000);
 
     let cleanedUp = false;
+    let paused = false;
     let dataDisposable = null;
     let exitDisposable = null;
     const cleanup = () => {
@@ -612,6 +613,19 @@ export function createTerminalRuntime({
       cleanedUp = true;
       clearInterval(heartbeatInterval);
       session.clients.delete(clientId);
+
+      // If this client paused the shared pty for backpressure and then
+      // disconnected before the 'drain' fired, the resume would never run and
+      // the pty would stay paused forever — freezing output for every other
+      // client and the replay buffer. Resume it as part of teardown.
+      if (paused && session.ptyProcess && typeof session.ptyProcess.resume === 'function') {
+        try {
+          session.ptyProcess.resume();
+        } catch (error) {
+          console.error(`Failed to resume pty on cleanup for client ${clientId}:`, error);
+        }
+        paused = false;
+      }
 
       if (dataDisposable && typeof dataDisposable.dispose === 'function') {
         dataDisposable.dispose();
@@ -635,7 +649,9 @@ export function createTerminalRuntime({
         const ok = res.write(`data: ${JSON.stringify({ type: 'data', data })}\n\n`);
         if (!ok && session.ptyProcess && typeof session.ptyProcess.pause === 'function') {
           session.ptyProcess.pause();
+          paused = true;
           res.once('drain', () => {
+            paused = false;
             if (session.ptyProcess && typeof session.ptyProcess.resume === 'function') {
               session.ptyProcess.resume();
             }
