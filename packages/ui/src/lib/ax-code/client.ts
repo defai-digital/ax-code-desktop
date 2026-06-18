@@ -727,6 +727,17 @@ class AxCodeService {
       retryCount?: number;
     };
   }): Promise<string> {
+    // Guard against an unselected/stale model. The backend rejects an empty or
+    // missing providerID/modelID with an opaque `InvalidRequestError` (400);
+    // surfacing a clear, actionable error here protects every caller (the
+    // assistant-fork, new-worktree, GitHub-issue, and multi-run-fusion senders
+    // do not all guard this themselves) and avoids a confusing 400 round-trip.
+    if (!params.providerID || !params.modelID) {
+      throw new Error(
+        `Cannot send message: no model selected (providerID=${JSON.stringify(params.providerID)}, modelID=${JSON.stringify(params.modelID)}). Choose a provider and model, then retry.`
+      );
+    }
+
     // Reuse one client-side message ID across retries. The server accepts this
     // as the real user message ID, making ambiguous network retries idempotent.
     const messageId = params.messageId ?? ascendingId("msg");
@@ -836,6 +847,19 @@ class AxCodeService {
 
     assertProviderCircuitClosed(params.providerID);
 
+    const requestBody = {
+      model: {
+        providerID: params.providerID,
+        modelID: params.modelID,
+      },
+      ...(params.agent ? { agent: params.agent } : {}),
+      ...(params.variant ? { variant: params.variant } : {}),
+      messageID: messageId,
+      ...(params.format ? { format: params.format } : {}),
+      parts,
+    };
+    const requestBodyJson = JSON.stringify(requestBody);
+
     let response!: Response;
 
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -843,17 +867,7 @@ class AxCodeService {
         response = await fetch(url.toString(), {
           method: HTTP_DEFAULTS.method.post,
           headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
-          body: JSON.stringify({
-            model: {
-              providerID: params.providerID,
-              modelID: params.modelID,
-            },
-            ...(params.agent ? { agent: params.agent } : {}),
-            ...(params.variant ? { variant: params.variant } : {}),
-            messageID: messageId,
-            ...(params.format ? { format: params.format } : {}),
-            parts,
-          }),
+          body: requestBodyJson,
         });
       } catch (error) {
         if (attempt < 2 && isRetryableFetchError(error)) {
@@ -889,6 +903,31 @@ class AxCodeService {
       } catch {
         // ignore
       }
+      // Instrumentation: the backend's `InvalidRequestError` (400) body carries
+      // no field-level detail, so log the exact payload shape that was rejected.
+      // Parts are summarized (type + size) instead of dumped to avoid logging
+      // large base64 file contents.
+      console.error('[prompt] send rejected by backend', {
+        status: response.status,
+        sessionId: params.id,
+        directory: this.currentDirectory,
+        providerID: params.providerID,
+        modelID: params.modelID,
+        agent: params.agent ?? null,
+        variant: params.variant ?? null,
+        messageID: messageId,
+        hasFormat: Boolean(params.format),
+        parts: parts.map((part) => {
+          if (part.type === 'text') {
+            return { type: 'text', length: part.text?.length ?? 0, synthetic: part.synthetic ?? false };
+          }
+          if (part.type === 'file') {
+            return { type: 'file', mime: part.mime, filename: part.filename };
+          }
+          return { type: part.type, name: part.name };
+        }),
+        detail,
+      });
       const error = new Error(formatPromptSendError(response.status, detail));
       recordProviderError(params.providerID, response.status);
       throw error;
