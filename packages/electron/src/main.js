@@ -1298,7 +1298,7 @@ const windowsIconToDataUrl = async (executablePath) => {
 
 const isWindowsAppInstalled = ({ appId, appName }) => {
   if (appId === 'finder') return true
-  if (appId === 'terminal') return Boolean(findWindowsExecutable('terminal'))
+  if (appId === 'terminal') return Boolean(resolveWindowsTerminalExecutable())
   if (findWindowsExecutable(appId)) return true
   return Boolean(findWindowsAppNameExecutable(appName))
 }
