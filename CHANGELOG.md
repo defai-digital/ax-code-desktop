@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.6] - 2026-06-18
+
+- Sync: the session watchdog (12s busy-to-idle timeout) no longer fires on 2nd+ prompts. `markPromptAccepted` now runs synchronously before the async `input.send()` call, closing the ~50-200ms race window where the periodic status poll could clobber the optimistic busy state to idle. Once clobbered, the watchdog's guard treated the existing idle status as a no-op, so it always timed out on every subsequent prompt. A regression test exercises the exact race across 4 consecutive prompts.
+
 ## [1.2.5] - 2026-06-18
 
 - Origins (loopback): the request-security same-origin/CSRF check now treats `localhost`, `127.0.0.1`, and `[::1]` as interchangeable loopback addresses, so accessing the app via one when it is bound to another no longer fails the origin check. Host parsing now uses `new URL()` instead of a naive `host.split(':')`, which previously broke on bracketed IPv6 hosts (e.g. `[::1]:3000`).
