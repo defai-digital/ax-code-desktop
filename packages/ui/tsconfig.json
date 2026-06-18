@@ -13,10 +13,9 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "baseUrl": "./src",
     "paths": {
-      "@/*": ["./*"],
-      "@openchamber/ui/*": ["./*"]
+      "@/*": ["./src/*"],
+      "@openchamber/ui/*": ["./src/*"]
     }
   },
   "include": ["src"]

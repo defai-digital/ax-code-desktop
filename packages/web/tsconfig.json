@@ -12,7 +12,6 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "baseUrl": ".",
     "types": ["vite/client", "node"],
     "paths": {
       "@/*": ["../ui/src/*"],
