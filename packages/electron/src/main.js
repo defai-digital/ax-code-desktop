@@ -1350,6 +1350,13 @@ const buildWindowsOpenProjectSpecs = ({ projectPath, appId, appName }) => {
   return specs
 }
 
+const buildWindowsOpenFileSpecs = ({ filePath, appId, appName }) => {
+  if (appId === 'terminal') {
+    return buildWindowsOpenProjectSpecs({ projectPath: path.dirname(filePath), appId, appName })
+  }
+  return buildWindowsOpenProjectSpecs({ projectPath: filePath, appId, appName })
+}
+
 const buildOpenProjectSpecs = ({ projectPath, appId, appName }) => {
   if (appId === 'finder') return [{ program: 'open', args: [projectPath] }]
   if (appId === 'terminal' || appId === 'iterm2' || appId === 'ghostty') {
@@ -1360,6 +1367,19 @@ const buildOpenProjectSpecs = ({ projectPath, appId, appName }) => {
   if (cli) specs.push({ program: cli, args: ['-n', projectPath] })
   if (JETBRAINS_APP_IDS.has(appId)) specs.push({ program: 'open', args: ['-na', appName, '--args', projectPath] })
   specs.push({ program: 'open', args: ['-a', appName, projectPath] })
+  return specs
+}
+
+const buildOpenFileSpecs = ({ filePath, appId, appName }) => {
+  if (appId === 'finder') return [{ program: 'open', args: ['-R', filePath] }]
+  if (appId === 'terminal' || appId === 'iterm2' || appId === 'ghostty') {
+    return buildOpenProjectSpecs({ projectPath: path.dirname(filePath), appId, appName })
+  }
+  const specs = []
+  const cli = CLI_BY_APP_ID[appId]
+  if (cli) specs.push({ program: cli, args: ['-n', filePath] })
+  if (JETBRAINS_APP_IDS.has(appId)) specs.push({ program: 'open', args: ['-na', appName, '--args', filePath] })
+  specs.push({ program: 'open', args: ['-a', appName, filePath] })
   return specs
 }
 
@@ -1956,6 +1976,28 @@ handleCommand('desktop_open_in_app', async (args) => {
     throw new Error('desktop_open_in_app is only supported on macOS and Windows')
   }
   runSpecChain(buildOpenProjectSpecs({ projectPath, appId, appName }), appName)
+  return null
+})
+
+handleCommand('desktop_open_file_in_app', async (args) => {
+  const filePath = typeof args.filePath === 'string' ? args.filePath.trim() : ''
+  const appId = typeof args.appId === 'string' ? args.appId.trim().toLowerCase() : ''
+  const appName = typeof args.appName === 'string' ? args.appName.trim() : ''
+  if (!filePath || !appId || !appName) {
+    throw new Error('File path, app id, and app name are required')
+  }
+  if (process.platform === 'win32') {
+    if (appId === 'finder') {
+      shell.showItemInFolder(filePath)
+      return null
+    }
+    runSpecChain(buildWindowsOpenFileSpecs({ filePath, appId, appName }), appName)
+    return null
+  }
+  if (process.platform !== 'darwin') {
+    throw new Error('desktop_open_file_in_app is only supported on macOS and Windows')
+  }
+  runSpecChain(buildOpenFileSpecs({ filePath, appId, appName }), appName)
   return null
 })
 

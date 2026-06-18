@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   checkForDesktopUpdates,
   downloadDesktopUpdate,
+  openDesktopFileInApp,
   requestDirectoryAccess,
   restartToApplyUpdate,
 } from './desktop';
@@ -65,6 +66,29 @@ describe('requestDirectoryAccess', () => {
       success: false,
       error: 'Directory selection cancelled',
     });
+    restoreWindow();
+  });
+});
+
+describe('desktop open file in app IPC', () => {
+  test('routes file open requests through the Electron desktop bridge', async () => {
+    const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+    mockDesktopWindow({
+      invoke: async (command, args) => {
+        calls.push({ command, args });
+        return null;
+      },
+    });
+
+    expect(await openDesktopFileInApp('/Users/test/project/README.md', 'vscode', 'Visual Studio Code')).toBe(true);
+    expect(calls).toEqual([{
+      command: 'desktop_open_file_in_app',
+      args: {
+        filePath: '/Users/test/project/README.md',
+        appId: 'vscode',
+        appName: 'Visual Studio Code',
+      },
+    }]);
     restoreWindow();
   });
 });
