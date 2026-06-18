@@ -4,6 +4,7 @@ import {
   downloadDesktopUpdate,
   openDesktopFileInApp,
   requestDirectoryAccess,
+  revealDesktopPath,
   restartToApplyUpdate,
 } from './desktop';
 
@@ -87,6 +88,27 @@ describe('desktop open file in app IPC', () => {
         filePath: '/Users/test/project/README.md',
         appId: 'vscode',
         appName: 'Visual Studio Code',
+      },
+    }]);
+    restoreWindow();
+  });
+});
+
+describe('desktop reveal path IPC', () => {
+  test('routes reveal requests through the Electron desktop bridge', async () => {
+    const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+    mockDesktopWindow({
+      invoke: async (command, args) => {
+        calls.push({ command, args });
+        return null;
+      },
+    });
+
+    expect(await revealDesktopPath('/Users/test/project/README.md')).toBe(true);
+    expect(calls).toEqual([{
+      command: 'desktop_reveal_path',
+      args: {
+        path: '/Users/test/project/README.md',
       },
     }]);
     restoreWindow();

@@ -1945,6 +1945,13 @@ handleCommand('desktop_open_path', async (args) => {
   return null
 })
 
+handleCommand('desktop_reveal_path', async (args) => {
+  const targetPath = typeof args.path === 'string' ? args.path.trim() : ''
+  if (!targetPath) throw new Error('Path is required')
+  shell.showItemInFolder(targetPath)
+  return null
+})
+
 handleCommand('desktop_open_external_url', async (args) => {
   const target = typeof args.url === 'string' ? args.url.trim() : ''
   if (!target) throw new Error('URL is required')
