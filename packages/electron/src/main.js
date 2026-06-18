@@ -26,6 +26,10 @@ const { execFile, spawn, spawnSync } = require('child_process')
 const { promisify } = require('util')
 const { createStartupDiagnostics } = require('./startup-diagnostics')
 const { collectOpenPathCandidates } = require('./open-paths')
+const {
+  GITHUB_BUG_REPORT_URL,
+  GITHUB_FEATURE_REQUEST_URL,
+} = require('./support-urls')
 const { ElectronSshManager } = require('./ssh-manager.mjs')
 const { createTrayController } = require('./tray.mjs')
 
@@ -1584,8 +1588,6 @@ const relaunchFromMenu = async () => {
   app.exit(0)
 }
 
-const GITHUB_BUG_REPORT_URL = 'https://github.com/openchamber/openchamber/issues/new?template=bug_report.yml'
-const GITHUB_FEATURE_REQUEST_URL = 'https://github.com/openchamber/openchamber/issues/new?template=feature_request.yml'
 const DISCORD_INVITE_URL = 'https://discord.gg/ZYRSdnwwKA'
 
 const buildMacMenu = () => {
