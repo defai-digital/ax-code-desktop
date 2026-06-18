@@ -610,7 +610,9 @@ export async function optimisticSend(input: {
     parts: optimisticParts,
   })
 
-  // Set busy status
+  // Set busy status and mark the prompt accepted atomically (both synchronous)
+  // so any status poll that fires during the connection wait or POST round-trip
+  // sees promptRecentlyAccepted=true and preserves busy via resolveResyncedSessionStatus.
   const current = store.getState()
   store.setState({
     session_status: {
@@ -618,11 +620,11 @@ export async function optimisticSend(input: {
       [input.sessionId]: { type: "busy" as const },
     },
   })
+  markPromptAccepted(input.sessionId)
 
   try {
     await waitForConnectionOrThrow()
     await input.send(messageID)
-    markPromptAccepted(input.sessionId)
     scheduleAcceptedPromptWatchdog(input.sessionId, messageID)
   } catch (error) {
     // Rollback via optimistic infrastructure

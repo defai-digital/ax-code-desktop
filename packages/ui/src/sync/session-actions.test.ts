@@ -1,6 +1,7 @@
 import { describe, expect, test, beforeEach, mock } from "bun:test"
 import type { PermissionRequest } from "@/types/permission"
 import type { Message, Part } from "@ax-code/sdk/v2/client"
+import { resolveResyncedSessionStatus, hasCompletedAssistantReply } from "./reconnect-recovery"
 
 // Mock SDK client that records permission.reply / question.reply calls
 const replyCalls: Array<{ method: string; params: Record<string, unknown> }> = []
@@ -490,6 +491,98 @@ describe("optimisticSend responsiveness", () => {
       expect(store.getState().part["msg_assistant"]?.[0]?.type).toBe("text")
     } finally {
       globalThis.setTimeout = originalSetTimeout
+    }
+  })
+})
+
+describe("optimisticSend: markPromptAccepted is synchronous with busy-set (race condition fix)", () => {
+  // Regression test for the bug where 2nd+ prompts always triggered the watchdog.
+  //
+  // Root cause: markPromptAccepted was called AFTER await input.send(), so any
+  // status poll that fired during the connection-wait or POST round-trip saw
+  // promptRecentlyAccepted=false and clobbered the optimistic busy→idle.
+  //
+  // The fix: markPromptAccepted is called synchronously with store.setState({busy}),
+  // before any await. This test verifies the invariant holds for 4 consecutive prompts.
+
+  const setupOptimistic = async (store: ReturnType<typeof createStore>) => {
+    const childStores = createChildStores([["/test/project", store]])
+    const { setActionRefs, setOptimisticRefs, optimisticSend, wasPromptRecentlyAccepted } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    setOptimisticRefs(
+      ({ sessionID, message, parts }) => {
+        store.setState((state) => ({
+          message: {
+            ...state.message,
+            [sessionID]: [...(state.message[sessionID] ?? []), message],
+          },
+          part: { ...state.part, [message.id]: parts },
+        }))
+      },
+      ({ sessionID, messageID }) => {
+        store.setState((state) => {
+          const messages = state.message[sessionID] ?? []
+          const nextPart = { ...state.part }
+          delete nextPart[messageID]
+          return {
+            message: { ...state.message, [sessionID]: messages.filter((m) => m.id !== messageID) },
+            part: nextPart,
+          }
+        })
+      },
+    )
+    return { optimisticSend, wasPromptRecentlyAccepted }
+  }
+
+  test("wasPromptRecentlyAccepted is true during the send for all 4 consecutive prompts", async () => {
+    const store = createStore({})
+    const { optimisticSend, wasPromptRecentlyAccepted } = await setupOptimistic(store)
+
+    for (let i = 0; i < 4; i++) {
+      // Simulate a completed turn: session goes back to idle with a finished assistant reply.
+      store.setState((state) => ({
+        session_status: { ...state.session_status, "session-a": { type: "idle" as const } },
+        message: {
+          ...state.message,
+          "session-a": [
+            {
+              id: `prev-assistant-${i}`,
+              role: "assistant",
+              sessionID: "session-a",
+              time: { created: 1, completed: 2 },
+            } as unknown as Message,
+          ],
+        },
+      }))
+
+      let acceptedDuringSend = false
+      let pollResultDuringSend: ReturnType<typeof resolveResyncedSessionStatus> | undefined
+
+      await optimisticSend({
+        sessionId: "session-a",
+        content: `prompt ${i + 1}`,
+        providerID: "provider",
+        modelID: "model",
+        send: async () => {
+          // This callback fires while awaiting the POST — the exact window the
+          // periodic status poll can fire. Verify our invariants hold here.
+          acceptedDuringSend = wasPromptRecentlyAccepted("session-a")
+
+          // Simulate the status poll calling resolveResyncedSessionStatus with
+          // serverStatus=undefined (ax-code hasn't registered the session yet).
+          const state = store.getState()
+          pollResultDuringSend = resolveResyncedSessionStatus({
+            serverStatus: undefined,
+            existingStatus: state.session_status?.["session-a"],
+            promptRecentlyAccepted: wasPromptRecentlyAccepted("session-a"),
+            hasCompletedAssistantReply: hasCompletedAssistantReply(state.message?.["session-a"]),
+          })
+        },
+      })
+
+      expect(acceptedDuringSend).toBe(true)
+      expect(pollResultDuringSend).toEqual({ type: "busy" })
+      expect(store.getState().session_status?.["session-a"]).toEqual({ type: "busy" })
     }
   })
 })
