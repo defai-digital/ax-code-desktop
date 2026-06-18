@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-06-18
+
+- Terminal: when a backpressured SSE client disconnected before its socket drained, cleanup ended the response so the one-shot `drain` listener never fired, leaving the session's shared pty paused indefinitely. Because the pty is shared across all clients of the session and also feeds the output replay buffer, this froze terminal output for every remaining client and any later reconnect. Teardown now tracks whether this client left the pty paused and resumes it, mirroring the close/error/abort-aware drain handling already used by the ax-code SSE proxy.
+- Event stream: when a client reconnected with a `Last-Event-ID` whose anchor had been evicted from the replay buffer (instead of merely being behind it), the bridge failed to recover. Both the server-side event-stream bridge and the browser-side event-stream layer now replay the full buffer when the anchor is missing/evicted, restoring a complete view after a gap.
+- Sync: resolved reconnect, streaming, and watchdog correctness bugs in the UI sync layer.
+- Electron: handle the reveal-path and open-file-in-app IPC messages; normalize fetched app-icon payloads before rendering; detect packaged Windows Terminal installs (in addition to portable) when resolving the default terminal.
+- Build/tooling: TypeScript path aliases are now baseUrl-free; the desktop smoke workflow defaults to the current repo; the release smoke step honors the no-bundle flag; the About dialog's upstream link now points at the correct repo.
+
 ## [1.2.3] - 2026-06-17
 
 - Server (critical): the dedicated `/api/session/:id/prompt_async` and `/command` proxy handlers now forward the real request body verbatim instead of `JSON.stringify(req.body ?? {})`. The `/api/session/*` routes intentionally bypass `express.json()` so the generic streaming proxy can forward raw bodies, which left `req.body` undefined and caused the handler to send `{}` to ax-code — no model, no parts — producing an opaque `InvalidRequestError` (400) for **every** prompt. The handler now reads the raw stream and forwards it as-is, parsing locally only to recover the message/command id for dedup. This was the root cause behind the prompt-send 400s that the earlier client-side model-guard work could not fix.
