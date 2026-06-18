@@ -81,9 +81,13 @@ export function updateStreamingState(state: State) {
   for (const sessionID of busySessionIds) {
     const messages = state.message[sessionID]
     if (!messages || messages.length === 0) {
-      // Session is busy but has no messages yet — mark as prefill
+      // Session is busy but has no messages yet — mark as prefill.
+      // nextPrefillIds is rebuilt from scratch each tick, so always re-add a
+      // still-prefilling session; only flag `changed` when it's newly added.
+      // (Adding only when absent would drop it whenever an unrelated change
+      // causes the store to be rewritten on the same tick.)
+      nextPrefillIds.add(sessionID)
       if (!currentPrefillIds.has(sessionID)) {
-        nextPrefillIds.add(sessionID)
         changed = true
       }
       continue

@@ -64,7 +64,10 @@ function writeCache<T>(directory: string, key: CacheKey, value: T | undefined): 
 
 function clearCache(directory: string): void {
   try {
-    const prefix = storagePrefix(directory)
+    // Match the full key prefix including the trailing "." delimiter. Without
+    // it, a directory whose hash is a textual prefix of another's would also
+    // wipe that other directory's cache entries.
+    const prefix = `${storagePrefix(directory)}.`
     const keys: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i)

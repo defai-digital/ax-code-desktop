@@ -66,6 +66,10 @@ export function recordProviderSuccess(providerID: string): void {
   if (!state) return
   state.consecutiveErrors = 0
   state.lastErrorAt = 0
+  // A proven success is the strongest signal the provider recovered — close an
+  // open circuit immediately instead of waiting out the full cooldown.
+  state.circuitOpen = false
+  state.circuitOpenAt = 0
 }
 
 export function recordProviderError(providerID: string, status?: number): void {

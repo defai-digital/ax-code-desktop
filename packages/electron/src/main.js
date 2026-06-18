@@ -88,6 +88,10 @@ let externalOpenPathDrainRunning = false
 let externalOpenPathHandlerReady = false
 const pendingExternalOpenRequests = []
 const pendingOpenProjectPaths = []
+// A session/draft hand-off requested while the main window was being created.
+// Flushed on 'ax-code:renderer-app-ready' (same mechanism as open-project),
+// because loadURL resolves before React mounts the IPC listeners.
+let pendingFocusOpen = null
 const startupDiagnostics = createStartupDiagnostics({
   logPath: process.platform === 'darwin'
     ? path.join(os.homedir(), 'Library', 'Logs', 'AX Code Desktop', 'main.log')
@@ -642,6 +646,18 @@ function flushPendingOpenProjectPaths() {
   }
 }
 
+function flushPendingFocusOpen() {
+  if (!rendererReadyForOpenProject || !mainWindow || mainWindow.isDestroyed()) return
+  const pending = pendingFocusOpen
+  if (!pending) return
+  pendingFocusOpen = null
+  if (pending.sessionId) {
+    emitToWindow(mainWindow, 'openchamber:open-session', { sessionId: pending.sessionId, directory: pending.directory })
+  } else if (pending.mode === 'draft') {
+    emitToWindow(mainWindow, 'openchamber:open-draft-session', { directory: pending.directory, projectId: pending.projectId })
+  }
+}
+
 async function handleExternalOpenRequest(request) {
   const candidates = collectOpenPathCandidates(request.argv, {
     appExecutablePath: process.execPath,
@@ -692,6 +708,7 @@ ipcMain.on('ax-code:renderer-app-ready', (event) => {
   if (event.sender !== mainWindow.webContents) return
   rendererReadyForOpenProject = true
   flushPendingOpenProjectPaths()
+  flushPendingFocusOpen()
 })
 
 externalOpenPathHandlerReady = true
@@ -2042,7 +2059,9 @@ handleCommand('desktop_read_file', async (args) => {
   const stats = await fsp.stat(realPath)
   if (stats.size > 50 * 1024 * 1024) throw new Error('File is too large. Maximum size is 50MB.')
   const bytes = await fsp.readFile(realPath)
-  const ext = path.extname(filePath).toLowerCase()
+  // Classify by the resolved target we actually read, not the (possibly
+  // symlinked) requested path — otherwise the mime can mislabel the bytes.
+  const ext = path.extname(realPath).toLowerCase()
   const mime = ({
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
@@ -2354,11 +2373,11 @@ handleCommand('desktop_focus_main_window', async (args) => {
     } else {
       // A freshly created window's renderer hasn't mounted React (and attached
       // the window 'openchamber:open-session' listener) by the time loadURL
-      // resolves, so emitting now would be lost. Wait for the document, then
-      // give the bundle a moment to mount before delivering the deep-link.
-      mainWindow.webContents.once('did-finish-load', () => {
-        setTimeout(emitOpen, 400)
-      })
+      // resolves — and loadURL resolves only AFTER 'did-finish-load' has fired,
+      // so a listener attached here would never run. Queue the hand-off and let
+      // the 'ax-code:renderer-app-ready' signal flush it once React is mounted.
+      pendingFocusOpen = { sessionId, directory, mode, projectId }
+      flushPendingFocusOpen()
     }
   }
   return { focused: true }

@@ -30,6 +30,7 @@ describe("updateStreamingState", () => {
     useStreamingStore.setState({
       streamingMessageIds: new Map(),
       messageStreamStates: new Map(),
+      prefillSessionIds: new Set(),
     })
   })
 
@@ -86,6 +87,25 @@ describe("updateStreamingState", () => {
 
     expect(useStreamingStore.getState().streamingMessageIds.get("ses_1")).toBeNull()
     expect(useStreamingStore.getState().messageStreamStates.get("msg_assistant_1")?.phase).toBe("completed")
+  })
+
+  test("keeps a still-prefilling session across a tick that writes the store for another reason", () => {
+    // Tick 1: busy session with no messages → prefill.
+    updateStreamingState(stateWithMessages([]))
+    expect(useStreamingStore.getState().prefillSessionIds.has("ses_1")).toBe(true)
+
+    // Seed a stale completed entry so the next tick's prune pass forces a store
+    // write even though the prefill session itself didn't "change".
+    useStreamingStore.setState((s) => ({
+      messageStreamStates: new Map(s.messageStreamStates).set("msg_old", completedAt(Date.now() - 61_000)),
+    }))
+
+    // Tick 2: still busy, still no messages. The prune rewrites the store; the
+    // still-prefilling session must not be dropped from prefillSessionIds.
+    updateStreamingState(stateWithMessages([]))
+
+    expect(useStreamingStore.getState().messageStreamStates.has("msg_old")).toBe(false)
+    expect(useStreamingStore.getState().prefillSessionIds.has("ses_1")).toBe(true)
   })
 
   test("prunes completed stream states older than the retention window", () => {
