@@ -2009,7 +2009,7 @@ handleCommand('desktop_fetch_app_icons', async (args) => {
       const dataUrl = appId === 'terminal'
         ? imageFileToDataUrl(resolveWindowsTerminalIconPath()) || await windowsIconToDataUrl(resolveWindowsAppIconExecutable({ appId, appName }))
         : await windowsIconToDataUrl(resolveWindowsAppIconExecutable({ appId, appName }))
-      if (dataUrl) results.push({ app: appName, data_url: dataUrl })
+      if (dataUrl) results.push({ app: appName, dataUrl })
     }
     return results
   }
