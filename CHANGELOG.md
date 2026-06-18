@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.5] - 2026-06-18
+
+- Origins (loopback): the request-security same-origin/CSRF check now treats `localhost`, `127.0.0.1`, and `[::1]` as interchangeable loopback addresses, so accessing the app via one when it is bound to another no longer fails the origin check. Host parsing now uses `new URL()` instead of a naive `host.split(':')`, which previously broke on bracketed IPv6 hosts (e.g. `[::1]:3000`).
+- Passkeys: `getCurrentRequestOrigin` now derives the WebAuthn relying-party origin via `new URL().origin` (with a safe fallback) for consistent, IPv6-safe origin derivation across registration and authentication.
+- Skills catalog (SSH parsing): the server-side `parseSkillRepoSource` and the client-side catalog label guesser now handle bracketed IPv6 SSH hosts (e.g. `git@[2001:db8::1]:group/repo.git`) and nested groups (`group/subgroup/repo`), instead of mis-splitting the host or dropping path segments. The UI label logic was extracted from `AddCatalogDialog` into a testable `catalogSourceLabels` module.
+- Plugins: `isExactSemver` now correctly accepts combined pre-release + build metadata (e.g. `1.2.3-beta.1+build.5`) using proper semver character classes, instead of the overly loose previous pattern.
+
 ## [1.2.4] - 2026-06-18
 
 - Terminal: when a backpressured SSE client disconnected before its socket drained, cleanup ended the response so the one-shot `drain` listener never fired, leaving the session's shared pty paused indefinitely. Because the pty is shared across all clients of the session and also feeds the output replay buffer, this froze terminal output for every remaining client and any later reconnect. Teardown now tracks whether this client left the pty paused and resumes it, mirroring the close/error/abort-aware drain handling already used by the ax-code SSE proxy.
