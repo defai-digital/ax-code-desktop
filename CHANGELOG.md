@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-06-17
+
+- Server (critical): the dedicated `/api/session/:id/prompt_async` and `/command` proxy handlers now forward the real request body verbatim instead of `JSON.stringify(req.body ?? {})`. The `/api/session/*` routes intentionally bypass `express.json()` so the generic streaming proxy can forward raw bodies, which left `req.body` undefined and caused the handler to send `{}` to ax-code — no model, no parts — producing an opaque `InvalidRequestError` (400) for **every** prompt. The handler now reads the raw stream and forwards it as-is, parsing locally only to recover the message/command id for dedup. This was the root cause behind the prompt-send 400s that the earlier client-side model-guard work could not fix.
+- Client: `sendMessage` now guards against an empty/undefined `providerID` or `modelID` and throws a clear, actionable error before sending, protecting every caller (assistant-fork, new-worktree, GitHub-issue, multi-run-fusion) — not just the ChatInput path. On a terminal non-OK response it also logs the rejected payload shape (provider/model/agent/variant + summarized parts) for diagnosis.
+- Client: the stale-model error message now detects the real backend envelope (`details.resource === 'providerModel'` / "Provider model not found") instead of a `ProviderModelNotFoundError` name the backend never emits.
+- Client: `sendMessage` now drops a file part `id` unless it is a valid `prt_` part id and regenerates a non-`msg`-prefixed message id when needed, since either bad prefix makes the backend reject the whole prompt with the same opaque 400.
+
 ## [1.2.2] - 2026-06-17
 
 - Client: `sendMessage` now parses structured backend error bodies and maps `ProviderModelNotFoundError` (returned by `prompt_async` when the provider/model pair is stale) to a clear "The selected model is no longer available" message instead of surfacing the raw 400 JSON. Fixes #40.
