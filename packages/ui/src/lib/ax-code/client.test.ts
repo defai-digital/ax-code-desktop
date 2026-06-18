@@ -1,0 +1,42 @@
+import { describe, expect, test } from 'bun:test';
+
+import { formatPromptSendError } from './client';
+
+describe('formatPromptSendError', () => {
+  test('maps ProviderModelNotFoundError to an actionable message', () => {
+    const body = JSON.stringify({
+      status: 400,
+      errorName: 'InvalidRequestError',
+      error: {
+        data: { providerID: 'alibaba-token-plan', modelID: 'qwen3.7-plus', suggestions: [] },
+        name: 'ProviderModelNotFoundError',
+      },
+    });
+    expect(formatPromptSendError(400, body)).toBe(
+      'The selected model is no longer available. Please choose another model.'
+    );
+  });
+
+  test('maps ProviderModelNotFoundError when the error name is at the top level', () => {
+    const body = JSON.stringify({ name: 'ProviderModelNotFoundError' });
+    expect(formatPromptSendError(400, body)).toBe(
+      'The selected model is no longer available. Please choose another model.'
+    );
+  });
+
+  test('falls back to the generic suffix form for other structured 400s', () => {
+    const body = JSON.stringify({ name: 'InvalidRequestError', message: 'Invalid request' });
+    expect(formatPromptSendError(400, body)).toBe(`Failed to send message (400): ${body}`);
+  });
+
+  test('falls back to the generic suffix form for non-JSON bodies', () => {
+    expect(formatPromptSendError(500, 'upstream down')).toBe(
+      'Failed to send message (500): upstream down'
+    );
+  });
+
+  test('returns a bare status message when the body is empty', () => {
+    expect(formatPromptSendError(400, '')).toBe('Failed to send message (400)');
+    expect(formatPromptSendError(400, '   ')).toBe('Failed to send message (400)');
+  });
+});
