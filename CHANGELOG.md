@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.7] - 2026-06-18
+
 ### Fixed
 - Sync: stale accepted-prompt watchdog from a previous prompt no longer fires during the next prompt's turn and clobbers the busy status to idle. The watchdog timer is now cancelled when a new prompt is sent for the same session (`scheduleAcceptedPromptWatchdog` tracks and clears the previous timer via `acceptedPromptWatchdogTimers`). A defense-in-depth guard also prevents the idle-forcing branch from running when a newer user message exists without its own assistant reply. This was the root cause of the "The request was accepted, but no assistant response or error was produced" error appearing on every 2nd+ prompt in v1.2.6.
 - Sync: the watchdog's async server-refetch recovery path (`recoverAcceptedPromptFromServer`) no longer clobbers a newer prompt's busy status. The `await` during recovery created a timing window where a new prompt could start; when recovery completed, it found the old prompt's completed response and forced idle based on `isSessionWorking()` alone — without checking whether a newer unanswered user message existed. Extracted `hasNewerUnansweredUserMessage` as a shared guard applied to both the initial-match and recovery branches.
