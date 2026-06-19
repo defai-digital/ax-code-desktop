@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.9] - 2026-06-19
+
+### Fixed
+- Sync: increased watchdog timeout from 12s to 60s and grace window from 30s to 60s to prevent false "no assistant response" errors on slower models or network conditions. The watchdog now waits longer before fabricating an error, giving the assistant more time to respond. This addresses persistent reports of the error appearing on second+ prompts even after previous fixes.
+
 ## [1.2.8] - 2026-06-18
 
 ### Fixed
