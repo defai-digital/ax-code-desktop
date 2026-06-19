@@ -10,6 +10,7 @@
 import { spawnSync } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { createRequire } from 'module'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const electronDir = path.join(__dirname, '..')
@@ -18,12 +19,19 @@ const electronDir = path.join(__dirname, '..')
 // e.g. ['--win', '--x64', '--publish=never']
 const args = process.argv.slice(2)
 
+// pnpm hoists `electron` to the workspace-root node_modules, so electron-builder
+// (run from packages/electron) cannot auto-detect the version and the range in
+// package.json ("^34.0.0") is not a fixed version. Resolve it explicitly and
+// pass it through, matching how rebuild-native.mjs pins the Electron ABI.
+const require = createRequire(import.meta.url)
+const { version: electronVersion } = require('electron/package.json')
+
 // Resolve electron-builder via npx (it's hoisted to the workspace root, not
 // packages/electron/node_modules/.bin), matching how the macOS job invokes it.
 // shell:true so `npx` resolves on the Windows runner.
 const result = spawnSync(
   'npx',
-  ['electron-builder', ...args],
+  ['electron-builder', `-c.electronVersion=${electronVersion}`, ...args],
   {
     stdio: 'inherit',
     cwd: electronDir,
