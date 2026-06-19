@@ -212,7 +212,7 @@ export const registerServerStatusRoutes = (app, dependencies) => {
 
     res.json({ ok: true });
 
-    // Terminate the entire dev process group so `bun run dev` leaves no orphans.
+    // Terminate the entire dev process group so `pnpm run dev` leaves no orphans.
     // We still run graceful shutdown to clean up ax-code, terminals, websockets.
     try {
       const rawPreviewUrls = Array.isArray(req.body?.previewUrls) ? req.body.previewUrls : [];
