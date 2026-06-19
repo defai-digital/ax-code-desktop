@@ -21,14 +21,14 @@ const MESSAGE_REFETCH_LIMIT = 200
 const MESSAGE_REFETCH_SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const UNREVERT_REFETCH_ATTEMPTS = 3
 const UNREVERT_REFETCH_RETRY_MS = 150
-const ACCEPTED_PROMPT_NO_OUTPUT_MS = 12_000
+const ACCEPTED_PROMPT_NO_OUTPUT_MS = 60_000
 // How long after an async prompt is accepted we still treat the session as
 // "starting up" even if an authoritative status snapshot reports it idle. The
 // prompt_async endpoint returns before the turn registers as busy server-side,
 // so a status poll / reconnect resync landing in that gap would otherwise see
 // "no active status" and prematurely flip the optimistic busy back to idle —
 // tripping the no-output watchdog. Kept comfortably above the watchdog window.
-const PROMPT_ACCEPTED_BUSY_GRACE_MS = 30_000
+const PROMPT_ACCEPTED_BUSY_GRACE_MS = 60_000
 
 // Reference set by SyncProvider — allows actions to access SDK and stores
 let _sdk: AxCodeClient | null = null
