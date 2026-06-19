@@ -4,6 +4,10 @@ node_modules
 **/node_modules
 dist
 **/dist
+# The vendored @ax-code/sdk ships a committed dist/ (it's the published package
+# payload that the web build resolves); keep it despite the **/dist rule above.
+!vendor/ax-code-sdk/dist
+!vendor/ax-code-sdk/dist/**
 build
 **/build
 .DS_Store
