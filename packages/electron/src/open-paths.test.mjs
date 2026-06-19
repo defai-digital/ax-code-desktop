@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest';
 
 const require = createRequire(import.meta.url)
 const {

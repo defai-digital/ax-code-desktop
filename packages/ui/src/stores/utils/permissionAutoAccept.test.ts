@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest";
 import type { Session } from "@ax-code/sdk/v2/client"
 import { autoRespondsPermission, type PermissionAutoAcceptMap } from "./permissionAutoAccept"
 

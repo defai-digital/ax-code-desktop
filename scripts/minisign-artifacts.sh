@@ -294,7 +294,7 @@ fi
 if [[ "$DRY_RUN" != true ]]; then
   if [[ ! -f "$SECRET_KEY" ]]; then
     echo "Secret key not found: $SECRET_KEY" >&2
-    echo "Generate it with: bun run sign:keygen" >&2
+    echo "Generate it with: pnpm run sign:keygen" >&2
     exit 1
   fi
   if [[ ! -r "$SECRET_KEY" ]]; then

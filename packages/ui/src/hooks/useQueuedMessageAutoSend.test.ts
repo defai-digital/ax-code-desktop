@@ -1,18 +1,18 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { Agent } from '@ax-code/sdk/v2';
 import type { QueuedMessage } from '../stores/messageQueueStore';
 
 let visibleAgents: Agent[] = [];
 const sendMessageCalls: unknown[][] = [];
 
-const getVisibleAgentsMock = mock(() => visibleAgents);
+const getVisibleAgentsMock = vi.fn(() => visibleAgents);
 
 const _mockSUIState: { currentSessionId: string | null; worktreeMetadata: Map<string, unknown> } = {
   currentSessionId: null,
   worktreeMetadata: new Map(),
 };
 
-mock.module('@/stores/useConfigStore', () => ({
+vi.doMock('@/stores/useConfigStore', () => ({
   useConfigStore: {
     getState: () => ({
       getVisibleAgents: getVisibleAgentsMock,
@@ -20,8 +20,8 @@ mock.module('@/stores/useConfigStore', () => ({
   },
 }));
 
-mock.module('@/sync/session-ui-store', () => ({
-  routeMessage: mock(() => Promise.resolve()),
+vi.doMock('@/sync/session-ui-store', () => ({
+  routeMessage: vi.fn(() => Promise.resolve()),
   useSessionUIStore: {
     setState: (patch: unknown) => {
       const update = typeof patch === 'function'
@@ -51,15 +51,15 @@ mock.module('@/sync/session-ui-store', () => ({
         return getAttachedSessionDirectory(attachment);
       },
     }),
-    subscribe: mock(() => () => undefined),
+    subscribe: vi.fn(() => () => undefined),
   },
 }));
 
-import {
+const {
   buildQueuedAutoSendPayload,
   sendQueuedAutoSendPayload,
   shouldDispatchQueuedAutoSend,
-} from './useQueuedMessageAutoSend';
+} = await import('./useQueuedMessageAutoSend');
 
 describe('shouldDispatchQueuedAutoSend', () => {
   test('dispatches only after an active session becomes idle', () => {

@@ -37,10 +37,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.14'
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -48,28 +46,28 @@ jobs:
           node-version: '24'
 
       - name: Install dependencies
-        run: ./scripts/ci-retry.sh bun install --frozen-lockfile
+        run: ./scripts/ci-retry.sh pnpm install --frozen-lockfile
 
       - name: Check internal boundary
-        run: bun run check:internal
+        run: pnpm run check:internal
 
       - name: Check boundary imports
-        run: bun run check:boundary
+        run: pnpm run check:boundary
 
       - name: Check endpoint contracts
-        run: bun run check:endpoint-contracts
+        run: pnpm run check:endpoint-contracts
 
       - name: Test
-        run: bun run test
+        run: pnpm run test
 
       - name: Type check
-        run: bun run type-check
+        run: pnpm run type-check
 
       - name: Lint
-        run: bun run lint
+        run: pnpm run lint
 
       - name: Build
-        run: bun run build
+        run: pnpm run build
 
   create-release:
     needs: preflight
@@ -136,10 +134,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.14'
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -148,10 +144,10 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: ./scripts/ci-retry.sh bun install --frozen-lockfile
+        run: ./scripts/ci-retry.sh pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: bun run build
+        run: pnpm run build
 
       - name: Create npm tarball
         working-directory: packages/web
@@ -203,10 +199,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.14'
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -214,7 +208,7 @@ jobs:
           node-version: '24'
 
       - name: Install dependencies
-        run: ./scripts/ci-retry.sh bun install --frozen-lockfile
+        run: ./scripts/ci-retry.sh pnpm install --frozen-lockfile
 
       - name: Install Apple Certificate
         if: ${{ env.HAS_APPLE_CERT == 'true' }}
@@ -256,14 +250,14 @@ jobs:
           if [ "$HAS_APPLE_CERT" != "true" ]; then
             echo "::warning::No Apple signing certificate configured — building unsigned macOS artifacts without notarization."
           fi
-          bun run build:web-assets
-          bun run bundle:main
+          pnpm run build:web-assets
+          pnpm run bundle:main
           # npmRebuild=false in package.json, so electron-builder won't
           # recompile native deps on its own — we must rebuild against the
           # target Electron ABI before packaging, otherwise better-sqlite3/
-          # node-pty/bun-pty crash on require inside the packaged app.
-          bun run rebuild:native
-          bunx electron-builder --mac --${{ matrix.arch }} --publish=never
+          # node-pty native modules crash on require inside the packaged app.
+          pnpm run rebuild:native
+          pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
 
       - name: Verify signature + entitlements + notarization
         if: ${{ env.HAS_APPLE_CERT == 'true' }}
@@ -399,10 +393,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.14'
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -411,15 +403,15 @@ jobs:
 
       - name: Install dependencies
         shell: bash
-        run: ./scripts/ci-retry.sh bun install --frozen-lockfile
+        run: ./scripts/ci-retry.sh pnpm install --frozen-lockfile
 
       - name: Build web assets
         working-directory: packages/electron
-        run: bun run build:web-assets
+        run: pnpm run build:web-assets
 
       - name: Bundle main process
         working-directory: packages/electron
-        run: bun run bundle:main
+        run: pnpm run bundle:main
 
       - name: Rebuild native modules
         working-directory: packages/electron

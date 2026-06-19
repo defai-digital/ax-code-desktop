@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 type Deferred<T> = {
   promise: Promise<T>;
@@ -18,27 +18,27 @@ const createDeferred = <T>(): Deferred<T> => {
   return { promise, resolve, reject };
 };
 
-const searchFilesMock = mock(() => {
+const searchFilesMock = vi.fn(() => {
   const request = createDeferred<Array<{ path: string }>>();
   searchRequests.push(request);
   return request.promise;
 });
 const nativeSearchRequests: Array<{ directory: string; query: string }> = [];
-const searchFilesNativeMock = mock(async (directory: string, query: string) => {
+const searchFilesNativeMock = vi.fn(async (directory: string, query: string) => {
   nativeSearchRequests.push({ directory, query });
   return null;
 });
-const recordDesktopStartupEventMock = mock(async () => {}) as (() => Promise<void>) & { mockClear: () => void };
+const recordDesktopStartupEventMock = vi.fn(async () => {}) as (() => Promise<void>) & { mockClear: () => void };
 let isTauriShellValue = false;
 let isElectronShellValue = false;
 
-mock.module('@/lib/ax-code/client', () => ({
+vi.doMock('@/lib/ax-code/client', () => ({
   axCodeClient: {
     searchFiles: searchFilesMock,
   },
 }));
 
-mock.module('@/lib/desktop', () => ({
+vi.doMock('@/lib/desktop', () => ({
   searchFilesNative: searchFilesNativeMock,
   isTauriShell: () => isTauriShellValue,
   isElectronShell: () => isElectronShellValue,

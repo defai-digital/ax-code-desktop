@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest";
 import type { Message, Part, SessionStatus } from "@ax-code/sdk/v2/client"
 import type { Session } from "@ax-code/sdk/v2"
 import { getReconnectCandidateSessionIds, resolveResyncedSessionStatus, hasCompletedAssistantReply } from "./reconnect-recovery"

@@ -34,11 +34,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Validate docs source
-        run: bun run docs:validate
+        run: pnpm run docs:validate
 
       - name: Build docs source archive
         id: archive

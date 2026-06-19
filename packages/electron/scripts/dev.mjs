@@ -101,7 +101,7 @@ const sharedEnv = {
   AX_CODE_DESKTOP_RENDERER_PORT: String(rendererPort),
 }
 
-const vite = spawnManaged(children, 'bun', ['run', 'dev:vite'], {
+const vite = spawnManaged(children, 'pnpm', ['run', 'dev:vite'], {
   cwd: webDir,
   env: sharedEnv,
 })
@@ -116,7 +116,7 @@ vite.once('exit', (code, signal) => {
 
 await waitForUrl(rendererUrl)
 
-const electron = spawnManaged(children, 'bunx', ['electron', path.join(electronDir, 'dist', 'main.js')], {
+const electron = spawnManaged(children, 'npx', ['electron', path.join(electronDir, 'dist', 'main.js')], {
   cwd: root,
   env: {
     ...sharedEnv,

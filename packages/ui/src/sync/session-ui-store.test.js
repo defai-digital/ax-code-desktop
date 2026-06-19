@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'vitest';
 import { useSessionWorktreeStore } from './session-worktree-store';
 import { useSessionUIStore } from './session-ui-store';
 

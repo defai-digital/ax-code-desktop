@@ -1,7 +1,7 @@
 /**
  * Generates the SVG icon sprite file from @remixicon/react bundle.
  *
- * Usage: bun run scripts/generate-icon-sprite.mjs
+ * Usage: node scripts/generate-icon-sprite.mjs
  *
  * Reads the minified @remixicon/react bundle, extracts SVG path data
  * for all Ri* icons used in packages/ui/src, and writes

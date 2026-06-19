@@ -1,15 +1,15 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import type { PluginEntry, PluginFile, RegistryResult } from './usePluginsStore';
 import { API_ENDPOINTS } from '@/lib/http';
 
 const activeProjectPath = '/workspace/project';
 
-const refreshAfterAxCodeRestartMock = mock(async () => undefined);
-const startConfigUpdateMock = mock(() => undefined);
-const finishConfigUpdateMock = mock(() => undefined);
+const refreshAfterAxCodeRestartMock = vi.fn(async () => undefined);
+const startConfigUpdateMock = vi.fn(() => undefined);
+const finishConfigUpdateMock = vi.fn(() => undefined);
 
-mock.module('@/stores/useProjectsStore', () => ({
+vi.doMock('@/stores/useProjectsStore', () => ({
   useProjectsStore: {
     getState: () => ({
       getActiveProject: () => ({ path: activeProjectPath }),
@@ -17,23 +17,23 @@ mock.module('@/stores/useProjectsStore', () => ({
   },
 }));
 
-mock.module('@/lib/ax-code/client', () => ({
+vi.doMock('@/lib/ax-code/client', () => ({
   axCodeClient: {
     getDirectory: () => '/fallback/project',
   },
 }));
 
-mock.module('@/stores/useAgentsStore', () => ({
+vi.doMock('@/stores/useAgentsStore', () => ({
   refreshAfterAxCodeRestart: refreshAfterAxCodeRestartMock,
   filterVisibleAgents: (agents: unknown[]) => agents,
 }));
 
-mock.module('@/lib/configUpdate', () => ({
+vi.doMock('@/lib/configUpdate', () => ({
   startConfigUpdate: startConfigUpdateMock,
   finishConfigUpdate: finishConfigUpdateMock,
-  updateConfigUpdateMessage: mock(() => undefined),
-  subscribeConfigUpdate: mock(() => () => undefined),
-  getConfigUpdateSnapshot: mock(() => ({ isUpdating: false, message: null })),
+  updateConfigUpdateMessage: vi.fn(() => undefined),
+  subscribeConfigUpdate: vi.fn(() => () => undefined),
+  getConfigUpdateSnapshot: vi.fn(() => ({ isUpdating: false, message: null })),
 }));
 
 const { usePluginsStore } = await import('./usePluginsStore');
@@ -90,7 +90,7 @@ type PluginRegistryFetchCall = {
 const fetchCalls: PluginRegistryFetchCall[] = [];
 let queuedResponses: Response[] = [];
 
-const fetchMock = mock(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   fetchCalls.push({ input, init });
   return queuedResponses.shift() ?? jsonResponse(pluginListPayload);
 });

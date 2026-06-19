@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 type WorktreeStatusExecResult = { command: string; success: boolean; stdout?: string };
 
@@ -11,7 +11,7 @@ let statusImpl: (directory: string) => { current: string } = () => ({ current: '
 const execCalls: Array<{ command: string; cwd: string }> = [];
 const statusCalls: string[] = [];
 
-mock.module('@/lib/execCommands', () => ({
+vi.doMock('@/lib/execCommands', () => ({
   execCommand: (command: string, cwd: string) => {
     execCalls.push({ command, cwd });
     return Promise.resolve(execImpl(command, cwd));
@@ -19,7 +19,7 @@ mock.module('@/lib/execCommands', () => ({
   execCommands: () => Promise.resolve({ success: false, results: [] }),
 }));
 
-mock.module('@/lib/gitApi', () => ({
+vi.doMock('@/lib/gitApi', () => ({
   getGitStatus: (directory: string) => {
     statusCalls.push(directory);
     return Promise.resolve(statusImpl(directory));

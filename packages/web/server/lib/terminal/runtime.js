@@ -39,28 +39,13 @@ export function createTerminalRuntime({
     }
 
     ptyProviderPromise = (async () => {
-      const isBunRuntime = typeof globalThis.Bun !== 'undefined';
-
-      if (isBunRuntime) {
-        try {
-          const bunPty = await import('bun-pty');
-          console.log('Using bun-pty for terminal sessions');
-          return { spawn: bunPty.spawn, backend: 'bun-pty' };
-        } catch (error) {
-          console.warn('bun-pty unavailable, falling back to node-pty');
-        }
-      }
-
       try {
         const nodePty = await import('node-pty');
         console.log('Using node-pty for terminal sessions');
         return { spawn: nodePty.spawn, backend: 'node-pty' };
       } catch (error) {
         console.error('Failed to load node-pty:', error && error.message ? error.message : error);
-        if (isBunRuntime) {
-          throw new Error('No PTY backend available. Install bun-pty or node-pty.');
-        }
-        throw new Error('node-pty is not available. Run: npm rebuild node-pty (or install Bun for bun-pty)');
+        throw new Error('node-pty is not available. Run: npm rebuild node-pty');
       }
     })();
 
@@ -170,7 +155,7 @@ export function createTerminalRuntime({
   const terminalWsConnections = new Set();
   const MAX_TERMINAL_SESSIONS = 20;
   const TERMINAL_IDLE_TIMEOUT = 30 * 60 * 1000;
-  const terminalRuntimeName = typeof globalThis.Bun === 'undefined' ? 'node' : 'bun';
+  const terminalRuntimeName = 'node';
   const sanitizeTerminalEnv = (env) => {
     const next = { ...env };
     delete next.BASH_XTRACEFD;
@@ -223,7 +208,7 @@ export function createTerminalRuntime({
     }
 
     try {
-      // node-pty accepts an optional signal string; bun-pty ignores extra args.
+      // node-pty accepts an optional signal string.
       ptyProcess.kill(mode === 'kill' ? 'SIGKILL' : undefined);
     } catch {
     }

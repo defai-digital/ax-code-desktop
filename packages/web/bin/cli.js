@@ -176,41 +176,8 @@ function importFromFilePath(filePath) {
   return import(pathToFileURL(filePath).href);
 }
 
-function getBunBinary() {
-  if (typeof process.env.BUN_BINARY === 'string' && process.env.BUN_BINARY.trim().length > 0) {
-    return process.env.BUN_BINARY.trim();
-  }
-  if (typeof process.env.BUN_INSTALL === 'string' && process.env.BUN_INSTALL.trim().length > 0) {
-    return path.join(process.env.BUN_INSTALL.trim(), 'bin', 'bun');
-  }
-  return 'bun';
-}
-
 function hasUiPasswordConfigured(password) {
   return typeof password === 'string' && password.trim().length > 0;
-}
-
-const BUN_BIN = getBunBinary();
-
-function isBunRuntime() {
-  return typeof globalThis.Bun !== 'undefined';
-}
-
-function isBunInstalled() {
-  try {
-    const result = spawnSync(BUN_BIN, ['--version'], {
-      stdio: 'ignore',
-      env: process.env,
-      windowsHide: true,
-    });
-    return result.status === 0;
-  } catch {
-    return false;
-  }
-}
-
-function getPreferredServerRuntime() {
-  return isBunInstalled() ? 'bun' : 'node';
 }
 
 function splitOptionToken(arg) {
@@ -1588,8 +1555,7 @@ const commands = {
 
     const axCodeBinary = await checkAxCodeCLI(emitNotice);
     const serverPath = path.join(__dirname, '..', 'server', 'index.js');
-    const preferredRuntime = getPreferredServerRuntime();
-    const runtimeBin = preferredRuntime === 'bun' ? BUN_BIN : process.execPath;
+    const runtimeBin = process.execPath;
 
     ensureLogsDir();
     const initialLogPort = targetPort === 0 ? 'auto' : String(targetPort);

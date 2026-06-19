@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'vitest';
 import type { GitStatus } from '@/lib/api/types';
 import { useGitStore, type GitStoreAPI } from './useGitStore';
 

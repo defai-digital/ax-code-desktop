@@ -14,10 +14,10 @@
     "access": "public"
   },
   "scripts": {
-    "dev": "bun run build:watch",
+    "dev": "pnpm run build:watch",
     "dev:vite": "vite --host 127.0.0.1 --strictPort",
-    "dev:server": "bun server/index.js --port ${AX_CODE_DESKTOP_PORT:-3001}",
-    "dev:server:watch": "nodemon --watch server --ext js --exec \"bun server/index.js --port ${AX_CODE_DESKTOP_PORT:-3001}\"",
+    "dev:server": "node server/index.js --port ${AX_CODE_DESKTOP_PORT:-3001}",
+    "dev:server:watch": "nodemon --watch server --ext js --exec \"node server/index.js --port ${AX_CODE_DESKTOP_PORT:-3001}\"",
     "build": "vite build",
     "build:watch": "vite build --watch",
     "type-check": "tsc --noEmit",
@@ -32,7 +32,6 @@
     "@simplewebauthn/server": "13.3.0",
     "adm-zip": "^0.5.16",
     "better-sqlite3": "^11.7.0",
-    "bun-pty": "^0.4.5",
     "compression": "^1.8.1",
     "cron-parser": "^4.9.0",
     "express": "^5.1.0",

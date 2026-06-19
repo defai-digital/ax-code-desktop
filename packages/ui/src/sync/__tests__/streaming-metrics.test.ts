@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach } from 'bun:test';
+import { describe, expect, test, beforeEach } from 'vitest';
 import { createMetricsTracker, type MetricsTracker } from '../streaming-metrics';
 
 describe('createMetricsTracker', () => {

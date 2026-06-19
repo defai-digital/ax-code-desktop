@@ -68,10 +68,10 @@ if [ "$#" -gt 0 ]; then
   exec "$@"
 fi
 
-set -- bun packages/web/bin/cli.js
+set -- node packages/web/bin/cli.js
 if [ -n "${UI_PASSWORD:-}" ]; then
   set -- "$@" --ui-password "$UI_PASSWORD"
 fi
 "$@"
 
-exec bun packages/web/bin/cli.js logs
+exec node packages/web/bin/cli.js logs

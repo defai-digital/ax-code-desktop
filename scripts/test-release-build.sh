@@ -44,10 +44,10 @@ case "$ARCH_ARG" in
 esac
 
 echo "==> Building web assets"
-bun run build:web
+pnpm run build:web
 
 echo "==> Bundling + native rebuild (packages/electron)"
-bun run --cwd packages/electron build
+pnpm --filter ./packages/electron run build
 
 if [[ "$SKIP_PACKAGE" -eq 1 ]]; then
   echo "==> Skipping electron-builder packaging (--no-bundle)"

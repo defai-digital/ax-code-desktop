@@ -3,7 +3,7 @@
  * Thin wrapper around electron-builder for platform-specific packaging.
  * Called by CI as: node ./scripts/package.mjs --win --x64 --publish=never
  *
- * Exists as a separate script (rather than a direct bunx call) so we can add
+ * Exists as a separate script (rather than a direct npx call) so we can add
  * platform-specific pre-packaging steps (e.g., signing setup, env coercion)
  * without modifying the CI YAML.
  */
@@ -18,11 +18,11 @@ const electronDir = path.join(__dirname, '..')
 // e.g. ['--win', '--x64', '--publish=never']
 const args = process.argv.slice(2)
 
-// Resolve electron-builder via bun (it's hoisted to the workspace root, not
+// Resolve electron-builder via npx (it's hoisted to the workspace root, not
 // packages/electron/node_modules/.bin), matching how the macOS job invokes it.
-// shell:true so `bunx` resolves on the Windows runner.
+// shell:true so `npx` resolves on the Windows runner.
 const result = spawnSync(
-  'bunx',
+  'npx',
   ['electron-builder', ...args],
   {
     stdio: 'inherit',

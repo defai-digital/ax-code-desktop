@@ -87,15 +87,15 @@ const PRIORITY_RULES = new Map([
 function usage(exitCode = 0) {
   const out = exitCode === 0 ? console.log : console.error;
   out(`Usage:
-  bun run doctor -- next-batch [--min-issues 75] [--max-issues 120] [--max-files 4]
-  bun run doctor -- check-batch --run <run-id>
-  bun run doctor -- file <path>
-  bun run doctor -- top [--limit 10]
+  pnpm run doctor -- next-batch [--min-issues 75] [--max-issues 120] [--max-files 4]
+  pnpm run doctor -- check-batch --run <run-id>
+  pnpm run doctor -- file <path>
+  pnpm run doctor -- top [--limit 10]
 
 Examples:
-  bun run doctor -- next-batch --min-issues 75 --max-issues 120
-  bun run doctor -- file packages/ui/src/components/chat/ChatInput.tsx
-  bun run doctor -- check-batch --run 2026-05-14T12-31-44`);
+  pnpm run doctor -- next-batch --min-issues 75 --max-issues 120
+  pnpm run doctor -- file packages/ui/src/components/chat/ChatInput.tsx
+  pnpm run doctor -- check-batch --run 2026-05-14T12-31-44`);
   process.exit(exitCode);
 }
 
@@ -401,7 +401,7 @@ function commandTop(args) {
 
 function commandFile(args) {
   const filePath = args._[1];
-  if (!filePath) throw new Error("Missing file path. Usage: bun run doctor -- file <path>");
+  if (!filePath) throw new Error("Missing file path. Usage: pnpm run doctor -- file <path>");
   const report = runReactDoctor();
   const diagnostics = groupByFile(allDiagnostics(report)).get(filePath) ?? [];
   console.log(filePath);

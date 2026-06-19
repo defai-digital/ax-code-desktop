@@ -35,7 +35,6 @@ const packageDependencyRules = [
     packageJsonPath: 'packages/ui/package.json',
     dependencyNames: [
       'better-sqlite3',
-      'bun-pty',
       'electron',
       'electron-updater',
       'express',

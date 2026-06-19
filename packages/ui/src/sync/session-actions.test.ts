@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, mock } from "bun:test"
+import { describe, expect, test, beforeEach, vi } from "vitest";
 import type { PermissionRequest } from "@/types/permission"
 import type { Message, Part } from "@ax-code/sdk/v2/client"
 import { resolveResyncedSessionStatus, hasCompletedAssistantReply } from "./reconnect-recovery"
@@ -34,20 +34,20 @@ function resetScopedMessagesResult() {
 
 const mockScopedClient = {
   permission: {
-    reply: mock((params: Record<string, unknown>) => {
+    reply: vi.fn((params: Record<string, unknown>) => {
       replyCalls.push({ method: "permission.reply", params })
       return Promise.resolve({ data: true })
     }),
   },
   session: {
-    messages: mock(() => Promise.resolve(scopedMessagesResult)),
+    messages: vi.fn(() => Promise.resolve(scopedMessagesResult)),
   },
   question: {
-    reply: mock((params: Record<string, unknown>) => {
+    reply: vi.fn((params: Record<string, unknown>) => {
       replyCalls.push({ method: "question.reply", params })
       return Promise.resolve({ data: true })
     }),
-    reject: mock((params: Record<string, unknown>) => {
+    reject: vi.fn((params: Record<string, unknown>) => {
       replyCalls.push({ method: "question.reject", params })
       return Promise.resolve({ data: true })
     }),
@@ -56,17 +56,17 @@ const mockScopedClient = {
 
 const mockSdk = {
   permission: {
-    reply: mock((params: Record<string, unknown>) => {
+    reply: vi.fn((params: Record<string, unknown>) => {
       replyCalls.push({ method: "permission.reply", params })
       return Promise.resolve({ data: true })
     }),
   },
   question: {
-    reply: mock((params: Record<string, unknown>) => {
+    reply: vi.fn((params: Record<string, unknown>) => {
       replyCalls.push({ method: "question.reply", params })
       return Promise.resolve({ data: true })
     }),
-    reject: mock((params: Record<string, unknown>) => {
+    reject: vi.fn((params: Record<string, unknown>) => {
       replyCalls.push({ method: "question.reject", params })
       return Promise.resolve({ data: true })
     }),
@@ -74,7 +74,7 @@ const mockSdk = {
 }
 
 // Mock axCodeClient singleton
-mock.module("@/lib/ax-code/client", () => ({
+vi.doMock("@/lib/ax-code/client", () => ({
   axCodeClient: {
     getScopedSdkClient: () => mockScopedClient,
     getDirectory: () => "/test/project",
@@ -83,14 +83,14 @@ mock.module("@/lib/ax-code/client", () => ({
 }))
 
 // Mock useConfigStore
-mock.module("@/stores/useConfigStore", () => ({
+vi.doMock("@/stores/useConfigStore", () => ({
   useConfigStore: {
     getState: () => configState,
   },
 }))
 
 // Mock useSessionUIStore
-mock.module("./session-ui-store", () => ({
+vi.doMock("./session-ui-store", () => ({
   useSessionUIStore: {
     getState: () => ({
       getDirectoryForSession: (sessionId: string) => {
@@ -103,17 +103,17 @@ mock.module("./session-ui-store", () => ({
 }))
 
 // Mock useInputStore (imported but not used in permission functions)
-mock.module("./input-store", () => ({
+vi.doMock("./input-store", () => ({
   useInputStore: {},
 }))
 
 // Mock useGlobalSessionsStore (imported but not used in permission functions)
-mock.module("@/stores/useGlobalSessionsStore", () => ({
+vi.doMock("@/stores/useGlobalSessionsStore", () => ({
   useGlobalSessionsStore: {},
 }))
 
 // Mock sync-refs (imported but not used in permission functions)
-mock.module("./sync-refs", () => ({
+vi.doMock("./sync-refs", () => ({
   registerSessionDirectory: () => {},
 }))
 
@@ -141,6 +141,14 @@ function createChildStores(entries: Array<[string, StoreApi<DirectoryStore>]>) {
     },
   } as unknown as import("./child-store").ChildStoreManager
 }
+
+// Each test re-imports "./session-actions" via dynamic import; reset the module
+// registry first so the SUT's module-level state (acceptedPromptAt, watchdog
+// timer maps) starts clean per test. Without this, a prior test's accepted
+// prompt leaks in and the grace-window watchdog re-arms unboundedly (OOM).
+beforeEach(() => {
+  vi.resetModules()
+})
 
 describe("respondToPermission passes directory", () => {
   beforeEach(() => {
@@ -350,8 +358,16 @@ describe("optimisticSend responsiveness", () => {
   test("adds a visible fallback when an accepted prompt goes idle without assistant output", async () => {
     resetScopedMessagesResult()
     const originalSetTimeout = globalThis.setTimeout
-    globalThis.setTimeout = ((callback: TimerHandler) => {
-      if (typeof callback === "function") callback()
+    // Fire callbacks synchronously, but advance a fake clock by each timer's
+    // delay. The watchdog re-arms while the prompt is "recently accepted"
+    // (Date.now() within the grace window); without advancing the clock the
+    // re-arm never expires and recurses until OOM. Advancing past the grace
+    // window lets the watchdog fall through to fabricating the fallback.
+    let fakeNow = Date.now()
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => fakeNow)
+    globalThis.setTimeout = ((callback: TimerHandler, ms?: number) => {
+      fakeNow += typeof ms === "number" ? ms : 0
+      if (typeof callback === "function") (callback as () => void)()
       return 0 as unknown as ReturnType<typeof setTimeout>
     }) as unknown as typeof setTimeout
 
@@ -419,6 +435,7 @@ describe("optimisticSend responsiveness", () => {
       expect(store.getState().part[fallback?.id ?? ""]?.[0]?.type).toBe("text")
     } finally {
       globalThis.setTimeout = originalSetTimeout
+      nowSpy.mockRestore()
     }
   })
 
