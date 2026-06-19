@@ -5,19 +5,20 @@
 ```bash
 git clone https://github.com/defai-digital/ax-code-desktop.git
 cd ax-code-desktop
-bun install
+pnpm install
 ```
 
-This repository pins `bun@1.3.14` in `package.json`; use that version for
-local installs so dependency resolution matches CI.
+This repository pins `pnpm@9.15.9` in `package.json` and requires Node
+`>=24 <25`; run `corepack enable` to get the pinned pnpm so dependency
+resolution matches CI.
 
 On Apple Silicon with newer Node versions, the optional `sharp` dependency can
-fall back to a source build and require libvips. If `bun install` fails while
+fall back to a source build and require libvips. If `pnpm install` fails while
 linking `vips-cpp`, install the system library and retry:
 
 ```bash
 brew install vips
-bun install
+pnpm install
 ```
 
 ## Dev Scripts
@@ -26,29 +27,29 @@ bun install
 
 | Script | Description | Ports |
 |--------|-------------|-------|
-| `bun run dev:web:full` | Build watcher + Express server. No HMR — manual refresh after changes. | `3001` (server + static) |
-| `bun run dev:web:hmr` | Vite dev server + Express API. **Open the Vite URL for HMR**, not the backend. | `5180` (Vite HMR), `3902` (API) |
+| `pnpm run dev:web:full` | Build watcher + Express server. No HMR — manual refresh after changes. | `3001` (server + static) |
+| `pnpm run dev:web:hmr` | Vite dev server + Express API. **Open the Vite URL for HMR**, not the backend. | `5180` (Vite HMR), `3902` (API) |
 
 Both are configurable via env vars: `AX_CODE_DESKTOP_PORT`, `AX_CODE_DESKTOP_HMR_UI_PORT`, `AX_CODE_DESKTOP_HMR_API_PORT`.
 
 ### Desktop (Tauri)
 
 ```bash
-bun run desktop:dev
+pnpm run desktop:dev
 ```
 
 Launches Tauri in dev mode with WebView devtools enabled and a distinct dev icon.
 
 ### Shared UI (`packages/ui`)
 
-No dev server — this is a source-level library consumed by other packages. During development, `bun run dev` runs type-checking in watch mode.
+No dev server — this is a source-level library consumed by other packages. During development, `pnpm run dev` runs type-checking in watch mode.
 
 ## Before Submitting
 
 ```bash
-bun run type-check   # Must pass
-bun run lint         # Must pass
-bun run build        # Must succeed
+pnpm run type-check   # Must pass
+pnpm run lint         # Must pass
+pnpm run build        # Must succeed
 ```
 
 ## Code Style
