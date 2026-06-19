@@ -44,6 +44,15 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 // the turn is still spinning up. See PROMPT_ACCEPTED_BUSY_GRACE_MS.
 const acceptedPromptAt = new Map<string, number>()
 
+// Active accepted-prompt watchdog timers per session. Each optimisticSend call
+// schedules a 12s watchdog that can force the session to idle if it finds a
+// completed assistant reply while the status looks stuck on busy. Without
+// cancellation, a stale watchdog from a PREVIOUS prompt fires during the NEXT
+// prompt's turn, finds the previous turn's completed assistant reply, sees the
+// current busy status (from the new prompt), and incorrectly forces idle —
+// clobbering the new turn and tripping its own watchdog.
+const acceptedPromptWatchdogTimers = new Map<string, ReturnType<typeof globalThis.setTimeout>>()
+
 function markPromptAccepted(sessionId: string): void {
   acceptedPromptAt.set(sessionId, Date.now())
 }
@@ -118,6 +127,25 @@ function isSessionWorking(store: WatchdogStore, sessionId: string): boolean {
   return status?.type === "busy" || status?.type === "retry"
 }
 
+/**
+ * True when a user message NEWER than `messageID` exists without its own
+ * assistant reply. This means a later turn is still in progress — the current
+ * watchdog is for an already-completed turn and must NOT force idle or
+ * fabricate an error, as that would clobber the in-progress turn.
+ *
+ * Used by both watchdog branches (initial store match + post-recovery) to
+ * prevent cross-turn clobbering. Without this, a stale watchdog from prompt N
+ * that fires or completes its async recovery during prompt N+1's turn would
+ * see the busy status from N+1 and incorrectly force idle.
+ */
+function hasNewerUnansweredUserMessage(messages: Message[], messageID: string): boolean {
+  return messages.some((m) => (
+    m.role === "user"
+    && m.id > messageID
+    && !messages.some((am) => am.role === "assistant" && am.parentID === m.id)
+  ))
+}
+
 // Pull the authoritative message list from the server into the session's store.
 // The watchdog uses this to recover responses whose streamed events were dropped
 // (WS reconnect, coalescing, or directory mis-routing) before declaring failure.
@@ -156,7 +184,18 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
   const directory = getSessionDirectory(sessionId) || dir()
   if (!directory) return
 
-  globalThis.setTimeout(async () => {
+  // Cancel any stale watchdog from a previous prompt for this session.
+  // Without this, the previous prompt's watchdog fires during the next
+  // prompt's turn, finds the previous turn's completed assistant reply,
+  // sees the current busy status (from the new prompt), and incorrectly
+  // forces idle — clobbering the new turn.
+  const existingTimer = acceptedPromptWatchdogTimers.get(sessionId)
+  if (existingTimer) {
+    clearTimeout(existingTimer)
+  }
+
+  const timer = globalThis.setTimeout(async () => {
+    acceptedPromptWatchdogTimers.delete(sessionId)
     const store = stores.children.get(directory)
     if (!store) return
     const state = store.getState()
@@ -172,12 +211,17 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
       const completedAt = (assistantResponse as { time?: { completed?: number } }).time?.completed
       const finish = (assistantResponse as { finish?: string }).finish
       if ((status?.type === "busy" || status?.type === "retry") && (completedAt || finish === "stop")) {
-        store.setState((current) => ({
-          session_status: {
-            ...current.session_status,
-            [sessionId]: { type: "idle" as const },
-          },
-        }))
+        // Don't force idle if a NEWER user message exists without its own
+        // assistant reply — a later turn is still in progress and this
+        // watchdog is for an already-completed turn.
+        if (!hasNewerUnansweredUserMessage(messages, messageID)) {
+          store.setState((current) => ({
+            session_status: {
+              ...current.session_status,
+              [sessionId]: { type: "idle" as const },
+            },
+          }))
+        }
       }
       return
     }
@@ -191,7 +235,14 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
     // has nothing.
     await recoverAcceptedPromptFromServer(sessionId, directory, store)
     if (findAssistantResponse(store, sessionId, messageID)) {
-      if (isSessionWorking(store, sessionId)) {
+      // Re-read state after the async recovery — a new prompt may have
+      // started during the network round-trip, setting busy and adding a
+      // newer user message. Same cross-turn guard as the initial-match
+      // branch: don't clobber an in-progress turn.
+      const currentState = store.getState()
+      const currentMessages = currentState.message[sessionId] ?? []
+      const status = currentState.session_status?.[sessionId]
+      if ((status?.type === "busy" || status?.type === "retry") && !hasNewerUnansweredUserMessage(currentMessages, messageID)) {
         store.setState((current) => ({
           session_status: {
             ...current.session_status,
@@ -248,6 +299,8 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
       },
     }))
   }, ACCEPTED_PROMPT_NO_OUTPUT_MS)
+
+  acceptedPromptWatchdogTimers.set(sessionId, timer)
 }
 
 // Wait briefly for the pipeline to re-establish connection before failing a

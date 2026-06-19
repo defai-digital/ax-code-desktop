@@ -495,6 +495,229 @@ describe("optimisticSend responsiveness", () => {
   })
 })
 
+describe("optimisticSend: stale watchdog from previous prompt is cancelled (stale-watchdog fix)", () => {
+  // Regression test for the bug where the 1st prompt's 12s watchdog fired
+  // DURING the 2nd prompt's turn, found the 1st prompt's completed assistant
+  // reply, saw the 2nd prompt's busy status, and incorrectly forced idle —
+  // clobbering the 2nd turn and tripping its own watchdog to fabricate the
+  // "no assistant response" error.
+  //
+  // Root cause: scheduleAcceptedPromptWatchdog used globalThis.setTimeout but
+  // never stored or cancelled the timer. Each new prompt leaked a stale
+  // watchdog for the previous prompt.
+
+  const setupOptimistic = async (store: ReturnType<typeof createStore>) => {
+    const childStores = createChildStores([["/test/project", store]])
+    const { setActionRefs, setOptimisticRefs, optimisticSend } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    setOptimisticRefs(
+      ({ sessionID, message, parts }) => {
+        store.setState((state) => ({
+          message: {
+            ...state.message,
+            [sessionID]: [...(state.message[sessionID] ?? []), message],
+          },
+          part: { ...state.part, [message.id]: parts },
+        }))
+      },
+      ({ sessionID, messageID }) => {
+        store.setState((state) => {
+          const messages = state.message[sessionID] ?? []
+          const nextPart = { ...state.part }
+          delete nextPart[messageID]
+          return {
+            message: { ...state.message, [sessionID]: messages.filter((m) => m.id !== messageID) },
+            part: nextPart,
+          }
+        })
+      },
+    )
+    return { optimisticSend }
+  }
+
+  test("cancels the stale watchdog when a new prompt is sent for the same session", async () => {
+    // Timer mock: store callbacks so we can fire them manually.
+    const originalSetTimeout = globalThis.setTimeout
+    const originalClearTimeout = globalThis.clearTimeout
+    const timers = new Map<number, () => void>()
+    let nextTimerId = 1
+
+    globalThis.setTimeout = ((callback: () => void) => {
+      const id = nextTimerId++
+      timers.set(id, callback)
+      return id as unknown as ReturnType<typeof setTimeout>
+    }) as unknown as typeof setTimeout
+
+    globalThis.clearTimeout = ((id: unknown) => {
+      timers.delete(id as number)
+    }) as unknown as typeof clearTimeout
+
+    try {
+      const store = createStore({})
+      const { optimisticSend } = await setupOptimistic(store)
+
+      // 1st prompt
+      let firstMessageId = ""
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "first prompt",
+        providerID: "provider",
+        modelID: "model",
+        send: (messageID) => {
+          firstMessageId = messageID
+          return Promise.resolve()
+        },
+      })
+
+      // At this point exactly 1 timer should exist (the 1st prompt's watchdog)
+      expect(timers.size).toBe(1)
+
+      // Simulate the 1st prompt completing: add assistant response + idle status
+      store.setState((state) => ({
+        session_status: {
+          ...state.session_status,
+          "session-a": { type: "idle" as const },
+        },
+        message: {
+          ...state.message,
+          "session-a": [
+            ...(state.message["session-a"] ?? []),
+            {
+              id: "msg_first_assistant",
+              role: "assistant",
+              sessionID: "session-a",
+              parentID: firstMessageId,
+              time: { created: 1, completed: 2 },
+            } as unknown as Message,
+          ],
+        },
+      }))
+
+      // 2nd prompt — should cancel the 1st prompt's watchdog
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "second prompt",
+        providerID: "provider",
+        modelID: "model",
+        send: () => Promise.resolve(),
+      })
+
+      // The 1st watchdog was cancelled. Only 1 timer should remain (the 2nd's)
+      expect(timers.size).toBe(1)
+
+      // Status should be busy (from the 2nd prompt's optimistic set)
+      expect(store.getState().session_status?.["session-a"]).toEqual({ type: "busy" })
+
+      // Now manually fire ALL remaining timers (simulating the 12s timeout).
+      // Only the 2nd prompt's watchdog should fire — the 1st was cancelled.
+      const callbacks = [...timers.values()]
+      for (const cb of callbacks) {
+        await cb()
+      }
+      await new Promise((resolve) => originalSetTimeout(resolve, 0))
+
+      // The 2nd prompt's watchdog fires. Since the session is still busy
+      // (no idle event for the 2nd prompt), the watchdog returns early without
+      // fabricating. The KEY assertion: the status is still busy — the stale
+      // 1st watchdog never fired to clobber it.
+      expect(store.getState().session_status?.["session-a"]).toEqual({ type: "busy" })
+
+      // No synthetic error messages were created (watchdog returned early)
+      const messages = store.getState().message["session-a"] ?? []
+      const syntheticErrors = messages.filter(
+        (m) => (m as Message & { metadata?: Record<string, unknown> }).metadata?.source === "desktop-accepted-prompt-watchdog",
+      )
+      expect(syntheticErrors.length).toBe(0)
+    } finally {
+      globalThis.setTimeout = originalSetTimeout
+      globalThis.clearTimeout = originalClearTimeout
+    }
+  })
+
+  test("does not force idle from a previous turn's completed assistant when a newer prompt is in progress", async () => {
+    // This test exercises the defense-in-depth guard: even if the stale timer
+    // somehow fires (e.g., race between clearTimeout and the event loop), the
+    // newerUnanswered check prevents it from forcing idle.
+    const originalSetTimeout = globalThis.setTimeout
+    const originalClearTimeout = globalThis.clearTimeout
+    const timers: Array<{ id: number; callback: () => void; messageID?: string }> = []
+    let nextTimerId = 1
+
+    // Don't cancel — let ALL timers fire so we can test the guard
+    globalThis.setTimeout = ((callback: () => void) => {
+      const id = nextTimerId++
+      timers.push({ id, callback })
+      return id as unknown as ReturnType<typeof setTimeout>
+    }) as unknown as typeof setTimeout
+
+    globalThis.clearTimeout = (() => {
+      // Intentionally a no-op: we WANT stale timers to fire to test the guard
+    }) as unknown as typeof clearTimeout
+
+    try {
+      const store = createStore({})
+      const { optimisticSend } = await setupOptimistic(store)
+
+      // 1st prompt
+      let firstMessageId = ""
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "first prompt",
+        providerID: "provider",
+        modelID: "model",
+        send: (messageID) => {
+          firstMessageId = messageID
+          return Promise.resolve()
+        },
+      })
+
+      // Simulate 1st prompt completing
+      store.setState((state) => ({
+        session_status: { ...state.session_status, "session-a": { type: "idle" as const } },
+        message: {
+          ...state.message,
+          "session-a": [
+            ...(state.message["session-a"] ?? []),
+            {
+              id: "msg_first_assistant",
+              role: "assistant",
+              sessionID: "session-a",
+              parentID: firstMessageId,
+              time: { created: 1, completed: 2 },
+            } as unknown as Message,
+          ],
+        },
+      }))
+
+      // 2nd prompt — optimistic busy
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "second prompt",
+        providerID: "provider",
+        modelID: "model",
+        send: () => Promise.resolve(),
+      })
+
+      // Status is busy (2nd prompt)
+      expect(store.getState().session_status?.["session-a"]).toEqual({ type: "busy" })
+
+      // Fire the 1st prompt's watchdog (stale timer). Even though clearTimeout
+      // is a no-op in this test, the newerUnanswered guard should prevent
+      // it from forcing idle.
+      await timers[0].callback()
+      await new Promise((resolve) => originalSetTimeout(resolve, 0))
+
+      // Status should STILL be busy — the stale watchdog's newerUnanswered
+      // guard caught that the 2nd prompt (newer user message) has no assistant
+      // response yet, so it did NOT force idle.
+      expect(store.getState().session_status?.["session-a"]).toEqual({ type: "busy" })
+    } finally {
+      globalThis.setTimeout = originalSetTimeout
+      globalThis.clearTimeout = originalClearTimeout
+    }
+  })
+})
+
 describe("optimisticSend: markPromptAccepted is synchronous with busy-set (race condition fix)", () => {
   // Regression test for the bug where 2nd+ prompts always triggered the watchdog.
   //
@@ -583,6 +806,120 @@ describe("optimisticSend: markPromptAccepted is synchronous with busy-set (race 
       expect(acceptedDuringSend).toBe(true)
       expect(pollResultDuringSend).toEqual({ type: "busy" })
       expect(store.getState().session_status?.["session-a"]).toEqual({ type: "busy" })
+    }
+  })
+})
+
+describe("optimisticSend: watchdog recovery does not clobber a newer prompt (async recovery race fix)", () => {
+  // Regression test for the bug where the watchdog's async server-refetch
+  // (recoverAcceptedPromptFromServer) completed during a NEWER prompt's turn.
+  // The recovery found the OLD prompt's completed assistant response, saw the
+  // NEW prompt's busy status, and incorrectly forced idle — clobbering the
+  // new turn.
+  //
+  // Root cause: the recovery branch forced idle based on isSessionWorking()
+  // alone, without checking whether a NEWER user message existed without its
+  // own assistant reply (the same cross-turn guard the initial-match branch has).
+
+  const setupOptimisticForRecovery = async (store: ReturnType<typeof createStore>) => {
+    const childStores = createChildStores([["/test/project", store]])
+    const { setActionRefs, setOptimisticRefs, optimisticSend } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    setOptimisticRefs(
+      ({ sessionID, message, parts }) => {
+        store.setState((state) => ({
+          message: { ...state.message, [sessionID]: [...(state.message[sessionID] ?? []), message] },
+          part: { ...state.part, [message.id]: parts },
+        }))
+      },
+      ({ sessionID, messageID }) => {
+        store.setState((state) => {
+          const messages = state.message[sessionID] ?? []
+          const nextPart = { ...state.part }
+          delete nextPart[messageID]
+          return {
+            message: { ...state.message, [sessionID]: messages.filter((m) => m.id !== messageID) },
+            part: nextPart,
+          }
+        })
+      },
+    )
+    return { optimisticSend }
+  }
+
+  test("recovery finding an old completed response does not force idle when a newer prompt is in progress", async () => {
+    const originalSetTimeout = globalThis.setTimeout
+    const originalClearTimeout = globalThis.clearTimeout
+    const timers: Array<() => void> = []
+
+    // Fire timers immediately
+    globalThis.setTimeout = ((callback: () => void) => {
+      timers.push(callback)
+      return 0 as unknown as ReturnType<typeof setTimeout>
+    }) as unknown as typeof setTimeout
+    globalThis.clearTimeout = (() => {}) as unknown as typeof clearTimeout
+
+    try {
+      const store = createStore({})
+      const { optimisticSend } = await setupOptimisticForRecovery(store)
+
+      // 1st prompt — response will be "dropped" (not in store, but on server)
+      let firstMessageId = ""
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "first prompt",
+        providerID: "provider",
+        modelID: "model",
+        send: (messageID) => {
+          firstMessageId = messageID
+          return Promise.resolve()
+        },
+      })
+
+      // Simulate the 1st prompt's response being dropped: set idle, no assistant
+      store.setState((state) => ({
+        session_status: { ...state.session_status, "session-a": { type: "idle" as const } },
+      }))
+
+      // Configure the mock server to return the 1st prompt's completed response
+      resetScopedMessagesResult()
+      scopedMessagesResult = {
+        data: [
+          { info: { id: firstMessageId, sessionID: "session-a", role: "user", time: { created: 1 } } as unknown as Message, parts: [] },
+          {
+            info: { id: "msg_first_assistant", sessionID: "session-a", role: "assistant", parentID: firstMessageId, time: { created: 2, completed: 3 } } as unknown as Message,
+            parts: [{ id: "prt_a", type: "text", messageID: "msg_first_assistant", text: "real reply" } as unknown as Part],
+          },
+        ],
+      }
+
+      // Fire the 1st prompt's watchdog. It will:
+      // 1. Not find assistantResponse in store (dropped) → skip initial branch
+      // 2. isSessionWorking → false → proceed to recovery
+      // 3. recoverAcceptedPromptFromServer → async refetch
+      // DURING the await, simulate the 2nd prompt starting:
+      const watchdogPromise = timers[0]()
+      // While watchdog is awaiting recovery, user sends 2nd prompt
+      store.setState((state) => ({
+        session_status: { ...state.session_status, "session-a": { type: "busy" as const } },
+        message: {
+          ...state.message,
+          "session-a": [
+            ...(state.message["session-a"] ?? []),
+            { id: "msg_user_2", role: "user", sessionID: "session-a", time: { created: 10 } } as unknown as Message,
+          ],
+        },
+      }))
+      await watchdogPromise
+      await new Promise((resolve) => originalSetTimeout(resolve, 0))
+
+      // The recovery found the 1st prompt's response, but the 2nd prompt is now
+      // in progress (busy, no assistant reply for msg_user_2). The watchdog
+      // must NOT have forced idle.
+      expect(store.getState().session_status?.["session-a"]).toEqual({ type: "busy" })
+    } finally {
+      globalThis.setTimeout = originalSetTimeout
+      globalThis.clearTimeout = originalClearTimeout
     }
   })
 })
