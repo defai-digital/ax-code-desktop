@@ -142,9 +142,9 @@ The web package is the local UI substrate used by development and desktop packag
 From a development checkout:
 
 ```bash
-bun install
-bun run build
-bun run --cwd packages/web start -- --ui-password your-password
+pnpm install
+pnpm run build
+pnpm --filter ./packages/web run start -- --ui-password your-password
 ```
 
 The web UI is available at `http://localhost:3000` by default.
@@ -153,19 +153,19 @@ The web UI is available at `http://localhost:3000` by default.
 
 Requirements:
 
-- Bun 1.3.x
-- Node.js 24
+- Node.js 24 (`>=24 <25`)
+- pnpm 9.x (`corepack enable`)
 - AX Code CLI
 
 Useful commands:
 
 ```bash
-bun install
-bun run type-check
-bun run lint
-bun run test
-bun run electron:dev
-bun run electron:build
+pnpm install
+pnpm run type-check
+pnpm run lint
+pnpm run test
+pnpm run electron:dev
+pnpm run electron:build
 ```
 
 Package layout:

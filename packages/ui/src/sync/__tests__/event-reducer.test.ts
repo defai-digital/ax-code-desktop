@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest";
 import type { Event, Message, Part, PermissionRequest, QuestionRequest, Session, SessionStatus } from "@ax-code/sdk/v2/client"
 import { applyDirectoryEvent } from "../event-reducer"
 import { INITIAL_STATE, type State } from "../types"

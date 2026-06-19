@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, mock } from "bun:test"
+import { describe, expect, test, beforeEach, vi } from "vitest";
 import { create, type StoreApi } from "zustand"
 import type { PermissionRequest, QuestionRequest } from "@ax-code/sdk/v2/client"
 
@@ -9,14 +9,14 @@ let pendingPermissionsResponse: PermissionRequest[] = []
 let pendingQuestionsShouldThrow = false
 let pendingPermissionsShouldThrow = false
 
-mock.module("@/lib/ax-code/client", () => ({
+vi.doMock("@/lib/ax-code/client", () => ({
   axCodeClient: {
-    listPendingQuestions: mock(async (opts?: { directories?: Array<string | null | undefined> }) => {
+    listPendingQuestions: vi.fn(async (opts?: { directories?: Array<string | null | undefined> }) => {
       listPendingQuestionsCalls.push(opts ?? {})
       if (pendingQuestionsShouldThrow) throw new Error("question.list failed: simulated")
       return pendingQuestionsResponse
     }),
-    listPendingPermissions: mock(async (opts?: { directories?: Array<string | null | undefined> }) => {
+    listPendingPermissions: vi.fn(async (opts?: { directories?: Array<string | null | undefined> }) => {
       listPendingPermissionsCalls.push(opts ?? {})
       if (pendingPermissionsShouldThrow) throw new Error("permission.list failed: simulated")
       return pendingPermissionsResponse
@@ -27,30 +27,32 @@ mock.module("@/lib/ax-code/client", () => ({
   },
 }))
 
-mock.module("@/stores/permissionStore", () => ({
+vi.doMock("@/stores/permissionStore", () => ({
   usePermissionStore: {
     getState: () => ({ isSessionAutoAccepting: () => false }),
   },
 }))
 
-mock.module("@/stores/useConfigStore", () => ({
+vi.doMock("@/stores/useConfigStore", () => ({
   useConfigStore: {
     getState: () => ({ isConnected: true, hasEverConnected: true }),
     setState: () => undefined,
   },
 }))
 
-mock.module("@/stores/useTodosPersistStore", () => ({
+vi.doMock("@/stores/useTodosPersistStore", () => ({
   useTodosPersistStore: { getState: () => ({}) },
 }))
 
-mock.module("@/components/ui", () => ({
+vi.doMock("@/components/ui", () => ({
   toast: { info: () => undefined, error: () => undefined, success: () => undefined },
 }))
 
-import { INITIAL_STATE, type State } from "../types"
+import type { State } from "../types"
 import type { DirectoryStore } from "../child-store"
-import { resyncBlockingRequestsForDirectory } from "../sync-context"
+
+const { INITIAL_STATE } = await import("../types")
+const { resyncBlockingRequestsForDirectory } = await import("../sync-context")
 
 function buildQuestion(overrides: Partial<QuestionRequest> = {}): QuestionRequest {
   return {

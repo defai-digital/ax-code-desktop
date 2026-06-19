@@ -1,4 +1,3 @@
-import 'reflect-metadata';
 import express from 'express';
 import compression from 'compression';
 import path from 'path';
@@ -527,6 +526,7 @@ const axCodeEnvRuntime = createAxCodeEnvRuntime({
 });
 
 const applyLoginShellEnvSnapshot = (...args) => axCodeEnvRuntime.applyLoginShellEnvSnapshot(...args);
+const ensureLoginShellEnvSnapshotAsync = (...args) => axCodeEnvRuntime.ensureLoginShellEnvSnapshotAsync(...args);
 const getLoginShellEnvSnapshot = (...args) => axCodeEnvRuntime.getLoginShellEnvSnapshot(...args);
 const ensureAxCodeCliEnv = (...args) => axCodeEnvRuntime.ensureAxCodeCliEnv(...args);
 const applyAxCodeBinaryFromSettings = (...args) => axCodeEnvRuntime.applyAxCodeBinaryFromSettings(...args);
@@ -561,7 +561,8 @@ const axCodeResolutionRuntime = createAxCodeResolutionRuntime({
 const getAxCodeResolutionSnapshot = (...args) =>
   axCodeResolutionRuntime.getAxCodeResolutionSnapshot(...args);
 
-applyLoginShellEnvSnapshot();
+// Shell env snapshot is applied asynchronously inside main() via
+// ensureLoginShellEnvSnapshotAsync() so it does not block module loading.
 
 notificationTemplateRuntime = createNotificationTemplateRuntime({
   readSettingsFromDisk,
@@ -897,6 +898,24 @@ const gracefulShutdownRuntime = createGracefulShutdownRuntime({
     uiAuthController = value;
   },
   scheduledTasksRuntime,
+  destroyAllClientConnections: () => {
+    // Close all tracked SSE connections
+    for (const client of uiNotificationClients) {
+      try { client.end?.(); client.socket?.destroy(); } catch { /* ignore */ }
+    }
+    uiNotificationClients.clear();
+
+    for (const client of uiOpenChamberEventClients) {
+      try { client.end?.(); client.socket?.destroy(); } catch { /* ignore */ }
+    }
+    uiOpenChamberEventClients.clear();
+
+    // Close all tracked WebSocket connections
+    for (const ws of uiNotificationWsClients) {
+      try { ws.terminate?.(); } catch { /* ignore */ }
+    }
+    uiNotificationWsClients.clear();
+  },
 });
 
 const gracefulShutdown = (...args) => gracefulShutdownRuntime.gracefulShutdown(...args);
@@ -925,6 +944,11 @@ async function main(options = {}) {
   }
 
   console.log(`Starting AX Code Desktop on port ${port === 0 ? 'auto' : port}`);
+
+  // Apply login shell environment asynchronously (non-blocking).
+  // Must complete before ax-code is spawned so PATH and other env vars
+  // are available for binary resolution and process launch.
+  await ensureLoginShellEnvSnapshotAsync();
 
   const app = express();
   const serverStartedAt = new Date().toISOString();

@@ -1,4 +1,7 @@
-import { describe, expect, test } from 'bun:test';
+// @vitest-environment node
+// This suite drives window-present vs window-absent behaviour by stubbing
+// globalThis.window itself, so it must run without jsdom's ambient window.
+import { describe, expect, test } from 'vitest';
 
 import {
   buildDirectoryUrl,

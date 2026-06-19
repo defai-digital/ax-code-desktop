@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createEventPipeline } from '../event-pipeline';
 
 const originalDocument = globalThis.document;
@@ -6,6 +6,11 @@ const originalWindow = globalThis.window;
 const originalWebSocket = globalThis.WebSocket;
 
 function installDomStubs() {
+  // jsdom provides a WebSocket constructor that silently hangs when there is
+  // no server — the pipeline would try WS first and never fall back to SSE
+  // within the test timeout.  Force the SSE path by removing WebSocket.
+  globalThis.WebSocket = undefined;
+
   globalThis.document = {
     visibilityState: 'visible',
     addEventListener() {},

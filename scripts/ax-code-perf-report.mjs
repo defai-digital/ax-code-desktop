@@ -9,7 +9,7 @@
  *
  * Usage:
  *   node scripts/ax-code-perf-report.mjs [--url http://localhost:3000] [--json]
- *   bun run perf:report -- --port 3000
+ *   pnpm run perf:report -- --port 3000
  */
 
 const DEFAULT_BASE_URL = 'http://localhost:3000';
@@ -364,7 +364,7 @@ const main = async () => {
     ]);
   } catch (error) {
     console.error(`Failed to reach AX Code Desktop at ${options.baseUrl}: ${error.message}`);
-    console.error('Make sure the desktop app (or `bun run dev`) is running, or pass --url/--port.');
+    console.error('Make sure the desktop app (or `pnpm run dev`) is running, or pass --url/--port.');
     process.exit(1);
   }
 

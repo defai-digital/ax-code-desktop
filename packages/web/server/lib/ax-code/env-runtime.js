@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -235,6 +235,66 @@ export const createAxCodeEnvRuntime = (deps) => {
     }
 
     process.env.PATH = mergePathValues(shellPath, currentPath, path.delimiter);
+  };
+
+  /**
+   * Non-blocking equivalent of applyLoginShellEnvSnapshot().
+   * Uses execFile (async) instead of spawnSync so the event loop is
+   * not blocked during the shell spawn (~200 ms–1 s on macOS/Linux).
+   * The result is cached, so subsequent synchronous calls to
+   * getLoginShellEnvSnapshot() return the already-computed snapshot.
+   */
+  const ensureLoginShellEnvSnapshotAsync = async () => {
+    if (state.cachedLoginShellEnvSnapshot !== undefined) {
+      return;
+    }
+
+    if (process.platform === 'win32') {
+      // Windows env capture is already synchronous and fast
+      applyLoginShellEnvSnapshot();
+      return;
+    }
+
+    const shellCandidates = [process.env.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh'].filter(Boolean);
+
+    for (const shellPath of shellCandidates) {
+      if (!isExecutable(shellPath)) {
+        continue;
+      }
+
+      try {
+        const stdout = await new Promise((resolve, reject) => {
+          execFile(
+            shellPath,
+            ['-lic', 'env -0'],
+            {
+              encoding: 'utf8',
+              maxBuffer: 10 * 1024 * 1024,
+              windowsHide: true,
+            },
+            (error, stdout) => {
+              if (error) {
+                reject(error);
+              } else {
+                resolve(stdout || '');
+              }
+            },
+          );
+        });
+
+        const parsed = parseNullSeparatedEnvSnapshot(stdout);
+        if (parsed) {
+          state.cachedLoginShellEnvSnapshot = parsed;
+          // Apply the snapshot to process.env
+          applyLoginShellEnvSnapshot();
+          return;
+        }
+      } catch {
+        // Try next shell candidate
+      }
+    }
+
+    state.cachedLoginShellEnvSnapshot = null;
   };
 
   const isWslExecutableValue = (value) => {
@@ -1195,6 +1255,7 @@ export const createAxCodeEnvRuntime = (deps) => {
 
   return {
     applyLoginShellEnvSnapshot,
+    ensureLoginShellEnvSnapshotAsync,
     ensureAxCodeCliEnv,
     applyAxCodeBinaryFromSettings,
     getLoginShellEnvSnapshot,

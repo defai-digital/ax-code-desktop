@@ -4,10 +4,10 @@
  * Port AX Code themes into full OpenChamber theme JSON files.
  *
  * Usage:
- *   bun run themes:port:ax-code --list
- *   bun run themes:port:ax-code github cursor lucent-orng --force
- *   bun run themes:port:ax-code aura --out-dir /tmp/openchamber-theme-port-test --force
- *   bun run themes:port:ax-code path/to/theme.json --stdout
+ *   pnpm run themes:port:ax-code --list
+ *   pnpm run themes:port:ax-code github cursor lucent-orng --force
+ *   pnpm run themes:port:ax-code aura --out-dir /tmp/openchamber-theme-port-test --force
+ *   pnpm run themes:port:ax-code path/to/theme.json --stdout
  *
  * Expected result:
  *   - resolves theme colors from AX Code desktop themes, TUI context themes,

@@ -1,6 +1,6 @@
 // Generate a social changelog card for OpenChamber.
 //
-//   bun run scripts/changelog-card/generate.mjs "v0.42.0" \
+//   node scripts/changelog-card/generate.mjs "v0.42.0" \
 //     "Sessions now *stream responses* token-by-token across every device."
 //
 //   node scripts/changelog-card/generate.mjs "<title>" "<sentence>" [options]

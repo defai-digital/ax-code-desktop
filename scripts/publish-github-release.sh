@@ -160,8 +160,8 @@ validate_minisign_key() {
   local secret_key="${MINISIGN_SECRET_KEY:-$KEY_DIR/ax-code-desktop.minisign.key}"
   local public_key="${MINISIGN_PUBLIC_KEY:-$KEY_DIR/ax-code-desktop.minisign.pub}"
 
-  [[ -f "$secret_key" ]] || fail "minisign secret key not found: $secret_key. Run: bun run sign:keygen"
-  [[ -f "$public_key" ]] || fail "minisign public key not found: $public_key. Run: bun run sign:keygen"
+  [[ -f "$secret_key" ]] || fail "minisign secret key not found: $secret_key. Run: pnpm run sign:keygen"
+  [[ -f "$public_key" ]] || fail "minisign public key not found: $public_key. Run: pnpm run sign:keygen"
 
   log "Using minisign public key:"
   awk '/^untrusted comment: minisign public key / { print "    key id: " $NF; found = 1 } END { if (!found) exit 1 }' "$public_key" \
@@ -225,19 +225,19 @@ validate_release_absent() {
 
 run_local_validation() {
   log "Running docs validation"
-  bun run docs:validate
+  pnpm run docs:validate
 
   log "Running tests"
-  bun run test
+  pnpm run test
 
   log "Running type-check"
-  bun run type-check
+  pnpm run type-check
 
   log "Running lint"
-  bun run lint
+  pnpm run lint
 
   log "Running build"
-  bun run build
+  pnpm run build
 }
 
 create_and_push_tag() {
@@ -429,7 +429,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 require_command node
-require_command bun
+require_command pnpm
 require_command git
 require_command gh
 

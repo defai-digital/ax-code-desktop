@@ -1,7 +1,12 @@
-import { describe, expect, test } from 'bun:test';
+// @vitest-environment node
+// Installs a window whose storage getters throw; relies on there being no
+// ambient jsdom window/localStorage.
+import { describe, expect, test, vi } from 'vitest';
 
 const importSafeStorage = async () => {
-    return await import(`./safeStorage.ts?test=${Date.now()}-${Math.random()}`) as typeof import('./safeStorage');
+    // Force a fresh module instance so safeStorage re-reads the stubbed window.
+    vi.resetModules();
+    return await import('./safeStorage') as typeof import('./safeStorage');
 };
 
 describe('safeStorage', () => {

@@ -961,13 +961,31 @@ export const createAxCodeLifecycleRuntime = (deps) => {
   const bootstrapAxCodeAtStartup = async () => {
     try {
       syncFromHmrState();
-      if (await managedAxCodeRuntime.probeProcessHealth()) {
+
+      // Run health probes in parallel to avoid serial waterfall delays.
+      // probeProcessHealth checks a previously-managed process (HMR transfer),
+      // probeExternalServer checks for an already-running external server.
+      const skipStart = Boolean(env.ENV_SKIP_AX_CODE_START && env.ENV_EFFECTIVE_PORT);
+      const externalProbePort = env.ENV_EFFECTIVE_PORT || 4096;
+      const externalProbeOrigin = env.ENV_EFFECTIVE_PORT
+        ? env.ENV_CONFIGURED_AX_CODE_HOST?.origin
+        : undefined;
+      const shouldProbeExternal = !skipStart;
+
+      const [processHealthy, externalHealthy] = await Promise.all([
+        managedAxCodeRuntime.probeProcessHealth().catch(() => false),
+        shouldProbeExternal
+          ? managedAxCodeRuntime.probeExternalServer(externalProbePort, externalProbeOrigin).catch(() => false)
+          : Promise.resolve(false),
+      ]);
+
+      if (processHealthy) {
         console.log(`[HMR] Reusing existing AX Code process on port ${state.axCodePort}`);
         markStartup('ax-code.health.ready', {
           port: state.axCodePort,
           via: 'hmr-reuse',
         }, { source: 'web-server', milestone: 'ax-code.health.ready' });
-      } else if (env.ENV_SKIP_AX_CODE_START && env.ENV_EFFECTIVE_PORT) {
+      } else if (skipStart) {
         const label = env.ENV_CONFIGURED_AX_CODE_HOST ? env.ENV_CONFIGURED_AX_CODE_HOST.origin : `http://localhost:${env.ENV_EFFECTIVE_PORT}`;
         console.log(`Using external AX Code server at ${label} (skip-start mode)`);
         state.axCodeBaseUrl = env.ENV_CONFIGURED_AX_CODE_HOST?.origin ?? null;
@@ -981,30 +999,23 @@ export const createAxCodeLifecycleRuntime = (deps) => {
           via: 'external-skip-start',
         }, { source: 'web-server', milestone: 'ax-code.health.ready' });
         syncToHmrState();
-      } else if (env.ENV_EFFECTIVE_PORT && await managedAxCodeRuntime.probeExternalServer(env.ENV_EFFECTIVE_PORT, env.ENV_CONFIGURED_AX_CODE_HOST?.origin)) {
-        const label = env.ENV_CONFIGURED_AX_CODE_HOST ? env.ENV_CONFIGURED_AX_CODE_HOST.origin : `http://localhost:${env.ENV_EFFECTIVE_PORT}`;
-        console.log(`Auto-detected existing AX Code server at ${label}`);
-        state.axCodeBaseUrl = env.ENV_CONFIGURED_AX_CODE_HOST?.origin ?? null;
-        setAxCodePortInternal(env.ENV_EFFECTIVE_PORT);
+      } else if (externalHealthy) {
+        if (env.ENV_EFFECTIVE_PORT) {
+          const label = env.ENV_CONFIGURED_AX_CODE_HOST ? env.ENV_CONFIGURED_AX_CODE_HOST.origin : `http://localhost:${env.ENV_EFFECTIVE_PORT}`;
+          console.log(`Auto-detected existing AX Code server at ${label}`);
+          state.axCodeBaseUrl = env.ENV_CONFIGURED_AX_CODE_HOST?.origin ?? null;
+          setAxCodePortInternal(env.ENV_EFFECTIVE_PORT);
+        } else {
+          console.log('Auto-detected existing AX Code server on default port 4096');
+          setAxCodePortInternal(4096);
+        }
         state.isAxCodeReady = true;
         state.isExternalAxCode = true;
         state.lastAxCodeError = null;
         state.axCodeNotReadySince = 0;
         markStartup('ax-code.health.ready', {
-          port: env.ENV_EFFECTIVE_PORT,
-          via: 'external-auto-detected',
-        }, { source: 'web-server', milestone: 'ax-code.health.ready' });
-        syncToHmrState();
-      } else if (!env.ENV_EFFECTIVE_PORT && await managedAxCodeRuntime.probeExternalServer(4096)) {
-        console.log('Auto-detected existing AX Code server on default port 4096');
-        setAxCodePortInternal(4096);
-        state.isAxCodeReady = true;
-        state.isExternalAxCode = true;
-        state.lastAxCodeError = null;
-        state.axCodeNotReadySince = 0;
-        markStartup('ax-code.health.ready', {
-          port: 4096,
-          via: 'external-default-port',
+          port: env.ENV_EFFECTIVE_PORT || 4096,
+          via: env.ENV_EFFECTIVE_PORT ? 'external-auto-detected' : 'external-default-port',
         }, { source: 'web-server', milestone: 'ax-code.health.ready' });
         syncToHmrState();
       } else {

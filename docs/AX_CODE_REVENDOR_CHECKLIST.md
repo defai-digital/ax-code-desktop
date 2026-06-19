@@ -37,8 +37,8 @@ Work through this list every time `vendor/ax-code-sdk` is replaced:
    ax-code CLI. If the new SDK depends on newer server endpoints or response
    shapes, raise the minimum and note why in the constant's comment.
 
-6. **Run the full gate.** `bun run check:boundary && bun run
-   check:endpoint-contracts && bun run test && bun run type-check`.
+6. **Run the full gate.** `pnpm run check:boundary && pnpm run
+   check:endpoint-contracts && pnpm run test && pnpm run type-check`.
 
 Upstream integration context (transport choice, pending upstream feature
 requests) lives in `docs/AX_CODE_INTEGRATION.md`.

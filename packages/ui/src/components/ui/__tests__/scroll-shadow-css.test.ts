@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+// @vitest-environment node
+// Reads source files relative to import.meta.url, which must be a file:// URL.
+import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 
 const indexCss = readFileSync(new URL("../../../index.css", import.meta.url), "utf8");

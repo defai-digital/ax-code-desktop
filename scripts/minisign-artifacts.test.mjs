@@ -1,10 +1,10 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
-const repoRoot = path.resolve(import.meta.dir, "..")
+const repoRoot = path.resolve(import.meta.dirname, "..")
 const script = path.join(repoRoot, "scripts/minisign-artifacts.sh")
 const pinnedPublicKey = "RWS+dNbWPLZ6W9TH486c9zdH84NiiuFnm4VpVTRlXoMHClyQx/fY7W2A"
 

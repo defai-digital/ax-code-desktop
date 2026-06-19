@@ -8,12 +8,12 @@
   "type": "commonjs",
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build:web-assets": "bun run --cwd ../web build && node scripts/copy-web-assets.mjs",
+    "build:web-assets": "pnpm --filter ax-code-desktop run build && node scripts/copy-web-assets.mjs",
     "bundle:main": "node scripts/bundle-main.mjs",
     "rebuild:native": "node scripts/rebuild-native.mjs",
-    "build": "bun run build:web-assets && bun run bundle:main && bun run rebuild:native",
-    "type-check": "bun -e \"process.exit(0)\"",
-    "lint": "bun -e \"process.exit(0)\""
+    "build": "pnpm run build:web-assets && pnpm run bundle:main && pnpm run rebuild:native",
+    "type-check": "node -e \"process.exit(0)\"",
+    "lint": "node -e \"process.exit(0)\""
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",

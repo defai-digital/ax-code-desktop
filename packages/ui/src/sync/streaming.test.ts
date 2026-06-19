@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "bun:test"
+import { beforeEach, describe, expect, test } from "vitest";
 import type { Message, SessionStatus } from "@ax-code/sdk/v2/client"
 import { INITIAL_STATE, type State } from "./types"
 import { type MessageStreamState, updateStreamingState, useStreamingStore } from "./streaming"

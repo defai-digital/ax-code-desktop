@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { Session } from '@ax-code/sdk/v2';
 
 const upsertedSessions: Session[] = [];
@@ -11,16 +11,16 @@ const childState = {
 };
 let currentDirectory = '/repo';
 
-mock.module('@/sync/session-ui-store', () => ({
-  routeMessage: mock(() => Promise.resolve()),
+vi.doMock('@/sync/session-ui-store', () => ({
+  routeMessage: vi.fn(() => Promise.resolve()),
   useSessionUIStore: {
     getState: () => ({
-      setWorktreeMetadata: mock(() => undefined),
+      setWorktreeMetadata: vi.fn(() => undefined),
     }),
   },
 }));
 
-mock.module('@/lib/ax-code/client', () => ({
+vi.doMock('@/lib/ax-code/client', () => ({
   axCodeClient: {
     withDirectory: async (directory: string, fn: () => Promise<Session>) => {
       const previous = currentDirectory;
@@ -37,9 +37,9 @@ mock.module('@/lib/ax-code/client', () => ({
       directory: currentDirectory,
       time: { created: 1, updated: 1 },
     } as Session),
-    checkHealth: mock(() => Promise.resolve(true)),
-    getScopedSdkClient: mock(() => ({})),
-    getDirectory: mock(() => currentDirectory),
+    checkHealth: vi.fn(() => Promise.resolve(true)),
+    getScopedSdkClient: vi.fn(() => ({})),
+    getDirectory: vi.fn(() => currentDirectory),
   },
 }));
 
@@ -56,74 +56,74 @@ const _runtimeOrStub = <T>(name: string, stub: T) =>
     return stub instanceof Promise ? stub : Promise.resolve(stub);
   };
 
-mock.module('@/lib/gitApi', () => ({
-  checkIsGitRepository: mock(() => Promise.resolve(false)),
-  getGitStatus: mock(_runtimeOrStub('getGitStatus', { current: 'HEAD', tracking: null, ahead: 0, behind: 0, files: [], isClean: true })),
-  getGitDiff: mock(_runtimeOrStub('getGitDiff', {})),
-  getGitFileDiff: mock(_runtimeOrStub('getGitFileDiff', {})),
-  revertGitFile: mock(_runtimeOrStub('revertGitFile', undefined)),
-  stageGitFile: mock(_runtimeOrStub('stageGitFile', undefined)),
-  stageGitFiles: mock(_runtimeOrStub('stageGitFiles', undefined)),
-  unstageGitFile: mock(_runtimeOrStub('unstageGitFile', undefined)),
-  unstageGitFiles: mock(_runtimeOrStub('unstageGitFiles', undefined)),
-  isLinkedWorktree: mock(() => Promise.resolve(false)),
-  getGitBranches: mock(() => Promise.resolve({})),
-  deleteGitBranch: mock(() => Promise.resolve({ success: false })),
-  deleteRemoteBranch: mock(() => Promise.resolve({ success: false })),
-  generateCommitMessage: mock(() => Promise.resolve('')),
-  generatePullRequestDescription: mock(() => Promise.resolve('')),
-  listGitWorktrees: mock(() => Promise.resolve([])),
-  validateGitWorktree: mock(() => Promise.resolve({})),
-  getGitWorktreeBootstrapStatus: mock(() => Promise.resolve({})),
-  previewGitWorktree: mock(() => Promise.resolve({})),
-  createGitWorktree: mock(() => Promise.resolve({})),
-  deleteGitWorktree: mock(() => Promise.resolve({})),
+vi.doMock('@/lib/gitApi', () => ({
+  checkIsGitRepository: vi.fn(() => Promise.resolve(false)),
+  getGitStatus: vi.fn(_runtimeOrStub('getGitStatus', { current: 'HEAD', tracking: null, ahead: 0, behind: 0, files: [], isClean: true })),
+  getGitDiff: vi.fn(_runtimeOrStub('getGitDiff', {})),
+  getGitFileDiff: vi.fn(_runtimeOrStub('getGitFileDiff', {})),
+  revertGitFile: vi.fn(_runtimeOrStub('revertGitFile', undefined)),
+  stageGitFile: vi.fn(_runtimeOrStub('stageGitFile', undefined)),
+  stageGitFiles: vi.fn(_runtimeOrStub('stageGitFiles', undefined)),
+  unstageGitFile: vi.fn(_runtimeOrStub('unstageGitFile', undefined)),
+  unstageGitFiles: vi.fn(_runtimeOrStub('unstageGitFiles', undefined)),
+  isLinkedWorktree: vi.fn(() => Promise.resolve(false)),
+  getGitBranches: vi.fn(() => Promise.resolve({})),
+  deleteGitBranch: vi.fn(() => Promise.resolve({ success: false })),
+  deleteRemoteBranch: vi.fn(() => Promise.resolve({ success: false })),
+  generateCommitMessage: vi.fn(() => Promise.resolve('')),
+  generatePullRequestDescription: vi.fn(() => Promise.resolve('')),
+  listGitWorktrees: vi.fn(() => Promise.resolve([])),
+  validateGitWorktree: vi.fn(() => Promise.resolve({})),
+  getGitWorktreeBootstrapStatus: vi.fn(() => Promise.resolve({})),
+  previewGitWorktree: vi.fn(() => Promise.resolve({})),
+  createGitWorktree: vi.fn(() => Promise.resolve({})),
+  deleteGitWorktree: vi.fn(() => Promise.resolve({})),
   git: {},
-  createGitCommit: mock(() => Promise.resolve({})),
-  gitPush: mock(() => Promise.resolve({})),
-  gitPull: mock(() => Promise.resolve({})),
-  gitFetch: mock(() => Promise.resolve({})),
-  listGitStashes: mock(() => Promise.resolve({ stashes: [] })),
-  countGitStashFiles: mock(() => Promise.resolve({ counts: {} })),
-  stashGitChanges: mock(() => Promise.resolve({ success: false, created: false, message: '', output: '' })),
-  discoverGitCredentials: mock(() => Promise.resolve([])),
-  getGlobalGitIdentity: mock(() => Promise.resolve(null)),
-  getRemoteUrl: mock(() => Promise.resolve(null)),
-  getRemotes: mock(() => Promise.resolve([])),
-  removeRemote: mock(() => Promise.resolve({})),
-  rebase: mock(() => Promise.resolve({})),
-  abortRebase: mock(() => Promise.resolve({ success: false })),
-  merge: mock(() => Promise.resolve({})),
-  checkoutCommit: mock(() => Promise.resolve({})),
-  cherryPick: mock(() => Promise.resolve({})),
-  revertCommit: mock(() => Promise.resolve({})),
-  resetToCommit: mock(() => Promise.resolve({})),
-  abortMerge: mock(() => Promise.resolve({ success: false })),
-  continueRebase: mock(() => Promise.resolve({ success: false, conflict: false })),
-  continueMerge: mock(() => Promise.resolve({ success: false, conflict: false })),
-  stash: mock(() => Promise.resolve({})),
-  stashPop: mock(() => Promise.resolve({ success: false })),
-  getConflictDetails: mock(() => Promise.resolve({})),
-  validateWorktreeDirectory: mock(() => Promise.resolve({})),
-  canonicalizeWorktreeState: mock(() => Promise.resolve({})),
+  createGitCommit: vi.fn(() => Promise.resolve({})),
+  gitPush: vi.fn(() => Promise.resolve({})),
+  gitPull: vi.fn(() => Promise.resolve({})),
+  gitFetch: vi.fn(() => Promise.resolve({})),
+  listGitStashes: vi.fn(() => Promise.resolve({ stashes: [] })),
+  countGitStashFiles: vi.fn(() => Promise.resolve({ counts: {} })),
+  stashGitChanges: vi.fn(() => Promise.resolve({ success: false, created: false, message: '', output: '' })),
+  discoverGitCredentials: vi.fn(() => Promise.resolve([])),
+  getGlobalGitIdentity: vi.fn(() => Promise.resolve(null)),
+  getRemoteUrl: vi.fn(() => Promise.resolve(null)),
+  getRemotes: vi.fn(() => Promise.resolve([])),
+  removeRemote: vi.fn(() => Promise.resolve({})),
+  rebase: vi.fn(() => Promise.resolve({})),
+  abortRebase: vi.fn(() => Promise.resolve({ success: false })),
+  merge: vi.fn(() => Promise.resolve({})),
+  checkoutCommit: vi.fn(() => Promise.resolve({})),
+  cherryPick: vi.fn(() => Promise.resolve({})),
+  revertCommit: vi.fn(() => Promise.resolve({})),
+  resetToCommit: vi.fn(() => Promise.resolve({})),
+  abortMerge: vi.fn(() => Promise.resolve({ success: false })),
+  continueRebase: vi.fn(() => Promise.resolve({ success: false, conflict: false })),
+  continueMerge: vi.fn(() => Promise.resolve({ success: false, conflict: false })),
+  stash: vi.fn(() => Promise.resolve({})),
+  stashPop: vi.fn(() => Promise.resolve({ success: false })),
+  getConflictDetails: vi.fn(() => Promise.resolve({})),
+  validateWorktreeDirectory: vi.fn(() => Promise.resolve({})),
+  canonicalizeWorktreeState: vi.fn(() => Promise.resolve({})),
 }));
 
-mock.module('@/lib/worktrees/worktreeCreate', () => ({
-  createWorktreeWithDefaults: mock(),
-  resolveRootTrackingRemote: mock(() => Promise.resolve(null)),
+vi.doMock('@/lib/worktrees/worktreeCreate', () => ({
+  createWorktreeWithDefaults: vi.fn(),
+  resolveRootTrackingRemote: vi.fn(() => Promise.resolve(null)),
 }));
 
-mock.module('@/lib/openchamberConfig', () => ({
-  saveWorktreeSetupCommands: mock(() => Promise.resolve()),
+vi.doMock('@/lib/openchamberConfig', () => ({
+  saveWorktreeSetupCommands: vi.fn(() => Promise.resolve()),
 }));
 
-mock.module('./useDirectoryStore', () => ({
+vi.doMock('./useDirectoryStore', () => ({
   useDirectoryStore: {
     getState: () => ({ currentDirectory: '/repo' }),
   },
 }));
 
-mock.module('./useProjectsStore', () => ({
+vi.doMock('./useProjectsStore', () => ({
   useProjectsStore: {
     getState: () => ({
       activeProjectId: 'project-1',
@@ -132,7 +132,7 @@ mock.module('./useProjectsStore', () => ({
   },
 }));
 
-mock.module('./useSnippetsStore', () => ({
+vi.doMock('./useSnippetsStore', () => ({
   useSnippetsStore: {
     getState: () => ({
       expandText: (value: string) => Promise.resolve(value),
@@ -156,7 +156,7 @@ const _mockUpsertSession = (session: Session) => {
   }
 };
 
-mock.module('./useGlobalSessionsStore', () => ({
+vi.doMock('./useGlobalSessionsStore', () => ({
   useGlobalSessionsStore: {
     getState: () => ({
       activeSessions: _mockGlobalActiveSessions,
@@ -171,26 +171,26 @@ mock.module('./useGlobalSessionsStore', () => ({
         _mockGlobalActiveSessions = (patch as { activeSessions: Session[] }).activeSessions;
       }
     },
-    subscribe: mock(() => () => undefined),
+    subscribe: vi.fn(() => () => undefined),
   },
 }));
 
-mock.module('@/sync/sync-refs', () => ({
-  setSyncRefs: mock(() => undefined),
+vi.doMock('@/sync/sync-refs', () => ({
+  setSyncRefs: vi.fn(() => undefined),
   registerSessionDirectory: (sessionID: string, directory: string) => {
     registeredDirectories.push({ sessionID, directory });
   },
-  getSyncSDK: mock(() => ({})),
-  getSyncDirectory: mock(() => '/repo'),
-  getDirectoryState: mock(() => undefined),
-  getSyncSessions: mock(() => []),
-  getAllSyncSessions: mock(() => []),
-  getSyncMessages: mock(() => []),
-  getSyncSessionMaterializationStatus: mock(() => undefined),
-  getSyncParts: mock(() => []),
-  getSyncSessionStatus: mock(() => undefined),
-  getSyncPermissions: mock(() => []),
-  getSyncQuestions: mock(() => []),
+  getSyncSDK: vi.fn(() => ({})),
+  getSyncDirectory: vi.fn(() => '/repo'),
+  getDirectoryState: vi.fn(() => undefined),
+  getSyncSessions: vi.fn(() => []),
+  getAllSyncSessions: vi.fn(() => []),
+  getSyncMessages: vi.fn(() => []),
+  getSyncSessionMaterializationStatus: vi.fn(() => undefined),
+  getSyncParts: vi.fn(() => []),
+  getSyncSessionStatus: vi.fn(() => undefined),
+  getSyncPermissions: vi.fn(() => []),
+  getSyncQuestions: vi.fn(() => []),
   getSyncChildStores: () => ({
     ensureChild: (directory: string, options?: { bootstrap?: boolean }) => {
       ensureChildCalls.push({ directory, bootstrap: options?.bootstrap });

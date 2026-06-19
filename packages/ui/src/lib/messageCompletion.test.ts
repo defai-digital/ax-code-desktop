@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import type { Part } from '@ax-code/sdk/v2';
 
 import { isMessageComplete } from './messageCompletion';

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'vitest';
 import type { Session } from '@ax-code/sdk/v2';
 
 import { useGlobalSessionsStore } from './useGlobalSessionsStore';

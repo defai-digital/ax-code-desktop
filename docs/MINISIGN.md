@@ -34,7 +34,7 @@ does not match the pinned release key.
 Run this from the repository root:
 
 ```bash
-bun run sign:keygen
+pnpm run sign:keygen
 ```
 
 `minisign` prompts for a password and writes the keypair to `~/signkey`.
@@ -49,7 +49,7 @@ and this document in the same change that updates the GitHub Actions secret.
 To use a different directory:
 
 ```bash
-bun run sign:keygen -- --key-dir /path/to/signkey
+pnpm run sign:keygen -- --key-dir /path/to/signkey
 ```
 
 An unencrypted key can be generated with `--no-password`, but that should only
@@ -61,7 +61,7 @@ be used for short-lived local testing keys. Prefer the explicit alias
 After building or packaging the app locally, run:
 
 ```bash
-bun run release:sign
+pnpm run release:sign
 ```
 
 With no file arguments, the script signs conventional release outputs under
@@ -75,13 +75,13 @@ the key.
 To sign explicit files:
 
 ```bash
-bun run release:sign -- packages/electron/dist/AX.Code.Desktop-0.8.0-arm64.dmg
+pnpm run release:sign -- packages/electron/dist/AX.Code.Desktop-0.8.0-arm64.dmg
 ```
 
 To use a different key directory:
 
 ```bash
-bun run release:sign -- --key-dir /path/to/signkey
+pnpm run release:sign -- --key-dir /path/to/signkey
 ```
 
 By default, each trusted minisign comment includes the artifact basename,
@@ -89,7 +89,7 @@ SHA-256 hash, and UTC signing timestamp. Override it only when a release process
 needs a fixed trusted comment:
 
 ```bash
-bun run release:sign -- --trusted-comment "AX Code Desktop 0.8.0 release"
+pnpm run release:sign -- --trusted-comment "AX Code Desktop 0.8.0 release"
 ```
 
 ### Pin the release public key
@@ -105,7 +105,7 @@ env var or a flag:
 ```bash
 AX_CODE_DESKTOP_MINISIGN_PINNED_PUBLIC_KEY='RWS...' ./scripts/minisign-artifacts.sh ...
 # or
-bun run release:sign -- --pinned-public-key 'RWS...'
+pnpm run release:sign -- --pinned-public-key 'RWS...'
 ```
 
 ### Verify without a public key file
@@ -115,7 +115,7 @@ file on disk), pass it explicitly. Pin enforcement then compares the string
 directly, and verification uses `minisign -P`:
 
 ```bash
-bun run release:sign -- --public-key-string 'RWS+dNbWPLZ6W9TH486c9zdH84NiiuFnm4VpVTRlXoMHClyQx/fY7W2A' ...
+pnpm run release:sign -- --public-key-string 'RWS+dNbWPLZ6W9TH486c9zdH84NiiuFnm4VpVTRlXoMHClyQx/fY7W2A' ...
 ```
 
 ### Write signatures to a separate directory
@@ -124,7 +124,7 @@ Collect all `.minisig` outputs into one directory instead of beside each
 artifact (useful when collecting signatures for upload):
 
 ```bash
-bun run release:sign -- --signature-dir ./signatures ...
+pnpm run release:sign -- --signature-dir ./signatures ...
 ```
 
 ### Other signing options

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 
 import { registerNotificationRoutes } from './lib/notifications/routes.js';
 import { registerScheduledTaskRoutes } from './lib/scheduled-tasks/routes.js';

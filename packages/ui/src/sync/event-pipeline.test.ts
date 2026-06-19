@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest";
 import type { Event, AxCodeClient } from "@ax-code/sdk/v2/client"
 import { createEventPipeline } from "./event-pipeline"
 

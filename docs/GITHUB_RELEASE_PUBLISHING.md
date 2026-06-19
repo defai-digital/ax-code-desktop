@@ -3,7 +3,7 @@
 Use the guarded publish script from the repository root:
 
 ```bash
-bun run publish:github -- --version 0.8.0
+pnpm run publish:github -- --version 0.8.0
 ```
 
 Before running it, bump the package versions, add the matching
@@ -18,7 +18,7 @@ linting, and build output. It does not create a tag or mutate GitHub.
 When the dry run passes, publish:
 
 ```bash
-bun run publish:github -- --version 0.8.0 --publish
+pnpm run publish:github -- --version 0.8.0 --publish
 ```
 
 The publish path:
@@ -27,8 +27,8 @@ The publish path:
    `origin`.
 2. Verifies the local and remote `v<version>` tag do not already exist.
 3. Verifies the GitHub Release does not already exist.
-4. Runs `bun run docs:validate`, `bun run test`, `bun run type-check`,
-   `bun run lint`, and `bun run build`.
+4. Runs `pnpm run docs:validate`, `pnpm run test`, `pnpm run type-check`,
+   `pnpm run lint`, and `pnpm run build`.
 5. Creates and pushes the annotated `v<version>` tag.
 6. Waits for `.github/workflows/release.yml` to finish.
 7. The workflow signs each release asset with `scripts/minisign-artifacts.sh`
@@ -43,7 +43,7 @@ If the GitHub workflow succeeded before signatures were uploaded, or you need
 to repair signature assets manually, rerun only the local signature upload step:
 
 ```bash
-bun run publish:github -- --version 0.8.0 --signatures-only --publish
+pnpm run publish:github -- --version 0.8.0 --signatures-only --publish
 ```
 
 On macOS, the local repair path can read the minisign passphrase from Apple

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest";
 import type { Message, Part, PermissionRequest, QuestionRequest } from "@ax-code/sdk/v2/client"
 import {
   canDisposeDirectory,
