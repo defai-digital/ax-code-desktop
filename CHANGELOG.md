@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-19
+
+### Changed
+- **Infrastructure**: migrated from Bun to Node.js + pnpm for better ecosystem compatibility and native module support. All scripts, CI workflows, and contributor documentation updated. Bun lockfile removed, pnpm workspace and lockfile added.
+- **Performance**: optimized startup and shutdown paths to reduce latency. Server shutdown now uses structured lifecycle hooks with configurable timeouts.
+
+### Fixed
+- **Sync**: resolved persistent "no assistant response" errors on second+ prompts through multiple fixes:
+  - Increased watchdog timeout from 12s to 60s and grace window from 30s to 60s (v1.2.9)
+  - Added grace-window re-arm to prevent false errors from transient SSE idle events (v1.2.8)
+  - Cancelled stale watchdog timers from previous prompts (v1.2.7)
+  - Guarded async recovery against cross-turn clobbering (v1.2.7)
+- **Tests**: stubbed WebSocket in event-pipeline tests for vitest/jsdom compatibility. Fixed test runner to use vitest instead of bun test.
+- **Electron**: renamed app from "AX Code Desktop" to "AX Code" for consistency. Fixed electron-builder configuration to pass resolved electronVersion.
+- **Docker**: kept vendored @ax-code/sdk dist in build context to prevent missing dependencies.
+- **Dependencies**: overrode node-gyp to ^11 so native builds work on Python 3.12.
+
+### Added
+- **Testing**: added comprehensive vitest configuration with coverage reporting. Migrated all test files from bun test to vitest.
+
 ## [1.2.9] - 2026-06-19
 
 ### Fixed
