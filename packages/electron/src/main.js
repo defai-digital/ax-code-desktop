@@ -35,15 +35,15 @@ const { createTrayController } = require('./tray.mjs')
 
 const execFileAsync = promisify(execFile)
 
-// Override the package name so macOS menus show "AX Code Desktop" instead
+// Override the package name so macOS menus show "AX Code" instead
 // of the scoped npm package name "@ax-code/electron".
-app.name = 'AX Code Desktop'
+app.name = 'AX Code'
 app.setAppUserModelId('ai.defai.ax-code-app')
 
 // When run UNPACKAGED (e.g. `electron dist/main.js` for local testing), the dock
 // shows Electron's default icon and "Electron" as the name. A packaged build
 // gets these from its bundle; for dev runs, set the dock icon explicitly so the
-// app is recognizably AX Code Desktop. No-op when packaged (bundle wins).
+// app is recognizably AX Code. No-op when packaged (bundle wins).
 if (process.platform === 'darwin' && !app.isPackaged && app.dock) {
   try {
     app.dock.setIcon(path.join(__dirname, '..', 'build', 'icon.png'))
@@ -94,7 +94,7 @@ const pendingOpenProjectPaths = []
 let pendingFocusOpen = null
 const startupDiagnostics = createStartupDiagnostics({
   logPath: process.platform === 'darwin'
-    ? path.join(os.homedir(), 'Library', 'Logs', 'AX Code Desktop', 'main.log')
+    ? path.join(os.homedir(), 'Library', 'Logs', 'AX Code', 'main.log')
     : path.join(os.homedir(), '.ax-code-desktop', 'logs', 'main.log'),
 })
 
@@ -291,7 +291,7 @@ async function createWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    title: 'AX Code Desktop',
+    title: 'AX Code',
     backgroundColor: '#151313',
     show: false,
     webPreferences: {
@@ -996,7 +996,7 @@ const maybeShowNativeNotification = (rawInput) => {
 
   const title = typeof payload.title === 'string' && payload.title.trim()
     ? payload.title.trim()
-    : 'AX Code Desktop'
+    : 'AX Code'
   const body = typeof payload.body === 'string' ? payload.body : ''
   const sessionId = typeof payload.sessionId === 'string' && payload.sessionId.trim()
     ? payload.sessionId.trim()
@@ -1570,7 +1570,7 @@ const createAdditionalWindow = async (url) => {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    title: 'AX Code Desktop',
+    title: 'AX Code',
     backgroundColor: '#151313',
     show: false,
     webPreferences: {
@@ -1637,7 +1637,7 @@ const buildMacMenu = () => {
     {
       label: app.name,
       submenu: [
-        { label: 'About AX Code Desktop', click: () => dispatchAction('about') },
+        { label: 'About AX Code', click: () => dispatchAction('about') },
         { label: 'Check for Updates', click: () => dispatchCheckForUpdates() },
         { type: 'separator' },
         { label: 'Settings', accelerator: 'Cmd+,', click: () => dispatchAction('settings') },
@@ -1736,9 +1736,9 @@ const buildNonMacMenu = () => {
   const isDev = !app.isPackaged
   return Menu.buildFromTemplate([
     {
-      label: 'AX Code Desktop',
+      label: 'AX Code',
       submenu: [
-        { label: 'About AX Code Desktop', click: () => dispatchAction('about') },
+        { label: 'About AX Code', click: () => dispatchAction('about') },
         { label: 'Check for Updates', click: () => dispatchCheckForUpdates() },
         { type: 'separator' },
         { label: 'Settings', accelerator: 'Ctrl+,', click: () => dispatchAction('settings') },
@@ -2334,7 +2334,7 @@ const createMiniChatWindow = async ({ mode, sessionId, directory, projectId }) =
     height: 640,
     minWidth: 360,
     minHeight: 420,
-    title: 'AX Code Desktop',
+    title: 'AX Code',
     backgroundColor: '#151313',
     show: false,
     webPreferences: {

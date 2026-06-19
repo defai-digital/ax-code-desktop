@@ -31,10 +31,10 @@ describe('normalizeCandidate', () => {
       cwd: '/tmp',
       platform: 'darwin',
     })).toBeNull()
-    expect(normalizeCandidate('/Applications/AX Code Desktop.app/Contents/MacOS/AX Code Desktop', {
+    expect(normalizeCandidate('/Applications/AX Code.app/Contents/MacOS/AX Code', {
       cwd: '/tmp',
       platform: 'darwin',
-      appExecutablePath: '/Applications/AX Code Desktop.app/Contents/MacOS/AX Code Desktop',
+      appExecutablePath: '/Applications/AX Code.app/Contents/MacOS/AX Code',
     })).toBeNull()
   })
 })
@@ -49,7 +49,7 @@ describe('collectOpenPathCandidates', () => {
     ], {
       cwd: 'C:\\Users\\Example',
       platform: 'win32',
-      appExecutablePath: 'C:\\Program Files\\AX Code Desktop\\AX Code Desktop.exe',
+      appExecutablePath: 'C:\\Program Files\\AX Code\\AX Code.exe',
     })).toEqual([
       'C:\\Users\\Example\\Repo',
       'C:\\Users\\Example\\nested',
