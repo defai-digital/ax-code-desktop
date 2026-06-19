@@ -605,9 +605,6 @@ importers:
       openai:
         specifier: ^4.79.0
         version: 4.104.0(encoding@0.1.13)(ws@8.21.0)(zod@4.4.3)
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
       simple-git:
         specifier: ^3.28.0
         version: 3.36.0
