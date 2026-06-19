@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.8] - 2026-06-18
+
+### Fixed
+- Sync: the accepted-prompt watchdog no longer fabricates a false "no assistant response" error when an SSE `session.idle` / `session.status:idle` event transiently clobbers busy→idle during the 30s prompt-accepted grace window. The grace window (`wasPromptRecentlyAccepted`) previously only guarded the status-poll/reconnect path (`resolveResyncedSessionStatus`), not the event-reducer's direct status writes. The watchdog's fabrication branch now checks `wasPromptRecentlyAccepted` and re-arms itself to fire again after the grace window expires, so transient grace-window clobbers do not produce false errors while genuinely dead turns (idle + no response after grace expires) are still caught. This fixes the "first prompt works, second prompt fails" pattern in v1.2.7.
+
 ## [1.2.7] - 2026-06-18
 
 ### Fixed
