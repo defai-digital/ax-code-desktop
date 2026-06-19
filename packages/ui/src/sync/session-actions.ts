@@ -194,8 +194,7 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
     clearTimeout(existingTimer)
   }
 
-  const timer = globalThis.setTimeout(async () => {
-    acceptedPromptWatchdogTimers.delete(sessionId)
+  const runWatchdogCheck = async () => {
     const store = stores.children.get(directory)
     if (!store) return
     const state = store.getState()
@@ -257,6 +256,23 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
     // refetch — don't clobber an in-progress turn with a synthetic error.
     if (isSessionWorking(store, sessionId)) return
 
+    // Grace-window re-arm: the prompt-accepted grace window (30s) is longer
+    // than this watchdog (12s). If the prompt is STILL recently accepted, the
+    // idle status we're seeing is a transient clobber from an SSE
+    // session.idle / session.status event during the turn spin-up gap — NOT a
+    // genuine turn death. The grace window guards the status-poll path
+    // (resolveResyncedSessionStatus) but NOT the event-reducer's direct status
+    // writes, so an SSE idle event can still clobber busy→idle here. Re-arm
+    // to fire again once the grace window expires, so a truly dead turn is
+    // still caught but a grace-window clobber does not fabricate a false error.
+    if (wasPromptRecentlyAccepted(sessionId)) {
+      const acceptedAt = acceptedPromptAt.get(sessionId) ?? Date.now()
+      const rearmDelay = Math.max(1, (acceptedAt + PROMPT_ACCEPTED_BUSY_GRACE_MS) - Date.now())
+      const rearmTimer = globalThis.setTimeout(runWatchdogCheck, rearmDelay)
+      acceptedPromptWatchdogTimers.set(sessionId, rearmTimer)
+      return
+    }
+
     const assistantMessageID = ascendingId("msg")
     const partID = ascendingId("prt")
     const now = Date.now()
@@ -298,6 +314,11 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
         [sessionId]: { type: "idle" as const },
       },
     }))
+  }
+
+  const timer = globalThis.setTimeout(async () => {
+    acceptedPromptWatchdogTimers.delete(sessionId)
+    await runWatchdogCheck()
   }, ACCEPTED_PROMPT_NO_OUTPUT_MS)
 
   acceptedPromptWatchdogTimers.set(sessionId, timer)

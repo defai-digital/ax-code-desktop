@@ -923,3 +923,110 @@ describe("optimisticSend: watchdog recovery does not clobber a newer prompt (asy
     }
   })
 })
+
+describe("optimisticSend: grace-window re-arm prevents false error on same-turn SSE idle clobber", () => {
+  // Regression test for the v1.2.7 bug where the watchdog fabricated a
+  // synthetic error when an SSE session.idle / session.status:idle event
+  // transiently clobbered busy→idle during the 30s prompt-accepted grace
+  // window.
+  //
+  // Root cause: the grace window (wasPromptRecentlyAccepted) only guards the
+  // status-poll path (resolveResyncedSessionStatus), NOT the event-reducer's
+  // direct status writes. An SSE idle event clobbers busy→idle; the 12s
+  // watchdog then sees idle + no response + server-recovery-finds-nothing and
+  // fabricates a false error.
+  //
+  // Fix: the watchdog's fabrication branch re-arms itself until the grace
+  // window expires, so a transient grace-window clobber does NOT fabricate.
+
+  const setupOptimistic = async (store: ReturnType<typeof createStore>) => {
+    const childStores = createChildStores([["/test/project", store]])
+    const { setActionRefs, setOptimisticRefs, optimisticSend } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    setOptimisticRefs(
+      ({ sessionID, message, parts }) => {
+        store.setState((state) => ({
+          message: {
+            ...state.message,
+            [sessionID]: [...(state.message[sessionID] ?? []), message],
+          },
+          part: { ...state.part, [message.id]: parts },
+        }))
+      },
+      ({ sessionID, messageID }) => {
+        store.setState((state) => {
+          const messages = state.message[sessionID] ?? []
+          const nextPart = { ...state.part }
+          delete nextPart[messageID]
+          return {
+            message: { ...state.message, [sessionID]: messages.filter((m) => m.id !== messageID) },
+            part: nextPart,
+          }
+        })
+      },
+    )
+    return { optimisticSend }
+  }
+
+  test("does not fabricate a synthetic error when SSE idle clobbers busy during the grace window", async () => {
+    const originalSetTimeout = globalThis.setTimeout
+    const originalClearTimeout = globalThis.clearTimeout
+    const timers: Array<() => void> = []
+
+    // Capture timers so we can fire them on demand. clearTimeout is a no-op so
+    // re-arm timers survive (we want to observe both the initial fire and the
+    // re-arm path).
+    globalThis.setTimeout = ((callback: () => void) => {
+      timers.push(callback)
+      return 0 as unknown as ReturnType<typeof setTimeout>
+    }) as unknown as typeof setTimeout
+    globalThis.clearTimeout = (() => {}) as unknown as typeof clearTimeout
+
+    try {
+      const store = createStore({})
+      const { optimisticSend } = await setupOptimistic(store)
+      resetScopedMessagesResult()
+      // Server also has nothing — the fabrication branch is reachable.
+      scopedMessagesResult = { data: [] }
+
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "prompt that will be clobbered by SSE idle",
+        providerID: "provider",
+        modelID: "model",
+        send: () => Promise.resolve(),
+      })
+
+      // Simulate an SSE session.idle event clobbering busy→idle DURING the
+      // grace window (the event-reducer writes idle directly, bypassing the
+      // poll-path grace guard).
+      store.setState((state) => ({
+        session_status: {
+          ...state.session_status,
+          "session-a": { type: "idle" as const },
+        },
+      }))
+
+      // Fire the watchdog (t=12s). Without the fix this would fabricate the
+      // synthetic error because status=idle, no assistant response, server has
+      // nothing — even though the prompt is still within the 30s grace window.
+      await timers[0]()
+      await new Promise((resolve) => originalSetTimeout(resolve, 0))
+
+      // With the fix: no synthetic error fabricated — the watchdog re-armed
+      // itself instead. Status remains idle (as clobbered), but NO error
+      // message was added.
+      const messages = store.getState().message["session-a"] ?? []
+      const syntheticErrors = messages.filter(
+        (m) => (m as Message & { metadata?: Record<string, unknown> }).metadata?.source === "desktop-accepted-prompt-watchdog",
+      )
+      expect(syntheticErrors.length).toBe(0)
+
+      // The watchdog should have scheduled a re-arm timer (timers.length grew).
+      expect(timers.length).toBeGreaterThan(1)
+    } finally {
+      globalThis.setTimeout = originalSetTimeout
+      globalThis.clearTimeout = originalClearTimeout
+    }
+  })
+})
