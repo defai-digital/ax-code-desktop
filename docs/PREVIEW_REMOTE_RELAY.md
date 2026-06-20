@@ -161,8 +161,7 @@ Revocation:
 ## Wire protocol (control WebSocket)
 
 Binary frames, little-endian, one frame = one logical operation. JSON metadata
-header followed by an opaque body. Designed to be implementable in Node and
-Bun without exotic deps.
+header followed by an opaque body. Designed to be implementable in Node without exotic deps.
 
 ```
 +--------+--------+--------+----------------------+----------------------+

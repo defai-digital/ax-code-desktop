@@ -682,9 +682,9 @@ export class ElectronSshManager {
         mode: instance?.remoteOpenchamber?.mode === 'external' ? 'external' : 'managed',
         keepRunning: instance?.remoteOpenchamber?.keepRunning !== false,
         ...(Number.isFinite(instance?.remoteOpenchamber?.preferredPort) ? { preferredPort: Number(instance.remoteOpenchamber.preferredPort) } : {}),
-        installMethod: ['npm', 'bun', 'download_release', 'upload_bundle'].includes(instance?.remoteOpenchamber?.installMethod)
+        installMethod: ['npm', 'download_release', 'upload_bundle'].includes(instance?.remoteOpenchamber?.installMethod)
           ? instance.remoteOpenchamber.installMethod
-          : 'bun',
+          : 'npm',
         uploadBundleOverSsh: Boolean(instance?.remoteOpenchamber?.uploadBundleOverSsh),
       },
       localForward: {
@@ -820,23 +820,13 @@ export class ElectronSshManager {
   }
 
   async installOpenChamberManaged(parsed, controlPath, version, preferred) {
-    const hasBun = await this.remoteCommandExists(parsed, controlPath, 'bun');
     const hasNpm = await this.remoteCommandExists(parsed, controlPath, 'npm');
     const commands = [];
 
-    if (preferred === 'bun') {
-      if (hasBun) commands.push(`bun add -g ax-code-desktop@${version}`);
-      if (hasNpm) commands.push(`npm install -g ax-code-desktop@${version}`);
-    } else if (preferred === 'npm') {
-      if (hasNpm) commands.push(`npm install -g ax-code-desktop@${version}`);
-      if (hasBun) commands.push(`bun add -g ax-code-desktop@${version}`);
-    } else {
-      if (hasBun) commands.push(`bun add -g ax-code-desktop@${version}`);
-      if (hasNpm) commands.push(`npm install -g ax-code-desktop@${version}`);
-    }
+    if (hasNpm) commands.push(`npm install -g ax-code-desktop@${version}`);
 
     if (commands.length === 0) {
-      throw new Error('Remote host has neither bun nor npm available');
+      throw new Error('Remote host has no npm available');
     }
 
     let lastError = null;

@@ -71,6 +71,6 @@ The web server combines these utilities with `node-pty` to drive full-duplex PTY
 5. Verify `/api/terminal/input-ws` is rejected with `404 Not Found` and `/api/terminal/:sessionId/stream` still works as a fallback path.
 
 ### Automated verification
-- Run `bun test packages/web/server/lib/terminal/terminal-ws-protocol.test.js`
-- Run `bun test packages/web/server/lib/terminal/output-replay-buffer.test.js`
-- Run `bun run type-check`, `bun run lint`, and `bun run build` before finalizing changes.
+- Run `pnpm exec vitest run packages/web/server/lib/terminal/terminal-ws-protocol.test.js`
+- Run `pnpm exec vitest run packages/web/server/lib/terminal/output-replay-buffer.test.js`
+- Run `pnpm run type-check`, `pnpm run lint`, and `pnpm run build` before finalizing changes.

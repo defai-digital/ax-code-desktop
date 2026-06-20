@@ -156,5 +156,5 @@ The following functions are internal helpers used by exported functions:
 - Return structured objects for operations that need partial success reporting (e.g., merge/rebase conflicts).
 
 ### Testing
-- Run `bun run type-check`, `bun run lint`, and `bun run build` before finalizing changes.
+- Run `pnpm run type-check`, `pnpm run lint`, and `pnpm run build` before finalizing changes.
 - Consider edge cases: non-Git directories, missing remotes, conflict states, concurrent worktree operations.

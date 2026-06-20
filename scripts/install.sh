@@ -46,12 +46,11 @@ get_node_version() {
 
 # Detect preferred package manager
 detect_package_manager() {
-  # Check if running inside an npm/pnpm/yarn/bun context
+  # Check if running inside an npm/pnpm/yarn context
   if [ -n "$npm_config_user_agent" ]; then
     case "$npm_config_user_agent" in
       pnpm*) echo "pnpm"; return ;;
       yarn*) echo "yarn"; return ;;
-      bun*) echo "bun"; return ;;
       npm*) echo "npm"; return ;;
     esac
   fi
@@ -61,17 +60,13 @@ detect_package_manager() {
     echo "pnpm"; return
   elif [ -f "yarn.lock" ]; then
     echo "yarn"; return
-  elif [ -f "bun.lockb" ]; then
-    echo "bun"; return
   elif [ -f "package-lock.json" ]; then
     echo "npm"; return
   fi
 
-  # Check which package managers are available (prefer pnpm > bun > yarn > npm)
+  # Check which package managers are available (prefer pnpm > yarn > npm)
   if command_exists pnpm; then
     echo "pnpm"
-  elif command_exists bun; then
-    echo "bun"
   elif command_exists yarn; then
     echo "yarn"
   elif command_exists npm; then
@@ -87,7 +82,6 @@ get_install_command() {
   case "$pm" in
     pnpm) echo "pnpm add -g $PACKAGE_NAME" ;;
     yarn) echo "yarn global add $PACKAGE_NAME" ;;
-    bun) echo "bun add -g $PACKAGE_NAME" ;;
     npm) echo "npm install -g $PACKAGE_NAME" ;;
     *) echo "" ;;
   esac
@@ -124,7 +118,7 @@ suggest_node_install() {
 # Install package manager suggestion
 suggest_pm_install() {
   echo ""
-  error "No package manager found (npm, pnpm, yarn, or bun)."
+  error "No package manager found (npm, pnpm, or yarn)."
   echo ""
   echo "Install a package manager:"
   echo ""
@@ -133,9 +127,6 @@ suggest_pm_install() {
   echo ""
   echo "  pnpm (recommended):"
   echo "    curl -fsSL https://get.pnpm.io/install.sh | sh -"
-  echo ""
-  echo "  bun:"
-  echo "    curl -fsSL https://bun.sh/install | bash"
   echo ""
   echo "  yarn:"
   echo "    npm install -g yarn"
