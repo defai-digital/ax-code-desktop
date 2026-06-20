@@ -1092,57 +1092,6 @@ const getProjectStoragePath = (projectID) => {
   return path.join(getAxCodeDataPath(), 'storage', 'project', `${projectID}.json`);
 };
 
-// Reuse a single long-lived better-sqlite3 connection instead of opening and
-// closing one per call. better-sqlite3 is synchronous and fast when the handle
-// is reused; the per-call open/close was the cost. The connection lifetime is
-// bounded by the (now isolated) server process; it is also closed on exit.
-let _axCodeDb = null;
-let _axCodeDbPath = null;
-let _selectSandboxesStmt = null;
-let _updateSandboxesStmt = null;
-
-const resetAxCodeDb = () => {
-  try { _axCodeDb?.close(); } catch { /* ignore */ }
-  _axCodeDb = null;
-  _axCodeDbPath = null;
-  _selectSandboxesStmt = null;
-  _updateSandboxesStmt = null;
-};
-
-const getAxCodeDb = () => {
-  const dbPath = path.join(getAxCodeDataPath(), 'ax-code.db');
-  if (_axCodeDb && _axCodeDb.open && _axCodeDbPath === dbPath) return _axCodeDb;
-  if (_axCodeDb) resetAxCodeDb();
-  if (!fs.existsSync(dbPath)) return null;
-  const Database = require('better-sqlite3');
-  _axCodeDb = new Database(dbPath);
-  _axCodeDbPath = dbPath;
-  _selectSandboxesStmt = null;
-  _updateSandboxesStmt = null;
-  return _axCodeDb;
-};
-
-if (typeof process !== 'undefined' && typeof process.once === 'function') {
-  process.once('exit', resetAxCodeDb);
-}
-
-const syncSandboxesToAxCodeDb = (projectID, sandboxes) => {
-  try {
-    const db = getAxCodeDb();
-    if (!db) return;
-    _selectSandboxesStmt ??= db.prepare('SELECT sandboxes FROM project WHERE id = ?');
-    const row = _selectSandboxesStmt.get(projectID);
-    if (!row) return;
-    _updateSandboxesStmt ??= db.prepare('UPDATE project SET sandboxes = ?, time_updated = ? WHERE id = ?');
-    const json = JSON.stringify(sandboxes);
-    _updateSandboxesStmt.run(json, Date.now(), projectID);
-  } catch (error) {
-    // On any DB error, drop the cached handle so the next call reopens cleanly.
-    resetAxCodeDb();
-    console.warn('Failed to sync sandboxes to AX Code DB:', error instanceof Error ? error.message : String(error));
-  }
-};
-
 const updateProjectSandboxes = async (projectID, primaryWorktree, updater) => {
   const storagePath = getProjectStoragePath(projectID);
   await fsp.mkdir(path.dirname(storagePath), { recursive: true });
@@ -1182,9 +1131,6 @@ const updateProjectSandboxes = async (projectID, primaryWorktree, updater) => {
   )];
 
   await fsp.writeFile(storagePath, `${JSON.stringify(current, null, 2)}\n`, 'utf8');
-
-  // Sync to AX Code's SQLite database so project.sandboxes is visible via the SDK
-  syncSandboxesToAxCodeDb(projectID, current.sandboxes);
 };
 
 const syncProjectSandboxAdd = async (projectID, primaryWorktree, sandboxPath) => {

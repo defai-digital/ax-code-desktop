@@ -24,9 +24,7 @@ await fs.rm(path.join(outDir, 'server.mjs'), { force: true })
 // runtime itself). They are required at runtime from node_modules.
 const nativeExternals = [
   'electron',
-  'better-sqlite3',
   'node-pty',
-  'bun-pty',
   'fsevents',
 ]
 

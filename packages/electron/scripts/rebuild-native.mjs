@@ -23,7 +23,7 @@ const { version: electronVersion } = require('electron/package.json')
 // CI sets ELECTRON_BUILDER_ARCH for cross-compilation; fall back to host arch.
 const arch = process.env.ELECTRON_BUILDER_ARCH ?? process.arch
 
-const modules = ['better-sqlite3', 'node-pty']
+const modules = ['node-pty']
 
 console.log(`[rebuild-native] electron ${electronVersion}, arch ${arch}`)
 console.log(`[rebuild-native] modules: ${modules.join(', ')}`)
