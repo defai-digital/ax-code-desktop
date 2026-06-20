@@ -103,10 +103,10 @@ const createRuntime = (overrides = {}) => {
     setupProxy: vi.fn(),
     ensureAxCodeApiPrefix: vi.fn(),
     clearResolvedAxCodeBinary: vi.fn(),
-    buildAugmentedPath: vi.fn(() => '/home/user/.bun/bin:/usr/local/bin:/usr/bin'),
-    buildManagedAxCodePath: vi.fn(() => '/home/user/.bun/bin:/usr/local/bin:/usr/bin'),
+    buildAugmentedPath: vi.fn(() => '/home/user/.local/bin:/usr/local/bin:/usr/bin'),
+    buildManagedAxCodePath: vi.fn(() => '/home/user/.local/bin:/usr/local/bin:/usr/bin'),
     getManagedAxCodeShellEnvSnapshot: vi.fn(() => ({
-      PATH: '/home/user/.bun/bin:/usr/local/bin:/usr/bin',
+      PATH: '/home/user/.local/bin:/usr/local/bin:/usr/bin',
       SHELL_ONLY: 'yes',
       AX_CODE_SERVER_PASSWORD: 'shell-password',
     })),
@@ -133,7 +133,7 @@ describe('ax-code lifecycle', () => {
     expect(options.port).toBe(45678);
     expect(options.binary).toBe('ax-code');
     expect(options.args).toEqual(['serve', '--hostname', '127.0.0.1', '--port', '45678']);
-    expect(options.env.PATH).toBe('/home/user/.bun/bin:/usr/local/bin:/usr/bin');
+    expect(options.env.PATH).toBe('/home/user/.local/bin:/usr/local/bin:/usr/bin');
     expect(options.env.SHELL_ONLY).toBe('yes');
     expect(options.env.AX_CODE_SERVER_PASSWORD).toBeUndefined();
     expect(options.auth).toEqual({ username: 'ax-code', password: 'password' });
@@ -246,7 +246,7 @@ describe('ax-code lifecycle', () => {
     expect(spawnMock).not.toHaveBeenCalled();
     expect(options.binary).toBe('bun');
     expect(options.args).toEqual(['/opt/ax-code/cli.js', 'serve', '--hostname', '127.0.0.1', '--port', '45678']);
-    expect(options.env.PATH).toBe('/home/user/.bun/bin:/usr/local/bin:/usr/bin');
+    expect(options.env.PATH).toBe('/home/user/.local/bin:/usr/local/bin:/usr/bin');
 
     await server.close();
   });

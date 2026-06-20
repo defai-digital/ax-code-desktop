@@ -153,8 +153,8 @@ importers:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       node-pty:
-        specifier: 1.2.0-beta.12
-        version: 1.2.0-beta.12
+        specifier: 1.1.0
+        version: 1.1.0
       react:
         specifier: ^19.1.1
         version: 19.2.7
@@ -280,8 +280,8 @@ importers:
         specifier: ^6.3.9
         version: 6.8.9
       node-pty:
-        specifier: 1.2.0-beta.12
-        version: 1.2.0-beta.12
+        specifier: 1.1.0
+        version: 1.1.0
     devDependencies:
       '@electron/rebuild':
         specifier: ^3.7.1
@@ -386,8 +386,8 @@ importers:
         specifier: ^1.2.3
         version: 1.2.3
       '@pierre/diffs':
-        specifier: 1.1.0-beta.13
-        version: 1.1.0-beta.13(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: 1.2.11
+        version: 1.2.11(@shikijs/themes@3.23.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@simplewebauthn/browser':
         specifier: 13.3.0
         version: 13.3.0
@@ -594,8 +594,8 @@ importers:
         specifier: ^3.5.0
         version: 3.7.2
       node-pty:
-        specifier: 1.2.0-beta.12
-        version: 1.2.0-beta.12
+        specifier: 1.1.0
+        version: 1.1.0
       openai:
         specifier: ^4.79.0
         version: 4.104.0(encoding@0.1.13)(ws@8.21.0)(zod@4.4.3)
@@ -2096,11 +2096,35 @@ packages:
     resolution: {integrity: sha512-C2Xj8FZ0uHWeCXXqX5B4/gVFQmtSkiuOolzAgutjTfseNOHT3pUjljDZsTSxXFGgio54bCzVFqmEOUrIVk8RDA==}
     engines: {node: '>=20.0.0'}
 
-  '@pierre/diffs@1.1.0-beta.13':
-    resolution: {integrity: sha512-D35rxDu5V7XHX5aVGU6PF12GhscL+I+9QYgxK/i3h0d2XSirAxDdVNm49aYwlOhgmdvL0NbS1IHxPswVB5yJvw==}
+  '@pierre/diffs@1.2.11':
+    resolution: {integrity: sha512-lSkl5C7eb8Zq7Ote0+J5ZdVOlI72r2EU3vW4+06wULSQqkIMP8mkxG70lVj593b1XYlsM2hCvuyt0cKTA96plQ==}
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
       react-dom: ^18.3.1 || ^19.0.0
+
+  '@pierre/theme@1.0.3':
+    resolution: {integrity: sha512-sWHv11TMoqKxKDgTIk5VbhQjdPhs8DCcBxbjh3mRlS3YOM/OcrWoGX6MM8eBGn9cUu3M46Py0JnxsG2nJaFTuA==}
+    engines: {vscode: ^1.0.0}
+
+  '@pierre/theming@0.0.1':
+    resolution: {integrity: sha512-1thlEtJbqdyLzc1ZS2KQa1q7FzDGHT4dTEdKHoyQjOMeWWOmbVG5/ndEfOKfAb5Fzkz8cNJrOjFLiZoDH/A03A==}
+    peerDependencies:
+      '@pierre/theme': ^1.0.0
+      '@shikijs/themes': ^3.0.0 || ^4.0.0
+      react: ^18.3.1 || ^19.0.0
+      react-dom: ^18.3.1 || ^19.0.0
+      shiki: ^3.0.0 || ^4.0.0
+    peerDependenciesMeta:
+      '@pierre/theme':
+        optional: true
+      '@shikijs/themes':
+        optional: true
+      react:
+        optional: true
+      react-dom:
+        optional: true
+      shiki:
+        optional: true
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -5128,8 +5152,8 @@ packages:
     engines: {node: ^18.17.0 || >=20.5.0}
     hasBin: true
 
-  node-pty@1.2.0-beta.12:
-    resolution: {integrity: sha512-uExTCG/4VmSJa4+TjxFwPXv8BfacmfFEBL6JpxCMDghcwqzvD0yTcGmZ1fKOK6HY33tp0CelLblqTECJizc+Yw==}
+  node-pty@1.1.0:
+    resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
 
   node-releases@2.0.48:
     resolution: {integrity: sha512-1uz8041X6LoI6ZSdZacM9lVY28vuzDlSKitnpbSNK0RfKoIJkX29NBPVEFXhnuSuEOA9Ww0xnPJ+ILWbGAv8DA==}
@@ -7854,12 +7878,26 @@ snapshots:
       tslib: 2.8.1
       tsyringe: 4.10.0
 
-  '@pierre/diffs@1.1.0-beta.13(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@pierre/diffs@1.2.11(@shikijs/themes@3.23.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
+      '@pierre/theme': 1.0.3
+      '@pierre/theming': 0.0.1(@pierre/theme@1.0.3)(@shikijs/themes@3.23.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(shiki@3.23.0)
       '@shikijs/transformers': 3.23.0
       diff: 8.0.3
       hast-util-to-html: 9.0.5
       lru_map: 0.4.1
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
+      shiki: 3.23.0
+    transitivePeerDependencies:
+      - '@shikijs/themes'
+
+  '@pierre/theme@1.0.3': {}
+
+  '@pierre/theming@0.0.1(@pierre/theme@1.0.3)(@shikijs/themes@3.23.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(shiki@3.23.0)':
+    optionalDependencies:
+      '@pierre/theme': 1.0.3
+      '@shikijs/themes': 3.23.0
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
       shiki: 3.23.0
@@ -11458,7 +11496,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  node-pty@1.2.0-beta.12:
+  node-pty@1.1.0:
     dependencies:
       node-addon-api: 7.1.1
 

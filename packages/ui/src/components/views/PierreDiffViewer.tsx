@@ -138,7 +138,7 @@ const virtualizerCache = new WeakMap<Document | HTMLElement, VirtualizerEntry>()
 const VIRTUAL_METRICS: Partial<VirtualFileMetrics> = {
   lineHeight: 24,
   hunkSeparatorHeight: 24,
-  fileGap: 0,
+  spacing: 0,
 };
 
 function resolveVirtualizerTarget(container: HTMLElement): VirtualizerTarget {
