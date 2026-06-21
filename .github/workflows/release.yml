@@ -787,7 +787,7 @@ jobs:
           VERSION: ${{ needs.create-release.outputs.version }}
         run: |
           curl -fsSL -o release.dmg \
-            "https://github.com/defai-digital/ax-code-desktop/releases/download/v${VERSION}/AX-Code-Desktop-${VERSION}-arm64.dmg"
+            "https://github.com/defai-digital/ax-code-desktop/releases/download/v${VERSION}/AX-Code-${VERSION}-mac-arm64.dmg"
           echo "DMG_SHA256=$(sha256sum release.dmg | awk '{print $1}')" >> "$GITHUB_ENV"
 
       - name: Push updated cask to homebrew-tap
@@ -802,38 +802,48 @@ jobs:
           const fs = require('fs');
           const version = process.env.VERSION;
           const sha256 = process.env.DMG_SHA256;
-          const cask = [
-            'cask "ax-code-desktop" do',
+          const canonicalCask = [
+            'cask "ax-code" do',
             `  version "${version}"`,
             `  sha256 "${sha256}"`,
             '',
-            '  url "https://github.com/defai-digital/ax-code-desktop/releases/download/v#{version}/AX-Code-Desktop-#{version}-arm64.dmg"',
-            '  name "AX Code Desktop"',
+            '  url "https://github.com/defai-digital/ax-code-desktop/releases/download/v#{version}/AX-Code-#{version}-mac-arm64.dmg"',
+            '  name "AX Code"',
             '  desc "AI coding assistant desktop app powered by AX Code"',
-            '  homepage "https://github.com/defai-digital/ax-code-desktop"',
+            '  homepage "https://github.com/defai-digital/ax-code"',
             '',
-            '  app "AX Code Desktop.app"',
+            '  app "AX Code.app"',
             '',
             '  postflight do',
             '    system_command "/usr/bin/xattr",',
-            '      args: ["-cr", "#{appdir}/AX Code Desktop.app"]',
+            '      args: ["-cr", "#{appdir}/AX Code.app"]',
             '  end',
             '',
             '  zap trash: [',
+            '    "~/Library/Application Support/AX Code",',
             '    "~/Library/Application Support/AX Code Desktop",',
             '    "~/Library/Preferences/ai.defai.ax-code-app.plist",',
+            '    "~/Library/Caches/AX Code",',
             '    "~/Library/Caches/AX Code Desktop",',
+            '    "~/Library/Logs/AX Code",',
             '    "~/Library/Logs/AX Code Desktop",',
             '  ]',
             'end',
             '',
           ].join('\n');
+          const legacyCask = canonicalCask
+            .replace('cask "ax-code" do', 'cask "ax-code-desktop" do')
+            .replace(
+              '\n  app "AX Code.app"',
+              '\n  deprecate! date: "2026-06-21", because: "has been renamed to ax-code", replacement_cask: "ax-code"\n\n  app "AX Code.app"',
+            );
           fs.mkdirSync('Casks', { recursive: true });
-          fs.writeFileSync('Casks/ax-code-desktop.rb', cask);
+          fs.writeFileSync('Casks/ax-code.rb', canonicalCask);
+          fs.writeFileSync('Casks/ax-code-desktop.rb', legacyCask);
           NODE
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Casks/ax-code-desktop.rb
+          git add Casks/ax-code.rb Casks/ax-code-desktop.rb
           git diff --cached --quiet && echo "No cask changes to commit." && exit 0
           git commit -m "Update ax-code-desktop cask to ${VERSION}"
           git push

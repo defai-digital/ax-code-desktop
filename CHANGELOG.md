@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-06-20
+
+### Changed
+- Release: publish the current desktop patch line as v1.3.1 with the Node + pnpm runtime baseline and dependency cleanup now in place.
+
 ## [1.3.0] - 2026-06-19
 
 ### Changed
