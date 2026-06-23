@@ -53,6 +53,34 @@ export function resolveResyncedSessionStatus(input: {
   return { type: "idle" }
 }
 
+/**
+ * Whether an incoming SSE idle status event should be deferred (dropped) rather
+ * than clobbering the optimistic busy/retry status.
+ *
+ * The async prompt_async endpoint returns before the turn registers as busy. A
+ * stale or reordered `session.idle` / `session.status: idle` event arriving in
+ * that spin-up gap reflects the pre-turn state, not a genuine turn end. The poll
+ * path is guarded by resolveResyncedSessionStatus; the event-reducer path was
+ * not, so such an event would flip busy→idle and trip the no-output watchdog
+ * into fabricating a synthetic error. Defer the idle while the prompt is still
+ * within the grace window and no assistant reply has completed yet; a real
+ * completion (hasCompletedAssistantReply) or the grace window expiring lets the
+ * next idle event through normally.
+ */
+export function shouldDeferIdleStatusEvent(input: {
+  existingStatus: SessionStatus | undefined
+  promptRecentlyAccepted: boolean
+  hasCompletedAssistantReply: boolean
+}): boolean {
+  const { existingStatus, promptRecentlyAccepted, hasCompletedAssistantReply } = input
+  return (
+    promptRecentlyAccepted
+    && !hasCompletedAssistantReply
+    && !!existingStatus
+    && existingStatus.type !== "idle"
+  )
+}
+
 /** Whether a session's latest message is a fully-completed assistant reply. */
 export function hasCompletedAssistantReply(messages: Message[] | undefined): boolean {
   const lastMessage = messages?.[messages.length - 1]

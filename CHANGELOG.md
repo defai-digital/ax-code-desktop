@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-06-23
+
+### Fixed
+- Sync: defer transient SSE idle status events during the prompt-accepted grace window so reconnect recovery does not clobber an optimistic busy state before the assistant reply completes.
+
 ## [1.3.1] - 2026-06-20
 
 ### Changed

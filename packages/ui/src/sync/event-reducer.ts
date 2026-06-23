@@ -14,6 +14,8 @@ import type { FileDiff, GlobalState, State } from "./types"
 import { dropSessionCaches } from "./session-cache"
 import { stripSessionDiffSnapshots } from "./sanitize"
 import { syncDebug } from "./debug"
+import { hasCompletedAssistantReply, shouldDeferIdleStatusEvent } from "./reconnect-recovery"
+import { wasPromptRecentlyAccepted } from "./session-actions"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const DELTA_OVERLAP_FIELDS = ["text", "output"] as const
@@ -425,6 +427,16 @@ export function applyDirectoryEvent(
 
     case "session.status": {
       const props = event.properties as { sessionID: string; status: SessionStatus }
+      if (
+        props.status.type === "idle"
+        && shouldDeferIdleStatusEvent({
+          existingStatus: draft.session_status[props.sessionID],
+          promptRecentlyAccepted: wasPromptRecentlyAccepted(props.sessionID),
+          hasCompletedAssistantReply: hasCompletedAssistantReply(draft.message[props.sessionID]),
+        })
+      ) {
+        return false
+      }
       if (areSessionStatusesEqual(draft.session_status[props.sessionID], props.status)) {
         return false
       }
@@ -435,6 +447,15 @@ export function applyDirectoryEvent(
     case "session.idle": {
       const props = event.properties as { sessionID: string }
       const status = { type: "idle" } as const
+      if (
+        shouldDeferIdleStatusEvent({
+          existingStatus: draft.session_status[props.sessionID],
+          promptRecentlyAccepted: wasPromptRecentlyAccepted(props.sessionID),
+          hasCompletedAssistantReply: hasCompletedAssistantReply(draft.message[props.sessionID]),
+        })
+      ) {
+        return false
+      }
       if (areSessionStatusesEqual(draft.session_status[props.sessionID], status)) {
         return false
       }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Message, Part, SessionStatus } from "@ax-code/sdk/v2/client"
 import type { Session } from "@ax-code/sdk/v2"
-import { getReconnectCandidateSessionIds, resolveResyncedSessionStatus, hasCompletedAssistantReply } from "./reconnect-recovery"
+import { getReconnectCandidateSessionIds, resolveResyncedSessionStatus, hasCompletedAssistantReply, shouldDeferIdleStatusEvent } from "./reconnect-recovery"
 
 function createSession(id: string, overrides: Partial<Session> = {}): Session {
   return {
@@ -158,5 +158,49 @@ describe("hasCompletedAssistantReply", () => {
   test("false for an empty/undefined message list", () => {
     expect(hasCompletedAssistantReply([])).toBe(false)
     expect(hasCompletedAssistantReply(undefined)).toBe(false)
+  })
+})
+
+describe("shouldDeferIdleStatusEvent", () => {
+  const busy = { type: "busy" } as SessionStatus
+
+  test("defers a transient idle clobber during the grace window with no completed reply", () => {
+    expect(shouldDeferIdleStatusEvent({
+      existingStatus: busy,
+      promptRecentlyAccepted: true,
+      hasCompletedAssistantReply: false,
+    })).toBe(true)
+  })
+
+  test("does not defer once an assistant reply has completed", () => {
+    expect(shouldDeferIdleStatusEvent({
+      existingStatus: busy,
+      promptRecentlyAccepted: true,
+      hasCompletedAssistantReply: true,
+    })).toBe(false)
+  })
+
+  test("does not defer outside the grace window", () => {
+    expect(shouldDeferIdleStatusEvent({
+      existingStatus: busy,
+      promptRecentlyAccepted: false,
+      hasCompletedAssistantReply: false,
+    })).toBe(false)
+  })
+
+  test("does not defer when the existing status is already idle", () => {
+    expect(shouldDeferIdleStatusEvent({
+      existingStatus: { type: "idle" } as SessionStatus,
+      promptRecentlyAccepted: true,
+      hasCompletedAssistantReply: false,
+    })).toBe(false)
+  })
+
+  test("does not defer when there is no existing status", () => {
+    expect(shouldDeferIdleStatusEvent({
+      existingStatus: undefined,
+      promptRecentlyAccepted: true,
+      hasCompletedAssistantReply: false,
+    })).toBe(false)
   })
 })
