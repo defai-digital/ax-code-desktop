@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [{ "path": "./packages/ui/tsconfig.json" }, { "path": "./packages/web/tsconfig.json" }],
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true
+  }
+}
