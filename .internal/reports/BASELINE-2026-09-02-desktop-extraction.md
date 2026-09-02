@@ -60,3 +60,10 @@ retaining core compatibility re-exports.
 - SDK `2.2.0` must be published from the reviewed final candidate commit before Phase 2 can resolve it from JSR.
 - Packaged-app manual macOS smoke and signed identity/data continuity remain release gates, not local source-import
   gates.
+
+## Phase 1 completion
+
+Phase 1 completed at AX Coder merge `a1d62422f150cb775875e58f22db171b91e9d0be`. The filtered commit is
+`8a045fc0ad71ef9f768a695e242fabcbec6ebcd3`; its tree, 2,750-file count, and manifest digest match this baseline.
+An independent second filter reproduced the same commit. Full provenance, commit mappings, scan results, and exact
+commands are recorded in `extraction/`.

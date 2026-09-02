@@ -3,7 +3,7 @@
 | Spec                                                                                        | Status                                    | Related                   |
 | ------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------- |
 | [AX Code JSR SDK Consumption](SPEC-2026-09-02-ax-code-jsr-sdk-consumption.md)               | Registry ready; first publication pending | ADR-001; active PRD       |
-| [Desktop Source Extraction and Provenance](SPEC-2026-09-02-desktop-source-extraction.md)    | Accepted; baseline locked                 | ADR-002; ADR-003          |
+| [Desktop Source Extraction and Provenance](SPEC-2026-09-02-desktop-source-extraction.md)    | Implemented and verified                  | ADR-002; ADR-003          |
 | [Independent Desktop Workspace](SPEC-2026-09-02-independent-desktop-workspace.md)           | Accepted; Phase 2 pending                 | ADR-001; ADR-003; ADR-004 |
 | [AX Code Worker Contract](SPEC-2026-09-02-ax-code-worker-contract.md)                       | Accepted; consumer implementation pending | ADR-001; ADR-004          |
 | [Desktop and Portfolio Process Model](SPEC-2026-09-02-desktop-process-model.md)             | Accepted; extraction behavior locked      | ADR-005                   |

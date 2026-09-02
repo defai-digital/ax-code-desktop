@@ -25,11 +25,13 @@ Canonical boundaries:
 
 ## Current phase
 
-Planning only. No AX Code Desktop production source has been imported yet. The existing source remains under
-`../ax-code/desktop/` until the extraction gates in the active PRD are satisfied.
+Phase 1 history extraction is complete, and Phase 2 independent-workspace implementation is in progress. The
+reviewed Desktop source and its filtered history now live under `desktop/`. The original source remains under
+`../ax-code/desktop/` until the independent build, package, smoke, release, update, rollback, and paired-cutover
+gates pass.
 
-Do not copy, delete, move, publish, rebrand, or release Desktop production source merely because this repository
-exists. Follow the governance order below.
+Do not delete source from AX Code, publish, rebrand, or release Desktop production artifacts merely because the
+history import is complete. Follow the governance order below.
 
 ## Documents and governance
 
@@ -66,5 +68,5 @@ Product-boundary or source-ownership work requires, in order:
 
 The active plan is `.internal/prd/PRD-2026-09-02-ax-coder-product-and-desktop-extraction.md`.
 
-Build, test, and release commands are intentionally undefined until the source-extraction spec selects the
-workspace layout and dependency strategy.
+Phase 1 evidence is in `.internal/reports/extraction/`. Use the workspace commands defined by Phase 2 after its
+root configuration lands; release commands remain unavailable until the shadow-release specification is implemented.

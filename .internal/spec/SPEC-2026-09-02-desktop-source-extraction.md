@@ -2,7 +2,7 @@
 
 | Field           | Value                                         |
 | --------------- | --------------------------------------------- |
-| Status          | Accepted implementation contract              |
+| Status          | Implemented and verified                      |
 | Source baseline | `1c3eb8cbfa1160c35ec3dbc8d05561b4df248d8c`    |
 | Related         | Active PRD; ADR-002; ADR-003; AX Code ADR-067 |
 
@@ -89,3 +89,10 @@ commit the disposable clone.
 10. A second disposable run produces the same filtered HEAD tree.
 
 Any mismatch aborts the import. No cleanup command may delete either live repository or rewrite its history.
+
+## 5. Implementation evidence
+
+The import completed at AX Coder merge `a1d62422f150cb775875e58f22db171b91e9d0be`. The filtered history commit
+is `8a045fc0ad71ef9f768a695e242fabcbec6ebcd3`. Every gate above passed, including an independent second filter run
+that reproduced the same commit. Exact commands, maps, hashes, scans, and exceptions are recorded in
+`.internal/reports/extraction/`.

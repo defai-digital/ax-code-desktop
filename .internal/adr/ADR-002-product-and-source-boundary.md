@@ -3,7 +3,7 @@
 | Field          | Value                                             |
 | -------------- | ------------------------------------------------- |
 | Status         | Accepted                                          |
-| Implementation | Phase 0 in progress                               |
+| Implementation | Phase 1 complete; Phase 2 in progress             |
 | Date           | 2026-09-02                                        |
 | Deciders       | User; AX Coder and AX Code maintainers            |
 | Related        | Active PRD; AX Code ADR-055, ADR-063, and ADR-067 |

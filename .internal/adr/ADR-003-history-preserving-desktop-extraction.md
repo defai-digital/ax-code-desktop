@@ -1,12 +1,12 @@
 # ADR-003: Extract Desktop with Filtered Git History
 
-| Field          | Value                                                 |
-| -------------- | ----------------------------------------------------- |
-| Status         | Accepted                                              |
-| Implementation | Pending Phase 1                                       |
-| Date           | 2026-09-02                                            |
-| Deciders       | User; AX Coder and AX Code maintainers                |
-| Related        | Active PRD; SPEC-2026-09-02-desktop-source-extraction |
+| Field          | Value                                                  |
+| -------------- | ------------------------------------------------------ |
+| Status         | Accepted                                               |
+| Implementation | Complete at `a1d62422f150cb775875e58f22db171b91e9d0be` |
+| Date           | 2026-09-02                                             |
+| Deciders       | User; AX Coder and AX Code maintainers                 |
+| Related        | Active PRD; SPEC-2026-09-02-desktop-source-extraction  |
 
 ## Context
 
@@ -35,6 +35,10 @@ cutover gates in the active PRD.
 - Verify representative `git log --follow` history and license/notice files.
 - Scan the imported tree and history for credentials and forbidden sibling dependencies.
 - Require clean worktrees before and after extraction.
+
+All Phase 1 checks passed. The commands, full and retained commit maps, source and target identities, manifests,
+secret-pattern scan, representative history, and independent reproducibility run are recorded under
+`.internal/reports/extraction/`.
 
 ## Rejected alternatives
 

@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                               |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Accepted; Phase 0 in progress                                                                                                       |
+| Status            | Accepted; Phase 1 complete, Phase 2 in progress                                                                                     |
 | Created           | 2026-09-02                                                                                                                          |
 | Owner             | AX Coder product, AX Code Desktop, and AX Agent runtime owners                                                                      |
 | Target repository | `~/code/ax-coder`                                                                                                                   |
@@ -21,8 +21,9 @@ At the accepted Phase 0 baseline:
 
 - `~/code/ax-coder` is a new local Git repository containing governance records only.
 - AX Code Desktop production source remains under `~/code/ax-code/desktop/`.
-- AX Code commit `92f967e5a3abb7abea69e76911f1e2aa1d2d0e5c` is the clean source baseline. It includes the previously
-  committed Desktop package-integrity change and the independently verified JSR SDK publication implementation.
+- AX Code commit `1c3eb8cbfa1160c35ec3dbc8d05561b4df248d8c` is the clean source baseline. It includes the previously
+  committed Desktop package-integrity change, the independently verified JSR SDK publication implementation,
+  and the public Desktop contract exports.
 - The filesystem `desktop/` tree contains ignored dependencies and build output. Migration must operate from
   tracked Git history plus an explicit, reviewed transfer of any approved outstanding changes. A recursive
   filesystem copy is forbidden.
@@ -30,7 +31,16 @@ At the accepted Phase 0 baseline:
   implemented, but AX Code characterization, coding capability extraction, workflow parity, and later
   integration milestones are not complete. AX Coder must not treat planned AX Agent capabilities as shipped.
 
-Implementation begins only after the required ADR and specification gates in section 16 are satisfied.
+Implementation began after the required ADR and specification gates in section 16 were satisfied.
+
+Current implementation state:
+
+- Phase 0 governance, specifications, baseline, and producer verification are complete.
+- Phase 1 imported the filtered Desktop history at AX Coder merge
+  `a1d62422f150cb775875e58f22db171b91e9d0be`; its exact evidence is under
+  `.internal/reports/extraction/`.
+- AX Code remains unchanged at the source baseline, and Desktop source removal is not authorized.
+- Phase 2 independent workspace and public-contract consumption are in progress.
 
 ## 1. Executive summary
 
@@ -560,6 +570,8 @@ recovery path rather than attempt a lossy migration.
 
 ### Phase 0: Governance and baseline
 
+Status: Complete on 2026-09-02.
+
 - Accept this PRD.
 - Create cross-repository ADRs and the specifications listed in section 16.
 - Record AX Code, AX Agent, and AX Coder commits and dirty states.
@@ -571,6 +583,8 @@ Exit: approved ownership and migration contracts; reproducible clean baseline; n
 
 ### Phase 1: History-preserving extraction
 
+Status: Complete on 2026-09-02 at merge `a1d62422f150cb775875e58f22db171b91e9d0be`.
+
 - Build a disposable filtered-history candidate.
 - Preserve `desktop/**` paths initially to minimize behavior changes; layout flattening is a later decision.
 - Import governance records without replacing extracted history.
@@ -580,6 +594,8 @@ Exit: approved ownership and migration contracts; reproducible clean baseline; n
 Exit: AX Coder contains the complete reviewed source history and no ignored artifacts; AX Code remains unchanged.
 
 ### Phase 2: Independent workspace and contracts
+
+Status: In progress.
 
 - Create AX Coder root package, workspace, catalog, Turbo, formatting, test, and structure configuration.
 - Move or reimplement Desktop-owned root scripts and contract checks.
