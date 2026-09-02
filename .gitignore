@@ -1,0 +1,16 @@
+.DS_Store
+node_modules/
+.turbo/
+coverage/
+dist/
+out/
+build/
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# Staged application and runtime resources are generated, never source-controlled.
+resources/ax-code/
+desktop/packages/electron/resources/ax-code/
