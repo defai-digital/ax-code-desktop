@@ -41,6 +41,9 @@ Current implementation state:
   `.internal/reports/extraction/`.
 - AX Code remains unchanged at the source baseline, and Desktop source removal is not authorized.
 - Phase 2 independent workspace and public-contract consumption are in progress.
+- The local Phase 2 candidate landed at `b3c24fd3cc8ece6a56b7720efcd36285d278a00e` and passes all local consumer,
+  build, package, and packaged-smoke gates. JSR publication, a production lockfile, and frozen clean-clone
+  verification remain before Phase 2 can close.
 
 ## 1. Executive summary
 

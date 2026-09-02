@@ -3,7 +3,7 @@
 | Field          | Value                                                                                               |
 | -------------- | --------------------------------------------------------------------------------------------------- |
 | Status         | Accepted                                                                                            |
-| Implementation | Registry ready; blocked on first SDK publication                                                    |
+| Implementation | Consumer ready; blocked on first SDK publication and production lockfile                            |
 | Date           | 2026-09-02                                                                                          |
 | Last reviewed  | 2026-09-02                                                                                          |
 | Deciders       | AX Coder and AX Code maintainers; explicit user decision                                            |

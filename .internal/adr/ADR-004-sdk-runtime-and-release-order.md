@@ -1,12 +1,12 @@
 # ADR-004: Pin SDK and Runtime Independently with Producer-First Releases
 
-| Field          | Value                                            |
-| -------------- | ------------------------------------------------ |
-| Status         | Accepted                                         |
-| Implementation | Registry ready; first SDK version pending        |
-| Date           | 2026-09-02                                       |
-| Deciders       | User; AX Coder and AX Code maintainers           |
-| Related        | ADR-001; SPEC-2026-09-02-ax-code-worker-contract |
+| Field          | Value                                                      |
+| -------------- | ---------------------------------------------------------- |
+| Status         | Accepted                                                   |
+| Implementation | Consumer and runtime pins ready; first SDK version pending |
+| Date           | 2026-09-02                                                 |
+| Deciders       | User; AX Coder and AX Code maintainers                     |
+| Related        | ADR-001; SPEC-2026-09-02-ax-code-worker-contract           |
 
 ## Context
 

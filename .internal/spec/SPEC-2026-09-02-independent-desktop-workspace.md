@@ -1,9 +1,9 @@
 # SPEC: Independent Desktop Workspace
 
-| Field   | Value                                 |
-| ------- | ------------------------------------- |
-| Status  | Accepted implementation contract      |
-| Related | Active PRD; ADR-001; ADR-003; ADR-004 |
+| Field   | Value                                      |
+| ------- | ------------------------------------------ |
+| Status  | Local candidate complete; JSR lock pending |
+| Related | Active PRD; ADR-001; ADR-003; ADR-004      |
 
 ## 1. Root workspace
 
@@ -75,3 +75,12 @@ Code package manifest.
 A fresh clone with no AX Code sibling checkout installs with a frozen lockfile and passes every root command. The
 unsigned Electron build must identify its exact SDK and runtime pair and keep the updater disabled outside a signed
 candidate channel.
+
+## 7. Implementation progress
+
+The local candidate landed at `b3c24fd3cc8ece6a56b7720efcd36285d278a00e`. Boundaries, typecheck, lint, complete
+tests, build, signed-runtime staging, unsigned packaging, ASAR audit, and packaged-app smoke pass. Detailed evidence is
+in `.internal/reports/PHASE-2-2026-09-02-independent-workspace-candidate.md`.
+
+This specification remains open until SDK `2.2.0` is available from JSR, the production lockfile is committed, and a
+fresh clone with no AX Code sibling passes the complete frozen-install gate.

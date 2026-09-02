@@ -2,7 +2,7 @@
 
 | Field   | Value                                                           |
 | ------- | --------------------------------------------------------------- |
-| Status  | Registry ready; first publication pending                       |
+| Status  | Consumer ready; first publication and lockfile pending          |
 | Created | 2026-09-02                                                      |
 | Related | ADR-001; PRD-2026-09-02-ax-coder-product-and-desktop-extraction |
 
@@ -74,3 +74,8 @@ diagnostics, and rejected by packaging and release checks. The normal developmen
 Registry setup completed on 2026-09-02: `@defai-digital/ax-code-sdk` exists with zero published versions and is linked
 to `defai-digital/ax-code` for GitHub Actions OIDC. The remaining blocker is publishing and verifying the selected SDK
 version from a reviewed matching release tag.
+
+The AX Coder consumer candidate is implemented at `b3c24fd3cc8ece6a56b7720efcd36285d278a00e`. It uses the exact
+production specifier, public imports, package-entrypoint contract tests, and a no-sibling dependency gate. Local
+validation against a tarball built from the exact producer commit passed, but does not replace the required JSR and
+frozen-lockfile verification.
