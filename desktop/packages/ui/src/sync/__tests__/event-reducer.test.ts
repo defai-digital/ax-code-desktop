@@ -7,7 +7,7 @@ import type {
   QuestionRequest,
   Session,
   SessionStatus,
-} from "@ax-code/sdk/v2/client"
+} from "@defai-digital/ax-code-sdk/v2/client"
 import { applyDirectoryEvent, reduceGlobalEvent } from "../event-reducer"
 import { INITIAL_STATE, type State } from "../types"
 

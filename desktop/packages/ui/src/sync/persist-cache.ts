@@ -7,7 +7,7 @@
  * from the server via SSE bootstrap.
  */
 
-import type { VcsInfo } from "@ax-code/sdk/v2/client"
+import type { VcsInfo } from "@defai-digital/ax-code-sdk/v2/client"
 import type { ProjectMeta } from "./types"
 
 // ---------------------------------------------------------------------------

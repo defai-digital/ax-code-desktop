@@ -1,6 +1,13 @@
 # GitHub release publishing
 
-Use the guarded publish script from the AX Code monorepo root:
+Public release ownership has not moved to AX Coder. Do not create or push a Desktop release tag from this
+repository during Phase 2. The current AX Code-owned release remains the rollback source while independent CI,
+signing, updater, upgrade, and rollback gates are built and verified.
+
+The commands below describe the guarded release flow that must be ported and tested in shadow mode before
+cutover. They are not currently enabled AX Coder release commands.
+
+From the release-owning repository, the legacy guarded entry was:
 
 ```bash
 pnpm run release:desktop -- --version 0.8.0
@@ -15,7 +22,7 @@ That first run is a dry-run preflight. It validates package versions,
 `CHANGELOG.md`, Git state, GitHub authentication, docs, tests, type-checking,
 linting, and build output. It does not create a tag or mutate GitHub.
 
-When the dry run passes, publish:
+After all cutover gates pass, the future release owner will expose an equivalent explicit publish step:
 
 ```bash
 pnpm run release:desktop -- --version 0.8.0 --publish

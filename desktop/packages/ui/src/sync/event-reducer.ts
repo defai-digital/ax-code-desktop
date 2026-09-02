@@ -8,7 +8,7 @@ import type {
   Session,
   SessionStatus,
   Todo,
-} from "@ax-code/sdk/v2/client"
+} from "@defai-digital/ax-code-sdk/v2/client"
 import { Binary } from "./binary"
 import type { FileDiff, GlobalState, State } from "./types"
 import { dropSessionCaches } from "./session-cache"

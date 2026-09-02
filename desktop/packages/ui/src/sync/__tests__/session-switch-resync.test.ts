@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach, vi } from "vitest"
 import { create, type StoreApi } from "zustand"
-import type { PermissionRequest, QuestionRequest } from "@ax-code/sdk/v2/client"
+import type { PermissionRequest, QuestionRequest } from "@defai-digital/ax-code-sdk/v2/client"
 
 const listPendingQuestionsCalls: Array<{ directories?: Array<string | null | undefined> }> = []
 const listPendingPermissionsCalls: Array<{ directories?: Array<string | null | undefined> }> = []

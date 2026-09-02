@@ -4,10 +4,8 @@ AX Code Desktop is the desktop UI for [AX Code](https://github.com/defai-digital
 
 ## Repository and Release Policy
 
-AX Code Desktop source code lives in the AX Code monorepo at
-[`github.com/defai-digital/ax-code/tree/main/desktop`](https://github.com/defai-digital/ax-code/tree/main/desktop).
-The standalone Desktop source repository has been retired and is no longer the
-source of truth.
+AX Code Desktop source history has been extracted into the AX Coder repository. AX Code remains the public
+Desktop release owner during the migration safety window; no AX Coder-owned public release is enabled yet.
 
 Desktop releases use `desktop-v*` tags and publish artifacts to the main
 [`defai-digital/ax-code` Releases page](https://github.com/defai-digital/ax-code/releases).
@@ -245,7 +243,7 @@ From a development checkout:
 
 ```bash
 pnpm install
-pnpm run desktop:build
+pnpm run build
 pnpm --filter ax-code-desktop run start -- --ui-password your-password
 ```
 
@@ -253,7 +251,7 @@ The web UI prefers `http://localhost:3100` by default. If that port is busy, AX 
 
 ## Development
 
-Run development commands from the AX Code monorepo root.
+Run development commands from the AX Coder repository root.
 
 Requirements:
 
@@ -265,10 +263,11 @@ Useful commands:
 
 ```bash
 pnpm install
-pnpm run desktop:typecheck
-pnpm run desktop:lint
-pnpm run desktop:test
-pnpm run desktop:build
+pnpm run typecheck
+pnpm run lint
+pnpm run test
+pnpm run check:boundaries
+pnpm run build
 node desktop/packages/electron/scripts/package.mjs --mac zip --publish=never
 ```
 
@@ -280,7 +279,7 @@ Package layout:
 | `packages/web`      | Local web runtime used by development and desktop packaging |
 | `packages/electron` | Desktop shell (Electron)                                    |
 
-In `pnpm run desktop:dev`, the Electron main process spawns and supervises
+In `pnpm run dev`, the Electron main process spawns and supervises
 the ax-code runtime by default (S2.5; `AX_CODE_DESKTOP_SUPERVISE_RUNTIME=0`
 restores web-supervised mode), and the Vite dev server routes renderer API
 calls with the same longest-prefix table as the packaged `app://` handler
@@ -302,8 +301,8 @@ identity for new docs, releases, or UI copy.
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
-New source changes should be made in the AX Code monorepo, not in the retired
-standalone Desktop source repository.
+New Desktop source changes should be made in AX Coder. AX Code changes must remain additive and contract-driven
+until the paired release and source-removal cutover is approved.
 
 ## License
 

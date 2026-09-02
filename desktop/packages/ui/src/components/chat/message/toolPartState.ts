@@ -1,4 +1,4 @@
-import type { ToolPart as ToolPartType } from "@ax-code/sdk/v2"
+import type { ToolPart as ToolPartType } from "@defai-digital/ax-code-sdk/v2"
 
 const ACTIVE_TOOL_STATUSES = new Set(["pending", "running", "started"])
 const FINAL_TOOL_STATUSES = new Set(["completed", "error", "aborted", "failed", "timeout", "cancelled"])

@@ -1,4 +1,4 @@
-import type { AxCodeClient, PermissionRequest, Project, QuestionRequest } from "@ax-code/sdk/v2/client"
+import type { AxCodeClient, PermissionRequest, Project, QuestionRequest } from "@defai-digital/ax-code-sdk/v2/client"
 import { retry } from "./retry"
 import type { GlobalState, State } from "./types"
 import { API_ENDPOINTS } from "@/lib/http"

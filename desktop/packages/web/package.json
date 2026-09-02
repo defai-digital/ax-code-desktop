@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@openchamber/ui": "workspace:*",
-    "@ax-code/sdk": "workspace:*",
+    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.2.0",
     "@clack/prompts": "^1.1.0",
     "@octokit/rest": "^22.0.1",
     "@simplewebauthn/server": "13.3.0",
@@ -44,7 +44,7 @@
     "node-pty": "1.1.0",
     "openai": "^4.79.0",
     "simple-git": "^3.28.0",
-    "ws": "^8.21.0",
+    "ws": "8.21.0",
     "yaml": "^2.8.1"
   },
   "devDependencies": {

@@ -1,5 +1,5 @@
 import React from "react"
-import type { McpResource } from "@ax-code/sdk/v2"
+import type { McpResource } from "@defai-digital/ax-code-sdk/v2"
 
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui"

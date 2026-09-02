@@ -17,8 +17,8 @@
  * (signature-equal, stale, pending-removal-guarded) stay silent.
  */
 
-import type { Event } from "@ax-code/sdk/v2/client"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Event } from "@defai-digital/ax-code-sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import {
   isSessionLifecycleEventType,
   planSessionLifecycleEvent,

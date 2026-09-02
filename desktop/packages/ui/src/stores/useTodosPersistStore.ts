@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { createJSONStorage, devtools, persist } from "zustand/middleware"
-import type { Todo } from "@ax-code/sdk/v2/client"
+import type { Todo } from "@defai-digital/ax-code-sdk/v2/client"
 import { getSafeStorage } from "./utils/safeStorage"
 
 const MAX_SESSIONS = 50

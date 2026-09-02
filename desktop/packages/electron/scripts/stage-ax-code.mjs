@@ -1,11 +1,10 @@
 /**
  * Testable helpers for scripts/stage-ax-code.sh.
  *
- * The bundled runtime is pinned to the Desktop app version (single source of
- * truth: desktop/packages/electron/package.json#version). Release builds
- * download the sibling CLI release archive `ax-code-<platform>-<arch>.<ext>`
- * from the `v<version>` GitHub release and verify it with minisign before
- * extracting it into resources/ax-code.
+ * The bundled runtime is pinned by config/ax-code-runtime.json. Release builds
+ * download the selected `ax-code-<platform>-<arch>.<ext>` asset, verify its
+ * pinned size and SHA-256, then verify its Minisign signature before extracting
+ * it into resources/ax-code.
  *
  * Also runnable as a CLI: `node stage-ax-code.mjs plan [electron-builder flags]`
  * prints shell-eval-able `key=value` lines consumed by stage-ax-code.sh.
@@ -14,21 +13,28 @@ import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import runtimeSymlinks from "./runtime-symlinks.cjs"
+import runtimeManifest from "../../../../script/runtime-manifest.cjs"
+import {
+  readRuntimePin,
+  runtimeArtifactForTarget,
+  verifyPinnedFile,
+  verifyRuntimePin,
+} from "../../../../script/runtime-pin.mjs"
 
 export const { removeUnsafeRuntimeSymlinks } = runtimeSymlinks
+const { writeRuntimeManifest } = runtimeManifest
 
 const defaultElectronDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
+export function repositoryRootFromElectronDir(electronDir = defaultElectronDir) {
+  return path.resolve(electronDir, "..", "..", "..")
+}
+
 export const RELEASE_REPO = "defai-digital/ax-code"
 
-/** The bundled runtime version always equals the Desktop app version. */
+/** The bundled runtime version comes from AX Coder's reviewed runtime manifest. */
 export function readPinnedAxCodeVersion(electronDir = defaultElectronDir, fsp = fs) {
-  const manifest = JSON.parse(fsp.readFileSync(path.join(electronDir, "package.json"), "utf8"))
-  const version = typeof manifest.version === "string" ? manifest.version.trim() : ""
-  if (!version) {
-    throw new Error(`Cannot derive the pinned ax-code version from ${path.join(electronDir, "package.json")}`)
-  }
-  return version
+  return readRuntimePin(repositoryRootFromElectronDir(electronDir), fsp).version
 }
 
 const PLATFORM_FLAGS = new Map([
@@ -114,20 +120,31 @@ if (isMain) {
   const [command, ...rest] = process.argv.slice(2)
   if (command === "plan") {
     const target = resolveStageTarget({ argv: rest })
-    const version = readPinnedAxCodeVersion()
-    const asset = assetNameForTarget(target)
-    if (!asset) {
+    const repositoryRoot = repositoryRootFromElectronDir()
+    const pin = verifyRuntimePin(repositoryRoot)
+    const artifact = runtimeArtifactForTarget(pin, target)
+    if (!artifact) {
       console.error(`[stage-ax-code] unsupported packaging target: ${target.platform}/${target.arch}`)
       process.exit(1)
     }
-    const urls = releaseAssetUrls({ version, assetName: asset })
+    const urls = releaseAssetUrls({
+      version: pin.version,
+      assetName: artifact.filename,
+      repo: pin.repository,
+    })
     const plan = {
-      version,
-      asset,
+      version: pin.version,
+      asset: artifact.filename,
       platform: target.platform,
       arch: target.arch,
       archive_url: urls.archiveUrl,
       signature_url: urls.signatureUrl,
+      archive_size: artifact.size,
+      archive_sha256: artifact.sha256,
+      signature_size: artifact.signatureSize,
+      signature_sha256: artifact.signatureSha256,
+      public_key: pin.minisign.publicKey,
+      public_key_id: pin.minisign.keyId,
       launcher: bundledLauncherRelativePath(target.platform),
       required: isStageRequired() ? "true" : "false",
     }
@@ -142,9 +159,25 @@ if (isMain) {
     if (removed.length > 0) {
       console.log(`[stage-ax-code] removed ${removed.length} unsafe runtime symlink(s)`)
     }
+  } else if (command === "verify-download") {
+    const [file, size, sha256, label = "download"] = rest
+    const expectedSize = Number(size)
+    if (!file || !Number.isSafeInteger(expectedSize) || !sha256) {
+      console.error("usage: node stage-ax-code.mjs verify-download <file> <size> <sha256> [label]")
+      process.exit(2)
+    }
+    verifyPinnedFile(path.resolve(file), { size: expectedSize, sha256 }, label)
+  } else if (command === "write-runtime-manifest") {
+    const [runtimeRoot] = rest
+    if (!runtimeRoot) {
+      console.error("usage: node stage-ax-code.mjs write-runtime-manifest <runtime-root>")
+      process.exit(2)
+    }
+    const manifest = writeRuntimeManifest(path.resolve(runtimeRoot))
+    console.log(`[stage-ax-code] wrote runtime manifest with ${manifest.files.length} authenticated entries`)
   } else {
     console.error(
-      "usage: node stage-ax-code.mjs plan [electron-builder flags] | placeholder | sanitize-symlinks [runtime-root]",
+      "usage: node stage-ax-code.mjs plan [electron-builder flags] | placeholder | sanitize-symlinks [runtime-root] | verify-download <file> <size> <sha256> [label] | write-runtime-manifest <runtime-root>",
     )
     process.exit(2)
   }

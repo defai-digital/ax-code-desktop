@@ -1,4 +1,4 @@
-import type { Session } from "@ax-code/sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 
 export type PermissionAutoAcceptMap = Record<string, boolean>
 

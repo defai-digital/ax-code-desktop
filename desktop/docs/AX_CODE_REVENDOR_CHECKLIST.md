@@ -1,22 +1,22 @@
-# AX Code Workspace SDK Contract Checklist
+# AX Code Published SDK Contract Checklist
 
-The desktop app consumes `@ax-code/sdk` from the workspace. SDK, server, and
-Desktop changes can now land in one commit, but a few SDK internals are still
-mirrored or patched in Desktop code. Re-verify those assumptions whenever a
-Desktop change depends on new SDK behavior.
+The desktop app consumes an exact `@defai-digital/ax-code-sdk` version from JSR. Producer and consumer changes
+cannot land atomically, so publish additive SDK contracts before updating AX Coder. A few SDK internals are still
+mirrored or patched in Desktop code. Re-verify those assumptions whenever a Desktop change depends on new SDK
+behavior.
 
 Work through this list when SDK exports, headless lifecycle behavior, or server
 contracts change:
 
 1. **Keep the contract test meaningful.**
    `packages/web/server/lib/ax-code/sdk-contract.test.js` must load the
-   workspace SDK package, verify the public entrypoints Desktop imports, and
+   installed JSR package, verify the public entrypoints Desktop imports, and
    check the headless lifecycle declaration shape.
 
 2. **Re-verify the loopback guard mirror.** `isSdkLoopbackHostname` in
    `packages/web/server/lib/ax-code/lifecycle.js` mirrors the SDK's private
    `isLoopbackHostname` so the legacy `allowNetworkBind` option remains false for
-   non-loopback hostnames. Compare the workspace SDK guard behavior against the
+   non-loopback hostnames. Compare the published SDK guard behavior against the
    mirror and the fixtures in `sdk-contract.test.js`.
 
 3. **Re-verify the headless handle patch.** `createManagedAxCodeServerProcess`
@@ -45,9 +45,8 @@ contracts change:
    missing route into a bare "Provider request failed (404)" instead of the
    incompatible-runtime warning.
 
-6. **Run the full gate from the monorepo root.** `pnpm run
-check:desktop-boundaries && pnpm run desktop:test && pnpm run
-desktop:typecheck && pnpm run desktop:build`.
+6. **Run the full gate from the AX Coder root.** `pnpm run check:boundaries && pnpm run test && pnpm run
+typecheck && pnpm run build`.
 
 Upstream integration context (transport choice, pending upstream feature
 requests) lives in `docs/AX_CODE_INTEGRATION.md`.

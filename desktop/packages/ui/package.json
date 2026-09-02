@@ -19,7 +19,7 @@
     "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
-    "@ax-code/sdk": "workspace:*",
+    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.2.0",
     "@base-ui/react": "^1.4.0",
     "@codemirror/autocomplete": "^6.20.0",
     "@codemirror/commands": "^6.10.1",

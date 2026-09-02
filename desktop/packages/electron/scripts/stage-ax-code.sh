@@ -2,10 +2,10 @@
 # Stages the pinned ax-code CLI runtime into resources/ax-code so
 # electron-builder can bundle it as an extraResource (see electron-builder.yml).
 #
-# The pin is the Desktop app version itself (desktop/packages/electron
-# package.json#version); the runtime tree is downloaded from the sibling
-# v<version> CLI GitHub release and verified with the repo's minisign public
-# key before extraction. Release builds (AX_CODE_STAGE_REQUIRED=true) fail
+# The pin comes from config/ax-code-runtime.json; the runtime tree is downloaded
+# from the named AX Code GitHub release, checked against pinned size/SHA-256
+# metadata, and verified with the pinned Minisign public key before extraction.
+# Release builds (AX_CODE_STAGE_REQUIRED=true) fail
 # closed: a missing archive or bad signature aborts packaging — never ship a
 # runtime-less installer. Local builds can copy a prebuilt CLI dist tree via
 # AX_CODE_DIST; with no artifact and no release requirement a README.txt
@@ -13,9 +13,8 @@
 set -euo pipefail
 
 electron_dir="$(cd "$(dirname "$0")/.." && pwd)"
-monorepo_root="$(cd "$electron_dir/../../.." && pwd)"
+repository_root="$(cd "$electron_dir/../../.." && pwd)"
 dest="$electron_dir/resources/ax-code"
-pub_key="$monorepo_root/docs/release/ax-minisign.pub"
 helpers="$electron_dir/scripts/stage-ax-code.mjs"
 
 # Git Bash on Windows reports POSIX paths (/c/...), which node.exe cannot
@@ -35,6 +34,12 @@ asset="$(plan_value asset)"
 platform="$(plan_value platform)"
 archive_url="$(plan_value archive_url)"
 signature_url="$(plan_value signature_url)"
+archive_size="$(plan_value archive_size)"
+archive_sha256="$(plan_value archive_sha256)"
+signature_size="$(plan_value signature_size)"
+signature_sha256="$(plan_value signature_sha256)"
+pub_key="$repository_root/$(plan_value public_key)"
+public_key_id="$(plan_value public_key_id)"
 launcher="$(plan_value launcher)"
 required="$(plan_value required)"
 
@@ -108,15 +113,21 @@ if ! curl --fail --location --no-progress-meter --retry 6 --retry-all-errors --r
   --output "$archive" "$archive_url"; then
   stage_placeholder "CLI release archive not available: $archive_url"
 fi
+if ! node "$node_helpers" verify-download "$archive" "$archive_size" "$archive_sha256" "runtime archive"; then
+  stage_placeholder "CLI release archive does not match the pinned size and SHA-256"
+fi
 if ! curl --fail --location --no-progress-meter --retry 6 --retry-all-errors --retry-delay 10 \
   --output "$signature" "$signature_url"; then
   stage_placeholder "CLI release signature not available: $signature_url"
+fi
+if ! node "$node_helpers" verify-download "$signature" "$signature_size" "$signature_sha256" "runtime signature"; then
+  stage_placeholder "CLI release signature does not match the pinned size and SHA-256"
 fi
 if ! command -v minisign >/dev/null 2>&1; then
   stage_placeholder "minisign is not installed"
 fi
 if ! minisign -V -p "$pub_key" -m "$archive" -x "$signature"; then
-  stage_placeholder "minisign verification failed for $asset"
+  stage_placeholder "minisign verification failed for $asset with key $public_key_id"
 fi
 
 # Extraction runs guarded: a corrupt archive must degrade to the placeholder
@@ -169,6 +180,15 @@ fi
 
 if ! launcher_usable; then
   stage_placeholder "staged tree launcher $launcher is missing or not executable"
+fi
+
+# Bind the post-sanitization tree. The archive and signature have already
+# passed the checked-in size, SHA-256, and Minisign gates above; generating the
+# manifest here supports signed runtime releases created before the manifest
+# became an archive member while preserving prepare-runtime-integrity's
+# release-mode fail-closed requirement.
+if ! node "$node_helpers" write-runtime-manifest "$dest"; then
+  stage_placeholder "failed to generate the authenticated runtime manifest"
 fi
 
 echo "[stage-ax-code] ax-code runtime v$version → resources/ax-code ($asset, minisign verified)"

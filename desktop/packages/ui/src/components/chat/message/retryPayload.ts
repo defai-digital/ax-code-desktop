@@ -1,4 +1,4 @@
-import type { Message, Part } from "@ax-code/sdk/v2"
+import type { Message, Part } from "@defai-digital/ax-code-sdk/v2"
 import { filterSyntheticParts } from "@/lib/messages/synthetic"
 
 export type AssistantRetryPayload = {

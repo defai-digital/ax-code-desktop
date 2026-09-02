@@ -1,5 +1,5 @@
 import React from "react"
-import type { Session, SessionMoveValidation } from "@ax-code/sdk/v2/client"
+import type { Session, SessionMoveValidation } from "@defai-digital/ax-code-sdk/v2/client"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,

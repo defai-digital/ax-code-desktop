@@ -1,5 +1,5 @@
 import { useCallback, useRef, useMemo } from "react"
-import type { Message, Part } from "@ax-code/sdk/v2/client"
+import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import { Binary } from "./binary"
 import { retry } from "./retry"
 import { compareIds, sortPartsById } from "./part-ordering"

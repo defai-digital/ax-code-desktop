@@ -1,4 +1,4 @@
-import { createAxCodeClient } from "@ax-code/sdk/v2"
+import { createAxCodeClient } from "@defai-digital/ax-code-sdk/v2"
 
 export const registerSkillRoutes = (app, dependencies) => {
   const {

@@ -1,5 +1,5 @@
 import React from "react"
-import type { Agent } from "@ax-code/sdk/v2"
+import type { Agent } from "@defai-digital/ax-code-sdk/v2"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useAgentsStore, filterVisibleAgents } from "@/stores/useAgentsStore"
 import { useUIStore } from "@/stores/useUIStore"

@@ -1,5 +1,5 @@
 import React from "react"
-import type { Message, Part, Session } from "@ax-code/sdk/v2"
+import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2"
 import type { PermissionRequest } from "@/types/permission"
 import type { QuestionRequest } from "@/types/question"
 

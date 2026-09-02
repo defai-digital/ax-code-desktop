@@ -16,7 +16,7 @@
  */
 
 import { describe, expect, test, vi } from "vitest"
-import type { Event, Message, Part, Session } from "@ax-code/sdk/v2/client"
+import type { Event, Message, Part, Session } from "@defai-digital/ax-code-sdk/v2/client"
 import documentation from "./DOCUMENTATION.md?raw"
 import { ChildStoreManager } from "./child-store"
 import { createEventPipeline } from "./event-pipeline"

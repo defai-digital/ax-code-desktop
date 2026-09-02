@@ -33,3 +33,21 @@ local repository initialization. Those decisions require the ADR and specificati
 The AX Code SDK dependency decision is accepted: production will use an exact
 `@defai-digital/ax-code-sdk` version from JSR plus a separately pinned signed AX Code runtime. The first SDK
 publication is still pending; the JSR scope, package, and OIDC repository link are ready.
+
+## Development
+
+Requirements are Node.js 24 or newer and pnpm 10.33.4 through Corepack.
+
+```bash
+corepack enable
+pnpm install
+pnpm run check:boundaries
+pnpm run typecheck
+pnpm run lint
+pnpm run test
+pnpm run build
+```
+
+The workspace never resolves AX Code from sibling source. Development uses an explicit `AX_CODE_BINARY` or an
+installed `ax-code` on PATH; packaged candidates use the signed artifact pinned in
+`config/ax-code-runtime.json`.

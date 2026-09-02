@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { devtools } from "zustand/middleware"
-import type { McpReadResourceResult, McpResource, McpStatus } from "@ax-code/sdk/v2"
+import type { McpReadResourceResult, McpResource, McpStatus } from "@defai-digital/ax-code-sdk/v2"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"

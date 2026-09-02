@@ -1,5 +1,5 @@
 import React from "react"
-import type { Part } from "@ax-code/sdk/v2"
+import type { Part } from "@defai-digital/ax-code-sdk/v2"
 import { measureElement as measureVirtualElement, type VirtualItem, useVirtualizer } from "@tanstack/react-virtual"
 
 import ChatMessage from "./ChatMessage"

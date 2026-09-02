@@ -6,8 +6,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
-import type { Event } from "@ax-code/sdk/v2/client"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Event } from "@defai-digital/ax-code-sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 import { applySessionLifecycleEventToGlobalStore, describeSessionEventDiff } from "./global-session-events"
 import { planSessionLifecycleEvent, useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"

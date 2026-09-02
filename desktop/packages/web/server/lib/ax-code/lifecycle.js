@@ -3,7 +3,7 @@ import fs from "node:fs"
 import net from "node:net"
 import os from "node:os"
 import path from "node:path"
-import { startHeadlessBackend, isLoopbackHostname as isSdkLoopbackHostname } from "@ax-code/sdk/headless"
+import { startHeadlessBackend, isLoopbackHostname as isSdkLoopbackHostname } from "@defai-digital/ax-code-sdk/headless"
 import { createManagedAxCodeRuntimeAdapter } from "./managed-ax-code-runtime.js"
 import { evaluateAxCodeCompatibility } from "./version-compat.js"
 

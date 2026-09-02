@@ -1,6 +1,6 @@
 import React from "react"
 import { Menu as BaseMenu } from "@base-ui/react/menu"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Icon } from "@/components/icon/Icon"

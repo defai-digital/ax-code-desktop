@@ -1,5 +1,5 @@
 import React from "react"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import type { ProjectSection, SessionNode } from "../types"
 import { normalizePath } from "../utils"
 import type { MainTab } from "@/stores/useUIStore"

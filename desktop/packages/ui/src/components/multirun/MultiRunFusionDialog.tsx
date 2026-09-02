@@ -1,5 +1,5 @@
 import React from "react"
-import type { Session } from "@ax-code/sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import { toast } from "@/components/ui"
 import { Button } from "@/components/ui/button"
 import {

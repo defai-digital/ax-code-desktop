@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "vitest"
-import type { Session } from "@ax-code/sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import type { SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import { useSessionWorktreeStore } from "./session-worktree-store"

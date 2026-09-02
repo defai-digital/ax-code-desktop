@@ -1,4 +1,4 @@
-import type { Agent } from "@ax-code/sdk/v2"
+import type { Agent } from "@defai-digital/ax-code-sdk/v2"
 
 export type ModelControlsPanel = "model" | "agent" | "variant" | null
 

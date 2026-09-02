@@ -13,9 +13,8 @@ const require = createRequire(import.meta.url)
 
 // Resolve the Electron the renderer should run on. Prefer the locally
 // installed, pinned binary so it matches the version `rebuild:native` built
-// node-pty against (avoids a native ABI mismatch and the ~290MB npx download
-// of whatever "electron@latest" resolves to). Fall back to a version-pinned
-// npx if the binary was not installed (e.g. its postinstall was skipped).
+// node-pty against. Missing postinstall output is a broken workspace install;
+// fail clearly instead of downloading an unreviewed runtime during startup.
 const resolveElectron = () => {
   try {
     const bin = require("electron")
@@ -24,8 +23,9 @@ const resolveElectron = () => {
     // electron package present but binary not installed — fall through
   }
   const version = require("electron/package.json").version
-  console.warn(`[electron-dev] pinned electron binary not installed; falling back to npx electron@${version}`)
-  return { command: "npx", args: [`electron@${version}`] }
+  throw new Error(
+    `[electron-dev] pinned electron ${version} binary is unavailable; rerun pnpm install before starting Desktop`,
+  )
 }
 const electronDir = path.resolve(__dirname, "..")
 const webDir = path.resolve(electronDir, "..", "web")

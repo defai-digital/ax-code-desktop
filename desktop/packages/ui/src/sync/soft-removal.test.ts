@@ -12,7 +12,7 @@
  */
 
 import { beforeEach, describe, expect, test, vi } from "vitest"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 const deleteSessionMock = vi.fn<(sessionId: string) => Promise<boolean>>()
 const archiveSessionMock = vi.fn<(sessionId: string) => Promise<boolean>>()

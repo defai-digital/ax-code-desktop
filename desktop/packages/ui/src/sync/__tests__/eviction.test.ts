@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import type { Message, Part, PermissionRequest, QuestionRequest } from "@ax-code/sdk/v2/client"
+import type { Message, Part, PermissionRequest, QuestionRequest } from "@defai-digital/ax-code-sdk/v2/client"
 import { canDisposeDirectory, hasPendingBlockingRequests, pickDirectoriesToEvict } from "../eviction"
 import { dropSessionCaches, getProtectedSessionCacheIds, pickSessionCacheEvictions } from "../session-cache"
 import { INITIAL_STATE, type DirState, type State } from "../types"

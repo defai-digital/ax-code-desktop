@@ -3,8 +3,7 @@
 ## Getting Started
 
 ```bash
-git clone https://github.com/defai-digital/ax-code.git
-cd ax-code
+cd /path/to/ax-coder
 pnpm install
 ```
 
@@ -25,17 +24,17 @@ pnpm install
 
 ### Web
 
-| Script                  | Description                                                                    | Ports                           |
-| ----------------------- | ------------------------------------------------------------------------------ | ------------------------------- |
-| `pnpm run dev:web:full` | Build watcher + Express server. No HMR — manual refresh after changes.         | `3001` (server + static)        |
-| `pnpm run dev:web:hmr`  | Vite dev server + Express API. **Open the Vite URL for HMR**, not the backend. | `5180` (Vite HMR), `3902` (API) |
+| Script                                           | Description                          | Default port |
+| ------------------------------------------------ | ------------------------------------ | ------------ |
+| `pnpm --dir desktop/packages/web run dev:server` | Express API and built static assets. | `3001`       |
+| `pnpm --dir desktop/packages/web run dev:vite`   | Vite renderer with HMR.              | `5173`       |
 
 Both are configurable via env vars: `AX_CODE_DESKTOP_PORT`, `AX_CODE_DESKTOP_HMR_UI_PORT`, `AX_CODE_DESKTOP_HMR_API_PORT`.
 
 ### Desktop (Electron)
 
 ```bash
-pnpm run desktop:dev
+pnpm run dev
 ```
 
 Launches the Electron desktop app in dev mode.
@@ -51,10 +50,11 @@ No dev server — this is a source-level library consumed by other packages. Dur
 ## Before Submitting
 
 ```bash
-pnpm run desktop:typecheck  # Must pass
-pnpm run desktop:lint       # Must pass
-pnpm run desktop:test       # Must pass
-pnpm run desktop:build      # Must succeed
+pnpm run check:boundaries  # Must pass
+pnpm run typecheck         # Must pass
+pnpm run lint              # Must pass
+pnpm run test              # Must pass
+pnpm run build             # Must succeed
 ```
 
 ## Code Style

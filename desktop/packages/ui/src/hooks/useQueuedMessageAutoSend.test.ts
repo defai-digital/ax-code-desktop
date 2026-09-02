@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
-import type { Agent } from "@ax-code/sdk/v2"
+import type { Agent } from "@defai-digital/ax-code-sdk/v2"
 import type { QueuedMessage } from "../stores/messageQueueStore"
 
 let visibleAgents: Agent[] = []

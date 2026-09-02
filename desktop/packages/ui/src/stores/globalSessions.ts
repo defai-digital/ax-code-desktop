@@ -1,4 +1,4 @@
-import type { AxCodeClient, Session } from "@ax-code/sdk/v2"
+import type { AxCodeClient, Session } from "@defai-digital/ax-code-sdk/v2"
 import { retry } from "@/sync/retry"
 
 export type GlobalSessionRecord = Session & {

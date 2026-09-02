@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "ax-coder",
+  "version": "7.10.2",
+  "description": "Persistent desktop supervision for AX Code projects.",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "preinstall": "node script/require-pnpm.cjs",
+    "postinstall": "node desktop/scripts/fix-node-pty-permissions.mjs",
+    "dev": "turbo run dev --filter=@ax-code/electron",
+    "build": "turbo run build --filter=@ax-code/electron",
+    "typecheck": "pnpm --filter \"./desktop/packages/*\" --if-present run type-check",
+    "lint": "pnpm --filter \"./desktop/packages/*\" --if-present run lint",
+    "test": "pnpm run test:scripts && pnpm --filter \"./desktop/packages/*\" --if-present run test",
+    "test:scripts": "vitest run --config vitest.config.ts",
+    "check:desktop-boundaries": "tsx script/check-desktop-boundaries.ts --fail-on-violation",
+    "check:desktop-store-boundaries": "tsx script/check-desktop-store-boundaries.ts",
+    "check:desktop-electron-runtime": "node desktop/scripts/check-electron-runtime.mjs",
+    "check:desktop-endpoint-contracts": "node desktop/scripts/check-endpoint-contracts.mjs",
+    "check:desktop-ipc-contracts": "node desktop/scripts/check-desktop-ipc-contracts.mjs",
+    "check:desktop-package-tests": "node desktop/scripts/check-package-test-scripts.mjs",
+    "check:no-sibling-dependencies": "node script/check-no-sibling-dependencies.mjs",
+    "check:runtime-pin": "node script/runtime-pin.mjs",
+    "check:boundaries": "pnpm run check:desktop-boundaries && pnpm run check:desktop-store-boundaries && pnpm run check:desktop-electron-runtime && pnpm run check:desktop-endpoint-contracts && pnpm run check:desktop-ipc-contracts && pnpm run check:desktop-package-tests && pnpm run check:no-sibling-dependencies && pnpm run check:runtime-pin",
+    "smoke:packaged": "node desktop/packages/electron/scripts/smoke-packaged-app.mjs",
+    "smoke:packaged-asar-cli": "node desktop/packages/electron/scripts/smoke-packaged-asar-cli.mjs",
+    "package:desktop": "node desktop/packages/electron/scripts/package.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "@types/node": "catalog:",
+    "eslint": "^9.33.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "fast-glob": "catalog:",
+    "globals": "^16.3.0",
+    "prettier": "3.6.2",
+    "tsx": "4.22.4",
+    "turbo": "2.9.14",
+    "typescript": "catalog:",
+    "typescript-eslint": "^8.39.1",
+    "vitest": "4.1.9"
+  },
+  "prettier": {
+    "semi": false,
+    "printWidth": 120
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild",
+      "node-pty"
+    ],
+    "ignoredBuiltDependencies": [
+      "@ibm/plex"
+    ]
+  }
+}

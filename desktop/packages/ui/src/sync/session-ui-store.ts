@@ -21,7 +21,7 @@ import type {
   TextPart,
   SessionRollbackApplyInput,
   SessionMoveValidation,
-} from "@ax-code/sdk/v2/client"
+} from "@defai-digital/ax-code-sdk/v2/client"
 import type { AttachedFile, SessionContextUsage, SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import type { WorktreeMetadata } from "@/types/worktree"
 import { axCodeClient } from "@/lib/ax-code/client"

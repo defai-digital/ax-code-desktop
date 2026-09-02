@@ -1,5 +1,5 @@
 import React from "react"
-import type { Message, Part, ReasoningPart, TextPart, ToolPart } from "@ax-code/sdk/v2"
+import type { Message, Part, ReasoningPart, TextPart, ToolPart } from "@defai-digital/ax-code-sdk/v2"
 
 import type { StreamPhase } from "@/types/streaming"
 import { useSessionUIStore } from "@/sync/session-ui-store"

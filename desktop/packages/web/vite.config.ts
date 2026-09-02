@@ -88,7 +88,7 @@ function getPackageNameFromNodeModuleId(id: string): string | null {
 function getVendorChunkName(packageName: string): string | undefined {
   if (packageName === "react" || packageName === "react-dom" || packageName === "scheduler") return "vendor-react"
   if (packageName === "zustand" || packageName === "use-sync-external-store") return "vendor-state"
-  if (packageName === "@ax-code/sdk") return "vendor-ax-code-sdk"
+  if (packageName === "@defai-digital/ax-code-sdk") return "vendor-ax-code-sdk"
   if (packageName === "@base-ui/react" || packageName.startsWith("@base-ui") || packageName.startsWith("@radix-ui"))
     return "vendor-ui"
   if (packageName.startsWith("@codemirror") || packageName.startsWith("@lezer")) return "vendor-codemirror"
@@ -150,10 +150,6 @@ export default defineConfig({
   ],
   resolve: {
     alias: [
-      {
-        find: /^@ax-code\/sdk\/v2$/,
-        replacement: path.resolve(__dirname, "../../../packages/sdk/js/dist/v2/index.js"),
-      },
       { find: "@openchamber/ui", replacement: path.resolve(__dirname, "../ui/src") },
       { find: "@web", replacement: path.resolve(__dirname, "./src") },
       { find: "@", replacement: path.resolve(__dirname, "../ui/src") },
@@ -168,7 +164,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(packageJson.version),
   },
   optimizeDeps: {
-    include: ["@ax-code/sdk/v2"],
+    include: ["@defai-digital/ax-code-sdk/v2"],
   },
   server: {
     port: devServerPort,

@@ -1,5 +1,5 @@
 import React from "react"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import type { GroupSearchData, ProjectItem, ProjectSection, SessionGroup, SessionNode } from "../types"
 import { dedupeSessionsById, normalizePath } from "../utils"
 import type { WorktreeMetadata } from "@/types/worktree"

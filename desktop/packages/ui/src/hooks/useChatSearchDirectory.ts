@@ -4,7 +4,7 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSessionWorktreeStore } from "@/sync/session-worktree-store"
 import { getAttachedSessionDirectory } from "@/sync/session-worktree-contract"
 import { useSessions } from "@/sync/sync-context"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 export const useChatSearchDirectory = (): string | undefined => {
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)

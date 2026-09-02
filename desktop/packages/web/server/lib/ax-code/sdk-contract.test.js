@@ -1,23 +1,23 @@
 /**
- * Contract guard for the workspace @ax-code/sdk.
+ * Contract guard for the published @defai-digital/ax-code-sdk package.
  *
- * Keep these checks aligned with the workspace SDK package exports and
- * generated declaration output.
+ * Keep these checks aligned with the exact JSR package exports and generated
+ * declaration output.
  */
 import { readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
-import { SDK_VERSION, createAgent } from "@ax-code/sdk"
-import { startHeadlessBackend, isLoopbackHostname } from "@ax-code/sdk/headless"
-import { createAxCodeClient as createAxCodeClientV2 } from "@ax-code/sdk/v2"
-import { createAxCodeClient as createAxCodeClientV2Client } from "@ax-code/sdk/v2/client"
+import { SDK_VERSION } from "@defai-digital/ax-code-sdk"
+import { startHeadlessBackend, isLoopbackHostname } from "@defai-digital/ax-code-sdk/headless"
+import { createAxCodeClient as createAxCodeClientV2 } from "@defai-digital/ax-code-sdk/v2"
+import { createAxCodeClient as createAxCodeClientV2Client } from "@defai-digital/ax-code-sdk/v2/client"
 
-const sdkPackageRoot = resolve(dirname(fileURLToPath(import.meta.resolve("@ax-code/sdk"))), "..")
+const sdkPackageRoot = resolve(dirname(fileURLToPath(import.meta.resolve("@defai-digital/ax-code-sdk"))), "..")
 const sdkPackageJson = JSON.parse(readFileSync(resolve(sdkPackageRoot, "package.json"), "utf8"))
 const headlessLifecycleTypes = readFileSync(resolve(sdkPackageRoot, "dist/headless/lifecycle.d.ts"), "utf8")
 
-describe("workspace @ax-code/sdk contract", () => {
+describe("published @defai-digital/ax-code-sdk contract", () => {
   it("loads the same SDK package version exposed by the runtime entry point", () => {
     expect(SDK_VERSION).toBe(sdkPackageJson.version)
     expect(SDK_VERSION).toMatch(/^\d+\.\d+\.\d+/)
@@ -28,7 +28,6 @@ describe("workspace @ax-code/sdk contract", () => {
     for (const entry of [".", "./v2", "./v2/client", "./headless"]) {
       expect(exportsMap[entry], `missing SDK export "${entry}"`).toBeDefined()
     }
-    expect(typeof createAgent).toBe("function")
     expect(typeof createAxCodeClientV2).toBe("function")
     expect(typeof createAxCodeClientV2Client).toBe("function")
   })

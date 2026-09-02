@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import { listGlobalSessionPages } from "@/stores/globalSessions"

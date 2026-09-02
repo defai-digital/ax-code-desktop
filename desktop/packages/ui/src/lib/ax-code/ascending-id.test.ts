@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
-import type { Message, Part, Session } from "@ax-code/sdk/v2/client"
+import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2/client"
 import { ascendingId } from "./client"
 import { INITIAL_STATE, type State } from "@/sync/types"
 import { Binary } from "@/sync/binary"

@@ -1,5 +1,5 @@
 import React from "react"
-import type { McpStatus } from "@ax-code/sdk/v2"
+import type { McpStatus } from "@defai-digital/ax-code-sdk/v2"
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"

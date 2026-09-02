@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import type { AxCodeClient, PermissionRequest, QuestionRequest } from "@ax-code/sdk/v2/client"
+import type { AxCodeClient, PermissionRequest, QuestionRequest } from "@defai-digital/ax-code-sdk/v2/client"
 import { bootstrapDirectory } from "./bootstrap"
 import { INITIAL_STATE, type State } from "./types"
 

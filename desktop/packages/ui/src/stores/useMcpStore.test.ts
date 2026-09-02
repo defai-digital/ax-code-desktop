@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
-import type { McpResource, McpStatus } from "@ax-code/sdk/v2"
+import type { McpResource, McpStatus } from "@defai-digital/ax-code-sdk/v2"
 
 type Deferred<T> = {
   promise: Promise<T>

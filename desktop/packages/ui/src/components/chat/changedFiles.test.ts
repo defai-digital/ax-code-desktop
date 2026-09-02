@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import type { ToolPart } from "@ax-code/sdk/v2"
+import type { ToolPart } from "@defai-digital/ax-code-sdk/v2"
 
 import {
   extractChangedFiles,

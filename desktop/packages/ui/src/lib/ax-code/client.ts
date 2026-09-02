@@ -1,4 +1,4 @@
-import { createAxCodeClient, type AxCodeClient } from "@ax-code/sdk/v2/client"
+import { createAxCodeClient, type AxCodeClient } from "@defai-digital/ax-code-sdk/v2/client"
 import type { FilesAPI, RuntimeAPIs } from "../api/types"
 import { API_ENDPOINTS, HTTP_DEFAULTS, API_PATHS, replacePathParams } from "@/lib/http"
 import { getDesktopHomeDirectory } from "../desktop"
@@ -12,7 +12,7 @@ import type {
   Agent,
   TextPartInput,
   FilePartInput,
-} from "@ax-code/sdk/v2"
+} from "@defai-digital/ax-code-sdk/v2"
 import type { PermissionRequest } from "@/types/permission"
 import type { QuestionRequest } from "@/types/question"
 import { waitForWorktreeBootstrap } from "@/lib/worktrees/worktreeBootstrap"

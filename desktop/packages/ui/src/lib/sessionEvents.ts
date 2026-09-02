@@ -1,4 +1,4 @@
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import type { WorktreeMetadata } from "@/types/worktree"
 
 export type SessionDeleteRequest = {

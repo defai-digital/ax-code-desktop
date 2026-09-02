@@ -1,5 +1,5 @@
-import type { SessionStatus, Message, Part } from "@ax-code/sdk/v2/client"
-import type { Session } from "@ax-code/sdk/v2"
+import type { SessionStatus, Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { getSessionMaterializationStatus } from "./materialization"
 
 type ReconnectMaterializationState = {

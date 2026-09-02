@@ -1,5 +1,5 @@
-import type { SessionStatus } from "@ax-code/sdk/v2/client"
-import type { Session } from "@ax-code/sdk/v2"
+import type { SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { Binary } from "./binary"
 import type { State } from "./types"
 

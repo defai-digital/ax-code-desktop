@@ -12,7 +12,7 @@
  * Abort controller created once at init, cleaned up via returned cleanup fn.
  */
 
-import type { Event, AxCodeClient, SessionStatus } from "@ax-code/sdk/v2/client"
+import type { Event, AxCodeClient, SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { syncDebug } from "./debug"
 import { API_PATHS } from "@/lib/http"

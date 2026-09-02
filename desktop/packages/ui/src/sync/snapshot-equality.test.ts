@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
-import type { SessionStatus } from "@ax-code/sdk/v2/client"
-import type { Session } from "@ax-code/sdk/v2"
+import type { SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
 
 function createSession(id: string, overrides: Record<string, unknown> = {}): Session {

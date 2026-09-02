@@ -1,4 +1,4 @@
-import type { Message } from "@ax-code/sdk/v2"
+import type { Message } from "@defai-digital/ax-code-sdk/v2"
 
 export class MessageFreshnessDetector {
   private static instance: MessageFreshnessDetector

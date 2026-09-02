@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
-import type { Agent, PermissionConfig } from "@ax-code/sdk/v2"
+import type { Agent, PermissionConfig } from "@defai-digital/ax-code-sdk/v2"
 import { axCodeClient } from "@/lib/ax-code/client"
 import {
   emitConfigChange,

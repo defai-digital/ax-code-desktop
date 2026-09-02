@@ -5,7 +5,7 @@
  * session-actions) use them to read child-store domain data without hooks.
  */
 
-import type { AxCodeClient } from "@ax-code/sdk/v2/client"
+import type { AxCodeClient } from "@defai-digital/ax-code-sdk/v2/client"
 import type { ChildStoreManager } from "./child-store"
 import { getSessionMaterializationStatus } from "./materialization"
 import type { State } from "./types"

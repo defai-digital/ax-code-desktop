@@ -3,7 +3,7 @@
  * Thin wrapper around electron-builder for platform-specific packaging.
  * Called by CI as: node ./scripts/package.mjs --win --x64 --publish=never
  *
- * Exists as a separate script (rather than a direct npx call) so we can add
+ * Exists as a separate script (rather than a direct builder call) so we can add
  * platform-specific pre-packaging steps (e.g., signing setup, env coercion)
  * without modifying the CI YAML.
  */
@@ -19,6 +19,7 @@ const electronDir = path.join(__dirname, "..")
 // Forward all CLI args to electron-builder unchanged.
 // e.g. ['--win', '--x64', '--publish=never']
 const args = process.argv.slice(2)
+if (args[0] === "--") args.shift()
 
 // pnpm hoists `electron` to the workspace-root node_modules, so electron-builder
 // (run from packages/electron) cannot auto-detect the version and the range in
@@ -67,10 +68,9 @@ console.log(
     : "[electron] staged runtime placeholder; wrote ASAR integrity marker",
 )
 
-// Resolve electron-builder via npx (it's hoisted to the workspace root, not
-// packages/electron/node_modules/.bin), matching how the macOS job invokes it.
-// shell:true so `npx` resolves on the Windows runner.
-const result = spawnSync("npx", ["electron-builder", `-c.electronVersion=${electronVersion}`, ...args], {
+// Resolve electron-builder through the pinned pnpm workspace. shell:true lets
+// the pnpm shim resolve consistently on Windows runners.
+const result = spawnSync("pnpm", ["exec", "electron-builder", `-c.electronVersion=${electronVersion}`, ...args], {
   stdio: "inherit",
   cwd: electronDir,
   shell: true,

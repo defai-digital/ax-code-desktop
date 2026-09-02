@@ -1,6 +1,10 @@
 import { create } from "zustand"
 import { devtools } from "zustand/middleware"
-import type { SessionRollbackApplyInput, SessionRollbackPoint, SessionRollbackPreview } from "@ax-code/sdk/v2"
+import type {
+  SessionRollbackApplyInput,
+  SessionRollbackPoint,
+  SessionRollbackPreview,
+} from "@defai-digital/ax-code-sdk/v2"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"

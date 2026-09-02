@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { routeMessage, useSessionUIStore } from "@/sync/session-ui-store"
 import { devtools } from "zustand/middleware"
 import type { CreateMultiRunParams, CreateMultiRunResult } from "@/types/multirun"

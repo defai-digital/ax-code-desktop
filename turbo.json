@@ -1,0 +1,33 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": ["CI", "AX_CODE_DISABLE_SHARE"],
+  "globalPassThroughEnv": ["CI", "AX_CODE_DISABLE_SHARE"],
+  "tasks": {
+    "build": {
+      "outputs": ["dist/**"]
+    },
+    "@openchamber/ui#build": {},
+    "ax-code-desktop#build": {
+      "dependsOn": ["@openchamber/ui#build"],
+      "inputs": ["$TURBO_DEFAULT$", "../ui/src/**"],
+      "outputs": ["dist/**"]
+    },
+    "@ax-code/electron#build": {
+      "dependsOn": ["ax-code-desktop#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../web/src/**",
+        "../web/server/**",
+        "../web/bin/**",
+        "../web/package.json",
+        "../ui/src/**"
+      ],
+      "outputs": ["dist/**", "out/**"]
+    },
+    "@ax-code/electron#dev": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["AX_CODE_BINARY", "AX_ENGINE_BIN", "AX_ENGINE_PYTHON"]
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import type { Message, Part } from "@ax-code/sdk/v2"
+import type { Message, Part } from "@defai-digital/ax-code-sdk/v2"
 import { buildTurnWindowModel, updateTurnWindowModelIncremental } from "./windowTurns"
 import type { ChatMessageEntry } from "./types"
 

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 import { SimpleMarkdownRenderer } from "../../MarkdownRenderer"
 import { useStreamingTextThrottle } from "../../hooks/useStreamingTextThrottle"
 import { getToolMetadata } from "@/lib/toolHelpers"
-import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from "@ax-code/sdk/v2"
+import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from "@defai-digital/ax-code-sdk/v2"
 import { toolDisplayStyles } from "@/lib/typography"
 import { LazySyntaxHighlighter as SyntaxHighlighter } from "@/components/ui/LazySyntaxHighlighter"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
@@ -1391,14 +1391,14 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
           const childStores = getSyncChildStores()
           childStores.update(currentDirectory, (prev) => {
             const records = messages as SessionMessageWithParts[]
-            const partPatch: Record<string, import("@ax-code/sdk/v2").Part[]> = { ...prev.part }
+            const partPatch: Record<string, import("@defai-digital/ax-code-sdk/v2").Part[]> = { ...prev.part }
             for (const rec of records) {
               partPatch[rec.info.id] = rec.parts
             }
             return {
               message: {
                 ...prev.message,
-                [capturedSessionId]: records.map((r) => r.info) as import("@ax-code/sdk/v2").Message[],
+                [capturedSessionId]: records.map((r) => r.info) as import("@defai-digital/ax-code-sdk/v2").Message[],
               },
               part: partPatch,
             }
@@ -1541,14 +1541,14 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
         const childStores = getSyncChildStores()
         childStores.update(currentDirectory, (prev) => {
           const records = messages as SessionMessageWithParts[]
-          const partPatch: Record<string, import("@ax-code/sdk/v2").Part[]> = { ...prev.part }
+          const partPatch: Record<string, import("@defai-digital/ax-code-sdk/v2").Part[]> = { ...prev.part }
           for (const rec of records) {
             partPatch[rec.info.id] = rec.parts
           }
           return {
             message: {
               ...prev.message,
-              [taskSessionId]: records.map((r) => r.info) as import("@ax-code/sdk/v2").Message[],
+              [taskSessionId]: records.map((r) => r.info) as import("@defai-digital/ax-code-sdk/v2").Message[],
             },
             part: partPatch,
           }

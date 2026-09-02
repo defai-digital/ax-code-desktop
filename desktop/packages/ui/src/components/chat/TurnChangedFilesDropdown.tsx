@@ -1,5 +1,5 @@
 import React from "react"
-import type { ToolPart } from "@ax-code/sdk/v2"
+import type { ToolPart } from "@defai-digital/ax-code-sdk/v2"
 import { Popover } from "@base-ui/react/popover"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useUIStore } from "@/stores/useUIStore"

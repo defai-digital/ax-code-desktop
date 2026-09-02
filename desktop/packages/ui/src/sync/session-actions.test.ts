@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach, vi } from "vitest"
 import type { PermissionRequest } from "@/types/permission"
-import type { Message, Part, Session } from "@ax-code/sdk/v2/client"
+import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2/client"
 import { resolveResyncedSessionStatus, hasCompletedAssistantReply } from "./reconnect-recovery"
 import { useConnectionStore } from "@/lib/event-stream/connection-state"
 
@@ -292,7 +292,7 @@ vi.doMock("./sync-refs", () => ({
 import { create, type StoreApi } from "zustand"
 import { INITIAL_STATE } from "./types"
 import type { DirectoryStore } from "./child-store"
-import type { AxCodeClient } from "@ax-code/sdk/v2/client"
+import type { AxCodeClient } from "@defai-digital/ax-code-sdk/v2/client"
 
 function createStore(permissions: Record<string, PermissionRequest[]>): StoreApi<DirectoryStore> {
   return create<DirectoryStore>()((set) => ({
@@ -749,7 +749,9 @@ describe("rollback and fork actions use the session directory", () => {
     const sourceStore = createStore({})
     const targetStore = createStore({})
     sourceStore.setState({
-      session: [{ id: "session-b", directory: "/other/project", time: { created: 1, updated: 1 } } as unknown as Session],
+      session: [
+        { id: "session-b", directory: "/other/project", time: { created: 1, updated: 1 } } as unknown as Session,
+      ],
     })
     targetStore.setState({
       session: [
@@ -770,11 +772,7 @@ describe("rollback and fork actions use the session directory", () => {
 
     await moveSession("session-b", "/target/project")
 
-    expect(targetStore.getState().session.map((session) => session.id)).toEqual([
-      "session-a",
-      "session-b",
-      "session-z",
-    ])
+    expect(targetStore.getState().session.map((session) => session.id)).toEqual(["session-a", "session-b", "session-z"])
   })
 })
 

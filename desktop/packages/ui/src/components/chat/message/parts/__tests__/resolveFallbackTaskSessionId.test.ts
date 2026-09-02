@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import type { Session, SessionStatus } from "@ax-code/sdk/v2/client"
+import type { Session, SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
 import { resolveFallbackTaskSessionId } from "../resolveFallbackTaskSessionId"
 
 const busyStatus = { type: "busy" } satisfies SessionStatus

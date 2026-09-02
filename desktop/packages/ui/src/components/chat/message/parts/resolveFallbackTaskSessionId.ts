@@ -6,7 +6,7 @@
  * Conservative: only returns a session id when the match is unambiguous.
  */
 
-import type { Session, SessionStatus } from "@ax-code/sdk/v2/client"
+import type { Session, SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
 
 /**
  * Fallback is intentionally narrow: only sessions created shortly after the

@@ -12,7 +12,7 @@
  * (which may not import the agents store) reads/loads the list through it.
  */
 
-import type { Agent } from "@ax-code/sdk/v2"
+import type { Agent } from "@defai-digital/ax-code-sdk/v2"
 
 export type AgentScope = "user" | "project"
 

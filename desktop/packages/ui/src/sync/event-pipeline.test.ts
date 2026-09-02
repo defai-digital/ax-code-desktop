@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import type { Event, AxCodeClient } from "@ax-code/sdk/v2/client"
+import type { Event, AxCodeClient } from "@defai-digital/ax-code-sdk/v2/client"
 import { coalesceQueuedEvent, createEventPipeline } from "./event-pipeline"
 
 const failAfter = (ms: number) =>

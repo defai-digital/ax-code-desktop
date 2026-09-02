@@ -1,5 +1,5 @@
 import React from "react"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { getSyncSessionMaterializationStatus } from "@/sync/sync-refs"
 

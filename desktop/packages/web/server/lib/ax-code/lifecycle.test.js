@@ -9,7 +9,7 @@ vi.mock("node:child_process", () => ({
   spawnSync: vi.fn(),
 }))
 
-vi.mock("@ax-code/sdk/headless", () => ({
+vi.mock("@defai-digital/ax-code-sdk/headless", () => ({
   startHeadlessBackend: startHeadlessBackendMock,
   isLoopbackHostname: (hostname) => {
     if (!hostname) return true

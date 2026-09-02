@@ -1,6 +1,6 @@
 import React from "react"
 import { cn } from "@/lib/utils"
-import type { Part } from "@ax-code/sdk/v2"
+import type { Part } from "@defai-digital/ax-code-sdk/v2"
 import type { AgentMentionInfo } from "../types"
 import { SimpleMarkdownRenderer } from "../../MarkdownRenderer"
 import { useUIStore } from "@/stores/useUIStore"

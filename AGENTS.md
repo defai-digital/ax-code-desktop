@@ -33,6 +33,24 @@ gates pass.
 Do not delete source from AX Code, publish, rebrand, or release Desktop production artifacts merely because the
 history import is complete. Follow the governance order below.
 
+## Environment and commands
+
+- Node.js 24 or newer.
+- pnpm 10.33.4 through Corepack. Do not use npm or Yarn for this workspace.
+- Install with `pnpm install`; committed CI must use `pnpm install --frozen-lockfile`.
+
+| Task                          | Command                                                |
+| ----------------------------- | ------------------------------------------------------ |
+| Typecheck                     | `pnpm run typecheck`                                   |
+| Lint                          | `pnpm run lint`                                        |
+| Tests                         | `pnpm run test`                                        |
+| Desktop build                 | `pnpm run build`                                       |
+| Contract and ownership checks | `pnpm run check:boundaries`                            |
+| Development app               | `pnpm run dev`                                         |
+| Local unsigned package        | `pnpm run package:desktop -- <electron-builder flags>` |
+
+Public release commands remain intentionally unavailable during Phase 2.
+
 ## Documents and governance
 
 - Product requirements: `.internal/prd/`
@@ -68,5 +86,6 @@ Product-boundary or source-ownership work requires, in order:
 
 The active plan is `.internal/prd/PRD-2026-09-02-ax-coder-product-and-desktop-extraction.md`.
 
-Phase 1 evidence is in `.internal/reports/extraction/`. Use the workspace commands defined by Phase 2 after its
-root configuration lands; release commands remain unavailable until the shadow-release specification is implemented.
+Phase 1 evidence is in `.internal/reports/extraction/`. The Phase 2 workspace consumes the SDK pin in
+`config/ax-code-sdk.json` and the signed runtime pin in `config/ax-code-runtime.json`. Release commands remain
+unavailable until the shadow-release specification is implemented.

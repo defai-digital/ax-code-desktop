@@ -10,7 +10,14 @@ build/
 .env
 .env.*
 !.env.example
+.tmp/
+.local/
+*.db
+auth.json
 
 # Staged application and runtime resources are generated, never source-controlled.
 resources/ax-code/
 desktop/packages/electron/resources/ax-code/
+desktop/packages/electron/resources/ax-computer/
+desktop/packages/electron/resources/web-dist/
+desktop/packages/electron/.dev-bin/

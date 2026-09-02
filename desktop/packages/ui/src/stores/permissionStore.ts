@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
-import type { Session } from "@ax-code/sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import { autoRespondsPermission, type PermissionAutoAcceptMap } from "./utils/permissionAutoAccept"
 import { getSafeStorage } from "./utils/safeStorage"
 import { getAllSyncSessions, getSyncChildStores } from "@/sync/sync-refs"

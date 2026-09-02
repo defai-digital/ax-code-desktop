@@ -9,7 +9,7 @@ import {
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import * as sessionActions from "@/sync/session-actions"
 import { formatMessage, useI18nStore, type I18nKey, type I18nParams } from "@/lib/i18n/store"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 const UNDO_DURATION_MS = 7000
 const STORAGE_KEY = "axcode.pending-session-removals"

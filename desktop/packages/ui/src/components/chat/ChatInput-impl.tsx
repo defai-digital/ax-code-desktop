@@ -122,7 +122,7 @@ import {
   buildAttachmentCitationText,
   findAttachmentCitationRanges,
 } from "./attachmentCitations"
-import type { Message, Part } from "@ax-code/sdk/v2/client"
+import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 
 const MAX_VISIBLE_TEXTAREA_LINES = 8
 const EMPTY_QUEUE: QueuedMessage[] = []

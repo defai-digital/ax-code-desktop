@@ -1,5 +1,5 @@
 import { detectToolOutputLanguage } from "@/lib/toolHelpers"
-import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from "@ax-code/sdk/v2"
+import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from "@defai-digital/ax-code-sdk/v2"
 import { formatEditOutput } from "../toolRenderers"
 import { getPatchText, isRecord } from "./toolDiffUtils"
 import { getToolRelativePath, normalizeToolDisplayPath } from "./toolPathDisplay"

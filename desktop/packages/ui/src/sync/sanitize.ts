@@ -11,7 +11,7 @@
 // 2. Message loading — fetchMessages response
 // ---------------------------------------------------------------------------
 
-import type { Session, Message } from "@ax-code/sdk/v2/client"
+import type { Session, Message } from "@defai-digital/ax-code-sdk/v2/client"
 
 type DiffEntry = {
   file?: string

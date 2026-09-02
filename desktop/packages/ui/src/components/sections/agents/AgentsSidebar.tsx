@@ -21,7 +21,7 @@ import {
 } from "@/stores/useAgentsStore"
 import { useShallow } from "zustand/react/shallow"
 import { cn } from "@/lib/utils"
-import type { Agent } from "@ax-code/sdk/v2"
+import type { Agent } from "@defai-digital/ax-code-sdk/v2"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { SettingsProjectSelector } from "@/components/sections/shared/SettingsProjectSelector"
 import { SidebarGroup } from "@/components/sections/shared/SidebarGroup"

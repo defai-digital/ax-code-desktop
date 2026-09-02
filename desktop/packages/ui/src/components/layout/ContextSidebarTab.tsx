@@ -1,5 +1,5 @@
 import React from "react"
-import type { Message, Part } from "@ax-code/sdk/v2"
+import type { Message, Part } from "@defai-digital/ax-code-sdk/v2"
 import { LazySyntaxHighlighter as SyntaxHighlighter } from "@/components/ui/LazySyntaxHighlighter"
 
 import { deriveMessageRole } from "@/components/chat/message/messageRole"

@@ -1,5 +1,5 @@
 import React from "react"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { useI18n } from "@/lib/i18n"
 import { useDeviceInfo } from "@/lib/device"
 import { isDesktopShell } from "@/lib/desktop"

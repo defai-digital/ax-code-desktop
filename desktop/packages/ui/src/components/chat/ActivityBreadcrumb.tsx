@@ -1,5 +1,5 @@
 import React from "react"
-import type { Part } from "@ax-code/sdk/v2/client"
+import type { Part } from "@defai-digital/ax-code-sdk/v2/client"
 import { Icon } from "@/components/icon/Icon"
 import type { IconName } from "@/components/icon/icons"
 import { useStreamingStore } from "@/sync/streaming"

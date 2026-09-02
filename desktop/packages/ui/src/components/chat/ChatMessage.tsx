@@ -1,5 +1,5 @@
 import React from "react"
-import type { Message, Part } from "@ax-code/sdk/v2"
+import type { Message, Part } from "@defai-digital/ax-code-sdk/v2"
 import { useShallow } from "zustand/react/shallow"
 
 import { defaultCodeDark, defaultCodeLight } from "@/lib/codeTheme"

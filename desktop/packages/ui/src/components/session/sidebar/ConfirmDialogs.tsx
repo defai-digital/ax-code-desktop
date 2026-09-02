@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Icon } from "@/components/icon/Icon"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { useI18n } from "@/lib/i18n"
 
 export type DeleteSessionConfirmState = {

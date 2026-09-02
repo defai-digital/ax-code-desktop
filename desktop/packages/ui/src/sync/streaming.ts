@@ -7,7 +7,7 @@
  */
 
 import { create } from "zustand"
-import type { Message, SessionStatus } from "@ax-code/sdk/v2/client"
+import type { Message, SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
 import type { State } from "./types"
 import type { StreamPhase } from "@/types/streaming"
 

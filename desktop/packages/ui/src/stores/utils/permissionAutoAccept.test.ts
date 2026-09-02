@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import type { Session } from "@ax-code/sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import { autoRespondsPermission, type PermissionAutoAcceptMap } from "./permissionAutoAccept"
 
 function makeSession(id: string, parentID?: string): Session {

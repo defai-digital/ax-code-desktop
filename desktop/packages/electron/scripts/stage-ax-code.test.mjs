@@ -15,23 +15,24 @@ import {
 } from "./stage-ax-code.mjs"
 
 describe("readPinnedAxCodeVersion", () => {
-  it("reads the Desktop app version as the runtime pin", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-stage-pin-"))
-    try {
-      fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ version: "7.9.12" }))
-      expect(readPinnedAxCodeVersion(dir)).toBe("7.9.12")
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true })
-    }
+  it("reads the reviewed runtime manifest instead of the Desktop package", () => {
+    expect(readPinnedAxCodeVersion()).toBe("7.10.2")
   })
 
-  it("fails when the manifest has no version", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-stage-pin-missing-"))
+  it("fails when the runtime manifest has no version", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "ax-stage-pin-missing-"))
     try {
-      fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({}))
-      expect(() => readPinnedAxCodeVersion(dir)).toThrow("Cannot derive the pinned ax-code version")
+      const electronDir = path.join(root, "desktop", "packages", "electron")
+      const configDir = path.join(root, "config")
+      fs.mkdirSync(electronDir, { recursive: true })
+      fs.mkdirSync(configDir, { recursive: true })
+      fs.writeFileSync(
+        path.join(configDir, "ax-code-runtime.json"),
+        JSON.stringify({ schema: "ax-coder.ax-code-runtime.v1" }),
+      )
+      expect(() => readPinnedAxCodeVersion(electronDir)).toThrow("version must be SemVer")
     } finally {
-      fs.rmSync(dir, { recursive: true, force: true })
+      fs.rmSync(root, { recursive: true, force: true })
     }
   })
 })
@@ -87,7 +88,7 @@ describe("assetNameForTarget", () => {
 })
 
 describe("releaseAssetUrls", () => {
-  it("points at the sibling v<version> CLI release", () => {
+  it("points at the pinned v<version> CLI release", () => {
     expect(releaseAssetUrls({ version: "7.9.12", assetName: "ax-code-darwin-arm64.zip" })).toEqual({
       archiveUrl: "https://github.com/defai-digital/ax-code/releases/download/v7.9.12/ax-code-darwin-arm64.zip",
       signatureUrl:

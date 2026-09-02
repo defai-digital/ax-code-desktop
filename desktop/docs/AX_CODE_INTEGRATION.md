@@ -8,11 +8,11 @@ and what is being tracked for the future.
 
 Upstream's SDK README defines the supported integration surfaces:
 
-| Need                                            | Upstream-recommended path                |
-| ----------------------------------------------- | ---------------------------------------- |
-| App UI with a local process-isolated AX backend | `@ax-code/sdk/headless`                  |
-| First-party desktop/native GUI                  | `@ax-code/sdk/grpc` (proto contract)     |
-| TypeScript/JavaScript over raw HTTP             | `@ax-code/sdk/http` with `ax-code serve` |
+| Need                                            | Upstream-recommended path                              |
+| ----------------------------------------------- | ------------------------------------------------------ |
+| App UI with a local process-isolated AX backend | `@defai-digital/ax-code-sdk/headless`                  |
+| First-party desktop/native GUI                  | `@defai-digital/ax-code-sdk/grpc` (proto contract)     |
+| TypeScript/JavaScript over raw HTTP             | `@defai-digital/ax-code-sdk/http` with `ax-code serve` |
 
 This app uses the **headless** path: the web server launches the runtime via
 `startHeadlessBackend` (`packages/web/server/lib/ax-code/lifecycle.js`) and
@@ -23,13 +23,13 @@ Windows/WSL it falls back to spawning `ax-code serve` directly, which matches
 upstream's documented HTTP contract.
 
 Typed access goes through the generated v2 client: source code imports only
-public SDK entry points (`@ax-code/sdk/v2`, `@ax-code/sdk/v2/client`,
-`@ax-code/sdk/headless`, `@ax-code/sdk`). Deep `dist/` imports are not
+public SDK entry points (`@defai-digital/ax-code-sdk/v2`, `@defai-digital/ax-code-sdk/v2/client`,
+`@defai-digital/ax-code-sdk/headless`, `@defai-digital/ax-code-sdk`). Deep `dist/` imports are not
 allowed — the contract test in
 `packages/web/server/lib/ax-code/sdk-contract.test.js` pins the entry points.
 
 **Tracking — gRPC status (verified 2026-06-10 against SDK 2.2.0 and upstream
-`docs/sdk/native-transport.md`):** `@ax-code/sdk/grpc` is currently an API facade,
+`docs/sdk/native-transport.md`):** `@defai-digital/ax-code-sdk/grpc` is currently an API facade,
 not a transport change. `createAxCodeGrpcHttpBridge` implements every method
 over `createHeadlessClient` (the same HTTP client), `SubscribeEvents` consumes
 the same SSE route, `ConnectPty` uses WebSocket, and every method descriptor
@@ -43,21 +43,19 @@ not performance. Adopt it (incrementally, as future-proofing) once upstream
 ships the native gRPC server, or earlier only if measurements from
 `scripts/ax-code-perf-report.mjs` show pipeline overhead actually matters.
 
-## Workspace SDK and compatibility
+## Published SDK and runtime compatibility
 
 Two version axes move independently:
 
-- **SDK** (`@ax-code/sdk`): consumed from the monorepo workspace. See
-  `docs/AX_CODE_REVENDOR_CHECKLIST.md` for the workspace SDK contract checklist.
-- **Runtime/CLI** (`ax-code`): packaged releases bundle a CLI runtime pinned to
-  the app version (`packages/electron/resources/ax-code`, staged from the
-  sibling `v<version>` CLI release by `packages/electron/scripts/stage-ax-code.sh`
-  and minisign-verified). The runtime is replaced atomically by app updates —
+- **SDK** (`@defai-digital/ax-code-sdk`): consumed as the exact JSR dependency declared in the UI and web package
+  manifests. See `docs/AX_CODE_REVENDOR_CHECKLIST.md` for the published SDK contract checklist.
+- **Runtime/CLI** (`ax-code`): packaged releases bundle the artifact selected by
+  `config/ax-code-runtime.json` (`packages/electron/resources/ax-code`). Staging checks the pinned size and
+  SHA-256 before Minisign verification. The runtime is replaced atomically by app updates —
   there is no separate runtime self-upgrade for bundled builds
   (`POST /api/ax-code/upgrade` returns 409 when the resolved source is
   `bundled`, and the UI hides the upgrade action). Runtime resolution order
   (`packages/web/server/lib/ax-code/env-runtime.js`):
-
   1. `settings.axCodeBinary` (user-configured path).
   2. Explicit env vars (`AX_CODE_BINARY`, `AX_CODE_PATH`,
      `AX_CODE_DESKTOP_AX_CODE_PATH`, `AX_CODE_DESKTOP_AX_CODE_BIN`) — the

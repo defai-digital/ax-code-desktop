@@ -1,4 +1,4 @@
-import type { Part } from "@ax-code/sdk/v2"
+import type { Part } from "@defai-digital/ax-code-sdk/v2"
 import { isFullySyntheticMessage } from "@/lib/messages/synthetic"
 import { isRecord } from "@/lib/record"
 

@@ -1,4 +1,11 @@
-import type { Message, Part, PermissionRequest, QuestionRequest, SessionStatus, Todo } from "@ax-code/sdk/v2/client"
+import type {
+  Message,
+  Part,
+  PermissionRequest,
+  QuestionRequest,
+  SessionStatus,
+  Todo,
+} from "@defai-digital/ax-code-sdk/v2/client"
 import type { FileDiff } from "./types"
 
 type SessionCache = {

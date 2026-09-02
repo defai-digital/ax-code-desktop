@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import type { McpReadResourceResult, McpResource } from "@ax-code/sdk/v2"
+import type { McpReadResourceResult, McpResource } from "@defai-digital/ax-code-sdk/v2"
 
 import { resourcePreview, resourcesForServer } from "./McpResourceBrowser.helpers"
 

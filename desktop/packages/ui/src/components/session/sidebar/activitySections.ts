@@ -1,5 +1,5 @@
-import type { Session } from "@ax-code/sdk/v2"
-import type { SessionStatus } from "@ax-code/sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
+import type { SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
 
 export const ACTIVE_NOW_STORAGE_KEY = "oc.sessions.activeNow"
 export const ACTIVE_NOW_MAX_AGE_MS = 36 * 60 * 60 * 1000

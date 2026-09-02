@@ -1,5 +1,5 @@
 import React from "react"
-import type { SessionStatus } from "@ax-code/sdk/v2/client"
+import type { SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
 import type { PermissionRequest } from "@/types/permission"
 import type { QuestionRequest } from "@/types/question"
 import { useSessionHasError } from "@/sync/notification-store"

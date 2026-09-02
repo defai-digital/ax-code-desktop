@@ -409,10 +409,10 @@ export const LocalModelsPage: React.FC = () => {
             <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 typography-meta text-amber-100">
               Catalog is served by an <strong>installed</strong> ax-code CLI (
               <code className="typography-micro">{runtimeIdentity?.binaryPath}</code>
-              ), not this monorepo. Local edits to the model catalog will not appear until Desktop uses the workspace
-              CLI. For development, run <code className="typography-micro">pnpm run desktop:dev</code> (prefers monorepo
-              source) or set <code className="typography-micro">settings.axCodeBinary</code> /{" "}
-              <code className="typography-micro">AX_CODE_BINARY</code> to a source launcher.
+              ). Local AX Code edits will not appear until Desktop uses a matching installed or explicit runtime. For
+              development, run <code className="typography-micro">pnpm run dev</code> and set{" "}
+              <code className="typography-micro">settings.axCodeBinary</code> /{" "}
+              <code className="typography-micro">AX_CODE_BINARY</code> to the desired executable.
             </div>
           )}
 

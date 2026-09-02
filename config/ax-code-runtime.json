@@ -1,0 +1,49 @@
+{
+  "schema": "ax-coder.ax-code-runtime.v1",
+  "version": "7.10.2",
+  "repository": "defai-digital/ax-code",
+  "releaseTag": "v7.10.2",
+  "minisign": {
+    "publicKey": "resources/keys/ax-minisign.pub",
+    "keyId": "CF42FC69BEEF0EA5",
+    "size": 113,
+    "sha256": "41de2e31510ccfc6f3450d8de1e8ed59481413d00f8a58d65bddbc05042397b2"
+  },
+  "artifacts": {
+    "darwin-arm64": {
+      "filename": "ax-code-darwin-arm64.zip",
+      "size": 65740083,
+      "sha256": "0fd3c3696f87dd8652f24b7752fadf616c20f7e1872886602f02509b91fb1e45",
+      "signatureSize": 377,
+      "signatureSha256": "a5d870a114ab427afc7a137dce5f97b50b0f0ee28a200c7e5083129a3c63965f"
+    },
+    "linux-arm64": {
+      "filename": "ax-code-linux-arm64.tar.gz",
+      "size": 71626935,
+      "sha256": "a6ad70c80afbc622c2aae670682868f5e3a1db3ffcd69509912f77f88600d36e",
+      "signatureSize": 379,
+      "signatureSha256": "6c9bfdfe7f0f9482dc17007aa38ce9559f9da0586f2276c1d8fea227684e27d4"
+    },
+    "linux-x64": {
+      "filename": "ax-code-linux-x64.tar.gz",
+      "size": 71995150,
+      "sha256": "9c8ddca5702975bd1611f6833e731b9d481305f34eb3c79ebf25c0d0a76a3a6a",
+      "signatureSize": 377,
+      "signatureSha256": "269d9a7025d0e91e182d56e020e2468dc1b50607e0291cbd06a385c73a4ef39d"
+    },
+    "win32-arm64": {
+      "filename": "ax-code-windows-arm64.zip",
+      "size": 61611577,
+      "sha256": "7a44bdfd14e2976b5443ff00cb522a1b27a4430e094eb898b09c333e77d01850",
+      "signatureSize": 378,
+      "signatureSha256": "b82ba10bf335f0802d67582d298526d6b38639d5c74a602056095e32dad8f432"
+    },
+    "win32-x64": {
+      "filename": "ax-code-windows-x64.zip",
+      "size": 66411148,
+      "sha256": "83a3a0297847987269553bda2c7112a8d88d5c74e3f048c9a671d7b697dc83a6",
+      "signatureSize": 376,
+      "signatureSha256": "20c7bf2df0c28c75456d62a4571da21b15d9991ffa163a607528a286ca7795a8"
+    }
+  }
+}

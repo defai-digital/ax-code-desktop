@@ -1,4 +1,4 @@
-import type { SessionRollbackPoint } from "@ax-code/sdk/v2"
+import type { SessionRollbackPoint } from "@defai-digital/ax-code-sdk/v2"
 
 export function formatRollbackPointMeta(point: SessionRollbackPoint): string {
   const labels = point.tools.length > 0 ? point.tools : point.kinds

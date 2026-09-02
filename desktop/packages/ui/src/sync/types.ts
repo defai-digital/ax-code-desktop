@@ -10,7 +10,7 @@ import type {
   SessionStatus,
   Todo,
   VcsInfo,
-} from "@ax-code/sdk/v2/client"
+} from "@defai-digital/ax-code-sdk/v2/client"
 
 export type FileDiff = {
   file?: string

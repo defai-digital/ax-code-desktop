@@ -11,7 +11,7 @@ import type {
   Part,
   SessionRollbackApplyInput,
   SessionMoveValidation,
-} from "@ax-code/sdk/v2/client"
+} from "@defai-digital/ax-code-sdk/v2/client"
 import { Binary } from "./binary"
 import { useSessionUIStore } from "./session-ui-store"
 import { useInputStore } from "./input-store"

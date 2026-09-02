@@ -76,7 +76,7 @@ import { SyncStatusIndicator } from "@/components/ui/SyncStatusIndicator"
 import { ReconnectBanner } from "@/components/ui/ReconnectBanner"
 import { NotificationCenter } from "@/components/notifications/NotificationCenter"
 import { useNotificationStore } from "@/stores/useNotificationStore"
-import type { Session } from "@ax-code/sdk/v2/client"
+import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import type { IconName } from "@/components/icon/icons"
 
 const DESKTOP_HEADER_ICON_BUTTON_CLASS =

@@ -1,4 +1,4 @@
-import type { McpReadResourceResult, McpResource } from "@ax-code/sdk/v2"
+import type { McpReadResourceResult, McpResource } from "@defai-digital/ax-code-sdk/v2"
 
 const MAX_PREVIEW_CHARS = 12_000
 

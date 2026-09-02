@@ -1,4 +1,4 @@
-import type { Part } from "@ax-code/sdk/v2/client"
+import type { Part } from "@defai-digital/ax-code-sdk/v2/client"
 
 export const compareIds = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 

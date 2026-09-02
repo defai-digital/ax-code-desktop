@@ -1,5 +1,5 @@
 import React from "react"
-import type { Part } from "@ax-code/sdk/v2"
+import type { Part } from "@defai-digital/ax-code-sdk/v2"
 import { MarkdownRenderer } from "../../MarkdownRenderer"
 import type { StreamPhase } from "../types"
 import type { ContentChangeReason } from "@/hooks/useChatAutoFollow"

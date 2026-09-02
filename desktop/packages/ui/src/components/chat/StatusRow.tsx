@@ -2,7 +2,7 @@ import React from "react"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { cn } from "@/lib/utils"
 import { useDirectorySync } from "@/sync/sync-context"
-import type { Todo } from "@ax-code/sdk/v2/client"
+import type { Todo } from "@defai-digital/ax-code-sdk/v2/client"
 
 // Compat aliases for old TodoItem shape
 type TodoItem = Todo & { id?: string }

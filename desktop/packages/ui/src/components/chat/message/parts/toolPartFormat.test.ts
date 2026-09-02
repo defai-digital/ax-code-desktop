@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import type { ToolPart as ToolPartType } from "@ax-code/sdk/v2"
+import type { ToolPart as ToolPartType } from "@defai-digital/ax-code-sdk/v2"
 
 import {
   buildWritePreviewPatch,

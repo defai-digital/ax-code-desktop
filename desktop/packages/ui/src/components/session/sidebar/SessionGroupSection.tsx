@@ -1,6 +1,6 @@
 import React from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import type { Session } from "@ax-code/sdk/v2"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 // Archived buckets routinely grow into the hundreds/thousands; virtualize
 // when we cross this row count so the DOM stays bounded.

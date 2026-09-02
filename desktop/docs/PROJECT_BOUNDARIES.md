@@ -7,13 +7,13 @@ be fixed.
 
 ## Ownership map
 
-| Area                                           | Owns                                                                                                                                            | Should not own                                                               |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `packages/electron`                            | Window lifecycle, auto-update, packaged resources, utility-process startup, desktop security policy                                             | AX Code runtime behavior, provider logic, search logic, project indexing     |
-| `packages/web/server`                          | Local desktop control plane: loopback HTTP server, auth bridge, static app hosting, local file/git/terminal adapters, AX Code process lifecycle | UI presentation, SDK-private internals, duplicated AX Code runtime semantics |
-| `packages/web/src`                             | Browser entrypoints and web runtime adapters that install `RuntimeAPIs` for the UI                                                              | Deep UI internals, desktop shell behavior                                    |
-| `packages/ui`                                  | Presentation, state, typed UI API contracts, SDK-facing client facade                                                                           | Local process lifecycle, Electron APIs, Tauri APIs, server-only dependencies |
-| workspace `@ax-code/sdk` / installed `ax-code` | Sessions, models/providers, skills/plugins, search/indexing, runtime API contracts                                                              | Desktop windowing or packaging                                               |
+| Area                                                              | Owns                                                                                                                                            | Should not own                                                               |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `packages/electron`                                               | Window lifecycle, auto-update, packaged resources, utility-process startup, desktop security policy                                             | AX Code runtime behavior, provider logic, search logic, project indexing     |
+| `packages/web/server`                                             | Local desktop control plane: loopback HTTP server, auth bridge, static app hosting, local file/git/terminal adapters, AX Code process lifecycle | UI presentation, SDK-private internals, duplicated AX Code runtime semantics |
+| `packages/web/src`                                                | Browser entrypoints and web runtime adapters that install `RuntimeAPIs` for the UI                                                              | Deep UI internals, desktop shell behavior                                    |
+| `packages/ui`                                                     | Presentation, state, typed UI API contracts, SDK-facing client facade                                                                           | Local process lifecycle, Electron APIs, Tauri APIs, server-only dependencies |
+| published `@defai-digital/ax-code-sdk` / pinned `ax-code` runtime | Sessions, models/providers, skills/plugins, search/indexing, runtime API contracts                                                              | Desktop windowing or packaging                                               |
 
 ## Import rules
 
@@ -21,11 +21,11 @@ be fixed.
   entrypoints: app entrypoints, styles, `terminalApi`, and `api/*` contracts.
 - `packages/web` and `packages/electron` must not import sibling package source
   paths such as `../ui/src` or `../desktop/src`.
-- Runtime access should prefer public SDK entrypoints such as `@ax-code/sdk/v2`
+- Runtime access should prefer public SDK entrypoints such as `@defai-digital/ax-code-sdk/v2`
   and the server-side AX Code lifecycle adapter. Do not import SDK `dist/`
   internals.
 
-The authoritative checker for these rules runs from the monorepo root with
+The authoritative checker for these rules runs from the AX Coder root with
 `pnpm run check:desktop-boundaries` and fails on violations. The historical
 `desktop/scripts/check-boundary-imports.mjs` entrypoint delegates to that same
 checker, so local and CI policy cannot drift. When a new cross-package

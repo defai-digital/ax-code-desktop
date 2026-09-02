@@ -5,7 +5,7 @@
  * Desktop-specific helpers (resolveWorkModeSend, workModeFallbackPrompt) live here.
  */
 
-import { WorkMode } from "@ax-code/sdk/mode"
+import { WorkMode } from "@defai-digital/ax-code-sdk/mode"
 
 // ── Re-exports from core ────────────────────────────────────────────────
 export type WorkModeId = WorkMode.Id
