@@ -1,5 +1,10 @@
 # ADR-006: Preserve Application Identity During Source Ownership Transfer
 
+> 2026-09-02 supersession note: ADR-008 changes only the local source-removal and publisher-removal order. AX Coder is
+> now the sole GUI source owner, AX Code no longer contains a Desktop publisher, and public releases are frozen. The
+> identity, signing, updater, continuity, upgrade, rollback, and explicit approval requirements in this ADR remain in
+> force.
+
 | Field          | Value                                                                                                         |
 | -------------- | ------------------------------------------------------------------------------------------------------------- |
 | Status         | Accepted                                                                                                      |

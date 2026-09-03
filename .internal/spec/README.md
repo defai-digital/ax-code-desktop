@@ -11,4 +11,4 @@
 | [Contract Authority and Dispatch](SPEC-2026-09-02-contract-authority-and-dispatch.md)       | Accepted design; Phase 6 deferred         | ADR-002; ADR-007          |
 | [Desktop Release Migration and Rollback](SPEC-2026-09-02-release-migration-and-rollback.md) | Local implementation; shadow run pending  | ADR-004; ADR-006          |
 | [User Data and Identity Continuity](SPEC-2026-09-02-user-data-and-identity-continuity.md)   | Identity gate; signed checks pending      | ADR-006                   |
-| [Desktop Source-Ownership Cutover](SPEC-2026-09-02-source-ownership-cutover.md)             | Accepted; implementation active           | ADR-008                   |
+| [Desktop Source-Ownership Cutover](SPEC-2026-09-02-source-ownership-cutover.md)             | Implemented and verified                  | ADR-008                   |

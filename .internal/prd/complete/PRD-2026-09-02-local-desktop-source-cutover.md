@@ -2,7 +2,7 @@
 
 | Field   | Value                                                                      |
 | ------- | -------------------------------------------------------------------------- |
-| Status  | Accepted for implementation                                                |
+| Status  | Complete                                                                   |
 | Date    | 2026-09-02                                                                 |
 | Decider | User                                                                       |
 | Related | Product and Desktop extraction PRD; ADR-008; source-ownership cutover spec |
@@ -62,3 +62,14 @@ copy generated output back from AX Coder.
 
 Public Desktop releases remain frozen until the existing signed shadow, update, data-continuity, and rollback gates
 pass and a separate human approval enables release ownership.
+
+## Completion evidence
+
+The local source cutover completed on 2026-09-02. AX Coder ownership guards landed in
+`0a354744ca81f1ac90a1a4f8f11b8697d2e30268`, the Desktop Winget generator landed in
+`7e92a80736d3e36534df9109dc04d742098d1c1f`, and AX Code removed its Desktop tree in
+`6a2e03d90411ddd7141047baa59d4a754f1c4107`. The complete verification ledger is
+`.internal/reports/PHASE-4A-2026-09-02-local-source-cutover.md`.
+
+This completion applies only to source ownership. Public release ownership, signing, update, upgrade, data
+continuity, and rollback evidence remain open under the original Phase 3 and Phase 4 release gates.

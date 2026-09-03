@@ -1,5 +1,9 @@
 # Phase 3 Shadow Release Implementation Evidence
 
+> Later status note: ADR-008 separately authorized the local source-ownership cutover after this report was written.
+> The final Phase 4 paragraph below is historical. Current source and release state is recorded in
+> `PHASE-4A-2026-09-02-local-source-cutover.md`.
+
 ## Scope
 
 This report records the local Phase 3 implementation at

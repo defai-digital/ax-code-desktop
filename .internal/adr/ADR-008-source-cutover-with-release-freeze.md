@@ -2,7 +2,7 @@
 
 | Field      | Value                                                                     |
 | ---------- | ------------------------------------------------------------------------- |
-| Status     | Accepted                                                                  |
+| Status     | Accepted; implemented                                                     |
 | Date       | 2026-09-02                                                                |
 | Deciders   | User; AX Coder and AX Code maintainers                                    |
 | Supersedes | ADR-002 and ADR-006 only for the ordering of local source removal         |
@@ -33,6 +33,17 @@ Public Desktop release ownership is frozen between the source cutover and the la
 
 Runtime contracts mentioning desktop or GUI clients remain in AX Code because they are consumed by AX Coder and other
 native hosts; they are not a second GUI implementation.
+
+## Implementation evidence
+
+- AX Coder governance authorization: `daed764`.
+- AX Coder source-ownership enforcement: `0a354744ca81f1ac90a1a4f8f11b8697d2e30268`.
+- AX Coder Desktop Winget ownership: `7e92a80736d3e36534df9109dc04d742098d1c1f`.
+- AX Code source removal: `6a2e03d90411ddd7141047baa59d4a754f1c4107`.
+- Verification ledger: `.internal/reports/PHASE-4A-2026-09-02-local-source-cutover.md`.
+
+AX Coder tracks 2,751 Desktop files and remains `shadow-only`. AX Code tracks no `desktop/**` path and has no Desktop
+build or publication workflow.
 
 ## Consequences
 

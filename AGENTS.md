@@ -25,15 +25,15 @@ Canonical boundaries:
 
 ## Current phase
 
-Phases 1 and 2 are complete, and Phase 3 is in progress. The reviewed Desktop source and its filtered history now
-live under `desktop/`, and the independent workspace consumes the published JSR SDK with a frozen lockfile and a
-pinned signed AX Code runtime. Independent CI, CodeQL, and a manual private-repository shadow workflow are
-implemented. The shadow workflow has not run because this local repository has no remote, and signed cross-platform,
-upgrade, and rollback evidence remains pending. The original source remains under `../ax-code/desktop/` until the
-release, update, rollback, and paired-cutover gates pass.
+Phases 1 and 2 are complete, and Phase 3 external release evidence is in progress. The reviewed Desktop source and
+its filtered history live under `desktop/`, and the independent workspace consumes the published JSR SDK with a
+frozen lockfile and a pinned signed AX Code runtime. Independent CI, CodeQL, and a manual private-repository shadow
+workflow are implemented. The local source-ownership cutover is complete under ADR-008: AX Code removed its Desktop
+tree at `6a2e03d90411ddd7141047baa59d4a754f1c4107`, and AX Coder is the sole current GUI source owner.
 
-Do not delete source from AX Code, publish, rebrand, or release Desktop production artifacts merely because the
-history import is complete. Follow the governance order below.
+The shadow workflow has not run because this local repository has no remote, and signed cross-platform, upgrade, and
+rollback evidence remains pending. Keep public release disabled, do not rebrand, and do not restore GUI source to AX
+Code. Follow the governance order below.
 
 ## Environment and commands
 
@@ -92,7 +92,8 @@ The active plan is `.internal/prd/PRD-2026-09-02-ax-coder-product-and-desktop-ex
 
 Phase 1 evidence is in `.internal/reports/extraction/`. Phase 2 completion evidence is in
 `.internal/reports/PHASE-2-2026-09-02-independent-workspace-candidate.md`. Phase 3 local implementation evidence is
-in `.internal/reports/PHASE-3-2026-09-02-shadow-release-implementation.md`. The workspace consumes the SDK pin in
+in `.internal/reports/PHASE-3-2026-09-02-shadow-release-implementation.md`. Local source-cutover evidence is in
+`.internal/reports/PHASE-4A-2026-09-02-local-source-cutover.md`. The workspace consumes the SDK pin in
 `config/ax-code-sdk.json`, the signed runtime pin in `config/ax-code-runtime.json`, and the compatibility identity and
 release state in `config/desktop-identity.json` and `config/desktop-release-policy.json`. Public release commands
-remain unavailable until signed shadow, update, rollback, and human cutover gates pass.
+remain unavailable until signed shadow, update, rollback, and human release-cutover gates pass.

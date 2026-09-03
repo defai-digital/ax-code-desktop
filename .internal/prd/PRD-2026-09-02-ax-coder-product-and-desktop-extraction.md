@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                               |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Accepted; Phases 0-2 complete, Phase 3 in progress                                                                                  |
+| Status            | Accepted; Phases 0-2 and local source cutover complete, Phase 3 release evidence in progress                                        |
 | Created           | 2026-09-02                                                                                                                          |
 | Owner             | AX Coder product, AX Code Desktop, and AX Agent runtime owners                                                                      |
 | Target repository | `~/code/ax-coder`                                                                                                                   |
@@ -19,6 +19,11 @@ release, application-identity change, signing-key change, or updater cutover.
 
 The SDK publication recorded below was performed under the user's explicit JSR selection and subsequent direction to
 continue the remaining implementation. It did not publish a Desktop artifact or change Desktop release ownership.
+
+Source-cutover amendment (2026-09-02): the user separately authorized the local GUI source removal after AX Coder's
+independent workspace and source-ownership gates passed. ADR-008 and the local source-cutover PRD supersede this PRD's
+original ordering only for source removal. They do not authorize a remote, public release, signing change, updater
+cutover, identity change, or data migration.
 
 At the accepted Phase 0 baseline:
 
@@ -42,9 +47,8 @@ Current implementation state:
 - Phase 1 imported the filtered Desktop history at AX Coder merge
   `a1d62422f150cb775875e58f22db171b91e9d0be`; its exact evidence is under
   `.internal/reports/extraction/`.
-- AX Code Desktop production source remains present at the source baseline, and Desktop source removal is not
-  authorized. AX Code main later advanced to `3bb0822ddf305cb5fda11fb9eb668f4bc14d8600` for the corrected JSR workflow
-  invocation and its required generated model snapshot.
+- AX Code main advanced to `3bb0822ddf305cb5fda11fb9eb668f4bc14d8600` for the corrected JSR workflow invocation
+  and its required generated model snapshot before the separately authorized source cutover.
 - Phase 2 independent workspace and public-contract consumption completed on 2026-09-02 at AX Coder implementation
   commit `e0d0d69f0d3d4628ede504cdbfa3e3065320bbb9`.
 - AX Code tag `sdk-v2.2.0` fixes SDK producer commit `1c3eb8cbfa1160c35ec3dbc8d05561b4df248d8c`.
@@ -54,7 +58,10 @@ Current implementation state:
 - Phase 3 local CI and release-shadow implementation landed at AX Coder commit
   `6e0ce9438cf6f9087930a53f3bde13ee2896feda`. Local unsigned macOS arm64 packaging and smoke pass. The repository
   has no remote, so no cross-platform Actions run, required-signing run, upgrade, or rollback evidence exists yet.
-- No public Desktop release, updater cutover, source deletion, or portfolio autonomy has occurred.
+- The local source-ownership cutover completed at AX Code `6a2e03d90411ddd7141047baa59d4a754f1c4107`, with
+  receiving AX Coder commits `0a354744ca81f1ac90a1a4f8f11b8697d2e30268` and
+  `7e92a80736d3e36534df9109dc04d742098d1c1f`. No public Desktop release, updater cutover, identity change, or
+  portfolio autonomy has occurred.
 
 ## 1. Executive summary
 
@@ -553,6 +560,10 @@ The release cutover is staged:
 6. AX Code release workflows stop creating Desktop artifacts only after the first AX Coder-owned release is
    verified.
 
+ADR-008 supersedes step 6 for local source and publisher removal only. AX Code no longer contains a Desktop publisher,
+while AX Coder remains `shadow-only`; therefore no repository can publish a new public Desktop release until the
+remaining signed shadow, upgrade, rollback, continuity, and explicit approval gates pass.
+
 ### 13.2 Identity
 
 Source extraction does not automatically change:
@@ -632,15 +643,22 @@ Status: In progress. Local implementation landed on 2026-09-02 at
 
 Exit: release evidence is equivalent to or stronger than the source repository baseline.
 
-### Phase 4: Release and source-ownership cutover
+### Phase 4: Release cutover and completed source-ownership slice
+
+Status: local source ownership completed on 2026-09-02 under ADR-008. Public release, updater, identity, and routing
+cutover remains pending and unauthorized.
 
 - Move public release, security reporting, Homebrew, updater, documentation, and issue-routing ownership.
 - Publish the first AX Coder-owned compatibility release.
 - Verify real update and rollback behavior.
-- Remove Desktop production source, workspace entries, CI, and release scripts from AX Code in a paired change.
+- Completed: remove Desktop production source, workspace entries, CI, and release scripts from AX Code in a paired
+  change.
 - Retain only intentional AX Code client launchers and contract fixtures.
 
 Exit: one production Desktop source owner; AX Code core and release gates are green; no duplicate release path.
+
+The source-owner portion of this exit is complete. The release-owner portion remains open because AX Coder is
+fail-closed in `shadow-only` mode and the signed migration evidence does not yet exist.
 
 ### Phase 5: Portfolio read-only product slice
 
@@ -832,6 +850,9 @@ Every phase is feature-gated and independently reversible. Rollout advances thro
 5. source-ownership cutover;
 6. execute-approved automation;
 7. bounded autonomy.
+
+ADR-008 intentionally advanced source-ownership cutover ahead of the signed candidate and public release steps. The
+remaining rollout resumes at signed shadow evidence without changing the frozen updater or installed application.
 
 Kill criteria include any duplicate dispatch, credential leak, data loss, updater break, contract drift, unsafe
 permission expansion, unreviewed merge/release, or inability to restore the last verified Desktop release.

@@ -2,7 +2,7 @@
 
 | Field   | Value                             |
 | ------- | --------------------------------- |
-| Status  | Accepted for implementation       |
+| Status  | Implemented and verified          |
 | Date    | 2026-09-02                        |
 | Related | Local source-cutover PRD; ADR-008 |
 
@@ -75,3 +75,10 @@ clean after their commits.
 This cutover creates no public artifacts and changes no installed application. AX Coder's existing release-policy gate
 must continue to reject public publication. Public release migration remains governed by the release-migration and
 user-data-continuity specifications.
+
+## 6. Implementation record
+
+The receiving source-ownership commits are `0a354744ca81f1ac90a1a4f8f11b8697d2e30268` and
+`7e92a80736d3e36534df9109dc04d742098d1c1f`. The paired AX Code removal commit is
+`6a2e03d90411ddd7141047baa59d4a754f1c4107`. The verification results and rollback anchors are recorded in
+`.internal/reports/PHASE-4A-2026-09-02-local-source-cutover.md`.
