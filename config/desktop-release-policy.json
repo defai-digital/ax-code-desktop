@@ -1,0 +1,15 @@
+{
+  "schema": "ax-coder.desktop-release-policy.v1",
+  "stage": "shadow-only",
+  "publicRelease": {
+    "enabled": false,
+    "repository": "defai-digital/ax-code",
+    "tagPrefix": "desktop-v"
+  },
+  "shadow": {
+    "workflow": "desktop-shadow.yml",
+    "artifactChannel": "github-actions",
+    "retentionDays": 7,
+    "signingMode": "explicit-only"
+  }
+}

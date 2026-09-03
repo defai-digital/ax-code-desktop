@@ -1,0 +1,9 @@
+name: ax-coder-codeql
+
+paths-ignore:
+  - "**/*.test.js"
+  - "**/*.test.mjs"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/test/**"
+  - "**/tests/**"

@@ -12,6 +12,9 @@ build/
 !.env.example
 .tmp/
 .local/
+shadow-artifacts/
+shadow-evidence/
+shadow-stage/
 *.db
 auth.json
 

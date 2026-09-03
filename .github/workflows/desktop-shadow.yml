@@ -1,0 +1,600 @@
+name: Desktop Shadow
+
+on:
+  workflow_dispatch:
+    inputs:
+      signing_mode:
+        description: Build unsigned candidates or require every configured platform signature
+        required: true
+        default: unsigned
+        type: choice
+        options:
+          - unsigned
+          - required
+      confirm_shadow_only:
+        description: Confirm that this run must not create a tag, GitHub Release, or public update
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: desktop-shadow-${{ github.ref }}-${{ inputs.signing_mode }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  AX_CODE_DISABLE_SHARE: "true"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      version: ${{ steps.release-inputs.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Require explicit shadow-only acknowledgement
+        env:
+          CONFIRM_SHADOW_ONLY: ${{ inputs.confirm_shadow_only }}
+          REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM_SHADOW_ONLY" != "true" ]; then
+            echo "::error::This workflow is shadow-only. Confirm that it must not publish a release."
+            exit 1
+          fi
+          if [ "$REPOSITORY_VISIBILITY" != "private" ]; then
+            echo "::error::Shadow installers may be retained only in a private repository."
+            exit 1
+          fi
+
+      - name: Setup AX Coder toolchain
+        uses: ./.github/actions/setup-ax-coder-toolchain
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve release inputs
+        id: release-inputs
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check repository, identity, and release boundaries
+        run: pnpm run check:boundaries
+
+      - name: Typecheck Desktop
+        run: pnpm run typecheck
+
+      - name: Lint Desktop
+        run: pnpm run lint
+
+      - name: Test Desktop
+        run: pnpm run test
+
+      - name: Build Desktop
+        run: pnpm run build
+
+      - name: Record preflight evidence
+        env:
+          SIGNING_MODE: ${{ inputs.signing_mode }}
+        run: |
+          node script/shadow-release-evidence.mjs \
+            --target preflight \
+            --signing-mode "$SIGNING_MODE" \
+            --signing-status not-applicable \
+            --passed frozen-install \
+            --passed boundaries \
+            --passed release-contract \
+            --passed typecheck \
+            --passed lint \
+            --passed tests \
+            --passed build \
+            --require-clean \
+            --out shadow-evidence/preflight.json
+
+      - name: Upload preflight evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: shadow-evidence-preflight-${{ github.run_id }}
+          path: shadow-evidence/preflight.json
+          if-no-files-found: error
+          retention-days: 7
+
+  package-web:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup AX Coder toolchain
+        uses: ./.github/actions/setup-ax-coder-toolchain
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and pack web compatibility package
+        run: |
+          set -euo pipefail
+          pnpm --filter ax-code-desktop run build
+          mkdir -p "$RUNNER_TEMP/web-pack"
+          pnpm --dir desktop/packages/web pack --pack-destination "$RUNNER_TEMP/web-pack"
+
+      - name: Collect web shadow artifact
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          node script/collect-shadow-artifacts.mjs \
+            --target web \
+            --source "$RUNNER_TEMP/web-pack" \
+            --out shadow-artifacts/web \
+            --version "$VERSION"
+
+      - name: Upload staged web artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: shadow-stage-web
+          path: shadow-artifacts/web
+          if-no-files-found: error
+          retention-days: 1
+
+  package-macos:
+    needs: preflight
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup AX Coder toolchain
+        uses: ./.github/actions/setup-ax-coder-toolchain
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Minisign
+        run: brew install minisign
+
+      - name: Require Apple signing and notarization credentials
+        if: inputs.signing_mode == 'required'
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          for name in APPLE_API_ISSUER APPLE_API_KEY_B64 APPLE_API_KEY_ID APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required for signed shadow artifacts"
+              exit 1
+            fi
+          done
+          if [ "$APPLE_TEAM_ID" != "N5ZUZDUJS6" ]; then
+            echo "::error::APPLE_TEAM_ID does not match the frozen compatibility identity"
+            exit 1
+          fi
+
+      - name: Install Apple certificate
+        if: inputs.signing_mode == 'required'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          keychain_path="$RUNNER_TEMP/electron-signing.keychain-db"
+          keychain_password="$(openssl rand -base64 32)"
+          certificate_path="$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$certificate_path"
+          security import "$certificate_path" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain_path"
+          security list-keychain -d user -s "$keychain_path"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain_path"
+          identity="$(security find-identity -v -p codesigning "$keychain_path" | awk -F '"' '/Developer ID Application/ { print $2; exit }')"
+          if [ -z "$identity" ] || [[ "$identity" != *"($APPLE_TEAM_ID)"* ]]; then
+            echo "::error::The imported Developer ID identity does not match APPLE_TEAM_ID"
+            exit 1
+          fi
+          echo "AX_CODE_APPLE_CODESIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+      - name: Configure Apple API key
+        if: inputs.signing_mode == 'required'
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        run: |
+          set -euo pipefail
+          key_path="$RUNNER_TEMP/apple-api-key.p8"
+          echo "$APPLE_API_KEY_B64" | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          {
+            echo "APPLE_API_KEY=$key_path"
+            echo "APPLE_API_KEY_ID=$APPLE_API_KEY_ID"
+            echo "APPLE_API_ISSUER=$APPLE_API_ISSUER"
+          } >> "$GITHUB_ENV"
+
+      - name: Build Desktop
+        run: pnpm run build
+
+      - name: Package unsigned macOS shadow candidate
+        if: inputs.signing_mode == 'unsigned'
+        env:
+          APPLE_KEYCHAIN_PROFILE: ""
+          AX_CODE_STAGE_REQUIRED: "true"
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: >-
+          pnpm run package:desktop -- --mac --arm64 --publish=never
+          --config.mac.identity=null --config.mac.notarize=false
+
+      - name: Package signed macOS shadow candidate
+        if: inputs.signing_mode == 'required'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          AX_CODE_STAGE_REQUIRED: "true"
+          CSC_IDENTITY_AUTO_DISCOVERY: "true"
+        run: pnpm run package:desktop -- --mac --arm64 --publish=never
+
+      - name: Sign, notarize, and audit macOS disk image
+        if: inputs.signing_mode == 'required'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          dmg="$(find desktop/packages/electron/dist -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          app="$(find desktop/packages/electron/dist -maxdepth 2 -type d -name 'AX Code.app' -print -quit)"
+          test -n "$dmg"
+          test -n "$app"
+          codesign --force --timestamp --sign "$AX_CODE_APPLE_CODESIGN_IDENTITY" "$dmg"
+          codesign --verify --strict --verbose=2 "$dmg"
+          dmg_details="$(codesign -dv --verbose=4 "$dmg" 2>&1)"
+          grep -F "Authority=Developer ID Application: DEFAI PRIVATE LIMITED" <<< "$dmg_details"
+          grep -F "TeamIdentifier=${APPLE_TEAM_ID}" <<< "$dmg_details"
+          xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          app_details="$(codesign -dv --verbose=4 "$app" 2>&1)"
+          grep -F "Authority=Developer ID Application: DEFAI PRIVATE LIMITED" <<< "$app_details"
+          grep -F "TeamIdentifier=${APPLE_TEAM_ID}" <<< "$app_details"
+          spctl --assess --type execute --verbose=2 "$app"
+          node desktop/packages/electron/scripts/refresh-macos-update-metadata.mjs \
+            --artifact "$dmg" \
+            --metadata desktop/packages/electron/dist/latest-mac.yml
+
+      - name: Smoke packaged app and bundled runtime
+        env:
+          AX_CODE_DESKTOP_DISABLE_AUTO_UPDATE: "1"
+          AX_CODE_STAGE_REQUIRED: "true"
+        run: pnpm run smoke:packaged -- --artifacts "$RUNNER_TEMP/desktop-smoke"
+
+      - name: Ad-hoc sign unpacked app for unsigned ASAR smoke
+        if: inputs.signing_mode == 'unsigned'
+        run: |
+          set -euo pipefail
+          app="$(find desktop/packages/electron/dist -maxdepth 2 -type d -name 'AX Code.app' -print -quit)"
+          test -n "$app"
+          codesign --force --deep --sign - "$app"
+
+      - name: Smoke packaged ASAR CLI
+        run: pnpm run smoke:packaged-asar-cli -- --mac --arm64
+
+      - name: Collect macOS shadow artifacts
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          node script/collect-shadow-artifacts.mjs \
+            --target darwin-arm64 \
+            --source desktop/packages/electron/dist \
+            --out shadow-artifacts/darwin-arm64 \
+            --version "$VERSION"
+
+      - name: Upload macOS smoke diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: shadow-smoke-diagnostics-darwin-arm64-${{ github.run_id }}
+          path: ${{ runner.temp }}/desktop-smoke
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Upload staged macOS artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: shadow-stage-darwin-arm64
+          path: shadow-artifacts/darwin-arm64
+          if-no-files-found: error
+          retention-days: 1
+
+  package-windows:
+    needs: preflight
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2022
+            arch: x64
+            target: win32-x64
+            unpacked: win-unpacked
+          - runner: windows-11-arm
+            arch: arm64
+            target: win32-arm64
+            unpacked: win-arm64-unpacked
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup AX Coder toolchain
+        uses: ./.github/actions/setup-ax-coder-toolchain
+
+      - name: Install dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install Minisign
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $zip = Join-Path $env:RUNNER_TEMP "minisign.zip"
+          Invoke-WebRequest -Uri "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-win64.zip" -OutFile $zip
+          $directory = Join-Path $env:RUNNER_TEMP "minisign-bin"
+          Expand-Archive -LiteralPath $zip -DestinationPath $directory -Force
+          $minisignArchitecture = if ($env:RUNNER_ARCH -eq "ARM64") { "aarch64" } else { "x86_64" }
+          $executable = Join-Path $directory "minisign-win64"
+          $executable = Join-Path $executable $minisignArchitecture
+          $executable = Join-Path $executable "minisign.exe"
+          if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
+            throw "minisign.exe for $minisignArchitecture was not found"
+          }
+          Split-Path -Parent $executable | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install AzureSignTool
+        if: inputs.signing_mode == 'required'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $directory = Join-Path $env:RUNNER_TEMP "azuresigntool"
+          dotnet tool install AzureSignTool --tool-path $directory --version 7.0.1
+          $tool = Join-Path $directory "AzureSignTool.exe"
+          if (-not (Test-Path $tool)) { throw "AzureSignTool not found at $tool" }
+          "AZURE_SIGNTOOL_PATH=$tool" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Require Windows signing credentials
+        if: inputs.signing_mode == 'required'
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          set -euo pipefail
+          for name in AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID AZURE_SIGNTOOL_PATH; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is required for signed shadow artifacts"
+              exit 1
+            fi
+          done
+
+      - name: Build and package Windows shadow candidate
+        shell: bash
+        env:
+          AX_CODE_STAGE_REQUIRED: "true"
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_KEY_VAULT_CERTIFICATE: cert-defai
+          AZURE_KEY_VAULT_URL: https://keyvault-defai.vault.azure.net
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          WINDOWS_CERTIFICATE_SHA1: FC40F1109912C025E751E804AA9BD1538A2D12EF
+          WINDOWS_SIGNING_REQUIRED: ${{ inputs.signing_mode == 'required' && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          pnpm --filter @ax-code/electron run build
+          pnpm run package:desktop -- --win --${{ matrix.arch }} --publish=never
+
+      - name: Audit Windows signatures
+        if: inputs.signing_mode == 'required'
+        shell: pwsh
+        run: >-
+          pwsh -NoLogo -NoProfile -NonInteractive
+          -File desktop/packages/electron/scripts/audit-windows-signatures.ps1
+          -Root desktop/packages/electron/dist/${{ matrix.unpacked }}
+          -ExpectedThumbprint FC40F1109912C025E751E804AA9BD1538A2D12EF
+
+      - name: Smoke packaged ASAR CLI
+        shell: bash
+        run: pnpm run smoke:packaged-asar-cli -- --win --${{ matrix.arch }}
+
+      - name: Collect Windows shadow artifacts
+        shell: bash
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          node script/collect-shadow-artifacts.mjs \
+            --target ${{ matrix.target }} \
+            --source desktop/packages/electron/dist \
+            --out shadow-artifacts/${{ matrix.target }} \
+            --version "$VERSION"
+
+      - name: Upload staged Windows artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: shadow-stage-${{ matrix.target }}
+          path: shadow-artifacts/${{ matrix.target }}
+          if-no-files-found: error
+          retention-days: 1
+
+  package-linux:
+    needs: preflight
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x64
+            target: linux-x64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            target: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup AX Coder toolchain
+        uses: ./.github/actions/setup-ax-coder-toolchain
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install Linux packaging dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential python3 \
+            libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 \
+            xdg-utils libatspi2.0-0 libuuid1 \
+            rpm minisign
+
+      - name: Build and package Linux shadow candidate
+        env:
+          AX_CODE_STAGE_REQUIRED: "true"
+          ELECTRON_BUILDER_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          pnpm --filter @ax-code/electron run build
+          pnpm run package:desktop -- --linux --${{ matrix.arch }} --publish=never
+
+      - name: Smoke packaged ASAR CLI
+        run: pnpm run smoke:packaged-asar-cli -- --linux --${{ matrix.arch }}
+
+      - name: Collect Linux shadow artifacts
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          node script/collect-shadow-artifacts.mjs \
+            --target ${{ matrix.target }} \
+            --source desktop/packages/electron/dist \
+            --out shadow-artifacts/${{ matrix.target }} \
+            --version "$VERSION"
+
+      - name: Upload staged Linux artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: shadow-stage-${{ matrix.target }}
+          path: shadow-artifacts/${{ matrix.target }}
+          if-no-files-found: error
+          retention-days: 1
+
+  finalize-shadow:
+    needs: [preflight, package-web, package-macos, package-windows, package-linux]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup AX Coder toolchain
+        uses: ./.github/actions/setup-ax-coder-toolchain
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Download staged shadow artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: shadow-stage-*
+          path: shadow-stage
+
+      - name: Install Minisign for required signing mode
+        if: inputs.signing_mode == 'required'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y minisign
+
+      - name: Apply detached-signature policy
+        env:
+          AX_CODER_SHADOW_SIGNING_MODE: ${{ inputs.signing_mode }}
+          AX_CODE_DESKTOP_MINISIGN_PASSWORD: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_PASSWORD }}
+          AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          for target in web darwin-arm64 win32-x64 win32-arm64 linux-x64 linux-arm64; do
+            directory="shadow-stage/shadow-stage-$target"
+            test -d "$directory"
+            bash desktop/scripts/sign-shadow-artifacts.sh "$directory"
+          done
+
+      - name: Generate target evidence and verify the candidate set
+        env:
+          SIGNING_MODE: ${{ inputs.signing_mode }}
+        run: |
+          set -euo pipefail
+          mkdir -p shadow-evidence
+          if [ "$SIGNING_MODE" = "required" ]; then
+            signing_status="verified"
+          else
+            signing_status="not-requested"
+          fi
+
+          for target in web darwin-arm64 win32-x64 win32-arm64 linux-x64 linux-arm64; do
+            args=(
+              --target "$target"
+              --signing-mode "$SIGNING_MODE"
+              --signing-status "$signing_status"
+              --artifact-dir "shadow-stage/shadow-stage-$target"
+              --passed frozen-install
+              --passed package
+              --passed artifact-audit
+            )
+            case "$target" in
+              web)
+                args+=(--passed web-build --passed web-pack)
+                ;;
+              darwin-arm64)
+                args+=(--passed runtime-integrity --passed packaged-app-smoke --passed asar-smoke)
+                if [ "$SIGNING_MODE" = "required" ]; then
+                  args+=(--passed platform-signature --passed notarization)
+                fi
+                ;;
+              win32-*)
+                args+=(--passed runtime-integrity --passed asar-smoke)
+                if [ "$SIGNING_MODE" = "required" ]; then
+                  args+=(--passed authenticode)
+                fi
+                ;;
+              linux-*)
+                args+=(--passed runtime-integrity --passed asar-smoke)
+                ;;
+            esac
+            if [ "$SIGNING_MODE" = "required" ]; then
+              args+=(--passed minisign)
+            fi
+            node script/shadow-release-evidence.mjs "${args[@]}" --require-clean --out "shadow-evidence/$target.json"
+          done
+
+          node script/shadow-release-summary.mjs \
+            --evidence-dir shadow-evidence \
+            --out shadow-evidence/summary.json
+
+      - name: Upload non-public shadow candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: ax-coder-shadow-${{ needs.preflight.outputs.version }}-${{ github.run_id }}
+          path: |
+            shadow-stage
+            shadow-evidence
+          if-no-files-found: error
+          retention-days: 7

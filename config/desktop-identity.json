@@ -1,0 +1,38 @@
+{
+  "schema": "ax-coder.desktop-identity.v1",
+  "productName": "AX Code",
+  "applicationId": "ai.defai.ax-code-app",
+  "artifactName": "AX-Code-${version}-${os}-${arch}.${ext}",
+  "rendererOrigin": "app://ax-code",
+  "packages": {
+    "electron": "@ax-code/electron",
+    "web": "ax-code-desktop",
+    "ui": "@openchamber/ui",
+    "legacyCommand": "openchamber",
+    "desktopCommand": "ax-code-desktop",
+    "linuxPackage": "ax-code-desktop",
+    "linuxExecutable": "ax-code-desktop"
+  },
+  "updater": {
+    "repository": "defai-digital/ax-code",
+    "tagPrefix": "desktop-v"
+  },
+  "credentials": {
+    "minisignKeychainService": "ax-minisign",
+    "minisignKeychainAccount": "ax-release"
+  },
+  "signing": {
+    "appleTeamId": "N5ZUZDUJS6",
+    "appleNotaryProfile": "ax-notary",
+    "appleAuthority": "Developer ID Application: DEFAI PRIVATE LIMITED",
+    "windowsPublisher": "DEFAI Private Limited",
+    "windowsCertificateSha1": "FC40F1109912C025E751E804AA9BD1538A2D12EF"
+  },
+  "sourceExtraction": {
+    "repository": "defai-digital/ax-code",
+    "baselineCommit": "1c3eb8cbfa1160c35ec3dbc8d05561b4df248d8c",
+    "filteredCommit": "8a045fc0ad71ef9f768a695e242fabcbec6ebcd3",
+    "importMerge": "a1d62422f150cb775875e58f22db171b91e9d0be",
+    "mapping": ".internal/reports/extraction/commit-map.txt"
+  }
+}

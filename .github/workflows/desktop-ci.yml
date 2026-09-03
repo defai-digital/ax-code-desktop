@@ -1,0 +1,111 @@
+name: Desktop CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/actions/setup-ax-coder-toolchain/**"
+      - ".github/workflows/desktop-ci.yml"
+      - "config/**"
+      - "desktop/**"
+      - "package.json"
+      - "patches/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "script/**"
+      - "turbo.json"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/actions/setup-ax-coder-toolchain/**"
+      - ".github/workflows/desktop-ci.yml"
+      - "config/**"
+      - "desktop/**"
+      - "package.json"
+      - "patches/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "script/**"
+      - "turbo.json"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  AX_CODE_DISABLE_SHARE: "true"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup AX Coder toolchain
+        uses: ./.github/actions/setup-ax-coder-toolchain
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check repository and release boundaries
+        run: pnpm run check:boundaries
+
+      - name: Typecheck Desktop
+        run: pnpm run typecheck
+
+      - name: Lint Desktop
+        run: pnpm run lint
+
+      - name: Test Desktop
+        run: pnpm run test
+
+      - name: Build Desktop
+        run: pnpm run build
+
+  packaged-macos-smoke:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup AX Coder toolchain
+        uses: ./.github/actions/setup-ax-coder-toolchain
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Minisign
+        run: brew install minisign
+
+      - name: Build Desktop
+        run: pnpm run build
+
+      - name: Package isolated unsigned app
+        env:
+          APPLE_KEYCHAIN_PROFILE: ""
+          AX_CODE_STAGE_REQUIRED: "true"
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: >-
+          pnpm run package:desktop -- --mac --arm64 --dir --publish=never
+          --config.mac.identity=null --config.mac.notarize=false
+
+      - name: Smoke packaged app and bundled runtime
+        env:
+          AX_CODE_DESKTOP_DISABLE_AUTO_UPDATE: "1"
+          AX_CODE_STAGE_REQUIRED: "true"
+        run: pnpm run smoke:packaged -- --artifacts "$RUNNER_TEMP/desktop-smoke"
+
+      - name: Upload smoke diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-ci-macos-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/desktop-smoke
+          if-no-files-found: ignore
+          retention-days: 3

@@ -9,6 +9,11 @@ DESKTOP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(git -C "$DESKTOP_ROOT" rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
+# Source history retains the previous publisher for provenance and future
+# paired-cutover work. The tracked policy keeps it fail-closed while AX Code
+# remains the public Desktop release owner.
+node script/release-policy.mjs assert-public
+
 VERSION=""
 REMOTE="origin"
 BRANCH=""

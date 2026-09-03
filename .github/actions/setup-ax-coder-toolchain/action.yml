@@ -1,0 +1,28 @@
+name: Setup AX Coder JS toolchain
+description: Configure the pinned Node.js and pnpm toolchain for AX Coder workflows
+
+inputs:
+  node-version:
+    description: Node.js version
+    required: false
+    default: "24"
+  pnpm-version:
+    description: pnpm version
+    required: false
+    default: "10.33.4"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ inputs.pnpm-version }}
+        run_install: false
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+        cache-dependency-path: pnpm-lock.yaml
