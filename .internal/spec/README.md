@@ -9,5 +9,5 @@
 | [Desktop and Portfolio Process Model](SPEC-2026-09-02-desktop-process-model.md)             | Accepted; extraction behavior locked      | ADR-005                   |
 | [Portfolio State and Reconciliation](SPEC-2026-09-02-portfolio-state-and-reconciliation.md) | Accepted design; Phase 5 deferred         | ADR-005; ADR-007          |
 | [Contract Authority and Dispatch](SPEC-2026-09-02-contract-authority-and-dispatch.md)       | Accepted design; Phase 6 deferred         | ADR-002; ADR-007          |
-| [Desktop Release Migration and Rollback](SPEC-2026-09-02-release-migration-and-rollback.md) | Accepted; shadow release pending          | ADR-004; ADR-006          |
-| [User Data and Identity Continuity](SPEC-2026-09-02-user-data-and-identity-continuity.md)   | Accepted; signed verification pending     | ADR-006                   |
+| [Desktop Release Migration and Rollback](SPEC-2026-09-02-release-migration-and-rollback.md) | Local implementation; shadow run pending  | ADR-004; ADR-006          |
+| [User Data and Identity Continuity](SPEC-2026-09-02-user-data-and-identity-continuity.md)   | Identity gate; signed checks pending      | ADR-006                   |

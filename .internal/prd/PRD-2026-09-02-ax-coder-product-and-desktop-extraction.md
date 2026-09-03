@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                               |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Accepted; Phases 0-2 complete, Phase 3 pending                                                                                      |
+| Status            | Accepted; Phases 0-2 complete, Phase 3 in progress                                                                                  |
 | Created           | 2026-09-02                                                                                                                          |
 | Owner             | AX Coder product, AX Code Desktop, and AX Agent runtime owners                                                                      |
 | Target repository | `~/code/ax-coder`                                                                                                                   |
@@ -51,8 +51,10 @@ Current implementation state:
   GitHub Actions run `33696640828` published `@defai-digital/ax-code-sdk@2.2.0` through OIDC.
 - The production lockfile and sibling-free clean-clone verification passed every Phase 2 install, boundary, typecheck,
   lint, test, build, package, runtime-integrity, ASAR, and packaged-smoke gate.
-- Phase 3 independent CI and release shadow is pending. No public Desktop release, updater cutover, source deletion, or
-  portfolio autonomy has occurred.
+- Phase 3 local CI and release-shadow implementation landed at AX Coder commit
+  `6e0ce9438cf6f9087930a53f3bde13ee2896feda`. Local unsigned macOS arm64 packaging and smoke pass. The repository
+  has no remote, so no cross-platform Actions run, required-signing run, upgrade, or rollback evidence exists yet.
+- No public Desktop release, updater cutover, source deletion, or portfolio autonomy has occurred.
 
 ## 1. Executive summary
 
@@ -619,7 +621,8 @@ Exit: install, typecheck, lint, test, build, and package succeed without an AX C
 
 ### Phase 3: Independent CI and release shadow
 
-Status: Pending.
+Status: In progress. Local implementation landed on 2026-09-02 at
+`6e0ce9438cf6f9087930a53f3bde13ee2896feda`; remote and signed execution evidence remains pending.
 
 - Port Desktop CI, CodeQL, packaging, signing, update metadata, smoke, and artifact audit workflows.
 - Produce platform candidate artifacts without public publication.

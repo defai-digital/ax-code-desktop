@@ -3,7 +3,7 @@
 | Field          | Value                                                                                                         |
 | -------------- | ------------------------------------------------------------------------------------------------------------- |
 | Status         | Accepted                                                                                                      |
-| Implementation | Shadow release required before cutover                                                                        |
+| Implementation | Identity and release guards implemented; signed shadow execution pending                                      |
 | Date           | 2026-09-02                                                                                                    |
 | Deciders       | User; AX Coder and AX Code release maintainers                                                                |
 | Related        | Active PRD; SPEC-2026-09-02-release-migration-and-rollback; SPEC-2026-09-02-user-data-and-identity-continuity |
@@ -26,6 +26,18 @@ upgrade, rollback, data, credential, updater, and platform smoke gates. The targ
 channel are not assumed by local initialization. Public ownership changes only through an explicit paired cutover.
 
 Rebranding is a later product decision with its own migration ADR. It is not part of source extraction.
+
+## Implementation evidence
+
+AX Coder commit `6e0ce9438cf6f9087930a53f3bde13ee2896feda` added tracked compatibility identity and release-policy
+manifests, source-to-package contract checks, fail-closed Electron packaging, and a guarded legacy release entrypoint.
+The manual shadow workflow has read-only repository permission, requires explicit shadow acknowledgement and a private
+repository, and uploads only short-lived GitHub Actions artifacts. It has no tag trigger, GitHub Release creation,
+updater mutation, or public publishing path.
+
+The local unsigned macOS arm64 path passed packaging, artifact collection, bundled-runtime smoke, full packaged-app
+smoke, and packaged ASAR CLI smoke. A real signed workflow run, OS credential continuity, update, and rollback are not
+yet evidence because AX Coder has no remote or CI secret store.
 
 ## Consequences
 

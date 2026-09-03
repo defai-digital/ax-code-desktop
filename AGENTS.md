@@ -25,10 +25,12 @@ Canonical boundaries:
 
 ## Current phase
 
-Phases 1 and 2 are complete. The reviewed Desktop source and its filtered history now live under `desktop/`, and
-the independent workspace consumes the published JSR SDK with a frozen lockfile and a pinned signed AX Code
-runtime. Phase 3 independent CI and release shadow has not started. The original source remains under
-`../ax-code/desktop/` until the release, update, rollback, and paired-cutover gates pass.
+Phases 1 and 2 are complete, and Phase 3 is in progress. The reviewed Desktop source and its filtered history now
+live under `desktop/`, and the independent workspace consumes the published JSR SDK with a frozen lockfile and a
+pinned signed AX Code runtime. Independent CI, CodeQL, and a manual private-repository shadow workflow are
+implemented. The shadow workflow has not run because this local repository has no remote, and signed cross-platform,
+upgrade, and rollback evidence remains pending. The original source remains under `../ax-code/desktop/` until the
+release, update, rollback, and paired-cutover gates pass.
 
 Do not delete source from AX Code, publish, rebrand, or release Desktop production artifacts merely because the
 history import is complete. Follow the governance order below.
@@ -39,15 +41,17 @@ history import is complete. Follow the governance order below.
 - pnpm 10.33.4 through Corepack. Do not use npm or Yarn for this workspace.
 - Install with `pnpm install`; committed CI must use `pnpm install --frozen-lockfile`.
 
-| Task                          | Command                                                |
-| ----------------------------- | ------------------------------------------------------ |
-| Typecheck                     | `pnpm run typecheck`                                   |
-| Lint                          | `pnpm run lint`                                        |
-| Tests                         | `pnpm run test`                                        |
-| Desktop build                 | `pnpm run build`                                       |
-| Contract and ownership checks | `pnpm run check:boundaries`                            |
-| Development app               | `pnpm run dev`                                         |
-| Local unsigned package        | `pnpm run package:desktop -- <electron-builder flags>` |
+| Task                          | Command                                                            |
+| ----------------------------- | ------------------------------------------------------------------ |
+| Typecheck                     | `pnpm run typecheck`                                               |
+| Lint                          | `pnpm run lint`                                                    |
+| Tests                         | `pnpm run test`                                                    |
+| Desktop build                 | `pnpm run build`                                                   |
+| Contract and ownership checks | `pnpm run check:boundaries`                                        |
+| Release identity contract     | `pnpm run check:release-contract`                                  |
+| Workflow syntax               | `actionlint .github/workflows/*.yml`                               |
+| Development app               | `pnpm run dev`                                                     |
+| Local unsigned package        | `pnpm run package:desktop -- <platform flags> --publish=never ...` |
 
 Public release commands remain intentionally unavailable until the Phase 3 shadow-release gates pass.
 
@@ -87,6 +91,8 @@ Product-boundary or source-ownership work requires, in order:
 The active plan is `.internal/prd/PRD-2026-09-02-ax-coder-product-and-desktop-extraction.md`.
 
 Phase 1 evidence is in `.internal/reports/extraction/`. Phase 2 completion evidence is in
-`.internal/reports/PHASE-2-2026-09-02-independent-workspace-candidate.md`. The workspace consumes the SDK pin in
-`config/ax-code-sdk.json` and the signed runtime pin in `config/ax-code-runtime.json`. Release commands remain
-unavailable until the shadow-release specification is implemented.
+`.internal/reports/PHASE-2-2026-09-02-independent-workspace-candidate.md`. Phase 3 local implementation evidence is
+in `.internal/reports/PHASE-3-2026-09-02-shadow-release-implementation.md`. The workspace consumes the SDK pin in
+`config/ax-code-sdk.json`, the signed runtime pin in `config/ax-code-runtime.json`, and the compatibility identity and
+release state in `config/desktop-identity.json` and `config/desktop-release-policy.json`. Public release commands
+remain unavailable until signed shadow, update, rollback, and human cutover gates pass.
