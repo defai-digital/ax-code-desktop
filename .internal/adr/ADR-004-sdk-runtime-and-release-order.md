@@ -1,12 +1,12 @@
 # ADR-004: Pin SDK and Runtime Independently with Producer-First Releases
 
-| Field          | Value                                                      |
-| -------------- | ---------------------------------------------------------- |
-| Status         | Accepted                                                   |
-| Implementation | Consumer and runtime pins ready; first SDK version pending |
-| Date           | 2026-09-02                                                 |
-| Deciders       | User; AX Coder and AX Code maintainers                     |
-| Related        | ADR-001; SPEC-2026-09-02-ax-code-worker-contract           |
+| Field          | Value                                                    |
+| -------------- | -------------------------------------------------------- |
+| Status         | Accepted                                                 |
+| Implementation | Initial SDK/runtime pair published, pinned, and verified |
+| Date           | 2026-09-02                                               |
+| Deciders       | User; AX Coder and AX Code maintainers                   |
+| Related        | ADR-001; SPEC-2026-09-02-ax-code-worker-contract         |
 
 ## Context
 
@@ -34,6 +34,13 @@ developer setting and is rejected by CI and packaging.
 - AX Coder can update UI without silently changing the worker runtime.
 - A release cannot depend on a sibling source path or unpublished registry version.
 - Runtime credentials remain outside the renderer and package manifest.
+
+## Implementation evidence
+
+The initial pair is JSR SDK `2.2.0` from AX Code tag `sdk-v2.2.0` and signed runtime `7.10.2`. The production
+lockfile resolves the SDK through JSR with integrity metadata. The macOS arm64 clean-clone gate verified the runtime
+archive size and SHA-256, signature size and SHA-256, Minisign signature, authenticated runtime manifest, packaged
+dependency closure, ASAR boundary, and bundled-runtime smoke.
 
 ## Rollback
 

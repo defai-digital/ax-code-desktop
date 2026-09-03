@@ -1,9 +1,9 @@
 # SPEC: Independent Desktop Workspace
 
-| Field   | Value                                      |
-| ------- | ------------------------------------------ |
-| Status  | Local candidate complete; JSR lock pending |
-| Related | Active PRD; ADR-001; ADR-003; ADR-004      |
+| Field   | Value                                 |
+| ------- | ------------------------------------- |
+| Status  | Implemented and verified              |
+| Related | Active PRD; ADR-001; ADR-003; ADR-004 |
 
 ## 1. Root workspace
 
@@ -78,9 +78,9 @@ candidate channel.
 
 ## 7. Implementation progress
 
-The local candidate landed at `b3c24fd3cc8ece6a56b7720efcd36285d278a00e`. Boundaries, typecheck, lint, complete
-tests, build, signed-runtime staging, unsigned packaging, ASAR audit, and packaged-app smoke pass. Detailed evidence is
-in `.internal/reports/PHASE-2-2026-09-02-independent-workspace-candidate.md`.
-
-This specification remains open until SDK `2.2.0` is available from JSR, the production lockfile is committed, and a
-fresh clone with no AX Code sibling passes the complete frozen-install gate.
+The independent workspace landed at `b3c24fd3cc8ece6a56b7720efcd36285d278a00e`, the production lockfile at
+`26459b536015607b9e43d7c2c7e55f30e73e500d`, and the final smoke isolation fix at
+`e0d0d69f0d3d4628ede504cdbfa3e3065320bbb9`. SDK `2.2.0` is available from JSR. A fresh clone with no AX Code sibling
+passed frozen install, boundaries, typecheck, lint, complete tests, build, signed-runtime staging, unsigned packaging,
+ASAR audit, packaged ASAR CLI smoke, and packaged-app smoke. Detailed evidence is in
+`.internal/reports/PHASE-2-2026-09-02-independent-workspace-candidate.md`.

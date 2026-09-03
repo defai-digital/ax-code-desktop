@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                               |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Accepted; Phase 1 complete, Phase 2 in progress                                                                                     |
+| Status            | Accepted; Phases 0-2 complete, Phase 3 pending                                                                                      |
 | Created           | 2026-09-02                                                                                                                          |
 | Owner             | AX Coder product, AX Code Desktop, and AX Agent runtime owners                                                                      |
 | Target repository | `~/code/ax-coder`                                                                                                                   |
@@ -16,6 +16,9 @@ This PRD records the requested product direction and implementation plan. The us
 explicitly directing work to continue on 2026-09-02. It does not by itself authorize a
 destructive source move, deletion from AX Code, public repository creation, remote push, package publication,
 release, application-identity change, signing-key change, or updater cutover.
+
+The SDK publication recorded below was performed under the user's explicit JSR selection and subsequent direction to
+continue the remaining implementation. It did not publish a Desktop artifact or change Desktop release ownership.
 
 At the accepted Phase 0 baseline:
 
@@ -39,11 +42,17 @@ Current implementation state:
 - Phase 1 imported the filtered Desktop history at AX Coder merge
   `a1d62422f150cb775875e58f22db171b91e9d0be`; its exact evidence is under
   `.internal/reports/extraction/`.
-- AX Code remains unchanged at the source baseline, and Desktop source removal is not authorized.
-- Phase 2 independent workspace and public-contract consumption are in progress.
-- The local Phase 2 candidate landed at `b3c24fd3cc8ece6a56b7720efcd36285d278a00e` and passes all local consumer,
-  build, package, and packaged-smoke gates. JSR publication, a production lockfile, and frozen clean-clone
-  verification remain before Phase 2 can close.
+- AX Code Desktop production source remains present at the source baseline, and Desktop source removal is not
+  authorized. AX Code main later advanced to `3bb0822ddf305cb5fda11fb9eb668f4bc14d8600` for the corrected JSR workflow
+  invocation and its required generated model snapshot.
+- Phase 2 independent workspace and public-contract consumption completed on 2026-09-02 at AX Coder implementation
+  commit `e0d0d69f0d3d4628ede504cdbfa3e3065320bbb9`.
+- AX Code tag `sdk-v2.2.0` fixes SDK producer commit `1c3eb8cbfa1160c35ec3dbc8d05561b4df248d8c`.
+  GitHub Actions run `33696640828` published `@defai-digital/ax-code-sdk@2.2.0` through OIDC.
+- The production lockfile and sibling-free clean-clone verification passed every Phase 2 install, boundary, typecheck,
+  lint, test, build, package, runtime-integrity, ASAR, and packaged-smoke gate.
+- Phase 3 independent CI and release shadow is pending. No public Desktop release, updater cutover, source deletion, or
+  portfolio autonomy has occurred.
 
 ## 1. Executive summary
 
@@ -598,7 +607,7 @@ Exit: AX Coder contains the complete reviewed source history and no ignored arti
 
 ### Phase 2: Independent workspace and contracts
 
-Status: In progress.
+Status: Complete on 2026-09-02 at implementation commit `e0d0d69f0d3d4628ede504cdbfa3e3065320bbb9`.
 
 - Create AX Coder root package, workspace, catalog, Turbo, formatting, test, and structure configuration.
 - Move or reimplement Desktop-owned root scripts and contract checks.
@@ -609,6 +618,8 @@ Status: In progress.
 Exit: install, typecheck, lint, test, build, and package succeed without an AX Code sibling checkout.
 
 ### Phase 3: Independent CI and release shadow
+
+Status: Pending.
 
 - Port Desktop CI, CodeQL, packaging, signing, update metadata, smoke, and artifact audit workflows.
 - Produce platform candidate artifacts without public publication.

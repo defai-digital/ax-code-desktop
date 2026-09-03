@@ -3,7 +3,7 @@
 | Field          | Value                                                                                               |
 | -------------- | --------------------------------------------------------------------------------------------------- |
 | Status         | Accepted                                                                                            |
-| Implementation | Consumer ready; blocked on first SDK publication and production lockfile                            |
+| Implementation | Complete for SDK 2.2.0; published through OIDC and frozen in the consumer lockfile                  |
 | Date           | 2026-09-02                                                                                          |
 | Last reviewed  | 2026-09-02                                                                                          |
 | Deciders       | AX Coder and AX Code maintainers; explicit user decision                                            |
@@ -46,6 +46,15 @@ dependencies remain allowed.
   extraction fixture is used before publication.
 - SDK and runtime compatibility become release inputs rather than workspace assumptions.
 - Registry publication credentials are not stored in AX Coder.
+
+## Implementation evidence
+
+AX Code tag `sdk-v2.2.0` fixes the immutable producer content at
+`1c3eb8cbfa1160c35ec3dbc8d05561b4df248d8c`. GitHub Actions run
+[`33696640828`](https://github.com/defai-digital/ax-code/actions/runs/33696640828) published
+`@defai-digital/ax-code-sdk@2.2.0` through OIDC. AX Coder commit
+`26459b536015607b9e43d7c2c7e55f30e73e500d` committed the JSR-resolved lockfile, and a sibling-free clean clone
+passed frozen install and the complete Phase 2 gate.
 
 ## Alternatives considered
 

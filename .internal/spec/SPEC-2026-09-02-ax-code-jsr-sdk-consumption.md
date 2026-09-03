@@ -2,7 +2,7 @@
 
 | Field   | Value                                                           |
 | ------- | --------------------------------------------------------------- |
-| Status  | Consumer ready; first publication and lockfile pending          |
+| Status  | Implemented and verified for SDK 2.2.0                          |
 | Created | 2026-09-02                                                      |
 | Related | ADR-001; PRD-2026-09-02-ax-coder-product-and-desktop-extraction |
 
@@ -18,8 +18,8 @@ The production manifest uses an exact version:
 }
 ```
 
-The version shown is the planned first contract and must be updated deliberately if the first release uses another
-version. A range is not allowed in release manifests or lockfiles.
+The version shown is the first published contract. Future updates must be deliberate. A range is not allowed in
+release manifests or lockfiles.
 
 ## 2. Import migration
 
@@ -69,13 +69,15 @@ An incompatible runtime fails before worker dispatch. No copied implementation o
 An uncommitted developer configuration may map the package to a local AX Code SDK build. It must be opt-in, visible in
 diagnostics, and rejected by packaging and release checks. The normal development and CI path remains JSR.
 
-## 6. Current blocker
+## 6. Implementation evidence
 
-Registry setup completed on 2026-09-02: `@defai-digital/ax-code-sdk` exists with zero published versions and is linked
-to `defai-digital/ax-code` for GitHub Actions OIDC. The remaining blocker is publishing and verifying the selected SDK
-version from a reviewed matching release tag.
+`@defai-digital/ax-code-sdk@2.2.0` was published on 2026-09-02 from AX Code tag `sdk-v2.2.0`, which resolves to producer
+commit `1c3eb8cbfa1160c35ec3dbc8d05561b4df248d8c`. GitHub Actions run
+[`33696640828`](https://github.com/defai-digital/ax-code/actions/runs/33696640828) completed the OIDC publication after
+regeneration, generated-drift, typecheck, test, and dry-run gates passed.
 
-The AX Coder consumer candidate is implemented at `b3c24fd3cc8ece6a56b7720efcd36285d278a00e`. It uses the exact
-production specifier, public imports, package-entrypoint contract tests, and a no-sibling dependency gate. Local
-validation against a tarball built from the exact producer commit passed, but does not replace the required JSR and
-frozen-lockfile verification.
+The consumer implementation began at `b3c24fd3cc8ece6a56b7720efcd36285d278a00e`. Commit
+`26459b536015607b9e43d7c2c7e55f30e73e500d` added the production lockfile, which resolves the exact version from
+`npm.jsr.io` with SHA-512 integrity and contains no local SDK source. Final Phase 2 implementation commit
+`e0d0d69f0d3d4628ede504cdbfa3e3065320bbb9` passed a sibling-free frozen install and the complete independent
+workspace, package, and smoke gate.

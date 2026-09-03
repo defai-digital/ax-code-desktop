@@ -25,10 +25,10 @@ Canonical boundaries:
 
 ## Current phase
 
-Phase 1 history extraction is complete, and Phase 2 independent-workspace implementation is in progress. The
-reviewed Desktop source and its filtered history now live under `desktop/`. The original source remains under
-`../ax-code/desktop/` until the independent build, package, smoke, release, update, rollback, and paired-cutover
-gates pass.
+Phases 1 and 2 are complete. The reviewed Desktop source and its filtered history now live under `desktop/`, and
+the independent workspace consumes the published JSR SDK with a frozen lockfile and a pinned signed AX Code
+runtime. Phase 3 independent CI and release shadow has not started. The original source remains under
+`../ax-code/desktop/` until the release, update, rollback, and paired-cutover gates pass.
 
 Do not delete source from AX Code, publish, rebrand, or release Desktop production artifacts merely because the
 history import is complete. Follow the governance order below.
@@ -49,7 +49,7 @@ history import is complete. Follow the governance order below.
 | Development app               | `pnpm run dev`                                         |
 | Local unsigned package        | `pnpm run package:desktop -- <electron-builder flags>` |
 
-Public release commands remain intentionally unavailable during Phase 2.
+Public release commands remain intentionally unavailable until the Phase 3 shadow-release gates pass.
 
 ## Documents and governance
 
@@ -86,6 +86,7 @@ Product-boundary or source-ownership work requires, in order:
 
 The active plan is `.internal/prd/PRD-2026-09-02-ax-coder-product-and-desktop-extraction.md`.
 
-Phase 1 evidence is in `.internal/reports/extraction/`. The Phase 2 workspace consumes the SDK pin in
+Phase 1 evidence is in `.internal/reports/extraction/`. Phase 2 completion evidence is in
+`.internal/reports/PHASE-2-2026-09-02-independent-workspace-candidate.md`. The workspace consumes the SDK pin in
 `config/ax-code-sdk.json` and the signed runtime pin in `config/ax-code-runtime.json`. Release commands remain
 unavailable until the shadow-release specification is implemented.
