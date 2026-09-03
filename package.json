@@ -34,7 +34,8 @@
     "smoke:packaged": "node desktop/packages/electron/scripts/smoke-packaged-app.mjs",
     "smoke:packaged-asar-cli": "node desktop/packages/electron/scripts/smoke-packaged-asar-cli.mjs",
     "package:desktop": "node desktop/packages/electron/scripts/package.mjs",
-    "shadow:evidence": "node script/shadow-release-evidence.mjs"
+    "shadow:evidence": "node script/shadow-release-evidence.mjs",
+    "winget:generate": "tsx tools/winget/generate-manifests.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
