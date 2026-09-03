@@ -14,6 +14,7 @@ describe("smoke-packaged-app args", () => {
   test("uses an isolated Electron profile", () => {
     expect(buildSmokeAppArgs({ userDataDir: "/tmp/ax-code-smoke-user-data" })).toEqual([
       "--user-data-dir=/tmp/ax-code-smoke-user-data",
+      "--use-mock-keychain",
     ])
   })
 

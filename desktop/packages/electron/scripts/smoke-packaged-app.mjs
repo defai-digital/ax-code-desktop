@@ -48,7 +48,10 @@ export const parseArgs = (argv, env = process.env) => {
 
 export const buildSmokeAppArgs = ({ userDataDir }) => {
   if (!userDataDir) throw new Error("A temporary Electron user-data directory is required")
-  return [`--user-data-dir=${userDataDir}`]
+  // Chromium can block before app.ready while macOS waits for an interactive
+  // Keychain prompt. The smoke owns no persistent credentials, so use its
+  // test-only mock keychain alongside the isolated profile.
+  return [`--user-data-dir=${userDataDir}`, "--use-mock-keychain"]
 }
 
 export const buildSmokeBundleIdentifier = (runID) => {
