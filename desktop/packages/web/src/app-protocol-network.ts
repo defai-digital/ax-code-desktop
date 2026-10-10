@@ -1,6 +1,6 @@
 const APP_PROTOCOL_PAGE_ORIGIN = "app://ax-code"
 
-const LOOPBACK_API_PREFIXES = ["/api", "/health", "/global", "/dre-graph", "/graph", "/auth"]
+const LOOPBACK_API_PREFIXES = ["/api", "/health", "/global", "/dre-graph", "/run-report", "/graph", "/auth"]
 
 export const isAppProtocolPageOrigin = (origin: string): boolean => origin === APP_PROTOCOL_PAGE_ORIGIN
 

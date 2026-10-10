@@ -86,9 +86,9 @@ const DESKTOP_PREFIX_ENTRIES = [
 ]
 
 // Runtime route table (packages/ax-code/src/server/server.ts) mapped to the
-// /api-prefixed renderer forms the SDK client emits. /global, /graph and
-// /dre-graph are reached by the renderer without the /api prefix, so their
-// upstream path is forwarded verbatim.
+// /api-prefixed renderer forms the SDK client emits. /global, /graph,
+// /dre-graph, and /run-report are reached by the renderer without the /api
+// prefix, so their upstream path is forwarded verbatim.
 const RUNTIME_PREFIX_ENTRIES = [
   // Runtime PUT /auth/:providerID (server.ts). Method-scoped: any other
   // method under /api/auth/* stays on the desktop UI-auth surface.
@@ -140,9 +140,11 @@ const RUNTIME_PREFIX_ENTRIES = [
   // both bare (/global/health, /global/event) and under the /api SDK base.
   { path: "/api/global", target: "runtime" },
   { path: "/global", target: "runtime" },
-  // Dashboard HTML/JSON surfaces (no /api to strip).
+  // Dashboard HTML/JSON surfaces (no /api to strip). /run-report is the
+  // current runtime; /dre-graph remains for the pinned 7.10.2 runtime.
   { path: "/graph", target: "runtime" },
   { path: "/dre-graph", target: "runtime" },
+  { path: "/run-report", target: "runtime" },
 ]
 
 const toSegments = (path) =>

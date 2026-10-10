@@ -28,8 +28,11 @@ describe("response security headers", () => {
   it("does not set X-Frame-Options on dashboard proxy responses", () => {
     const res = createMockResponse()
     applySecurityHeaders({ path: "/dre-graph/session/session-1" }, res)
-
     expect(res.getHeader("X-Frame-Options")).toBeUndefined()
+
+    const runReport = createMockResponse()
+    applySecurityHeaders({ path: "/run-report/session/session-1" }, runReport)
+    expect(runReport.getHeader("X-Frame-Options")).toBeUndefined()
     expect(res.getHeader("X-Content-Type-Options")).toBe("nosniff")
   })
 
@@ -68,5 +71,8 @@ describe("response security headers", () => {
 
   it("recognizes dashboard proxy requests from originalUrl when path is unavailable", () => {
     expect(isDashboardProxyRequest({ originalUrl: "/dre-graph?directory=/workspace/project" })).toBe(true)
+    expect(isDashboardProxyRequest({ originalUrl: "/run-report/session/session-1?directory=/workspace/project" })).toBe(
+      true,
+    )
   })
 })

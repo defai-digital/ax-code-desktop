@@ -127,9 +127,13 @@ describe("isDashboardProxyPathname", () => {
   it("matches DRE graph dashboard paths without matching unrelated paths", () => {
     expect(isDashboardProxyPathname("/dre-graph")).toBe(true)
     expect(isDashboardProxyPathname("/dre-graph/session/session-1")).toBe(true)
+    expect(isDashboardProxyPathname("/run-report")).toBe(true)
+    expect(isDashboardProxyPathname("/run-report/session/session-1")).toBe(true)
     expect(isDashboardProxyPathname("/graph/session-1")).toBe(true)
     expect(isDashboardProxyPathname("/api/dre-graph")).toBe(false)
+    expect(isDashboardProxyPathname("/api/run-report")).toBe(false)
     expect(isDashboardProxyPathname("/dre-graphical")).toBe(false)
+    expect(isDashboardProxyPathname("/run-reportage")).toBe(false)
   })
 })
 

@@ -11,7 +11,7 @@ const PACKAGED_RENDERER_SCHEME = "app"
 const PACKAGED_RENDERER_HOST = "ax-code"
 const PACKAGED_RENDERER_ORIGIN = `${PACKAGED_RENDERER_SCHEME}://${PACKAGED_RENDERER_HOST}`
 const RENDERER_API_ORIGIN_ARG_PREFIX = "--ax-code-desktop-api-origin="
-const LOOPBACK_API_PREFIXES = ["/api", "/health", "/global", "/dre-graph", "/graph", "/auth"]
+const LOOPBACK_API_PREFIXES = ["/api", "/health", "/global", "/dre-graph", "/run-report", "/graph", "/auth"]
 
 const PACKAGED_RENDERER_PRIVILEGED_SCHEMES = [
   {

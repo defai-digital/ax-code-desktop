@@ -52,10 +52,10 @@ interface ElectronApiPrefixRouter {
 
 // Path prefixes this plugin owns. /auth and /health stay on vite's static
 // proxy entries (web-only in the packaged table as well); everything else the
-// packaged router classifies — /api/*, /global/*, /graph, /dre-graph — is
+// packaged router classifies — /api/*, /global/*, /graph, /dre-graph, /run-report — is
 // dispatched here. The segment-boundary check keeps lookalikes like
 // "/graphics" or "/apricot" on the Vite SPA pipeline.
-const HANDLED_PREFIXES = ["/api", "/global", "/graph", "/dre-graph"]
+const HANDLED_PREFIXES = ["/api", "/global", "/graph", "/dre-graph", "/run-report"]
 
 export function shouldHandleDesktopDevApiPath(pathname: string): boolean {
   return HANDLED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))

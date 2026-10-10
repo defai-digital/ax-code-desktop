@@ -111,6 +111,8 @@ describe("classifyDesktopDevApiPath parity with the packaged router", () => {
     ["GET", "/graph"],
     ["GET", "/dre-graph"],
     ["GET", "/dre-graph/assets/index.js"],
+    ["GET", "/run-report"],
+    ["GET", "/run-report/session/ses_1"],
     // Unclassified paths keep the safe web default.
     ["GET", "/api/unknown-future-endpoint"],
   ]
@@ -133,6 +135,8 @@ describe("shouldHandleDesktopDevApiPath", () => {
     expect(shouldHandleDesktopDevApiPath("/global/health")).toBe(true)
     expect(shouldHandleDesktopDevApiPath("/graph")).toBe(true)
     expect(shouldHandleDesktopDevApiPath("/dre-graph")).toBe(true)
+    expect(shouldHandleDesktopDevApiPath("/run-report")).toBe(true)
+    expect(shouldHandleDesktopDevApiPath("/run-report/session/ses_1")).toBe(true)
     // /auth and /health stay on vite's static web-proxy entries.
     expect(shouldHandleDesktopDevApiPath("/auth/session")).toBe(false)
     expect(shouldHandleDesktopDevApiPath("/health")).toBe(false)

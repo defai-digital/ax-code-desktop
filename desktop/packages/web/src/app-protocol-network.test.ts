@@ -10,6 +10,12 @@ describe("app protocol network rewrite", () => {
       "http://127.0.0.1:3910/api/fs/list?path=/repo",
     )
     expect(rewriteAppProtocolNetworkUrl("/assets/index.js", options)).toBe("/assets/index.js")
+    expect(rewriteAppProtocolNetworkUrl("/dre-graph/session/ses_1?directory=%2Frepo", options)).toBe(
+      "http://127.0.0.1:3910/dre-graph/session/ses_1?directory=%2Frepo",
+    )
+    expect(rewriteAppProtocolNetworkUrl("/run-report/session/ses_1?directory=%2Frepo", options)).toBe(
+      "http://127.0.0.1:3910/run-report/session/ses_1?directory=%2Frepo",
+    )
   })
 
   test("rewrites app-origin absolute API URLs", () => {

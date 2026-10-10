@@ -25,9 +25,8 @@ import {
   fetchProviderSources,
   getCurrentDirectory,
   defaultProviderConnectCategory,
-  isCliProvider,
-  isLocalProvider,
   isRecord,
+  selectProviderConnectAction,
   isRestartingError,
   providerConnectCategoriesPresent,
   providerConnectCategory,
@@ -41,7 +40,6 @@ import {
   upsertCustomApiProvider,
   connectPrivateGpu,
   dedicatedPrivateGpuVendor,
-  isDedicatedPrivateGpuProvider,
   type AuthMethod,
   type CustomApiProviderInput,
   type CustomApiProviderView,
@@ -89,10 +87,12 @@ const ADD_PROVIDER_ID = "__add_provider__"
 const PROVIDER_RESTART_POLL_MAX_MS = 30_000
 
 const CONNECT_TYPE_I18N: Record<ProviderConnectCategory, I18nKey> = {
+  "ax-engine": "settings.providers.page.connect.type.axEngine",
   local: "settings.providers.page.connect.type.local",
   "private-gpu": "settings.providers.page.connect.type.privateGpu",
   cli: "settings.providers.page.connect.type.cli",
   api: "settings.providers.page.connect.type.api",
+  "ax-trust": "settings.providers.page.connect.type.axTrust",
 }
 
 const connectTypeI18nKey = (type: ProviderConnectCategory): I18nKey => CONNECT_TYPE_I18N[type]
@@ -563,9 +563,9 @@ export const ProvidersPage: React.FC = () => {
     }
   }
 
-  // Local inference providers (ax-engine, ollama, ax-studio) do not require a
-  // cloud API key. Persist the conventional local sentinel so the provider is
-  // marked connected; the runtime supplies its own default key when needed.
+  // Local inference providers, including ax-engine, do not require a cloud API
+  // key. Persist the conventional local sentinel so the provider is marked
+  // connected; the runtime supplies its own default key when needed.
   const handleEnableLocalProvider = async (providerId: string) => {
     const busyKey = `local:${providerId}`
     setAuthBusyKey(busyKey)
@@ -797,6 +797,7 @@ export const ProvidersPage: React.FC = () => {
   }
 
   const isAddMode = selectedProviderId === ADD_PROVIDER_ID
+  const candidateConnectAction = candidateProviderId ? selectProviderConnectAction(candidateProviderId) : null
 
   if (!isAddMode && providersError && providers.length === 0) {
     return (
@@ -1042,7 +1043,7 @@ export const ProvidersPage: React.FC = () => {
                 </p>
               ) : (
                 <section className="px-2 pb-2 pt-0 space-y-4">
-                  {isCliProvider(candidateProviderId) ? (
+                  {candidateConnectAction === "cli" ? (
                     <div className="py-1.5">
                       <Button
                         size="xs"
@@ -1055,7 +1056,7 @@ export const ProvidersPage: React.FC = () => {
                           : t("settings.providers.page.actions.useCli")}
                       </Button>
                     </div>
-                  ) : isLocalProvider(candidateProviderId) ? (
+                  ) : candidateConnectAction === "local" ? (
                     <div className="py-1.5 space-y-2">
                       <p className="typography-meta text-muted-foreground">
                         {t("settings.providers.page.auth.localProviderHint")}
@@ -1071,7 +1072,7 @@ export const ProvidersPage: React.FC = () => {
                           : t("settings.providers.page.actions.enableLocal")}
                       </Button>
                     </div>
-                  ) : isDedicatedPrivateGpuProvider(candidateProviderId) ? (
+                  ) : candidateConnectAction === "private-gpu" ? (
                     renderDedicatedPrivateGpuForm(candidateProviderId)
                   ) : (
                     <div className="py-1.5">
@@ -1266,6 +1267,7 @@ export const ProvidersPage: React.FC = () => {
   const selectedCustomApiProvider = customApiProviders.find((provider) => provider.providerID === selectedProvider.id)
   const providerAuthMethods = authMethodsByProvider[selectedProvider.id] ?? []
   const oauthAuthMethods = providerAuthMethods.filter((method) => normalizeAuthType(method) === "oauth")
+  const selectedConnectAction = selectProviderConnectAction(selectedProvider.id)
 
   const filteredModels = providerModels.filter((model) => {
     const name = typeof model?.name === "string" ? model.name : ""
@@ -1346,7 +1348,7 @@ export const ProvidersPage: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {isCliProvider(selectedProvider.id) ? (
+                {selectedConnectAction === "cli" ? (
                   <div className="py-1.5">
                     <Button
                       size="xs"
@@ -1359,7 +1361,7 @@ export const ProvidersPage: React.FC = () => {
                         : t("settings.providers.page.actions.useCli")}
                     </Button>
                   </div>
-                ) : isLocalProvider(selectedProvider.id) ? (
+                ) : selectedConnectAction === "local" ? (
                   <div className="py-1.5 space-y-2">
                     <p className="typography-meta text-muted-foreground">
                       {t("settings.providers.page.auth.localProviderHint")}
@@ -1375,7 +1377,7 @@ export const ProvidersPage: React.FC = () => {
                         : t("settings.providers.page.actions.enableLocal")}
                     </Button>
                   </div>
-                ) : isDedicatedPrivateGpuProvider(selectedProvider.id) ? (
+                ) : selectedConnectAction === "private-gpu" ? (
                   renderDedicatedPrivateGpuForm(selectedProvider.id)
                 ) : (
                   <div className="py-1.5">

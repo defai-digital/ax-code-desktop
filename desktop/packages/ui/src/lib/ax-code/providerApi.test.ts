@@ -15,6 +15,7 @@ import {
   isCliProvider,
   isDedicatedPrivateGpuProvider,
   isLocalProvider,
+  selectProviderConnectAction,
   providerConnectCategoriesPresent,
   providerConnectCategory,
   providersInConnectCategory,
@@ -99,8 +100,9 @@ describe("isCliProvider", () => {
     expect(isCliProvider("claude-code")).toBe(true)
     expect(isCliProvider("codex-cli")).toBe(true)
     expect(isCliProvider("grok-build-cli")).toBe(true)
+    expect(isCliProvider("muse-cli")).toBe(true)
     expect(isCliProvider("qoder-cli")).toBe(false)
-    expect(isCliProvider("kimi-cli")).toBe(true)
+    expect(isCliProvider("kimi-cli")).toBe(false)
     expect(isCliProvider("gemini-cli")).toBe(false)
     expect(isCliProvider("antigravity-cli")).toBe(false)
     expect(isCliProvider("openai")).toBe(false)
@@ -121,7 +123,7 @@ describe("isDedicatedPrivateGpuProvider", () => {
 
 describe("isLocalProvider", () => {
   test("recognizes local inference providers that do not need a cloud API key", () => {
-    expect(isLocalProvider("ax-engine")).toBe(true)
+    expect(isLocalProvider("ax-engine")).toBe(false)
     expect(isLocalProvider("ollama")).toBe(true)
     expect(isLocalProvider("ax-studio")).toBe(true)
     expect(isLocalProvider("openai")).toBe(false)
@@ -129,15 +131,33 @@ describe("isLocalProvider", () => {
   })
 })
 
+describe("selectProviderConnectAction", () => {
+  test("routes ax-engine to the local sentinel and not the API-key branch", () => {
+    expect(selectProviderConnectAction("ax-engine")).toBe("local")
+    expect(selectProviderConnectAction("ax-engine")).not.toBe("api-key")
+    expect(isLocalProvider("ax-engine")).toBe(false)
+    expect(selectProviderConnectAction("ollama")).toBe("local")
+    expect(selectProviderConnectAction("muse-cli")).toBe("cli")
+    expect(selectProviderConnectAction("kimi-cli")).toBe("api-key")
+    expect(selectProviderConnectAction("runpod")).toBe("private-gpu")
+    expect(selectProviderConnectAction("nebius")).toBe("api-key")
+    expect(selectProviderConnectAction("openai")).toBe("api-key")
+    expect(selectProviderConnectAction("ax-trust")).toBe("api-key")
+  })
+})
+
 describe("provider connect type filter", () => {
   test("shares the TUI connect taxonomy and filters the second picker", () => {
-    expect(providerConnectCategory("ax-engine")).toBe("local")
+    expect(providerConnectCategory("ax-engine")).toBe("ax-engine")
+    expect(providerConnectCategory("ax-trust")).toBe("ax-trust")
     expect(providerConnectCategory("nebius")).toBe("private-gpu")
     expect(providerConnectCategory("grok-build-cli")).toBe("cli")
+    expect(providerConnectCategory("muse-cli")).toBe("cli")
+    expect(providerConnectCategory("kimi-cli")).not.toBe("cli")
     expect(providerConnectCategory("huggingface")).toBe("api")
     expect(providerConnectCategory(CUSTOM_API_PROVIDER_OPTION_ID)).toBe("api")
-    expect(providerConnectCategoriesPresent(["openai", "ollama", "runpod"])).toEqual(["local", "private-gpu", "api"])
-    expect(defaultProviderConnectCategory(["openai", "ollama"])).toBe("local")
+    expect(providerConnectCategoriesPresent(["openai", "ollama", "runpod"])).toEqual(["api", "local", "private-gpu"])
+    expect(defaultProviderConnectCategory(["openai", "ollama"])).toBe("api")
     expect(
       providersInConnectCategory([{ id: "openai" }, { id: "ollama" }, { id: "nebius" }], "private-gpu").map(
         (item) => item.id,

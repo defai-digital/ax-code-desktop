@@ -93,6 +93,20 @@ export const isLocalProvider = (providerId: string): boolean => providerConnectC
 
 export const isDedicatedPrivateGpuProvider = (providerId: string): boolean => DEDICATED_PRIVATE_GPU_IDS.has(providerId)
 
+/** Branch the provider picker uses when saving a connection. */
+export type ProviderConnectAction = "cli" | "local" | "private-gpu" | "api-key"
+
+/**
+ * Choose the connect form for a provider id.
+ * `ax-engine` keeps its own taxonomy category and still saves the local sentinel key.
+ */
+export const selectProviderConnectAction = (providerId: string): ProviderConnectAction => {
+  if (isCliProvider(providerId)) return "cli"
+  if (isLocalProvider(providerId) || providerConnectCategory(providerId) === "ax-engine") return "local"
+  if (isDedicatedPrivateGpuProvider(providerId)) return "private-gpu"
+  return "api-key"
+}
+
 export const dedicatedPrivateGpuVendor = (providerId: string) =>
   DEDICATED_PRIVATE_GPU_VENDORS.find((vendor) => vendor.id === providerId)
 

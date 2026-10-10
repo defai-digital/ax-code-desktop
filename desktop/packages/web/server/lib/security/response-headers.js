@@ -1,5 +1,5 @@
 const PREVIEW_PROXY_PREFIX = "/api/preview/proxy"
-const DASHBOARD_PROXY_PREFIXES = ["/dre-graph", "/graph"]
+const DASHBOARD_PROXY_PREFIXES = ["/dre-graph", "/run-report", "/graph"]
 export const PACKAGED_RENDERER_ORIGIN = "app://ax-code"
 
 const getRequestPathname = (req) => {

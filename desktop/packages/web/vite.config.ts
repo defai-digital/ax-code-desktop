@@ -141,7 +141,7 @@ export default defineConfig({
     },
     themeStoragePlugin(),
     ghosttyWasmAssetPlugin(),
-    // S2.4b: /api, /global, /graph, /dre-graph are classified per request with
+    // S2.4b: /api, /global, /graph, /dre-graph, /run-report are classified per request with
     // the packaged app:// routing table and forwarded either directly to the
     // ax-code runtime (when the dev upstream file is available) or to the web
     // server (fallback — the pre-S2.4 behavior). See vite-api-runtime-proxy.ts.
@@ -169,7 +169,7 @@ export default defineConfig({
   server: {
     port: devServerPort,
     proxy: {
-      // /api, /global, /graph, /dre-graph are NOT static entries: the
+      // /api, /global, /graph, /dre-graph, /run-report are NOT static entries: the
       // desktop-api-runtime-proxy plugin dispatches them per request using the
       // packaged routing table (S2.4b). /auth and /health are web-only in that
       // table, so they keep plain proxy entries.

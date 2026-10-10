@@ -84,6 +84,11 @@ describe("api prefix router", () => {
     expect(routeApiRequest("/api/global/event", "GET")).toEqual({ target: "runtime", upstreamPath: "/global/event" })
     expect(routeApiRequest("/graph", "GET")).toEqual({ target: "runtime", upstreamPath: "/graph" })
     expect(routeApiRequest("/dre-graph/view", "GET")).toEqual({ target: "runtime", upstreamPath: "/dre-graph/view" })
+    expect(routeApiRequest("/run-report", "GET")).toEqual({ target: "runtime", upstreamPath: "/run-report" })
+    expect(routeApiRequest("/run-report/session/ses_1", "GET")).toEqual({
+      target: "runtime",
+      upstreamPath: "/run-report/session/ses_1",
+    })
   })
 
   test("S2.6: /api/scheduled-task is runtime-classified (desktop engine deleted)", () => {

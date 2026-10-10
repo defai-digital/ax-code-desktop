@@ -222,11 +222,10 @@ export const createCompatibilityRewriteCounter = () => {
   }
 }
 
+const DASHBOARD_PROXY_PREFIXES = ["/dre-graph", "/run-report", "/graph"]
+
 export const isDashboardProxyPathname = (pathname) =>
-  pathname === "/dre-graph" ||
-  pathname.startsWith("/dre-graph/") ||
-  pathname === "/graph" ||
-  pathname.startsWith("/graph/")
+  DASHBOARD_PROXY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 
 export const createSseBoundaryTracker = () => {
   const decoder = new TextDecoder()

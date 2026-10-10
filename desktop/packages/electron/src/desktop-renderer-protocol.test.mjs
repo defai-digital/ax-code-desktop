@@ -51,6 +51,9 @@ describe("packaged renderer protocol policy", () => {
     expect(isLoopbackApiPath("/auth/session")).toBe(true)
     expect(isLoopbackApiPath("/api/fs/home")).toBe(true)
     expect(isLoopbackApiPath("/global/event")).toBe(true)
+    expect(isLoopbackApiPath("/dre-graph/session/ses_1")).toBe(true)
+    expect(isLoopbackApiPath("/run-report")).toBe(true)
+    expect(isLoopbackApiPath("/run-report/session/ses_1")).toBe(true)
     expect(isLoopbackApiPath("/assets/index.js")).toBe(false)
   })
 

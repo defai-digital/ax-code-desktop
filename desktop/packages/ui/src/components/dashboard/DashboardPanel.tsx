@@ -2,9 +2,11 @@ import React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/icon/Icon"
+import { API_ENDPOINTS } from "@/lib/http"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSessions } from "@/sync/sync-context"
+import { buildDashboardUrl } from "./dashboardUrl"
 
 type DashboardPanelProps = {
   directory: string
@@ -18,24 +20,6 @@ const getDesktopServerOrigin = (): string => {
     window.__AX_CODE_DESKTOP_LOCAL_ORIGIN__ ||
     window.location.origin
   )
-}
-
-const buildDashboardUrl = (sessionId: string | null, directory: string, origin: string): string => {
-  const normalizedOrigin = origin.replace(/\/+$/, "")
-  const withOrigin = (path: string): string => (normalizedOrigin ? `${normalizedOrigin}${path}` : path)
-
-  const params = new URLSearchParams()
-  if (directory) {
-    params.set("directory", directory)
-  }
-  const query = params.toString()
-
-  if (sessionId) {
-    const sessionPath = `/dre-graph/session/${encodeURIComponent(sessionId)}`
-    return withOrigin(query ? `${sessionPath}?${query}` : sessionPath)
-  }
-
-  return withOrigin(query ? `/dre-graph?${query}` : "/dre-graph")
 }
 
 const getSessionDirectory = (session: unknown): string => {
@@ -53,7 +37,32 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({ directory }) => 
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
   const sessions = useSessions()
   const [reloadKey, setReloadKey] = React.useState(0)
+  const [runtimeVersion, setRuntimeVersion] = React.useState<string | null | undefined>(undefined)
   const dashboardOrigin = React.useMemo(() => getDesktopServerOrigin(), [])
+
+  React.useEffect(() => {
+    let cancelled = false
+    const loadRuntimeVersion = async () => {
+      try {
+        const response = await fetch(API_ENDPOINTS.axCode.upgradeStatus, {
+          headers: { Accept: "application/json" },
+        })
+        if (!response.ok) {
+          if (!cancelled) setRuntimeVersion(null)
+          return
+        }
+        const data = (await response.json().catch(() => null)) as null | { currentVersion?: unknown }
+        const currentVersion = typeof data?.currentVersion === "string" ? data.currentVersion.trim() : ""
+        if (!cancelled) setRuntimeVersion(currentVersion || null)
+      } catch {
+        if (!cancelled) setRuntimeVersion(null)
+      }
+    }
+    void loadRuntimeVersion()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const currentSession = React.useMemo(() => {
     if (!currentSessionId) return null
@@ -67,9 +76,13 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({ directory }) => 
     return currentSession
   }, [currentSession, directory])
 
+  const versionReady = runtimeVersion !== undefined
   const dashboardUrl = React.useMemo(
-    () => buildDashboardUrl(dashboardSession?.id ?? null, directory, dashboardOrigin),
-    [dashboardSession?.id, directory, dashboardOrigin],
+    () =>
+      versionReady
+        ? buildDashboardUrl(dashboardSession?.id ?? null, directory, dashboardOrigin, runtimeVersion)
+        : "",
+    [dashboardSession?.id, directory, dashboardOrigin, runtimeVersion, versionReady],
   )
 
   const title = dashboardSession?.title?.trim() || (dashboardSession ? "Session Dashboard" : "Project Dashboard")
@@ -118,13 +131,15 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({ directory }) => 
       </div>
 
       <div className="min-h-0 flex-1 bg-[var(--surface-background)]">
-        <iframe
-          key={`${dashboardUrl}:${reloadKey}`}
-          src={dashboardUrl}
-          title={title}
-          className="h-full w-full border-0 bg-background"
-          sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
-        />
+        {dashboardUrl ? (
+          <iframe
+            key={`${dashboardUrl}:${reloadKey}`}
+            src={dashboardUrl}
+            title={title}
+            className="h-full w-full border-0 bg-background"
+            sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+          />
+        ) : null}
       </div>
     </div>
   )
