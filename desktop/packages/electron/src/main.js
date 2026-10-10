@@ -23,9 +23,10 @@ const os = require("os")
 const fs = require("fs")
 const fsp = require("fs/promises")
 const { execFile, spawn, spawnSync } = require("child_process")
+const { runOpenSpecChain } = require("./open-app-launcher")
 const { promisify } = require("util")
 const { createStartupDiagnostics } = require("./startup-diagnostics")
-const { assertShellOpenPathSucceeded, assertSpawnSyncSucceeded, collectOpenPathCandidates } = require("./open-paths")
+const { assertShellOpenPathSucceeded, collectOpenPathCandidates } = require("./open-paths")
 const { assertDesktopReadFileAllowed } = require("./desktop-read-file-policy")
 const { sanitizeDesktopWindowTitle } = require("./desktop-window-title")
 const { shouldIncludeNativeSearchEntry, toNativeSearchRelativePath } = require("./desktop-file-search")
@@ -1756,7 +1757,7 @@ const launchWindowsSpec = (spec) => {
   child.unref()
 }
 
-const runSpecChain = (specs, appName) => {
+const runSpecChain = async (specs, appName) => {
   if (!Array.isArray(specs) || specs.length === 0) {
     throw new Error(`Failed to open in ${appName}: no launch candidates`)
   }
@@ -1772,17 +1773,7 @@ const runSpecChain = (specs, appName) => {
     }
     throw new Error(`Failed to open in ${appName}: ${failures.join("; ")}`)
   }
-  const failures = []
-  for (const spec of specs) {
-    const result = spawnSync(spec.program, spec.args, { stdio: "ignore", windowsHide: true })
-    if (result.error) {
-      failures.push(`${spec.program}: ${result.error.message}`)
-      continue
-    }
-    if (result.status === 0) return
-    failures.push(`${spec.program} exited ${result.status}`)
-  }
-  throw new Error(`Failed to open in ${appName}: ${failures.join("; ")}`)
+  await runOpenSpecChain(specs, appName)
 }
 
 // ── Window-state persistence (main window geometry) ────────────────────────
@@ -2336,7 +2327,7 @@ handleCommand("desktop_open_path", async (args) => {
   if (!targetPath) throw new Error("Path is required")
   if (process.platform === "darwin") {
     if (appName) {
-      assertSpawnSyncSucceeded(spawnSync("open", ["-a", appName, targetPath], { encoding: "utf8" }), "open")
+      await runOpenSpecChain([{ program: "open", args: ["-a", appName, targetPath] }], appName)
       return null
     }
     assertShellOpenPathSucceeded(await shell.openPath(targetPath))
@@ -2375,13 +2366,13 @@ handleCommand("desktop_open_in_app", async (args) => {
       if (error) throw new Error(error)
       return null
     }
-    runSpecChain(buildWindowsOpenProjectSpecs({ projectPath, appId, appName }), appName)
+    await runSpecChain(buildWindowsOpenProjectSpecs({ projectPath, appId, appName }), appName)
     return null
   }
   if (process.platform !== "darwin") {
     throw new Error("desktop_open_in_app is only supported on macOS and Windows")
   }
-  runSpecChain(buildOpenProjectSpecs({ projectPath, appId, appName }), appName)
+  await runSpecChain(buildOpenProjectSpecs({ projectPath, appId, appName }), appName)
   return null
 })
 
@@ -2397,13 +2388,13 @@ handleCommand("desktop_open_file_in_app", async (args) => {
       shell.showItemInFolder(filePath)
       return null
     }
-    runSpecChain(buildWindowsOpenFileSpecs({ filePath, appId, appName }), appName)
+    await runSpecChain(buildWindowsOpenFileSpecs({ filePath, appId, appName }), appName)
     return null
   }
   if (process.platform !== "darwin") {
     throw new Error("desktop_open_file_in_app is only supported on macOS and Windows")
   }
-  runSpecChain(buildOpenFileSpecs({ filePath, appId, appName }), appName)
+  await runSpecChain(buildOpenFileSpecs({ filePath, appId, appName }), appName)
   return null
 })
 

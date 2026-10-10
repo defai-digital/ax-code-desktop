@@ -1238,3 +1238,65 @@ describe("createEventPipeline — delta coalescing (Option C)", () => {
     expect(asProperties<SessionStatusProperties>(received[0].payload).status.type).toBe("idle")
   })
 })
+
+describe("delta batch delivery", () => {
+  it("keeps full snapshots between delta batches, including cleanup flushes", async () => {
+    installDomStubs()
+    let release = () => {}
+    const hold = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const delta = (messageID: string, text: string): SdkStreamEvent => ({
+      directory: "/project",
+      payload: { type: "message.part.delta", properties: { messageID, partID: messageID, field: "text", delta: text } },
+    })
+    const events: SdkStreamEvent[] = [
+      delta("a", "before"),
+      delta("b", "other"),
+      {
+        directory: "/project",
+        payload: {
+          type: "message.part.updated",
+          properties: {
+            part: { id: "a", messageID: "a", type: "text", text: "before" },
+          },
+        },
+      },
+      delta("a", "after"),
+    ]
+    let consumed = () => {}
+    const replayed = new Promise<void>((resolve) => {
+      consumed = resolve
+    })
+    const delivered: string[] = []
+    const pipeline = createEventPipeline({
+      transport: "sse",
+      sdk: asPipelineSdk({
+        global: {
+          event: async () => ({
+            stream: (async function* () {
+              for (const event of events) yield event
+              consumed()
+              await hold
+            })(),
+          }),
+        },
+      }),
+      onEvent: (_directory, payload) => delivered.push(payload.type),
+      onDeltaBatch: (directory, batch) => {
+        expect(directory).toBe("/project")
+        delivered.push(
+          batch.map((event) => (event.type === "message.part.delta" ? event.properties.delta : "unexpected")).join(","),
+        )
+      },
+    })
+    try {
+      await withTimeout(replayed, 1000, "replay did not finish")
+      pipeline.cleanup()
+      expect(delivered).toEqual(["before,other", "message.part.updated", "after"])
+    } finally {
+      pipeline.cleanup()
+      release()
+    }
+  })
+})

@@ -94,6 +94,7 @@ export interface TurnIndexes {
 }
 
 export interface TurnProjectionResult {
+  showTextJustificationActivity?: boolean
   turns: TurnRecord[]
   indexes: TurnIndexes
   lastTurnId: string | null

@@ -14,6 +14,7 @@ import type { FileDiff, GlobalState, State } from "./types"
 import { dropSessionCaches } from "./session-cache"
 import { stripSessionDiffSnapshots } from "./sanitize"
 import { syncDebug } from "./debug"
+import { recordPartChanges } from "./part-changes"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const DELTA_OVERLAP_FIELDS = ["text", "output"] as const
@@ -464,6 +465,11 @@ export function prepareEventDraft(current: State, event: Event): State {
     case "message.part.removed":
     case "message.part.delta":
       draft.part = { ...current.part }
+      recordPartChanges(
+        current.part,
+        draft.part,
+        new Set([event.type === "message.part.updated" ? event.properties.part.messageID : event.properties.messageID]),
+      )
       break
     case "vcs.branch.updated":
       break

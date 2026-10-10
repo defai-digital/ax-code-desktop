@@ -1,5 +1,6 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2"
+import * as activityProjection from "./projectTurnActivity"
 import { projectTurnRecords } from "./projectTurnRecords"
 import type { ChatMessageEntry } from "./types"
 
@@ -117,5 +118,45 @@ describe("projectTurnRecords", () => {
 
     expect(next.turns).toBe(initial.turns)
     expect(next.turns[0]).toBe(initial.turns[0])
+  })
+})
+
+describe("incremental turn derivation", () => {
+  test("derives only the changed turn and invalidates reuse when display policy changes", () => {
+    const user1 = createMessageEntry({ id: "u1", role: "user", createdAt: 1 })
+    const reply1 = createMessageEntry({ id: "a1", role: "assistant", parentID: "u1", createdAt: 2 })
+    const user2 = createMessageEntry({ id: "u2", role: "user", createdAt: 3 })
+    const reply2 = createMessageEntry({ id: "a2", role: "assistant", parentID: "u2", createdAt: 4 })
+    const before = projectTurnRecords([user1, reply1, user2, reply2])
+    const spy = vi.spyOn(activityProjection, "projectTurnActivity")
+    try {
+      const changed = { ...reply2, parts: [{ id: "text", type: "text", text: "new tail" } as Part] }
+      const after = projectTurnRecords([user1, reply1, user2, changed], { previousProjection: before })
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(after.turns[0]).toBe(before.turns[0])
+      expect(after.turns[1]).not.toBe(before.turns[1])
+      expect(after).toEqual(projectTurnRecords([user1, reply1, user2, changed]))
+      spy.mockClear()
+      const policyChange = projectTurnRecords([user1, reply1, user2, changed], {
+        previousProjection: after,
+        showTextJustificationActivity: true,
+      })
+      expect(spy).toHaveBeenCalledTimes(2)
+      expect(policyChange).toEqual(
+        projectTurnRecords([user1, reply1, user2, changed], { showTextJustificationActivity: true }),
+      )
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  test("refreshes message order when an ungrouped message shifts existing turns", () => {
+    const user = createMessageEntry({ id: "u", role: "user", createdAt: 1 })
+    const reply = createMessageEntry({ id: "a", role: "assistant", parentID: "u", createdAt: 2 })
+    const before = projectTurnRecords([user, reply])
+    const system = createMessageEntry({ id: "s", role: "system", createdAt: 0 })
+    const after = projectTurnRecords([system, user, reply], { previousProjection: before })
+    expect(after.turns[0]).not.toBe(before.turns[0])
+    expect(after.turns[0].messages.map((message) => message.order)).toEqual([1, 2])
   })
 })

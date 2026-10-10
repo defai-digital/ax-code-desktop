@@ -7,6 +7,8 @@ import { useStore } from "zustand"
 import type { AxCodeClient } from "@defai-digital/ax-code-sdk/v2/client"
 import { Binary } from "./binary"
 import { createEventPipeline } from "./event-pipeline"
+import { applyPartDeltaBatch } from "./part-delta-batch"
+import { subscribeSessionMessageRecords } from "./session-message-subscription"
 import { setActiveMetricsTracker } from "./streaming-metrics"
 import { reduceGlobalEvent, applyGlobalProject, applyDirectoryEvent, prepareEventDraft } from "./event-reducer"
 import { applySessionLifecycleEventToGlobalStore } from "./global-session-events"
@@ -1095,6 +1097,55 @@ function handleEvent(
   updateRoutingIndexFromEvent(routingIndex, resolvedDirectory, payload)
 }
 
+// Batch only consecutive deltas targeting the same resolved store. Full part
+// snapshots and lifecycle events are barriers so overlap recovery stays ordered.
+function handleDeltaBatch(
+  rawDirectory: string,
+  events: readonly Event[],
+  childStores: ChildStoreManager,
+  routingIndex: EventRoutingIndex,
+) {
+  let pending: Event[] = []
+  let pendingDirectory = ""
+  const flush = () => {
+    const store = childStores.getChild(pendingDirectory)
+    if (!store || pending.length === 0) return
+    childStores.mark(pendingDirectory)
+    const next = applyPartDeltaBatch(
+      store.getState(),
+      pending,
+      (payload, result) => {
+        const changed = typeof result === "boolean" ? result : result.changed
+        const sessionID = getSessionIdFromPayload(payload) ?? undefined
+        const messageID = getMessageIdFromPayload(payload) ?? undefined
+        if (changed) syncDebug.dispatch.eventApplied(payload.type, sessionID, messageID)
+        else syncDebug.dispatch.eventNoChange(payload.type, sessionID, messageID)
+        if (typeof result !== "boolean" && result.materialization) {
+          const materializationSessionID = result.materialization.sessionID ?? sessionID
+          if (materializationSessionID) {
+            enqueueSessionMaterialization(pendingDirectory, materializationSessionID, childStores)
+          }
+        }
+        updateRoutingIndexFromEvent(routingIndex, pendingDirectory, payload)
+      },
+      (_payload, error) => console.error("[event-pipeline] delta handler threw during flush", error),
+    )
+    if (next) store.setState(next)
+    pending = []
+  }
+  for (const payload of events) {
+    const directory = resolveDirectoryFromRoutingIndex(routingIndex, rawDirectory, payload, childStores)
+    if (directory !== pendingDirectory) flush()
+    pendingDirectory = directory
+    if (!directory || directory === "global" || !childStores.getChild(directory)) {
+      handleEvent(rawDirectory, payload, childStores, routingIndex)
+    } else {
+      pending.push(payload)
+    }
+  }
+  flush()
+}
+
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
@@ -1265,6 +1316,7 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
       routeDirectory: (directory, payload) => {
         return resolveDirectoryFromRoutingIndex(routingIndex, directory, payload, childStores)
       },
+      onDeltaBatch: (directory, events) => handleDeltaBatch(directory, events, childStores, routingIndex),
       onEvent: (directory, payload) => {
         if (isScheduledTaskRuntimeEventType(payload.type)) {
           // S2.6: runtime scheduled-task events fan out to the dialog/sidebar
@@ -2092,46 +2144,9 @@ export function useSessionMessageRecords(
   const subscribe = useCallback(
     (notify: () => void) => {
       if (!sessionID) return () => undefined
-      // Session-scoped subscription: only notify when THIS session's
-      // messages or parts actually changed. During streaming, the store
-      // receives many events per second for OTHER sessions (status updates,
-      // other sessions' part deltas). Without this filter every store change
-      // triggers getSnapshot which iterates all visible messages — O(n)
-      // even when the change is irrelevant to this session.
-      let prevMessages = store.getState().message[sessionID]
-      let prevPartsById = new Map<string, Part[] | undefined>()
-      for (const msg of prevMessages ?? []) {
-        prevPartsById.set(msg.id, store.getState().part[msg.id])
-      }
-
-      return store.subscribe(() => {
-        const state = store.getState()
-        const nextMessages = state.message[sessionID]
-
-        // Fast path: message array reference unchanged AND no parts changed
-        if (nextMessages === prevMessages) {
-          // Check if any of our visible messages' parts changed
-          let partsChanged = false
-          for (const msg of nextMessages ?? EMPTY_MESSAGES) {
-            if (state.part[msg.id] !== prevPartsById.get(msg.id)) {
-              partsChanged = true
-              break
-            }
-          }
-          if (!partsChanged) return
-        }
-
-        // Update tracked references
-        prevMessages = nextMessages
-        prevPartsById = new Map()
-        for (const msg of nextMessages ?? EMPTY_MESSAGES) {
-          prevPartsById.set(msg.id, state.part[msg.id])
-        }
-
-        notify()
-      })
+      return subscribeSessionMessageRecords(store, sessionID, notify, Boolean(options?.suspendPartUpdates))
     },
-    [sessionID, store],
+    [options?.suspendPartUpdates, sessionID, store],
   )
 
   return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot)

@@ -109,7 +109,9 @@ const canReusePreviousTurn = (previous: TurnRecord, next: TurnRecord): boolean =
   return (
     previous.userMessage === next.userMessage &&
     previous.headerMessageId === next.headerMessageId &&
-    areSameMessageRefs(previous.assistantMessages, next.assistantMessages)
+    areSameMessageRefs(previous.assistantMessages, next.assistantMessages) &&
+    previous.messages.length === next.messages.length &&
+    previous.messages.every((message, index) => message.order === next.messages[index].order)
   )
 }
 
@@ -208,7 +210,17 @@ export const projectTurnRecords = (
     groupedMessageIds.add(message.info.id)
   })
 
-  turns.forEach((turn) => {
+  const previousProjection =
+    effectiveOptions.previousProjection?.showTextJustificationActivity ===
+    effectiveOptions.showTextJustificationActivity
+      ? effectiveOptions.previousProjection
+      : null
+  turns.forEach((turn, index) => {
+    const previousTurn = previousProjection?.indexes.turnById.get(turn.turnId)
+    if (previousTurn && canReusePreviousTurn(previousTurn, turn)) {
+      turns[index] = previousTurn
+      return
+    }
     turn.summary = projectTurnSummary(turn.assistantMessages)
     turn.summaryText = turn.summary.text ?? getUserSummaryBody(turn.userMessage)
     turn.diffStats = projectTurnDiffStats(turn.userMessage)
@@ -231,7 +243,7 @@ export const projectTurnRecords = (
     turn.durationMs = turn.stream.durationMs
   })
 
-  const stableTurns = stabilizeTurnRecords(turns, effectiveOptions.previousProjection)
+  const stableTurns = stabilizeTurnRecords(turns, previousProjection)
   const projection = projectTurnIndexes(stableTurns)
   const ungroupedMessageIds = new Set<string>()
   messages.forEach((message) => {
@@ -245,6 +257,7 @@ export const projectTurnRecords = (
 
   return {
     ...projection,
+    showTextJustificationActivity: effectiveOptions.showTextJustificationActivity,
     ungroupedMessageIds,
   }
 }
