@@ -88,6 +88,19 @@ function stripJsonComments(jsonString) {
   return output
 }
 
+function hexColorLuminance(hex) {
+  const value = String(hex || "").trim().replace(/^#/, "").toLowerCase()
+  const expanded = value.length === 3 ? value.split("").map((char) => char + char).join("") : value
+  const rgb = expanded.length === 8 ? expanded.slice(0, 6) : expanded
+  if (!/^[0-9a-f]{6}$/.test(rgb)) {
+    return null
+  }
+  const r = parseInt(rgb.slice(0, 2), 16)
+  const g = parseInt(rgb.slice(2, 4), 16)
+  const b = parseInt(rgb.slice(4, 6), 16)
+  return 0.299 * r + 0.587 * g + 0.114 * b
+}
+
 function convertVsCodeTheme(vscodeThemePath) {
   // Read VS Code theme and strip comments
   const rawContent = fs.readFileSync(vscodeThemePath, "utf8")
@@ -102,8 +115,7 @@ function convertVsCodeTheme(vscodeThemePath) {
   // Determine variant
   const isDark =
     normalizedTheme.type === "dark" ||
-    colors["editor.background"]?.toLowerCase() < "#808080" ||
-    colors["workbench.colorTheme"]?.includes("dark")
+    (normalizedTheme.type !== "light" && (hexColorLuminance(colors["editor.background"]) ?? 255) < 128)
 
   const variant = isDark ? "dark" : "light"
 
