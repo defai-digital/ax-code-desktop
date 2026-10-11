@@ -70,6 +70,27 @@ describe("packaged renderer protocol policy", () => {
     )
   })
 
+  test("keeps development API requests on the Vite proxy origin", () => {
+    expect(buildRendererApiOrigin(58850, "http://127.0.0.1:5173/")).toBe("http://127.0.0.1:5173")
+    expect(buildRendererApiOrigin(58850, "http://localhost:5199/mini-chat.html?mode=draft")).toBe(
+      "http://localhost:5199",
+    )
+    expect(buildRendererApiOrigin(58850, "http://[::1]:5199/")).toBe("http://[::1]:5199")
+  })
+
+  test("preserves the loopback server origin without a development renderer", () => {
+    expect(buildRendererApiOrigin(58850)).toBe("http://127.0.0.1:58850")
+    expect(buildRendererApiOrigin(58850, null)).toBe("http://127.0.0.1:58850")
+    expect(buildRendererApiOrigin(0)).toBe("")
+  })
+
+  test.each(["https://example.com/", "http://127.0.0.1.evil.test:5173/", "file:///tmp/index.html", "invalid"])(
+    "does not use an untrusted development renderer as an API origin: %s",
+    (url) => {
+      expect(buildRendererApiOrigin(58850, url)).toBe("http://127.0.0.1:58850")
+    },
+  )
+
   test("protocol handler serves original packaged HTML without injecting runtime", async () => {
     const original = '<html><head><meta charset="UTF-8" /></head></html>'
     const files = new Map([[path.resolve("/app/web-dist", "index.html"), original]])

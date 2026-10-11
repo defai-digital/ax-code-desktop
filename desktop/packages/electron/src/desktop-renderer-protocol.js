@@ -5,6 +5,7 @@ const { routeApiRequest } = require("./api-prefix-router")
 const { isLoopbackDesktopHostname } = require("./desktop-hosts")
 const {
   isTrustedRendererNavigationUrl: isTrustedLoopbackRendererNavigationUrl,
+  normalizeDevRendererUrl,
 } = require("./renderer-navigation-policy")
 
 const PACKAGED_RENDERER_SCHEME = "app"
@@ -66,7 +67,12 @@ const isLoopbackApiPath = (pathname) => {
   return LOOPBACK_API_PREFIXES.some((prefix) => value === prefix || value.startsWith(`${prefix}/`))
 }
 
-const buildRendererApiOrigin = (port) => {
+const buildRendererApiOrigin = (port, devRendererUrl = "") => {
+  // Vite owns the same-origin API and WebSocket proxies in development. Using
+  // the web server port here bypasses those proxies and fails renderer CORS.
+  const devUrl = normalizeDevRendererUrl(devRendererUrl)
+  if (devUrl) return new URL(devUrl).origin
+
   const parsed = Number(port)
   if (!Number.isInteger(parsed) || parsed <= 0) return ""
   return `http://127.0.0.1:${parsed}`

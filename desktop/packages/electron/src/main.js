@@ -598,7 +598,7 @@ function localRendererOrigin() {
 async function createWindow() {
   rendererReadyForOpenProject = false
   if (serverPort > 0) {
-    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(serverPort)
+    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(serverPort, getDevRendererUrl())
   }
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -1943,7 +1943,7 @@ const applyMacVibrancy = (browserWindow) => {
 // inject runtime-config the way upstream's packaged-UI protocol did.
 const createAdditionalWindow = async (url) => {
   if (serverPort > 0) {
-    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(serverPort)
+    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(serverPort, getDevRendererUrl())
   }
   const win = new BrowserWindow({
     width: 1440,
@@ -2788,7 +2788,7 @@ const senderWindow = (event) => (event ? BrowserWindow.fromWebContents(event.sen
 // projectId from the URL query string.
 const createMiniChatWindow = async ({ mode, sessionId, directory, projectId }) => {
   if (serverPort > 0) {
-    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(serverPort)
+    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(serverPort, getDevRendererUrl())
   }
   const win = new BrowserWindow({
     width: 420,
