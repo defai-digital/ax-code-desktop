@@ -7,6 +7,7 @@ import path from "node:path"
 import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 import { resolveDevAxCodeBinary } from "./resolve-dev-ax-code-binary.mjs"
+import { waitForDevRenderer } from "./wait-for-dev-renderer.mjs"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
@@ -31,9 +32,6 @@ const electronDir = path.resolve(__dirname, "..")
 const webDir = path.resolve(electronDir, "..", "web")
 const root = path.resolve(electronDir, "..", "..")
 
-const rendererPort = Number.parseInt(process.env.AX_CODE_DESKTOP_RENDERER_PORT || "5173", 10)
-const rendererUrl = `http://127.0.0.1:${rendererPort}`
-
 const findFreePort = () =>
   new Promise((resolve, reject) => {
     const server = net.createServer()
@@ -50,22 +48,6 @@ const findFreePort = () =>
       })
     })
   })
-
-const waitForUrl = async (url, timeoutMs = 30000) => {
-  const started = Date.now()
-  let lastError = null
-  while (Date.now() - started < timeoutMs) {
-    try {
-      const response = await fetch(url, { method: "GET" })
-      if (response.ok) return
-      lastError = new Error(`HTTP ${response.status}`)
-    } catch (error) {
-      lastError = error
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250))
-  }
-  throw new Error(`Timed out waiting for ${url}: ${lastError?.message || "not ready"}`)
-}
 
 const run = (command, args, options = {}) =>
   new Promise((resolve, reject) => {
@@ -144,7 +126,6 @@ if (devAxEnginePython) {
 const sharedEnv = {
   ...process.env,
   AX_CODE_DESKTOP_PORT: String(serverPort),
-  AX_CODE_DESKTOP_RENDERER_PORT: String(rendererPort),
   // Runtime supervision (S2.5): the Electron main process spawns/supervises
   // the ax-code runtime by default, in parallel with the web server. The
   // AX_CODE_DESKTOP_SUPERVISE_RUNTIME=0 escape hatch (web-supervised mode)
@@ -160,20 +141,21 @@ const sharedEnv = {
   ...(devAxEnginePython ? { AX_ENGINE_PYTHON: devAxEnginePython } : {}),
 }
 
-const vite = spawnManaged(children, "pnpm", ["run", "dev:vite"], {
+const vite = spawnManaged(children, process.execPath, [path.join(webDir, "scripts", "dev-vite.mjs")], {
   cwd: webDir,
   env: sharedEnv,
+  stdio: ["inherit", "inherit", "inherit", "ipc"],
 })
 
 vite.once("exit", (code, signal) => {
-  if (code !== 0) {
-    console.error(`[electron-dev] Vite exited with ${signal || code}`)
-    stopAll(children)
-    process.exit(typeof code === "number" ? code : 1)
-  }
+  console.error(`[electron-dev] Vite exited with ${signal || code}`)
+  stopAll(children)
+  process.exit(typeof code === "number" && code !== 0 ? code : 1)
 })
 
-await waitForUrl(rendererUrl)
+const rendererUrl = await waitForDevRenderer(vite)
+sharedEnv.AX_CODE_DESKTOP_RENDERER_PORT = new URL(rendererUrl).port
+console.log(`[electron-dev] Renderer ready at ${rendererUrl}`)
 
 const { command: electronCommand, args: electronArgs } = resolveElectron()
 const electron = spawnManaged(children, electronCommand, [...electronArgs, path.join(electronDir, "dist", "main.js")], {

@@ -52,6 +52,30 @@ The workspace never resolves AX Code from sibling source. Development uses an ex
 installed `ax-code` on PATH; packaged candidates use the signed artifact pinned in
 `config/ax-code-runtime.json`.
 
+Start the Electron development app from the repository root with `pnpm run dev`.
+Quit any running AX Code desktop app completely first: development shares its
+single-instance lock, so another running instance causes the new launch to exit
+successfully without opening a development window.
+
+The renderer tries loopback ports **31440–31449**, starting at 31440. Vite
+reports its actual bound port to the launcher before Electron starts, so a
+busy port cannot redirect the development window to another project's server.
+If the whole range is occupied, startup fails with a clear error. The internal
+desktop server continues to use an automatically allocated port.
+
+This development range sits near the existing AX family defaults while avoiding
+their configured ranges: AX Engine uses 31418 (managed discovery may scan through
+31437), AX Studio uses 31419–31420, and AX BI uses 31421–31428. These values were
+checked in the sibling workspaces; this does not allocate ports for or change
+those projects. Defaults are in `desktop/shared/dev-ports.json`.
+
+To use a specific renderer port, set an override. Explicit ports are fixed;
+startup fails if that port is occupied:
+
+```bash
+AX_CODE_DESKTOP_RENDERER_PORT=20000 pnpm run dev
+```
+
 ## Electron candidate
 
 Development and unpublished shadow builds currently pin Electron `45.0.0-beta.1`

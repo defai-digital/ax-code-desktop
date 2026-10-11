@@ -27,7 +27,13 @@
     "@ax-code/electron#dev": {
       "cache": false,
       "persistent": true,
-      "passThroughEnv": ["AX_CODE_BINARY", "AX_ENGINE_BIN", "AX_ENGINE_PYTHON"]
+      "passThroughEnv": [
+        "AX_CODE_BINARY",
+        "AX_ENGINE_BIN",
+        "AX_ENGINE_PYTHON",
+        "AX_CODE_DESKTOP_RENDERER_PORT",
+        "AX_CODE_DESKTOP_ELECTRON_SERVER_PORT"
+      ]
     }
   }
 }

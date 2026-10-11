@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs"
 import { themeStoragePlugin } from "../../vite-theme-plugin"
 import { createDesktopApiWsProxyPlugin } from "./vite-api-ws-proxy"
 import { createDesktopApiRuntimeProxyPlugin } from "./vite-api-runtime-proxy"
+import devPorts from "../../shared/dev-ports.json"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const requireFromUi = createRequire(path.resolve(__dirname, "../ui/package.json"))
@@ -15,9 +16,11 @@ const reactScanToggle = (process.env.VITE_ENABLE_REACT_SCAN ?? "").toLowerCase()
 const enableReactScan =
   reactScanToggle === "1" || reactScanToggle === "true" || reactScanToggle === "on" || reactScanToggle === "yes"
 const nodeModulesSegment = "node_modules/"
-const configuredDevServerPort = Number.parseInt(process.env.AX_CODE_DESKTOP_RENDERER_PORT ?? "5173", 10)
+const configuredDevServerPort = Number(process.env.AX_CODE_DESKTOP_RENDERER_PORT?.trim() || devPorts.rendererStart)
 const devServerPort =
-  Number.isFinite(configuredDevServerPort) && configuredDevServerPort > 0 ? configuredDevServerPort : 5173
+  Number.isInteger(configuredDevServerPort) && configuredDevServerPort > 0 && configuredDevServerPort <= 65535
+    ? configuredDevServerPort
+    : devPorts.rendererStart
 const highRiskBuildWarningPatterns = [/will produce a circular dependency between chunks/i, /broken execution order/i]
 
 process.noDeprecation = true

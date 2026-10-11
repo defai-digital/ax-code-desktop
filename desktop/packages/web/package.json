@@ -16,7 +16,7 @@
   },
   "scripts": {
     "dev": "pnpm run build:watch",
-    "dev:vite": "vite --host 127.0.0.1 --strictPort",
+    "dev:vite": "node scripts/dev-vite.mjs",
     "dev:server": "node server/index.js --port ${AX_CODE_DESKTOP_PORT:-3001}",
     "dev:server:watch": "nodemon --watch server --ext js --exec \"node server/index.js --port ${AX_CODE_DESKTOP_PORT:-3001}\"",
     "build": "vite build",

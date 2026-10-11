@@ -192,6 +192,9 @@ process.on("uncaughtException", (error) => {
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 if (!hasSingleInstanceLock) {
+  console.warn(
+    "[electron] Another AX Code instance is already running; quit it completely before starting this instance.",
+  )
   app.quit()
   // app.quit() is async; force immediate exit so we don't register
   // handlers on the doomed second instance.
