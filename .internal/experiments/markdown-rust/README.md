@@ -40,3 +40,43 @@ latency acceptance test. Small bodies still use the existing JS path in the app.
 
 See the [evaluation report](../../reports/PERFORMANCE-2026-10-11-markdown-rust-evaluation.md)
 for the migration decision and required follow-up evidence.
+
+## Completed compatibility and Electron evaluation
+
+The [completion report](../../reports/PERFORMANCE-2026-10-11-markdown-completion.md)
+records the native adapter, 25 compatibility fixtures, real-component paint
+measurements and the decision to retain the optimized JS worker. Native Rust is
+not selected for production: its measured bridge overhead fails the adoption gate.
+
+After building the locked native executable, run the direct audit:
+
+```sh
+pnpm --dir desktop/packages/ui exec tsx src/components/chat/markdownNativeCompatibility.bench.ts
+```
+
+The captured native trees in `compatibility-fixtures.json` allow ordinary Vitest
+to check the adapter against the installed JS parser without requiring Cargo in
+application CI. The native audit additionally checks the live executable.
+
+To reproduce the isolated Electron comparison, create the temporary web entry
+from the repository root, then build from the web package so Babel resolves its
+existing React compiler. Existing files at that temporary path must be preserved.
+
+```sh
+mkdir -p desktop/packages/web/native-markdown-perf
+cp .internal/experiments/markdown-rust/electron/renderer.html .internal/experiments/markdown-rust/electron/renderer.tsx desktop/packages/web/native-markdown-perf/
+cd desktop/packages/web
+AX_NATIVE_BENCH_BASELINE=1 node ../../../.internal/experiments/markdown-rust/electron/build.mjs
+cd ../../..
+AX_NATIVE_BENCH_OUTPUT=/tmp/ax-markdown-baseline pnpm --dir desktop/packages/electron exec electron ../../../.internal/experiments/markdown-rust/electron/run.cjs
+cd desktop/packages/web
+node ../../../.internal/experiments/markdown-rust/electron/build.mjs
+cd ../../..
+AX_NATIVE_BENCH_OUTPUT=/tmp/ax-markdown-candidate AX_NATIVE_BENCH_PARSER=js AX_NATIVE_BENCH_DIST=/tmp/ax-coder-native-markdown-candidate-dist pnpm --dir desktop/packages/electron exec electron ../../../.internal/experiments/markdown-rust/electron/run.cjs
+```
+
+Optional `AX_NATIVE_BENCH_REVERSE=1` reverses parser order;
+`AX_NATIVE_BENCH_SCENARIO=paragraph,blocks` restricts scenarios. Remove only your
+two temporary fixture files and their directory before ordinary desktop builds.
+The harness deliberately uses a fixture-only IPC bridge and independent user
+data. It is not referenced by production entry points or packaging.

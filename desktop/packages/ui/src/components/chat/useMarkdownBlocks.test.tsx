@@ -49,6 +49,25 @@ describe("Large Markdown lifecycle", () => {
     return () => callback(parseMarkdownInWorker({ ...request, id: index }))
   }
 
+  test("retains completed block identities across cloned worker responses", () => {
+    let current: ParsedMarkdownBlock[] = []
+    const Probe = ({ text }: { text: string }) => {
+      current = useStableMarkdownBlocks(text, true, "identity")
+      return null
+    }
+    const initial = longText + "\n\nTail"
+    act(() => root.render(<Probe text={initial} />))
+    act(completion(0))
+    const completed = current[0]
+    const liveTail = current.at(-1)
+    act(() => root.render(<Probe text={initial + " grows"} />))
+    act(completion(1))
+    expect(current[0]).toBe(completed)
+    expect(current[0].tree).toBe(completed.tree)
+    expect(current.at(-1)).not.toBe(liveTail)
+    expect(current.at(-1)?.src).toBe("Tail grows")
+  })
+
   test("shows complete escaped text first, then accepts in-flight streaming previews", () => {
     render(longText)
     expect(container.textContent).toBe(longText)

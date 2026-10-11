@@ -1,5 +1,7 @@
-import { parseMarkdownInWorker } from "./markdownWorkerParser"
+import { createMarkdownWorkerParser } from "./markdownWorkerParser"
 import { MAX_WORKER_MARKDOWN_CHARACTERS, type MarkdownParseRequest } from "./markdownWorkerProtocol"
+
+const parseMarkdownInWorker = createMarkdownWorkerParser()
 
 const scope = self as unknown as {
   onmessage: ((event: MessageEvent<MarkdownParseRequest>) => void) | null

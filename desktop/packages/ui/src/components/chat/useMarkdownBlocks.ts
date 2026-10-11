@@ -47,7 +47,25 @@ export const useStableMarkdownBlocks = (text: string, live: boolean, baseKey: st
           text,
           live,
           revision,
-          blocks: blocks ?? [{ ...buildFullMarkdownBlock(text, baseKey), plain: true }],
+          // Rehydrate completed blocks before storing the response. Keeping the
+          // fresh clones only in state would retain a second copy of every AST
+          // even if the render projection reused its previous objects.
+          blocks: blocks
+            ? blocks.map((block, index) => {
+                const old = previous?.baseKey === baseKey && previous.live === live ? previous.blocks[index] : undefined
+                return old &&
+                  old.mode === "full" &&
+                  block.mode === "full" &&
+                  old.tree &&
+                  block.tree &&
+                  old.key === block.key &&
+                  old.src === block.src &&
+                  old.raw === block.raw &&
+                  old.plain === block.plain
+                  ? old
+                  : block
+              })
+            : [{ ...buildFullMarkdownBlock(text, baseKey), plain: true }],
         }
       })
     })
@@ -79,6 +97,7 @@ export const useStableMarkdownBlocks = (text: string, live: boolean, baseKey: st
         previous &&
         previous.key === block.key &&
         previous.src === block.src &&
+        previous.raw === block.raw &&
         previous.plain === block.plain &&
         previous.tree === block.tree
       )

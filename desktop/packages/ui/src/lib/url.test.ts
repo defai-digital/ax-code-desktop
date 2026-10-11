@@ -65,6 +65,12 @@ describe("safe external URL helpers", () => {
     expect(getExternalFaviconUrl("https://user:pass@example.com/docs")).toBeNull()
   })
 
+  test("avoids favicon loads blocked by the packaged renderer CSP", () => {
+    vi.stubGlobal("window", { location: { protocol: "app:" } })
+    expect(getExternalFaviconUrl("https://example.com/docs")).toBeNull()
+    expect(getSafeExternalUrl("https://example.com/docs")).toBe("https://example.com/docs")
+  })
+
   test("opens mailto and tel URLs through the desktop bridge", async () => {
     const calls: Array<{ command: string; args?: Record<string, unknown> }> = []
     ;(window as unknown as { __TAURI__?: unknown }).__TAURI__ = {

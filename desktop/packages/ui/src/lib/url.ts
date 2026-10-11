@@ -47,6 +47,9 @@ export const getSafeExternalUrl = (url: string): string | null => {
 export const isSafeExternalUrl = (url: string): boolean => getSafeExternalUrl(url) !== null
 
 export const getExternalFaviconUrl = (url: string): string | null => {
+  // The packaged renderer's img-src does not allow this third-party provider.
+  // Avoid doomed image loads and onError-driven updates for every link.
+  if (typeof window !== "undefined" && window.location.protocol === "app:") return null
   const parsed = parseUrlSafely(url.trim())
   if (!parsed || hasUrlUserInfo(parsed) || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
     return null

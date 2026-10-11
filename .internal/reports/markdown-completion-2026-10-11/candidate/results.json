@@ -1,0 +1,690 @@
+[
+  {
+    "parser": "js",
+    "scenario": "paragraph",
+    "sourceCharacters": 211818,
+    "samples": [
+      {
+        "revision": 0,
+        "elapsedMs": 934.1999999880791
+      },
+      {
+        "revision": 1,
+        "elapsedMs": 36.19999998807907
+      },
+      {
+        "revision": 2,
+        "elapsedMs": 43.19999998807907
+      },
+      {
+        "revision": 3,
+        "elapsedMs": 37.40000003576279
+      },
+      {
+        "revision": 4,
+        "elapsedMs": 38.09999996423721
+      },
+      {
+        "revision": 5,
+        "elapsedMs": 41.80000001192093
+      },
+      {
+        "revision": 6,
+        "elapsedMs": 36.09999996423721
+      },
+      {
+        "revision": 7,
+        "elapsedMs": 46.30000001192093
+      },
+      {
+        "revision": 8,
+        "elapsedMs": 35.59999996423721
+      },
+      {
+        "revision": 9,
+        "elapsedMs": 38.30000001192093
+      },
+      {
+        "revision": 10,
+        "elapsedMs": 40.80000001192093
+      },
+      {
+        "revision": 11,
+        "elapsedMs": 35.5
+      },
+      {
+        "revision": 12,
+        "elapsedMs": 38.19999998807907
+      }
+    ],
+    "firstFormattedPaintP95Ms": 46.30000001192093,
+    "coldFirstFormattedPaintMs": 934.1999999880791,
+    "frameP95Ms": 9.100000000000364,
+    "frameMaxMs": 125,
+    "longTaskCount": 1,
+    "longTaskTotalMs": 117,
+    "longTaskMaxMs": 117,
+    "receivedKeys": 20,
+    "inputCharacters": 20,
+    "workerMessages": 13,
+    "nativeRequests": 0,
+    "blockedFavicons": 0,
+    "documentNodes": 9051,
+    "boldNodes": 4513,
+    "finalMarker": true,
+    "markerVisible": true,
+    "errors": [],
+    "paintSamples": [
+      {
+        "revision": 0,
+        "startTs": 291087736522,
+        "commitTs": 291088657660,
+        "paintTs": 291088663143,
+        "elapsedMs": 928.529
+      },
+      {
+        "revision": 1,
+        "startTs": 291088859006,
+        "commitTs": 291088889323,
+        "paintTs": 291088890829,
+        "elapsedMs": 32.169
+      },
+      {
+        "revision": 2,
+        "startTs": 291089019162,
+        "commitTs": 291089048189,
+        "paintTs": 291089049712,
+        "elapsedMs": 30.931
+      },
+      {
+        "revision": 3,
+        "startTs": 291089183281,
+        "commitTs": 291089212358,
+        "paintTs": 291089213821,
+        "elapsedMs": 30.899
+      },
+      {
+        "revision": 4,
+        "startTs": 291089348824,
+        "commitTs": 291089376964,
+        "paintTs": 291089378457,
+        "elapsedMs": 30.006
+      },
+      {
+        "revision": 5,
+        "startTs": 291089512834,
+        "commitTs": 291089539685,
+        "paintTs": 291089540989,
+        "elapsedMs": 28.485
+      },
+      {
+        "revision": 6,
+        "startTs": 291089676369,
+        "commitTs": 291089705670,
+        "paintTs": 291089707064,
+        "elapsedMs": 31.027
+      },
+      {
+        "revision": 7,
+        "startTs": 291089841354,
+        "commitTs": 291089876403,
+        "paintTs": 291089878035,
+        "elapsedMs": 37.034
+      },
+      {
+        "revision": 8,
+        "startTs": 291090010043,
+        "commitTs": 291090038139,
+        "paintTs": 291090039712,
+        "elapsedMs": 30.025
+      },
+      {
+        "revision": 9,
+        "startTs": 291090173922,
+        "commitTs": 291090201974,
+        "paintTs": 291090203474,
+        "elapsedMs": 29.931
+      },
+      {
+        "revision": 10,
+        "startTs": 291090339201,
+        "commitTs": 291090366435,
+        "paintTs": 291090367820,
+        "elapsedMs": 28.963
+      },
+      {
+        "revision": 11,
+        "startTs": 291090501919,
+        "commitTs": 291090529598,
+        "paintTs": 291090530832,
+        "elapsedMs": 29.218
+      },
+      {
+        "revision": 12,
+        "startTs": 291090665784,
+        "commitTs": 291090693399,
+        "paintTs": 291090694859,
+        "elapsedMs": 29.409
+      }
+    ],
+    "requestToChromiumPaintP95Ms": 37.034,
+    "electron": "42.5.2",
+    "chrome": "148.0.7778.271"
+  },
+  {
+    "parser": "js",
+    "scenario": "blocks",
+    "sourceCharacters": 204318,
+    "samples": [
+      {
+        "revision": 0,
+        "elapsedMs": 721.5999999642372
+      },
+      {
+        "revision": 1,
+        "elapsedMs": 63.89999997615814
+      },
+      {
+        "revision": 2,
+        "elapsedMs": 64.89999997615814
+      },
+      {
+        "revision": 3,
+        "elapsedMs": 64
+      },
+      {
+        "revision": 4,
+        "elapsedMs": 58
+      },
+      {
+        "revision": 5,
+        "elapsedMs": 62.299999952316284
+      },
+      {
+        "revision": 6,
+        "elapsedMs": 58.30000001192093
+      },
+      {
+        "revision": 7,
+        "elapsedMs": 61.5
+      },
+      {
+        "revision": 8,
+        "elapsedMs": 62.59999996423721
+      },
+      {
+        "revision": 9,
+        "elapsedMs": 59.10000002384186
+      },
+      {
+        "revision": 10,
+        "elapsedMs": 56
+      },
+      {
+        "revision": 11,
+        "elapsedMs": 59.89999997615814
+      },
+      {
+        "revision": 12,
+        "elapsedMs": 64.30000001192093
+      }
+    ],
+    "firstFormattedPaintP95Ms": 64.30000001192093,
+    "coldFirstFormattedPaintMs": 721.5999999642372,
+    "frameP95Ms": 9.300000000000182,
+    "frameMaxMs": 291.5,
+    "longTaskCount": 1,
+    "longTaskTotalMs": 277,
+    "longTaskMaxMs": 277,
+    "receivedKeys": 20,
+    "inputCharacters": 20,
+    "workerMessages": 13,
+    "nativeRequests": 0,
+    "blockedFavicons": 0,
+    "documentNodes": 12050,
+    "boldNodes": 3013,
+    "finalMarker": true,
+    "markerVisible": true,
+    "errors": [],
+    "paintSamples": [
+      {
+        "revision": 0,
+        "startTs": 291095161108,
+        "commitTs": 291095868189,
+        "paintTs": 291095875903,
+        "elapsedMs": 715.918
+      },
+      {
+        "revision": 1,
+        "startTs": 291096011009,
+        "commitTs": 291096066798,
+        "paintTs": 291096068827,
+        "elapsedMs": 58.639
+      },
+      {
+        "revision": 2,
+        "startTs": 291096193000,
+        "commitTs": 291096249502,
+        "paintTs": 291096251550,
+        "elapsedMs": 59.241
+      },
+      {
+        "revision": 3,
+        "startTs": 291096377604,
+        "commitTs": 291096431589,
+        "paintTs": 291096433315,
+        "elapsedMs": 56.301
+      },
+      {
+        "revision": 4,
+        "startTs": 291096558360,
+        "commitTs": 291096610069,
+        "paintTs": 291096611997,
+        "elapsedMs": 54.473
+      },
+      {
+        "revision": 5,
+        "startTs": 291096737647,
+        "commitTs": 291096790071,
+        "paintTs": 291096792347,
+        "elapsedMs": 55.367
+      },
+      {
+        "revision": 6,
+        "startTs": 291096916746,
+        "commitTs": 291096968146,
+        "paintTs": 291096969736,
+        "elapsedMs": 53.484
+      },
+      {
+        "revision": 7,
+        "startTs": 291097105056,
+        "commitTs": 291097159720,
+        "paintTs": 291097161464,
+        "elapsedMs": 56.976
+      },
+      {
+        "revision": 8,
+        "startTs": 291097287279,
+        "commitTs": 291097337890,
+        "paintTs": 291097339592,
+        "elapsedMs": 52.925
+      },
+      {
+        "revision": 9,
+        "startTs": 291097465490,
+        "commitTs": 291097516995,
+        "paintTs": 291097519045,
+        "elapsedMs": 54.423
+      },
+      {
+        "revision": 10,
+        "startTs": 291097643918,
+        "commitTs": 291097696519,
+        "paintTs": 291097698817,
+        "elapsedMs": 55.53
+      },
+      {
+        "revision": 11,
+        "startTs": 291097823335,
+        "commitTs": 291097873195,
+        "paintTs": 291097875093,
+        "elapsedMs": 52.403
+      },
+      {
+        "revision": 12,
+        "startTs": 291098002054,
+        "commitTs": 291098055805,
+        "paintTs": 291098057732,
+        "elapsedMs": 56.442
+      }
+    ],
+    "requestToChromiumPaintP95Ms": 56.976,
+    "electron": "42.5.2",
+    "chrome": "148.0.7778.271"
+  },
+  {
+    "parser": "js",
+    "scenario": "small",
+    "sourceCharacters": 346,
+    "samples": [
+      {
+        "revision": 0,
+        "elapsedMs": 21.30000001192093
+      },
+      {
+        "revision": 1,
+        "elapsedMs": 23.5
+      },
+      {
+        "revision": 2,
+        "elapsedMs": 22.19999998807907
+      },
+      {
+        "revision": 3,
+        "elapsedMs": 22.799999952316284
+      },
+      {
+        "revision": 4,
+        "elapsedMs": 23.100000023841858
+      },
+      {
+        "revision": 5,
+        "elapsedMs": 22.5
+      },
+      {
+        "revision": 6,
+        "elapsedMs": 21.5
+      },
+      {
+        "revision": 7,
+        "elapsedMs": 21.80000001192093
+      },
+      {
+        "revision": 8,
+        "elapsedMs": 21.80000001192093
+      },
+      {
+        "revision": 9,
+        "elapsedMs": 20.399999976158142
+      },
+      {
+        "revision": 10,
+        "elapsedMs": 19.399999976158142
+      },
+      {
+        "revision": 11,
+        "elapsedMs": 19.30000001192093
+      },
+      {
+        "revision": 12,
+        "elapsedMs": 18.600000023841858
+      }
+    ],
+    "firstFormattedPaintP95Ms": 23.100000023841858,
+    "coldFirstFormattedPaintMs": 21.30000001192093,
+    "frameP95Ms": 9.199999999999818,
+    "frameMaxMs": 9.300000000000182,
+    "longTaskCount": 0,
+    "longTaskTotalMs": 0,
+    "longTaskMaxMs": 0,
+    "receivedKeys": 11,
+    "inputCharacters": 11,
+    "workerMessages": 0,
+    "nativeRequests": 0,
+    "blockedFavicons": 0,
+    "documentNodes": 53,
+    "boldNodes": 14,
+    "finalMarker": true,
+    "markerVisible": true,
+    "errors": [],
+    "paintSamples": [
+      {
+        "revision": 0,
+        "startTs": 291102528922,
+        "commitTs": 291102535157,
+        "paintTs": 291102538051,
+        "elapsedMs": 9.223
+      },
+      {
+        "revision": 1,
+        "startTs": 291102668113,
+        "commitTs": 291102669561,
+        "paintTs": 291102675069,
+        "elapsedMs": 7.009
+      },
+      {
+        "revision": 2,
+        "startTs": 291102802669,
+        "commitTs": 291102804378,
+        "paintTs": 291102809218,
+        "elapsedMs": 6.607
+      },
+      {
+        "revision": 3,
+        "startTs": 291102944101,
+        "commitTs": 291102945419,
+        "paintTs": 291102950815,
+        "elapsedMs": 6.768
+      },
+      {
+        "revision": 4,
+        "startTs": 291103076946,
+        "commitTs": 291103078184,
+        "paintTs": 291103083455,
+        "elapsedMs": 6.574
+      },
+      {
+        "revision": 5,
+        "startTs": 291103211198,
+        "commitTs": 291103212254,
+        "paintTs": 291103216797,
+        "elapsedMs": 5.655
+      },
+      {
+        "revision": 6,
+        "startTs": 291103345241,
+        "commitTs": 291103346359,
+        "paintTs": 291103349805,
+        "elapsedMs": 4.611
+      },
+      {
+        "revision": 7,
+        "startTs": 291103478305,
+        "commitTs": 291103479597,
+        "paintTs": 291103483397,
+        "elapsedMs": 5.139
+      },
+      {
+        "revision": 8,
+        "startTs": 291103611958,
+        "commitTs": 291103614022,
+        "paintTs": 291103617142,
+        "elapsedMs": 5.248
+      },
+      {
+        "revision": 9,
+        "startTs": 291103746627,
+        "commitTs": 291103747683,
+        "paintTs": 291103750039,
+        "elapsedMs": 3.461
+      },
+      {
+        "revision": 10,
+        "startTs": 291103880554,
+        "commitTs": 291103881798,
+        "paintTs": 291103883336,
+        "elapsedMs": 2.838
+      },
+      {
+        "revision": 11,
+        "startTs": 291104013831,
+        "commitTs": 291104014988,
+        "paintTs": 291104016681,
+        "elapsedMs": 2.908
+      },
+      {
+        "revision": 12,
+        "startTs": 291104148009,
+        "commitTs": 291104149069,
+        "paintTs": 291104150059,
+        "elapsedMs": 2.101
+      }
+    ],
+    "requestToChromiumPaintP95Ms": 6.768,
+    "electron": "42.5.2",
+    "chrome": "148.0.7778.271"
+  },
+  {
+    "parser": "js",
+    "scenario": "links",
+    "sourceCharacters": 21318,
+    "samples": [
+      {
+        "revision": 0,
+        "elapsedMs": 100.19999998807907
+      },
+      {
+        "revision": 1,
+        "elapsedMs": 24.600000023841858
+      },
+      {
+        "revision": 2,
+        "elapsedMs": 25.5
+      },
+      {
+        "revision": 3,
+        "elapsedMs": 22.899999976158142
+      },
+      {
+        "revision": 4,
+        "elapsedMs": 26.80000001192093
+      },
+      {
+        "revision": 5,
+        "elapsedMs": 27
+      },
+      {
+        "revision": 6,
+        "elapsedMs": 29
+      },
+      {
+        "revision": 7,
+        "elapsedMs": 28.200000047683716
+      },
+      {
+        "revision": 8,
+        "elapsedMs": 27.400000035762787
+      },
+      {
+        "revision": 9,
+        "elapsedMs": 27.399999976158142
+      },
+      {
+        "revision": 10,
+        "elapsedMs": 27.700000047683716
+      },
+      {
+        "revision": 11,
+        "elapsedMs": 24.600000023841858
+      },
+      {
+        "revision": 12,
+        "elapsedMs": 25.30000001192093
+      }
+    ],
+    "firstFormattedPaintP95Ms": 29,
+    "coldFirstFormattedPaintMs": 100.19999998807907,
+    "frameP95Ms": 9.199999999999818,
+    "frameMaxMs": 9.400000000000546,
+    "longTaskCount": 0,
+    "longTaskTotalMs": 0,
+    "longTaskMaxMs": 0,
+    "receivedKeys": 12,
+    "inputCharacters": 12,
+    "workerMessages": 13,
+    "nativeRequests": 0,
+    "blockedFavicons": 0,
+    "documentNodes": 1251,
+    "boldNodes": 13,
+    "finalMarker": true,
+    "markerVisible": true,
+    "errors": [],
+    "paintSamples": [
+      {
+        "revision": 0,
+        "startTs": 291108545571,
+        "commitTs": 291108642877,
+        "paintTs": 291108644135,
+        "elapsedMs": 99.118
+      },
+      {
+        "revision": 1,
+        "startTs": 291108746257,
+        "commitTs": 291108752446,
+        "paintTs": 291108753926,
+        "elapsedMs": 7.909
+      },
+      {
+        "revision": 2,
+        "startTs": 291108878745,
+        "commitTs": 291108883721,
+        "paintTs": 291108888460,
+        "elapsedMs": 10.017
+      },
+      {
+        "revision": 3,
+        "startTs": 291109090509,
+        "commitTs": 291109095626,
+        "paintTs": 291109096139,
+        "elapsedMs": 5.901
+      },
+      {
+        "revision": 4,
+        "startTs": 291109235655,
+        "commitTs": 291109240169,
+        "paintTs": 291109246226,
+        "elapsedMs": 10.829
+      },
+      {
+        "revision": 5,
+        "startTs": 291109368935,
+        "commitTs": 291109373457,
+        "paintTs": 291109379557,
+        "elapsedMs": 10.882
+      },
+      {
+        "revision": 6,
+        "startTs": 291109501370,
+        "commitTs": 291109506047,
+        "paintTs": 291109513763,
+        "elapsedMs": 12.659
+      },
+      {
+        "revision": 7,
+        "startTs": 291109634398,
+        "commitTs": 291109639027,
+        "paintTs": 291109646083,
+        "elapsedMs": 11.946
+      },
+      {
+        "revision": 8,
+        "startTs": 291109768424,
+        "commitTs": 291109773230,
+        "paintTs": 291109779521,
+        "elapsedMs": 11.371
+      },
+      {
+        "revision": 9,
+        "startTs": 291109901821,
+        "commitTs": 291109907659,
+        "paintTs": 291109912056,
+        "elapsedMs": 10.551
+      },
+      {
+        "revision": 10,
+        "startTs": 291110034975,
+        "commitTs": 291110039777,
+        "paintTs": 291110047100,
+        "elapsedMs": 12.358
+      },
+      {
+        "revision": 11,
+        "startTs": 291110171250,
+        "commitTs": 291110175822,
+        "paintTs": 291110179549,
+        "elapsedMs": 8.536
+      },
+      {
+        "revision": 12,
+        "startTs": 291110303898,
+        "commitTs": 291110308719,
+        "paintTs": 291110312666,
+        "elapsedMs": 8.983
+      }
+    ],
+    "requestToChromiumPaintP95Ms": 12.659,
+    "electron": "42.5.2",
+    "chrome": "148.0.7778.271"
+  }
+]
