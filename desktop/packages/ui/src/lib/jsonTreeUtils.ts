@@ -57,62 +57,59 @@ function getNodePath(pathSegments: string[]): string {
   return result
 }
 
-let nodeCount = 0
+/** Build directly from parsed JSON without serializing and reparsing it. */
+export function buildJsonTree(data: unknown, options?: JsonTreeOptions): JsonTreeNode | null {
+  const opts = { ...DEFAULT_OPTIONS, ...options }
+  let nodeCount = 0
+  const ancestors = new WeakSet<object>()
 
-function buildTreeNode(
-  value: unknown,
-  key: string,
-  path: string[],
-  depth: number,
-  options: Required<JsonTreeOptions>,
-): JsonTreeNode | null {
-  if (nodeCount >= options.maxNodes) return null
-  nodeCount++
-
-  const type = getType(value)
-  const id = getNodePath(path)
-  const isExpandable = type === "object" || type === "array"
-
-  const node: JsonTreeNode = {
-    id,
-    key,
-    value,
-    type,
-    depth,
-    path,
-    isExpandable,
-  }
-
-  if (isExpandable && depth < options.maxDepth) {
-    const entries =
-      type === "array"
-        ? (value as unknown[]).map((v, i) => [String(i), v] as const)
-        : Object.entries(value as Record<string, unknown>)
-
-    node.childCount = entries.length
-    node.children = []
-    for (const [childKey, childValue] of entries) {
-      const childPath = [...path, childKey]
-      const child = buildTreeNode(childValue, childKey, childPath, depth + 1, options)
-      if (child) node.children.push(child)
+  function build(value: unknown, key: string, path: string[], depth: number): JsonTreeNode | null {
+    if (nodeCount >= opts.maxNodes) return null
+    nodeCount++
+    const type = getType(value)
+    const isExpandable = type === "object" || type === "array"
+    const node: JsonTreeNode = {
+      id: getNodePath(path), key, value, type, depth, path, isExpandable,
     }
-  } else if (isExpandable) {
-    node.childCount =
-      type === "array" ? (value as unknown[]).length : Object.keys(value as Record<string, unknown>).length
+    if (!isExpandable) return node
+
+    const object = value as object
+    if (ancestors.has(object)) throw new Error("JSON tree cannot contain cycles")
+    const keys = type === "object" ? Object.keys(object) : null
+    const count = keys ? keys.length : (value as unknown[]).length
+    node.childCount = count
+    if (depth >= opts.maxDepth) return node
+
+    node.children = []
+    ancestors.add(object)
+    try {
+      // Stop before reading or allocating entries outside the retained node budget.
+      for (let index = 0; index < count && nodeCount < opts.maxNodes; index++) {
+        const childKey = keys ? keys[index] : String(index)
+        const childValue = (value as Record<string, unknown>)[childKey]
+        const child = build(childValue, childKey, [...path, childKey], depth + 1)
+        if (child) node.children.push(child)
+      }
+    } finally {
+      ancestors.delete(object)
+    }
+    return node
   }
 
-  return node
+  try {
+    if (data === undefined || typeof data === "bigint" || typeof data === "function" || typeof data === "symbol") {
+      return null
+    }
+    return build(data, "root", [], 0)
+  } catch {
+    return null
+  }
 }
 
 export function parseJsonToTree(text: string, options?: JsonTreeOptions): JsonTreeNode | null {
-  const opts = { ...DEFAULT_OPTIONS, ...options }
-  nodeCount = 0
-
   try {
     const trimmed = text.trim()
-    if (!trimmed) return null
-    const parsed = JSON.parse(trimmed)
-    return buildTreeNode(parsed, "root", [], 0, opts)
+    return trimmed ? buildJsonTree(JSON.parse(trimmed), options) : null
   } catch {
     return null
   }

@@ -2,7 +2,7 @@ import React from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 
 import {
-  parseJsonToTree,
+  buildJsonTree,
   flattenTree,
   getAllExpandableIds,
   getExpandableIdsAboveDepth,
@@ -70,7 +70,7 @@ function formatValuePreview(node: JsonTreeNode): string {
 
 function getCollapsedPreview(node: JsonTreeNode): string {
   if (node.type === "object") {
-    const keys = node.children?.map((c) => c.key).slice(0, 3) ?? []
+    const keys = node.children?.slice(0, 3).map((c) => c.key) ?? []
     const suffix = (node.childCount ?? 0) > 3 ? ", ..." : ""
     return `{ ${keys.map((k) => `"${k}": ...`).join(", ")}${suffix} }`
   }
@@ -168,18 +168,9 @@ const ROW_HEIGHT = 22
 
 const JsonTreeViewer = React.forwardRef<{ expandAll: () => void; collapseAll: () => void }, JsonTreeViewerProps>(
   function JsonTreeViewer({ data, className, maxHeight = "100%", initiallyExpandedDepth = 2, onCopyPath }, ref) {
-    const jsonString = React.useMemo(() => {
-      try {
-        return JSON.stringify(data)
-      } catch {
-        return null
-      }
-    }, [data])
-
-    const treeRoot = React.useMemo(() => {
-      if (!jsonString) return null
-      return parseJsonToTree(jsonString)
-    }, [jsonString])
+    "use no memo"
+    // The virtualizer mutates a stable instance when its visible range changes.
+    const treeRoot = React.useMemo(() => buildJsonTree(data), [data])
 
     const [collapsedPaths, setCollapsedPaths] = React.useState<Set<string>>(() => {
       if (!treeRoot) return new Set()
@@ -228,7 +219,7 @@ const JsonTreeViewer = React.forwardRef<{ expandAll: () => void; collapseAll: ()
 
     if (shouldVirtualize) {
       return (
-        <div ref={parentRef} className={className} style={{ maxHeight, overflow: "auto" }}>
+        <div ref={parentRef} data-json-tree="virtualized" className={className} style={{ maxHeight, overflow: "auto" }}>
           <div
             style={{
               height: `${virtualizer.getTotalSize()}px`,
@@ -242,6 +233,7 @@ const JsonTreeViewer = React.forwardRef<{ expandAll: () => void; collapseAll: ()
               return (
                 <div
                   key={flatNode.node.id}
+                  data-json-tree-row={virtualRow.index}
                   style={{
                     position: "absolute",
                     top: 0,

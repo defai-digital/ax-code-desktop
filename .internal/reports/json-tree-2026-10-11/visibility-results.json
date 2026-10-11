@@ -1,0 +1,2126 @@
+[
+  {
+    "config": {
+      "name": "json-tool-expanded-4000",
+      "messages": 4000,
+      "kind": "json-tool",
+      "expanded": true
+    },
+    "elapsedMs": 12302.900000035763,
+    "ticks": 1,
+    "targetUpdatesPerSecond": 20,
+    "receivedKeys": 83,
+    "inputRenders": 0,
+    "inputCharacters": 83,
+    "frameSamples": 1471,
+    "frameP50Ms": 8.300000000000182,
+    "frameP95Ms": 9.199999999998909,
+    "frameMaxMs": 49.900000000000546,
+    "frameGapsOver50Ms": 0,
+    "keyToFrameP50Ms": 12.400000011921293,
+    "keyToFrameP95Ms": 15.700000011920565,
+    "keyToFrameMaxMs": 16.499999976156687,
+    "longTaskCount": 1,
+    "longTaskTotalMs": 58,
+    "longTaskMaxMs": 58,
+    "eventTimings": [
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 1
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 4.699999988079071
+      },
+      {
+        "name": "beforeinput",
+        "duration": 32,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 32,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 0.3999999761581421
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 3.799999952316284
+      },
+      {
+        "name": "beforeinput",
+        "duration": 32,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 32,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 40,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 40,
+        "queueMs": 0.5
+      },
+      {
+        "name": "keyup",
+        "duration": 40,
+        "queueMs": 3.199999988079071
+      },
+      {
+        "name": "beforeinput",
+        "duration": 40,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 40,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.2999999523162842
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.7999999523162842
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.600000023841858
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 48,
+        "queueMs": 19.099999964237213
+      },
+      {
+        "name": "keypress",
+        "duration": 48,
+        "queueMs": 19.19999998807907
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.899999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 16,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 16,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 1.9000000357627869
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.5
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.899999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.5
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.5999999642372131
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 3.699999988079071
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.2999999523162842
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 1.199999988079071
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 1.4000000357627869
+      },
+      {
+        "name": "beforeinput",
+        "duration": 32,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 32,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 2.800000011920929
+      },
+      {
+        "name": "beforeinput",
+        "duration": 32,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 32,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 2.599999964237213
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 0.5999999642372131
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 32,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 32,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.7000000476837158
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.800000011920929
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 1.800000011920929
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 2.100000023841858
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 1.300000011920929
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 2.899999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 3.100000023841858
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.699999988079071
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.699999988079071
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 0.5999999642372131
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 3.100000023841858
+      },
+      {
+        "name": "beforeinput",
+        "duration": 32,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 32,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 0.5
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 3.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 32,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 32,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 0.40000003576278687
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 4.300000011920929
+      },
+      {
+        "name": "beforeinput",
+        "duration": 32,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 32,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 0.5
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 3.799999952316284
+      },
+      {
+        "name": "beforeinput",
+        "duration": 32,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 32,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 0.5
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 3.699999988079071
+      },
+      {
+        "name": "beforeinput",
+        "duration": 32,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 32,
+        "queueMs": 0.2999999523162842
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.40000003576278687
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.6000000238418579
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.800000011920929
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.699999988079071
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.7999999523162842
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.600000023841858
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 16,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 16,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 1
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 1.100000023841858
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 2.199999988079071
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.4000000357627869
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.300000011920929
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.4000000357627869
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.7000000476837158
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.4000000357627869
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.600000023841858
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 16,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 16,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 16,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 16,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.300000011920929
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.40000003576278687
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.9000000357627869
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.600000023841858
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 16,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 1.100000023841858
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 1.0999999642372131
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 2.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 0.9000000357627869
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 1.100000023841858
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 2.199999988079071
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.600000023841858
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.300000011920929
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.300000011920929
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.3999999761581421
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5999999642372131
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.7000000476837158
+      },
+      {
+        "name": "beforeinput",
+        "duration": 16,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 16,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.4000000357627869
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.7000000476837158
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.2999999523162842
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.600000023841858
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.3999999761581421
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5999999642372131
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 32,
+        "queueMs": 0.5
+      },
+      {
+        "name": "keypress",
+        "duration": 32,
+        "queueMs": 0.40000003576278687
+      },
+      {
+        "name": "keyup",
+        "duration": 32,
+        "queueMs": 1.600000023841858
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.7999999523162842
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.800000011920929
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.9000000357627869
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.300000011920929
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.800000011920929
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.600000023841858
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.20000004768371582
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 16,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 16,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 16,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 16,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 16,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 16,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.5
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.2999999523162842
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.399999976158142
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.09999996423721313
+      },
+      {
+        "name": "keydown",
+        "duration": 24,
+        "queueMs": 0.19999998807907104
+      },
+      {
+        "name": "keypress",
+        "duration": 24,
+        "queueMs": 0.30000001192092896
+      },
+      {
+        "name": "keyup",
+        "duration": 24,
+        "queueMs": 1.800000011920929
+      },
+      {
+        "name": "beforeinput",
+        "duration": 24,
+        "queueMs": 0
+      },
+      {
+        "name": "input",
+        "duration": 24,
+        "queueMs": 0.10000002384185791
+      }
+    ],
+    "domNodes": 1371,
+    "historyEntriesInDOM": 7,
+    "toolOutputBytes": 592106,
+    "renderedToolOutput": true,
+    "errors": [],
+    "workerStats": {
+      "requested": 0,
+      "completed": 0,
+      "failed": 0
+    },
+    "formattedStrongNodes": 7,
+    "virtualizedToolViews": 0,
+    "mountedJsonRows": 39,
+    "mountedToolRows": 0,
+    "inputCharactersAdded": 83,
+    "electron": "42.5.2",
+    "chrome": "148.0.7778.271",
+    "jsonBottomCheck": {
+      "finalRowVisible": true,
+      "mountedRows": 39,
+      "expandedValueVisible": true
+    }
+  }
+]

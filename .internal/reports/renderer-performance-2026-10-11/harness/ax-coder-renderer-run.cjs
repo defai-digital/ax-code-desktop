@@ -41,6 +41,7 @@ app.whenReady().then(async () => {
     { name: 'markdown-4000', messages: 4000, kind: 'markdown' },
     { name: 'paragraph-4000', messages: 4000, kind: 'paragraph' },
     { name: 'tool-4000', messages: 4000, kind: 'tool' },
+    { name: 'json-tool-expanded-4000', messages: 4000, kind: 'json-tool', expanded: true },
     { name: 'tool-expanded-4000', messages: 4000, kind: 'tool', expanded: true },
   ].filter(scenario => !process.env.AX_PERF_SCENARIO || process.env.AX_PERF_SCENARIO.split(",").includes(scenario.name))) {
     console.log('SETUP', scenario.name)
@@ -82,6 +83,20 @@ app.whenReady().then(async () => {
       result.outputBottomCheck = await evaluate(`({finalRowVisible:document.body.innerText.includes('final row 4000 complete'),mountedRows:document.querySelectorAll('[data-tool-output-line]').length})`)
       await win.webContents.capturePage().then(image => fs.writeFileSync(path.join(output, scenario.name + '-bottom.png'), image.toPNG()))
       if (!result.outputBottomCheck.finalRowVisible || result.outputBottomCheck.mountedRows > 100) throw new Error('Large output scroll check failed')
+    }
+    if (scenario.kind === 'json-tool') {
+      await evaluate(`(() => {const e=document.querySelector('[data-json-tree="virtualized"]');e.scrollTop=e.scrollHeight})()`)
+      await pause(300)
+      result.jsonBottomCheck = await evaluate(`({finalRowVisible:!!document.querySelector('[data-json-tree-row="4000"]'),mountedRows:document.querySelectorAll('[data-json-tree-row]').length})`)
+      if (result.jsonBottomCheck.finalRowVisible) {
+        await evaluate(`document.querySelector('[data-json-tree-row="4000"] button')?.click()`)
+        await pause(300)
+        await evaluate(`(() => {const e=document.querySelector('[data-json-tree="virtualized"]');e.scrollTop=e.scrollHeight})()`)
+        await pause(300)
+        result.jsonBottomCheck.expandedValueVisible = await evaluate(`(() => {const e=document.querySelector('[data-json-tree="virtualized"]');const n=document.querySelector('[data-json-tree-row="4002"]');if(!n)return false;const a=e.getBoundingClientRect(),b=n.getBoundingClientRect();return n.textContent.includes('JSON fixture 3999')&&b.top>=a.top&&b.bottom<=a.bottom})()`)
+      }
+      if (!result.jsonBottomCheck.finalRowVisible || !result.jsonBottomCheck.expandedValueVisible || result.jsonBottomCheck.mountedRows > 100) throw new Error('JSON output scroll or expansion check failed')
+      await win.webContents.capturePage().then(image => fs.writeFileSync(path.join(output, scenario.name + '-bottom.png'), image.toPNG()))
     }
     results.push(result)
     await contentTracing.stopRecording(path.join(output, scenario.name + '.trace.json'))

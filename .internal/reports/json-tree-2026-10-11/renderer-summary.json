@@ -1,0 +1,36 @@
+{
+  "baseline": {
+    "domNodes": 1371,
+    "mountedJsonRows": 39,
+    "longTaskCount": 0,
+    "frameP95Ms": 9.200000000000728,
+    "frameMaxMs": 50.19999999999982,
+    "keyToFrameP95Ms": 15.599999952315557,
+    "receivedKeys": 79,
+    "inputCharactersAdded": 79,
+    "toolOutputBytes": 592106,
+    "jsonBottomCheck": {
+      "finalRowVisible": true,
+      "mountedRows": 39,
+      "expandedValueVisible": true
+    },
+    "errors": []
+  },
+  "candidate": {
+    "domNodes": 1371,
+    "mountedJsonRows": 39,
+    "longTaskCount": 0,
+    "frameP95Ms": 9.199999999998909,
+    "frameMaxMs": 32.69999999999982,
+    "keyToFrameP95Ms": 15.900000047684443,
+    "receivedKeys": 79,
+    "inputCharactersAdded": 79,
+    "toolOutputBytes": 592106,
+    "jsonBottomCheck": {
+      "finalRowVisible": true,
+      "mountedRows": 39,
+      "expandedValueVisible": true
+    },
+    "errors": []
+  }
+}

@@ -91,7 +91,7 @@ function sessionState(messages: number) {
   const id = message[messages - 1].id
   tail = config.kind === "paragraph" ? "An unfinished **paragraph** with inline `code` and context. ".repeat(1500) : ""
   part[id][0].text = tail
-  if (config.kind === "tool") part[id] = [{ id: "prt_tool", messageID: id, sessionID: sid, type: "tool",
+  if (config.kind === "tool" || config.kind === "json-tool") part[id] = [{ id: "prt_tool", messageID: id, sessionID: sid, type: "tool",
     tool: "bash", callID: "call_perf", state: { status: "running", input: { command: "fixture build" },
       time: { start: Date.now() }, title: "Fixture build", metadata: { output: "" } } }]
   return { ...INITIAL_STATE, status: "ready", session: [{ id: sid, directory, title: "Performance fixture", version: "fixture",
@@ -147,11 +147,16 @@ const percentile = (values: number[], q: number) => {
       if (config.idle) return
       expected += 50
       const state = store.getState()
-      if (config.kind === "tool") {
+      if (config.kind === "tool" || config.kind === "json-tool") {
         if (performance.now() - started < 500 || ticks > 0) return
         tail = "Compiled fixture module: 100% complete; no errors.\n".repeat(4000)
         // Same 204,000-character payload, with an identifiable final row for scrolling checks.
         tail = tail.slice(0, -51) + "Compiled fixture module: final row 4000 complete.".padEnd(50) + "\n"
+        if (config.kind === "json-tool") {
+          tail = JSON.stringify(Array.from({ length: 4000 }, (_, index) => ({
+            index, name: `JSON fixture ${index}`, payload: Array.from({ length: 20 }, (_, i) => index + i),
+          })))
+        }
         const previous = state.part[messageID][0] as any
         const event: any = { type: "message.part.updated", properties: { part: { ...previous,
           state: { ...previous.state, status: "completed", output: tail, metadata: { output: tail },
@@ -184,10 +189,11 @@ const percentile = (values: number[], q: number) => {
       longTaskTotalMs: longTasks.reduce((a, b) => a + b, 0), longTaskMaxMs: Math.max(0, ...longTasks),
       eventTimings, domNodes: document.querySelectorAll("*").length,
       historyEntriesInDOM: document.querySelectorAll("[data-turn-entry]").length,
-      toolOutputBytes: config.kind === "tool" ? tail.length : null,
-      renderedToolOutput: document.body.innerText.includes("Compiled fixture module"), errors,
+      toolOutputBytes: config.kind === "tool" || config.kind === "json-tool" ? tail.length : null,
+      renderedToolOutput: config.kind === "json-tool" ? !!document.querySelector("[data-json-tree]") : document.body.innerText.includes("Compiled fixture module"), errors,
       workerStats: { ...workerStats }, formattedStrongNodes: document.querySelectorAll(".markdown-content strong").length,
       virtualizedToolViews: document.querySelectorAll('[data-tool-output="virtualized"]').length,
+      mountedJsonRows: document.querySelectorAll("[data-json-tree-row]").length,
       mountedToolRows: document.querySelectorAll('[data-tool-output-line]').length }
   },
 }
