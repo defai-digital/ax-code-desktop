@@ -265,8 +265,9 @@ describe("R4 duplicate exported hook names", () => {
   })
 })
 
+// This integration check parses the entire UI tree on shared CI runners.
 test("the current UI tree satisfies the store boundary policy", async () => {
   const { violations, warnings } = await collectDesktopStoreBoundaryViolations()
   expect(warnings).toEqual([])
   expect(violations).toEqual([])
-})
+}, 30_000)

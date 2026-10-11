@@ -97,6 +97,14 @@ jobs:
       - name: Rebuild native modules for Electron
         run: pnpm --filter @ax-code/electron run rebuild:native
 
+      - name: Configure the installed Electron sandbox helper
+        if: runner.os == 'Linux'
+        working-directory: desktop/packages/electron
+        run: |
+          sandbox_helper="$(node -e 'const path = require("node:path"); process.stdout.write(path.join(path.dirname(require("electron")), "chrome-sandbox"))')"
+          sudo chown root:root "$sandbox_helper"
+          sudo chmod 4755 "$sandbox_helper"
+
       - name: Smoke native menus, PTY, and WebMCP
         if: runner.os != 'Linux'
         shell: bash

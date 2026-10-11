@@ -3,7 +3,7 @@
 # electron-builder can bundle it as an extraResource (see electron-builder.yml).
 #
 # The pin comes from config/ax-code-runtime.json; the runtime tree is downloaded
-# from the named AX Code GitHub release, checked against pinned size/SHA-256
+# from the versioned AX Code public release mirror, checked against pinned size/SHA-256
 # metadata, and verified with the pinned Minisign public key before extraction.
 # Release builds (AX_CODE_STAGE_REQUIRED=true) fail
 # closed: a missing archive or bad signature aborts packaging — never ship a

@@ -82,7 +82,12 @@ export function assetNameForTarget({ platform, arch }) {
 }
 
 export function releaseAssetUrls({ version, assetName, repo = RELEASE_REPO }) {
-  const base = `https://github.com/${repo}/releases/download/v${version}`
+  // The canonical signed artifacts are mirrored publicly; the source GitHub
+  // repository is private and a consumer's GITHUB_TOKEN cannot read it.
+  const base =
+    repo === RELEASE_REPO
+      ? `https://download.ax-code.com/releases/download/v${version}`
+      : `https://github.com/${repo}/releases/download/v${version}`
   return {
     archiveUrl: `${base}/${assetName}`,
     signatureUrl: `${base}/${assetName}.minisig`,

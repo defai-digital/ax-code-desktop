@@ -88,11 +88,17 @@ describe("assetNameForTarget", () => {
 })
 
 describe("releaseAssetUrls", () => {
-  it("points at the pinned v<version> CLI release", () => {
+  it("points at the pinned v<version> signed public CLI mirror", () => {
     expect(releaseAssetUrls({ version: "7.9.12", assetName: "ax-code-darwin-arm64.zip" })).toEqual({
-      archiveUrl: "https://github.com/defai-digital/ax-code/releases/download/v7.9.12/ax-code-darwin-arm64.zip",
-      signatureUrl:
-        "https://github.com/defai-digital/ax-code/releases/download/v7.9.12/ax-code-darwin-arm64.zip.minisig",
+      archiveUrl: "https://download.ax-code.com/releases/download/v7.9.12/ax-code-darwin-arm64.zip",
+      signatureUrl: "https://download.ax-code.com/releases/download/v7.9.12/ax-code-darwin-arm64.zip.minisig",
+    })
+  })
+
+  it("keeps explicitly selected repositories on their own GitHub release", () => {
+    expect(releaseAssetUrls({ version: "1.2.3", assetName: "runtime.zip", repo: "example/runtime" })).toEqual({
+      archiveUrl: "https://github.com/example/runtime/releases/download/v1.2.3/runtime.zip",
+      signatureUrl: "https://github.com/example/runtime/releases/download/v1.2.3/runtime.zip.minisig",
     })
   })
 })
