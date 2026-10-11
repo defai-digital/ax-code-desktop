@@ -47,7 +47,7 @@ function fuseBinary(overrides = {}) {
   ])
 }
 
-async function makeAsarResources() {
+async function makeAsarResources(extraFiles = {}) {
   const root = makeTempDir()
   const source = path.join(root, "source")
   const resources = path.join(root, "resources")
@@ -62,6 +62,7 @@ async function makeAsarResources() {
       '{"schema":"ax-code.runtime-manifest.placeholder.v1","reason":"runtime-not-staged"}\n',
     "web-dist/index.html": "<html></html>\n",
     "web-dist/assets/app.js": "renderer\n",
+    ...extraFiles,
   }
   for (const [relativePath, contents] of Object.entries(files)) {
     const destination = path.join(source, relativePath)
@@ -147,6 +148,26 @@ describe("packaged Electron integrity verification", () => {
     expect(result.javascript).toBeGreaterThanOrEqual(5)
     const header = asar.getRawHeader(path.join(resources, "app.asar"))
     expect(crypto.createHash("sha256").update(header.headerString).digest("hex")).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  test("verifies code inside directories with JavaScript extensions", async () => {
+    const relativePath = "node_modules/@msgpack/msgpack/dist.cjs/index.cjs"
+    const { resources } = await makeAsarResources({ [relativePath]: "dependency\n" })
+    expect(verifyAsarLayout(resources).javascript).toBe(7)
+
+    const archivePath = path.join(resources, "app.asar")
+    const rawHeader = asar.getRawHeader(archivePath)
+    const entry =
+      rawHeader.header.files.node_modules.files["@msgpack"].files.msgpack.files["dist.cjs"].files["index.cjs"]
+    const descriptor = fs.openSync(archivePath, "r+")
+    try {
+      fs.writeSync(descriptor, Buffer.from("X"), 0, 1, 8 + rawHeader.headerSize + Number(entry.offset))
+    } finally {
+      fs.closeSync(descriptor)
+    }
+    expect(() => verifyAsarLayout(resources)).toThrow(
+      `app.asar content does not match SHA256 integrity for ${relativePath}`,
+    )
   })
 
   test("rejects ASAR data that does not match its block integrity", async () => {

@@ -101,7 +101,8 @@ jobs:
         if: runner.os == 'Linux'
         working-directory: desktop/packages/electron
         run: |
-          sandbox_helper="$(node -e 'const path = require("node:path"); process.stdout.write(path.join(path.dirname(require("electron")), "chrome-sandbox"))')"
+          node -e 'require("electron")'
+          sandbox_helper="$(node -e 'const path = require("node:path"); process.stdout.write(path.join(path.dirname(require.resolve("electron/package.json")), "dist", "chrome-sandbox"))')"
           sudo chown root:root "$sandbox_helper"
           sudo chmod 4755 "$sandbox_helper"
 

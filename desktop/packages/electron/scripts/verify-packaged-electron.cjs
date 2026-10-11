@@ -138,16 +138,16 @@ function verifyAsarLayout(resourcesPath) {
 
   const files = asar.listPackage(archivePath, { isPack: false }).map((entry) => entry.replace(/^\/+/, ""))
   const fileSet = new Set(files)
+  const rawHeader = asar.getRawHeader(archivePath)
+  // Dependency directories such as @msgpack/msgpack/dist.cjs are not code
+  // files. Verify every JavaScript file beneath them, not the directory entry.
+  const javascript = files.filter((entry) => isJavaScript(entry) && !asarEntry(rawHeader.header, entry)?.files)
   for (const required of REQUIRED_ASAR_FILES) {
     if (!fileSet.has(required)) throw new Error(`app.asar is missing ${required}`)
   }
-  const rendererJavaScript = files.filter(
-    (entry) => entry.startsWith("web-dist/") && JAVASCRIPT_EXTENSIONS.has(path.posix.extname(entry).toLowerCase()),
-  )
+  const rendererJavaScript = javascript.filter((entry) => entry.startsWith("web-dist/"))
   if (rendererJavaScript.length === 0) throw new Error("app.asar contains no renderer JavaScript")
 
-  const javascript = files.filter(isJavaScript)
-  const rawHeader = asar.getRawHeader(archivePath)
   for (const required of new Set([...REQUIRED_ASAR_FILES, ...javascript])) {
     assertPackedFileIntegrity(rawHeader, archivePath, required)
   }
