@@ -19,7 +19,7 @@ REMOTE="origin"
 BRANCH=""
 REPO=""
 KEY_DIR="${SIGNKEY_DIR:-$HOME/signkey}"
-CANONICAL_MINISIGN_PUBLIC_KEY="$REPO_ROOT/docs/release/ax-minisign.pub"
+CANONICAL_MINISIGN_PUBLIC_KEY="$REPO_ROOT/resources/keys/ax-minisign.pub"
 PUBLISH=false
 ALLOW_DIRTY=false
 ALLOW_BRANCH=false
@@ -225,20 +225,20 @@ validate_release_absent() {
 }
 
 run_local_validation() {
-  log "Running docs validation"
-  node desktop/scripts/docs/validate-docs.mjs
+  log "Running boundary and release contract validation"
+  pnpm run check:boundaries
 
   log "Running tests"
-  pnpm run desktop:test
+  pnpm run test
 
   log "Running type-check"
-  pnpm run desktop:typecheck
+  pnpm run typecheck
 
   log "Running lint"
-  pnpm run desktop:lint
+  pnpm run lint
 
   log "Running build"
-  pnpm run desktop:build
+  pnpm run build
 }
 
 create_and_push_tag() {
@@ -451,7 +451,7 @@ require_command git
 require_command gh
 
 VERSION="${VERSION:-$(json_field desktop/packages/web/package.json version)}"
-TAG="desktop-v$VERSION"
+TAG="$(node -p "require('./config/desktop-release-policy.json').publicRelease.tagPrefix")$VERSION"
 BRANCH="${BRANCH:-$(default_branch)}"
 
 validate_version

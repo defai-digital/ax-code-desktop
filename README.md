@@ -25,9 +25,16 @@ See [the active PRD](.internal/prd/PRD-2026-09-02-ax-coder-product-and-desktop-e
 
 ## Repository state
 
-No remote, release channel, package namespace, bundle identity change, or license transition is implied by the
-local repository initialization. Those decisions require the ADR and specification sequence described in
-`AGENTS.md`.
+The active private remote is `https://github.com/defai-digital/ax-code-desktop`.
+The independent release target is recorded under [ADR-009](.internal/adr/ADR-009-independent-desktop-release-preparation.md).
+Desktop release preparation uses `v<desktop-version>` tags and preserves earlier tags; a source tag is not a
+published installer. The active updater remains on its compatibility channel until the signed release,
+upgrade, rollback, data/credential continuity, and human cutover gates pass. Private GitHub releases are not
+an unauthenticated public update feed.
+
+Run `pnpm run release:preflight` for a read-only report of the intended repository, version, exact-source CI,
+missing signing secret names, visibility constraints, and remaining release gates. A nonzero exit means
+the candidate is not ready for official publication. This command does not copy credentials or change GitHub state.
 
 The AX Code SDK dependency decision is accepted: production will use an exact
 `@defai-digital/ax-code-sdk` version from JSR plus a separately pinned signed AX Code runtime. Current pins are

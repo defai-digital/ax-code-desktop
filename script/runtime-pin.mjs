@@ -117,17 +117,8 @@ export function verifyRuntimePin(root = repositoryRoot, fileSystem = fs) {
   verifyPinnedFile(publicKeyPath, pin.minisign, "minisign public key", fileSystem)
   assert(fileSystem.readFileSync(publicKeyPath, "utf8").includes(pin.minisign.keyId), "public key ID mismatch")
 
-  const manifests = [
-    "package.json",
-    "desktop/packages/electron/package.json",
-    "desktop/packages/web/package.json",
-    "desktop/packages/ui/package.json",
-  ]
-  for (const manifest of manifests) {
-    const value = JSON.parse(fileSystem.readFileSync(path.join(root, manifest), "utf8"))
-    assert(value.version === pin.version, `${manifest} version ${String(value.version)} does not match ${pin.version}`)
-  }
-
+  // Desktop versions are checked together by the Desktop release contract.
+  // The separately signed producer runtime can remain pinned across UI releases.
   return pin
 }
 

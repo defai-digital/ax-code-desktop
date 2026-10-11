@@ -14,6 +14,7 @@ describe("Desktop release policy", () => {
     expect(policy.stage).toBe("shadow-only")
     expect(policy.publicRelease).toMatchObject({ enabled: false, repository: "defai-digital/ax-code" })
     expect(policy.shadow).toMatchObject({ artifactChannel: "github-actions", signingMode: "explicit-only" })
+    expect(policy.cutover).toMatchObject({ repository: "defai-digital/ax-code-desktop", tagPrefix: "v" })
   })
 
   it("requires an explicit publish-never argument while shadow-only", () => {

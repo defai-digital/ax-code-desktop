@@ -202,4 +202,6 @@ deb:
 publish:
   provider: github
   owner: defai-digital
-  repo: ax-code
+  # Candidate metadata targets the independent owner. Publishing remains
+  # disabled and the active updater stays frozen until ADR-009 cutover gates pass.
+  repo: ax-code-desktop

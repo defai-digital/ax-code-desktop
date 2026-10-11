@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.24.5] - Candidate
+
+### Added
+
+- Prepare the independent Desktop release target and add read-only release readiness checks.
+- Include the consolidated native WebMCP browser, launch/quit animations, and Markdown/localization work.
+
+### Fixed
+
+- Use stable Electron 44.7.0 and current native rebuild tooling.
+- Keep Desktop versions independent of the separately signed AX Code runtime pin.
+- Download pinned runtime assets from the official public mirror with unchanged hash/signature verification.
+- Correct ASAR directory classification, Linux sandbox setup, and independent workspace release commands.
+
+This candidate is not an official release. Signed shadow, update/rollback, and cutover gates remain required.
+
 ## [7.10.2] - 2026-09-02
 
 ### Changed

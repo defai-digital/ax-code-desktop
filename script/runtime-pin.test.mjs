@@ -19,7 +19,7 @@ afterEach(() => {
 })
 
 describe("runtime pin", () => {
-  it("validates the committed pin, public key, and Desktop versions", () => {
+  it("validates the committed runtime pin and public key independently of Desktop versions", () => {
     const pin = verifyRuntimePin(repositoryRoot)
     expect(pin.version).toBe("7.24.4")
     expect(Object.keys(pin.artifacts)).toHaveLength(5)

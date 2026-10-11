@@ -6,6 +6,12 @@
     "repository": "defai-digital/ax-code",
     "tagPrefix": "desktop-v"
   },
+  "cutover": {
+    "repository": "defai-digital/ax-code-desktop",
+    "tagPrefix": "v",
+    "decision": ".internal/adr/ADR-009-independent-desktop-release-preparation.md",
+    "requiredEvidence": ["signed-shadow", "upgrade", "rollback", "data-and-credential-continuity", "human-approval"]
+  },
   "shadow": {
     "workflow": "desktop-shadow.yml",
     "artifactChannel": "github-actions",

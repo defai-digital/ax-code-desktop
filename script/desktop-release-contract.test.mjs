@@ -42,7 +42,7 @@ describe("Desktop release contract", () => {
     )
     expect(builder).toContain("appId: ai.defai.ax-code-app")
     expect(builder).toContain("productName: AX Code")
-    expect(builder).toContain("owner: defai-digital\n  repo: ax-code")
+    expect(builder).toContain("repo: ax-code-desktop")
     expect(updater).toContain('const GITHUB_REPO = "ax-code"')
   })
 
@@ -63,6 +63,31 @@ describe("Desktop release contract", () => {
       }),
     })
     expect(() => verifyDesktopReleaseContract(repositoryRoot, fileSystem)).toThrow("Electron must use an exact version")
+  })
+
+  it("allows Desktop patch releases without changing the independently signed runtime", () => {
+    const overrides = Object.fromEntries(
+      [
+        "package.json",
+        "desktop/packages/electron/package.json",
+        "desktop/packages/web/package.json",
+        "desktop/packages/ui/package.json",
+      ].map((file) => [file, (manifest) => ({ ...manifest, version: "7.24.99" })]),
+    )
+    const contract = verifyDesktopReleaseContract(repositoryRoot, withOverrides(overrides))
+    expect(contract.manifests.root.version).toBe("7.24.99")
+    expect(contract.runtime.version).toBe("7.24.4")
+  })
+
+  it("rejects mismatched Desktop package versions", () => {
+    expect(() =>
+      verifyDesktopReleaseContract(
+        repositoryRoot,
+        withOverrides({
+          "package.json": (manifest) => ({ ...manifest, version: "7.24.99" }),
+        }),
+      ),
+    ).toThrow("Desktop package versions must match")
   })
 
   it("blocks prerelease Electron even after public cutover approval", () => {

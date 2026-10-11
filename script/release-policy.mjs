@@ -32,6 +32,16 @@ export function readReleasePolicy(root = repositoryRoot, fileSystem = fs) {
     "shadow.retentionDays must be between 1 and 30",
   )
   assert(policy.shadow?.signingMode === "explicit-only", "shadow.signingMode must be explicit-only")
+  if (policy.cutover) {
+    assert(policy.cutover.repository === "defai-digital/ax-code-desktop", "independent cutover repository is invalid")
+    assert(policy.cutover.tagPrefix === "v", "independent cutover tags must use v")
+    assert(
+      ["signed-shadow", "upgrade", "rollback", "data-and-credential-continuity", "human-approval"].every(
+        (gate) => policy.cutover.requiredEvidence?.includes(gate),
+      ),
+      "cutover evidence gates are incomplete",
+    )
+  }
   if (policy.stage === "shadow-only") {
     assert(policy.publicRelease.enabled === false, "public release must remain disabled during shadow-only stage")
   } else {

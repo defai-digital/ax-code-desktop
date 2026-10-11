@@ -80,7 +80,8 @@ export function verifyDesktopReleaseContract(root = repositoryRoot, fileSystem =
     !electronPin.includes("-") || policy.publicRelease.enabled === false,
     "prerelease Electron candidates cannot qualify a public release",
   )
-  assert(versions.size === 1 && versions.has(runtime.version), "Desktop and pinned runtime versions must match")
+  assert(versions.size === 1, "Desktop package versions must match")
+  assert(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifests.root.version), "Desktop version must be SemVer")
   assert(manifests.root.name === "ax-coder", "root package name must remain ax-coder")
   assert(manifests.electron.name === identity.packages.electron, "Electron package identity changed")
   assert(manifests.electron.desktopName === "ax-code-desktop.desktop", "Desktop filename identity changed")
@@ -102,8 +103,9 @@ export function verifyDesktopReleaseContract(root = repositoryRoot, fileSystem =
   requireText(builder, `executableName: ${identity.packages.linuxExecutable}`, "Linux executable")
   requireText(builder, `packageName: ${identity.packages.linuxPackage}`, "Linux package")
   const [updaterOwner, updaterRepository] = identity.updater.repository.split("/")
-  requireText(builder, `owner: ${updaterOwner}`, "updater owner")
-  requireText(builder, `repo: ${updaterRepository}`, "updater repository")
+  const [packageOwner, packageRepository] = (policy.cutover?.repository ?? identity.updater.repository).split("/")
+  requireText(builder, `owner: ${packageOwner}`, "candidate release owner")
+  requireText(builder, `repo: ${packageRepository}`, "candidate release repository")
 
   const updateFeed = fileSystem.readFileSync(
     path.join(root, "desktop/packages/electron/src/desktop-update-feed.js"),

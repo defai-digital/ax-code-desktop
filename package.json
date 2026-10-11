@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "ax-coder",
-  "version": "7.24.4",
+  "version": "7.24.5",
   "description": "Persistent desktop supervision for AX Code projects.",
   "private": true,
   "type": "module",
@@ -40,7 +40,8 @@
     "package:desktop": "node desktop/packages/electron/scripts/package.mjs",
     "shadow:evidence": "node script/shadow-release-evidence.mjs",
     "winget:generate": "tsx tools/winget/generate-manifests.ts",
-    "check:locales": "tsx script/check-locales.ts"
+    "check:locales": "tsx script/check-locales.ts",
+    "release:preflight": "node script/desktop-release-preflight.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",

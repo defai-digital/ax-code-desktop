@@ -31,9 +31,10 @@ frozen lockfile and a pinned signed AX Code runtime. Independent CI, CodeQL, and
 workflow are implemented. The local source-ownership cutover is complete under ADR-008: AX Code removed its Desktop
 tree at `6a2e03d90411ddd7141047baa59d4a754f1c4107`, and AX Coder is the sole current GUI source owner.
 
-The shadow workflow has not run because this local repository has no remote, and signed cross-platform, upgrade, and
-rollback evidence remains pending. Keep public release disabled, do not rebrand, and do not restore GUI source to AX
-Code. Follow the governance order below.
+The repository has an active private remote at `defai-digital/ax-code-desktop`. Independent CI and native smoke
+checks have run. Signed cross-platform shadow, upgrade, and rollback evidence remains pending. ADR-009 prepares
+the independent release target without enabling publication or changing the active updater. Keep public release
+disabled, do not rebrand, and do not restore GUI source to AX Code. Follow the governance order below.
 
 ## Environment and commands
 
@@ -51,6 +52,7 @@ Code. Follow the governance order below.
 | Release identity contract     | `pnpm run check:release-contract`                                  |
 | Workflow syntax               | `actionlint .github/workflows/*.yml`                               |
 | Development app               | `pnpm run dev`                                                     |
+| Release readiness (read-only)  | `pnpm run release:preflight`                                       |
 | Local unsigned package        | `pnpm run package:desktop -- <platform flags> --publish=never ...` |
 
 Public release commands remain intentionally unavailable until the Phase 3 shadow-release gates pass.
