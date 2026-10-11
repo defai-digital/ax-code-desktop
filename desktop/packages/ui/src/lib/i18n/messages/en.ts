@@ -2713,6 +2713,11 @@ export const dict = {
   "axEngine.download.toast.downloaded": "{name} downloaded",
   "axEngine.download.toast.downloadedDescription": "Ready to start.",
   "axEngine.download.toast.failed": "{name} download failed",
+  "desktop.native.launchAndQuitAnimations": "Launch and Quit Animations",
+  "desktop.native.skipAnimation": "Skip animation",
+  "desktop.native.disableAnimations": "Disable animations",
+  "desktop.native.startingDesktop": "Starting desktop\u2026",
+  "desktop.native.closingDesktop": "Closing desktop\u2026",
 } as const
 
 export type I18nKey = keyof typeof dict

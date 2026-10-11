@@ -4325,5 +4325,10 @@
   "desktop.native.startup.failed": "No se pudo iniciar AX Code",
   "desktop.native.startup.couldNotStart": "No se pudo iniciar la aplicaci\u00f3n.",
   "desktop.native.startup.checkLogs": "Consulta los registros de la aplicaci\u00f3n para obtener m\u00e1s detalles.",
-  "desktop.native.role.hideOthers": "Ocultar otras aplicaciones"
+  "desktop.native.role.hideOthers": "Ocultar otras aplicaciones",
+  "desktop.native.launchAndQuitAnimations": "Animaciones de inicio y salida",
+  "desktop.native.skipAnimation": "Omitir animaci\u00f3n",
+  "desktop.native.disableAnimations": "Desactivar animaciones",
+  "desktop.native.startingDesktop": "Iniciando el escritorio\u2026",
+  "desktop.native.closingDesktop": "Cerrando el escritorio\u2026"
 }

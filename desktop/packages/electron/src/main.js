@@ -68,6 +68,9 @@ const {
   removeDisabledRemoteAccessSettingsFromRoot,
 } = require("./desktop-hosts")
 const { normalizeDevRendererUrl } = require("./renderer-navigation-policy")
+const { createLaunchAnimationController } = require("./launch-animation-controller")
+const { createQuitCoordinator } = require("./quit-coordinator")
+const launchAnimationManifest = require("../resources/launch-animations/manifest.json")
 const {
   PACKAGED_RENDERER_ORIGIN,
   PACKAGED_RENDERER_PRIVILEGED_SCHEMES,
@@ -140,6 +143,9 @@ let runtimeOrigin = null
 // switches from the "restarting" loader to the failure UI.
 let runtimeRetryExhausted = false
 let isQuitting = false
+let launchAnimations = null
+let openingAnimation = Promise.resolve()
+let desktopStartupComplete = false
 let rendererStabilityTimer = null
 let rendererReadyForOpenProject = false
 let externalOpenPathDrainRunning = false
@@ -621,8 +627,12 @@ async function createWindow() {
 
   mainWindow.once("ready-to-show", () => {
     recordStartupEvent("renderer.ready-to-show")
-    applyMacVibrancy(mainWindow)
-    mainWindow.show()
+    const window = mainWindow
+    openingAnimation.finally(() => {
+      if (isQuitting || window.isDestroyed()) return
+      applyMacVibrancy(window)
+      window.show()
+    })
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -900,8 +910,18 @@ const stopBackgroundServices = async () => {
   }
 }
 
+const quitCoordinator = createQuitCoordinator({
+  onStarting: () => {
+    isQuitting = true
+  },
+  playEnding: () => launchAnimations?.playEnding(),
+  stopServices: stopBackgroundServices,
+  quit: () => app.quit(),
+})
+
 async function shutdownForExit() {
   isQuitting = true
+  launchAnimations?.dispose()
   await stopBackgroundServices()
 }
 
@@ -1174,6 +1194,35 @@ const getLanguageController = () => {
 const nativeT = createNativeLocalizer(() => getLanguageController().get().locale)
 const localizedDialog = createLocalizedDialog(dialog, nativeT)
 const buildLocalizedMenu = (template) => Menu.buildFromTemplate(localizeMenuTemplate(template, nativeT))
+
+const animationPreferencesPath = () => path.join(app.getPath("userData"), "launch-animation-preferences.json")
+const animationPreferences = () => {
+  const value = readJsonFile(animationPreferencesPath())
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {}
+}
+const launchAnimationsEnabled = () =>
+  process.env.AX_CODE_DESKTOP_ANIMATIONS !== "0" && animationPreferences().enabled !== false
+let animationPreferenceWrites = Promise.resolve()
+const setLaunchAnimationsEnabled = (enabled) => {
+  const next = animationPreferenceWrites.then(async () => {
+    await writeJsonFile(animationPreferencesPath(), { ...animationPreferences(), enabled })
+    setupApplicationMenu()
+  })
+  animationPreferenceWrites = next.catch(() => {})
+  return next
+}
+const animationMenuItem = () => ({
+  label: "Launch and Quit Animations",
+  type: "checkbox",
+  checked: launchAnimationsEnabled(),
+  enabled: process.env.AX_CODE_DESKTOP_ANIMATIONS !== "0",
+  click: (item) => {
+    setLaunchAnimationsEnabled(item.checked).catch((error) => {
+      console.warn("[electron] animation preference write failed", error.message)
+      setupApplicationMenu()
+    })
+  },
+})
 
 handleCommand("desktop_language_get", async () => getLanguageController().get())
 handleCommand("desktop_language_set", async (args) => getLanguageController().update(args))
@@ -2026,6 +2075,7 @@ const buildMacMenu = () => {
         { label: "Check for Updates", click: () => dispatchCheckForUpdates() },
         { type: "separator" },
         { label: "Settings", accelerator: "Cmd+,", click: () => dispatchAction("settings") },
+        animationMenuItem(),
         { label: "Reload Webview", click: () => reloadMenuTargetWindow() },
         {
           label: "Restart",
@@ -2147,6 +2197,7 @@ const buildNonMacMenu = () => {
         { label: "Check for Updates", click: () => dispatchCheckForUpdates() },
         { type: "separator" },
         { label: "Settings", accelerator: "Ctrl+,", click: () => dispatchAction("settings") },
+        animationMenuItem(),
         { label: "Reload Webview", click: () => reloadMenuTargetWindow() },
         {
           label: "Restart",
@@ -2976,7 +3027,7 @@ handleCommand("desktop_get_app_version", async () => app.getVersion(), { safeFor
 
 // ── App lifecycle ───────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
-  if (!hasSingleInstanceLock) {
+  if (!hasSingleInstanceLock || isQuitting) {
     return
   }
 
@@ -3050,11 +3101,26 @@ app.whenReady().then(async () => {
       console.log(`[electron] verified bundled ax-code runtime integrity (${bundledIntegrity.entries} entries)`)
       recordStartupEvent("runtime.integrity.verified", { entries: bundledIntegrity.entries })
     }
+    launchAnimations = createLaunchAnimationController({
+      BrowserWindow,
+      ipcMain,
+      manifest: launchAnimationManifest,
+      assetDir: path.join(__dirname, "launch-animations"),
+      preloadPath: path.join(__dirname, "launch-animation-preload.js"),
+      preferencesReader: animationPreferences,
+      disable: () => setLaunchAnimationsEnabled(false),
+      translate: nativeT,
+      onComplete: (result) => recordStartupEvent(`animation.${result.kind}.complete`, {
+        pair: result.pair, reason: result.reason, frames: result.frames,
+      }),
+    })
+    openingAnimation = launchAnimations.playOpening()
     await purgeDisabledRemoteAccessSettings().catch((error) => {
       // Runtime paths already ignore these values, so a read-only legacy
       // settings file must not prevent the local app from starting.
       console.warn("[electron] failed to purge disabled remote settings", error)
     })
+    if (isQuitting) return
     // S2.5b: main spawns and supervises the ax-code runtime by default, IN
     // PARALLEL with the web server. prepare() resolves the binary and
     // reserves the fixed loopback port up front, so the web fork env (see
@@ -3112,6 +3178,7 @@ app.whenReady().then(async () => {
         }
       }
       recordStartupEvent("runtime.supervision.prepared", { port: runtimePort }, { once: false })
+      if (isQuitting) return
       runtimeSupervision.start().catch((error) => {
         // A quitting app stops the FSM before readiness, which rejects
         // start() — that is normal shutdown, not a boot failure.
@@ -3131,7 +3198,12 @@ app.whenReady().then(async () => {
       })
     }
     await launchServer()
+    if (isQuitting) {
+      await stopBackgroundServices()
+      return
+    }
     await createWindow()
+    desktopStartupComplete = true
     // Best-effort update check — failures must not crash the app. With
     // autoDownload disabled, the in-app dialog (driven by the renderer's
     // periodic check) handles surfacing and downloading; checkForUpdates just
@@ -3149,6 +3221,11 @@ app.whenReady().then(async () => {
       emitToAllWindows("openchamber:system-resume", { timestamp: Date.now() })
     })
   } catch (err) {
+    launchAnimations?.dispose()
+    if (isQuitting) {
+      await stopBackgroundServices()
+      return
+    }
     console.error("[electron] startup failed:", err)
     localizedDialog.showErrorBox(
       "AX Code failed to start",
@@ -3165,26 +3242,20 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   // On macOS, keep the server running so the user can reopen from the dock.
-  if (process.platform !== "darwin") {
-    isQuitting = true
-    stopBackgroundServices().finally(() => app.quit())
-  }
+  if (isQuitting || !desktopStartupComplete) return
+  if (process.platform !== "darwin") app.quit()
 })
 
 app.on("activate", () => {
-  if (!mainWindow && serverPort > 0) {
+  if (!isQuitting && !mainWindow && serverPort > 0) {
     createWindow().catch(console.error)
   }
 })
 
 app.on("before-quit", (event) => {
-  // Fire-and-forget would let the app exit before the server shuts down,
-  // orphaning ax-code-server (and its ax-code child) and leaving the port
-  // bound — the next launch then fails to rebind. Hold the quit, shut down
-  // gracefully, then quit for real. stopServer() nulls serverChild
-  // synchronously and the guard prevents intercepting the re-triggered quit.
-  if (isQuitting) return
-  isQuitting = true
-  event.preventDefault()
-  stopBackgroundServices().finally(() => app.quit())
+  // Hold every normal quit request while ending playback and service cleanup
+  // run concurrently. Restart/update paths already set isQuitting and bypass
+  // artwork. Only the coordinator's final quit may pass its waiting guard.
+  if (isQuitting && quitCoordinator.state === "idle") return
+  void quitCoordinator.handle(event)
 })

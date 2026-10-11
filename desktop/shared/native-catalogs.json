@@ -99,7 +99,12 @@
     "header.services.title": "Services",
     "settings.providers.page.actions.hide": "Hide",
     "gitView.integrate.showAll": "Show All",
-    "filesView.editor.fullscreen": "Fullscreen"
+    "filesView.editor.fullscreen": "Fullscreen",
+    "desktop.native.launchAndQuitAnimations": "Launch and Quit Animations",
+    "desktop.native.skipAnimation": "Skip animation",
+    "desktop.native.disableAnimations": "Disable animations",
+    "desktop.native.startingDesktop": "Starting desktop\u2026",
+    "desktop.native.closingDesktop": "Closing desktop\u2026"
   },
   "zh-TW": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u627e\u4e0d\u5230\u5176\u4ee3\u7406\u57f7\u884c\u968e\u6bb5\u3002",
@@ -201,7 +206,12 @@
     "header.services.title": "\u670d\u52d9",
     "settings.providers.page.actions.hide": "\u96b1\u85cf",
     "gitView.integrate.showAll": "\u986f\u793a\u5168\u90e8",
-    "filesView.editor.fullscreen": "\u5168\u87a2\u5e55"
+    "filesView.editor.fullscreen": "\u5168\u87a2\u5e55",
+    "desktop.native.launchAndQuitAnimations": "\u555f\u52d5\u8207\u9000\u51fa\u52d5\u756b",
+    "desktop.native.skipAnimation": "\u7565\u904e\u52d5\u756b",
+    "desktop.native.disableAnimations": "\u505c\u7528\u52d5\u756b",
+    "desktop.native.startingDesktop": "\u6b63\u5728\u555f\u52d5\u684c\u9762\u7a0b\u5f0f\u2026",
+    "desktop.native.closingDesktop": "\u6b63\u5728\u95dc\u9589\u684c\u9762\u7a0b\u5f0f\u2026"
   },
   "zh-CN": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u627e\u4e0d\u5230\u5176\u4ee3\u7406\u8fd0\u884c\u65f6\u3002",
@@ -303,7 +313,12 @@
     "header.services.title": "\u670d\u52a1",
     "settings.providers.page.actions.hide": "\u9690\u85cf",
     "gitView.integrate.showAll": "\u663e\u793a\u5168\u90e8",
-    "filesView.editor.fullscreen": "\u5168\u5c4f"
+    "filesView.editor.fullscreen": "\u5168\u5c4f",
+    "desktop.native.launchAndQuitAnimations": "\u542f\u52a8\u4e0e\u9000\u51fa\u52a8\u753b",
+    "desktop.native.skipAnimation": "\u8df3\u8fc7\u52a8\u753b",
+    "desktop.native.disableAnimations": "\u505c\u7528\u52a8\u753b",
+    "desktop.native.startingDesktop": "\u6b63\u5728\u542f\u52a8\u684c\u9762\u7a0b\u5e8f\u2026",
+    "desktop.native.closingDesktop": "\u6b63\u5728\u5173\u95ed\u684c\u9762\u7a0b\u5e8f\u2026"
   },
   "ja": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u306f\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8\u30e9\u30f3\u30bf\u30a4\u30e0\u3092\u898b\u3064\u3051\u3089\u308c\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
@@ -405,7 +420,12 @@
     "header.services.title": "\u30b5\u30fc\u30d3\u30b9",
     "settings.providers.page.actions.hide": "\u975e\u8868\u793a",
     "gitView.integrate.showAll": "\u3059\u3079\u3066\u8868\u793a",
-    "filesView.editor.fullscreen": "\u5168\u753b\u9762\u8868\u793a"
+    "filesView.editor.fullscreen": "\u5168\u753b\u9762\u8868\u793a",
+    "desktop.native.launchAndQuitAnimations": "\u8d77\u52d5\u30fb\u7d42\u4e86\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3",
+    "desktop.native.skipAnimation": "\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u3092\u30b9\u30ad\u30c3\u30d7",
+    "desktop.native.disableAnimations": "\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u3092\u7121\u52b9\u306b\u3059\u308b",
+    "desktop.native.startingDesktop": "\u30c7\u30b9\u30af\u30c8\u30c3\u30d7\u3092\u8d77\u52d5\u4e2d\u2026",
+    "desktop.native.closingDesktop": "\u30c7\u30b9\u30af\u30c8\u30c3\u30d7\u3092\u7d42\u4e86\u4e2d\u2026"
   },
   "ko": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code\uac00 \uc5d0\uc774\uc804\ud2b8 \ub7f0\ud0c0\uc784\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
@@ -507,7 +527,12 @@
     "header.services.title": "\uc11c\ube44\uc2a4",
     "settings.providers.page.actions.hide": "\uc228\uae30\uae30",
     "gitView.integrate.showAll": "\ubaa8\ub450 \ubcf4\uae30",
-    "filesView.editor.fullscreen": "\uc804\uccb4 \ud654\uba74"
+    "filesView.editor.fullscreen": "\uc804\uccb4 \ud654\uba74",
+    "desktop.native.launchAndQuitAnimations": "\uc2dc\uc791 \ubc0f \uc885\ub8cc \uc560\ub2c8\uba54\uc774\uc158",
+    "desktop.native.skipAnimation": "\uc560\ub2c8\uba54\uc774\uc158 \uac74\ub108\ub6f0\uae30",
+    "desktop.native.disableAnimations": "\uc560\ub2c8\uba54\uc774\uc158 \ub044\uae30",
+    "desktop.native.startingDesktop": "\ub370\uc2a4\ud06c\ud1b1 \uc2dc\uc791 \uc911\u2026",
+    "desktop.native.closingDesktop": "\ub370\uc2a4\ud06c\ud1b1 \uc885\ub8cc \uc911\u2026"
   },
   "fr": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code n\u2019a pas trouv\u00e9 son runtime d\u2019agent.",
@@ -609,7 +634,12 @@
     "header.services.title": "Services",
     "settings.providers.page.actions.hide": "Masquer",
     "gitView.integrate.showAll": "Tout afficher",
-    "filesView.editor.fullscreen": "Plein \u00e9cran"
+    "filesView.editor.fullscreen": "Plein \u00e9cran",
+    "desktop.native.launchAndQuitAnimations": "Animations de d\u00e9marrage et de fermeture",
+    "desktop.native.skipAnimation": "Passer l\u2019animation",
+    "desktop.native.disableAnimations": "D\u00e9sactiver les animations",
+    "desktop.native.startingDesktop": "D\u00e9marrage du bureau\u2026",
+    "desktop.native.closingDesktop": "Fermeture du bureau\u2026"
   },
   "de": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code konnte seine Agent-Runtime nicht finden.",
@@ -711,7 +741,12 @@
     "header.services.title": "Dienste",
     "settings.providers.page.actions.hide": "Ausblenden",
     "gitView.integrate.showAll": "Alle anzeigen",
-    "filesView.editor.fullscreen": "Vollbild"
+    "filesView.editor.fullscreen": "Vollbild",
+    "desktop.native.launchAndQuitAnimations": "Start- und Beendigungsanimationen",
+    "desktop.native.skipAnimation": "Animation \u00fcberspringen",
+    "desktop.native.disableAnimations": "Animationen deaktivieren",
+    "desktop.native.startingDesktop": "Desktop wird gestartet\u2026",
+    "desktop.native.closingDesktop": "Desktop wird beendet\u2026"
   },
   "id": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code tidak dapat menemukan runtime agennya.",
@@ -813,7 +848,12 @@
     "header.services.title": "Layanan",
     "settings.providers.page.actions.hide": "Sembunyikan",
     "gitView.integrate.showAll": "Tampilkan Semua",
-    "filesView.editor.fullscreen": "Layar penuh"
+    "filesView.editor.fullscreen": "Layar penuh",
+    "desktop.native.launchAndQuitAnimations": "Animasi saat membuka dan keluar",
+    "desktop.native.skipAnimation": "Lewati animasi",
+    "desktop.native.disableAnimations": "Nonaktifkan animasi",
+    "desktop.native.startingDesktop": "Memulai desktop\u2026",
+    "desktop.native.closingDesktop": "Menutup desktop\u2026"
   },
   "it": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code non ha trovato il runtime dell'agente.",
@@ -915,7 +955,12 @@
     "header.services.title": "Servizi",
     "settings.providers.page.actions.hide": "Nascondi",
     "gitView.integrate.showAll": "Mostra tutto",
-    "filesView.editor.fullscreen": "Schermo intero"
+    "filesView.editor.fullscreen": "Schermo intero",
+    "desktop.native.launchAndQuitAnimations": "Animazioni di avvio e chiusura",
+    "desktop.native.skipAnimation": "Salta animazione",
+    "desktop.native.disableAnimations": "Disattiva animazioni",
+    "desktop.native.startingDesktop": "Avvio del desktop\u2026",
+    "desktop.native.closingDesktop": "Chiusura del desktop\u2026"
   },
   "pt-BR": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "O AX Code n\u00e3o encontrou seu runtime de agente.",
@@ -1017,7 +1062,12 @@
     "header.services.title": "Servi\u00e7os",
     "settings.providers.page.actions.hide": "Ocultar",
     "gitView.integrate.showAll": "Mostrar tudo",
-    "filesView.editor.fullscreen": "Tela cheia"
+    "filesView.editor.fullscreen": "Tela cheia",
+    "desktop.native.launchAndQuitAnimations": "Anima\u00e7\u00f5es de abertura e sa\u00edda",
+    "desktop.native.skipAnimation": "Pular anima\u00e7\u00e3o",
+    "desktop.native.disableAnimations": "Desativar anima\u00e7\u00f5es",
+    "desktop.native.startingDesktop": "Iniciando a \u00e1rea de trabalho\u2026",
+    "desktop.native.closingDesktop": "Fechando a \u00e1rea de trabalho\u2026"
   },
   "ru": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043d\u0430\u0439\u0442\u0438 \u0441\u0440\u0435\u0434\u0443 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f \u0430\u0433\u0435\u043d\u0442\u0430.",
@@ -1119,7 +1169,12 @@
     "header.services.title": "\u0421\u0435\u0440\u0432\u0438\u0441\u044b",
     "settings.providers.page.actions.hide": "\u0421\u043a\u0440\u044b\u0442\u044c",
     "gitView.integrate.showAll": "\u041f\u043e\u043a\u0430\u0437\u0430\u0442\u044c \u0432\u0441\u0435",
-    "filesView.editor.fullscreen": "\u041f\u043e\u043b\u043d\u044b\u0439 \u044d\u043a\u0440\u0430\u043d"
+    "filesView.editor.fullscreen": "\u041f\u043e\u043b\u043d\u044b\u0439 \u044d\u043a\u0440\u0430\u043d",
+    "desktop.native.launchAndQuitAnimations": "\u0410\u043d\u0438\u043c\u0430\u0446\u0438\u044f \u0437\u0430\u043f\u0443\u0441\u043a\u0430 \u0438 \u0432\u044b\u0445\u043e\u0434\u0430",
+    "desktop.native.skipAnimation": "\u041f\u0440\u043e\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u0430\u043d\u0438\u043c\u0430\u0446\u0438\u044e",
+    "desktop.native.disableAnimations": "\u041e\u0442\u043a\u043b\u044e\u0447\u0438\u0442\u044c \u0430\u043d\u0438\u043c\u0430\u0446\u0438\u044e",
+    "desktop.native.startingDesktop": "\u0417\u0430\u043f\u0443\u0441\u043a \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f\u2026",
+    "desktop.native.closingDesktop": "\u0417\u0430\u043a\u0440\u044b\u0442\u0438\u0435 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f\u2026"
   },
   "es": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code no pudo encontrar su tiempo de ejecuci\u00f3n de agente.",
@@ -1221,7 +1276,12 @@
     "header.services.title": "Servicios",
     "settings.providers.page.actions.hide": "Ocultar",
     "gitView.integrate.showAll": "Mostrar todo",
-    "filesView.editor.fullscreen": "Pantalla completa"
+    "filesView.editor.fullscreen": "Pantalla completa",
+    "desktop.native.launchAndQuitAnimations": "Animaciones de inicio y salida",
+    "desktop.native.skipAnimation": "Omitir animaci\u00f3n",
+    "desktop.native.disableAnimations": "Desactivar animaciones",
+    "desktop.native.startingDesktop": "Iniciando el escritorio\u2026",
+    "desktop.native.closingDesktop": "Cerrando el escritorio\u2026"
   },
   "tr": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code, arac\u0131 \u00e7al\u0131\u015fma zaman\u0131n\u0131 bulamad\u0131.",
@@ -1323,7 +1383,12 @@
     "header.services.title": "Hizmetler",
     "settings.providers.page.actions.hide": "Gizle",
     "gitView.integrate.showAll": "T\u00fcm\u00fcn\u00fc g\u00f6ster",
-    "filesView.editor.fullscreen": "Tam ekran"
+    "filesView.editor.fullscreen": "Tam ekran",
+    "desktop.native.launchAndQuitAnimations": "Ba\u015flatma ve \u00e7\u0131k\u0131\u015f animasyonlar\u0131",
+    "desktop.native.skipAnimation": "Animasyonu atla",
+    "desktop.native.disableAnimations": "Animasyonlar\u0131 devre d\u0131\u015f\u0131 b\u0131rak",
+    "desktop.native.startingDesktop": "Masa\u00fcst\u00fc ba\u015flat\u0131l\u0131yor\u2026",
+    "desktop.native.closingDesktop": "Masa\u00fcst\u00fc kapat\u0131l\u0131yor\u2026"
   },
   "vi": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code kh\u00f4ng t\u00ecm th\u1ea5y runtime t\u00e1c nh\u00e2n c\u1ee7a n\u00f3.",
@@ -1425,6 +1490,11 @@
     "header.services.title": "D\u1ecbch v\u1ee5",
     "settings.providers.page.actions.hide": "\u1ea8n",
     "gitView.integrate.showAll": "Hi\u1ec7n t\u1ea5t c\u1ea3",
-    "filesView.editor.fullscreen": "To\u00e0n m\u00e0n h\u00ecnh"
+    "filesView.editor.fullscreen": "To\u00e0n m\u00e0n h\u00ecnh",
+    "desktop.native.launchAndQuitAnimations": "Ho\u1ea1t \u1ea3nh kh\u1edfi \u0111\u1ed9ng v\u00e0 tho\u00e1t",
+    "desktop.native.skipAnimation": "B\u1ecf qua ho\u1ea1t \u1ea3nh",
+    "desktop.native.disableAnimations": "T\u1eaft ho\u1ea1t \u1ea3nh",
+    "desktop.native.startingDesktop": "\u0110ang kh\u1edfi \u0111\u1ed9ng \u1ee9ng d\u1ee5ng\u2026",
+    "desktop.native.closingDesktop": "\u0110ang \u0111\u00f3ng \u1ee9ng d\u1ee5ng\u2026"
   }
 }

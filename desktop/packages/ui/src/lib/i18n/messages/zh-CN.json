@@ -4325,5 +4325,10 @@
   "desktop.native.startup.failed": "AX Code \u65e0\u6cd5\u542f\u52a8",
   "desktop.native.startup.couldNotStart": "\u5e94\u7528\u7a0b\u5e8f\u65e0\u6cd5\u542f\u52a8\u3002",
   "desktop.native.startup.checkLogs": "\u8bf7\u67e5\u770b\u5e94\u7528\u7a0b\u5e8f\u65e5\u5fd7\u4ee5\u83b7\u53d6\u8be6\u7ec6\u4fe1\u606f\u3002",
-  "desktop.native.role.hideOthers": "\u9690\u85cf\u5176\u4ed6\u5e94\u7528\u7a0b\u5e8f"
+  "desktop.native.role.hideOthers": "\u9690\u85cf\u5176\u4ed6\u5e94\u7528\u7a0b\u5e8f",
+  "desktop.native.launchAndQuitAnimations": "\u542f\u52a8\u4e0e\u9000\u51fa\u52a8\u753b",
+  "desktop.native.skipAnimation": "\u8df3\u8fc7\u52a8\u753b",
+  "desktop.native.disableAnimations": "\u505c\u7528\u52a8\u753b",
+  "desktop.native.startingDesktop": "\u6b63\u5728\u542f\u52a8\u684c\u9762\u7a0b\u5e8f\u2026",
+  "desktop.native.closingDesktop": "\u6b63\u5728\u5173\u95ed\u684c\u9762\u7a0b\u5e8f\u2026"
 }

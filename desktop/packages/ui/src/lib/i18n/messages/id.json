@@ -4325,5 +4325,10 @@
   "desktop.native.startup.failed": "AX Code tidak dapat dimulai",
   "desktop.native.startup.couldNotStart": "Aplikasi tidak dapat dimulai.",
   "desktop.native.startup.checkLogs": "Periksa log aplikasi untuk mengetahui detailnya.",
-  "desktop.native.role.hideOthers": "Sembunyikan aplikasi lain"
+  "desktop.native.role.hideOthers": "Sembunyikan aplikasi lain",
+  "desktop.native.launchAndQuitAnimations": "Animasi saat membuka dan keluar",
+  "desktop.native.skipAnimation": "Lewati animasi",
+  "desktop.native.disableAnimations": "Nonaktifkan animasi",
+  "desktop.native.startingDesktop": "Memulai desktop\u2026",
+  "desktop.native.closingDesktop": "Menutup desktop\u2026"
 }

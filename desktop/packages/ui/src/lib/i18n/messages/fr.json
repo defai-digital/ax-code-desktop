@@ -4325,5 +4325,10 @@
   "desktop.native.startup.failed": "Impossible de d\u00e9marrer AX Code",
   "desktop.native.startup.couldNotStart": "L\u2019application n\u2019a pas pu d\u00e9marrer.",
   "desktop.native.startup.checkLogs": "Consultez les journaux de l\u2019application pour plus de d\u00e9tails.",
-  "desktop.native.role.hideOthers": "Masquer les autres applications"
+  "desktop.native.role.hideOthers": "Masquer les autres applications",
+  "desktop.native.launchAndQuitAnimations": "Animations de d\u00e9marrage et de fermeture",
+  "desktop.native.skipAnimation": "Passer l\u2019animation",
+  "desktop.native.disableAnimations": "D\u00e9sactiver les animations",
+  "desktop.native.startingDesktop": "D\u00e9marrage du bureau\u2026",
+  "desktop.native.closingDesktop": "Fermeture du bureau\u2026"
 }

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AX Code</title>
+    <link rel="stylesheet" href="player.css" />
+    <script src="player.js" defer></script>
+  </head>
+  <body>
+    <video id="scene" muted playsinline aria-hidden="true"></video>
+    <header><strong>AX Code</strong><span id="status" role="status"></span></header>
+    <footer>
+      <button id="disable" type="button">Disable animations</button
+      ><button id="skip" type="button">Skip animation</button>
+    </footer>
+  </body>
+</html>

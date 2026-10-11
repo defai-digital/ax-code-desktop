@@ -1,0 +1,664 @@
+{
+  "schema": "ax-coder.launch-animations.v1",
+  "producer": {
+    "repository": "defai-digital/ax-code",
+    "commit": "45b8e49ad01312a4d7cf3c5720978dc0737d6643",
+    "license": "Apache-2.0",
+    "sourceFiles": {
+      "animation-pair.ts": "914df703e8e0d763100172487b3e6dea2ca3461d37e4186f7ead031c1857a56a",
+      "animation-preview-commands.ts": "0caead2d45bb7a97cc74bf7c3d956654d2b07b4fd0f7b8ce93ec38f82b3f6f56",
+      "atmos-paint.ts": "b98abc00223204b55994878f47d84f32e145476f5b3db6a81c68ecd243ffdde9",
+      "aurora-pixels.ts": "401d9842d2c09d5aaf15e736f1d5c815ceffc00fc78e6b3a6fda5e712bf65a6e",
+      "aurora-view-model.ts": "eb4bb225151782dca8d4e3a2f41b89f66c74ada5ddf37a7849de0aa561a07708",
+      "ax-engine-downloads-view-model.ts": "e504b42bd83a28b8e379ee13a3de0897237e4aaaece084df2b9808baa35f908d",
+      "balloons-pixels.ts": "4cbf8418419a83dedcba3668b3f357fd30c2ab74cd8cfda3481604d400a7f972",
+      "balloons-view-model.ts": "05689b247318f3d24029b2621d521d806800a8234c1bade747943d99476b095f",
+      "bench-pixels.ts": "24c1a72e5b38a5494b9371b3fb47da3154032810d501ee66612931115ed1865d",
+      "bench-view-model.ts": "90dcab8dc63754c352ebf8fe53a4c766ccdd5fe63086737c58a958911335e9f6",
+      "bigben-pixels.ts": "999b62fabcf98c58032bceca37510947ccc5143f8cbdb9c5b306215406e78bd1",
+      "bigben-view-model.ts": "b9243dc97058003d0e2cd4e2951a3abff4af59a2e20c0d86e1fa85415dfb9eac",
+      "borobudur-pixels.ts": "cf09e5c8a1614ec45599f294f67542bb0fec850a2fa5371246e440e56118b79c",
+      "borobudur-view-model.ts": "effc4cb41213edca7e1b39cfb80ba37a05b3dede66474520935312d766627d13",
+      "brandenburg-pixels.ts": "2447c8544207c33c16686f5d0006cc3ab8e459b722f6e1a4421900b0e4a13019",
+      "brandenburg-view-model.ts": "060ec8b5a87eb48d8e3965b4c1a9816e82d4c4e205e5a896ecd9436e2c0c4349",
+      "canyon-pixels.ts": "f47aa6cd045b217194174a452d8fb259812ad4cf3719b7977a1bb24e403b93f2",
+      "canyon-view-model.ts": "ce9854f11ed03ffe406f2eebb7fad9aaf1fabe87187fbd6bbb41f851a85d6366",
+      "castle-pixels.ts": "a47108ab78e24f557f3adafa00ed4dcc69145ed6548cc043ec526e9c37a70243",
+      "castle-view-model.ts": "29cbed0f70e0e318f2f79b5afd457c1793694d9d647461f1cff968d4671ef831",
+      "city-pixels.ts": "720f41eecc1aae0751371d005d5ab2c1dc0f28476d4717270402b8fbc2cdd75a",
+      "city-view-model.ts": "75213a7d19ce8381acfc78f4a3599cf34d2f2940bc8dd898ff5654d254002ad8",
+      "colosseum-pixels.ts": "c691eb69ff199705698c24909908091efb241aa50e1c83622f202fb8c908a4e0",
+      "colosseum-view-model.ts": "adaf729f73ab17caed80d31cf6391e30edf42ba9512f1f2ad96b2c33bf4f2d15",
+      "corcovado-pixels.ts": "88e460685ee54a8199f55661ac3abc2d28912d41e6c9c84f3074d589eba49d23",
+      "corcovado-view-model.ts": "64d1b51afc026ac1e522646c352bf45ddbf6b7e4d7758086e1244b5f1ec033d7",
+      "dialog-ax-engine-state.ts": "e46dee242b838d21d2534a0a1750a3ee77a9972131b7133962d104f00d8e4ae8",
+      "dialog-model-options.ts": "db183a0ec1acbd4d6d2f524a3faf909116de96b0f8a1857370270a36f9efbeae",
+      "dialog-provider-options.ts": "85668ebcf86c25091f0b673e28f1a898ccf5dd9aff5ddd0c91890ba89abd6c80",
+      "dialog-scheduled-task-view-model.ts": "dbbb63e64651d4d41ed66730ec702c26fcfbf6a4f341e17d4b935d9b5ddc7936",
+      "digital-code-palette.ts": "2e965474ca385ff4366e1dec1ff9a080189d503a7c2910dced38b382e55e2f1c",
+      "digital-code-pixels.ts": "64c20d9f571f260debfd212b2a1a58d02560e41552862423481f02c56f6955c4",
+      "digital-code-view-model.ts": "9f9b4da5300b60128e21a7e143805879262c6f9bbee9f55efc150ebfb027259e",
+      "domes-pixels.ts": "e8680aebc36bdf303c13323ea48dc09a4085fc5e614aea6ea9d5fc20cd49227d",
+      "domes-view-model.ts": "adcf6e691e5d947edd8fdd5913d15543119972e81cdbdc005313fc16ab8c5f77",
+      "dungeon-pixels.ts": "76c8f692c0bf0cb7e0f397243dc0e853d93623333d5b647a96862f8319cbe5f5",
+      "dungeon-view-model.ts": "3d73552764d18dae0f19dc9676a4cb5851f0d110c9512d6cd1ce339d99fd9735",
+      "eiffel-pixels.ts": "455053119a5f0686a33dfd1ddb59bfda67136eb4582c9f6491835196c16209b7",
+      "eiffel-view-model.ts": "12fe80358eb714aa7185647d78410ad068fb3cde514d1d7f84bf9656aea318c4",
+      "falls-pixels.ts": "1a07eda65480c62e555e355aacdb21d7eb0decc65262ec0c4138584d8eb99975",
+      "falls-view-model.ts": "7bdf22ebde6ccb115c5f8aef3b8c4fa34296c29cb14fdc86607c2328b8360182",
+      "festival-pixels.ts": "2d924bf236f6b87f6d974b112d27b052a694eaa6b9a233c3cf2b9c224b24b5eb",
+      "festival-view-model.ts": "a57ebcd342a8d6fab58b4a5925b669da358d38ad733c935fb52da7ab0b62f0bf",
+      "fixed-context-question.ts": "9f403ef05e90127321227848303d74f9d8e2226642132dbbf1e2db42b7abe27d",
+      "foliage-view-model.ts": "a23fb234f071756d20f5deb68e0fe61837e97b925b67ae3696ead20d1ac91d66",
+      "fuji-pixels.ts": "498248f6b5e1286bc39a7650f650ed84d09355272e7775cd2c1cb0f5ae9b57ed",
+      "fuji-view-model.ts": "4d5a5c6a2c1b89a2692a38319b1dabc659d62b81fd1a1cdf9bb706147fc09586",
+      "greatwall-pixels.ts": "ef832533181604fc79ac326d9ba8b289c2c462ea16c41b8803a02941318b20d8",
+      "greatwall-view-model.ts": "eaa23d5b40a28de7be8287035730335432671e2249c7809d868a425405404358",
+      "islands-pixels.ts": "6e0c22ec7dfb05b66d9e7b2e5407fc2da6c9f5ce3779764302e551fa7626f03e",
+      "islands-view-model.ts": "c974f1417c8b5b99364f6cc835e31317baf514697b49eddc08c5847f6bd5e628",
+      "jungle-pixels.ts": "d40f05235ad25be8259df7514a27dceb9d150f6b62170c631e3ee829de8fc2a4",
+      "jungle-view-model.ts": "687685b88e65c6729f3a52de6797ed278bd65f89feb40b37c610e3802e7471ae",
+      "lighthouse-pixels.ts": "9cd1ebb1a93d498434d9dbf357f0c0b0c53eb1b7937d61f67099599532b4277c",
+      "lighthouse-view-model.ts": "dca873bc731ed4f20374dbcbadf44c8c364439612be59433134b69ffd53658d0",
+      "mahjong-pixels.ts": "3f8d6356fa3aa6ab68974fab9a35422f101d9deb165e508f714a4e83c2d9552c",
+      "mahjong-view-model.ts": "8e20587208645eb8a01444e990ca778f774e34617003bd0419d49835e95fc167",
+      "mekong-pixels.ts": "4df99d98363425e8dab73c1f84b9e666d1cd08634d5aa5b5a1a3b967c6684a6f",
+      "mekong-view-model.ts": "c87c35882c14046f82d60f4fdc1e6defd5608807cfab1c6da4d59ea38d852204",
+      "model-vision-label.ts": "9fe7741dfe2755d82f3f964e6f638773319dec550ddb685f1faed927cab8d427",
+      "provider-list-view-model.ts": "fa0144dc8387ab0965f5d15ecf3c10857a0c77a78cf32a2e284ccd5df7336dae",
+      "provider-state.ts": "4801efc8233c26244ce59497d3c7a149963a3b9c5d7edfe63bec9980975ae79c",
+      "provider-type-presentation.ts": "96f10d1541197927a86ee635a11fdd5777560c4d4b96735d4a595f6fc495e151",
+      "pyramids-pixels.ts": "27d0ed6ccf4be30b5828ce527d18f00be1dbec06691d508fcac4884aac1f6057",
+      "pyramids-view-model.ts": "470394b1d788cf93e19aebe34225a879563cead7ceb3b398d1f1a5b11aa1bbaa",
+      "reef-pixels.ts": "98ada2a6fb49a63eb07cbb3d658335a6df911a9b8fac8146ca19bc045bba220f",
+      "reef-view-model.ts": "813a395727d97cedc23f181d490e348d4e7d87e0c836f5fb5e4e41e20725410a",
+      "sagrada-pixels.ts": "b987edfc73eb21e960aa52375cb85832fcbb6cf3412d2257c6db0d4ce2de1c56",
+      "sagrada-view-model.ts": "cb49fbb8dca5c62fd163c023c7a1a48c6b6f67fdd05256a556d822876b69064b",
+      "scene-art-kit.ts": "cf05a45f09b9caf8d9f3bd4029796da738140c8d011c85d6c5a4e9ea86a9bd2b",
+      "scene-grid.ts": "2f3d232f67f2b742fd3c29a0199c4c89a976fd1b5a1121e26ef6ef7383ed96c7",
+      "scene-hd.ts": "65148486ff1516e2e5ed469baa3b943277a2790023e20ae2f30a81db284b3ca7",
+      "session-list-data.ts": "c034539f49c27339c93f2580b3ae653ea20db4028613e0bcc408a7feb1da237b",
+      "session-picker-view-model.ts": "9a134e4b750a523fea1c51ac384bc9549b301282fab2c101d72ba0959fb3fcc5",
+      "setup-guidance.ts": "80e353b61e6fb3572ad2a74b3700ac8569cfda7c0f1c9d97107dec7ad301a5d7",
+      "setup-state.ts": "1e7b9491d254e7a6490936c852eb68a859ae44b6c6c5ebad0bce582bc0aa7585",
+      "singapore-pixels.ts": "1e3e56520aca06c911d0702c29570a2ab9446898473c39a90ab6b9b07a2cf914",
+      "singapore-view-model.ts": "43ff5a132c6532c2959610c12f2d081d4fe33f6ecf8edd298edf07a39e927783",
+      "sixel-splash.ts": "9faf7f67863475792458aa88241c75838077bcc7ae43ec7eb9e5180bed441df9",
+      "skill-list-data.ts": "514f03e10379d710017e0c349e19fd4bb754838de9c2749c3295cc4ac00a6a9c",
+      "slash-frecency.ts": "c8270632adb256ec6c9bdde30efe6b3f557ea350688a74c533776ee2634e9efb",
+      "snow-pixels.ts": "c1ca90d178bb3473381899a833dd6b90c24fc80b7302d26d27684f8fb8045644",
+      "snow-view-model.ts": "d2ce0d8f427eedc07e22ff6e7dc7ad544d43f82d93c8f085b2da63865cf6b01b",
+      "space-pixels.ts": "e611e49e1ae5bc4dde17cb0abd38844ce118f8ef92731ae030e8bc1da6f90dd2",
+      "space-view-model.ts": "2a62f3b51844125dc5c75b8eb679c71a79b178e8c5d4c26d9fdf6a1165b14ac5",
+      "spinner-profile.ts": "f09d7b8f91c4416e7f5e1579162a7e7215d24f47e6f6f60697d5d885a18fabc7",
+      "steppe-pixels.ts": "67788c2464fd3c809352685bbba78b614258fda6cbe00d3b44d511637e67069a",
+      "steppe-view-model.ts": "9907f4d6c8a2bef75562f0a547402476d3a3c2a1ceda557b195e5cafb9e60dd8",
+      "taegeuk-pixels.ts": "ceec0c53d503deddc9c6d6afbb561191ab64da970332e85316f999ef20adbd8d",
+      "taegeuk-view-model.ts": "4fba7d7d38283001a42d1d478aed79e0cb022c2c54de9e74ea2cfad54a35164f",
+      "taipei101-pixels.ts": "6ee375051f412e384a2e400995cd3336240a8d07fe94a8ead2035cae01919f87",
+      "taipei101-view-model.ts": "bc768f1ff870c9d20a448f797f734ba81f5c1da71c32526ff63d547abbd2ff12",
+      "text-scene-glyphs.ts": "d52cdaae4aca4e54766b6b7d7a1fde1ed371e00af58bc6f1427e96ae1f61b9c5",
+      "text-scene-pixels.ts": "57e8fab66f05d590409862ab74575aa768baa02df4afe0dd42e41b951b1e7325",
+      "text-scene-view-model.ts": "07143edd42dce1aaa7c15b824b188c9ef268a8ca6fe3ee5e92a001cba6aabe8c",
+      "textarea-keybindings.ts": "59364115acc26f9d857ef1be963c12a548be010afd0126cc24bc1f79c9235792",
+      "torii-pixels.ts": "73f061a20af9f3d15e5bf562f7cc821649d25a977606fd6be85cb90a874d60a6",
+      "torii-view-model.ts": "73718aecf3b87fce96fd89b020dc50735c1fb1e0676b0b5a5e59749cf3fbaa1d",
+      "tui-mcp-guards.ts": "7499514c4bb93d207bdd43c07c555664e400c64807ef98f8d5e46f823ee12258",
+      "volcano-pixels.ts": "5217ec43e30594eda64b56ffb46795fc3614ce192d3456f748e385398e4320d3",
+      "volcano-view-model.ts": "e7fbacc64727b69ae630a27deaf4a8958d45e3c32ed165f871e0cae4bf1b751b",
+      "webmcp-allowlist-dialog-model.ts": "f3344a50ade31b98500a13adbb9862b9be44c3552b9b9ce08349914220d3a77c",
+      "webmcp-allowlist-model.ts": "82e06566ba80bee29e365e94688f606f5ea7340aafb75f29ff493bd4e870e1a7",
+      "webmcp-chip-model.ts": "89f1c6f7a57e7dc45c45aebc095f2e17aa03914a2744471f6bf721fdef712df6",
+      "webmcp-enable-model.ts": "a212fcdf2f8f8d7228040674e19096e13729b06143d95d058780e7f330ca0600",
+      "webmcp-toggle.ts": "a92c10307192f2817376cddcf50bc7f1524120ae0d63883063f897c9dbd5f996",
+      "work-mode-availability.ts": "d0370287d909905644eec113857d57e83682a2e9952353b32d8e52859c69431b"
+    }
+  },
+  "width": 960,
+  "height": 540,
+  "fps": 24,
+  "durationMs": 3000,
+  "codec": "vp9",
+  "pairs": [
+    {
+      "id": "01",
+      "opening": {
+        "file": "01-opening-digital-code.webm",
+        "style": "digital-code",
+        "sha256": "98218e1fec5a34598e25495c7b9a7bffb6a97e3996434710f8ab47eebcf4b22f",
+        "bytes": 871618
+      },
+      "ending": {
+        "file": "01-ending-digital-code.webm",
+        "style": "digital-code",
+        "sha256": "bd3daf90a85b58c696737c3de87522786b746166458964bee7e377863d4ced88",
+        "bytes": 2001648
+      }
+    },
+    {
+      "id": "02",
+      "opening": {
+        "file": "02-opening-classic-foliage.webm",
+        "style": "classic-foliage",
+        "sha256": "32164e3439b972ed3674e4dc339922099e13fbea68ea804612d603935a90eac7",
+        "bytes": 361572
+      },
+      "ending": {
+        "file": "02-ending-golden-foliage.webm",
+        "style": "golden-foliage",
+        "sha256": "5ab5398c88efec65c3acfc7ff33e722ea5fbd5d0b4b746b2d27a5b5c55f2826a",
+        "bytes": 509131
+      }
+    },
+    {
+      "id": "03",
+      "opening": {
+        "file": "03-opening-midnight-dream.webm",
+        "style": "midnight-dream",
+        "sha256": "cae0ee389134f0e2de804cb49188c4e9829491241f784da4474d84938529563e",
+        "bytes": 374499
+      },
+      "ending": {
+        "file": "03-ending-sunset-serenade.webm",
+        "style": "sunset-serenade",
+        "sha256": "45cca0efa23f56a3eb95fe6b30bc379ea17123d1b3569ddf963faecc1f6daddb",
+        "bytes": 300951
+      }
+    },
+    {
+      "id": "04",
+      "opening": {
+        "file": "04-opening-fuji-day.webm",
+        "style": "fuji-day",
+        "sha256": "26580d0f96e7027cb6388ac69da859025812bdd5be16d33f514c6cec64b3db91",
+        "bytes": 177026
+      },
+      "ending": {
+        "file": "04-ending-fuji-night.webm",
+        "style": "fuji-night",
+        "sha256": "f9b3b0ce0dabdae9c145aca0c5d6c0d10d86b5b9c56b605f420e6b8a460cf4b0",
+        "bytes": 134858
+      }
+    },
+    {
+      "id": "05",
+      "opening": {
+        "file": "05-opening-mahjong-match.webm",
+        "style": "mahjong-match",
+        "sha256": "f31b7a7ded9c29d51a8b778b967810ebb930185781248e2262bc37c9a182538a",
+        "bytes": 153747
+      },
+      "ending": {
+        "file": "05-ending-mahjong-ending.webm",
+        "style": "mahjong-ending",
+        "sha256": "e17865ba4e5314506c00e19741298a5067efdc36581e96929aa6d382447223ce",
+        "bytes": 188057
+      }
+    },
+    {
+      "id": "06",
+      "opening": {
+        "file": "06-opening-city-night.webm",
+        "style": "city-night",
+        "sha256": "aa2f60075eb8ead7da7ca6d241f751d80c31257f066b05b8c0b2c2bd35f64b14",
+        "bytes": 80618
+      },
+      "ending": {
+        "file": "06-ending-city-dawn.webm",
+        "style": "city-dawn",
+        "sha256": "bda8146fb0092579901bdcf2c045b11d0910bc314704498d851fccda68ebcc9a",
+        "bytes": 87078
+      }
+    },
+    {
+      "id": "07",
+      "opening": {
+        "file": "07-opening-festival-fireworks.webm",
+        "style": "festival-fireworks",
+        "sha256": "7170204537fb55c07e5532e3b527f78e9ab00d7f7ed97b15bed43daff8ec1bc6",
+        "bytes": 307333
+      },
+      "ending": {
+        "file": "07-ending-festival-lanterns.webm",
+        "style": "festival-lanterns",
+        "sha256": "8cca1cc0de12f3d9260a0c0b452101492aaef84687b7f0099fb8da7d43fba789",
+        "bytes": 267720
+      }
+    },
+    {
+      "id": "08",
+      "opening": {
+        "file": "08-opening-snowfall.webm",
+        "style": "snowfall",
+        "sha256": "978533fe7970b6e638c9684cec7eeef001d321d6184bbefafb0f3e33c7db8b59",
+        "bytes": 174501
+      },
+      "ending": {
+        "file": "08-ending-winter-night.webm",
+        "style": "winter-night",
+        "sha256": "2ee1899d84d6b571c2cd331a2dcf22da2312bf8b95b1cd0ee6a6ef35874dea9d",
+        "bytes": 198500
+      }
+    },
+    {
+      "id": "09",
+      "opening": {
+        "file": "09-opening-volcano-eruption.webm",
+        "style": "volcano-eruption",
+        "sha256": "3688d45452cea1bb73e9c8bff7d09dbf18996425db86f59ce0207cb919a26416",
+        "bytes": 109907
+      },
+      "ending": {
+        "file": "09-ending-volcano-calm.webm",
+        "style": "volcano-calm",
+        "sha256": "74a90261c1e911309f79735ca79b6a0dea5e77481806fda3ddc5a1c0c164888a",
+        "bytes": 46589
+      }
+    },
+    {
+      "id": "10",
+      "opening": {
+        "file": "10-opening-bigben-day.webm",
+        "style": "bigben-day",
+        "sha256": "a4a51d2631de8a05616a021c5d033a7a44d328f2ea943f5b16d49e1652986833",
+        "bytes": 272057
+      },
+      "ending": {
+        "file": "10-ending-bigben-night.webm",
+        "style": "bigben-night",
+        "sha256": "f4d17aeb18845100f78236f1601337aac4a3968c1e25c926fff8c8ec7bd90a3e",
+        "bytes": 334484
+      }
+    },
+    {
+      "id": "11",
+      "opening": {
+        "file": "11-opening-taipei101-day.webm",
+        "style": "taipei101-day",
+        "sha256": "2ffc4b524edb73e5d81c0232ff0a858a42fce9c855c4083dc81c992c68508bdd",
+        "bytes": 62233
+      },
+      "ending": {
+        "file": "11-ending-taipei101-neon.webm",
+        "style": "taipei101-neon",
+        "sha256": "98dcd123fc01f6d2b3fb62619ccc7a002b9e6201d419d773398937da428c584b",
+        "bytes": 86485
+      }
+    },
+    {
+      "id": "12",
+      "opening": {
+        "file": "12-opening-greatwall-dawn.webm",
+        "style": "greatwall-dawn",
+        "sha256": "3679873818cc3d707ea113682cb05df3eb18773e11ad7b2efc258031a71bb63d",
+        "bytes": 100202
+      },
+      "ending": {
+        "file": "12-ending-greatwall-dusk.webm",
+        "style": "greatwall-dusk",
+        "sha256": "d18c392d1902f647e817e7edc432d0f2d4c76f3af2724f69ba0f4e260d9b65d9",
+        "bytes": 77580
+      }
+    },
+    {
+      "id": "13",
+      "opening": {
+        "file": "13-opening-torii-day.webm",
+        "style": "torii-day",
+        "sha256": "09c0c2a7b53d8046de26d3b8af1820d384b6bda208c6cc471340fe21f53be4b9",
+        "bytes": 58107
+      },
+      "ending": {
+        "file": "13-ending-torii-night.webm",
+        "style": "torii-night",
+        "sha256": "ce127df765d36b3b5ef6bb2a9fde9366d07cbd9f02e352a3b59ff92c934ce9d4",
+        "bytes": 67827
+      }
+    },
+    {
+      "id": "14",
+      "opening": {
+        "file": "14-opening-taegeuk.webm",
+        "style": "taegeuk",
+        "sha256": "919d7373838341afb2476499bce55625df21b48619a3692f8e36e64c6266d7d4",
+        "bytes": 63451
+      },
+      "ending": {
+        "file": "14-ending-taegeuk.webm",
+        "style": "taegeuk",
+        "sha256": "ccd61c72c5bd600a66f7214f9ffcab7a2c377beffbca67136ec5d242ca321ef3",
+        "bytes": 63451
+      }
+    },
+    {
+      "id": "15",
+      "opening": {
+        "file": "15-opening-sagrada-day.webm",
+        "style": "sagrada-day",
+        "sha256": "406f0e2c072ad4ab99d793bcfb5091511aa87b19dc1b16a6ee4c30ada05c82b0",
+        "bytes": 57339
+      },
+      "ending": {
+        "file": "15-ending-sagrada-night.webm",
+        "style": "sagrada-night",
+        "sha256": "0e8e1e8a5e467c51f705a3b54dd8146c6faa7746004f3eba65d7a52f3f838a6c",
+        "bytes": 59383
+      }
+    },
+    {
+      "id": "16",
+      "opening": {
+        "file": "16-opening-corcovado-day.webm",
+        "style": "corcovado-day",
+        "sha256": "debf9b7a545122494c91836d951a00229c49d022f52163db79f53cf99619a7e8",
+        "bytes": 361381
+      },
+      "ending": {
+        "file": "16-ending-corcovado-gold.webm",
+        "style": "corcovado-gold",
+        "sha256": "2ebb303a46de12b724f9678efe7e9677efe53f60ebe377acb30287854008e6ef",
+        "bytes": 379656
+      }
+    },
+    {
+      "id": "17",
+      "opening": {
+        "file": "17-opening-eiffel-day.webm",
+        "style": "eiffel-day",
+        "sha256": "e48fa0f7c90aea1e7f6d88a9351024f8eb422d5ab0e7fcbf25f5ca6bebb9ef89",
+        "bytes": 93047
+      },
+      "ending": {
+        "file": "17-ending-eiffel-night.webm",
+        "style": "eiffel-night",
+        "sha256": "c49dda56fc8a0c95596d61e2eae6a54ed79e7f6f072c81c7332ed9466b60580b",
+        "bytes": 162107
+      }
+    },
+    {
+      "id": "18",
+      "opening": {
+        "file": "18-opening-brandenburg-night.webm",
+        "style": "brandenburg-night",
+        "sha256": "7f903ff01cca3ed67a30c8f0a0b52ebedb558560cf9ecada0c20a0c1c17c663a",
+        "bytes": 179594
+      },
+      "ending": {
+        "file": "18-ending-brandenburg-dawn.webm",
+        "style": "brandenburg-dawn",
+        "sha256": "d73ab8e21d93d88a0c37640b4fb7a3f2844f182d38e7872749bb56c3b665cc25",
+        "bytes": 135761
+      }
+    },
+    {
+      "id": "19",
+      "opening": {
+        "file": "19-opening-domes-snow.webm",
+        "style": "domes-snow",
+        "sha256": "233c6cc30518b35ac046fd1ba18f97534db40c9ae2691264fff64fadfec7d619",
+        "bytes": 62861
+      },
+      "ending": {
+        "file": "19-ending-domes-clear.webm",
+        "style": "domes-clear",
+        "sha256": "c65e7363b380604fb8d852615d7c2f1d867e0d4b9c5a6766410cf3c9c9778431",
+        "bytes": 39857
+      }
+    },
+    {
+      "id": "20",
+      "opening": {
+        "file": "20-opening-borobudur-mist.webm",
+        "style": "borobudur-mist",
+        "sha256": "e80e298e7fee5d3ba1c64bbd12423e245b996f152a85e72ebcb2b8d065e1aa8c",
+        "bytes": 242120
+      },
+      "ending": {
+        "file": "20-ending-borobudur-noon.webm",
+        "style": "borobudur-noon",
+        "sha256": "abc19b4e49e3fa11592a54129cdd32ca336ce3ea43d51aead701758e8cd77a1d",
+        "bytes": 223713
+      }
+    },
+    {
+      "id": "21",
+      "opening": {
+        "file": "21-opening-balloons-night.webm",
+        "style": "balloons-night",
+        "sha256": "f2c95d30b24c011c265fa85a2ee449410a7407790b5253211fbc92f0dd87b850",
+        "bytes": 100256
+      },
+      "ending": {
+        "file": "21-ending-balloons-dawn.webm",
+        "style": "balloons-dawn",
+        "sha256": "ffbfffdb04ff049d473a7a9fcea20fc7a81b682c440b362c0b0a8506b367c459",
+        "bytes": 111681
+      }
+    },
+    {
+      "id": "22",
+      "opening": {
+        "file": "22-opening-mekong-dawn.webm",
+        "style": "mekong-dawn",
+        "sha256": "6d5a1d997018fbef40ffccbcc8de4546a7887ba4309da25af06558baa0449a33",
+        "bytes": 297793
+      },
+      "ending": {
+        "file": "22-ending-mekong-dusk.webm",
+        "style": "mekong-dusk",
+        "sha256": "9f1750e7bf96925c8bce09e42f388186e3d75a3cb55fc5f9af984b9265f9f696",
+        "bytes": 264088
+      }
+    },
+    {
+      "id": "23",
+      "opening": {
+        "file": "23-opening-colosseum-day.webm",
+        "style": "colosseum-day",
+        "sha256": "7bb7b66b3e2de8193b8446ffdfb6c56db72e5eb153f345992895ea8c9c1c614b",
+        "bytes": 109545
+      },
+      "ending": {
+        "file": "23-ending-colosseum-night.webm",
+        "style": "colosseum-night",
+        "sha256": "0fcabadc516fcb87ed5f97bd64a39ba01cd47aae350daf3b5587c45766b09b46",
+        "bytes": 196804
+      }
+    },
+    {
+      "id": "24",
+      "opening": {
+        "file": "24-opening-space-launch.webm",
+        "style": "space-launch",
+        "sha256": "7b0245aed8c54868dc9b4b1fc41291c88fe6c9a0b55299e0c718f78d8df423b0",
+        "bytes": 54730
+      },
+      "ending": {
+        "file": "24-ending-space-drift.webm",
+        "style": "space-drift",
+        "sha256": "91c718632978858beb457c8ed27bd4629361f4236912bb21f1222d2fea7e6e4c",
+        "bytes": 57338
+      }
+    },
+    {
+      "id": "25",
+      "opening": {
+        "file": "25-opening-dungeon-descent.webm",
+        "style": "dungeon-descent",
+        "sha256": "e1ced48f29d7bd230d7771203efb79a57beebd65c41e7f156bc22779c48d7ecf",
+        "bytes": 97461
+      },
+      "ending": {
+        "file": "25-ending-dungeon-treasure.webm",
+        "style": "dungeon-treasure",
+        "sha256": "f87cb5e54f644036493321274f6a0464c0e88e1cbdf50c0774c4f57477deacfb",
+        "bytes": 130808
+      }
+    },
+    {
+      "id": "26",
+      "opening": {
+        "file": "26-opening-castle-day.webm",
+        "style": "castle-day",
+        "sha256": "549807b79fc588123856b37077d0f406ea045cb79dc9aaeda2b4977ffc71f8f0",
+        "bytes": 112155
+      },
+      "ending": {
+        "file": "26-ending-castle-night.webm",
+        "style": "castle-night",
+        "sha256": "b7cc6c4e8e8525b974744156cbedef1fe7b7ace364c46c0486099eb574551418",
+        "bytes": 72887
+      }
+    },
+    {
+      "id": "27",
+      "opening": {
+        "file": "27-opening-islands-day.webm",
+        "style": "islands-day",
+        "sha256": "f2348adc9f0a65d85a31107185af9a65c9e5e8c7e822d9eb0b261c19f2b21110",
+        "bytes": 223511
+      },
+      "ending": {
+        "file": "27-ending-islands-dusk.webm",
+        "style": "islands-dusk",
+        "sha256": "d956153a7de4916fe94cf3b4d51363d9d00dbe8b0a8be57ce084e79f0dc045af",
+        "bytes": 308283
+      }
+    },
+    {
+      "id": "28",
+      "opening": {
+        "file": "28-opening-jungle-day.webm",
+        "style": "jungle-day",
+        "sha256": "c7dd0091c118f2605121bf8410a8ed8b37e2be5050355993f71fecc8ab026224",
+        "bytes": 827294
+      },
+      "ending": {
+        "file": "28-ending-jungle-night.webm",
+        "style": "jungle-night",
+        "sha256": "30c0e4a84a9d6a64e69609a5fe9668062d9db036a138857ae1bc8c68f1c009f4",
+        "bytes": 200550
+      }
+    },
+    {
+      "id": "29",
+      "opening": {
+        "file": "29-opening-reef-day.webm",
+        "style": "reef-day",
+        "sha256": "317059145a29ba687118115cfaa6c261eeb10fc81fdf2ceb67872ef4280c2bba",
+        "bytes": 329196
+      },
+      "ending": {
+        "file": "29-ending-reef-night.webm",
+        "style": "reef-night",
+        "sha256": "dde406cb5032561d72274d5cf6c52f3cc097dac078dd1a0aa32a89c4e09b1b93",
+        "bytes": 272414
+      }
+    },
+    {
+      "id": "30",
+      "opening": {
+        "file": "30-opening-pyramids-day.webm",
+        "style": "pyramids-day",
+        "sha256": "bdb9ecd7f005d294a6a6fde86a7ebd88791f46c0733e06c63665e047803d7dfd",
+        "bytes": 113770
+      },
+      "ending": {
+        "file": "30-ending-pyramids-night.webm",
+        "style": "pyramids-night",
+        "sha256": "f4058f3b27cce29a30e2a6e7ac34198d5e94a7f4aa6537abce67a11d3e27d0a7",
+        "bytes": 69030
+      }
+    },
+    {
+      "id": "31",
+      "opening": {
+        "file": "31-opening-aurora-night.webm",
+        "style": "aurora-night",
+        "sha256": "aa0c3233522f561e2f79b450d353172f99971cc0f62fccc4ce83d5100815f754",
+        "bytes": 281907
+      },
+      "ending": {
+        "file": "31-ending-aurora-dawn.webm",
+        "style": "aurora-dawn",
+        "sha256": "ebf623cb20a3523bac30cfcd185b37c2137bdc59b46a38bb68cdaed7ba198a71",
+        "bytes": 170522
+      }
+    },
+    {
+      "id": "32",
+      "opening": {
+        "file": "32-opening-lighthouse-day.webm",
+        "style": "lighthouse-day",
+        "sha256": "218ff9b6dd33f467bd057685b065d5789c8d8660eff567f5a1b2df2b1aceb802",
+        "bytes": 247501
+      },
+      "ending": {
+        "file": "32-ending-lighthouse-night.webm",
+        "style": "lighthouse-night",
+        "sha256": "7abb74d92efb8e014476038cf93865bbdf419e080478af9836587bcb517b1ce1",
+        "bytes": 232269
+      }
+    },
+    {
+      "id": "33",
+      "opening": {
+        "file": "33-opening-falls-day.webm",
+        "style": "falls-day",
+        "sha256": "8b43db3a16eb28aeaa7c9dfd75218b039f1a1ecd1abeea075535d76dc397ebc3",
+        "bytes": 151374
+      },
+      "ending": {
+        "file": "33-ending-falls-moon.webm",
+        "style": "falls-moon",
+        "sha256": "aec064b9686f9b0b2a59bd8cf18a40fe5644823cee1f68ef0c3ff8b62849493c",
+        "bytes": 116303
+      }
+    },
+    {
+      "id": "34",
+      "opening": {
+        "file": "34-opening-steppe-day.webm",
+        "style": "steppe-day",
+        "sha256": "188c71fbc1e88f23ad8f365d3eb7c1b65531654ffe4d721b72161b8184c4b145",
+        "bytes": 180796
+      },
+      "ending": {
+        "file": "34-ending-steppe-night.webm",
+        "style": "steppe-night",
+        "sha256": "9c8d442877d1f287409df734946e69259eedfd7ba726b7e32d93db0ecec72926",
+        "bytes": 127987
+      }
+    },
+    {
+      "id": "35",
+      "opening": {
+        "file": "35-opening-canyon-day.webm",
+        "style": "canyon-day",
+        "sha256": "39d90d11c71cb1e16885ba54aaaad1f09a17228b94ff18e340b22465a3646884",
+        "bytes": 154911
+      },
+      "ending": {
+        "file": "35-ending-canyon-night.webm",
+        "style": "canyon-night",
+        "sha256": "aa642f93e7d8baae8ddcbed1dcb3e47cfd767ab5eef707d09a19d38e70a4aafe",
+        "bytes": 119589
+      }
+    },
+    {
+      "id": "36",
+      "opening": {
+        "file": "36-opening-singapore-day.webm",
+        "style": "singapore-day",
+        "sha256": "79af64d8a2c7ff0c276c927fd5b06e1b5c1351dee77e858b5bbb821403a5d2a2",
+        "bytes": 150821
+      },
+      "ending": {
+        "file": "36-ending-singapore-night.webm",
+        "style": "singapore-night",
+        "sha256": "c364711013f3685b1046616cb379f0f5c462136e2eca34d2d319e1fd04a6275f",
+        "bytes": 300789
+      }
+    }
+  ]
+}

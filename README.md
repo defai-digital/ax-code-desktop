@@ -76,6 +76,42 @@ startup fails if that port is occupied:
 AX_CODE_DESKTOP_RENDERER_PORT=20000 pnpm run dev
 ```
 
+## Launch and quit animations
+
+The desktop app selects one of AX Code's 36 opening/ending pairs once per
+application launch. Silent, three-second local video plays while the runtime
+and web server initialize. The matching ending plays on a normal application
+quit, concurrently with service cleanup. Closing a window on macOS keeps the
+app running and does not play an ending; dock activation does not replay the
+opening. Restart, update installation, and startup failures bypass the ending.
+
+Use Escape or **Skip animation** to dismiss a clip. **Disable animations**
+persists the preference; the application menu's **Launch and Quit Animations**
+checkbox can enable it again. System reduced-motion preferences skip playback.
+Media failure or a six-second player timeout continues startup or exit.
+
+For development or unattended runs:
+
+```bash
+AX_CODE_DESKTOP_ANIMATIONS=0 pnpm run dev
+```
+
+Artwork, its provenance, and the small isolated player are packaged inside
+`app.asar`. The player uses local files, has no coding-runtime access, and runs
+without Node integration. It requires no new network listener. Forced process
+termination cannot guarantee an ending animation.
+
+```bash
+pnpm run check:launch-animations
+pnpm run smoke:launch-animations
+pnpm run smoke:launch-animations -- --asar
+```
+
+These smokes use the installed pinned Electron and built player/preload assets
+(`pnpm --filter @ax-code/electron run bundle:main`), independently of a running
+AX Code desktop instance. The ASAR smoke packages only the player and media; it
+does not qualify a complete signed desktop release.
+
 ## Electron candidate
 
 Development and unpublished shadow builds currently pin Electron `45.0.0-beta.1`

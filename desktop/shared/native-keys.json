@@ -98,5 +98,10 @@
   "Services": "header.services.title",
   "Hide": "settings.providers.page.actions.hide",
   "Show All": "gitView.integrate.showAll",
-  "Fullscreen": "filesView.editor.fullscreen"
+  "Fullscreen": "filesView.editor.fullscreen",
+  "Launch and Quit Animations": "desktop.native.launchAndQuitAnimations",
+  "Skip animation": "desktop.native.skipAnimation",
+  "Disable animations": "desktop.native.disableAnimations",
+  "Starting desktop\u2026": "desktop.native.startingDesktop",
+  "Closing desktop\u2026": "desktop.native.closingDesktop"
 }

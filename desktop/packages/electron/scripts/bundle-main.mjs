@@ -11,11 +11,14 @@ import { build } from "esbuild"
 import path from "path"
 import { fileURLToPath } from "url"
 import fs from "fs/promises"
+import { verifyLaunchAnimationAssets } from "../../../scripts/check-launch-animations.mjs"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, "../../..")
 const outDir = path.join(__dirname, "../dist")
 const packageRoot = path.join(__dirname, "..")
+
+await verifyLaunchAnimationAssets()
 
 await fs.mkdir(outDir, { recursive: true })
 await fs.rm(path.join(outDir, "server.js"), { force: true })
@@ -43,6 +46,7 @@ await build({
   entryPoints: [
     path.join(__dirname, "../src/main.js"),
     path.join(__dirname, "../src/preload.js"),
+    path.join(__dirname, "../src/launch-animation-preload.js"),
     path.join(__dirname, "../src/server-process.js"),
   ],
   outdir: outDir,
@@ -90,3 +94,18 @@ try {
 }
 
 console.log("[electron] bundle → dist/{main,preload,server-process,server}.js + dist/desktop-cli.mjs")
+
+// Artwork and the minimal player stay inside app.asar in packaged builds.
+const animationDest = path.join(outDir, "launch-animations")
+await fs.rm(animationDest, { recursive: true, force: true })
+await fs.cp(path.join(packageRoot, "resources/launch-animations"), animationDest, { recursive: true })
+for (const [source, dest] of [
+  ["html", "html"],
+  ["css", "css"],
+  ["js", "js"],
+]) {
+  await fs.copyFile(
+    path.join(packageRoot, `src/launch-animation-player.${source}`),
+    path.join(animationDest, `player.${dest}`),
+  )
+}

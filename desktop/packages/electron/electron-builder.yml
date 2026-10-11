@@ -36,6 +36,8 @@ files:
   - package.json
   - dist/main.js
   - dist/preload.js
+  - dist/launch-animation-preload.js
+  - dist/launch-animations/**
   # Forked by main.js via utilityProcess; must be packaged or the server cannot
   # start in a production build.
   - dist/server-process.js

@@ -4325,5 +4325,10 @@
   "desktop.native.startup.failed": "AX Code\ub97c \uc2dc\uc791\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
   "desktop.native.startup.couldNotStart": "\uc560\ud50c\ub9ac\ucf00\uc774\uc158\uc744 \uc2dc\uc791\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
   "desktop.native.startup.checkLogs": "\uc790\uc138\ud55c \ub0b4\uc6a9\uc740 \uc560\ud50c\ub9ac\ucf00\uc774\uc158 \ub85c\uadf8\ub97c \ud655\uc778\ud558\uc138\uc694.",
-  "desktop.native.role.hideOthers": "\ub2e4\ub978 \uc571 \uac00\ub9ac\uae30"
+  "desktop.native.role.hideOthers": "\ub2e4\ub978 \uc571 \uac00\ub9ac\uae30",
+  "desktop.native.launchAndQuitAnimations": "\uc2dc\uc791 \ubc0f \uc885\ub8cc \uc560\ub2c8\uba54\uc774\uc158",
+  "desktop.native.skipAnimation": "\uc560\ub2c8\uba54\uc774\uc158 \uac74\ub108\ub6f0\uae30",
+  "desktop.native.disableAnimations": "\uc560\ub2c8\uba54\uc774\uc158 \ub044\uae30",
+  "desktop.native.startingDesktop": "\ub370\uc2a4\ud06c\ud1b1 \uc2dc\uc791 \uc911\u2026",
+  "desktop.native.closingDesktop": "\ub370\uc2a4\ud06c\ud1b1 \uc885\ub8cc \uc911\u2026"
 }

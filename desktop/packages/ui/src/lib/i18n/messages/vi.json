@@ -4325,5 +4325,10 @@
   "desktop.native.startup.failed": "Kh\u00f4ng th\u1ec3 kh\u1edfi \u0111\u1ed9ng AX Code",
   "desktop.native.startup.couldNotStart": "Kh\u00f4ng th\u1ec3 kh\u1edfi \u0111\u1ed9ng \u1ee9ng d\u1ee5ng.",
   "desktop.native.startup.checkLogs": "Ki\u1ec3m tra nh\u1eadt k\u00fd \u1ee9ng d\u1ee5ng \u0111\u1ec3 bi\u1ebft chi ti\u1ebft.",
-  "desktop.native.role.hideOthers": "\u1ea8n \u1ee9ng d\u1ee5ng kh\u00e1c"
+  "desktop.native.role.hideOthers": "\u1ea8n \u1ee9ng d\u1ee5ng kh\u00e1c",
+  "desktop.native.launchAndQuitAnimations": "Ho\u1ea1t \u1ea3nh kh\u1edfi \u0111\u1ed9ng v\u00e0 tho\u00e1t",
+  "desktop.native.skipAnimation": "B\u1ecf qua ho\u1ea1t \u1ea3nh",
+  "desktop.native.disableAnimations": "T\u1eaft ho\u1ea1t \u1ea3nh",
+  "desktop.native.startingDesktop": "\u0110ang kh\u1edfi \u0111\u1ed9ng \u1ee9ng d\u1ee5ng\u2026",
+  "desktop.native.closingDesktop": "\u0110ang \u0111\u00f3ng \u1ee9ng d\u1ee5ng\u2026"
 }

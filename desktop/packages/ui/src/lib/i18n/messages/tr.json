@@ -4325,5 +4325,10 @@
   "desktop.native.startup.failed": "AX Code ba\u015flat\u0131lamad\u0131",
   "desktop.native.startup.couldNotStart": "Uygulama ba\u015flat\u0131lamad\u0131.",
   "desktop.native.startup.checkLogs": "Ayr\u0131nt\u0131lar i\u00e7in uygulama g\u00fcnl\u00fcklerini kontrol edin.",
-  "desktop.native.role.hideOthers": "Di\u011fer uygulamalar\u0131 gizle"
+  "desktop.native.role.hideOthers": "Di\u011fer uygulamalar\u0131 gizle",
+  "desktop.native.launchAndQuitAnimations": "Ba\u015flatma ve \u00e7\u0131k\u0131\u015f animasyonlar\u0131",
+  "desktop.native.skipAnimation": "Animasyonu atla",
+  "desktop.native.disableAnimations": "Animasyonlar\u0131 devre d\u0131\u015f\u0131 b\u0131rak",
+  "desktop.native.startingDesktop": "Masa\u00fcst\u00fc ba\u015flat\u0131l\u0131yor\u2026",
+  "desktop.native.closingDesktop": "Masa\u00fcst\u00fc kapat\u0131l\u0131yor\u2026"
 }
