@@ -175,7 +175,7 @@ export function createUpstreamSseReader({
             }
 
             resetStallTimer()
-            buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n")
+            buffer = `${buffer}${decoder.decode(value, { stream: true })}`.replace(/\r\n/g, "\n")
 
             let separatorIndex = buffer.indexOf("\n\n")
             while (separatorIndex !== -1 && !stopped && !signal?.aborted) {

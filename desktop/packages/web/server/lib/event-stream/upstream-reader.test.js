@@ -58,6 +58,32 @@ describe("createUpstreamSseReader", () => {
     expect(reader.getLastEventId()).toBe("evt-1")
   })
 
+  it("parses CRLF events split across read chunks", async () => {
+    const eventIds = []
+    let reader
+
+    reader = createUpstreamSseReader({
+      buildUrl: () => "http://127.0.0.1:4096/global/event",
+      reconnectDelayMs: 0,
+      fetchImpl: async (_url, options) =>
+        createSseResponse({
+          signal: options.signal,
+          blocks: [
+            'id: evt-1\r\ndata: {"type":"server.connected","properties":{}}\r\n\r',
+            '\nid: evt-2\r\ndata: {"type":"session.updated","properties":{}}\r\n\r\n',
+          ],
+        }),
+      onEvent(event) {
+        eventIds.push(event.eventId)
+        if (event.eventId === "evt-2") reader.stop()
+      },
+    })
+
+    await reader.start()
+
+    expect(eventIds).toEqual(["evt-1", "evt-2"])
+  })
+
   it("does not acknowledge a lazy upstream until server.connected follows replay", async () => {
     const order = []
     let reader
