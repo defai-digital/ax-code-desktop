@@ -15,6 +15,15 @@ describe("parseServeCliOptions", () => {
     })
   })
 
+  it("parses the documented -p port shorthand", () => {
+    expect(
+      parseServeCliOptions({
+        argv: ["-p", "4123"],
+        defaultPort: 3902,
+      }).port,
+    ).toBe(4123)
+  })
+
   it("falls back to default port for invalid port values", () => {
     expect(
       parseServeCliOptions({

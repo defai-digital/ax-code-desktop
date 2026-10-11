@@ -27,13 +27,14 @@ export const parseServeCliOptions = ({ argv = [], env = {}, defaultPort }) => {
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]
-    if (!arg.startsWith("--")) {
+    const token = arg === "-p" ? "--port" : arg
+    if (!token.startsWith("--")) {
       continue
     }
 
-    const eqIndex = arg.indexOf("=")
-    const optionName = eqIndex >= 0 ? arg.slice(2, eqIndex) : arg.slice(2)
-    const inlineValue = eqIndex >= 0 ? arg.slice(eqIndex + 1) : undefined
+    const eqIndex = token.indexOf("=")
+    const optionName = eqIndex >= 0 ? token.slice(2, eqIndex) : token.slice(2)
+    const inlineValue = eqIndex >= 0 ? token.slice(eqIndex + 1) : undefined
 
     if (optionName === "port" || optionName === "p") {
       const { value, nextIndex } = consumeValue(i, inlineValue)
