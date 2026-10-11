@@ -1218,10 +1218,8 @@ const fetchVersionPayload = async (versionUrl, { headers, timeoutMs }) => {
     return await fetch(versionUrl, { signal: timeoutSignal, headers })
   } catch (error) {
     if (timeoutSignal.aborted) throw error
-    return await Promise.race([
-      electronNet.fetch(versionUrl, { headers }),
-      new Promise((_, reject) => setTimeout(() => reject(error), timeoutMs)),
-    ])
+    // Node's fetch failed before the deadline; retry through Chromium's network stack.
+    return await electronNet.fetch(versionUrl, { headers, signal: AbortSignal.timeout(timeoutMs) })
   }
 }
 
@@ -1859,6 +1857,13 @@ const attachWindowStateListeners = (browserWindow) => {
   browserWindow.on("maximize", onChange)
   browserWindow.on("unmaximize", onChange)
   browserWindow.on("close", () => debounceWindowStatePersist(browserWindow, true))
+  // The id is unreadable once the window is destroyed, so capture it up front.
+  const key = String(browserWindow.id)
+  browserWindow.once("closed", () => {
+    clearTimeout(windowGeometryTimers.get(key))
+    windowGeometryTimers.delete(key)
+    windowGeometryRevisions.delete(key)
+  })
 }
 
 // Restore saved geometry onto the main window before it is shown.

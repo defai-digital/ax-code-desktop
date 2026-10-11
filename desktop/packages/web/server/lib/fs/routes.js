@@ -349,6 +349,19 @@ const resolveReadPathFromContext = async ({
   })
 }
 
+// Starts a fire-and-forget helper (open, xdg-open). A missing binary emits an
+// "error" event on the child, which would crash the server if left unhandled.
+const launchDetached = (spawn, command, args) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(command, args, { windowsHide: true, stdio: "ignore", detached: true })
+    // Re-wrap so a missing binary (ENOENT) is not mistaken for a missing target path.
+    child.once("error", (error) => reject(new Error(`Failed to launch ${command}: ${error.message}`)))
+    child.once("spawn", () => {
+      child.unref()
+      resolve()
+    })
+  })
+
 const runCommandInDirectory = ({
   command,
   executable,
@@ -1221,9 +1234,9 @@ export const registerFsRoutes = (app, dependencies) => {
       if (platform === "darwin") {
         const stat = await fsPromises.stat(resolvedPath)
         if (stat.isDirectory()) {
-          spawn("open", [resolvedPath], { windowsHide: true, stdio: "ignore", detached: true }).unref()
+          await launchDetached(spawn, "open", [resolvedPath])
         } else {
-          spawn("open", ["-R", resolvedPath], { windowsHide: true, stdio: "ignore", detached: true }).unref()
+          await launchDetached(spawn, "open", ["-R", resolvedPath])
         }
       } else if (platform === "win32") {
         const stat = await fsPromises.stat(resolvedPath)
@@ -1245,7 +1258,7 @@ export const registerFsRoutes = (app, dependencies) => {
       } else {
         const stat = await fsPromises.stat(resolvedPath)
         const dir = stat.isDirectory() ? resolvedPath : path.dirname(resolvedPath)
-        spawn("xdg-open", [dir], { windowsHide: true, stdio: "ignore", detached: true }).unref()
+        await launchDetached(spawn, "xdg-open", [dir])
       }
 
       return res.json({ success: true, path: resolvedPath })

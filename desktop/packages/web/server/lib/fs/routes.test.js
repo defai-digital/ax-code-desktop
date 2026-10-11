@@ -25,6 +25,14 @@ const createSpawn = ({ stdoutByCommand = {}, exitCode = 0 } = {}) => {
   return { spawn, calls }
 }
 
+// Fake detached helper process (open/xdg-open) that spawns successfully, or fails with `error`.
+const createDetachedChild = ({ error } = {}) => {
+  const child = new EventEmitter()
+  child.unref = vi.fn()
+  queueMicrotask(() => (error ? child.emit("error", error) : child.emit("spawn")))
+  return child
+}
+
 const createDeferredSpawn = ({ stdoutByCommand = {}, exitCode = 0 } = {}) => {
   const calls = []
   const pending = []
@@ -331,10 +339,7 @@ describe("fs reveal authorization", () => {
   })
 
   it("allows reveal for paths inside the workspace", async () => {
-    const spawnMock = vi.fn(() => {
-      const child = { unref: () => {} }
-      return child
-    })
+    const spawnMock = vi.fn(() => createDetachedChild())
     const { app, getRoute } = createRouteRegistry()
     registerFsRoutes(app, {
       os: { homedir: () => "/home/user" },
@@ -362,11 +367,44 @@ describe("fs reveal authorization", () => {
     expect(res.body).toEqual({ success: true, path: "/repo/file.txt" })
   })
 
-  it("allows reveal for paths inside approved directories", async () => {
-    const spawnMock = vi.fn(() => {
-      const child = { unref: () => {} }
-      return child
+  it("returns an error instead of crashing when the reveal helper cannot be launched", async () => {
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform")
+    Object.defineProperty(process, "platform", { value: "linux" })
+    const launchError = Object.assign(new Error("spawn xdg-open ENOENT"), { code: "ENOENT" })
+    const spawnMock = vi.fn(() => createDetachedChild({ error: launchError }))
+    const { app, getRoute } = createRouteRegistry()
+    registerFsRoutes(app, {
+      os: { homedir: () => "/home/user" },
+      path: path.posix,
+      fsPromises: {
+        realpath: async (p) => p,
+        access: vi.fn(async () => undefined),
+        stat: vi.fn(async () => ({ isDirectory: () => false })),
+      },
+      spawn: spawnMock,
+      crypto: { randomUUID: () => "job-0" },
+      normalizeDirectoryPath: (p) => p,
+      resolveProjectDirectory: async () => ({ directory: "/repo" }),
+      readSettingsFromDiskMigrated: async () => ({ approvedDirectories: [] }),
+      buildAugmentedPath: () => "/usr/bin",
+      resolveGitBinaryForSpawn: () => "git",
+      openchamberUserConfigRoot: "/home/user/.config",
     })
+
+    try {
+      const res = await callRoute(getRoute("POST", "/api/fs/reveal"), {
+        body: { path: "/repo/file.txt" },
+      })
+
+      expect(res.statusCode).toBe(500)
+      expect(res.body.error).toMatch(/Failed to launch xdg-open/)
+    } finally {
+      if (originalPlatform) Object.defineProperty(process, "platform", originalPlatform)
+    }
+  })
+
+  it("allows reveal for paths inside approved directories", async () => {
+    const spawnMock = vi.fn(() => createDetachedChild())
     const { app, getRoute } = createRouteRegistry()
     registerFsRoutes(app, {
       os: { homedir: () => "/home/user" },
