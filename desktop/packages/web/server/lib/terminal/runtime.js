@@ -744,7 +744,8 @@ export function createTerminalRuntime({
       try {
         session.lastActivity = Date.now()
         const ok = res.write(`data: ${JSON.stringify({ type: "data", data })}\n\n`)
-        if (!ok && session.ptyProcess && typeof session.ptyProcess.pause === "function") {
+        // `paused` guards against stacking a drain listener per buffered chunk while already paused.
+        if (!ok && !paused && session.ptyProcess && typeof session.ptyProcess.pause === "function") {
           session.ptyProcess.pause()
           paused = true
           res.once("drain", () => {
