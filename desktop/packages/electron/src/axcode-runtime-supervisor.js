@@ -59,6 +59,8 @@ const { createSupervisionFsm } = require("./supervision-fsm")
 const { getRuntimeAuthPassword } = require("./runtime-auth-password")
 
 const RUNTIME_HOSTNAME = "127.0.0.1"
+// Error code on the failure thrown when no runtime binary resolves, so callers can offer recovery.
+const RUNTIME_NOT_FOUND_CODE = "AX_CODE_RUNTIME_NOT_FOUND"
 // Legacy-tolerant listening-line extraction (old lifecycle.js:284-301): any
 // line carrying the listening marker yields its URL via this regex, so log
 // prefixes and colorized output still parse. ANSI escapes are stripped first.
@@ -539,10 +541,12 @@ function createAxCodeRuntimeSupervision(options = {}) {
     const settings = settingsReader() || {}
     const resolved = resolveRuntimeBinary({ env, settings, isExecutable, platform })
     if (!resolved) {
-      throw new Error(
+      const error = new Error(
         "AX Code Desktop could not find the ax-code CLI. Install it and set settings.axCodeBinary to the CLI path, " +
           "or leave the setting empty to use the bundled runtime or a PATH lookup.",
       )
+      error.code = RUNTIME_NOT_FOUND_CODE
+      throw error
     }
     resolution = { ...resolved, version: null }
     logger.log(`[electron] supervising ax-code runtime: ${resolution.binary} (source: ${resolution.source})`)
@@ -760,6 +764,8 @@ function createAxCodeRuntimeSupervision(options = {}) {
 
 module.exports = {
   createAxCodeRuntimeSupervision,
+  defaultIsExecutable,
+  RUNTIME_NOT_FOUND_CODE,
   resolveRuntimeBinary,
   resolveSpawnInvocation,
   computeInitialStartRetryDelayMs,

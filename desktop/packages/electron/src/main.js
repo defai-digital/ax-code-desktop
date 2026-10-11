@@ -31,13 +31,18 @@ const { mapWithConcurrency } = require("./map-with-concurrency")
 const { assertDesktopReadFileAllowed } = require("./desktop-read-file-policy")
 const { sanitizeDesktopWindowTitle } = require("./desktop-window-title")
 const { shouldIncludeNativeSearchEntry, toNativeSearchRelativePath } = require("./desktop-file-search")
-const { GITHUB_BUG_REPORT_URL, GITHUB_FEATURE_REQUEST_URL } = require("./support-urls")
+const { AX_CODE_INSTALL_DOCS_URL, GITHUB_BUG_REPORT_URL, GITHUB_FEATURE_REQUEST_URL } = require("./support-urls")
 const { createSupervisionFsm } = require("./supervision-fsm")
 const { buildComputerUseServerEnv } = require("./computer-use-server-env")
 const { applyBundledAxCodeEnv, buildBundledAxCodeEnv } = require("./bundled-ax-code-env")
 const { verifyBundledAxCodeIntegrity } = require("./bundled-ax-code-integrity")
 const { getRuntimeAuthPassword } = require("./runtime-auth-password")
-const { createAxCodeRuntimeSupervision } = require("./axcode-runtime-supervisor")
+const {
+  createAxCodeRuntimeSupervision,
+  defaultIsExecutable,
+  RUNTIME_NOT_FOUND_CODE,
+} = require("./axcode-runtime-supervisor")
+const { recoverFromMissingRuntime } = require("./runtime-missing-recovery")
 const { createRuntimeRestartRequestHandler } = require("./runtime-restart-request")
 const { createRendererCrashPolicy } = require("./renderer-crash-policy")
 const { createSettingsWriteHandler } = require("./settings-write-handler")
@@ -3041,7 +3046,30 @@ app.whenReady().then(async () => {
           }
         },
       })
-      const { port: runtimePort } = await runtimeSupervision.prepare()
+      // A missing runtime is user-recoverable: offer to pick an installed CLI
+      // (saved as settings.axCodeBinary) and re-resolve instead of exiting.
+      let runtimePort
+      for (;;) {
+        try {
+          ;({ port: runtimePort } = await runtimeSupervision.prepare())
+          break
+        } catch (error) {
+          if (error?.code !== RUNTIME_NOT_FOUND_CODE) throw error
+          recordStartupEvent("runtime.supervision.binary-missing", {}, { once: false })
+          const outcome = await recoverFromMissingRuntime({
+            dialog,
+            openExternal: (url) => shell.openExternal(url),
+            installDocsUrl: AX_CODE_INSTALL_DOCS_URL,
+            isExecutable: defaultIsExecutable,
+            saveBinaryPath: (binaryPath) => mutateSettingsRoot((root) => ({ ...root, axCodeBinary: binaryPath })),
+          })
+          if (outcome === "quit") {
+            await shutdownForExit()
+            app.exit(0)
+            return
+          }
+        }
+      }
       recordStartupEvent("runtime.supervision.prepared", { port: runtimePort }, { once: false })
       runtimeSupervision.start().catch((error) => {
         // A quitting app stops the FSM before readiness, which rejects

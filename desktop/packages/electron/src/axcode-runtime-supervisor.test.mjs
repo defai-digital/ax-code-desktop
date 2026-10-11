@@ -484,7 +484,10 @@ describe("ax-code runtime supervision", () => {
     const settings = {}
     const ctx = createSupervision({ settings, isExecutable: (candidate) => candidate === "/custom/ax-code" })
 
-    await expect(ctx.supervision.prepare()).rejects.toThrow(/could not find the ax-code CLI/)
+    await expect(ctx.supervision.prepare()).rejects.toMatchObject({
+      message: expect.stringMatching(/could not find the ax-code CLI/),
+      code: "AX_CODE_RUNTIME_NOT_FOUND",
+    })
     expect(ctx.fakeSpawn.calls).toHaveLength(0)
     expect(ctx.supervision.port).toBe(0)
 
