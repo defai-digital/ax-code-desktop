@@ -173,6 +173,22 @@ describe("routing index maintenance", () => {
     expect(index.sessionDirectoryById.has("stale")).toBe(false)
     expect(index.sessionDirectoryById.get("other")).toBe("/other")
   })
+
+  test("ingestDirectoryStateIntoRoutingIndex drops message ids of listed sessions whose messages were evicted", () => {
+    const index = createEventRoutingIndex()
+    ingestDirectoryStateIntoRoutingIndex(
+      index,
+      "/repo",
+      createState({ session: [createSession("s1")], message: { s1: [createMessage("m1", "s1")] } }),
+    )
+    expect(index.messageSessionById.get("m1")).toBe("s1")
+
+    ingestDirectoryStateIntoRoutingIndex(index, "/repo", createState({ session: [createSession("s1")], message: {} }))
+
+    expect(index.messageSessionById.has("m1")).toBe(false)
+    expect(index.sessionMessageIdsById.has("s1")).toBe(false)
+    expect(index.sessionDirectoryById.get("s1")).toBe("/repo")
+  })
 })
 
 describe("findSessionInChildStores", () => {

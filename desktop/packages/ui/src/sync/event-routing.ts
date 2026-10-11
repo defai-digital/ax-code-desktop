@@ -212,19 +212,24 @@ const removeIndexedMessage = (routingIndex: EventRoutingIndex, messageID: string
   }
 }
 
+const dropIndexedSessionMessages = (routingIndex: EventRoutingIndex, sessionID: string) => {
+  const messageIds = routingIndex.sessionMessageIdsById.get(sessionID)
+  if (!messageIds) {
+    return
+  }
+  for (const messageID of messageIds) {
+    routingIndex.messageSessionById.delete(messageID)
+  }
+  routingIndex.sessionMessageIdsById.delete(sessionID)
+}
+
 const removeIndexedSession = (routingIndex: EventRoutingIndex, sessionID: string) => {
   if (!sessionID) {
     return
   }
 
   routingIndex.sessionDirectoryById.delete(sessionID)
-  const messageIds = routingIndex.sessionMessageIdsById.get(sessionID)
-  if (messageIds) {
-    for (const messageID of messageIds) {
-      routingIndex.messageSessionById.delete(messageID)
-    }
-  }
-  routingIndex.sessionMessageIdsById.delete(sessionID)
+  dropIndexedSessionMessages(routingIndex, sessionID)
 }
 
 export const ingestDirectoryStateIntoRoutingIndex = (
@@ -254,6 +259,9 @@ export const ingestDirectoryStateIntoRoutingIndex = (
     }
     if (!nextSessionIds.has(indexedSessionID)) {
       removeIndexedSession(routingIndex, indexedSessionID)
+    } else if (!Object.prototype.hasOwnProperty.call(state.message, indexedSessionID)) {
+      // Session is still listed but its messages were evicted from the cache.
+      dropIndexedSessionMessages(routingIndex, indexedSessionID)
     }
   }
 }
