@@ -3,6 +3,7 @@
 const {
   app,
   BrowserWindow,
+  WebContentsView,
   dialog,
   ipcMain,
   shell,
@@ -37,6 +38,10 @@ const { buildComputerUseServerEnv } = require("./computer-use-server-env")
 const { applyBundledAxCodeEnv, buildBundledAxCodeEnv } = require("./bundled-ax-code-env")
 const { verifyBundledAxCodeIntegrity } = require("./bundled-ax-code-integrity")
 const { getRuntimeAuthPassword } = require("./runtime-auth-password")
+const { createDesktopWebMcpBrowser, DESKTOP_BROWSER_TOKEN } = require("./desktop-webmcp-browser")
+
+// Native WebMCP is supplied by the bundled engine; agent access is separately enrolled.
+app.commandLine.appendSwitch("enable-features", "WebMCP")
 const { createAxCodeRuntimeSupervision } = require("./axcode-runtime-supervisor")
 const { createRuntimeRestartRequestHandler } = require("./runtime-restart-request")
 const { createRendererCrashPolicy } = require("./renderer-crash-policy")
@@ -236,6 +241,11 @@ const bundledAxCodeEnv = buildBundledAxCodeEnv({
 // Created unless the S2.5 escape hatch is set; the supervision owns the
 // runtime origin/exhausted state in that mode.
 let runtimeSupervision = null
+const desktopWebMcpBrowser = createDesktopWebMcpBrowser({
+  BrowserWindow, WebContentsView, session,
+  getRuntime: () => runtimeOrigin,
+  getAuthorization: () => `Basic ${Buffer.from(`ax-code:${getRuntimeAuthPassword()}`).toString("base64")}`,
+})
 // S2.5c: the web server asks main to restart the supervised runtime (with
 // binary re-resolution) after settings.axCodeBinary changes; serialized here.
 const runtimeRestartRequests = createRuntimeRestartRequestHandler({
@@ -820,6 +830,10 @@ const handleCommand = (name, fn, { safeForRemote = false } = {}) => {
 }
 
 // ── IPC handlers (Tauri-compatible surface, all guarded by handleCommand) ────
+handleCommand("desktop_webmcp_browser", async (args, event) => {
+  if (event.senderFrame !== event.sender.mainFrame) throw new Error("Browser commands require the main local frame")
+  return desktopWebMcpBrowser.command(event.sender, args)
+})
 handleCommand("desktop_get_launch_at_login", async () => ({
   enabled: app.getLoginItemSettings().openAtLogin,
   supported: true,
@@ -3027,10 +3041,11 @@ app.whenReady().then(async () => {
     if (isMainSupervisedRuntimeEnabled()) {
       recordStartupEvent("runtime.supervision.start", {}, { once: false })
       runtimeSupervision = createAxCodeRuntimeSupervision({
-        env: applyBundledAxCodeEnv({ ...process.env }, bundledAxCodeEnv),
+        env: applyBundledAxCodeEnv({ ...process.env, AX_CODE_DESKTOP_BROWSER_TOKEN: DESKTOP_BROWSER_TOKEN }, bundledAxCodeEnv),
         settingsReader: readSettingsRoot,
         logger: console,
         onOriginChange: (origin, context = {}) => {
+          desktopWebMcpBrowser.runtimeChanged()
           runtimeOrigin = typeof origin === "string" && origin ? origin : null
           runtimeRetryExhausted = context.exhausted === true
           if (origin) {
@@ -3109,6 +3124,7 @@ app.on("activate", () => {
 })
 
 app.on("before-quit", (event) => {
+  void desktopWebMcpBrowser.closeAll()
   // Fire-and-forget would let the app exit before the server shuts down,
   // orphaning ax-code-server (and its ax-code child) and leaving the port
   // bound — the next launch then fails to rebind. Hold the quit, shut down

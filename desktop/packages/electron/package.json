@@ -20,12 +20,13 @@
   },
   "dependencies": {
     "electron-updater": "^6.3.9",
-    "node-pty": "1.1.0"
+    "node-pty": "1.1.0",
+    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.7"
   },
   "devDependencies": {
     "@electron/asar": "catalog:",
     "@electron/rebuild": "^3.7.1",
-    "electron": "42.5.2",
+    "electron": "44.7.0",
     "electron-builder": "catalog:",
     "esbuild": "^0.24.2",
     "resedit": "catalog:"

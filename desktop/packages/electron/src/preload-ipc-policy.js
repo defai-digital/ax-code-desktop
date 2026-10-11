@@ -5,6 +5,7 @@
 // reviewed and added here.
 const DESKTOP_INVOKE_COMMANDS = new Set([
   "desktop_browser_capture_page",
+  "desktop_webmcp_browser",
   "desktop_capture_page_rect",
   "desktop_check_for_updates",
   "desktop_clear_cache",
