@@ -67,7 +67,7 @@ export const getFilesViewDisplayPath = (root: string | null, path: string): stri
 
   const comparableFilePath = normalizeComparableFilesViewPath(normalizedFilePath)
   const comparableRoot = normalizeComparableFilesViewPath(normalizedRoot)
-  const relative = normalizedFilePath.slice(comparableRoot.length)
+  const relative = normalizedFilePath.slice(normalizedRoot.length)
   if (comparableFilePath === comparableRoot) {
     return "."
   }

@@ -36,4 +36,8 @@ describe("filesViewPathUtils", () => {
   test("returns dot for the root path itself", () => {
     expect(getFilesViewDisplayPath("C:/Users/Alice/Project", "c:/users/alice/project")).toBe(".")
   })
+
+  test("slices relative paths by the original root length when lowercasing expands characters", () => {
+    expect(getFilesViewDisplayPath("C:/DİJİTAL", "C:/DİJİTAL/readme.md")).toBe("readme.md")
+  })
 })
