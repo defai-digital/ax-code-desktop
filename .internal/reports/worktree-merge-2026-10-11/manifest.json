@@ -1,0 +1,616 @@
+{
+  "schema": "ax-coder.worktree-consolidation.v1",
+  "date": "2026-10-11",
+  "localization": [
+    {
+      "worktree": "/Users/akiralam/code/.ax-coder-localization-grok-20261011",
+      "archive": "localization-grok-drafts.tar.gz",
+      "sha256": "8cf941c9e969e51ebabd472f9641d37232d68f4991454113a59d0baa65189f43",
+      "files": [
+        {
+          "path": "localization-source.json",
+          "bytes": 308995,
+          "sha256": "2e92e4c34f3197a4cccdca4d8b39c05cc8815691203003afaae2d7a3dcdd5652"
+        },
+        {
+          "path": "localization-output/de.json",
+          "bytes": 344378,
+          "sha256": "326a1d3ef65ad7534287f6650b4f35ff5a26959f28c69dccd987eae00e787238"
+        },
+        {
+          "path": "localization-output/it.json",
+          "bytes": 334102,
+          "sha256": "9ff5ccfdd617eb1668cdf5275fa2df4f34d42dee8cfc2633554a145b6af21f5c"
+        },
+        {
+          "path": "localization-output/ko.json",
+          "bytes": 451661,
+          "sha256": "91d4ec8f422d505bc513b155923ad95b29e977856db974d4beb01c0eec7b2099"
+        },
+        {
+          "path": "localization-output/ru.json",
+          "bytes": 768131,
+          "sha256": "6b3098f5848ffce49bdbeb294075942f87561036eea4f24aac5ac3caed4409c0"
+        },
+        {
+          "path": "localization-output/tr.json",
+          "bytes": 367784,
+          "sha256": "0e0e3f3dc4ad7f2392080d3ea08cff046473b75b472a2151cfc277974f855729"
+        },
+        {
+          "path": "localization-output/vi.json",
+          "bytes": 414722,
+          "sha256": "35b0d3771c9616d9e0a771fc3590fce7d98f3d8a2c4eb8763df6b9b3961346a3"
+        },
+        {
+          "path": "localization-output/zh-CN.json",
+          "bytes": 388670,
+          "sha256": "232843ec07b74782a4b5964de6e9e0f091fb18257ac208b8a19c78729b289ad3"
+        }
+      ],
+      "comparison": [
+        {
+          "locale": "de",
+          "differentValues": 2,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        },
+        {
+          "locale": "it",
+          "differentValues": 3,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        },
+        {
+          "locale": "ko",
+          "differentValues": 8,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        },
+        {
+          "locale": "ru",
+          "differentValues": 3,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        },
+        {
+          "locale": "tr",
+          "differentValues": 4,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        },
+        {
+          "locale": "vi",
+          "differentValues": 17,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        },
+        {
+          "locale": "zh-CN",
+          "differentValues": 8,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        }
+      ]
+    },
+    {
+      "worktree": "/Users/akiralam/code/.ax-coder-localization-muse-20261011",
+      "archive": "localization-muse-drafts.tar.gz",
+      "sha256": "6677de11bac4468dd339a87a1d99a83776a82fdbb9ce846855bd22771f5a63f2",
+      "files": [
+        {
+          "path": "localization-source.json",
+          "bytes": 308995,
+          "sha256": "2e92e4c34f3197a4cccdca4d8b39c05cc8815691203003afaae2d7a3dcdd5652"
+        },
+        {
+          "path": "localization-output/es.json",
+          "bytes": 339389,
+          "sha256": "afa1f760de255e500d9c776b32a91508f9a5ca4af2114ac47afb340d8334ddd0"
+        },
+        {
+          "path": "localization-output/fr.json",
+          "bytes": 362017,
+          "sha256": "5899059f42878848281c65f56e103a28f825ec1ff7db755e1ddf46e08b91ff45"
+        },
+        {
+          "path": "localization-output/id.json",
+          "bytes": 317639,
+          "sha256": "d46345f7c8f430777d05773997dcce6f9bb6983014cf8511fc3660eaffef46a1"
+        },
+        {
+          "path": "localization-output/ja.json",
+          "bytes": 514041,
+          "sha256": "35ade67e4aa16eba4b8f26c38409837791301bc974077ecb25b32adf89e6257d"
+        },
+        {
+          "path": "localization-output/pt-BR.json",
+          "bytes": 339704,
+          "sha256": "dbb94647f6b8a5994825cb4480a102f40bf3256027c90ac5ea8c05efca1f2658"
+        },
+        {
+          "path": "localization-output/zh-TW.json",
+          "bytes": 394049,
+          "sha256": "12c0c07dbe43c801092ac83bfd5ba0a203a49771d6dc54c9c85dc5ef8105c166"
+        }
+      ],
+      "comparison": [
+        {
+          "locale": "es",
+          "differentValues": 0,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "common.itemCount.few",
+            "common.itemCount.many",
+            "common.itemCount.one",
+            "common.itemCount.other",
+            "common.itemCount.two",
+            "common.itemCount.zero",
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        },
+        {
+          "locale": "fr",
+          "differentValues": 7,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "common.itemCount.few",
+            "common.itemCount.many",
+            "common.itemCount.one",
+            "common.itemCount.other",
+            "common.itemCount.two",
+            "common.itemCount.zero",
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        },
+        {
+          "locale": "id",
+          "differentValues": 23,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "common.itemCount.few",
+            "common.itemCount.many",
+            "common.itemCount.one",
+            "common.itemCount.other",
+            "common.itemCount.two",
+            "common.itemCount.zero",
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        },
+        {
+          "locale": "ja",
+          "differentValues": 8,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "common.itemCount.few",
+            "common.itemCount.many",
+            "common.itemCount.one",
+            "common.itemCount.other",
+            "common.itemCount.two",
+            "common.itemCount.zero",
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        },
+        {
+          "locale": "pt-BR",
+          "differentValues": 3,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "common.itemCount.few",
+            "common.itemCount.many",
+            "common.itemCount.one",
+            "common.itemCount.other",
+            "common.itemCount.two",
+            "common.itemCount.zero",
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        },
+        {
+          "locale": "zh-TW",
+          "differentValues": 0,
+          "draftOnlyKeys": [],
+          "mainOnlyKeys": [
+            "common.itemCount.few",
+            "common.itemCount.many",
+            "common.itemCount.one",
+            "common.itemCount.other",
+            "common.itemCount.two",
+            "common.itemCount.zero",
+            "desktop.native.closingDesktop",
+            "desktop.native.disableAnimations",
+            "desktop.native.launchAndQuitAnimations",
+            "desktop.native.role.cut",
+            "desktop.native.role.front",
+            "desktop.native.role.hideOthers",
+            "desktop.native.role.minimize",
+            "desktop.native.role.paste",
+            "desktop.native.role.pasteAndMatchStyle",
+            "desktop.native.role.zoom",
+            "desktop.native.skipAnimation",
+            "desktop.native.startingDesktop",
+            "desktop.native.startup.checkLogs",
+            "desktop.native.startup.couldNotStart",
+            "desktop.native.startup.failed"
+          ],
+          "resolution": "Keep the newer reviewed main catalog; preserve the complete draft in the archive."
+        }
+      ]
+    }
+  ],
+  "markdown": {
+    "worktree": "/private/tmp/ax-coder-markdown-completion",
+    "matchedMainFiles": [
+      {
+        "path": ".internal/experiments/markdown-rust/README.md",
+        "sha256": "19d848ede07e4c46992529bcab0d6ec430566f99f903c845b84c611d175dfd39"
+      },
+      {
+        "path": ".internal/experiments/markdown-rust/compatibility-fixtures.json",
+        "sha256": "e243e795b69cd40a1120ca5b6ab23ba9af5f2aa257e12fc4e7386d82232faef6"
+      },
+      {
+        "path": ".internal/experiments/markdown-rust/electron/backend.ts",
+        "sha256": "7597fc4392f1f4e779ec321f8ce781474ec646c30d9a49b876bd3f3a9c4e034f"
+      },
+      {
+        "path": ".internal/experiments/markdown-rust/electron/build.mjs",
+        "sha256": "1b065a93a633e16d54e542449810ddc0882f039ffdf224c712fa222a7f66de86"
+      },
+      {
+        "path": ".internal/experiments/markdown-rust/electron/preload.cjs",
+        "sha256": "2be5f3f4e3a78b2d67f0560b684f4b1ad7392a754594cd2a43eb2c4a612ed334"
+      },
+      {
+        "path": ".internal/experiments/markdown-rust/electron/renderer.html",
+        "sha256": "bb43eda2750c298c1e079b27c6ca1437171dc35cc4eb4e71635cea4e34d17d2f"
+      },
+      {
+        "path": ".internal/experiments/markdown-rust/electron/renderer.tsx",
+        "sha256": "be62123a054d9b6f6e50005887f83cd78fe48c027815194f7b2536c4d6f124ce"
+      },
+      {
+        "path": ".internal/experiments/markdown-rust/electron/run.cjs",
+        "sha256": "1485cbf5c5f93255ba93e339dfc7069e279bc21dde348fb97ef267cf3b95aa2b"
+      },
+      {
+        "path": ".internal/reports/PERFORMANCE-2026-10-11-markdown-completion.md",
+        "sha256": "0349e3735a60842a71271e22bdcd76b15f4a39855e3507fb005e08ca1a13ba9c"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/js-blocks-paint-trace.json.gz",
+        "sha256": "4ff33863f6706b1bf8fbe59dc1c0234f63f81a3092ec5fbc5734bc25bd030d91"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/js-blocks.png",
+        "sha256": "2baf61bedf263f78e5b96677464c262eb276460a881bc5dd13033ad471c7048b"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/js-links-paint-trace.json.gz",
+        "sha256": "6c7bf3394005486c72520889c9b2cdc4177b2089b905247176c8753e2fb121ef"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/js-links.png",
+        "sha256": "336bdb65712e26d0e9e88fda3e810d73316d03d732e05f1353091393cbe022be"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/js-paragraph-paint-trace.json.gz",
+        "sha256": "7a7a02cde417a2620b138437fc7f75693f58518ca7b449c7bad07d3d29576605"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/js-paragraph.png",
+        "sha256": "cda6e65eed5514fa18f6259aff8859db505500099d4832bbb04184c8d06a5169"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/js-small-paint-trace.json.gz",
+        "sha256": "b839dd8bc51779fe869f4cc537a1c9c74d8746e072501477776563ab017380eb"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/js-small.png",
+        "sha256": "eb37c52498cab1e915efa73612e0ab281be265c8b3df1aad127ff72896742097"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/results.json",
+        "sha256": "223b93dfe5d750ae72220c9d78d6d5bb3677c341fae5ecbf1712da3f8611879a"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/rust-blocks-paint-trace.json.gz",
+        "sha256": "65f41cb0d7cecdb9d72bd2c1d2eff664a90163dd0f76e38e086fb75f8958ee48"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/rust-blocks.png",
+        "sha256": "85e5c7423b625e57b756137bb0bc4864434171fd06b62f33e3bff3348363b36c"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/rust-paragraph-paint-trace.json.gz",
+        "sha256": "57988aeb7590853f592702c3d4c9fee33a9ecea4f12cdcae011daf5a3720b8d1"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/baseline/rust-paragraph.png",
+        "sha256": "3c9b79e4caf995e194763f8ba19abc36ea0560aa4207652ab0935ecd75b3cbed"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/candidate/js-blocks-paint-trace.json.gz",
+        "sha256": "28252f9bf6ff460047b99671e5c131e7c8c4e4bbfadc998d29c5e9a935fea83a"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/candidate/js-blocks.png",
+        "sha256": "cbc5d67d949d22b37d81aca2be4308081990901839b7b79b7f06bd71fa53fbc6"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/candidate/js-links-paint-trace.json.gz",
+        "sha256": "eccc9785af4db9870f2631739e1e5f469553f0adb1866f5d68a6c1814b75893d"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/candidate/js-links.png",
+        "sha256": "71db548a99b492f7d4754708e4c0273cf26bf7d09388869b94919e562805ea40"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/candidate/js-paragraph-paint-trace.json.gz",
+        "sha256": "db8d58d77a3758bd5a552f29594e63eea0ab6e37fcdad35f64be26c655eeaf38"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/candidate/js-paragraph.png",
+        "sha256": "5745774f9c8d1357775f3542bd0765287aac6ec413f23883c6f9125c98f3a730"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/candidate/js-small-paint-trace.json.gz",
+        "sha256": "df070ceaea1f38f89f8636608f85c14067c22db91928d485f5f150ef7f096c71"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/candidate/js-small.png",
+        "sha256": "adaccd8c2d790b5e56d068f56a87cddc4e9f93feec8755824d6ca27c6c251f4a"
+      },
+      {
+        "path": ".internal/reports/markdown-completion-2026-10-11/candidate/results.json",
+        "sha256": "36071319db5af3eeca120c315bf31eb7659b01ea7a353f5905dbf5538d0bff8b"
+      },
+      {
+        "path": "desktop/packages/ui/src/components/chat/markdownNativeAdapter.bench.ts",
+        "sha256": "8958d2f6605a66631374c9e7440ced292997008820d501e83e883f7f26c99de0"
+      },
+      {
+        "path": "desktop/packages/ui/src/components/chat/markdownNativeAdapter.test.tsx",
+        "sha256": "e3792b30d2400c118da90e6be9da228615eb69973ee294204e34f94cbc4ebb5a"
+      },
+      {
+        "path": "desktop/packages/ui/src/components/chat/markdownNativeCompatibility.bench.ts",
+        "sha256": "6f2efe28ccbc6f339f0e8f9c4b87835ee1b3d3b940512ae0b0cfb7cfc2bd1589"
+      },
+      {
+        "path": "desktop/packages/ui/src/components/chat/markdownParser.worker.ts",
+        "sha256": "7b8c0db6f94defaef684ae9aa929a1485dd2c59a59ff493dd57bae184f17b45b"
+      },
+      {
+        "path": "desktop/packages/ui/src/components/chat/markdownWorkerParser.test.ts",
+        "sha256": "7c5079c42d7d8b39316eec9fdc13ea354393e2604b601ffa732928e28692449c"
+      },
+      {
+        "path": "desktop/packages/ui/src/components/chat/markdownWorkerParser.ts",
+        "sha256": "c3a4ef69c2c0a7c24c9d91c215055f6ddc8261bd821d5933410c80e2baa7f380"
+      },
+      {
+        "path": "desktop/packages/ui/src/components/chat/useMarkdownBlocks.test.tsx",
+        "sha256": "ab8e2cbe758694026f531dd1f15801b289b46933112719824e2c90146fa67b6b"
+      },
+      {
+        "path": "desktop/packages/ui/src/components/chat/useMarkdownBlocks.ts",
+        "sha256": "8f54dd0ad298f84d51bf5e652d98c9536a72bf108e5ad5efb722251f956a944e"
+      },
+      {
+        "path": "desktop/packages/ui/src/lib/url.test.ts",
+        "sha256": "4203c375a436229dbc91185b5876dc871c4825f2ecdeb167e7093f71eb8e6189"
+      },
+      {
+        "path": "desktop/packages/ui/src/lib/url.ts",
+        "sha256": "ff949abf1ed255c2f8e7e7aab14bbd2e051ba2d941bc95d4cb3a2d3a1126cc4a"
+      }
+    ],
+    "localDependencyLinks": [
+      ".internal/experiments/markdown-rust/target",
+      "desktop/packages/electron/node_modules",
+      "desktop/packages/ui/node_modules",
+      "desktop/packages/web/node_modules",
+      "node_modules"
+    ],
+    "resolution": "Every source and evidence file already matches main byte-for-byte; retain the original worktree."
+  },
+  "webmcp": {
+    "worktree": "/Users/akiralam/code/ax-coder-webmcp",
+    "sourceCommit": "70e1f6c18bc9102a66112c0b8a47d1583173fba2",
+    "resolution": "Merge the authored feature and accepted governance records; retain the newer Electron pin and quit coordination."
+  }
+}
