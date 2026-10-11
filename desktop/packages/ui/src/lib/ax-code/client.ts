@@ -1,3 +1,5 @@
+import { useI18nStore } from "../i18n/store"
+import { conversationInstruction } from "../i18n/runtime"
 import { createAxCodeClient, type AxCodeClient } from "@defai-digital/ax-code-sdk/v2/client"
 import type { FilesAPI, RuntimeAPIs } from "../api/types"
 import { API_ENDPOINTS, HTTP_DEFAULTS, API_PATHS, replacePathParams } from "@/lib/http"
@@ -837,6 +839,7 @@ class AxCodeService {
       retryCount?: number
     }
   }): Promise<string> {
+    const languageSystem = conversationInstruction(useI18nStore.getState().conversation)
     // Snapshot the directory up front: this method awaits multiple times below
     // (file normalization, worktree bootstrap, the fetch itself), and a
     // concurrent project switch can mutate `this.currentDirectory` mid-flight.
@@ -973,6 +976,7 @@ class AxCodeService {
     assertProviderCircuitClosed(params.providerID)
 
     const requestBody = {
+      ...(languageSystem ? { system: languageSystem } : {}),
       model: {
         providerID: params.providerID,
         modelID: params.modelID,
@@ -1084,6 +1088,7 @@ class AxCodeService {
     files?: Array<FileInputLite>
     messageId?: string
   }): Promise<string> {
+    const languageSystem = conversationInstruction(useI18nStore.getState().conversation)
     // Snapshot the directory up front: file normalization below awaits, and a
     // concurrent project switch can mutate `this.currentDirectory` mid-flight.
     // Use this snapshot consistently so the request routes to the directory
@@ -1107,6 +1112,7 @@ class AxCodeService {
     }
 
     const payload: Record<string, unknown> = {
+      ...(languageSystem ? { system: languageSystem } : {}),
       command: params.command,
       arguments: params.arguments ?? "",
       model: `${params.providerID}/${params.modelID}`,

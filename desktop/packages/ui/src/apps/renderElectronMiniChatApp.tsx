@@ -16,7 +16,7 @@ import { startTypographyWatcher } from "@/lib/typographyWatcher"
 import { ElectronMiniChatApp } from "./ElectronMiniChatApp"
 
 const initializeSharedPreferences = () => {
-  initializeLocale()
+  const localeReady = initializeLocale()
 
   void initializeAppearancePreferences()
     .then(() => {
@@ -31,27 +31,30 @@ const initializeSharedPreferences = () => {
     .catch((err) => {
       console.error("[mini-chat-main] appearance init failed:", err)
     })
+  return localeReady
 }
 
 export function renderElectronMiniChatApp(apis: RuntimeAPIs) {
-  initializeSharedPreferences()
+  const localeReady = initializeSharedPreferences()
 
   const rootElement = document.getElementById("root")
   if (!rootElement) {
     throw new Error("Root element not found")
   }
 
-  createRoot(rootElement).render(
-    <StrictMode>
-      <I18nProvider>
-        <ThemeSystemProvider>
-          <ThemeProvider>
-            <SessionAuthGate>
-              <ElectronMiniChatApp apis={apis} />
-            </SessionAuthGate>
-          </ThemeProvider>
-        </ThemeSystemProvider>
-      </I18nProvider>
-    </StrictMode>,
+  void localeReady.then(() =>
+    createRoot(rootElement).render(
+      <StrictMode>
+        <I18nProvider>
+          <ThemeSystemProvider>
+            <ThemeProvider>
+              <SessionAuthGate>
+                <ElectronMiniChatApp apis={apis} />
+              </SessionAuthGate>
+            </ThemeProvider>
+          </ThemeSystemProvider>
+        </I18nProvider>
+      </StrictMode>,
+    ),
   )
 }

@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "labels": {
+    "en": "English",
+    "zh-TW": "\u7e41\u9ad4\u4e2d\u6587",
+    "zh-CN": "\u7b80\u4f53\u4e2d\u6587",
+    "ja": "\u65e5\u672c\u8a9e",
+    "ko": "\ud55c\uad6d\uc5b4",
+    "fr": "Fran\u00e7ais",
+    "de": "Deutsch",
+    "id": "Bahasa Indonesia",
+    "it": "Italiano",
+    "pt-BR": "Portugu\u00eas (Brasil)",
+    "ru": "\u0420\u0443\u0441\u0441\u043a\u0438\u0439",
+    "es": "Espa\u00f1ol",
+    "tr": "T\u00fcrk\u00e7e",
+    "vi": "Ti\u1ebfng Vi\u1ec7t"
+  },
+  "conversationNames": {
+    "en": "English",
+    "zh-TW": "Traditional Chinese (Taiwan), not Simplified Chinese",
+    "zh-CN": "Simplified Chinese, not Traditional Chinese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "fr": "French",
+    "de": "German",
+    "id": "Indonesian",
+    "it": "Italian",
+    "pt-BR": "Brazilian Portuguese",
+    "ru": "Russian",
+    "es": "Spanish",
+    "tr": "Turkish",
+    "vi": "Vietnamese"
+  }
+}

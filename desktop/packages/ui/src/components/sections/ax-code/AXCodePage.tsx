@@ -1,5 +1,6 @@
 import React from "react"
 import { AXCodeVisualSettings } from "./AXCodeVisualSettings"
+import { LanguageSettings } from "./LanguageSettings"
 import { SessionRetentionSettings } from "./SessionRetentionSettings"
 import { PasskeySettings } from "./PasskeySettings"
 import { DefaultsSettings } from "./DefaultsSettings"
@@ -53,6 +54,7 @@ const ShortcutsSectionContent: React.FC = () => {
 const VisualSectionContent: React.FC = () => {
   return (
     <div className="space-y-6">
+      <LanguageSettings />
       <AXCodeVisualSettings
         visibleSettings={[
           "theme",

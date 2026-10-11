@@ -7,13 +7,12 @@ coding tasks to AX Code workers.
 
 ## Status
 
-Phase 1 is complete: the reviewed AX Code Desktop history is present under `desktop/`, with exact provenance and
-reproducibility evidence in `.internal/reports/extraction/`. Phase 2 is creating an independent workspace and
-published-contract dependency boundary.
+Phases 1 and 2 are complete. The reviewed Desktop history and provenance live under `desktop/` and
+`.internal/reports/extraction/`. AX Coder is the sole current GUI source owner under
+[ADR-008](.internal/adr/ADR-008-source-cutover-with-release-freeze.md).
 
-The existing AX Code Desktop implementation remains in `../ax-code/desktop/` during the safety window. It will be
-removed there only after the independent contract, CI, packaging, updater, data-continuity, release, and rollback
-gates pass. The migration must not fork AX Code runtime behavior or discard uncommitted user work.
+Phase 3 signed shadow-release, cross-platform, upgrade, and rollback evidence remains pending. Public release
+is disabled. The source cutover does not qualify a public release or change the compatibility identity.
 
 ## Product boundary
 
@@ -31,8 +30,8 @@ local repository initialization. Those decisions require the ADR and specificati
 `AGENTS.md`.
 
 The AX Code SDK dependency decision is accepted: production will use an exact
-`@defai-digital/ax-code-sdk` version from JSR plus a separately pinned signed AX Code runtime. The first SDK
-publication is still pending; the JSR scope, package, and OIDC repository link are ready.
+`@defai-digital/ax-code-sdk` version from JSR plus a separately pinned signed AX Code runtime. Current pins are
+recorded in `config/ax-code-sdk.json` and `config/ax-code-runtime.json` and checked independently of release approval.
 
 ## Development
 
@@ -41,6 +40,7 @@ Requirements are Node.js 24 or newer and pnpm 10.33.4 through Corepack.
 ```bash
 corepack enable
 pnpm install
+pnpm run check:locales
 pnpm run check:boundaries
 pnpm run typecheck
 pnpm run lint
@@ -51,3 +51,18 @@ pnpm run build
 The workspace never resolves AX Code from sibling source. Development uses an explicit `AX_CODE_BINARY` or an
 installed `ax-code` on PATH; packaged candidates use the signed artifact pinned in
 `config/ax-code-runtime.json`.
+
+## Desktop languages
+
+Settings → Appearance → Language controls the interface and future conversation requests independently.
+The interface supports English, Traditional Chinese, Simplified Chinese, Japanese, Korean, French, German,
+Indonesian, Italian, Brazilian Portuguese, Russian, Spanish, Turkish, and Vietnamese. Follow system language
+resolves the OS preference list and retains its region for number and date formatting. Conversation Auto adds
+no language instruction; an explicit preference defers to user requests and project instructions.
+
+Preferences are saved separately in the Electron user-data directory and synchronized across desktop windows.
+Catalogs are packaged for offline use, loaded lazily in the renderer, and available immediately to native menus
+and recovery dialogs. Add English keys first, translate every catalog, preserve named placeholders, review any
+identical wording in `desktop/shared/shared-spelling.json`, then run `pnpm check:locales --write-native`.
+CI checks completeness and generated native catalogs. Structural checks do not constitute native-speaker review
+or signed cross-platform release qualification; public release remains disabled.

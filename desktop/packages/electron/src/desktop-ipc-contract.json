@@ -52,6 +52,8 @@
     { "command": "desktop_show_app_menu", "safeForRemote": false, "args": "object" },
     { "command": "desktop_is_window_fullscreen", "safeForRemote": true, "args": "object" },
     { "command": "desktop_set_window_title", "safeForRemote": true, "args": "object" },
-    { "command": "desktop_get_app_version", "safeForRemote": true, "args": "object" }
+    { "command": "desktop_get_app_version", "safeForRemote": true, "args": "object" },
+    {"command": "desktop_language_get", "safeForRemote": false, "args": "none"},
+    {"command": "desktop_language_set", "safeForRemote": false, "args": "object"}
   ]
 }

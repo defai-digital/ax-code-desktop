@@ -56,6 +56,9 @@ jobs:
       - name: Check repository and release boundaries
         run: pnpm run check:boundaries
 
+      - name: Validate desktop translations
+        run: pnpm run check:locales
+
       - name: Typecheck Desktop
         run: pnpm run typecheck
 

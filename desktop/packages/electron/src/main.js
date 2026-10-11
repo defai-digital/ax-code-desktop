@@ -83,6 +83,8 @@ protocol.registerSchemesAsPrivileged(PACKAGED_RENDERER_PRIVILEGED_SCHEMES)
 const { normalizeSafeExternalUrl } = require("./external-url")
 const { buildDesktopOpenDialogOptions, resolveDesktopDialogOwnerWindow } = require("./desktop-dialog")
 const { createTrayController } = require("./tray.mjs")
+const { createLanguageController } = require("../../../shared/localization.mjs")
+const { createNativeLocalizer, localizeMenuTemplate, createLocalizedDialog } = require("./native-localization")
 const { isDesktopBrowserCaptureTargetForSender } = require("./desktop-browser-capture-policy")
 
 const execFileAsync = promisify(execFile)
@@ -285,12 +287,12 @@ function scheduleRendererStabilityReset() {
 
 async function showServerRecoveryFailure(error) {
   const detail = error instanceof Error ? error.message : String(error)
-  await dialog
+  await localizedDialog
     .showMessageBox({
       type: "error",
       title: "AX Code server stopped",
       message: "The local AX Code server could not be restarted.",
-      detail: `${detail}\n\nQuit and reopen AX Code. If the problem continues, check the application logs.`,
+      detail: `${detail}\n\n${nativeT("Quit and reopen AX Code. If the problem continues, check the application logs.")}`,
       buttons: ["OK"],
     })
     .catch((dialogError) => console.error("[electron] failed to show server recovery dialog:", dialogError))
@@ -309,12 +311,12 @@ async function showRuntimeRecoveryFailure(diagnostics = {}) {
     diagnostics.exitSignal ? `Last exit signal: ${diagnostics.exitSignal}` : null,
     diagnostics.logHint || null,
   ].filter(Boolean)
-  await dialog
+  await localizedDialog
     .showMessageBox({
       type: "error",
       title: "AX Code runtime stopped",
       message: "The local ax-code runtime could not be restarted.",
-      detail: `${lines.join("\n")}\n\nQuit and reopen AX Code. If the problem continues, check the application logs.`,
+      detail: `${lines.join("\n")}\n\n${nativeT("Quit and reopen AX Code. If the problem continues, check the application logs.")}`,
       buttons: ["OK"],
     })
     .catch((dialogError) => console.error("[electron] failed to show runtime recovery dialog:", dialogError))
@@ -698,7 +700,7 @@ async function createWindow() {
       "[electron] renderer crashed too many times (%d), giving up on auto-reload",
       rendererCrashPolicy.crashReloads,
     )
-    dialog
+    localizedDialog
       .showMessageBox({
         type: "error",
         title: "AX Code window crashed",
@@ -723,7 +725,7 @@ async function createWindow() {
   mainWindow.webContents.on("unresponsive", () => {
     if (isQuitting || mainWindow.isDestroyed()) return
     recordStartupEvent("renderer.unresponsive", {}, { once: false })
-    dialog
+    localizedDialog
       .showMessageBox({
         type: "warning",
         title: "AX Code is not responding",
@@ -923,8 +925,8 @@ handleCommand("desktop_dialog_open", async (args, event) => {
   const dialogOptions = buildDesktopOpenDialogOptions(options)
   const ownerWindow = resolveDesktopDialogOwnerWindow(BrowserWindow, event, mainWindow)
   const result = ownerWindow
-    ? await dialog.showOpenDialog(ownerWindow, dialogOptions)
-    : await dialog.showOpenDialog(dialogOptions)
+    ? await localizedDialog.showOpenDialog(ownerWindow, dialogOptions)
+    : await localizedDialog.showOpenDialog(dialogOptions)
 
   if (result.canceled || result.filePaths.length === 0) {
     return null
@@ -1137,6 +1139,41 @@ const writeJsonFile = async (filePath, data) => {
   await fsp.writeFile(tmp, JSON.stringify(data, null, 2))
   await fsp.rename(tmp, filePath)
 }
+
+let languageController
+const getLanguageController = () => {
+  if (!languageController) {
+    const file = path.join(app.getPath("userData"), "language-preferences.json")
+    languageController = createLanguageController({
+      read: () => readJsonFile(file),
+      write: (value) => writeJsonFile(file, value),
+      systemLanguages: () => app.getPreferredSystemLanguages(),
+      onChange: (value) => {
+        const notify = (callback) => {
+          try { callback() } catch (error) {
+            console.warn("[electron] language presentation refresh failed", error)
+          }
+        }
+        notify(setupApplicationMenu)
+        notify(() => trayController?.refreshLanguage?.())
+        for (const window of BrowserWindow.getAllWindows()) {
+          notify(() => {
+            if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
+              window.webContents.send("openchamber:language-changed", value)
+            }
+          })
+        }
+      },
+    })
+  }
+  return languageController
+}
+const nativeT = createNativeLocalizer(() => getLanguageController().get().locale)
+const localizedDialog = createLocalizedDialog(dialog, nativeT)
+const buildLocalizedMenu = (template) => Menu.buildFromTemplate(localizeMenuTemplate(template, nativeT))
+
+handleCommand("desktop_language_get", async () => getLanguageController().get())
+handleCommand("desktop_language_set", async (args) => getLanguageController().update(args))
 
 const readSettingsRoot = () => {
   const root = readJsonFile(settingsFilePath())
@@ -1978,7 +2015,7 @@ const buildMacMenu = () => {
     BrowserWindow.getFocusedWindow()?.webContents.copy()
     dispatchAction("copy")
   }
-  return Menu.buildFromTemplate([
+  return buildLocalizedMenu([
     {
       label: app.name,
       submenu: [
@@ -2099,7 +2136,7 @@ const buildNonMacMenu = () => {
     dispatchAction("copy")
   }
   const isDev = !app.isPackaged
-  return Menu.buildFromTemplate([
+  return buildLocalizedMenu([
     {
       label: "AX Code",
       submenu: [
@@ -2297,6 +2334,7 @@ const setupTray = () => {
   }
   try {
     trayController = createTrayController({
+      translate: nativeT,
       ...assets,
       onAction: (action) => {
         void dispatchTrayAction(action)
@@ -2546,7 +2584,7 @@ handleCommand("desktop_save_markdown_file", async (args, event) => {
   if (!defaultPath) throw new Error("Default file name is required")
   const content = typeof args.content === "string" ? args.content : ""
   const ownerWindow = event ? BrowserWindow.fromWebContents(event.sender) : undefined
-  const result = await dialog.showSaveDialog(ownerWindow || undefined, {
+  const result = await localizedDialog.showSaveDialog(ownerWindow || undefined, {
     defaultPath,
     filters: [{ name: "Markdown", extensions: ["md"] }],
   })
@@ -3057,7 +3095,7 @@ app.whenReady().then(async () => {
           if (error?.code !== RUNTIME_NOT_FOUND_CODE) throw error
           recordStartupEvent("runtime.supervision.binary-missing", {}, { once: false })
           const outcome = await recoverFromMissingRuntime({
-            dialog,
+            dialog: localizedDialog,
             openExternal: (url) => shell.openExternal(url),
             installDocsUrl: AX_CODE_INSTALL_DOCS_URL,
             isExecutable: defaultIsExecutable,
@@ -3109,9 +3147,9 @@ app.whenReady().then(async () => {
     })
   } catch (err) {
     console.error("[electron] startup failed:", err)
-    dialog.showErrorBox(
+    localizedDialog.showErrorBox(
       "AX Code failed to start",
-      `The application could not start.\n\n${err instanceof Error ? err.message : String(err)}\n\nCheck the application logs for details.`,
+      `${nativeT("The application could not start.")}\n\n${err instanceof Error ? err.message : String(err)}\n\n${nativeT("Check the application logs for details.")}`,
     )
     // app.exit() does not fire 'before-quit', so stop the server process
     // (and any ax-code child it spawned, or the main-supervised runtime under

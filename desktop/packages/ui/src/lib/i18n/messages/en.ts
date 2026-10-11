@@ -1,7 +1,29 @@
 import { settingsDict } from "./en.settings"
+import nativeDict from "../../../../../../shared/native.en.json"
 
 export const dict = {
   ...settingsDict,
+  ...nativeDict,
+  "common.itemCount.one": "{count} item",
+  "common.itemCount.two": "{count} items",
+  "common.itemCount.few": "{count} items",
+  "common.itemCount.many": "{count} items",
+  "common.itemCount.zero": "{count} items",
+  "common.itemCount.other": "{count} items",
+
+  "settings.language.title": "Language",
+  "settings.language.interface": "Interface language",
+  "settings.language.conversation": "Conversation language",
+  "settings.language.system": "Follow system language",
+  "settings.language.auto": "Auto (follow your messages)",
+  "settings.language.interfaceHint": "Applies to all desktop windows and menus.",
+  "settings.language.conversationHint": "Applies to future model requests. Explicit requests and project instructions take precedence.",
+  "settings.language.loading": "Loading language\u2026",
+  "settings.language.saveFailed": "Could not save language preferences. Please try again.",
+  "settings.language.loadFailed": "Could not load this language. English is displayed temporarily.",
+  "settings.language.format": "Date and number format",
+  "settings.language.formatHint": "Uses your system region when following the system language.",
+
   "common.loading": "Loading...",
   "common.unavailable": "Unavailable",
   "common.confirm": "Confirm",

@@ -19,7 +19,7 @@ const runtimeAPIs =
     throw new Error("Runtime APIs not provided for legacy UI entrypoint.")
   })()
 
-initializeLocale()
+const localeReady = initializeLocale()
 
 const recordRendererPaintMilestone = () => {
   if (typeof window === "undefined" || typeof performance === "undefined") return
@@ -79,16 +79,18 @@ if (!rootElement) {
   throw new Error("Root element not found")
 }
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <I18nProvider>
-      <ThemeSystemProvider>
-        <ThemeProvider>
-          <SessionAuthGate>
-            <App apis={runtimeAPIs} />
-          </SessionAuthGate>
-        </ThemeProvider>
-      </ThemeSystemProvider>
-    </I18nProvider>
-  </StrictMode>,
+void localeReady.then(() =>
+  createRoot(rootElement).render(
+    <StrictMode>
+      <I18nProvider>
+        <ThemeSystemProvider>
+          <ThemeProvider>
+            <SessionAuthGate>
+              <App apis={runtimeAPIs} />
+            </SessionAuthGate>
+          </ThemeProvider>
+        </ThemeSystemProvider>
+      </I18nProvider>
+    </StrictMode>,
+  ),
 )

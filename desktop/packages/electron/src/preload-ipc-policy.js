@@ -18,6 +18,8 @@ const DESKTOP_INVOKE_COMMANDS = new Set([
   "desktop_get_current_window_state",
   "desktop_get_installed_apps",
   "desktop_get_launch_at_login",
+  "desktop_language_get",
+  "desktop_language_set",
   "desktop_get_window_pinned",
   "desktop_host_probe",
   "desktop_hosts_get",

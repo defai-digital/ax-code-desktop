@@ -17,7 +17,7 @@ describe("Desktop release contract", () => {
       version: "2.6.7",
       producerCommit: "7c10b3af5c1d48ee773e88c82c4be830206d9168",
     })
-    expect(contract.runtime).toMatchObject({ version: "7.10.2", releaseTag: "v7.10.2" })
+    expect(contract.runtime).toMatchObject({ version: "7.24.4", releaseTag: "v7.24.4" })
     expect(contract.lockfile.sha256).toMatch(/^[a-f0-9]{64}$/)
   })
 

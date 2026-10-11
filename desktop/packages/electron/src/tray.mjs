@@ -36,16 +36,16 @@ const statusIconKey = (session) => {
   return "blank"
 }
 
-const sessionLabel = (session) => {
+const sessionLabel = (session, translate) => {
   // The status is a native left icon (the ✓ already signals unread), so the
   // label is just the session title.
-  return truncate(session.title || "Untitled session", 40)
+  return truncate(session.title || translate("Untitled Session"), 40)
 }
 
-const approvalLabel = (approval) => {
+const approvalLabel = (approval, translate) => {
   const icon = approval.kind === "permission" ? "⛔" : "❓"
-  const who = truncate(approval.sessionTitle || "Session", 24)
-  const what = truncate(approval.label || (approval.kind === "permission" ? "Permission request" : "Question"), 34)
+  const who = truncate(approval.sessionTitle || translate("Session"), 24)
+  const what = truncate(approval.label || translate(approval.kind === "permission" ? "Permission required" : "Waiting for input"), 34)
   return `${icon} ${who} — ${what}`
 }
 
@@ -69,15 +69,15 @@ const computeIconState = (counts) => {
   return "idle"
 }
 
-const computeTooltip = (counts, sessionCount) => {
-  if (sessionCount === 0) return "AX Code — no active sessions"
+const computeTooltip = (counts, sessionCount, translate) => {
+  if (sessionCount === 0) return `AX Code — ${translate("No active sessions")}`
   const bits = []
-  if (counts.approvals > 0) bits.push(`${counts.approvals} awaiting approval`)
-  if (counts.error > 0) bits.push(`${counts.error} with errors`)
-  if (counts.busy > 0) bits.push(`${counts.busy} working`)
-  if (counts.unseen > 0) bits.push(`${counts.unseen} unread`)
-  const suffix = bits.length ? ` · ${bits.join(", ")}` : " · idle"
-  return `AX Code — ${sessionCount} session${sessionCount === 1 ? "" : "s"}${suffix}`
+  if (counts.approvals > 0) bits.push(`${translate("Needs your attention")}: ${counts.approvals}`)
+  if (counts.error > 0) bits.push(`${translate("Session error")}: ${counts.error}`)
+  if (counts.busy > 0) bits.push(`${translate("Session active")}: ${counts.busy}`)
+  if (counts.unseen > 0) bits.push(`${translate("Unread updates")}: ${counts.unseen}`)
+  const suffix = bits.length ? bits.join(", ") : translate("Idle")
+  return `AX Code — ${translate("Sessions")}: ${sessionCount} · ${suffix}`
 }
 
 // Frame cadence for the "breathing" busy animation. With the eased frame set
@@ -94,9 +94,10 @@ const toTemplateImage = (p) => {
 // idleIconPath: plain outline (calm state). unseenIconPath: statically filled
 // (a finished session left unread). breathIconPaths: eased outline→fill frames
 // the busy state ping-pongs through.
-export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconPaths, statusIconPaths, onAction }) => {
+export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconPaths, statusIconPaths, onAction, translate = (value) => value }) => {
   let tray = null
   let lastTitle = null
+  let lastSnapshot = {}
 
   // macOS auto-picks the @2x file next to each path and tints the alpha.
   const idleFrame = toTemplateImage(idleIconPath)
@@ -172,14 +173,14 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
     const template = [{ label: header, enabled: false }, { type: "separator" }]
 
     if (approvals.length > 0) {
-      template.push({ label: "Needs your attention", enabled: false })
+      template.push({ label: translate("Needs your attention"), enabled: false })
       const approvalItem = (approval) => {
         if (approval.kind === "permission") {
           return {
-            label: approvalLabel(approval),
+            label: approvalLabel(approval, translate),
             submenu: [
               {
-                label: "Allow once",
+                label: translate("Allow once"),
                 click: () =>
                   onAction({
                     type: "respond-permission",
@@ -189,7 +190,7 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
                   }),
               },
               {
-                label: "Allow always",
+                label: translate("Allow always"),
                 click: () =>
                   onAction({
                     type: "respond-permission",
@@ -200,7 +201,7 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
               },
               { type: "separator" },
               {
-                label: "Deny",
+                label: translate("Deny"),
                 click: () =>
                   onAction({
                     type: "respond-permission",
@@ -211,7 +212,7 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
               },
               { type: "separator" },
               {
-                label: "Open in app",
+                label: translate("Open in app"),
                 click: () =>
                   onAction({
                     type: "focus-session",
@@ -223,7 +224,7 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
           }
         }
         return {
-          label: approvalLabel(approval),
+          label: approvalLabel(approval, translate),
           click: () =>
             onAction({ type: "focus-session", sessionId: approval.sessionId, directory: approval.directory || "" }),
         }
@@ -234,7 +235,7 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
       const approvalOverflow = approvals.slice(MAX_APPROVALS)
       if (approvalOverflow.length > 0) {
         template.push({
-          label: `${approvalOverflow.length} more…`,
+          label: translate("{count} more\u2026", { count: approvalOverflow.length }),
           submenu: approvalOverflow.map(approvalItem),
         })
       }
@@ -242,7 +243,7 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
     }
 
     const sessionItem = (session) => ({
-      label: sessionLabel(session),
+      label: sessionLabel(session, translate),
       // Status icon on the left, centred across both lines; idle uses the blank
       // placeholder so every row keeps the same gutter.
       icon: statusIcons[statusIconKey(session)] || statusIcons.blank,
@@ -252,19 +253,19 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
     })
 
     if (sessions.length > 0) {
-      template.push({ label: "Sessions", enabled: false })
+      template.push({ label: translate("Sessions"), enabled: false })
       for (const session of sessions.slice(0, MAX_SESSIONS)) {
         template.push(sessionItem(session))
       }
       const overflow = sessions.slice(MAX_SESSIONS)
       if (overflow.length > 0) {
         template.push({
-          label: `${overflow.length} more…`,
+          label: translate("{count} more\u2026", { count: overflow.length }),
           submenu: overflow.map(sessionItem),
         })
       }
     } else {
-      template.push({ label: "No active sessions", enabled: false })
+      template.push({ label: translate("No active sessions"), enabled: false })
     }
 
     // Usage submenu — only when the user has enabled providers for the dropdown
@@ -272,7 +273,7 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
     const usage = snapshot.usage && typeof snapshot.usage === "object" ? snapshot.usage : null
     const usageGroups = usage && Array.isArray(usage.groups) ? usage.groups : []
     if (usageGroups.length > 0) {
-      const modeLabel = usage.mode === "remaining" ? "Remaining" : "Used"
+      const modeLabel = translate(usage.mode === "remaining" ? "Remaining" : "Used")
       const usageSubmenu = []
       usageGroups.forEach((group, index) => {
         if (index > 0) usageSubmenu.push({ type: "separator" })
@@ -287,16 +288,16 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
           usageSubmenu.push({ label: `    ${row.label}  —  ${row.value}`, enabled: false })
         }
       })
-      template.push({ type: "separator" }, { label: `Usage (${modeLabel})`, submenu: usageSubmenu })
+      template.push({ type: "separator" }, { label: translate("Usage ({mode})", { mode: modeLabel }), submenu: usageSubmenu })
     }
 
     template.push(
       { type: "separator" },
-      { label: "New Session", click: () => onAction({ type: "new-session" }) },
-      { label: "New Mini Chat", click: () => onAction({ type: "new-mini-chat" }) },
-      { label: "Show AX Code", click: () => onAction({ type: "show-main-window" }) },
+      { label: translate("New Session"), click: () => onAction({ type: "new-session" }) },
+      { label: translate("New Mini Chat"), click: () => onAction({ type: "new-mini-chat" }) },
+      { label: translate("Show AX Code"), click: () => onAction({ type: "show-main-window" }) },
       { type: "separator" },
-      { label: "Quit AX Code", click: () => onAction({ type: "quit" }) },
+      { label: translate("Quit AX Code"), click: () => onAction({ type: "quit" }) },
     )
 
     return Menu.buildFromTemplate(template)
@@ -304,6 +305,7 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
 
   const update = (rawSnapshot) => {
     const snapshot = rawSnapshot && typeof rawSnapshot === "object" ? rawSnapshot : {}
+    lastSnapshot = snapshot
     const sessions = Array.isArray(snapshot.sessions) ? snapshot.sessions : []
     const approvals = Array.isArray(snapshot.approvals) ? snapshot.approvals : []
 
@@ -321,7 +323,7 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
       lastTitle = title
     }
     applyIconState(computeIconState(counts))
-    widget.setToolTip(computeTooltip(counts, sessions.length))
+    widget.setToolTip(computeTooltip(counts, sessions.length, translate))
     widget.setContextMenu(buildMenu(snapshot))
   }
 
@@ -335,5 +337,5 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
     iconState = null
   }
 
-  return { update, destroy }
+  return { update, destroy, refreshLanguage: () => update(lastSnapshot) }
 }
