@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Proposed; product requirement requested, architecture acceptance pending |
+| Status | Accepted for implementation; user directed continue on 2026-10-11 |
 | Date | 2026-10-11 |
 | Owners | AX Coder desktop; AX Code tools and worker contract |
 | Related | ADR-002; ADR-004; proposed ADR-009; embedded WebMCP spec v1 |
@@ -11,8 +11,8 @@
 
 The user requested Chrome-standard WebMCP inside AX Coder without requiring users to install Chrome.
 This proposal adds that requirement to the accepted extraction baseline without rewriting it.
-Research and a disposable native capability probe are complete. Acceptance of this PRD and the paired
-ADRs must precede production integration under AGENTS.md. No release, permission expansion, or
+Research and a disposable native capability probe are complete. The user accepted this PRD and paired ADRs by directing implementation to continue on 2026-10-11.
+Production publication remains a separate gate under AGENTS.md. No release, permission expansion, or
 SDK/runtime publication is authorized by this document.
 
 ## User experience

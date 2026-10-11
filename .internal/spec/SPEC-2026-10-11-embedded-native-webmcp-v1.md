@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Proposed; implementation contract pending paired ADR acceptance |
+| Status | Accepted implementation contract; user authorized 2026-10-11 |
 | Related | Embedded WebMCP PRD v1; proposed ADR-009; worker contract; producer ADR draft |
 
 ## 1. Compatibility and transport

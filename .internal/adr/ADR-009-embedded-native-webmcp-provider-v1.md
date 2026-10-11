@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Proposed |
+| Status | Accepted for implementation; user authorized 2026-10-11 |
 | Date | 2026-10-11 |
 | Deciders | User; AX Coder and AX Code maintainers |
 | Related | PRD-2026-10-11-embedded-native-webmcp-v1; ADR-002; ADR-004 |
@@ -22,7 +22,7 @@ Electron 44.7.0 / Chromium 152 passes the controlled native probe in `WebContent
 `document.modelContext`, imperative/declarative tools, and the WebMCP CDP domain. This is a
 feasibility result, not a production compatibility certification.
 
-## Proposed decision
+## Decision
 
 1. Bundle one qualified Electron browser engine with AX Coder; users never install Chrome for this feature.
 2. Create the agent-enabled project surface with main-owned `WebContentsView`, following Electron's

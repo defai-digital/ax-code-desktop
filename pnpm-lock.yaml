@@ -103,6 +103,9 @@ importers:
 
   desktop/packages/electron:
     dependencies:
+      '@defai-digital/ax-code-sdk':
+        specifier: jsr:@defai-digital/ax-code-sdk@2.6.7
+        version: '@jsr/defai-digital__ax-code-sdk@2.6.7'
       electron-updater:
         specifier: ^6.3.9
         version: 6.8.9
@@ -7373,10 +7376,10 @@ snapshots:
 
   '@types/unist@3.0.3': {}
 
-  '@typescript-eslint/eslint-plugin@8.69.0(@typescript-eslint/parser@8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)':
+  '@typescript-eslint/eslint-plugin@8.69.0(@typescript-eslint/parser@8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)':
     dependencies:
       '@eslint-community/regexpp': 4.12.2
-      '@typescript-eslint/parser': 8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
+      '@typescript-eslint/parser': 8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
       '@typescript-eslint/scope-manager': 8.69.0
       '@typescript-eslint/type-utils': 8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
       '@typescript-eslint/utils': 8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
@@ -10718,7 +10721,7 @@ snapshots:
 
   typescript-eslint@8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3):
     dependencies:
-      '@typescript-eslint/eslint-plugin': 8.69.0(@typescript-eslint/parser@8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
+      '@typescript-eslint/eslint-plugin': 8.69.0(@typescript-eslint/parser@8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
       '@typescript-eslint/parser': 8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
       '@typescript-eslint/typescript-estree': 8.69.0(typescript@5.8.3)
       '@typescript-eslint/utils': 8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)

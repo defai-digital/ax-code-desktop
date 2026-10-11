@@ -1,3 +1,4 @@
+import { EmbeddedBrowserChoice } from "./EmbeddedWebMcpBrowser"
 import React from "react"
 
 import { FileTypeIcon } from "@/components/icons/FileTypeIcon"
@@ -1108,6 +1109,12 @@ type DesktopBrowserPaneProps = {
   directory: string
   tabID: string
 }
+
+const DesktopBrowserWithWebMcp: React.FC<DesktopBrowserPaneProps> = (props) => (
+  <EmbeddedBrowserChoice directory={props.directory} initialUrl={props.initialUrl}>
+    <DesktopBrowserPane {...props} />
+  </EmbeddedBrowserChoice>
+)
 
 const isElectronBrowserRuntime = (): boolean => {
   return typeof window !== "undefined" && Boolean(window.__AX_CODE_DESKTOP_ELECTRON__)
@@ -2459,7 +2466,7 @@ export const ContextPanel: React.FC = () => {
     )
 
   const chatTabs = React.useMemo(() => tabs.filter((tab) => tab.mode === "chat"), [tabs])
-  const BrowserPane = isElectronBrowserRuntime() ? DesktopBrowserPane : IframeBrowserPane
+  const BrowserPane = isElectronBrowserRuntime() ? DesktopBrowserWithWebMcp : IframeBrowserPane
   const hasFileTabs = React.useMemo(() => tabs.some((tab) => tab.mode === "file"), [tabs])
 
   const isFileTabActive = activeTab?.mode === "file"
