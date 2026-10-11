@@ -24,3 +24,15 @@ desktop/packages/electron/resources/ax-code/
 desktop/packages/electron/resources/ax-computer/
 desktop/packages/electron/resources/web-dist/
 desktop/packages/electron/.dev-bin/
+
+# Local research checkouts and generated test profiles remain on disk only.
+.internal/reference/*/
+.internal/reviews/**/runtime-*/
+.internal/reviews/**/engines/
+.internal/reviews/**/verified-runtime/
+.internal/reviews/**/*.app/
+.internal/reviews/**/profile-*/
+.internal/reviews/**/profile/
+.internal/reviews/**/runtime-probe-all-requests.json
+.internal/reviews/**/runtime-probe-messages.json
+.internal/reviews/**/runtime-probe-state.json

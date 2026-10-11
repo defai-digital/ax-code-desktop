@@ -1,0 +1,24 @@
+{
+  "schema": "ax-coder.native-webmcp-qualification.v1",
+  "timestamp": "2026-10-11T18:59:34.951Z",
+  "platform": "darwin",
+  "arch": "arm64",
+  "electron": "45.0.0-beta.1",
+  "chromium": "156.0.8078.12",
+  "featureEnabled": false,
+  "installedChromeUsed": false,
+  "remoteDebuggingPortUsed": false,
+  "productionQualified": false,
+  "checks": {
+    "featureDisabled": true
+  },
+  "passed": true,
+  "fixture": {
+    "api": null,
+    "canceled": false,
+    "submissions": [],
+    "secureContext": true,
+    "nodeVisible": false
+  },
+  "nativeDomainAvailable": true
+}

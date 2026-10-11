@@ -1,0 +1,62 @@
+No security or packaging blocker is visible in the pasted code. Two functional defects are worth fixing before this is called done: the startup timeout can stick the UI on English with a false load error, and plural lookup can miss categories that English never produces.
+
+The main-process controller, patch allow-list, static catalog imports, and dialog index handling are sound.
+
+### 1. Startup timeout cancels a successful catalog load — `desktop/packages/ui/src/lib/i18n/store.ts`
+
+`initializeLocale` starts a 3s timer that increments `requestSequence` and forces English plus `loadingError: true`. `applyPreferences` captures `requestSequence` before `await loadDictionary(...)`. If the catalog import is still in flight at 3s:
+
+- The timer wins and paints English with `settings.language.loadFailed`.
+- The import then finishes, sees a stale sequence, and returns without applying the dictionary.
+- `initialization` is already resolved, so a later call does not retry.
+
+`interface` and `revision` stay on the committed preference, because the timer does not reset them. The selector can show `ja` while strings, `document.documentElement.lang`, and the error alert stay on the English fallback.
+
+The success `setState` also omits `loadingError: false`. Zustand merges, so a timer that fires during the `await` leaves the error set even if the sequence check were removed.
+
+Fix: do not bump `requestSequence` in the timer. On successful apply, set `loadingError: false` in the same `setState` as the dictionary. Let the timer publish a fallback only while the load is unfinished; a late success must overwrite that fallback. Keep the early `Promise.race` resolve if the shell must not wait.
+
+### 2. Plural categories follow the message locale; catalogs are only checked against English — `store.ts` and `script/localization-catalog.ts`
+
+```ts
+const category = new Intl.PluralRules(locale).select(count)
+return formatMessage(dictionary, `${key}.${category}` as I18nKey, { count })
+```
+
+`Intl.PluralRules("en")` yields only `one` and `other`. `Intl.PluralRules("ru")` yields `few` for 2–4 and `many` for 0 and 5+. `fr`, `es`, `it`, and `pt-BR` can yield `many` (for example 1000000). `validateCatalog` only requires key and placeholder parity with English, so it never requires `common.itemCount.few` or `common.itemCount.many`. The `as I18nKey` cast hides the gap. A miss falls through to the raw key.
+
+The catalogs themselves were not in the paste, so this is not a claim that those keys are absent. It is a claim that the pasted checker cannot see the failure.
+
+Fix: in `formatPluralMessage`, if `` `${key}.${category}` `` is missing from the active dictionary and from `enDict`, use `` `${key}.other` ``. Add a CI check that every `Intl.PluralRules(locale).select(n)` category for the fourteen locales exists in every catalog. Cover `ru` with counts 1, 2, 5, and 0.
+
+### Smaller contract bugs
+
+`desktop/packages/electron/src/native-localization.js` does not trim placeholder names and stringifies `null` and `undefined`:
+
+```js
+message.replace(/\{([^{}]+)\}/g, (match, name) => Object.hasOwn(params, name) ? String(params[name]) : match)
+```
+
+`formatMessage` trims and leaves the `{token}` in place when the value is `null` or `undefined`. `placeholders()` in `script/localization-catalog.ts` also trims, so `{ count }` passes CI and works in the renderer, but a native dialog keeps the literal `{ count }`. `String(null)` becomes `"null"`.
+
+Fix: use the same trim and null rules as `formatMessage`.
+
+`script/localization-catalog.ts` checks NFC and identical text on the translation value only. Compare `value.normalize("NFC") === source.normalize("NFC")` so an NFD English source and an NFC copy of the same spelling cannot skip the unreviewed-identical rule.
+
+`conversationInstruction` in `desktop/shared/localization.mjs` interpolates `manifest.conversationNames[locale]` after checking only `manifest.labels`. A missing name becomes the word `undefined` in the model system text. Return `undefined` unless that name is a non-empty string.
+
+`store.ts` imports the types `LanguagePreferences` and `ResolvedLanguagePreferences` from `localization.mjs`, and that module’s paste exports only values. That is a `tsc` break unless a declaration file outside the paste exports those types.
+
+### Checked, no defect in the pasted code
+
+- `createLanguageController` copies the patch before the queue, applies revision `+ 1` inside the chain, stores memory only after `write` resolves, and keeps the chain moving when `write` rejects. Reordered IPC results are dropped when `revision` is older.
+- `validatePatch` allows only `interface` and `conversation`, and only `system`, `auto`, or a manifest locale.
+- Catalog loads use a fixed loader map. There is no locale-to-path interpolation.
+- The model line is built only from packaged `conversationNames`, and only for a locale that `isLocale` accepts. `auto` adds no system text.
+- `createLocalizedDialog` translates a shallow copy. Button order and the dialog result index stay as the caller passed them. Unmapped title, message, and detail strings stay as given.
+- The loader table is the fourteen locales: `en` plus `zh-TW`, `zh-CN`, `ja`, `ko`, `fr`, `de`, `id`, `it`, `pt-BR`, `ru`, `es`, `tr`, `vi`.
+- The catalog checker records decoded duplicate keys, unknown and empty keys, value NFC, placeholder sets, and identical strings outside the allow-list.
+
+The browser `localStorage` save path is not serialized. Two overlapping saves can reuse one revision. The Electron path uses `desktop_language_set` and the main-process chain; this only matters when `bridge.invoke` is absent.
+
+Native-speaker review of the fourteen catalogs is still an open release check, as you noted. This pass did not re-read those JSON files, the menu template, or the prompt-body call site.

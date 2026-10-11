@@ -1,0 +1,72 @@
+{
+  "en": {
+    "desktop.native.startup.failed": "AX Code failed to start",
+    "desktop.native.startup.couldNotStart": "The application could not start.",
+    "desktop.native.startup.checkLogs": "Check the application logs for details."
+  },
+  "zh-TW": {
+    "desktop.native.startup.failed": "AX Code \u7121\u6cd5\u555f\u52d5",
+    "desktop.native.startup.couldNotStart": "\u61c9\u7528\u7a0b\u5f0f\u7121\u6cd5\u555f\u52d5\u3002",
+    "desktop.native.startup.checkLogs": "\u8acb\u67e5\u770b\u61c9\u7528\u7a0b\u5f0f\u8a18\u9304\u4ee5\u53d6\u5f97\u8a73\u7d30\u8cc7\u8a0a\u3002"
+  },
+  "zh-CN": {
+    "desktop.native.startup.failed": "AX Code \u65e0\u6cd5\u542f\u52a8",
+    "desktop.native.startup.couldNotStart": "\u5e94\u7528\u7a0b\u5e8f\u65e0\u6cd5\u542f\u52a8\u3002",
+    "desktop.native.startup.checkLogs": "\u8bf7\u67e5\u770b\u5e94\u7528\u7a0b\u5e8f\u65e5\u5fd7\u4ee5\u83b7\u53d6\u8be6\u7ec6\u4fe1\u606f\u3002"
+  },
+  "ja": {
+    "desktop.native.startup.failed": "AX Code \u3092\u8d77\u52d5\u3067\u304d\u307e\u305b\u3093",
+    "desktop.native.startup.couldNotStart": "\u30a2\u30d7\u30ea\u30b1\u30fc\u30b7\u30e7\u30f3\u3092\u8d77\u52d5\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
+    "desktop.native.startup.checkLogs": "\u8a73\u7d30\u306f\u30a2\u30d7\u30ea\u30b1\u30fc\u30b7\u30e7\u30f3\u306e\u30ed\u30b0\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+  },
+  "ko": {
+    "desktop.native.startup.failed": "AX Code\ub97c \uc2dc\uc791\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
+    "desktop.native.startup.couldNotStart": "\uc560\ud50c\ub9ac\ucf00\uc774\uc158\uc744 \uc2dc\uc791\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
+    "desktop.native.startup.checkLogs": "\uc790\uc138\ud55c \ub0b4\uc6a9\uc740 \uc560\ud50c\ub9ac\ucf00\uc774\uc158 \ub85c\uadf8\ub97c \ud655\uc778\ud558\uc138\uc694."
+  },
+  "fr": {
+    "desktop.native.startup.failed": "Impossible de d\u00e9marrer AX Code",
+    "desktop.native.startup.couldNotStart": "L\u2019application n\u2019a pas pu d\u00e9marrer.",
+    "desktop.native.startup.checkLogs": "Consultez les journaux de l\u2019application pour plus de d\u00e9tails."
+  },
+  "de": {
+    "desktop.native.startup.failed": "AX Code konnte nicht gestartet werden",
+    "desktop.native.startup.couldNotStart": "Die Anwendung konnte nicht gestartet werden.",
+    "desktop.native.startup.checkLogs": "Weitere Details finden Sie in den Anwendungsprotokollen."
+  },
+  "id": {
+    "desktop.native.startup.failed": "AX Code tidak dapat dimulai",
+    "desktop.native.startup.couldNotStart": "Aplikasi tidak dapat dimulai.",
+    "desktop.native.startup.checkLogs": "Periksa log aplikasi untuk mengetahui detailnya."
+  },
+  "it": {
+    "desktop.native.startup.failed": "Impossibile avviare AX Code",
+    "desktop.native.startup.couldNotStart": "Impossibile avviare l\u2019applicazione.",
+    "desktop.native.startup.checkLogs": "Consulta i registri dell\u2019applicazione per maggiori dettagli."
+  },
+  "pt-BR": {
+    "desktop.native.startup.failed": "N\u00e3o foi poss\u00edvel iniciar o AX Code",
+    "desktop.native.startup.couldNotStart": "N\u00e3o foi poss\u00edvel iniciar o aplicativo.",
+    "desktop.native.startup.checkLogs": "Consulte os logs do aplicativo para obter detalhes."
+  },
+  "ru": {
+    "desktop.native.startup.failed": "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c AX Code",
+    "desktop.native.startup.couldNotStart": "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u0435.",
+    "desktop.native.startup.checkLogs": "\u041f\u043e\u0434\u0440\u043e\u0431\u043d\u043e\u0441\u0442\u0438 \u0441\u043c. \u0432 \u0436\u0443\u0440\u043d\u0430\u043b\u0430\u0445 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f."
+  },
+  "es": {
+    "desktop.native.startup.failed": "No se pudo iniciar AX Code",
+    "desktop.native.startup.couldNotStart": "No se pudo iniciar la aplicaci\u00f3n.",
+    "desktop.native.startup.checkLogs": "Consulta los registros de la aplicaci\u00f3n para obtener m\u00e1s detalles."
+  },
+  "tr": {
+    "desktop.native.startup.failed": "AX Code ba\u015flat\u0131lamad\u0131",
+    "desktop.native.startup.couldNotStart": "Uygulama ba\u015flat\u0131lamad\u0131.",
+    "desktop.native.startup.checkLogs": "Ayr\u0131nt\u0131lar i\u00e7in uygulama g\u00fcnl\u00fcklerini kontrol edin."
+  },
+  "vi": {
+    "desktop.native.startup.failed": "Kh\u00f4ng th\u1ec3 kh\u1edfi \u0111\u1ed9ng AX Code",
+    "desktop.native.startup.couldNotStart": "Kh\u00f4ng th\u1ec3 kh\u1edfi \u0111\u1ed9ng \u1ee9ng d\u1ee5ng.",
+    "desktop.native.startup.checkLogs": "Ki\u1ec3m tra nh\u1eadt k\u00fd \u1ee9ng d\u1ee5ng \u0111\u1ec3 bi\u1ebft chi ti\u1ebft."
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "schema": "ax-coder.webmcp-native-probe.v1",
+  "timestamp": "2026-10-11T11:10:21.669Z",
+  "platform": "darwin",
+  "arch": "arm64",
+  "electron": "42.5.2",
+  "chromium": "148.0.7778.271",
+  "webmcpFeatureEnabled": true,
+  "installedChromeUsed": false,
+  "remoteDebuggingPortUsed": false,
+  "researchOnly": true,
+  "surface": "WebContentsView",
+  "fixture": {
+    "api": "navigator",
+    "secureContext": true,
+    "registered": true,
+    "submissions": 0,
+    "executions": 0,
+    "nodeVisible": false
+  },
+  "nativeDomainAvailable": false,
+  "nativeDomainError": "'WebMCP.enable' wasn't found",
+  "tools": [],
+  "invocations": [],
+  "fixtureAfterInvocation": {
+    "api": "navigator",
+    "secureContext": true,
+    "registered": true,
+    "submissions": 0,
+    "executions": 0
+  },
+  "removalEvents": [],
+  "emptyDocumentTools": [],
+  "nativeSmokePassed": false,
+  "productionQualified": false
+}

@@ -1,0 +1,199 @@
+{
+  "surface": "Electron 42 offscreen fixture using production LanguageSettings and I18nProvider",
+  "width": 420,
+  "selectorInteraction": {
+    "locale": "fr",
+    "conversation": "\u65e5\u672c\u8a9e"
+  },
+  "nativeMenus": [
+    {
+      "locale": "en",
+      "label": "Settings",
+      "undo": "Undo",
+      "hideOthers": "Hide Others"
+    },
+    {
+      "locale": "zh-TW",
+      "label": "\u8a2d\u5b9a",
+      "undo": "\u5fa9\u539f",
+      "hideOthers": "\u96b1\u85cf\u5176\u4ed6\u61c9\u7528\u7a0b\u5f0f"
+    },
+    {
+      "locale": "zh-CN",
+      "label": "\u8bbe\u7f6e",
+      "undo": "\u64a4\u9500",
+      "hideOthers": "\u9690\u85cf\u5176\u4ed6\u5e94\u7528\u7a0b\u5e8f"
+    },
+    {
+      "locale": "ja",
+      "label": "\u8a2d\u5b9a",
+      "undo": "\u5143\u306b\u623b\u3059",
+      "hideOthers": "\u307b\u304b\u306e\u30a2\u30d7\u30ea\u30b1\u30fc\u30b7\u30e7\u30f3\u3092\u96a0\u3059"
+    },
+    {
+      "locale": "ko",
+      "label": "\uc124\uc815",
+      "undo": "\uc2e4\ud589 \ucde8\uc18c",
+      "hideOthers": "\ub2e4\ub978 \uc571 \uac00\ub9ac\uae30"
+    },
+    {
+      "locale": "fr",
+      "label": "Param\u00e8tres",
+      "undo": "Annuler",
+      "hideOthers": "Masquer les autres applications"
+    },
+    {
+      "locale": "de",
+      "label": "Einstellungen",
+      "undo": "R\u00fcckg\u00e4ngig",
+      "hideOthers": "Andere ausblenden"
+    },
+    {
+      "locale": "id",
+      "label": "Pengaturan",
+      "undo": "Urungkan",
+      "hideOthers": "Sembunyikan aplikasi lain"
+    },
+    {
+      "locale": "it",
+      "label": "Impostazioni",
+      "undo": "Annulla",
+      "hideOthers": "Nascondi altre applicazioni"
+    },
+    {
+      "locale": "pt-BR",
+      "label": "Configura\u00e7\u00f5es",
+      "undo": "Desfazer",
+      "hideOthers": "Ocultar outros aplicativos"
+    },
+    {
+      "locale": "ru",
+      "label": "\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438",
+      "undo": "\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c",
+      "hideOthers": "\u0421\u043a\u0440\u044b\u0442\u044c \u0434\u0440\u0443\u0433\u0438\u0435 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f"
+    },
+    {
+      "locale": "es",
+      "label": "Ajustes",
+      "undo": "Deshacer",
+      "hideOthers": "Ocultar otras aplicaciones"
+    },
+    {
+      "locale": "tr",
+      "label": "Ayarlar",
+      "undo": "Geri al",
+      "hideOthers": "Di\u011fer uygulamalar\u0131 gizle"
+    },
+    {
+      "locale": "vi",
+      "label": "C\u00e0i \u0111\u1eb7t",
+      "undo": "Ho\u00e0n t\u00e1c",
+      "hideOthers": "\u1ea8n \u1ee9ng d\u1ee5ng kh\u00e1c"
+    }
+  ],
+  "locales": [
+    {
+      "locale": "en",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "Language",
+      "selects": 2
+    },
+    {
+      "locale": "zh-TW",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "\u8a9e\u8a00",
+      "selects": 2
+    },
+    {
+      "locale": "zh-CN",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "\u8bed\u8a00",
+      "selects": 2
+    },
+    {
+      "locale": "ja",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "\u8a00\u8a9e",
+      "selects": 2
+    },
+    {
+      "locale": "ko",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "\uc5b8\uc5b4",
+      "selects": 2
+    },
+    {
+      "locale": "fr",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "Langue",
+      "selects": 2
+    },
+    {
+      "locale": "de",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "Sprache",
+      "selects": 2
+    },
+    {
+      "locale": "id",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "Bahasa",
+      "selects": 2
+    },
+    {
+      "locale": "it",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "Lingua",
+      "selects": 2
+    },
+    {
+      "locale": "pt-BR",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "Idioma",
+      "selects": 2
+    },
+    {
+      "locale": "ru",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "\u042f\u0437\u044b\u043a",
+      "selects": 2
+    },
+    {
+      "locale": "es",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "Idioma",
+      "selects": 2
+    },
+    {
+      "locale": "tr",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "Dil",
+      "selects": 2
+    },
+    {
+      "locale": "vi",
+      "dir": "ltr",
+      "overflow": false,
+      "heading": "Ng\u00f4n ng\u1eef",
+      "selects": 2
+    }
+  ],
+  "expanded": {
+    "overflow": false,
+    "heading": "[Language Language]"
+  },
+  "errors": []
+}

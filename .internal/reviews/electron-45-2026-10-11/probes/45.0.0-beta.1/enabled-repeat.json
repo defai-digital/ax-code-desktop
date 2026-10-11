@@ -1,0 +1,87 @@
+{
+  "schema": "ax-coder.native-webmcp-qualification.v1",
+  "timestamp": "2026-10-11T18:54:48.780Z",
+  "platform": "darwin",
+  "arch": "arm64",
+  "electron": "45.0.0-beta.1",
+  "chromium": "156.0.8078.12",
+  "featureEnabled": true,
+  "installedChromeUsed": false,
+  "remoteDebuggingPortUsed": false,
+  "productionQualified": false,
+  "checks": {
+    "discovery": true,
+    "imperativeInvocation": true,
+    "declarativeAutosubmit": true,
+    "declarativeManualSubmit": true,
+    "cancellation": true,
+    "executionAbortSignal": true,
+    "toolRemoval": true,
+    "removalPreservesInvocation": true,
+    "debuggingAnnotation": true,
+    "objectInput": true,
+    "navigationCleanup": true
+  },
+  "passed": true,
+  "fixture": {
+    "api": "document",
+    "canceled": false,
+    "submissions": [],
+    "secureContext": true,
+    "nodeVisible": false
+  },
+  "nativeDomainAvailable": true,
+  "tools": [
+    {
+      "name": "probe_auto",
+      "frameId": "D9F1C44DC49692A9BF7088598D5B33F2",
+      "annotations": {
+        "autosubmit": true
+      }
+    },
+    {
+      "name": "probe_debug",
+      "frameId": "D9F1C44DC49692A9BF7088598D5B33F2",
+      "annotations": {
+        "consequential": false,
+        "debugging": true,
+        "readOnly": true,
+        "untrustedContent": false
+      }
+    },
+    {
+      "name": "probe_echo",
+      "frameId": "D9F1C44DC49692A9BF7088598D5B33F2"
+    },
+    {
+      "name": "probe_hold",
+      "frameId": "D9F1C44DC49692A9BF7088598D5B33F2"
+    },
+    {
+      "name": "probe_manual",
+      "frameId": "D9F1C44DC49692A9BF7088598D5B33F2"
+    },
+    {
+      "name": "probe_slow",
+      "frameId": "D9F1C44DC49692A9BF7088598D5B33F2"
+    }
+  ],
+  "submissions": [
+    {
+      "name": "probe_auto",
+      "agentInvoked": true
+    },
+    {
+      "name": "probe_manual",
+      "agentInvoked": true
+    }
+  ],
+  "removedInFlightResponse": {
+    "invocationId": "D77BE70882F2E675083F40F38AF8C7DD",
+    "output": {
+      "value": "qualification-value"
+    },
+    "status": "Completed"
+  },
+  "pageInvocationOutput": "{\"value\":\"qualification-value\"}"
+}

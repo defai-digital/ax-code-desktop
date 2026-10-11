@@ -1,0 +1,7 @@
+{
+  "version": "v45.0.0-beta.1",
+  "serialNativeExtraction": true,
+  "frameworkSHA256": "91fa8f1188f62ae8dc232f7f28a155f95449f70b2993fcceba8b9e6968234d3e",
+  "installedFrameworkMatchesFreshExtraction": true,
+  "officialArchiveSHA256": "e7b40d117da8999cbaeb2aec749dbbf2d3d73e390338d7bf343c151a6704721c"
+}

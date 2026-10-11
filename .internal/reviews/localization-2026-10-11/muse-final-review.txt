@@ -1,0 +1,95 @@
+muse: local session messaging disabled: session logging is required
+muse: workspace root: /Users/akiralam/code/ax-coder-old (explicit)
+muse: warning: rules file at /Users/akiralam/code/ax-coder-old/AGENTS.md exists, but the workspace is untrusted, so it is skipped for this session; restart with --trust-workspace to load project rules
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+## Verdict: 1 blocking correctness defect, 4 hardening fixes
+
+Blocking: plural fallback in the UI store can render a raw key for supported locales.
+
+### 1. Blocking — `formatPluralMessage` has no `.other` fallback
+
+[store.ts](/Users/akiralam/code/ax-coder-old/desktop/packages/ui/src/lib/i18n/store.ts)
+
+```ts
+formatPluralMessage(dictionary, locale, key, count)
+```
+
+builds `` `${key}.${category}` `` directly from `Intl.PluralRules(locale).select(count)`, which can return `zero/one/two/few/many/other`. `formatMessage` then falls back to the raw key string if neither the translation nor `en` has that exact key. English only exercises `one/other`, so any locale needing `few/many/etc.` (e.g. Russian) shows `common.itemCount.few` literally unless `en` happens to define all six keys.
+
+Fix — fall back to `.other` before giving up:
+
+```ts
+export function formatPluralMessage(dictionary, key, count): string {
+  const category = new Intl.PluralRules(locale).select(count)
+  const exact = `${key}.${category}` as I18nKey
+  const other = `${key}.other` as I18nKey
+  if (dictionary[exact] ?? enDict[exact]) return formatMessage(dictionary, exact, { count })
+  return formatMessage(dictionary, other, { count })
+}
+```
+
+Also add a CI assertion that `en` defines `common.itemCount.other`, or that every `common.*` plural base has an `.other` key.
+
+### 2. Non-blocking — renderer discards valid main locale on bad format tag
+
+[store.ts](/Users/akiralam/code/ax-coder-old/desktop/packages/ui/src/lib/i18n/store.ts), `parsePreferences`.
+
+If `state.locale` is valid but `state.formatLocale` fails `new Intl.Locale(...)`, the `catch` falls through to the locally resolved locale instead of keeping main's locale. Main's tag should always be valid, but the fallback should preserve it:
+
+```ts
+try {
+  const formatLocale = new Intl.Locale(state!.formatLocale || state!.locale!).toString()
+  return { ...prefs, locale: state!.locale as Locale, formatLocale }
+} catch {
+  return { ...prefs, locale: state!.locale as Locale, formatLocale: state!.locale as string }
+}
+```
+
+### 3. Non-blocking — native placeholder handling diverges from UI and CI
+
+[native-localization.js](/Users/akiralam/code/ax-coder-old/desktop/packages/electron/src/native-localization.js), `createNativeLocalizer`.
+
+UI `formatMessage` and `script/localization-catalog.ts` both `trim()` placeholder names and UI preserves the placeholder for `null/undefined`. Native does neither: `{ count }` won't match, and `null` renders as `"null"`. Align it:
+
+```js
+return message.replace(/\{([^{}]+)\}/g, (match, raw) => {
+  const name = raw.trim()
+  const value = Object.hasOwn(params, name) ? params[name] : undefined
+  return value === null || value === undefined ? match : String(value)
+})
+```
+
+### 4. Non-blocking — controller init doesn't survive a throwing `read()`
+
+[localization.mjs](/Users/akiralam/code/ax-coder-old/desktop/shared/localization.mjs), `createLanguageController`.
+
+`normalizePreferences(read())` has no `try/catch`, while the renderer wraps its storage read. If main's `read` throws on corrupt JSON instead of returning `undefined`, startup crashes. Harden:
+
+```js
+let preferences
+try { preferences = normalizePreferences(read()) }
+catch { preferences = normalizePreferences(undefined) }
+```
+
+(Main's `read` implementation wasn't in scope; this only matters if it can throw.)
+
+### 5. Non-blocking — `conversationInstruction` trusts an unchecked manifest table
+
+[localization.mjs](/Users/akiralam/code/ax-coder-old/desktop/shared/localization.mjs).
+
+`isLocale` checks `manifest.labels`, but the template interpolates `manifest.conversationNames[locale]`. A locale present in one table but missing in the other renders `"in undefined"`. Guard:
+
+```js
+if (!isLocale(locale) || typeof manifest.conversationNames[locale] !== "string") return undefined
+```
+
+(`locales.json` wasn't in scope; report as hardening unless completeness is CI-checked.)
+
+### Checked, no findings
+
+- Serialized revisions via promise chain, atomic commit (revision only advances after `write` succeeds), `onChange` isolated in try/catch.
+- Renderer sequence guard plus revision guard correctly handles stale/out-of-order applies; duplicate broadcast after `desktop_language_set` is harmless.
+- `loadDictionary` key-set validation, `inFlight` dedup, and en-fallback on corrupt chunk are sound.
+- `validatePatch` rejects empty/unknown keys and invalid locales; no prototype-pollution path via spread.
+- `resolveLocale` message-vs-format split (pt→pt-BR messages with original format tag, zh script split) is reasonable for a 14-catalog set.
+- `validateCatalog` duplicate detection uses decoded `StringLiteral.text`, so `\u0061` vs `a` collides correctly; NFC/placeholder/unknown-key/identical-string checks match the stated CI contract.

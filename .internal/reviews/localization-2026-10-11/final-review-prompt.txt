@@ -1,0 +1,437 @@
+Read-only final review. Answer in English. Do not use tools, modify files, spawn agents or run any commands. Review the following actual AX Coder implementation for actionable correctness, race, security and packaging issues. Preserve typed literal t(key,params), separate interface vs conversation, packaged offline catalogs, main-owned atomic schema-1 preferences, serialized revisions, fourteen full catalogs. CI checks keys/parameters/NFC/duplicate decoded keys/unreviewed identical spellings; native-speaker validation is still pending. Signed runtime upgraded from 7.10.2 to 7.24.4 because old command input lacked system; five official archives verified SHA256 and Minisign, local prompt+command provider fixture passed preserving project instructions. Main registers desktop_language_get/set as trusted local-only commands, stores userData/language-preferences.json, rebuilds application menu, refreshes tray and broadcasts committed changes. GUI adds conversationInstruction(store.conversation) as optional system to prompt and command bodies, snapshots before await, preserves original text/arguments. Native dialogs preserve buttons/action IDs/raw diagnostics. No runtime fork, SDK remains published exact2.6.7. Report concrete defects with filenames and fixes, or state no blocking findings; do not invent evidence.
+
+FILE desktop/shared/localization.mjs
+import manifest from "./locales.json" with { type: "json" }
+const locales = Object.keys(manifest.labels)
+const isLocale = (value) => typeof value === "string" && Object.hasOwn(manifest.labels, value)
+
+function resolveLocale(value) {
+  if (typeof value !== "string") return undefined
+  try {
+    const tag = new Intl.Locale(value.replace(/_/g, "-"))
+    const full = tag.maximize()
+    const messageLocale = full.language === "zh"
+      ? full.script === "Hant" ? "zh-TW" : "zh-CN"
+      : full.language === "pt" ? "pt-BR" : full.language
+    if (!isLocale(messageLocale)) return undefined
+    return { locale: messageLocale, formatLocale: tag.toString() }
+  } catch {
+    return undefined
+  }
+}
+
+function resolvePreferences(preferences, systemLanguages = []) {
+  const selected = preferences.interface === "system"
+    ? systemLanguages.map(resolveLocale).find(Boolean)
+    : { locale: preferences.interface, formatLocale: preferences.interface }
+  return { ...preferences, ...(selected || { locale: "en", formatLocale: "en" }) }
+}
+
+function normalizePreferences(value) {
+  const valid = value && typeof value === "object" && !Array.isArray(value) && (value.schema === undefined || value.schema === 1) ? value : {}
+  return {
+    schema: 1,
+    interface: valid.interface === "system" || isLocale(valid.interface) ? valid.interface : "system",
+    conversation: valid.conversation === "auto" || isLocale(valid.conversation) ? valid.conversation : "auto",
+    revision: Number.isSafeInteger(valid.revision) && valid.revision >= 0 ? valid.revision : 0,
+  }
+}
+
+function validatePatch(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid language preferences")
+  const keys = Object.keys(value)
+  if (!keys.length || keys.some((key) => !["interface", "conversation"].includes(key))) {
+    throw new Error("Unknown language preference")
+  }
+  if (Object.hasOwn(value, "interface") && value.interface !== "system" && !isLocale(value.interface)) {
+    throw new Error("Unsupported interface language")
+  }
+  if (Object.hasOwn(value, "conversation") && value.conversation !== "auto" && !isLocale(value.conversation)) {
+    throw new Error("Unsupported conversation language")
+  }
+  return value
+}
+
+function createLanguageController({ read, write, systemLanguages, onChange = () => {} }) {
+  let preferences = normalizePreferences(read())
+  let chain = Promise.resolve()
+  const get = () => resolvePreferences(preferences, systemLanguages())
+  return {
+    get,
+    update: (value) => {
+      const patch = { ...validatePatch(value) }
+      const next = chain.then(async () => {
+        const candidate = { ...preferences, ...patch, revision: preferences.revision + 1 }
+        await write(candidate)
+        preferences = candidate
+        const state = get()
+        try { onChange(state) } catch (error) {
+          console.error("Failed to notify windows of committed language preferences", error)
+        }
+        return state
+      })
+      chain = next.catch(() => {})
+      return next
+    },
+  }
+}
+
+function conversationInstruction(locale) {
+  if (!isLocale(locale)) return undefined
+  return [
+    `Conversation preference: write user-facing explanations and summaries in ${manifest.conversationNames[locale]}.`,
+    "This is a preference only. Explicit user language requests and project instructions take precedence.",
+    "Follow project rules for code comments, commits, and documents; otherwise keep these artifacts in English.",
+    "Preserve technical identifiers, commands, paths, quoted evidence, original task constraints, test results, and raw tool output exactly.",
+    "Do not translate evidence before aggregation or change approval scope, severity, support counts, rankings, or verification state.",
+  ].join("\n")
+}
+
+export { locales, isLocale, resolveLocale, resolvePreferences, normalizePreferences, validatePatch, createLanguageController, conversationInstruction }
+
+
+FILE desktop/packages/ui/src/lib/i18n/store.ts
+import { create } from "zustand"
+import { getDesktopBridge } from "../desktopBridge"
+import { dict as enDict, type I18nKey } from "./messages/en"
+import { DEFAULT_LOCALE, type Locale, type InterfacePreference, type ConversationPreference } from "./runtime"
+import { normalizePreferences, resolvePreferences, validatePatch } from "../../../../../shared/localization.mjs"
+import type { LanguagePreferences, ResolvedLanguagePreferences } from "../../../../../shared/localization.mjs"
+
+export type I18nParams = Record<string, string | number | boolean | null | undefined>
+export type I18nDictionary = Record<I18nKey, string>
+const loaders: Record<Exclude<Locale, "en">, () => Promise<{ default: Record<string, string> }>> = {
+  "zh-TW": () => import("./messages/zh-TW.json"),
+  "zh-CN": () => import("./messages/zh-CN.json"),
+  ja: () => import("./messages/ja.json"), ko: () => import("./messages/ko.json"),
+  fr: () => import("./messages/fr.json"), de: () => import("./messages/de.json"),
+  id: () => import("./messages/id.json"), it: () => import("./messages/it.json"),
+  "pt-BR": () => import("./messages/pt-BR.json"), ru: () => import("./messages/ru.json"),
+  es: () => import("./messages/es.json"), tr: () => import("./messages/tr.json"), vi: () => import("./messages/vi.json"),
+}
+const dictionaries = new Map<Locale, I18nDictionary>([[DEFAULT_LOCALE, enDict]])
+const inFlight = new Map<Locale, Promise<I18nDictionary>>()
+const STORAGE_KEY = "ax-coder.language.v1"
+const systemLanguages = () => typeof navigator === "undefined" ? [] : navigator.languages
+const initial = resolvePreferences(normalizePreferences(undefined), [])
+let requestSequence = 0
+let initialization: Promise<void> | undefined
+let dispose: (() => void) | undefined
+
+export function resetI18nDictionaryCacheForTests(): void {
+  dispose?.()
+  dispose = undefined
+  initialization = undefined
+  requestSequence++
+  dictionaries.clear()
+  dictionaries.set(DEFAULT_LOCALE, enDict)
+  inFlight.clear()
+}
+
+export async function loadDictionary(locale: Locale): Promise<I18nDictionary> {
+  const cached = dictionaries.get(locale)
+  if (cached) return cached
+  const pending = inFlight.get(locale)
+  if (pending) return pending
+  const request = loaders[locale as Exclude<Locale, "en">]().then(({ default: dictionary }) => {
+    if (Object.keys(dictionary).length !== Object.keys(enDict).length ||
+      Object.keys(enDict).some((key) => typeof dictionary[key as I18nKey] !== "string")) {
+      throw new Error("Invalid language catalog")
+    }
+    dictionaries.set(locale, dictionary as I18nDictionary)
+    return dictionary as I18nDictionary
+  }).finally(() => inFlight.delete(locale))
+  inFlight.set(locale, request)
+  return request
+}
+
+async function applyPreferences(value: ResolvedLanguagePreferences): Promise<void> {
+  if (value.revision < useI18nStore.getState().revision) return
+  const sequence = ++requestSequence
+  useI18nStore.setState({
+    interface: value.interface, conversation: value.conversation, revision: value.revision,
+    loadingLocale: value.locale, loadingError: false,
+  })
+  try {
+    const dictionary = await loadDictionary(value.locale)
+    if (sequence !== requestSequence) return
+    useI18nStore.setState({ locale: value.locale, dictionary, formatLocale: value.formatLocale, loadingLocale: null })
+  } catch {
+    if (sequence !== requestSequence) return
+    useI18nStore.setState({ locale: "en", dictionary: enDict, formatLocale: "en", loadingLocale: null, loadingError: true })
+  }
+}
+
+function parsePreferences(value: unknown): ResolvedLanguagePreferences {
+  const prefs = normalizePreferences(value)
+  const state = value as Partial<ResolvedLanguagePreferences> | null
+  // Main provides the preferred OS language list's resolved result. Validate
+  // the formatting tag; a malformed tag must never reach Intl constructors.
+  const resolved = resolvePreferences(prefs, systemLanguages())
+  if (state && typeof state.locale === "string" && (Object.hasOwn(loaders, state.locale) || state.locale === "en")) {
+    try {
+      const formatLocale = new Intl.Locale(state!.formatLocale || state!.locale!).toString()
+      return { ...prefs, locale: state!.locale as Locale, formatLocale }
+    } catch { /* Use the validated local resolution below. */ }
+  }
+  return resolved
+}
+
+async function savePreferences(patch: Partial<Pick<LanguagePreferences, "interface" | "conversation">>): Promise<void> {
+  validatePatch(patch)
+  const bridge = getDesktopBridge()
+  if (bridge?.invoke) {
+    const state = await bridge.invoke("desktop_language_set", patch)
+    await applyPreferences(parsePreferences(state))
+    return
+  }
+  const current = useI18nStore.getState()
+  const next = normalizePreferences({ ...current, ...patch, revision: current.revision + 1 })
+  if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  await applyPreferences(resolvePreferences(next, systemLanguages()))
+}
+
+type I18nState = ResolvedLanguagePreferences & {
+  dictionary: I18nDictionary
+  loadingLocale: Locale | null
+  loadingError: boolean
+  setLocale: (locale: Locale) => Promise<void>
+  setInterface: (locale: InterfacePreference) => Promise<void>
+  setConversation: (locale: ConversationPreference) => Promise<void>
+}
+export const useI18nStore = create<I18nState>()(() => ({
+  ...initial, dictionary: enDict, loadingLocale: null, loadingError: false,
+  setLocale: (locale) => savePreferences({ interface: locale }),
+  setInterface: (locale) => savePreferences({ interface: locale }),
+  setConversation: (locale) => savePreferences({ conversation: locale }),
+}))
+
+export function initializeLocale(): Promise<void> {
+  if (initialization) return initialization
+  const work = (async () => {
+    const bridge = getDesktopBridge()
+    if (bridge?.invoke) {
+      if (bridge.listen) {
+        dispose = await bridge.listen("openchamber:language-changed", ({ payload }) => {
+          void applyPreferences(parsePreferences(payload))
+        })
+      }
+      await applyPreferences(parsePreferences(await bridge.invoke("desktop_language_get")))
+    } else {
+      let saved: unknown
+      try { saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null") } catch { /* Defaults survive corrupt storage. */ }
+      const listener = (event: StorageEvent) => {
+        if (event.key !== STORAGE_KEY) return
+        try { void applyPreferences(parsePreferences(JSON.parse(event.newValue || "null"))) } catch { /* Ignore corrupt external writes. */ }
+      }
+      window.addEventListener("storage", listener)
+      dispose = () => window.removeEventListener("storage", listener)
+      await applyPreferences(parsePreferences(saved))
+    }
+  })().catch(() => {
+    useI18nStore.setState({ locale: "en", dictionary: enDict, formatLocale: "en", loadingLocale: null, loadingError: true })
+  })
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      requestSequence++
+      useI18nStore.setState({ locale: "en", dictionary: enDict, formatLocale: "en", loadingLocale: null, loadingError: true })
+      resolve()
+    }, 3000)
+  })
+  initialization = Promise.race([work, timeout]).finally(() => clearTimeout(timer))
+  return initialization
+}
+
+export function formatMessage(dictionary: I18nDictionary, key: I18nKey, params?: I18nParams): string {
+  const template = dictionary[key] ?? enDict[key] ?? key
+  if (!params) return template
+  return template.replace(/\{([^{}]+)\}/g, (match, rawKey) => {
+    const name = rawKey.trim()
+    const value = Object.hasOwn(params, name) ? params[name] : undefined
+    return value === null || value === undefined ? match : String(value)
+  })
+}
+
+export function formatPluralMessage(dictionary: I18nDictionary, locale: Locale, key: "common.itemCount", count: number): string {
+  const category = new Intl.PluralRules(locale).select(count)
+  return formatMessage(dictionary, `${key}.${category}` as I18nKey, { count })
+}
+export type { I18nKey }
+
+
+FILE desktop/packages/ui/src/lib/i18n/context.tsx
+import React from "react"
+import { useI18nStore, formatMessage, formatPluralMessage } from "./store"
+import { I18nContext, type I18nContextValue } from "./react-context"
+import { LANGUAGE_LABELS, LOCALES } from "./runtime"
+
+export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const locale = useI18nStore((state) => state.locale)
+  const dictionary = useI18nStore((state) => state.dictionary)
+  const formatLocale = useI18nStore((state) => state.formatLocale)
+  const setLocale = useI18nStore((state) => state.setLocale)
+  React.useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = locale
+      document.documentElement.dir = "ltr"
+    }
+  }, [locale])
+  const value = React.useMemo<I18nContextValue>(() => {
+    const number = new Intl.NumberFormat(formatLocale)
+    const date = new Intl.DateTimeFormat(formatLocale)
+    const relative = new Intl.RelativeTimeFormat(formatLocale, { numeric: "auto" })
+    return {
+      locale, locales: LOCALES, setLocale,
+      label: (targetLocale) => LANGUAGE_LABELS[targetLocale],
+      t: (key, params) => formatMessage(dictionary, key, params),
+      plural: (key, count) => formatPluralMessage(dictionary, locale, key, count),
+      number: (value) => number.format(value),
+      date: (value) => date.format(value),
+      relativeTime: (value, unit) => relative.format(value, unit),
+    }
+  }, [dictionary, locale, formatLocale, setLocale])
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
+}
+
+
+FILE desktop/packages/ui/src/components/sections/ax-code/LanguageSettings.tsx
+import React from "react"
+import { useI18n } from "@/lib/i18n"
+import { useI18nStore } from "@/lib/i18n/store"
+import { isLocale, type InterfacePreference, type ConversationPreference } from "@/lib/i18n/runtime"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+export function LanguageSettings() {
+  const { t, locales, label } = useI18n()
+  const interfaceLanguage = useI18nStore((state) => state.interface)
+  const conversation = useI18nStore((state) => state.conversation)
+  const formatLocale = useI18nStore((state) => state.formatLocale)
+  const loadingLocale = useI18nStore((state) => state.loadingLocale)
+  const loadingError = useI18nStore((state) => state.loadingError)
+  const [saveError, setSaveError] = React.useState(false)
+  const save = (field: "interface" | "conversation", value: string) => {
+    if (!isLocale(value) && value !== (field === "interface" ? "system" : "auto")) return
+    setSaveError(false)
+    const state = useI18nStore.getState()
+    void (field === "interface" ? state.setInterface(value as InterfacePreference) : state.setConversation(value as ConversationPreference))
+      .catch(() => setSaveError(true))
+  }
+  return (
+    <section className="px-2 space-y-3" aria-labelledby="language-settings-title">
+      <h3 id="language-settings-title" className="typography-ui-header font-medium">{t("settings.language.title")}</h3>
+      {(["interface", "conversation"] as const).map((field) => (
+        <div key={field} className="flex min-w-0 flex-col gap-1.5">
+          <label id={`language-${field}-label`} className="typography-ui-label">{t(`settings.language.${field}`)}</label>
+          <Select value={field === "interface" ? interfaceLanguage : conversation} onValueChange={(value) => save(field, value)}>
+            <SelectTrigger aria-labelledby={`language-${field}-label`} className="w-full max-w-sm min-h-6 whitespace-normal data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none">
+              <SelectValue className="min-w-0 break-words text-left">
+                {field === "interface" ? interfaceLanguage === "system" ? t("settings.language.system") : label(interfaceLanguage)
+                  : conversation === "auto" ? t("settings.language.auto") : label(conversation)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={field === "interface" ? "system" : "auto"}>{t(field === "interface" ? "settings.language.system" : "settings.language.auto")}</SelectItem>
+              {locales.map((locale) => <SelectItem key={locale} value={locale}>{label(locale)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <p className="typography-ui-meta text-muted-foreground">{t(`settings.language.${field}Hint`)}</p>
+        </div>
+      ))}
+      <p className="typography-ui-meta text-muted-foreground">
+        {t("settings.language.format")}: {formatLocale}
+        {interfaceLanguage === "system" && <>. {t("settings.language.formatHint")}</>}
+      </p>
+      {(saveError || loadingError) && <p role="alert" className="typography-ui-meta text-destructive">{t(saveError ? "settings.language.saveFailed" : "settings.language.loadFailed")}</p>}
+      {loadingLocale && <p role="status" className="typography-ui-meta text-muted-foreground">{t("settings.language.loading")}</p>}
+    </section>
+  )
+}
+
+
+FILE desktop/packages/electron/src/native-localization.js
+"use strict"
+
+const mapping = require("../../../shared/native-keys.json")
+const catalogs = require("../../../shared/native-catalogs.json")
+const english = require("../../../shared/native.en.json")
+
+function createNativeLocalizer(getLocale, dictionaries = catalogs) {
+  return (source, params) => {
+    const key = Object.hasOwn(mapping, source) ? mapping[source] : undefined
+    const message = key ? dictionaries[getLocale()]?.[key] ?? english[key] ?? source : source
+    if (!params) return message
+    return message.replace(/\{([^{}]+)\}/g, (match, name) => Object.hasOwn(params, name) ? String(params[name]) : match)
+  }
+}
+
+const ROLE_LABELS = {"undo": "Undo", "redo": "Redo", "cut": "Cut", "copy": "Copy", "paste": "Paste", "pasteAndMatchStyle": "Paste and Match Style", "delete": "Delete", "selectAll": "Select All", "minimize": "Minimize", "zoom": "Zoom", "front": "Bring All to Front", "close": "Close"}
+
+function localizeMenuTemplate(template, translate) {
+  return template.map((item) => ({
+    ...item,
+    ...(typeof item.label === "string" ? { label: translate(item.label) } : Object.hasOwn(ROLE_LABELS, item.role) ? { label: translate(ROLE_LABELS[item.role]) } : {}),
+    ...(Array.isArray(item.submenu) ? { submenu: localizeMenuTemplate(item.submenu, translate) } : {}),
+  }))
+}
+
+function createLocalizedDialog(dialog, translate) {
+  const options = (value) => {
+    const next = { ...value }
+    for (const key of ["title", "message", "detail", "buttonLabel"]) {
+      if (typeof next[key] === "string") next[key] = translate(next[key])
+    }
+    if (Array.isArray(next.buttons)) next.buttons = next.buttons.map((button) => translate(button))
+    return next
+  }
+  const result = {}
+  for (const method of ["showMessageBox", "showOpenDialog", "showSaveDialog"]) {
+    result[method] = (...args) => {
+      const index = args.length - 1
+      args[index] = options(args[index])
+      return dialog[method](...args)
+    }
+  }
+  result.showErrorBox = (title, content) => dialog.showErrorBox(translate(title), translate(content))
+  return result
+}
+
+module.exports = { createNativeLocalizer, localizeMenuTemplate, createLocalizedDialog }
+
+
+FILE script/localization-catalog.ts
+import ts from "typescript"
+
+const placeholders = (value: string) =>
+  [...new Set([...value.matchAll(/\{([^{}]+)\}/g)].map((match) => match[1].trim()))].sort().join("|")
+
+export function validateCatalog(text: string, english: Record<string, string>, allowed: readonly string[] = []) {
+  const errors: string[] = []
+  const parsed = ts.parseJsonText("catalog.json", text)
+  const seen = new Set<string>()
+  const scan = (node: ts.Node) => {
+    if (ts.isPropertyAssignment(node)) {
+      const key = ts.isStringLiteral(node.name) ? node.name.text : node.name.getText(parsed)
+      if (seen.has(key)) errors.push(`duplicate key ${key}`)
+      seen.add(key)
+    }
+    ts.forEachChild(node, scan)
+  }
+  scan(parsed)
+  let catalog: Record<string, string>
+  try { catalog = JSON.parse(text) } catch { return { errors: [...errors, "invalid JSON"], catalog: {} } }
+  if (!catalog || typeof catalog !== "object" || Array.isArray(catalog)) {
+    return { errors: [...errors, "invalid catalog object"], catalog: {} }
+  }
+  for (const key of Object.keys(catalog)) if (!Object.hasOwn(english, key)) errors.push(`unknown key ${key}`)
+  for (const [key, source] of Object.entries(english)) {
+    const value = catalog[key]
+    if (typeof value !== "string" || !value.trim()) errors.push(`missing or empty ${key}`)
+    else {
+      if (value !== value.normalize("NFC")) errors.push(`non-NFC ${key}`)
+      if (placeholders(value) !== placeholders(source)) errors.push(`placeholder mismatch ${key}`)
+      if (value === source && !allowed.includes(key)) errors.push(`unreviewed identical string ${key}`)
+    }
+  }
+  return { errors, catalog }
+}

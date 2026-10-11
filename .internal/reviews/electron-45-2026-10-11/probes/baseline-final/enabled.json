@@ -1,0 +1,86 @@
+{
+  "schema": "ax-coder.native-webmcp-qualification.v1",
+  "timestamp": "2026-10-11T19:12:49.313Z",
+  "platform": "darwin",
+  "arch": "arm64",
+  "electron": "44.7.0",
+  "chromium": "152.0.7977.130",
+  "featureEnabled": true,
+  "installedChromeUsed": false,
+  "remoteDebuggingPortUsed": false,
+  "productionQualified": false,
+  "checks": {
+    "discovery": true,
+    "imperativeInvocation": true,
+    "declarativeAutosubmit": true,
+    "declarativeManualSubmit": true,
+    "cancellation": true,
+    "executionAbortSignal": false,
+    "toolRemoval": true,
+    "removalPreservesInvocation": true,
+    "debuggingAnnotation": false,
+    "objectInput": false,
+    "navigationCleanup": true
+  },
+  "passed": true,
+  "fixture": {
+    "api": "document",
+    "canceled": false,
+    "submissions": [],
+    "secureContext": true,
+    "nodeVisible": false
+  },
+  "nativeDomainAvailable": true,
+  "tools": [
+    {
+      "name": "probe_auto",
+      "frameId": "135BF33605BFC9041A9F44A5F4A3B527",
+      "annotations": {
+        "autosubmit": true
+      }
+    },
+    {
+      "name": "probe_debug",
+      "frameId": "135BF33605BFC9041A9F44A5F4A3B527",
+      "annotations": {
+        "readOnly": true,
+        "untrustedContent": false
+      }
+    },
+    {
+      "name": "probe_echo",
+      "frameId": "135BF33605BFC9041A9F44A5F4A3B527"
+    },
+    {
+      "name": "probe_hold",
+      "frameId": "135BF33605BFC9041A9F44A5F4A3B527"
+    },
+    {
+      "name": "probe_manual",
+      "frameId": "135BF33605BFC9041A9F44A5F4A3B527"
+    },
+    {
+      "name": "probe_slow",
+      "frameId": "135BF33605BFC9041A9F44A5F4A3B527"
+    }
+  ],
+  "submissions": [
+    {
+      "name": "probe_auto",
+      "agentInvoked": true
+    },
+    {
+      "name": "probe_manual",
+      "agentInvoked": true
+    }
+  ],
+  "removedInFlightResponse": {
+    "invocationId": "D9BDC19AE95EA75F86469EB13EE81A9B",
+    "output": {
+      "value": "qualification-value"
+    },
+    "status": "Completed"
+  },
+  "navigationResponse": null,
+  "navigationResponseObservationMs": 500
+}

@@ -1,0 +1,46 @@
+**Verdict: proposal is directionally sound but too big to land safely as one 14-locale change.**
+
+The 4228-key dictionary x 13 locales is ~55000 entries. Exact full parity plus two preferences, native-menu rebuild, and conversation-language injection creates an all-or-nothing project where translation volume blocks infrastructure that could ship incrementally behind the existing disabled flag.
+
+### Design risks
+
+1. **Conversation scope is unverified:** pinned SDK 2.6.7 / runtime 7.10.2 must support a public prompt system-field language instruction on every model-backed path. If any path ignores it, uses deprecated config, or conflicts with project/user instructions, behavior will be inconsistent. Verify first.
+2. **Two preferences double the matrix:** interface `system|fixed` x conversation `auto|fixed`, plus OS locale detection, OS locale change mid-run, invalid persisted values, and old-window revisions. Easy to get fallback precedence wrong.
+3. **False coupling to 14 TUI IDs:** desktop has different strings and owns only GUI. Matching TUI exactly forces translation of desktop-specific keys into locales with no proven demand.
+4. **Plural/format retrofit:** hiding `Intl` plural/select behind existing `t(key, params)` risks breaking brace-containing technical strings, literal params, and typed params. Needs an explicit new API, not silent ICU reinterpretation.
+5. **Startup and sync complexity:** packaged native catalogs before renderer boot, preload initial catalog, atomic Zustand commit, sequence guard, broadcast to all windows, menu rebuild. Risks first-paint delay, flash of English, partial-window locale, and recovery-dialog fallback failures.
+6. **Unicode-escape authoring:** requiring escapes in source makes 55000 entries unreviewable without build tooling.
+
+### Acceptance gaps
+
+- No definition of "complete": translated, reviewed, layout-checked, or merely present.
+- No quality bar beyond keys/placeholders/NFC/identical-strings. Those prove structure, not fluency, terminology, tone, or context fit.
+- No precedence spec for conversation language vs system, project, and user instructions.
+- No rule for original text/tool output: display translation vs model response language.
+- Missing cases: corrupt catalog, missing native catalog, unknown OS locale, catalog size/startup budget, fallback visibility in dev vs prod, date/number/collation, expansion/overflow criteria.
+
+### Practical simplifications
+
+- Split infrastructure from translation volume.
+- Pilot one locale end-to-end, keep others English-fallback.
+- Ship interface language first; defer conversation language until runtime support is proven on pinned versions.
+- Freeze keys; exclude logs/debug/technical IDs from translation.
+- Keep readable UTF-8 authoring sources; compile to escaped packaged catalogs.
+- Replace exact-parity CI gate with per-locale completeness report plus strict gate only for shipped locales.
+
+### Safest concrete plan
+
+0. **Spike:** prove conversation instruction works on pinned runtime for every request path; otherwise cut that scope.
+1. **API:** retain `t`, add explicit `tPlural`/`tSelect`; audit placeholders; add literal-param tests.
+2. **Prefs/IPC:** main-owned, ID-only validation, revisioned broadcast, persisted restart test, invalid-value fallback to English.
+3. **Renderer:** sequence-guarded atomic commit; English first paint with marked fallback in dev.
+4. **Native:** main-owned catalogs for menus/recovery; test pre-boot availability and rebuild or documented restart.
+5. **Pilot:** one locale fully translated, reviewed, layout-tested; add human sampling, glossary, and screenshot review. Expand only after pilot passes.
+6. **CI:** structural checks plus readable coverage; block release only on shipped-locale gaps and English-source guards.
+
+Do not claim 55000 entries are correct because CI is green. Report per-locale human review coverage separately.
+
+muse: local session messaging disabled: session logging is required
+muse: workspace root: /Users/akiralam/code/ax-coder-old (cwd default)
+muse: warning: rules file at /Users/akiralam/code/ax-coder-old/AGENTS.md exists, but the workspace is untrusted, so it is skipped for this session; restart with --trust-workspace to load project rules
+muse: Agent delegation: auto unavailable: workspace is untrusted.

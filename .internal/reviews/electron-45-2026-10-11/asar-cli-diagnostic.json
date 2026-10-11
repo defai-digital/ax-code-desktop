@@ -1,0 +1,1 @@
+{"code":null,"signal":"SIGKILL","message":"Command failed: /Users/akiralam/code/ax-coder-old/desktop/packages/electron/dist/mac-arm64/AX Code.app/Contents/MacOS/AX Code /Users/akiralam/code/ax-coder-old/desktop/packages/electron/dist/mac-arm64/AX Code.app/Contents/Resources/app.asar/dist/desktop-cli.mjs status --json --plain\n","stdout":"","stderr":""}

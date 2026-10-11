@@ -1,0 +1,16 @@
+[
+  {
+    "version": "44.7.0",
+    "archive": "/Users/akiralam/Library/Caches/electron/5a625dfd3df3efc3971556afe64989f9aa6ea0f4cd6e33889c1951789041498f/electron-v44.7.0-darwin-arm64.zip",
+    "sha256": "e04e411b58a0a14375dd21b0ab4a378fd38930a702e4e20e322fee4849404c0b",
+    "binary": "/Users/akiralam/code/ax-coder-old/.internal/reviews/electron-45-2026-10-11/engines/44.7.0/Electron.app/Contents/MacOS/Electron",
+    "downloadChecksumValidation": "@electron/get default validation enabled"
+  },
+  {
+    "version": "45.0.0-beta.1",
+    "archive": "/Users/akiralam/Library/Caches/electron/870c0c45e2c2e0bf1312cd7726e78d58dbe4e811ead03b93f285197902d1e58f/electron-v45.0.0-beta.1-darwin-arm64.zip",
+    "sha256": "e7b40d117da8999cbaeb2aec749dbbf2d3d73e390338d7bf343c151a6704721c",
+    "binary": "/Users/akiralam/code/ax-coder-old/.internal/reviews/electron-45-2026-10-11/engines/45.0.0-beta.1/Electron.app/Contents/MacOS/Electron",
+    "downloadChecksumValidation": "@electron/get default validation enabled"
+  }
+]

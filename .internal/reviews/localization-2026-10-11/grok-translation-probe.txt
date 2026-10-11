@@ -1,0 +1,1 @@
+{"common.loading":"\u52a0\u8f7d\u4e2d...","common.cancel":"\u53d6\u6d88","settings.language.interface":"\u754c\u9762\u8bed\u8a00"}

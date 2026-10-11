@@ -1,0 +1,39 @@
+The boundary is right. AX Coder owns interface catalogs, preferences, native menus, and the renderer dictionary. AX Code keeps the coding runtime. Keep `t(key, params)` typed from the 4,228-key English dictionary. Send only locale IDs over IPC. Fall back to English. Commit locale and dictionary in one renderer update under a request sequence. Load native catalogs in the main process before any window.
+
+What fails is scale and one boundary crossing. About 55,000 strings (4,228 × 13) are a review problem. Conversation language is a runtime-contract problem. Structural CI cannot close either.
+
+**Risks**
+
+Key parity, placeholders, NFC, and identical-string flags check form. They leave meaning, register, truncation, and terminology unchecked. A fully keyed locale can still be wrong. Sharing the TUI’s 14 IDs sets the ID list only. Catalogs for this repo are new text.
+
+Conversation preference changes model output. An English line in the public system field can outrank project and user instructions and violate the stated precedence. SDK 2.6.7 and signed runtime 7.10.2 must show a supported, non-deprecated field that covers every later model-backed path, preserves original user text and tool output, and yields to project and user instructions. List retries, resumes, goals, and every other published entry point. If the probe fails, ship interface locale only.
+
+Write the `system` / `auto` map: `zh-Hant` and `zh-TW` → `zh-TW`; `zh-Hans` and `zh-CN` → `zh-CN`; `pt` → `pt-BR`; else `en`. Pass resolved IDs only.
+
+Use one parser and one manifest in the main process and the renderer. Load English plus the active catalog. `Intl.PluralRules` stays behind the current API: Russian one/few/many/other; an explicit Turkish map; Chinese, Japanese, and Korean `other`. Add plural keys only where English already varies. Keep brace-heavy technical strings literal.
+
+A window opened mid-switch takes the latest revision. A failed load keeps the last good dictionary, or English, in one write. Unknown or corrupt preferences reset to interface `system` and conversation `auto`. Version the file.
+
+German and Russian expand; CJK needs font fallback. Menus, recovery copy, and `dialog.showMessageBox` can show before the renderer.
+
+Store UTF-8 JSON catalogs as data. Escaped `\u` dumps of 55,000 strings block review. TypeScript, docs, and network payloads stay English. Identical-to-English product names and tokens need an allowlist.
+
+**Gaps**
+
+Missing tests: BCP-47 map, corrupt store, window created mid-switch, recovery UI before boot, missing key, failed disk load, Russian and Chinese plurals, a `{` inside a parameter, OS accelerators, release flags unchanged. Conversation tests: user text, prior turns, and tool output unchanged; project instruction wins; control hidden when no precedence-safe SDK field exists; catalogs never fetched over the network.
+
+Define `auto` as the resolved interface locale. Every non-English manifest entry starts `reviewed: false` and stays unpackaged until that flips.
+
+**Simplifications**
+
+One JSON shape. Unchanged `t` signature. `Intl` for number, date, and list. Opt-in plurals. Two catalogs in memory. A lengthened English pseudo-locale for layout. Native names in a static table. Main process is the only preference writer.
+
+**Sequence**
+
+1. Mechanism, manifest = `en`, pseudo-locale in tests. Preferences, IPC checks, revision broadcast, atomic commit, lazy load, English fallback, menu and recovery rebuild, settings, restart. UI tests above. Release stays disabled. No sibling edits.
+
+2. Capability gate on the published SDK and pinned runtime. Ship conversation preference only with a non-deprecated field that loses to project and user instructions and does not rewrite history or tool output. Otherwise omit it. It stays independent of interface locale.
+
+3. One locale after a glossary (names, buttons, errors) and a contextual pass over settings, dialogs, empty states, and menus. A second reader checks placeholders against English. Record reviewer and date. CI for that entry: full parity, placeholders, NFC, plurals, allowlisted identicals.
+
+4. Next locales, same gate, one at a time. Coverage numbers are a report. The 55,000 entries are accepted only as the sum of locales with a named human review and green structural CI.

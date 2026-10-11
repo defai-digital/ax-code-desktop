@@ -1,0 +1,108 @@
+{
+  "schema": "ax-coder.webmcp-native-probe.v1",
+  "timestamp": "2026-10-11T11:13:00.104Z",
+  "platform": "darwin",
+  "arch": "arm64",
+  "electron": "44.7.0",
+  "chromium": "152.0.7977.130",
+  "webmcpFeatureEnabled": true,
+  "installedChromeUsed": false,
+  "remoteDebuggingPortUsed": false,
+  "researchOnly": true,
+  "surface": "WebContentsView",
+  "fixture": {
+    "api": "document",
+    "secureContext": true,
+    "registered": true,
+    "submissions": 0,
+    "executions": 0,
+    "nodeVisible": false
+  },
+  "nativeDomainAvailable": true,
+  "tools": [
+    {
+      "name": "probe_echo",
+      "frameId": "DEA6E0721242E673B6631819231204D5",
+      "inputSchema": {
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "probe_form",
+      "frameId": "DEA6E0721242E673B6631819231204D5",
+      "inputSchema": {
+        "properties": {
+          "value": {
+            "description": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "invocations": [
+    {
+      "name": "probe_echo",
+      "invocationId": "8D9B8047CB7B2C7FFFA8A1D2B47C5ACB",
+      "output": {
+        "value": "native-probe-value"
+      },
+      "status": "Completed"
+    },
+    {
+      "name": "probe_form",
+      "invocationId": "DC286163D409012441FD2DF4EE4D3857",
+      "output": {
+        "value": "native-probe-value"
+      },
+      "status": "Completed"
+    }
+  ],
+  "fixtureAfterInvocation": {
+    "api": "document",
+    "secureContext": true,
+    "registered": true,
+    "submissions": 1,
+    "executions": 1,
+    "agentInvoked": true
+  },
+  "removalEvents": [
+    {
+      "method": "WebMCP.toolsRemoved",
+      "params": {
+        "tools": [
+          {
+            "frameId": "DEA6E0721242E673B6631819231204D5",
+            "name": "probe_echo"
+          }
+        ]
+      }
+    },
+    {
+      "method": "WebMCP.toolsRemoved",
+      "params": {
+        "tools": [
+          {
+            "frameId": "DEA6E0721242E673B6631819231204D5",
+            "name": "probe_form"
+          }
+        ]
+      }
+    }
+  ],
+  "emptyDocumentTools": [],
+  "nativeSmokePassed": true,
+  "productionQualified": false
+}

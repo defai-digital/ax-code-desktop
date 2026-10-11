@@ -1,0 +1,203 @@
+{
+  "schema": "ax-coder.native-webmcp-comparison.v1",
+  "records": [
+    {
+      "schema": "ax-coder.native-webmcp-qualification.v1",
+      "timestamp": "2026-10-11T18:54:47.488Z",
+      "platform": "darwin",
+      "arch": "arm64",
+      "electron": "45.0.0-beta.1",
+      "chromium": "156.0.8078.12",
+      "featureEnabled": false,
+      "installedChromeUsed": false,
+      "remoteDebuggingPortUsed": false,
+      "productionQualified": false,
+      "checks": {
+        "featureDisabled": true
+      },
+      "passed": true,
+      "fixture": {
+        "api": null,
+        "canceled": false,
+        "submissions": [],
+        "secureContext": true,
+        "nodeVisible": false
+      },
+      "nativeDomainAvailable": true
+    },
+    {
+      "schema": "ax-coder.native-webmcp-qualification.v1",
+      "timestamp": "2026-10-11T18:54:48.069Z",
+      "platform": "darwin",
+      "arch": "arm64",
+      "electron": "45.0.0-beta.1",
+      "chromium": "156.0.8078.12",
+      "featureEnabled": true,
+      "installedChromeUsed": false,
+      "remoteDebuggingPortUsed": false,
+      "productionQualified": false,
+      "checks": {
+        "discovery": true,
+        "imperativeInvocation": true,
+        "declarativeAutosubmit": true,
+        "declarativeManualSubmit": true,
+        "cancellation": true,
+        "executionAbortSignal": true,
+        "toolRemoval": true,
+        "removalPreservesInvocation": true,
+        "debuggingAnnotation": true,
+        "objectInput": true,
+        "navigationCleanup": true
+      },
+      "passed": true,
+      "fixture": {
+        "api": "document",
+        "canceled": false,
+        "submissions": [],
+        "secureContext": true,
+        "nodeVisible": false
+      },
+      "nativeDomainAvailable": true,
+      "tools": [
+        {
+          "name": "probe_auto",
+          "frameId": "FB15629328B8B64B5220A58784FFF433",
+          "annotations": {
+            "autosubmit": true
+          }
+        },
+        {
+          "name": "probe_debug",
+          "frameId": "FB15629328B8B64B5220A58784FFF433",
+          "annotations": {
+            "consequential": false,
+            "debugging": true,
+            "readOnly": true,
+            "untrustedContent": false
+          }
+        },
+        {
+          "name": "probe_echo",
+          "frameId": "FB15629328B8B64B5220A58784FFF433"
+        },
+        {
+          "name": "probe_hold",
+          "frameId": "FB15629328B8B64B5220A58784FFF433"
+        },
+        {
+          "name": "probe_manual",
+          "frameId": "FB15629328B8B64B5220A58784FFF433"
+        },
+        {
+          "name": "probe_slow",
+          "frameId": "FB15629328B8B64B5220A58784FFF433"
+        }
+      ],
+      "submissions": [
+        {
+          "name": "probe_auto",
+          "agentInvoked": true
+        },
+        {
+          "name": "probe_manual",
+          "agentInvoked": true
+        }
+      ],
+      "removedInFlightResponse": {
+        "invocationId": "1257D65A4A0FE02AD88E8B9B34889505",
+        "output": {
+          "value": "qualification-value"
+        },
+        "status": "Completed"
+      },
+      "pageInvocationOutput": "{\"value\":\"qualification-value\"}"
+    },
+    {
+      "schema": "ax-coder.native-webmcp-qualification.v1",
+      "timestamp": "2026-10-11T18:54:48.780Z",
+      "platform": "darwin",
+      "arch": "arm64",
+      "electron": "45.0.0-beta.1",
+      "chromium": "156.0.8078.12",
+      "featureEnabled": true,
+      "installedChromeUsed": false,
+      "remoteDebuggingPortUsed": false,
+      "productionQualified": false,
+      "checks": {
+        "discovery": true,
+        "imperativeInvocation": true,
+        "declarativeAutosubmit": true,
+        "declarativeManualSubmit": true,
+        "cancellation": true,
+        "executionAbortSignal": true,
+        "toolRemoval": true,
+        "removalPreservesInvocation": true,
+        "debuggingAnnotation": true,
+        "objectInput": true,
+        "navigationCleanup": true
+      },
+      "passed": true,
+      "fixture": {
+        "api": "document",
+        "canceled": false,
+        "submissions": [],
+        "secureContext": true,
+        "nodeVisible": false
+      },
+      "nativeDomainAvailable": true,
+      "tools": [
+        {
+          "name": "probe_auto",
+          "frameId": "D9F1C44DC49692A9BF7088598D5B33F2",
+          "annotations": {
+            "autosubmit": true
+          }
+        },
+        {
+          "name": "probe_debug",
+          "frameId": "D9F1C44DC49692A9BF7088598D5B33F2",
+          "annotations": {
+            "consequential": false,
+            "debugging": true,
+            "readOnly": true,
+            "untrustedContent": false
+          }
+        },
+        {
+          "name": "probe_echo",
+          "frameId": "D9F1C44DC49692A9BF7088598D5B33F2"
+        },
+        {
+          "name": "probe_hold",
+          "frameId": "D9F1C44DC49692A9BF7088598D5B33F2"
+        },
+        {
+          "name": "probe_manual",
+          "frameId": "D9F1C44DC49692A9BF7088598D5B33F2"
+        },
+        {
+          "name": "probe_slow",
+          "frameId": "D9F1C44DC49692A9BF7088598D5B33F2"
+        }
+      ],
+      "submissions": [
+        {
+          "name": "probe_auto",
+          "agentInvoked": true
+        },
+        {
+          "name": "probe_manual",
+          "agentInvoked": true
+        }
+      ],
+      "removedInFlightResponse": {
+        "invocationId": "D77BE70882F2E675083F40F38AF8C7DD",
+        "output": {
+          "value": "qualification-value"
+        },
+        "status": "Completed"
+      },
+      "pageInvocationOutput": "{\"value\":\"qualification-value\"}"
+    }
+  ]
+}

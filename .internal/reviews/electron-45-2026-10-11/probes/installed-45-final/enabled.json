@@ -1,0 +1,87 @@
+{
+  "schema": "ax-coder.native-webmcp-qualification.v1",
+  "timestamp": "2026-10-11T19:03:36.895Z",
+  "platform": "darwin",
+  "arch": "arm64",
+  "electron": "45.0.0-beta.1",
+  "chromium": "156.0.8078.12",
+  "featureEnabled": true,
+  "installedChromeUsed": false,
+  "remoteDebuggingPortUsed": false,
+  "productionQualified": false,
+  "checks": {
+    "discovery": true,
+    "imperativeInvocation": true,
+    "declarativeAutosubmit": true,
+    "declarativeManualSubmit": true,
+    "cancellation": true,
+    "executionAbortSignal": true,
+    "toolRemoval": true,
+    "removalPreservesInvocation": true,
+    "debuggingAnnotation": true,
+    "objectInput": true
+  },
+  "passed": false,
+  "fixture": {
+    "api": "document",
+    "canceled": false,
+    "submissions": [],
+    "secureContext": true,
+    "nodeVisible": false
+  },
+  "nativeDomainAvailable": true,
+  "tools": [
+    {
+      "name": "probe_auto",
+      "frameId": "284969FE9214597CA039D41AA60510FF",
+      "annotations": {
+        "autosubmit": true
+      }
+    },
+    {
+      "name": "probe_debug",
+      "frameId": "284969FE9214597CA039D41AA60510FF",
+      "annotations": {
+        "consequential": false,
+        "debugging": true,
+        "readOnly": true,
+        "untrustedContent": false
+      }
+    },
+    {
+      "name": "probe_echo",
+      "frameId": "284969FE9214597CA039D41AA60510FF"
+    },
+    {
+      "name": "probe_hold",
+      "frameId": "284969FE9214597CA039D41AA60510FF"
+    },
+    {
+      "name": "probe_manual",
+      "frameId": "284969FE9214597CA039D41AA60510FF"
+    },
+    {
+      "name": "probe_slow",
+      "frameId": "284969FE9214597CA039D41AA60510FF"
+    }
+  ],
+  "submissions": [
+    {
+      "name": "probe_auto",
+      "agentInvoked": true
+    },
+    {
+      "name": "probe_manual",
+      "agentInvoked": true
+    }
+  ],
+  "removedInFlightResponse": {
+    "invocationId": "237572F59E22C6B5F93F5577E0008BD7",
+    "output": {
+      "value": "qualification-value"
+    },
+    "status": "Completed"
+  },
+  "pageInvocationOutput": "{\"value\":\"qualification-value\"}",
+  "error": "Error: Timed out waiting for invocation response\n    at waitFor (/Users/akiralam/code/ax-coder-old/desktop/packages/electron/scripts/probe-native-webmcp.cjs:80:9)\n    at async run (/Users/akiralam/code/ax-coder-old/desktop/packages/electron/scripts/probe-native-webmcp.cjs:220:31)"
+}

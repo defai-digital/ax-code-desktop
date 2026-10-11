@@ -1,0 +1,10 @@
+{
+  "runtime": "7.24.4",
+  "signedArtifact": true,
+  "promptPreference": true,
+  "commandPreference": true,
+  "originalTextPreserved": true,
+  "projectInstructionsPresent": true,
+  "provider": "loopback fixture",
+  "modelLanguageQuality": "not evaluated"
+}

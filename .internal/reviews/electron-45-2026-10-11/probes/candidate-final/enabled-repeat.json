@@ -1,0 +1,89 @@
+{
+  "schema": "ax-coder.native-webmcp-qualification.v1",
+  "timestamp": "2026-10-11T19:12:50.820Z",
+  "platform": "darwin",
+  "arch": "arm64",
+  "electron": "45.0.0-beta.1",
+  "chromium": "156.0.8078.12",
+  "featureEnabled": true,
+  "installedChromeUsed": false,
+  "remoteDebuggingPortUsed": false,
+  "productionQualified": false,
+  "checks": {
+    "discovery": true,
+    "imperativeInvocation": true,
+    "declarativeAutosubmit": true,
+    "declarativeManualSubmit": true,
+    "cancellation": true,
+    "executionAbortSignal": true,
+    "toolRemoval": true,
+    "removalPreservesInvocation": true,
+    "debuggingAnnotation": true,
+    "objectInput": true,
+    "navigationCleanup": true
+  },
+  "passed": true,
+  "fixture": {
+    "api": "document",
+    "canceled": false,
+    "submissions": [],
+    "secureContext": true,
+    "nodeVisible": false
+  },
+  "nativeDomainAvailable": true,
+  "tools": [
+    {
+      "name": "probe_auto",
+      "frameId": "9BF4AAD8868CD75DA524D446CDBE3536",
+      "annotations": {
+        "autosubmit": true
+      }
+    },
+    {
+      "name": "probe_debug",
+      "frameId": "9BF4AAD8868CD75DA524D446CDBE3536",
+      "annotations": {
+        "consequential": false,
+        "debugging": true,
+        "readOnly": true,
+        "untrustedContent": false
+      }
+    },
+    {
+      "name": "probe_echo",
+      "frameId": "9BF4AAD8868CD75DA524D446CDBE3536"
+    },
+    {
+      "name": "probe_hold",
+      "frameId": "9BF4AAD8868CD75DA524D446CDBE3536"
+    },
+    {
+      "name": "probe_manual",
+      "frameId": "9BF4AAD8868CD75DA524D446CDBE3536"
+    },
+    {
+      "name": "probe_slow",
+      "frameId": "9BF4AAD8868CD75DA524D446CDBE3536"
+    }
+  ],
+  "submissions": [
+    {
+      "name": "probe_auto",
+      "agentInvoked": true
+    },
+    {
+      "name": "probe_manual",
+      "agentInvoked": true
+    }
+  ],
+  "removedInFlightResponse": {
+    "invocationId": "EBFD22560E055F1FC407F40C09DA0793",
+    "output": {
+      "value": "qualification-value"
+    },
+    "status": "Completed"
+  },
+  "pageInvocationOutput": "{\"value\":\"qualification-value\"}",
+  "navigationResponse": null,
+  "navigationResponseObservationMs": 500
+}
