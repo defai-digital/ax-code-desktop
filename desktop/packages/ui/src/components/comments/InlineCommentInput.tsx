@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { useDeviceInfo } from "@/lib/device"
 import { useI18n } from "@/lib/i18n"
 
-export interface InlineCommentInputProps {
+interface InlineCommentInputProps {
   initialText?: string
   onSave: (text: string, range?: { start: number; end: number; side?: "additions" | "deletions" }) => void
   onCancel: () => void

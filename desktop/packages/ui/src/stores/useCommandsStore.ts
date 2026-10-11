@@ -58,7 +58,7 @@ const buildCommandsSignature = (commands: Command[]): string =>
     command.isBuiltIn === true,
   ])
 
-export interface CommandDraft {
+interface CommandDraft {
   name: string
   scope: CommandScope
   description?: string
@@ -472,39 +472,6 @@ async function performFullConfigRefresh(options: { message?: string; delayMs?: n
     await sleep(1500)
   } finally {
     finishConfigUpdate()
-  }
-}
-
-export async function reloadAxCodeConfiguration(options?: { message?: string; delayMs?: number }) {
-  startConfigUpdate(options?.message || "Reloading AX Code configuration…")
-
-  try {
-    const response = await fetch(API_ENDPOINTS.config.reload, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    })
-
-    const payload = await response.json().catch(() => null)
-
-    if (!response.ok) {
-      const message = payload?.error || "Failed to reload configuration"
-      throw new Error(message)
-    }
-
-    if (payload?.requiresReload) {
-      await performFullConfigRefresh({
-        message: payload.message,
-        delayMs: payload.reloadDelayMs,
-      })
-    } else {
-      await performFullConfigRefresh(options)
-    }
-  } catch (error) {
-    console.error("[reloadAxCodeConfiguration] Failed:", error)
-    updateConfigUpdateMessage("Failed to reload configuration. Please try again.")
-    await sleep(2000)
-    finishConfigUpdate()
-    throw error
   }
 }
 

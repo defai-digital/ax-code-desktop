@@ -1,8 +1,8 @@
 import type { IntegrateInProgress } from "@/lib/git/integrateWorktreeCommits"
 
-export type BranchConflictOperation = "merge" | "rebase"
+type BranchConflictOperation = "merge" | "rebase"
 
-export type BranchConflictState = {
+type BranchConflictState = {
   readonly directory: string
   readonly conflictFiles: string[]
   readonly operation: BranchConflictOperation

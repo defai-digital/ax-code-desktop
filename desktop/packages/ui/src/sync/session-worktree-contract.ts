@@ -2,21 +2,13 @@ import type { WorktreeMetadata } from "@/types/worktree"
 import type { SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import { normalizeProjectPath, projectPathMatchesRoot } from "@/lib/projectResolution"
 
-export type ResolveSessionWorktreeStateInput = {
+type ResolveSessionWorktreeStateInput = {
   sessionDirectory: string | null
   metadata: WorktreeMetadata | null
   cwdExists?: boolean
   runtimeResolution?: SessionWorktreeAttachment | null
 }
-
-export type WorktreeDirectoryValidation = {
-  valid: boolean
-  insideWorktreeRoot: boolean
-  resolvedWorktreeRoot: string | null
-  resolvedCwd: string | null
-}
-
-export type WorktreeCanonicalizationResult = {
+type WorktreeCanonicalizationResult = {
   worktreeRoot: string | null
   cwd: string | null
   branch: string | null
@@ -27,7 +19,7 @@ export type WorktreeCanonicalizationResult = {
   attentionReason?: "merge" | "rebase" | "cherry-pick" | "revert" | "bisect" | null
 }
 
-export type SessionWorktreeCanonicalizationOptions = {
+type SessionWorktreeCanonicalizationOptions = {
   existingAttachment?: SessionWorktreeAttachment | null
   fallbackDirectory?: string | null
   worktreeSource?: SessionWorktreeAttachment["worktreeSource"]
@@ -155,7 +147,7 @@ export function formatSessionWorktreeBadge(attachment: SessionWorktreeAttachment
   return "No branch"
 }
 
-export type SessionWorktreeRepairAction = "locate" | "open-without-worktree-features"
+type SessionWorktreeRepairAction = "locate" | "open-without-worktree-features"
 
 export function getSessionWorktreeRepairActions(attachment: SessionWorktreeAttachment): SessionWorktreeRepairAction[] {
   if (attachment.worktreeStatus === "missing" || attachment.worktreeStatus === "invalid") {
@@ -164,7 +156,7 @@ export function getSessionWorktreeRepairActions(attachment: SessionWorktreeAttac
   return []
 }
 
-export type MutationBlockingReason =
+type MutationBlockingReason =
   | { reason: "attention"; attentionReason: NonNullable<SessionWorktreeAttachment["attentionReason"]> }
   | { reason: "missing" }
   | { reason: "invalid" }
@@ -192,7 +184,7 @@ export function getMutationBlockingReasons(
   return reasons
 }
 
-export type SessionTargetOption = {
+type SessionTargetOption = {
   value: string
   label: string
   kind: "root" | "worktree"

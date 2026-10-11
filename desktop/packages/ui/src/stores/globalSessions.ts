@@ -1,7 +1,7 @@
 import type { AxCodeClient, Session } from "@defai-digital/ax-code-sdk/v2"
 import { retry } from "@/sync/retry"
 
-export type GlobalSessionRecord = Session & {
+type GlobalSessionRecord = Session & {
   project?: {
     id: string
     name?: string
@@ -35,26 +35,6 @@ const readResponseHeader = (response: unknown, header: string): string | null =>
   const maybeRecord = headers as Record<string, unknown>
   const direct = maybeRecord[header] ?? maybeRecord[header.toLowerCase()]
   return typeof direct === "string" ? direct : null
-}
-
-export const readNextCursor = (response: unknown): number | null => {
-  return toNumber(readResponseHeader(response, "x-next-cursor"))
-}
-
-export const isMissingGlobalSessionsEndpointError = (error: unknown): boolean => {
-  if (!error || typeof error !== "object") {
-    return false
-  }
-
-  const value = error as {
-    status?: number
-    response?: { status?: number }
-    cause?: { status?: number; response?: { status?: number } }
-  }
-
-  const status = value.status ?? value.response?.status ?? value.cause?.status ?? value.cause?.response?.status
-
-  return status === 404
 }
 
 export async function listGlobalSessionPages(

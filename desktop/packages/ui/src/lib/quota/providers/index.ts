@@ -1,6 +1,6 @@
 import type { QuotaProviderId } from "@/types"
 
-export interface QuotaProviderMeta {
+interface QuotaProviderMeta {
   id: QuotaProviderId
   name: string
 }
@@ -20,8 +20,3 @@ export const QUOTA_PROVIDERS: QuotaProviderMeta[] = [
   { id: "ollama-cloud", name: "Ollama Cloud" },
   { id: "wafer", name: "Wafer.ai" },
 ]
-
-export const QUOTA_PROVIDER_MAP = QUOTA_PROVIDERS.reduce<Record<string, QuotaProviderMeta>>((acc, provider) => {
-  acc[provider.id] = provider
-  return acc
-}, {})

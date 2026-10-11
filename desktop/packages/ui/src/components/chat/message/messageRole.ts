@@ -1,6 +1,6 @@
 import type { Message } from "@defai-digital/ax-code-sdk/v2"
 
-export interface MessageRoleInfo {
+interface MessageRoleInfo {
   role: string
   isUser: boolean
 }

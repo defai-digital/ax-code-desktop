@@ -4,7 +4,7 @@ import { dict as enDict, type I18nKey } from "./messages/en"
 import { DEFAULT_LOCALE, type Locale } from "./runtime"
 
 export type I18nParams = Record<string, string | number | boolean | null | undefined>
-export type I18nDictionary = Record<I18nKey, string>
+type I18nDictionary = Record<I18nKey, string>
 
 type I18nState = {
   locale: Locale
@@ -46,4 +46,4 @@ export function formatMessage(dictionary: I18nDictionary, key: I18nKey, params?:
   })
 }
 
-export type { I18nKey, Locale }
+export type { I18nKey,  }

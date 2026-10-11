@@ -15,7 +15,7 @@
  */
 
 /** Update-frequency tier of a store. */
-export type StoreTier =
+type StoreTier =
   /** Mutated on the per-frame streaming path (e.g. 60/s message.part.delta). */
   | "hot"
   /** Mutated by server events at interaction frequency. */
@@ -23,13 +23,13 @@ export type StoreTier =
   /** Mutated by user actions or app lifecycle only. */
   | "app"
 
-export type StoreMeta = {
+type StoreMeta = {
   /** Domain this store owns (e.g. "notifications", "sessions"). */
   domain: string
   tier: StoreTier
 }
 
-export type StoreRegistration = StoreMeta & {
+type StoreRegistration = StoreMeta & {
   name: string
 }
 
@@ -49,9 +49,4 @@ export function defineStore<T>(name: string, meta: StoreMeta, store: T): T {
   }
   registrations.set(name, { name, ...meta })
   return store
-}
-
-/** Snapshot of all registrations, for tests and diagnostics. */
-export function getStoreRegistry(): readonly StoreRegistration[] {
-  return Array.from(registrations.values())
 }

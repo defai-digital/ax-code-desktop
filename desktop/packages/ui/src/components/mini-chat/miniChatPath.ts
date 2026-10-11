@@ -1,7 +1,7 @@
 import { normalizeProjectPath, projectPathMatchesRoot } from "@/lib/projectResolution"
 import { formatPathForDisplay } from "@/lib/utils"
 
-export type MiniChatProjectPath = {
+type MiniChatProjectPath = {
   path: string
 }
 

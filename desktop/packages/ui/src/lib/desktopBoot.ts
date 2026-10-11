@@ -42,7 +42,7 @@ export type DesktopBootView =
 
 // ── Resolver inputs ──
 
-export type DesktopBootViewInput = {
+type DesktopBootViewInput = {
   isDesktopShell: boolean
   bootOutcome: DesktopBootOutcome | null
 }
@@ -192,7 +192,7 @@ export function resolveDesktopBootView(input: DesktopBootViewInput): DesktopBoot
 
 export type BootInjectionStatus = "not-injected" | "malformed" | "valid"
 
-export type InitialLoadingState = {
+type InitialLoadingState = {
   isDesktopShell: boolean
   isInitialized: boolean
   bootOutcomeKnown: boolean
@@ -204,7 +204,7 @@ export type InitialLoadingState = {
   bootViewIsMain?: boolean
 }
 
-export type DesktopBootFlowRestartInput = {
+type DesktopBootFlowRestartInput = {
   isTauriShell: boolean
   isDesktopLocalOriginActive: boolean
 }

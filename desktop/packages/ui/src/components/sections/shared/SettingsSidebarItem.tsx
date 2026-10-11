@@ -5,7 +5,7 @@ import { Icon } from "@/components/icon/Icon"
 import type { IconName } from "@/components/icon/icons"
 import { cn } from "@/lib/utils"
 
-export interface SettingsSidebarItemAction {
+interface SettingsSidebarItemAction {
   /** Label shown in dropdown menu */
   label: string
   /** Icon component to show before label */

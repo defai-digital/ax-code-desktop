@@ -1,4 +1,4 @@
-export type PrActionRefreshTimerId = number
+type PrActionRefreshTimerId = number
 
 export const clearPrActionRefreshTimers = (timers: readonly PrActionRefreshTimerId[]): void => {
   timers.forEach((timerId) => {

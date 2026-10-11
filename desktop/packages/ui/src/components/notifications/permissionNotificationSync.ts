@@ -1,6 +1,6 @@
 import type { PermissionRequest } from "@/types/permission"
 
-export type PermissionNotificationDiff = {
+type PermissionNotificationDiff = {
   /** Live requests that have no mirrored notification yet. */
   toAdd: PermissionRequest[]
   /** Mirrored notifications whose request is no longer pending. */

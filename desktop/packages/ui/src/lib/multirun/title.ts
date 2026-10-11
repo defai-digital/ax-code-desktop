@@ -1,4 +1,4 @@
-export type ParsedMultiRunTitle = {
+type ParsedMultiRunTitle = {
   groupSlug: string
   runGroup?: string
   providerID: string
@@ -92,11 +92,6 @@ export const getMultiRunSessionTitle = (parts: {
   if (parts.index !== undefined) segments.push(String(parts.index))
   return segments.join("/")
 }
-
-export const isMultiRunSessionTitle = (title?: string | null): boolean => {
-  return parseMultiRunSessionTitle(title) !== null
-}
-
 export const getFusionSessionTitle = (
   groupSlug: string,
   providerID: string,

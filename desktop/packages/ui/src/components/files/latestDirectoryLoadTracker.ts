@@ -1,4 +1,4 @@
-export interface DirectoryLoadToken {
+interface DirectoryLoadToken {
   directory: string
   requestId: number
 }

@@ -12,7 +12,7 @@ interface UseStreamingTextThrottleInput {
 // longer buffer on top of it.
 const DEFAULT_STREAMING_TEXT_THROTTLE_MS = 33
 
-export const computeStreamingThrottleDelay = (lastEmitAt: number, now: number, throttleMs: number): number => {
+const computeStreamingThrottleDelay = (lastEmitAt: number, now: number, throttleMs: number): number => {
   const elapsed = now - lastEmitAt
   return Math.max(0, throttleMs - elapsed)
 }

@@ -1,6 +1,6 @@
 import Fuse from "fuse.js"
 
-export interface FuzzySearchOptions {
+interface FuzzySearchOptions {
   threshold?: number
   distance?: number
   ignoreLocation?: boolean
@@ -153,15 +153,6 @@ export function scoreByFuzzyQuery<T>(
 
   scored.sort((a, b) => a.score - b.score)
   return scored.slice(0, limit)
-}
-
-export function rankByFuzzyQuery<T>(
-  items: T[],
-  query: string,
-  getText: (item: T) => string,
-  options?: { limit?: number; threshold?: number; noFuzzy?: boolean },
-): T[] {
-  return scoreByFuzzyQuery(items, query, getText, options).map((x) => x.item)
 }
 
 export function partitionByFuzzyQuery<T>(

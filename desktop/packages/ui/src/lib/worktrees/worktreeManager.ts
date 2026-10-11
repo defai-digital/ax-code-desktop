@@ -69,7 +69,7 @@ const deriveSdkWorktreeNameFromDirectory = (directory: string): string => {
   return parts[parts.length - 1] ?? normalized
 }
 
-export const buildSdkStartCommand = (args: {
+const buildSdkStartCommand = (args: {
   projectDirectory: string
   setupCommands: string[]
 }): string | undefined => {

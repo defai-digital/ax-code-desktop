@@ -40,7 +40,7 @@ const LANE_COLORS: LaneColor[] = [
   "var(--status-info)",
 ]
 
-export function laneColor(lane: number): LaneColor {
+function laneColor(lane: number): LaneColor {
   return LANE_COLORS[lane % LANE_COLORS.length]
 }
 

@@ -1,6 +1,6 @@
 export type ConfigChangeScope = "agents" | "providers" | "commands" | "skills" | "all"
 
-export interface ConfigChangeEvent {
+interface ConfigChangeEvent {
   scopes: ConfigChangeScope[]
   source?: string
   timestamp: number

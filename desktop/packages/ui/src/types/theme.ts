@@ -74,7 +74,7 @@ export interface PullRequestColors {
   closed: string
 }
 
-export interface SyntaxBaseColors {
+interface SyntaxBaseColors {
   background: string
   foreground: string
   comment: string
@@ -101,88 +101,6 @@ export interface ButtonVariant {
   hover?: string
   active?: string
   disabled?: string
-}
-
-export interface TypographyStyle {
-  fontSize: string
-  lineHeight: string
-  letterSpacing?: string
-  fontWeight?: string | number
-}
-
-export interface TypographyScale {
-  xs: TypographyStyle
-  sm: TypographyStyle
-  base: TypographyStyle
-  lg: TypographyStyle
-  xl: TypographyStyle
-  "2xl": TypographyStyle
-  "3xl": TypographyStyle
-  "4xl": TypographyStyle
-  "5xl": TypographyStyle
-}
-
-export interface HeadingStyles {
-  h1: TypographyStyle
-  h2: TypographyStyle
-  h3: TypographyStyle
-  h4: TypographyStyle
-  h5: TypographyStyle
-  h6: TypographyStyle
-}
-
-export interface UITypography {
-  button: TypographyStyle
-  buttonSmall: TypographyStyle
-  buttonLarge: TypographyStyle
-  label: TypographyStyle
-  caption: TypographyStyle
-  badge: TypographyStyle
-  tooltip: TypographyStyle
-  input: TypographyStyle
-  helperText: TypographyStyle
-}
-
-export interface CodeTypography {
-  inline: TypographyStyle
-  block: TypographyStyle
-  lineNumbers: TypographyStyle
-}
-
-export interface MarkdownTypography {
-  h1: TypographyStyle
-  h2: TypographyStyle
-  h3: TypographyStyle
-  h4: TypographyStyle
-  h5: TypographyStyle
-  h6: TypographyStyle
-  body: TypographyStyle
-  bodySmall: TypographyStyle
-  bodyLarge: TypographyStyle
-  blockquote: TypographyStyle
-  list: TypographyStyle
-  link: TypographyStyle
-  code: TypographyStyle
-  codeBlock: TypographyStyle
-}
-
-export interface SemanticTypography {
-  markdown?: string
-  code?: string
-  uiHeader?: string
-  uiLabel?: string
-  meta?: string
-  micro?: string
-}
-
-export interface Typography {
-  scale?: TypographyScale
-  heading?: HeadingStyles
-  ui?: UITypography
-  code?: CodeTypography
-  markdown?: MarkdownTypography
-
-  semantic?: SemanticTypography
 }
 
 export interface Theme {
@@ -257,31 +175,4 @@ export interface Theme {
       slow?: string
     }
   }
-}
-
-export interface ValidationIssue {
-  path: string
-  message: string
-  severity: "error" | "warning"
-}
-
-export interface ValidationResult {
-  isValid: boolean
-  errors: ValidationIssue[]
-  warnings: ValidationIssue[]
-}
-
-export interface AccessibilityIssue {
-  foreground: string
-  background: string
-  ratio: number
-  requirement: number
-  pass: boolean
-  context: string
-}
-
-export interface AccessibilityReport {
-  wcagAA: boolean
-  wcagAAA: boolean
-  issues: AccessibilityIssue[]
 }

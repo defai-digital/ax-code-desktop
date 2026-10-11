@@ -1,7 +1,4 @@
 import { relativeTimeParts } from "@/components/session/scheduledTaskRelativeTime"
-
-export type ProjectReadiness = "ready" | "unknown"
-
 type Translate = (key: string, params?: Record<string, string | number>) => string
 
 /**

@@ -29,7 +29,7 @@ export type SessionMemoryState = {
   lastUserMessageAt?: number
 }
 
-export type ViewportState = {
+type ViewportState = {
   sessionMemoryState: Map<string, SessionMemoryState>
   isSyncing: boolean
 

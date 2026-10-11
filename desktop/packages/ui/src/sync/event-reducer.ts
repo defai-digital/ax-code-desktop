@@ -349,7 +349,7 @@ function areUnknownMessageKeysEqual(left: Message, right: Message): boolean {
 // Global events
 // ---------------------------------------------------------------------------
 
-export type GlobalEventResult =
+type GlobalEventResult =
   | {
       type: "refresh"
     }
@@ -359,7 +359,7 @@ export type GlobalEventResult =
     }
   | null
 
-export type DirectoryEventResult =
+type DirectoryEventResult =
   | boolean
   | {
       changed: boolean

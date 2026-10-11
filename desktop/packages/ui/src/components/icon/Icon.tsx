@@ -30,7 +30,7 @@ function ensureSpriteOnce() {
   spriteInjected = true
 }
 
-export interface IconProps extends React.ComponentPropsWithoutRef<"svg"> {
+interface IconProps extends React.ComponentPropsWithoutRef<"svg"> {
   name: IconName
 }
 

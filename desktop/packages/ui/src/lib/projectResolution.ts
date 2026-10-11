@@ -49,7 +49,7 @@ export const resolveProjectForDirectory = (projects: ProjectEntry[], directory: 
   return best
 }
 
-export const resolveProjectFromWorktreeDirectory = (
+const resolveProjectFromWorktreeDirectory = (
   projects: ProjectEntry[],
   availableWorktreesByProject: Map<string, WorktreeMetadata[]>,
   directory: string | null,

@@ -1,6 +1,6 @@
 type PluginFileReadResult = { content: string } | null
 
-export type PluginFileLoadResult = { ok: true; content: string } | { ok: false; error?: unknown }
+type PluginFileLoadResult = { ok: true; content: string } | { ok: false; error?: unknown }
 
 export const loadPluginFileContent = async (
   fileId: string,

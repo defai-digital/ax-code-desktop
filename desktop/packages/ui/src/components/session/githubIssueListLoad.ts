@@ -1,6 +1,6 @@
 import type { GitHubIssuesListResult } from "@/lib/api/types"
 
-export type GitHubIssueListLoadResult =
+type GitHubIssueListLoadResult =
   | { status: "loaded"; result: GitHubIssuesListResult }
   | { status: "stale" }
   | { status: "failed"; error: unknown }

@@ -1,8 +1,8 @@
 import { API_ENDPOINTS } from "@/lib/http"
 
-export type GitChangesViewMode = "flat" | "tree"
+type GitChangesViewMode = "flat" | "tree"
 
-export type GitSettingsPayload = {
+type GitSettingsPayload = {
   gitmojiEnabled?: boolean
   gitChangesViewMode?: GitChangesViewMode
 }

@@ -912,8 +912,6 @@ handleCommand("desktop_set_badge_count", async (args) => {
   return app.setBadgeCount(value)
 })
 
-handleCommand("desktop_get_lan_address", async () => null)
-
 handleCommand("desktop_dialog_open", async (args, event) => {
   const options = args ?? {}
   const dialogOptions = buildDesktopOpenDialogOptions(options)

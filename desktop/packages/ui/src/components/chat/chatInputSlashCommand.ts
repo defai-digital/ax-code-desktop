@@ -1,4 +1,4 @@
-export type ChatSlashCommandName =
+type ChatSlashCommandName =
   | "undo"
   | "redo"
   | "timeline"
@@ -12,7 +12,7 @@ export type ChatSlashCommandName =
   | "weigh"
   | "explore"
 
-export type ChatSlashCommand = {
+type ChatSlashCommand = {
   name: ChatSlashCommandName
   rest: string
 }

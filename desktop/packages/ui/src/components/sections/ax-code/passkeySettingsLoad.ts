@@ -1,11 +1,11 @@
 import type { PasskeyStatus, StoredPasskey } from "@/lib/passkeys"
 
-export type PasskeySupportState = {
+type PasskeySupportState = {
   supported: boolean
   reason: string
 }
 
-export type PasskeySettingsLoadResult =
+type PasskeySettingsLoadResult =
   | { status: "unsupported" }
   | { status: "disabled"; passkeyStatus: PasskeyStatus }
   | { status: "loaded"; passkeyStatus: PasskeyStatus; passkeys: StoredPasskey[] }

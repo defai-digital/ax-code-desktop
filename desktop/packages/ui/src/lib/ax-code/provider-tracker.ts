@@ -124,11 +124,3 @@ export function getRetryDelayMs(attempt: number): number {
   const delay = DEFAULT_RETRY_BASE_DELAY_MS * 2 ** attempt
   return Math.min(delay, DEFAULT_RETRY_MAX_DELAY_MS)
 }
-
-export function resetCircuit(providerID: string): void {
-  const state = providers.get(providerID)
-  if (!state) return
-  state.consecutiveErrors = 0
-  state.circuitOpen = false
-  state.circuitCooldownMs = DEFAULT_CIRCUIT_COOLDOWN_MS
-}

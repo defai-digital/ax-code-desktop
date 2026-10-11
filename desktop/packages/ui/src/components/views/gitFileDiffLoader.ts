@@ -1,6 +1,6 @@
 import type { GetGitFileDiffOptions, GitFileDiffResponse } from "@/lib/api/types"
 
-export const DIFF_REQUEST_TIMEOUT_MS = 15000
+const DIFF_REQUEST_TIMEOUT_MS = 15000
 
 export type GitFileDiffFetcher = (directory: string, options: GetGitFileDiffOptions) => Promise<GitFileDiffResponse>
 

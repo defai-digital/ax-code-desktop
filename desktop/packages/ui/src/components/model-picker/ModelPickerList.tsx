@@ -28,7 +28,7 @@ export type ModelPickerEntry = {
   modelID: string
 }
 
-export type ModelPickerFavoriteEntry = ModelPickerEntry
+type ModelPickerFavoriteEntry = ModelPickerEntry
 
 type HiddenModel = { providerID: string; modelID: string }
 

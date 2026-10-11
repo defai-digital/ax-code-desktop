@@ -52,7 +52,7 @@ export const getStatusOnlySliceDeps = (states: readonly LiveSliceSource[]): read
 export const getPermissionSliceDeps = (states: readonly LiveSliceSource[]): readonly unknown[] =>
   states.map((state) => state.permission)
 
-export type LiveSnapshotMemoOptions<TStates, T> = {
+type LiveSnapshotMemoOptions<TStates, T> = {
   selector: (states: TStates) => T
   isEqual: (left: T, right: T) => boolean
   getDeps?: (states: TStates) => readonly unknown[]

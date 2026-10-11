@@ -1,7 +1,7 @@
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2"
 import { filterSyntheticParts } from "@/lib/messages/synthetic"
 
-export type AssistantRetryPayload = {
+type AssistantRetryPayload = {
   text: string
   providerID: string
   modelID: string

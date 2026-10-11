@@ -14,7 +14,7 @@ const tr = (key: I18nKey, params?: I18nParams): string => formatMessage(useI18nS
 
 type ToastOptions = { id: string; description?: string; duration?: number }
 
-export type DownloadToastDeps = {
+type DownloadToastDeps = {
   toast: {
     loading: (message: string, options: ToastOptions) => unknown
     success: (message: string, options: ToastOptions) => unknown

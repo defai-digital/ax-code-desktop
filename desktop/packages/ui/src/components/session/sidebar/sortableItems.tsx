@@ -9,7 +9,7 @@ import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/l
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { useI18n } from "@/lib/i18n"
 
-export interface SidebarSortableProjectItemProps {
+interface SidebarSortableProjectItemProps {
   id: string
   projectLabel: string
   /** The home ("~") project: render a house icon and don't lowercase the label. */

@@ -22,7 +22,7 @@ function getRuntimeFilesAPI(): FilesAPI | null {
   return null
 }
 
-export async function execCommands(commands: string[], cwd: string): Promise<ExecCommandsResult> {
+async function execCommands(commands: string[], cwd: string): Promise<ExecCommandsResult> {
   const runtimeFiles = getRuntimeFilesAPI()
   if (runtimeFiles?.execCommands) {
     return runtimeFiles.execCommands(commands, cwd)

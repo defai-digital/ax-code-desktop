@@ -1,4 +1,4 @@
-export type GitHubIssueDetailLoadResult<T> =
+type GitHubIssueDetailLoadResult<T> =
   | { status: "loaded"; value: T }
   | { status: "stale" }
   | { status: "failed"; error: unknown }

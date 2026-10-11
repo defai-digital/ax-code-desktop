@@ -29,7 +29,7 @@ export function createEventTarget(extras: Record<string, unknown> = {}): TestEve
   }
 }
 
-export type SavedBrowserGlobals = {
+type SavedBrowserGlobals = {
   document: typeof globalThis.document
   window: typeof globalThis.window
   navigator: typeof globalThis.navigator

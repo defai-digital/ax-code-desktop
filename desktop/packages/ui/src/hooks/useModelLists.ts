@@ -3,7 +3,7 @@ import { useConfigStore } from "@/stores/useConfigStore"
 import { useUIStore } from "@/stores/useUIStore"
 import type { ProviderModel, ProviderWithModelList } from "@/types/providerModels"
 
-export interface ModelListItem {
+interface ModelListItem {
   provider: ProviderWithModelList
   model: ProviderModel
   providerID: string

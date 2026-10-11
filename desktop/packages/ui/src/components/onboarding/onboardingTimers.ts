@@ -1,4 +1,4 @@
-export type OnboardingTimerId = number
+type OnboardingTimerId = number
 
 export const clearOnboardingTimer = (timerId: OnboardingTimerId | null): null => {
   if (timerId !== null) {

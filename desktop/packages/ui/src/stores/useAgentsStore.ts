@@ -45,7 +45,7 @@ const buildAgentsSignature = (agents: Agent[]): string =>
     ]
   })
 
-export type { AgentScope, AgentWithExtras }
+export type { AgentScope,  }
 export { isAgentBuiltIn, isAgentHidden, filterVisibleAgents } from "@/lib/agents"
 
 export interface AgentConfig {

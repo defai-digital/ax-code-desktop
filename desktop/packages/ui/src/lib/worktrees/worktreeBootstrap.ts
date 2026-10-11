@@ -44,7 +44,7 @@ export const clearWorktreeBootstrapState = (directory: string): void => {
   waiters.delete(key)
 }
 
-export const setWorktreeBootstrapState = (directory: string, next: WorktreeBootstrapState): void => {
+const setWorktreeBootstrapState = (directory: string, next: WorktreeBootstrapState): void => {
   const key = getKey(directory)
   if (!key) {
     return
@@ -54,15 +54,6 @@ export const setWorktreeBootstrapState = (directory: string, next: WorktreeBoots
     waiters.delete(key)
   }
 }
-
-export const getWorktreeBootstrapState = (directory: string): WorktreeBootstrapState | null => {
-  const key = getKey(directory)
-  if (!key) {
-    return null
-  }
-  return state.get(key) ?? null
-}
-
 const pollWorktreeBootstrapUntilSettled = async (directory: string, timeoutMs: number): Promise<void> => {
   const startedAt = Date.now()
 

@@ -42,7 +42,7 @@ export type MagicPromptId =
   | "session.fusion.visible"
   | "session.fusion.instructions"
 
-export interface MagicPromptDefinition {
+interface MagicPromptDefinition {
   id: MagicPromptId
   title: string
   description: string
@@ -51,14 +51,14 @@ export interface MagicPromptDefinition {
   placeholders?: Array<{ key: string; description: string }>
 }
 
-export interface MagicPromptOverridesPayload {
+interface MagicPromptOverridesPayload {
   version: number
   overrides: Record<string, string>
 }
 
 const API_ENDPOINT = API_ENDPOINTS.magicPrompts
 
-export const MAGIC_PROMPT_DEFINITIONS: readonly MagicPromptDefinition[] = [
+const MAGIC_PROMPT_DEFINITIONS: readonly MagicPromptDefinition[] = [
   {
     id: "git.commit.generate.visible",
     title: "Commit Generation Visible Prompt",
@@ -863,12 +863,6 @@ export const fetchMagicPromptOverrides = async (): Promise<Record<string, string
 
   return inFlightOverridesRequest
 }
-
-export const invalidateMagicPromptOverridesCache = () => {
-  cachedOverrides = null
-  inFlightOverridesRequest = null
-}
-
 export const getMagicPromptDefinition = (id: MagicPromptId): MagicPromptDefinition => {
   const definition = MAGIC_PROMPT_DEFINITION_BY_ID.get(id)
   if (!definition) {
@@ -881,7 +875,7 @@ export const getDefaultMagicPromptTemplate = (id: MagicPromptId): string => {
   return getMagicPromptDefinition(id).template
 }
 
-export const getEffectiveMagicPromptTemplate = async (id: MagicPromptId): Promise<string> => {
+const getEffectiveMagicPromptTemplate = async (id: MagicPromptId): Promise<string> => {
   const overrides = await fetchMagicPromptOverrides().catch((): Record<string, string> => ({}))
   const override = overrides[id]
   if (typeof override === "string") {

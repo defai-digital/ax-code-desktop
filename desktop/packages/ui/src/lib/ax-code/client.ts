@@ -8,7 +8,6 @@ import type {
   Part,
   Provider,
   Config,
-  Model,
   Agent,
   TextPartInput,
   FilePartInput,
@@ -226,7 +225,7 @@ interface App {
   [key: string]: unknown
 }
 
-export type FilesystemEntry = {
+type FilesystemEntry = {
   name: string
   path: string
   isDirectory: boolean
@@ -260,7 +259,7 @@ type FileInputLite = {
   source?: FilePartInput["source"]
 }
 
-export type DirectorySwitchResult = {
+type DirectorySwitchResult = {
   success: boolean
   restarted: boolean
   path: string
@@ -2032,5 +2031,5 @@ class AxCodeService {
 export const axCodeClient = new AxCodeService()
 
 // Exported types
-export type { Session, Message, Part, Provider, Config, Model }
-export type { App }
+
+

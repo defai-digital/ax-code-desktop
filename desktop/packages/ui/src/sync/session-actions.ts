@@ -696,35 +696,6 @@ export async function deleteSession(sessionId: string, options?: { notify?: bool
   }
 }
 
-/** Delete a session specifying which directory it lives in. Used by agent groups for cross-directory deletes. */
-export async function deleteSessionInDirectory(sessionId: string, directory: string): Promise<boolean> {
-  if (!_childStores) return false
-  const store = _childStores.ensureChild(directory)
-  const current = store.getState()
-  const sessions = [...current.session]
-  const result = Binary.search(sessions, sessionId, (s) => s.id)
-  let removed: Session | null = null
-  if (result.found) {
-    removed = sessions[result.index]
-    sessions.splice(result.index, 1)
-    store.setState({ session: sessions })
-  }
-  const ui = useSessionUIStore.getState()
-  if (ui.currentSessionId === sessionId) ui.setCurrentSession(null)
-  try {
-    await scopedClientForDirectory(directory).session.delete({ sessionID: sessionId, directory })
-    // Optimistic removal (load-bearing) — same contract as deleteSession:
-    // cross-directory hard deletes have no pendingRemoval window, so this is
-    // the instant sidebar update; the session.deleted event reconciles.
-    useGlobalSessionsStore.getState().removeSessions([sessionId])
-    return true
-  } catch (error) {
-    console.error("[session-actions] deleteSessionInDirectory failed", error)
-    if (removed) rollbackOptimisticRemoval(store, removed)
-    return false
-  }
-}
-
 export async function archiveSession(sessionId: string, options?: { notify?: boolean }): Promise<boolean> {
   const sessionDirectory = getSessionDirectory(sessionId)
   const removed = optimisticRemoveSession(sessionId, sessionDirectory)

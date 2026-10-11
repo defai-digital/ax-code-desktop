@@ -9,13 +9,11 @@ import { WorkMode } from "@defai-digital/ax-code-sdk/mode"
 
 // ── Re-exports from core ────────────────────────────────────────────────
 export type WorkModeId = WorkMode.Id
-export const WORK_MODES: readonly WorkModeId[] = WorkMode.ALL
 export const DEFAULT_WORK_MODE: WorkModeId = WorkMode.DEFAULT
-export const isWorkMode: (value: unknown) => value is WorkModeId = WorkMode.isWorkMode
 export const parseWorkMode: (value: unknown, fallback?: WorkModeId) => WorkModeId = WorkMode.parse
 export const cycleWorkMode: (current: WorkModeId) => WorkModeId = WorkMode.cycle
 export const workModeChipColorHex: (mode: WorkModeId) => `#${string}` = WorkMode.chipColorHex
-export type WorkModeRouted = WorkMode.Routed
+type WorkModeRouted = WorkMode.Routed
 export const routeWorkModeInput: (mode: WorkModeId, text: string) => WorkModeRouted = WorkMode.routeInput
 
 // ── Desktop-specific helpers ────────────────────────────────────────────

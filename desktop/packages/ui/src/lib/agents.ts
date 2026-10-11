@@ -47,7 +47,7 @@ export const filterVisibleAgents = (agents: Agent[]): Agent[] => agents.filter((
  * Registered by `useAgentsStore` at module load; consumers tolerate a null
  * source (treated as "no agents loaded yet").
  */
-export type AgentsSource = {
+type AgentsSource = {
   getAgents: () => Agent[]
   loadAgents: (options?: { directory?: string | null }) => Promise<boolean>
 }

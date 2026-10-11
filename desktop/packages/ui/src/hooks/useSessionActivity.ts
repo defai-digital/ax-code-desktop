@@ -3,9 +3,9 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSessionStatus, useSessionMessages, useSessionPermissions } from "@/sync/sync-context"
 
 // Mirrors AX Code SessionStatus: busy|retry|idle.
-export type SessionActivityPhase = "idle" | "busy" | "retry"
+type SessionActivityPhase = "idle" | "busy" | "retry"
 
-export interface SessionActivityResult {
+interface SessionActivityResult {
   phase: SessionActivityPhase
   isWorking: boolean
   isBusy: boolean

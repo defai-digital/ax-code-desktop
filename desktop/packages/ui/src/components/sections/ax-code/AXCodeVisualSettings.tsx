@@ -187,7 +187,7 @@ const normalizeUserMessageRenderingMode = (mode: unknown): "markdown" | "plain" 
   return mode === "markdown" ? "markdown" : "plain"
 }
 
-export type VisibleSetting =
+type VisibleSetting =
   | "theme"
   | "timeFormat"
   | "weekStart"

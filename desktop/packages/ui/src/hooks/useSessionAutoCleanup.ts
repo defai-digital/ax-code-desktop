@@ -26,7 +26,7 @@ type BuildAutoDeleteCandidatesOptions = {
   now?: number
 }
 
-export const buildAutoDeleteCandidates = ({
+const buildAutoDeleteCandidates = ({
   sessions,
   currentSessionId,
   cutoffDays,

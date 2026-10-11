@@ -6,7 +6,7 @@ import type { ProviderModel, ProviderWithModelList } from "@/types/providerModel
 // ~40k matches runtime default build/agent fixed budget (~38.8k observed in #379).
 const DEFAULT_FULL_AGENT_FIXED_TOKENS_ESTIMATE = 40_000
 
-export function usableInputTokensFromModelLimit(
+function usableInputTokensFromModelLimit(
   limit:
     | {
         context?: number
@@ -33,7 +33,7 @@ export function usableInputTokensFromModelLimit(
  * Full-agent fixed budget for every provider, including ax-engine (#379).
  * `providerID` stays in the public API for call-site compatibility; budget is not provider-specific.
  */
-export function fixedTokensEstimateForProvider(providerID?: string): number {
+function fixedTokensEstimateForProvider(providerID?: string): number {
   void providerID
   return DEFAULT_FULL_AGENT_FIXED_TOKENS_ESTIMATE
 }
@@ -42,7 +42,7 @@ export function fixedTokensEstimateForProvider(providerID?: string): number {
  * Selection-time agent/tool setup fit (#379). Returns a human-readable block
  * reason when the model cannot fit the default fixed prompt+tool schema.
  */
-export function getModelAgentToolFitBlockReason(
+function getModelAgentToolFitBlockReason(
   model: Record<string, unknown> | null | undefined,
   providerID?: string,
 ): string {
@@ -93,7 +93,7 @@ export const isProviderModelSelectable = (
   model: Record<string, unknown> | null | undefined,
   providerID?: string,
 ): boolean => getProviderModelDisabledReason(model, providerID).length === 0
-export const findSelectableProviderModel = (
+const findSelectableProviderModel = (
   providers: ProviderWithModelList[],
   providerId: string,
   modelId: string,

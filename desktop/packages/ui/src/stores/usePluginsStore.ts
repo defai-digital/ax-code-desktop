@@ -35,7 +35,7 @@ export interface PluginDraft {
   content: string
 }
 
-export type PluginMutationResult = {
+type PluginMutationResult = {
   ok: boolean
   reloadFailed?: boolean
   message?: string
@@ -67,7 +67,7 @@ export type RegistryResult =
   | { kind: "path-missing"; spec: string; absolutePath: string }
   | { kind: "path-unreadable"; spec: string; absolutePath: string }
 
-export interface PluginsStore {
+interface PluginsStore {
   entries: PluginEntry[]
   files: PluginFile[]
   selectedId: string | null
@@ -126,7 +126,7 @@ type PluginFileContent = {
 const getConfigDirectory = (): string | null => getActiveConfigDirectory("PluginsStore")
 
 const CLIENT_RELOAD_DELAY_MS = 800
-export const PLUGINS_LOAD_CACHE_TTL_MS = 5000
+const PLUGINS_LOAD_CACHE_TTL_MS = 5000
 const pluginsLastLoadedAt = new Map<string, number>()
 const pluginsCacheByKey = new Map<string, { entries: PluginEntry[]; files: PluginFile[] }>()
 const pluginsLoadInFlight = new Map<string, Promise<boolean>>()

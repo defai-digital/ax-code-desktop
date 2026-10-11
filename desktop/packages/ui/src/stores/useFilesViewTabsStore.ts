@@ -26,7 +26,7 @@ type FilesViewTabsActions = {
   expandPaths: (root: string, paths: string[]) => void
 }
 
-export type FilesViewTabsStore = FilesViewTabsState & FilesViewTabsActions
+type FilesViewTabsStore = FilesViewTabsState & FilesViewTabsActions
 
 const normalizePath = (value: string): string => {
   if (!value) return ""

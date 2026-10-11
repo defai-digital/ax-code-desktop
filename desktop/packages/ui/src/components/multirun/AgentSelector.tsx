@@ -5,7 +5,7 @@ import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
 import { useI18n } from "@/lib/i18n"
 
-export interface MultirunAgentSelectorProps {
+interface MultirunAgentSelectorProps {
   /** Currently selected agent name (empty string for no agent) */
   value: string
   /** Called when agent selection changes */

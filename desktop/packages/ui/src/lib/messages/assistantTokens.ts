@@ -1,6 +1,6 @@
 import type { SessionContextUsage } from "@/stores/types/sessionTypes"
 
-export type AssistantTokens = {
+type AssistantTokens = {
   input: number
   output: number
   reasoning: number
@@ -16,7 +16,7 @@ type AssistantTokenMessage = {
   tokens?: AssistantTokens
 }
 
-export const getAssistantTokenTotal = (tokens: AssistantTokens): number =>
+const getAssistantTokenTotal = (tokens: AssistantTokens): number =>
   tokens.input + tokens.output + tokens.reasoning + (tokens.cache?.read ?? 0) + (tokens.cache?.write ?? 0)
 
 export const findLatestAssistantTokenUsage = (

@@ -16,7 +16,7 @@ import { withTimeout } from "@/lib/asyncTimeout"
 // report progress while doing so.
 const UPDATE_CHECK_TIMEOUT_MS = 30_000
 
-export type UpdateState = {
+type UpdateState = {
   checking: boolean
   available: boolean
   downloading: boolean

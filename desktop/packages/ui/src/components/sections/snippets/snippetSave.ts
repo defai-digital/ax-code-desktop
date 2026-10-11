@@ -1,6 +1,6 @@
 import type { SnippetScope } from "@/stores/useSnippetsStore"
 
-export type SaveSnippetResult =
+type SaveSnippetResult =
   | { status: "name-required" }
   | { status: "content-required" }
   | { status: "saved"; name: string }
@@ -18,7 +18,7 @@ type UpdateSnippet = (
   updates: { content?: string; aliases?: string[]; description?: string },
 ) => Promise<boolean>
 
-export type SaveSnippetRequest = {
+type SaveSnippetRequest = {
   isNew: boolean
   name: string | null | undefined
   content: string

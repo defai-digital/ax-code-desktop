@@ -27,7 +27,7 @@ export interface McpLocalConfig {
   enabled: boolean
 }
 
-export interface McpOAuthConfig {
+interface McpOAuthConfig {
   clientId?: string
   clientSecret?: string
   scope?: string
@@ -71,7 +71,7 @@ export const envRecordToArray = (env?: Record<string, string>): Array<{ key: str
   return Object.entries(env).map(([key, value]) => ({ key, value }))
 }
 
-export const envArrayToRecord = (arr: Array<{ key: string; value: string }>): Record<string, string> | undefined => {
+const envArrayToRecord = (arr: Array<{ key: string; value: string }>): Record<string, string> | undefined => {
   const filtered = arr.filter((e) => e.key.trim())
   if (filtered.length === 0) return undefined
   return Object.fromEntries(filtered.map((e) => [e.key.trim(), e.value]))

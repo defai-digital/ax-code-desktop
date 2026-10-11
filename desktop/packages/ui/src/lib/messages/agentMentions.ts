@@ -1,17 +1,17 @@
 import type { Agent } from "@defai-digital/ax-code-sdk/v2"
 
-export interface AgentMentionSource {
+interface AgentMentionSource {
   value: string
   start: number
   end: number
 }
 
-export interface ParsedAgentMention {
+interface ParsedAgentMention {
   name: string
   source?: AgentMentionSource
 }
 
-export interface ParsedAgentResult {
+interface ParsedAgentResult {
   sanitizedText: string
   mention: ParsedAgentMention | null
 }

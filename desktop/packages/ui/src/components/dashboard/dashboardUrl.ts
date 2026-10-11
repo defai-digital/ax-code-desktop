@@ -1,5 +1,5 @@
 /** First ax-code release that serves the dashboard at `/run-report` instead of `/dre-graph`. */
-export const RUN_REPORT_MIN_RUNTIME_VERSION = "7.24.1"
+const RUN_REPORT_MIN_RUNTIME_VERSION = "7.24.1"
 
 type ParsedRuntimeVersion = {
   parts: number[]

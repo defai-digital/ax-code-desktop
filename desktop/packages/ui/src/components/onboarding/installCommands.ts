@@ -1,7 +1,7 @@
 import type { OnboardingPlatform } from "./types"
 
 /** Official docs / install landing for Desktop onboarding. */
-export const AX_CODE_INSTALL_DOCS_URL =
+const AX_CODE_INSTALL_DOCS_URL =
   "https://github.com/defai-digital/ax-code/blob/main/docs/getting-started/install-runtime.md"
 
 const INSTALL_DOCS_URLS: Record<OnboardingPlatform, string> = {
@@ -19,7 +19,7 @@ export const LINUX_INSTALL_COMMAND =
 export const WINDOWS_INSTALL_COMMAND =
   "irm https://github.com/defai-digital/ax-code/releases/latest/download/install.ps1 | iex"
 
-export type InstallCommandHighlight =
+type InstallCommandHighlight =
   | { kind: "keyword"; text: string }
   | { kind: "string"; text: string }
   | { kind: "muted"; text: string }

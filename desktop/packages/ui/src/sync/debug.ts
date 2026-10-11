@@ -14,7 +14,7 @@ const FLAG_KEY = "openchamber:sync:debug"
 
 let _enabled: boolean | undefined
 
-export function isSyncDebugEnabled(): boolean {
+function isSyncDebugEnabled(): boolean {
   if (_enabled !== undefined) return _enabled
   try {
     _enabled = typeof localStorage !== "undefined" && localStorage.getItem(FLAG_KEY) === "1"
@@ -22,11 +22,6 @@ export function isSyncDebugEnabled(): boolean {
     _enabled = false
   }
   return _enabled
-}
-
-/** Force-refresh the flag (call after user toggles localStorage). */
-export function refreshSyncDebugFlag(): void {
-  _enabled = undefined
 }
 
 type SyncDebugCategory = "pipeline" | "reducer" | "dispatch"

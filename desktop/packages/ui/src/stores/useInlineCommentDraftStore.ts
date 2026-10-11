@@ -39,7 +39,7 @@ interface InlineCommentDraftActions {
 
 type InlineCommentDraftStore = InlineCommentDraftState & InlineCommentDraftActions
 
-export type InlineCommentSessionKeyInput = {
+type InlineCommentSessionKeyInput = {
   sessionId?: string | null
   draftDirectory?: string | null
   draftProjectId?: string | null

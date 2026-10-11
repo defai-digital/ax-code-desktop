@@ -6,7 +6,7 @@ const getMetaString = (metadata: Record<string, unknown>, key: string): string =
   return typeof val === "string" ? val : ""
 }
 
-export const generalizeCommandPattern = (command: string): string => {
+const generalizeCommandPattern = (command: string): string => {
   const parts = command.trim().split(/\s+/)
   if (parts.length === 0) return "*"
 
@@ -20,7 +20,7 @@ export const generalizeCommandPattern = (command: string): string => {
   return `${binary} *`
 }
 
-export const generalizePathPattern = (filePath: string): string => {
+const generalizePathPattern = (filePath: string): string => {
   if (!filePath) return "*"
 
   const segments = filePath.split("/")
@@ -30,7 +30,7 @@ export const generalizePathPattern = (filePath: string): string => {
   return `${dirSegments.join("/")}/*`
 }
 
-export const generalizeUrlPattern = (url: string): string => {
+const generalizeUrlPattern = (url: string): string => {
   if (!url) return "*"
 
   try {

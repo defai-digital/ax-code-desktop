@@ -1,7 +1,7 @@
 import type { McpDraft } from "@/stores/useMcpConfigStore"
 import { isPlainRecord } from "@/lib/record"
 
-export interface ImportedMcpResult {
+interface ImportedMcpResult {
   readonly ok: true
   readonly name?: string
   readonly type: "local" | "remote"
@@ -18,11 +18,11 @@ export interface ImportedMcpResult {
   readonly enabled: boolean
 }
 
-export type ImportedMcpError =
+type ImportedMcpError =
   | { readonly ok: false; readonly error: string }
   | { readonly ok: false; readonly error: string; readonly parsed: unknown }
 
-export type ImportedMcpOutcome = ImportedMcpResult | ImportedMcpError
+type ImportedMcpOutcome = ImportedMcpResult | ImportedMcpError
 
 function stringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((v) => typeof v === "string")

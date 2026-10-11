@@ -1,4 +1,3 @@
-import type { OpenChamberProjectAction, OpenChamberProjectActionPlatform } from "@/lib/openchamberConfig"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import type { IconName } from "@/components/icon/icons"
 
@@ -56,31 +55,6 @@ export const PROJECT_ACTIONS_UPDATED_EVENT = "openchamber:project-actions-update
 export const normalizeProjectActionDirectory = (value: string): string => {
   return normalizeProjectPath(value) ?? ""
 }
-
-export const getCurrentProjectActionPlatform = (): OpenChamberProjectActionPlatform => {
-  if (typeof navigator === "undefined") {
-    return "macos"
-  }
-  const ua = (navigator.userAgent || "").toLowerCase()
-  if (ua.includes("windows")) {
-    return "windows"
-  }
-  if (ua.includes("linux")) {
-    return "linux"
-  }
-  return "macos"
-}
-
-export const isProjectActionEnabledOnPlatform = (
-  action: OpenChamberProjectAction,
-  platform: OpenChamberProjectActionPlatform,
-): boolean => {
-  if (!Array.isArray(action.platforms) || action.platforms.length === 0) {
-    return true
-  }
-  return action.platforms.includes(platform)
-}
-
 export const toProjectActionRunKey = (directory: string, actionId: string): string => {
   return `${normalizeProjectActionDirectory(directory)}::${actionId}`
 }

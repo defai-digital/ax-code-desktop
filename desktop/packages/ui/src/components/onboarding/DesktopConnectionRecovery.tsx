@@ -8,7 +8,7 @@ import { getDesktopRecoveryConfig, type RecoveryVariant } from "./desktopRecover
 
 export type { RecoveryVariant } from "./desktopRecoveryConfig"
 
-export type DesktopConnectionRecoveryProps = {
+type DesktopConnectionRecoveryProps = {
   variant: RecoveryVariant
   hostLabel?: string
   hostUrl?: string

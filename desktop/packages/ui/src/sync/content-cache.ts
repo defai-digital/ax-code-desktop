@@ -91,10 +91,6 @@ export function touchContent(path: string, bytes?: number) {
   touch(path, bytes)
 }
 
-export function getContentBytesTotal(): number {
-  return total
-}
-
 export function getContentEntryCount(): number {
   return lru.size
 }

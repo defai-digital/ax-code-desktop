@@ -10,16 +10,16 @@ export type SidebarSection =
   | "git-identities"
   | "settings"
 
-export type IconComponent = IconName
+type IconComponent = IconName
 
-export interface SidebarSectionConfig {
+interface SidebarSectionConfig {
   id: SidebarSection
   label: string
   description: string
   icon: IconComponent
 }
 
-export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
+const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
   {
     id: "sessions",
     label: "Sessions",
@@ -79,7 +79,3 @@ SIDEBAR_SECTIONS.forEach((section) => {
   sidebarSectionDescriptions[section.id] = section.description
   sidebarSectionConfigMap[section.id] = section
 })
-
-export const SIDEBAR_SECTION_LABELS = sidebarSectionLabels
-export const SIDEBAR_SECTION_DESCRIPTIONS = sidebarSectionDescriptions
-export const SIDEBAR_SECTION_CONFIG_MAP = sidebarSectionConfigMap

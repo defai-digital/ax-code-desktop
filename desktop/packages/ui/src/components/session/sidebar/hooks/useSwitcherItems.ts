@@ -8,7 +8,7 @@ import { useGitAllBranches } from "@/stores/useGitStore"
 import type { SessionNode, SessionSecondaryMeta } from "../types"
 import { compareSessionsByPinnedAndTime, isPathWithinProject } from "../utils"
 
-export type SwitcherItem = {
+type SwitcherItem = {
   node: SessionNode
   projectId: string | null
   groupDirectory: string | null

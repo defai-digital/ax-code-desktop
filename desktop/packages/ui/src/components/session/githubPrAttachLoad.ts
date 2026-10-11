@@ -1,4 +1,4 @@
-export type GitHubPrAttachLoadResult<T> =
+type GitHubPrAttachLoadResult<T> =
   | { status: "loaded"; value: T }
   | { status: "stale" }
   | { status: "failed"; error: unknown }

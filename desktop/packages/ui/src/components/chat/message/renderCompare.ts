@@ -102,7 +102,7 @@ export const areRenderRelevantPartsEqual = (left: Part[], right: Part[]): boolea
   return true
 }
 
-export const areRenderRelevantMessageInfoEqual = (left: Message, right: Message): boolean => {
+const areRenderRelevantMessageInfoEqual = (left: Message, right: Message): boolean => {
   if (left === right) return true
 
   return (

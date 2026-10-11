@@ -8,7 +8,7 @@ interface UseTurnRecordsOptions {
   showTextJustificationActivity: boolean
 }
 
-export interface TurnRecordsResult {
+interface TurnRecordsResult {
   projection: TurnProjectionResult
   staticTurns: TurnProjectionResult["turns"]
   streamingTurn: TurnProjectionResult["turns"][number] | undefined

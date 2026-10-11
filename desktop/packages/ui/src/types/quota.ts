@@ -26,7 +26,7 @@ export interface UsageWindow {
   valueLabel?: string | null
 }
 
-export interface UsageWindows {
+interface UsageWindows {
   windows: Record<string, UsageWindow>
 }
 

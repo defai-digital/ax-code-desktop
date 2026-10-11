@@ -2,7 +2,7 @@ export const DEFAULT_CORNER_RADIUS = 18
 export const MIN_CORNER_RADIUS = 0
 export const MAX_CORNER_RADIUS = 32
 
-export type CornerRadiusTokens = {
+type CornerRadiusTokens = {
   base: number
   sm: number
   md: number

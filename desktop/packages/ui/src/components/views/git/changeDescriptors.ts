@@ -1,7 +1,7 @@
 import type { GitStatus } from "@/lib/api/types"
 import type { I18nKey } from "@/lib/i18n/store"
 
-export type GitChangeDescriptor = {
+type GitChangeDescriptor = {
   code: string
   color: string
   descriptionKey: I18nKey
@@ -18,7 +18,7 @@ const GIT_CHANGE_DESCRIPTORS: Record<string, GitChangeDescriptor> = {
 
 const DEFAULT_GIT_CHANGE_DESCRIPTOR = GIT_CHANGE_DESCRIPTORS.M
 
-export const getGitChangeSymbol = (file: GitStatus["files"][number]): string => {
+const getGitChangeSymbol = (file: GitStatus["files"][number]): string => {
   const indexCode = file.index?.trim()
   const workingCode = file.working_dir?.trim()
 

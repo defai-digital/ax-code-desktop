@@ -1,4 +1,4 @@
-export type SettingsDeleteMutationResult<T> =
+type SettingsDeleteMutationResult<T> =
   | { status: "completed"; result: T }
   | { status: "unexpected-error"; error: unknown }
 

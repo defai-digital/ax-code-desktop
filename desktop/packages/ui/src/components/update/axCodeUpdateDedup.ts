@@ -10,7 +10,7 @@
  * Exposed for unit testing. Not part of the stable consumer surface.
  */
 
-export interface AxCodeUpdateToastDecisionInput {
+interface AxCodeUpdateToastDecisionInput {
   /** Version string reported by the server (already trimmed by the caller). */
   readonly version: string
   /** Most recent version the user explicitly dismissed, or `null` if none. */
@@ -75,7 +75,7 @@ export const resolveAxCodeUpgradeStatusVersion = (status: AxCodeUpgradeStatusLik
   return status.latestVersion.trim()
 }
 
-export interface AxCodeIncompatibility {
+interface AxCodeIncompatibility {
   readonly version: string
   readonly minSupportedVersion: string
 }

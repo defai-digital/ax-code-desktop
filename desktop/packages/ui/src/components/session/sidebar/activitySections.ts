@@ -1,8 +1,8 @@
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import type { SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
 
-export const ACTIVE_NOW_STORAGE_KEY = "oc.sessions.activeNow"
-export const ACTIVE_NOW_MAX_AGE_MS = 36 * 60 * 60 * 1000
+const ACTIVE_NOW_STORAGE_KEY = "oc.sessions.activeNow"
+const ACTIVE_NOW_MAX_AGE_MS = 36 * 60 * 60 * 1000
 
 export type ActiveNowEntry = {
   sessionId: string
@@ -92,7 +92,7 @@ export const addActiveNowSession = (entries: ActiveNowEntry[], sessionId: string
   return [{ sessionId }, ...entries]
 }
 
-export const sortSessionsByUpdated = (sessions: Session[]): Session[] => {
+const sortSessionsByUpdated = (sessions: Session[]): Session[] => {
   return [...sessions].sort((a, b) => getSessionUpdatedAt(b) - getSessionUpdatedAt(a))
 }
 
@@ -120,5 +120,3 @@ export const deriveLiveActiveNowSessions = (
 
   return sortSessionsByUpdated(activeSessions)
 }
-
-export const getSessionUpdatedAtMs = getSessionUpdatedAt

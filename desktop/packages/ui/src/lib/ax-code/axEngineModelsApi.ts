@@ -169,7 +169,7 @@ export const isExternalInstalledAxCodeBinary = (binaryPath: string | null | unde
   )
 }
 
-export type AxEngineDeleteModelResponse = {
+type AxEngineDeleteModelResponse = {
   deleted: boolean
   modelID: string
   quantization: string
@@ -239,7 +239,7 @@ export const deleteAxEngineModel = async (
   ) as Promise<AxEngineDeleteModelResponse>
 }
 
-export type AxEngineInstallResult = {
+type AxEngineInstallResult = {
   installed: boolean
   alreadyPresent: boolean
   version: string

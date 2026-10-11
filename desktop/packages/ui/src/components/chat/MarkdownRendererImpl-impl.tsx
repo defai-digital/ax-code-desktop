@@ -593,7 +593,7 @@ const stripLeadingFrontmatter = (markdown: string): string => {
   return markdown.slice(frontmatterMatch[0].length)
 }
 
-export type MarkdownVariant = "assistant" | "tool" | "reasoning"
+type MarkdownVariant = "assistant" | "tool" | "reasoning"
 
 const useStableMarkdownBlocks = (text: string, live: boolean, baseKey: string): MarkdownStreamBlock[] => {
   const previousRef = React.useRef<MarkdownStreamBlock[]>([])

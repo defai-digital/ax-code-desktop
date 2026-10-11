@@ -6,7 +6,7 @@ type AssistantErrorInfo = {
   name?: unknown
 }
 
-export type AssistantErrorPresentation = {
+type AssistantErrorPresentation = {
   text: string
   variant: "error" | "info"
 }

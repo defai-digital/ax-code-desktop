@@ -8,7 +8,7 @@
  * subagents) each have independent tracking state.
  */
 
-export type MetricsPhase = "prefill" | "decoding" | "idle"
+type MetricsPhase = "prefill" | "decoding" | "idle"
 
 export interface StreamingMetrics {
   /** Time from session.status(busy) to first delta arrival (ms). Null until first delta. */
@@ -196,18 +196,4 @@ export function createMetricsTracker(): MetricsTracker {
     getAllMetrics,
     removeSession,
   }
-}
-
-// ---------------------------------------------------------------------------
-// Module-level accessor for the active metrics tracker instance.
-// ---------------------------------------------------------------------------
-
-let activeTracker: MetricsTracker | null = null
-
-export function setActiveMetricsTracker(tracker: MetricsTracker | null): void {
-  activeTracker = tracker
-}
-
-export function getActiveMetricsTracker(): MetricsTracker | null {
-  return activeTracker
 }

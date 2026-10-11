@@ -8,11 +8,11 @@ type DesktopBrowserNewWindowFields = {
   detail?: unknown
 }
 
-export type DesktopBrowserNewWindowNavigation = {
+type DesktopBrowserNewWindowNavigation = {
   url: string
 }
 
-export type DesktopBrowserLoadUrl = (url: string) => void
+type DesktopBrowserLoadUrl = (url: string) => void
 
 type DesktopBrowserLoadFailureFields = {
   errorCode?: unknown
@@ -22,7 +22,7 @@ type DesktopBrowserLoadFailureFields = {
   detail?: unknown
 }
 
-export type DesktopBrowserLoadFailure = {
+type DesktopBrowserLoadFailure = {
   code: number
   description: string
   url: string

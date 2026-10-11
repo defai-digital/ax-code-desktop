@@ -221,7 +221,7 @@ export const clampTurnStart = (turnStart: number, turnCount: number): number => 
   return Math.min(turnStart, turnCount - 1)
 }
 
-export const getTurnWindowSliceStart = (
+const getTurnWindowSliceStart = (
   model: Pick<TurnWindowModel, "turnMessageStartIndexes">,
   turnStart: number,
 ): number => {

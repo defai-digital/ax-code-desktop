@@ -1,29 +1,11 @@
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import { Binary } from "./binary"
 import { compareIds, sortPartsById } from "./part-ordering"
-
-export type OptimisticStore = {
-  message: Record<string, Message[] | undefined>
-  part: Record<string, Part[] | undefined>
-}
-
 export type OptimisticItem = {
   message: Message
   parts: Part[]
 }
-
-export type OptimisticAddInput = {
-  sessionID: string
-  message: Message
-  parts: Part[]
-}
-
-export type OptimisticRemoveInput = {
-  sessionID: string
-  messageID: string
-}
-
-export type MessagePage = {
+type MessagePage = {
   session: Message[]
   part: { id: string; part: Part[] }[]
   cursor?: string
@@ -77,30 +59,6 @@ export function mergeOptimisticPage(page: MessagePage, items: OptimisticItem[]) 
     part: [...part.entries()].sort((a, b) => compareIds(a[0], b[0])).map(([id, part]) => ({ id, part })),
     confirmed,
   }
-}
-
-/** Apply optimistic add to a mutable draft (for immer/produce) */
-export function applyOptimisticAdd(draft: OptimisticStore, input: OptimisticAddInput) {
-  const messages = draft.message[input.sessionID]
-  if (messages) {
-    const result = Binary.search(messages, input.message.id, (m) => m.id)
-    if (!result.found) {
-      messages.splice(result.index, 0, input.message)
-    }
-  } else {
-    draft.message[input.sessionID] = [input.message]
-  }
-  draft.part[input.message.id] = sortPartsById(input.parts)
-}
-
-/** Apply optimistic remove to a mutable draft (for immer/produce) */
-export function applyOptimisticRemove(draft: OptimisticStore, input: OptimisticRemoveInput) {
-  const messages = draft.message[input.sessionID]
-  if (messages) {
-    const result = Binary.search(messages, input.messageID, (m) => m.id)
-    if (result.found) messages.splice(result.index, 1)
-  }
-  delete draft.part[input.messageID]
 }
 
 /** Merge two sorted message arrays by id, deduplicating.

@@ -2,7 +2,7 @@ import { normalizeProjectPath, projectPathMatchesRoot } from "@/lib/projectResol
 
 export const normalizePlanPath = (value: string): string => normalizeProjectPath(value) ?? ""
 
-export const joinPlanPath = (base: string, segment: string): string => {
+const joinPlanPath = (base: string, segment: string): string => {
   const normalizedBase = normalizePlanPath(base)
   const cleanSegment = segment.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "")
   if (!normalizedBase || normalizedBase === "/") {

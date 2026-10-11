@@ -40,15 +40,15 @@ export interface SessionContextUsage {
 // Default message limit (can be overridden via settings).
 // Single value controls: fetch from server, active session ceiling, Load More chunk.
 // Background trim is derived automatically as Math.round(limit * 0.6).
-export const DEFAULT_MESSAGE_LIMIT = 200
+const DEFAULT_MESSAGE_LIMIT = 200
 
-export const MEMORY_CONSTANTS = {
+const MEMORY_CONSTANTS = {
   MAX_SESSIONS: 3,
   ZOMBIE_TIMEOUT: 10 * 60 * 1000,
 } as const
 
 /** AX Code parity: fixed page/window size for message history. */
-export const getMessageLimit = (): number => {
+const getMessageLimit = (): number => {
   return DEFAULT_MESSAGE_LIMIT
 }
 

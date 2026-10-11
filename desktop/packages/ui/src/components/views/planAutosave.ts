@@ -3,7 +3,7 @@ export type PlanSaveQueueEntry = {
   content: string
 }
 
-export type PlanSaveQueueOptions = {
+type PlanSaveQueueOptions = {
   save: (path: string, content: string) => Promise<void>
   isLatestEntry: (entry: PlanSaveQueueEntry) => boolean
   onLatestSaved?: (entry: PlanSaveQueueEntry) => void

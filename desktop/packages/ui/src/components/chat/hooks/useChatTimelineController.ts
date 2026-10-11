@@ -44,7 +44,7 @@ interface UseChatTimelineControllerOptions {
   showScrollButton: boolean
 }
 
-export interface UseChatTimelineControllerResult {
+interface UseChatTimelineControllerResult {
   turnIds: string[]
   turnStart: number
   renderedMessages: ChatMessageEntry[]

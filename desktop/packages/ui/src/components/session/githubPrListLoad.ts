@@ -1,6 +1,6 @@
 import type { GitHubPullRequestsListResult } from "@/lib/api/types"
 
-export type GitHubPrListLoadResult =
+type GitHubPrListLoadResult =
   | { status: "loaded"; result: GitHubPullRequestsListResult }
   | { status: "stale" }
   | { status: "failed"; error: unknown }

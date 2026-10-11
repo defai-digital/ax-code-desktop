@@ -1,14 +1,14 @@
-export type DesktopBridgeInvoke = <TValue = unknown>(
+type DesktopBridgeInvoke = <TValue = unknown>(
   command: string,
   args?: Record<string, unknown>,
 ) => Promise<TValue>
 
-export type DesktopBridgeListen = (
+type DesktopBridgeListen = (
   event: string,
   handler: (evt: { payload?: unknown }) => void,
 ) => Promise<() => void>
 
-export type DesktopBridge = {
+type DesktopBridge = {
   runtime?: string
   invoke?: DesktopBridgeInvoke
   listen?: DesktopBridgeListen

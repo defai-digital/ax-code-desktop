@@ -26,7 +26,7 @@ import { defineStore } from "../store-registry"
 
 export type ConnectionPhase = "connecting" | "connected" | "reconnecting"
 
-export type ConnectionState = {
+type ConnectionState = {
   phase: ConnectionPhase
   hasEverConnected: boolean
   lastDisconnectReason: string | null

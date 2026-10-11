@@ -1,6 +1,6 @@
 import React from "react"
 
-export type SidebarResizeEdge = "left" | "right"
+type SidebarResizeEdge = "left" | "right"
 
 interface UseSidebarResizeOptions {
   /** Which side of the window the panel sits on. Left panels grow rightward, right panels grow leftward. */

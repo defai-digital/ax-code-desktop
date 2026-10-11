@@ -3,13 +3,13 @@ import { isRecord } from "@/lib/record"
 import { getTauriGlobal } from "@/lib/tauriGlobal"
 import type { TauriInvoke } from "@/lib/tauriGlobal"
 
-export type DesktopHost = {
+type DesktopHost = {
   id: string
   label: string
   url: string
 }
 
-export type DesktopHostsConfig = {
+type DesktopHostsConfig = {
   hosts: DesktopHost[]
   defaultHostId: string | null
   initialHostChoiceCompleted: boolean
@@ -17,15 +17,15 @@ export type DesktopHostsConfig = {
 }
 
 /** Backward-compatible input type — callers may omit `initialHostChoiceCompleted`. */
-export type DesktopHostsConfigInput = {
+type DesktopHostsConfigInput = {
   hosts: DesktopHost[]
   defaultHostId: string | null
   initialHostChoiceCompleted?: boolean
 }
 
-export type HostProbeStatus = "ok" | "auth" | "wrong-service" | "unreachable" | "incompatible" | "update-recommended"
+type HostProbeStatus = "ok" | "auth" | "wrong-service" | "unreachable" | "incompatible" | "update-recommended"
 
-export type HostProbeResult = {
+type HostProbeResult = {
   status: HostProbeStatus
   latencyMs: number
 }
@@ -210,10 +210,4 @@ export const desktopHostProbe = async (url: string): Promise<HostProbeResult> =>
   const status = readHostProbeStatus(raw.status)
   const latencyMs = readNumber(raw, "latencyMs") ?? readNumber(raw, "latency_ms") ?? 0
   return { status, latencyMs }
-}
-
-export const desktopOpenNewWindowAtUrl = async (url: string): Promise<void> => {
-  const invoke = getInvoke()
-  if (!invoke) return
-  await invoke("desktop_new_window_at_url", { url })
 }

@@ -27,7 +27,7 @@ export type IntegrateInProgress = {
   currentCommit: string
 }
 
-export type IntegrateResult =
+type IntegrateResult =
   | { kind: "noop"; reason: string }
   | { kind: "success"; moved: number }
   | { kind: "conflict"; state: IntegrateInProgress; details: IntegrateConflictDetails }

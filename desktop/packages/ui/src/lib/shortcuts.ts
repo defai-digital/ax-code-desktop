@@ -1,13 +1,13 @@
 import { isMacOS } from "@/lib/utils"
 import { isTauriShell } from "@/lib/desktop"
 
-export type ShortcutModifier = "mod" | "shift" | "alt" | "option" | "ctrl"
-export type ShortcutKey = string
+type ShortcutModifier = "mod" | "shift" | "alt" | "option" | "ctrl"
+type ShortcutKey = string
 export type ShortcutCombo = string
 
 export const UNASSIGNED_SHORTCUT: ShortcutCombo = "__unassigned__"
 
-export interface ShortcutAction {
+interface ShortcutAction {
   id: string
   defaultCombo: ShortcutCombo
   label: string
@@ -15,7 +15,7 @@ export interface ShortcutAction {
   customizable?: boolean
 }
 
-export interface ParsedShortcut {
+interface ParsedShortcut {
   modifiers: Set<ShortcutModifier>
   key: ShortcutKey
 }
@@ -430,7 +430,7 @@ export function normalizeCombo(combo: ShortcutCombo): ShortcutCombo {
   return [...orderedModifiers, key].filter(Boolean).join("+")
 }
 
-export function isValidShortcutCombo(combo: ShortcutCombo): boolean {
+function isValidShortcutCombo(combo: ShortcutCombo): boolean {
   if (isUnassignedShortcut(combo)) {
     return true
   }
@@ -439,7 +439,7 @@ export function isValidShortcutCombo(combo: ShortcutCombo): boolean {
   return parsed.key.trim().length > 0
 }
 
-export function parseShortcut(combo: ShortcutCombo): ParsedShortcut {
+function parseShortcut(combo: ShortcutCombo): ParsedShortcut {
   if (isUnassignedShortcut(combo)) {
     return { modifiers: new Set<ShortcutModifier>(), key: UNASSIGNED_SHORTCUT }
   }
@@ -492,10 +492,6 @@ export function getShortcutAction(id: string): ShortcutAction | undefined {
   return SHORTCUT_ACTIONS.find((action) => action.id === id)
 }
 
-export function getAllShortcutActions(): ReadonlyArray<ShortcutAction> {
-  return SHORTCUT_ACTIONS
-}
-
 export function getCustomizableShortcutActions(): ReadonlyArray<ShortcutAction> {
   return SHORTCUT_ACTIONS.filter((action) => action.customizable === true)
 }
@@ -523,14 +519,6 @@ export function getEffectiveShortcutCombo(actionId: string, overrides?: Record<s
   }
 
   return action.defaultCombo
-}
-
-export function getEffectiveShortcutLabel(actionId: string, overrides?: Record<string, ShortcutCombo>): string {
-  const combo = getEffectiveShortcutCombo(actionId, overrides)
-  if (!combo) {
-    return ""
-  }
-  return formatShortcutForDisplay(combo)
 }
 
 export function isRiskyBrowserShortcut(combo: ShortcutCombo): boolean {
@@ -608,14 +596,6 @@ export function eventMatchesShortcut(
   const expectedKey = keyToShortcutToken(parsed.key)
 
   return eventKey === expectedKey
-}
-
-export function getShortcutLabel(id: string): string {
-  const action = getShortcutAction(id)
-  if (!action) return ""
-
-  const displayCombo = formatShortcutForDisplay(action.defaultCombo)
-  return `${displayCombo} - ${action.label}`
 }
 
 export function getModifierLabel(): string {

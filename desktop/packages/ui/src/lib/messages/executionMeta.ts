@@ -11,6 +11,3 @@ export const MULTIRUN_EXECUTION_FORK_PROMPT_META_TEXT =
   "if it is a bug description, find the root cause and fix it. " +
   "Proceed with actions right away based on your understanding of the task. " +
   "Here is the content of the message: "
-
-export const isExecutionForkMetaText = (text: string | null | undefined): boolean =>
-  typeof text === "string" && text.trim() === EXECUTION_FORK_META_TEXT.trim()

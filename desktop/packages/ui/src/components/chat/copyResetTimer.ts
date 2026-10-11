@@ -1,4 +1,4 @@
-export type CopyResetTimerId = number
+type CopyResetTimerId = number
 
 export const clearCopyResetTimer = (timerId: CopyResetTimerId | null): null => {
   if (timerId !== null) {

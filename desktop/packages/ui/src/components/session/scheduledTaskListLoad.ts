@@ -1,6 +1,6 @@
 import type { ScheduledTask } from "@/lib/scheduledTasksApi"
 
-export type ScheduledTaskListLoadResult =
+type ScheduledTaskListLoadResult =
   | { status: "loaded"; tasks: ScheduledTask[] }
   | { status: "stale" }
   | { status: "failed"; error: unknown }

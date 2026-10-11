@@ -1,4 +1,4 @@
-export type SingleFlightIntervalTask = (isCancelled: () => boolean) => void | Promise<void>
+type SingleFlightIntervalTask = (isCancelled: () => boolean) => void | Promise<void>
 
 type SingleFlightIntervalOptions = {
   immediate?: boolean

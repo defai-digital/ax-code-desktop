@@ -18,7 +18,7 @@ const readStoredShowGitignored = (): boolean => {
   }
 }
 
-export const notifyFilesViewShowGitignoredChanged = () => {
+const notifyFilesViewShowGitignoredChanged = () => {
   if (typeof window === "undefined") {
     return
   }
@@ -62,5 +62,3 @@ export const useFilesViewShowGitignored = (): boolean => {
 
   return showGitignored
 }
-
-export const FILES_VIEW_SHOW_GITIGNORED_STORAGE_KEY = SHOW_GITIGNORED_STORAGE_KEY

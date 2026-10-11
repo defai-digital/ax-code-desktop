@@ -18,7 +18,7 @@ export const isOffline = (): boolean =>
 
 export const isHidden = (): boolean => typeof document !== "undefined" && document.visibilityState !== "visible"
 
-export type InterruptibleWaitOptions = {
+type InterruptibleWaitOptions = {
   /**
    * When false, the wait is a plain timer (plus the abort signal) — used by
    * consumers that never subscribed to browser lifecycle events.

@@ -22,7 +22,7 @@ export interface FlatJsonNode {
   isExpanded: boolean
 }
 
-export interface JsonTreeOptions {
+interface JsonTreeOptions {
   maxDepth?: number
   maxNodes?: number
   initiallyExpandedDepth?: number
@@ -44,7 +44,7 @@ function getType(value: unknown): JsonTreeNodeType {
   return "null"
 }
 
-export function getNodePath(pathSegments: string[]): string {
+function getNodePath(pathSegments: string[]): string {
   if (pathSegments.length === 0) return "root"
   let result = "root"
   for (const segment of pathSegments) {
@@ -55,42 +55,6 @@ export function getNodePath(pathSegments: string[]): string {
     }
   }
   return result
-}
-
-export function parseNodePath(pathKey: string): string[] {
-  if (pathKey === "root" || pathKey === "") return []
-  const withoutRoot = pathKey.startsWith("root.")
-    ? pathKey.slice(5)
-    : pathKey.startsWith("root[")
-      ? pathKey.slice(4)
-      : pathKey
-  const segments: string[] = []
-  let current = ""
-  let i = 0
-  while (i < withoutRoot.length) {
-    const ch = withoutRoot[i]
-    if (ch === ".") {
-      if (current) segments.push(current)
-      current = ""
-      i++
-    } else if (ch === "[") {
-      if (current) segments.push(current)
-      current = ""
-      i++
-      let bracket = ""
-      while (i < withoutRoot.length && withoutRoot[i] !== "]") {
-        bracket += withoutRoot[i]
-        i++
-      }
-      segments.push(bracket)
-      i++
-    } else {
-      current += ch
-      i++
-    }
-  }
-  if (current) segments.push(current)
-  return segments
 }
 
 let nodeCount = 0
@@ -210,17 +174,4 @@ export function getExpandableIdsAboveDepth(root: JsonTreeNode | null, maxDepth: 
 
   walk(root)
   return ids
-}
-
-export function isJsonParseable(text: string): boolean {
-  if (!text || typeof text !== "string") return false
-  const trimmed = text.trim()
-  if (trimmed.length < 2) return false
-  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return false
-  try {
-    JSON.parse(trimmed)
-    return true
-  } catch {
-    return false
-  }
 }

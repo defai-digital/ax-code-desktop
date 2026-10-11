@@ -1,8 +1,8 @@
 import React from "react"
 
-export type ChatHashTarget = { kind: "turn"; id: string } | { kind: "message"; id: string }
+type ChatHashTarget = { kind: "turn"; id: string } | { kind: "message"; id: string }
 
-export const parseChatHashTarget = (hashValue: string): ChatHashTarget | null => {
+const parseChatHashTarget = (hashValue: string): ChatHashTarget | null => {
   const value = hashValue.startsWith("#") ? hashValue.slice(1) : hashValue
   if (!value) {
     return null
@@ -23,7 +23,7 @@ export const parseChatHashTarget = (hashValue: string): ChatHashTarget | null =>
 
 type TurnOffsetTarget = { kind: "noop" } | { kind: "resume" } | { kind: "turn"; turnId: string }
 
-export const resolveTurnOffsetTarget = (
+const resolveTurnOffsetTarget = (
   turnIds: string[],
   activeTurnId: string | null,
   offset: number,
@@ -72,7 +72,7 @@ interface UseChatTurnNavigationOptions {
   resumeToBottom: () => void
 }
 
-export interface ChatTurnNavigation {
+interface ChatTurnNavigation {
   scrollToTurnId: (turnId: string, options?: { behavior?: ScrollBehavior; updateHash?: boolean }) => Promise<boolean>
   scrollToMessageId: (
     messageId: string,

@@ -15,15 +15,6 @@ const parseUrlSafely = (value: string): URL | null => {
     return null
   }
 }
-
-export const isExternalHttpUrl = (url: string): boolean => {
-  const parsed = parseUrlSafely(url.trim())
-  if (!parsed) {
-    return false
-  }
-  return parsed.protocol === "http:" || parsed.protocol === "https:"
-}
-
 const SAFE_EXTERNAL_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"])
 
 const hasUrlControlCharacter = (value: string): boolean => {

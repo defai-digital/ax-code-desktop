@@ -22,14 +22,6 @@ import { markStreamConnected, markStreamDisconnected } from "@/lib/event-stream/
 import { isAbortError, type SdkSseDriver, type TransportError, type WsDriver } from "@/lib/event-stream/types"
 import type { MessageStreamWsFrame } from "@/lib/event-stream/adapters/websocket"
 import { SYNC_RETRY_NOW_EVENT as TRANSPORT_SYNC_RETRY_NOW_EVENT } from "@/lib/event-stream/visibility"
-
-export type QueuedEvent = {
-  directory: string
-  payload: Event
-}
-
-export type FlushHandler = (events: QueuedEvent[]) => void
-
 const FLUSH_FRAME_MS = 33
 const BACKPRESSURE_FLUSH_FRAME_MS = 200
 const BACKPRESSURE_MODE_MS = 10_000
@@ -81,7 +73,7 @@ export type EventPipelineInput = {
   wsReadyTimeoutMs?: number
 }
 
-export type EventPipeline = {
+type EventPipeline = {
   cleanup: () => void
   reconnect: (reason?: string) => void
   metrics: MetricsTracker

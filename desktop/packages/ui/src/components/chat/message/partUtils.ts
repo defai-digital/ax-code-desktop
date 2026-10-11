@@ -4,7 +4,7 @@ export type TextContentPart = Part & { text?: string; content?: string; value?: 
 export type TimedPart = Part & { time?: { start?: number; end?: number } }
 export type TimedTextContentPart = TextContentPart & TimedPart
 
-export const isValidPart = (part: unknown): part is Part => {
+const isValidPart = (part: unknown): part is Part => {
   return Boolean(part && typeof part === "object" && typeof (part as { type?: unknown }).type === "string")
 }
 
@@ -83,12 +83,4 @@ export const filterVisibleParts = (parts: Part[], options: VisibleFilterOptions 
 
     return !isPatchPart
   })
-}
-
-export const isFinalizedTextPart = (part: Part): boolean => {
-  if (part.type !== "text") {
-    return false
-  }
-  const time = (part as TimedPart).time
-  return Boolean(time && typeof time.end !== "undefined")
 }

@@ -76,7 +76,7 @@ const SKILLS_CATALOG_LOAD_CACHE_TTL_MS = 5000
 const skillsCatalogLastLoadedAt = new Map<string, number>()
 const skillsCatalogLoadInFlight = new Map<string, Promise<boolean>>()
 
-export interface SkillsCatalogState {
+interface SkillsCatalogState {
   sources: SkillsCatalogSource[]
   itemsBySource: Record<string, SkillsCatalogItem[]>
   selectedSourceId: string | null

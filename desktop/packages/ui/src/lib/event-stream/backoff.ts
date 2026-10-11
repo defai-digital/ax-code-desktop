@@ -11,7 +11,7 @@
 
 import type { BackoffProfile } from "./types"
 
-export type BackoffEnvironment = {
+type BackoffEnvironment = {
   offline: boolean
   hidden: boolean
 }

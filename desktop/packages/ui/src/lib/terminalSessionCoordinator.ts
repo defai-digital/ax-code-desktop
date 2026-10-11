@@ -30,7 +30,7 @@ export async function withTerminalSessionCreate(
   return promise
 }
 
-export type ClaimedTerminalSessionDependencies = {
+type ClaimedTerminalSessionDependencies = {
   getClaimedSessionId: () => string | null
   createSession: () => Promise<string>
   claimSession: (sessionId: string) => boolean

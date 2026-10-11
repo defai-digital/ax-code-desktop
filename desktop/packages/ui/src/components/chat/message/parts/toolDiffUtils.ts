@@ -1,7 +1,7 @@
 import { parsePatchFiles } from "@pierre/diffs"
 import { isRecord } from "@/lib/record"
 
-export type DiffPatchEntry = {
+type DiffPatchEntry = {
   id: string
   title: string
   patch: string
@@ -18,7 +18,7 @@ const UNIFIED_DIFF_FILE_BREAK_TEST = /^---\s+\S/m
 
 export { isRecord }
 
-export const normalizePatchText = (patch: string): string => {
+const normalizePatchText = (patch: string): string => {
   return patch.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim()
 }
 

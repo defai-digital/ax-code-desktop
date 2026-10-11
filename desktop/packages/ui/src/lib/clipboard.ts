@@ -1,4 +1,4 @@
-export type ClipboardCopyResult = { ok: true; method: "clipboard" | "execCommand" } | { ok: false; error: string }
+type ClipboardCopyResult = { ok: true; method: "clipboard" | "execCommand" } | { ok: false; error: string }
 
 export async function copyTextToClipboard(text: string): Promise<ClipboardCopyResult> {
   let clipboardError: string | null = null

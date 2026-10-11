@@ -40,16 +40,6 @@ export interface SettingsPageMeta {
   isAvailable?: (ctx: SettingsRuntimeContext) => boolean
 }
 
-export const SETTINGS_GROUP_LABELS: Record<SettingsPageGroup, string> = {
-  appearance: "Appearance",
-  projects: "Projects",
-  general: "General",
-  "ax-code": "AX Code",
-  git: "Git",
-  skills: "Skills",
-  advanced: "Advanced",
-}
-
 export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
   {
     slug: "home",
@@ -245,7 +235,7 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
   },
 ] as const
 
-export const LEGACY_SIDEBAR_SECTION_TO_SETTINGS_SLUG: Record<SidebarSection, SettingsPageSlug> = {
+const LEGACY_SIDEBAR_SECTION_TO_SETTINGS_SLUG: Record<SidebarSection, SettingsPageSlug> = {
   sessions: "sessions",
   agents: "agents",
   commands: "commands",

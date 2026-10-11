@@ -1,4 +1,4 @@
-export type GitHubIntegrationListLoadResult<T> =
+type GitHubIntegrationListLoadResult<T> =
   | { status: "loaded"; result: T }
   | { status: "stale" }
   | { status: "failed"; error: unknown }

@@ -18,9 +18,9 @@
  */
 
 export type { RouteState } from "./types"
-export { VALID_TABS, VALID_SETTINGS_SECTIONS, ROUTE_PARAMS } from "./types"
+export {   ROUTE_PARAMS } from "./types"
 
 export { parseRoute, hasRouteParams } from "./parseRoute"
 
 export type { AppRouteState } from "./serializeRoute"
-export { serializeRoute, buildURL, routeMatchesURL, updateBrowserURL } from "./serializeRoute"
+export {    updateBrowserURL } from "./serializeRoute"

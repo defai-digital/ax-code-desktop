@@ -4,7 +4,7 @@ import type { InlineCommentDraft } from "@/stores/useInlineCommentDraftStore"
  * Format a single inline comment draft into the standard message format
  * used by diff, plan, and file viewers
  */
-export function formatInlineCommentDraft(draft: InlineCommentDraft): string {
+function formatInlineCommentDraft(draft: InlineCommentDraft): string {
   const { fileLabel, startLine, endLine, side, language, code, text } = draft
 
   // Diff format includes side (original/modified)
@@ -53,18 +53,4 @@ export function appendInlineComments(text: string, drafts: InlineCommentDraft[])
   }
 
   return `${text}\n\n${formattedComments}`
-}
-
-/**
- * Check if a message text contains inline comments (for validation purposes)
- */
-export function hasInlineComments(text: string): boolean {
-  return text.includes("Comment on `") && text.includes("```")
-}
-
-/**
- * Extract the file label from a draft for display purposes
- */
-export function getDraftDisplayLabel(draft: InlineCommentDraft): string {
-  return `${draft.fileLabel}:${draft.startLine}-${draft.endLine}`
 }

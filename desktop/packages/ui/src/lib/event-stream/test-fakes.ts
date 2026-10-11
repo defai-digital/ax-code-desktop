@@ -86,14 +86,6 @@ export function installFakeWebSocket(): void {
   })
 }
 
-export function removeWebSocket(): void {
-  Object.defineProperty(globalThis, "WebSocket", {
-    configurable: true,
-    writable: true,
-    value: undefined,
-  })
-}
-
 export function installFakeEventSource(): void {
   Object.defineProperty(globalThis, "EventSource", {
     configurable: true,

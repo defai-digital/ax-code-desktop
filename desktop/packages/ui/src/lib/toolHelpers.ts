@@ -1,4 +1,4 @@
-export interface ToolMetadata {
+interface ToolMetadata {
   displayName: string
   icon?: string
   outputLanguage?: string
@@ -11,7 +11,7 @@ export interface ToolMetadata {
   category: "file" | "search" | "code" | "system" | "ai" | "web"
 }
 
-export const TOOL_METADATA: Record<string, ToolMetadata> = {
+const TOOL_METADATA: Record<string, ToolMetadata> = {
   read: {
     displayName: "Read File",
     category: "file",

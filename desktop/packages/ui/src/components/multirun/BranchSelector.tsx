@@ -23,13 +23,7 @@ import { useI18n } from "@/lib/i18n"
 /** localStorage key matching NewWorktreeDialog */
 const LAST_SOURCE_BRANCH_KEY = "oc:lastWorktreeSourceBranch"
 
-export type WorktreeBaseOption = {
-  value: string
-  label: string
-  group: "special" | "local" | "remote"
-}
-
-export interface MultirunBranchSelectorProps {
+interface MultirunBranchSelectorProps {
   /** Current directory to check for git repository */
   directory: string | null
   /** Currently selected branch */
@@ -44,7 +38,7 @@ export interface MultirunBranchSelectorProps {
   id?: string
 }
 
-export interface BranchSelectorState {
+interface BranchSelectorState {
   localBranches: string[]
   remoteBranches: string[]
   isLoading: boolean

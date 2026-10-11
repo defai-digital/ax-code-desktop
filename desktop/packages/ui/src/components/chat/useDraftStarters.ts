@@ -45,7 +45,7 @@ export type PinnableItem = {
 
 const chipId = (group: StarterGroup, ref: DraftStarterRef): string => `${group}:${starterKey(ref)}`
 
-export type UseDraftStartersResult = {
+type UseDraftStartersResult = {
   global: ResolvedStarter[]
   project: ResolvedStarter[]
   pinnable: PinnableItem[]

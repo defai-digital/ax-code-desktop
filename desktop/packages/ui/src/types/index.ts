@@ -1,4 +1,4 @@
-export type { QuotaProviderId, UsageWindow, UsageWindows, ProviderUsage, ProviderResult } from "./quota"
+export type { QuotaProviderId, UsageWindow,   ProviderResult } from "./quota"
 
 export interface ModelMetadata {
   id: string

@@ -5,7 +5,7 @@
 import type { AttachedFile } from "@/stores/types/sessionTypes"
 import type { MentionRange } from "./composerHighlight"
 
-export const FILE_MENTION_TOKEN = /^@[^\s]+$/
+const FILE_MENTION_TOKEN = /^@[^\s]+$/
 
 // Per-session confirmed mentions key — tracks which @mentions are confirmed (blue) vs plain text
 export const getConfirmedMentionsKey = (sessionId: string | null): string =>
@@ -53,18 +53,18 @@ export const pruneConfirmedMentions = (confirmedMentions: Set<string>, draft: st
 // (whitespace, bracket, quote, or punctuation) — this skips email addresses.
 const MENTION_BOUNDARY_CHAR = /(\s|\(|\)|\[|\]|\{|\}|"|'|`|,|\.|;|:)/
 
-export const isMentionBoundaryChar = (charBefore: string | null): boolean =>
+const isMentionBoundaryChar = (charBefore: string | null): boolean =>
   !charBefore || MENTION_BOUNDARY_CHAR.test(charBefore)
 
 // Trailing punctuation is not part of the mention ("@file.ts," → "file.ts")
-export const trimMentionTokenEnd = (raw: string): string =>
+const trimMentionTokenEnd = (raw: string): string =>
   String(raw || "")
     .trim()
     .replace(/[),.;:!?`"'>]+$/g, "")
 
 // Both leading wrappers and trailing punctuation stripped (used when extracting
 // file mentions to attach)
-export const trimMentionToken = (raw: string): string =>
+const trimMentionToken = (raw: string): string =>
   String(raw || "")
     .trim()
     .replace(/^[`"'<(]+/, "")

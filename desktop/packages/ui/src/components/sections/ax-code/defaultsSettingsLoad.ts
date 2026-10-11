@@ -1,6 +1,6 @@
 import { API_ENDPOINTS } from "@/lib/http"
 
-export type DefaultsSettingsPayload = {
+type DefaultsSettingsPayload = {
   defaultModel?: string
   defaultVariant?: string
   defaultAgent?: string

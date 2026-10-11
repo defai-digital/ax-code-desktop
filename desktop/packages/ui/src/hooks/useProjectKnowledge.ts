@@ -1,7 +1,7 @@
 import React from "react"
 import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
 
-export type ProjectKnowledgeState = {
+type ProjectKnowledgeState = {
   /** True when any project knowledge file (AGENTS.md or CLAUDE.md) exists. */
   exists: boolean
   /** True when a project-level AGENTS.md exists (AX Code primary). */

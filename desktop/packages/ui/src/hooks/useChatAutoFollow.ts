@@ -4,7 +4,7 @@ import { MessageFreshnessDetector } from "@/lib/messageFreshness"
 import { createScrollSpy } from "@/components/chat/lib/scroll/scrollSpy"
 import { useViewportStore, type SessionMemoryState } from "@/sync/viewport-store"
 
-export type AutoFollowState = "following" | "released"
+type AutoFollowState = "following" | "released"
 
 export type ContentChangeReason = "text" | "structural" | "permission"
 
@@ -26,7 +26,7 @@ interface UseChatAutoFollowOptions {
   onActiveTurnChange?: (turnId: string | null) => void
 }
 
-export interface UseChatAutoFollowResult {
+interface UseChatAutoFollowResult {
   scrollRef: React.RefObject<HTMLDivElement | null>
   state: AutoFollowState
   isPinned: boolean

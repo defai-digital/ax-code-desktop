@@ -10,7 +10,7 @@ export type DeviceFlowCompleteResponse =
   | { connected: true; user: GitHubUser; scope?: string }
   | { connected: false; status?: string; error?: string }
 
-export type GitHubDeviceFlowPollResult =
+type GitHubDeviceFlowPollResult =
   | { status: "connected"; result: Extract<DeviceFlowCompleteResponse, { connected: true }> }
   | { status: "slow-down" }
   | { status: "authorization-failed"; error?: string }

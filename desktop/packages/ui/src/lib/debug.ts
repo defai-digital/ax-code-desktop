@@ -78,7 +78,7 @@ const hasTextContent = (part: DebugPartInfo): boolean =>
 const isToolPart = (part: { type: string }): boolean => part.type === "tool"
 const isStepMarkerPart = (part: { type: string }): boolean => part.type === "step-start" || part.type === "step-finish"
 
-export interface DebugMessageInfo {
+interface DebugMessageInfo {
   messageId: string
   role: string
   timestamp: number

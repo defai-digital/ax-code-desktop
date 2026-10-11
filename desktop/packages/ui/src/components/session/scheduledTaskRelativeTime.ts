@@ -1,7 +1,7 @@
 const MINUTE_MS = 60_000
 const HOUR_MS = 60 * MINUTE_MS
 
-export type RelativeTimeParts =
+type RelativeTimeParts =
   | { kind: "empty" }
   | { kind: "seconds"; future: boolean }
   | { kind: "minutes"; future: boolean; count: number }

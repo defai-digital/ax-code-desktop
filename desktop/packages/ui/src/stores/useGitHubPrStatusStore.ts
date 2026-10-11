@@ -643,16 +643,7 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
     },
   ),
 )
-
-export const usePrStatusForDirectoryBranch = (directory: string | null, branch: string | null) => {
-  return useGitHubPrStatusStore((state) => {
-    if (!directory || !branch) return null
-    const key = getGitHubPrStatusKey(directory, branch)
-    return state.entries[key] ?? null
-  })
-}
-
-export type PrVisualSummary = {
+type PrVisualSummary = {
   number: number
   visualState: string
   prState: string

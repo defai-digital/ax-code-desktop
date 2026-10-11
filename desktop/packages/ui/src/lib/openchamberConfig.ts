@@ -31,7 +31,7 @@ function getRuntimeFilesAPI(): FilesAPI | null {
   return null
 }
 
-export interface OpenChamberConfig {
+interface OpenChamberConfig {
   projectPath?: string
   "setup-worktree"?: string[]
   projectNotes?: string
@@ -54,7 +54,7 @@ export interface OpenChamberProjectAction {
   openUrl?: string
 }
 
-export interface OpenChamberProjectActionsState {
+interface OpenChamberProjectActionsState {
   actions: OpenChamberProjectAction[]
   primaryActionId: string | null
 }
@@ -72,28 +72,28 @@ export interface OpenChamberProjectPlanFileLink {
   createdAt: number
 }
 
-export interface OpenChamberProjectPlanFile {
+interface OpenChamberProjectPlanFile {
   title: string
   body: string
   raw: string
   path: string
 }
 
-export interface OpenChamberProjectNotesTodos {
+interface OpenChamberProjectNotesTodos {
   notes: string
   todos: OpenChamberProjectTodoItem[]
 }
 
-export interface OpenChamberProjectContextData extends OpenChamberProjectNotesTodos {
+interface OpenChamberProjectContextData extends OpenChamberProjectNotesTodos {
   plans: OpenChamberProjectPlanFileLink[]
 }
 
 export const AX_CODE_DESKTOP_PROJECT_NOTES_MAX_LENGTH = 3000
 export const AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH = 120
-export const AX_CODE_DESKTOP_PROJECT_ACTION_NAME_MAX_LENGTH = 80
-export const AX_CODE_DESKTOP_PROJECT_ACTION_COMMAND_MAX_LENGTH = 4000
-export const AX_CODE_DESKTOP_PROJECT_ACTION_OPEN_URL_MAX_LENGTH = 2000
-export const AX_CODE_DESKTOP_PROJECT_PLAN_TITLE_MAX_LENGTH = 160
+const AX_CODE_DESKTOP_PROJECT_ACTION_NAME_MAX_LENGTH = 80
+const AX_CODE_DESKTOP_PROJECT_ACTION_COMMAND_MAX_LENGTH = 4000
+const AX_CODE_DESKTOP_PROJECT_ACTION_OPEN_URL_MAX_LENGTH = 2000
+const AX_CODE_DESKTOP_PROJECT_PLAN_TITLE_MAX_LENGTH = 160
 
 const AX_CODE_DESKTOP_ACTION_PLATFORM_SET = new Set<OpenChamberProjectActionPlatform>(["macos", "linux", "windows"])
 
@@ -529,7 +529,7 @@ const getProjectPlansDirectory = async (project: ProjectRef): Promise<string | n
   return joinPath(projectDirectory, "plans")
 }
 
-export const formatProjectPlanMarkdown = (title: string, body: string): string => {
+const formatProjectPlanMarkdown = (title: string, body: string): string => {
   const normalizedTitle = sanitizePlanTitle(title) || "Plan"
   const normalizedBody = body.trim()
   return normalizedBody ? `# ${normalizedTitle}\n\n${normalizedBody}` : `# ${normalizedTitle}\n`
@@ -563,7 +563,7 @@ export const parseProjectPlanMarkdown = (raw: string): { title: string; body: st
  * Read the config for a project.
  * Returns null if file doesn't exist or is invalid.
  */
-export async function readOpenChamberConfig(project: ProjectRef): Promise<OpenChamberConfig | null> {
+async function readOpenChamberConfig(project: ProjectRef): Promise<OpenChamberConfig | null> {
   const projectDirectory = typeof project?.path === "string" ? project.path.trim() : ""
   if (!projectDirectory) {
     return null
@@ -635,7 +635,7 @@ export async function readOpenChamberConfig(project: ProjectRef): Promise<OpenCh
  * dedicated route and never round-trips them through this config write path to
  * avoid a read-then-write race clobbering a concurrent server update.
  */
-export async function writeOpenChamberConfig(project: ProjectRef, config: OpenChamberConfig): Promise<boolean> {
+async function writeOpenChamberConfig(project: ProjectRef, config: OpenChamberConfig): Promise<boolean> {
   const projectDirectory = typeof project?.path === "string" ? project.path.trim() : ""
   if (!projectDirectory) {
     return false
@@ -690,7 +690,7 @@ export async function writeOpenChamberConfig(project: ProjectRef, config: OpenCh
 /**
  * Update specific keys in the config, preserving other values.
  */
-export async function updateOpenChamberConfig(
+async function updateOpenChamberConfig(
   project: ProjectRef,
   updates: Partial<OpenChamberConfig>,
 ): Promise<boolean> {
@@ -756,12 +756,12 @@ export async function getProjectContextData(project: ProjectRef): Promise<OpenCh
   })
 }
 
-export async function getProjectPlanFiles(project: ProjectRef): Promise<OpenChamberProjectPlanFileLink[]> {
+async function getProjectPlanFiles(project: ProjectRef): Promise<OpenChamberProjectPlanFileLink[]> {
   const config = await readOpenChamberConfig(project)
   return sanitizeProjectPlanFileLinks(config?.projectPlanFiles)
 }
 
-export async function saveProjectPlanFiles(
+async function saveProjectPlanFiles(
   project: ProjectRef,
   value: OpenChamberProjectPlanFileLink[],
 ): Promise<boolean> {

@@ -1,9 +1,9 @@
 import React from "react"
 import { isDesktopShell } from "@/lib/desktop"
 
-export type DeviceType = "desktop" | "mobile" | "tablet"
+type DeviceType = "desktop" | "mobile" | "tablet"
 
-export interface DeviceInfo {
+interface DeviceInfo {
   isMobile: boolean
   isTablet: boolean
   isDesktop: boolean
@@ -13,12 +13,6 @@ export interface DeviceInfo {
   hasTouchInput: boolean
   hasTouchOnlyPointer: boolean
 }
-
-export const CSS_DEVICE_VARIABLES = {
-  IS_MOBILE: "var(--is-mobile)",
-  DEVICE_TYPE: "var(--device-type)",
-  HAS_TOUCH_INPUT: "var(--has-touch-input)",
-} as const
 
 export const BREAKPOINTS = {
   xs: 0,

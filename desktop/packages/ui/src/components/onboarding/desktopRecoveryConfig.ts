@@ -7,7 +7,7 @@ export type RecoveryVariant =
   | "remote-missing"
   | "missing-default-host"
 
-export type DesktopRecoveryConfig = {
+type DesktopRecoveryConfig = {
   title: string
   description: string
   titleKey: string

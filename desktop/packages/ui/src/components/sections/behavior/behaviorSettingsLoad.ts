@@ -7,7 +7,7 @@ import { API_ENDPOINTS } from "@/lib/http"
 
 export type ResponseStyleValue = ResponseStylePreset | "custom"
 
-export type BehaviorSettingsState = {
+type BehaviorSettingsState = {
   prompt: string
   responseStyleEnabled: boolean
   responseStylePreset: ResponseStyleValue

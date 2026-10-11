@@ -5,25 +5,17 @@ import { axCodeClient } from "@/lib/ax-code/client"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 
-export type McpStatusMap = Record<string, McpStatus>
-export type McpResourceMap = Record<string, McpResource>
-export type McpRuntimeDiagnostic = {
+type McpStatusMap = Record<string, McpStatus>
+type McpResourceMap = Record<string, McpResource>
+type McpRuntimeDiagnostic = {
   status: "failed"
   error: string
 }
-export type McpRuntimeDiagnosticMap = Record<string, McpRuntimeDiagnostic>
+type McpRuntimeDiagnosticMap = Record<string, McpRuntimeDiagnostic>
 
 const EMPTY_STATUS: McpStatusMap = {}
 const EMPTY_RESOURCES: McpResourceMap = {}
 const EMPTY_DIAGNOSTICS: McpRuntimeDiagnosticMap = {}
-
-type McpHealth = {
-  connected: number
-  total: number
-  hasFailed: boolean
-  hasAuthRequired: boolean
-}
-
 const normalizeDirectory = (directory: string | null | undefined): string | null => normalizeProjectPath(directory)
 
 const toKey = (directory: string | null | undefined): string => normalizeDirectory(directory) ?? "__global__"
@@ -35,18 +27,6 @@ const getMcpApiClient = (directory: string | null | undefined) => {
   }
   return axCodeClient.getScopedApiClient(normalized)
 }
-
-export const computeMcpHealth = (status: McpStatusMap | null | undefined): McpHealth => {
-  const entries = Object.entries(status ?? {})
-  const connected = entries.filter(([, s]) => s?.status === "connected").length
-  const total = entries.length
-  const hasFailed = entries.some(([, s]) => s?.status === "failed")
-  const hasAuthRequired = entries.some(
-    ([, s]) => s?.status === "needs_auth" || s?.status === "needs_client_registration",
-  )
-  return { connected, total, hasFailed, hasAuthRequired }
-}
-
 type McpRefreshOptions = {
   directory?: string | null
   silent?: boolean

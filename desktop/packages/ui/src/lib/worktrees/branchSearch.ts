@@ -1,6 +1,6 @@
 import { partitionByFuzzyQuery } from "@/lib/search/fuzzySearch"
 
-export interface RankedBranchGroups {
+interface RankedBranchGroups {
   matching: Array<{
     label: string
     value: string

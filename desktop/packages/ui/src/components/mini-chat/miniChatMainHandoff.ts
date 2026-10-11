@@ -1,4 +1,4 @@
-export type MiniChatMainHandoffPayload =
+type MiniChatMainHandoffPayload =
   | {
       sessionId: string
       directory: string

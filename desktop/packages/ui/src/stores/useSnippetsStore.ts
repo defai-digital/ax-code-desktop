@@ -7,7 +7,7 @@ import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
 
 export type SnippetScope = "global" | "project"
 
-export interface SnippetDraft {
+interface SnippetDraft {
   name: string
   scope: SnippetScope
   content?: string

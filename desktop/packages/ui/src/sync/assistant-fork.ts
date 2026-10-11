@@ -1,11 +1,11 @@
-export type AssistantForkSourceChoice = {
+type AssistantForkSourceChoice = {
   agent?: string
   providerID?: string
   modelID?: string
   variant?: string
 } | null
 
-export type AssistantForkCurrentChoice = {
+type AssistantForkCurrentChoice = {
   providerID?: string | null
   modelID?: string | null
   agent?: string | null
@@ -15,7 +15,7 @@ export type AssistantForkCurrentChoice = {
   } | null
 }
 
-export type AssistantForkSendChoice = {
+type AssistantForkSendChoice = {
   providerID: string
   modelID: string
   agent?: string

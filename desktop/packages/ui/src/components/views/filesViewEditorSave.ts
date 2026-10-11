@@ -1,12 +1,12 @@
 import { serializeEditorContent, type FileLineEnding } from "./filesViewEditorContent"
 
-export type FilesViewDraftWrite = (
+type FilesViewDraftWrite = (
   path: string,
   content: string,
   options?: { allowOutsideWorkspace?: boolean },
 ) => Promise<{ success?: boolean } | null | undefined>
 
-export const prepareFilesViewDraft = (
+const prepareFilesViewDraft = (
   draftContent: string,
   displayedContent: string,
   lineEnding: FileLineEnding,

@@ -1,5 +1,5 @@
 import React from "react"
-import type { RuntimeAPISelector, RuntimeAPIs } from "@/lib/api/types"
+import type { RuntimeAPIs } from "@/lib/api/types"
 import { RuntimeAPIContext } from "@/contexts/runtimeAPIContext"
 
 export const useRuntimeAPIs = (): RuntimeAPIs => {
@@ -8,9 +8,4 @@ export const useRuntimeAPIs = (): RuntimeAPIs => {
     throw new Error("Runtime APIs are not available. Did you forget to wrap the app in <RuntimeAPIProvider>?")
   }
   return apis
-}
-
-export const useRuntimeAPI = <TValue>(selector: RuntimeAPISelector<TValue>): TValue => {
-  const apis = useRuntimeAPIs()
-  return selector(apis)
 }

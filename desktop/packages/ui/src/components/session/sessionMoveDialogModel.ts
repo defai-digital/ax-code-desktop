@@ -6,7 +6,7 @@ import {
 } from "@/lib/projectResolution"
 import type { WorktreeMetadata } from "@/types/worktree"
 
-export type SessionMoveTarget = {
+type SessionMoveTarget = {
   id: string
   path: string
   label: string

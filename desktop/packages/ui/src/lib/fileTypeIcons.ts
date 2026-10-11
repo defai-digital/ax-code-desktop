@@ -209,5 +209,3 @@ export const getFileTypeIconHref = (
   const iconName = selectVariantIconName(baseIconName, options?.themeVariant || "dark")
   return `${spriteUrl}#${iconName}`
 }
-
-export const getFileTypeIconUrl = getFileTypeIconHref

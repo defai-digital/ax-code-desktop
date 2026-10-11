@@ -1,6 +1,6 @@
 import type { SkillDetail } from "@/stores/useSkillsStore"
 
-export type SkillDetailLoadResult =
+type SkillDetailLoadResult =
   | { status: "loaded"; detail: SkillDetail }
   | { status: "missing" }
   | { status: "stale" }

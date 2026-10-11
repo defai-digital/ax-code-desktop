@@ -181,9 +181,9 @@ export const isTauriShell = (): boolean => hasDesktopBridge()
 
 export const isElectronShell = (): boolean => getElectronRuntime()?.runtime === "electron"
 
-export const hasDesktopInvoke = (): boolean => hasDesktopBridge()
+const hasDesktopInvoke = (): boolean => hasDesktopBridge()
 
-export const canUseElectronDesktopIPC = (): boolean => isElectronShell() && hasDesktopInvoke()
+const canUseElectronDesktopIPC = (): boolean => isElectronShell() && hasDesktopInvoke()
 
 export const canUseLocalElectronDesktopIPC = (): boolean => canUseElectronDesktopIPC() && isDesktopLocalOriginActive()
 
@@ -208,14 +208,14 @@ export const invokeDesktop = async <T = unknown>(
   return bridge.invoke(command, args ?? {}) as Promise<T>
 }
 
-export type NativeFileSearchResult = {
+type NativeFileSearchResult = {
   name: string
   path: string
   relativePath: string
   extension?: string
 }
 
-export type NativeSearchOptions = {
+type NativeSearchOptions = {
   limit?: number
   includeHidden?: boolean
   respectGitignore?: boolean
@@ -243,46 +243,6 @@ export const searchFilesNative = async (
     return null
   }
 }
-
-type LaunchAtLoginStatus = {
-  supported: boolean
-  enabled: boolean
-}
-
-export const getDesktopLaunchAtLogin = async (): Promise<LaunchAtLoginStatus | null> => {
-  if (!canUseElectronDesktopIPC() || !isDesktopLocalOriginActive()) {
-    return null
-  }
-
-  try {
-    const result = await invokeDesktop<LaunchAtLoginStatus>("desktop_get_launch_at_login")
-    if (!result || typeof result.supported !== "boolean" || typeof result.enabled !== "boolean") {
-      return null
-    }
-    return result
-  } catch (error) {
-    console.warn("Failed to get launch at login status", error)
-    return null
-  }
-}
-
-export const setDesktopLaunchAtLogin = async (enabled: boolean): Promise<LaunchAtLoginStatus | null> => {
-  if (!canUseElectronDesktopIPC() || !isDesktopLocalOriginActive()) {
-    return null
-  }
-
-  try {
-    const result = await invokeDesktop<LaunchAtLoginStatus>("desktop_set_launch_at_login", { enabled })
-    if (!result || typeof result.supported !== "boolean" || typeof result.enabled !== "boolean") {
-      return null
-    }
-    return result
-  } catch (error) {
-    console.warn("Failed to set launch at login status", error)
-    return null
-  }
-}
-
 const normalizeOrigin = (raw: string): string | null => {
   const trimmed = raw.trim()
   if (!trimmed) return null
@@ -567,21 +527,6 @@ export const restartDesktopApp = async (): Promise<boolean> => {
     return false
   }
 }
-
-export const getDesktopLanAddress = async (): Promise<string | null> => {
-  if (!isTauriShell() || !isDesktopLocalOriginActive()) {
-    return null
-  }
-
-  try {
-    const result = await invokeDesktop("desktop_get_lan_address")
-    return typeof result === "string" && result.trim().length > 0 ? result.trim() : null
-  } catch (error) {
-    console.warn("Failed to get desktop LAN address (tauri)", error)
-    return null
-  }
-}
-
 export const openDesktopPath = async (path: string, app?: string | null): Promise<boolean> => {
   if (!isTauriShell() || !isDesktopLocalOriginActive()) {
     return false
@@ -707,7 +652,7 @@ export type InstalledDesktopAppInfo = {
   iconDataUrl?: string | null
 }
 
-export type FetchDesktopInstalledAppsResult = {
+type FetchDesktopInstalledAppsResult = {
   apps: InstalledDesktopAppInfo[]
   success: boolean
   hasCache: boolean

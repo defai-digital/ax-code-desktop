@@ -16,7 +16,7 @@ import type { WorktreeMetadata } from "@/types/worktree"
 import { formatPathForDisplay, cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
 
-export interface WorktreeSectionContentProps {
+interface WorktreeSectionContentProps {
   projectRef?: { id: string; path: string } | null
 }
 

@@ -1,6 +1,6 @@
 export type TimeFormatPreference = "auto" | "12h" | "24h"
 
-export type ClockTimeOptions = {
+type ClockTimeOptions = {
   includeSeconds?: boolean
   fallback?: string
 }

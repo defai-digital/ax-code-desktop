@@ -31,7 +31,7 @@ type ErrorNotification = NotificationBase & {
   error?: { message?: string; code?: string }
 }
 
-export type Notification = TurnCompleteNotification | ErrorNotification
+type Notification = TurnCompleteNotification | ErrorNotification
 
 type NotificationIndex = {
   session: {
@@ -167,8 +167,4 @@ export function useSessionUnseenCount(sessionId: string): number {
 
 export function useSessionHasError(sessionId: string): boolean {
   return useSyncNotificationStore((s) => s.index.session.unseenHasError[sessionId] ?? false)
-}
-
-export function useProjectUnseenCount(directory: string): number {
-  return useSyncNotificationStore((s) => s.index.project.unseenCount[directory] ?? 0)
 }

@@ -80,7 +80,7 @@ import { getNextUserMessageAfter, getPreviousUserMessageBefore } from "./revert-
 
 export type { AttachedFile }
 
-export type RouteFileInput = Pick<FilePartInput, "type" | "mime" | "url" | "filename" | "source">
+type RouteFileInput = Pick<FilePartInput, "type" | "mime" | "url" | "filename" | "source">
 
 export function attachmentToRouteFileInput(attachment: AttachedFile): RouteFileInput {
   const source =
@@ -282,10 +282,10 @@ function notifyMessageSent(sessionId: string): void {
 // Types
 // ---------------------------------------------------------------------------
 
-export type { SyntheticContextPart } from "./input-store"
-export type { SessionMemoryState } from "./viewport-store"
 
-export type NewSessionDraftState = {
+
+
+type NewSessionDraftState = {
   open: boolean
   selectedProjectId?: string | null
   directoryOverride: string | null
@@ -298,22 +298,7 @@ export type NewSessionDraftState = {
   syntheticParts?: SyntheticContextPart[]
   targetFolderId?: string
 }
-
-export type ViewportAnchor = {
-  sessionId: string
-  value: number
-}
-
-export type SessionHistoryMeta = {
-  limit: number
-  hasMore: boolean
-  complete: boolean
-  isLoading: boolean
-  loading?: boolean
-  nextCursor?: string
-}
-
-export type SessionUIState = {
+type SessionUIState = {
   currentSessionId: string | null
   newSessionDraft: NewSessionDraftState
   abortPromptSessionId: string | null

@@ -25,7 +25,7 @@ type LegacyContextPersistedState = {
 // Maximum number of sessions to retain in memory and persist to local storage.
 const MAX_PERSISTED_SESSIONS = 150
 
-export type SelectionState = {
+type SelectionState = {
   sessionModelSelections: Map<string, SessionModelSelection>
   sessionAgentSelections: Map<string, string>
   sessionAgentModelSelections: Map<string, Map<string, SessionModelSelection>>

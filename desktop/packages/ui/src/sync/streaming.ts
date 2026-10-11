@@ -18,7 +18,7 @@ export type MessageStreamState = {
   completedAt?: number
 }
 
-export type StreamingStore = {
+type StreamingStore = {
   /** Currently streaming message per session */
   streamingMessageIds: Map<string, string | null>
   /** Lifecycle phase per message */
@@ -186,14 +186,3 @@ export function updateStreamingState(state: State) {
 }
 
 // Selectors
-export const selectStreamingMessageId = (sessionID: string) => (state: StreamingStore) =>
-  state.streamingMessageIds.get(sessionID) ?? null
-
-export const selectMessageStreamState = (messageID: string) => (state: StreamingStore) =>
-  state.messageStreamStates.get(messageID) ?? null
-
-export const selectIsStreaming = (sessionID: string) => (state: StreamingStore) =>
-  state.streamingMessageIds.get(sessionID) != null
-
-export const selectIsPrefilling = (sessionID: string) => (state: StreamingStore) =>
-  state.prefillSessionIds.has(sessionID)

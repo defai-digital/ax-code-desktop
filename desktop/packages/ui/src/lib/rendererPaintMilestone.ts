@@ -1,13 +1,13 @@
-export type RendererPaintEntry = {
+type RendererPaintEntry = {
   name: string
   startTime: number
 }
 
-export type RendererPaintObserver = {
+type RendererPaintObserver = {
   disconnect: () => void
 }
 
-export type RendererPaintMilestoneOptions = {
+type RendererPaintMilestoneOptions = {
   readPaintEntries: () => readonly RendererPaintEntry[]
   observePaint?: (onPaint: () => void) => RendererPaintObserver
   requestFrame: (callback: () => void) => void

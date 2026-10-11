@@ -4,7 +4,7 @@ export type TauriEventApi = {
   listen?: (event: string, handler: (evt: { payload?: unknown }) => void) => Promise<() => void>
 }
 
-export type TauriGlobal = {
+type TauriGlobal = {
   core?: {
     invoke?: TauriInvoke
   }

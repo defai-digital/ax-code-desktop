@@ -1,4 +1,3 @@
-import React from "react"
 import { describe, expect, test, vi } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 

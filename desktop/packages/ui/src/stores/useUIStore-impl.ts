@@ -10,7 +10,7 @@ import { normalizeProjectPath } from "@/lib/projectResolution"
 import type { TimeFormatPreference } from "@/lib/timeFormat"
 
 export type MainTab = "chat" | "plan" | "git" | "diff" | "terminal" | "files" | "context"
-export type RightSidebarTab = "git" | "files" | "context"
+type RightSidebarTab = "git" | "files" | "context"
 export type ContextPanelMode = "diff" | "file" | "context" | "plan" | "chat" | "preview" | "browser" | "dashboard"
 
 const CONTEXT_PANEL_MODES = new Set<ContextPanelMode>([
@@ -28,13 +28,13 @@ export const isContextPanelMode = (mode: unknown): mode is ContextPanelMode => {
   return typeof mode === "string" && CONTEXT_PANEL_MODES.has(mode as ContextPanelMode)
 }
 
-export type MermaidRenderingMode = "svg" | "ascii"
-export type UserMessageRenderingMode = "markdown" | "plain"
-export type ChatRenderMode = "sorted" | "live"
-export type ActivityRenderMode = "collapsed" | "summary"
-export type SessionRetentionAction = "archive" | "delete"
-export type { TimeFormatPreference } from "@/lib/timeFormat"
-export type WeekStartPreference = "auto" | "sunday" | "monday"
+type MermaidRenderingMode = "svg" | "ascii"
+type UserMessageRenderingMode = "markdown" | "plain"
+type ChatRenderMode = "sorted" | "live"
+type ActivityRenderMode = "collapsed" | "summary"
+type SessionRetentionAction = "archive" | "delete"
+
+type WeekStartPreference = "auto" | "sunday" | "monday"
 
 type ContextPanelTab = {
   id: string
@@ -71,7 +71,7 @@ type PendingFileNavigation = {
   column: number
 }
 
-export type MainTabGuard = (nextTab: MainTab) => boolean
+type MainTabGuard = (nextTab: MainTab) => boolean
 
 const LEGACY_DEFAULT_NOTIFICATION_TEMPLATES = {
   completion: { title: "{agent_name} is ready", message: "{last_message}" },
@@ -497,7 +497,7 @@ const clampContextPanelRoots = (
 // per-directory context-panel strip via this sentinel id.
 export const GLOBAL_BROWSER_TAB_ID = "__ctx_global_browser__"
 
-export interface BrowserPanelState {
+interface BrowserPanelState {
   isOpen: boolean
   url: string
   focused: boolean

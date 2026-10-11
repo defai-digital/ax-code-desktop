@@ -4,33 +4,33 @@ export const OPEN_SESSION_EVENT = "openchamber:open-session"
 export const OPEN_DRAFT_SESSION_EVENT = "openchamber:open-draft-session"
 export const OPEN_PROJECT_EVENT = "openchamber:open-project"
 
-export type OpenSessionEventDetail = {
+type OpenSessionEventDetail = {
   readonly sessionId: string
   readonly directory: string | null
 }
 
-export type OpenDraftSessionEventDetail = {
+type OpenDraftSessionEventDetail = {
   readonly directory: string | null
   readonly projectId: string | null
 }
 
-export type OpenProjectEventDetail = {
+type OpenProjectEventDetail = {
   readonly projectPath: string
 }
 
-export type OpenProjectStoreAdapter = {
+type OpenProjectStoreAdapter = {
   readonly projects: ReadonlyArray<Pick<ProjectEntry, "id" | "path">>
   validateProjectPath: (path: string) => { ok: boolean; normalizedPath?: string }
   setActiveProject: (id: string) => void
   addProject: (path: string) => ProjectEntry | null
 }
 
-export type OpenSessionUiAdapter = {
+type OpenSessionUiAdapter = {
   setActiveMainTab: (tab: "chat") => void
   setSessionSwitcherOpen: (open: boolean) => void
 }
 
-export type OpenSessionStoreAdapter = {
+type OpenSessionStoreAdapter = {
   setCurrentSession: (sessionId: string, directory: string | null) => void | Promise<void>
 }
 

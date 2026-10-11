@@ -5,22 +5,22 @@ import { compareIds, sortPartsById } from "./part-ordering"
 
 const STREAMING_PART_FIELDS = ["text", "output"] as const
 
-export type MaterializedMessageRecord = {
+type MaterializedMessageRecord = {
   info: Message
   parts: Part[]
 }
 
-export type MaterializedState = {
+type MaterializedState = {
   message: Record<string, Message[]>
   part: Record<string, Part[]>
 }
 
-export type MaterializeSessionSnapshotsOptions = {
+type MaterializeSessionSnapshotsOptions = {
   skipPartTypes?: ReadonlySet<string>
   mode?: "merge" | "prepend"
 }
 
-export type MaterializeSessionSnapshotsResult = {
+type MaterializeSessionSnapshotsResult = {
   message: Record<string, Message[]>
   part: Record<string, Part[]>
   messages: Message[]
@@ -28,7 +28,7 @@ export type MaterializeSessionSnapshotsResult = {
   partsChanged: boolean
 }
 
-export type SessionMaterializationStatus = {
+type SessionMaterializationStatus = {
   hasMessages: boolean
   renderable: boolean
   missingPartMessageIDs: string[]

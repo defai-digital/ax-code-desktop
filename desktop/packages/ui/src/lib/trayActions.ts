@@ -1,6 +1,6 @@
-export type TrayPermissionResponse = "once" | "always" | "reject"
+type TrayPermissionResponse = "once" | "always" | "reject"
 
-export type TrayPermissionAction = {
+type TrayPermissionAction = {
   type: "respond-permission"
   sessionId: string
   id: string

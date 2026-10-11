@@ -44,7 +44,7 @@ export type StreamPerfSnapshot = {
 // Toggle at runtime via setStreamPerfEnabled, which refreshes the cache.
 let streamPerfEnabledCache: boolean | null = null
 
-export const streamPerfEnabled = (): boolean => {
+const streamPerfEnabled = (): boolean => {
   if (streamPerfEnabledCache !== null) return streamPerfEnabledCache
   if (typeof window === "undefined") return false
   try {

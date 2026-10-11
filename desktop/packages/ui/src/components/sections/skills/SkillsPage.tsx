@@ -40,7 +40,7 @@ import type { Extension } from "@codemirror/state"
 import { runSettingsDeleteMutation } from "../settingsDeleteMutation"
 import { loadCurrentSkillDetail } from "./skillDetailLoad"
 
-export interface SkillsPageProps {
+interface SkillsPageProps {
   view?: "installed" | "catalog"
 }
 

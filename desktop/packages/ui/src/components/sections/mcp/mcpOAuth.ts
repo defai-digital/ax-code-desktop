@@ -55,7 +55,7 @@ export const parseMcpOAuthCallbackStateKey = (params: URLSearchParams): string |
   return trimmed || null
 }
 
-export const parseMcpOAuthState = (
+const parseMcpOAuthState = (
   raw: string | null | undefined,
 ): {
   name: string

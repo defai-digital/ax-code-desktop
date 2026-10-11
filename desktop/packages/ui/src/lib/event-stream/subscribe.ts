@@ -19,7 +19,7 @@ export type EventStreamEnvelope = {
   properties: unknown
 }
 
-export type SubscribeEventStreamOptions = {
+type SubscribeEventStreamOptions = {
   url: string
   heartbeatTimeoutMs?: number
   backoff?: Partial<BackoffProfile>

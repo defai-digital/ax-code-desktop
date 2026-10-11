@@ -2,9 +2,9 @@ import type { FilesAPI } from "@/lib/api/types"
 import { MAX_OPEN_FILE_LINES, countLinesWithLimit } from "@/lib/fileOpenLimits"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
 
-export type ContextFileOpenFailureReason = "too-large" | "missing" | "unreadable"
+type ContextFileOpenFailureReason = "too-large" | "missing" | "unreadable"
 
-export type ContextFileOpenValidationResult = { ok: true } | { ok: false; reason: ContextFileOpenFailureReason }
+type ContextFileOpenValidationResult = { ok: true } | { ok: false; reason: ContextFileOpenFailureReason }
 
 const classifyReadError = (error: unknown): ContextFileOpenFailureReason => {
   const message = error instanceof Error ? error.message : String(error ?? "")

@@ -1036,12 +1036,6 @@ const fetchWebSettings = async (): Promise<DesktopSettings | null> => {
 
   return _settingsInflight
 }
-
-/** Invalidate cached settings (call after a successful PUT) */
-export const invalidateSettingsCache = (): void => {
-  _settingsCache = null
-}
-
 export const syncDesktopSettings = async (): Promise<void> => {
   if (typeof window === "undefined") {
     return
@@ -1201,22 +1195,6 @@ export const updateDesktopSettings = (changes: Partial<DesktopSettings>): Promis
   _settingsFlushTimer = setTimeout(() => void _flushSettingsUpdate(), SETTINGS_DEBOUNCE_MS)
   return promise
 }
-
-/**
- * Flush any debounced settings write immediately (awaitable). Resolves once the
- * pending changes have been persisted, or rejects if the write fails.
- */
-export const flushDesktopSettings = async (): Promise<void> => {
-  if (typeof window === "undefined") {
-    return
-  }
-  if (_settingsFlushTimer) {
-    clearTimeout(_settingsFlushTimer)
-    _settingsFlushTimer = null
-  }
-  await _flushSettingsUpdate()
-}
-
 // A still-pending debounced write (the 200ms window) would be dropped when the app
 // is hidden/closed — and because the server settings file is authoritative on the
 // next load, the setting would then actively revert to its old value. Persist

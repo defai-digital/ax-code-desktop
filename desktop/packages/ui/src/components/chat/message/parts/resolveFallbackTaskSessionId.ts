@@ -22,7 +22,7 @@ const TASK_SESSION_MATCH_WINDOW_WIDE_MS = 8000
 
 const LIVE_STATUSES = new Set<string>(["busy", "retry"])
 
-export interface ResolveFallbackParams {
+interface ResolveFallbackParams {
   /** True when this tool is a task tool */
   isTaskTool: boolean
   /** The parent session id (current session) */

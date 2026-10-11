@@ -8,7 +8,6 @@
     { "command": "desktop_quit_and_install", "safeForRemote": false, "args": "object" },
     { "command": "desktop_restart", "safeForRemote": false, "args": "object" },
     { "command": "desktop_set_badge_count", "safeForRemote": false, "args": "object" },
-    { "command": "desktop_get_lan_address", "safeForRemote": false, "args": "object" },
     { "command": "desktop_dialog_open", "safeForRemote": false, "args": "object" },
     { "command": "desktop_record_startup_event", "safeForRemote": false, "args": "object" },
     { "command": "desktop_open_path", "safeForRemote": false, "args": "object" },

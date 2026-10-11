@@ -145,4 +145,3 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({ directory }) => 
   )
 }
 
-export default DashboardPanel

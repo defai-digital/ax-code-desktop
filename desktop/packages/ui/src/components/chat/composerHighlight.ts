@@ -50,7 +50,7 @@ export interface MentionRange {
   kind: MentionKind
 }
 
-export interface HighlightPart {
+interface HighlightPart {
   text: string
   className: string
 }
@@ -148,7 +148,7 @@ function scanInline(segment: string, base: number, out: HighlightRange[]): void 
  */
 const FENCE_OPEN = /^(\s*)(`{3,}|~{3,})\s*(\S*)/
 
-export interface FenceOpen {
+interface FenceOpen {
   /** The full opening fence run, e.g. "```" or "~~~~". */
   marker: string
   /** First info-string token (the language), or '' when absent. */
