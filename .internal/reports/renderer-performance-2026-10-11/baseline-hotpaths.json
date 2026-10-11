@@ -1,0 +1,1284 @@
+[
+  {
+    "scenario": "idle-200",
+    "cpuTopSelf": [
+      {
+        "ms": 6874.36,
+        "columnNumber": -1,
+        "functionName": "(idle)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 5547.757,
+        "columnNumber": -1,
+        "functionName": "(program)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 42.497,
+        "columnNumber": 2672,
+        "functionName": "",
+        "lineNumber": 522,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 31.537,
+        "columnNumber": -1,
+        "functionName": "(garbage collector)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 6.328,
+        "columnNumber": -1,
+        "functionName": "requestAnimationFrame",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 5.25,
+        "columnNumber": 2941,
+        "functionName": "PZ",
+        "lineNumber": 506,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 4.01,
+        "columnNumber": 29882,
+        "functionName": "v9",
+        "lineNumber": 525,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 3.676,
+        "columnNumber": 71,
+        "functionName": "tl",
+        "lineNumber": 8,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 3.303,
+        "columnNumber": -1,
+        "functionName": "toString",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 1.856,
+        "columnNumber": 6578,
+        "functionName": "I",
+        "lineNumber": 50,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 1.602,
+        "columnNumber": 49729,
+        "functionName": "Jf",
+        "lineNumber": 7,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 1.573,
+        "columnNumber": -1,
+        "functionName": "executeJavaScript",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 1.461,
+        "columnNumber": 15076,
+        "functionName": "Bi",
+        "lineNumber": 7,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 1.446,
+        "columnNumber": 51836,
+        "functionName": "Y0",
+        "lineNumber": 7,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 1.441,
+        "columnNumber": 131149,
+        "functionName": "Kh",
+        "lineNumber": 0,
+        "scriptId": "13",
+        "url": "http://127.0.0.1:63683/assets/vendor-ui-C1R1Esur.js"
+      },
+      {
+        "ms": 1.374,
+        "columnNumber": 55251,
+        "functionName": "ma",
+        "lineNumber": 7,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 1.329,
+        "columnNumber": 56512,
+        "functionName": "ey",
+        "lineNumber": 7,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 1.305,
+        "columnNumber": 49905,
+        "functionName": "",
+        "lineNumber": 7,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 1.294,
+        "columnNumber": 7838,
+        "functionName": "zd",
+        "lineNumber": 8,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 1.281,
+        "columnNumber": 60376,
+        "functionName": "useState",
+        "lineNumber": 0,
+        "scriptId": "13",
+        "url": "http://127.0.0.1:63683/assets/vendor-ui-C1R1Esur.js"
+      }
+    ],
+    "traceMain": {
+      "RunTask": {
+        "count": 11613,
+        "totalMs": 3223.5220000003237,
+        "maxMs": 236.131
+      },
+      "FireAnimationFrame": {
+        "count": 1646,
+        "totalMs": 94.88700000000031,
+        "maxMs": 0.317
+      },
+      "FunctionCall": {
+        "count": 11186,
+        "totalMs": 309.7079999999911,
+        "maxMs": 5.073
+      },
+      "UpdateLayoutTree": {
+        "count": 1727,
+        "totalMs": 158.51500000000024,
+        "maxMs": 1
+      },
+      "PrePaint": {
+        "count": 1488,
+        "totalMs": 110.41799999999994,
+        "maxMs": 0.341
+      },
+      "EventDispatch": {
+        "count": 577,
+        "totalMs": 763.8939999999993,
+        "maxMs": 6.544
+      },
+      "Layout": {
+        "count": 239,
+        "totalMs": 74.65099999999998,
+        "maxMs": 0.817
+      },
+      "Paint": {
+        "count": 210,
+        "totalMs": 93.57900000000008,
+        "maxMs": 2.219
+      },
+      "V8.GC_SCAVENGER": {
+        "count": 1,
+        "totalMs": 1.392,
+        "maxMs": 1.392
+      },
+      "V8.GC_MARK_COMPACTOR": {
+        "count": 3,
+        "totalMs": 6.676,
+        "maxMs": 2.504
+      }
+    }
+  },
+  {
+    "scenario": "markdown-200",
+    "cpuTopSelf": [
+      {
+        "ms": 6563.598,
+        "columnNumber": -1,
+        "functionName": "(idle)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 5422.435,
+        "columnNumber": -1,
+        "functionName": "(program)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 36.763,
+        "columnNumber": -1,
+        "functionName": "(garbage collector)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 24.055,
+        "columnNumber": 763,
+        "functionName": "",
+        "lineNumber": 531,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 13.028,
+        "columnNumber": 12003,
+        "functionName": "Do",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 6.468,
+        "columnNumber": 29882,
+        "functionName": "v9",
+        "lineNumber": 525,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 5.529,
+        "columnNumber": 47731,
+        "functionName": "Vf",
+        "lineNumber": 7,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 5.347,
+        "columnNumber": 583,
+        "functionName": "zUn",
+        "lineNumber": 222,
+        "scriptId": "15",
+        "url": "http://127.0.0.1:63683/assets/MarkdownRendererImpl-DQa_07Le.js"
+      },
+      {
+        "ms": 5.148,
+        "columnNumber": 3309,
+        "functionName": "n",
+        "lineNumber": 3,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 4.931,
+        "columnNumber": 11984,
+        "functionName": "",
+        "lineNumber": 226,
+        "scriptId": "15",
+        "url": "http://127.0.0.1:63683/assets/MarkdownRendererImpl-DQa_07Le.js"
+      },
+      {
+        "ms": 4.927,
+        "columnNumber": -1,
+        "functionName": "removeChild",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 3.754,
+        "columnNumber": 5475,
+        "functionName": "Hl",
+        "lineNumber": 8,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 3.736,
+        "columnNumber": 84865,
+        "functionName": "cl",
+        "lineNumber": 7,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 3.723,
+        "columnNumber": 11929,
+        "functionName": "rl",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 3.696,
+        "columnNumber": 10389,
+        "functionName": "qi",
+        "lineNumber": 7,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 3.514,
+        "columnNumber": -1,
+        "functionName": "createElement",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 3.495,
+        "columnNumber": 39143,
+        "functionName": "",
+        "lineNumber": 93,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 3.3,
+        "columnNumber": 28246,
+        "functionName": "pt",
+        "lineNumber": 7,
+        "scriptId": "9",
+        "url": "http://127.0.0.1:63683/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 3.228,
+        "columnNumber": -1,
+        "functionName": "matchMedia",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 3.177,
+        "columnNumber": 146,
+        "functionName": "y9",
+        "lineNumber": 520,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      }
+    ],
+    "traceMain": {
+      "RunTask": {
+        "count": 11791,
+        "totalMs": 3689.166000000303,
+        "maxMs": 61.322
+      },
+      "FireAnimationFrame": {
+        "count": 1893,
+        "totalMs": 93.80900000000027,
+        "maxMs": 0.879
+      },
+      "FunctionCall": {
+        "count": 13396,
+        "totalMs": 1034.441999999935,
+        "maxMs": 14.072
+      },
+      "UpdateLayoutTree": {
+        "count": 1982,
+        "totalMs": 254.106,
+        "maxMs": 1.367
+      },
+      "PrePaint": {
+        "count": 1488,
+        "totalMs": 237.18999999999983,
+        "maxMs": 2.538
+      },
+      "Layout": {
+        "count": 483,
+        "totalMs": 243.2890000000001,
+        "maxMs": 2.816
+      },
+      "Paint": {
+        "count": 1908,
+        "totalMs": 568.748,
+        "maxMs": 2.129
+      },
+      "EventDispatch": {
+        "count": 1071,
+        "totalMs": 547.2329999999997,
+        "maxMs": 5.135
+      },
+      "V8.GC_MARK_COMPACTOR": {
+        "count": 4,
+        "totalMs": 10.985,
+        "maxMs": 3.182
+      },
+      "V8.GC_SCAVENGER": {
+        "count": 8,
+        "totalMs": 11.619000000000002,
+        "maxMs": 2.353
+      }
+    }
+  },
+  {
+    "scenario": "markdown-4000",
+    "cpuTopSelf": [
+      {
+        "ms": 10802.839,
+        "columnNumber": -1,
+        "functionName": "(program)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 818.119,
+        "columnNumber": 2672,
+        "functionName": "",
+        "lineNumber": 522,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 613.559,
+        "columnNumber": 839,
+        "functionName": "ra",
+        "lineNumber": 27,
+        "scriptId": "12",
+        "url": "http://127.0.0.1:63683/assets/app-config-store-B8MKU9ae.js"
+      },
+      {
+        "ms": 90.492,
+        "columnNumber": 21118,
+        "functionName": "ef",
+        "lineNumber": 24,
+        "scriptId": "12",
+        "url": "http://127.0.0.1:63683/assets/app-config-store-B8MKU9ae.js"
+      },
+      {
+        "ms": 79.853,
+        "columnNumber": 2672,
+        "functionName": "",
+        "lineNumber": 522,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 76.938,
+        "columnNumber": -1,
+        "functionName": "toString",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 54.287,
+        "columnNumber": 464,
+        "functionName": "",
+        "lineNumber": 0,
+        "scriptId": "10",
+        "url": "http://127.0.0.1:63683/assets/vendor-state-d8Wq-xA9.js"
+      },
+      {
+        "ms": 31.429,
+        "columnNumber": -1,
+        "functionName": "(garbage collector)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 28.27,
+        "columnNumber": 12612,
+        "functionName": "VP",
+        "lineNumber": 93,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 22.206,
+        "columnNumber": 34982,
+        "functionName": "",
+        "lineNumber": 93,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 19.706,
+        "columnNumber": 13440,
+        "functionName": "",
+        "lineNumber": 93,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 17.426,
+        "columnNumber": 11271,
+        "functionName": "_7",
+        "lineNumber": 93,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 16.042,
+        "columnNumber": 12676,
+        "functionName": "",
+        "lineNumber": 93,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 12.318,
+        "columnNumber": 13074,
+        "functionName": "",
+        "lineNumber": 93,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 11.829,
+        "columnNumber": 20166,
+        "functionName": "iN",
+        "lineNumber": 93,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 10.466,
+        "columnNumber": 234,
+        "functionName": "",
+        "lineNumber": 0,
+        "scriptId": "10",
+        "url": "http://127.0.0.1:63683/assets/vendor-state-d8Wq-xA9.js"
+      },
+      {
+        "ms": 9.93,
+        "columnNumber": 20595,
+        "functionName": "",
+        "lineNumber": 500,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 9.882,
+        "columnNumber": 9268,
+        "functionName": "",
+        "lineNumber": 93,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 7.802,
+        "columnNumber": -1,
+        "functionName": "(idle)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 7.513,
+        "columnNumber": 90,
+        "functionName": "o",
+        "lineNumber": 0,
+        "scriptId": "10",
+        "url": "http://127.0.0.1:63683/assets/vendor-state-d8Wq-xA9.js"
+      }
+    ],
+    "traceMain": {
+      "RunTask": {
+        "count": 2803,
+        "totalMs": 13046.330000000196,
+        "maxMs": 601.812
+      },
+      "FireAnimationFrame": {
+        "count": 668,
+        "totalMs": 21.281999999999996,
+        "maxMs": 0.578
+      },
+      "FunctionCall": {
+        "count": 161215,
+        "totalMs": 3284.311999997061,
+        "maxMs": 21.888
+      },
+      "UpdateLayoutTree": {
+        "count": 800,
+        "totalMs": 117.13000000000005,
+        "maxMs": 0.635
+      },
+      "PrePaint": {
+        "count": 344,
+        "totalMs": 1720.713000000001,
+        "maxMs": 22.262
+      },
+      "Layout": {
+        "count": 381,
+        "totalMs": 1439.8879999999988,
+        "maxMs": 4.793
+      },
+      "Paint": {
+        "count": 1545,
+        "totalMs": 3992.5780000000063,
+        "maxMs": 13.366
+      },
+      "EventDispatch": {
+        "count": 724,
+        "totalMs": 4644.430000000005,
+        "maxMs": 26.336
+      },
+      "V8.GC_SCAVENGER": {
+        "count": 25,
+        "totalMs": 34.275,
+        "maxMs": 3.02
+      }
+    }
+  },
+  {
+    "scenario": "paragraph-4000",
+    "cpuTopSelf": [
+      {
+        "ms": 6053.835,
+        "columnNumber": -1,
+        "functionName": "(program)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 1412.738,
+        "columnNumber": 51920,
+        "functionName": "t",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 616.264,
+        "columnNumber": 2672,
+        "functionName": "",
+        "lineNumber": 522,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 544.625,
+        "columnNumber": 11594,
+        "functionName": "He",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 342.877,
+        "columnNumber": -1,
+        "functionName": "(garbage collector)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 342.104,
+        "columnNumber": 51920,
+        "functionName": "t",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 212.213,
+        "columnNumber": 839,
+        "functionName": "ra",
+        "lineNumber": 27,
+        "scriptId": "12",
+        "url": "http://127.0.0.1:63683/assets/app-config-store-B8MKU9ae.js"
+      },
+      {
+        "ms": 189.056,
+        "columnNumber": 316,
+        "functionName": "inlineTokens",
+        "lineNumber": 182,
+        "scriptId": "15",
+        "url": "http://127.0.0.1:63683/assets/MarkdownRendererImpl-DQa_07Le.js"
+      },
+      {
+        "ms": 179.95,
+        "columnNumber": 54413,
+        "functionName": "A",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 177.063,
+        "columnNumber": 2672,
+        "functionName": "",
+        "lineNumber": 522,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 142.118,
+        "columnNumber": 1207,
+        "functionName": "d",
+        "lineNumber": 9,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 141.116,
+        "columnNumber": 11594,
+        "functionName": "He",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 129.494,
+        "columnNumber": 14911,
+        "functionName": "o",
+        "lineNumber": 13,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 126.613,
+        "columnNumber": 3309,
+        "functionName": "n",
+        "lineNumber": 3,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 99.675,
+        "columnNumber": 1752,
+        "functionName": "s",
+        "lineNumber": 9,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 98.851,
+        "columnNumber": 54413,
+        "functionName": "A",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 84.239,
+        "columnNumber": 1752,
+        "functionName": "s",
+        "lineNumber": 9,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 64.268,
+        "columnNumber": 1207,
+        "functionName": "d",
+        "lineNumber": 9,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 61.924,
+        "columnNumber": 763,
+        "functionName": "",
+        "lineNumber": 531,
+        "scriptId": "8",
+        "url": "http://127.0.0.1:63683/assets/renderer-DHcouy9U.js"
+      },
+      {
+        "ms": 58.333,
+        "columnNumber": 1207,
+        "functionName": "d",
+        "lineNumber": 9,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:63683/assets/vendor-markdown-DLAUEfai.js"
+      }
+    ],
+    "traceMain": {
+      "RunTask": {
+        "count": 1259,
+        "totalMs": 13316.460000000114,
+        "maxMs": 718.539
+      },
+      "FireAnimationFrame": {
+        "count": 296,
+        "totalMs": 71.40800000000013,
+        "maxMs": 22.075
+      },
+      "FunctionCall": {
+        "count": 83986,
+        "totalMs": 8584.432000009696,
+        "maxMs": 387.989
+      },
+      "UpdateLayoutTree": {
+        "count": 412,
+        "totalMs": 305.19900000000007,
+        "maxMs": 5.71
+      },
+      "PrePaint": {
+        "count": 124,
+        "totalMs": 377.4439999999999,
+        "maxMs": 7.67
+      },
+      "V8.GC_SCAVENGER": {
+        "count": 402,
+        "totalMs": 306.8150000000001,
+        "maxMs": 2.706
+      },
+      "Layout": {
+        "count": 289,
+        "totalMs": 1567.2559999999999,
+        "maxMs": 15.667
+      },
+      "EventDispatch": {
+        "count": 593,
+        "totalMs": 8317.833000000004,
+        "maxMs": 392.112
+      },
+      "Paint": {
+        "count": 184,
+        "totalMs": 1506.940000000001,
+        "maxMs": 13.41
+      }
+    }
+  },
+  {
+    "scenario": "tool-4000",
+    "cpuTopSelf": [
+      {
+        "ms": 9747.049,
+        "columnNumber": -1,
+        "functionName": "(program)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 1075.646,
+        "columnNumber": -1,
+        "functionName": "(idle)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 258.339,
+        "columnNumber": 2672,
+        "functionName": "",
+        "lineNumber": 522,
+        "scriptId": "4",
+        "url": "http://127.0.0.1:64034/assets/renderer-BUf1Li-r.js"
+      },
+      {
+        "ms": 126.533,
+        "columnNumber": 12003,
+        "functionName": "Do",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 95.304,
+        "columnNumber": 12003,
+        "functionName": "Do",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 83.286,
+        "columnNumber": -1,
+        "functionName": "(garbage collector)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 55.062,
+        "columnNumber": 11813,
+        "functionName": "r",
+        "lineNumber": 3,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 47.6,
+        "columnNumber": 3309,
+        "functionName": "n",
+        "lineNumber": 3,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 31.793,
+        "columnNumber": -1,
+        "functionName": "now",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 31.675,
+        "columnNumber": 29206,
+        "functionName": "cu",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 27.312,
+        "columnNumber": 153,
+        "functionName": "A1",
+        "lineNumber": 3,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 26.512,
+        "columnNumber": 28290,
+        "functionName": "sl",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 25.282,
+        "columnNumber": 79009,
+        "functionName": "Xt",
+        "lineNumber": 7,
+        "scriptId": "6",
+        "url": "http://127.0.0.1:64034/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 23.977,
+        "columnNumber": 17809,
+        "functionName": "om",
+        "lineNumber": 28,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 23.662,
+        "columnNumber": 11594,
+        "functionName": "He",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 23.504,
+        "columnNumber": 11594,
+        "functionName": "He",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 21.067,
+        "columnNumber": 12003,
+        "functionName": "Do",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 19.249,
+        "columnNumber": 1207,
+        "functionName": "d",
+        "lineNumber": 9,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 18.374,
+        "columnNumber": 51670,
+        "functionName": "o",
+        "lineNumber": 1,
+        "scriptId": "16",
+        "url": "http://127.0.0.1:64034/assets/vendor-markdown-DLAUEfai.js"
+      },
+      {
+        "ms": 17.615,
+        "columnNumber": 85216,
+        "functionName": "Fm",
+        "lineNumber": 7,
+        "scriptId": "6",
+        "url": "http://127.0.0.1:64034/assets/vendor-react-BPDwojwj.js"
+      }
+    ],
+    "traceMain": {
+      "FunctionCall": {
+        "count": 153500,
+        "totalMs": 3067.893999998751,
+        "maxMs": 491.506
+      },
+      "RunTask": {
+        "count": 6690,
+        "totalMs": 11383.011000000417,
+        "maxMs": 768.507
+      },
+      "FireAnimationFrame": {
+        "count": 1201,
+        "totalMs": 38.02000000000001,
+        "maxMs": 0.335
+      },
+      "UpdateLayoutTree": {
+        "count": 1292,
+        "totalMs": 143.17000000000002,
+        "maxMs": 64.046
+      },
+      "PrePaint": {
+        "count": 1063,
+        "totalMs": 245.0039999999992,
+        "maxMs": 78.348
+      },
+      "EventDispatch": {
+        "count": 577,
+        "totalMs": 2328.784000000003,
+        "maxMs": 181.523
+      },
+      "Layout": {
+        "count": 245,
+        "totalMs": 581.3709999999993,
+        "maxMs": 106.487
+      },
+      "Paint": {
+        "count": 295,
+        "totalMs": 854.755,
+        "maxMs": 13.428
+      },
+      "V8.GC_SCAVENGER": {
+        "count": 108,
+        "totalMs": 130.69300000000004,
+        "maxMs": 1.911
+      }
+    }
+  },
+  {
+    "scenario": "tool-expanded-4000",
+    "cpuTopSelf": [
+      {
+        "ms": 9371.074,
+        "columnNumber": -1,
+        "functionName": "(program)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 752.28,
+        "columnNumber": 5991,
+        "functionName": "",
+        "lineNumber": 1,
+        "scriptId": "18",
+        "url": "http://127.0.0.1:64034/assets/vendor-syntax-DdRR6POe.js"
+      },
+      {
+        "ms": 315.651,
+        "columnNumber": 2672,
+        "functionName": "",
+        "lineNumber": 522,
+        "scriptId": "4",
+        "url": "http://127.0.0.1:64034/assets/renderer-BUf1Li-r.js"
+      },
+      {
+        "ms": 290.462,
+        "columnNumber": 1280,
+        "functionName": "Et",
+        "lineNumber": 1,
+        "scriptId": "18",
+        "url": "http://127.0.0.1:64034/assets/vendor-syntax-DdRR6POe.js"
+      },
+      {
+        "ms": 289.698,
+        "columnNumber": 6378,
+        "functionName": "",
+        "lineNumber": 1,
+        "scriptId": "18",
+        "url": "http://127.0.0.1:64034/assets/vendor-syntax-DdRR6POe.js"
+      },
+      {
+        "ms": 221.939,
+        "columnNumber": -1,
+        "functionName": "(garbage collector)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 156.387,
+        "columnNumber": 6106,
+        "functionName": "Rd",
+        "lineNumber": 1,
+        "scriptId": "18",
+        "url": "http://127.0.0.1:64034/assets/vendor-syntax-DdRR6POe.js"
+      },
+      {
+        "ms": 154.375,
+        "columnNumber": 675,
+        "functionName": "",
+        "lineNumber": 5,
+        "scriptId": "18",
+        "url": "http://127.0.0.1:64034/assets/vendor-syntax-DdRR6POe.js"
+      },
+      {
+        "ms": 78.303,
+        "columnNumber": 21,
+        "functionName": "",
+        "lineNumber": 4,
+        "scriptId": "18",
+        "url": "http://127.0.0.1:64034/assets/vendor-syntax-DdRR6POe.js"
+      },
+      {
+        "ms": 71.008,
+        "columnNumber": -1,
+        "functionName": "(idle)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 68.18,
+        "columnNumber": 6420,
+        "functionName": "",
+        "lineNumber": 1,
+        "scriptId": "18",
+        "url": "http://127.0.0.1:64034/assets/vendor-syntax-DdRR6POe.js"
+      },
+      {
+        "ms": 56.472,
+        "columnNumber": 85216,
+        "functionName": "Fm",
+        "lineNumber": 7,
+        "scriptId": "6",
+        "url": "http://127.0.0.1:64034/assets/vendor-react-BPDwojwj.js"
+      },
+      {
+        "ms": 54.835,
+        "columnNumber": 1280,
+        "functionName": "Et",
+        "lineNumber": 1,
+        "scriptId": "18",
+        "url": "http://127.0.0.1:64034/assets/vendor-syntax-DdRR6POe.js"
+      },
+      {
+        "ms": 52.938,
+        "columnNumber": 6378,
+        "functionName": "",
+        "lineNumber": 1,
+        "scriptId": "18",
+        "url": "http://127.0.0.1:64034/assets/vendor-syntax-DdRR6POe.js"
+      },
+      {
+        "ms": 52.773,
+        "columnNumber": -1,
+        "functionName": "appendChild",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 45.052,
+        "columnNumber": 1016,
+        "functionName": "jv",
+        "lineNumber": 3,
+        "scriptId": "18",
+        "url": "http://127.0.0.1:64034/assets/vendor-syntax-DdRR6POe.js"
+      },
+      {
+        "ms": 37.409,
+        "columnNumber": 1059,
+        "functionName": "n_",
+        "lineNumber": 1,
+        "scriptId": "18",
+        "url": "http://127.0.0.1:64034/assets/vendor-syntax-DdRR6POe.js"
+      },
+      {
+        "ms": 36.439,
+        "columnNumber": -1,
+        "functionName": "createTextNode",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 34.965,
+        "columnNumber": -1,
+        "functionName": "RegExp: \\b[\\w-]+(?=\\s*\\(\\s*\\)\\s*\\{)",
+        "lineNumber": -1,
+        "scriptId": "0",
+        "url": ""
+      },
+      {
+        "ms": 30.908,
+        "columnNumber": 10641,
+        "functionName": "Ci",
+        "lineNumber": 7,
+        "scriptId": "6",
+        "url": "http://127.0.0.1:64034/assets/vendor-react-BPDwojwj.js"
+      }
+    ],
+    "traceMain": {
+      "RunTask": {
+        "count": 5366,
+        "totalMs": 12245.918000000309,
+        "maxMs": 594.818
+      },
+      "FireAnimationFrame": {
+        "count": 2559,
+        "totalMs": 128.95900000000083,
+        "maxMs": 4.343
+      },
+      "FunctionCall": {
+        "count": 162199,
+        "totalMs": 4263.755000004317,
+        "maxMs": 101.662
+      },
+      "UpdateLayoutTree": {
+        "count": 1058,
+        "totalMs": 100.40200000000031,
+        "maxMs": 37.159
+      },
+      "PrePaint": {
+        "count": 887,
+        "totalMs": 153.9989999999999,
+        "maxMs": 10.615
+      },
+      "EventDispatch": {
+        "count": 685,
+        "totalMs": 2445.242999999998,
+        "maxMs": 10.288
+      },
+      "Layout": {
+        "count": 244,
+        "totalMs": 618.1729999999995,
+        "maxMs": 22.183
+      },
+      "Paint": {
+        "count": 234,
+        "totalMs": 930.8109999999998,
+        "maxMs": 11.399
+      },
+      "V8.GC_SCAVENGER": {
+        "count": 119,
+        "totalMs": 206.6800000000001,
+        "maxMs": 4.669
+      }
+    }
+  }
+]

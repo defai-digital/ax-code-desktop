@@ -1197,6 +1197,8 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
     },
     ref,
   ) => {
+    "use no memo"
+    // The virtualizer mutates a stable instance; compiler memoization can freeze its visible rows.
     streamPerfCount("ui.message_list.render")
     const { t } = useI18n()
     const stickyUserHeader = useUIStore((state) => state.stickyUserHeader)
@@ -1499,10 +1501,8 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
       }
     }, [])
 
-    const historyVirtualRows = React.useMemo(
-      () => (shouldVirtualizeHistory ? historyVirtualizer.getVirtualItems() : EMPTY_VIRTUAL_ROWS),
-      [historyVirtualizer, shouldVirtualizeHistory],
-    )
+    // Read each render because scrolling changes the range without replacing the instance.
+    const historyVirtualRows = shouldVirtualizeHistory ? historyVirtualizer.getVirtualItems() : EMPTY_VIRTUAL_ROWS
 
     const allEntries = React.useMemo(() => {
       return trailingStreamingEntry ? [...historyEntries, trailingStreamingEntry] : historyEntries
