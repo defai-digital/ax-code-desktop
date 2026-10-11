@@ -382,6 +382,17 @@ const normalizeMessageParts = (message: ChatMessageEntry): ChatMessageEntry => {
 }
 
 const normalizedMessageBySource = new WeakMap<ChatMessageEntry, ChatMessageEntry>()
+const compactionCommandBySource = new WeakMap<ChatMessageEntry, boolean>()
+
+const isCompactionCommandForDisplay = (message: ChatMessageEntry): boolean => {
+  const cached = compactionCommandBySource.get(message)
+  if (cached !== undefined) return cached
+  const result =
+    hasCompactionPart(message) ||
+    message.parts.some((part) => part.type === "text" && getPartText(part).trim() === "/compact")
+  compactionCommandBySource.set(message, result)
+  return result
+}
 
 const getNormalizedMessageForDisplay = (message: ChatMessageEntry): ChatMessageEntry => {
   const cached = normalizedMessageBySource.get(message)
@@ -1243,10 +1254,7 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
           for (let index = 0; index < dedupedMessages.length; index += 1) {
             const current = dedupedMessages[index]
             const currentWithRole = normalizeCompactionSummaryMessage(current, compactionCommandIds)
-            if (
-              hasCompactionPart(current) ||
-              current.parts.some((part) => part.type === "text" && getPartText(part).trim() === "/compact")
-            ) {
+            if (isCompactionCommandForDisplay(current)) {
               compactionCommandIds.add(current.info.id)
             }
             const previous = output.length > 0 ? output[output.length - 1] : undefined

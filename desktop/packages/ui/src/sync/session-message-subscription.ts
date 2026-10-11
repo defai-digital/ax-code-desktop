@@ -1,4 +1,5 @@
 import type { StoreApi } from "zustand"
+import { getSessionRevertMessageID } from "./session-message-records"
 import { getPartChanges } from "./part-changes"
 import type { State } from "./types"
 
@@ -7,15 +8,27 @@ export function subscribeSessionMessageRecords(
   sessionID: string,
   notify: () => void,
   suspendPartUpdates = false,
+  role?: "user",
 ): () => void {
   let previous = store.getState()
-  let messageIds = new Set((previous.message[sessionID] ?? []).map((message) => message.id))
+  const getMessageIds = (state: State) =>
+    new Set(
+      (state.message[sessionID] ?? []).filter((message) => !role || message.role === role).map((message) => message.id),
+    )
+  let messageIds = getMessageIds(previous)
   return store.subscribe((state) => {
     const before = previous
     previous = state
     const messages = state.message[sessionID]
     if (messages !== before.message[sessionID]) {
-      messageIds = new Set((messages ?? []).map((message) => message.id))
+      messageIds = getMessageIds(state)
+      notify()
+      return
+    }
+    if (
+      state.session !== before.session &&
+      getSessionRevertMessageID(state, sessionID) !== getSessionRevertMessageID(before, sessionID)
+    ) {
       notify()
       return
     }

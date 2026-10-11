@@ -9,6 +9,9 @@ import { Binary } from "./binary"
 import { createEventPipeline } from "./event-pipeline"
 import { applyPartDeltaBatch } from "./part-delta-batch"
 import { subscribeSessionMessageRecords } from "./session-message-subscription"
+import { buildSessionMessageRecordsSnapshot, type SessionMessageRecordsSnapshot } from "./session-message-records"
+import { createUserMessageHistorySelector } from "./user-message-history"
+export { buildSessionMessageRecordsSnapshot } from "./session-message-records"
 import { setActiveMetricsTracker } from "./streaming-metrics"
 import { reduceGlobalEvent, applyGlobalProject, applyDirectoryEvent, prepareEventDraft } from "./event-reducer"
 import { applySessionLifecycleEventToGlobalStore } from "./global-session-events"
@@ -1851,25 +1854,7 @@ const getConcatenatedTextFromParts = (parts: Part[]): string => {
   return text
 }
 
-const getFirstTextFromParts = (parts: Part[]): string => {
-  for (const part of parts) {
-    const text = getPartText(part)
-    if (text.length > 0) return text
-  }
-  return ""
-}
-
 const EMPTY_SESSION_MESSAGE_RECORDS: SessionMessageRecord[] = []
-
-type SessionMessageRecordsSnapshot = {
-  sessionID: string
-  sourceMessages: Message[]
-  visibleMessages: Message[]
-  revertMessageID?: string
-  suspendPartUpdates: boolean
-  list: SessionMessageRecord[]
-  byId: Map<string, SessionMessageRecord>
-}
 
 const SESSION_MESSAGE_RECORDS_CACHE_MAX = 40
 const sessionMessageRecordsCache = new WeakMap<StoreApi<DirectoryStore>, Map<string, SessionMessageRecordsSnapshot>>()
@@ -1930,126 +1915,6 @@ export function dropCachedSessionMessageRecordsSnapshots(
   }
 }
 
-const snapshotPartsMatchState = (snapshot: SessionMessageRecordsSnapshot, state: State): boolean => {
-  if (snapshot.suspendPartUpdates) {
-    return true
-  }
-
-  const { list } = snapshot
-  if (list.length === 0) return true
-
-  // Fast path: during streaming, the changed part is almost always the last
-  // assistant message (the one being streamed). Check it first so we can
-  // detect the common case in O(1) instead of scanning all N records.
-  const lastRecord = list[list.length - 1]
-  if (lastRecord && (state.part[lastRecord.info.id] ?? EMPTY_PARTS) !== lastRecord.parts) {
-    return false
-  }
-
-  // Full scan for non-streaming changes (e.g. tool status updates on earlier
-  // messages, permission/question state changes).
-  for (let i = 0; i < list.length - 1; i++) {
-    const record = list[i]
-    if ((state.part[record.info.id] ?? EMPTY_PARTS) !== record.parts) {
-      return false
-    }
-  }
-
-  return true
-}
-
-const getReusableSessionMessageRecordsSnapshot = (
-  store: StoreApi<DirectoryStore>,
-  state: State,
-  sessionID: string,
-  suspendPartUpdates: boolean,
-): SessionMessageRecordsSnapshot | undefined => {
-  const cached = readCachedSessionMessageRecordsSnapshot(store, sessionID, suspendPartUpdates)
-  if (!cached) return undefined
-  const sourceMessages = state.message[sessionID] ?? EMPTY_MESSAGES
-  const session = Binary.find(state.session, sessionID, (s) => s.id)
-  const revertMessageID = (session as { revert?: { messageID?: string } } | undefined)?.revert?.messageID
-  if (
-    cached.sourceMessages === sourceMessages &&
-    cached.revertMessageID === revertMessageID &&
-    cached.suspendPartUpdates === suspendPartUpdates &&
-    snapshotPartsMatchState(cached, state)
-  ) {
-    return cached
-  }
-  return undefined
-}
-
-function getVisibleMessagesForSession(
-  state: State,
-  sessionID: string,
-  previous?: SessionMessageRecordsSnapshot,
-): {
-  sourceMessages: Message[]
-  visibleMessages: Message[]
-  revertMessageID?: string
-} {
-  const sourceMessages = state.message[sessionID] ?? EMPTY_MESSAGES
-  const session = Binary.find(state.session, sessionID, (s) => s.id)
-  const revertMessageID = (session as { revert?: { messageID?: string } } | undefined)?.revert?.messageID
-
-  if (previous && previous.sourceMessages === sourceMessages && previous.revertMessageID === revertMessageID) {
-    return {
-      sourceMessages,
-      visibleMessages: previous.visibleMessages,
-      revertMessageID,
-    }
-  }
-
-  return {
-    sourceMessages,
-    visibleMessages: revertMessageID ? getVisibleMessagesBeforeRevert(sourceMessages, revertMessageID) : sourceMessages,
-    revertMessageID,
-  }
-}
-
-export function buildSessionMessageRecordsSnapshot(
-  state: State,
-  sessionID: string,
-  previous?: SessionMessageRecordsSnapshot,
-  suspendPartUpdates = false,
-): SessionMessageRecordsSnapshot {
-  const { sourceMessages, visibleMessages, revertMessageID } = getVisibleMessagesForSession(state, sessionID, previous)
-  const nextById = new Map<string, SessionMessageRecord>()
-  const nextList = visibleMessages.map((message) => {
-    const previousRecord = previous?.byId.get(message.id)
-    const parts = suspendPartUpdates && previousRecord ? previousRecord.parts : (state.part[message.id] ?? EMPTY_PARTS)
-
-    const nextRecord =
-      previousRecord && previousRecord.info === message && previousRecord.parts === parts
-        ? previousRecord
-        : { info: message, parts }
-
-    nextById.set(message.id, nextRecord)
-    return nextRecord
-  })
-
-  const unchanged =
-    Boolean(previous) &&
-    previous?.visibleMessages === visibleMessages &&
-    previous.list.length === nextList.length &&
-    previous.list.every((record, index) => record === nextList[index])
-
-  if (unchanged && previous) {
-    return previous
-  }
-
-  return {
-    sessionID,
-    sourceMessages,
-    visibleMessages,
-    revertMessageID,
-    suspendPartUpdates,
-    list: nextList,
-    byId: nextById,
-  }
-}
-
 export function useSessionMessageCount(sessionID: string, directory?: string): number {
   return useDirectorySync(
     useCallback(
@@ -2078,20 +1943,14 @@ export function useSessionTextMessages(sessionID: string, directory?: string): S
 }
 
 export function useUserMessageHistory(sessionID: string, directory?: string): string[] {
-  const records = useSessionMessageRecords(sessionID, directory)
-  const userMessages = useMemo(() => records.filter((record) => record.info.role === "user"), [records])
-
-  return useMemo(() => {
-    const history: string[] = []
-    for (let index = userMessages.length - 1; index >= 0; index -= 1) {
-      const message = userMessages[index]
-      const text = getFirstTextFromParts(message.parts)
-      if (text.length > 0) {
-        history.push(text)
-      }
-    }
-    return history
-  }, [userMessages])
+  const store = useDirectoryChildStore(directory)
+  const select = useMemo(() => createUserMessageHistorySelector(), [])
+  const getSnapshot = useCallback(() => select(store.getState(), sessionID), [select, sessionID, store])
+  const subscribe = useCallback(
+    (notify: () => void) => subscribeSessionMessageRecords(store, sessionID, notify, false, "user"),
+    [sessionID, store],
+  )
+  return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 /**
@@ -2114,7 +1973,8 @@ export function useSessionMessageRecords(
     revertMessageID: undefined,
     suspendPartUpdates: Boolean(options?.suspendPartUpdates),
     list: [],
-    byId: new Map(),
+    indexById: new Map(),
+    sourceParts: store.getState().part,
   })
 
   const getSnapshot = useCallback(() => {
@@ -2124,16 +1984,9 @@ export function useSessionMessageRecords(
 
     const state = store.getState()
     const suspendPartUpdates = Boolean(options?.suspendPartUpdates)
-    const reusableSnapshot = getReusableSessionMessageRecordsSnapshot(store, state, sessionID, suspendPartUpdates)
-    if (reusableSnapshot) {
-      snapshotRef.current = reusableSnapshot
-      return reusableSnapshot.list
-    }
-
     const previousSnapshot =
-      snapshotRef.current.sessionID === sessionID
-        ? snapshotRef.current
-        : readCachedSessionMessageRecordsSnapshot(store, sessionID, suspendPartUpdates)
+      readCachedSessionMessageRecordsSnapshot(store, sessionID, suspendPartUpdates) ??
+      (snapshotRef.current.sessionID === sessionID ? snapshotRef.current : undefined)
 
     const nextSnapshot = buildSessionMessageRecordsSnapshot(state, sessionID, previousSnapshot, suspendPartUpdates)
     snapshotRef.current = nextSnapshot
