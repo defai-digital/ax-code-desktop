@@ -37,7 +37,7 @@ export const parseAgentMentions = (rawText: string, agents: Agent[]): ParsedAgen
 
   for (const agent of nonPrimaryAgents) {
     const escapedAgentName = agent.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    const pattern = new RegExp(`@${escapedAgentName}\\b`, "gi")
+    const pattern = new RegExp(`@${escapedAgentName}(?![\\w/-])`, "gi")
     let match: RegExpExecArray | null
 
     while ((match = pattern.exec(rawText)) !== null) {
