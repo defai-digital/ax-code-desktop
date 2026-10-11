@@ -27,6 +27,7 @@ const { runOpenSpecChain } = require("./open-app-launcher")
 const { promisify } = require("util")
 const { createStartupDiagnostics } = require("./startup-diagnostics")
 const { assertShellOpenPathSucceeded, collectOpenPathCandidates } = require("./open-paths")
+const { mapWithConcurrency } = require("./map-with-concurrency")
 const { assertDesktopReadFileAllowed } = require("./desktop-read-file-policy")
 const { sanitizeDesktopWindowTitle } = require("./desktop-window-title")
 const { shouldIncludeNativeSearchEntry, toNativeSearchRelativePath } = require("./desktop-file-search")
@@ -1359,10 +1360,11 @@ const resolveAppBundlePath = async (appName) => {
 
 const isAppBundleInstalled = async (appName) => Boolean(await resolveAppBundlePath(appName))
 
+let iconTempCounter = 0
 const iconToDataUrl = async (iconPath, appName) => {
   if (!iconPath || !(await pathExists(iconPath))) return null
   const safeName = String(appName || "app").replace(/[^a-z0-9]/gi, "_")
-  const tempPath = path.join(os.tmpdir(), `ax-code-icon-${safeName}-${Date.now()}.png`)
+  const tempPath = path.join(os.tmpdir(), `ax-code-icon-${safeName}-${process.pid}-${iconTempCounter++}.png`)
   try {
     await execFileAsync("sips", ["-s", "format", "png", "-Z", "32", iconPath, "--out", tempPath], { stdio: "ignore" })
   } catch {
@@ -1391,17 +1393,21 @@ const resolveAppIconPath = async (appPath) => {
   return icon ? path.join(resourcesPath, icon) : null
 }
 
+// Each app costs up to a few subprocess round trips (mdfind, sips), so resolve
+// them in parallel but bounded to avoid a process-spawn storm.
+const APP_LOOKUP_CONCURRENCY = 4
+
+const resolveInstalledApp = async (name) => {
+  const appPath = await resolveAppBundlePath(name)
+  if (!appPath) return null
+  return { name, iconDataUrl: await iconToDataUrl(await resolveAppIconPath(appPath), name) }
+}
+
 const buildInstalledApps = async (apps) => {
   const seen = new Set()
   const names = apps.map((raw) => String(raw || "").trim()).filter((raw) => raw && !seen.has(raw) && seen.add(raw))
-  const results = []
-  for (const name of names) {
-    const appPath = await resolveAppBundlePath(name)
-    if (!appPath) continue
-    const iconDataUrl = await iconToDataUrl(await resolveAppIconPath(appPath), name)
-    results.push({ name, iconDataUrl })
-  }
-  return results
+  const resolved = await mapWithConcurrency(names, APP_LOOKUP_CONCURRENCY, resolveInstalledApp)
+  return resolved.filter(Boolean)
 }
 
 const JETBRAINS_APP_IDS = new Set([
@@ -2467,15 +2473,14 @@ handleCommand("desktop_fetch_app_icons", async (args) => {
     // Linux and other platforms: no app-icon extraction yet.
     return []
   }
-  const names = Array.isArray(args.apps) ? args.apps : []
-  const results = []
-  for (const name of names) {
-    const appPath = await resolveAppBundlePath(String(name))
-    if (!appPath) continue
-    const dataUrl = await iconToDataUrl(await resolveAppIconPath(appPath), String(name))
-    if (dataUrl) results.push({ app: String(name), dataUrl })
-  }
-  return results
+  const names = (Array.isArray(args.apps) ? args.apps : []).map(String)
+  const icons = await mapWithConcurrency(names, APP_LOOKUP_CONCURRENCY, async (name) => {
+    const appPath = await resolveAppBundlePath(name)
+    if (!appPath) return null
+    const dataUrl = await iconToDataUrl(await resolveAppIconPath(appPath), name)
+    return dataUrl ? { app: name, dataUrl } : null
+  })
+  return icons.filter(Boolean)
 })
 
 handleCommand("desktop_read_file", async (args) => {
