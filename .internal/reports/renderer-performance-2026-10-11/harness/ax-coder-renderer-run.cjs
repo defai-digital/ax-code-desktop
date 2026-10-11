@@ -76,6 +76,13 @@ app.whenReady().then(async () => {
     result.inputCharactersAdded = result.inputCharacters - startChars
     result.electron = process.versions.electron
     result.chrome = process.versions.chrome
+    if (scenario.expanded && result.virtualizedToolViews) {
+      await evaluate(`(() => {const e=document.querySelector('[data-tool-output="virtualized"] [role="region"]');e.scrollTop=e.scrollHeight})()`)
+      await pause(300)
+      result.outputBottomCheck = await evaluate(`({finalRowVisible:document.body.innerText.includes('final row 4000 complete'),mountedRows:document.querySelectorAll('[data-tool-output-line]').length})`)
+      await win.webContents.capturePage().then(image => fs.writeFileSync(path.join(output, scenario.name + '-bottom.png'), image.toPNG()))
+      if (!result.outputBottomCheck.finalRowVisible || result.outputBottomCheck.mountedRows > 100) throw new Error('Large output scroll check failed')
+    }
     results.push(result)
     await contentTracing.stopRecording(path.join(output, scenario.name + '.trace.json'))
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(results, null, 2))

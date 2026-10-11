@@ -2,6 +2,8 @@ import React from "react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { File as PierreFile, PatchDiff } from "@pierre/diffs/react"
 import { LazySyntaxHighlighter as SyntaxHighlighter } from "@/components/ui/LazySyntaxHighlighter"
+import { VirtualizedToolOutput } from "./VirtualizedToolOutput"
+import { shouldVirtualizeToolOutput } from "./toolOutputText"
 import { createPortal } from "react-dom"
 
 import { cn } from "@/lib/utils"
@@ -1154,6 +1156,10 @@ const ToolOutputDialog: React.FC<ToolOutputDialogProps> = ({ popup, onOpenChange
                   const jsonResult = popup.content ? tryParseJsonOutput(popup.content) : { data: null, isJson: false }
                   if (jsonResult.isJson) {
                     return <JsonTreeView jsonString={popup.content} initiallyExpandedDepth={3} maxHeight="70vh" />
+                  }
+
+                  if (shouldVirtualizeToolOutput(popup.content)) {
+                    return <VirtualizedToolOutput text={popup.content} identityKey={popup.title} height="60vh" />
                   }
 
                   return (

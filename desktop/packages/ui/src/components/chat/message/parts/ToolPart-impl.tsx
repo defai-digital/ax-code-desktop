@@ -8,6 +8,8 @@ import { getToolMetadata } from "@/lib/toolHelpers"
 import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from "@defai-digital/ax-code-sdk/v2"
 import { toolDisplayStyles } from "@/lib/typography"
 import { LazySyntaxHighlighter as SyntaxHighlighter } from "@/components/ui/LazySyntaxHighlighter"
+import { VirtualizedToolOutput } from "../VirtualizedToolOutput"
+import { shouldVirtualizeToolOutput } from "../toolOutputText"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useDirectorySync, useSessionMessageRecords, useEnsureSessionMessages } from "@/sync/sync-context"
@@ -270,6 +272,10 @@ const ToolScrollableTextOutput: React.FC<{
         <JsonTreeViewer data={jsonResult.data} initiallyExpandedDepth={1} maxHeight="400px" />
       </div>
     )
+  }
+
+  if (shouldVirtualizeToolOutput(displayOutput)) {
+    return <VirtualizedToolOutput text={displayOutput} identityKey={part.id} />
   }
 
   return (

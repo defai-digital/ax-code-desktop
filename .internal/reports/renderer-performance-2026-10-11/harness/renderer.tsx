@@ -150,6 +150,8 @@ const percentile = (values: number[], q: number) => {
       if (config.kind === "tool") {
         if (performance.now() - started < 500 || ticks > 0) return
         tail = "Compiled fixture module: 100% complete; no errors.\n".repeat(4000)
+        // Same 204,000-character payload, with an identifiable final row for scrolling checks.
+        tail = tail.slice(0, -51) + "Compiled fixture module: final row 4000 complete.".padEnd(50) + "\n"
         const previous = state.part[messageID][0] as any
         const event: any = { type: "message.part.updated", properties: { part: { ...previous,
           state: { ...previous.state, status: "completed", output: tail, metadata: { output: tail },
@@ -184,6 +186,8 @@ const percentile = (values: number[], q: number) => {
       historyEntriesInDOM: document.querySelectorAll("[data-turn-entry]").length,
       toolOutputBytes: config.kind === "tool" ? tail.length : null,
       renderedToolOutput: document.body.innerText.includes("Compiled fixture module"), errors,
-      workerStats: { ...workerStats }, formattedStrongNodes: document.querySelectorAll(".markdown-content strong").length }
+      workerStats: { ...workerStats }, formattedStrongNodes: document.querySelectorAll(".markdown-content strong").length,
+      virtualizedToolViews: document.querySelectorAll('[data-tool-output="virtualized"]').length,
+      mountedToolRows: document.querySelectorAll('[data-tool-output-line]').length }
   },
 }

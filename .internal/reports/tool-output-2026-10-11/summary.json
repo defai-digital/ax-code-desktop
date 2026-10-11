@@ -1,0 +1,38 @@
+{
+  "baseline": {
+    "domNodes": 25060,
+    "longTaskCount": 6,
+    "longTaskTotalMs": 490,
+    "longTaskMaxMs": 98,
+    "frameP95Ms": 9.200000000000728,
+    "frameMaxMs": 92.5,
+    "frameGapsOver50Ms": 6,
+    "keyToFrameP95Ms": 15.299999988079435,
+    "receivedKeys": 79,
+    "inputCharactersAdded": 79,
+    "toolOutputBytes": 204000,
+    "virtualizedToolViews": 0,
+    "mountedToolRows": 0,
+    "errors": []
+  },
+  "candidate": {
+    "domNodes": 1092,
+    "longTaskCount": 0,
+    "longTaskTotalMs": 0,
+    "longTaskMaxMs": 0,
+    "frameP95Ms": 9.200000000000728,
+    "frameMaxMs": 16.800000000000182,
+    "frameGapsOver50Ms": 0,
+    "keyToFrameP95Ms": 15.59999997615887,
+    "receivedKeys": 79,
+    "inputCharactersAdded": 79,
+    "toolOutputBytes": 204000,
+    "virtualizedToolViews": 1,
+    "mountedToolRows": 24,
+    "outputBottomCheck": {
+      "finalRowVisible": true,
+      "mountedRows": 24
+    },
+    "errors": []
+  }
+}
