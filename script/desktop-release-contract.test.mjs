@@ -45,4 +45,40 @@ describe("Desktop release contract", () => {
     expect(builder).toContain("owner: defai-digital\n  repo: ax-code")
     expect(updater).toContain('const GITHUB_REPO = "ax-code"')
   })
+
+  const withOverrides = (overrides) => ({
+    ...fs,
+    readFileSync(file, ...args) {
+      const original = fs.readFileSync(file, ...args)
+      const update = overrides[path.relative(repositoryRoot, file).split(path.sep).join("/")]
+      return update ? JSON.stringify(update(JSON.parse(String(original)))) : original
+    },
+  })
+
+  it("rejects floating Electron dependencies", () => {
+    const fileSystem = withOverrides({
+      "desktop/packages/electron/package.json": (manifest) => ({
+        ...manifest,
+        devDependencies: { ...manifest.devDependencies, electron: "^45.0.0" },
+      }),
+    })
+    expect(() => verifyDesktopReleaseContract(repositoryRoot, fileSystem)).toThrow("Electron must use an exact version")
+  })
+
+  it("blocks prerelease Electron even after public cutover approval", () => {
+    const fileSystem = withOverrides({
+      "config/desktop-release-policy.json": (policy) => ({
+        ...policy,
+        stage: "cutover-approved",
+        publicRelease: { ...policy.publicRelease, enabled: true },
+      }),
+      "desktop/packages/electron/package.json": (manifest) => ({
+        ...manifest,
+        devDependencies: { ...manifest.devDependencies, electron: "45.0.0-beta.1" },
+      }),
+    })
+    expect(() => verifyDesktopReleaseContract(repositoryRoot, fileSystem)).toThrow(
+      "prerelease Electron candidates cannot qualify a public release",
+    )
+  })
 })

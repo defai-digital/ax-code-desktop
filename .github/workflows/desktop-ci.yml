@@ -71,6 +71,54 @@ jobs:
       - name: Build Desktop
         run: pnpm run build
 
+  electron-native-compatibility:
+    name: Electron native smoke (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, windows-2022, windows-11-arm, ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup AX Coder toolchain
+        uses: ./.github/actions/setup-ax-coder-toolchain
+
+      - name: Install Linux display and Electron libraries
+        if: runner.os == 'Linux'
+        run: >-
+          sudo apt-get update && sudo apt-get install -y xvfb xauth libgtk-3-0t64
+          libnss3 libasound2t64 libgbm1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Rebuild native modules for Electron
+        run: pnpm --filter @ax-code/electron run rebuild:native
+
+      - name: Smoke native menus, PTY, and WebMCP
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          pnpm run smoke:electron-compatibility
+          pnpm run smoke:native-webmcp -- --output-dir "$RUNNER_TEMP/native-webmcp"
+
+      - name: Smoke native menus, PTY, and WebMCP with a display
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a pnpm run smoke:electron-compatibility
+          xvfb-run -a pnpm run smoke:native-webmcp -- --output-dir "$RUNNER_TEMP/native-webmcp"
+
+      - name: Retain native capability evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-webmcp-${{ matrix.runner }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-webmcp
+          if-no-files-found: ignore
+          retention-days: 3
+
   packaged-macos-smoke:
     runs-on: macos-15
     timeout-minutes: 60

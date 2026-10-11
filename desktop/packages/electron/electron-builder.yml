@@ -82,6 +82,7 @@ asarUnpack:
 
 # ── macOS ──────────────────────────────────────────────────────────────────
 mac:
+  minimumSystemVersion: "13.0"
   target:
     - target: dmg
       arch: [arm64]

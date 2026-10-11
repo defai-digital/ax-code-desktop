@@ -33,6 +33,8 @@
     "check:boundaries": "pnpm run check:desktop-boundaries && pnpm run check:desktop-store-boundaries && pnpm run check:desktop-electron-runtime && pnpm run check:desktop-endpoint-contracts && pnpm run check:desktop-ipc-contracts && pnpm run check:desktop-package-tests && pnpm run check:no-sibling-dependencies && pnpm run check:source-ownership && pnpm run check:runtime-pin && pnpm run check:release-policy && pnpm run check:release-contract",
     "smoke:packaged": "node desktop/packages/electron/scripts/smoke-packaged-app.mjs",
     "smoke:packaged-asar-cli": "node desktop/packages/electron/scripts/smoke-packaged-asar-cli.mjs",
+    "smoke:native-webmcp": "node desktop/packages/electron/scripts/smoke-native-webmcp.mjs",
+    "smoke:electron-compatibility": "node desktop/packages/electron/scripts/smoke-electron-compatibility.mjs",
     "package:desktop": "node desktop/packages/electron/scripts/package.mjs",
     "shadow:evidence": "node script/shadow-release-evidence.mjs",
     "winget:generate": "tsx tools/winget/generate-manifests.ts",

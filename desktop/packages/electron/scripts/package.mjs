@@ -24,9 +24,9 @@ if (args[0] === "--") args.shift()
 assertPackagePublishingMode(args)
 
 // pnpm hoists `electron` to the workspace-root node_modules, so electron-builder
-// (run from packages/electron) cannot auto-detect the version and the range in
-// package.json ("^34.0.0") is not a fixed version. Resolve it explicitly and
-// pass it through, matching how rebuild-native.mjs pins the Electron ABI.
+// (run from packages/electron) cannot always auto-detect the version. Resolve
+// the installed exact pin explicitly and pass it through, matching how
+// rebuild-native.mjs selects the Electron ABI.
 const require = createRequire(import.meta.url)
 const { version: electronVersion } = require("electron/package.json")
 const { EMBEDDED_MANIFEST_NAME, prepareRuntimeIntegrityBinding } = require("./prepare-runtime-integrity.cjs")

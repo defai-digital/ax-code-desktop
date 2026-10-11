@@ -74,6 +74,12 @@ export function verifyDesktopReleaseContract(root = repositoryRoot, fileSystem =
     ui: readJson(root, "desktop/packages/ui/package.json", fileSystem),
   }
   const versions = new Set(Object.values(manifests).map((manifest) => manifest.version))
+  const electronPin = manifests.electron.devDependencies?.electron ?? ""
+  assert(/^\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?$/.test(electronPin), "Electron must use an exact version")
+  assert(
+    !electronPin.includes("-") || policy.publicRelease.enabled === false,
+    "prerelease Electron candidates cannot qualify a public release",
+  )
   assert(versions.size === 1 && versions.has(runtime.version), "Desktop and pinned runtime versions must match")
   assert(manifests.root.name === "ax-coder", "root package name must remain ax-coder")
   assert(manifests.electron.name === identity.packages.electron, "Electron package identity changed")

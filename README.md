@@ -52,6 +52,30 @@ The workspace never resolves AX Code from sibling source. Development uses an ex
 installed `ax-code` on PATH; packaged candidates use the signed artifact pinned in
 `config/ax-code-runtime.json`.
 
+## Electron candidate
+
+Development and unpublished shadow builds currently pin Electron `45.0.0-beta.1`
+(Chromium 156). This is a prerelease qualification candidate; public release remains
+disabled. macOS 13 or newer is required. Windows and Ubuntu Desktop 24.04+ retain
+their existing x64/arm64 packaging targets.
+
+After changing Electron, rebuild `node-pty` for its ABI and run the engine smokes:
+
+```bash
+pnpm --filter @ax-code/electron run rebuild:native
+pnpm run smoke:electron-compatibility
+pnpm run smoke:native-webmcp
+```
+
+The native WebMCP smoke runs controlled loopback fixtures in disposable sandboxed
+guests, checks a feature-disabled control, and repeats the enabled checks in separate
+processes. It uses no installed Chrome or remote debugging port. To compare a different
+downloaded engine, pass `--electron /absolute/path/to/electron --output-dir /path/to/evidence`.
+Linux requires a display server; CI uses `xvfb-run`. These scripts are never loaded by
+the app and do not enable production WebMCP or qualify AX Code provider integration.
+Replace the beta with a separately tested exact stable pin before public release.
+See [the candidate evidence](.internal/reports/ELECTRON-45-2026-10-11-candidate.md).
+
 ## Desktop languages
 
 Settings → Appearance → Language controls the interface and future conversation requests independently.
