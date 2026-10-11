@@ -1,0 +1,54 @@
+[
+  {
+    "config": {
+      "name": "markdown-4000",
+      "messages": 4000,
+      "kind": "markdown"
+    },
+    "receivedKeys": 79,
+    "inputCharactersAdded": 79,
+    "frameP95Ms": 9.300000000001091,
+    "frameGapsOver50Ms": 0,
+    "longTaskCount": 0,
+    "longTaskMaxMs": 0,
+    "domNodes": 4936,
+    "ticks": 246,
+    "workerStats": {
+      "requested": 71,
+      "completed": 71,
+      "failed": 0
+    },
+    "formattedStrongNodes": 251,
+    "errors": [],
+    "electron": "42.5.2",
+    "chrome": "148.0.7778.271",
+    "observedKeydownSamples": 79,
+    "keyEventP95Ms": 40
+  },
+  {
+    "config": {
+      "name": "paragraph-4000",
+      "messages": 4000,
+      "kind": "paragraph"
+    },
+    "receivedKeys": 79,
+    "inputCharactersAdded": 79,
+    "frameP95Ms": 33.79999999999927,
+    "frameGapsOver50Ms": 4,
+    "longTaskCount": 0,
+    "longTaskMaxMs": 0,
+    "domNodes": 5198,
+    "ticks": 244,
+    "workerStats": {
+      "requested": 239,
+      "completed": 102,
+      "failed": 0
+    },
+    "formattedStrongNodes": 2672,
+    "errors": [],
+    "electron": "42.5.2",
+    "chrome": "148.0.7778.271",
+    "observedKeydownSamples": 79,
+    "keyEventP95Ms": 56
+  }
+]

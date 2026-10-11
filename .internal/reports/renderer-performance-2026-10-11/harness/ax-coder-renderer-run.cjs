@@ -1,10 +1,15 @@
-const { app, BrowserWindow, contentTracing } = require('electron')
+const { app, BrowserWindow, contentTracing, protocol } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
 const http = require('node:http')
 const os = require('node:os')
 const output = process.env.AX_PERF_EVIDENCE || '/tmp/ax-coder-renderer-evidence-final'
 const dist = process.env.AX_PERF_DIST || '/tmp/ax-coder-renderer-dist'
+const packagedProtocol = process.env.AX_PERF_PACKAGED_PROTOCOL === '1'
+const rendererProtocol = packagedProtocol
+  ? require('/Users/akiralam/code/ax-coder-old/desktop/packages/electron/src/desktop-renderer-protocol.js')
+  : null
+if (rendererProtocol) protocol.registerSchemesAsPrivileged(rendererProtocol.PACKAGED_RENDERER_PRIVILEGED_SCHEMES)
 fs.mkdirSync(output, { recursive: true })
 app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'ax-coder-perf-profile-')))
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -17,11 +22,14 @@ const server = http.createServer((req, res) => {
 })
 app.whenReady().then(async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  if (rendererProtocol) protocol.handle('app', rendererProtocol.createPackagedRendererProtocolHandler({
+    webDistPath: dist, readFile: name => fs.promises.readFile(name), getApiOrigin: () => '',
+  }))
   const win = new BrowserWindow({ width: 1440, height: 1000, show: true, webPreferences: {
     nodeIntegration: false, contextIsolation: true, backgroundThrottling: false } })
   win.webContents.on('console-message', (_event, level, message) => console.log('renderer:', message))
   win.webContents.on('render-process-gone', (_event, detail) => console.log('RENDERER GONE', detail))
-  await win.loadURL(`http://127.0.0.1:${server.address().port}/perf/renderer.html`)
+  await win.loadURL(packagedProtocol ? 'app://ax-code/perf/renderer.html' : `http://127.0.0.1:${server.address().port}/perf/renderer.html`)
   const evaluate = expression => win.webContents.executeJavaScript(expression)
   await pause(1500)
   win.webContents.debugger.attach("1.3")

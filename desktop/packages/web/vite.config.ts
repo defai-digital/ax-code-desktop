@@ -150,6 +150,12 @@ export default defineConfig({
   ],
   resolve: {
     alias: [
+      // The browser export uses document.createElement at module load. Resolve
+      // the package's equivalent DOM-free entry so Markdown also runs in workers.
+      {
+        find: /^decode-named-character-reference$/,
+        replacement: requireFromUi.resolve("decode-named-character-reference"),
+      },
       { find: "@openchamber/ui", replacement: path.resolve(__dirname, "../ui/src") },
       { find: "@web", replacement: path.resolve(__dirname, "./src") },
       { find: "@", replacement: path.resolve(__dirname, "../ui/src") },

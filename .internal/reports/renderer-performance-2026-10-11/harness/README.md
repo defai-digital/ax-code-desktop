@@ -7,6 +7,8 @@ After applying the fix, use the ordinary builder alone to validate production
 source; `applied-results.json` records that replay. To reproduce the historical
 comparison, use an isolated checkout of that baseline revision and these harness
 files, adjusting the build scripts' absolute checkout paths as needed.
+For pre-worker revisions, use the harness files archived in commit `3ec3e95`;
+the current fixture also instruments the Markdown worker client.
 
 This harness mounts the actual production MessageList, ChatInput, session-record
 subscription, and user-history selector. It uses fixture child-store data, inert
@@ -44,6 +46,14 @@ sends 79 native key sequences in each 12-second measurement and allows 300 ms fo
 pending events. Every scenario uses a four-second warmup. Scroll is followed at
 record publications and settled before capture. The instrumented input remains
 focused; avoid interacting with its window during measurement.
+
+Set `AX_PERF_PACKAGED_PROTOCOL=1` to serve the fixture through the production
+`app://ax-code` protocol handler and packaged CSP. The fixture supplies an inert
+loopback API-origin projection before imports; its fetch stub still prevents
+runtime/model requests. Worker counters distinguish successful off-thread
+parsing from a plain-text failure fallback, and formatted strong-node counts
+confirm rich Markdown mounted. This mode tests renderer transport, not a signed
+installer or the complete packaged application.
 
 Workloads: idle with 200 messages; Markdown at 20 requested updates/second with
 200 or 4,000 messages; an 90,000-character paragraph with repeated inline Markdown

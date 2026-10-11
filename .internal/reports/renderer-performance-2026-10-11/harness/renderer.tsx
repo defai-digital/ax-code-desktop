@@ -14,6 +14,18 @@ import { applyPartDeltaBatch } from "@/sync/part-delta-batch"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { RuntimeAPIContext } from "@/contexts/runtimeAPIContext"
+import { markdownWorkerClient } from "@/components/chat/markdownWorkerClient"
+
+const workerStats = { requested: 0, completed: 0, failed: 0 }
+const requestMarkdown = markdownWorkerClient.request.bind(markdownWorkerClient)
+markdownWorkerClient.request = (owner, input, result) => {
+  workerStats.requested++
+  requestMarkdown(owner, input, (blocks) => {
+    if (blocks) workerStats.completed++
+    else workerStats.failed++
+    result(blocks)
+  })
+}
 
 const directory = "/renderer-performance-fixture"
 const sid = "ses_perf"
@@ -128,6 +140,7 @@ const percentile = (values: number[], q: number) => {
   start() {
     frameGaps = []; keyToFrame = []; longTasks = []; eventTimings = []; pendingKeys = []
     ticks = 0; receivedKeys = 0; inputRenders = 0; lastFrame = 0
+    workerStats.requested = 0; workerStats.completed = 0; workerStats.failed = 0
     running = true; started = performance.now(); expected = started
     const messageID = store.getState().message[sid].at(-1)!.id
     timer = setInterval(() => {
@@ -170,6 +183,7 @@ const percentile = (values: number[], q: number) => {
       eventTimings, domNodes: document.querySelectorAll("*").length,
       historyEntriesInDOM: document.querySelectorAll("[data-turn-entry]").length,
       toolOutputBytes: config.kind === "tool" ? tail.length : null,
-      renderedToolOutput: document.body.innerText.includes("Compiled fixture module"), errors }
+      renderedToolOutput: document.body.innerText.includes("Compiled fixture module"), errors,
+      workerStats: { ...workerStats }, formattedStrongNodes: document.querySelectorAll(".markdown-content strong").length }
   },
 }

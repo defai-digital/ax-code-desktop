@@ -1,11 +1,7 @@
 import React from "react"
 import "katex/dist/katex.min.css"
 import { renderMermaidASCII, renderMermaidSVG } from "beautiful-mermaid"
-import ReactMarkdown from "react-markdown"
 import type { Components } from "react-markdown"
-import remarkGfm from "remark-gfm"
-import remarkMath from "remark-math"
-import rehypeKatex from "rehype-katex"
 import { FadeInOnReveal } from "./message/FadeInOnReveal"
 import type { Part } from "@defai-digital/ax-code-sdk/v2"
 import { cn } from "@/lib/utils"
@@ -35,12 +31,8 @@ import type { EditorAPI } from "@/lib/api/types"
 import { clearCopyResetTimer, replaceCopyResetTimer } from "./copyResetTimer"
 import { getSafeMarkdownHref } from "./markdownLinks"
 import { sanitizeMermaidSvg } from "./sanitizeSvg"
-import {
-  buildFullMarkdownBlock,
-  buildLiveMarkdownBlocks,
-  type LiveMarkdownLexCache,
-  type MarkdownStreamBlock,
-} from "./markdownStreamBlocks"
+import { useStableMarkdownBlocks } from "./useMarkdownBlocks"
+import { PreparedMarkdown } from "./PreparedMarkdown"
 
 const useCurrentMermaidTheme = () => {
   const themeSystem = useOptionalThemeSystem()
@@ -595,41 +587,6 @@ const stripLeadingFrontmatter = (markdown: string): string => {
 
 type MarkdownVariant = "assistant" | "tool" | "reasoning"
 
-const useStableMarkdownBlocks = (text: string, live: boolean, baseKey: string): MarkdownStreamBlock[] => {
-  const previousRef = React.useRef<MarkdownStreamBlock[]>([])
-  const lexCacheRef = React.useRef<LiveMarkdownLexCache | null>(null)
-
-  return React.useMemo(() => {
-    let nextBlocks: MarkdownStreamBlock[]
-    if (live) {
-      const result = buildLiveMarkdownBlocks(text, baseKey, lexCacheRef.current)
-      lexCacheRef.current = result.cache
-      nextBlocks = result.blocks
-    } else {
-      lexCacheRef.current = null
-      nextBlocks = [buildFullMarkdownBlock(text, baseKey)]
-    }
-    const previousBlocks = previousRef.current
-    const stabilized = nextBlocks.map((block, index) => {
-      const previous = previousBlocks[index]
-      if (previous && previous.key === block.key && previous.src === block.src) {
-        return previous
-      }
-      return block
-    })
-
-    const unchanged =
-      stabilized.length === previousBlocks.length && stabilized.every((block, index) => block === previousBlocks[index])
-
-    if (unchanged) {
-      return previousBlocks
-    }
-
-    previousRef.current = stabilized
-    return stabilized
-  }, [baseKey, live, text])
-}
-
 const extractCodeText = (children: React.ReactNode): string => {
   if (typeof children === "string") return children
   if (Array.isArray(children)) {
@@ -1139,26 +1096,6 @@ const buildMarkdownComponents = ({
     )
   },
 })
-
-const MarkdownBlockView: React.FC<{
-  block: MarkdownStreamBlock
-  components: Components
-}> = React.memo(
-  ({ block, components }) => {
-    return (
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[[rehypeKatex, { throwOnError: false, errorColor: "var(--destructive)" }]]}
-        components={components}
-      >
-        {block.src}
-      </ReactMarkdown>
-    )
-  },
-  (prev, next) => prev.block === next.block && prev.components === next.components,
-)
-
-MarkdownBlockView.displayName = "MarkdownBlockView"
 
 interface MarkdownRendererProps {
   content: string
@@ -1860,7 +1797,7 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
     <div className={cn("break-words w-full min-w-0", className)} ref={containerRef}>
       <div className={markdownClassName}>
         {markdownBlocks.map((block) => (
-          <MarkdownBlockView key={block.key} block={block} components={markdownComponents} />
+          <PreparedMarkdown key={block.key} block={block} components={markdownComponents} />
         ))}
       </div>
     </div>
@@ -1950,7 +1887,7 @@ const SimpleMarkdownRendererImpl: React.FC<{
     <div className={cn("break-words w-full min-w-0", className)} ref={containerRef}>
       <div className={markdownClassName}>
         {markdownBlocks.map((block) => (
-          <MarkdownBlockView key={block.key} block={block} components={markdownComponents} />
+          <PreparedMarkdown key={block.key} block={block} components={markdownComponents} />
         ))}
       </div>
     </div>
