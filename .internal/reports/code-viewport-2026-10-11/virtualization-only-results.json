@@ -1,0 +1,59 @@
+[
+  {
+    "kind": "file",
+    "sourceBytes": 301750,
+    "receivedKeys": 79,
+    "inputCharacters": 79,
+    "keyToFrameP95Ms": 15.799999988079435,
+    "frameP95Ms": 9.199999999998909,
+    "frameMaxMs": 924.6000000000004,
+    "longTaskCount": 1,
+    "longTaskTotalMs": 928,
+    "longTaskMaxMs": 928,
+    "documentNodes": 509,
+    "shadow": {
+      "nodes": 1848,
+      "finalRowMounted": false,
+      "syntaxTokens": 1505
+    },
+    "errors": [],
+    "bottom": {
+      "nodes": 2741,
+      "finalRowMounted": true,
+      "syntaxTokens": 2248
+    },
+    "electron": "42.5.2",
+    "chrome": "148.0.7778.271"
+  },
+  {
+    "kind": "diff",
+    "sourceBytes": 305859,
+    "receivedKeys": 79,
+    "inputCharacters": 79,
+    "keyToFrameP95Ms": 16.300000023842586,
+    "frameP95Ms": 9.200000000000728,
+    "frameMaxMs": 917.6000000000004,
+    "longTaskCount": 1,
+    "longTaskTotalMs": 922,
+    "longTaskMaxMs": 922,
+    "documentNodes": 509,
+    "shadow": {
+      "nodes": 949,
+      "finalRowMounted": false,
+      "syntaxTokens": 755
+    },
+    "errors": [],
+    "bottom": {
+      "nodes": 1842,
+      "finalRowMounted": true,
+      "syntaxTokens": 1498
+    },
+    "sideBySide": {
+      "nodes": 1842,
+      "finalRowMounted": true,
+      "syntaxTokens": 1498
+    },
+    "electron": "42.5.2",
+    "chrome": "148.0.7778.271"
+  }
+]

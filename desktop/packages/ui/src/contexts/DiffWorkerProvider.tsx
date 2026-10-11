@@ -65,7 +65,8 @@ const createWorkerPool = async (style: WorkerPoolStyle): Promise<WorkerPoolManag
       },
       langs: PRELOAD_LANGS,
       lineDiffType: config.lineDiffType,
-      preferredHighlighter: "shiki-wasm",
+      // Packaged app:// workers inherit a CSP that disallows WebAssembly compilation.
+      preferredHighlighter: "shiki-js",
     },
   )
   void pool.initialize()

@@ -1,0 +1,7 @@
+<!doctype html><html><head><meta charset="UTF-8"><title>AX Coder controlled renderer profile</title>
+<script>
+window.__requests=[];
+if(location.protocol==='app:') window.__AX_CODE_DESKTOP_DESKTOP_SERVER__={origin:'http://127.0.0.1:38000',apiPrefix:'/api',cliAvailable:true,axCodePort:null};
+if(location.protocol==='app:') window.__AX_CODE_DESKTOP_ELECTRON__={runtime:'electron',recordStartupEvent:async()=>{}};
+window.fetch=async function(input){window.__requests.push(String(input)); return new Response(JSON.stringify([]),{status:200,headers:{'Content-Type':'application/json'}})};
+</script></head><body><div id="root"></div><script type="module" src="./renderer.tsx"></script></body></html>

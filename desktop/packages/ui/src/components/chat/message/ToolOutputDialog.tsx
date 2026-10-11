@@ -3,6 +3,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { File as PierreFile, PatchDiff } from "@pierre/diffs/react"
 import { LazySyntaxHighlighter as SyntaxHighlighter } from "@/components/ui/LazySyntaxHighlighter"
 import { VirtualizedToolOutput } from "./VirtualizedToolOutput"
+import { ToolCodeViewport } from "./ToolCodeViewport"
 import { shouldVirtualizeToolOutput } from "./toolOutputText"
 import { createPortal } from "react-dom"
 
@@ -506,24 +507,26 @@ const DialogUnifiedDiff: React.FC<{
 
   return (
     <div className="typography-code">
-      <PatchDiff
-        patch={patchContent}
-        metrics={TOOL_DIFF_METRICS}
-        options={{
-          diffStyle: diffViewMode === "unified" ? "unified" : "split",
-          diffIndicators: "none",
-          hunkSeparators: "line-info-basic",
-          lineDiffType: "none",
-          disableFileHeader: true,
-          maxLineDiffLength: 1000,
-          expansionLineCount: 20,
-          overflow: "wrap",
-          theme: pierreThemeConfig.theme,
-          themeType: pierreThemeConfig.themeType,
-          unsafeCSS: TOOL_DIFF_UNSAFE_CSS,
-        }}
-        className="block w-full"
-      />
+      <ToolCodeViewport source={patchContent} diffStyle={diffViewMode === "unified" ? "unified" : "split"}>
+        <PatchDiff
+          patch={patchContent}
+          metrics={TOOL_DIFF_METRICS}
+          options={{
+            diffStyle: diffViewMode === "unified" ? "unified" : "split",
+            diffIndicators: "none",
+            hunkSeparators: "line-info-basic",
+            lineDiffType: "none",
+            disableFileHeader: true,
+            maxLineDiffLength: 1000,
+            expansionLineCount: 20,
+            overflow: "wrap",
+            theme: pierreThemeConfig.theme,
+            themeType: pierreThemeConfig.themeType,
+            unsafeCSS: TOOL_DIFF_UNSAFE_CSS,
+          }}
+          className="block w-full"
+        />
+      </ToolCodeViewport>
     </div>
   )
 })
@@ -586,20 +589,22 @@ const DialogReadContent: React.FC<{
 
   if (parsedReadOutput.type === "file") {
     return (
-      <PierreFile
-        file={{
-          name: filePath,
-          contents: fileContents,
-          lang: detectedLanguage || undefined,
-        }}
-        options={{
-          disableFileHeader: true,
-          overflow: "wrap",
-          theme: pierreThemeConfig.theme,
-          themeType: pierreThemeConfig.themeType,
-        }}
-        className="block w-full"
-      />
+      <ToolCodeViewport source={fileContents}>
+        <PierreFile
+          file={{
+            name: filePath,
+            contents: fileContents,
+            lang: detectedLanguage || undefined,
+          }}
+          options={{
+            disableFileHeader: true,
+            overflow: "wrap",
+            theme: pierreThemeConfig.theme,
+            themeType: pierreThemeConfig.themeType,
+          }}
+          className="block w-full"
+        />
+      </ToolCodeViewport>
     )
   }
 
@@ -1026,23 +1031,25 @@ const ToolOutputDialog: React.FC<ToolOutputDialogProps> = ({ popup, onOpenChange
                         </div>
                       ) : meta.tool === "write" && getInputValue("content") ? (
                         <div className="tool-input-surface bg-transparent rounded-xl border border-border/20 mx-3">
-                          <PierreFile
-                            file={{
-                              name: getInputValue("filePath") || getInputValue("file_path") || "new-file",
-                              contents: getInputValue("content")!,
-                              lang:
-                                getLanguageFromExtension(
-                                  getInputValue("filePath") || getInputValue("file_path") || "",
-                                ) || undefined,
-                            }}
-                            options={{
-                              disableFileHeader: true,
-                              overflow: "wrap",
-                              theme: pierreThemeConfig.theme,
-                              themeType: pierreThemeConfig.themeType,
-                            }}
-                            className="block w-full"
-                          />
+                          <ToolCodeViewport source={getInputValue("content")!}>
+                            <PierreFile
+                              file={{
+                                name: getInputValue("filePath") || getInputValue("file_path") || "new-file",
+                                contents: getInputValue("content")!,
+                                lang:
+                                  getLanguageFromExtension(
+                                    getInputValue("filePath") || getInputValue("file_path") || "",
+                                  ) || undefined,
+                              }}
+                              options={{
+                                disableFileHeader: true,
+                                overflow: "wrap",
+                                theme: pierreThemeConfig.theme,
+                                themeType: pierreThemeConfig.themeType,
+                              }}
+                              className="block w-full"
+                            />
+                          </ToolCodeViewport>
                         </div>
                       ) : (
                         <div
