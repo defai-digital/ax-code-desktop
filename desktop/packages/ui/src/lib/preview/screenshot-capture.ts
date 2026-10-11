@@ -1,5 +1,3 @@
-import { snapdom } from "@zumer/snapdom"
-import { getFontEmbedCSS, toJpeg } from "html-to-image"
 import { getTauriGlobal } from "@/lib/tauriGlobal"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "../http"
 
@@ -880,6 +878,8 @@ async function captureIframeSnapdomScreenshot(
     const root = document?.documentElement
     if (!frameWindow || !document || !root) return null
 
+    const { snapdom } = await import("@zumer/snapdom")
+
     const iframeRect = iframe.getBoundingClientRect()
     const viewportWidth = Math.max(1, Math.ceil(frameWindow.innerWidth || iframe.clientWidth || iframeRect.width))
     const viewportHeight = Math.max(1, Math.ceil(frameWindow.innerHeight || iframe.clientHeight || iframeRect.height))
@@ -1057,6 +1057,8 @@ async function captureIframeDomScreenshot(
     const document = iframe.contentDocument ?? frameWindow?.document
     const root = document?.documentElement
     if (!frameWindow || !document || !root) return null
+
+    const { getFontEmbedCSS, toJpeg } = await import("html-to-image")
 
     const iframeRect = iframe.getBoundingClientRect()
     const viewportWidth = Math.max(1, Math.ceil(frameWindow.innerWidth || iframe.clientWidth || iframeRect.width))

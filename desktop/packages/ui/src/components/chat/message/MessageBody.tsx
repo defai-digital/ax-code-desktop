@@ -28,7 +28,6 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { TextSelectionMenu } from "./TextSelectionMenu"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { useChatSurfaceMode } from "@/components/chat/useChatSurfaceMode"
-import { toPng } from "html-to-image"
 import { toast } from "@/components/ui"
 import { Icon } from "@/components/icon/Icon"
 import { formatTimestampForDisplay } from "./timeFormat"
@@ -1363,6 +1362,7 @@ const AssistantMessageBody = React.memo(
 
         let wrapper: HTMLDivElement | null = null
         try {
+          const { toPng } = await import("html-to-image")
           const originalElement = sourceElement
           const computedStyle = window.getComputedStyle(originalElement)
           const rootStyle = window.getComputedStyle(document.documentElement)
