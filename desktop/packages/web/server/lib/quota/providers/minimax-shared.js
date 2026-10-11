@@ -1,4 +1,5 @@
-import { toNumber, toTimestamp, toUsageWindow } from "../utils/index.js"
+import { readAuthFile } from "../../ax-code/auth.js"
+import { buildResult, getAuthEntry, normalizeAuthEntry, toNumber, toTimestamp, toUsageWindow } from "../utils/index.js"
 
 export const transformMinimaxWindows = (model) => {
   const intervalTotal = toNumber(model.current_interval_total_count)
@@ -35,4 +36,95 @@ export const transformMinimaxWindows = (model) => {
       resetAt: weeklyResetAt,
     }),
   }
+}
+
+// The global and China MiniMax Token Plans differ only in identity and endpoint.
+export const createMinimaxProvider = ({ providerId, providerName, endpoint }) => {
+  const aliases = [providerId]
+
+  const isConfigured = () => {
+    const auth = readAuthFile()
+    const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+    return Boolean(entry?.key || entry?.token)
+  }
+
+  const fetchQuota = async () => {
+    const auth = readAuthFile()
+    const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+    const apiKey = entry?.key ?? entry?.token
+
+    if (!apiKey) {
+      return buildResult({
+        providerId,
+        providerName,
+        ok: false,
+        configured: false,
+        error: "Not configured",
+      })
+    }
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (!response.ok) {
+        response.body?.cancel()
+        return buildResult({
+          providerId,
+          providerName,
+          ok: false,
+          configured: true,
+          error: `API error: ${response.status}`,
+        })
+      }
+
+      const payload = await response.json()
+      const baseResp = payload?.base_resp
+      if (baseResp && baseResp.status_code !== 0) {
+        return buildResult({
+          providerId,
+          providerName,
+          ok: false,
+          configured: true,
+          error: baseResp.status_msg || `API error: ${baseResp.status_code}`,
+        })
+      }
+
+      const firstModel = payload?.model_remains?.[0]
+      if (!firstModel) {
+        return buildResult({
+          providerId,
+          providerName,
+          ok: false,
+          configured: true,
+          error: "No model quota data available",
+        })
+      }
+
+      const windows = transformMinimaxWindows(firstModel)
+
+      return buildResult({
+        providerId,
+        providerName,
+        ok: true,
+        configured: true,
+        usage: { windows },
+      })
+    } catch (error) {
+      return buildResult({
+        providerId,
+        providerName,
+        ok: false,
+        configured: true,
+        error: error instanceof Error ? error.message : "Request failed",
+      })
+    }
+  }
+
+  return { providerId, providerName, aliases, isConfigured, fetchQuota }
 }
