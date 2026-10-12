@@ -39,6 +39,15 @@ stable 44.7.0 pin and current platform matrix.
   and CodeQL; these results do not qualify this newer source. Fresh CI and an
   unsigned four-platform shadow run must verify the committed fix.
 
+The fixes were pushed as `320f9e0a82a3cce6e5ad72408dfd15a0b068e4e9`.
+New [Desktop CI 38187606254](https://github.com/defai-digital/ax-code-desktop/actions/runs/38187606254)
+and [CodeQL 38187606323](https://github.com/defai-digital/ax-code-desktop/actions/runs/38187606323)
+were rejected before executing jobs: GitHub reported failed account payments or
+an exhausted spending limit. The replacement unsigned
+[shadow run 38187642298](https://github.com/defai-digital/ax-code-desktop/actions/runs/38187642298)
+was dispatched to qualify only supported platforms; the same account restriction
+must be resolved before CI can run. No billing settings or spending limits were changed.
+
 ## Remaining release evidence
 
 The required-signing shadow preflight at `ee5ae617` failed before building:
