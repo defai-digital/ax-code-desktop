@@ -1,0 +1,25 @@
+{
+  "verifiedAt": "2026-10-12T01:31:19.290492+00:00",
+  "checks": {
+    "scriptTests": {
+      "passed": 107,
+      "skipped": 4,
+      "filesPassed": 20,
+      "filesSkipped": 1
+    },
+    "shellSyntax": "passed",
+    "nodeSyntax": "passed",
+    "releasePolicy": "shadow-only passed",
+    "releaseContract": "passed",
+    "gatewayCheck": "passed against production",
+    "gatewayDryRun": "passed"
+  },
+  "publicationEnabled": false,
+  "installerPublicationClaimed": false,
+  "committed": false,
+  "files": {
+    ".internal/deploy/deploy": "a3ff16d7c4dca53d9d9e5905af64bddbe775428cd084606e1799b3a4df5fb647",
+    ".internal/deploy/cloudflare.mjs": "40b98b0e47ea8cba7eb10658fd7b729b7d47b4ce5ab0640fc5f3008f0bc03255",
+    "script/desktop-gateway-deploy.test.mjs": "ff8705e031a01a801be3c0a14f29b6f78def553ce73e442eacada21431f60c2c"
+  }
+}

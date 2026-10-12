@@ -15,6 +15,8 @@ build/
 shadow-artifacts/
 shadow-evidence/
 shadow-stage/
+.internal/releases/
+.wrangler/
 *.db
 auth.json
 

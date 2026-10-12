@@ -6,10 +6,11 @@ Desktop must use its own package inventory and release gates, not run that CLI/S
 publisher. See [ADR-010](../adr/ADR-010-desktop-download-distribution.md) and the
 [platform and installation specification](../spec/SPEC-2026-10-11-desktop-download-distribution-v1.md).
 
-Public release remains disabled. No Desktop bootstrap is published yet. The proposed
-`https://download.automatosx.com/ax-code-desktop/install` returned HTTP 404 during
-the 2026-10-12 UTC review. The current AX Code Worker accepts only `/ax-code/` on
-that hostname, so uploading Desktop files alone will not make this URL accessible.
+Public release remains disabled. Desktop bootstraps and the distribution tool are
+implemented locally under the [v2 specification](../spec/SPEC-2026-10-12-desktop-download-distribution-v2.md),
+but installer artifacts are not published yet. The independent Cloudflare gateway
+and R2 bucket were provisioned on 2026-10-12 UTC. The native installation endpoint
+currently returns HTTP 503 because public publication remains disabled.
 
 Current preparation commands:
 
@@ -30,7 +31,95 @@ effective Apple, Azure and Minisign credentials; repository-secret metadata alon
 cannot prove organization or environment availability. Never export local keys to
 GitHub or modify a sibling gateway automatically.
 
-Before publication, implement and qualify both bootstrap installers, an isolated
-gateway/mirror, an anonymous generic update feed and the signed upgrade/rollback
-sequence specified above. A successful local package, source tag or unsigned
-shadow run is not a public release.
+## Local distribution preparation
+
+Flatten verified signed shadow installer/update assets into an input directory.
+Use the exact qualified source SHA and version. `prepare` checks all input Minisign
+signatures, copies only the supported inventory, and generates unsigned metadata and
+bootstrap files. It never reads signing credentials, publishes or changes policy.
+
+```bash
+.internal/deploy/deploy prepare --source /path/to/signed-assets \
+  --out .internal/releases/v7.24.5 --version 7.24.5 --commit <qualified-40-character-sha>
+```
+
+Sign the generated `install`, `install.ps1`, `release.tsv`, `latest.txt`,
+`release-ready.txt` and `inventory.json` with the existing pinned Desktop key using
+`desktop/scripts/minisign-artifacts.sh`. Do not replace existing package signatures.
+Then verify the complete directory:
+
+```bash
+.internal/deploy/deploy verify --source .internal/releases/v7.24.5
+```
+
+`upload` is guarded by `config/desktop-release-policy.json` and remains blocked
+in shadow-only mode. After approved cutover, it also requires a Minisign-signed
+qualification JSON with schema `ax-code-desktop.download-qualification.v1`, exact
+`version`, `commit`, SHA-256 `inventorySha256`, and `gates`/`platforms` maps. Each of
+the five policy gates and four supported platform keys must have
+`{ "verified": true, "evidence": "<reviewed receipt reference>" }`. Sign that record
+only after reviewing the real evidence; tool validation does not manufacture it.
+
+```bash
+# Only after approved cutover; supply credentials securely through the environment.
+.internal/deploy/deploy upload --source .internal/releases/v7.24.5 \
+  --qualification /path/to/signed-qualification.json
+```
+
+The mirror requires `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for the
+`ax-code-desktop-releases` bucket. It verifies anonymous bytes after each object
+upload, refuses immutable version collisions, writes the readiness marker last,
+and advances the signed latest pointer after the bootstrap aliases. An interrupted
+pointer/signature pair fails closed; retry the same verified directory.
+
+## Gateway and DNS handoff
+
+The user handles DNS. The hostname must be proxied in the `automatosx.com` Cloudflare
+zone. DNS does not configure path routing. The checked-in Worker route is
+`download.automatosx.com/ax-code-desktop/*`; it takes precedence for that path while
+the AX Code custom-domain Worker continues handling its other paths. See
+[Cloudflare routing documentation](https://developers.cloudflare.com/workers/configuration/routing/routes/).
+
+This repository uses an independent `DESKTOP_RELEASES` binding and bucket; it does
+not edit or deploy the sibling gateway. The operator checks the existing AX Code
+custom domain, refuses route takeover, and deploys an isolated snapshot. Use a
+Cloudflare API token or an authenticated Wrangler session; credentials are never
+written into the deployment configuration. Wrangler must be installed on PATH.
+Review the dry-run before any live deployment:
+
+```bash
+.internal/deploy/deploy --help
+.internal/deploy/deploy gateway-check
+.internal/deploy/deploy gateway-deploy --dry-run
+.internal/deploy/deploy gateway-deploy
+```
+
+The production config defaults `PUBLIC_RELEASE_ENABLED` to `false`. Live route
+deployment alone therefore returns 503. `gateway-deploy` rejects configurations
+that enable public release and only creates the bucket when it is missing. It
+verifies the live Desktop response and existing CLI installer after deployment.
+Switch serving on only through a reviewed cutover after the original signing/continuity/approval gates; then publish the
+qualified inventory. Do not enable a public `r2.dev` alias as a shortcut.
+
+Once published, install macOS/Ubuntu with:
+
+```bash
+curl -fsSL https://download.automatosx.com/ax-code-desktop/install | bash
+```
+
+Install Windows x64 with:
+
+```powershell
+irm https://download.automatosx.com/ax-code-desktop/install.ps1 | iex
+```
+
+The bootstraps retrieve a pinned-hash Minisign 0.12 verifier before checking signed
+metadata. They do not require Node, Homebrew or preinstalled Minisign. Gatekeeper
+checks Developer ID and notarization on stock macOS; installed developer tools also
+validate stapled tickets. Ubuntu resolves DEB dependencies with apt. Windows checks
+native OS architecture and the exact Authenticode certificate before starting NSIS.
+No bootstrap removes user profiles or credentials.
+
+Still qualify native fresh installations, upgrade/rollback and the anonymous
+generic updater before publication. A successful local package, source tag,
+mocked installer test or unsigned shadow run is not a public release.

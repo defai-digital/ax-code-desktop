@@ -1,0 +1,22 @@
+{
+  "name": "ax-code-desktop-downloads",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-09-02",
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "download.automatosx.com/ax-code-desktop/*",
+      "zone_name": "automatosx.com"
+    }
+  ],
+  "vars": {
+    "PUBLIC_RELEASE_ENABLED": "false"
+  },
+  "r2_buckets": [
+    {
+      "binding": "DESKTOP_RELEASES",
+      "bucket_name": "ax-code-desktop-releases"
+    }
+  ],
+  "account_id": "89657c08227b638ab67905e1c5899406"
+}

@@ -97,6 +97,10 @@ jobs:
       - name: Rebuild native modules for Electron
         run: pnpm --filter @ax-code/electron run rebuild:native
 
+      - name: Validate Windows bootstrap and native OS architecture
+        if: runner.os == 'Windows'
+        run: pnpm exec vitest run --config vitest.config.ts script/desktop-windows-bootstrap.test.mjs
+
       - name: Configure the installed Electron sandbox helper
         if: runner.os == 'Linux'
         working-directory: desktop/packages/electron

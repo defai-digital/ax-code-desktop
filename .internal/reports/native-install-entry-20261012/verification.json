@@ -1,0 +1,16 @@
+{
+  "scope": "Native installer entry forwarding only; no public deployment or release policy changes",
+  "tests": {
+    "script_tests": 84,
+    "files": 16,
+    "shell_syntax": true,
+    "release_policy": "shadow-only passed",
+    "release_contract": true
+  },
+  "public_endpoint": "HTTP 404 observed",
+  "native_shadow_install_upgrade_rollback": "not qualified by these wrapper tests",
+  "files": {
+    "desktop/scripts/install.sh": "cfbccafbacd6ffc6d9e37b554c0401233761197b973d71df1883d5452a800f3d",
+    "script/native-install-entry.test.mjs": "76d83a07d24d7919e18e850aa4694d255e726104958b8ede0ff34d3f92b742d8"
+  }
+}

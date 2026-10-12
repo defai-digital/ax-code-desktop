@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Desktop distribution operator entry. Publication is enforced by policy in Node.
+set -euo pipefail
+command -v node >/dev/null || { echo 'Node.js 24 or newer is required.' >&2; exit 1; }
+node -e 'if (Number(process.versions.node.split(".")[0]) < 24) process.exit(1)' || {
+  echo 'Node.js 24 or newer is required.' >&2
+  exit 1
+}
+directory="$(cd "$(dirname "$0")" && pwd)"
+case "${1:---help}" in
+  --help|-h|help)
+    cat <<'HELP'
+Desktop deployment operator (Node >=24, Wrangler, Minisign).
+  deploy gateway-check                 Check live Cloudflare routing and endpoints
+  deploy gateway-deploy --dry-run      Validate and bundle the isolated gateway
+  deploy gateway-deploy                Provision R2 and deploy the disabled gateway
+  deploy prepare --source DIR --out DIR --version VERSION --commit SHA
+  deploy verify --source DIR
+  deploy upload --source DIR --qualification SIGNED_JSON
+Public asset upload requires approved release policy and signed qualification.
+See .internal/deploy/README.md for signing and native installation requirements.
+HELP
+    ;;
+  gateway-check|gateway-deploy) exec node "$directory/cloudflare.mjs" "$@" ;;
+  *) exec node "$directory/distribution.mjs" "$@" ;;
+esac

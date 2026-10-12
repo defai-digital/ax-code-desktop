@@ -1,0 +1,10 @@
+{
+  "captured_at": "2026-10-12T01:24:38.722485+00:00",
+  "worker_sha256": "d6f46879862f650971fbefbc59ad8607f960e03cbb0d86c0b552cc8b8d06feac",
+  "gateway_tests": 7,
+  "dry_run_passed": true,
+  "route_scope": "download.automatosx.com/ax-code-desktop/*",
+  "public_release_enabled": false,
+  "existing_custom_domain_service": "ax-code-downloads",
+  "existing_custom_domain_id": "ff8d1ec34507080b32dd5f275311d071bbcc74dc"
+}

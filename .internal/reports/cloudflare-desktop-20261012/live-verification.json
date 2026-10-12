@@ -1,0 +1,79 @@
+{
+  "verified_at": "2026-10-12T01:25:19.129929+00:00",
+  "worker": "ax-code-desktop-downloads",
+  "version": "156eefbe-451f-43ae-8c4b-5064436712f2",
+  "bucket": "ax-code-desktop-releases",
+  "routes": [
+    {
+      "id": "97eb5d30ceee46a0904c464270fd5977",
+      "pattern": "download.automatosx.com/ax-code-desktop/*",
+      "script": "ax-code-desktop-downloads",
+      "request_limit_fail_open": false
+    }
+  ],
+  "preserved_custom_domain": [
+    {
+      "id": "ff8d1ec34507080b32dd5f275311d071bbcc74dc",
+      "zone_id": "d5743ccd847daa9482a61511cc347065",
+      "zone_name": "automatosx.com",
+      "hostname": "download.automatosx.com",
+      "service": "ax-code-downloads",
+      "environment": "production",
+      "cert_id": "22b32dd9-5c6b-45a2-a59b-2b6f9f333fee",
+      "previews_enabled": false,
+      "enabled": true
+    }
+  ],
+  "checks": [
+    {
+      "url": "https://download.automatosx.com/ax-code-desktop/install",
+      "method": "GET",
+      "status": 503,
+      "cache_control": "no-store",
+      "sha256": "68b58ba0711cb3008fc79513aba83f63cc62cf57c27b96e92081a8ae8afe266e",
+      "body": "Desktop public release is not enabled"
+    },
+    {
+      "url": "https://download.automatosx.com/ax-code-desktop/install",
+      "method": "HEAD",
+      "status": 503,
+      "cache_control": "no-store",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "body": ""
+    },
+    {
+      "url": "https://download.automatosx.com/ax-code-desktop/install",
+      "method": "POST",
+      "status": 405,
+      "cache_control": "no-store",
+      "sha256": "371b26886bee5e559d5016b17b1479cb7a9154865da5a0f11563580ea99ff033",
+      "body": "Method not allowed"
+    },
+    {
+      "url": "https://download.automatosx.com/ax-code-desktop/not-allowed",
+      "method": "GET",
+      "status": 404,
+      "cache_control": "no-store",
+      "sha256": "e3ebaa16dd9d9b9fc107c42183fb6cf9d22927e1af03dbbdfa0ccc38e4e4ac31",
+      "body": "Not found"
+    },
+    {
+      "url": "https://download.automatosx.com/ax-code/releases/download/v7.24.4/install",
+      "method": "GET",
+      "status": 200,
+      "cache_control": "public, max-age=31536000, immutable",
+      "sha256": "1c90180099d404f7d4d5def5197f0a9fa89985cd48f33a20ffd8049d2d2ae072",
+      "body": "Verified bytes retained by digest"
+    },
+    {
+      "url": "https://download.ax-code.com/releases/download/v7.24.4/install",
+      "method": "GET",
+      "status": 200,
+      "cache_control": "public, max-age=31536000, immutable",
+      "sha256": "1c90180099d404f7d4d5def5197f0a9fa89985cd48f33a20ffd8049d2d2ae072",
+      "body": "Verified bytes retained by digest"
+    }
+  ],
+  "public_installation_ready": false,
+  "reason": "Desktop publication remains gated pending signed release qualification"
+}

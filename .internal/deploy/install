@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# AX Code Desktop bootstrap. DNS and the path-scoped gateway must be configured.
+set -euo pipefail
+BASE='https://download.automatosx.com/ax-code-desktop'
+KEY='RWSlDu++afxCz01OqhYWhfo8+L8pVbSYXJBEb2zoWBuK0WACIzbGVZRO'
+fail() { echo "AX Code Desktop: $*" >&2; exit 1; }
+[[ $# -eq 0 ]] || fail 'This bootstrap accepts no arguments; use the signed release channel.'
+for tool in curl uname awk wc mktemp; do command -v "$tool" >/dev/null || fail "$tool is required"; done
+system="$(uname -s)"
+machine="$(uname -m)"
+case "$system:$machine" in
+  Darwin:arm64)
+    target=darwin-arm64
+    [[ "$(sw_vers -productVersion | cut -d. -f1)" -ge 13 ]] || fail 'macOS 13 or newer is required'
+    pgrep -x 'AX Code' >/dev/null && fail 'Close AX Code before installing' || true
+    verifier_asset=minisign-0.12-macos.zip
+    verifier_hash=89000b19535765f9cffc65a65d64a820f433ef6db8020667f7570e06bf6aac63
+    ;;
+  Linux:x86_64|Linux:aarch64|Linux:arm64)
+    [[ -r /etc/os-release ]] || fail 'Ubuntu Desktop 24.04 or newer is required'
+    . /etc/os-release
+    [[ "${ID:-}" == ubuntu && "${VERSION_ID:-}" =~ ^[0-9]+\.[0-9]+$ ]] || fail 'Ubuntu Desktop 24.04 or newer is required'
+    [[ "${VERSION_ID%%.*}" -ge 24 ]] || fail 'Ubuntu Desktop 24.04 or newer is required'
+    if [[ "$machine" == x86_64 ]]; then target=linux-x64; else target=linux-arm64; fi
+    command -v apt >/dev/null || fail 'apt is required'
+    verifier_asset=minisign-0.12-linux.tar.gz
+    verifier_hash=9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73
+    ;;
+  *) fail 'Supported targets: macOS Apple Silicon and Ubuntu x64/ARM64. Windows x64 uses install.ps1.' ;;
+esac
+temporary="$(mktemp -d "${TMPDIR:-/tmp}/ax-code-desktop-install.XXXXXX")"
+mount="$temporary/mount"
+mounted=false
+stage_owned=false
+previous_moved=false
+cleanup() {
+  if [[ "$previous_moved" == true && ! -e '/Applications/AX Code.app' && -e "$backup" ]]; then
+    sudo mv "$backup" '/Applications/AX Code.app' < /dev/tty || echo "Previous application remains at $backup" >&2
+  fi
+  if [[ "$stage_owned" == true && -e "$stage" ]]; then sudo rm -rf -- "$stage" < /dev/tty || true; fi
+  if [[ "$mounted" == true ]]; then hdiutil detach "$mount" >/dev/null 2>&1 || true; fi
+  rm -rf -- "$temporary"
+}
+trap cleanup EXIT
+download() { curl --proto '=https' --proto-redir '=https' --tlsv1.2 --fail --silent --show-error --location --retry 3 --connect-timeout 20 --max-time 600 "$1" -o "$2"; }
+hash() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | awk '{print $1}'; }
+download "https://github.com/jedisct1/minisign/releases/download/0.12/$verifier_asset" "$temporary/verifier.archive"
+[[ "$(hash "$temporary/verifier.archive")" == "$verifier_hash" ]] || fail 'Verifier SHA-256 mismatch'
+if [[ "$system" == Darwin ]]; then
+  ditto -x -k "$temporary/verifier.archive" "$temporary/verifier"
+  verifier="$temporary/verifier/minisign"
+else
+  tar -xzf "$temporary/verifier.archive" -C "$temporary"
+  if [[ "$target" == linux-x64 ]]; then verifier="$temporary/minisign-linux/x86_64/minisign"; else verifier="$temporary/minisign-linux/aarch64/minisign"; fi
+fi
+chmod 700 "$verifier"
+signed_download() {
+  download "$1" "$2"
+  download "$1.minisig" "$2.minisig"
+  "$verifier" -Vm "$2" -x "$2.minisig" -P "$KEY" >/dev/null || fail 'Invalid release signature'
+}
+signed_download "$BASE/latest.txt" "$temporary/latest.txt"
+tag="$(cat "$temporary/latest.txt")"
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail 'Invalid stable release tag'
+version="${tag#v}"
+release="$BASE/releases/download/$tag"
+signed_download "$release/release.tsv" "$temporary/release.tsv"
+IFS=$'\t' read -r label manifest_tag commit extra < "$temporary/release.tsv"
+[[ "$label" == release && "$manifest_tag" == "$tag" && "$commit" =~ ^[a-f0-9]{40}$ && -z "$extra" ]] || fail 'Invalid release header'
+case "$target" in
+  darwin-arm64) expected="AX-Code-$version-mac-arm64.dmg" ;;
+  linux-x64) expected="AX-Code-$version-linux-amd64.deb" ;;
+  linux-arm64) expected="AX-Code-$version-linux-arm64.deb" ;;
+esac
+# Validate the whole authenticated manifest, including duplicate/unknown rows.
+awk -F '\t' -v version="$version" '
+  NR == 1 { if (NF != 3) exit 1; next }
+  {
+    names["darwin-arm64"]="AX-Code-"version"-mac-arm64.dmg"
+    names["win32-x64"]="AX-Code-"version"-win-x64.exe"
+    names["linux-x64"]="AX-Code-"version"-linux-amd64.deb"
+    names["linux-arm64"]="AX-Code-"version"-linux-arm64.deb"
+    if (NF != 4 || !($1 in names) || seen[$1]++ || $2 != names[$1] || $3 !~ /^[1-9][0-9]*$/ || length($4) != 64 || $4 ~ /[^a-f0-9]/) exit 1
+  }
+  END { if (NR != 5) exit 1 }
+' "$temporary/release.tsv" || fail 'Invalid installer inventory'
+row="$(awk -F '\t' -v target="$target" '$1 == target {print}' "$temporary/release.tsv")"
+IFS=$'\t' read -r selected filename size digest <<< "$row"
+[[ "$selected" == "$target" && "$filename" == "$expected" ]] || fail 'Missing platform installer'
+signed_download "$release/release-ready.txt" "$temporary/release-ready.txt"
+printf '%s\n%s\n%s\n' "$tag" "$commit" "$(hash "$temporary/release.tsv")" > "$temporary/expected-ready.txt"
+cmp -s "$temporary/release-ready.txt" "$temporary/expected-ready.txt" || fail 'Release is not ready for this manifest'
+signed_download "$release/$filename" "$temporary/$filename"
+[[ "$(wc -c < "$temporary/$filename" | tr -d '[:space:]')" == "$size" ]] || fail 'Installer size mismatch'
+[[ "$(hash "$temporary/$filename")" == "$digest" ]] || fail 'Installer SHA-256 mismatch'
+if [[ "$system" == Linux ]]; then
+  [[ "$(dpkg-deb -f "$temporary/$filename" Package)" == ax-code-desktop ]] || fail 'Unexpected DEB package identity'
+  [[ "$(dpkg-deb -f "$temporary/$filename" Version)" == "$version" ]] || fail 'Unexpected DEB version'
+  architecture=arm64
+  [[ "$target" != linux-x64 ]] || architecture=amd64
+  [[ "$(dpkg-deb -f "$temporary/$filename" Architecture)" == "$architecture" ]] || fail 'Unexpected DEB architecture'
+  sudo apt install "$temporary/$filename" < /dev/tty
+else
+  # Gatekeeper enforces notarization on stock macOS. Validate stapled tickets
+  # additionally when developer tools are already installed; never install Xcode.
+  stapler=''
+  if [[ -n "$(xcode-select -p 2>/dev/null || true)" ]]; then stapler="$(xcrun --find stapler 2>/dev/null || true)"; fi
+  validate_staple() { if [[ -n "$stapler" ]]; then "$stapler" validate "$1"; fi; }
+  codesign --verify --strict "$temporary/$filename"
+  codesign -dv --verbose=4 "$temporary/$filename" 2>&1 | grep -Fx 'TeamIdentifier=N5ZUZDUJS6' >/dev/null || fail 'Unexpected DMG signing team'
+  validate_staple "$temporary/$filename"
+  spctl --assess --type open --context context:primary-signature "$temporary/$filename"
+  mkdir "$mount"
+  hdiutil attach "$temporary/$filename" -readonly -nobrowse -mountpoint "$mount" >/dev/null
+  mounted=true
+  app="$mount/AX Code.app"
+  [[ -d "$app" && ! -L "$app" ]] || fail 'Missing AX Code.app'
+  codesign --verify --deep --strict "$app"
+  codesign -dv --verbose=4 "$app" 2>&1 | grep -Fx 'TeamIdentifier=N5ZUZDUJS6' >/dev/null || fail 'Unexpected application signing team'
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" == ai.defai.ax-code-app ]] || fail 'Unexpected application identity'
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" == "$version" ]] || fail 'Unexpected application version'
+  spctl --assess --type execute "$app"
+  validate_staple "$app"
+  pgrep -x 'AX Code' >/dev/null && fail 'Close AX Code before installing' || true
+  # Stage a complete replacement; keep the previous application if the swap fails.
+  stage="/Applications/.AX-Code-install-$$.app"
+  backup="/Applications/.AX-Code-backup-$$.app"
+  [[ ! -e "$stage" && ! -e "$backup" ]] || fail 'Installation staging path already exists'
+  sudo mkdir -m 755 "$stage" < /dev/tty
+  stage_owned=true
+  sudo ditto "$app" "$stage" < /dev/tty
+  codesign --verify --deep --strict "$stage"
+  if [[ -e '/Applications/AX Code.app' ]]; then
+    sudo mv '/Applications/AX Code.app' "$backup" < /dev/tty
+    previous_moved=true
+  fi
+  if ! sudo mv "$stage" '/Applications/AX Code.app' < /dev/tty; then
+    if [[ -e "$backup" ]]; then sudo mv "$backup" '/Applications/AX Code.app' < /dev/tty; fi
+    fail 'Application swap failed; previous application restored'
+  fi
+  stage_owned=false
+  previous_moved=false
+  if [[ -e "$backup" ]]; then sudo rm -rf -- "$backup" < /dev/tty; fi
+fi
+echo "Installed AX Code Desktop $version. User data and credentials were preserved."
