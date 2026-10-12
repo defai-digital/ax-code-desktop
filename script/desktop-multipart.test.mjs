@@ -92,3 +92,8 @@ test("abort owns its exact key and upload ID", async () => {
   assert.equal((await handle(req("abort"), env, manifest)).status, 200)
   assert.deepEqual(calls.at(-1), ["abort"])
 })
+
+test("staging requires signed qualification before credentials or Cloudflare access", async () => {
+  const { stageMultipart } = await import("../.internal/deploy/multipart.mjs")
+  await assert.rejects(stageMultipart("/nonexistent/desktop-release", "/nonexistent/qualification.json"), /ENOENT/)
+})

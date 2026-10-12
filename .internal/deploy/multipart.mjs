@@ -57,7 +57,7 @@ export async function stageMultipart(source, qualificationFile, receiptFile) {
   const subdomain = (await api("/workers/subdomain")).subdomain
   assert.match(subdomain, /^[a-z0-9-]+$/)
   const url = "https://" + name + "." + subdomain + ".workers.dev"
-  const source =
+  const workerSource =
     "const manifest=" +
     JSON.stringify(manifest) +
     ";\n" +
@@ -80,7 +80,7 @@ export async function stageMultipart(source, qualificationFile, receiptFile) {
       { type: "application/json" },
     ),
   )
-  form.set("worker.mjs", new Blob([source], { type: "application/javascript+module" }), "worker.mjs")
+  form.set("worker.mjs", new Blob([workerSource], { type: "application/javascript+module" }), "worker.mjs")
   let created = false
   const call = async (action, key, id, part, body) => {
     const target = new URL(url + "/" + action)
