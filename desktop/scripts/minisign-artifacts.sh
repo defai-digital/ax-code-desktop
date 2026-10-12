@@ -93,11 +93,25 @@ path_mode() {
   fi
 }
 
+windows_key_acl() {
+  local native_path native_script
+  native_path="$(cygpath -w "$1")"
+  native_script="$(cygpath -w "$(dirname "${BASH_SOURCE[0]}")/private-key-acl.ps1")"
+  AX_DESKTOP_PRIVATE_PATH="$native_path" powershell.exe -NoProfile -NonInteractive \
+    -File "$native_script" -Mode "$2"
+}
+
 require_private_path() {
   local path="$1"
   local label="$2"
   local mode
 
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      windows_key_acl "$path" Verify || { echo "error: unsafe Windows $label ACL" >&2; exit 1; }
+      return
+      ;;
+  esac
   mode="$(path_mode "$path" || true)"
   if [[ -z "$mode" ]]; then
     echo "error: could not inspect permissions for $label: $path" >&2

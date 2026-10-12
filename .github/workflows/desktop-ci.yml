@@ -107,7 +107,7 @@ jobs:
 
       - name: Validate Windows bootstrap and native OS architecture
         if: runner.os == 'Windows'
-        run: pnpm exec vitest run --config vitest.config.ts script/desktop-windows-bootstrap.test.mjs
+        run: pnpm exec vitest run --config vitest.config.ts script/desktop-windows-bootstrap.test.mjs script/windows-minisign-acl.test.mjs
 
       - name: Configure the installed Electron sandbox helper
         if: runner.os == 'Linux'

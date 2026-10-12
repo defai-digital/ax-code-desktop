@@ -37,6 +37,14 @@ if [[ -z "${AX_CODE_DESKTOP_MINISIGN_PASSWORD:-}" ]]; then
   exit 1
 fi
 
+windows_key_acl() {
+  local native_path native_script
+  native_path="$(cygpath -w "$1")"
+  native_script="$(cygpath -w "$(dirname "${BASH_SOURCE[0]}")/private-key-acl.ps1")"
+  AX_DESKTOP_PRIVATE_PATH="$native_path" powershell.exe -NoProfile -NonInteractive \
+    -File "$native_script" -Mode "$2"
+}
+
 TEMP_BASE="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 KEY_DIRECTORY="$(mktemp -d "$TEMP_BASE/ax-coder-shadow-sign.XXXXXX")"
 SECRET_KEY="$KEY_DIRECTORY/ax.minisign.key"
@@ -44,14 +52,20 @@ cleanup() {
   rm -rf -- "$KEY_DIRECTORY"
 }
 trap cleanup EXIT
-chmod 700 "$KEY_DIRECTORY"
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) windows_key_acl "$KEY_DIRECTORY" Protect ;;
+  *) chmod 700 "$KEY_DIRECTORY" ;;
+esac
 
 if printf '%s' "$AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64" | base64 --decode > "$SECRET_KEY" 2>/dev/null; then
   :
 else
   printf '%s' "$AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64" | base64 -D > "$SECRET_KEY"
 fi
-chmod 600 "$SECRET_KEY"
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) windows_key_acl "$SECRET_KEY" Protect ;;
+  *) chmod 600 "$SECRET_KEY" ;;
+esac
 
 FILES=()
 while IFS= read -r -d '' file; do
