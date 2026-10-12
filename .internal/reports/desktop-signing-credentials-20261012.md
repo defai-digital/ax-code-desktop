@@ -20,9 +20,13 @@ The user explicitly requested provisioning the same Apple and Azure signing setu
 - Configured `APPLE_TEAM_ID` as `N5ZUZDUJS6`.
 - Existing local Developer ID identity SHA-1: `CCA480038EE61E7CB9DF9FAACD842EC06949CD79`.
 - Existing `ax-notary` Keychain profile authenticated successfully with Apple's notarization service.
-- Export of only the exact Developer ID identity requires local macOS Keychain authorization. The provisioning helper keeps the PKCS12 archive and a generated import password in memory and sends them directly to Desktop Actions Secrets. No private-key file is written. Completion is pending local authorization.
+- Local macOS Keychain authorization completed. Exported only the exact Developer ID identity and configured `APPLE_CERTIFICATE` at `2026-10-12T02:40:16Z` and `APPLE_CERTIFICATE_PASSWORD` at `2026-10-12T02:40:17Z`. The provisioning helper kept the PKCS12 archive and a generated import password in memory and sent them directly to Desktop Actions Secrets. No private-key file was written. The helper completed successfully and exited.
 - `APPLE_API_KEY_B64`, `APPLE_API_KEY_ID`, and `APPLE_API_ISSUER` are still unavailable. The user has been asked for the existing API key's secure local path and identifiers, never its contents in chat.
 
 ## Publication state
 
 Native Windows CI Authenticode qualification and full signed Desktop shadow remain pending. Successful Azure cryptographic verification is not a native installer signature or a public release.
+
+## Continuation receipt
+
+Desktop Actions Secrets metadata confirms all six Apple/Azure settings provisioned above. Existing Desktop Minisign secrets remain present. Only the three Apple notarization API inputs remain unavailable. No further required shadow run was dispatched while those known prerequisites are missing. Concurrent Desktop source changes were preserved; this receipt was prepared in an isolated worktree.
