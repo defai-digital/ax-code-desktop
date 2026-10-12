@@ -9,7 +9,6 @@ Requires: Pillow (pip install Pillow / system python3 with PIL).
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from PIL import Image, ImageDraw

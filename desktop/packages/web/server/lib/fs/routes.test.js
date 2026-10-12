@@ -158,12 +158,6 @@ const callRoute = async (handler, req = {}) => {
   return res
 }
 
-const createReadHandle = (content) => ({
-  stat: vi.fn(async () => ({ isFile: () => true })),
-  readFile: vi.fn(async () => content),
-  close: vi.fn(async () => undefined),
-})
-
 describe("fs write", () => {
   it("does not rewrite a file when content is unchanged", async () => {
     const fsPromises = {

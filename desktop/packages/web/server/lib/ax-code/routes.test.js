@@ -123,13 +123,11 @@ describe("ax-code routes", () => {
   })
 
   it("falls back to direct file removal when ax-code API is unreachable", async () => {
-    const { app, dependencies } = createApp()
+    const { app } = createApp()
     const originalFetch = globalThis.fetch
     globalThis.fetch = vi.fn(async () => {
       throw new Error("ECONNREFUSED")
     })
-    // Mock the auth library fallback
-    const mockRemoveProviderAuth = vi.fn(() => true)
     // The auth library is loaded lazily; we need to mock the import.
     // Since we can't easily mock dynamic imports, we verify the fallback
     // by checking that the route still succeeds.

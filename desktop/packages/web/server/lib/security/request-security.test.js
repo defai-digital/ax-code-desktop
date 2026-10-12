@@ -3,10 +3,7 @@ import { describe, expect, it } from "vitest"
 import { createRequestSecurityRuntime } from "./request-security.js"
 import { createMockRequest } from "../../test-helpers/route-harness.js"
 
-const createRuntime = (settings = {}) =>
-  createRequestSecurityRuntime({
-    readSettingsFromDiskMigrated: async () => settings,
-  })
+const createRuntime = () => createRequestSecurityRuntime()
 
 describe("request security origin checks", () => {
   it("normalizes host casing before comparing origins", async () => {
@@ -78,7 +75,7 @@ describe("request security origin checks", () => {
   })
 
   it("rejects a stale public origin from pre-local-only settings", async () => {
-    const runtime = createRuntime({ publicOrigin: "https://desktop.example.com" })
+    const runtime = createRuntime()
 
     await expect(
       runtime.isRequestOriginAllowed(

@@ -1,4 +1,3 @@
-import { EventEmitter } from "node:events"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 const spawnMock = vi.fn()
@@ -79,21 +78,6 @@ const createLiveSdkHandle = ({
       resolveClosed()
     },
   }
-}
-
-const createMockChild = () => {
-  const child = new EventEmitter()
-  child.stdout = new EventEmitter()
-  child.stderr = new EventEmitter()
-  child.exitCode = null
-  child.signalCode = null
-  child.pid = 12345
-  child.kill = vi.fn(() => {
-    child.signalCode = "SIGTERM"
-    queueMicrotask(() => child.emit("close", null, "SIGTERM"))
-    return true
-  })
-  return child
 }
 
 const createLifecycleState = () => ({

@@ -27,11 +27,9 @@ export function resolveDesktopApiProxyPort(rawPort = process.env.AX_CODE_DESKTOP
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 3001
 }
 
-function attachBenignSocketErrorHandler(socket: Socket) {
-  socket.on("error", (error) => {
-    if (isBenignProxySocketError(error)) return
-    console.error("[vite] api ws proxy socket error:", error)
-  })
+const onBenignProxySocketError = (error: unknown) => {
+  if (isBenignProxySocketError(error)) return
+  console.error("[vite] api ws proxy socket error:", error)
 }
 
 function writeHttpHead(socket: Socket, statusCode: number, statusMessage: string, headers: IncomingMessage["headers"]) {
@@ -52,7 +50,7 @@ export function handleDesktopApiWsUpgrade(
 ) {
   if (!shouldProxyDesktopApiUpgrade(req.url)) return false
 
-  attachBenignSocketErrorHandler(socket)
+  socket.on("error", onBenignProxySocketError)
 
   const proxyReq = http.request({
     hostname: "127.0.0.1",
@@ -79,7 +77,7 @@ export function handleDesktopApiWsUpgrade(
 
   proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
     proxySocket.pause()
-    attachBenignSocketErrorHandler(proxySocket)
+    proxySocket.on("error", onBenignProxySocketError)
 
     if (socket.destroyed) {
       proxySocket.destroy()
@@ -100,6 +98,8 @@ export function handleDesktopApiWsUpgrade(
     }
 
     proxySocket.pipe(socket)
+    socket.removeListener("error", onBenignProxySocketError)
+    socket.on("error", onBenignProxySocketError)
     socket.pipe(proxySocket)
     proxySocket.resume()
   })
@@ -121,6 +121,12 @@ export function handleDesktopApiWsUpgrade(
       return
     }
 
+    res.on("error", (error) => {
+      if (!isBenignProxySocketError(error)) {
+        console.error("[vite] api ws proxy error")
+      }
+      if (!socket.destroyed) socket.destroy()
+    })
     res.pipe(socket)
   })
 

@@ -24,7 +24,7 @@ def translate(locale):
  while index < len(items):
   batch=dict(items[index:index+240]);cache=directory/(str(index)+'.json')
   if cache.exists():
-   result=json.loads(cache.read_text());batch=dict(items[index:index+len(result)])
+   result=json.loads(cache.read_text())
   else:
    prompt=directory/(str(index)+'-prompt.txt')
    instructions=('Translate these AX Coder desktop UI messages into '+locale+'. Return ONLY one flat JSON object with exactly the supplied keys. Use natural Unicode text in values; do not expand characters into Unicode escapes. Translate naturally with accurate terminology; do not copy English sentences. Preserve all named {placeholders}, technical identifiers, paths, command names, Markdown formatting and brands AX Code, AX Coder, AX Engine, Git, GitHub, MCP. Normalize text to NFC. Keys common.itemCount.one/few/many/other are locale plural-category variants; use appropriate noun forms for each category. Do not use tools, write files, spawn agents or provide explanations. Data follows:\n')
@@ -49,4 +49,4 @@ def translate(locale):
   index+=len(result)
 if __name__ == '__main__':
  with ThreadPoolExecutor(max_workers=3) as pool:
-  for done in pool.map(translate,['zh-CN','ko','de','it','ru','tr']):pass
+  list(pool.map(translate,['zh-CN','ko','de','it','ru','tr']))
