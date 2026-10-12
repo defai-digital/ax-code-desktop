@@ -151,7 +151,13 @@ export function verifyDesktopReleaseContract(root = repositoryRoot, fileSystem =
   requireText(shadowWorkflow, identity.signing.appleAuthority, "shadow Apple signing authority")
   requireText(shadowWorkflow, identity.signing.windowsCertificateSha1, "shadow Windows certificate")
   requireText(shadowWorkflow, "--publish=never", "shadow packaging mode")
-  requireText(shadowWorkflow, 'REPOSITORY_VISIBILITY\" != \"private', "shadow artifact visibility gate")
+  requireText(shadowWorkflow, "node script/shadow-access-policy.mjs", "shadow artifact visibility gate")
+  const shadowAccess = fileSystem.readFileSync(path.join(root, "script/shadow-access-policy.mjs"), "utf8")
+  requireText(shadowAccess, 'visibility === "public" && signingMode !== "required"', "public signed-only gate")
+  assert(
+    (shadowWorkflow.match(/name: Sign staged artifacts before upload/g) ?? []).length === 4,
+    "each packaging job must sign before upload",
+  )
 
   const packageWrapper = fileSystem.readFileSync(
     path.join(root, "desktop/packages/electron/scripts/package.mjs"),

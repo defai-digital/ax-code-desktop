@@ -10,5 +10,6 @@
 | [ADR-006](ADR-006-application-identity-and-release-ownership.md) | Preserve application identity during source transfer           | Accepted | Guards ready; shadow execution pending | 2026-09-02 |
 | [ADR-007](ADR-007-defer-ax-agent-manager-integration.md)         | Defer manager execution until AX Agent has a released contract | Accepted | Deferred                               | 2026-09-02 |
 | [ADR-008](ADR-008-source-cutover-with-release-freeze.md)         | Separate Desktop source cutover from public release cutover    | Accepted | Implemented and verified               | 2026-09-02 |
+| [ADR-011](ADR-011-public-signed-shadow-qualification.md) | Public signed shadow qualification | Accepted | Local implementation verified; platform execution pending | 2026-10-12 |
 
 ADRs must identify the decision owner, contracts, superseded records, rollout, and rollback.

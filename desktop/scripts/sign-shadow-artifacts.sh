@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
-# Add detached Minisign signatures to a non-public AX Coder shadow artifact
-# directory. Platform signing happens in the platform build job; this wrapper
-# performs the common detached-signature step after all staged artifacts are
-# downloaded into the finalizer job.
+# Add detached Minisign signatures before staged AX Coder artifacts are uploaded.
+# Platform signatures are audited in each native build job. The finalizer repeats
+# detached signing and verification before recording the complete candidate set.
 
 set -euo pipefail
 

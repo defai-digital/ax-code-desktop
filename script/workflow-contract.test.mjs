@@ -38,7 +38,8 @@ describe("Desktop workflow contracts", () => {
     expect(triggers).not.toContain("pull_request:")
     expect(triggers).not.toContain("tags:")
     expect(shadow).toContain("REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}")
-    expect(shadow).toContain('if [ "$REPOSITORY_VISIBILITY" != "private" ]')
+    expect(shadow).toContain("node script/shadow-access-policy.mjs")
+    expect(shadow).toContain("SIGNING_MODE: ${{ inputs.signing_mode }}")
   })
 
   it("cannot create or mutate a public release", () => {
@@ -73,4 +74,17 @@ describe("Desktop workflow contracts", () => {
     expect(shadow).toContain("shadow-release-summary.mjs")
     expect(shadow).toContain("actions/upload-artifact@v7")
   })
+})
+
+it("signs every staged platform before upload while keeping official publication disabled", () => {
+  for (const job of ["package-web", "package-macos", "package-windows", "package-linux"]) {
+    const start = shadow.indexOf(`  ${job}:`)
+    // Job bodies end at the next unindented two-space job header, not a step.
+    const body = shadow.slice(start).split(/\n  [a-z][a-z-]+:/)[0]
+    expect(start).toBeGreaterThan(0)
+    expect(body.indexOf("Sign staged artifacts before upload")).toBeGreaterThan(0)
+    expect(body.indexOf("Sign staged artifacts before upload")).toBeLessThan(body.indexOf("Upload staged"))
+    expect(body).toContain("AX_CODER_SHADOW_SIGNING_MODE: required")
+    expect(body).toContain("inputs.signing_mode == 'required'")
+  }
 })

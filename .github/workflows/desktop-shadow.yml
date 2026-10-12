@@ -42,16 +42,8 @@ jobs:
         env:
           CONFIRM_SHADOW_ONLY: ${{ inputs.confirm_shadow_only }}
           REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
-        run: |
-          set -euo pipefail
-          if [ "$CONFIRM_SHADOW_ONLY" != "true" ]; then
-            echo "::error::This workflow is shadow-only. Confirm that it must not publish a release."
-            exit 1
-          fi
-          if [ "$REPOSITORY_VISIBILITY" != "private" ]; then
-            echo "::error::Shadow installers may be retained only in a private repository."
-            exit 1
-          fi
+          SIGNING_MODE: ${{ inputs.signing_mode }}
+        run: node script/shadow-access-policy.mjs
 
       - name: Verify signing inputs before building required candidates
         if: inputs.signing_mode == 'required'
@@ -161,6 +153,21 @@ jobs:
             --source "$RUNNER_TEMP/web-pack" \
             --out shadow-artifacts/web \
             --version "$VERSION"
+
+      - name: Install Minisign for staged web signing
+        if: inputs.signing_mode == 'required'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y minisign
+
+      - name: Sign staged artifacts before upload
+        if: inputs.signing_mode == 'required'
+        shell: bash
+        env:
+          AX_CODER_SHADOW_SIGNING_MODE: required
+          AX_CODE_DESKTOP_MINISIGN_PASSWORD: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_PASSWORD }}
+          AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 }}
+        run: bash desktop/scripts/sign-shadow-artifacts.sh "shadow-artifacts/web"
 
       - name: Upload staged web artifact
         uses: actions/upload-artifact@v7
@@ -335,6 +342,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
 
+      - name: Sign staged artifacts before upload
+        if: inputs.signing_mode == 'required'
+        shell: bash
+        env:
+          AX_CODER_SHADOW_SIGNING_MODE: required
+          AX_CODE_DESKTOP_MINISIGN_PASSWORD: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_PASSWORD }}
+          AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 }}
+        run: bash desktop/scripts/sign-shadow-artifacts.sh "shadow-artifacts/darwin-arm64"
+
       - name: Upload staged macOS artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -449,6 +465,15 @@ jobs:
             --out shadow-artifacts/${{ matrix.target }} \
             --version "$VERSION"
 
+      - name: Sign staged artifacts before upload
+        if: inputs.signing_mode == 'required'
+        shell: bash
+        env:
+          AX_CODER_SHADOW_SIGNING_MODE: required
+          AX_CODE_DESKTOP_MINISIGN_PASSWORD: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_PASSWORD }}
+          AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 }}
+        run: bash desktop/scripts/sign-shadow-artifacts.sh "shadow-artifacts/${{ matrix.target }}"
+
       - name: Upload staged Windows artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -511,6 +536,15 @@ jobs:
             --source desktop/packages/electron/dist \
             --out shadow-artifacts/${{ matrix.target }} \
             --version "$VERSION"
+
+      - name: Sign staged artifacts before upload
+        if: inputs.signing_mode == 'required'
+        shell: bash
+        env:
+          AX_CODER_SHADOW_SIGNING_MODE: required
+          AX_CODE_DESKTOP_MINISIGN_PASSWORD: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_PASSWORD }}
+          AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 }}
+        run: bash desktop/scripts/sign-shadow-artifacts.sh "shadow-artifacts/${{ matrix.target }}"
 
       - name: Upload staged Linux artifacts
         uses: actions/upload-artifact@v7
