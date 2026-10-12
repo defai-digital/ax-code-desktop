@@ -2,7 +2,12 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { expect, test } from "vitest"
-import { assertHostedRunner, digest, verifyPreserved } from "./native-installer-qualification.mjs"
+import {
+  assertHostedRunner,
+  digest,
+  verifyPreserved,
+  writeSyntheticIfAbsent,
+} from "./native-installer-qualification.mjs"
 
 test("refuses native installation on developer or self-hosted machines", () => {
   expect(() => assertHostedRunner({}, `${process.platform}-${process.arch}`)).toThrow(/disposable/)
@@ -24,6 +29,18 @@ test("detects credential/profile alteration or removal rather than claiming cont
     expect(() => verifyPreserved(records)).toThrow(/changed profile/)
     fs.unlinkSync(file)
     expect(() => verifyPreserved(records)).toThrow()
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+test("writes a missing qualification file and leaves an existing file unchanged", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-synthetic-file-"))
+  const file = path.join(root, "auth.json")
+  try {
+    writeSyntheticIfAbsent(file, "synthetic-first")
+    expect(fs.readFileSync(file, "utf8")).toBe("synthetic-first")
+    writeSyntheticIfAbsent(file, "synthetic-second")
+    expect(fs.readFileSync(file, "utf8")).toBe("synthetic-first")
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }

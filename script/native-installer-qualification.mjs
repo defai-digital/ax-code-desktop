@@ -43,8 +43,23 @@ export function assertHostedRunner(env, target) {
   )
   assert.match(env.GITHUB_SHA ?? "", /^[a-f0-9]{40}$/)
 }
-const command = (tool, args, options = {}) =>
-  execFileSync(tool, args, { encoding: "utf8", timeout: 600000, stdio: "pipe", ...options })
+const command = (tool, args, env = process.env) =>
+  execFileSync(tool, args, { encoding: "utf8", timeout: 600000, stdio: "pipe", shell: false, env })
+export const writeSyntheticIfAbsent = (file, bytes) => {
+  const flags = fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY
+  let fd
+  try {
+    fd = fs.openSync(file, flags, 0o600)
+  } catch (error) {
+    if (error?.code === "EEXIST") return
+    throw error
+  }
+  try {
+    fs.writeFileSync(fd, bytes)
+  } finally {
+    fs.closeSync(fd)
+  }
+}
 const verifyMinisign = (file) => command("minisign", ["-Vm", file, "-P", KEY])
 
 async function qualify(target, artifacts, output) {
@@ -97,7 +112,7 @@ async function qualify(target, artifacts, output) {
     ],
     [path.join(config, "ax-code.json"), '{"provider":{}}\n'],
   ].map(([file, bytes]) => {
-    if (!fs.existsSync(file)) fs.writeFileSync(file, bytes, { mode: 0o600 })
+    writeSyntheticIfAbsent(file, bytes)
     return { file, sha256: digest(file) }
   })
   let installed
@@ -118,13 +133,18 @@ async function qualify(target, artifacts, output) {
         "-Command",
         '$s=Get-AuthenticodeSignature -LiteralPath $env:AX_QUAL_INSTALLER; if ($s.Status -ne "Valid" -or $s.SignerCertificate.Thumbprint -ne "FC40F1109912C025E751E804AA9BD1538A2D12EF" -or $null -eq $s.TimeStamperCertificate) { throw "Candidate installer signature failed" }',
       ],
-      { env: { ...process.env, AX_QUAL_INSTALLER: candidate } },
+      { ...process.env, AX_QUAL_INSTALLER: candidate },
     )
   } else {
     packageName = command("dpkg-deb", ["--field", candidate, "Package"]).trim()
     assert.equal(packageName, "ax-code-desktop")
     assert.equal(command("dpkg-deb", ["--field", baseline, "Package"]).trim(), packageName)
-    const prior = command("sh", ["-c", 'dpkg-query -W -f="${Status}" ax-code-desktop 2>/dev/null || true']).trim()
+    let prior = ""
+    try {
+      prior = command("dpkg-query", ["-W", "-f=${Status}", "ax-code-desktop"]).trim()
+    } catch {
+      prior = ""
+    }
     assert.ok(!prior.includes("install ok installed"), "Runner already has Desktop installed")
     installed = "/opt/AX Code"
     executable = path.join(installed, "ax-code-desktop")
