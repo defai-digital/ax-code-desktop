@@ -13,6 +13,8 @@ on:
       - "pnpm-workspace.yaml"
       - "script/**"
       - "turbo.json"
+      - ".gitattributes"
+      - ".internal/deploy/**"
   push:
     branches:
       - main
@@ -27,6 +29,8 @@ on:
       - "pnpm-workspace.yaml"
       - "script/**"
       - "turbo.json"
+      - ".gitattributes"
+      - ".internal/deploy/**"
   workflow_dispatch:
 
 concurrency:
