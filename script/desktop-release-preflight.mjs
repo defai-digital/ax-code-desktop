@@ -50,7 +50,11 @@ export function releaseReadiness({
   if (releases.some((release) => release.tagName === tag))
     add("existing-release", `${tag} is already published or drafted.`)
   const missing = SIGNING_SECRETS.filter((name) => !secrets.includes(name))
-  if (missing.length) add("missing-signing-secrets", missing.join(", "))
+  if (missing.length)
+    add(
+      "unconfirmed-signing-secrets",
+      `Not present in repository secret metadata: ${missing.join(", ")}. Verify organization/environment availability with required shadow preflight.`,
+    )
   for (const workflow of ["Desktop CI", "CodeQL"])
     if (!runs.some((run) => run.headSha === commit && run.workflowName === workflow && run.conclusion === "success"))
       add("exact-source-ci", `${workflow} must pass on ${commit}.`)

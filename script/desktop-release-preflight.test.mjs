@@ -39,7 +39,7 @@ describe("Desktop release preflight", () => {
     expect(report.ready).toBe(false)
     expect(report.blockers.map((item) => item.code)).toEqual([
       "existing-tag",
-      "missing-signing-secrets",
+      "unconfirmed-signing-secrets",
       "private-update-feed",
     ])
   })

@@ -53,6 +53,31 @@ jobs:
             exit 1
           fi
 
+      - name: Verify signing inputs before building required candidates
+        if: inputs.signing_mode == 'required'
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY_B64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AX_CODE_DESKTOP_MINISIGN_PASSWORD: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_PASSWORD }}
+          AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in APPLE_API_ISSUER APPLE_API_KEY_B64 APPLE_API_KEY_ID APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_TEAM_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID AX_CODE_DESKTOP_MINISIGN_PASSWORD AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is unavailable to the signed shadow workflow"
+              missing=1
+            fi
+          done
+          test "$missing" = 0
+
       - name: Setup AX Coder toolchain
         uses: ./.github/actions/setup-ax-coder-toolchain
 
