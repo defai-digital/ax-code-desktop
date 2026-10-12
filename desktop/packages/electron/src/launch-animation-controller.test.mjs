@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { EventEmitter } from "node:events"
-import { pathToFileURL } from "node:url"
 import path from "node:path"
-import { createLaunchAnimationController, DONE_CHANNEL } from "./launch-animation-controller.js"
+import {
+  createLaunchAnimationController,
+  createAnimationAssetHandler,
+  DONE_CHANNEL,
+} from "./launch-animation-controller.js"
 
 const controllers = []
 afterEach(() => {
@@ -23,12 +26,15 @@ class Window extends EventEmitter {
     this.webContents = new EventEmitter()
     this.webContents.mainFrame = { url: "" }
     this.webContents.setWindowOpenHandler = vi.fn()
-    this.webContents.session = { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn() }
+    this.webContents.session = {
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
+      protocol: { handle: vi.fn() },
+    }
   }
-  loadFile(file, options) {
-    this.file = file
-    this.query = options.query
-    this.webContents.mainFrame.url = `${pathToFileURL(file).href}?clip=${options.query.clip}`
+  loadURL(url) {
+    this.query = Object.fromEntries(new URL(url).searchParams)
+    this.webContents.mainFrame.url = url
     return Promise.resolve()
   }
   isDestroyed() {
@@ -140,9 +146,9 @@ describe("desktop animation lifecycle", () => {
   it("ignores an obsolete opening load rejection after ending starts", async () => {
     let failOpening
     class SlowWindow extends Window {
-      loadFile(file, options) {
-        super.loadFile(file, options)
-        if (options.query.kind === "opening")
+      loadURL(url) {
+        super.loadURL(url)
+        if (this.query.kind === "opening")
           return new Promise((_resolve, reject) => {
             failOpening = reject
           })
@@ -199,5 +205,28 @@ describe("desktop animation lifecycle", () => {
       },
     })
     expect(await controller.playOpening()).toMatchObject({ reason: "error" })
+  })
+})
+
+describe("isolated animation assets", () => {
+  it("serves only packaged player resources and manifest clips", async () => {
+    const read = vi.fn(async () => Buffer.from("video bytes"))
+    const handler = createAnimationAssetHandler("/assets", manifest, read)
+    const response = await handler(new Request("ax-animation://player/02-opening-city.webm"))
+    expect(response.status).toBe(200)
+    expect(response.headers.get("Content-Type")).toBe("video/webm")
+    expect(await response.text()).toBe("video bytes")
+    expect(read).toHaveBeenCalledWith(path.join("/assets", "02-opening-city.webm"))
+    for (const url of [
+      "ax-animation://other/player.html",
+      "https://player/player.html",
+      "ax-animation://player/%2e%2e/secret",
+      "ax-animation://player/unknown.webm",
+      "ax-animation://user@player/player.html",
+    ]) {
+      expect((await handler({ url, method: "GET" })).status).toBe(404)
+    }
+    expect((await handler(new Request("ax-animation://player/player.html", { method: "POST" }))).status).toBe(405)
+    expect(read).toHaveBeenCalledTimes(1)
   })
 })

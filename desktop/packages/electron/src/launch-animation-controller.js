@@ -1,7 +1,42 @@
 "use strict"
 
 const path = require("node:path")
-const { pathToFileURL } = require("node:url")
+const { readFile } = require("node:fs/promises")
+
+// Packaged file:// ASAR pages fail when GrantFileProtocolExtraPrivileges is disabled.
+// Serve only allowlisted animation assets in the isolated player session instead.
+const PLAYER_URL = "ax-animation://player/player.html"
+const ANIMATION_PRIVILEGED_SCHEMES = [
+  { scheme: "ax-animation", privileges: { standard: true, secure: true, stream: true } },
+]
+const installedSessions = new WeakSet()
+
+function createAnimationAssetHandler(assetDir, manifest, read = readFile) {
+  const allowed = new Set([
+    "player.html",
+    "player.css",
+    "player.js",
+    ...manifest.pairs
+      .flatMap((pair) => [pair.opening.file, pair.ending.file])
+      .filter((file) => /^[a-z0-9-]+\.webm$/.test(file)),
+  ])
+  const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".webm": "video/webm" }
+  return async (request) => {
+    const url = new URL(request.url)
+    const file = url.pathname.slice(1)
+    if (url.protocol !== "ax-animation:" || url.host !== "player" || url.username || url.password || !allowed.has(file))
+      return new Response(null, { status: 404 })
+    if (!["GET", "HEAD"].includes(request.method)) return new Response(null, { status: 405 })
+    try {
+      const data = await read(path.join(assetDir, file))
+      return new Response(request.method === "HEAD" ? null : data, {
+        headers: { "Content-Type": types[path.extname(file)], "X-Content-Type-Options": "nosniff" },
+      })
+    } catch {
+      return new Response(null, { status: 404 })
+    }
+  }
+}
 
 const DONE_CHANNEL = "ax-code:launch-animation-done"
 const REASONS = new Set(["ended", "skip", "disabled", "reduced-motion", "error"])
@@ -83,8 +118,12 @@ function createLaunchAnimationController({
       logger.warn("[electron] animation window unavailable", error.message)
       return Promise.resolve({ kind, reason: "error" })
     }
-    const page = path.join(assetDir, "player.html")
-    const pageUrl = pathToFileURL(page)
+    const pageUrl = new URL(PLAYER_URL)
+    const animationSession = window.webContents.session
+    if (!installedSessions.has(animationSession)) {
+      animationSession.protocol.handle("ax-animation", createAnimationAssetHandler(assetDir, manifest))
+      installedSessions.add(animationSession)
+    }
     const complete = (reason, frames) => {
       if (active?.window === window) finish(reason, frames)
     }
@@ -128,15 +167,15 @@ function createLaunchAnimationController({
     })
     try {
       Promise.resolve(
-        window.loadFile(page, {
-          query: {
+        window.loadURL(
+          `${PLAYER_URL}?${new URLSearchParams({
             clip: clip.file,
             kind,
             skip: translate("Skip animation"),
             disable: translate("Disable animations"),
             status: translate(kind === "opening" ? "Starting desktop…" : "Closing desktop…"),
-          },
-        }),
+          })}`,
+        ),
       ).catch(() => complete("error"))
     } catch {
       complete("error")
@@ -161,4 +200,9 @@ function createLaunchAnimationController({
   }
 }
 
-module.exports = { createLaunchAnimationController, DONE_CHANNEL }
+module.exports = {
+  createLaunchAnimationController,
+  createAnimationAssetHandler,
+  ANIMATION_PRIVILEGED_SCHEMES,
+  DONE_CHANNEL,
+}

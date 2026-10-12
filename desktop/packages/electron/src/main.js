@@ -73,7 +73,7 @@ const {
   removeDisabledRemoteAccessSettingsFromRoot,
 } = require("./desktop-hosts")
 const { normalizeDevRendererUrl } = require("./renderer-navigation-policy")
-const { createLaunchAnimationController } = require("./launch-animation-controller")
+const { createLaunchAnimationController, ANIMATION_PRIVILEGED_SCHEMES } = require("./launch-animation-controller")
 const { createQuitCoordinator } = require("./quit-coordinator")
 const launchAnimationManifest = require("../resources/launch-animations/manifest.json")
 const {
@@ -87,7 +87,7 @@ const {
   isTrustedRendererNavigationUrl,
 } = require("./desktop-renderer-protocol")
 
-protocol.registerSchemesAsPrivileged(PACKAGED_RENDERER_PRIVILEGED_SCHEMES)
+protocol.registerSchemesAsPrivileged([...PACKAGED_RENDERER_PRIVILEGED_SCHEMES, ...ANIMATION_PRIVILEGED_SCHEMES])
 const { normalizeSafeExternalUrl } = require("./external-url")
 const { buildDesktopOpenDialogOptions, resolveDesktopDialogOwnerWindow } = require("./desktop-dialog")
 const { createTrayController } = require("./tray.mjs")

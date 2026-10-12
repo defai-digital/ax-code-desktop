@@ -124,6 +124,7 @@ jobs:
         run: |
           pnpm run smoke:electron-compatibility
           pnpm run smoke:session-cors
+          pnpm run smoke:launch-animations -- --asar
           pnpm run smoke:native-webmcp -- --output-dir "$RUNNER_TEMP/native-webmcp"
 
       - name: Smoke native menus, PTY, and WebMCP with a display
@@ -131,6 +132,7 @@ jobs:
         run: |
           xvfb-run -a pnpm run smoke:electron-compatibility
           xvfb-run -a pnpm run smoke:session-cors
+          xvfb-run -a pnpm run smoke:launch-animations -- --asar
           xvfb-run -a pnpm run smoke:native-webmcp -- --output-dir "$RUNNER_TEMP/native-webmcp"
 
       - name: Retain native capability evidence

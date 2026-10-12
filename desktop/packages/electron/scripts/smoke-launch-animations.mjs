@@ -45,10 +45,14 @@ try {
         main: "scripts/smoke-launch-animations-entry.cjs",
       }),
     )
-    entry = path.join(temp, "app.asar")
+    entry = path.join(temp, "AX Code.app", "Contents", "Resources", "app.asar")
+    await fs.mkdir(path.dirname(entry), { recursive: true })
     await require("@electron/asar").createPackage(root, entry)
   }
-  await run(require("electron"), [entry], {
+  const binaryIndex = process.argv.indexOf("--electron-binary")
+  const binary = binaryIndex === -1 ? require("electron") : process.argv[binaryIndex + 1]
+  if (!binary) throw new Error("--electron-binary requires an executable path")
+  await run(binary, [entry], {
     env: { ...process.env, AX_ANIMATION_SMOKE_OUTPUT: output, AX_ANIMATION_SMOKE_DATA_DIR: path.join(temp, "data") },
     timeout: 60000,
     maxBuffer: 1024 * 1024,
