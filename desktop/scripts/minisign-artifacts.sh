@@ -81,13 +81,16 @@ check_cmd() {
   fi
 }
 
-# Portable permission mode: stat -f (BSD/macOS) then stat -c (GNU/Linux).
+# Capture each dialect separately: failed GNU stat -f can emit filesystem data.
 path_mode() {
   local path="$1"
-  # Follow the compatibility symlink created by minisign-keygen.sh. Without
-  # -L, GNU stat reports the symlink's 0777 mode and rejects a safely-permissioned
-  # backing key on Linux.
-  stat -L -f '%Lp' "$path" 2>/dev/null || stat -L -c '%a' "$path" 2>/dev/null || true
+  local mode
+  # Follow the compatibility symlink to inspect the backing key's permissions.
+  if mode="$(stat -L -c '%a' "$path" 2>/dev/null)" && [[ "$mode" =~ ^[0-7]{3,4}$ ]]; then
+    printf '%s\n' "$mode"
+  elif mode="$(stat -L -f '%Lp' "$path" 2>/dev/null)" && [[ "$mode" =~ ^[0-7]{3,4}$ ]]; then
+    printf '%s\n' "$mode"
+  fi
 }
 
 require_private_path() {
@@ -95,7 +98,7 @@ require_private_path() {
   local label="$2"
   local mode
 
-  mode="$(path_mode "$path")"
+  mode="$(path_mode "$path" || true)"
   if [[ -z "$mode" ]]; then
     echo "error: could not inspect permissions for $label: $path" >&2
     exit 1

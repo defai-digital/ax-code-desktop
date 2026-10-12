@@ -38,3 +38,9 @@ The user supplied Apple ID app-specific password credentials instead of an API k
 Local validation: 126 root script tests passed, 4 PowerShell-dependent tests skipped; all boundary/release checks, Actionlint, syntax, and diff checks passed. The actual new helper stored the supplied credentials in an owned temporary Keychain and successfully authenticated with that profile; the temporary Keychain was deleted afterward.
 
 Hosted run `38197317854` at `c7060d82` passed effective signing-input preflight, repository boundaries, typecheck, and lint. It then failed a full-repository boundary integration test at its default 5-second timeout. The same scan had already passed the standalone boundary gate. Matched the adjacent full-UI integration test by assigning only this full-Desktop scan a 30-second timeout; assertions and fast unit-test deadlines remain intact. No package or notarization job ran in that attempt.
+
+## Minisign recovery
+
+Run `38197553603`, web job `114644761958`, decrypted the historical Desktop secret successfully but produced key ID `5B7AB63CD6D674BE`, which failed verification against the required production public key ID `CF42FC69BEEF0EA5`. Preserved the fixed public-key pin and updated only Desktop's two Minisign secrets from the existing production signing key and its existing Keychain passphrase. A fresh local artifact was signed and independently verified against the pinned key before configuring those secrets; no private-key file or passphrase was added to project records.
+
+The same hosted log exposed a portable `stat` defect: failed GNU `stat -f` output was concatenated with a later valid mode, causing an arithmetic error instead of reliable permission enforcement. The signer now captures each dialect separately, accepts only octal permission output, and fails closed for invalid or unsafe modes. Regressions cover GNU/BSD fallback diagnostics, malformed output, and public permissions.

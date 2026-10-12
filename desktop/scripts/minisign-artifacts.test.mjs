@@ -322,4 +322,40 @@ return 1
       fs.rmSync(fixture.dir, { recursive: true, force: true })
     }
   })
+  test.each([
+    ["GNU", 'if [ "$2" = "-c" ]; then printf "600\\n"; else printf "filesystem report\\n"; return 1; fi'],
+    ["BSD", 'if [ "$2" = "-f" ]; then printf "600\\n"; else printf "invalid option output\\n"; return 1; fi'],
+  ])("uses clean %s permission output without mixing failed stat diagnostics", (_dialect, body) => {
+    const fixture = createFixture()
+    try {
+      fs.appendFileSync(fixture.bashEnv, `\nstat() { ${body}; }\n`)
+      const result = runScript(
+        ["--secret-key", fixture.secretKey, "--public-key", fixture.publicKey, fixture.asset],
+        fixture,
+        { AX_CODE_DESKTOP_MINISIGN_PASSWORD: "fixture-password" },
+      )
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.stderr).not.toContain("invalid integer")
+      expect(fs.existsSync(`${fixture.asset}.minisig`)).toBe(true)
+    } finally {
+      fs.rmSync(fixture.dir, { recursive: true, force: true })
+    }
+  })
+
+  test.each(["not-a-mode", "644"])("rejects invalid or public permissions %s before signing", (mode) => {
+    const fixture = createFixture()
+    try {
+      fs.appendFileSync(fixture.bashEnv, `\nstat() { printf '${mode}\\n'; }\n`)
+      const result = runScript(
+        ["--secret-key", fixture.secretKey, "--public-key", fixture.publicKey, fixture.asset],
+        fixture,
+        { AX_CODE_DESKTOP_MINISIGN_PASSWORD: "fixture-password" },
+      )
+      expect(result.status).not.toBe(0)
+      expect(fs.existsSync(`${fixture.asset}.minisig`)).toBe(false)
+      expect(result.stderr).not.toContain("invalid integer")
+    } finally {
+      fs.rmSync(fixture.dir, { recursive: true, force: true })
+    }
+  })
 })
