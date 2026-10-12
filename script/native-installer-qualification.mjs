@@ -9,7 +9,7 @@ import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 import { runSmoke } from "../desktop/packages/electron/scripts/smoke-packaged-asar-cli.mjs"
 
-const require = createRequire(import.meta.url)
+const require = createRequire(new URL("../desktop/packages/electron/package.json", import.meta.url))
 const asar = require("@electron/asar")
 const KEY = "RWSlDu++afxCz01OqhYWhfo8+L8pVbSYXJBEb2zoWBuK0WACIzbGVZRO"
 const BASELINE_TAG = "qualification-baseline-20261012-v7.10.2"
