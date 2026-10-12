@@ -4,6 +4,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { createRequire } from "node:module"
+import { finished } from "node:stream/promises"
 
 const require = createRequire(import.meta.url)
 const asar = require("@electron/asar")
@@ -70,7 +71,9 @@ async function makeAsarResources(extraFiles = {}) {
     fs.writeFileSync(destination, contents)
   }
   fs.mkdirSync(resources, { recursive: true })
-  await asar.createPackage(source, path.join(resources, "app.asar"))
+  // The pinned ASAR writer resolves with a stream before its final bytes flush.
+  const archive = await asar.createPackage(source, path.join(resources, "app.asar"))
+  await finished(archive)
   return { resources, root }
 }
 
