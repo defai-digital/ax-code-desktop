@@ -129,3 +129,74 @@ describe("Desktop distribution preparation and mirror", () => {
     await expect(putVerified("test.zip", Buffer.from("content"), { fetcher })).rejects.toThrow("Public bytes differ")
   })
 })
+
+describe("First public cutover staging", () => {
+  it("checks policy before staging touches files, credentials or network", async () => {
+    const { stage } = await import("../.internal/deploy/distribution.mjs")
+    await expect(stage("/missing", "/missing")).rejects.toThrow("public Desktop release is disabled")
+  })
+  it("verifies private R2 bytes without depending on a publicly enabled gateway", async () => {
+    const { putStaged, verifyReleaseObjects } = await import("../.internal/deploy/distribution.mjs")
+    const objects = new Map()
+    const calls = []
+    const fetcher = async (url, options) => {
+      expect(url).toContain("https://api.cloudflare.com/client/v4/")
+      expect(options.headers.Authorization).toBe("Bearer test-only")
+      calls.push(options.method ?? "GET")
+      if (options.method === "PUT") {
+        objects.set(url, options.body)
+        return new Response("ok")
+      }
+      return objects.has(url) ? new Response(objects.get(url)) : new Response("missing", { status: 404 })
+    }
+    const options = { fetcher, account: "a".repeat(32), token: "test-only" }
+    const key = "releases/download/v7.24.5/installer.zip"
+    const content = Buffer.from("signed bytes")
+    await putStaged(key, content, options)
+    await verifyReleaseObjects([{ key, content }], options)
+    const before = calls.length
+    await putStaged(key, content, options)
+    expect(calls.slice(before)).toEqual(["GET"])
+    await expect(putStaged(key, Buffer.from("changed"), options)).rejects.toThrow("immutable")
+  })
+  it("rejects failed storage proof and mismatched anonymous bytes", async () => {
+    const { putStaged, verifyReleaseObjects } = await import("../.internal/deploy/distribution.mjs")
+    let uploaded = false
+    const options = {
+      account: "a".repeat(32),
+      token: "test-only",
+      fetcher: async (_url, options) => {
+        if (options.method === "PUT") {
+          uploaded = true
+          return new Response("ok")
+        }
+        return uploaded ? new Response("wrong") : new Response("missing", { status: 404 })
+      },
+    }
+    await expect(putStaged("test.zip", Buffer.from("signed"), options)).rejects.toThrow("Staged R2 bytes differ")
+    await expect(
+      verifyReleaseObjects(
+        [{ key: "test.zip", content: Buffer.from("signed") }],
+        { fetcher: async () => new Response("wrong") },
+        true,
+      ),
+    ).rejects.toThrow("Release bytes differ")
+  })
+  it("keeps readiness last in a version and the latest pointer last globally", async () => {
+    const { releaseObjects } = await import("../.internal/deploy/distribution.mjs")
+    const { output, result } = fixture()
+    const objects = releaseObjects(output, result)
+    const immutable = objects.filter((object) => !object.mutable)
+    expect(immutable.at(-2).key).toMatch(/release-ready\.txt\.minisig$/)
+    expect(immutable.at(-1).key).toMatch(/release-ready\.txt$/)
+    expect(objects.at(-2).key).toBe("latest.txt.minisig")
+    expect(objects.at(-1).key).toBe("latest.txt")
+  })
+})
+
+it("refuses source bytes changed between qualification and staging snapshot", async () => {
+  const { releaseObjects } = await import("../.internal/deploy/distribution.mjs")
+  const { output, result } = fixture()
+  fs.appendFileSync(path.join(output, "install"), "changed after verification")
+  expect(() => releaseObjects(output, result)).toThrow("Source changed after verification")
+})

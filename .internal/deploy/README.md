@@ -123,3 +123,30 @@ No bootstrap removes user profiles or credentials.
 Still qualify native fresh installations, upgrade/rollback and the anonymous
 generic updater before publication. A successful local package, source tag,
 mocked installer test or unsigned shadow run is not a public release.
+
+## First public release
+
+The user authorized public Desktop release on 2026-10-12 UTC with Minisign, Apple
+signing/notarization and Windows Authenticode required. Authorization is recorded in
+`../reports/public-release-20261012/`; cross-platform and migration qualification
+remain incomplete. This does not enable policy or certify missing artifacts.
+
+After all signed qualification gates pass and the release policy is approved:
+
+```bash
+# Supply CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN securely.
+.internal/deploy/deploy stage --source /path/to/verified-release \
+  --qualification /path/to/signed-qualification.json
+.internal/deploy/deploy gateway-cutover --source /path/to/verified-release \
+  --qualification /path/to/signed-qualification.json
+.internal/deploy/deploy gateway-check
+```
+
+`stage` verifies authenticated R2 bytes while the Worker stays disabled. It never
+needs a temporary public bypass. `gateway-cutover` verifies the entire staged
+inventory before enablement, proves anonymous bytes afterwards, and disables
+serving again if activation or public verification fails. Infrastructure deployment
+refuses to disable an already public gateway. Use ordinary `upload` for later
+qualified releases on an active channel. Neither new command bypasses release
+policy, signature, platform or migration gates. See the
+[v3 specification](../spec/SPEC-2026-10-12-desktop-download-distribution-v3.md).

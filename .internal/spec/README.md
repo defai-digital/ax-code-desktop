@@ -12,3 +12,4 @@
 | [Desktop Release Migration and Rollback](SPEC-2026-09-02-release-migration-and-rollback.md) | Local implementation; shadow run pending  | ADR-004; ADR-006          |
 | [User Data and Identity Continuity](SPEC-2026-09-02-user-data-and-identity-continuity.md)   | Identity gate; signed checks pending      | ADR-006                   |
 | [Desktop Source-Ownership Cutover](SPEC-2026-09-02-source-ownership-cutover.md)             | Implemented and verified                  | ADR-008                   |
+| [Desktop Download Distribution v3](SPEC-2026-10-12-desktop-download-distribution-v3.md) | First-cutover operator implemented; production qualification pending | ADR-010 |

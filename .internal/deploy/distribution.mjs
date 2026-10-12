@@ -203,15 +203,111 @@ export async function putVerified(key, content, { mutable = false, fetcher = fet
   assert(actual?.equals(content), `Public bytes differ from uploaded object: ${key}`)
 }
 
-export async function upload(source, qualificationFile) {
-  // Check policy before any credential access, network request or upload.
+export function qualifiedDirectory(source, qualificationFile) {
+  // Authorize before reading credentials, signatures or touching the network.
   assertPublicReleaseAuthorized()
   const inventory = verifyDirectory(source)
   verifySignature(qualificationFile)
-  validateQualification(JSON.parse(bytes(qualificationFile)), {
-    ...inventory,
-    digest: hash(bytes(path.join(source, "inventory.json"))),
+  const digest = hash(bytes(path.join(source, "inventory.json")))
+  validateQualification(JSON.parse(bytes(qualificationFile)), { ...inventory, digest })
+  return { ...inventory, digest }
+}
+
+export function releaseObjects(source, inventory) {
+  const prefix = `releases/download/v${inventory.version}/`
+  const objects = []
+  for (const name of [...inventory.assets.map((asset) => asset.name), "inventory.json", "release-ready.txt"])
+    for (const suffix of name === "release-ready.txt" ? [".minisig", ""] : ["", ".minisig"])
+      objects.push({ key: prefix + name + suffix, content: bytes(path.join(source, name + suffix)), mutable: false })
+  for (const name of ["install", "install.ps1", "latest.txt"])
+    for (const suffix of [".minisig", ""])
+      objects.push({ key: name + suffix, content: bytes(path.join(source, name + suffix)), mutable: true })
+  for (const asset of inventory.assets) {
+    const object = objects.find((object) => object.key === prefix + asset.name)
+    assert(
+      object.content.length === asset.size && hash(object.content) === asset.sha256,
+      `Source changed after verification: ${asset.name}`,
+    )
+  }
+  if (inventory.digest)
+    assert(
+      hash(objects.find((object) => object.key === prefix + "inventory.json").content) === inventory.digest,
+      "Signed inventory changed after qualification",
+    )
+  assert(
+    objects.find((object) => object.key === prefix + "release-ready.txt").content.toString() ===
+      `v${inventory.version}\n${inventory.commit}\n${hash(objects.find((object) => object.key === prefix + "release.tsv").content)}\n`,
+    "Readiness marker changed after verification",
+  )
+  return objects
+}
+
+function storageEndpoint(key, account) {
+  assert(/^[A-Za-z0-9/_\-.]+$/.test(key) && !key.split("/").includes(".."), "Invalid object key")
+  assert(/^[a-f0-9]{32}$/.test(account ?? ""), "Invalid Cloudflare account")
+  return `https://api.cloudflare.com/client/v4/accounts/${account}/r2/buckets/ax-code-desktop-releases/objects/${key}`
+}
+
+export async function storageBytes(key, { fetcher = fetch, account, token }) {
+  assert(token, "Cloudflare API token is required")
+  const response = await fetcher(storageEndpoint(key, account), {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(600000),
   })
+  if (response.status === 404) return null
+  assert(response.ok, `R2 read verification failed: HTTP ${response.status}`)
+  return Buffer.from(await response.arrayBuffer())
+}
+
+export async function putStaged(key, content, options) {
+  const previous = await storageBytes(key, options)
+  if (previous?.equals(content)) return
+  assert(previous === null || options.mutable, `Refusing to overwrite immutable object: ${key}`)
+  assert(content.length <= 300 * 1024 * 1024, "R2 REST upload exceeds 300 MiB; use a qualified multipart uploader")
+  const response = await (options.fetcher ?? fetch)(storageEndpoint(key, options.account), {
+    method: "PUT",
+    body: content,
+    signal: AbortSignal.timeout(600000),
+    headers: { Authorization: `Bearer ${options.token}`, "Content-Type": "application/octet-stream" },
+  })
+  assert(response.ok, `R2 staged upload failed: HTTP ${response.status}`)
+  const actual = await storageBytes(key, options)
+  assert(actual?.equals(content), `Staged R2 bytes differ: ${key}`)
+}
+
+export async function verifyReleaseObjects(objects, options, publicServing = false) {
+  for (const object of objects) {
+    const actual = publicServing
+      ? await publicBytes(object.key, options.fetcher ?? fetch)
+      : await storageBytes(object.key, options)
+    assert(actual?.equals(object.content), `Release bytes differ or are missing: ${object.key}`)
+  }
+}
+
+export async function stage(source, qualificationFile) {
+  const inventory = qualifiedDirectory(source, qualificationFile)
+  const account = process.env.CLOUDFLARE_ACCOUNT_ID
+  const token = process.env.CLOUDFLARE_API_TOKEN
+  assert(account === "89657c08227b638ab67905e1c5899406" && token, "Expected DEFAI Cloudflare account and API token")
+  const options = { account, token }
+  // Snapshot and size-check every byte before the first mutation.
+  const objects = releaseObjects(source, inventory)
+  assert(
+    objects.every((object) => object.content.length <= 300 * 1024 * 1024),
+    "R2 REST upload exceeds 300 MiB; use a qualified multipart uploader",
+  )
+  const response = await fetch(`${BASE}/install`, { signal: AbortSignal.timeout(30000) })
+  assert(
+    response.status === 503 && (await response.text()).includes("Desktop public release is not enabled"),
+    "Staging requires a disabled Desktop gateway; use upload for active releases",
+  )
+  for (const object of objects) await putStaged(object.key, object.content, { ...options, mutable: object.mutable })
+  await verifyReleaseObjects(objects, options)
+  return inventory
+}
+
+export async function upload(source, qualificationFile) {
+  const inventory = qualifiedDirectory(source, qualificationFile)
   const account = process.env.CLOUDFLARE_ACCOUNT_ID
   const token = process.env.CLOUDFLARE_API_TOKEN
   assert(/^[a-f0-9]{32}$/.test(account ?? "") && token, "CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required")
@@ -239,8 +335,8 @@ if (isMain) {
   try {
     const [command, ...argv] = process.argv.slice(2)
     assert(
-      ["prepare", "verify", "upload"].includes(command),
-      "usage: distribution.mjs prepare|verify|upload --source <dir> [--out <dir> --version X.Y.Z --commit SHA | --qualification <signed-json>]",
+      ["prepare", "verify", "upload", "stage"].includes(command),
+      "usage: distribution.mjs prepare|verify|upload|stage --source <dir> [--out <dir> --version X.Y.Z --commit SHA | --qualification <signed-json>]",
     )
     const args = {}
     for (let index = 0; index < argv.length; index += 2) {
@@ -271,8 +367,15 @@ if (isMain) {
       console.log(`Verified Desktop ${inventory.version} (${inventory.commit}). Nothing was published.`)
     } else {
       assert(args["--qualification"], "--qualification is required")
-      await upload(source, path.resolve(args["--qualification"]))
-      console.log("Uploaded immutable Desktop assets, verified anonymous bytes and advanced the signed latest pointer.")
+      if (command === "stage") {
+        await stage(source, path.resolve(args["--qualification"]))
+        console.log("Verified qualified artifacts in R2. Public gateway remains disabled.")
+      } else {
+        await upload(source, path.resolve(args["--qualification"]))
+        console.log(
+          "Uploaded immutable Desktop assets, verified anonymous bytes and advanced the signed latest pointer.",
+        )
+      }
     }
   } catch (error) {
     // Never log credential values or HTTP bodies from authenticated APIs.

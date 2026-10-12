@@ -4,6 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
+import { qualifiedDirectory, releaseObjects, verifyReleaseObjects } from "./distribution.mjs"
 
 export const ACCOUNT = "89657c08227b638ab67905e1c5899406"
 export const ZONE = "d5743ccd847daa9482a61511cc347065"
@@ -95,16 +96,29 @@ async function inspect(api) {
   const domain = domains.find((item) => item.hostname === "download.automatosx.com")
   requireCondition(domain?.service === "ax-code-downloads", "Existing AX Code download custom domain changed")
   const buckets = await api(`/accounts/${ACCOUNT}/r2/buckets`)
-  return { route, domain, bucket: buckets.buckets.some((item) => item.name === BUCKET) }
+  let publicEnabled = false
+  if (route) {
+    const settings = await api(`/accounts/${ACCOUNT}/workers/scripts/ax-code-desktop-downloads/settings`)
+    const binding = settings.bindings.find((item) => item.name === "PUBLIC_RELEASE_ENABLED")
+    requireCondition(
+      binding?.type === "plain_text" && ["false", "true"].includes(binding.text),
+      "Unexpected gateway publication binding",
+    )
+    publicEnabled = binding.text === "true"
+  }
+  return { route, domain, publicEnabled, bucket: buckets.buckets.some((item) => item.name === BUCKET) }
 }
 
-async function checkPublic() {
+async function checkPublic(publicEnabled = false) {
   const response = await fetch("https://download.automatosx.com/ax-code-desktop/install", {
     signal: AbortSignal.timeout(30000),
   })
+  const body = await response.text()
   requireCondition(
-    response.status === 503 && (await response.text()).includes("Desktop public release is not enabled"),
-    "Desktop gateway does not report the expected disabled-publication state",
+    publicEnabled
+      ? response.status === 200 && body.length > 100
+      : response.status === 503 && body.includes("Desktop public release is not enabled"),
+    "Desktop gateway does not match its configured publication state",
   )
   const cli = await fetch("https://download.automatosx.com/ax-code/releases/download/v7.24.4/install", {
     signal: AbortSignal.timeout(30000),
@@ -112,8 +126,66 @@ async function checkPublic() {
   requireCondition(cli.ok && (await cli.text()).length > 100, "Existing AX Code installer is unavailable")
 }
 
+export async function cutover(source, qualificationFile) {
+  // All signatures, four platforms and five gates must pass before credentials/network.
+  const inventory = qualifiedDirectory(source, qualificationFile)
+  const objects = releaseObjects(source, inventory)
+  const config = validateConfig(
+    JSON.parse(fs.readFileSync(path.join(directory, "download-worker/wrangler.jsonc"), "utf8")),
+  )
+  const worker = fs.readFileSync(path.join(directory, "download-worker/worker.mjs"))
+  const secret = token()
+  const options = { account: ACCOUNT, token: secret }
+  const api = client(secret)
+  const before = await inspect(api)
+  requireCondition(before.route && before.bucket, "Desktop route and bucket must exist before cutover")
+  await activateVerifiedGateway({ config, worker, objects, before, options, readState: () => inspect(api) })
+  console.log(`Desktop ${inventory.version} enabled; all anonymous release bytes verified.`)
+}
+
+export async function activateVerifiedGateway({
+  config,
+  worker,
+  objects,
+  before,
+  options,
+  readState,
+  deploy = runWrangler,
+  check = () => checkPublic(true),
+}) {
+  validateConfig(config)
+  await verifyReleaseObjects(objects, options)
+  try {
+    deploy({ ...config, vars: { ...config.vars, PUBLIC_RELEASE_ENABLED: "true" } }, worker, false)
+    const after = await readState()
+    requireCondition(
+      after.domain.id === before.domain.id && after.domain.service === before.domain.service,
+      "AX Code custom domain changed",
+    )
+    requireCondition(after.publicEnabled, "Desktop gateway enablement did not take effect")
+    await verifyReleaseObjects(objects, { fetcher: options.publicFetcher ?? fetch }, true)
+    await check()
+  } catch (error) {
+    // Restore the disabled gateway if activation or anonymous byte proof fails.
+    try {
+      deploy(config, worker, false)
+    } catch {
+      throw new Error("Cutover failed and gateway disable failed; restore PUBLIC_RELEASE_ENABLED=false immediately")
+    }
+    throw error
+  }
+}
+
 export async function main(args) {
   const [command, ...flags] = args
+  if (command === "gateway-cutover") {
+    requireCondition(
+      flags.length === 4 && flags[0] === "--source" && flags[2] === "--qualification",
+      "Expected gateway-cutover --source DIR --qualification SIGNED_JSON",
+    )
+    await cutover(path.resolve(flags[1]), path.resolve(flags[3]))
+    return
+  }
   requireCondition(["gateway-check", "gateway-deploy"].includes(command), "Expected gateway-check or gateway-deploy")
   requireCondition(
     flags.length === 0 || (command === "gateway-deploy" && flags.length === 1 && flags[0] === "--dry-run"),
@@ -131,6 +203,10 @@ export async function main(args) {
   const api = client(token())
   const before = await inspect(api)
   if (command === "gateway-deploy") {
+    requireCondition(
+      !before.publicEnabled,
+      "Public gateway is active; refusing to disable it through infrastructure deployment",
+    )
     if (!before.bucket) await api(`/accounts/${ACCOUNT}/r2/buckets`, "POST", { name: BUCKET })
     runWrangler(config, worker, false)
   }
@@ -140,14 +216,14 @@ export async function main(args) {
     after.domain.id === before.domain.id && after.domain.service === before.domain.service,
     "AX Code custom domain changed during deployment",
   )
-  await checkPublic()
+  await checkPublic(after.publicEnabled)
   console.log(
     JSON.stringify(
       {
         worker: config.name,
         route: ROUTE,
         bucket: BUCKET,
-        publicReleaseEnabled: false,
+        publicReleaseEnabled: after.publicEnabled,
         existingCliInstallerAvailable: true,
       },
       null,

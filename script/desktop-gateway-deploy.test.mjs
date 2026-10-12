@@ -28,3 +28,73 @@ describe("Desktop gateway operator boundaries", () => {
     expect(() => assertRouteOwnership([{ pattern: ROUTE, script: "ax-code-downloads" }])).toThrow("refusing takeover")
   })
 })
+
+it("blocks public cutover before credential or network access without release qualification", async () => {
+  const { cutover } = await import("../.internal/deploy/cloudflare.mjs")
+  await expect(cutover("/missing", "/missing")).rejects.toThrow("public Desktop release is disabled")
+})
+
+it("requires complete private storage proof before enabling public serving", async () => {
+  const { activateVerifiedGateway } = await import("../.internal/deploy/cloudflare.mjs")
+  let mutations = 0
+  await expect(
+    activateVerifiedGateway({
+      config: config(),
+      worker: Buffer.from("worker"),
+      objects: [{ key: "test.zip", content: Buffer.from("signed") }],
+      options: { account: "a".repeat(32), token: "test-only", fetcher: async () => new Response("wrong") },
+      before: {},
+      readState: async () => ({}),
+      deploy: () => mutations++,
+    }),
+  ).rejects.toThrow("Release bytes differ")
+  expect(mutations).toBe(0)
+})
+
+it("restores the disabled gateway when anonymous proof fails", async () => {
+  const { activateVerifiedGateway } = await import("../.internal/deploy/cloudflare.mjs")
+  const deployments = []
+  const domain = { id: "original", service: "ax-code-downloads" }
+  const options = {
+    account: "a".repeat(32),
+    token: "test-only",
+    fetcher: async () => new Response("signed"),
+    publicFetcher: async () => new Response("wrong"),
+  }
+  await expect(
+    activateVerifiedGateway({
+      config: config(),
+      worker: Buffer.from("worker"),
+      objects: [{ key: "test.zip", content: Buffer.from("signed") }],
+      options,
+      before: { domain },
+      readState: async () => ({ domain, publicEnabled: true }),
+      deploy: (c) => deployments.push(c.vars.PUBLIC_RELEASE_ENABLED),
+      check: async () => {},
+    }),
+  ).rejects.toThrow("Release bytes differ")
+  expect(deployments).toEqual(["true", "false"])
+})
+
+it("keeps serving enabled only after private and anonymous bytes both match", async () => {
+  const { activateVerifiedGateway } = await import("../.internal/deploy/cloudflare.mjs")
+  const deployments = []
+  const domain = { id: "original", service: "ax-code-downloads" }
+  const options = {
+    account: "a".repeat(32),
+    token: "test-only",
+    fetcher: async () => new Response("signed"),
+    publicFetcher: async () => new Response("signed"),
+  }
+  await activateVerifiedGateway({
+    config: config(),
+    worker: Buffer.from("worker"),
+    objects: [{ key: "test.zip", content: Buffer.from("signed") }],
+    options,
+    before: { domain },
+    readState: async () => ({ domain, publicEnabled: true }),
+    deploy: (c) => deployments.push(c.vars.PUBLIC_RELEASE_ENABLED),
+    check: async () => {},
+  })
+  expect(deployments).toEqual(["true"])
+})

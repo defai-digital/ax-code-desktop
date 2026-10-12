@@ -16,11 +16,13 @@ Desktop deployment operator (Node >=24, Wrangler, Minisign).
   deploy gateway-deploy                Provision R2 and deploy the disabled gateway
   deploy prepare --source DIR --out DIR --version VERSION --commit SHA
   deploy verify --source DIR
+  deploy stage --source DIR --qualification SIGNED_JSON
+  deploy gateway-cutover --source DIR --qualification SIGNED_JSON
   deploy upload --source DIR --qualification SIGNED_JSON
 Public asset upload requires approved release policy and signed qualification.
 See .internal/deploy/README.md for signing and native installation requirements.
 HELP
     ;;
-  gateway-check|gateway-deploy) exec node "$directory/cloudflare.mjs" "$@" ;;
+  gateway-check|gateway-deploy|gateway-cutover) exec node "$directory/cloudflare.mjs" "$@" ;;
   *) exec node "$directory/distribution.mjs" "$@" ;;
 esac
