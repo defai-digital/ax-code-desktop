@@ -14,6 +14,7 @@
 // or a missing RFC 3161 timestamp fails the build.
 const { execFileSync } = require("node:child_process")
 const path = require("node:path")
+const { classifyFile } = require("./windows-binary-format.cjs")
 
 const REQUIRED_ENV = [
   "AZURE_TENANT_ID",
@@ -123,6 +124,11 @@ exports.default = async function sign(configuration) {
 
   if (configuration.hash && configuration.hash.toLowerCase() !== "sha256") {
     throw new Error(`Unsupported Windows signing digest requested by electron-builder: ${configuration.hash}`)
+  }
+
+  if (classifyFile(file) === "foreign") {
+    console.log(`Preserving foreign runtime prebuild: ${file}`)
+    return
   }
 
   execFileSync(config.toolPath, buildSignArguments(file, config), {

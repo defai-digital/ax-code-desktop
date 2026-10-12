@@ -11,9 +11,13 @@ if ($expected.Length -ne 40) {
   throw "ExpectedThumbprint must be a 40-character SHA-1 thumbprint"
 }
 
-$files = @(Get-ChildItem -LiteralPath $Root -Recurse -File | Where-Object {
-  $_.Extension.ToLowerInvariant() -in @(".exe", ".dll", ".node")
-})
+# The same classifier used by the sign hook rejects malformed targets and only
+# excludes recognized Linux/macOS prebuilds in the immutable pinned runtime.
+$classification = & node (Join-Path $PSScriptRoot "windows-binary-format.cjs") $Root
+if ($LASTEXITCODE -ne 0) {
+  throw "Windows binary classification failed under $Root"
+}
+$files = @($classification | ConvertFrom-Json | ForEach-Object { Get-Item -LiteralPath $_ })
 if ($files.Count -eq 0) {
   throw "No Windows PE files found under $Root"
 }
