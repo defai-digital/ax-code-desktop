@@ -13,9 +13,9 @@ import {
   BASE,
 } from "./distribution.mjs"
 export async function stageMultipart(source, qualificationFile, receiptFile) {
+  const inventory = qualifiedDirectory(source, qualificationFile)
   const account = "89657c08227b638ab67905e1c5899406",
     token = process.env.CLOUDFLARE_API_TOKEN
-  const inventory = qualifiedDirectory(source, qualificationFile)
   assert.ok(token, "Cloudflare API token is required")
   const objects = releaseObjects(source, inventory),
     limit = 300 * 1024 * 1024,
