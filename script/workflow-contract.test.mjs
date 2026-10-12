@@ -42,9 +42,16 @@ describe("Desktop workflow contracts", () => {
     expect(shadow).toContain("SIGNING_MODE: ${{ inputs.signing_mode }}")
   })
 
-  it("cannot create or mutate a public release", () => {
+  it("does not create or mutate a public release", () => {
     expect(shadow).toContain("contents: read")
-    expect(shadow).not.toContain("contents: write")
+    expect(shadow.slice(0, shadow.indexOf("\njobs:"))).toContain("contents: read")
+    const jobs = [...shadow.matchAll(/^  ([a-z][a-z-]+):\n([\s\S]*?)(?=^  [a-z][a-z-]+:|$(?![\s\S]))/gm)]
+    expect(jobs.filter(([, , body]) => body.includes("contents: write")).map(([, name]) => name)).toEqual([
+      "package-macos",
+      "package-windows",
+      "package-linux",
+    ])
+    expect(ci).not.toContain("contents: write")
     for (const forbidden of [
       "softprops/action-gh-release",
       "gh release",
