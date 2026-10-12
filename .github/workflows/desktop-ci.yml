@@ -101,6 +101,10 @@ jobs:
       - name: Rebuild native modules for Electron
         run: pnpm --filter @ax-code/electron run rebuild:native
 
+      - name: Verify Windows ASAR layout and block integrity
+        if: runner.os == 'Windows'
+        run: pnpm --filter @ax-code/electron exec vitest run scripts/verify-packaged-electron.test.mjs
+
       - name: Validate Windows bootstrap and native OS architecture
         if: runner.os == 'Windows'
         run: pnpm exec vitest run --config vitest.config.ts script/desktop-windows-bootstrap.test.mjs

@@ -112,7 +112,7 @@ function assertPackedFileIntegrity(rawHeader, archivePath, relativePath) {
     throw new Error(`app.asar has no SHA256 block integrity for ${relativePath}`)
   }
 
-  const contents = asar.extractFile(archivePath, relativePath)
+  const contents = asar.extractFile(archivePath, path.join(...relativePath.split("/")))
   if (contents.length !== entry.size || sha256(contents) !== integrity.hash) {
     throw new Error(`app.asar content does not match SHA256 integrity for ${relativePath}`)
   }
@@ -235,7 +235,7 @@ function verifyRuntimeManifestBinding(resourcesPath, archivePath) {
     fs.existsSync(path.join(runtimeRoot, "package.json")) &&
     (fs.existsSync(path.join(runtimeRoot, "bin", "ax-code")) ||
       fs.existsSync(path.join(runtimeRoot, "bin", "ax-code.cmd")))
-  const embedded = asar.extractFile(archivePath, "dist/ax-code-runtime-manifest.json")
+  const embedded = asar.extractFile(archivePath, path.join("dist", "ax-code-runtime-manifest.json"))
   if (!hasRuntime) {
     let marker
     try {
