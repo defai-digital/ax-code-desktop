@@ -323,17 +323,28 @@ function resolvePackagedTarget(
 ) {
   const platform = packagePlatform(args)
   const arch = packageArch(args, env, hostArch)
+  // Match electron-builder's CLI output override rather than checking stale dist files.
+  let outputRoot = path.join(electronDir, "dist")
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    const match = arg.match(/^(?:--config|-c)\.directories\.output=(.+)$/)
+    if (match) outputRoot = path.resolve(electronDir, match[1])
+    else if (["--config.directories.output", "-c.directories.output"].includes(arg)) {
+      if (!args[index + 1]) throw new Error("Missing electron-builder output directory")
+      outputRoot = path.resolve(electronDir, args[++index])
+    }
+  }
   let outputDirectory
   let appPath
   if (platform === "darwin") {
     outputDirectory = arch === "x64" ? "mac" : `mac-${arch}`
-    appPath = path.join(electronDir, "dist", outputDirectory, "AX Code.app")
+    appPath = path.join(outputRoot, outputDirectory, "AX Code.app")
   } else if (platform === "win32") {
     outputDirectory = arch === "x64" ? "win-unpacked" : `win-${arch}-unpacked`
-    appPath = path.join(electronDir, "dist", outputDirectory, "AX Code.exe")
+    appPath = path.join(outputRoot, outputDirectory, "AX Code.exe")
   } else {
     outputDirectory = arch === "x64" ? "linux-unpacked" : `linux-${arch}-unpacked`
-    appPath = path.join(electronDir, "dist", outputDirectory, "ax-code-desktop")
+    appPath = path.join(outputRoot, outputDirectory, "ax-code-desktop")
   }
   return { appPath, arch, platform }
 }

@@ -107,6 +107,16 @@ describe("packaged Electron integrity verification", () => {
     )
   })
 
+  test("verifies the overridden output directory instead of an older dist package", () => {
+    const electronDir = path.join(path.sep, "workspace", "desktop", "packages", "electron")
+    const relative = resolvePackagedTarget(["--mac", "--arm64", "--config.directories.output=release"], { electronDir })
+    expect(relative.appPath).toBe(path.join(electronDir, "release", "mac-arm64", "AX Code.app"))
+    const absoluteRoot = path.join(path.sep, "qualified", "release")
+    const absolute = resolvePackagedTarget(["--win", "--x64", "-c.directories.output", absoluteRoot], { electronDir })
+    expect(absolute.appPath).toBe(path.join(absoluteRoot, "win-unpacked", "AX Code.exe"))
+    expect(() => resolvePackagedTarget(["--mac", "--config.directories.output"], { electronDir })).toThrow("Missing")
+  })
+
   test("parses and verifies the explicit fuse policy", () => {
     const root = makeTempDir()
     const executable = path.join(root, "AX Code.exe")

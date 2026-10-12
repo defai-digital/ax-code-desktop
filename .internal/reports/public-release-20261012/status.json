@@ -1,0 +1,131 @@
+{
+  "schema": "ax-code-desktop.public-release-progress.v1",
+  "recordedAt": "2026-10-12T01:52:21.084436+00:00",
+  "candidateCommit": "7f7aa34847b2d9bb0d7044edf4d9dcff1c96148f",
+  "version": "7.24.5",
+  "userAuthorizedPublicRelease": true,
+  "userRequiredSignatures": [
+    "minisign",
+    "apple-developer-id-and-notarization",
+    "windows-authenticode"
+  ],
+  "availableLocalSigning": {
+    "appleDeveloperIdTeam": "N5ZUZDUJS6",
+    "appleNotaryProfileVerified": "ax-notary",
+    "azureCertificateEnabled": true,
+    "azureCertificateThumbprint": "FC40F1109912C025E751E804AA9BD1538A2D12EF",
+    "azureCertificateExpires": "2027-07-12T23:59:59+00:00"
+  },
+  "blockers": [
+    {
+      "code": "github-actions-billing",
+      "run": 38187642298,
+      "job": 114613334982,
+      "detail": "GitHub check annotation says the job did not start because recent payments failed or the spending limit needs adjustment."
+    },
+    {
+      "code": "unconfirmed-ci-signing-credentials",
+      "detail": "Desktop repository has Minisign secrets; Apple and Azure signing credentials are absent from repository metadata. No environment is configured. No local private keys were exported."
+    },
+    {
+      "code": "platform-and-migration-qualification-pending",
+      "detail": "Windows and both Ubuntu architectures, install/upgrade/rollback and credential continuity require real evidence."
+    }
+  ],
+  "macosSignedPackage": "verified locally, not published",
+  "publicEndpointStatus": 503,
+  "publicationClaimed": false,
+  "validation": {
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "tests": {
+      "root": {
+        "passed": 107,
+        "skipped": 4
+      },
+      "electron": {
+        "passed": 457
+      },
+      "ui": {
+        "passed": 1672
+      },
+      "web": {
+        "passed": 796,
+        "skipped": 1
+      }
+    },
+    "asarFixtureFix": "7f7aa348",
+    "boundaries": "passed after moving owned generated package into root ignored release directory",
+    "outputDirectoryRegression": "10 tests passed; explicit output path resolves to the newly built package"
+  },
+  "macosVerification": {
+    "applicationNotarySubmission": "6a9734af-5d8b-420f-966a-42ab45f94718",
+    "applicationNotaryStatus": "Accepted",
+    "dmgNotarySubmission": "0f6eb21d-fb79-4ad3-a436-dea77152982a",
+    "dmgNotaryStatus": "Accepted",
+    "developerId": "verified",
+    "gatekeeperApp": "accepted",
+    "gatekeeperDmg": "accepted",
+    "stapledApp": "validated",
+    "stapledDmg": "validated",
+    "asarAnchor": "verified",
+    "runtimeManifest": "bound",
+    "packagedAppSmoke": "passed",
+    "runtimeSmokeVersion": "7.24.4",
+    "minisign": "five files signed and verified",
+    "nativeUpgradeRollbackContinuity": "not qualified"
+  },
+  "macosArtifacts": [
+    {
+      "name": "AX-Code-7.24.5-mac-arm64.dmg",
+      "size": 313808760,
+      "sha256": "f1abd41ff8b6ee1e7e45f93a9915f207acf04f484fea034ee8af0c90e40e96dc"
+    },
+    {
+      "name": "AX-Code-7.24.5-mac-arm64.dmg.blockmap",
+      "size": 329970,
+      "sha256": "d81c6eaab4e4b7aa671b082787f6b79e729de318ed98356e035c6fbec3672f4c"
+    },
+    {
+      "name": "AX-Code-7.24.5-mac-arm64.dmg.blockmap.minisig",
+      "size": 449,
+      "sha256": "59db543bfe454b86d0f578aec18957c0e5353f6de5e4448114632f226d94f848"
+    },
+    {
+      "name": "AX-Code-7.24.5-mac-arm64.dmg.minisig",
+      "size": 440,
+      "sha256": "fcb782b10c83e89aec459e8f6aecfb3cc475f541d4e399e3cbe8c49daf887c3e"
+    },
+    {
+      "name": "AX-Code-7.24.5-mac-arm64.zip",
+      "size": 312652011,
+      "sha256": "c80bdd7dec46cf0b935e1b00370c51e008e86ccf6fd0a30f42df0347f007f1bc"
+    },
+    {
+      "name": "AX-Code-7.24.5-mac-arm64.zip.blockmap",
+      "size": 330814,
+      "sha256": "09108e3571e852ca432d563395a0933bf87b3719467ffbe4e63e8a889841dfc9"
+    },
+    {
+      "name": "AX-Code-7.24.5-mac-arm64.zip.blockmap.minisig",
+      "size": 449,
+      "sha256": "ed1558fdbe195b4a33c145a1f0c3a4c9d09ec05a58e2b761d7e1354c822e4f8d"
+    },
+    {
+      "name": "AX-Code-7.24.5-mac-arm64.zip.minisig",
+      "size": 440,
+      "sha256": "0ef74b1738719b6e11f39a422ec80fef932457e5012f3f14621657fa3130a7f9"
+    },
+    {
+      "name": "latest-mac.yml",
+      "size": 513,
+      "sha256": "3ecf41183f8f61bcadd65350c99bf4db278e61ac9a60a36afd30381fa6b028b3"
+    },
+    {
+      "name": "latest-mac.yml.minisig",
+      "size": 426,
+      "sha256": "7134a01c43ed76bf2841349899b171b9da48e17e243d659e224a0791fd1584bd"
+    }
+  ]
+}
