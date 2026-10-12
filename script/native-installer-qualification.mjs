@@ -60,6 +60,11 @@ export const writeSyntheticIfAbsent = (file, bytes) => {
     fs.closeSync(fd)
   }
 }
+export function readInstalledVersion(archive) {
+  // Every installation replaces this path; ASAR caches headers by pathname.
+  asar.uncache(archive)
+  return JSON.parse(asar.extractFile(archive, "package.json").toString()).version
+}
 const verifyMinisign = (file) => command("minisign", ["-Vm", file, "-P", KEY])
 
 async function qualify(target, artifacts, output) {
@@ -191,8 +196,7 @@ async function qualify(target, artifacts, output) {
       process.platform === "darwin"
         ? path.join(installed, "Contents/Resources/app.asar")
         : path.join(installed, "resources/app.asar")
-    const manifest = JSON.parse(asar.extractFile(archive, "package.json").toString())
-    assert.equal(manifest.version, expectedVersion, "Installed archive version mismatch")
+    assert.equal(readInstalledVersion(archive), expectedVersion, "Installed archive version mismatch")
     verifyPreserved(records)
     if (selection === "candidate")
       await runSmoke([], {
