@@ -149,6 +149,12 @@ export function verifyDesktopReleaseContract(root = repositoryRoot, fileSystem =
   requireText(shadowWorkflow, "contents: read", "shadow workflow permissions")
   requireText(shadowWorkflow, `APPLE_TEAM_ID\" != \"${identity.signing.appleTeamId}`, "shadow Apple team gate")
   requireText(shadowWorkflow, identity.signing.appleAuthority, "shadow Apple signing authority")
+  requireText(
+    shadowWorkflow,
+    "node script/apple-notary-credentials.mjs --configure",
+    "verified Apple notarization credentials",
+  )
+  requireText(shadowWorkflow, '--keychain-profile "$APPLE_KEYCHAIN_PROFILE"', "DMG notarization profile")
   requireText(shadowWorkflow, identity.signing.windowsCertificateSha1, "shadow Windows certificate")
   requireText(shadowWorkflow, "--publish=never", "shadow packaging mode")
   requireText(shadowWorkflow, "node script/shadow-access-policy.mjs", "shadow artifact visibility gate")

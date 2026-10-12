@@ -30,3 +30,9 @@ Native Windows CI Authenticode qualification and full signed Desktop shadow rema
 ## Continuation receipt
 
 Desktop Actions Secrets metadata confirms all six Apple/Azure settings provisioned above. Existing Desktop Minisign secrets remain present. Only the three Apple notarization API inputs remain unavailable. No further required shadow run was dispatched while those known prerequisites are missing. Concurrent Desktop source changes were preserved; this receipt was prepared in an isolated worktree.
+
+## Apple ID authentication continuation
+
+The user supplied Apple ID app-specific password credentials instead of an API key. Authenticated successfully against Apple's notarization service using the secure stdin prompt; configured `APPLE_ID` and `APPLE_APP_SPECIFIC_PASSWORD` in Desktop Actions Secrets without writing their values to files or command arguments. `APPLE_API_ISSUER` was also configured from user-provided metadata, but the incomplete API set is not selected. All effective signed-shadow credential prerequisites are now configured. The workflow now supports either complete strategy through an isolated validated Keychain profile, with no public release gate waived.
+
+Local validation: 126 root script tests passed, 4 PowerShell-dependent tests skipped; all boundary/release checks, Actionlint, syntax, and diff checks passed. The actual new helper stored the supplied credentials in an owned temporary Keychain and successfully authenticated with that profile; the temporary Keychain was deleted afterward.

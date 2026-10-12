@@ -14,3 +14,4 @@
 | [Desktop Source-Ownership Cutover](SPEC-2026-09-02-source-ownership-cutover.md)             | Implemented and verified                  | ADR-008                   |
 | [Desktop Download Distribution v3](SPEC-2026-10-12-desktop-download-distribution-v3.md) | First-cutover operator implemented; production qualification pending | ADR-010 |
 | [Public Signed Shadow](SPEC-2026-10-12-public-signed-shadow.md) | Implemented; platform execution pending | ADR-011 |
+| [Desktop Notarization Credentials](SPEC-2026-10-12-desktop-notarization-credentials.md) | Implemented; hosted qualification pending | ADR-006; ADR-011 |

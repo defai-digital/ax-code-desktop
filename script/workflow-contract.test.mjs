@@ -88,3 +88,12 @@ it("signs every staged platform before upload while keeping official publication
     expect(body).toContain("inputs.signing_mode == 'required'")
   }
 })
+
+it("uses verified Keychain notarization for either complete Apple credential strategy", () => {
+  expect(shadow).toContain("node script/apple-notary-credentials.mjs --configure")
+  expect(shadow).toContain("APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}")
+  expect(shadow).toContain(
+    'notarytool submit "$dmg" --keychain-profile "$APPLE_KEYCHAIN_PROFILE" --keychain "$APPLE_KEYCHAIN" --wait',
+  )
+  expect(shadow).not.toContain('notarytool submit "$dmg" --key "$APPLE_API_KEY"')
+})

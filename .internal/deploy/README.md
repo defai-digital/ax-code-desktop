@@ -27,7 +27,10 @@ gh workflow run desktop-shadow.yml --ref main -f signing_mode=required -f confir
 
 Shadow runs produce private evidence only. Supported installer targets are
 macOS arm64, Windows x64, Ubuntu x64 and Ubuntu arm64. The signed workflow requires
-effective Apple, Azure and Minisign credentials; repository-secret metadata alone
+effective Apple, Azure and Minisign credentials. Apple notarization accepts either
+a complete API-key secret set or `APPLE_ID` plus `APPLE_APP_SPECIFIC_PASSWORD`,
+with the frozen Team ID. Both paths validate an isolated runner Keychain profile
+before packaging. See the [credential specification](../spec/SPEC-2026-10-12-desktop-notarization-credentials.md). Repository-secret metadata alone
 cannot prove organization or environment availability. Never export local keys to
 GitHub or modify a sibling gateway automatically.
 
