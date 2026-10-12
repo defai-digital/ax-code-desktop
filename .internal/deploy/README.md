@@ -152,3 +152,13 @@ refuses to disable an already public gateway. Use ordinary `upload` for later
 qualified releases on an active channel. Neither new command bypasses release
 policy, signature, platform or migration gates. See the
 [v3 specification](../spec/SPEC-2026-10-12-desktop-download-distribution-v3.md).
+
+## Historical native baseline access
+
+The manual signed-shadow native package jobs use a repository-scoped `GITHUB_TOKEN`
+with `contents: write` because GitHub exposes draft release fixtures only to callers
+with push access. The token is passed to the historical fixture download step; no
+shadow step creates a tag or publishes a release. All other shadow jobs retain
+read-only contents access. The baseline remains unpublished, and its SHA-256 and
+Minisign signature are verified before installation. No personal access token or
+sibling repository credential is exported to CI.

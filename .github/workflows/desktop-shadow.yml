@@ -181,6 +181,11 @@ jobs:
           retention-days: 1
 
   package-macos:
+    # GitHub requires push access to read unpublished draft baseline fixtures.
+    # This manual qualification job never publishes a tag or release.
+    permissions:
+      actions: read
+      contents: write
     needs: preflight
     runs-on: macos-15
     timeout-minutes: 120
@@ -376,6 +381,11 @@ jobs:
           retention-days: 1
 
   package-windows:
+    # GitHub requires push access to read unpublished draft baseline fixtures.
+    # This manual qualification job never publishes a tag or release.
+    permissions:
+      actions: read
+      contents: write
     needs: preflight
     timeout-minutes: 120
     strategy:
@@ -515,6 +525,11 @@ jobs:
           retention-days: 1
 
   package-linux:
+    # GitHub requires push access to read unpublished draft baseline fixtures.
+    # This manual qualification job never publishes a tag or release.
+    permissions:
+      actions: read
+      contents: write
     needs: preflight
     timeout-minutes: 120
     strategy:
