@@ -8,6 +8,7 @@ import path from "node:path"
 import { randomUUID } from "node:crypto"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
+import { readRuntimePin } from "../../../../script/runtime-pin.mjs"
 
 const desktopRoot = path.resolve(new URL("../../..", import.meta.url).pathname)
 const execFileAsync = promisify(execFile)
@@ -321,16 +322,12 @@ const isExecutableFile = async (candidate) => {
   }
 }
 
-// The bundled runtime is pinned to the Desktop app version (lockstep check in
-// script/check-desktop-version-lockstep.ts). AX_CODE_DESKTOP_SMOKE_EXPECTED_AX_CODE_VERSION
-// overrides the expectation when smoke runs against a mismatched tree on purpose.
-const readExpectedBundledAxCodeVersion = async () => {
-  const override = process.env.AX_CODE_DESKTOP_SMOKE_EXPECTED_AX_CODE_VERSION
+// Read the signed producer pin independently of the Desktop package version.
+// An explicit override remains available for intentional compatibility probes.
+export const readExpectedBundledAxCodeVersion = async (env = process.env) => {
+  const override = env.AX_CODE_DESKTOP_SMOKE_EXPECTED_AX_CODE_VERSION
   if (typeof override === "string" && override.trim()) return override.trim().replace(/^v/, "")
-  const manifest = JSON.parse(await fs.readFile(path.join(desktopRoot, "packages/electron/package.json"), "utf8"))
-  return String(manifest?.version || "")
-    .trim()
-    .replace(/^v/, "")
+  return readRuntimePin().version
 }
 
 // Bundled-runtime phase: launch the packaged app WITHOUT the AX_CODE_BINARY

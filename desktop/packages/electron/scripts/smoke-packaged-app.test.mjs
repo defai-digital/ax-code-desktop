@@ -7,10 +7,17 @@ import {
   findMissingStartupEvents,
   outputConfirmsBundledRuntime,
   parseArgs,
+  readExpectedBundledAxCodeVersion,
   resolveBundledPhaseAction,
 } from "./smoke-packaged-app.mjs"
 
 describe("smoke-packaged-app args", () => {
+  test("expects the independently pinned runtime rather than the Desktop release version", async () => {
+    expect(await readExpectedBundledAxCodeVersion({})).toBe("7.24.4")
+    expect(await readExpectedBundledAxCodeVersion({ AX_CODE_DESKTOP_SMOKE_EXPECTED_AX_CODE_VERSION: "v7.24.3" })).toBe(
+      "7.24.3",
+    )
+  })
   test("uses an isolated Electron profile", () => {
     expect(buildSmokeAppArgs({ userDataDir: "/tmp/ax-code-smoke-user-data" })).toEqual([
       "--user-data-dir=/tmp/ax-code-smoke-user-data",
