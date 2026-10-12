@@ -55,6 +55,9 @@ describe("response security headers", () => {
     ).toBe(true)
     expect(res.getHeader("Access-Control-Allow-Origin")).toBe("app://ax-code")
     expect(res.getHeader("Access-Control-Allow-Credentials")).toBe("true")
+    const allowed = res.getHeader("Access-Control-Allow-Headers").toLowerCase().split(/,\s*/)
+    // Both headers are emitted by the pinned SDK's directory-scoped client.
+    expect(allowed).toEqual(expect.arrayContaining(["content-type", "x-ax-code-directory", "x-opencode-directory"]))
     expect(
       applyPackagedRendererCorsHeaders(
         {

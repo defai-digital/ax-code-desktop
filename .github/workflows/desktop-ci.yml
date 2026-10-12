@@ -123,12 +123,14 @@ jobs:
         shell: bash
         run: |
           pnpm run smoke:electron-compatibility
+          pnpm run smoke:session-cors
           pnpm run smoke:native-webmcp -- --output-dir "$RUNNER_TEMP/native-webmcp"
 
       - name: Smoke native menus, PTY, and WebMCP with a display
         if: runner.os == 'Linux'
         run: |
           xvfb-run -a pnpm run smoke:electron-compatibility
+          xvfb-run -a pnpm run smoke:session-cors
           xvfb-run -a pnpm run smoke:native-webmcp -- --output-dir "$RUNNER_TEMP/native-webmcp"
 
       - name: Retain native capability evidence

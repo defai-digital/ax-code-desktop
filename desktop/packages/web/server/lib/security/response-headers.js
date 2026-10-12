@@ -22,7 +22,10 @@ export const applyPackagedRendererCorsHeaders = (req, res) => {
   if (origin !== PACKAGED_RENDERER_ORIGIN) return false
   res.setHeader("Access-Control-Allow-Origin", PACKAGED_RENDERER_ORIGIN)
   res.setHeader("Access-Control-Allow-Credentials", "true")
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization")
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Accept, Authorization, x-ax-code-directory, x-opencode-directory",
+  )
   res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS")
   res.setHeader("Vary", "Origin")
   return true
