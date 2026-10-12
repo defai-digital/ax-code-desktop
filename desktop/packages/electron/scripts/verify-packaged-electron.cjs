@@ -129,14 +129,16 @@ function assertPackedFileIntegrity(rawHeader, archivePath, relativePath) {
   }
 }
 
-function verifyAsarLayout(resourcesPath) {
+function verifyAsarLayout(resourcesPath, { listPackage = asar.listPackage } = {}) {
   const archivePath = path.join(resourcesPath, "app.asar")
   if (!fs.existsSync(archivePath)) throw new Error(`Packaged app is missing app.asar: ${archivePath}`)
   if (fs.existsSync(path.join(resourcesPath, "web-dist"))) {
     throw new Error(`Renderer assets must not remain outside app.asar: ${path.join(resourcesPath, "web-dist")}`)
   }
 
-  const files = asar.listPackage(archivePath, { isPack: false }).map((entry) => entry.replace(/^\/+/, ""))
+  const files = listPackage(archivePath, { isPack: false }).map((entry) =>
+    entry.replaceAll("\\", "/").replace(/^\/+/, ""),
+  )
   const fileSet = new Set(files)
   const rawHeader = asar.getRawHeader(archivePath)
   // Dependency directories such as @msgpack/msgpack/dist.cjs are not code

@@ -94,6 +94,24 @@ function makeWindowsExecutable(integrityList) {
 }
 
 describe("packaged Electron integrity verification", () => {
+  test("validates Windows ASAR listings with native backslash paths against real archive integrity", async () => {
+    const { resources } = await makeAsarResources()
+    const result = verifyAsarLayout(resources, {
+      listPackage: (...args) => asar.listPackage(...args).map((entry) => entry.replaceAll("/", "\\")),
+    })
+    expect(result.rendererJavaScript).toBe(1)
+    expect(result.javascript).toBeGreaterThan(5)
+    expect(() =>
+      verifyAsarLayout(resources, {
+        listPackage: (...args) =>
+          asar
+            .listPackage(...args)
+            .filter((entry) => !entry.endsWith("package.json"))
+            .map((entry) => entry.replaceAll("/", "\\")),
+      }),
+    ).toThrow("app.asar is missing package.json")
+  })
+
   test("resolves release output paths for all supported platforms", () => {
     const electronDir = path.join(path.sep, "workspace", "desktop", "packages", "electron")
     expect(resolvePackagedTarget(["--mac", "--arm64"], { electronDir }).appPath).toBe(
