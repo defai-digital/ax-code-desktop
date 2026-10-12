@@ -91,6 +91,7 @@ describe("Desktop manifest boundaries", () => {
   })
 })
 
+// This integration check parses the entire Desktop tree on shared CI runners.
 test("the current Desktop tree satisfies the authoritative boundary policy", async () => {
   expect(await collectDesktopBoundaryViolations()).toEqual([])
-})
+}, 30_000)
