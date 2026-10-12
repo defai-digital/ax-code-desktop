@@ -31,7 +31,7 @@ test.skipIf(!windows)(
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          '$acl=Get-Acl -LiteralPath $env:AX_DESKTOP_PRIVATE_PATH; $sid=[Security.Principal.SecurityIdentifier]::new("S-1-1-0"); $rule=[Security.AccessControl.FileSystemAccessRule]::new($sid,[Security.AccessControl.FileSystemRights]::Read,[Security.AccessControl.AccessControlType]::Allow); $acl.AddAccessRule($rule); Set-Acl -LiteralPath $env:AX_DESKTOP_PRIVATE_PATH -AclObject $acl',
+          '$acl=[IO.File]::GetAccessControl($env:AX_DESKTOP_PRIVATE_PATH); $sid=[Security.Principal.SecurityIdentifier]::new("S-1-1-0"); $rule=[Security.AccessControl.FileSystemAccessRule]::new($sid,[Security.AccessControl.FileSystemRights]::Read,[Security.AccessControl.AccessControlType]::Allow); $acl.AddAccessRule($rule); [IO.File]::SetAccessControl($env:AX_DESKTOP_PRIVATE_PATH,$acl)',
         ],
         { encoding: "utf8", env: { ...process.env, AX_DESKTOP_PRIVATE_PATH: file } },
       )
