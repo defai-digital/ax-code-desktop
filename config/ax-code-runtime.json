@@ -31,13 +31,6 @@
       "signatureSize": 377,
       "signatureSha256": "8a3395f126cce1966ef837b05c1685dc73a4fc19f96ab8367f13c33c1ccc7cf2"
     },
-    "win32-arm64": {
-      "filename": "ax-code-windows-arm64.zip",
-      "size": 88805087,
-      "sha256": "e837c508a1e89d0774d8f4092840adb63bd5729ccdb0c52b01ac3ba50ad174cb",
-      "signatureSize": 378,
-      "signatureSha256": "331ef8495a2592d37668a5a7ded7cfe64f3bdcfcc57f5e45f50c473206132894"
-    },
     "win32-x64": {
       "filename": "ax-code-windows-x64.zip",
       "size": 95292101,

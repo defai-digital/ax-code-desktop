@@ -13,6 +13,7 @@ import { fileURLToPath } from "url"
 import { createRequire } from "module"
 import { resolveAppleSigningEnv } from "./apple-signing.mjs"
 import { assertPackagePublishingMode } from "../../../../script/release-policy.mjs"
+import { assertSupportedWindowsTarget } from "./packaging-target.mjs"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const electronDir = path.join(__dirname, "..")
@@ -22,6 +23,7 @@ const electronDir = path.join(__dirname, "..")
 const args = process.argv.slice(2)
 if (args[0] === "--") args.shift()
 assertPackagePublishingMode(args)
+assertSupportedWindowsTarget(args)
 
 // pnpm hoists `electron` to the workspace-root node_modules, so electron-builder
 // (run from packages/electron) cannot always auto-detect the version. Resolve

@@ -1,4 +1,5 @@
 import fs from "node:fs"
+import { execFileSync } from "node:child_process"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -19,16 +20,33 @@ afterEach(() => {
 })
 
 describe("runtime pin", () => {
+  it("preserves pinned public-key bytes with Windows automatic line endings", () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ax-coder-key-checkout-"))
+    tempDirectories.push(directory)
+    const pin = readRuntimePin(repositoryRoot)
+    const key = path.join(directory, pin.minisign.publicKey)
+    fs.mkdirSync(path.dirname(key), { recursive: true })
+    fs.copyFileSync(path.join(repositoryRoot, pin.minisign.publicKey), key)
+    fs.copyFileSync(path.join(repositoryRoot, ".gitattributes"), path.join(directory, ".gitattributes"))
+    const git = (...args) =>
+      execFileSync("git", ["-c", "core.autocrlf=true", ...args], { cwd: directory, stdio: "pipe" })
+    git("init", "--quiet")
+    git("add", ".gitattributes", pin.minisign.publicKey)
+    fs.unlinkSync(key)
+    git("checkout", "--", pin.minisign.publicKey)
+    expect(() => verifyPinnedFile(key, pin.minisign, "checked-out public key")).not.toThrow()
+  })
   it("validates the committed runtime pin and public key independently of Desktop versions", () => {
     const pin = verifyRuntimePin(repositoryRoot)
     expect(pin.version).toBe("7.24.4")
-    expect(Object.keys(pin.artifacts)).toHaveLength(5)
+    expect(Object.keys(pin.artifacts)).toHaveLength(4)
   })
 
   it("resolves only supported platform targets", () => {
     const pin = readRuntimePin(repositoryRoot)
     expect(runtimeTargetKey("darwin", "arm64")).toBe("darwin-arm64")
     expect(runtimeTargetKey("darwin", "x64")).toBeNull()
+    expect(runtimeTargetKey("win32", "arm64")).toBeNull()
     expect(runtimeArtifactForTarget(pin, { platform: "win32", arch: "x64" })?.filename).toBe("ax-code-windows-x64.zip")
   })
 

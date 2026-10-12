@@ -75,7 +75,7 @@ describe("assetNameForTarget", () => {
   it("maps every supported packaging target to a CLI release asset", () => {
     expect(assetNameForTarget({ platform: "darwin", arch: "arm64" })).toBe("ax-code-darwin-arm64.zip")
     expect(assetNameForTarget({ platform: "win32", arch: "x64" })).toBe("ax-code-windows-x64.zip")
-    expect(assetNameForTarget({ platform: "win32", arch: "arm64" })).toBe("ax-code-windows-arm64.zip")
+    expect(assetNameForTarget({ platform: "win32", arch: "arm64" })).toBeNull()
     expect(assetNameForTarget({ platform: "linux", arch: "x64" })).toBe("ax-code-linux-x64.tar.gz")
     expect(assetNameForTarget({ platform: "linux", arch: "arm64" })).toBe("ax-code-linux-arm64.tar.gz")
   })

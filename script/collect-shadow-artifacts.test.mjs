@@ -24,6 +24,25 @@ function writeFiles(directory, names) {
 }
 
 describe("shadow artifact collection", () => {
+  it("collects electron-builder's native Ubuntu x64 names without renaming update assets", () => {
+    const { sourceDirectory, outputDirectory } = fixture()
+    writeFiles(sourceDirectory, [
+      "AX-Code-7.10.2-linux-x86_64.AppImage",
+      "AX-Code-7.10.2-linux-amd64.deb",
+      "AX-Code-7.10.2-linux-arm64.deb",
+      "latest-linux.yml",
+    ])
+    expect(
+      collectShadowArtifacts({ target: "linux-x64", sourceDirectory, outputDirectory, version: "7.10.2" }),
+    ).toEqual(["AX-Code-7.10.2-linux-amd64.deb", "AX-Code-7.10.2-linux-x86_64.AppImage", "latest-linux.yml"])
+  })
+
+  it("rejects retired Windows ARM64 packages", () => {
+    const { sourceDirectory, outputDirectory } = fixture()
+    expect(() =>
+      collectShadowArtifacts({ target: "win32-arm64", sourceDirectory, outputDirectory, version: "7.10.2" }),
+    ).toThrow("unsupported target")
+  })
   it("collects only target-specific macOS release assets", () => {
     const { sourceDirectory, outputDirectory } = fixture()
     writeFiles(sourceDirectory, [
@@ -47,14 +66,14 @@ describe("shadow artifact collection", () => {
   it("renames per-architecture Windows update metadata", () => {
     const { sourceDirectory, outputDirectory } = fixture()
     writeFiles(sourceDirectory, [
-      "AX-Code-7.10.2-win-arm64.exe",
-      "AX-Code-7.10.2-win-arm64.exe.blockmap",
-      "AX-Code-7.10.2-win-arm64.zip",
+      "AX-Code-7.10.2-win-x64.exe",
+      "AX-Code-7.10.2-win-x64.exe.blockmap",
+      "AX-Code-7.10.2-win-x64.zip",
       "latest.yml",
     ])
     expect(
-      collectShadowArtifacts({ target: "win32-arm64", sourceDirectory, outputDirectory, version: "7.10.2" }),
-    ).toContain("latest-win-arm64.yml")
+      collectShadowArtifacts({ target: "win32-x64", sourceDirectory, outputDirectory, version: "7.10.2" }),
+    ).toContain("latest-win-x64.yml")
   })
 
   it("normalizes the web tarball name without npm publication", () => {

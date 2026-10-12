@@ -1,0 +1,2 @@
+# Preserve the exact bytes covered by the signed-runtime public-key pin.
+resources/keys/ax-minisign.pub -text

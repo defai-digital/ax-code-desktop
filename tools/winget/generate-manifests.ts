@@ -78,10 +78,7 @@ export async function generateManifests(argv = process.argv.slice(2)) {
   const contract = readReleaseContract()
   const tag = args.tag || `${contract.tagPrefix}${args.version}`
   const base = `https://github.com/${contract.repository}/releases/download/${tag}`
-  const assets = [
-    { arch: "x64", file: `AX-Code-${args.version}-win-x64.exe` },
-    { arch: "arm64", file: `AX-Code-${args.version}-win-arm64.exe` },
-  ]
+  const assets = [{ arch: "x64", file: `AX-Code-${args.version}-win-x64.exe` }]
   const hashes = new Map<string, string>()
 
   for (const asset of assets) {

@@ -354,10 +354,6 @@ jobs:
             arch: x64
             target: win32-x64
             unpacked: win-unpacked
-          - runner: windows-11-arm
-            arch: arm64
-            target: win32-arm64
-            unpacked: win-arm64-unpacked
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
@@ -556,7 +552,7 @@ jobs:
           AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 }}
         run: |
           set -euo pipefail
-          for target in web darwin-arm64 win32-x64 win32-arm64 linux-x64 linux-arm64; do
+          for target in web darwin-arm64 win32-x64 linux-x64 linux-arm64; do
             directory="shadow-stage/shadow-stage-$target"
             test -d "$directory"
             bash desktop/scripts/sign-shadow-artifacts.sh "$directory"
@@ -574,7 +570,7 @@ jobs:
             signing_status="not-requested"
           fi
 
-          for target in web darwin-arm64 win32-x64 win32-arm64 linux-x64 linux-arm64; do
+          for target in web darwin-arm64 win32-x64 linux-x64 linux-arm64; do
             args=(
               --target "$target"
               --signing-mode "$SIGNING_MODE"

@@ -76,7 +76,7 @@ export function resolveStageTarget({
 /** CLI release asset name for a packaging target; null when unsupported. */
 export function assetNameForTarget({ platform, arch }) {
   if (platform === "darwin" && arch === "arm64") return "ax-code-darwin-arm64.zip"
-  if (platform === "win32" && (arch === "x64" || arch === "arm64")) return `ax-code-windows-${arch}.zip`
+  if (platform === "win32" && arch === "x64") return "ax-code-windows-x64.zip"
   if (platform === "linux" && (arch === "x64" || arch === "arm64")) return `ax-code-linux-${arch}.tar.gz`
   return null
 }

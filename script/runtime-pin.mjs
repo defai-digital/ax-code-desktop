@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url"
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 export const repositoryRoot = path.resolve(scriptDir, "..")
 export const RUNTIME_PIN_PATH = "config/ax-code-runtime.json"
-export const REQUIRED_RUNTIME_TARGETS = ["darwin-arm64", "linux-arm64", "linux-x64", "win32-arm64", "win32-x64"]
+export const REQUIRED_RUNTIME_TARGETS = ["darwin-arm64", "linux-arm64", "linux-x64", "win32-x64"]
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/

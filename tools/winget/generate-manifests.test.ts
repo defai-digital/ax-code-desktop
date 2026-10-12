@@ -20,7 +20,7 @@ describe("AX Coder winget manifest generator", () => {
       expect(existsSync(installer)).toBe(true)
       const source = readFileSync(installer, "utf8")
       expect(source).toContain("AX-Code-7.10.2-win-x64.exe")
-      expect(source).toContain("AX-Code-7.10.2-win-arm64.exe")
+      expect(source).not.toContain("win-arm64")
       expect(source).toContain("/releases/download/desktop-v7.10.2/")
       expect(source).not.toContain("ax-code-windows-x64.zip")
     } finally {

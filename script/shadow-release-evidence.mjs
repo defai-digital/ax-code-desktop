@@ -5,15 +5,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { verifyDesktopReleaseContract, repositoryRoot } from "./desktop-release-contract.mjs"
 
-export const EVIDENCE_TARGETS = [
-  "preflight",
-  "web",
-  "darwin-arm64",
-  "win32-x64",
-  "win32-arm64",
-  "linux-x64",
-  "linux-arm64",
-]
+export const EVIDENCE_TARGETS = ["preflight", "web", "darwin-arm64", "win32-x64", "linux-x64", "linux-arm64"]
 
 const REQUIRED_CHECKS = {
   preflight: ["frozen-install", "boundaries", "release-contract", "typecheck", "lint", "tests", "build"],
@@ -27,7 +19,6 @@ const REQUIRED_CHECKS = {
     "asar-smoke",
   ],
   "win32-x64": ["frozen-install", "package", "artifact-audit", "runtime-integrity", "asar-smoke"],
-  "win32-arm64": ["frozen-install", "package", "artifact-audit", "runtime-integrity", "asar-smoke"],
   "linux-x64": ["frozen-install", "package", "artifact-audit", "runtime-integrity", "asar-smoke"],
   "linux-arm64": ["frozen-install", "package", "artifact-audit", "runtime-integrity", "asar-smoke"],
 }

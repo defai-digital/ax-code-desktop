@@ -121,10 +121,11 @@ does not qualify a complete signed desktop release.
 
 ## Electron candidate
 
-Development and unpublished shadow builds currently pin Electron `45.0.0-beta.1`
-(Chromium 156). This is a prerelease qualification candidate; public release remains
-disabled. macOS 13 or newer is required. Windows and Ubuntu Desktop 24.04+ retain
-their existing x64/arm64 packaging targets.
+Development and unpublished shadow builds pin stable Electron `44.7.0`
+(Chromium 152). Public release remains disabled. Supported package targets are
+macOS 13+ Apple Silicon, Windows x64, and Ubuntu Desktop 24.04+ x64/ARM64.
+Windows ARM64 is no longer supported. Deployment preparation and the proposed
+public download channel are described in [.internal/deploy/README.md](.internal/deploy/README.md).
 
 After changing Electron, rebuild `node-pty` for its ABI and run the engine smokes:
 

@@ -2,7 +2,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-export const SHADOW_TARGETS = ["darwin-arm64", "win32-x64", "win32-arm64", "linux-x64", "linux-arm64", "web"]
+export const SHADOW_TARGETS = ["darwin-arm64", "win32-x64", "linux-x64", "linux-arm64", "web"]
 
 const targetRules = {
   "darwin-arm64": {
@@ -16,15 +16,10 @@ const targetRules = {
     platformToken: "-win-x64.",
     requiredExtensions: [".exe", ".zip"],
   },
-  "win32-arm64": {
-    latest: "latest.yml",
-    latestOutput: "latest-win-arm64.yml",
-    platformToken: "-win-arm64.",
-    requiredExtensions: [".exe", ".zip"],
-  },
   "linux-x64": {
     latest: "latest-linux.yml",
     platformToken: "-linux-x64.",
+    platformTokens: ["-linux-x64.", "-linux-x86_64.", "-linux-amd64."],
     requiredExtensions: [".AppImage", ".deb"],
   },
   "linux-arm64": {
@@ -84,7 +79,8 @@ export function collectShadowArtifacts({ target, sourceDirectory, outputDirector
       copied.push(outputName)
       continue
     }
-    if (!name.startsWith(`AX-Code-${version}`) || !name.includes(rule.platformToken)) continue
+    if (!name.startsWith(`AX-Code-${version}-`)) continue
+    if (!(rule.platformTokens ?? [rule.platformToken]).some((token) => name.includes(token))) continue
     const extension = releaseExtension(name)
     if (
       ![
