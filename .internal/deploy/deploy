@@ -17,12 +17,14 @@ Desktop deployment operator (Node >=24, Wrangler, Minisign).
   deploy prepare --source DIR --out DIR --version VERSION --commit SHA
   deploy verify --source DIR
   deploy stage --source DIR --qualification SIGNED_JSON
+  deploy stage-multipart --source DIR --qualification SIGNED_JSON [--receipt JSON]
   deploy gateway-cutover --source DIR --qualification SIGNED_JSON
   deploy upload --source DIR --qualification SIGNED_JSON
 Public asset upload requires approved release policy and signed qualification.
 See .internal/deploy/README.md for signing and native installation requirements.
 HELP
     ;;
+  stage-multipart) shift; exec node "$directory/multipart.mjs" "$@" ;;
   gateway-check|gateway-deploy|gateway-cutover) exec node "$directory/cloudflare.mjs" "$@" ;;
   *) exec node "$directory/distribution.mjs" "$@" ;;
 esac

@@ -162,3 +162,16 @@ shadow step creates a tag or publishes a release. All other shadow jobs retain
 read-only contents access. The baseline remains unpublished, and its SHA-256 and
 Minisign signature are verified before installation. No personal access token or
 sibling repository credential is exported to CI.
+
+## Large installer staging
+
+For a signed inventory containing files above the R2 REST 300 MiB guard, use:
+
+```bash
+.internal/deploy/deploy stage-multipart --source /path/to/verified-release \
+  --qualification /path/to/signed-qualification.json --receipt /path/to/stage-receipt.json
+```
+
+This command applies the same signed-inventory, policy and qualification checks before credentials or network access. It snapshots the full qualified inventory, stages small objects with authenticated REST readback, and stages larger immutable objects through native R2 multipart uploads with 32 MiB parts. A temporary isolated Worker accepts only a random authenticated capability, exact qualified keys and pinned part sizes/SHA-256 hashes. Immutable collisions fail closed. Failed uploads are aborted, and the temporary Worker is removed in a finally block. All completed objects receive byte-for-byte authenticated R2 readback before the existing `gateway-cutover` command may activate public serving. The signed installer bytes are never recompressed.
+
+The optional receipt records object hashes and multipart manifests without credentials. Keep it with the release evidence. This command requires a disabled gateway; use the public upload flow only for later releases.
