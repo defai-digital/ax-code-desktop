@@ -129,7 +129,7 @@ const CLIENT_RELOAD_DELAY_MS = 800
 const PLUGINS_LOAD_CACHE_TTL_MS = 5000
 const pluginsLastLoadedAt = new Map<string, number>()
 const pluginsCacheByKey = new Map<string, { entries: PluginEntry[]; files: PluginFile[] }>()
-const pluginsLoadInFlight = new Map<string, Promise<boolean>>()
+const pluginsLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
 const pluginsLoadRequestIds = new Map<string, number>()
 let pluginsLoadSequence = 0
 const pluginRegistrySpecRequestIds = new Map<string, number>()
@@ -173,7 +173,7 @@ export const usePluginsStore = create<PluginsStore>()(
 
           const inFlight = pluginsLoadInFlight.get(cacheKey)
           if (!options?.force && inFlight) {
-            return inFlight
+            return inFlight.promise
           }
 
           const requestId = ++pluginsLoadSequence
@@ -210,11 +210,12 @@ export const usePluginsStore = create<PluginsStore>()(
             }
           })()
 
-          pluginsLoadInFlight.set(cacheKey, request)
+          const slot = { promise: request }
+          pluginsLoadInFlight.set(cacheKey, slot)
           try {
             return await request
           } finally {
-            if (pluginsLoadInFlight.get(cacheKey) === request) {
+            if (pluginsLoadInFlight.get(cacheKey) === slot) {
               pluginsLoadInFlight.delete(cacheKey)
             }
           }

@@ -284,11 +284,6 @@ const normalizeTaskForStorage = (value, options) => {
   }
 }
 
-const createEmptyProjectConfig = () => ({
-  version: PROJECT_CONFIG_VERSION,
-  scheduledTasks: [],
-})
-
 export const createProjectConfigRuntime = (deps) => {
   const { fsPromises, path, projectsDirPath, createTaskID } = deps
 

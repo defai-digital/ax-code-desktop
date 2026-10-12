@@ -96,7 +96,7 @@ export function getDeviceInfo(): DeviceInfo {
   let isMobile = hasTouchInput && isMobileWidth
   let isTablet = hasTouchInput && !isMobile && (isTabletWidth || isExplicitTablet)
   let isDesktop = !hasTouchInput || (!isTablet && width > BREAKPOINTS.lg)
-  let deviceType: DeviceType = "desktop"
+  let deviceType: DeviceType
 
   if (isDesktopShellRuntime) {
     isMobile = false

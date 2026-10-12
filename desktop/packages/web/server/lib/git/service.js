@@ -4,10 +4,7 @@ import path from "path"
 import os from "os"
 import { execFile } from "child_process"
 import { promisify } from "util"
-import { createRequire } from "module"
-
 const fsp = fs.promises
-const require = createRequire(import.meta.url)
 const execFileAsync = promisify(execFile)
 const gpgconfCandidates = ["gpgconf", "/opt/homebrew/bin/gpgconf", "/usr/local/bin/gpgconf"]
 let resolvedGitBinary = null
@@ -3682,7 +3679,8 @@ export async function canonicalizeWorktreeState(directory) {
 
   let worktreeRoot = null
   let worktreeStatus = "ready"
-  let headState = /** @type {'branch' | 'detached' | 'unborn'} */ ("branch")
+  /** @type {'branch' | 'detached' | 'unborn'} */
+  let headState
   let branch = null
   let attentionReason = /** @type {'merge' | 'rebase' | 'cherry-pick' | 'revert' | 'bisect' | null} */ (null)
 

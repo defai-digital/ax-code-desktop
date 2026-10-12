@@ -2,7 +2,6 @@ import { createProjectIdFromPath } from "../projects/project-id.js"
 import { compareVersions, evaluateAxCodeCompatibility, MIN_SUPPORTED_AX_CODE_VERSION } from "./version-compat.js"
 import { AX_CODE_CONFIG_DIR } from "./shared.js"
 import fs from "fs"
-import os from "os"
 import path from "path"
 
 const PROMPT_ASYNC_IDEMPOTENCY_TTL_MS = 2 * 60 * 1000
@@ -30,7 +29,6 @@ const resolveProviderAuthScope = (scope) => {
 
 export const registerAxCodeRoutes = (app, dependencies) => {
   const {
-    crypto,
     clientReloadDelayMs,
     getAxCodeResolutionSnapshot,
     getAxCodeBinarySource,

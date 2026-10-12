@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto"
+import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -37,17 +38,32 @@ export async function verifyLaunchAnimationAssets(dir = defaultDir) {
       }
       files.add(clip.file)
       const filename = path.join(dir, clip.file)
-      const stat = await fs.lstat(filename)
-      if (!stat.isFile() || stat.size > 3 * 1024 * 1024 || stat.size !== clip.bytes)
-        throw new Error(`Invalid animation size: ${clip.file}`)
-      const bytes = await fs.readFile(filename)
-      if (
-        bytes.subarray(0, 4).toString("hex") !== "1a45dfa3" ||
-        createHash("sha256").update(bytes).digest("hex") !== clip.sha256
-      ) {
-        throw new Error(`Animation integrity mismatch: ${clip.file}`)
+      const openFlags = fsConstants.O_RDONLY | (typeof fsConstants.O_NOFOLLOW === "number" ? fsConstants.O_NOFOLLOW : 0)
+      let handle
+      try {
+        handle = await fs.open(filename, openFlags)
+      } catch (error) {
+        if (error && typeof error === "object" && error.code === "ELOOP") {
+          throw new Error(`Invalid animation size: ${clip.file}`)
+        }
+        throw error
       }
-      totalBytes += bytes.length
+      try {
+        const stat = await handle.stat()
+        if (!stat.isFile() || stat.size > 3 * 1024 * 1024 || stat.size !== clip.bytes) {
+          throw new Error(`Invalid animation size: ${clip.file}`)
+        }
+        const bytes = await handle.readFile()
+        if (
+          bytes.subarray(0, 4).toString("hex") !== "1a45dfa3" ||
+          createHash("sha256").update(bytes).digest("hex") !== clip.sha256
+        ) {
+          throw new Error(`Animation integrity mismatch: ${clip.file}`)
+        }
+        totalBytes += bytes.length
+      } finally {
+        await handle.close()
+      }
     }
   }
   for (const file of ["LICENSE", "LICENSE-MIT", "NOTICE"]) {

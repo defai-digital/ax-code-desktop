@@ -262,8 +262,7 @@ function createPluginEntry(entry, workingDirectory) {
     throw codedError(`Plugin "${spec}" already exists`, "ENTRY_EXISTS")
   }
 
-  const userPaths = getActiveUserConfigPaths()
-  let targetPath = getPrimaryUserConfigPath(userPaths, userPaths[0])
+  let targetPath
   let config = {}
   if (scope === AGENT_SCOPE.PROJECT) {
     targetPath = ensureProjectConfigPath(workingDirectory)

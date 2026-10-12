@@ -336,7 +336,7 @@ const createPackagedRendererProtocolHandler = ({
     if (!isPackagedRendererUrl(request?.url)) {
       return new Response("Not Found", { status: 404 })
     }
-    let pathname = "/"
+    let pathname
     try {
       pathname = new URL(request.url).pathname
     } catch {

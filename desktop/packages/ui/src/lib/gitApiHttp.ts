@@ -52,9 +52,9 @@ const GIT_STATUS_CACHE_TTL_MS = 1200
 const GIT_REPO_CHECK_CACHE_TTL_MS = 5000
 
 const gitStatusCache = new Map<string, { value: GitStatus; expiresAt: number }>()
-const gitStatusInFlight = new Map<string, Promise<GitStatus>>()
+const gitStatusInFlight = new Map<string, { promise: Promise<GitStatus> }>()
 const gitRepoCache = new Map<string, { value: boolean; expiresAt: number }>()
-const gitRepoInFlight = new Map<string, Promise<boolean>>()
+const gitRepoInFlight = new Map<string, { promise: Promise<boolean> }>()
 
 const normalizeDirectoryKey = (directory: string): string => normalizeProjectPath(directory) ?? ""
 const normalizeGitFilePaths = (filePaths: string[]): string[] => filePaths.map((path) => path.trim()).filter(Boolean)
@@ -89,7 +89,7 @@ export async function checkIsGitRepository(directory: string): Promise<boolean> 
 
   const inFlight = gitRepoInFlight.get(key)
   if (inFlight) {
-    return inFlight
+    return inFlight.promise
   }
 
   const task = (async () => {
@@ -106,11 +106,12 @@ export async function checkIsGitRepository(directory: string): Promise<boolean> 
     return isGitRepository
   })()
 
-  gitRepoInFlight.set(key, task)
+  const slot = { promise: task }
+  gitRepoInFlight.set(key, slot)
   try {
     return await task
   } finally {
-    if (gitRepoInFlight.get(key) === task) {
+    if (gitRepoInFlight.get(key) === slot) {
       gitRepoInFlight.delete(key)
     }
   }
@@ -127,7 +128,7 @@ export async function getGitStatus(directory: string, options?: { mode?: "light"
 
   const inFlight = gitStatusInFlight.get(key)
   if (inFlight) {
-    return inFlight
+    return inFlight.promise
   }
 
   const task = (async () => {
@@ -143,11 +144,12 @@ export async function getGitStatus(directory: string, options?: { mode?: "light"
     return payload
   })()
 
-  gitStatusInFlight.set(key, task)
+  const slot = { promise: task }
+  gitStatusInFlight.set(key, slot)
   try {
     return await task
   } finally {
-    if (gitStatusInFlight.get(key) === task) {
+    if (gitStatusInFlight.get(key) === slot) {
       gitStatusInFlight.delete(key)
     }
   }

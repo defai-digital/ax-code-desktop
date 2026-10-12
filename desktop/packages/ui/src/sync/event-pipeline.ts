@@ -49,9 +49,12 @@ export const SYNC_RETRY_NOW_EVENT = TRANSPORT_SYNC_RETRY_NOW_EVENT
 
 /** Ask the active event pipeline to reconnect immediately. */
 export function requestSyncRetryNow(): void {
-  if (typeof globalThis.window !== "undefined") {
-    globalThis.window.dispatchEvent(new Event(SYNC_RETRY_NOW_EVENT))
-  }
+  const view = globalThis.window
+  if (typeof view === "undefined") return
+  const dispatch = view.dispatchEvent
+  const EventCtor = globalThis.Event
+  if (typeof dispatch !== "function" || typeof EventCtor !== "function") return
+  dispatch.call(view, new EventCtor(SYNC_RETRY_NOW_EVENT))
 }
 
 export type EventPipelineInput = {

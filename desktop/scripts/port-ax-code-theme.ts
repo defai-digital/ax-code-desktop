@@ -104,18 +104,6 @@ type ParsedArgs = {
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..")
 const DEFAULT_AX_CODE_ROOT = path.join(os.homedir(), "projects", "ax-code")
-const DEFAULT_DESKTOP_SOURCE_DIR = path.join(DEFAULT_AX_CODE_ROOT, "packages", "ui", "src", "theme", "themes")
-const DEFAULT_CONTEXT_SOURCE_DIR = path.join(
-  DEFAULT_AX_CODE_ROOT,
-  "packages",
-  "ax-code",
-  "src",
-  "cli",
-  "cmd",
-  "tui",
-  "context",
-  "theme",
-)
 const DEFAULT_OUT_DIR = path.join(REPO_ROOT, "packages", "ui", "src", "lib", "theme", "themes")
 
 const DEFAULT_CONFIG = {
@@ -815,7 +803,6 @@ function buildTheme(
   const surfaceBase = token(resolved, "surface-base", surfaceWeak)
   const surfaceBaseHover = token(resolved, "surface-base-hover", surfaceBase)
   const surfaceBaseActive = token(resolved, "surface-base-active", surfaceBaseHover)
-  const surfaceStrong = token(resolved, "surface-strong", surfaceRaised)
   const borderBase = token(resolved, "border-base", withAlpha(foreground, isDark ? 0.2 : 0.16))
   const borderHover = token(resolved, "border-hover", borderBase)
   const borderFocus = token(resolved, "border-interactive-selected", token(resolved, "border-focus", borderHover))

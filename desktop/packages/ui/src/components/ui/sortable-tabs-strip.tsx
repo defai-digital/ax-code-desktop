@@ -320,7 +320,7 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
       }
 
       const currentIndex = activeId ? Math.max(0, itemIDs.indexOf(activeId)) : 0
-      let nextIndex = currentIndex
+      let nextIndex: number
       if (key === "ArrowLeft") {
         nextIndex = (currentIndex - 1 + itemIDs.length) % itemIDs.length
       } else if (key === "ArrowRight") {

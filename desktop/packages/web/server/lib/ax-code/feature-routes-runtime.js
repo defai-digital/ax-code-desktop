@@ -11,7 +11,7 @@ import { registerProjectIconRoutes } from "./project-icon-routes.js"
 import { registerDiscoverExternalProjectRoutes } from "../projects/discover-external.js"
 import { registerSkillRoutes } from "./skill-routes.js"
 import { registerPluginRoutes } from "./plugin-routes.js"
-import { getNpmInfo, clearCache as clearNpmCache } from "./npm-registry.js"
+import { getNpmInfo } from "./npm-registry.js"
 import { parseNpmSpec, parsePathSpec, isExactSemver } from "./plugin-spec.js"
 import { registerAxCodeRoutes } from "./routes.js"
 import { createBackgroundAxCodeReloader } from "./background-reload.js"
@@ -58,7 +58,6 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       getAxCodeAuthHeaders,
       getAxCodePort,
       buildAugmentedPath,
-      projectConfigRuntime,
     } = routeDependencies
 
     const { getProviderSources, removeProviderConfig } = await import("./index.js")

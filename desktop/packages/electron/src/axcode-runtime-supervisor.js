@@ -253,9 +253,9 @@ function createAxCodeRuntimeSupervision(options = {}) {
       : BUSY_DEFERRAL_GRACE_MS
 
   let fsm = null
-  let preparePromise = null
-  let startPromise = null
-  let restartPromise = null
+  let prepareSlot = null
+  let startSlot = null
+  let restartSlot = null
   let port = 0
   let fixedOrigin = null
   let currentOrigin = null
@@ -573,7 +573,7 @@ function createAxCodeRuntimeSupervision(options = {}) {
   // binary AND the port both resolve (previously a reservePort rejection
   // after a successful resolution stayed pinned forever).
   async function prepare() {
-    if (preparePromise) return preparePromise
+    if (prepareSlot) return prepareSlot.promise
     let succeeded = false
     const mine = (async () => {
       resolveBinary()
@@ -586,12 +586,13 @@ function createAxCodeRuntimeSupervision(options = {}) {
       succeeded = true
       return { port, origin: fixedOrigin }
     })()
-    preparePromise = mine
+    const slot = { promise: mine }
+    prepareSlot = slot
     try {
       return await mine
     } finally {
-      if (!succeeded && preparePromise === mine) {
-        preparePromise = null
+      if (!succeeded && prepareSlot === slot) {
+        prepareSlot = null
       }
     }
   }
@@ -643,7 +644,7 @@ function createAxCodeRuntimeSupervision(options = {}) {
   }
 
   async function start() {
-    if (startPromise) return startPromise
+    if (startSlot) return startSlot.promise
     const mine = (async () => {
       // A previous stop() must not pin future starts (e.g. restart() above);
       // a stop() landing AFTER this point still cancels via the checks below.
@@ -678,17 +679,18 @@ function createAxCodeRuntimeSupervision(options = {}) {
       }
       throw lastError || new Error("ax-code runtime failed to start")
     })()
-    startPromise = mine
+    const slot = { promise: mine }
+    startSlot = slot
     try {
       return await mine
     } finally {
       // A failed start may be retried by the caller; a successful one is
       // pinned so repeat start() calls share it.
       if (
-        startPromise === mine &&
+        startSlot === slot &&
         (fsm === null || (fsm.state !== "healthy" && fsm.state !== "booting" && fsm.state !== "spawning"))
       ) {
-        startPromise = null
+        startSlot = null
       }
     }
   }
@@ -720,21 +722,22 @@ function createAxCodeRuntimeSupervision(options = {}) {
   // kept — the web fork env and the protocol handler were pinned to it at
   // boot, so re-reserving a new port would strand them.
   async function restart({ reprepare = false } = {}) {
-    if (restartPromise) return restartPromise
+    if (restartSlot) return restartSlot.promise
     const mine = (async () => {
       await stop()
       // The cancelled in-flight start() (if any) rejects on its own and its
       // finally guard only clears its own pin; make sure the fresh start()
       // below never joins the stale promise.
-      startPromise = null
+      startSlot = null
       if (reprepare) resolveBinary()
       return start()
     })()
-    restartPromise = mine
+    const slot = { promise: mine }
+    restartSlot = slot
     try {
       return await mine
     } finally {
-      if (restartPromise === mine) restartPromise = null
+      if (restartSlot === slot) restartSlot = null
     }
   }
 

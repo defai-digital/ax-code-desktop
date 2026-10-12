@@ -119,7 +119,7 @@ const CONFIG_EVENT_SOURCE = "useSkillsStore"
 const SKILLS_LOAD_CACHE_TTL_MS = 5000
 const skillsLastLoadedAt = new Map<string, number>()
 const skillsCacheByKey = new Map<string, DiscoveredSkill[]>()
-const skillsLoadInFlight = new Map<string, Promise<boolean>>()
+const skillsLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
 const skillsLoadRequestIds = new Map<string, number>()
 let skillsLoadSequence = 0
 
@@ -160,7 +160,7 @@ export const useSkillsStore = create<SkillsStore>()(
 
           const inFlight = skillsLoadInFlight.get(cacheKey)
           if (inFlight) {
-            return inFlight
+            return inFlight.promise
           }
 
           const requestId = ++skillsLoadSequence
@@ -212,11 +212,12 @@ export const useSkillsStore = create<SkillsStore>()(
             return false
           })()
 
-          skillsLoadInFlight.set(cacheKey, request)
+          const slot = { promise: request }
+          skillsLoadInFlight.set(cacheKey, slot)
           try {
             return await request
           } finally {
-            if (skillsLoadInFlight.get(cacheKey) === request) {
+            if (skillsLoadInFlight.get(cacheKey) === slot) {
               skillsLoadInFlight.delete(cacheKey)
             }
           }

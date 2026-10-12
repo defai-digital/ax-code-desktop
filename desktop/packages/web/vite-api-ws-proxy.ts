@@ -72,7 +72,7 @@ export function handleDesktopApiWsUpgrade(
 
   proxyReq.on("error", (error) => {
     if (!isBenignProxySocketError(error)) {
-      console.error("[vite] api ws proxy error:", error)
+      console.error("[vite] api ws proxy error")
     }
     destroyBoth()
   })

@@ -87,7 +87,7 @@ const CLIENT_RELOAD_DELAY_MS = 800
 const MCP_LOAD_CACHE_TTL_MS = 5000
 const mcpLastLoadedAt = new Map<string, number>()
 const mcpCacheByKey = new Map<string, McpServerWithScope[]>()
-const mcpLoadInFlight = new Map<string, Promise<boolean>>()
+const mcpLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
 const mcpLoadRequestIds = new Map<string, number>()
 let mcpLoadSequence = 0
 
@@ -141,7 +141,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
 
           const inFlight = mcpLoadInFlight.get(cacheKey)
           if (!options?.force && inFlight) {
-            return inFlight
+            return inFlight.promise
           }
 
           const requestId = ++mcpLoadSequence
@@ -173,11 +173,12 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             }
           })()
 
-          mcpLoadInFlight.set(cacheKey, request)
+          const slot = { promise: request }
+          mcpLoadInFlight.set(cacheKey, slot)
           try {
             return await request
           } finally {
-            if (mcpLoadInFlight.get(cacheKey) === request) {
+            if (mcpLoadInFlight.get(cacheKey) === slot) {
               mcpLoadInFlight.delete(cacheKey)
             }
           }

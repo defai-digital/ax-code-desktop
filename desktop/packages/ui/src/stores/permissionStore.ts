@@ -132,7 +132,7 @@ const collectPendingFromSyncStores = (): Array<{ id: string; sessionID: string }
 
 // Dedups session fetches across overlapping ancestor-chain walks; entries are
 // removed once settled so session data is never served stale.
-const sessionFetchInFlight = new Map<string, Promise<Session | null>>()
+const sessionFetchInFlight = new Map<string, { promise: Promise<Session | null> }>()
 
 const sessionBelongsToScope = async (
   sessionID: string,
@@ -156,7 +156,7 @@ const sessionBelongsToScope = async (
 
     const inFlight = sessionFetchInFlight.get(id)
     if (inFlight) {
-      const session = await inFlight
+      const session = await inFlight.promise
       if (session) fetchedById.set(id, session)
       return session
     }
@@ -188,13 +188,14 @@ const sessionBelongsToScope = async (
       return null
     })()
 
-    sessionFetchInFlight.set(id, task)
+    const slot = { promise: task }
+    sessionFetchInFlight.set(id, slot)
     try {
       const session = await task
       if (session) fetchedById.set(id, session)
       return session
     } finally {
-      if (sessionFetchInFlight.get(id) === task) {
+      if (sessionFetchInFlight.get(id) === slot) {
         sessionFetchInFlight.delete(id)
       }
     }

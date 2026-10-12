@@ -489,7 +489,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
         routeToChat()
 
         let sessionId: string | null = null
-        let directoryHint: string | null = currentProjectRef.path
+        let directoryHint: string | null
 
         if (pendingPlanSend.target === "worktree") {
           if (!canCreateWorktree) {

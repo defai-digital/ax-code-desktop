@@ -1,10 +1,9 @@
 import express from "express"
 import compression from "compression"
 import path from "path"
-import { spawn, spawnSync } from "child_process"
+import { spawn } from "child_process"
 import fs from "fs"
 import http from "http"
-import net from "net"
 import { fileURLToPath } from "url"
 import os from "os"
 import crypto from "crypto"
@@ -205,13 +204,10 @@ const readCustomThemesFromDisk = (...args) => themeRuntime.readCustomThemesFromD
 
 let notificationTemplateRuntime = null
 
-const createTimeoutSignal = (...args) => notificationTemplateRuntime.createTimeoutSignal(...args)
-const formatProjectLabel = (...args) => notificationTemplateRuntime.formatProjectLabel(...args)
 const resolveNotificationTemplate = (...args) => notificationTemplateRuntime.resolveNotificationTemplate(...args)
 const shouldApplyResolvedTemplateMessage = (...args) =>
   notificationTemplateRuntime.shouldApplyResolvedTemplateMessage(...args)
 const fetchFreeZenModels = (...args) => notificationTemplateRuntime.fetchFreeZenModels(...args)
-const extractTextFromParts = (...args) => notificationTemplateRuntime.extractTextFromParts(...args)
 const extractLastMessageText = (...args) => notificationTemplateRuntime.extractLastMessageText(...args)
 const fetchLastAssistantMessageText = (...args) => notificationTemplateRuntime.fetchLastAssistantMessageText(...args)
 const maybeCacheSessionInfoFromEvent = (...args) => notificationTemplateRuntime.maybeCacheSessionInfoFromEvent(...args)
@@ -616,7 +612,6 @@ const axCodeEnvRuntime = createAxCodeEnvRuntime({
   ENV_CONFIGURED_AX_CODE_WSL_DISTRO,
 })
 
-const applyLoginShellEnvSnapshot = (...args) => axCodeEnvRuntime.applyLoginShellEnvSnapshot(...args)
 const ensureLoginShellEnvSnapshotAsync = (...args) => axCodeEnvRuntime.ensureLoginShellEnvSnapshotAsync(...args)
 const getLoginShellEnvSnapshot = (...args) => axCodeEnvRuntime.getLoginShellEnvSnapshot(...args)
 const ensureAxCodeCliEnv = (...args) => axCodeEnvRuntime.ensureAxCodeCliEnv(...args)
@@ -1057,7 +1052,6 @@ const axCodeLifecycleRuntime = createAxCodeLifecycleRuntime({
 
 const restartAxCode = (...args) => axCodeLifecycleRuntime.restartAxCode(...args)
 const waitForAxCodeReady = (...args) => axCodeLifecycleRuntime.waitForAxCodeReady(...args)
-const waitForAgentPresence = (...args) => axCodeLifecycleRuntime.waitForAgentPresence(...args)
 const refreshAxCodeAfterConfigChange = (...args) => axCodeLifecycleRuntime.refreshAxCodeAfterConfigChange(...args)
 const startHealthMonitoring = () => axCodeLifecycleRuntime.startHealthMonitoring(HEALTH_CHECK_INTERVAL)
 const triggerHealthCheck = () => axCodeLifecycleRuntime.triggerHealthCheck()
@@ -1113,9 +1107,6 @@ const bootstrapAxCodeAtStartup = async (...args) => {
 const killProcessOnPort = (...args) => axCodeLifecycleRuntime.killProcessOnPort(...args)
 const waitForPortRelease = (...args) => axCodeLifecycleRuntime.waitForPortRelease(...args)
 
-const fetchAgentsSnapshot = (...args) => serverUtilsRuntime.fetchAgentsSnapshot(...args)
-const fetchProvidersSnapshot = (...args) => serverUtilsRuntime.fetchProvidersSnapshot(...args)
-const fetchModelsSnapshot = (...args) => serverUtilsRuntime.fetchModelsSnapshot(...args)
 const setupProxy = (...args) => serverUtilsRuntime.setupProxy(...args)
 const gracefulShutdownRuntime = createGracefulShutdownRuntime({
   process,

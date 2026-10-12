@@ -622,7 +622,7 @@ export const TerminalView: React.FC = () => {
         }
       }
 
-      if (!terminalId || cancelled) return
+      if (cancelled) return
 
       terminalIdRef.current = terminalId
 

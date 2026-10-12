@@ -78,7 +78,7 @@ function createMcpConfig(name, mcpConfig, workingDirectory, scope) {
     throw new Error(`MCP server "${name}" already exists`)
   }
 
-  let targetPath = CONFIG_FILE
+  let targetPath
   let config = {}
 
   if (scope === AGENT_SCOPE.PROJECT) {

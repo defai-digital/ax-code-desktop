@@ -11,7 +11,6 @@ import { assertLocalOnlyHostname, isLoopbackHostname } from "../server/lib/secur
 import {
   intro as clackIntro,
   outro as clackOutro,
-  log as clackLog,
   cancel as clackCancel,
   isJsonMode,
   isQuietMode,
@@ -40,7 +39,6 @@ const LOG_ROTATE_KEEP = 5
 const STARTUP_SERVICE_ID = "ai.ax-code.app.web"
 const SYSTEMD_SERVICE_NAME = "ax-code-desktop.service"
 const API_BASE_PATH = "/api"
-const API_HEALTH_PATH = "/health"
 const AUTH_SESSION_PATH = "/auth/session"
 const API_SYSTEM_INFO_PATH = `${API_BASE_PATH}/system/info`
 const API_SYSTEM_SHUTDOWN_PATH = `${API_BASE_PATH}/system/shutdown`
@@ -1336,77 +1334,6 @@ async function requestServerShutdown(port) {
   } finally {
     clearTimeout(timeout)
   }
-}
-
-async function requestJson(port, endpoint, options = {}) {
-  const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0 ? Math.trunc(options.timeoutMs) : 4000
-  const fetchOptions = { ...options }
-  delete fetchOptions.timeoutMs
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const response = await fetch(buildLocalUrl(port, endpoint), {
-      ...fetchOptions,
-      headers: {
-        Accept: "application/json",
-        ...(fetchOptions.body ? { "Content-Type": "application/json" } : {}),
-        ...(fetchOptions.headers || {}),
-      },
-      signal: controller.signal,
-    })
-    const body = await response.json().catch(() => null)
-    return { response, body }
-  } catch (error) {
-    if (error && (error.name === "AbortError" || error.code === "ABORT_ERR")) {
-      throw new Error(`Request to ${endpoint} timed out after ${timeoutMs}ms.`)
-    }
-    throw error
-  } finally {
-    clearTimeout(timeout)
-  }
-}
-
-async function isServerHealthReady(port, timeoutMs = 1000) {
-  if (!Number.isFinite(port) || port <= 0) {
-    return false
-  }
-  const requestTimeout = Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.trunc(timeoutMs) : 1000
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), requestTimeout)
-  try {
-    const response = await fetch(buildLocalUrl(port, API_HEALTH_PATH), {
-      headers: { Accept: "text/plain" },
-      signal: controller.signal,
-    })
-    return response.ok
-  } catch {
-    return false
-  } finally {
-    clearTimeout(timeout)
-  }
-}
-
-async function waitForServerHealth(port, { timeoutMs = 60000, intervalMs = 250, onTick } = {}) {
-  const start = Date.now()
-  const deadline = start + timeoutMs
-  while (Date.now() < deadline) {
-    const elapsedMs = Date.now() - start
-    if (typeof onTick === "function") {
-      onTick({ elapsedMs, timeoutMs })
-    }
-    if (await isServerHealthReady(port, Math.min(1000, intervalMs * 2))) {
-      if (typeof onTick === "function") {
-        onTick({ elapsedMs: Math.min(Date.now() - start, timeoutMs), timeoutMs, complete: true })
-      }
-      return true
-    }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs))
-  }
-  if (typeof onTick === "function") {
-    onTick({ elapsedMs: timeoutMs, timeoutMs, timedOut: true })
-  }
-  return false
 }
 
 async function discoverRunningInstances() {
@@ -2815,7 +2742,6 @@ async function main() {
   const parsed = parseArgs()
   const {
     command,
-    subcommand,
     startupAction,
     tunnelAction,
     options,

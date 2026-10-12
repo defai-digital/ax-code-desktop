@@ -752,7 +752,6 @@ export const registerFsRoutes = (app, dependencies) => {
         }
         parentPath = resolvedDestination
         directoryName = inferredName
-        resolvedDestination = path.join(parentPath, directoryName)
       } else {
         try {
           const stat = await fsPromises.stat(resolvedDestination)
@@ -763,7 +762,6 @@ export const registerFsRoutes = (app, dependencies) => {
             }
             parentPath = resolvedDestination
             directoryName = inferredName
-            resolvedDestination = path.join(parentPath, directoryName)
           }
         } catch (error) {
           if (!error || error.code !== "ENOENT") {

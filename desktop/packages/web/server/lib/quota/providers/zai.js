@@ -4,8 +4,6 @@ import {
   normalizeAuthEntry,
   buildResult,
   toUsageWindow,
-  toNumber,
-  toTimestamp,
   resolveWindowSeconds,
   resolveWindowLabel,
   normalizeTimestamp,

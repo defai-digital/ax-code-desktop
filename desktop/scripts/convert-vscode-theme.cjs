@@ -522,10 +522,6 @@ function adjustBrightness(hex, percent) {
   )
 }
 
-function escapeRegExp(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-}
-
 function makeImportVariableName(themeId) {
   const base = themeId
     .toLowerCase()

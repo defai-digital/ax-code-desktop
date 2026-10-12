@@ -219,7 +219,6 @@ export const registerDiscoverExternalProjectRoutes = (app, dependencies = {}) =>
   const {
     os: osDep = os,
     fsPromises = fs,
-    path: pathDep = path,
     readSettingsFromDiskMigrated,
     sanitizeProjects,
   } = dependencies

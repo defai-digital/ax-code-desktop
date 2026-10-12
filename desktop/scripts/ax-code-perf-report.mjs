@@ -195,7 +195,7 @@ export const buildVerdicts = ({ health = {}, startup = {}, streaming = {}, decod
   }
 
   // Decode throughput verdicts
-  const { avgChunksPerSecond, avgBytesPerSecond, streams: throughputStreams } = decodeThroughput
+  const { avgChunksPerSecond, streams: throughputStreams } = decodeThroughput
   if (throughputStreams && throughputStreams.length > 0) {
     if (avgChunksPerSecond !== null && avgChunksPerSecond < 30) {
       verdicts.push(

@@ -28,7 +28,7 @@ import { streamDebugEnabled } from "@/stores/utils/streamDebug"
 
 const AGENTS_LOAD_CACHE_TTL_MS = 5000
 const agentsLastLoadedAt = new Map<string, number>()
-const agentsLoadInFlight = new Map<string, Promise<boolean>>()
+const agentsLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
 const agentsLoadRequestIds = new Map<string, number>()
 let agentsLoadSequence = 0
 
@@ -135,7 +135,7 @@ export const useAgentsStore = create<AgentsStore>()(
 
           const inFlight = agentsLoadInFlight.get(cacheKey)
           if (inFlight) {
-            return inFlight
+            return inFlight.promise
           }
 
           const requestId = ++agentsLoadSequence
@@ -225,11 +225,12 @@ export const useAgentsStore = create<AgentsStore>()(
             return false
           })()
 
-          agentsLoadInFlight.set(cacheKey, request)
+          const slot = { promise: request }
+          agentsLoadInFlight.set(cacheKey, slot)
           try {
             return await request
           } finally {
-            if (agentsLoadInFlight.get(cacheKey) === request) {
+            if (agentsLoadInFlight.get(cacheKey) === slot) {
               agentsLoadInFlight.delete(cacheKey)
             }
           }

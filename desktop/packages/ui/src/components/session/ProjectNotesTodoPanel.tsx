@@ -491,7 +491,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
         routeToChat()
 
         let sessionId: string | null = null
-        let directoryHint: string | null = projectRef.path
+        let directoryHint: string | null
 
         if (pendingSendTarget.kind === "worktree") {
           if (!canCreateWorktree) {

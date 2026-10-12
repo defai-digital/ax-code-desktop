@@ -41,7 +41,7 @@ interface SnippetsStore {
 const SNIPPETS_LOAD_CACHE_TTL_MS = 5000
 const snippetsByCacheKey = new Map<string, Snippet[]>()
 const snippetsLastLoadedAt = new Map<string, number>()
-const snippetsLoadInFlight = new Map<string, Promise<boolean>>()
+const snippetsLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
 const snippetsCacheVersions = new Map<string, number>()
 let activeSnippetsCacheKey = getDirectoryCacheKey(null)
 
@@ -84,7 +84,7 @@ export const useSnippetsStore = create<SnippetsStore>()(
         const inFlight = snippetsLoadInFlight.get(cacheKey)
         if (inFlight) {
           set({ isLoading: true, snippets: cachedSnippets ?? [] })
-          return inFlight
+          return inFlight.promise
         }
 
         const requestVersion = getSnippetsCacheVersion(cacheKey)
@@ -116,11 +116,12 @@ export const useSnippetsStore = create<SnippetsStore>()(
           }
         })()
 
-        snippetsLoadInFlight.set(cacheKey, request)
+        const slot = { promise: request }
+        snippetsLoadInFlight.set(cacheKey, slot)
         try {
           return await request
         } finally {
-          if (snippetsLoadInFlight.get(cacheKey) === request) {
+          if (snippetsLoadInFlight.get(cacheKey) === slot) {
             snippetsLoadInFlight.delete(cacheKey)
           }
         }

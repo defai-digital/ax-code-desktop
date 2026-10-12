@@ -776,6 +776,8 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     }
   }
 
+  let activeStartSlot = null
+
   const startAxCode = async () => {
     // Publish the in-flight start so restartAxCode can await it: bootstrap
     // calls startAxCode() without the restart mutex, and a config-change
@@ -814,11 +816,14 @@ export const createAxCodeLifecycleRuntime = (deps) => {
 
       throw lastError
     })()
+    const startSlot = { promise: startPromise }
+    activeStartSlot = startSlot
     state.currentStartPromise = startPromise
     try {
       return await startPromise
     } finally {
-      if (state.currentStartPromise === startPromise) {
+      if (activeStartSlot === startSlot) {
+        activeStartSlot = null
         state.currentStartPromise = null
       }
     }

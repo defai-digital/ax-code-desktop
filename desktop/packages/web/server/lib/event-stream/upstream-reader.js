@@ -218,7 +218,6 @@ export function createUpstreamSseReader({
                 directory: envelope.directory,
               }
               if (!attemptConnected && isReadyEvent?.(event)) {
-                attemptConnected = true
                 onConnect?.({ response, lastEventId })
               }
               onEvent?.(event)

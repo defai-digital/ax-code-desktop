@@ -97,7 +97,7 @@ interface GitStore {
 
 const inFlightDiffFetchesByDirectory = new Map<string, Set<string>>()
 const diffFetchGenerationByDirectory = new Map<string, number>()
-const inFlightStatusFetches = new Map<string, Promise<boolean>>()
+const inFlightStatusFetches = new Map<string, { promise: Promise<boolean> }>()
 const inFlightEnsureAllByDirectory = new Map<string, Promise<void>>()
 const statusFetchRequestIds = new Map<string, number>()
 let statusFetchSequence = 0
@@ -401,7 +401,7 @@ export const useGitStore = create<GitStore>()(
           inFlightStatusFetches.get(statusFetchKey) ??
           (statusFetchMode === "light" ? inFlightStatusFetches.get(getStatusFetchKey(directory, "full")) : undefined)
         if (existing) {
-          return existing
+          return existing.promise
         }
 
         const requestId = ++statusFetchSequence
@@ -540,12 +540,13 @@ export const useGitStore = create<GitStore>()(
           return statusChanged
         })()
 
-        inFlightStatusFetches.set(statusFetchKey, fetchPromise)
+        const fetchSlot = { promise: fetchPromise }
+        inFlightStatusFetches.set(statusFetchKey, fetchSlot)
 
         try {
           return await fetchPromise
         } finally {
-          if (inFlightStatusFetches.get(statusFetchKey) === fetchPromise) {
+          if (inFlightStatusFetches.get(statusFetchKey) === fetchSlot) {
             inFlightStatusFetches.delete(statusFetchKey)
           }
           if (isCurrentStatusFetch()) {

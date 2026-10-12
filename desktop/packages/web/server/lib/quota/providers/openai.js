@@ -1,5 +1,5 @@
 import { readAuthFile } from "../../ax-code/auth.js"
-import { getAuthEntry, normalizeAuthEntry, buildResult, toUsageWindow, toNumber, toTimestamp } from "../utils/index.js"
+import { getAuthEntry, normalizeAuthEntry, buildResult, toUsageWindow } from "../utils/index.js"
 
 export const providerId = "openai"
 export const providerName = "OpenAI"

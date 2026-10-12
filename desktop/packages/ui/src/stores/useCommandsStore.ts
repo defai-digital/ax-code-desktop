@@ -38,7 +38,7 @@ const CONFIG_EVENT_SOURCE = "useCommandsStore"
 const COMMANDS_LOAD_CACHE_TTL_MS = 5000
 const commandsLastLoadedAt = new Map<string, number>()
 const commandsCacheByKey = new Map<string, Command[]>()
-const commandsLoadInFlight = new Map<string, Promise<boolean>>()
+const commandsLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
 const commandsLoadRequestIds = new Map<string, number>()
 let commandsLoadSequence = 0
 
@@ -113,7 +113,7 @@ export const useCommandsStore = create<CommandsStore>()(
 
           const inFlight = commandsLoadInFlight.get(cacheKey)
           if (inFlight) {
-            return inFlight
+            return inFlight.promise
           }
 
           const requestId = ++commandsLoadSequence
@@ -207,11 +207,12 @@ export const useCommandsStore = create<CommandsStore>()(
             return false
           })()
 
-          commandsLoadInFlight.set(cacheKey, request)
+          const slot = { promise: request }
+          commandsLoadInFlight.set(cacheKey, slot)
           try {
             return await request
           } finally {
-            if (commandsLoadInFlight.get(cacheKey) === request) {
+            if (commandsLoadInFlight.get(cacheKey) === slot) {
               commandsLoadInFlight.delete(cacheKey)
             }
           }
