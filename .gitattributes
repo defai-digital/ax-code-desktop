@@ -1,2 +1,6 @@
 # Preserve the exact bytes covered by the signed-runtime public-key pin.
 resources/keys/ax-minisign.pub -text
+
+# Vite cannot load CRLF shebangs; Bash also requires LF in Windows checkouts.
+*.mjs text eol=lf
+*.sh text eol=lf
