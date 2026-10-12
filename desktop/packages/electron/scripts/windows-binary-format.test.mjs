@@ -32,6 +32,7 @@ function pe() {
 }
 
 const foreignPath = "resources/ax-code/node_modules/node-pty-prebuilt-multiarch/prebuilds"
+const unpackedPath = "resources/app.asar.unpacked/node_modules/node-pty/prebuilds"
 
 describe("Windows signing target classification", () => {
   test("audits every PE, including native addons, while preserving foreign pinned prebuilds", () =>
@@ -40,14 +41,22 @@ describe("Windows signing target classification", () => {
       const addon = put(`${foreignPath}/win32-x64/node.node`, pe())
       const linux = put(`${foreignPath}/linux-x64/node.abi108.musl.node`, Buffer.from("7f454c4602010100", "hex"))
       const mac = put(`${foreignPath}/darwin-arm64/node.node`, Buffer.from("cffaedfe01000000", "hex"))
+      const unpackedMac = put(`${unpackedPath}/darwin-x64/pty.node`, Buffer.from("cffaedfe01000000", "hex"))
+      const unpackedLinux = put(`${unpackedPath}/linux-x64/pty.node`, Buffer.from("7f454c4602010100", "hex"))
+      const unpackedWindows = put(`${unpackedPath}/win32-x64/pty.node`, pe())
+      expect(classifyFile(unpackedMac)).toBe("foreign")
+      expect(classifyFile(unpackedLinux)).toBe("foreign")
       expect(classifyFile(linux)).toBe("foreign")
       expect(classifyFile(mac)).toBe("foreign")
-      expect(collectPeFiles(root).sort()).toEqual([executable, addon].sort())
+      expect(collectPeFiles(root).sort()).toEqual([executable, addon, unpackedWindows].sort())
     }))
 
   test.each([
     ["AX Code.exe", "7f454c46"],
     ["resources/other/node.node", "7f454c46"],
+    ["resources/app.asar.unpacked/node_modules/other/prebuilds/darwin-x64/pty.node", "cffaedfe"],
+    [`${unpackedPath}/win32-x64/pty.node`, "cffaedfe"],
+    [`${unpackedPath}/darwin-x64/pty.node`, "7f454c46"],
     [`${foreignPath}/win32-x64/node.node`, "7f454c46"],
     [`${foreignPath}/linux-x64/node.node`, "cffaedfe"],
     [`${foreignPath}/darwin-arm64/node.node`, "7f454c46"],
@@ -76,39 +85,42 @@ describe("Windows sign hook format enforcement", () => {
     vi.unstubAllEnvs()
   })
 
-  test("never sends foreign prebuilds to Azure and still signs and verifies PE files", async () => {
-    const calls = vi.spyOn(childProcess, "execFileSync").mockReturnValue(Buffer.alloc(0))
-    for (const [name, value] of Object.entries({
-      AZURE_TENANT_ID: "tenant",
-      AZURE_CLIENT_ID: "client",
-      AZURE_CLIENT_SECRET: "fixture-only",
-      AZURE_KEY_VAULT_URL: "https://keyvault-defai.vault.azure.net",
-      AZURE_KEY_VAULT_CERTIFICATE: "cert-defai",
-      AZURE_SIGNTOOL_PATH: "AzureSignTool.exe",
-      WINDOWS_CERTIFICATE_SHA1: "FC40F1109912C025E751E804AA9BD1538A2D12EF",
-      WINDOWS_SIGNING_REQUIRED: "true",
-    }))
-      vi.stubEnv(name, value)
-    delete require.cache[require.resolve("./sign-windows.cjs")]
-    const sign = require("./sign-windows.cjs").default
-    const root = mkdtempSync(path.join(tmpdir(), "desktop-windows-sign-hook-"))
-    try {
-      const foreign = path.join(root, foreignPath, "linux-x64", "node.node")
-      mkdirSync(path.dirname(foreign), { recursive: true })
-      writeFileSync(foreign, Buffer.from("7f454c4602010100", "hex"))
-      await sign({ path: foreign, hash: "sha256" })
-      expect(calls).not.toHaveBeenCalled()
-      const executable = path.join(root, "AX Code.exe")
-      writeFileSync(executable, pe())
-      await sign({ path: executable, hash: "sha256" })
-      expect(calls.mock.calls.map(([command]) => command)).toEqual(["AzureSignTool.exe", "powershell.exe"])
-      expect(calls.mock.calls[1][2].env.AX_SIGNED_FILE).toBe(executable)
-      writeFileSync(executable, Buffer.from("7f454c46", "hex"))
-      await expect(sign({ path: executable, hash: "sha256" })).rejects.toThrow(/Unrecognized/)
-      expect(calls).toHaveBeenCalledTimes(2)
-    } finally {
-      rmSync(root, { recursive: true, force: true })
+  test.each([foreignPath, unpackedPath])(
+    "preserves foreign prebuilds in %s while signing and verifying PE files",
+    async (prebuildPath) => {
+      const calls = vi.spyOn(childProcess, "execFileSync").mockReturnValue(Buffer.alloc(0))
+      for (const [name, value] of Object.entries({
+        AZURE_TENANT_ID: "tenant",
+        AZURE_CLIENT_ID: "client",
+        AZURE_CLIENT_SECRET: "fixture-only",
+        AZURE_KEY_VAULT_URL: "https://keyvault-defai.vault.azure.net",
+        AZURE_KEY_VAULT_CERTIFICATE: "cert-defai",
+        AZURE_SIGNTOOL_PATH: "AzureSignTool.exe",
+        WINDOWS_CERTIFICATE_SHA1: "FC40F1109912C025E751E804AA9BD1538A2D12EF",
+        WINDOWS_SIGNING_REQUIRED: "true",
+      }))
+        vi.stubEnv(name, value)
       delete require.cache[require.resolve("./sign-windows.cjs")]
-    }
-  })
+      const sign = require("./sign-windows.cjs").default
+      const root = mkdtempSync(path.join(tmpdir(), "desktop-windows-sign-hook-"))
+      try {
+        const foreign = path.join(root, prebuildPath, "linux-x64", "node.node")
+        mkdirSync(path.dirname(foreign), { recursive: true })
+        writeFileSync(foreign, Buffer.from("7f454c4602010100", "hex"))
+        await sign({ path: foreign, hash: "sha256" })
+        expect(calls).not.toHaveBeenCalled()
+        const executable = path.join(root, "AX Code.exe")
+        writeFileSync(executable, pe())
+        await sign({ path: executable, hash: "sha256" })
+        expect(calls.mock.calls.map(([command]) => command)).toEqual(["AzureSignTool.exe", "powershell.exe"])
+        expect(calls.mock.calls[1][2].env.AX_SIGNED_FILE).toBe(executable)
+        writeFileSync(executable, Buffer.from("7f454c46", "hex"))
+        await expect(sign({ path: executable, hash: "sha256" })).rejects.toThrow(/Unrecognized/)
+        expect(calls).toHaveBeenCalledTimes(2)
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+        delete require.cache[require.resolve("./sign-windows.cjs")]
+      }
+    },
+  )
 })

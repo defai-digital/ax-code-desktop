@@ -1,4 +1,4 @@
-// Share the signing and audit classification so foreign runtime prebuilds are
+// Share the signing and audit classification so foreign dependency prebuilds are
 // preserved byte-for-byte without weakening the Windows PE signature gate.
 const fs = require("node:fs")
 const path = require("node:path")
@@ -14,7 +14,7 @@ function classifyHeader(file, header, peSignature) {
 
   const normalized = file.replace(/\\/g, "/")
   const platform = normalized.match(
-    /(?:^|\/)resources\/ax-code\/node_modules\/.+\/prebuilds\/(linux|darwin)-[^/]+\/[^/]+\.node$/,
+    /(?:^|\/)resources\/(?:ax-code\/node_modules\/.+|app\.asar\.unpacked\/node_modules\/node-pty)\/prebuilds\/(linux|darwin)-[^/]+\/[^/]+\.node$/,
   )?.[1]
   const magic = header.subarray(0, 4).toString("hex")
   if (platform === "linux" && magic === "7f454c46") return "foreign"
