@@ -14,8 +14,8 @@
     "linuxExecutable": "ax-code-desktop"
   },
   "updater": {
-    "repository": "defai-digital/ax-code",
-    "tagPrefix": "desktop-v"
+    "repository": "defai-digital/ax-code-desktop",
+    "tagPrefix": "v"
   },
   "credentials": {
     "minisignKeychainService": "ax-minisign",

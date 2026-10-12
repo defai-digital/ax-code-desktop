@@ -10,7 +10,7 @@ describe("Desktop release contract", () => {
       productName: "AX Code",
       applicationId: "ai.defai.ax-code-app",
       rendererOrigin: "app://ax-code",
-      updater: { repository: "defai-digital/ax-code", tagPrefix: "desktop-v" },
+      updater: { repository: "defai-digital/ax-code-desktop", tagPrefix: "v" },
     })
     expect(contract.sdk).toMatchObject({
       name: "@defai-digital/ax-code-sdk",
@@ -34,7 +34,7 @@ describe("Desktop release contract", () => {
     })
   })
 
-  it("keeps the updater and installed application identity on AX Code until cutover", () => {
+  it("switches the updater channel while preserving installed application identity", () => {
     const builder = fs.readFileSync(path.join(repositoryRoot, "desktop/packages/electron/electron-builder.yml"), "utf8")
     const updater = fs.readFileSync(
       path.join(repositoryRoot, "desktop/packages/electron/src/desktop-update-feed.js"),
@@ -43,7 +43,7 @@ describe("Desktop release contract", () => {
     expect(builder).toContain("appId: ai.defai.ax-code-app")
     expect(builder).toContain("productName: AX Code")
     expect(builder).toContain("repo: ax-code-desktop")
-    expect(updater).toContain('const GITHUB_REPO = "ax-code"')
+    expect(updater).toContain('const GITHUB_REPO = "ax-code-desktop"')
   })
 
   const withOverrides = (overrides) => ({

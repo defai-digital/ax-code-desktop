@@ -93,9 +93,9 @@ async function stopChild(child, platform) {
   if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL")
 }
 
-export async function runSmoke(argv = process.argv.slice(2)) {
+export async function runSmoke(argv = process.argv.slice(2), installedTarget) {
   const { builderArgs, timeoutMs } = parseSmokeArgs(argv)
-  const target = resolvePackagedTarget(builderArgs)
+  const target = installedTarget ?? resolvePackagedTarget(builderArgs)
   const paths = packagedPaths(target)
   // Stock Node cannot stat virtual paths inside app.asar. The packaging gate
   // validates those entries; this smoke proves Electron can load them.

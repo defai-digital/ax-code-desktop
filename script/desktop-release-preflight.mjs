@@ -4,9 +4,6 @@ import { fileURLToPath } from "node:url"
 import { verifyDesktopReleaseContract } from "./desktop-release-contract.mjs"
 
 export const SIGNING_SECRETS = [
-  "APPLE_API_ISSUER",
-  "APPLE_API_KEY_B64",
-  "APPLE_API_KEY_ID",
   "APPLE_CERTIFICATE",
   "APPLE_CERTIFICATE_PASSWORD",
   "APPLE_TEAM_ID",
@@ -50,6 +47,13 @@ export function releaseReadiness({
   if (releases.some((release) => release.tagName === tag))
     add("existing-release", `${tag} is already published or drafted.`)
   const missing = SIGNING_SECRETS.filter((name) => !secrets.includes(name))
+  if (
+    ![
+      ["APPLE_API_ISSUER", "APPLE_API_KEY_B64", "APPLE_API_KEY_ID"],
+      ["APPLE_ID", "APPLE_APP_SPECIFIC_PASSWORD"],
+    ].some((group) => group.every((name) => secrets.includes(name)))
+  )
+    missing.push("complete Apple API key or Apple ID notarization credentials")
   if (missing.length)
     add(
       "unconfirmed-signing-secrets",

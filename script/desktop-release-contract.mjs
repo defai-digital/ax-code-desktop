@@ -35,8 +35,11 @@ export function readDesktopIdentity(root = repositoryRoot, fileSystem = fs) {
     "artifactName changed during compatibility extraction",
   )
   assert(identity.rendererOrigin === "app://ax-code", "rendererOrigin changed during compatibility extraction")
-  assert(identity.updater?.repository === "defai-digital/ax-code", "updater repository changed before cutover")
-  assert(identity.updater?.tagPrefix === "desktop-v", "updater tag prefix changed before cutover")
+  assert(
+    identity.updater?.repository === "defai-digital/ax-code-desktop",
+    "updater must use the independent Desktop repository",
+  )
+  assert(identity.updater?.tagPrefix === "v", "independent Desktop updater tags must use v")
   assert(identity.credentials?.minisignKeychainService === "ax-minisign", "Minisign Keychain service changed")
   assert(identity.credentials?.minisignKeychainAccount === "ax-release", "Minisign Keychain account changed")
   for (const [field, pattern] of [

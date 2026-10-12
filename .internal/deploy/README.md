@@ -6,7 +6,7 @@ Desktop must use its own package inventory and release gates, not run that CLI/S
 publisher. See [ADR-010](../adr/ADR-010-desktop-download-distribution.md) and the
 [platform and installation specification](../spec/SPEC-2026-10-11-desktop-download-distribution-v1.md).
 
-Public release remains disabled. Desktop bootstraps and the distribution tool are
+Public publication is authorized under ADR-012; live serving remains disabled until native qualification passes. Desktop bootstraps and the distribution tool are
 implemented locally under the [v2 specification](../spec/SPEC-2026-10-12-desktop-download-distribution-v2.md),
 but installer artifacts are not published yet. The independent Cloudflare gateway
 and R2 bucket were provisioned on 2026-10-12 UTC. The native installation endpoint
@@ -55,8 +55,7 @@ Then verify the complete directory:
 .internal/deploy/deploy verify --source .internal/releases/v7.24.5
 ```
 
-`upload` is guarded by `config/desktop-release-policy.json` and remains blocked
-in shadow-only mode. After approved cutover, it also requires a Minisign-signed
+`upload` is guarded by `config/desktop-release-policy.json` and requires a Minisign-signed
 qualification JSON with schema `ax-code-desktop.download-qualification.v1`, exact
 `version`, `commit`, SHA-256 `inventorySha256`, and `gates`/`platforms` maps. Each of
 the five policy gates and four supported platform keys must have

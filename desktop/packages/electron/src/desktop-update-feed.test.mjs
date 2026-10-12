@@ -10,25 +10,25 @@ const {
 } = require("./desktop-update-feed.js")
 
 const desktopRelease = (version, flags = {}) => ({
-  tag_name: `desktop-v${version}`,
+  tag_name: `v${version}`,
   draft: false,
   prerelease: false,
   ...flags,
 })
-const cliRelease = (version) => ({ tag_name: `v${version}`, draft: false, prerelease: false })
+const cliRelease = (version) => ({ tag_name: `desktop-v${version}`, draft: false, prerelease: false })
 
 describe("latestDesktopReleaseTag", () => {
   test("picks the highest desktop version from a mixed channel list", () => {
     // The updater must skip CLI releases even when they are newer than every
     // desktop release.
     expect(latestDesktopReleaseTag([cliRelease("7.9.14"), desktopRelease("7.9.12"), desktopRelease("7.9.11")])).toBe(
-      "desktop-v7.9.12",
+      "v7.9.12",
     )
   })
 
   test("ranks by semver, not list position (the API interleaves out of order)", () => {
-    // Mirrors the live repository: desktop-v7.9.9 was listed before the newer
-    // desktop-v7.9.12/11/10 releases, and 7.9.10 must outrank 7.9.9 (numeric,
+    // Mirrors the live repository: v7.9.9 was listed before the newer
+    // v7.9.12/11/10 releases, and 7.9.10 must outrank 7.9.9 (numeric,
     // not lexical).
     expect(
       latestDesktopReleaseTag([
@@ -39,7 +39,7 @@ describe("latestDesktopReleaseTag", () => {
         desktopRelease("7.9.11"),
         desktopRelease("7.9.10"),
       ]),
-    ).toBe("desktop-v7.9.12")
+    ).toBe("v7.9.12")
   })
 
   test("skips draft and prerelease desktop releases", () => {
@@ -49,14 +49,12 @@ describe("latestDesktopReleaseTag", () => {
         desktopRelease("7.9.13", { prerelease: true }),
         desktopRelease("7.9.12"),
       ]),
-    ).toBe("desktop-v7.9.12")
+    ).toBe("v7.9.12")
   })
 
   test("a stable release outranks a higher-versioned prerelease tag", () => {
-    expect(latestDesktopReleaseTag([desktopRelease("8.0.0-beta.1"), desktopRelease("7.9.12")])).toBe(
-      "desktop-v8.0.0-beta.1",
-    )
-    expect(latestDesktopReleaseTag([desktopRelease("7.10.0-beta.1"), desktopRelease("7.10.0")])).toBe("desktop-v7.10.0")
+    expect(latestDesktopReleaseTag([desktopRelease("8.0.0-beta.1"), desktopRelease("7.9.12")])).toBe("v7.9.12")
+    expect(latestDesktopReleaseTag([desktopRelease("7.10.0-beta.1"), desktopRelease("7.10.0")])).toBe("v7.10.0")
   })
 
   test("returns null when no desktop release is published", () => {
@@ -68,14 +66,8 @@ describe("latestDesktopReleaseTag", () => {
 
   test("ignores malformed entries", () => {
     expect(
-      latestDesktopReleaseTag([
-        null,
-        "desktop-v9.9.9",
-        { tag_name: 42 },
-        { tag_name: "desktop-vx.y.z" },
-        desktopRelease("7.9.12"),
-      ]),
-    ).toBe("desktop-v7.9.12")
+      latestDesktopReleaseTag([null, "v9.9.9", { tag_name: 42 }, { tag_name: "vx.y.z" }, desktopRelease("7.9.12")]),
+    ).toBe("v7.9.12")
   })
 })
 
@@ -102,8 +94,8 @@ describe("compareDesktopTagVersions", () => {
 
 describe("desktopUpdateFeedUrl", () => {
   test("points at the release asset download base", () => {
-    expect(desktopUpdateFeedUrl("desktop-v7.9.12")).toBe(
-      "https://github.com/defai-digital/ax-code/releases/download/desktop-v7.9.12",
+    expect(desktopUpdateFeedUrl("v7.9.12")).toBe(
+      "https://github.com/defai-digital/ax-code-desktop/releases/download/v7.9.12",
     )
   })
 })
@@ -118,14 +110,14 @@ describe("resolveDesktopUpdateFeed", () => {
   test("resolves the generic feed URL for the newest published desktop release", async () => {
     const feed = await resolveDesktopUpdateFeed({
       fetchImpl: async (url, init) => {
-        expect(url).toBe("https://api.github.com/repos/defai-digital/ax-code/releases?per_page=30")
+        expect(url).toBe("https://api.github.com/repos/defai-digital/ax-code-desktop/releases?per_page=30")
         expect(init.headers["User-Agent"]).toBe("ax-code-desktop-updater")
         return jsonResponse([cliRelease("7.9.14"), desktopRelease("7.9.14", { draft: true }), desktopRelease("7.9.12")])
       },
     })
     expect(feed).toEqual({
-      tag: "desktop-v7.9.12",
-      url: "https://github.com/defai-digital/ax-code/releases/download/desktop-v7.9.12",
+      tag: "v7.9.12",
+      url: "https://github.com/defai-digital/ax-code-desktop/releases/download/v7.9.12",
     })
   })
 

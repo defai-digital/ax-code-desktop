@@ -16,7 +16,7 @@ const input = () => ({
   },
   commit,
   verifiedEvidence: ["signed-shadow", "upgrade", "rollback", "data-and-credential-continuity", "human-approval"],
-  secrets: [...SIGNING_SECRETS],
+  secrets: [...SIGNING_SECRETS, "APPLE_ID", "APPLE_APP_SPECIFIC_PASSWORD"],
   visibility: "PUBLIC",
   runs: ["Desktop CI", "CodeQL"].map((workflowName) => ({ workflowName, headSha: commit, conclusion: "success" })),
 })

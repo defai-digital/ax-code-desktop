@@ -16,12 +16,12 @@ describe("AX Coder winget manifest generator", () => {
     try {
       const result = await generateManifests(["--version", "7.10.2", "--out", output, "--skip-download"])
       const installer = path.join(result.output, "DEFAI.AXCode.Desktop.installer.yaml")
-      expect(result).toMatchObject({ repository: "defai-digital/ax-code", tag: "desktop-v7.10.2" })
+      expect(result).toMatchObject({ repository: "defai-digital/ax-code-desktop", tag: "v7.10.2" })
       expect(existsSync(installer)).toBe(true)
       const source = readFileSync(installer, "utf8")
       expect(source).toContain("AX-Code-7.10.2-win-x64.exe")
       expect(source).not.toContain("win-arm64")
-      expect(source).toContain("/releases/download/desktop-v7.10.2/")
+      expect(source).toContain("/releases/download/v7.10.2/")
       expect(source).not.toContain("ax-code-windows-x64.zip")
     } finally {
       rmSync(output, { recursive: true, force: true })

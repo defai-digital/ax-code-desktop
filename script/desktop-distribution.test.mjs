@@ -1,7 +1,8 @@
+import * as releasePolicy from "./release-policy.mjs"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, describe, it, expect } from "vitest"
+import { afterEach, describe, it, expect, vi } from "vitest"
 import {
   hash,
   installers,
@@ -66,7 +67,15 @@ describe("Desktop distribution preparation and mirror", () => {
     expect(() => prepare({ source, output: `${output}-new`, version, commit, verify })).toThrow("regular file")
   })
   it("checks the release policy before network or credential use", async () => {
-    await expect(upload("/missing", "/missing")).rejects.toThrow("public Desktop release is disabled")
+    const original = releasePolicy.assertPublicReleaseAuthorized
+    const guard = vi
+      .spyOn(releasePolicy, "assertPublicReleaseAuthorized")
+      .mockImplementation(() => original({ stage: "shadow-only", publicRelease: { enabled: false } }))
+    try {
+      await expect(upload("/missing", "/missing")).rejects.toThrow("public Desktop release is disabled")
+    } finally {
+      guard.mockRestore()
+    }
   })
   it("requires signed qualification for each gate, platform and inventory", () => {
     const { output, result } = fixture()
@@ -133,7 +142,15 @@ describe("Desktop distribution preparation and mirror", () => {
 describe("First public cutover staging", () => {
   it("checks policy before staging touches files, credentials or network", async () => {
     const { stage } = await import("../.internal/deploy/distribution.mjs")
-    await expect(stage("/missing", "/missing")).rejects.toThrow("public Desktop release is disabled")
+    const original = releasePolicy.assertPublicReleaseAuthorized
+    const guard = vi
+      .spyOn(releasePolicy, "assertPublicReleaseAuthorized")
+      .mockImplementation(() => original({ stage: "shadow-only", publicRelease: { enabled: false } }))
+    try {
+      await expect(stage("/missing", "/missing")).rejects.toThrow("public Desktop release is disabled")
+    } finally {
+      guard.mockRestore()
+    }
   })
   it("verifies private R2 bytes without depending on a publicly enabled gateway", async () => {
     const { putStaged, verifyReleaseObjects } = await import("../.internal/deploy/distribution.mjs")

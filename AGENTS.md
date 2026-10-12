@@ -31,10 +31,9 @@ frozen lockfile and a pinned signed AX Code runtime. Independent CI, CodeQL, and
 workflow are implemented. The local source-ownership cutover is complete under ADR-008: AX Code removed its Desktop
 tree at `6a2e03d90411ddd7141047baa59d4a754f1c4107`, and AX Coder is the sole current GUI source owner.
 
-The repository has an active private remote at `defai-digital/ax-code-desktop`. Independent CI and native smoke
+The repository has an active public remote at `defai-digital/ax-code-desktop`. Independent CI and native smoke
 checks have run. Signed cross-platform shadow, upgrade, and rollback evidence remains pending. ADR-009 prepares
-the independent release target without enabling publication or changing the active updater. Keep public release
-disabled, do not rebrand, and do not restore GUI source to AX Code. Follow the governance order below.
+the independent release target without enabling publication or changing the active updater. Public release and independent updater cutover are authorized under ADR-012. Live Cloudflare activation still requires verified signed native installation, upgrade, rollback and profile/configuration continuity receipts. Do not rebrand or restore GUI source to AX Code.
 
 ## Environment and commands
 
@@ -55,7 +54,7 @@ disabled, do not rebrand, and do not restore GUI source to AX Code. Follow the g
 | Release readiness (read-only)  | `pnpm run release:preflight`                                       |
 | Local unsigned package        | `pnpm run package:desktop -- <platform flags> --publish=never ...` |
 
-Public release commands remain intentionally unavailable until the Phase 3 shadow-release gates pass.
+Public distribution commands require signed exact-inventory qualification; user publication approval is recorded under ADR-012.
 
 ## Documents and governance
 

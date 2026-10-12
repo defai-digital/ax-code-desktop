@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { readReleasePolicy } from "./release-policy.mjs"
 
 export const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
@@ -47,9 +48,11 @@ export function sourceOwnershipViolations(root = repositoryRoot) {
   const workspace = fs.readFileSync(path.join(root, "pnpm-workspace.yaml"), "utf8")
   if (!workspace.includes("desktop/packages/*")) violations.push("Desktop packages must be in the pnpm workspace")
 
-  const policy = parseJson(path.join(root, "config/desktop-release-policy.json"))
-  if (policy.stage !== "shadow-only") violations.push("release stage must remain shadow-only before release cutover")
-  if (policy.publicRelease?.enabled !== false) violations.push("public Desktop release must remain disabled")
+  try {
+    readReleasePolicy(root)
+  } catch (error) {
+    violations.push(error.message)
+  }
 
   const desktopFiles = [...tracked].filter((file) => file.startsWith("desktop/"))
   if (desktopFiles.length === 0) violations.push("AX Coder must track the Desktop source tree")

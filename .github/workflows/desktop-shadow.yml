@@ -351,6 +351,22 @@ jobs:
           AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 }}
         run: bash desktop/scripts/sign-shadow-artifacts.sh "shadow-artifacts/darwin-arm64"
 
+      - name: Qualify native installation and migration
+        if: inputs.signing_mode == 'required'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node script/native-installer-qualification.mjs darwin-arm64 shadow-artifacts/darwin-arm64 shadow-native/darwin-arm64.json
+
+      - name: Upload native installation evidence
+        if: inputs.signing_mode == 'required'
+        uses: actions/upload-artifact@v7
+        with:
+          name: shadow-native-darwin-arm64
+          path: shadow-native/darwin-arm64.json
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload staged macOS artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -474,6 +490,22 @@ jobs:
           AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 }}
         run: bash desktop/scripts/sign-shadow-artifacts.sh "shadow-artifacts/${{ matrix.target }}"
 
+      - name: Qualify native installation and migration
+        if: inputs.signing_mode == 'required'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node script/native-installer-qualification.mjs ${{ matrix.target }} shadow-artifacts/${{ matrix.target }} shadow-native/${{ matrix.target }}.json
+
+      - name: Upload native installation evidence
+        if: inputs.signing_mode == 'required'
+        uses: actions/upload-artifact@v7
+        with:
+          name: shadow-native-${{ matrix.target }}
+          path: shadow-native/${{ matrix.target }}.json
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload staged Windows artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -545,6 +577,22 @@ jobs:
           AX_CODE_DESKTOP_MINISIGN_PASSWORD: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_PASSWORD }}
           AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64: ${{ secrets.AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64 }}
         run: bash desktop/scripts/sign-shadow-artifacts.sh "shadow-artifacts/${{ matrix.target }}"
+
+      - name: Qualify native installation and migration
+        if: inputs.signing_mode == 'required'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node script/native-installer-qualification.mjs ${{ matrix.target }} shadow-artifacts/${{ matrix.target }} shadow-native/${{ matrix.target }}.json
+
+      - name: Upload native installation evidence
+        if: inputs.signing_mode == 'required'
+        uses: actions/upload-artifact@v7
+        with:
+          name: shadow-native-${{ matrix.target }}
+          path: shadow-native/${{ matrix.target }}.json
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload staged Linux artifacts
         uses: actions/upload-artifact@v7

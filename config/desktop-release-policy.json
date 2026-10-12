@@ -1,15 +1,15 @@
 {
   "schema": "ax-coder.desktop-release-policy.v1",
-  "stage": "shadow-only",
+  "stage": "cutover-approved",
   "publicRelease": {
-    "enabled": false,
-    "repository": "defai-digital/ax-code",
-    "tagPrefix": "desktop-v"
+    "enabled": true,
+    "repository": "defai-digital/ax-code-desktop",
+    "tagPrefix": "v"
   },
   "cutover": {
     "repository": "defai-digital/ax-code-desktop",
     "tagPrefix": "v",
-    "decision": ".internal/adr/ADR-009-independent-desktop-release-preparation.md",
+    "decision": ".internal/adr/ADR-012-public-desktop-release-cutover.md",
     "requiredEvidence": ["signed-shadow", "upgrade", "rollback", "data-and-credential-continuity", "human-approval"]
   },
   "shadow": {

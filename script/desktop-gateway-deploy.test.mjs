@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest"
+import * as releasePolicy from "./release-policy.mjs"
+import { describe, it, expect, vi } from "vitest"
 import fs from "node:fs"
 import { assertRouteOwnership, validateConfig, ROUTE } from "../.internal/deploy/cloudflare.mjs"
 const config = () =>
@@ -31,7 +32,15 @@ describe("Desktop gateway operator boundaries", () => {
 
 it("blocks public cutover before credential or network access without release qualification", async () => {
   const { cutover } = await import("../.internal/deploy/cloudflare.mjs")
-  await expect(cutover("/missing", "/missing")).rejects.toThrow("public Desktop release is disabled")
+  const original = releasePolicy.assertPublicReleaseAuthorized
+  const guard = vi
+    .spyOn(releasePolicy, "assertPublicReleaseAuthorized")
+    .mockImplementation(() => original({ stage: "shadow-only", publicRelease: { enabled: false } }))
+  try {
+    await expect(cutover("/missing", "/missing")).rejects.toThrow("public Desktop release is disabled")
+  } finally {
+    guard.mockRestore()
+  }
 })
 
 it("requires complete private storage proof before enabling public serving", async () => {

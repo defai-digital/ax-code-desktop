@@ -1,18 +1,11 @@
-// AX Code ships two release channels from one GitHub repository: CLI tags
-// (v*) and Desktop tags (desktop-v*). electron-updater's GitHub provider
-// always resolves the repo-wide "latest" release, which is usually a CLI
-// release whose assets carry no desktop update manifests — every update
-// check then fails with ERR_UPDATER_CHANNEL_FILE_NOT_FOUND and the app can
-// never self-update. Resolve the newest published desktop-v* release
-// ourselves and point electron-updater's generic provider at that release's
-// asset downloads instead.
+// Resolve stable Desktop releases from the independently published public channel.
 const GITHUB_OWNER = "defai-digital"
-const GITHUB_REPO = "ax-code"
-const DESKTOP_RELEASE_TAG_PREFIX = "desktop-v"
+const GITHUB_REPO = "ax-code-desktop"
+const DESKTOP_RELEASE_TAG_PREFIX = "v"
 const RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases`
 const RELEASE_DOWNLOAD_BASE_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download`
 const DESKTOP_TAG_VERSION_PATTERN =
-  /^desktop-v(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
+  /^v(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 
 function parseDesktopTagVersion(tag) {
   const match = typeof tag === "string" ? DESKTOP_TAG_VERSION_PATTERN.exec(tag) : null
@@ -26,7 +19,7 @@ function parseDesktopTagVersion(tag) {
 }
 
 // Minimal semver precedence (https://semver.org/#spec-item-11) — enough to
-// rank desktop-v* tags without pulling a semver dependency into the main
+// rank v* tags without pulling a semver dependency into the main
 // process bundle.
 function compareDesktopTagVersions(a, b) {
   for (const key of ["major", "minor", "patch"]) {
@@ -56,7 +49,7 @@ function desktopReleaseFor(release) {
   if (!release || typeof release !== "object") return null
   if (release.draft || release.prerelease) return null
   const version = parseDesktopTagVersion(release.tag_name)
-  if (!version) return null
+  if (!version || version.prerelease.length > 0) return null
   return { tag: release.tag_name, version }
 }
 

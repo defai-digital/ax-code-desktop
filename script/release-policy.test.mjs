@@ -9,16 +9,16 @@ import {
 } from "./release-policy.mjs"
 
 describe("Desktop release policy", () => {
-  it("keeps the committed repository in shadow-only mode", () => {
+  it("records authorized independent public cutover", () => {
     const policy = readReleasePolicy(repositoryRoot)
-    expect(policy.stage).toBe("shadow-only")
-    expect(policy.publicRelease).toMatchObject({ enabled: false, repository: "defai-digital/ax-code" })
+    expect(policy.stage).toBe("cutover-approved")
+    expect(policy.publicRelease).toMatchObject({ enabled: true, repository: "defai-digital/ax-code-desktop" })
     expect(policy.shadow).toMatchObject({ artifactChannel: "github-actions", signingMode: "explicit-only" })
     expect(policy.cutover).toMatchObject({ repository: "defai-digital/ax-code-desktop", tagPrefix: "v" })
   })
 
   it("requires an explicit publish-never argument while shadow-only", () => {
-    const policy = readReleasePolicy(repositoryRoot)
+    const policy = { ...readReleasePolicy(repositoryRoot), stage: "shadow-only", publicRelease: { enabled: false } }
     expect(() => assertPackagePublishingMode(["--mac", "--arm64", "--publish=never"], policy)).not.toThrow()
     expect(() => assertPackagePublishingMode(["--linux", "--publish", "never"], policy)).not.toThrow()
     expect(() => assertPackagePublishingMode(["--mac"], policy)).toThrow("requires exactly one --publish=never")
@@ -27,9 +27,13 @@ describe("Desktop release policy", () => {
   })
 
   it("blocks the legacy public release entrypoint", () => {
-    expect(() => assertPublicReleaseAuthorized(readReleasePolicy(repositoryRoot))).toThrow(
-      "AX Coder public Desktop release is disabled",
-    )
+    expect(() =>
+      assertPublicReleaseAuthorized({
+        ...readReleasePolicy(repositoryRoot),
+        stage: "shadow-only",
+        publicRelease: { enabled: false },
+      }),
+    ).toThrow("AX Coder public Desktop release is disabled")
   })
 
   it("keeps the package wrapper and legacy publisher behind policy checks", () => {
