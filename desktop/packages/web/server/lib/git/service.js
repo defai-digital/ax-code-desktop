@@ -1,4 +1,4 @@
-import simpleGit from "simple-git"
+import { simpleGit } from "simple-git"
 import fs from "fs"
 import path from "path"
 import os from "os"
@@ -16,6 +16,21 @@ const remoteExistenceCache = new Map()
 const SIMPLE_GIT_SAFE_BINARY_PATTERN = /^([a-z]:)?([a-z0-9/.\\_~-]+)$/i
 const SIMPLE_GIT_UNSAFE_BINARY_WARNING =
   "Invalid value supplied for custom binary, restricted characters must be removed"
+// simple-git 4 strips every GIT_* variable and a small set of editor/pager
+// variables unless they are named in allowEnvironment. Identity, the user's
+// own SSH command, and the fixed non-interactive editor stay available.
+const SIMPLE_GIT_ALLOWED_ENV_KEYS = [
+  "GIT_AUTHOR_DATE",
+  "GIT_AUTHOR_EMAIL",
+  "GIT_AUTHOR_NAME",
+  "GIT_COMMITTER_DATE",
+  "GIT_COMMITTER_EMAIL",
+  "GIT_COMMITTER_NAME",
+  "GIT_EDITOR",
+  "GIT_SSH_COMMAND",
+]
+const SIMPLE_GIT_GUARDED_ENV_KEYS = new Set(["editor", "pager", "prefix", "ssh_askpass", "visual"])
+const SIMPLE_GIT_ALLOWED_ENV_KEY_SET = new Set(SIMPLE_GIT_ALLOWED_ENV_KEYS.map((key) => key.toLowerCase()))
 const REMOTE_EXISTENCE_CACHE_TTL_MS = 30_000
 const gitIndexMutationQueues = new Map()
 
@@ -94,9 +109,50 @@ const normalizeGitExecutableCandidate = (candidate) => {
 const isSafeSimpleGitBinary = (candidate) =>
   typeof candidate === "string" && SIMPLE_GIT_SAFE_BINARY_PATTERN.test(candidate)
 
-const createSimpleGit = (options) => {
-  if (!options?.unsafe?.allowUnsafeCustomBinary) {
-    return simpleGit(options)
+const isGuardedSimpleGitEnvKey = (key) => {
+  const normalized = String(key || "").toLowerCase().trim()
+  if (!normalized || SIMPLE_GIT_ALLOWED_ENV_KEY_SET.has(normalized)) {
+    return false
+  }
+  return normalized.startsWith("git_") || SIMPLE_GIT_GUARDED_ENV_KEYS.has(normalized)
+}
+
+const sanitizeSimpleGitEnv = (env) => {
+  const sanitized = {}
+  for (const [key, value] of Object.entries(env || {})) {
+    if (typeof value !== "string" || isGuardedSimpleGitEnvKey(key)) {
+      continue
+    }
+    sanitized[key] = value
+  }
+  return sanitized
+}
+
+const createSimpleGit = (options = {}) => {
+  const { env, unsafe, ...rest } = options
+  const clientOptions = {
+    ...rest,
+    allowEnvironment: SIMPLE_GIT_ALLOWED_ENV_KEYS,
+    unsafe: {
+      // This runtime writes core.sshCommand, credential.helper, and GIT_EDITOR=true.
+      // Other guarded categories (includes, trailers, abbreviated options) stay blocked.
+      allowUnsafeCredentialHelper: true,
+      allowUnsafeEditor: true,
+      allowUnsafeSshCommand: true,
+      ...unsafe,
+    },
+  }
+
+  const create = () => {
+    const git = simpleGit(clientOptions)
+    if (env) {
+      git.env(sanitizeSimpleGitEnv(env))
+    }
+    return git
+  }
+
+  if (!unsafe?.allowUnsafeCustomBinary) {
+    return create()
   }
 
   const originalWarn = console.warn
@@ -108,7 +164,7 @@ const createSimpleGit = (options) => {
   }
 
   try {
-    return simpleGit(options)
+    return create()
   } finally {
     console.warn = originalWarn
   }

@@ -57,7 +57,7 @@
     "turbo": "2.9.14",
     "typescript": "catalog:",
     "typescript-eslint": "^8.39.1",
-    "vitest": "4.1.9"
+    "vitest": "4.1.11"
   },
   "prettier": {
     "semi": false,

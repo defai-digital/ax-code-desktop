@@ -304,6 +304,7 @@ export const createNotificationTemplateRuntime = (deps) => {
           baseDir: worktreeDir,
           spawnOptions: { windowsHide: true },
           binary: resolveGitBinaryForSpawn(),
+          unsafe: { allowUnsafeCustomBinary: true },
         })
         branch = await Promise.race([
           git.revparse(["--abbrev-ref", "HEAD"]),

@@ -1,7 +1,7 @@
 diff --git a/dist/commonjs/index.js b/dist/commonjs/index.js
 --- a/dist/commonjs/index.js
 +++ b/dist/commonjs/index.js
-@@ -286,4 +286,14 @@
+@@ -330,4 +330,16 @@
      }
      return acc;
  }
@@ -11,8 +11,11 @@ diff --git a/dist/commonjs/index.js b/dist/commonjs/index.js
 +// preserving that legacy callable shape until those consumers migrate.
 +Object.assign(expand, {
 +    EXPANSION_MAX: exports.EXPANSION_MAX,
++    EXPANSION_MAX_DEPTH: exports.EXPANSION_MAX_DEPTH,
 +    EXPANSION_MAX_LENGTH: exports.EXPANSION_MAX_LENGTH,
++    EXPANSION_MAX_REWRITES: exports.EXPANSION_MAX_REWRITES,
 +    expand,
 +});
 +module.exports = expand;
  //# sourceMappingURL=index.js.map
+\ No newline at end of file
