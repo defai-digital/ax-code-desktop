@@ -425,4 +425,79 @@ describe("preview proxy upstream request hygiene", () => {
     }
     expect(proxyOptions.router(redirectedRequest)).toBe("https://example.com")
   })
+
+  it("keeps its own upgrade handler authoritative for preview WebSocket upgrades", async () => {
+    let targetRoute = null
+    let proxyOptions = null
+    let randomCounter = 0
+    let upgradeHandler = null
+    const upgradeMiddleware = vi.fn()
+    const app = {
+      post: (_path, ...handlers) => {
+        targetRoute = handlers.at(-1)
+      },
+      use() {},
+    }
+    const runtime = createPreviewProxyRuntime({
+      crypto: {
+        randomBytes: () => Buffer.from(String(++randomCounter).padStart(32, "0"), "hex"),
+      },
+      URL,
+      createProxyMiddleware: (options) => {
+        proxyOptions = options
+        const middleware = vi.fn()
+        middleware.upgrade = upgradeMiddleware
+        return middleware
+      },
+      responseInterceptor: (handler) => handler,
+    })
+
+    const rejectWebSocketUpgrade = vi.fn()
+    runtime.attach(app, {
+      server: {
+        on: (event, handler) => {
+          if (event === "upgrade") upgradeHandler = handler
+        },
+      },
+      express: { json: vi.fn(() => vi.fn()) },
+      uiAuthController: null,
+      isRequestOriginAllowed: vi.fn(async () => true),
+      rejectWebSocketUpgrade,
+    })
+
+    // `ws: true` makes http-proxy-middleware subscribe its own upgrade listener as soon as an HTTP
+    // request flows through it, and that listener proxies preview upgrades without the origin and
+    // UI-auth checks below.
+    expect(proxyOptions.ws).toBe(false)
+
+    // Non-preview upgrades belong to the terminal, event-stream and renderer handlers.
+    upgradeHandler({ url: "/api/terminal/ws", headers: {} }, {}, Buffer.alloc(0))
+    expect(rejectWebSocketUpgrade).not.toHaveBeenCalled()
+    expect(upgradeMiddleware).not.toHaveBeenCalled()
+
+    // A preview path that resolves to no target is answered instead of left hanging.
+    upgradeHandler({ url: "/api/preview/proxy/f4af70b4261d77706743959516f9cecc/ws", headers: {} }, {}, Buffer.alloc(0))
+    expect(rejectWebSocketUpgrade).toHaveBeenCalledWith(expect.anything(), 404, "Preview target expired")
+    expect(upgradeMiddleware).not.toHaveBeenCalled()
+
+    // A valid preview upgrade still reaches the proxy, after the checks.
+    const headers = new Map()
+    const targetResponse = {
+      setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+      json: vi.fn(),
+    }
+    await targetRoute({ body: { url: "http://127.0.0.1:3000" }, secure: false }, targetResponse)
+    const [sourceCookie] = String(headers.get("set-cookie")).split(";", 1)
+    const target = targetResponse.json.mock.calls[0][0]
+
+    rejectWebSocketUpgrade.mockClear()
+    upgradeHandler(
+      { url: `${target.proxyBasePath}/ws`, headers: { cookie: sourceCookie } },
+      { destroyed: false },
+      Buffer.alloc(0),
+    )
+
+    await vi.waitFor(() => expect(upgradeMiddleware).toHaveBeenCalledTimes(1))
+    expect(rejectWebSocketUpgrade).not.toHaveBeenCalled()
+  })
 })

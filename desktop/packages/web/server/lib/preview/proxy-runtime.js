@@ -1320,13 +1320,17 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     const proxy = createProxyMiddleware({
       target: "http://127.0.0.1",
       changeOrigin: true,
-      ws: true,
+      // Deliberately NOT `ws: true`. With it, http-proxy-middleware subscribes its own `upgrade`
+      // listener to the HTTP server as soon as any HTTP request flows through the middleware, and
+      // from then on its public `upgrade()` becomes a no-op while that listener proxies every
+      // matching upgrade itself — without the origin and UI-auth checks in our own handler below
+      // (which run after an await, so they race it instead of gating it). Leaving it off keeps the
+      // handler below the only path for preview upgrades; `proxy.upgrade()` still works, because
+      // the library exposes it for exactly this external-upgrade case.
+      ws: false,
       selfHandleResponse: true,
-      // Restrict the proxy (especially its auto-attached `upgrade` listener,
-      // which is registered globally on the underlying HTTP server when
-      // `ws: true`) to preview paths. Without this, every WebSocket upgrade
-      // on the server (e.g. `/api/terminal/ws`) gets proxied to
-      // `http://127.0.0.1` and tears the socket down with ECONNREFUSED.
+      // Restrict the proxy to preview paths. Without this, every WebSocket upgrade on the server
+      // (e.g. `/api/terminal/ws`) would be proxied to `http://127.0.0.1`.
       //
       // We use a function so the same filter handles both cases:
       //   - HTTP requests through Express, where `req.url` has been stripped
@@ -1481,8 +1485,16 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     )
 
     server.on("upgrade", (req, socket, head) => {
+      // Not the preview proxy: the terminal, event-stream and renderer upgrade handlers own it.
+      if (!(req.originalUrl || req.url || "").startsWith("/api/preview/proxy/")) {
+        return
+      }
+
       const resolved = resolveTargetFromRequest(req)
       if (!resolved.ok) {
+        // Answer the upgrade. Nothing else proxies preview paths any more (see `ws: false` above),
+        // so returning silently would leave the socket hanging until the client gives up.
+        rejectWebSocketUpgrade(socket, resolved.status, resolved.error)
         return
       }
 
