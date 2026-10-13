@@ -259,7 +259,9 @@ const bundledAxCodeEnv = buildBundledAxCodeEnv({
 // runtime origin/exhausted state in that mode.
 let runtimeSupervision = null
 const desktopWebMcpBrowser = createDesktopWebMcpBrowser({
-  BrowserWindow, WebContentsView, session,
+  BrowserWindow,
+  WebContentsView,
+  session,
   getRuntime: () => runtimeOrigin,
   getAuthorization: () => `Basic ${Buffer.from(`ax-code:${getRuntimeAuthPassword()}`).toString("base64")}`,
 })
@@ -439,6 +441,12 @@ function spawnServerProcess(wire) {
       // origin itself carries none.
       runtimeOrigin = typeof msg.origin === "string" && msg.origin ? msg.origin : null
       runtimeRetryExhausted = msg.exhausted === true
+      return
+    }
+    if (msg?.type === "desktop-notify") {
+      // Completion/error/question notifications the web server generated, forwarded instead of
+      // written to the sidecar-only stdout protocol.
+      maybeShowNativeNotification(msg.payload)
       return
     }
     if (msg?.type === "startup-event" && msg.event?.name) {
@@ -1201,7 +1209,9 @@ const getLanguageController = () => {
       systemLanguages: () => app.getPreferredSystemLanguages(),
       onChange: (value) => {
         const notify = (callback) => {
-          try { callback() } catch (error) {
+          try {
+            callback()
+          } catch (error) {
             console.warn("[electron] language presentation refresh failed", error)
           }
         }
@@ -3138,9 +3148,12 @@ app.whenReady().then(async () => {
       preferencesReader: animationPreferences,
       disable: () => setLaunchAnimationsEnabled(false),
       translate: nativeT,
-      onComplete: (result) => recordStartupEvent(`animation.${result.kind}.complete`, {
-        pair: result.pair, reason: result.reason, frames: result.frames,
-      }),
+      onComplete: (result) =>
+        recordStartupEvent(`animation.${result.kind}.complete`, {
+          pair: result.pair,
+          reason: result.reason,
+          frames: result.frames,
+        }),
     })
     openingAnimation = launchAnimations.playOpening()
     await purgeDisabledRemoteAccessSettings().catch((error) => {

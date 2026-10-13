@@ -51,6 +51,14 @@ async function boot() {
         process.parentPort.postMessage({ type: "startup-event", event })
       } catch {}
     },
+    // Without this callback the server falls back to the stdout protocol, which only the Tauri
+    // sidecar launcher parses — a utility process has no readable stdout, so completion, error and
+    // question notifications were dropped in the packaged app.
+    onDesktopNotification: (payload) => {
+      try {
+        process.parentPort.postMessage({ type: "desktop-notify", payload })
+      } catch {}
+    },
   })
   process.parentPort.postMessage({ type: "ready", port: serverHandle.getPort() })
 }
