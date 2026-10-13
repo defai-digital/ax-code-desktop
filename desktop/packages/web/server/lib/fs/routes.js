@@ -922,6 +922,7 @@ export const registerFsRoutes = (app, dependencies) => {
       return res.status(400).json({ error: "Path is required" })
     }
 
+    let canonicalPath = ""
     try {
       const resolved = await resolveReadPathFromContext({
         req,
@@ -937,10 +938,11 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(400).json({ error: resolved.error })
       }
 
-      const [canonicalPath, canonicalBase] = await Promise.all([
+      const [canonical, canonicalBase] = await Promise.all([
         fsPromises.realpath(resolved.resolved),
         fsPromises.realpath(resolved.base).catch(() => path.resolve(resolved.base)),
       ])
+      canonicalPath = canonical
 
       if (!isPathWithinRoot(canonicalPath, canonicalBase, path, os)) {
         return res.status(403).json({ error: "Access to file denied" })
@@ -954,7 +956,16 @@ export const registerFsRoutes = (app, dependencies) => {
     } catch (error) {
       const err = error
       if (err && typeof err === "object" && err.code === "EISDIR") {
-        // The core marks a directory (or a non-text payload) as a client error, not a server fault.
+        // The core reports a directory and a binary file alike, so tell the two apart here: the
+        // Files view turns a directory message into a listing, and would otherwise mis-handle a
+        // binary file the same way.
+        const isDirectory = await fsPromises
+          .stat(canonicalPath || filePath)
+          .then((entry) => entry.isDirectory())
+          .catch(() => false)
+        if (isDirectory) {
+          return res.status(400).json({ error: `EISDIR: ${path.basename(canonicalPath || filePath)} is a directory` })
+        }
         return res.status(400).json({ error: err.message || "Path is not a text file" })
       }
       if (err && typeof err === "object" && err.code === "ENOENT") {

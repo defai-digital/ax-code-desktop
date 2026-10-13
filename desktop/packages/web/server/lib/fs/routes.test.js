@@ -644,9 +644,46 @@ describe("fs core file adapter responses", () => {
         throw error
       }),
     }
-    const { getRoute } = registerFs({}, { approvedDirectories: [] }, coreFileAdapter)
+    const fsPromises = { stat: vi.fn(async () => ({ isDirectory: () => false })) }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, coreFileAdapter)
 
     const res = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: "/repo/src" } })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: "Specified path is not a text file" })
+  })
+
+  it("names a directory when a non-text read really was a directory", async () => {
+    const coreFileAdapter = {
+      read: vi.fn(async () => {
+        const error = new Error("Specified path is not a text file")
+        error.code = "EISDIR"
+        throw error
+      }),
+    }
+    // The core reports a directory and a binary file the same way; the Files view needs the
+    // directory wording to fall back to a listing instead of showing a read failure.
+    const fsPromises = { stat: vi.fn(async () => ({ isDirectory: () => true })) }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, coreFileAdapter)
+
+    const res = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: "/repo/src" } })
+
+    expect(res.statusCode).toBe(400)
+    expect(String(res.body.error)).toContain("is a directory")
+  })
+
+  it("keeps the adapter wording for a binary file", async () => {
+    const coreFileAdapter = {
+      read: vi.fn(async () => {
+        const error = new Error("Specified path is not a text file")
+        error.code = "EISDIR"
+        throw error
+      }),
+    }
+    const fsPromises = { stat: vi.fn(async () => ({ isDirectory: () => false })) }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, coreFileAdapter)
+
+    const res = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: "/repo/logo.png" } })
 
     expect(res.statusCode).toBe(400)
     expect(res.body).toEqual({ error: "Specified path is not a text file" })
