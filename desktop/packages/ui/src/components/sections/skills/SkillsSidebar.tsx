@@ -24,13 +24,14 @@ import { runSettingsDeleteMutation } from "../settingsDeleteMutation"
 
 interface SkillsSidebarProps {
   onItemSelect?: () => void
+  onOpenCatalog?: () => void
 }
 
 const BUILT_IN_SKILL_LOCATION = "<built-in>"
 
 const isBuiltInSkill = (skill: DiscoveredSkill | null | undefined): boolean => skill?.path === BUILT_IN_SKILL_LOCATION
 
-export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect }) => {
+export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOpenCatalog }) => {
   const { t } = useI18n()
   const [renameDialogSkill, setRenameDialogSkill] = React.useState<DiscoveredSkill | null>(null)
   const [renameNewName, setRenameNewName] = React.useState("")
@@ -266,7 +267,8 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect }) =>
   return (
     <div className={cn("flex h-full flex-col", bgClass)}>
       <div className="border-b px-3 pt-4 pb-3">
-        <h2 className="text-base font-semibold text-foreground mb-3">{t("settings.skills.sidebar.title")}</h2>
+        <h2 className="text-base font-semibold text-foreground">{t("settings.skills.sidebar.title")}</h2>
+        <p className="typography-meta text-muted-foreground mt-1 mb-3">{t("settings.skills.sidebar.purpose")}</p>
         <SettingsProjectSelector className="mb-3" />
         <div className="flex items-center justify-between gap-2">
           <span className="typography-meta text-muted-foreground">
@@ -281,6 +283,18 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect }) =>
             <Icon name="add" className="h-3.5 w-3.5" />
           </Button>
         </div>
+        {onOpenCatalog ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="mt-3 h-8 w-full justify-start gap-2"
+            onClick={onOpenCatalog}
+          >
+            <Icon name="book" className="h-3.5 w-3.5" />
+            {t("settings.page.skillsCatalog.title")}
+          </Button>
+        ) : null}
       </div>
 
       <ScrollableOverlay outerClassName="flex-1 min-h-0" className="space-y-1 px-3 py-2 overflow-x-hidden">

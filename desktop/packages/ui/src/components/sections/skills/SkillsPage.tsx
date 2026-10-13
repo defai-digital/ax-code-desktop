@@ -43,6 +43,7 @@ import { loadCurrentSkillDetail } from "./skillDetailLoad"
 
 interface SkillsPageProps {
   view?: "installed" | "catalog"
+  onShowInstalled?: () => void
 }
 
 const SkillsCatalogStandalone: React.FC = () => (
@@ -904,6 +905,24 @@ const SkillsInstalledPage: React.FC = () => {
   )
 }
 
-export const SkillsPage: React.FC<SkillsPageProps> = ({ view = "installed" }) => {
-  return view === "catalog" ? <SkillsCatalogStandalone /> : <SkillsInstalledPage />
+export const SkillsPage: React.FC<SkillsPageProps> = ({ view = "installed", onShowInstalled }) => {
+  const { t } = useI18n()
+  if (view !== "catalog") {
+    return <SkillsInstalledPage />
+  }
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center gap-2 border-b px-4 py-2" style={{ borderColor: "var(--interactive-border)" }}>
+        <Button type="button" size="sm" variant="ghost" onClick={onShowInstalled}>
+          {t("settings.view.actions.back")}
+        </Button>
+        <span className="typography-ui-label font-medium text-foreground">
+          {t("settings.page.skillsCatalog.title")}
+        </span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <SkillsCatalogStandalone />
+      </div>
+    </div>
+  )
 }

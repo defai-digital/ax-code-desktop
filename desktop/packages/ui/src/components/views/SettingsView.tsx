@@ -5,7 +5,6 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
 import { useCommandsStore } from "@/stores/useCommandsStore"
 import { useMcpConfigStore } from "@/stores/useMcpConfigStore"
-import { useSnippetsStore } from "@/stores/useSnippetsStore"
 import { useSkillsStore } from "@/stores/useSkillsStore"
 import { useSkillsCatalogStore } from "@/stores/useSkillsCatalogStore"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -19,8 +18,6 @@ import { CommandsSidebar } from "@/components/sections/commands/CommandsSidebar"
 import { CommandsPage } from "@/components/sections/commands/CommandsPage"
 import { McpSidebar } from "@/components/sections/mcp/McpSidebar"
 import { McpPage } from "@/components/sections/mcp/McpPage"
-import { PluginsSidebar, PluginsPage } from "@/components/sections/plugins"
-import { usePluginsStore } from "@/stores/usePluginsStore"
 import { SkillsSidebar } from "@/components/sections/skills/SkillsSidebar"
 import { SkillsPage } from "@/components/sections/skills/SkillsPage"
 import { ProjectsSidebar } from "@/components/sections/projects/ProjectsSidebar"
@@ -28,10 +25,6 @@ import { ProjectsPage } from "@/components/sections/projects/ProjectsPage"
 import { ProvidersSidebar } from "@/components/sections/providers/ProvidersSidebar"
 import { ProvidersPage } from "@/components/sections/providers/ProvidersPage"
 import { LocalModelsPage } from "@/components/sections/models/LocalModelsPage"
-import { MagicPromptsSidebar } from "@/components/sections/magic-prompts/MagicPromptsSidebar"
-import { MagicPromptsPage } from "@/components/sections/magic-prompts/MagicPromptsPage"
-import { SnippetsSidebar } from "@/components/sections/snippets/SnippetsSidebar"
-import { SnippetsPage } from "@/components/sections/snippets/SnippetsPage"
 import { GitPage } from "@/components/sections/git-identities/GitPage"
 import type { AXCodeSection } from "@/components/sections/ax-code/types"
 import { AXCodePage } from "@/components/sections/ax-code/AXCodePage"
@@ -82,17 +75,13 @@ const pageOrder: SettingsPageSlug[] = [
   "sessions",
   "shortcuts",
   "git",
-  "magic-prompts",
-  "snippets",
   "projects",
   "agents",
   "behavior",
   "commands",
   "mcp",
-  "plugins",
   "providers",
   "skills.installed",
-  "skills.catalog",
 ]
 
 function buildRuntimeContext(isDesktop: boolean): SettingsRuntimeContext {
@@ -175,7 +164,7 @@ const SettingsHome: React.FC<{ onOpen: (slug: SettingsPageSlug) => void }> = ({ 
 
           <button
             type="button"
-            onClick={() => onOpen("skills.catalog")}
+            onClick={() => onOpen("skills.installed")}
             className={cn(
               "rounded-lg border border-border bg-[var(--surface-elevated)] p-4 text-left",
               "hover:bg-[var(--interactive-hover)] transition-colors",
@@ -220,6 +209,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
   const [mobileStage, setMobileStage] = React.useState<MobileStage>("nav")
   const autoNavSlugRef = React.useRef<string | null>(null)
   const [navQuery, setNavQuery] = React.useState("")
+  const [skillsPane, setSkillsPane] = React.useState<"installed" | "catalog">("installed")
 
   const [navWidth, setNavWidth] = React.useState(216)
   const [hasManuallyResized, setHasManuallyResized] = React.useState(false)
@@ -236,6 +226,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
 
   const runtimeCtx = React.useMemo(() => buildRuntimeContext(isDesktopApp), [isDesktopApp])
   const settingsSlug = resolveAvailableSettingsSlug(settingsPageRaw, runtimeCtx)
+  const skillsCatalogFullWidth = settingsSlug === "skills.installed" && skillsPane === "catalog"
+
+  React.useEffect(() => {
+    if (settingsSlug !== "skills.installed") {
+      setSkillsPane("installed")
+    }
+  }, [settingsSlug])
 
   const visiblePages = React.useMemo(() => {
     return SETTINGS_PAGE_METADATA.filter((page) => page.slug !== "home")
@@ -331,16 +328,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
       void useMcpConfigStore.getState().loadMcpConfigs()
       return
     }
-    if (settingsSlug === "plugins") {
-      void usePluginsStore.getState().loadPlugins()
-      return
-    }
-    if (settingsSlug === "skills.installed" || settingsSlug === "skills.catalog") {
+    if (settingsSlug === "skills.installed") {
       void useSkillsStore.getState().loadSkills()
       void useSkillsCatalogStore.getState().loadCatalog()
-    }
-    if (settingsSlug === "snippets") {
-      void useSnippetsStore.getState().loadSnippets()
     }
   }, [activeProjectId, isSettingsDialogOpen, isWindowed, settingsSlug])
 
@@ -393,12 +383,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
           return t("settings.page.commands.title")
         case "mcp":
           return t("settings.page.mcp.title")
-        case "plugins":
-          return t("settings.page.plugins.title")
         case "skills.installed":
           return t("settings.page.skills.title")
-        case "skills.catalog":
-          return t("settings.page.skillsCatalog.title")
         case "git":
           return t("settings.page.git.title")
         case "appearance":
@@ -409,10 +395,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
           return t("settings.page.shortcuts.title")
         case "sessions":
           return t("settings.page.sessions.title")
-        case "magic-prompts":
-          return t("settings.page.magicPrompts.title")
-        case "snippets":
-          return t("settings.page.snippets.title")
         case "notifications":
           return t("settings.page.notifications.title")
         case "home":
@@ -455,16 +437,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
         return <CommandsSidebar onItemSelect={opts.onItemSelect} />
       case "mcp":
         return <McpSidebar onItemSelect={opts.onItemSelect} />
-      case "plugins":
-        return <PluginsSidebar onItemSelect={opts.onItemSelect} />
       case "skills.installed":
-        return <SkillsSidebar onItemSelect={opts.onItemSelect} />
+        return (
+          <SkillsSidebar
+            onItemSelect={opts.onItemSelect}
+            onOpenCatalog={() => {
+              setSkillsPane("catalog")
+              opts.onItemSelect?.()
+            }}
+          />
+        )
       case "providers":
         return <ProvidersSidebar onItemSelect={opts.onItemSelect} />
-      case "magic-prompts":
-        return <MagicPromptsSidebar onItemSelect={opts.onItemSelect} />
-      case "snippets":
-        return <SnippetsSidebar onItemSelect={opts.onItemSelect} />
       default:
         return null
     }
@@ -492,18 +476,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
           return <CommandsPage />
         case "mcp":
           return <McpPage />
-        case "plugins":
-          return <PluginsPage />
         case "skills.installed":
-          return <SkillsPage view="installed" />
-        case "skills.catalog":
-          return <SkillsPage view="catalog" />
+          return <SkillsPage view={skillsPane} onShowInstalled={() => setSkillsPane("installed")} />
         case "providers":
           return <ProvidersPage />
-        case "magic-prompts":
-          return <MagicPromptsPage />
-        case "snippets":
-          return <SnippetsPage />
         case "git":
           return <GitPage />
         case "appearance":
@@ -518,7 +494,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
           return <SettingsHome onOpen={openPage} />
       }
     },
-    [axCodeSectionBySlug, openPage, renderUnavailable, runtimeCtx],
+    [axCodeSectionBySlug, openPage, renderUnavailable, runtimeCtx, skillsPane],
   )
 
   // Mobile: if opened via deep-link / palette to a non-home page, jump into it once.
@@ -762,7 +738,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
       return <SettingsHome onOpen={openPage} />
     }
 
-    if (activePageMeta.kind === "split") {
+    if (activePageMeta.kind === "split" && !skillsCatalogFullWidth) {
       return (
         <div className="flex h-full min-h-0 overflow-hidden">
           <div

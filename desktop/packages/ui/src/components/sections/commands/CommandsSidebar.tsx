@@ -224,7 +224,8 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
   return (
     <div className={cn("flex h-full flex-col", bgClass)}>
       <div className="border-b px-3 pt-4 pb-3">
-        <h2 className="text-base font-semibold text-foreground mb-3">{t("settings.commands.sidebar.title")}</h2>
+        <h2 className="text-base font-semibold text-foreground">{t("settings.commands.sidebar.title")}</h2>
+        <p className="typography-meta text-muted-foreground mt-1 mb-3">{t("settings.commands.sidebar.purpose")}</p>
         <SettingsProjectSelector className="mb-3" />
         <div className="flex items-center justify-between gap-2">
           <span className="typography-meta text-muted-foreground">

@@ -20,7 +20,7 @@ const slashScore = (item: SlashQueryItem, query: string): number => {
 }
 
 /**
- * One slash query across commands, snippets, and magic prompts.
+ * Ranks one slash query. The composer feeds commands and skills.
  * An exact command name ranks ahead of every other hit.
  */
 export function rankSlashQuery<T>(query: string, items: readonly SlashQueryItem<T>[]): SlashQueryItem<T>[] {

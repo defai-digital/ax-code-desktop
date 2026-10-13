@@ -8,8 +8,6 @@ import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { buildBuiltInCommands, filterCommandList } from "./CommandAutocompleteCommands"
-import { useSnippetsStore } from "@/stores/useSnippetsStore"
-import { getDefaultMagicPromptTemplate, listSearchableMagicPrompts } from "@/lib/magicPrompts"
 import { rankSlashQuery, type SlashQueryItem } from "@/lib/slashQuery"
 
 type CommandSource = "openchamber" | "ax-code" | "skill"
@@ -75,8 +73,6 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
     const refreshCommands = useCommandsStore((s) => s.loadCommands)
     const skills = useSkillsStore((s) => s.skills)
     const refreshSkills = useSkillsStore((s) => s.loadSkills)
-    const snippets = useSnippetsStore((s) => s.snippets)
-    const refreshSnippets = useSnippetsStore((s) => s.loadSnippets)
     const [selectedIndex, setSelectedIndex] = React.useState(0)
     const selectedIndexRef = React.useRef(0)
     const keyboardNavigationRef = React.useRef(false)
@@ -108,8 +104,7 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
       // Force refresh to get latest project context when mounting
       void refreshCommands()
       void refreshSkills()
-      void refreshSnippets()
-    }, [refreshCommands, refreshSkills, refreshSnippets])
+    }, [refreshCommands, refreshSkills])
 
     React.useEffect(() => {
       const loadCommands = async () => {
@@ -152,42 +147,13 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
             searchQuery: "",
             allowInitCommand: !hasMessagesInCurrentSession,
           })
-          const slashItems: SlashQueryItem<CommandInfo>[] = [
-            ...filtered.map((command) => ({
-              source: "command" as const,
-              id: command.id,
-              name: command.name,
-              description: command.description,
-              payload: { ...command, slashSource: "command" as const },
-            })),
-            ...snippets.map((snippet) => ({
-              source: "snippet" as const,
-              id: `snippet:${snippet.source}:${snippet.name}`,
-              name: snippet.name,
-              description: snippet.description,
-              payload: {
-                id: `snippet:${snippet.source}:${snippet.name}`,
-                name: snippet.name,
-                source: "openchamber" as const,
-                description: snippet.description,
-                slashSource: "snippet" as const,
-              },
-            })),
-            ...listSearchableMagicPrompts().map((prompt) => ({
-              source: "magic-prompt" as const,
-              id: `magic:${prompt.id}`,
-              name: prompt.name,
-              description: prompt.description,
-              payload: {
-                id: `magic:${prompt.id}`,
-                name: prompt.name,
-                source: "openchamber" as const,
-                description: prompt.description,
-                slashSource: "magic-prompt" as const,
-                insertText: getDefaultMagicPromptTemplate(prompt.id),
-              },
-            })),
-          ]
+          const slashItems: SlashQueryItem<CommandInfo>[] = filtered.map((command) => ({
+            source: "command" as const,
+            id: command.id,
+            name: command.name,
+            description: command.description,
+            payload: { ...command, slashSource: "command" as const },
+          }))
 
           setCommands(rankSlashQuery(searchQuery, slashItems).map((item) => item.payload))
         } catch {
@@ -206,7 +172,7 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
       }
 
       loadCommands()
-    }, [searchQuery, hasMessagesInCurrentSession, hasSession, canStartSessionCommand, commandsWithMetadata, skills, snippets, t])
+    }, [searchQuery, hasMessagesInCurrentSession, hasSession, canStartSessionCommand, commandsWithMetadata, skills, t])
 
     React.useEffect(() => {
       setSelectedIndex(0)

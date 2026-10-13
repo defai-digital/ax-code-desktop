@@ -9,16 +9,12 @@ export type SettingsPageSlug =
   | "behavior"
   | "commands"
   | "mcp"
-  | "plugins"
   | "skills.installed"
-  | "skills.catalog"
   | "git"
   | "appearance"
   | "chat"
   | "shortcuts"
   | "sessions"
-  | "magic-prompts"
-  | "snippets"
   | "notifications"
 
 export type SettingsPageGroup = "appearance" | "projects" | "general" | "ax-code" | "git" | "skills" | "advanced"
@@ -109,25 +105,11 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
     keywords: ["mcp", "model context protocol", "servers", "tools", "remote", "stdio"],
   },
   {
-    slug: "plugins",
-    title: "Plugins",
-    group: "ax-code",
-    kind: "split",
-    keywords: ["plugin", "plugins", "extensions", "addons", "npm", "ax-code-wakatime"],
-  },
-  {
     slug: "skills.installed",
     title: "Skills",
     group: "skills",
     kind: "split",
     keywords: ["skill", "skills", "instructions", "install", "catalog"],
-  },
-  {
-    slug: "skills.catalog",
-    title: "Skills Catalog",
-    group: "skills",
-    kind: "single",
-    keywords: ["install", "catalog", "external", "repository", "skills catalog"],
   },
   {
     slug: "git",
@@ -202,21 +184,6 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
     keywords: ["defaults", "default agent", "default model", "retention", "memory", "limits", "zen"],
   },
   {
-    slug: "magic-prompts",
-    title: "Magic Prompts",
-    group: "general",
-    kind: "split",
-    keywords: ["prompts", "templates", "git", "github", "review", "commit", "pull request"],
-  },
-  {
-    slug: "snippets",
-    title: "Snippets",
-    group: "general",
-    kind: "split",
-    keywords: ["prompt", "templates", "multi-run", "strategy", "approach"],
-  },
-
-  {
     slug: "notifications",
     title: "Notifications",
     group: "general",
@@ -241,10 +208,16 @@ export function getSettingsPageMeta(slug: string): SettingsPageMeta | null {
   return (SETTINGS_PAGE_METADATA as readonly SettingsPageMeta[]).find((page) => page.slug === normalized) ?? null
 }
 
+const RETIRED_SETTINGS_SLUGS = new Set(["remote-instances", "plugins", "magic-prompts", "snippets"])
+
 export function resolveSettingsSlug(value: string | null | undefined): SettingsPageSlug {
   const normalized = (value ?? "").trim().toLowerCase()
-  if (!normalized || normalized === "remote-instances") {
+  if (!normalized || RETIRED_SETTINGS_SLUGS.has(normalized)) {
     return "home"
+  }
+  // The catalog is a pane inside Skills, not a second settings destination.
+  if (normalized === "skills.catalog") {
+    return "skills.installed"
   }
 
   const legacy = (LEGACY_SIDEBAR_SECTION_TO_SETTINGS_SLUG as Record<string, SettingsPageSlug>)[normalized]

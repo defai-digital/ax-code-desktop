@@ -1,9 +1,7 @@
 import React from "react"
 import { cn, fuzzyMatch } from "@/lib/utils"
 import { useSnippetsStore } from "@/stores/useSnippetsStore"
-import { useUIStore } from "@/stores/useUIStore"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
-import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import type { Snippet } from "@/types/snippet"
 
@@ -32,10 +30,6 @@ export const SnippetAutocomplete = React.forwardRef<SnippetAutocompleteHandle, S
     const itemRefs = React.useRef<(HTMLDivElement | null)[]>([])
     const snippets = useSnippetsStore((s) => s.snippets)
     const loadSnippets = useSnippetsStore((s) => s.loadSnippets)
-    const setSnippetDraft = useSnippetsStore((s) => s.setSnippetDraft)
-    const setSelectedSnippet = useSnippetsStore((s) => s.setSelectedSnippet)
-    const setSettingsDialogOpen = useUIStore((s) => s.setSettingsDialogOpen)
-    const setSettingsPage = useUIStore((s) => s.setSettingsPage)
 
     React.useEffect(() => {
       void loadSnippets()
@@ -54,7 +48,7 @@ export const SnippetAutocomplete = React.forwardRef<SnippetAutocompleteHandle, S
         return a.name.localeCompare(b.name)
       })
       setFilteredSnippets(sortedMatches)
-      setSelectedIndex(sortedMatches.length ? 1 : 0)
+      setSelectedIndex(0)
     }, [searchQuery, snippets])
 
     React.useEffect(() => {
@@ -80,20 +74,6 @@ export const SnippetAutocomplete = React.forwardRef<SnippetAutocompleteHandle, S
       [onSnippetSelect, searchQuery],
     )
 
-    const openNewSnippetSettings = React.useCallback(() => {
-      const existing = new Set(snippets.map((snippet) => snippet.name))
-      let name = "new-snippet"
-      let counter = 1
-      while (existing.has(name)) {
-        name = `new-snippet-${counter++}`
-      }
-      setSnippetDraft({ name, scope: "global" })
-      setSelectedSnippet(name)
-      setSettingsPage("snippets")
-      setSettingsDialogOpen(true)
-      onClose()
-    }, [onClose, setSelectedSnippet, setSettingsDialogOpen, setSettingsPage, setSnippetDraft, snippets])
-
     React.useImperativeHandle(
       ref,
       () => ({
@@ -102,7 +82,8 @@ export const SnippetAutocomplete = React.forwardRef<SnippetAutocompleteHandle, S
             onClose()
             return
           }
-          const itemCount = filteredSnippets.length + 1
+          const itemCount = filteredSnippets.length
+          if (itemCount === 0) return
           if (key === "ArrowDown") {
             setSelectedIndex((prev) => (prev + 1) % itemCount)
             return
@@ -112,16 +93,12 @@ export const SnippetAutocomplete = React.forwardRef<SnippetAutocompleteHandle, S
             return
           }
           if (key === "Enter" || key === "Tab") {
-            if (selectedIndexRef.current === 0) {
-              openNewSnippetSettings()
-              return
-            }
-            const snippet = filteredSnippets[selectedIndexRef.current - 1]
+            const snippet = filteredSnippets[selectedIndexRef.current]
             if (snippet) chooseSnippet(snippet)
           }
         },
       }),
-      [chooseSnippet, filteredSnippets, onClose, openNewSnippetSettings],
+      [chooseSnippet, filteredSnippets, onClose],
     )
 
     return (
@@ -131,33 +108,19 @@ export const SnippetAutocomplete = React.forwardRef<SnippetAutocompleteHandle, S
         style={style}
       >
         <ScrollableOverlay outerClassName="flex-1 min-h-0" className="px-0 pb-2">
-          <div
-            ref={(el) => {
-              itemRefs.current[0] = el
-            }}
-            className={cn(
-              "flex items-center gap-2 px-3 py-1.5 cursor-pointer rounded-lg typography-ui-label",
-              selectedIndex === 0 && "bg-interactive-selection",
-            )}
-            onClick={openNewSnippetSettings}
-            onMouseMove={() => setSelectedIndex(0)}
-          >
-            <Icon name="add" className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="font-medium text-foreground">{t("chat.snippetAutocomplete.action.addNew")}</span>
-          </div>
           {filteredSnippets.length ? (
             filteredSnippets.map((snippet, index) => (
               <div
                 key={`${snippet.source}:${snippet.filePath}`}
                 ref={(el) => {
-                  itemRefs.current[index + 1] = el
+                  itemRefs.current[index] = el
                 }}
                 className={cn(
                   "flex items-start gap-2 px-3 py-1.5 cursor-pointer rounded-lg typography-ui-label",
-                  index + 1 === selectedIndex && "bg-interactive-selection",
+                  index === selectedIndex && "bg-interactive-selection",
                 )}
                 onClick={() => chooseSnippet(snippet)}
-                onMouseMove={() => setSelectedIndex(index + 1)}
+                onMouseMove={() => setSelectedIndex(index)}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">

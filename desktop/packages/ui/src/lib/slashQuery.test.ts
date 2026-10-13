@@ -23,8 +23,10 @@ describe("slash query", () => {
     expect(new Set(ranked.map((item) => item.source))).toEqual(new Set(["command", "snippet", "magic-prompt"]))
   })
 
-  test("the slash autocomplete ranks with the shipped query", () => {
+  test("the slash autocomplete ranks commands and skills only", () => {
     const source = readFileSync(sourcePath("../components/chat/CommandAutocomplete.tsx"), "utf8")
     expect(source).toContain("rankSlashQuery")
+    expect(source).not.toContain("listSearchableMagicPrompts")
+    expect(source).not.toContain('source: "snippet"')
   })
 })
