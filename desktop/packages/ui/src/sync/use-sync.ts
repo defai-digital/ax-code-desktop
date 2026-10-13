@@ -47,6 +47,10 @@ export const shouldSkipSessionSync = (input: {
   if (input.force) return false
   if (input.hasSession && input.hasCachedMessages) return true
   if (!input.hasSession) return false
+  // The prefetch TTL must not suppress a load when no messages are cached: archive
+  // drops the message/part caches while the prefetch entry survives, and an empty
+  // store plus a fresh entry would otherwise open the session as a stuck skeleton.
+  if (!input.hasCachedMessages) return false
   return shouldSkipSessionPrefetch({
     hasMessages: input.hasCachedMessages,
     info: input.prefetchInfo,

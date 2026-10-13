@@ -2,7 +2,6 @@ import { describe, expect, test } from "vitest"
 import { shouldSkipSessionSync } from "../use-sync"
 
 const PREFETCH_PAGE_SIZE = 150
-const PREFETCH_TTL_MS = 15_000
 
 describe("shouldSkipSessionSync", () => {
   test("skips when the session record and its messages are both cached", () => {
@@ -53,7 +52,9 @@ describe("shouldSkipSessionSync", () => {
     ).toBe(false)
   })
 
-  test("keeps the prefetch TTL for a session whose messages are not cached", () => {
+  test("never lets the prefetch TTL suppress a load when no messages are cached", () => {
+    // Archive drops the message/part caches while the prefetch entry survives;
+    // skipping here opened the session as a skeleton that never hydrated.
     const now = Date.now()
     const prefetchInfo = { limit: 10, complete: false, at: now }
     expect(
@@ -62,16 +63,6 @@ describe("shouldSkipSessionSync", () => {
         hasSession: true,
         hasCachedMessages: false,
         prefetchInfo,
-        pageSize: PREFETCH_PAGE_SIZE,
-        now,
-      }),
-    ).toBe(true)
-    expect(
-      shouldSkipSessionSync({
-        force: false,
-        hasSession: true,
-        hasCachedMessages: false,
-        prefetchInfo: { ...prefetchInfo, at: now - PREFETCH_TTL_MS - 1 },
         pageSize: PREFETCH_PAGE_SIZE,
         now,
       }),
