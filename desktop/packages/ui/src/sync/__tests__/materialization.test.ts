@@ -74,6 +74,28 @@ describe("materializeSessionSnapshots", () => {
     expect(result.part.msg_1.map((item) => item.id)).toEqual(["prt_text"])
   })
 
+  test("stores a fetched-empty assistant snapshot as renderable instead of absent", () => {
+    // An assistant message the server returned with zero parts (e.g. aborted before
+    // any output) is authoritatively empty; recording it as absence made the session
+    // permanently non-renderable and ensure-renderable callers refetched forever.
+    const result = materializeSessionSnapshots({ message: {}, part: {} }, "ses_1", [
+      { info: message("msg_1"), parts: [] },
+    ])
+
+    expect(result.part.msg_1).toEqual([])
+    const status = getSessionMaterializationStatus({ message: result.message, part: result.part }, "ses_1")
+    expect(status.renderable).toBe(true)
+    expect(status.missingPartMessageIDs).toEqual([])
+  })
+
+  test("keeps an empty non-assistant snapshot absent", () => {
+    const result = materializeSessionSnapshots({ message: {}, part: {} }, "ses_1", [
+      { info: userMessage("msg_u"), parts: [] },
+    ])
+
+    expect("msg_u" in result.part).toBe(false)
+  })
+
   test("preserves newer live streaming text when a stale snapshot materializes", () => {
     const livePart = part("prt_1", "msg_1", "text", "First chunk ")
     const stalePart = part("prt_1", "msg_1", "text", "")
