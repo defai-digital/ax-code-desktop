@@ -250,6 +250,20 @@ type DirectorySwitchResult = {
 const normalizeFsPath = (path: string): string => path.replace(/\\/g, "/")
 const FS_LIST_CACHE_TTL_MS = 400
 
+// Directory listings are cached for 400ms and the map is only ever *read* for freshness, so every
+// directory the file browser ever visited kept its whole listing in memory. Purging on write leaves
+// the entries that are still inside the TTL.
+export const pruneExpiredListDirectoryEntries = <T extends { expiresAt: number }>(
+  cache: Map<string, T>,
+  now: number,
+) => {
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt <= now) {
+      cache.delete(key)
+    }
+  }
+}
+
 const getDesktopFilesApi = (): FilesAPI | null => {
   if (typeof window === "undefined") {
     return null
@@ -1830,9 +1844,11 @@ class AxCodeService {
             isSymbolicLink: false,
           }))
           if (cacheGeneration === this.listDirectoryCacheGeneration) {
+            const fetchedAt = Date.now()
+            pruneExpiredListDirectoryEntries(this.listDirectoryCache, fetchedAt)
             this.listDirectoryCache.set(cacheKey, {
               entries,
-              expiresAt: Date.now() + FS_LIST_CACHE_TTL_MS,
+              expiresAt: fetchedAt + FS_LIST_CACHE_TTL_MS,
             })
           }
           return entries
@@ -1867,9 +1883,11 @@ class AxCodeService {
 
         const entries = result.entries as FilesystemEntry[]
         if (cacheGeneration === this.listDirectoryCacheGeneration) {
+          const fetchedAt = Date.now()
+          pruneExpiredListDirectoryEntries(this.listDirectoryCache, fetchedAt)
           this.listDirectoryCache.set(cacheKey, {
             entries,
-            expiresAt: Date.now() + FS_LIST_CACHE_TTL_MS,
+            expiresAt: fetchedAt + FS_LIST_CACHE_TTL_MS,
           })
         }
         return entries
@@ -2014,5 +2032,3 @@ class AxCodeService {
 export const axCodeClient = new AxCodeService()
 
 // Exported types
-
-

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 
 import type { RuntimeAPIs } from "../api/types"
-import { axCodeClient, formatPromptSendError, resolveDesktopBaseUrl } from "./client"
+import { axCodeClient, formatPromptSendError, pruneExpiredListDirectoryEntries, resolveDesktopBaseUrl } from "./client"
 
 afterEach(() => {
   axCodeClient.setDirectory(undefined)
@@ -223,5 +223,21 @@ describe("withDirectory queue resilience", () => {
       vi.useRealTimers()
       axCodeClient.setDirectory(undefined)
     }
+  })
+})
+
+describe("directory listing cache", () => {
+  test("drops expired listings so browsing does not keep every directory in memory", () => {
+    const cache = new Map([
+      ["/repo/src|false", { entries: [], expiresAt: 1_000 }],
+      ["/repo/app|false", { entries: [], expiresAt: 5_000 }],
+    ])
+
+    pruneExpiredListDirectoryEntries(cache, 2_000)
+
+    expect(Array.from(cache.keys())).toEqual(["/repo/app|false"])
+    // An entry expiring exactly at the cutoff counts as expired, matching the cache read.
+    pruneExpiredListDirectoryEntries(cache, 5_000)
+    expect(cache.size).toBe(0)
   })
 })
