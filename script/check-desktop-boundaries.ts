@@ -3,6 +3,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import fg from "fast-glob"
 import { extractImportSpecifiers, type ImportSpecifier } from "./import-specifiers"
+import { hasPathPrefix, normalize, rel } from "./boundary-paths"
 
 const root = path.resolve(import.meta.dirname, "..")
 
@@ -73,20 +74,6 @@ export type DesktopBoundaryViolation = {
   specifier: string
   reason: string
   sourceLine?: string
-}
-
-function normalize(value: string) {
-  const withoutQuery = value.split(/[?#]/, 1)[0] ?? value
-  return path.posix.normalize(withoutQuery.replaceAll("\\", "/"))
-}
-
-function rel(file: string) {
-  const value = path.isAbsolute(file) ? path.relative(root, file) : file
-  return normalize(value)
-}
-
-function hasPathPrefix(value: string, prefix: string) {
-  return value === prefix || value.startsWith(`${prefix}/`)
 }
 
 function desktopPackage(file: string) {

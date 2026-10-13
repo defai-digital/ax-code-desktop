@@ -54,6 +54,7 @@ import { fileURLToPath } from "node:url"
 import fg from "fast-glob"
 import ts from "typescript"
 import { extractImportSpecifiers, type ImportSpecifier } from "./import-specifiers"
+import { hasPathPrefix, normalize, rel } from "./boundary-paths"
 
 const root = path.resolve(import.meta.dirname, "..")
 
@@ -169,20 +170,6 @@ export type StoreBoundaryEdge = {
   column: number
   edge: string
   specifier: string
-}
-
-function normalize(value: string) {
-  const withoutQuery = value.split(/[?#]/, 1)[0] ?? value
-  return path.posix.normalize(withoutQuery.replaceAll("\\", "/"))
-}
-
-function rel(file: string) {
-  const value = path.isAbsolute(file) ? path.relative(root, file) : file
-  return normalize(value)
-}
-
-function hasPathPrefix(value: string, prefix: string) {
-  return value === prefix || value.startsWith(`${prefix}/`)
 }
 
 function stripExtension(value: string) {
