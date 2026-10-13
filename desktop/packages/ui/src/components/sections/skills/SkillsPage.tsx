@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { isStaleConfigSelection } from "@/components/sections/configSelection"
 import { Icon } from "@/components/icon/Icon"
 import { SimpleMarkdownRenderer } from "@/components/chat/MarkdownRenderer"
 import { PreviewToggleButton } from "@/components/views/PreviewToggleButton"
@@ -103,6 +104,7 @@ const SkillsInstalledPage: React.FC = () => {
     updateSkill,
     skills,
     skillDraft,
+    isCatalogLoading,
     setSkillDraft,
     setSelectedSkill,
   } = useSkillsStore(
@@ -114,6 +116,8 @@ const SkillsInstalledPage: React.FC = () => {
       updateSkill: s.updateSkill,
       skills: s.skills,
       skillDraft: s.skillDraft,
+      // The page already has a local `isLoading` for its editor state.
+      isCatalogLoading: s.isLoading,
       setSkillDraft: s.setSkillDraft,
       setSelectedSkill: s.setSelectedSkill,
     })),
@@ -121,7 +125,14 @@ const SkillsInstalledPage: React.FC = () => {
 
   const selectedSkill = selectedSkillName ? getSkillByName(selectedSkillName) : null
   const isNewSkill = Boolean(skillDraft && skillDraft.name === selectedSkillName && !selectedSkill)
-  const hasStaleSelection = Boolean(selectedSkillName && !selectedSkill && !skillDraft)
+  // Shared with the other config pages, which also covers the list-still-loading case: without it a
+  // mount that beats the first load clears a valid persisted selection.
+  const hasStaleSelection = isStaleConfigSelection({
+    isLoading: isCatalogLoading,
+    selectedName: selectedSkillName,
+    selectedItem: selectedSkill,
+    draft: skillDraft,
+  })
   const isReadOnlySkill = selectedSkill?.path === "<built-in>"
 
   React.useEffect(() => {
