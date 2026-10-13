@@ -31,13 +31,15 @@ vi.doMock("@/lib/ax-code/client", () => ({
         currentDirectory = previous
       }
     },
-    createSession: async (params?: { title?: string }): Promise<Session> =>
-      ({
-        id: "ses_multirun",
-        title: params?.title ?? "",
-        directory: currentDirectory,
-        time: { created: 1, updated: 1 },
-      }) as Session,
+    createSession: vi.fn(
+      async (params?: { title?: string }): Promise<Session> =>
+        ({
+          id: "ses_multirun",
+          title: params?.title ?? "",
+          directory: currentDirectory,
+          time: { created: 1, updated: 1 },
+        }) as Session,
+    ),
     checkHealth: vi.fn(() => Promise.resolve(true)),
     getScopedSdkClient: vi.fn(() => ({})),
     getDirectory: vi.fn(() => currentDirectory),
@@ -117,6 +119,11 @@ vi.doMock("@/lib/gitApi", () => ({
 vi.doMock("@/lib/worktrees/worktreeCreate", () => ({
   createWorktreeWithDefaults: vi.fn(),
   resolveRootTrackingRemote: vi.fn(() => Promise.resolve(null)),
+}))
+
+vi.doMock("@/lib/worktrees/worktreeManager", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/worktrees/worktreeManager")>()),
+  removeProjectWorktree: vi.fn(() => Promise.resolve()),
 }))
 
 vi.doMock("@/lib/openchamberConfig", () => ({
@@ -255,5 +262,40 @@ describe("useMultiRunStore", () => {
     expect(registeredDirectories).toEqual([{ sessionID: "ses_multirun", directory: "/repo" }])
     expect(ensureChildCalls).toEqual([{ directory: "/repo", bootstrap: false }])
     expect(childState.session.map((session) => session.id)).toEqual(["ses_multirun"])
+  })
+
+  test("removes a worktree whose session could not be created", async () => {
+    const { checkIsGitRepository } = await import("@/lib/gitApi")
+    vi.mocked(checkIsGitRepository).mockResolvedValueOnce(true)
+
+    const createdWorktree = {
+      path: "/repo/.worktrees/fix-thing",
+      branch: "fix-thing",
+      worktreeRoot: "/repo",
+      worktreeStatus: "ready",
+      headState: "branch",
+    }
+    const { createWorktreeWithDefaults } = await import("@/lib/worktrees/worktreeCreate")
+    vi.mocked(createWorktreeWithDefaults).mockResolvedValueOnce(createdWorktree as never)
+
+    const { axCodeClient } = await import("@/lib/ax-code/client")
+    vi.mocked(axCodeClient.createSession).mockRejectedValueOnce(new Error("session failed"))
+
+    const { removeProjectWorktree } = await import("@/lib/worktrees/worktreeManager")
+    vi.mocked(removeProjectWorktree).mockClear()
+
+    const result = await useMultiRunStore.getState().createMultiRun({
+      name: "Fix thing",
+      isolateRuns: true,
+      groups: [{ prompt: "Fix it", models: [{ providerID: "anthropic", modelID: "claude-sonnet-4-5" }] }],
+    })
+
+    // No session means nothing else would ever remove the worktree or its branch.
+    expect(result).toBeNull()
+    expect(removeProjectWorktree).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "project-1", path: "/repo" }),
+      expect.objectContaining({ path: "/repo/.worktrees/fix-thing" }),
+      { deleteLocalBranch: true },
+    )
   })
 })

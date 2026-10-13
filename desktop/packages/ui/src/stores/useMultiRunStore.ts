@@ -7,6 +7,8 @@ import { axCodeClient } from "@/lib/ax-code/client"
 import { saveWorktreeSetupCommands } from "@/lib/openchamberConfig"
 import type { ProjectRef } from "@/lib/worktrees/worktreeManager"
 import { createWorktreeWithDefaults, resolveRootTrackingRemote } from "@/lib/worktrees/worktreeCreate"
+import { removeProjectWorktree } from "@/lib/worktrees/worktreeManager"
+import type { WorktreeMetadata } from "@/types/worktree"
 import { getRootBranch } from "@/lib/worktrees/worktreeStatus"
 import { normalizeWorktreePath } from "@/lib/worktrees/path"
 import { checkIsGitRepository } from "@/lib/gitApi"
@@ -203,6 +205,9 @@ export const useMultiRunStore = create<MultiRunStore>()(
                 index: count > 1 ? index : undefined,
               })
 
+              // Set only while this iteration owns a worktree with no session yet, so a failure
+              // below can roll it back instead of leaving an orphan branch on disk.
+              let createdWorktree: WorktreeMetadata | null = null
               try {
                 if (!shouldIsolateRuns) {
                   const session = await axCodeClient.withDirectory(directory, () =>
@@ -221,7 +226,7 @@ export const useMultiRunStore = create<MultiRunStore>()(
                   continue
                 }
 
-                const worktreeMetadata = await createWorktreeWithDefaults(
+                createdWorktree = await createWorktreeWithDefaults(
                   project,
                   {
                     preferredName,
@@ -236,6 +241,7 @@ export const useMultiRunStore = create<MultiRunStore>()(
                   },
                 )
 
+                const worktreeMetadata = createdWorktree
                 const enrichedMetadata = {
                   ...worktreeMetadata,
                   createdFromBranch: rootBranch,
@@ -246,6 +252,8 @@ export const useMultiRunStore = create<MultiRunStore>()(
                   axCodeClient.createSession({ title: sessionTitle }),
                 )
                 registerCreatedSession(session, worktreeMetadata.path)
+                // The session owns the worktree from here on.
+                createdWorktree = null
 
                 useSessionUIStore.getState().setWorktreeMetadata(session.id, enrichedMetadata)
 
@@ -259,6 +267,14 @@ export const useMultiRunStore = create<MultiRunStore>()(
                 })
               } catch (err) {
                 console.warn("[MultiRun] Failed to create session:", err)
+                if (createdWorktree) {
+                  // Nothing else cleans up a worktree whose session was never created: the sidebar
+                  // lists git worktrees, so it would linger as an empty run. Same compensation the
+                  // single-worktree creator performs.
+                  await removeProjectWorktree(project, createdWorktree, { deleteLocalBranch: true }).catch(
+                    () => undefined,
+                  )
+                }
               }
             }
           }
