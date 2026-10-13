@@ -681,11 +681,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
     isPinned,
     showScrollButton,
   })
-  const { loadEarlier } = timelineController
+  const { loadEarlier, resumeToBottomInstant } = timelineController
 
+  // A send must land on the latest turn even when the user had paged into older
+  // history, so delegate to the controller (resets the turn window) instead of
+  // scrolling the stale window.
   const resumeToLatestInstant = React.useCallback(() => {
-    goToBottom("instant")
-  }, [goToBottom])
+    void resumeToBottomInstant()
+  }, [resumeToBottomInstant])
 
   React.useEffect(() => {
     activeTurnChangeRef.current = timelineController.handleActiveTurnChange
@@ -810,7 +813,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
   const isSessionHydrating = Boolean(currentSessionId) && !hasRenderableSessionSnapshot
 
   React.useEffect(() => {
-    if (!currentSessionId) return
+    if (!currentSessionId) {
+      // A draft round-trip (new chat, then reopen the same session) remounts the
+      // viewport; keep the marker only while the session stays open, or the restore
+      // below never re-runs and the reopened session lands at the top.
+      lastScrolledSessionRef.current = null
+      return
+    }
     if (lastScrolledSessionRef.current === currentSessionId) return
 
     const hasHashTarget = typeof window !== "undefined" && window.location.hash.length > 0
