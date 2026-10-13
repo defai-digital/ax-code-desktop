@@ -71,6 +71,8 @@ describe("getSessionIdFromPayload", () => {
   test("extracts session-scoped events from properties.sessionID", () => {
     for (const type of [
       "message.removed",
+      "message.part.delta",
+      "message.part.removed",
       "session.status",
       "session.idle",
       "session.error",

@@ -261,6 +261,31 @@ describe("applyDirectoryEvent", () => {
     )
   })
 
+  test("dedupes a delta overlap that contains an astral character", () => {
+    const draft = state()
+    const messageID = "msg_emoji"
+    const partID = "prt_emoji"
+
+    applyDirectoryEvent(draft, {
+      type: "message.part.updated",
+      properties: {
+        part: { id: partID, messageID, sessionID: "ses_1", type: "text", text: "ab" },
+      },
+    } as Event)
+    applyDirectoryEvent(draft, {
+      type: "message.part.updated",
+      properties: {
+        part: { id: partID, messageID, sessionID: "ses_1", type: "text", text: "ab\u{1F600}" },
+      },
+    } as Event)
+    applyDirectoryEvent(draft, {
+      type: "message.part.delta",
+      properties: { messageID, partID, field: "text", delta: "\u{1F600}z" },
+    } as Event)
+
+    expect((draft.part[messageID]?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe("ab\u{1F600}z")
+  })
+
   test("does not duplicate overlapping delta text after a newer part update", () => {
     const draft = state()
     const messageID = "msg_overlap"

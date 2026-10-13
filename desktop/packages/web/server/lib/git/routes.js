@@ -1,3 +1,9 @@
+// Revisions reach git as bare argv entries, and git parses a leading "-" as an option rather than a
+// revision — `to=--output=<path>` makes `git log` overwrite that file and report an empty history.
+// Git refs never start with "-", so the option form is rejected at the boundary.
+const isOptionLikeRevision = (value) =>
+  typeof value !== "string" ? value != null : value.trim().length > 0 && value.trim().startsWith("-")
+
 export function registerGitRoutes(app) {
   let gitLibraries = null
   const getGitLibraries = async () => {
@@ -1036,6 +1042,9 @@ export function registerGitRoutes(app) {
       }
 
       const { maxCount, from, to, file } = req.query
+      if (isOptionLikeRevision(from) || isOptionLikeRevision(to)) {
+        return res.status(400).json({ error: "from and to must be revisions, not options" })
+      }
       const all = req.query.all === "true"
       const log = await getLog(directory, {
         maxCount: maxCount ? parseInt(maxCount) : undefined,
@@ -1060,6 +1069,9 @@ export function registerGitRoutes(app) {
       }
       if (!hash) {
         return res.status(400).json({ error: "hash parameter is required" })
+      }
+      if (typeof hash !== "string" || !/^[0-9a-fA-F]{7,40}$/.test(hash)) {
+        return res.status(400).json({ error: "hash must be a valid commit SHA" })
       }
 
       const result = await getCommitFiles(directory, hash)

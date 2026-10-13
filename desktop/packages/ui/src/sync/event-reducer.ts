@@ -65,7 +65,10 @@ function longestSuffixPrefixOverlap(existingValue: string, delta: string): numbe
   }
 
   let overlap = 0
-  for (const char of suffix) {
+  // Index suffix by UTF-16 code unit, like the prefix table above: iterating code points would
+  // compare a surrogate pair against a single code unit and drop every overlap after it.
+  for (let i = 0; i < suffix.length; i++) {
+    const char = suffix[i]
     while (overlap > 0 && char !== delta[overlap]) {
       overlap = prefixLengths[overlap - 1]
     }

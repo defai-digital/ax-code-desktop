@@ -52,6 +52,8 @@ export const getSessionIdFromPayload = (event: Event): string | null => {
 
   if (
     event.type === "message.removed" ||
+    event.type === "message.part.delta" ||
+    event.type === "message.part.removed" ||
     event.type === "session.status" ||
     event.type === "session.idle" ||
     event.type === "session.error" ||
