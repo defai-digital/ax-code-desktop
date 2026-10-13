@@ -7,6 +7,7 @@ import { getDesktopBridge } from "@/lib/desktopBridge"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useWebMcpBrowserStore, type WebMcpBrowserErrorCode } from "@/stores/useWebMcpBrowserStore"
 import { describeWebMcpError } from "@/lib/webMcpSummary"
+import { pauseChromeBridgeForProjectBrowser, resumeChromeBridgeForProjectBrowser } from "@/lib/webMcpBridgeCoordination"
 import { WebMcpStatusDot } from "@/components/mcp/WebMcpBrowserTools"
 import { useOpenProjectBrowser, useWebMcpCapabilityProbe, useWebMcpSummary } from "@/hooks/useWebMcpBrowser"
 
@@ -200,6 +201,22 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
     [applyStatus, browserId, busy, runtimeCompatible, updateSnapshot],
   )
 
+  // While this browser is enrolled, a connected Chrome bridge would still pull the agent to
+  // Chrome; pause it for the project and reconnect exactly those servers when access ends.
+  React.useEffect(() => {
+    if (!enabled) return
+    let disposed = false
+    void pauseChromeBridgeForProjectBrowser(directory).then((paused) => {
+      if (!disposed) updateSnapshot({ pausedBridgeServers: paused })
+    })
+    return () => {
+      disposed = true
+      updateSnapshot({ pausedBridgeServers: [] })
+      void resumeChromeBridgeForProjectBrowser(directory)
+    }
+  }, [directory, enabled, updateSnapshot])
+  const pausedBridgeServers = useWebMcpBrowserStore((state) => state.pausedBridgeServers)
+
   const ready = phase === "ready" && Boolean(browserId)
   const canEnable = ready && nativeAvailable && runtimeCompatible !== false
   const enableRequests = useWebMcpBrowserStore((state) => state.enableRequests)
@@ -286,6 +303,11 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       {!enabled && ready ? (
         <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
           {t("webmcp.browser.explanation")}
+        </p>
+      ) : null}
+      {enabled && pausedBridgeServers.length > 0 ? (
+        <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
+          {t("webmcp.detail.bridgePaused", { servers: pausedBridgeServers.join(", ") })}
         </p>
       ) : null}
 

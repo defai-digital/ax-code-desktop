@@ -4400,5 +4400,7 @@
   "commandPalette.item.openProjectBrowser": "Abrir el navegador de proyecto (WebMCP)",
   "contextPanel.browser.openProjectBrowser": "Abrir el navegador de proyecto (WebMCP)",
   "webmcp.actions.startSession": "Iniciar una sesi\u00f3n y activar el acceso del agente",
-  "webmcp.session.title": "Navegador de proyecto"
+  "webmcp.session.title": "Navegador de proyecto",
+  "chat.permissionCard.actions.allowOnceCountdown": "Permitir una vez ({seconds} s)",
+  "webmcp.detail.bridgePaused": "El puente de Chrome ({servers}) est\u00e1 en pausa mientras el navegador de proyecto est\u00e9 conectado; se reconecta al desconectar el agente."
 }

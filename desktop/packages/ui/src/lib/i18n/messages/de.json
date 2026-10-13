@@ -4400,5 +4400,7 @@
   "commandPalette.item.openProjectBrowser": "Projektbrowser (WebMCP) \u00f6ffnen",
   "contextPanel.browser.openProjectBrowser": "Projektbrowser (WebMCP) \u00f6ffnen",
   "webmcp.actions.startSession": "Sitzung starten und Agentenzugriff aktivieren",
-  "webmcp.session.title": "Projektbrowser"
+  "webmcp.session.title": "Projektbrowser",
+  "chat.permissionCard.actions.allowOnceCountdown": "Einmal erlauben ({seconds} s)",
+  "webmcp.detail.bridgePaused": "Die Chrome-Br\u00fccke ({servers}) ist pausiert, solange der Projektbrowser verbunden ist; sie verbindet sich wieder, wenn du den Agenten trennst."
 }

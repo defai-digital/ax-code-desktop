@@ -4400,5 +4400,7 @@
   "commandPalette.item.openProjectBrowser": "Buka peramban proyek (WebMCP)",
   "contextPanel.browser.openProjectBrowser": "Buka peramban proyek (WebMCP)",
   "webmcp.actions.startSession": "Mulai sesi dan aktifkan akses agen",
-  "webmcp.session.title": "Peramban proyek"
+  "webmcp.session.title": "Peramban proyek",
+  "chat.permissionCard.actions.allowOnceCountdown": "Izinkan sekali ({seconds} dtk)",
+  "webmcp.detail.bridgePaused": "Jembatan Chrome ({servers}) dijeda selama peramban proyek terhubung; ia akan tersambung kembali saat Anda memutuskan agen."
 }

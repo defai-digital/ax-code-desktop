@@ -147,6 +147,24 @@ ones (`.` for the directory itself) for list, read and raw; paths outside the di
 unchanged so the runtime still rejects them. After restarting the dev stack, `/api/fs/list` for the
 home folder and a subfolder returned real entries.
 
+## Chrome bridge coexistence and the permission countdown
+
+Fourth report: "when the desktop uses WebMCP it calls Chrome instead of the embedded browser, and
+it does not show the countdown AX Code shows".
+
+- AX Code has two WebMCP paths. The pre-registered `webmcp` MCP server is the Chrome bridge
+  (`chrome-devtools-mcp`); when it is connected the runtime adds a `<webmcp_bridge>` block to the
+  system prompt, so the model follows it even when the desktop provider tool `desktop_webmcp` is
+  also available. The owner's config had that server enabled. The desktop now pauses every
+  connected bridge server for the project while the embedded browser is enrolled
+  (`lib/webMcpBridgeCoordination.ts`: disconnect on enable, reconnect exactly those servers when
+  access ends or the pane unmounts) and says so in the pane. Configuration is never changed.
+  A cleaner long-term fix belongs to the producer: prefer an enrolled desktop provider over the
+  bridge in prompt and tool selection.
+- The countdown is the runtime's ADR-138 idle "Allow once": asks that will auto-reply in unattended
+  autonomous runs carry `autoOnceAt`. The desktop permission card now renders "Allow once (Ns)"
+  from that timestamp; the runtime timer stays authoritative.
+
 ## Verification
 
 - `pnpm run typecheck`, `pnpm run lint` (UI), `pnpm run check:boundaries` (all eleven checks),

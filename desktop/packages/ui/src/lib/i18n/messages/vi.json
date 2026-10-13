@@ -4400,5 +4400,7 @@
   "commandPalette.item.openProjectBrowser": "M\u1edf tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n (WebMCP)",
   "contextPanel.browser.openProjectBrowser": "M\u1edf tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n (WebMCP)",
   "webmcp.actions.startSession": "B\u1eaft \u0111\u1ea7u phi\u00ean v\u00e0 b\u1eadt quy\u1ec1n truy c\u1eadp t\u00e1c t\u1eed",
-  "webmcp.session.title": "Tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n"
+  "webmcp.session.title": "Tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n",
+  "chat.permissionCard.actions.allowOnceCountdown": "Cho ph\u00e9p m\u1ed9t l\u1ea7n ({seconds} gi\u00e2y)",
+  "webmcp.detail.bridgePaused": "C\u1ea7u n\u1ed1i Chrome ({servers}) t\u1ea1m d\u1eebng khi tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n \u0111ang k\u1ebft n\u1ed1i; n\u00f3 s\u1ebd k\u1ebft n\u1ed1i l\u1ea1i khi b\u1ea1n ng\u1eaft k\u1ebft n\u1ed1i t\u00e1c t\u1eed."
 }

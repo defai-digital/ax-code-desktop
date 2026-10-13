@@ -123,6 +123,22 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
     }
   }
 
+  // Idle "Allow once": the runtime stamps autoOnceAt on asks it will answer itself after a
+  // deadline. Show the remaining seconds on the button; the runtime timer stays authoritative and
+  // its reply removes this card, so the client never submits on its own.
+  const autoOnceAt = permission.autoOnceAt
+  const [autoOnceSeconds, setAutoOnceSeconds] = React.useState<number | null>(null)
+  React.useEffect(() => {
+    if (!autoOnceAt) {
+      setAutoOnceSeconds(null)
+      return
+    }
+    const update = () => setAutoOnceSeconds(Math.max(0, Math.ceil((autoOnceAt - Date.now()) / 1000)))
+    update()
+    const interval = window.setInterval(update, 1000)
+    return () => window.clearInterval(interval)
+  }, [autoOnceAt, permission.id])
+
   if (hasResponded) {
     return null
   }
@@ -430,7 +446,9 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
               }}
             >
               <Icon name="check" className="h-3.5 w-3.5 sm:h-3 sm:w-3 flex-shrink-0" />
-              {t("chat.permissionCard.actions.allowOnce")}
+              {autoOnceSeconds === null
+                ? t("chat.permissionCard.actions.allowOnce")
+                : t("chat.permissionCard.actions.allowOnceCountdown", { seconds: autoOnceSeconds })}
             </button>
 
             {alwaysPatterns.length > 0 ? (

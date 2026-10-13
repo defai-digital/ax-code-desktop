@@ -32,6 +32,8 @@ export interface WebMcpBrowserSnapshot {
   tools: number
   busy: boolean
   error: WebMcpBrowserErrorCode | null
+  /** Chrome-bridge MCP servers paused while this browser is enrolled (see lib/webMcpBridgeCoordination). */
+  pausedBridgeServers: string[]
 }
 
 interface WebMcpBrowserState extends WebMcpBrowserSnapshot {
@@ -63,6 +65,7 @@ const initialSnapshot: WebMcpBrowserSnapshot = {
   tools: 0,
   busy: false,
   error: null,
+  pausedBridgeServers: [],
 }
 
 export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => ({

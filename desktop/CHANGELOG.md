@@ -21,6 +21,11 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Enabling agent access in the project browser now pauses any connected Chrome-bridge MCP server
+  (`webmcp`) for the project and reconnects it when access ends, so the agent uses the embedded
+  browser instead of launching Chrome.
+- The permission card shows the runtime's "Allow once (Ns)" countdown for asks that will auto-reply
+  in unattended runs, matching the terminal UI.
 - Browsing folders in the add-project dialog, and reading files through the desktop web server,
   returned nothing: the core file adapter sent absolute paths, but the runtime resolves `path`
   relative to the scoped directory. Paths are now translated before the request.

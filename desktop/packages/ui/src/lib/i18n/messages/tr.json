@@ -4400,5 +4400,7 @@
   "commandPalette.item.openProjectBrowser": "Proje taray\u0131c\u0131s\u0131n\u0131 a\u00e7 (WebMCP)",
   "contextPanel.browser.openProjectBrowser": "Proje taray\u0131c\u0131s\u0131n\u0131 a\u00e7 (WebMCP)",
   "webmcp.actions.startSession": "Oturum ba\u015flat ve ajan eri\u015fimini etkinle\u015ftir",
-  "webmcp.session.title": "Proje taray\u0131c\u0131s\u0131"
+  "webmcp.session.title": "Proje taray\u0131c\u0131s\u0131",
+  "chat.permissionCard.actions.allowOnceCountdown": "Bir kez izin ver ({seconds} sn)",
+  "webmcp.detail.bridgePaused": "Proje taray\u0131c\u0131s\u0131 ba\u011fl\u0131yken Chrome k\u00f6pr\u00fcs\u00fc ({servers}) duraklat\u0131l\u0131r; ajan ba\u011flant\u0131s\u0131n\u0131 kesti\u011finizde yeniden ba\u011flan\u0131r."
 }
