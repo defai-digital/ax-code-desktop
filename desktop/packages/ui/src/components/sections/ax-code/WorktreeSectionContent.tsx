@@ -11,6 +11,7 @@ import { useDeviceInfo } from "@/lib/device"
 import { checkIsGitRepository } from "@/lib/gitApi"
 import { getWorktreeSetupCommands, saveWorktreeSetupCommands } from "@/lib/openchamberConfig"
 import { listProjectWorktrees } from "@/lib/worktrees/worktreeManager"
+import { normalizeWorktreePath } from "@/lib/worktrees/path"
 import { sessionEvents } from "@/lib/sessionEvents"
 import type { WorktreeMetadata } from "@/types/worktree"
 import { formatPathForDisplay, cn } from "@/lib/utils"
@@ -256,11 +257,18 @@ export const WorktreeSectionContent: React.FC<WorktreeSectionContentProps> = ({
 
   // Refresh worktrees when sessions change (after deletion)
   const sessionsKey = React.useMemo(() => sessions.map((s) => s.id).join(","), [sessions])
+  // A removed worktree is written to the store after the git delete lands, and the
+  // archive-first flow changes sessionsKey before the worktree is actually gone;
+  // subscribing here makes the post-delete write the refresh trigger, so the row
+  // disappears right away instead of surviving until the panel remounts.
+  const storeWorktrees = useSessionUIStore((state) =>
+    projectPath ? state.availableWorktreesByProject.get(normalizeWorktreePath(projectPath)) : undefined,
+  )
   React.useEffect(() => {
     if (isGitRepoLocal && projectPath) {
       refreshWorktrees()
     }
-  }, [sessionsKey, isGitRepoLocal, projectPath, refreshWorktrees])
+  }, [sessionsKey, storeWorktrees, isGitRepoLocal, projectPath, refreshWorktrees])
 
   if (!projectPath) {
     return (
