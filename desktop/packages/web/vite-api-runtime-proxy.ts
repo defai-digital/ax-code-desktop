@@ -32,6 +32,7 @@ import { createRequire } from "node:module"
 import type { Plugin } from "vite"
 
 import { isBenignProxySocketError, resolveDesktopApiProxyPort } from "./vite-api-ws-proxy"
+import { isLoopbackHostname } from "./server/lib/security/local-only.js"
 
 export const DEV_RUNTIME_UPSTREAM_FILE_ENV = "AX_CODE_DESKTOP_DEV_UPSTREAM_FILE"
 
@@ -80,15 +81,6 @@ export function classifyDesktopDevApiPath(pathname: string, method = "GET"): Dev
     return { target: "web", upstreamPath: pathname }
   }
   return electronRouter.routeApiRequest(pathname, method)
-}
-
-const isLoopbackHostname = (hostname: string): boolean => {
-  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "")
-  if (normalized === "localhost" || normalized === "::1") return true
-  const parts = normalized.split(".")
-  if (parts.length !== 4) return false
-  const nums = parts.map(Number)
-  return nums.every((n) => Number.isInteger(n) && n >= 0 && n <= 255) && nums[0] === 127
 }
 
 // Safe parse of the dev upstream file (untrusted input): any parse failure,
