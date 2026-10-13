@@ -324,16 +324,17 @@ if [[ "$DRY_RUN" != true ]]; then
   require_private_path "$SECRET_KEY" "secret key"
   require_private_path "$(dirname "$SECRET_KEY")" "secret key directory"
 
-  if [[ "$VERIFY" == true && -z "$PUBLIC_KEY_STRING" && ! -f "$PUBLIC_KEY" ]]; then
+  if [[ -z "$PUBLIC_KEY_STRING" && ! -f "$PUBLIC_KEY" ]]; then
     echo "Public key not found: $PUBLIC_KEY" >&2
-    echo "Pass --public-key-string <key> or --no-verify." >&2
+    echo "Pass --public-key-string <key> or --public-key <file>." >&2
+    echo "--no-verify only skips the verification performed after signing." >&2
     exit 1
   fi
 
-  # Fail closed if the local public key (or explicit string) diverges from the pin.
-  if [[ -n "$PUBLIC_KEY_STRING" || -f "$PUBLIC_KEY" ]]; then
-    require_pinned_public_key
-  fi
+  # Fail closed if the local public key (or explicit string) diverges from the pin. This guards
+  # *which* key signs, so it runs on every signing pass: previously the check sat behind a
+  # "a key was supplied" condition, and `--no-verify` without one skipped it entirely.
+  require_pinned_public_key
 fi
 
 # Retrieve the passphrase: env var > macOS Keychain > "" (let minisign prompt).

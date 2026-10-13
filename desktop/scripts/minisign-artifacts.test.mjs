@@ -132,6 +132,23 @@ describe("minisign-artifacts.sh", () => {
     }
   })
 
+  test("--no-verify still enforces the pinned public key", () => {
+    const fixture = createFixture()
+    try {
+      const result = runScript(["--secret-key", fixture.secretKey, "--no-verify", fixture.asset], fixture, {
+        // Point the key directory somewhere without a public key, so no default is found.
+        SIGNKEY_DIR: path.join(fixture.dir, "nokeys"),
+      })
+
+      // Skipping the post-sign verification must not skip the check that decides *which* key signs.
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain("Public key not found")
+      expect(fs.existsSync(`${fixture.asset}.minisig`)).toBe(false)
+    } finally {
+      fs.rmSync(fixture.dir, { recursive: true, force: true })
+    }
+  })
+
   test("passes explicit minisign password to the signing command", () => {
     const fixture = createFixture()
     try {
