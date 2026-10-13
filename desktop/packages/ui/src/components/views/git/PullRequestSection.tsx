@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { generatePullRequestDescription } from "@/lib/gitApi"
 import { renderMagicPrompt } from "@/lib/magicPrompts"
 import { getSafeExternalUrl, openExternalUrl } from "@/lib/url"
+import { setBoundedCacheEntry } from "@/lib/boundedCache"
 import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
 import { useDeviceInfo } from "@/lib/device"
 import { MobileOverlayPanel } from "@/components/ui/MobileOverlayPanel"
@@ -238,6 +239,9 @@ type ChatDispatchTarget = {
 }
 
 const pullRequestDraftSnapshots = new Map<string, PullRequestDraftSnapshot>()
+// Drafts are kept per (directory, branch) so returning to a branch restores them;
+// bound the map so every branch ever opened doesn't retain its text forever.
+const PR_DRAFT_SNAPSHOTS_MAX = 100
 
 const openExternal = openExternalUrl
 
@@ -1201,7 +1205,7 @@ export const PullRequestSection: React.FC<{
     if (!directory || !branch) {
       return
     }
-    pullRequestDraftSnapshots.set(snapshotKey, {
+    setBoundedCacheEntry(pullRequestDraftSnapshots, PR_DRAFT_SNAPSHOTS_MAX, snapshotKey, {
       title,
       body,
       draft,

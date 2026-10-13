@@ -23,7 +23,7 @@ describe("setBoundedCacheEntry", () => {
     expect([...cache.keys()]).toEqual(["key-7", "key-8", "key-9"])
   })
 
-  test("rewriting an existing key does not evict", () => {
+  test("rewriting an existing key does not evict but marks it most recently used", () => {
     const cache = new Map<string, string>()
     setBoundedCacheEntry(cache, 2, "a", "1")
     setBoundedCacheEntry(cache, 2, "b", "2")
@@ -31,5 +31,9 @@ describe("setBoundedCacheEntry", () => {
 
     expect(cache.size).toBe(2)
     expect(cache.get("a")).toBe("updated")
+
+    // "b" is now the oldest and evicts first.
+    setBoundedCacheEntry(cache, 2, "c", "3")
+    expect([...cache.keys()]).toEqual(["a", "c"])
   })
 })
