@@ -159,7 +159,13 @@ function createDesktopWebMcpBrowser({
         // A runtime that is restarting or offline is unknown, not incompatible.
         reachable = false
       }
-      return { capability: CAPABILITY, runtimeCapability: capability, reachable, compatible: capability === CAPABILITY && browserMode === "embedded" }
+      return {
+        capability: CAPABILITY,
+        runtimeCapability: capability,
+        browserMode,
+        reachable,
+        compatible: capability === CAPABILITY && browserMode === "embedded",
+      }
     }
     if (args.action === "create") {
       if (

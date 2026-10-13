@@ -7,7 +7,7 @@ afterEach(async () => {
   await Promise.all(controllers.splice(0).map((controller) => controller.closeAll()))
 })
 
-function fixture({ capability = "desktop.webmcp.v1", holdRevocation = false } = {}) {
+function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", holdRevocation = false } = {}) {
   const owners = new Map()
   const guests = []
   const revocations = []
@@ -53,7 +53,7 @@ function fixture({ capability = "desktop.webmcp.v1", holdRevocation = false } = 
     clientFactory: () => ({
       request: (request) => {
         requests.push(request)
-        if (request.url.endsWith("/capability")) return Promise.resolve({ capability })
+        if (request.url.endsWith("/capability")) return Promise.resolve({ capability, browserMode })
         if (request.url.endsWith("/provider"))
           return Promise.resolve({
             providerID: `provider-${++provider}`,
@@ -101,6 +101,7 @@ describe("desktop WebMCP capability probe", () => {
     expect(result).toEqual({
       capability: "desktop.webmcp.v1",
       runtimeCapability: "desktop.webmcp.v1",
+      browserMode: "embedded",
       reachable: true,
       compatible: true,
     })
@@ -113,6 +114,21 @@ describe("desktop WebMCP capability probe", () => {
     owners.set(sender, { isDestroyed: () => false })
     const result = await controller.command(sender, { action: "capability", directory: "/tmp/project" })
     expect(result).toMatchObject({ compatible: false, runtimeCapability: "desktop.webmcp.v0" })
+  })
+
+  it("rejects old or Chrome-mode runtimes before enrolling an embedded provider", async () => {
+    for (const browserMode of [null, "chrome"]) {
+      const { controller, owners, requests, create } = fixture({ browserMode })
+      const sender = Object.assign(new EventEmitter(), { id: 98, getZoomFactor: () => 1 })
+      owners.set(sender, { isDestroyed: () => false })
+      const result = await controller.command(sender, { action: "capability", directory: "/tmp/project" })
+      expect(result.compatible).toBe(false)
+      const browser = await create()
+      await expect(controller.command(browser.sender, { action: "enable", id: browser.status.id })).rejects.toThrow(
+        "compatible browser update",
+      )
+      expect(requests.some((request) => request.method === "POST")).toBe(false)
+    }
   })
 
   it("reports an unreachable runtime as unknown rather than incompatible", async () => {

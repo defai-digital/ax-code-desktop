@@ -14,3 +14,5 @@
 | [ADR-012](ADR-012-public-desktop-release-cutover.md) | Public Desktop release cutover | Accepted | Implementation and native qualification in progress | 2026-10-12 |
 
 ADRs must identify the decision owner, contracts, superseded records, rollout, and rollback.
+
+| [ADR-013](ADR-013-browser-entrypoint-routing.md) | Browser Entrypoint Routing | Accepted | Implementation in progress | 2026-10-13 |

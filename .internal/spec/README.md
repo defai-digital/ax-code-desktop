@@ -16,3 +16,5 @@
 | [Public Signed Shadow](SPEC-2026-10-12-public-signed-shadow.md) | Implemented; platform execution pending | ADR-011 |
 | [Desktop Notarization Credentials](SPEC-2026-10-12-desktop-notarization-credentials.md) | Implemented; hosted qualification pending | ADR-006; ADR-011 |
 | [Public Desktop Release Cutover](SPEC-2026-10-12-public-desktop-release-cutover.md) | Accepted; implementation and native execution in progress | ADR-012 |
+
+- [Browser entrypoint routing](SPEC-2026-10-13-browser-entrypoint-routing.md) - Accepted for implementation on 2026-10-13.

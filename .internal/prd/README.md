@@ -9,3 +9,5 @@
 
 Completed PRDs will move to `complete/`. Superseded PRDs will move to `archive/` after those directories are
 needed.
+
+- [Browser entrypoint routing](PRD-2026-10-13-browser-entrypoint-routing.md) - Accepted for implementation on 2026-10-13.
