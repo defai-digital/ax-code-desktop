@@ -4398,5 +4398,7 @@
   "webmcp.browser.cta": "Beralih ke peramban proyek dan izinkan agen menggunakan alat halaman ini.",
   "webmcp.header.aria": "Peramban proyek (WebMCP): {state}",
   "commandPalette.item.openProjectBrowser": "Buka peramban proyek (WebMCP)",
-  "contextPanel.browser.openProjectBrowser": "Buka peramban proyek (WebMCP)"
+  "contextPanel.browser.openProjectBrowser": "Buka peramban proyek (WebMCP)",
+  "webmcp.actions.startSession": "Mulai sesi dan aktifkan akses agen",
+  "webmcp.session.title": "Peramban proyek"
 }

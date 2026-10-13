@@ -4398,5 +4398,7 @@
   "webmcp.browser.cta": "Proje taray\u0131c\u0131s\u0131na ge\u00e7in ve ajan\u0131n bu sayfan\u0131n ara\u00e7lar\u0131n\u0131 kullanmas\u0131na izin verin.",
   "webmcp.header.aria": "Proje taray\u0131c\u0131s\u0131 (WebMCP): {state}",
   "commandPalette.item.openProjectBrowser": "Proje taray\u0131c\u0131s\u0131n\u0131 a\u00e7 (WebMCP)",
-  "contextPanel.browser.openProjectBrowser": "Proje taray\u0131c\u0131s\u0131n\u0131 a\u00e7 (WebMCP)"
+  "contextPanel.browser.openProjectBrowser": "Proje taray\u0131c\u0131s\u0131n\u0131 a\u00e7 (WebMCP)",
+  "webmcp.actions.startSession": "Oturum ba\u015flat ve ajan eri\u015fimini etkinle\u015ftir",
+  "webmcp.session.title": "Proje taray\u0131c\u0131s\u0131"
 }

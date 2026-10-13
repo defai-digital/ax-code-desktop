@@ -6,6 +6,9 @@ import { getDesktopBridge } from "@/lib/desktopBridge"
 import { summarizeWebMcpBrowser } from "@/lib/webMcpSummary"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { useUIStore } from "@/stores/useUIStore"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useSessionUIStore } from "@/sync/session-ui-store"
+import { toast } from "@/components/ui"
 
 /**
  * Hooks shared by every WebMCP surface (Services → MCP, Settings → MCP and the
@@ -33,18 +36,38 @@ export function useWebMcpSummary() {
 }
 
 /**
+ * Agent access binds to a coding session, and the app lands in a session draft that has none.
+ * When the user asks for access from a draft, start the session in the draft's project first so
+ * one click is enough. Returns false when no session could be started.
+ */
+export async function ensureSessionForProjectBrowser(title: string): Promise<boolean> {
+  const ui = useSessionUIStore.getState()
+  if (ui.currentSessionId) return true
+  const directory = ui.newSessionDraft?.directoryOverride ?? useDirectoryStore.getState().currentDirectory ?? null
+  if (!directory) return false
+  const session = await ui.createSession(title, directory)
+  return Boolean(session)
+}
+
+/**
  * Opens (or focuses) the context-panel browser and asks it for agent mode. With `enable`, the
  * pane also turns agent access on once the browser is ready; that is the user's explicit click.
  */
 export function useOpenProjectBrowser() {
+  const { t } = useI18n()
   const focusContextBrowser = useUIStore((state) => state.focusContextBrowser)
   const requestAgentMode = useWebMcpBrowserStore((state) => state.requestAgentMode)
   return React.useCallback(
     (options?: { enable?: boolean }) => {
       requestAgentMode(options)
       focusContextBrowser()
+      if (options?.enable) {
+        void ensureSessionForProjectBrowser(t("webmcp.session.title")).then((started) => {
+          if (!started) toast.error(t("webmcp.detail.sessionRequired"))
+        })
+      }
     },
-    [focusContextBrowser, requestAgentMode],
+    [focusContextBrowser, requestAgentMode, t],
   )
 }
 

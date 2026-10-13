@@ -4398,5 +4398,7 @@
   "webmcp.browser.cta": "\u5207\u63db\u5230\u5c08\u6848\u700f\u89bd\u5668\uff0c\u8b93\u4ee3\u7406\u4f7f\u7528\u6b64\u7db2\u9801\u7684\u5de5\u5177\u3002",
   "webmcp.header.aria": "\u5c08\u6848\u700f\u89bd\u5668\uff08WebMCP\uff09\uff1a{state}",
   "commandPalette.item.openProjectBrowser": "\u958b\u555f\u5c08\u6848\u700f\u89bd\u5668\uff08WebMCP\uff09",
-  "contextPanel.browser.openProjectBrowser": "\u958b\u555f\u5c08\u6848\u700f\u89bd\u5668\uff08WebMCP\uff09"
+  "contextPanel.browser.openProjectBrowser": "\u958b\u555f\u5c08\u6848\u700f\u89bd\u5668\uff08WebMCP\uff09",
+  "webmcp.actions.startSession": "\u5efa\u7acb\u5de5\u4f5c\u968e\u6bb5\u4e26\u555f\u7528\u4ee3\u7406\u5b58\u53d6",
+  "webmcp.session.title": "\u5c08\u6848\u700f\u89bd\u5668"
 }

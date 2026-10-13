@@ -8,7 +8,7 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useWebMcpBrowserStore, type WebMcpBrowserErrorCode } from "@/stores/useWebMcpBrowserStore"
 import { describeWebMcpError } from "@/lib/webMcpSummary"
 import { WebMcpStatusDot } from "@/components/mcp/WebMcpBrowserTools"
-import { useWebMcpCapabilityProbe, useWebMcpSummary } from "@/hooks/useWebMcpBrowser"
+import { useOpenProjectBrowser, useWebMcpCapabilityProbe, useWebMcpSummary } from "@/hooks/useWebMcpBrowser"
 
 type BrowserStatus = {
   id: string
@@ -45,6 +45,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const runtimeCompatible = useWebMcpBrowserStore((state) => state.runtimeCompatible)
   const busy = useWebMcpBrowserStore((state) => state.busy)
   const summary = useWebMcpSummary()
+  const openProjectBrowser = useOpenProjectBrowser()
   const [url, setUrl] = React.useState(initialUrl || "about:blank")
   const [pendingAction, setPendingAction] = React.useState<string | null>(null)
   const host = React.useRef<HTMLDivElement>(null)
@@ -271,6 +272,10 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
           >
             {t("webmcp.actions.disconnect")}
           </Button>
+        ) : !sessionID ? (
+          <Button type="button" size="xs" onClick={() => openProjectBrowser({ enable: true })}>
+            {t("webmcp.actions.startSession")}
+          </Button>
         ) : (
           <Button type="button" size="xs" disabled={!canEnable || busy} onClick={() => void command("enable")}>
             {pendingAction === "enable" ? t("webmcp.actions.enabling") : t("webmcp.actions.enable")}
@@ -305,6 +310,12 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
                   ? t("webmcp.detail.startFailed")
                   : t("webmcp.detail.sessionRequired")}
             </p>
+            {!sessionID && phase !== "starting" ? (
+              <Button type="button" size="sm" className="gap-1.5" onClick={() => openProjectBrowser({ enable: true })}>
+                <Icon name="global" className="h-3.5 w-3.5" />
+                {t("webmcp.actions.startSession")}
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>

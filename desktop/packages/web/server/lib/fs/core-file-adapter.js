@@ -1,3 +1,4 @@
+import path from "node:path"
 const asTrimmedString = (value) => (typeof value === "string" ? value.trim() : "")
 
 export const mapCoreFileContentToPlainText = (payload) => {
@@ -56,6 +57,24 @@ export const mapCoreFindFilesToSearchEntries = (rootPath, hits, path) => {
     })
 }
 
+const toPosix = (value) => value.split(path.sep).join("/")
+
+/**
+ * The runtime resolves `path` with `path.join(directory, path)`, so it must be relative to the
+ * directory the request is scoped to. Desktop routes work in absolute canonical paths; translate
+ * them here. A path equal to the directory becomes "." and an absolute path outside the directory
+ * is passed through unchanged so the runtime can reject it.
+ */
+export const toRuntimeRelativePath = (targetPath, directory) => {
+  const target = asTrimmedString(targetPath)
+  const base = asTrimmedString(directory)
+  if (!target || !base || !path.isAbsolute(target) || !path.isAbsolute(base)) return target
+  const relative = path.relative(base, target)
+  if (relative === "") return "."
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return target
+  return toPosix(relative)
+}
+
 export const createCoreFileAdapter = ({ fetchImpl = fetch, getBaseUrl, getHeaders } = {}) => {
   const requestJson = async (pathname, search, extras = {}) => {
     const base = asTrimmedString(typeof getBaseUrl === "function" ? getBaseUrl() : "")
@@ -77,7 +96,9 @@ export const createCoreFileAdapter = ({ fetchImpl = fetch, getBaseUrl, getHeader
     const response = await fetchImpl(url, { headers })
     if (!response.ok) {
       const body = await response.json().catch(() => ({}))
-      const error = new Error(body?.error?.message || body?.message || body?.error || `Core file API ${response.status}`)
+      const error = new Error(
+        body?.error?.message || body?.message || body?.error || `Core file API ${response.status}`,
+      )
       error.status = response.status
       if (response.status === 404) error.code = "ENOENT"
       else if (response.status === 403) error.code = "EACCES"
@@ -88,15 +109,23 @@ export const createCoreFileAdapter = ({ fetchImpl = fetch, getBaseUrl, getHeader
 
   return {
     async read({ path: filePath, directory } = {}) {
-      const payload = await requestJson("/file/content", { path: filePath }, { directory })
+      const payload = await requestJson(
+        "/file/content",
+        { path: toRuntimeRelativePath(filePath, directory) },
+        { directory },
+      )
       return mapCoreFileContentToPlainText(payload)
     },
     async raw({ path: filePath, directory } = {}) {
-      const payload = await requestJson("/file/content", { path: filePath }, { directory })
+      const payload = await requestJson(
+        "/file/content",
+        { path: toRuntimeRelativePath(filePath, directory) },
+        { directory },
+      )
       return mapCoreFileContentToRaw(payload)
     },
     async list({ path: dirPath, directory } = {}) {
-      return requestJson("/file", { path: dirPath }, { directory })
+      return requestJson("/file", { path: toRuntimeRelativePath(dirPath, directory) }, { directory })
     },
     async search({ query, directory, limit, type = "file", dirs = false } = {}) {
       return requestJson(

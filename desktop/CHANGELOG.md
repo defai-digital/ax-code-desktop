@@ -13,9 +13,17 @@ All notable changes to this project will be documented in this file.
   sharing one status model with the project browser; the browser pane gained a localized toolbar,
   status strip, explanation and actionable errors.
 - `Cmd/Ctrl+O` opens a folder as a project from anywhere in the app.
-- A labeled `WebMCP` header button, an "Enable agent access" call to action in the browser panel,
-  an empty-pane entry and a command palette item all lead to the project browser.
+- A labeled `WebMCP` header button, a `WebMCP` chip beside the sandbox toggle in the composer (where
+  the AX Code terminal UI keeps its own chip), an "Enable agent access" call to action in the browser
+  panel, an empty-pane entry and a command palette item all lead to the project browser. Asking
+  for agent access from a session draft starts the session first, so one click is enough.
 - Browser-tool permission requests show the website first, then the tool and operation.
+
+### Fixed
+
+- Browsing folders in the add-project dialog, and reading files through the desktop web server,
+  returned nothing: the core file adapter sent absolute paths, but the runtime resolves `path`
+  relative to the scoped directory. Paths are now translated before the request.
 
 ### Changed
 

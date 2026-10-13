@@ -2347,6 +2347,8 @@ export const dict = {
   "webmcp.actions.enable": "Enable agent access",
   "webmcp.actions.enabling": "Enabling…",
   "webmcp.actions.disconnect": "Disconnect agent",
+  "webmcp.actions.startSession": "Start a session & enable agent access",
+  "webmcp.session.title": "Project browser",
   "webmcp.browser.addressAria": "Project browser address",
   "webmcp.browser.addressPlaceholder": "https://",
   "webmcp.browser.go": "Go",

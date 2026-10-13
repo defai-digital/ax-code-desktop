@@ -4398,5 +4398,7 @@
   "webmcp.browser.cta": "Chuy\u1ec3n sang tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n v\u00e0 cho ph\u00e9p t\u00e1c t\u1eed d\u00f9ng c\u00e1c c\u00f4ng c\u1ee5 c\u1ee7a trang n\u00e0y.",
   "webmcp.header.aria": "Tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n (WebMCP): {state}",
   "commandPalette.item.openProjectBrowser": "M\u1edf tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n (WebMCP)",
-  "contextPanel.browser.openProjectBrowser": "M\u1edf tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n (WebMCP)"
+  "contextPanel.browser.openProjectBrowser": "M\u1edf tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n (WebMCP)",
+  "webmcp.actions.startSession": "B\u1eaft \u0111\u1ea7u phi\u00ean v\u00e0 b\u1eadt quy\u1ec1n truy c\u1eadp t\u00e1c t\u1eed",
+  "webmcp.session.title": "Tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n"
 }

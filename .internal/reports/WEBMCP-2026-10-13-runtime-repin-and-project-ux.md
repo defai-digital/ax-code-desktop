@@ -118,6 +118,9 @@ entry points now say "WebMCP" out loud, all driving the same shared projection:
 
 - A labeled `WebMCP` button with a live status dot in the header, next to the browser toggle
   (`components/mcp/WebMcpHeaderButton.tsx`, desktop app only).
+- A `WebMCP` chip in the composer footer right after the sandbox toggle
+  (`components/chat/WebMcpComposerChip.tsx`), mirroring where the AX Code terminal UI places its
+  chip; clicking it opens the project browser and asks for agent access while access is off.
 - Inside the browser panel's Preview mode, the tab row shows `WebMCP · <state>` and an "Enable agent
   access" button that switches to the project browser and, once the browser is ready and attached,
   turns agent access on. That click is the user's explicit consent; access is still off for every
@@ -125,6 +128,24 @@ entry points now say "WebMCP" out loud, all driving the same shared projection:
 - The empty browser pane offers "Open the project browser (WebMCP)".
 - The command palette has "Open project browser (WebMCP)".
 - The mode tab itself is labeled "Project browser (WebMCP)".
+- The second report was "click the WebMCP button, not working": the panel opened, but the app lands
+  in a session draft, agent access binds to a session, and the enable button was simply disabled with
+  a truncated hint. Requesting access from a draft now starts a session in the draft's project
+  first (`ensureSessionForProjectBrowser`), and the pane offers "Start a session & enable agent
+  access" instead of a disabled control.
+
+## Directory browsing fix
+
+The owner's third report, "add project directory has bug, cannot browse directory", was a
+pre-existing defect from the move of Desktop file reads onto the core file API: the web server's
+`core-file-adapter.js` forwarded absolute canonical paths, but the runtime's `File.list` and
+`File.read` resolve `path` with `path.join(directory, path)` (identical in 7.24.4 and 7.25.1), so
+an absolute path produced a nonexistent location and an empty listing or empty content. Verified
+against the isolated 7.25.1 binary: `path=/Users/…/sdsa` returned `[]`, `path=.` returned the
+entries. The adapter now translates absolute paths inside the scoped directory into runtime-relative
+ones (`.` for the directory itself) for list, read and raw; paths outside the directory pass through
+unchanged so the runtime still rejects them. After restarting the dev stack, `/api/fs/list` for the
+home folder and a subfolder returned real entries.
 
 ## Verification
 

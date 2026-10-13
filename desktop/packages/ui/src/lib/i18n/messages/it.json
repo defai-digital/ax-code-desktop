@@ -4398,5 +4398,7 @@
   "webmcp.browser.cta": "Passa al browser di progetto e lascia che l'agente usi gli strumenti di questa pagina.",
   "webmcp.header.aria": "Browser di progetto (WebMCP): {state}",
   "commandPalette.item.openProjectBrowser": "Apri il browser di progetto (WebMCP)",
-  "contextPanel.browser.openProjectBrowser": "Apri il browser di progetto (WebMCP)"
+  "contextPanel.browser.openProjectBrowser": "Apri il browser di progetto (WebMCP)",
+  "webmcp.actions.startSession": "Avvia una sessione e attiva l'accesso agente",
+  "webmcp.session.title": "Browser di progetto"
 }

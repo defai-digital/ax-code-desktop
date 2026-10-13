@@ -34,6 +34,7 @@ import { ModelControls } from "./ModelControls"
 import { ExecutionModeSelector } from "./ExecutionModeSelector"
 import { WorkModeSelector } from "./WorkModeSelector"
 import { SandboxToggle } from "./SandboxToggle"
+import { WebMcpComposerChip } from "./WebMcpComposerChip"
 import { parseAgentMentions } from "@/lib/messages/agentMentions"
 import { StatusRow } from "./StatusRow"
 import { PendingChangesBar } from "./PendingChangesBar"
@@ -4212,6 +4213,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                     <WorkModeSelector iconSizeClass={iconSizeClass} />
                     <ExecutionModeSelector iconSizeClass={iconSizeClass} />
                     <SandboxToggle iconSizeClass={iconSizeClass} />
+                    <WebMcpComposerChip iconSizeClass={iconSizeClass} />
                   </div>
                   <div className={cn("flex items-center flex-1 justify-end", footerGapClass, "md:gap-x-3")}>
                     <MemoModelControls className={cn("flex-1 min-w-0 justify-end")} />
