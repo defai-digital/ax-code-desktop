@@ -56,6 +56,17 @@ const gitStatusInFlight = new Map<string, { promise: Promise<GitStatus> }>()
 const gitRepoCache = new Map<string, { value: boolean; expiresAt: number }>()
 const gitRepoInFlight = new Map<string, { promise: Promise<boolean> }>()
 
+// Both caches are keyed by directory and only ever checked for freshness, so without this every
+// directory the app ever queried stayed in memory. Purging on write keeps each cache to the entries
+// that are still inside its TTL.
+export const pruneExpiredCacheEntries = <T>(cache: Map<string, { value: T; expiresAt: number }>, now: number) => {
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt <= now) {
+      cache.delete(key)
+    }
+  }
+}
+
 const normalizeDirectoryKey = (directory: string): string => normalizeProjectPath(directory) ?? ""
 const normalizeGitFilePaths = (filePaths: string[]): string[] => filePaths.map((path) => path.trim()).filter(Boolean)
 
@@ -99,9 +110,11 @@ export async function checkIsGitRepository(directory: string): Promise<boolean> 
     }
     const data = await response.json()
     const isGitRepository = Boolean(data.isGitRepository)
+    const fetchedAt = Date.now()
+    pruneExpiredCacheEntries(gitRepoCache, fetchedAt)
     gitRepoCache.set(key, {
       value: isGitRepository,
-      expiresAt: Date.now() + GIT_REPO_CHECK_CACHE_TTL_MS,
+      expiresAt: fetchedAt + GIT_REPO_CHECK_CACHE_TTL_MS,
     })
     return isGitRepository
   })()
@@ -137,9 +150,11 @@ export async function getGitStatus(directory: string, options?: { mode?: "light"
       throw new Error(`Failed to get git status: ${response.statusText}`)
     }
     const payload = (await response.json()) as GitStatus
+    const fetchedAt = Date.now()
+    pruneExpiredCacheEntries(gitStatusCache, fetchedAt)
     gitStatusCache.set(key, {
       value: payload,
-      expiresAt: Date.now() + GIT_STATUS_CACHE_TTL_MS,
+      expiresAt: fetchedAt + GIT_STATUS_CACHE_TTL_MS,
     })
     return payload
   })()

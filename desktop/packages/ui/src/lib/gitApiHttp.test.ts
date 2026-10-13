@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest"
-import { checkIsGitRepository, stageGitFile, stageGitFiles, unstageGitFile, unstageGitFiles } from "./gitApiHttp"
+import {
+  checkIsGitRepository,
+  pruneExpiredCacheEntries,
+  stageGitFile,
+  stageGitFiles,
+  unstageGitFile,
+  unstageGitFiles,
+} from "./gitApiHttp"
 
 type GitApiHttpFetchCall = {
   input: RequestInfo | URL
@@ -122,5 +129,21 @@ describe("gitApiHttp index mutations", () => {
     } finally {
       restoreMocks()
     }
+  })
+})
+
+describe("git api http caches", () => {
+  test("drops expired entries so a directory visit does not stay cached forever", () => {
+    const cache = new Map([
+      ["/repo-old", { value: "old", expiresAt: 1_000 }],
+      ["/repo-fresh", { value: "fresh", expiresAt: 5_000 }],
+    ])
+
+    pruneExpiredCacheEntries(cache, 2_000)
+
+    expect(Array.from(cache.keys())).toEqual(["/repo-fresh"])
+    // Entries that expire exactly at the cutoff count as expired, matching the read check.
+    pruneExpiredCacheEntries(cache, 5_000)
+    expect(cache.size).toBe(0)
   })
 })
