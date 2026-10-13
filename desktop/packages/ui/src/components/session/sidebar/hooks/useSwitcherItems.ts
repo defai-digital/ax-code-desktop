@@ -6,6 +6,8 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSessionPinnedStore } from "@/stores/useSessionPinnedStore"
 import { useGitAllBranches } from "@/stores/useGitStore"
 import type { SessionNode, SessionSecondaryMeta } from "../types"
+import { orderSwitcherSessionIds, sessionNeedsSwitcherAttention } from "@/lib/needsYou"
+import { useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
 import { compareSessionsByPinnedAndTime, isPathWithinProject } from "../utils"
 
 type SwitcherItem = {
@@ -42,6 +44,18 @@ export const useSwitcherItems = (enabled: boolean, options: SwitcherItemsOptions
   const projects = useProjectsStore((state) => state.projects)
   const pinnedSessionIds = useSessionPinnedStore((state) => state.ids)
   const branchesByDirectory = useGitAllBranches()
+  const needsYouInputs = useNeedsYouSessionInputs()
+  const attentionIds = React.useMemo(() => {
+    const ids = new Set<string>()
+    for (const session of needsYouInputs) {
+      if (sessionNeedsSwitcherAttention(session)) ids.add(session.id)
+    }
+    for (const session of activeSessions) {
+      const parentId = (session as Session & { parentID?: string | null }).parentID
+      if (parentId && ids.has(session.id)) ids.add(parentId)
+    }
+    return ids
+  }, [activeSessions, needsYouInputs])
 
   const normalizedProjects = React.useMemo(
     () =>
@@ -81,7 +95,7 @@ export const useSwitcherItems = (enabled: boolean, options: SwitcherItemsOptions
       list.sort((a, b) => compareSessionsByPinnedAndTime(a, b, pinnedSessionIds))
     })
 
-    const parents = activeSessions
+    const rankedParents = activeSessions
       .filter((session) => !session.time?.archived)
       .filter((session) => !(session as Session & { parentID?: string | null }).parentID)
       .filter((session) => {
@@ -90,7 +104,17 @@ export const useSwitcherItems = (enabled: boolean, options: SwitcherItemsOptions
         return findProjectForDirectory(directory)?.id === scopeProjectId
       })
       .sort((a, b) => compareSessionsByPinnedAndTime(a, b, pinnedSessionIds))
+    const orderedParentIds = orderSwitcherSessionIds(
+      rankedParents.map((session) => session.id),
+      attentionIds,
+    )
+    const parentById = new Map(rankedParents.map((session) => [session.id, session]))
+    const parents = orderedParentIds
       .slice(0, MAX_PARENT_SESSIONS)
+      .flatMap((id) => {
+        const session = parentById.get(id)
+        return session ? [session] : []
+      })
 
     const buildNode = (session: Session): SessionNode => {
       const childSessions = childrenByParent.get(session.id) ?? []
@@ -116,7 +140,7 @@ export const useSwitcherItems = (enabled: boolean, options: SwitcherItemsOptions
         },
       }
     })
-  }, [activeSessions, branchesByDirectory, enabled, findProjectForDirectory, pinnedSessionIds, scopeProjectId])
+  }, [activeSessions, attentionIds, branchesByDirectory, enabled, findProjectForDirectory, pinnedSessionIds, scopeProjectId])
 
   return items
 }

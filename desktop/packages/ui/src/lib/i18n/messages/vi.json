@@ -4412,5 +4412,14 @@
   "sessions.id.copyFailed": "Kh\u00f4ng th\u1ec3 sao ch\u00e9p ID phi\u00ean",
   "sessions.id.copyAria": "Sao ch\u00e9p ID phi\u00ean {id}",
   "sessions.id.copyHint": "Nh\u1ea5p \u0111\u1ec3 sao ch\u00e9p ID phi\u00ean",
-  "sessions.sidebar.session.menu.copyId": "Sao ch\u00e9p ID phi\u00ean"
+  "sessions.sidebar.session.menu.copyId": "Sao ch\u00e9p ID phi\u00ean",
+  "projects.home.needsYou.title": "Cần bạn xử lý",
+  "projects.home.needsYou.permission": "Đang chờ phê duyệt",
+  "projects.home.needsYou.question": "Đang chờ câu trả lời",
+  "projects.home.needsYou.uncommitted": "Thay đổi chưa commit",
+  "projects.home.needsYou.error": "Lỗi phiên",
+  "sessions.sidebar.session.menu.more": "Thêm",
+  "chat.commandAutocomplete.badge.snippet": "Đoạn mã",
+  "chat.commandAutocomplete.badge.magicPrompt": "Lời nhắc phép thuật",
+  "chat.chatInput.overflow.more": "Thêm"
 }

@@ -4412,5 +4412,14 @@
   "sessions.id.copyFailed": "Oturum kimli\u011fi kopyalanamad\u0131",
   "sessions.id.copyAria": "{id} oturum kimli\u011fini kopyala",
   "sessions.id.copyHint": "Oturum kimli\u011fini kopyalamak i\u00e7in t\u0131klay\u0131n",
-  "sessions.sidebar.session.menu.copyId": "Oturum kimli\u011fini kopyala"
+  "sessions.sidebar.session.menu.copyId": "Oturum kimli\u011fini kopyala",
+  "projects.home.needsYou.title": "Senin ilgilenmen gerekiyor",
+  "projects.home.needsYou.permission": "Onay bekliyor",
+  "projects.home.needsYou.question": "Yanıt bekliyor",
+  "projects.home.needsYou.uncommitted": "İşlenmemiş değişiklikler",
+  "projects.home.needsYou.error": "Oturum hatası",
+  "sessions.sidebar.session.menu.more": "Daha fazla",
+  "chat.commandAutocomplete.badge.snippet": "Parça",
+  "chat.commandAutocomplete.badge.magicPrompt": "Sihirli istem",
+  "chat.chatInput.overflow.more": "Daha fazla"
 }

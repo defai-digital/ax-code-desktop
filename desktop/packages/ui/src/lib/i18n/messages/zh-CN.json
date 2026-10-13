@@ -4412,5 +4412,14 @@
   "sessions.id.copyFailed": "\u65e0\u6cd5\u590d\u5236\u4f1a\u8bdd ID",
   "sessions.id.copyAria": "\u590d\u5236\u4f1a\u8bdd ID {id}",
   "sessions.id.copyHint": "\u70b9\u51fb\u590d\u5236\u4f1a\u8bdd ID",
-  "sessions.sidebar.session.menu.copyId": "\u590d\u5236\u4f1a\u8bdd ID"
+  "sessions.sidebar.session.menu.copyId": "\u590d\u5236\u4f1a\u8bdd ID",
+  "projects.home.needsYou.title": "需要你处理",
+  "projects.home.needsYou.permission": "等待批准",
+  "projects.home.needsYou.question": "等待回答",
+  "projects.home.needsYou.uncommitted": "尚未提交的变更",
+  "projects.home.needsYou.error": "会话错误",
+  "sessions.sidebar.session.menu.more": "更多",
+  "chat.commandAutocomplete.badge.snippet": "片段",
+  "chat.commandAutocomplete.badge.magicPrompt": "魔法提示",
+  "chat.chatInput.overflow.more": "更多"
 }

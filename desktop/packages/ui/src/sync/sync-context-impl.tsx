@@ -43,6 +43,7 @@ import {
 import {
   createLiveSnapshotMemo,
   getPermissionSliceDeps,
+  getQuestionSliceDeps,
   getSessionSliceDeps,
   getSessionStatusSliceDeps
 } from "./live-selector-memo"
@@ -184,6 +185,27 @@ export function usePendingPermissionSessionIds(): ReadonlySet<string> {
     }, []),
     arePendingPermissionSetsEquivalent,
     getPermissionSliceDeps,
+  )
+}
+
+const EMPTY_PENDING_QUESTION_SESSIONS: ReadonlySet<string> = new Set()
+
+/** Ids of sessions with at least one pending question, across all directories. */
+export function usePendingQuestionSessionIds(): ReadonlySet<string> {
+  return useLiveSyncSelector(
+    useCallback((states) => {
+      let result: Set<string> | null = null
+      for (const state of states) {
+        for (const [sessionID, requests] of Object.entries(state.question ?? {})) {
+          if (requests && requests.length > 0) {
+            ;(result ??= new Set()).add(sessionID)
+          }
+        }
+      }
+      return result ?? EMPTY_PENDING_QUESTION_SESSIONS
+    }, []),
+    arePendingPermissionSetsEquivalent,
+    getQuestionSliceDeps,
   )
 }
 

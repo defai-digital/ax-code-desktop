@@ -1,51 +1,27 @@
 import React from "react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Icon } from "@/components/icon/Icon"
 import type { IconName } from "@/components/icon/icons"
 import { cn } from "@/lib/utils"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useWorkModeStore } from "@/stores/useWorkModeStore"
 import { normalizeDirectoryKey } from "@/stores/utils/directoryKey"
-import { cycleWorkMode, DEFAULT_WORK_MODE, parseWorkMode, type WorkModeId } from "@/lib/workMode"
+import { parseWorkMode, type WorkModeId } from "@/lib/workMode"
+import { selectLabeledWorkMode, WORK_MODE_CHOICES } from "@/lib/composerControls"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
-type ModeMeta = {
-  value: WorkModeId
-  icon: IconName
-  label: string
-  hint: string
-  /** Tailwind classes for the single cycling toggle button */
-  buttonClass: string
+const MODE_ICONS: Record<WorkModeId, IconName> = {
+  agent: "robot",
+  council: "scales-3",
+  arena: "sparkling",
 }
-
-const MODES: ModeMeta[] = [
-  {
-    value: "agent",
-    icon: "robot",
-    label: "Agent",
-    hint: "Normal single-agent coding (default). Click to cycle: Agent → Council → Arena.",
-    // Green
-    buttonClass:
-      "bg-emerald-500/15 text-emerald-700 border border-emerald-500/35 hover:bg-emerald-500/25 dark:text-emerald-300 dark:border-emerald-400/40",
-  },
-  {
-    value: "council",
-    icon: "scales-3",
-    label: "Council",
-    hint: "Multi-provider advisory review. Click to cycle: Agent → Council → Arena.",
-    // Blue
-    buttonClass:
-      "bg-blue-500/15 text-blue-700 border border-blue-500/35 hover:bg-blue-500/25 dark:text-blue-300 dark:border-blue-400/40",
-  },
-  {
-    value: "arena",
-    icon: "sparkling",
-    label: "Arena",
-    hint: "Multi-model best-of-N. Click to cycle: Agent → Council → Arena.",
-    // Purple
-    buttonClass:
-      "bg-purple-500/15 text-purple-700 border border-purple-500/35 hover:bg-purple-500/25 dark:text-purple-300 dark:border-purple-400/40",
-  },
-]
 
 interface WorkModeSelectorProps {
   className?: string
@@ -53,9 +29,8 @@ interface WorkModeSelectorProps {
 }
 
 /**
- * Single colored toggle: shows only the active mode.
- * Agent = green, Council = blue, Arena = purple.
- * Click cycles Agent → Council → Arena → Agent.
+ * Labeled work-mode menu. Choosing Agent, Council, or Arena is explicit.
+ * A click does not cycle between them.
  */
 export const WorkModeSelector: React.FC<WorkModeSelectorProps> = ({
   className,
@@ -63,34 +38,57 @@ export const WorkModeSelector: React.FC<WorkModeSelectorProps> = ({
 }) => {
   const currentDirectory = useDirectoryStore((s) => s.currentDirectory)
   const dirKey = normalizeDirectoryKey(currentDirectory)
-  const mode = useWorkModeStore((s) => parseWorkMode(s.modeByDirectory[dirKey], DEFAULT_WORK_MODE))
+  const mode = useWorkModeStore((s) => parseWorkMode(s.modeByDirectory[dirKey]))
   const setMode = useWorkModeStore((s) => s.setMode)
-
-  const activeMeta = MODES.find((m) => m.value === mode) ?? MODES[0]!
-  const tooltipLabel = `Work mode: ${activeMeta.label} (click to cycle)`
+  const active = WORK_MODE_CHOICES.find((choice) => choice.id === mode) ?? WORK_MODE_CHOICES[0]!
+  const tooltipLabel = `Work mode: ${active.label}`
 
   return (
-    <Tooltip delayDuration={350}>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={tooltipLabel}
-          onClick={() => setMode(currentDirectory, cycleWorkMode(mode))}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-md px-1.5 py-1 typography-micro font-semibold transition-colors",
-            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-            activeMeta.buttonClass,
-            className,
-          )}
+    <DropdownMenu>
+      <Tooltip delayDuration={350}>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={tooltipLabel}
+              title={tooltipLabel}
+              className={cn(
+                "inline-flex h-7 flex-shrink-0 items-center gap-1 rounded-md px-1.5 typography-micro font-semibold text-muted-foreground transition-colors",
+                "hover:bg-interactive-hover hover:text-foreground",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]",
+                "data-[state=open]:bg-interactive-selection data-[state=open]:text-foreground",
+                className,
+              )}
+            >
+              <Icon name={MODE_ICONS[active.id]} className={iconSizeClass} />
+              <span className="hidden max-w-[5rem] truncate sm:inline">{active.label}</span>
+            </button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[16rem] typography-micro">
+          <p className="font-medium">{active.label}</p>
+          <p className="text-muted-foreground">{active.hint}</p>
+        </TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="start" className="min-w-[240px]">
+        <DropdownMenuLabel className="typography-meta text-muted-foreground">Work mode</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={active.id}
+          onValueChange={(value) => {
+            setMode(currentDirectory, selectLabeledWorkMode(value as WorkModeId))
+          }}
         >
-          <Icon name={activeMeta.icon} className={iconSizeClass} />
-          <span className="hidden sm:inline max-w-[5rem] truncate">{activeMeta.label}</span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[16rem] typography-micro">
-        <p className="font-medium">{activeMeta.label}</p>
-        <p className="text-muted-foreground">{activeMeta.hint}</p>
-      </TooltipContent>
-    </Tooltip>
+          {WORK_MODE_CHOICES.map((choice) => (
+            <DropdownMenuRadioItem key={choice.id} value={choice.id} className="items-start gap-2">
+              <Icon name={MODE_ICONS[choice.id]} className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span className="flex min-w-0 flex-col">
+                <span className="typography-meta text-foreground">{choice.label}</span>
+                <span className="typography-micro text-muted-foreground">{choice.hint}</span>
+              </span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

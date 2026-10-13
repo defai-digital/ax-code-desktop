@@ -10,6 +10,11 @@ import { WorkMode } from "@defai-digital/ax-code-sdk/mode"
 // ── Re-exports from core ────────────────────────────────────────────────
 export type WorkModeId = WorkMode.Id
 export const DEFAULT_WORK_MODE: WorkModeId = WorkMode.DEFAULT
+
+/** A new chat always starts in Agent, even when the directory last used Council or Arena. */
+export function initialWorkModeForNewChat(): WorkModeId {
+  return DEFAULT_WORK_MODE
+}
 export const parseWorkMode: (value: unknown, fallback?: WorkModeId) => WorkModeId = WorkMode.parse
 export const cycleWorkMode: (current: WorkModeId) => WorkModeId = WorkMode.cycle
 export const workModeChipColorHex: (mode: WorkModeId) => `#${string}` = WorkMode.chipColorHex

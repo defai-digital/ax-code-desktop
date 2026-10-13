@@ -4,6 +4,7 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useI18n } from "@/lib/i18n"
+import type { I18nContextValue } from "@/lib/i18n/react-context"
 import { Icon } from "@/components/icon/Icon"
 import { Button } from "@/components/ui/button"
 import { cn, formatPathForDisplay } from "@/lib/utils"
@@ -11,6 +12,13 @@ import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/l
 import { sortProjectsForDisplay } from "@/lib/projectOrdering"
 import { formatProjectLastUsed } from "@/lib/projectLastUsed"
 import { deriveProjectActivity, type ProjectActivity } from "@/lib/projectStatus"
+import {
+  attentionSessionForProject,
+  listNeedsYouSessions,
+  selectNeedsYouSession,
+  type NeedsYouReason,
+} from "@/lib/needsYou"
+import { useEnsureDirectoriesGitStatus, useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
 import { openProjectFolder } from "@/lib/projectOpen"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
@@ -34,6 +42,19 @@ type ProjectsHomeProps = {
 }
 
 const IDLE: ProjectActivity = { tone: "idle", activeSessions: 0, busySessions: 0, pendingApprovals: 0 }
+
+function needsYouReasonLabel(reason: NeedsYouReason, t: I18nContextValue["t"]): string {
+  switch (reason) {
+    case "permission":
+      return t("projects.home.needsYou.permission")
+    case "question":
+      return t("projects.home.needsYou.question")
+    case "uncommitted":
+      return t("projects.home.needsYou.uncommitted")
+    case "error":
+      return t("projects.home.needsYou.error")
+  }
+}
 
 /** Live per-project activity, derived from the sessions the runtime reports. */
 function useProjectActivity(projects: ProjectEntry[]): Map<string, ProjectActivity> {
@@ -105,6 +126,31 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
 
   const ordered = React.useMemo(() => sortProjectsForDisplay(projects), [projects])
   const activity = useProjectActivity(ordered)
+  const setActiveMainTab = useUIStore((state) => state.setActiveMainTab)
+  const setCurrentSession = useSessionUIStore((state) => state.setCurrentSession)
+  const needsYouInputs = useNeedsYouSessionInputs()
+  const needsYouQueue = variant === "home" ? listNeedsYouSessions(needsYouInputs) : []
+  const gitStatusDirectories = React.useMemo(() => {
+    if (variant !== "home") return []
+    const directories = new Set<string>()
+    for (const project of ordered) directories.add(project.path)
+    for (const session of needsYouInputs) {
+      if (session.directory) directories.add(session.directory)
+    }
+    return Array.from(directories)
+  }, [needsYouInputs, ordered, variant])
+  useEnsureDirectoriesGitStatus(gitStatusDirectories)
+
+  const openNeedsYouSession = React.useCallback(
+    (sessionId: string) => {
+      const selectedId = selectNeedsYouSession(sessionId)
+      const session = needsYouInputs.find((item) => item.id === selectedId)
+      if (session?.projectId) setActiveProject(session.projectId)
+      setActiveMainTab("chat")
+      setCurrentSession(selectedId, session?.directory ?? null)
+    },
+    [needsYouInputs, setActiveMainTab, setActiveProject, setCurrentSession],
+  )
 
   const handleOpenFolder = React.useCallback(() => {
     void openProjectFolder({ t })
@@ -274,6 +320,27 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
         </div>
       </div>
 
+      {needsYouQueue.length > 0 ? (
+        <div className={cn("flex w-full flex-col", compact ? "gap-1" : "mb-2 gap-0.5")} data-needs-you-list>
+          <div className="px-2 py-1 typography-micro font-medium text-muted-foreground">
+            {t("projects.home.needsYou.title")}
+          </div>
+          {needsYouQueue.map((entry) => (
+            <button
+              key={entry.sessionId}
+              type="button"
+              className="surface-inset-row flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-interactive-hover"
+              onClick={() => openNeedsYouSession(entry.sessionId)}
+            >
+              <span className="min-w-0 flex-1 truncate typography-ui-label">{entry.title}</span>
+              <span className="shrink-0 typography-micro text-[var(--status-warning)]">
+                {needsYouReasonLabel(entry.reason, t)}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div
         ref={listRef}
         aria-label={t("projects.home.title")}
@@ -296,6 +363,8 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
           const isHomeProject = pathLabel === "~" && !project.label?.trim()
           const title = project.label?.trim() || (isHomeProject ? t("sessions.sidebar.project.home") : pathLabel)
           const projectActivity = activity.get(project.id) ?? IDLE
+          const attentionTarget =
+            projectActivity.tone === "attention" ? attentionSessionForProject(project.id, needsYouInputs) : null
           const statusLabel =
             projectActivity.tone === "attention"
               ? t("projects.home.status.attention", { count: projectActivity.pendingApprovals })
@@ -371,22 +440,33 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
               </span>
 
               <span className="flex shrink-0 items-center gap-2">
-                <span
-                  className="inline-flex items-center gap-1.5 typography-micro text-muted-foreground"
-                  title={statusLabel}
-                >
-                  <ActivityDot activity={projectActivity} />
-                  {!compact ? (
-                    <span
-                      className={cn(projectActivity.tone === "attention" && "text-[var(--status-warning)] font-medium")}
-                    >
-                      {statusLabel}
-                    </span>
-                  ) : null}
-                  {!compact && lastUsed && projectActivity.tone === "idle" ? (
-                    <span className="hidden md:inline">· {lastUsed}</span>
-                  ) : null}
-                </span>
+                {attentionTarget ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 typography-micro text-muted-foreground"
+                    title={statusLabel}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openNeedsYouSession(attentionTarget)
+                    }}
+                  >
+                    <ActivityDot activity={projectActivity} />
+                    {!compact ? (
+                      <span className="font-medium text-[var(--status-warning)]">{statusLabel}</span>
+                    ) : null}
+                  </button>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1.5 typography-micro text-muted-foreground"
+                    title={statusLabel}
+                  >
+                    <ActivityDot activity={projectActivity} />
+                    {!compact ? <span>{statusLabel}</span> : null}
+                    {!compact && lastUsed && projectActivity.tone === "idle" ? (
+                      <span className="hidden md:inline">· {lastUsed}</span>
+                    ) : null}
+                  </span>
+                )}
                 <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                   <button
                     type="button"

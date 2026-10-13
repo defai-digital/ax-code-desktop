@@ -8,6 +8,9 @@ import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { buildBuiltInCommands, filterCommandList } from "./CommandAutocompleteCommands"
+import { useSnippetsStore } from "@/stores/useSnippetsStore"
+import { getDefaultMagicPromptTemplate, listSearchableMagicPrompts } from "@/lib/magicPrompts"
+import { rankSlashQuery, type SlashQueryItem } from "@/lib/slashQuery"
 
 type CommandSource = "openchamber" | "ax-code" | "skill"
 
@@ -22,6 +25,8 @@ export interface CommandInfo {
   isOpenChamber?: boolean
   isSkill?: boolean
   scope?: string
+  slashSource?: "command" | "snippet" | "magic-prompt"
+  insertText?: string
 }
 
 export interface CommandAutocompleteHandle {
@@ -70,6 +75,8 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
     const refreshCommands = useCommandsStore((s) => s.loadCommands)
     const skills = useSkillsStore((s) => s.skills)
     const refreshSkills = useSkillsStore((s) => s.loadSkills)
+    const snippets = useSnippetsStore((s) => s.snippets)
+    const refreshSnippets = useSnippetsStore((s) => s.loadSnippets)
     const [selectedIndex, setSelectedIndex] = React.useState(0)
     const selectedIndexRef = React.useRef(0)
     const keyboardNavigationRef = React.useRef(false)
@@ -101,7 +108,8 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
       // Force refresh to get latest project context when mounting
       void refreshCommands()
       void refreshSkills()
-    }, [refreshCommands, refreshSkills])
+      void refreshSnippets()
+    }, [refreshCommands, refreshSkills, refreshSnippets])
 
     React.useEffect(() => {
       const loadCommands = async () => {
@@ -141,19 +149,47 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
           const allCommands = [...builtInCommands, ...customCommands, ...skillCommands]
 
           const filtered = filterCommandList(allCommands, {
-            searchQuery,
+            searchQuery: "",
             allowInitCommand: !hasMessagesInCurrentSession,
           })
+          const slashItems: SlashQueryItem<CommandInfo>[] = [
+            ...filtered.map((command) => ({
+              source: "command" as const,
+              id: command.id,
+              name: command.name,
+              description: command.description,
+              payload: { ...command, slashSource: "command" as const },
+            })),
+            ...snippets.map((snippet) => ({
+              source: "snippet" as const,
+              id: `snippet:${snippet.source}:${snippet.name}`,
+              name: snippet.name,
+              description: snippet.description,
+              payload: {
+                id: `snippet:${snippet.source}:${snippet.name}`,
+                name: snippet.name,
+                source: "openchamber" as const,
+                description: snippet.description,
+                slashSource: "snippet" as const,
+              },
+            })),
+            ...listSearchableMagicPrompts().map((prompt) => ({
+              source: "magic-prompt" as const,
+              id: `magic:${prompt.id}`,
+              name: prompt.name,
+              description: prompt.description,
+              payload: {
+                id: `magic:${prompt.id}`,
+                name: prompt.name,
+                source: "openchamber" as const,
+                description: prompt.description,
+                slashSource: "magic-prompt" as const,
+                insertText: getDefaultMagicPromptTemplate(prompt.id),
+              },
+            })),
+          ]
 
-          filtered.sort((a, b) => {
-            const aStartsWith = a.name.toLowerCase().startsWith(searchQuery.toLowerCase())
-            const bStartsWith = b.name.toLowerCase().startsWith(searchQuery.toLowerCase())
-            if (aStartsWith && !bStartsWith) return -1
-            if (!aStartsWith && bStartsWith) return 1
-            return a.name.localeCompare(b.name)
-          })
-
-          setCommands(filtered)
+          setCommands(rankSlashQuery(searchQuery, slashItems).map((item) => item.payload))
         } catch {
           const allowInitCommand = !hasMessagesInCurrentSession
           const builtInCommands = buildBuiltInCommands({
@@ -170,7 +206,7 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
       }
 
       loadCommands()
-    }, [searchQuery, hasMessagesInCurrentSession, hasSession, canStartSessionCommand, commandsWithMetadata, skills, t])
+    }, [searchQuery, hasMessagesInCurrentSession, hasSession, canStartSessionCommand, commandsWithMetadata, skills, snippets, t])
 
     React.useEffect(() => {
       setSelectedIndex(0)
@@ -327,8 +363,18 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
                     <div className="mt-0.5">{getCommandIcon(command)}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="typography-ui-label font-medium">/{command.name}</span>
-                        {command.isSkill ? (
+                        <span className="typography-ui-label font-medium">
+                          {command.slashSource === "snippet"
+                            ? `#${command.name}`
+                            : command.slashSource === "magic-prompt"
+                              ? command.name
+                              : `/${command.name}`}
+                        </span>
+                        {command.slashSource === "snippet" ? (
+                          <span className={TYPE_BADGE_CLASS}>{t("chat.commandAutocomplete.badge.snippet")}</span>
+                        ) : command.slashSource === "magic-prompt" ? (
+                          <span className={TYPE_BADGE_CLASS}>{t("chat.commandAutocomplete.badge.magicPrompt")}</span>
+                        ) : command.isSkill ? (
                           <span className={TYPE_BADGE_CLASS}>{t("chat.commandAutocomplete.badge.skill")}</span>
                         ) : (
                           <span className={TYPE_BADGE_CLASS}>{t("chat.commandAutocomplete.badge.command")}</span>

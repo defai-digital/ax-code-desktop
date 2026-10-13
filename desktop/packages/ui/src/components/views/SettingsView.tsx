@@ -85,7 +85,6 @@ const pageOrder: SettingsPageSlug[] = [
   "magic-prompts",
   "snippets",
   "projects",
-  "remote-instances",
   "agents",
   "behavior",
   "commands",
@@ -384,8 +383,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
           return t("settings.page.models.title")
         case "projects":
           return t("settings.page.projects.title")
-        case "remote-instances":
-          return t("settings.page.remoteInstances.title")
         case "providers":
           return t("settings.page.providers.title")
         case "agents":

@@ -5,6 +5,8 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useGlobalSessionStatus, useSessionPermissions } from "@/sync/sync-context"
 import { useRunStateStore, useSessionRunEndedAt, useNudgeDismissedAt } from "@/sync/run-state-store"
 import { useUIStore } from "@/stores/useUIStore"
+import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
+import { applyTurnNextStep } from "@/lib/turnNextStep"
 import { Icon } from "@/components/icon/Icon"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/lib/i18n"
@@ -17,6 +19,7 @@ export const DoneNotCommittedNudge: React.FC = React.memo(() => {
   const { t } = useI18n()
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
   const currentDirectory = useDirectoryStore((s) => s.currentDirectory)
+  const effectiveDirectory = useEffectiveDirectory()
   const sessionStatus = useGlobalSessionStatus(currentSessionId ?? "")
   const permissions = useSessionPermissions(currentSessionId ?? "")
   const isGitRepo = useIsGitRepo(currentDirectory)
@@ -25,6 +28,7 @@ export const DoneNotCommittedNudge: React.FC = React.memo(() => {
   )
   const setRightSidebarOpen = useUIStore((s) => s.setRightSidebarOpen)
   const setRightSidebarTab = useUIStore((s) => s.setRightSidebarTab)
+  const openContextPanelTab = useUIStore((s) => s.openContextPanelTab)
   const setTimelineDialogOpen = useUIStore((s) => s.setTimelineDialogOpen)
   const runEndedAt = useSessionRunEndedAt(currentSessionId ?? "")
   const dismissedAt = useNudgeDismissedAt(currentSessionId ?? "")
@@ -40,7 +44,16 @@ export const DoneNotCommittedNudge: React.FC = React.memo(() => {
 
   if (!visible || !currentSessionId) return null
 
-  const openGitPanel = () => {
+  const reviewDirectory = effectiveDirectory || currentDirectory
+  const openDiffReview = () => {
+    if (!reviewDirectory || !currentSessionId) return
+    openContextPanelTab(reviewDirectory, {
+      mode: "diff",
+      dedupeKey: `review:${currentSessionId}`,
+      label: t("chat.turnNextSteps.review"),
+    })
+  }
+  const openGit = () => {
     setRightSidebarOpen(true)
     setRightSidebarTab("git")
   }
@@ -67,10 +80,20 @@ export const DoneNotCommittedNudge: React.FC = React.memo(() => {
       <span className="min-w-0 flex-1 typography-micro text-foreground">{message}</span>
       {isDirty && fileCount > 0 ? (
         <>
-          <Button variant="ghost" size="sm" className="h-6 px-2 typography-micro" onClick={openGitPanel}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 typography-micro"
+            onClick={() => applyTurnNextStep("review", { openDiffReview, openGit })}
+          >
             {t("chat.turnNextSteps.review")}
           </Button>
-          <Button variant="ghost" size="sm" className="h-6 px-2 typography-micro" onClick={openGitPanel}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 typography-micro"
+            onClick={() => applyTurnNextStep("commit", { openDiffReview, openGit })}
+          >
             {t("chat.turnNextSteps.commit")}
           </Button>
         </>

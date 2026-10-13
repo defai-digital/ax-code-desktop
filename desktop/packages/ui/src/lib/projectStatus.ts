@@ -34,30 +34,52 @@ export interface ProjectActivityInput {
 
 const IDLE_ACTIVITY: ProjectActivity = { tone: "idle", activeSessions: 0, busySessions: 0, pendingApprovals: 0 }
 
-export function deriveProjectActivity(input: ProjectActivityInput): Map<string, ProjectActivity> {
-  const result = new Map<string, ProjectActivity>()
-  const projectKeys = input.projects
+type ProjectPathKey = { id: string; key: string }
+
+function projectPathKeys(projects: ReadonlyArray<{ id: string; path: string }>): ProjectPathKey[] {
+  return projects
     .map((project) => ({ id: project.id, key: getProjectPathIdentityKey(project.path) }))
-    .filter((entry): entry is { id: string; key: string } => Boolean(entry.key))
+    .filter((entry): entry is ProjectPathKey => Boolean(entry.key))
     // Longest path first so nested projects claim their own sessions.
     .sort((a, b) => b.key.length - a.key.length)
+}
+
+function matchSessionProject(
+  session: Pick<ProjectActivitySession, "directory" | "projectDirectory" | "archived">,
+  projectKeys: readonly ProjectPathKey[],
+): string | null {
+  if (session.archived) return null
+  // A managed worktree may live outside the project folder; its recorded root wins.
+  const ownerRoot = getProjectPathIdentityKey(session.projectDirectory ?? null)
+  const directory = getProjectPathIdentityKey(session.directory ?? null)
+  const owner =
+    (ownerRoot && projectKeys.find((project) => project.key === ownerRoot)) ||
+    (directory && projectKeys.find((project) => projectPathMatchesRoot(directory, project.key))) ||
+    null
+  return owner?.id ?? null
+}
+
+/** Same project match deriveProjectActivity uses, including archived sessions as unmatched. */
+export function resolveSessionProjectId(
+  session: Pick<ProjectActivitySession, "directory" | "projectDirectory" | "archived">,
+  projects: ReadonlyArray<{ id: string; path: string }>,
+): string | null {
+  return matchSessionProject(session, projectPathKeys(projects))
+}
+
+export function deriveProjectActivity(input: ProjectActivityInput): Map<string, ProjectActivity> {
+  const result = new Map<string, ProjectActivity>()
+  const projectKeys = projectPathKeys(input.projects)
 
   for (const project of input.projects) result.set(project.id, { ...IDLE_ACTIVITY })
 
   for (const session of input.sessions) {
-    if (session.archived) continue
-    // A managed worktree may live outside the project folder; its recorded root wins.
-    const ownerRoot = getProjectPathIdentityKey(session.projectDirectory ?? null)
-    const directory = getProjectPathIdentityKey(session.directory ?? null)
-    const owner =
-      (ownerRoot && projectKeys.find((project) => project.key === ownerRoot)) ||
-      (directory && projectKeys.find((project) => projectPathMatchesRoot(directory, project.key))) ||
-      null
-    if (!owner) continue
-    const current = result.get(owner.id) ?? { ...IDLE_ACTIVITY }
+    const ownerId = matchSessionProject(session, projectKeys)
+    if (!ownerId) continue
+    const current = result.get(ownerId) ?? { ...IDLE_ACTIVITY }
     const busy = (input.statuses[session.id]?.type ?? "idle") !== "idle"
     const waiting = input.pendingPermissionSessionIds.has(session.id)
-    result.set(owner.id, {
+    result.set(ownerId, {
       tone: current.tone,
       activeSessions: current.activeSessions + 1,
       busySessions: current.busySessions + (busy ? 1 : 0),

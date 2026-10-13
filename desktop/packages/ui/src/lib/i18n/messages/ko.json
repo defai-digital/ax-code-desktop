@@ -4412,5 +4412,14 @@
   "sessions.id.copyFailed": "\uc138\uc158 ID\ub97c \ubcf5\uc0ac\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
   "sessions.id.copyAria": "\uc138\uc158 ID {id} \ubcf5\uc0ac",
   "sessions.id.copyHint": "\ud074\ub9ad\ud558\uc5ec \uc138\uc158 ID \ubcf5\uc0ac",
-  "sessions.sidebar.session.menu.copyId": "\uc138\uc158 ID \ubcf5\uc0ac"
+  "sessions.sidebar.session.menu.copyId": "\uc138\uc158 ID \ubcf5\uc0ac",
+  "projects.home.needsYou.title": "확인이 필요함",
+  "projects.home.needsYou.permission": "승인 대기",
+  "projects.home.needsYou.question": "답변 대기",
+  "projects.home.needsYou.uncommitted": "커밋되지 않은 변경",
+  "projects.home.needsYou.error": "세션 오류",
+  "sessions.sidebar.session.menu.more": "더보기",
+  "chat.commandAutocomplete.badge.snippet": "스니펫",
+  "chat.commandAutocomplete.badge.magicPrompt": "매직 프롬프트",
+  "chat.chatInput.overflow.more": "더보기"
 }

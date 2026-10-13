@@ -1,6 +1,5 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
-import type { SidebarSection } from "@/constants/sidebar"
 import { getSafeStorage } from "./utils/safeStorage"
 import { SEMANTIC_TYPOGRAPHY, getTypographyVariable, type SemanticTypographyKey } from "@/lib/typography"
 import type { ShortcutCombo } from "@/lib/shortcuts"
@@ -568,13 +567,11 @@ interface UIStore {
   isScheduledTasksDialogOpen: boolean
   isSettingsDialogOpen: boolean
   isModelSelectorOpen: boolean
-  sidebarSection: SidebarSection
 
   // Settings IA (new shell)
   settingsPage: string
   settingsHasOpenedOnce: boolean
   settingsProjectsSelectedId: string | null
-  settingsRemoteInstancesSelectedId: string | null
   showReasoningTraces: boolean
   collapsibleThinkingBlocks: boolean
   groupReasoningBlocks: boolean
@@ -716,10 +713,8 @@ interface UIStore {
   setSettingsDialogOpen: (open: boolean) => void
   setModelSelectorOpen: (open: boolean) => void
   applyTheme: () => void
-  setSidebarSection: (section: SidebarSection) => void
   setSettingsPage: (slug: string) => void
   setSettingsProjectsSelectedId: (projectId: string | null) => void
-  setSettingsRemoteInstancesSelectedId: (instanceId: string | null) => void
   setShowReasoningTraces: (value: boolean) => void
   setCollapsibleThinkingBlocks: (value: boolean) => void
   setChatRenderMode: (value: ChatRenderMode) => void
@@ -851,11 +846,9 @@ export const useUIStore = create<UIStore>()(
         isScheduledTasksDialogOpen: false,
         isSettingsDialogOpen: false,
         isModelSelectorOpen: false,
-        sidebarSection: "sessions",
         settingsPage: "home",
         settingsHasOpenedOnce: false,
         settingsProjectsSelectedId: null,
-        settingsRemoteInstancesSelectedId: null,
         showReasoningTraces: true,
         collapsibleThinkingBlocks: true,
         groupReasoningBlocks: true,
@@ -1611,20 +1604,12 @@ export const useUIStore = create<UIStore>()(
           set({ isModelSelectorOpen: open })
         },
 
-        setSidebarSection: (section) => {
-          set({ sidebarSection: section })
-        },
-
         setSettingsPage: (slug) => {
           set({ settingsPage: slug })
         },
 
         setSettingsProjectsSelectedId: (projectId) => {
           set({ settingsProjectsSelectedId: projectId })
-        },
-
-        setSettingsRemoteInstancesSelectedId: (instanceId) => {
-          set({ settingsRemoteInstancesSelectedId: instanceId })
         },
 
         setShowReasoningTraces: (value) => {
@@ -2169,7 +2154,7 @@ export const useUIStore = create<UIStore>()(
       {
         name: "ui-store",
         storage: createJSONStorage(() => getSafeStorage()),
-        version: 12,
+        version: 13,
         migrate: (persistedState, version) => {
           if (!persistedState || typeof persistedState !== "object") {
             return persistedState
@@ -2301,6 +2286,13 @@ export const useUIStore = create<UIStore>()(
             state.browserPanel = { isOpen: false, url: "", focused: false }
           }
 
+          // v12 -> v13: sidebar sections only duplicated settings pages, and the
+          // remote-instances selection had no page left to open.
+          if (version < 13) {
+            delete state.sidebarSection
+            delete state.settingsRemoteInstancesSelectedId
+          }
+
           state.browserPanel = normalizeBrowserPanelState(state.browserPanel)
 
           return state
@@ -2328,11 +2320,9 @@ export const useUIStore = create<UIStore>()(
           // activeMainTab intentionally NOT persisted: the deliberate policy is
           // that a fresh load always starts on chat (see Header's one-time
           // reset), so a persisted non-chat value would always be discarded.
-          sidebarSection: state.sidebarSection,
           settingsPage: state.settingsPage,
           settingsHasOpenedOnce: state.settingsHasOpenedOnce,
           settingsProjectsSelectedId: state.settingsProjectsSelectedId,
-          settingsRemoteInstancesSelectedId: state.settingsRemoteInstancesSelectedId,
           isSessionCreateDialogOpen: state.isSessionCreateDialogOpen,
           // Note: isSettingsDialogOpen intentionally NOT persisted
           showReasoningTraces: state.showReasoningTraces,

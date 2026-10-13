@@ -4412,5 +4412,14 @@
   "sessions.id.copyFailed": "Impossibile copiare l'ID sessione",
   "sessions.id.copyAria": "Copia l'ID sessione {id}",
   "sessions.id.copyHint": "Fai clic per copiare l'ID sessione",
-  "sessions.sidebar.session.menu.copyId": "Copia ID sessione"
+  "sessions.sidebar.session.menu.copyId": "Copia ID sessione",
+  "projects.home.needsYou.title": "Richiede te",
+  "projects.home.needsYou.permission": "In attesa di approvazione",
+  "projects.home.needsYou.question": "In attesa di una risposta",
+  "projects.home.needsYou.uncommitted": "Modifiche non committate",
+  "projects.home.needsYou.error": "Errore di sessione",
+  "sessions.sidebar.session.menu.more": "Altro",
+  "chat.commandAutocomplete.badge.snippet": "Frammento",
+  "chat.commandAutocomplete.badge.magicPrompt": "Prompt magico",
+  "chat.chatInput.overflow.more": "Altro"
 }

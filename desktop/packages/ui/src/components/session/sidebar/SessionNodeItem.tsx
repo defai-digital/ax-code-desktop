@@ -59,6 +59,7 @@ import { useSessionMultiSelectStore } from "@/stores/useSessionMultiSelectStore"
 import { useSessionBadgeState, type SessionBadgeState } from "@/hooks/useSessionBadgeState"
 import { useGitStore } from "@/stores/useGitStore"
 import { useI18n } from "@/lib/i18n"
+import { sessionMenuLayout } from "@/lib/composerControls"
 import { parseMultiRunSessionTitle } from "@/lib/multirun/title"
 import { MultiRunFusionDialog } from "@/components/multirun/MultiRunFusionDialog"
 import { FusionIcon } from "@/components/icons/FusionIcon"
@@ -827,6 +828,8 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
       suppressNextSelectRef.current = true
     }
   }
+  const menuLayout = sessionMenuLayout()
+  const moreMenuActions = new Set<string>(menuLayout.more)
   const sessionMenuContent = (
     <DropdownMenuContent
       align="end"
@@ -857,53 +860,6 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
         <Icon name="file-copy" className="mr-1 h-4 w-4" />
         {t("sessions.sidebar.session.menu.copyId")}
       </DropdownMenuItem>
-      {!resolvedSession.share ? (
-        <DropdownMenuItem onClick={() => handleShareSession(resolvedSession)} className="[&>svg]:mr-1">
-          <Icon name="share-2" className="mr-1 h-4 w-4" />
-          {t("sessions.sidebar.session.menu.share")}
-        </DropdownMenuItem>
-      ) : (
-        <>
-          <DropdownMenuItem
-            onClick={() => {
-              if (resolvedSession.share?.url) handleCopyShareUrl(resolvedSession.share.url, session.id)
-            }}
-            className="[&>svg]:mr-1"
-          >
-            {copiedSessionId === session.id ? (
-              <>
-                <Icon name="check" className="mr-1 h-4 w-4" style={{ color: "var(--status-success)" }} />
-                {t("sessions.sidebar.session.menu.copied")}
-              </>
-            ) : (
-              <>
-                <Icon name="file-copy" className="mr-1 h-4 w-4" />
-                {t("sessions.sidebar.session.menu.copyLink")}
-              </>
-            )}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleUnshareSession(session.id)} className="[&>svg]:mr-1">
-            <Icon name="link-unlink-m" className="mr-1 h-4 w-4" />
-            {t("sessions.sidebar.session.menu.unshare")}
-          </DropdownMenuItem>
-        </>
-      )}
-      <DropdownMenuItem
-        onClick={() => {
-          void handleExportSession()
-        }}
-        className="[&>svg]:mr-1"
-      >
-        <Icon name="download" className="mr-1 h-4 w-4" />
-        {t("sessions.sidebar.session.menu.exportMarkdown")}
-      </DropdownMenuItem>
-      {isMultiRunLikeSession ? (
-        <DropdownMenuItem onClick={() => setFusionDialogOpen(true)} className="[&>svg]:mr-1">
-          <FusionIcon className="mr-1 h-4 w-4" />
-          {t("sessions.sidebar.session.menu.runFusion")}
-        </DropdownMenuItem>
-      ) : null}
-
       {sessionDirectory && !archivedBucket
         ? (() => {
             const scopeFolders = getFoldersForScope(sessionDirectory)
@@ -981,30 +937,90 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
           })()
         : null}
 
-      <DropdownMenuItem
-        disabled={!sessionDirectory}
-        onClick={() => {
-          if (!sessionDirectory) return
-          openContextPanelTab(sessionDirectory, {
-            mode: "chat",
-            dedupeKey: `session:${session.id}`,
-            label: sessionTitle,
-          })
-        }}
-        className="[&>svg]:mr-1"
-      >
-        <Icon name="chat-4" className="mr-1 h-4 w-4" />
-        <span className="truncate">{t("sessions.sidebar.session.menu.openInSidePanel")}</span>
-        <span className="shrink-0 typography-micro px-1 rounded leading-none pb-px text-[var(--status-warning)] bg-[var(--status-warning)]/10">
-          {t("sessions.sidebar.session.menu.betaBadge")}
-        </span>
-      </DropdownMenuItem>
-
-      {canOpenMiniChat ? (
-        <DropdownMenuItem disabled={!sessionDirectory} onClick={handleOpenMiniChatWindow} className="[&>svg]:mr-1">
-          <Icon name="window" className="mr-1 h-4 w-4" />
-          <span className="truncate">{t("sessions.sidebar.session.menu.openMiniChatWindow")}</span>
-        </DropdownMenuItem>
+      {moreMenuActions.size > 0 ? (
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="[&>svg]:mr-1">
+            <Icon name="more-2" className="mr-1 h-4 w-4" />
+            {t("sessions.sidebar.session.menu.more")}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent data-session-menu-group="more" className="min-w-[200px]">
+            {moreMenuActions.has("share") && !resolvedSession.share ? (
+              <DropdownMenuItem onClick={() => handleShareSession(resolvedSession)} className="[&>svg]:mr-1">
+                <Icon name="share-2" className="mr-1 h-4 w-4" />
+                {t("sessions.sidebar.session.menu.share")}
+              </DropdownMenuItem>
+            ) : null}
+            {moreMenuActions.has("copy-link") && resolvedSession.share ? (
+              <DropdownMenuItem
+                onClick={() => {
+                  if (resolvedSession.share?.url) handleCopyShareUrl(resolvedSession.share.url, session.id)
+                }}
+                className="[&>svg]:mr-1"
+              >
+                {copiedSessionId === session.id ? (
+                  <>
+                    <Icon name="check" className="mr-1 h-4 w-4" style={{ color: "var(--status-success)" }} />
+                    {t("sessions.sidebar.session.menu.copied")}
+                  </>
+                ) : (
+                  <>
+                    <Icon name="file-copy" className="mr-1 h-4 w-4" />
+                    {t("sessions.sidebar.session.menu.copyLink")}
+                  </>
+                )}
+              </DropdownMenuItem>
+            ) : null}
+            {moreMenuActions.has("unshare") && resolvedSession.share ? (
+              <DropdownMenuItem onClick={() => handleUnshareSession(session.id)} className="[&>svg]:mr-1">
+                <Icon name="link-unlink-m" className="mr-1 h-4 w-4" />
+                {t("sessions.sidebar.session.menu.unshare")}
+              </DropdownMenuItem>
+            ) : null}
+            {moreMenuActions.has("export-markdown") ? (
+              <DropdownMenuItem
+                onClick={() => {
+                  void handleExportSession()
+                }}
+                className="[&>svg]:mr-1"
+              >
+                <Icon name="download" className="mr-1 h-4 w-4" />
+                {t("sessions.sidebar.session.menu.exportMarkdown")}
+              </DropdownMenuItem>
+            ) : null}
+            {moreMenuActions.has("run-fusion") && isMultiRunLikeSession ? (
+              <DropdownMenuItem onClick={() => setFusionDialogOpen(true)} className="[&>svg]:mr-1">
+                <FusionIcon className="mr-1 h-4 w-4" />
+                {t("sessions.sidebar.session.menu.runFusion")}
+              </DropdownMenuItem>
+            ) : null}
+            {moreMenuActions.has("open-side-panel") ? (
+              <DropdownMenuItem
+                disabled={!sessionDirectory}
+                onClick={() => {
+                  if (!sessionDirectory) return
+                  openContextPanelTab(sessionDirectory, {
+                    mode: "chat",
+                    dedupeKey: `session:${session.id}`,
+                    label: sessionTitle,
+                  })
+                }}
+                className="[&>svg]:mr-1"
+              >
+                <Icon name="chat-4" className="mr-1 h-4 w-4" />
+                <span className="truncate">{t("sessions.sidebar.session.menu.openInSidePanel")}</span>
+                <span className="shrink-0 typography-micro px-1 rounded leading-none pb-px text-[var(--status-warning)] bg-[var(--status-warning)]/10">
+                  {t("sessions.sidebar.session.menu.betaBadge")}
+                </span>
+              </DropdownMenuItem>
+            ) : null}
+            {moreMenuActions.has("open-mini-chat") && canOpenMiniChat ? (
+              <DropdownMenuItem disabled={!sessionDirectory} onClick={handleOpenMiniChatWindow} className="[&>svg]:mr-1">
+                <Icon name="window" className="mr-1 h-4 w-4" />
+                <span className="truncate">{t("sessions.sidebar.session.menu.openMiniChatWindow")}</span>
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
       ) : null}
 
       <DropdownMenuSeparator />

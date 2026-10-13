@@ -4,7 +4,6 @@ export type SettingsPageSlug =
   | "home"
   | "models"
   | "projects"
-  | "remote-instances"
   | "providers"
   | "agents"
   | "behavior"
@@ -62,15 +61,6 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
     group: "projects",
     kind: "split",
     keywords: ["project", "projects", "worktree", "worktrees", "repo", "repository", "directory"],
-  },
-  {
-    slug: "remote-instances",
-    title: "Remote Instances",
-    group: "projects",
-    kind: "split",
-    keywords: ["ssh", "remote", "instances", "forwarding", "connection"],
-    hideFromNavigation: true,
-    isAvailable: () => false,
   },
   {
     slug: "providers",
@@ -253,7 +243,7 @@ export function getSettingsPageMeta(slug: string): SettingsPageMeta | null {
 
 export function resolveSettingsSlug(value: string | null | undefined): SettingsPageSlug {
   const normalized = (value ?? "").trim().toLowerCase()
-  if (!normalized) {
+  if (!normalized || normalized === "remote-instances") {
     return "home"
   }
 

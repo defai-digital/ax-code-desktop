@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import { DEFAULT_WORK_MODE, parseWorkMode, type WorkModeId } from "@/lib/workMode"
+import { initialWorkModeForNewChat, parseWorkMode, type WorkModeId } from "@/lib/workMode"
 import { normalizeDirectoryKey } from "@/stores/utils/directoryKey"
 
 type WorkModeState = {
@@ -23,7 +23,7 @@ export const useWorkModeStore = create<WorkModeStore>()(
 
       getMode: (directory) => {
         const key = normalizeDirectoryKey(directory)
-        return parseWorkMode(get().modeByDirectory[key], DEFAULT_WORK_MODE)
+        return parseWorkMode(get().modeByDirectory[key], initialWorkModeForNewChat())
       },
 
       setMode: (directory, mode) => {
@@ -45,7 +45,7 @@ export const useWorkModeStore = create<WorkModeStore>()(
         set((state) => ({
           modeByDirectory: {
             ...state.modeByDirectory,
-            [key]: DEFAULT_WORK_MODE,
+            [key]: initialWorkModeForNewChat(),
           },
         }))
       },

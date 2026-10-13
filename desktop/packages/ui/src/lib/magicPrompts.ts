@@ -875,6 +875,15 @@ export const getDefaultMagicPromptTemplate = (id: MagicPromptId): string => {
   return getMagicPromptDefinition(id).template
 }
 
+/** Visible magic prompts only. Instruction templates stay out of slash search. */
+export function listSearchableMagicPrompts(): Array<{ id: MagicPromptId; name: string; description: string }> {
+  return MAGIC_PROMPT_DEFINITIONS.filter((definition) => definition.id.endsWith(".visible")).map((definition) => ({
+    id: definition.id,
+    name: definition.title,
+    description: definition.description,
+  }))
+}
+
 const getEffectiveMagicPromptTemplate = async (id: MagicPromptId): Promise<string> => {
   const overrides = await fetchMagicPromptOverrides().catch((): Record<string, string> => ({}))
   const override = overrides[id]

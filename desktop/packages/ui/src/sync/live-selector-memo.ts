@@ -14,6 +14,7 @@ type LiveSliceSource = {
   session: readonly unknown[]
   session_status?: Record<string, unknown>
   permission?: Record<string, readonly unknown[]>
+  question?: Record<string, readonly unknown[]>
 }
 
 export const areSliceDepsEqual = (left: readonly unknown[], right: readonly unknown[]): boolean => {
@@ -51,6 +52,10 @@ export const getStatusOnlySliceDeps = (states: readonly LiveSliceSource[]): read
 /** Deps for selectors that read only `state.permission` (e.g. approval counters). */
 export const getPermissionSliceDeps = (states: readonly LiveSliceSource[]): readonly unknown[] =>
   states.map((state) => state.permission)
+
+/** Deps for selectors that read only `state.question`. */
+export const getQuestionSliceDeps = (states: readonly LiveSliceSource[]): readonly unknown[] =>
+  states.map((state) => state.question)
 
 type LiveSnapshotMemoOptions<TStates, T> = {
   selector: (states: TStates) => T

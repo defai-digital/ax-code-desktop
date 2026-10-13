@@ -9,8 +9,6 @@ export function getSettingsNavIcon(slug: SettingsPageSlug): IconName | null {
       return "database-2"
     case "projects":
       return "folders"
-    case "remote-instances":
-      return "server"
     case "appearance":
       return "palette"
     case "chat":

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { useI18n, type I18nKey } from "@/lib/i18n"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useExecutionModeStore, type ExecutionMode } from "@/stores/useExecutionModeStore"
+import { isPrimaryExecutionMode } from "@/lib/composerControls"
 import { normalizeDirectoryKey } from "@/stores/utils/directoryKey"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -111,7 +112,7 @@ export const ExecutionModeSelector: React.FC<ExecutionModeSelectorProps> = ({
             void setMode(currentDirectory, value as ExecutionMode)
           }}
         >
-          {MODES.map((option) => (
+          {MODES.filter((option) => isPrimaryExecutionMode(option.value)).map((option) => (
             <DropdownMenuRadioItem
               key={option.value}
               value={option.value}

@@ -4412,5 +4412,14 @@
   "sessions.id.copyFailed": "Gagal menyalin ID sesi",
   "sessions.id.copyAria": "Salin ID sesi {id}",
   "sessions.id.copyHint": "Klik untuk menyalin ID sesi",
-  "sessions.sidebar.session.menu.copyId": "Salin ID sesi"
+  "sessions.sidebar.session.menu.copyId": "Salin ID sesi",
+  "projects.home.needsYou.title": "Perlu tindakanmu",
+  "projects.home.needsYou.permission": "Menunggu persetujuan",
+  "projects.home.needsYou.question": "Menunggu jawaban",
+  "projects.home.needsYou.uncommitted": "Perubahan belum di-commit",
+  "projects.home.needsYou.error": "Kesalahan sesi",
+  "sessions.sidebar.session.menu.more": "Lainnya",
+  "chat.commandAutocomplete.badge.snippet": "Cuplikan",
+  "chat.commandAutocomplete.badge.magicPrompt": "Prompt ajaib",
+  "chat.chatInput.overflow.more": "Lainnya"
 }
