@@ -1,0 +1,63 @@
+Top finding: `upload()` can publish unqualified bytes. Unlike `stage()`, it reads the source directory incrementally after verification with no snapshot, hash re-check, or size guard, so a mid-upload source change or oversize asset yields a mixed/partial signed release.
+
+All four below are confirmed from the provided source. Hypotheses considered but not confirmed are listed at the end.
+
+## 1. Upload publishes without snapshot consistency
+
+File: [.internal/deploy/distribution.mjs](/Users/akiralam/code/ax-code-desktop/.internal/deploy/distribution.mjs:309)
+
+Trigger: Prepare, sign, and verify a source dir for v7.25.0. Call `upload(source, qualificationFile)`. After `qualifiedDirectory()` returns but before a later `putVerified()` runs, flip one byte in `source/AX-Code-7.25.0-win-x64.exe` (or any later asset). `upload()` lines 317-329 re-read via `bytes()` with no re-verification; `stage()` lines 294-298 instead calls `releaseObjects()` which asserts sizes, hashes, inventory digest, and readiness marker.
+
+Impact: Mixed verified/unverified bytes published under one signed version, immutable prefix polluted, exact-source guarantee broken. Recovery requires manual R2 work since versioned objects are immutable.
+
+Minimal fix: In `upload()`, after `qualifiedDirectory()`, snapshot once via `releaseObjects(source, inventory)`, assert every object is ≤300 MiB (same message as `stage()`), then upload from the snapshot contents in the existing order (assets, readiness last, pointers last).
+
+Regression test: Stub fetcher to mutate a not-yet-uploaded source file after the first PUT. Assert `upload()` either throws before advancing pointers or publishes only snapshot bytes; and separately assert an asset of 300 MiB+1 fails fast with zero PUTs.
+
+Status: confirmed.
+
+## 2. Immutability check trusts CDN instead of R2
+
+File: [.internal/deploy/distribution.mjs](/Users/akiralam/code/ax-code-desktop/.internal/deploy/distribution.mjs:185)
+
+Trigger: Mock fetchers so public CDN and R2 diverge. Case A: R2 already holds `releases/download/v7.25.0/<asset>` from a concurrent uploader, but public GET still returns 404 (propagation lag). `putVerified()` line 187 sees `previous === null` and overwrites the immutable object. Case B: R2 object missing but CDN still serves cached equal bytes; line 188 early-returns and skips the PUT, leaving R2 permanently missing behind a 1-year immutable cache. `putStaged()` line 263 correctly pre-checks via authoritative `storageBytes()`.
+
+Impact: Immutable overwrite or silent R2 gap masked by cache; later cache expiry breaks downloads.
+
+Minimal fix: In `putVerified()`, decide `equals`/`mutable` from `storageBytes(key, {fetcher, account, token})` (authoritative R2). Keep the post-PUT `publicBytes()` verification for public serving.
+
+Regression test: Public returns 404 while storage returns different bytes for an immutable key; assert `putVerified()` throws refusing overwrite. Public returns equal bytes while storage returns 404; assert it performs the PUT instead of early-returning.
+
+Status: confirmed.
+
+## 3. Qualification version depends on cwd
+
+File: [script/native-installer-qualification.mjs](/Users/akiralam/code/ax-code-desktop/script/native-installer-qualification.mjs:90)
+
+Trigger: Run `node script/native-installer-qualification.mjs <target> <artifacts> <out>` with `process.cwd()` not equal to repo root (e.g. `/tmp` containing a different `package.json`). Line 90 reads `"package.json"` relative to cwd, while line 12 resolves modules via `import.meta.url` and `release-policy.mjs` resolves repo root from script dir.
+
+Impact: Wrong `candidateName`/`expectedVersion`, spurious ENOENT or version mismatch, evidence JSON binds the wrong Desktop version.
+
+Minimal fix: Resolve the intended root manifest from the script location, e.g. `path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json")`, preserving the current root-manifest intent but cwd-independent.
+
+Regression test: `chdir` to a temp dir with a decoy `package.json` version and assert the resolved qualification version still equals the repo version.
+
+Status: confirmed.
+
+## 4. Continuity check ignores permission weakening
+
+File: [script/native-installer-qualification.mjs](/Users/akiralam/code/ax-code-desktop/script/native-installer-qualification.mjs:30)
+
+Trigger: After any `TRANSITIONS` step, run `chmod 0644 ~/.local/share/ax-code/auth.json` (created 0600 by `writeSyntheticIfAbsent`). `verifyPreserved()` lines 30-33 compares only SHA-256, and records lines 112-122 store only `{file, sha256}`, so it still passes.
+
+Impact: Installer `chmod`/`chown`/`umask` regression that world-exposes credential bytes passes the data-and-credential-continuity gate.
+
+Minimal fix: Record `mode: fs.statSync(file).mode & 0o777` alongside each hash and assert mode unchanged in `verifyPreserved()`.
+
+Regression test: Create synthetic records, `chmod` one file without changing content, assert `verifyPreserved()` throws.
+
+Status: confirmed.
+
+## Hypotheses not listed as issues
+
+Baseline 7.10.2 vs current 7.24.5 intent, `apt-get install` with absolute `.deb` path, `runSmoke` macOS `appPath` contract, CDN caching of the 503 gateway-disabled probe, and SDK 2.6.13 / runtime 7.25.1 pin contents were considered but depend on files or external behavior not in the provided source, so no finding is claimed.

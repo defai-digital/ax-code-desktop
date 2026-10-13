@@ -9,10 +9,38 @@ import {
   releaseObjects,
   storageBytes,
   putStaged,
+  putVerified,
   verifyReleaseObjects,
   BASE,
 } from "./distribution.mjs"
-export async function stageMultipart(source, qualificationFile, receiptFile) {
+export async function assertMultipartGateway(response, mode) {
+  assert.ok(mode === "stage" || mode === "upload", "Invalid multipart publication mode")
+  if (mode === "upload") {
+    assert.equal(response.status, 200, "Multipart updates require an active Desktop gateway")
+  } else {
+    assert.equal(response.status, 503, "Staging requires a disabled Desktop gateway")
+    assert.ok((await response.text()).includes("Desktop public release is not enabled"))
+  }
+}
+
+export async function publishMultipartObjects(objects, { stageObject, publishAlias, verifyObjects }, mode) {
+  assert.ok(mode === "stage" || mode === "upload", "Invalid multipart publication mode")
+  if (mode === "stage") {
+    for (const object of objects) await stageObject(object)
+    await verifyObjects(objects, false)
+    return
+  }
+  const immutable = objects.filter((object) => !object.mutable)
+  for (const object of immutable) await stageObject(object)
+  await verifyObjects(immutable, false)
+  await verifyObjects(immutable, true)
+  // Advance bootstrap aliases and latest only after all immutable public bytes match.
+  for (const object of objects.filter((object) => object.mutable)) await publishAlias(object)
+  await verifyObjects(objects, true)
+}
+
+export async function stageMultipart(source, qualificationFile, receiptFile, { mode = "stage" } = {}) {
+  assert.ok(mode === "stage" || mode === "upload", "Invalid multipart publication mode")
   const inventory = qualifiedDirectory(source, qualificationFile)
   const account = "89657c08227b638ab67905e1c5899406",
     token = process.env.CLOUDFLARE_API_TOKEN
@@ -34,8 +62,7 @@ export async function stageMultipart(source, qualificationFile, receiptFile) {
   }
   assert.ok(Object.keys(manifest).length > 0)
   const installer = await fetch(BASE + "/install")
-  assert.equal(installer.status, 503)
-  assert.ok((await installer.text()).includes("Desktop public release is not enabled"))
+  await assertMultipartGateway(installer, mode)
   const name = "ax-desktop-stage-" + crypto.randomBytes(6).toString("hex"),
     capability = crypto.randomBytes(32).toString("hex")
   const apiBase = "https://api.cloudflare.com/client/v4/accounts/" + account
@@ -117,16 +144,16 @@ export async function stageMultipart(source, qualificationFile, receiptFile) {
       await new Promise((r) => setTimeout(r, 2000))
     }
     assert.ok(reachable, "Authenticated upload worker did not become reachable")
-    for (const object of objects) {
+    const stageObject = async (object) => {
       console.log("Staging " + object.key)
       if (object.content.length <= limit) {
         await putStaged(object.key, object.content, { account, token, mutable: object.mutable })
-        continue
+        return
       }
       const old = await storageBytes(object.key, { account, token })
       if (old) {
         assert.ok(old.equals(object.content), "Immutable collision")
-        continue
+        return
       }
       const { uploadId } = await call("create", object.key)
       let complete = false
@@ -145,13 +172,23 @@ export async function stageMultipart(source, qualificationFile, receiptFile) {
         if (!complete) await call("abort", object.key, uploadId)
       }
     }
-    await verifyReleaseObjects(objects, { account, token })
+    await publishMultipartObjects(
+      objects,
+      {
+        stageObject,
+        publishAlias: (object) => putVerified(object.key, object.content, { account, token, mutable: true }),
+        verifyObjects: (selected, publicServing) => verifyReleaseObjects(selected, { account, token }, publicServing),
+      },
+      mode,
+    )
     if (receiptFile)
       fs.writeFileSync(
         receiptFile,
         JSON.stringify(
           {
-            schema: "ax-code-desktop.r2-multipart-stage.v1",
+            schema:
+              mode === "upload" ? "ax-code-desktop.r2-multipart-upload.v1" : "ax-code-desktop.r2-multipart-stage.v1",
+            publicVerified: mode === "upload",
             commit: inventory.commit,
             version: inventory.version,
             inventorySha256: inventory.digest,
@@ -162,7 +199,11 @@ export async function stageMultipart(source, qualificationFile, receiptFile) {
           2,
         ) + "\n",
       )
-    console.log("All staged objects passed authenticated byte-for-byte readback.")
+    console.log(
+      mode === "upload"
+        ? "All published objects passed authenticated and anonymous byte verification."
+        : "All staged objects passed authenticated byte-for-byte readback.",
+    )
   } finally {
     if (created) {
       await api("/workers/scripts/" + name, "DELETE")
@@ -180,7 +221,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       const flag = process.argv[i],
         value = process.argv[i + 1]
       assert.ok(
-        ["--source", "--qualification", "--receipt"].includes(flag) && value && !Object.hasOwn(args, flag),
+        ["--source", "--qualification", "--receipt", "--mode"].includes(flag) && value && !Object.hasOwn(args, flag),
         "Invalid multipart staging arguments",
       )
       args[flag] = value
@@ -190,6 +231,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       path.resolve(args["--source"]),
       path.resolve(args["--qualification"]),
       args["--receipt"] && path.resolve(args["--receipt"]),
+      { mode: args["--mode"] ?? "stage" },
     )
   } catch (error) {
     console.error(error instanceof Error ? error.message : "Multipart staging failed")

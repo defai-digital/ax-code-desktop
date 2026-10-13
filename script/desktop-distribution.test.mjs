@@ -14,9 +14,15 @@ import {
   validateQualification,
 } from "../.internal/deploy/distribution.mjs"
 
+// Unit fixtures use synthetic signatures; native release signatures are checked separately.
+vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }))
+const storageOptions = { account: "a".repeat(32), token: "test-only" }
+
 const temporary = []
 afterEach(() => {
   for (const directory of temporary.splice(0)) fs.rmSync(directory, { recursive: true, force: true })
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
 })
 const version = "7.24.5"
 const commit = "a".repeat(40)
@@ -104,7 +110,7 @@ describe("Desktop distribution preparation and mirror", () => {
       return new Response("existing")
     }
     await expect(
-      putVerified("releases/download/v7.24.5/test.zip", Buffer.from("changed"), { fetcher }),
+      putVerified("releases/download/v7.24.5/test.zip", Buffer.from("changed"), { ...storageOptions, fetcher }),
     ).rejects.toThrow("immutable")
     expect(calls).toEqual(["GET"])
   })
@@ -124,6 +130,7 @@ describe("Desktop distribution preparation and mirror", () => {
   it("rejects cached errors and incorrect uploaded bytes", async () => {
     await expect(
       putVerified("test.zip", Buffer.from("content"), {
+        ...storageOptions,
         fetcher: async () => new Response("blocked", { status: 503 }),
       }),
     ).rejects.toThrow("HTTP 503")
@@ -135,7 +142,93 @@ describe("Desktop distribution preparation and mirror", () => {
       }
       return uploaded ? new Response("wrong") : new Response("missing", { status: 404 })
     }
-    await expect(putVerified("test.zip", Buffer.from("content"), { fetcher })).rejects.toThrow("Public bytes differ")
+    await expect(putVerified("test.zip", Buffer.from("content"), { ...storageOptions, fetcher })).rejects.toThrow(
+      "Stored R2 bytes differ",
+    )
+  })
+
+  it("uses authoritative storage to reject an immutable collision despite a stale public 404", async () => {
+    const puts = []
+    const fetcher = async (url, options) => {
+      if (options.method === "PUT") puts.push(url)
+      return url.startsWith("https://api.cloudflare.com/")
+        ? new Response("existing immutable bytes")
+        : new Response("stale", { status: 404 })
+    }
+    await expect(putVerified("test.zip", Buffer.from("new"), { ...storageOptions, fetcher })).rejects.toThrow(
+      "immutable",
+    )
+    expect(puts).toEqual([])
+  })
+
+  it("restores a missing storage object even when the public cache still serves matching bytes", async () => {
+    let stored
+    let puts = 0
+    const content = Buffer.from("qualified")
+    const fetcher = async (url, options) => {
+      if (!url.startsWith("https://api.cloudflare.com/")) return new Response(content)
+      if (options.method === "PUT") {
+        stored = options.body
+        puts++
+        return new Response("ok")
+      }
+      return stored ? new Response(stored) : new Response("missing", { status: 404 })
+    }
+    await putVerified("test.zip", content, { ...storageOptions, fetcher })
+    expect(puts).toBe(1)
+    expect(stored).toEqual(content)
+  })
+
+  it("rejects oversized REST objects before any network call", async () => {
+    const fetcher = vi.fn()
+    await expect(
+      putVerified("test.zip", Buffer.alloc(300 * 1024 * 1024 + 1), { ...storageOptions, fetcher }),
+    ).rejects.toThrow("300 MiB")
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it("publishes only the qualified snapshot when a later source file changes during upload", async () => {
+    const { output, result } = fixture()
+    const inventoryDigest = hash(fs.readFileSync(path.join(output, "inventory.json")))
+    const qualification = path.join(output, "qualification.json")
+    const record = {
+      schema: "ax-code-desktop.download-qualification.v1",
+      version,
+      commit,
+      inventorySha256: inventoryDigest,
+      gates: Object.fromEntries(
+        ["signed-shadow", "upgrade", "rollback", "data-and-credential-continuity", "human-approval"].map((key) => [
+          key,
+          { verified: true, evidence: "unit-fixture" },
+        ]),
+      ),
+      platforms: Object.fromEntries(
+        Object.keys(installers(version)).map((key) => [key, { verified: true, evidence: "unit-fixture" }]),
+      ),
+    }
+    fs.writeFileSync(qualification, JSON.stringify(record))
+    fs.writeFileSync(qualification + ".minisig", "valid")
+    const target = result.assets.at(-1).name
+    const original = fs.readFileSync(path.join(output, target))
+    const objects = new Map(),
+      puts = []
+    vi.stubEnv("CLOUDFLARE_ACCOUNT_ID", storageOptions.account)
+    vi.stubEnv("CLOUDFLARE_API_TOKEN", storageOptions.token)
+    vi.stubGlobal("fetch", async (url, options) => {
+      const key = url.startsWith("https://api.cloudflare.com/")
+        ? url.split("/objects/")[1]
+        : url.split("/ax-code-desktop/")[1]
+      if (options.method === "PUT") {
+        if (!puts.length) fs.writeFileSync(path.join(output, target), "tampered after qualification")
+        objects.set(key, Buffer.from(options.body))
+        puts.push(key)
+        return new Response("ok")
+      }
+      return objects.has(key) ? new Response(objects.get(key)) : new Response("missing", { status: 404 })
+    })
+    await upload(output, qualification)
+    expect(objects.get(`releases/download/v${version}/${target}`)).toEqual(original)
+    expect(puts.at(-1)).toBe("latest.txt")
   })
 })
 

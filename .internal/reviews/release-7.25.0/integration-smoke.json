@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "sdkVersion": "2.6.14",
+  "runtimeVersion": "7.25.3",
+  "electron": "44.7.0",
+  "browserCapability": {
+    "capability": "desktop.webmcp.v1",
+    "runtimeCapability": "desktop.webmcp.v1",
+    "browserMode": "embedded",
+    "reachable": true,
+    "compatible": true
+  },
+  "checks": [
+    "managed-startup",
+    "authenticated-health",
+    "session-create-get-delete",
+    "global-SSE-session-created",
+    "unauthenticated-denial",
+    "actual-Desktop-browser-provider-capability"
+  ],
+  "modelRequests": 0
+}

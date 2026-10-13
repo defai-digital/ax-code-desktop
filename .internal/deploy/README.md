@@ -175,3 +175,11 @@ For a signed inventory containing files above the R2 REST 300 MiB guard, use:
 This command applies the same signed-inventory, policy and qualification checks before credentials or network access. It snapshots the full qualified inventory, stages small objects with authenticated REST readback, and stages larger immutable objects through native R2 multipart uploads with 32 MiB parts. A temporary isolated Worker accepts only a random authenticated capability, exact qualified keys and pinned part sizes/SHA-256 hashes. Immutable collisions fail closed. Failed uploads are aborted, and the temporary Worker is removed in a finally block. All completed objects receive byte-for-byte authenticated R2 readback before the existing `gateway-cutover` command may activate public serving. The signed installer bytes are never recompressed.
 
 The optional receipt records object hashes and multipart manifests without credentials. Keep it with the release evidence. This command requires a disabled gateway; use the public upload flow only for later releases.
+
+For a qualified update on the already active public channel, use
+`deploy upload-multipart --source /path/to/verified-release --qualification /path/to/signed-qualification.json --receipt /path/to/upload-receipt.json`.
+This snapshots verified bytes and proves every immutable version object through
+authenticated R2 and anonymous reads before advancing bootstrap aliases and latest.
+It retains all signature, native installation, continuity, immutable collision and
+temporary-Worker cleanup requirements. See the
+[v4 implementation addendum](../spec/SPEC-2026-10-13-desktop-download-distribution-v4.md).

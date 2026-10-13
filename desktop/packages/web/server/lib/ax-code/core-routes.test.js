@@ -59,7 +59,8 @@ describe("core-routes", () => {
       express,
     })
 
-    const response = await request(app).get("/api/desktop/diagnostics/startup").expect(200)
+    // Keep this isolated listener out of Node's shared keep-alive connection pool.
+    const response = await request(app).get("/api/desktop/diagnostics/startup").agent(false).expect(200)
 
     expect(response.body).toEqual({
       bootId: "boot-a",

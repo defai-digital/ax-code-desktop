@@ -97,3 +97,84 @@ test("staging requires signed qualification before credentials or Cloudflare acc
   const { stageMultipart } = await import("../.internal/deploy/multipart.mjs")
   await assert.rejects(stageMultipart("/nonexistent/desktop-release", "/nonexistent/qualification.json"), /ENOENT/)
 })
+
+test("active multipart updates require a public gateway and staging still requires a disabled one", async () => {
+  const { assertMultipartGateway } = await import("../.internal/deploy/multipart.mjs")
+  await assertMultipartGateway(new Response("installer"), "upload")
+  await assert.rejects(assertMultipartGateway(new Response("disabled", { status: 503 }), "upload"), /active/)
+  await assert.rejects(assertMultipartGateway(new Response("installer"), "stage"), /disabled/)
+  await assertMultipartGateway(new Response("Desktop public release is not enabled", { status: 503 }), "stage")
+})
+
+test("multipart publication proves every immutable byte before advancing aliases or latest", async () => {
+  const { publishMultipartObjects } = await import("../.internal/deploy/multipart.mjs")
+  const objects = [
+    { key: "version/installer", mutable: false },
+    { key: "version/ready", mutable: false },
+    { key: "install.minisig", mutable: true },
+    { key: "install", mutable: true },
+    { key: "latest.txt.minisig", mutable: true },
+    { key: "latest.txt", mutable: true },
+  ]
+  const calls = []
+  await publishMultipartObjects(
+    objects,
+    {
+      stageObject: async (object) => calls.push("stage:" + object.key),
+      publishAlias: async (object) => calls.push("alias:" + object.key),
+      verifyObjects: async (selected, publicServing) => calls.push(`verify:${publicServing}:${selected.length}`),
+    },
+    "upload",
+  )
+  assert.deepEqual(calls, [
+    "stage:version/installer",
+    "stage:version/ready",
+    "verify:false:2",
+    "verify:true:2",
+    "alias:install.minisig",
+    "alias:install",
+    "alias:latest.txt.minisig",
+    "alias:latest.txt",
+    "verify:true:6",
+  ])
+  const aliases = []
+  await assert.rejects(
+    publishMultipartObjects(
+      objects,
+      {
+        stageObject: async () => {},
+        publishAlias: async (object) => aliases.push(object.key),
+        verifyObjects: async (_selected, publicServing) => {
+          if (publicServing) throw new Error("Public bytes mismatch")
+        },
+      },
+      "upload",
+    ),
+    /mismatch/,
+  )
+  assert.deepEqual(aliases, [])
+})
+
+test("disabled-gateway multipart staging retains authenticated verification without public reads", async () => {
+  const { publishMultipartObjects } = await import("../.internal/deploy/multipart.mjs")
+  const calls = []
+  const objects = [
+    { key: "version/installer", mutable: false },
+    { key: "latest.txt", mutable: true },
+  ]
+  await publishMultipartObjects(
+    objects,
+    {
+      stageObject: async (object) => calls.push(object.key),
+      publishAlias: async () => {
+        throw new Error("Staging must not publish aliases")
+      },
+      verifyObjects: async (selected, publicServing) => {
+        assert.equal(selected, objects)
+        assert.equal(publicServing, false)
+      },
+    },
+    "stage",
+  )
+  assert.deepEqual(calls, ["version/installer", "latest.txt"])
+})

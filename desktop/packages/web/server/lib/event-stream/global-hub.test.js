@@ -21,6 +21,68 @@ async function waitForAssertion(assertion) {
 }
 
 describe("createGlobalMessageStreamHub", () => {
+  it.each([false, true])(
+    "requires resync across unidentified domain events, excluding controls (control=%s)",
+    async (control) => {
+      const received = []
+      const hub = createGlobalMessageStreamHub({
+        buildAxCodeUrl: (pathname) => `http://127.0.0.1:4096${pathname}`,
+        getAxCodeAuthHeaders: () => ({}),
+        upstreamReconnectDelayMs: 100,
+        fetchImpl: async () =>
+          createSseResponse({
+            blocks: [
+              'id: evt-a\ndata: {"type":"session.updated","properties":{}}\n\n',
+              `data: {"type":"${control ? "server.heartbeat" : "future.event"}","properties":{}}\n\n`,
+              'id: evt-b\ndata: {"type":"session.updated","properties":{}}\n\n',
+            ],
+          }),
+      })
+      hub.subscribeEvent((event) => received.push(event))
+      try {
+        hub.start()
+        await waitForAssertion(() => expect(received.at(-1)?.eventId).toBe("evt-b"))
+        const replay = hub.replayAfter("evt-a")
+        expect(replay.resyncRequired).toBe(!control)
+        expect(replay.entries.map((entry) => entry.payload.type)).toEqual(
+          control ? ["session.updated"] : ["future.event", "session.updated"],
+        )
+        expect(replay.cursor).toBe("evt-b")
+        expect(hub.replayAfter("evt-b").resyncRequired).toBe(false)
+      } finally {
+        hub.stop()
+      }
+    },
+  )
+
+  it("keeps the last identified cursor when the replay tail has no id", async () => {
+    const received = []
+    const hub = createGlobalMessageStreamHub({
+      buildAxCodeUrl: (pathname) => `http://127.0.0.1:4096${pathname}`,
+      getAxCodeAuthHeaders: () => ({}),
+      upstreamReconnectDelayMs: 100,
+      fetchImpl: async () =>
+        createSseResponse({
+          blocks: [
+            'id: evt-a\ndata: {"type":"session.updated","properties":{}}\n\n',
+            'data: {"type":"future.event","properties":{}}\n\n',
+          ],
+        }),
+    })
+    hub.subscribeEvent((event) => received.push(event))
+    try {
+      hub.start()
+      await waitForAssertion(() => expect(received).toHaveLength(2))
+      expect(hub.replayAfter("evt-a")).toMatchObject({
+        resyncRequired: true,
+        cursor: "evt-a",
+        entries: [{ payload: { type: "future.event" } }],
+      })
+    } finally {
+      hub.stop()
+    }
+  })
+
   it("continues fanout when an event subscriber throws", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
     const received = []

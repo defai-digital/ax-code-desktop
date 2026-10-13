@@ -4,12 +4,15 @@ import path from "node:path"
 import { expect, test } from "vitest"
 import { createRequire } from "node:module"
 import { finished } from "node:stream/promises"
+import { spawnSync } from "node:child_process"
 import {
   readInstalledVersion,
   assertHostedRunner,
   digest,
   verifyPreserved,
   writeSyntheticIfAbsent,
+  capturePreservedFile,
+  qualificationVersion,
 } from "./native-installer-qualification.mjs"
 
 test("refuses native installation on developer or self-hosted machines", () => {
@@ -21,6 +24,50 @@ test("refuses native installation on developer or self-hosted machines", () => {
     ),
   ).toThrow(/Self-hosted/)
 })
+
+test("resolves the candidate version independently of the caller working directory", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-decoy-version-"))
+  try {
+    fs.writeFileSync(path.join(root, "package.json"), '{"version":"0.0.1"}')
+    const module = new URL("./native-installer-qualification.mjs", import.meta.url).href
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import {qualificationVersion} from ${JSON.stringify(module)}; process.stdout.write(qualificationVersion())`,
+      ],
+      { cwd: root, encoding: "utf8" },
+    )
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe(qualificationVersion())
+    expect(result.stdout).not.toBe("0.0.1")
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test.skipIf(process.platform === "win32")(
+  "rejects permission weakening and symlink replacement of preserved credentials",
+  () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-continuity-permissions-"))
+    const file = path.join(root, "auth.json")
+    try {
+      fs.writeFileSync(file, "synthetic", { mode: 0o600 })
+      const records = [capturePreservedFile(file)]
+      fs.chmodSync(file, 0o644)
+      expect(() => verifyPreserved(records)).toThrow(/mode/)
+      fs.chmodSync(file, 0o600)
+      expect(() => verifyPreserved(records)).not.toThrow()
+      const target = path.join(root, "replacement.json")
+      fs.renameSync(file, target)
+      fs.symlinkSync(target, file)
+      expect(() => verifyPreserved(records)).toThrow(/replaced/)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  },
+)
 test("detects credential/profile alteration or removal rather than claiming continuity", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-continuity-test-"))
   const file = path.join(root, "auth.json")
@@ -49,14 +96,17 @@ test("writes a missing qualification file and leaves an existing file unchanged"
   }
 })
 
-
 test("reads replaced installer archives without retaining the previous ASAR header", async () => {
   const require = createRequire(new URL("../desktop/packages/electron/package.json", import.meta.url))
   const asar = require("@electron/asar")
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-replaced-asar-"))
   const archive = path.join(root, "app.asar")
   try {
-    for (const [version, size] of [["7.24.5", 1024], ["7.10.2", 2048], ["7.24.5", 1024]]) {
+    for (const [version, size] of [
+      ["7.24.5", 1024],
+      ["7.10.2", 2048],
+      ["7.24.5", 1024],
+    ]) {
       const source = path.join(root, `source-${size}`)
       fs.mkdirSync(source, { recursive: true })
       fs.writeFileSync(path.join(source, "aaa.bin"), Buffer.alloc(size))

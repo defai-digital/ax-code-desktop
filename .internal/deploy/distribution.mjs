@@ -184,8 +184,13 @@ async function publicBytes(key, fetcher) {
 
 export async function putVerified(key, content, { mutable = false, fetcher = fetch, account, token }) {
   assert(/^[A-Za-z0-9/_\-.]+$/.test(key) && !key.split("/").includes(".."), "Invalid object key")
-  const previous = await publicBytes(key, fetcher)
-  if (previous?.equals(content)) return
+  assert(content.length <= 300 * 1024 * 1024, "R2 REST upload exceeds 300 MiB; use a qualified multipart uploader")
+  const previous = await storageBytes(key, { fetcher, account, token })
+  if (previous?.equals(content)) {
+    const actual = await publicBytes(key, fetcher)
+    assert(actual?.equals(content), `Public bytes differ from stored object: ${key}`)
+    return
+  }
   assert(previous === null || mutable, `Refusing to overwrite immutable object: ${key}`)
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/r2/buckets/ax-code-desktop-releases/objects/${key}`
   const response = await fetcher(endpoint, {
@@ -199,6 +204,8 @@ export async function putVerified(key, content, { mutable = false, fetcher = fet
     },
   })
   assert(response.ok, `R2 upload failed: HTTP ${response.status}`)
+  const stored = await storageBytes(key, { fetcher, account, token })
+  assert(stored?.equals(content), `Stored R2 bytes differ from uploaded object: ${key}`)
   const actual = await publicBytes(key, fetcher)
   assert(actual?.equals(content), `Public bytes differ from uploaded object: ${key}`)
 }
@@ -312,22 +319,14 @@ export async function upload(source, qualificationFile) {
   const token = process.env.CLOUDFLARE_API_TOKEN
   assert(/^[a-f0-9]{32}$/.test(account ?? "") && token, "CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required")
   const options = { account, token }
-  const prefix = `releases/download/v${inventory.version}/`
-  const names = [...inventory.assets.map((asset) => asset.name), "inventory.json"]
-  for (const name of names)
-    for (const suffix of ["", ".minisig"])
-      await putVerified(prefix + name + suffix, bytes(path.join(source, name + suffix)), options)
-  // Publish readiness last in the immutable version. Pointer is always last globally.
-  for (const suffix of [".minisig", ""])
-    await putVerified(
-      prefix + "release-ready.txt" + suffix,
-      bytes(path.join(source, "release-ready.txt" + suffix)),
-      options,
-    )
-  for (const name of ["install", "install.ps1", "latest.txt"]) {
-    for (const suffix of [".minisig", ""])
-      await putVerified(name + suffix, bytes(path.join(source, name + suffix)), { ...options, mutable: true })
-  }
+  // Snapshot and validate all qualified bytes before the first network mutation.
+  // releaseObjects keeps readiness last in the version and latest last globally.
+  const objects = releaseObjects(source, inventory)
+  assert(
+    objects.every((object) => object.content.length <= 300 * 1024 * 1024),
+    "R2 REST upload exceeds 300 MiB; use a qualified multipart uploader",
+  )
+  for (const object of objects) await putVerified(object.key, object.content, { ...options, mutable: object.mutable })
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)

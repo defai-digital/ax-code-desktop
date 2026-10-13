@@ -50,7 +50,14 @@ export function parseSseEventEnvelope(block) {
 
   try {
     const parsed = JSON.parse(payloadText)
-    if (parsed && typeof parsed === "object" && typeof parsed.payload === "object" && parsed.payload !== null) {
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      typeof parsed.type !== "string" &&
+      typeof parsed.payload === "object" &&
+      parsed.payload !== null &&
+      !Array.isArray(parsed.payload)
+    ) {
       return {
         eventId,
         directory: typeof parsed.directory === "string" && parsed.directory.length > 0 ? parsed.directory : null,

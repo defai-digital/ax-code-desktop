@@ -1,0 +1,25 @@
+Two bugs: a silent replay gap, and an SSE envelope check that drops event types.
+
+### 1. Id-less events are delivered live and then omitted from replay
+
+**Trigger:** An upstream SSE event whose envelope has no `eventId` (or `eventId: ""`) arrives between two events that do have ids. A browser disconnects and reconnects with `Last-Event-ID` set to the earlier id, which is still inside the 2048-entry buffer.
+
+**Where:** `createGlobalMessageStreamHub` `onEvent` and `replayAfter` in `global-hub.js`.
+
+**Impact:** `onEvent` always notifies live subscribers, but it only `replay.push`es when `normalized.eventId` is truthy. `replayAfter` then `findIndex`es the anchor and returns `slice(index + 1)` with `resyncRequired: false`. The id-less event is gone, and the client is told the tail is complete. That breaks the comment’s own rule that a missing prefix must not be silent. Heartbeats are already excluded by `isUpstreamSubscriptionControl`; any other id-less domain event is a real gap.
+
+**Smallest fix:** Keep a parallel `gapAfterIndex` (or a tombstone) whenever an event with no id is skipped. If `replayAfter`’s slice would cross that point, return `resyncRequired: true` (the retained tail can still be returned).
+
+**Test:** Push `{eventId:"a"}`, then `{payload:{type:"message.updated"}}` with no id, then `{eventId:"b"}`. `replayAfter("a")` must be `resyncRequired: true` and must not look like a full catch-up. A control frame (`server.heartbeat`) between `a` and `b` must stay `resyncRequired: false`.
+
+### 2. `parseSseEventEnvelope` unwraps any object that has an object `payload`
+
+**Trigger:** A flat event such as `data: {"type":"message.part.updated","directory":"/proj","payload":{"text":"hi"}}`.
+
+**Where:** `parseSseEventEnvelope` in `protocol.js`. The branch `typeof parsed.payload === "object" && parsed.payload !== null` returns `payload: parsed.payload` and drops every sibling (`type`, and any fields other than `directory`).
+
+**Impact:** Callers see `{text:"hi"}` with no `type`. `isUpstreamSubscriptionControl` no longer matches. The hub still stores and replays the stripped object, so a reconnect repeats a typeless body. Arrays also take this branch because `typeof [] === "object"`.
+
+**Smallest fix:** Unwrap only when the outer value has no string `type` (true envelope: `{directory, payload:{type,…}}`). If `typeof parsed.type === "string"`, keep `parsed` as `payload` and resolve `directory` with the existing fallback.
+
+**Test:** The flat JSON above must yield `payload.type === "message.part.updated"` and `payload.payload.text === "hi"`. `data: {"directory":"/p","payload":{"type":"server.heartbeat"}}` must still yield `payload.type === "server.heartbeat"`.

@@ -48,6 +48,22 @@ describe("event stream protocol helpers", () => {
     expect(parseSseEventEnvelope("data: {oops}\n")).toBeNull()
   })
 
+  it("preserves flat domain events that contain their own nested payload", () => {
+    const event = {
+      type: "future.event",
+      directory: "/project",
+      payload: { text: "keep" },
+      properties: { stable: true },
+    }
+    expect(parseSseEventEnvelope(`id: event-1\ndata: ${JSON.stringify(event)}`)).toEqual({
+      eventId: "event-1",
+      directory: "/project",
+      payload: event,
+    })
+    const arrayEvent = { ...event, payload: ["keep"] }
+    expect(parseSseEventEnvelope(`data: ${JSON.stringify(arrayEvent)}`).payload).toEqual(arrayEvent)
+  })
+
   it("serializes generic websocket frames", () => {
     let rawPayload = null
     const socket = {

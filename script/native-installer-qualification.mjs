@@ -12,12 +12,13 @@ import { runSmoke } from "../desktop/packages/electron/scripts/smoke-packaged-as
 const require = createRequire(new URL("../desktop/packages/electron/package.json", import.meta.url))
 const asar = require("@electron/asar")
 const KEY = "RWSlDu++afxCz01OqhYWhfo8+L8pVbSYXJBEb2zoWBuK0WACIzbGVZRO"
-const BASELINE_TAG = "qualification-baseline-20261012-v7.10.2"
+export const BASELINE_VERSION = "7.24.5"
+const BASELINE_TAG = `v${BASELINE_VERSION}`
 export const BASELINES = {
-  "darwin-arm64": ["AX-Code-7.10.2-mac-arm64.dmg", "c49e3f390480ddf489c62f9167e18b5b3bafb4227bd4f7d5538de31b9aaba2f1"],
-  "win32-x64": ["AX-Code-7.10.2-win-x64.exe", "00c87c8dfcb44b1e2eee786f003a7afc5354613e748213589debfcd1cbb06bf3"],
-  "linux-x64": ["AX-Code-7.10.2-linux-amd64.deb", "888bf608105d5c8bf6b4690fdb436fb8eacc75ee33b8f92404841e78d5fa8dc7"],
-  "linux-arm64": ["AX-Code-7.10.2-linux-arm64.deb", "17494ae01fbd582e0e2930df7e860ee83bab0a625e34196bb11ba0ff4da684ce"],
+  "darwin-arm64": ["AX-Code-7.24.5-mac-arm64.dmg", "3df335f0d96d596170201ff332955599a6b9cafcf2c1c88d2feac545da60beb1"],
+  "win32-x64": ["AX-Code-7.24.5-win-x64.exe", "48355f228b6d7c585f50271a0b9258c543e0dee824c1b9e5824196581edac78b"],
+  "linux-x64": ["AX-Code-7.24.5-linux-amd64.deb", "8188fcd1058e3a21cc70906a566c6a60bb3704467e6d3b567b7eb4eb2671ca46"],
+  "linux-arm64": ["AX-Code-7.24.5-linux-arm64.deb", "c4ad98ff629eb7a2ef7be90537b81c9ceb4d3e35b4e0fb4a0fc83db27ee3b1e5"],
 }
 export const TRANSITIONS = [
   ["fresh-install", "candidate"],
@@ -27,9 +28,27 @@ export const TRANSITIONS = [
   ["final-install", "candidate"],
 ]
 export const digest = (file) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex")
+export function qualificationVersion() {
+  return JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")).version
+}
+export function capturePreservedFile(file) {
+  const stat = fs.lstatSync(file)
+  assert.ok(stat.isFile() && !stat.isSymbolicLink(), "Continuity evidence requires a regular file")
+  return {
+    file,
+    sha256: digest(file),
+    ...(process.platform === "win32" ? {} : { mode: stat.mode & 0o777, uid: stat.uid, gid: stat.gid }),
+  }
+}
 export function verifyPreserved(records) {
-  for (const { file, sha256 } of records)
+  for (const { file, sha256, mode, uid, gid } of records) {
+    const stat = fs.lstatSync(file)
+    assert.ok(stat.isFile() && !stat.isSymbolicLink(), `Installer replaced a continuity file: ${file}`)
     assert.equal(digest(file), sha256, `Installer changed profile/config bytes: ${file}`)
+    if (mode !== undefined) assert.equal(stat.mode & 0o777, mode, `Installer changed credential/profile mode: ${file}`)
+    if (uid !== undefined) assert.equal(stat.uid, uid, `Installer changed credential/profile owner: ${file}`)
+    if (gid !== undefined) assert.equal(stat.gid, gid, `Installer changed credential/profile group: ${file}`)
+  }
 }
 export function assertHostedRunner(env, target) {
   assert.equal(env.GITHUB_ACTIONS, "true", "Native installation is restricted to disposable hosted runners")
@@ -87,7 +106,7 @@ async function qualify(target, artifacts, output) {
   const baseline = path.join(root, baselineName)
   assert.equal(digest(baseline), BASELINES[target][1], "Historical baseline digest mismatch")
   verifyMinisign(baseline)
-  const version = JSON.parse(fs.readFileSync("package.json", "utf8")).version
+  const version = qualificationVersion()
   const candidateName =
     target === "darwin-arm64"
       ? `AX-Code-${version}-mac-arm64.dmg`
@@ -118,7 +137,7 @@ async function qualify(target, artifacts, output) {
     [path.join(config, "ax-code.json"), '{"provider":{}}\n'],
   ].map(([file, bytes]) => {
     writeSyntheticIfAbsent(file, bytes)
-    return { file, sha256: digest(file) }
+    return capturePreservedFile(file)
   })
   let installed
   let executable
@@ -157,7 +176,7 @@ async function qualify(target, artifacts, output) {
   const receipts = []
   for (const [step, selection] of TRANSITIONS) {
     const file = selection === "candidate" ? candidate : baseline
-    const expectedVersion = selection === "candidate" ? version : "7.10.2"
+    const expectedVersion = selection === "candidate" ? version : BASELINE_VERSION
     if (process.platform === "darwin") {
       const mount = path.join(root, "mount")
       fs.mkdirSync(mount, { recursive: true })
@@ -209,6 +228,7 @@ async function qualify(target, artifacts, output) {
       version: expectedVersion,
       profilePreserved: true,
       configurationPreserved: true,
+      ...(process.platform === "win32" ? {} : { posixCredentialMetadataPreserved: true }),
       installedArchiveSha256: digest(archive),
       installedSmoke: selection === "candidate" ? "passed" : "baseline-not-executed",
     })
@@ -222,7 +242,7 @@ async function qualify(target, artifacts, output) {
         commit: process.env.GITHUB_SHA,
         version,
         target,
-        baselineVersion: "7.10.2",
+        baselineVersion: BASELINE_VERSION,
         baselineSha256: digest(baseline),
         installerSha256: digest(candidate),
         checks: receipts,

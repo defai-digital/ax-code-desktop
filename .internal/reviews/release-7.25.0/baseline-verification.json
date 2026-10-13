@@ -1,0 +1,26 @@
+{
+  "version": "7.24.5",
+  "baselines": {
+    "darwin-arm64": [
+      "AX-Code-7.24.5-mac-arm64.dmg",
+      316424997,
+      "3df335f0d96d596170201ff332955599a6b9cafcf2c1c88d2feac545da60beb1"
+    ],
+    "win32-x64": [
+      "AX-Code-7.24.5-win-x64.exe",
+      206380184,
+      "48355f228b6d7c585f50271a0b9258c543e0dee824c1b9e5824196581edac78b"
+    ],
+    "linux-x64": [
+      "AX-Code-7.24.5-linux-amd64.deb",
+      189940240,
+      "8188fcd1058e3a21cc70906a566c6a60bb3704467e6d3b567b7eb4eb2671ca46"
+    ],
+    "linux-arm64": [
+      "AX-Code-7.24.5-linux-arm64.deb",
+      182425392,
+      "c4ad98ff629eb7a2ef7be90537b81c9ceb4d3e35b4e0fb4a0fc83db27ee3b1e5"
+    ]
+  },
+  "verified": true
+}

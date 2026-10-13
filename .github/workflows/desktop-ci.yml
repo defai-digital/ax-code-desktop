@@ -101,6 +101,9 @@ jobs:
       - name: Rebuild native modules for Electron
         run: pnpm --filter @ax-code/electron run rebuild:native
 
+      - name: Bundle runtime and animation assets for native smoke
+        run: pnpm --filter @ax-code/electron run bundle:main
+
       - name: Verify Windows ASAR layout and block integrity
         if: runner.os == 'Windows'
         run: pnpm --filter @ax-code/electron exec vitest run scripts/verify-packaged-electron.test.mjs

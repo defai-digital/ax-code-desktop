@@ -1,14 +1,13 @@
 "use strict"
 // Exercise the pinned SDK's session creation through a real packaged-origin renderer.
 const { app, BrowserWindow, protocol } = require("electron")
-const fs = require("node:fs"),
-  os = require("node:os"),
-  path = require("node:path"),
+const path = require("node:path"),
   http = require("node:http"),
   assert = require("node:assert/strict")
 const { pathToFileURL } = require("node:url")
 const { PACKAGED_RENDERER_PRIVILEGED_SCHEMES } = require("../src/desktop-renderer-protocol")
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), "ax-desktop-session-cors-"))
+const profile = process.env.AX_SESSION_CORS_PROFILE_DIR
+assert.ok(profile && path.isAbsolute(profile), "The smoke wrapper must provide an isolated profile")
 app.setPath("userData", profile)
 app.commandLine.appendSwitch("use-mock-keychain")
 protocol.registerSchemesAsPrivileged(PACKAGED_RENDERER_PRIVILEGED_SCHEMES)
@@ -84,6 +83,5 @@ app
     clearTimeout(timeout)
     window?.destroy()
     if (server) await new Promise((resolve) => server.close(resolve))
-    fs.rmSync(profile, { recursive: true, force: true })
     app.exit(process.exitCode || 0)
   })

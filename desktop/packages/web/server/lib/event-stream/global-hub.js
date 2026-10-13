@@ -91,11 +91,11 @@ export function createGlobalMessageStreamHub({
         if (isUpstreamSubscriptionControl(normalized.payload)) {
           return
         }
-        if (normalized.eventId) {
-          replay.push(normalized)
-          if (replay.length > replayLimit) {
-            replay.splice(0, replay.length - replayLimit)
-          }
+        // Preserve unidentified domain events too. Their position cannot be
+        // acknowledged independently, so replay across them requires a snapshot.
+        replay.push(normalized)
+        if (replay.length > replayLimit) {
+          replay.splice(0, replay.length - replayLimit)
         }
 
         for (const subscriber of Array.from(eventSubscribers)) {
@@ -155,20 +155,22 @@ export function createGlobalMessageStreamHub({
       }
     },
     replayAfter(eventId) {
+      const cursor = replay.findLast((entry) => entry.eventId)?.eventId
       if (!eventId) {
-        return { entries: [], resyncRequired: false, cursor: replay.at(-1)?.eventId }
+        return { entries: [], resyncRequired: false, cursor }
       }
 
       const index = replay.findIndex((entry) => entry.eventId === eventId)
       if (index !== -1) {
-        return { entries: replay.slice(index + 1), resyncRequired: false, cursor: replay.at(-1)?.eventId }
+        const entries = replay.slice(index + 1)
+        return { entries, resyncRequired: entries.some((entry) => !entry.eventId), cursor }
       }
       // Anchor not in the buffer: it was evicted from the front because more
       // than replayLimit events accumulated while the client was disconnected,
       // or this proxy restarted and lost its in-memory journal. Replay the
       // retained tail for responsiveness, but explicitly require an
       // authoritative snapshot so the missing prefix is never silent.
-      return { entries: replay.slice(), resyncRequired: true, cursor: replay.at(-1)?.eventId ?? eventId }
+      return { entries: replay.slice(), resyncRequired: true, cursor: cursor ?? eventId }
     },
   }
 }
