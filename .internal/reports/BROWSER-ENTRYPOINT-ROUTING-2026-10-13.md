@@ -46,8 +46,12 @@ Sibling active release/test worktrees were preserved.
 - Desktop launcher/provider regressions: 11 passed. Full Electron suite: 484 passed.
 - Desktop typecheck, ownership/release boundaries and production build passed. Lint passed
   with one pre-existing unused eslint-disable warning in UI test setup.
-- A fresh producer typecheck/deterministic run was started on integrated source `c9f29e2bd`;
-  its final result must be recorded before completion is claimed.
+- Final integrated producer `c9f29e2bd`: typecheck passed; deterministic suite
+  14,201 passed, 23 skipped (14,224 total), zero failures. SDK tests also passed again (272).
+- Final Desktop integration `b5296f82`: full Electron suite passed again (484).
+- After fetching both remotes, `git branch --no-merged main` and its remote equivalent
+  returned no branches in either repository. Every current branch tip is contained in main.
+  Active sibling worktrees remain intact; only the two task-owned routing worktrees are disposable.
 
 ## Rollout boundary
 

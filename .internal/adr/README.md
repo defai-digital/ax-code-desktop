@@ -15,4 +15,4 @@
 
 ADRs must identify the decision owner, contracts, superseded records, rollout, and rollback.
 
-| [ADR-013](ADR-013-browser-entrypoint-routing.md) | Browser Entrypoint Routing | Accepted | Implementation in progress | 2026-10-13 |
+| [ADR-013](ADR-013-browser-entrypoint-routing.md) | Browser Entrypoint Routing | Accepted | Source validated; signed producer rollout pending | 2026-10-13 |
