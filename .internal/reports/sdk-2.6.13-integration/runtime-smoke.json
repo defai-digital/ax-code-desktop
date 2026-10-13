@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "sdkVersion": "2.6.13",
+  "runtimeVersion": "7.25.1",
+  "checks": [
+    "managed-startup",
+    "authenticated-health",
+    "session-capability-compatibility",
+    "unauthorized-denial",
+    "v2-session-create-get-delete",
+    "SSE-session-created"
+  ],
+  "modelRequests": 0,
+  "scope": "Pinned signed darwin-arm64 runtime API compatibility; not cross-platform installation qualification"
+}

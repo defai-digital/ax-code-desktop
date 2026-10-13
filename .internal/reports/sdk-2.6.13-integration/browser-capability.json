@@ -1,0 +1,10 @@
+{
+  "runtimeVersion": "7.25.1",
+  "sdkVersion": "2.6.13",
+  "httpStatus": 200,
+  "runtimeCapability": "desktop.webmcp.v1",
+  "browserMode": null,
+  "strictEmbeddedCompatibility": false,
+  "wrongTokenStatus": 403,
+  "modelRequests": 0
+}

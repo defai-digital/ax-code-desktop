@@ -1,0 +1,5520 @@
+{
+  "reviewedBaselineCommit": "91322d15473841a1285ff15ed4eb3a577999ae3e",
+  "sdkVersion": "2.6.13",
+  "runtimePinVersion": "7.25.1",
+  "fixtureUsesSdkSse": false,
+  "schema": "ax-code-desktop.rust-event-experiment.v1",
+  "electron": "44.7.0",
+  "chromium": "152.0.7977.130",
+  "platform": "darwin",
+  "arch": "arm64",
+  "warmupRounds": 1,
+  "measuredRounds": 3,
+  "scope": "Synthetic SSE producer, actual Desktop WS bridge/pipeline/reducer, React fixture. Next-frame metrics are proxies, not Chromium paint. Host CPU excludes Rust and renderer CPU.",
+  "summary": [
+    {
+      "projects": 1,
+      "js": {
+        "publishToReactCommitP95Ms": 33.48095703125,
+        "publishToNextFrameProxyP95Ms": 61.575439453125,
+        "keyToFrameProxyP95Ms": 15.300000011920929,
+        "firstReadyMs": 10.60009765625,
+        "hostCpuMs": 211.041,
+        "rendererMemoryKiB": 114480,
+        "rustRssKiB": null
+      },
+      "ipcJs": {
+        "publishToReactCommitP95Ms": 30.8759765625,
+        "publishToNextFrameProxyP95Ms": 58.913330078125,
+        "keyToFrameProxyP95Ms": 15.600000023841858,
+        "firstReadyMs": 11,
+        "hostCpuMs": 171.559,
+        "rendererMemoryKiB": 111296,
+        "rustRssKiB": null
+      },
+      "rust": {
+        "publishToReactCommitP95Ms": 29.967529296875,
+        "publishToNextFrameProxyP95Ms": 60.799560546875,
+        "keyToFrameProxyP95Ms": 14.699999988079071,
+        "firstReadyMs": 15.599853515625,
+        "hostCpuMs": 153.901,
+        "rendererMemoryKiB": 111328,
+        "rustRssKiB": 3440
+      }
+    },
+    {
+      "projects": 5,
+      "js": {
+        "publishToReactCommitP95Ms": 30.446044921875,
+        "publishToNextFrameProxyP95Ms": 55.29248046875,
+        "keyToFrameProxyP95Ms": 16,
+        "firstReadyMs": 10,
+        "hostCpuMs": 296.613,
+        "rendererMemoryKiB": 134464,
+        "rustRssKiB": null
+      },
+      "ipcJs": {
+        "publishToReactCommitP95Ms": 30.503662109375,
+        "publishToNextFrameProxyP95Ms": 59.132568359375,
+        "keyToFrameProxyP95Ms": 16,
+        "firstReadyMs": 10.900146484375,
+        "hostCpuMs": 234.442,
+        "rendererMemoryKiB": 121072,
+        "rustRssKiB": null
+      },
+      "rust": {
+        "publishToReactCommitP95Ms": 33.39599609375,
+        "publishToNextFrameProxyP95Ms": 62.04931640625,
+        "keyToFrameProxyP95Ms": 14.699999988079071,
+        "firstReadyMs": 15.300048828125,
+        "hostCpuMs": 152.603,
+        "rendererMemoryKiB": 122384,
+        "rustRssKiB": 3872
+      }
+    },
+    {
+      "projects": 20,
+      "js": {
+        "publishToReactCommitP95Ms": 40.884765625,
+        "publishToNextFrameProxyP95Ms": 67.188232421875,
+        "keyToFrameProxyP95Ms": 16.200000047683716,
+        "firstReadyMs": 11.300048828125,
+        "hostCpuMs": 654.379,
+        "rendererMemoryKiB": 211248,
+        "rustRssKiB": null
+      },
+      "ipcJs": {
+        "publishToReactCommitP95Ms": 29.905029296875,
+        "publishToNextFrameProxyP95Ms": 59.32177734375,
+        "keyToFrameProxyP95Ms": 15.900000035762787,
+        "firstReadyMs": 10.5,
+        "hostCpuMs": 246.581,
+        "rendererMemoryKiB": 159168,
+        "rustRssKiB": null
+      },
+      "rust": {
+        "publishToReactCommitP95Ms": 71.777099609375,
+        "publishToNextFrameProxyP95Ms": 100.032958984375,
+        "keyToFrameProxyP95Ms": 15.300000011920929,
+        "firstReadyMs": 16.10009765625,
+        "hostCpuMs": 237.107,
+        "rendererMemoryKiB": 156368,
+        "rustRssKiB": 4208
+      }
+    }
+  ],
+  "results": [
+    {
+      "mode": "js",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 27,
+      "publishToReactCommitP95Ms": 27.9091796875,
+      "publishToNextFrameProxyP95Ms": 50.209228515625,
+      "keyToFrameProxyP95Ms": 16.5,
+      "typedCharacters": 10,
+      "firstReadyMs": 40.900146484375,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 31,
+            "receivedEvents": 2040,
+            "dispatchedEvents": 83,
+            "coalescedEvents": 1957,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 24,
+              "p95": 34.19999998807907,
+              "max": 39.40000003576279
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.7999999523162842,
+              "p95": 1.800000011920929,
+              "max": 2
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 25.19999998807907,
+              "p95": 35.39999997615814,
+              "max": 41
+            }
+          },
+          "ws": {
+            "batches": 31,
+            "receivedEvents": 2040,
+            "dispatchedEvents": 83,
+            "coalescedEvents": 1957,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 24,
+              "p95": 34.19999998807907,
+              "max": 39.40000003576279
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.7999999523162842,
+              "p95": 1.800000011920929,
+              "max": 2
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 25.19999998807907,
+              "p95": 35.39999997615814,
+              "max": 41
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 324.036,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 114640,
+      "nativeBatches": null,
+      "round": 0
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 27,
+      "publishToReactCommitP95Ms": 26.973388671875,
+      "publishToNextFrameProxyP95Ms": 56.573486328125,
+      "keyToFrameProxyP95Ms": 15.399999976158142,
+      "typedCharacters": 10,
+      "firstReadyMs": 12.39990234375,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 31,
+            "receivedEvents": 2080,
+            "dispatchedEvents": 120,
+            "coalescedEvents": 1960,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 20.100000023841858,
+              "p95": 32.10000002384186,
+              "max": 33
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.9000000357627869,
+              "p95": 2.699999988079071,
+              "max": 3.100000023841858
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 21.30000001192093,
+              "p95": 32.80000001192093,
+              "max": 34.19999998807907
+            }
+          },
+          "ws": {
+            "batches": 31,
+            "receivedEvents": 2080,
+            "dispatchedEvents": 120,
+            "coalescedEvents": 1960,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 20.100000023841858,
+              "p95": 32.10000002384186,
+              "max": 33
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.9000000357627869,
+              "p95": 2.699999988079071,
+              "max": 3.100000023841858
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 21.30000001192093,
+              "p95": 32.80000001192093,
+              "max": 34.19999998807907
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 206.243,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 111104,
+      "nativeBatches": null,
+      "round": 0
+    },
+    {
+      "mode": "rust",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 27,
+      "publishToReactCommitP95Ms": 29.068115234375,
+      "publishToNextFrameProxyP95Ms": 56.405517578125,
+      "keyToFrameProxyP95Ms": 16.69999998807907,
+      "typedCharacters": 10,
+      "firstReadyMs": 17.300048828125,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 31,
+            "receivedEvents": 2089,
+            "dispatchedEvents": 130,
+            "coalescedEvents": 1959,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 19.80000001192093,
+              "p95": 32.89999997615814,
+              "max": 36.40000003576279
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.8999999761581421,
+              "p95": 2.399999976158142,
+              "max": 2.800000011920929
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 20.19999998807907,
+              "p95": 33.60000002384186,
+              "max": 38.30000001192093
+            }
+          },
+          "ws": {
+            "batches": 31,
+            "receivedEvents": 2089,
+            "dispatchedEvents": 130,
+            "coalescedEvents": 1959,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 19.80000001192093,
+              "p95": 32.89999997615814,
+              "max": 36.40000003576279
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.8999999761581421,
+              "p95": 2.399999976158142,
+              "max": 2.800000011920929
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 20.19999998807907,
+              "p95": 33.60000002384186,
+              "max": 38.30000001192093
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 151.594,
+      "rustRssKiB": 3472,
+      "rendererMemoryKiB": 111168,
+      "nativeBatches": 50,
+      "round": 0
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 28,
+      "publishToReactCommitP95Ms": 28.31787109375,
+      "publishToNextFrameProxyP95Ms": 58.913330078125,
+      "keyToFrameProxyP95Ms": 15.600000023841858,
+      "typedCharacters": 10,
+      "firstReadyMs": 11,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 31,
+            "receivedEvents": 2080,
+            "dispatchedEvents": 120,
+            "coalescedEvents": 1960,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 17.69999998807907,
+              "p95": 33,
+              "max": 43.09999996423721
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.800000011920929,
+              "p95": 2,
+              "max": 2.099999964237213
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 18.19999998807907,
+              "p95": 34.10000002384186,
+              "max": 45.09999996423721
+            }
+          },
+          "ws": {
+            "batches": 31,
+            "receivedEvents": 2080,
+            "dispatchedEvents": 120,
+            "coalescedEvents": 1960,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 17.69999998807907,
+              "p95": 33,
+              "max": 43.09999996423721
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.800000011920929,
+              "p95": 2,
+              "max": 2.099999964237213
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 18.19999998807907,
+              "p95": 34.10000002384186,
+              "max": 45.09999996423721
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 152.35,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 111040,
+      "nativeBatches": null,
+      "round": 1
+    },
+    {
+      "mode": "rust",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 27,
+      "publishToReactCommitP95Ms": 29.967529296875,
+      "publishToNextFrameProxyP95Ms": 58.767578125,
+      "keyToFrameProxyP95Ms": 13.699999988079071,
+      "typedCharacters": 10,
+      "firstReadyMs": 15.599853515625,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 31,
+            "receivedEvents": 2085,
+            "dispatchedEvents": 125,
+            "coalescedEvents": 1960,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 21.099999964237213,
+              "p95": 31.900000035762787,
+              "max": 32.19999998807907
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.7000000476837158,
+              "p95": 2.300000011920929,
+              "max": 3
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 21.599999964237213,
+              "p95": 34.19999998807907,
+              "max": 34.90000003576279
+            }
+          },
+          "ws": {
+            "batches": 31,
+            "receivedEvents": 2085,
+            "dispatchedEvents": 125,
+            "coalescedEvents": 1960,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 21.099999964237213,
+              "p95": 31.900000035762787,
+              "max": 32.19999998807907
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.7000000476837158,
+              "p95": 2.300000011920929,
+              "max": 3
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 21.599999964237213,
+              "p95": 34.19999998807907,
+              "max": 34.90000003576279
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 175.807,
+      "rustRssKiB": 3456,
+      "rendererMemoryKiB": 111328,
+      "nativeBatches": 46,
+      "round": 1
+    },
+    {
+      "mode": "js",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 27,
+      "publishToReactCommitP95Ms": 31.075439453125,
+      "publishToNextFrameProxyP95Ms": 61.575439453125,
+      "keyToFrameProxyP95Ms": 15.300000011920929,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.699951171875,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 31,
+            "receivedEvents": 2040,
+            "dispatchedEvents": 85,
+            "coalescedEvents": 1955,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 24.5,
+              "p95": 34.30000001192093,
+              "max": 36.69999998807907
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.699999988079071,
+              "p95": 2,
+              "max": 2.099999964237213
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 24.80000001192093,
+              "p95": 35,
+              "max": 37.30000001192093
+            }
+          },
+          "ws": {
+            "batches": 31,
+            "receivedEvents": 2040,
+            "dispatchedEvents": 85,
+            "coalescedEvents": 1955,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 24.5,
+              "p95": 34.30000001192093,
+              "max": 36.69999998807907
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.699999988079071,
+              "p95": 2,
+              "max": 2.099999964237213
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 24.80000001192093,
+              "p95": 35,
+              "max": 37.30000001192093
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 178.58,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 114464,
+      "nativeBatches": null,
+      "round": 1
+    },
+    {
+      "mode": "rust",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 27,
+      "publishToReactCommitP95Ms": 28.799560546875,
+      "publishToNextFrameProxyP95Ms": 60.799560546875,
+      "keyToFrameProxyP95Ms": 14.699999988079071,
+      "typedCharacters": 10,
+      "firstReadyMs": 15.199951171875,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 31,
+            "receivedEvents": 2084,
+            "dispatchedEvents": 125,
+            "coalescedEvents": 1959,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 21,
+              "p95": 31.200000047683716,
+              "max": 32
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.800000011920929,
+              "p95": 1.800000011920929,
+              "max": 2.699999988079071
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 21.600000023841858,
+              "p95": 33.69999998807907,
+              "max": 33.90000003576279
+            }
+          },
+          "ws": {
+            "batches": 31,
+            "receivedEvents": 2084,
+            "dispatchedEvents": 125,
+            "coalescedEvents": 1959,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 21,
+              "p95": 31.200000047683716,
+              "max": 32
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.800000011920929,
+              "p95": 1.800000011920929,
+              "max": 2.699999988079071
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 21.600000023841858,
+              "p95": 33.69999998807907,
+              "max": 33.90000003576279
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 153.901,
+      "rustRssKiB": 3440,
+      "rendererMemoryKiB": 111168,
+      "nativeBatches": 45,
+      "round": 2
+    },
+    {
+      "mode": "js",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 26,
+      "publishToReactCommitP95Ms": 33.48095703125,
+      "publishToNextFrameProxyP95Ms": 58.276123046875,
+      "keyToFrameProxyP95Ms": 16,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.60009765625,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 31,
+            "receivedEvents": 2040,
+            "dispatchedEvents": 84,
+            "coalescedEvents": 1956,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 25.400000035762787,
+              "p95": 39.39999997615814,
+              "max": 40.30000001192093
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 1.2999999523162842,
+              "p95": 2.899999976158142,
+              "max": 3.300000011920929
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 26.100000023841858,
+              "p95": 40,
+              "max": 41.69999998807907
+            }
+          },
+          "ws": {
+            "batches": 31,
+            "receivedEvents": 2040,
+            "dispatchedEvents": 84,
+            "coalescedEvents": 1956,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 25.400000035762787,
+              "p95": 39.39999997615814,
+              "max": 40.30000001192093
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 1.2999999523162842,
+              "p95": 2.899999976158142,
+              "max": 3.300000011920929
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 26.100000023841858,
+              "p95": 40,
+              "max": 41.69999998807907
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 211.041,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 114576,
+      "nativeBatches": null,
+      "round": 2
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 28,
+      "publishToReactCommitP95Ms": 30.8759765625,
+      "publishToNextFrameProxyP95Ms": 59.541748046875,
+      "keyToFrameProxyP95Ms": 15.699999988079071,
+      "typedCharacters": 10,
+      "firstReadyMs": 11.099853515625,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 31,
+            "receivedEvents": 2080,
+            "dispatchedEvents": 120,
+            "coalescedEvents": 1960,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 21.30000001192093,
+              "p95": 33.40000003576279,
+              "max": 41.19999998807907
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.800000011920929,
+              "p95": 2.699999988079071,
+              "max": 3.100000023841858
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 22,
+              "p95": 36.10000002384186,
+              "max": 44.30000001192093
+            }
+          },
+          "ws": {
+            "batches": 31,
+            "receivedEvents": 2080,
+            "dispatchedEvents": 120,
+            "coalescedEvents": 1960,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 21.30000001192093,
+              "p95": 33.40000003576279,
+              "max": 41.19999998807907
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 0.800000011920929,
+              "p95": 2.699999988079071,
+              "max": 3.100000023841858
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 22,
+              "p95": 36.10000002384186,
+              "max": 44.30000001192093
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 184.914,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 111296,
+      "nativeBatches": null,
+      "round": 2
+    },
+    {
+      "mode": "js",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 28,
+      "publishToReactCommitP95Ms": 39.85986328125,
+      "publishToNextFrameProxyP95Ms": 65.059814453125,
+      "keyToFrameProxyP95Ms": 15.199999988079071,
+      "typedCharacters": 10,
+      "firstReadyMs": 10,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 32,
+            "receivedEvents": 2040,
+            "dispatchedEvents": 84,
+            "coalescedEvents": 1956,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 32,
+              "p50": 23.899999976158142,
+              "p95": 36.5,
+              "max": 37.39999997615814
+            },
+            "callbackMs": {
+              "samples": 32,
+              "p50": 1,
+              "p95": 2.400000035762787,
+              "max": 2.400000035762787
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 32,
+              "p50": 24.599999964237213,
+              "p95": 37.89999997615814,
+              "max": 38.69999998807907
+            }
+          },
+          "ws": {
+            "batches": 32,
+            "receivedEvents": 2040,
+            "dispatchedEvents": 84,
+            "coalescedEvents": 1956,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 32,
+              "p50": 23.899999976158142,
+              "p95": 36.5,
+              "max": 37.39999997615814
+            },
+            "callbackMs": {
+              "samples": 32,
+              "p50": 1,
+              "p95": 2.400000035762787,
+              "max": 2.400000035762787
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 32,
+              "p50": 24.599999964237213,
+              "p95": 37.89999997615814,
+              "max": 38.69999998807907
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 229.284,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 114480,
+      "nativeBatches": null,
+      "round": 3
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 28,
+      "publishToReactCommitP95Ms": 33.108642578125,
+      "publishToNextFrameProxyP95Ms": 58.20849609375,
+      "keyToFrameProxyP95Ms": 14.199999988079071,
+      "typedCharacters": 10,
+      "firstReadyMs": 9.400146484375,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 32,
+            "receivedEvents": 2080,
+            "dispatchedEvents": 120,
+            "coalescedEvents": 1960,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 32,
+              "p50": 20.80000001192093,
+              "p95": 32.19999998807907,
+              "max": 33.39999997615814
+            },
+            "callbackMs": {
+              "samples": 32,
+              "p50": 0.8999999761581421,
+              "p95": 2.300000011920929,
+              "max": 2.600000023841858
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 32,
+              "p50": 21.69999998807907,
+              "p95": 34.09999996423721,
+              "max": 34.80000001192093
+            }
+          },
+          "ws": {
+            "batches": 32,
+            "receivedEvents": 2080,
+            "dispatchedEvents": 120,
+            "coalescedEvents": 1960,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 32,
+              "p50": 20.80000001192093,
+              "p95": 32.19999998807907,
+              "max": 33.39999997615814
+            },
+            "callbackMs": {
+              "samples": 32,
+              "p50": 0.8999999761581421,
+              "p95": 2.300000011920929,
+              "max": 2.600000023841858
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 32,
+              "p50": 21.69999998807907,
+              "p95": 34.09999996423721,
+              "max": 34.80000001192093
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 171.559,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 111424,
+      "nativeBatches": null,
+      "round": 3
+    },
+    {
+      "mode": "rust",
+      "projects": 1,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 2000,
+      "textLengths": [
+        50
+      ],
+      "appliedRevisions": [
+        40
+      ],
+      "commitSamples": 27,
+      "publishToReactCommitP95Ms": 31.61962890625,
+      "publishToNextFrameProxyP95Ms": 62.612060546875,
+      "keyToFrameProxyP95Ms": 16.099999964237213,
+      "typedCharacters": 10,
+      "firstReadyMs": 16.099853515625,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 31,
+            "receivedEvents": 2091,
+            "dispatchedEvents": 132,
+            "coalescedEvents": 1959,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 23.5,
+              "p95": 33.19999998807907,
+              "max": 38.60000002384186
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 1,
+              "p95": 2.899999976158142,
+              "max": 2.900000035762787
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 24.19999998807907,
+              "p95": 35.5,
+              "max": 39.30000001192093
+            }
+          },
+          "ws": {
+            "batches": 31,
+            "receivedEvents": 2091,
+            "dispatchedEvents": 132,
+            "coalescedEvents": 1959,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 31,
+              "p50": 23.5,
+              "p95": 33.19999998807907,
+              "max": 38.60000002384186
+            },
+            "callbackMs": {
+              "samples": 31,
+              "p50": 1,
+              "p95": 2.899999976158142,
+              "max": 2.900000035762787
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 31,
+              "p50": 24.19999998807907,
+              "p95": 35.5,
+              "max": 39.30000001192093
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 149.465,
+      "rustRssKiB": 3440,
+      "rendererMemoryKiB": 111408,
+      "nativeBatches": 52,
+      "round": 3
+    },
+    {
+      "mode": "js",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 137,
+      "publishToReactCommitP95Ms": 34.6904296875,
+      "publishToNextFrameProxyP95Ms": 61.503662109375,
+      "keyToFrameProxyP95Ms": 12.199999988079071,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.5,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 155,
+            "receivedEvents": 10200,
+            "dispatchedEvents": 409,
+            "coalescedEvents": 9791,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 24.30000001192093,
+              "p95": 37.5,
+              "max": 40.60000002384186
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5999999642372131,
+              "p95": 1.199999988079071,
+              "max": 1.4000000357627869
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 25,
+              "p95": 38.10000002384186,
+              "max": 41.90000003576279
+            }
+          },
+          "ws": {
+            "batches": 155,
+            "receivedEvents": 10200,
+            "dispatchedEvents": 409,
+            "coalescedEvents": 9791,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 24.30000001192093,
+              "p95": 37.5,
+              "max": 40.60000002384186
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5999999642372131,
+              "p95": 1.199999988079071,
+              "max": 1.4000000357627869
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 25,
+              "p95": 38.10000002384186,
+              "max": 41.90000003576279
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 410.087,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 134688,
+      "nativeBatches": null,
+      "round": 0
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 140,
+      "publishToReactCommitP95Ms": 28.094970703125,
+      "publishToNextFrameProxyP95Ms": 55.89501953125,
+      "keyToFrameProxyP95Ms": 17.200000047683716,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.39990234375,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 155,
+            "receivedEvents": 10401,
+            "dispatchedEvents": 601,
+            "coalescedEvents": 9800,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 19.700000047683716,
+              "p95": 32.59999996423721,
+              "max": 41.40000003576279
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.300000011920929,
+              "max": 1.5
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 20.399999976158142,
+              "p95": 33.5,
+              "max": 42.60000002384186
+            }
+          },
+          "ws": {
+            "batches": 155,
+            "receivedEvents": 10401,
+            "dispatchedEvents": 601,
+            "coalescedEvents": 9800,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 19.700000047683716,
+              "p95": 32.59999996423721,
+              "max": 41.40000003576279
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.300000011920929,
+              "max": 1.5
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 20.399999976158142,
+              "p95": 33.5,
+              "max": 42.60000002384186
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 172.667,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 120624,
+      "nativeBatches": null,
+      "round": 0
+    },
+    {
+      "mode": "rust",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 140,
+      "publishToReactCommitP95Ms": 30.74755859375,
+      "publishToNextFrameProxyP95Ms": 61.015380859375,
+      "keyToFrameProxyP95Ms": 14.799999952316284,
+      "typedCharacters": 10,
+      "firstReadyMs": 15.199951171875,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 155,
+            "receivedEvents": 10449,
+            "dispatchedEvents": 655,
+            "coalescedEvents": 9794,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 21.30000001192093,
+              "p95": 31.899999976158142,
+              "max": 39.5
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 0.9000000357627869,
+              "max": 1.5
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 21.69999998807907,
+              "p95": 32.5,
+              "max": 40.19999998807907
+            }
+          },
+          "ws": {
+            "batches": 155,
+            "receivedEvents": 10449,
+            "dispatchedEvents": 655,
+            "coalescedEvents": 9794,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 21.30000001192093,
+              "p95": 31.899999976158142,
+              "max": 39.5
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 0.9000000357627869,
+              "max": 1.5
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 21.69999998807907,
+              "p95": 32.5,
+              "max": 40.19999998807907
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 145.531,
+      "rustRssKiB": 3776,
+      "rendererMemoryKiB": 122352,
+      "nativeBatches": 90,
+      "round": 0
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 140,
+      "publishToReactCommitP95Ms": 30.503662109375,
+      "publishToNextFrameProxyP95Ms": 58.22802734375,
+      "keyToFrameProxyP95Ms": 15,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.300048828125,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 155,
+            "receivedEvents": 10400,
+            "dispatchedEvents": 600,
+            "coalescedEvents": 9800,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 20,
+              "p95": 32.60000002384186,
+              "max": 44.5
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.7999999523162842,
+              "p95": 1.5999999642372131,
+              "max": 2
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 20.700000047683716,
+              "p95": 33.90000003576279,
+              "max": 46.5
+            }
+          },
+          "ws": {
+            "batches": 155,
+            "receivedEvents": 10400,
+            "dispatchedEvents": 600,
+            "coalescedEvents": 9800,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 20,
+              "p95": 32.60000002384186,
+              "max": 44.5
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.7999999523162842,
+              "p95": 1.5999999642372131,
+              "max": 2
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 20.700000047683716,
+              "p95": 33.90000003576279,
+              "max": 46.5
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 234.442,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 121072,
+      "nativeBatches": null,
+      "round": 1
+    },
+    {
+      "mode": "rust",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 135,
+      "publishToReactCommitP95Ms": 33.693359375,
+      "publishToNextFrameProxyP95Ms": 62.04931640625,
+      "keyToFrameProxyP95Ms": 14.699999988079071,
+      "typedCharacters": 10,
+      "firstReadyMs": 15.300048828125,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 155,
+            "receivedEvents": 10454,
+            "dispatchedEvents": 661,
+            "coalescedEvents": 9793,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 22.30000001192093,
+              "p95": 34.10000002384186,
+              "max": 37.80000001192093
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.300000011920929,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 22.899999976158142,
+              "p95": 34.60000002384186,
+              "max": 38.60000002384186
+            }
+          },
+          "ws": {
+            "batches": 155,
+            "receivedEvents": 10454,
+            "dispatchedEvents": 661,
+            "coalescedEvents": 9793,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 22.30000001192093,
+              "p95": 34.10000002384186,
+              "max": 37.80000001192093
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.300000011920929,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 22.899999976158142,
+              "p95": 34.60000002384186,
+              "max": 38.60000002384186
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 174.083,
+      "rustRssKiB": 3840,
+      "rendererMemoryKiB": 122416,
+      "nativeBatches": 97,
+      "round": 1
+    },
+    {
+      "mode": "js",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 140,
+      "publishToReactCommitP95Ms": 30.446044921875,
+      "publishToNextFrameProxyP95Ms": 55.29248046875,
+      "keyToFrameProxyP95Ms": 16,
+      "typedCharacters": 10,
+      "firstReadyMs": 9.699951171875,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 155,
+            "receivedEvents": 10200,
+            "dispatchedEvents": 407,
+            "coalescedEvents": 9793,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 21.599999964237213,
+              "p95": 38.59999996423721,
+              "max": 40.09999996423721
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.199999988079071,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 22.100000023841858,
+              "p95": 39.200000047683716,
+              "max": 41.30000001192093
+            }
+          },
+          "ws": {
+            "batches": 155,
+            "receivedEvents": 10200,
+            "dispatchedEvents": 407,
+            "coalescedEvents": 9793,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 21.599999964237213,
+              "p95": 38.59999996423721,
+              "max": 40.09999996423721
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.199999988079071,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 22.100000023841858,
+              "p95": 39.200000047683716,
+              "max": 41.30000001192093
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 298.872,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 134464,
+      "nativeBatches": null,
+      "round": 1
+    },
+    {
+      "mode": "rust",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 138,
+      "publishToReactCommitP95Ms": 33.39599609375,
+      "publishToNextFrameProxyP95Ms": 59.988525390625,
+      "keyToFrameProxyP95Ms": 14.699999988079071,
+      "typedCharacters": 10,
+      "firstReadyMs": 14.5,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 155,
+            "receivedEvents": 10453,
+            "dispatchedEvents": 658,
+            "coalescedEvents": 9795,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 22.30000001192093,
+              "p95": 33.5,
+              "max": 39
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.2999999523162842,
+              "max": 1.5
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 22.80000001192093,
+              "p95": 34.30000001192093,
+              "max": 40.19999998807907
+            }
+          },
+          "ws": {
+            "batches": 155,
+            "receivedEvents": 10453,
+            "dispatchedEvents": 658,
+            "coalescedEvents": 9795,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 22.30000001192093,
+              "p95": 33.5,
+              "max": 39
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.2999999523162842,
+              "max": 1.5
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 22.80000001192093,
+              "p95": 34.30000001192093,
+              "max": 40.19999998807907
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 152.603,
+      "rustRssKiB": 3872,
+      "rendererMemoryKiB": 122384,
+      "nativeBatches": 96,
+      "round": 2
+    },
+    {
+      "mode": "js",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 137,
+      "publishToReactCommitP95Ms": 31.918701171875,
+      "publishToNextFrameProxyP95Ms": 59.391845703125,
+      "keyToFrameProxyP95Ms": 16.5,
+      "typedCharacters": 10,
+      "firstReadyMs": 10,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 155,
+            "receivedEvents": 10200,
+            "dispatchedEvents": 407,
+            "coalescedEvents": 9793,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 22.399999976158142,
+              "p95": 34.19999998807907,
+              "max": 44.200000047683716
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.2000000476837158,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 22.80000001192093,
+              "p95": 34.799999952316284,
+              "max": 45.30000001192093
+            }
+          },
+          "ws": {
+            "batches": 155,
+            "receivedEvents": 10200,
+            "dispatchedEvents": 407,
+            "coalescedEvents": 9793,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 22.399999976158142,
+              "p95": 34.19999998807907,
+              "max": 44.200000047683716
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.2000000476837158,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 22.80000001192093,
+              "p95": 34.799999952316284,
+              "max": 45.30000001192093
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 296.613,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 134064,
+      "nativeBatches": null,
+      "round": 2
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 140,
+      "publishToReactCommitP95Ms": 30.4921875,
+      "publishToNextFrameProxyP95Ms": 59.132568359375,
+      "keyToFrameProxyP95Ms": 16,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.900146484375,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 155,
+            "receivedEvents": 10400,
+            "dispatchedEvents": 600,
+            "coalescedEvents": 9800,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 18.69999998807907,
+              "p95": 32,
+              "max": 41.10000002384186
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.800000011920929,
+              "p95": 1.600000023841858,
+              "max": 2
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 19.399999976158142,
+              "p95": 33.59999996423721,
+              "max": 42.39999997615814
+            }
+          },
+          "ws": {
+            "batches": 155,
+            "receivedEvents": 10400,
+            "dispatchedEvents": 600,
+            "coalescedEvents": 9800,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 18.69999998807907,
+              "p95": 32,
+              "max": 41.10000002384186
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.800000011920929,
+              "p95": 1.600000023841858,
+              "max": 2
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 19.399999976158142,
+              "p95": 33.59999996423721,
+              "max": 42.39999997615814
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 218.193,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 120672,
+      "nativeBatches": null,
+      "round": 2
+    },
+    {
+      "mode": "js",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 139,
+      "publishToReactCommitP95Ms": 28.641845703125,
+      "publishToNextFrameProxyP95Ms": 54.445068359375,
+      "keyToFrameProxyP95Ms": 14.299999952316284,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.7998046875,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 155,
+            "receivedEvents": 10200,
+            "dispatchedEvents": 407,
+            "coalescedEvents": 9793,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 20.399999976158142,
+              "p95": 35.39999997615814,
+              "max": 40.09999996423721
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.199999988079071,
+              "max": 1.300000011920929
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 20.799999952316284,
+              "p95": 36.09999996423721,
+              "max": 41.299999952316284
+            }
+          },
+          "ws": {
+            "batches": 155,
+            "receivedEvents": 10200,
+            "dispatchedEvents": 407,
+            "coalescedEvents": 9793,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 20.399999976158142,
+              "p95": 35.39999997615814,
+              "max": 40.09999996423721
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 1.199999988079071,
+              "max": 1.300000011920929
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 20.799999952316284,
+              "p95": 36.09999996423721,
+              "max": 41.299999952316284
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 245.989,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 134976,
+      "nativeBatches": null,
+      "round": 3
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 142,
+      "publishToReactCommitP95Ms": 31.977294921875,
+      "publishToNextFrameProxyP95Ms": 60.19091796875,
+      "keyToFrameProxyP95Ms": 16.19999998807907,
+      "typedCharacters": 10,
+      "firstReadyMs": 11,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 157,
+            "receivedEvents": 10400,
+            "dispatchedEvents": 600,
+            "coalescedEvents": 9800,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 157,
+              "p50": 18.899999976158142,
+              "p95": 30.799999952316284,
+              "max": 38
+            },
+            "callbackMs": {
+              "samples": 157,
+              "p50": 0.800000011920929,
+              "p95": 1.800000011920929,
+              "max": 2.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 157,
+              "p50": 19.5,
+              "p95": 32.700000047683716,
+              "max": 39.19999998807907
+            }
+          },
+          "ws": {
+            "batches": 157,
+            "receivedEvents": 10400,
+            "dispatchedEvents": 600,
+            "coalescedEvents": 9800,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 157,
+              "p50": 18.899999976158142,
+              "p95": 30.799999952316284,
+              "max": 38
+            },
+            "callbackMs": {
+              "samples": 157,
+              "p50": 0.800000011920929,
+              "p95": 1.800000011920929,
+              "max": 2.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 157,
+              "p50": 19.5,
+              "p95": 32.700000047683716,
+              "max": 39.19999998807907
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 249.014,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 121088,
+      "nativeBatches": null,
+      "round": 3
+    },
+    {
+      "mode": "rust",
+      "projects": 5,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 10000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 137,
+      "publishToReactCommitP95Ms": 32.629150390625,
+      "publishToNextFrameProxyP95Ms": 63.10400390625,
+      "keyToFrameProxyP95Ms": 16.80000001192093,
+      "typedCharacters": 10,
+      "firstReadyMs": 15.60009765625,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 155,
+            "receivedEvents": 10455,
+            "dispatchedEvents": 660,
+            "coalescedEvents": 9795,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 23.599999964237213,
+              "p95": 33.60000002384186,
+              "max": 41.5
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 0.8999999761581421,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 24,
+              "p95": 34.10000002384186,
+              "max": 42.09999996423721
+            }
+          },
+          "ws": {
+            "batches": 155,
+            "receivedEvents": 10455,
+            "dispatchedEvents": 660,
+            "coalescedEvents": 9795,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 155,
+              "p50": 23.599999964237213,
+              "p95": 33.60000002384186,
+              "max": 41.5
+            },
+            "callbackMs": {
+              "samples": 155,
+              "p50": 0.5,
+              "p95": 0.8999999761581421,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 155,
+              "p50": 24,
+              "p95": 34.10000002384186,
+              "max": 42.09999996423721
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 144.544,
+      "rustRssKiB": 3888,
+      "rendererMemoryKiB": 121968,
+      "nativeBatches": 97,
+      "round": 3
+    },
+    {
+      "mode": "js",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 536,
+      "publishToReactCommitP95Ms": 37.298828125,
+      "publishToNextFrameProxyP95Ms": 63.081298828125,
+      "keyToFrameProxyP95Ms": 13.900000035762787,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.89990234375,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 600,
+            "receivedEvents": 40800,
+            "dispatchedEvents": 1612,
+            "coalescedEvents": 39188,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 23.69999998807907,
+              "p95": 35.80000001192093,
+              "max": 42.5
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.3999999761581421,
+              "p95": 0.6000000238418579,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 24.099999964237213,
+              "p95": 36.30000001192093,
+              "max": 43
+            }
+          },
+          "ws": {
+            "batches": 600,
+            "receivedEvents": 40800,
+            "dispatchedEvents": 1612,
+            "coalescedEvents": 39188,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 23.69999998807907,
+              "p95": 35.80000001192093,
+              "max": 42.5
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.3999999761581421,
+              "p95": 0.6000000238418579,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 24.099999964237213,
+              "p95": 36.30000001192093,
+              "max": 43
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 752.435,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 210640,
+      "nativeBatches": null,
+      "round": 0
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 551,
+      "publishToReactCommitP95Ms": 30.06982421875,
+      "publishToNextFrameProxyP95Ms": 56.84619140625,
+      "keyToFrameProxyP95Ms": 16.200000047683716,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.900146484375,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 611,
+            "receivedEvents": 41646,
+            "dispatchedEvents": 2448,
+            "coalescedEvents": 39198,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 20.900000035762787,
+              "p95": 33,
+              "max": 41
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 1.100000023841858
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 21.19999998807907,
+              "p95": 33.59999996423721,
+              "max": 41.5
+            }
+          },
+          "ws": {
+            "batches": 611,
+            "receivedEvents": 41646,
+            "dispatchedEvents": 2448,
+            "coalescedEvents": 39198,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 20.900000035762787,
+              "p95": 33,
+              "max": 41
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 1.100000023841858
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 21.19999998807907,
+              "p95": 33.59999996423721,
+              "max": 41.5
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 266.018,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 158128,
+      "nativeBatches": null,
+      "round": 0
+    },
+    {
+      "mode": "rust",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 531,
+      "publishToReactCommitP95Ms": 71.3720703125,
+      "publishToNextFrameProxyP95Ms": 98.12158203125,
+      "keyToFrameProxyP95Ms": 13.800000011920929,
+      "typedCharacters": 10,
+      "firstReadyMs": 16.300048828125,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 610,
+            "receivedEvents": 41817,
+            "dispatchedEvents": 2650,
+            "coalescedEvents": 39167,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 26.099999964237213,
+              "p95": 37,
+              "max": 41.89999997615814
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.3999999761581421,
+              "p95": 0.6000000238418579,
+              "max": 0.8999999761581421
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 26.5,
+              "p95": 37.5,
+              "max": 42.40000003576279
+            }
+          },
+          "ws": {
+            "batches": 610,
+            "receivedEvents": 41817,
+            "dispatchedEvents": 2650,
+            "coalescedEvents": 39167,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 26.099999964237213,
+              "p95": 37,
+              "max": 41.89999997615814
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.3999999761581421,
+              "p95": 0.6000000238418579,
+              "max": 0.8999999761581421
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 26.5,
+              "p95": 37.5,
+              "max": 42.40000003576279
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 230.582,
+      "rustRssKiB": 4320,
+      "rendererMemoryKiB": 157184,
+      "nativeBatches": 240,
+      "round": 0
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 550,
+      "publishToReactCommitP95Ms": 30.198974609375,
+      "publishToNextFrameProxyP95Ms": 59.32177734375,
+      "keyToFrameProxyP95Ms": 15.899999976158142,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.199951171875,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 610,
+            "receivedEvents": 41645,
+            "dispatchedEvents": 2449,
+            "coalescedEvents": 39196,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 21.5,
+              "p95": 33.19999998807907,
+              "max": 41.69999998807907
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 0.7000000476837158
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 21.80000001192093,
+              "p95": 33.69999998807907,
+              "max": 42.299999952316284
+            }
+          },
+          "ws": {
+            "batches": 610,
+            "receivedEvents": 41645,
+            "dispatchedEvents": 2449,
+            "coalescedEvents": 39196,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 21.5,
+              "p95": 33.19999998807907,
+              "max": 41.69999998807907
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 0.7000000476837158
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 21.80000001192093,
+              "p95": 33.69999998807907,
+              "max": 42.299999952316284
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 246.581,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 158064,
+      "nativeBatches": null,
+      "round": 1
+    },
+    {
+      "mode": "rust",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 524,
+      "publishToReactCommitP95Ms": 77.21533203125,
+      "publishToNextFrameProxyP95Ms": 103.498291015625,
+      "keyToFrameProxyP95Ms": 16.400000035762787,
+      "typedCharacters": 10,
+      "firstReadyMs": 16.10009765625,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 608,
+            "receivedEvents": 41827,
+            "dispatchedEvents": 2659,
+            "coalescedEvents": 39168,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 26.900000035762787,
+              "p95": 36.40000003576279,
+              "max": 44
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 0.699999988079071
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 27.30000001192093,
+              "p95": 36.90000003576279,
+              "max": 44.5
+            }
+          },
+          "ws": {
+            "batches": 608,
+            "receivedEvents": 41827,
+            "dispatchedEvents": 2659,
+            "coalescedEvents": 39168,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 26.900000035762787,
+              "p95": 36.40000003576279,
+              "max": 44
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 0.699999988079071
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 27.30000001192093,
+              "p95": 36.90000003576279,
+              "max": 44.5
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 237.107,
+      "rustRssKiB": 4208,
+      "rendererMemoryKiB": 156368,
+      "nativeBatches": 238,
+      "round": 1
+    },
+    {
+      "mode": "js",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 537,
+      "publishToReactCommitP95Ms": 41.98779296875,
+      "publishToNextFrameProxyP95Ms": 65.7578125,
+      "keyToFrameProxyP95Ms": 16.600000023841858,
+      "typedCharacters": 10,
+      "firstReadyMs": 11.300048828125,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 598,
+            "receivedEvents": 40800,
+            "dispatchedEvents": 1614,
+            "coalescedEvents": 39186,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 24.30000001192093,
+              "p95": 40.09999996423721,
+              "max": 51.90000003576279
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.3999999761581421,
+              "p95": 0.6000000238418579,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 24.69999998807907,
+              "p95": 40.5,
+              "max": 52.5
+            }
+          },
+          "ws": {
+            "batches": 598,
+            "receivedEvents": 40800,
+            "dispatchedEvents": 1614,
+            "coalescedEvents": 39186,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 24.30000001192093,
+              "p95": 40.09999996423721,
+              "max": 51.90000003576279
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.3999999761581421,
+              "p95": 0.6000000238418579,
+              "max": 1.399999976158142
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 24.69999998807907,
+              "p95": 40.5,
+              "max": 52.5
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 654.379,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 214000,
+      "nativeBatches": null,
+      "round": 1
+    },
+    {
+      "mode": "rust",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 530,
+      "publishToReactCommitP95Ms": 71.777099609375,
+      "publishToNextFrameProxyP95Ms": 100.032958984375,
+      "keyToFrameProxyP95Ms": 15.300000011920929,
+      "typedCharacters": 10,
+      "firstReadyMs": 16,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 608,
+            "receivedEvents": 41823,
+            "dispatchedEvents": 2654,
+            "coalescedEvents": 39169,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 25.30000001192093,
+              "p95": 35.60000002384186,
+              "max": 46
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.3999999761581421,
+              "p95": 0.6000000238418579,
+              "max": 0.699999988079071
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 25.600000023841858,
+              "p95": 36,
+              "max": 46.39999997615814
+            }
+          },
+          "ws": {
+            "batches": 608,
+            "receivedEvents": 41823,
+            "dispatchedEvents": 2654,
+            "coalescedEvents": 39169,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 25.30000001192093,
+              "p95": 35.60000002384186,
+              "max": 46
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.3999999761581421,
+              "p95": 0.6000000238418579,
+              "max": 0.699999988079071
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 25.600000023841858,
+              "p95": 36,
+              "max": 46.39999997615814
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 239.041,
+      "rustRssKiB": 4208,
+      "rendererMemoryKiB": 155872,
+      "nativeBatches": 243,
+      "round": 2
+    },
+    {
+      "mode": "js",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 540,
+      "publishToReactCommitP95Ms": 39.49609375,
+      "publishToNextFrameProxyP95Ms": 69.59619140625,
+      "keyToFrameProxyP95Ms": 16.200000047683716,
+      "typedCharacters": 10,
+      "firstReadyMs": 11.300048828125,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 602,
+            "receivedEvents": 40800,
+            "dispatchedEvents": 1611,
+            "coalescedEvents": 39189,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 23.69999998807907,
+              "p95": 37.90000003576279,
+              "max": 46.39999997615814
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 0.7000000476837158
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 24,
+              "p95": 38.39999997615814,
+              "max": 46.89999997615814
+            }
+          },
+          "ws": {
+            "batches": 602,
+            "receivedEvents": 40800,
+            "dispatchedEvents": 1611,
+            "coalescedEvents": 39189,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 23.69999998807907,
+              "p95": 37.90000003576279,
+              "max": 46.39999997615814
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 0.7000000476837158
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 24,
+              "p95": 38.39999997615814,
+              "max": 46.89999997615814
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 632.788,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 211248,
+      "nativeBatches": null,
+      "round": 2
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 555,
+      "publishToReactCommitP95Ms": 29.905029296875,
+      "publishToNextFrameProxyP95Ms": 59.605224609375,
+      "keyToFrameProxyP95Ms": 16.69999998807907,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.5,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 616,
+            "receivedEvents": 41647,
+            "dispatchedEvents": 2449,
+            "coalescedEvents": 39198,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 21.80000001192093,
+              "p95": 32.89999997615814,
+              "max": 45.69999998807907
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 1.2000000476837158
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 22.099999964237213,
+              "p95": 33.5,
+              "max": 46.299999952316284
+            }
+          },
+          "ws": {
+            "batches": 616,
+            "receivedEvents": 41647,
+            "dispatchedEvents": 2449,
+            "coalescedEvents": 39198,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 21.80000001192093,
+              "p95": 32.89999997615814,
+              "max": 45.69999998807907
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 1.2000000476837158
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 22.099999964237213,
+              "p95": 33.5,
+              "max": 46.299999952316284
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 245.517,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 159168,
+      "nativeBatches": null,
+      "round": 2
+    },
+    {
+      "mode": "js",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 542,
+      "publishToReactCommitP95Ms": 40.884765625,
+      "publishToNextFrameProxyP95Ms": 67.188232421875,
+      "keyToFrameProxyP95Ms": 14.100000023841858,
+      "typedCharacters": 10,
+      "firstReadyMs": 11.10009765625,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 604,
+            "receivedEvents": 40800,
+            "dispatchedEvents": 1616,
+            "coalescedEvents": 39184,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 24,
+              "p95": 39.19999998807907,
+              "max": 44.10000002384186
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.3999999761581421,
+              "p95": 0.6000000238418579,
+              "max": 1.5
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 24.30000001192093,
+              "p95": 39.799999952316284,
+              "max": 44.700000047683716
+            }
+          },
+          "ws": {
+            "batches": 604,
+            "receivedEvents": 40800,
+            "dispatchedEvents": 1616,
+            "coalescedEvents": 39184,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 24,
+              "p95": 39.19999998807907,
+              "max": 44.10000002384186
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.3999999761581421,
+              "p95": 0.6000000238418579,
+              "max": 1.5
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 24.30000001192093,
+              "p95": 39.799999952316284,
+              "max": 44.700000047683716
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 658.744,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 210704,
+      "nativeBatches": null,
+      "round": 3
+    },
+    {
+      "mode": "ipc-js",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 546,
+      "publishToReactCommitP95Ms": 29.75634765625,
+      "publishToNextFrameProxyP95Ms": 58.456298828125,
+      "keyToFrameProxyP95Ms": 15.900000035762787,
+      "typedCharacters": 10,
+      "firstReadyMs": 10.699951171875,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 613,
+            "receivedEvents": 41650,
+            "dispatchedEvents": 2454,
+            "coalescedEvents": 39196,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 21.100000023841858,
+              "p95": 33,
+              "max": 41
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 1.2999999523162842
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 21.399999976158142,
+              "p95": 33.5,
+              "max": 41.60000002384186
+            }
+          },
+          "ws": {
+            "batches": 613,
+            "receivedEvents": 41650,
+            "dispatchedEvents": 2454,
+            "coalescedEvents": 39196,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 21.100000023841858,
+              "p95": 33,
+              "max": 41
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.6000000238418579,
+              "max": 1.2999999523162842
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 21.399999976158142,
+              "p95": 33.5,
+              "max": 41.60000002384186
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 263.511,
+      "rustRssKiB": null,
+      "rendererMemoryKiB": 159168,
+      "nativeBatches": null,
+      "round": 3
+    },
+    {
+      "mode": "rust",
+      "projects": 20,
+      "callbackErrors": 0,
+      "totalAppliedCharacters": 40000,
+      "textLengths": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "appliedRevisions": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "commitSamples": 529,
+      "publishToReactCommitP95Ms": 69.0556640625,
+      "publishToNextFrameProxyP95Ms": 95.113525390625,
+      "keyToFrameProxyP95Ms": 14.5,
+      "typedCharacters": 10,
+      "firstReadyMs": 16.5,
+      "sync": {
+        "schema": "ax-code-desktop.sync-performance.v1",
+        "scope": "renderer-receive-to-synchronous-callback-end",
+        "sampleUnit": "directory-flush-batch",
+        "sampleCapacityPerGroup": 512,
+        "groups": {
+          "all": {
+            "batches": 612,
+            "receivedEvents": 41814,
+            "dispatchedEvents": 2648,
+            "coalescedEvents": 39166,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 26.19999998807907,
+              "p95": 34.59999996423721,
+              "max": 44
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.5999999642372131,
+              "max": 0.699999988079071
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 26.599999964237213,
+              "p95": 35,
+              "max": 44.59999996423721
+            }
+          },
+          "ws": {
+            "batches": 612,
+            "receivedEvents": 41814,
+            "dispatchedEvents": 2648,
+            "coalescedEvents": 39166,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 512,
+              "p50": 26.19999998807907,
+              "p95": 34.59999996423721,
+              "max": 44
+            },
+            "callbackMs": {
+              "samples": 512,
+              "p50": 0.30000001192092896,
+              "p95": 0.5999999642372131,
+              "max": 0.699999988079071
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 512,
+              "p50": 26.599999964237213,
+              "p95": 35,
+              "max": 44.59999996423721
+            }
+          },
+          "sse": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          },
+          "mixed": {
+            "batches": 0,
+            "receivedEvents": 0,
+            "dispatchedEvents": 0,
+            "coalescedEvents": 0,
+            "failedCallbacks": 0,
+            "backpressureBatches": 0,
+            "queueWaitMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "callbackMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            },
+            "receiveToCallbackEndMs": {
+              "samples": 0,
+              "p50": null,
+              "p95": null,
+              "max": null
+            }
+          }
+        }
+      },
+      "hostCpuMs": 227.408,
+      "rustRssKiB": 4128,
+      "rendererMemoryKiB": 156688,
+      "nativeBatches": 241,
+      "round": 3
+    }
+  ]
+}
