@@ -149,14 +149,17 @@ function createDesktopWebMcpBrowser({
       }
       if (!BrowserWindow.fromWebContents(sender)) throw new Error("The browser requires a local desktop window")
       let capability = null
+      let browserMode = null
       let reachable = true
       try {
-        capability = (await api(args.directory, "/capability"))?.capability ?? null
+        const response = await api(args.directory, "/capability")
+        capability = response?.capability ?? null
+        browserMode = response?.browserMode ?? null
       } catch {
         // A runtime that is restarting or offline is unknown, not incompatible.
         reachable = false
       }
-      return { capability: CAPABILITY, runtimeCapability: capability, reachable, compatible: capability === CAPABILITY }
+      return { capability: CAPABILITY, runtimeCapability: capability, reachable, compatible: capability === CAPABILITY && browserMode === "embedded" }
     }
     if (args.action === "create") {
       if (
@@ -260,7 +263,7 @@ function createDesktopWebMcpBrowser({
         entry.revision === revision
       if (!active()) throw new Error("Browser access changed during enrollment")
       const capability = await api(entry.directory, "/capability")
-      if (capability?.capability !== CAPABILITY)
+      if (capability?.capability !== CAPABILITY || capability?.browserMode !== "embedded")
         throw new Error("The bundled coding runtime needs a compatible browser update")
       await entry.syncing
       if (!active()) throw new Error("Browser access changed during enrollment")

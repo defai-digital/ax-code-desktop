@@ -36,6 +36,7 @@ const { AX_CODE_INSTALL_DOCS_URL, GITHUB_BUG_REPORT_URL, GITHUB_FEATURE_REQUEST_
 const { createSupervisionFsm } = require("./supervision-fsm")
 const { buildComputerUseServerEnv } = require("./computer-use-server-env")
 const { applyBundledAxCodeEnv, buildBundledAxCodeEnv } = require("./bundled-ax-code-env")
+const { desktopBrowserRuntimeEnv } = require("./browser-runtime-policy")
 const { verifyBundledAxCodeIntegrity } = require("./bundled-ax-code-integrity")
 const { getRuntimeAuthPassword } = require("./runtime-auth-password")
 const { createDesktopWebMcpBrowser, DESKTOP_BROWSER_TOKEN } = require("./desktop-webmcp-browser")
@@ -355,6 +356,7 @@ function spawnServerProcess(wire) {
         // main process before require, now passed into the forked process.
         AX_CODE_DESKTOP_DIST_DIR: getWebDistPath(),
         AX_CODE_DESKTOP_RUNTIME: "desktop",
+        AX_CODE_BROWSER_MODE: "embedded",
         // Per-boot ax-code runtime Basic-auth password, owned by main since
         // S2.2 (SPEC-2026-08-29-desktop-process-model-collapse §2 D2). The web
         // server adopts it instead of self-generating and forwards it to the
@@ -3155,7 +3157,7 @@ app.whenReady().then(async () => {
     if (isMainSupervisedRuntimeEnabled()) {
       recordStartupEvent("runtime.supervision.start", {}, { once: false })
       runtimeSupervision = createAxCodeRuntimeSupervision({
-        env: applyBundledAxCodeEnv({ ...process.env, AX_CODE_DESKTOP_BROWSER_TOKEN: DESKTOP_BROWSER_TOKEN }, bundledAxCodeEnv),
+        env: desktopBrowserRuntimeEnv(applyBundledAxCodeEnv(process.env, bundledAxCodeEnv), DESKTOP_BROWSER_TOKEN),
         settingsReader: readSettingsRoot,
         logger: console,
         onOriginChange: (origin, context = {}) => {
