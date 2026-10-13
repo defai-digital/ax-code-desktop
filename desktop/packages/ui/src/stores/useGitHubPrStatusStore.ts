@@ -125,6 +125,16 @@ const timers = new Map<string, number>()
 const bootstrapTimers = new Map<string, number[]>()
 const inFlightBySignature = new Set<string>()
 const lastRefreshBySignature = new Map<string, number>()
+
+// The revalidate TTL is only checked on read; purge on write so the map holds the
+// signatures refreshed inside the TTL instead of every signature ever refreshed.
+export const pruneExpiredPrRefreshTimestamps = (timestamps: Map<string, number>, now: number): void => {
+  for (const [signature, at] of timestamps) {
+    if (now - at >= PR_REVALIDATE_TTL_MS) {
+      timestamps.delete(signature)
+    }
+  }
+}
 const createEntry = (): PrStatusEntry => ({
   status: null,
   isLoading: false,
@@ -431,7 +441,9 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
         }
 
         inFlightBySignature.add(signature)
-        lastRefreshBySignature.set(signature, Date.now())
+        const refreshStartedAt = Date.now()
+        pruneExpiredPrRefreshTimestamps(lastRefreshBySignature, refreshStartedAt)
+        lastRefreshBySignature.set(signature, refreshStartedAt)
 
         set((prev) => {
           const nextEntries = { ...prev.entries }

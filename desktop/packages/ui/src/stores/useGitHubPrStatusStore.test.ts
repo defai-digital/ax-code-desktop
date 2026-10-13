@@ -131,3 +131,17 @@ describe("useGitHubPrStatusStore", () => {
     expect(tracked).not.toContain(getGitHubPrStatusKey("/repo-0", "main", "origin"))
   })
 })
+
+describe("pruneExpiredPrRefreshTimestamps", () => {
+  test("drops signatures whose revalidate TTL has passed and keeps fresh ones", async () => {
+    const { pruneExpiredPrRefreshTimestamps } = await loadStore()
+    const timestamps = new Map<string, number>([
+      ["stale", 0],
+      ["fresh", 80_000],
+    ])
+
+    pruneExpiredPrRefreshTimestamps(timestamps, 90_000)
+
+    expect([...timestamps.keys()]).toEqual(["fresh"])
+  })
+})
