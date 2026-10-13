@@ -139,6 +139,19 @@ const _worktreeListCache = new Map<string, { value: WorktreeMetadata[]; at: numb
 const _worktreeListInflight = new Map<string, Promise<WorktreeMetadata[]>>()
 const WORKTREE_LIST_CACHE_TTL = 30_000 // 30 seconds
 
+// The TTL is only checked on read; purge on write so the cache holds the projects
+// listed inside the TTL instead of every project ever listed.
+export const pruneExpiredWorktreeListEntries = (
+  cache: Map<string, { value: WorktreeMetadata[]; at: number }>,
+  now: number,
+): void => {
+  for (const [key, entry] of cache) {
+    if (now - entry.at >= WORKTREE_LIST_CACHE_TTL) {
+      cache.delete(key)
+    }
+  }
+}
+
 export async function listProjectWorktrees(project: ProjectRef): Promise<WorktreeMetadata[]> {
   const projectDirectory = normalizeWorktreePath(project.path)
 
@@ -188,7 +201,9 @@ export async function listProjectWorktrees(project: ProjectRef): Promise<Worktre
       return aLabel.localeCompare(bLabel)
     })
 
-    _worktreeListCache.set(projectDirectory, { value: sorted, at: Date.now() })
+    const now = Date.now()
+    pruneExpiredWorktreeListEntries(_worktreeListCache, now)
+    _worktreeListCache.set(projectDirectory, { value: sorted, at: now })
     return sorted
   })().finally(() => {
     _worktreeListInflight.delete(projectDirectory)
