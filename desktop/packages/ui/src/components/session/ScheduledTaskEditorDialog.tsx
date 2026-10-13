@@ -19,6 +19,7 @@ import {
 } from "@/components/chat/CommandAutocomplete"
 import { FileMentionAutocomplete, type FileMentionHandle } from "@/components/chat/FileMentionAutocomplete"
 import { SnippetAutocomplete, type SnippetAutocompleteHandle } from "@/components/chat/SnippetAutocomplete"
+import { detectTriggerQueryAtCursor, insertTriggerAtCursor } from "@/components/chat/chatInputMentions"
 import { Icon } from "@/components/icon/Icon"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useUIStore } from "@/stores/useUIStore"
@@ -816,32 +817,20 @@ export function ScheduledTaskEditorDialog(props: {
     setShowCommandAutocomplete(false)
 
     const textBeforeCursor = value.substring(0, cursorPosition)
-    const lastHashSymbol = textBeforeCursor.lastIndexOf("#")
-    if (lastHashSymbol !== -1) {
-      const charBefore = lastHashSymbol > 0 ? textBeforeCursor[lastHashSymbol - 1] : null
-      const textAfterHash = textBeforeCursor.substring(lastHashSymbol + 1)
-      const isWordBoundary = !charBefore || /\s/.test(charBefore)
-      if (isWordBoundary && !textAfterHash.includes(" ") && !textAfterHash.includes("\n")) {
-        setSnippetQuery(textAfterHash)
-        setShowSnippetAutocomplete(true)
-        setShowFileMention(false)
-        return
-      }
+    const detectedSnippetQuery = detectTriggerQueryAtCursor(textBeforeCursor, "#")
+    if (detectedSnippetQuery !== null) {
+      setSnippetQuery(detectedSnippetQuery)
+      setShowSnippetAutocomplete(true)
+      setShowFileMention(false)
+      return
     }
 
     setShowSnippetAutocomplete(false)
 
-    const lastAtSymbol = textBeforeCursor.lastIndexOf("@")
-    if (lastAtSymbol !== -1) {
-      const charBefore = lastAtSymbol > 0 ? textBeforeCursor[lastAtSymbol - 1] : null
-      const textAfterAt = textBeforeCursor.substring(lastAtSymbol + 1)
-      const isWordBoundary = !charBefore || /\s/.test(charBefore)
-      if (isWordBoundary && !textAfterAt.includes(" ") && !textAfterAt.includes("\n")) {
-        setMentionQuery(textAfterAt)
-        setShowFileMention(true)
-      } else {
-        setShowFileMention(false)
-      }
+    const detectedMentionQuery = detectTriggerQueryAtCursor(textBeforeCursor, "@")
+    if (detectedMentionQuery !== null) {
+      setMentionQuery(detectedMentionQuery)
+      setShowFileMention(true)
       return
     }
 
@@ -863,14 +852,15 @@ export function ScheduledTaskEditorDialog(props: {
       const promptValue = draft.execution.prompt
       const textarea = promptTextareaRef.current
       const cursorPosition = textarea?.selectionStart ?? promptValue.length
-      const textBeforeCursor = promptValue.substring(0, cursorPosition)
-      const lastAtSymbol = textBeforeCursor.lastIndexOf("@")
       const mentionPath =
         file.relativePath && file.relativePath.trim().length > 0 ? file.relativePath.trim() : file.path || file.name
 
-      const startIndex = lastAtSymbol !== -1 ? lastAtSymbol : cursorPosition
-      const nextPrompt = `${promptValue.substring(0, startIndex)}@${mentionPath} ${promptValue.substring(cursorPosition)}`
-      const nextCursor = startIndex + mentionPath.length + 2
+      const { newMessage: nextPrompt, nextCursor } = insertTriggerAtCursor(
+        promptValue,
+        cursorPosition,
+        mentionPath,
+        "@",
+      )
 
       setPromptValue(nextPrompt)
       setShowFileMention(false)
@@ -894,11 +884,7 @@ export function ScheduledTaskEditorDialog(props: {
       const promptValue = draft.execution.prompt
       const textarea = promptTextareaRef.current
       const cursorPosition = textarea?.selectionStart ?? promptValue.length
-      const textBeforeCursor = promptValue.substring(0, cursorPosition)
-      const lastAtSymbol = textBeforeCursor.lastIndexOf("@")
-      const startIndex = lastAtSymbol !== -1 ? lastAtSymbol : cursorPosition
-      const nextPrompt = `${promptValue.substring(0, startIndex)}@${agentName} ${promptValue.substring(cursorPosition)}`
-      const nextCursor = startIndex + agentName.length + 2
+      const { newMessage: nextPrompt, nextCursor } = insertTriggerAtCursor(promptValue, cursorPosition, agentName, "@")
 
       setPromptValue(nextPrompt)
       setShowFileMention(false)
@@ -943,11 +929,7 @@ export function ScheduledTaskEditorDialog(props: {
       const promptValue = draft.execution.prompt
       const textarea = promptTextareaRef.current
       const cursorPosition = textarea?.selectionStart ?? promptValue.length
-      const textBeforeCursor = promptValue.substring(0, cursorPosition)
-      const lastHashSymbol = textBeforeCursor.lastIndexOf("#")
-      const startIndex = lastHashSymbol !== -1 ? lastHashSymbol : cursorPosition
-      const nextPrompt = `${promptValue.substring(0, startIndex)}#${trigger} ${promptValue.substring(cursorPosition)}`
-      const nextCursor = startIndex + trigger.length + 2
+      const { newMessage: nextPrompt, nextCursor } = insertTriggerAtCursor(promptValue, cursorPosition, trigger, "#")
 
       setPromptValue(nextPrompt)
       setShowSnippetAutocomplete(false)

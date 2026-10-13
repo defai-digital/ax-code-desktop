@@ -100,22 +100,28 @@ export const collectComposerMentionRanges = (
   return ranges
 }
 
-// Detect an in-progress @mention query at the cursor: the "@" must sit on a
-// word boundary and the text after it must not contain whitespace.
-// Returns the query text after "@", or null when no mention is being typed.
-export const detectMentionQueryAtCursor = (textBeforeCursor: string): string | null => {
-  const lastAtSymbol = textBeforeCursor.lastIndexOf("@")
-  if (lastAtSymbol === -1) {
+// Detect an in-progress <trigger> query at the cursor: the trigger must sit on a
+// whitespace boundary and the text after it must not contain whitespace.
+// Returns the query text after the trigger ("" when the cursor is right after
+// the trigger), or null when no query is being typed.
+export const detectTriggerQueryAtCursor = (textBeforeCursor: string, trigger: string): string | null => {
+  const lastTriggerSymbol = textBeforeCursor.lastIndexOf(trigger)
+  if (lastTriggerSymbol === -1) {
     return null
   }
-  const charBefore = lastAtSymbol > 0 ? textBeforeCursor[lastAtSymbol - 1] : null
-  const textAfterAt = textBeforeCursor.substring(lastAtSymbol + 1)
+  const charBefore = lastTriggerSymbol > 0 ? textBeforeCursor[lastTriggerSymbol - 1] : null
+  const textAfterTrigger = textBeforeCursor.substring(lastTriggerSymbol + trigger.length)
   const isWordBoundary = !charBefore || /\s/.test(charBefore)
-  if (isWordBoundary && !textAfterAt.includes(" ") && !textAfterAt.includes("\n")) {
-    return textAfterAt
+  if (isWordBoundary && !textAfterTrigger.includes(" ") && !textAfterTrigger.includes("\n")) {
+    return textAfterTrigger
   }
   return null
 }
+
+// Detect an in-progress @mention query at the cursor — see
+// detectTriggerQueryAtCursor for the boundary rules.
+export const detectMentionQueryAtCursor = (textBeforeCursor: string): string | null =>
+  detectTriggerQueryAtCursor(textBeforeCursor, "@")
 
 // Backspace/Delete inside a confirmed file mention removes the whole token.
 // Given the probe index (char that would be deleted), returns the removal
@@ -178,27 +184,36 @@ export const toProjectRelativeMentionPath = (
   return normalizedAbsolutePath
 }
 
-// Insert "@mentionText " at the cursor. When the cursor sits right after an
-// in-progress @query, the query is replaced; otherwise the mention is inserted
-// at the cursor position.
+// Insert "<trigger><text> " at the cursor. When the cursor sits right after an
+// in-progress <trigger> query, the query is replaced; otherwise the text is
+// inserted at the cursor position.
+export const insertTriggerAtCursor = (
+  message: string,
+  cursorPosition: number,
+  text: string,
+  trigger: string,
+): { newMessage: string; nextCursor: number } => {
+  const textBeforeCursor = message.substring(0, cursorPosition)
+  const lastTriggerSymbol = textBeforeCursor.lastIndexOf(trigger)
+  if (lastTriggerSymbol !== -1) {
+    return {
+      newMessage: message.substring(0, lastTriggerSymbol) + `${trigger}${text} ` + message.substring(cursorPosition),
+      nextCursor: lastTriggerSymbol + text.length + trigger.length + 1,
+    }
+  }
+  return {
+    newMessage: message.substring(0, cursorPosition) + `${trigger}${text} ` + message.substring(cursorPosition),
+    nextCursor: cursorPosition + text.length + trigger.length + 1,
+  }
+}
+
+// Insert "@mentionText " at the cursor — see insertTriggerAtCursor for the
+// in-progress query replacement rules.
 export const insertMentionAtCursor = (
   message: string,
   cursorPosition: number,
   mentionText: string,
-): { newMessage: string; nextCursor: number } => {
-  const textBeforeCursor = message.substring(0, cursorPosition)
-  const lastAtSymbol = textBeforeCursor.lastIndexOf("@")
-  if (lastAtSymbol !== -1) {
-    return {
-      newMessage: message.substring(0, lastAtSymbol) + `@${mentionText} ` + message.substring(cursorPosition),
-      nextCursor: lastAtSymbol + mentionText.length + 2,
-    }
-  }
-  return {
-    newMessage: message.substring(0, cursorPosition) + `@${mentionText} ` + message.substring(cursorPosition),
-    nextCursor: cursorPosition + mentionText.length + 2,
-  }
-}
+): { newMessage: string; nextCursor: number } => insertTriggerAtCursor(message, cursorPosition, mentionText, "@")
 
 // Drop-insert a "@mention" with padding spaces so it never fuses with the
 // surrounding text. Returns the next message and cursor position.

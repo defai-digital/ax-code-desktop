@@ -107,8 +107,10 @@ import {
   buildMentionDropInsertion,
   collectComposerMentionRanges,
   detectMentionQueryAtCursor,
+  detectTriggerQueryAtCursor,
   extractInlineFileMentions as extractInlineFileMentionsFromText,
   insertMentionAtCursor,
+  insertTriggerAtCursor,
   loadConfirmedMentions,
   resolveFileMentionDeletion,
   resolveFileMentionPath,
@@ -2482,17 +2484,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       setShowSkillAutocomplete(false)
       setSkillQuery("")
 
-      const lastHashSymbol = textBeforeCursor.lastIndexOf("#")
-      if (lastHashSymbol !== -1) {
-        const charBefore = lastHashSymbol > 0 ? textBeforeCursor[lastHashSymbol - 1] : null
-        const textAfterHash = textBeforeCursor.substring(lastHashSymbol + 1)
-        const isWordBoundary = !charBefore || /\s/.test(charBefore)
-        if (isWordBoundary && !textAfterHash.includes(" ") && !textAfterHash.includes("\n")) {
-          setSnippetQuery(textAfterHash)
-          setShowSnippetAutocomplete(true)
-          setShowFileMention(false)
-          return
-        }
+      const detectedSnippetQuery = detectTriggerQueryAtCursor(textBeforeCursor, "#")
+      if (detectedSnippetQuery !== null) {
+        setSnippetQuery(detectedSnippetQuery)
+        setShowSnippetAutocomplete(true)
+        setShowFileMention(false)
+        return
       }
 
       setShowSnippetAutocomplete(false)
@@ -2771,12 +2768,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   const handleSnippetSelect = (_snippet: unknown, trigger: string) => {
     const textarea = textareaRef.current
     const cursorPosition = textarea?.selectionStart ?? message.length
-    const textBeforeCursor = message.substring(0, cursorPosition)
-    const lastHashSymbol = textBeforeCursor.lastIndexOf("#")
-    const startIndex = lastHashSymbol !== -1 ? lastHashSymbol : cursorPosition
-    const newMessage = `${message.substring(0, startIndex)}#${trigger} ${message.substring(cursorPosition)}`
+    const { newMessage, nextCursor } = insertTriggerAtCursor(message, cursorPosition, trigger, "#")
     setMessage(newMessage)
-    const nextCursor = startIndex + trigger.length + 2
     requestAnimationFrame(() => {
       if (textareaRef.current) {
         textareaRef.current.selectionStart = nextCursor

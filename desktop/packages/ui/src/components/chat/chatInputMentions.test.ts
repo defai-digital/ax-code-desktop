@@ -4,9 +4,11 @@ import {
   buildMentionDropInsertion,
   collectComposerMentionRanges,
   detectMentionQueryAtCursor,
+  detectTriggerQueryAtCursor,
   extractInlineFileMentions,
   getConfirmedMentionsKey,
   insertMentionAtCursor,
+  insertTriggerAtCursor,
   loadConfirmedMentions,
   pruneConfirmedMentions,
   resolveFileMentionDeletion,
@@ -177,6 +179,39 @@ describe("detectMentionQueryAtCursor", () => {
   })
 })
 
+describe("detectTriggerQueryAtCursor", () => {
+  test("returns the query after the trigger at a word boundary", () => {
+    expect(detectTriggerQueryAtCursor("hello #snip", "#")).toBe("snip")
+    expect(detectTriggerQueryAtCursor("#snip", "#")).toBe("snip")
+  })
+
+  test("returns an empty string when the cursor sits right after the trigger", () => {
+    expect(detectTriggerQueryAtCursor("#", "#")).toBe("")
+    expect(detectTriggerQueryAtCursor("hello #", "#")).toBe("")
+  })
+
+  test("returns null when there is no trigger or the query already ended", () => {
+    expect(detectTriggerQueryAtCursor("hello world", "#")).toBeNull()
+    expect(detectTriggerQueryAtCursor("#foo bar", "#")).toBeNull()
+    expect(detectTriggerQueryAtCursor("#foo\nbar", "#")).toBeNull()
+  })
+
+  test("returns null for a trigger inside a word", () => {
+    expect(detectTriggerQueryAtCursor("foo#bar", "#")).toBeNull()
+  })
+
+  test("only reacts to its own trigger", () => {
+    expect(detectTriggerQueryAtCursor("hello @snip", "#")).toBeNull()
+    expect(detectTriggerQueryAtCursor("hello #snip", "@")).toBeNull()
+    expect(detectMentionQueryAtCursor("hello #snip")).toBeNull()
+  })
+
+  test("the @ wrapper behaves like the generic helper with the @ trigger", () => {
+    expect(detectMentionQueryAtCursor("hello @snip")).toBe(detectTriggerQueryAtCursor("hello @snip", "@"))
+    expect(detectMentionQueryAtCursor("hello")).toBe(detectTriggerQueryAtCursor("hello", "@"))
+  })
+})
+
 describe("resolveFileMentionDeletion", () => {
   const confirmedPath = makeIsConfirmedFilePath(new Set())
 
@@ -337,6 +372,43 @@ describe("insertMentionAtCursor", () => {
     expect(insertMentionAtCursor("hello @later", 5, "a.ts")).toEqual({
       newMessage: "hello@a.ts  @later",
       nextCursor: 11,
+    })
+  })
+
+  test("delegates to insertTriggerAtCursor with the @ trigger", () => {
+    expect(insertMentionAtCursor("hello @sr", 9, "src/app.ts")).toEqual(
+      insertTriggerAtCursor("hello @sr", 9, "src/app.ts", "@"),
+    )
+    expect(insertMentionAtCursor("hello", 5, "a.ts")).toEqual(insertTriggerAtCursor("hello", 5, "a.ts", "@"))
+  })
+})
+
+describe("insertTriggerAtCursor", () => {
+  test("replaces an in-progress #query before the cursor", () => {
+    expect(insertTriggerAtCursor("hello #sn", 9, "snippet", "#")).toEqual({
+      newMessage: "hello #snippet ",
+      nextCursor: 15,
+    })
+  })
+
+  test("inserts at the cursor when there is no # trigger", () => {
+    expect(insertTriggerAtCursor("hello", 5, "snippet", "#")).toEqual({
+      newMessage: "hello#snippet ",
+      nextCursor: 14,
+    })
+  })
+
+  test("pads the inserted snippet with a single trailing space", () => {
+    const result = insertTriggerAtCursor("#sn", 3, "snippet", "#")
+    expect(result.newMessage).toBe("#snippet ")
+    expect(result.newMessage.endsWith("  ")).toBe(false)
+    expect(result.nextCursor).toBe(9)
+  })
+
+  test("does not react to a trigger that belongs to another helper", () => {
+    expect(insertTriggerAtCursor("hello @sr", 9, "snippet", "#")).toEqual({
+      newMessage: "hello @sr#snippet ",
+      nextCursor: 18,
     })
   })
 })
