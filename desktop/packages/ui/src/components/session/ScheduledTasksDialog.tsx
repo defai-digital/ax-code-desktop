@@ -36,7 +36,7 @@ import {
   type ScheduledTaskDraftInput,
 } from "@/lib/scheduledTaskTransform"
 import { ScheduledTaskEditorDialog } from "./ScheduledTaskEditorDialog"
-import { loadCurrentScheduledTaskList } from "./scheduledTaskListLoad"
+import { loadCurrent } from "@/lib/currentLoad"
 import { relativeTimeParts } from "./scheduledTaskRelativeTime"
 
 const pad2 = (value: number): string => String(value).padStart(2, "0")
@@ -245,13 +245,13 @@ export function ScheduledTasksDialog() {
       if (!options?.silent) {
         setLoading(true)
       }
-      const loaded = await loadCurrentScheduledTaskList({
+      const loaded = await loadCurrent({
         load: () => fetchScheduledTasks(directory),
         isCurrent: () =>
           openRef.current && selectedProjectIDRef.current === projectID && taskListRequestRef.current === requestId,
       })
       if (loaded.status === "loaded") {
-        const nextTasks = loaded.tasks
+        const nextTasks = loaded.result
         nextTasks.sort((a, b) => {
           const aActive = a.status === "active"
           const bActive = b.status === "active"

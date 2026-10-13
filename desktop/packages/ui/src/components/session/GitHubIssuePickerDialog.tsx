@@ -31,8 +31,7 @@ import type {
   GitHubRepoSelector,
 } from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n"
-import { loadCurrentGitHubIssueDetail } from "./githubIssueDetailLoad"
-import { loadCurrentGitHubList } from "./githubListLoad"
+import { loadCurrent } from "@/lib/currentLoad"
 import { filterGitHubItemsByQuery, parseGitHubNumber } from "./githubPickerQuery"
 
 const buildIssueContextText = (args: {
@@ -132,7 +131,7 @@ export function GitHubIssuePickerDialog({
 
     setIsLoading(true)
     setError(null)
-    const loaded = await loadCurrentGitHubList({
+    const loaded = await loadCurrent({
       load: () => github.issuesList(projectDirectory, { page: 1 }),
       isCurrent: () => listRequestRef.current === requestId,
     })
@@ -163,7 +162,7 @@ export function GitHubIssuePickerDialog({
     listRequestRef.current = requestId
     setIsLoadingMore(true)
     const nextPage = page + 1
-    const loaded = await loadCurrentGitHubList({
+    const loaded = await loadCurrent({
       load: () => github.issuesList(projectDirectory, { page: nextPage }),
       isCurrent: () => listRequestRef.current === requestId,
     })
@@ -311,7 +310,7 @@ export function GitHubIssuePickerDialog({
       }
 
       setStartingIssueNumber(issueNumber)
-      const loaded = await loadCurrentGitHubIssueDetail({
+      const loaded = await loadCurrent({
         load: async () => {
           const issueRes = await github.issueGet(requestedDirectory, issueNumber, { sourceRepo })
           if (issueRes.connected === false || !issueRes.repo || !issueRes.issue) {
@@ -339,7 +338,7 @@ export function GitHubIssuePickerDialog({
         return
       }
 
-      const { issueRes, commentsRes } = loaded.value
+      const { issueRes, commentsRes } = loaded.result
       if (issueRes.connected === false) {
         toast.error(t("session.githubIssuePicker.error.notConnected"))
         clearCurrentIssueLoading()

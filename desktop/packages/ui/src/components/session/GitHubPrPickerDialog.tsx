@@ -22,9 +22,8 @@ import type {
 } from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n"
 import { getSafeExternalUrl, openExternalUrl } from "@/lib/url"
-import { loadCurrentGitHubList } from "./githubListLoad"
+import { loadCurrent } from "@/lib/currentLoad"
 import { filterGitHubItemsByQuery, parseGitHubNumber } from "./githubPickerQuery"
-import { loadCurrentGitHubPrAttach } from "./githubPrAttachLoad"
 
 const buildPullRequestContextText = (payload: GitHubPullRequestContextResult) => {
   return `GitHub pull request context (JSON)\n${JSON.stringify(payload, null, 2)}`
@@ -113,7 +112,7 @@ export function GitHubPrPickerDialog({
 
     setIsLoading(true)
     setError(null)
-    const loaded = await loadCurrentGitHubList({
+    const loaded = await loadCurrent({
       load: () => github.prsList(projectDirectory, { page: 1 }),
       isCurrent: () => listRequestRef.current === requestId,
     })
@@ -144,7 +143,7 @@ export function GitHubPrPickerDialog({
     listRequestRef.current = requestId
     setIsLoadingMore(true)
     const nextPage = page + 1
-    const loaded = await loadCurrentGitHubList({
+    const loaded = await loadCurrent({
       load: () => github.prsList(projectDirectory, { page: nextPage }),
       isCurrent: () => listRequestRef.current === requestId,
     })
@@ -234,7 +233,7 @@ export function GitHubPrPickerDialog({
         }
       }
 
-      const loaded = await loadCurrentGitHubPrAttach({
+      const loaded = await loadCurrent({
         load: async () => {
           const context = await github.prContext(requestedDirectory, prNumber, {
             includeDiff,
@@ -259,7 +258,7 @@ export function GitHubPrPickerDialog({
         return
       }
 
-      const { context, instructionsText } = loaded.value
+      const { context, instructionsText } = loaded.result
 
       if (context.connected === false) {
         toast.error(t("session.githubPrPicker.error.notConnected"))

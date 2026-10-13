@@ -16,7 +16,7 @@ import { Icon } from "@/components/icon/Icon"
 import type { GitHubIssue, GitHubIssueSummary, GitHubPullRequestSummary } from "@/lib/api/types"
 import type { ProjectRef } from "@/lib/worktrees/worktreeManager"
 import { useI18n } from "@/lib/i18n"
-import { loadCurrentGitHubList } from "./githubListLoad"
+import { loadCurrent } from "@/lib/currentLoad"
 
 type GitHubTab = "issues" | "prs"
 
@@ -106,7 +106,7 @@ export function GitHubIntegrationDialog({ open, onOpenChange, onSelect }: GitHub
     setHasMore(false)
 
     if (requestTab === "issues" && github.issuesList) {
-      const loaded = await loadCurrentGitHubList({
+      const loaded = await loadCurrent({
         load: () => github.issuesList(requestDirectory, { page: 1 }),
         isCurrent: isCurrentRequest,
       })
@@ -126,7 +126,7 @@ export function GitHubIntegrationDialog({ open, onOpenChange, onSelect }: GitHub
         )
       }
     } else if (requestTab === "prs" && github.prsList) {
-      const loaded = await loadCurrentGitHubList({
+      const loaded = await loadCurrent({
         load: () => github.prsList(requestDirectory, { page: 1 }),
         isCurrent: isCurrentRequest,
       })
@@ -172,7 +172,7 @@ export function GitHubIntegrationDialog({ open, onOpenChange, onSelect }: GitHub
     const nextPage = page + 1
 
     if (requestTab === "issues" && github.issuesList) {
-      const loaded = await loadCurrentGitHubList({
+      const loaded = await loadCurrent({
         load: () => github.issuesList(requestDirectory, { page: nextPage }),
         isCurrent: isCurrentRequest,
       })
@@ -185,7 +185,7 @@ export function GitHubIntegrationDialog({ open, onOpenChange, onSelect }: GitHub
         }
       }
     } else if (requestTab === "prs" && github.prsList) {
-      const loaded = await loadCurrentGitHubList({
+      const loaded = await loadCurrent({
         load: () => github.prsList(requestDirectory, { page: nextPage }),
         isCurrent: isCurrentRequest,
       })

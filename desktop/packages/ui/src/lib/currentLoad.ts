@@ -1,21 +1,21 @@
-type GitHubPrAttachLoadResult<T> =
-  | { status: "loaded"; value: T }
+export type CurrentLoadResult<T> =
+  | { status: "loaded"; result: T }
   | { status: "stale" }
   | { status: "failed"; error: unknown }
 
-export const loadCurrentGitHubPrAttach = async <T>({
+export const loadCurrent = async <T>({
   load,
   isCurrent,
 }: {
   load: () => Promise<T>
   isCurrent: () => boolean
-}): Promise<GitHubPrAttachLoadResult<T>> => {
+}): Promise<CurrentLoadResult<T>> => {
   try {
-    const value = await load()
+    const result = await load()
     if (!isCurrent()) {
       return { status: "stale" }
     }
-    return { status: "loaded", value }
+    return { status: "loaded", result }
   } catch (error) {
     if (!isCurrent()) {
       return { status: "stale" }
