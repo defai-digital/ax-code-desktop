@@ -184,6 +184,11 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
       if (!projectRef) {
         return false
       }
+      // A failed read leaves the panel without the stored content, so writing here would replace the
+      // notes and todos on disk with that gap. Nothing is persisted until a read succeeded.
+      if (!notesHydratedRef.current) {
+        return false
+      }
       const saved = await saveProjectNotesAndTodos(projectRef, {
         notes: nextNotes,
         todos: nextTodos,
@@ -198,6 +203,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
 
   React.useEffect(() => {
     if (!projectRef) {
+      notesHydratedRef.current = false
       setNotes("")
       setTodos([])
       setPlans([])
@@ -207,6 +213,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
     }
 
     let cancelled = false
+    notesHydratedRef.current = false
     setIsLoading(true)
     ;(async () => {
       try {
@@ -226,12 +233,9 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
         setExpandedTodoIds(new Set())
       } catch {
         if (!cancelled) {
+          // The toast is the whole story: the panel stays unhydrated, so it neither invents an empty
+          // state nor writes it back over the content it could not read.
           toast.error(t("rightSidebar.contextNotesTodo.toast.loadNotesFailed"))
-          setNotes("")
-          setTodos([])
-          setPlans([])
-          lastSavedNotesRef.current = ""
-          notesHydratedRef.current = true
         }
       } finally {
         if (!cancelled) {
