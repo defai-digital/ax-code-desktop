@@ -7,7 +7,7 @@ const sdkPin = JSON.parse(fs.readFileSync(path.join(root, "config", "ax-code-sdk
 const expectedSdkDependency = sdkPin.specifier
 const expectedSdkConsumers = new Set(["desktop/packages/ui/package.json", "desktop/packages/web/package.json"])
 const sourceExtensions = new Set([".cjs", ".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"])
-const directFiles = ["package.json", "pnpm-workspace.yaml", "turbo.json", "desktop/vite.config.ts"]
+const directFiles = ["package.json", "pnpm-workspace.yaml", "turbo.json", "desktop/vite-theme-plugin.ts", "desktop/vitest.config.ts"]
 const scanRoots = ["desktop/packages", "desktop/scripts", "desktop/docs"]
 
 function walk(directory) {
