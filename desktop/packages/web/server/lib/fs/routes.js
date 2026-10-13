@@ -60,7 +60,9 @@ const gitReadEntryBytes = (key, result) => key.length + (result?.stdout?.length 
 export const isPathWithinRoot = (resolvedPath, rootPath, path, os) => {
   const resolvedRoot = path.resolve(rootPath || os.homedir())
   const relative = path.relative(resolvedRoot, resolvedPath)
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+  // Only ".." itself or a leading "../" (host separator) leaves the root: a sibling whose *name*
+  // starts with ".." ("./..cache/x") is a normal path inside the root.
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
     return false
   }
   return true

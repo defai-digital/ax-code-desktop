@@ -71,7 +71,7 @@ export const toRuntimeRelativePath = (targetPath, directory) => {
   if (!target || !base || !path.isAbsolute(target) || !path.isAbsolute(base)) return target
   const relative = path.relative(base, target)
   if (relative === "") return "."
-  if (relative.startsWith("..") || path.isAbsolute(relative)) return target
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return target
   return toPosix(relative)
 }
 

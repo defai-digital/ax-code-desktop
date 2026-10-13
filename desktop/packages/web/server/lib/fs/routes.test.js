@@ -2,7 +2,7 @@ import { EventEmitter } from "events"
 import path from "path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { deriveCloneDirectoryName, isPlansDirectoryPath, registerFsRoutes } from "./routes.js"
+import { deriveCloneDirectoryName, isPathWithinRoot, isPlansDirectoryPath, registerFsRoutes } from "./routes.js"
 import { createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
 
 // Fake child process: emits the configured stdout then closes with the given code.
@@ -83,6 +83,17 @@ const registerExec = ({ spawn }) => {
 }
 
 describe("fs route helpers", () => {
+  it("keeps sibling paths whose name starts with dots inside the root", () => {
+    expect(isPathWithinRoot("/repo/src/a.ts", "/repo", path, { homedir: () => "/home/user" })).toBe(true)
+    expect(isPathWithinRoot("/repo", "/repo", path, { homedir: () => "/home/user" })).toBe(true)
+    // "..cache" is a legitimate sibling name; only ".." itself or "../" leaves the root.
+    expect(isPathWithinRoot("/repo/..cache", "/repo", path, { homedir: () => "/home/user" })).toBe(true)
+    expect(isPathWithinRoot("/repo/..cache/a.ts", "/repo", path, { homedir: () => "/home/user" })).toBe(true)
+    expect(isPathWithinRoot("/elsewhere/a.ts", "/repo", path, { homedir: () => "/home/user" })).toBe(false)
+    expect(isPathWithinRoot("/repo/../elsewhere/a.ts", "/repo", path, { homedir: () => "/home/user" })).toBe(false)
+    expect(isPathWithinRoot("/repo/..", "/repo", path, { homedir: () => "/home/user" })).toBe(false)
+  })
+
   it("derives clone directory names without input-driven regular expressions", () => {
     expect(deriveCloneDirectoryName("https://github.com/acme/demo.git")).toBe("demo")
     expect(deriveCloneDirectoryName("git@github.com:acme/demo.git/")).toBe("demo")
@@ -230,7 +241,11 @@ describe("fs outside workspace authorization", () => {
       raw: vi.fn(),
       list: vi.fn(async () => []),
     }
-    const fsPromises = { open: vi.fn(async () => { throw new Error("must not open") }) }
+    const fsPromises = {
+      open: vi.fn(async () => {
+        throw new Error("must not open")
+      }),
+    }
     const { getRoute } = registerFs(fsPromises, { approvedDirectories: ["/tmp/approved"] }, coreFileAdapter)
 
     const res = await callRoute(getRoute("GET", "/api/fs/read"), {
@@ -247,7 +262,11 @@ describe("fs outside workspace authorization", () => {
     const coreFileAdapter = {
       raw: vi.fn(async () => ({ buffer: content, mimeType: "image/png" })),
     }
-    const fsPromises = { open: vi.fn(async () => { throw new Error("must not open") }) }
+    const fsPromises = {
+      open: vi.fn(async () => {
+        throw new Error("must not open")
+      }),
+    }
     const { getRoute } = registerFs(fsPromises, { approvedDirectories: ["/tmp/approved"] }, coreFileAdapter)
 
     const res = await callRoute(getRoute("GET", "/api/fs/raw"), {

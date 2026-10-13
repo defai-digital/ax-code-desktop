@@ -50,6 +50,9 @@ describe("core file adapter", () => {
     expect(toRuntimeRelativePath("src/a.ts", "/repo")).toBe("src/a.ts")
     expect(toRuntimeRelativePath("", "/repo")).toBe("")
     expect(toRuntimeRelativePath("/repo/src", "")).toBe("/repo/src")
+    // A sibling whose name starts with ".." is inside the root, not an escape.
+    expect(toRuntimeRelativePath("/repo/..cache/a.ts", "/repo")).toBe("..cache/a.ts")
+    expect(toRuntimeRelativePath("/repo/../elsewhere/a.ts", "/repo")).toBe("/repo/../elsewhere/a.ts")
   })
 
   it("lists and reads absolute desktop paths through runtime-relative queries", async () => {
