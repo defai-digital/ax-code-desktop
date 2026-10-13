@@ -31,6 +31,19 @@ const [CLAUDE_SKILL_SOURCE, AGENTS_SKILL_SOURCE] = EXTERNAL_SKILL_SOURCES
 
 const normalizedSkillName = (skill) => (typeof skill?.name === "string" ? skill.name.trim() : "")
 
+// Express 5 hands a `*filePath` wildcard over as an array of decoded segments, so a caller that does
+// not percent-encode the separators (curl, older clients) arrives as ["references", "guide.md"].
+// Joining rebuilds the relative path that both forms describe; malformed escapes return null so the
+// route can answer 400 instead of falling through to a 500.
+const readSkillFilePathParam = (value) => {
+  const raw = Array.isArray(value) ? value.join("/") : typeof value === "string" ? value : ""
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return null
+  }
+}
+
 function ensureProjectSkillDir(workingDirectory) {
   return ensureProjectAxCodeResourceDirs(workingDirectory, "skills", "skill")
 }
@@ -614,4 +627,5 @@ export {
   createSkill,
   updateSkill,
   deleteSkill,
+  readSkillFilePathParam,
 }

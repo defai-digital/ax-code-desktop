@@ -184,6 +184,10 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
   const enabled = typeof enabledOrOptions === "boolean" ? enabledOrOptions : (enabledOrOptions?.enabled ?? true)
   const queuedMessages = useMessageQueueStore((state) => state.queuedMessages)
   const sessionStatusRecord = useDirectorySync((state) => state.session_status)
+  // The error hold is read imperatively through `isQueuedAutoSendHeld`, so subscribe to the same
+  // index here. Viewing a session clears only the notification store: without this subscription the
+  // effect never runs again to spend the busy -> idle edge kept armed while the hold was up.
+  const unseenErrorBySession = useSyncNotificationStore((state) => state.index.session.unseenHasError)
 
   const inFlightSessionsRef = React.useRef<Set<string>>(new Set())
   const previousStatusRef = React.useRef<Map<string, SessionStatusType>>(new Map())
@@ -263,5 +267,5 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
     }
 
     previousStatusRef.current = nextStatusMap
-  }, [enabled, queuedMessages, sessionStatusRecord])
+  }, [enabled, queuedMessages, sessionStatusRecord, unseenErrorBySession])
 }

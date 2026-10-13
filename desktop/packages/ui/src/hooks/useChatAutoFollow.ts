@@ -102,10 +102,13 @@ const nestedScrollableCanConsumeUp = (root: HTMLElement, target: EventTarget | n
 const isAtBottomSnapshot = (
   snapshot: NonNullable<SessionMemoryState["scrollPosition"]>,
   isMobile: boolean,
+  container?: HTMLElement | null,
 ): boolean => {
   const max = Math.max(0, snapshot.scrollHeight - snapshot.clientHeight)
   if (max <= 0) return true
-  const threshold = computeBottomZoneThreshold(isMobile, null)
+  // Same threshold the live follow loop uses, so restoring a saved position agrees with the
+  // decision that saved it — a 96px fallback would re-pin a desktop viewport of any other height.
+  const threshold = computeBottomZoneThreshold(isMobile, container)
   return max - snapshot.scrollTop <= threshold
 }
 
@@ -371,7 +374,7 @@ export const useChatAutoFollow = ({
 
     const saved = useViewportStore.getState().sessionMemoryState.get(sessionId)?.scrollPosition
 
-    if (!saved || isAtBottomSnapshot(saved, isMobile)) {
+    if (!saved || isAtBottomSnapshot(saved, isMobile, container)) {
       setStateValue("following")
       lastUserReleaseAtRef.current = 0
       const target = Math.max(0, container.scrollHeight - container.clientHeight)

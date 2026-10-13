@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, test, vi } from "vitest"
+import React from "react"
+import { createRoot } from "react-dom/client"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import type { Agent } from "@defai-digital/ax-code-sdk/v2"
 import type { QueuedMessage } from "../stores/messageQueueStore"
 
@@ -64,14 +66,27 @@ vi.doMock("@/sync/session-ui-store", () => ({
   },
 }))
 
+const statusState: { current: Record<string, { type: string }> } = { current: {} }
+
+vi.doMock("@/sync/sync-context", () => ({
+  useDirectorySync: (selector: (state: { session_status: Record<string, { type: string }> }) => unknown) =>
+    selector({ session_status: statusState.current }),
+}))
+
+vi.doMock("@/sync/sync-refs", () => ({
+  getSyncSessionStatus: (sessionId: string) => statusState.current[sessionId],
+}))
+
 const {
   buildQueuedAutoSendPayload,
   computeQueuedAutoSendStatusUpdate,
   isQueuedAutoSendHeld,
   sendQueuedAutoSendPayload,
   shouldDispatchQueuedAutoSend,
+  useQueuedMessageAutoSend,
 } = await import("./useQueuedMessageAutoSend")
 const { useSyncNotificationStore } = await import("@/sync/notification-store")
+const { useMessageQueueStore } = await import("@/stores/messageQueueStore")
 
 describe("shouldDispatchQueuedAutoSend", () => {
   test("dispatches only after an active session becomes idle", () => {
@@ -301,5 +316,76 @@ describe("buildQueuedAutoSendPayload", () => {
       "normal",
       { sessionId: "session-original" },
     ])
+  })
+})
+
+describe("useQueuedMessageAutoSend hold lift", () => {
+  let container: HTMLDivElement
+  let root: ReturnType<typeof createRoot>
+  let renderTick = 0
+
+  const Probe = ({ tick }: { tick: number }) => {
+    useQueuedMessageAutoSend(true)
+    return React.createElement("div", { "data-tick": tick })
+  }
+
+  const render = () => {
+    React.act(() => {
+      root.render(React.createElement(Probe, { tick: (renderTick += 1) }))
+    })
+  }
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+    renderTick = 0
+    sendMessageCalls.length = 0
+    statusState.current = { "session-a": { type: "busy" } }
+    useMessageQueueStore.setState({ queuedMessages: {} })
+    useSyncNotificationStore.setState({
+      list: [],
+      index: {
+        session: { unseenCount: {}, unseenHasError: {} },
+        project: { unseenCount: {}, unseenHasError: {} },
+      },
+    })
+  })
+
+  afterEach(() => {
+    React.act(() => {
+      root.unmount()
+    })
+    container.remove()
+  })
+
+  test("sends the queued message when the error hold lifts without another status change", async () => {
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+    useSyncNotificationStore.getState().append({
+      type: "error",
+      session: "session-a",
+      time: Date.now(),
+      viewed: false,
+      error: { message: "turn failed" },
+    })
+
+    // Arm the busy baseline, then observe the busy -> idle edge while the error hold is up.
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+    expect(sendMessageCalls).toHaveLength(0)
+
+    // Viewing the session clears the hold; the armed edge must fire without any status change.
+    await React.act(async () => {
+      useSyncNotificationStore.getState().markSessionViewed("session-a")
+    })
+
+    expect(sendMessageCalls).toHaveLength(1)
+    expect(sendMessageCalls[0][0]).toBe("queued message")
   })
 })

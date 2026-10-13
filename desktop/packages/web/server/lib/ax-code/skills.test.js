@@ -2,9 +2,18 @@ import { describe, expect, it } from "vitest"
 import fsPromises from "fs/promises"
 import os from "os"
 import path from "path"
-import { getSkillScope, getSkillSources, mergeDiscoveredSkills } from "./skills.js"
+import { getSkillScope, getSkillSources, mergeDiscoveredSkills, readSkillFilePathParam } from "./skills.js"
 
 describe("skills", () => {
+  it("rebuilds a supporting-file path from the Express wildcard segments", () => {
+    expect(readSkillFilePathParam(["references", "guide.md"])).toBe("references/guide.md")
+    expect(readSkillFilePathParam(["references/guide.md"])).toBe("references/guide.md")
+    expect(readSkillFilePathParam("guide.md")).toBe("guide.md")
+    expect(readSkillFilePathParam(["a%2Fb.md"])).toBe("a/b.md")
+    expect(readSkillFilePathParam([])).toBe("")
+    expect(readSkillFilePathParam(["%"])).toBeNull()
+  })
+
   it("merges locally discovered skills missing from AX Code live discovery", () => {
     const merged = mergeDiscoveredSkills(
       [

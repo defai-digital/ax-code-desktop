@@ -1,4 +1,5 @@
 import { createAxCodeClient } from "@defai-digital/ax-code-sdk/v2"
+import { readSkillFilePathParam } from "./skills.js"
 
 export const registerSkillRoutes = (app, dependencies) => {
   const {
@@ -541,8 +542,8 @@ export const registerSkillRoutes = (app, dependencies) => {
   app.get("/api/config/skills/:name/files/*filePath", async (req, res) => {
     try {
       const skillName = req.params.name
-      const filePath = decodeURIComponent(req.params.filePath)
-      if (isUnsafeSkillRelativePath(filePath)) {
+      const filePath = readSkillFilePathParam(req.params.filePath)
+      if (filePath === null || isUnsafeSkillRelativePath(filePath)) {
         return res.status(400).json({ error: "Invalid file path" })
       }
       const { directory, error } = await resolveOptionalProjectDirectory(req)
@@ -628,8 +629,8 @@ export const registerSkillRoutes = (app, dependencies) => {
   app.put("/api/config/skills/:name/files/*filePath", async (req, res) => {
     try {
       const skillName = req.params.name
-      const filePath = decodeURIComponent(req.params.filePath)
-      if (isUnsafeSkillRelativePath(filePath)) {
+      const filePath = readSkillFilePathParam(req.params.filePath)
+      if (filePath === null || isUnsafeSkillRelativePath(filePath)) {
         return res.status(400).json({ error: "Invalid file path" })
       }
       const { content } = req.body
@@ -663,8 +664,8 @@ export const registerSkillRoutes = (app, dependencies) => {
   app.delete("/api/config/skills/:name/files/*filePath", async (req, res) => {
     try {
       const skillName = req.params.name
-      const filePath = decodeURIComponent(req.params.filePath)
-      if (isUnsafeSkillRelativePath(filePath)) {
+      const filePath = readSkillFilePathParam(req.params.filePath)
+      if (filePath === null || isUnsafeSkillRelativePath(filePath)) {
         return res.status(400).json({ error: "Invalid file path" })
       }
       const { directory, error } = await resolveOptionalProjectDirectory(req)
