@@ -52,12 +52,25 @@ try {
   const binaryIndex = process.argv.indexOf("--electron-binary")
   const binary = binaryIndex === -1 ? require("electron") : process.argv[binaryIndex + 1]
   if (!binary) throw new Error("--electron-binary requires an executable path")
-  await run(binary, [entry], {
-    env: { ...process.env, AX_ANIMATION_SMOKE_OUTPUT: output, AX_ANIMATION_SMOKE_DATA_DIR: path.join(temp, "data") },
-    timeout: 60000,
-    maxBuffer: 1024 * 1024,
-  })
-  const result = JSON.parse(await fs.readFile(output, "utf8"))
+  const result = {}
+  // Chromium reads these process-wide switches at startup. Separate processes
+  // exercise both preferences without relying on the runner's accessibility settings.
+  for (const media of ["no-preference", "reduce"]) {
+    await run(binary, [entry], {
+      env: {
+        ...process.env,
+        AX_ANIMATION_SMOKE_OUTPUT: output,
+        AX_ANIMATION_SMOKE_DATA_DIR: path.join(temp, media),
+        AX_ANIMATION_SMOKE_MEDIA: media,
+      },
+      timeout: 60000,
+      maxBuffer: 1024 * 1024,
+    })
+    const partial = JSON.parse(await fs.readFile(output, "utf8"))
+    if (media === "no-preference") result.results = partial.results
+    else result.reducedMotion = partial.reducedMotion
+  }
+  await fs.writeFile(output, JSON.stringify(result, null, 2))
   if (evidence) await fs.copyFile(output, path.join(evidence, "result.json"))
   console.log(
     `Pinned Electron launch animation playback passed (${asar ? "ASAR" : "unpackaged"}):`,
