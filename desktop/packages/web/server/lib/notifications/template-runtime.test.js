@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { createNotificationTemplateRuntime } from "./template-runtime.js"
+import { createNotificationTemplateRuntime, withTimeout } from "./template-runtime.js"
 
 const createRuntime = (settings = {}) =>
   createNotificationTemplateRuntime({
@@ -143,5 +143,32 @@ describe("notification template variables", () => {
     await expect(runtime.buildTemplateVariables({ properties: { info: {} } }, "")).resolves.toMatchObject({
       project_name: "Work App",
     })
+  })
+})
+
+describe("notification template git deadline", () => {
+  it("resolves with the raced value and leaves no pending timer", async () => {
+    vi.useFakeTimers()
+    try {
+      await expect(withTimeout(Promise.resolve("main"), 3000, "git timeout")).resolves.toBe("main")
+      // A bare Promise.race keeps this timer alive for up to the deadline, which holds the event
+      // loop open while the process is shutting down.
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("rejects at the deadline and clears its own timer", async () => {
+    vi.useFakeTimers()
+    try {
+      const pending = withTimeout(new Promise(() => {}), 3000, "git timeout")
+      const assertion = expect(pending).rejects.toThrow("git timeout")
+      await vi.advanceTimersByTimeAsync(3000)
+      await assertion
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

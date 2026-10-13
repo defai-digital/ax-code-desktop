@@ -5,6 +5,24 @@ import {
   formatNotificationProjectLabel,
 } from "./label-format.js"
 
+// Races a promise against a fixed deadline and always clears the deadline timer. A bare
+// `Promise.race` with `setTimeout` leaves that timer pending when the promise wins, which keeps the
+// process alive (completion notifications also run during shutdown) and fires a rejection nobody
+// observes later.
+export const withTimeout = async (promise, timeoutMs, message) => {
+  let timer
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export const createNotificationTemplateRuntime = (deps) => {
   const { readSettingsFromDisk, buildAxCodeUrl, getAxCodeAuthHeaders, resolveGitBinaryForSpawn } = deps
 
@@ -306,10 +324,7 @@ export const createNotificationTemplateRuntime = (deps) => {
           binary: resolveGitBinaryForSpawn(),
           unsafe: { allowUnsafeCustomBinary: true },
         })
-        branch = await Promise.race([
-          git.revparse(["--abbrev-ref", "HEAD"]),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("git timeout")), 3000)),
-        ]).catch(() => "")
+        branch = await withTimeout(git.revparse(["--abbrev-ref", "HEAD"]), 3000, "git timeout").catch(() => "")
       } catch {}
     }
 
