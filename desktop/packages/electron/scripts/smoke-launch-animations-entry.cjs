@@ -30,10 +30,18 @@ app
         preloadPath: path.join(__dirname, "../dist/launch-animation-preload.js"),
         env: {},
         showWindow: false,
+        // This decode smoke includes cold renderer startup on hosted CPUs.
+        // Production retains its six-second UX deadline; unit tests verify it.
+        timeoutMs: 15000,
         random: () => (index + 0.5) / manifest.pairs.length,
       })
       for (const kind of ["opening", "ending"]) {
+        const started = Date.now()
+        let loadedMs
         const playing = kind === "opening" ? controller.playOpening() : controller.playEnding()
+        controller.window.webContents.once("did-finish-load", () => {
+          loadedMs = Date.now() - started
+        })
         if (index === 35 && process.env.AX_ANIMATION_SMOKE_EVIDENCE) {
           await new Promise((resolve) => setTimeout(resolve, 1400))
           if (!controller.window) throw new Error("Player closed before visual capture")
@@ -41,9 +49,9 @@ app
           await fs.writeFile(path.join(process.env.AX_ANIMATION_SMOKE_EVIDENCE, `${kind}.png`), screenshot.toPNG())
         }
         const result = await playing
-        results.push(result)
+        results.push({ ...result, loadedMs, elapsedMs: Date.now() - started })
         if (result.reason !== "ended" || result.frames < 2)
-          throw new Error(`Video did not decode and finish: ${JSON.stringify(result)}`)
+          throw new Error(`Video did not decode and finish: ${JSON.stringify(results.at(-1))}`)
       }
       controller.dispose()
     }
