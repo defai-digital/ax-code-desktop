@@ -12,6 +12,7 @@
 import React from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import Prism from "prismjs"
+import { setBoundedCacheEntry } from "@/lib/boundedCache"
 
 // Ensure common languages are loaded (react-syntax-highlighter lazy-loads them,
 // but we call Prism directly so we need them registered).
@@ -147,23 +148,17 @@ const highlightLine = (text: string, language: string): string => {
   const grammar = Prism.languages[normalizedLanguage] ?? Prism.languages.text
   if (!grammar) {
     const escaped = escapeHtml(text)
-    highlightCache.set(cacheKey, escaped)
+    setBoundedCacheEntry(highlightCache, HIGHLIGHT_CACHE_MAX, cacheKey, escaped)
     return escaped
   }
 
   try {
     const highlighted = Prism.highlight(text, grammar, normalizedLanguage)
-    if (highlightCache.size >= HIGHLIGHT_CACHE_MAX) {
-      const oldestKey = highlightCache.keys().next().value
-      if (typeof oldestKey === "string") {
-        highlightCache.delete(oldestKey)
-      }
-    }
-    highlightCache.set(cacheKey, highlighted)
+    setBoundedCacheEntry(highlightCache, HIGHLIGHT_CACHE_MAX, cacheKey, highlighted)
     return highlighted
   } catch {
     const escaped = escapeHtml(text)
-    highlightCache.set(cacheKey, escaped)
+    setBoundedCacheEntry(highlightCache, HIGHLIGHT_CACHE_MAX, cacheKey, escaped)
     return escaped
   }
 }
