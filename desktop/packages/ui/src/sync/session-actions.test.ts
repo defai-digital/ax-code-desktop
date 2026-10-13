@@ -543,6 +543,64 @@ describe("rollback and fork actions use the session directory", () => {
     })
   })
 
+  test("revertToMessage keeps session-list updates that land during the abort round-trip", async () => {
+    const store = createStore({})
+    store.setState({
+      session: [
+        {
+          id: "session-b",
+          directory: "/other/project",
+          time: { created: 1, updated: 1 },
+        } as unknown as Session,
+      ],
+      session_status: { "session-b": { type: "busy" } },
+      message: {
+        "session-b": [
+          {
+            id: "msg-b",
+            sessionID: "session-b",
+            role: "user",
+            time: { created: 1 },
+          } as unknown as Message,
+        ],
+      },
+      part: {
+        "msg-b": [{ id: "prt-text", type: "text", messageID: "msg-b", text: "redo this" } as unknown as Part],
+      },
+    })
+
+    // A subagent's session.created event lands while the abort call is in flight.
+    mockScopedClient.session.abort.mockImplementationOnce(() => {
+      const current = store.getState()
+      store.setState({
+        session: [
+          ...current.session,
+          {
+            id: "session-child",
+            directory: "/other/project",
+            parentID: "session-b",
+            time: { created: 2, updated: 2 },
+          } as unknown as Session,
+        ],
+      })
+      return Promise.resolve({ data: true })
+    })
+
+    const { revertToMessage, setActionRefs } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/other/project", store]]),
+      () => "/test/project",
+    )
+
+    await revertToMessage("session-b", "msg-b")
+
+    const sessions = store.getState().session
+    expect(sessions.map((s) => s.id)).toEqual(["session-b", "session-child"])
+    const reverted = sessions.find((s) => s.id === "session-b") as Session & { revert?: { messageID?: string } }
+    expect(reverted.revert?.messageID).toBe("msg-b")
+  })
+
   test("forkFromMessage switches to the fork in the original session directory", async () => {
     const store = createStore({})
     store.setState({

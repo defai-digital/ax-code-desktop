@@ -1005,10 +1005,10 @@ export async function revertToMessage(sessionId: string, messageId: string): Pro
   const directory = getSessionDirectory(sessionId)
   const client = scopedClientForDirectory(directory)
   const store = getDirectoryStore(directory)
-  const state = store.getState()
+  const initial = store.getState()
 
   // Abort if busy before mutating session state
-  const status = state.session_status[sessionId]
+  const status = initial.session_status[sessionId]
   if (status && status.type !== "idle") {
     try {
       await client.session.abort({ sessionID: sessionId, directory })
@@ -1016,6 +1016,11 @@ export async function revertToMessage(sessionId: string, messageId: string): Pro
       // ignore abort errors
     }
   }
+
+  // Re-read after the abort round-trip: the event reducer may have applied
+  // session-list updates (e.g. a subagent session.created) while it was in flight,
+  // and the revert marker is written back onto that array below.
+  const state = store.getState()
 
   // Extract message text for prompt restoration (only non-synthetic text parts —
   // the server adds file content as synthetic text parts that should not be restored)
