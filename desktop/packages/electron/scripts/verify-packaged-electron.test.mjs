@@ -56,6 +56,7 @@ async function makeAsarResources(extraFiles = {}) {
     "package.json": "{}\n",
     "dist/main.js": "main\n",
     "dist/preload.js": "preload\n",
+    "dist/launch-animation-preload.js": "animation preload\n",
     "dist/server-process.js": "server process\n",
     "dist/server.js": "server\n",
     "dist/desktop-cli.mjs": "cli\n",
@@ -110,6 +111,17 @@ describe("packaged Electron integrity verification", () => {
             .map((entry) => entry.replaceAll("/", "\\")),
       }),
     ).toThrow("app.asar is missing package.json")
+    // The launch-animation window is created from this preload; without it the window never
+    // reports completion and the user stares at a blank animation until the controller times out.
+    expect(() =>
+      verifyAsarLayout(resources, {
+        listPackage: (...args) =>
+          asar
+            .listPackage(...args)
+            .filter((entry) => !entry.endsWith("launch-animation-preload.js"))
+            .map((entry) => entry.replaceAll("/", "\\")),
+      }),
+    ).toThrow("app.asar is missing dist/launch-animation-preload.js")
   })
 
   test("resolves release output paths for all supported platforms", () => {
@@ -184,7 +196,7 @@ describe("packaged Electron integrity verification", () => {
   test("verifies code inside directories with JavaScript extensions", async () => {
     const relativePath = "node_modules/@msgpack/msgpack/dist.cjs/index.cjs"
     const { resources } = await makeAsarResources({ [relativePath]: "dependency\n" })
-    expect(verifyAsarLayout(resources).javascript).toBe(7)
+    expect(verifyAsarLayout(resources).javascript).toBe(8)
 
     const archivePath = path.join(resources, "app.asar")
     const rawHeader = asar.getRawHeader(archivePath)
