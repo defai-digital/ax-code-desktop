@@ -4,6 +4,22 @@
 const isOptionLikeRevision = (value) =>
   typeof value !== "string" ? value != null : value.trim().length > 0 && value.trim().startsWith("-")
 
+// A directory that is not a repository must still answer with the shape the client reads as a
+// `GitStatus`: a partial object left `current`/`isClean` undefined, and `!undefined` made the
+// worktree dialog report uncommitted changes for it.
+const notAGitRepositoryStatus = () => ({
+  isGitRepository: false,
+  current: "",
+  tracking: null,
+  ahead: 0,
+  behind: 0,
+  upstreamComparison: null,
+  files: [],
+  isClean: true,
+  mergeInProgress: null,
+  rebaseInProgress: null,
+})
+
 export function registerGitRoutes(app) {
   let gitLibraries = null
   const getGitLibraries = async () => {
@@ -216,7 +232,7 @@ export function registerGitRoutes(app) {
 
       const isRepo = await isGitRepository(directory)
       if (!isRepo) {
-        return res.json({ isGitRepository: false, files: [], branch: null, ahead: 0, behind: 0 })
+        return res.json(notAGitRepositoryStatus())
       }
 
       const mode = req.query.mode === "light" ? "light" : undefined
@@ -225,7 +241,7 @@ export function registerGitRoutes(app) {
     } catch (error) {
       const errorText = extractGitErrorText(error)
       if (/not a git repository/i.test(errorText)) {
-        return res.json({ isGitRepository: false, files: [], branch: null, ahead: 0, behind: 0 })
+        return res.json(notAGitRepositoryStatus())
       }
       console.error("Failed to get git status:", error)
       res.status(500).json({ error: error.message || "Failed to get git status" })

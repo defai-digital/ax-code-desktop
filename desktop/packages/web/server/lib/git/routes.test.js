@@ -6,6 +6,8 @@ const gitLibraries = {
   unstageFiles: vi.fn(),
   getLog: vi.fn(),
   getCommitFiles: vi.fn(),
+  getStatus: vi.fn(),
+  isGitRepository: vi.fn(),
 }
 
 vi.doMock("./index.js", () => ({
@@ -13,6 +15,8 @@ vi.doMock("./index.js", () => ({
   unstageFiles: gitLibraries.unstageFiles,
   getLog: gitLibraries.getLog,
   getCommitFiles: gitLibraries.getCommitFiles,
+  getStatus: gitLibraries.getStatus,
+  isGitRepository: gitLibraries.isGitRepository,
 }))
 
 const { registerGitRoutes } = await import("./routes.js")
@@ -23,6 +27,8 @@ describe("git routes index mutations", () => {
     gitLibraries.unstageFiles.mockReset()
     gitLibraries.getLog.mockReset()
     gitLibraries.getCommitFiles.mockReset()
+    gitLibraries.getStatus.mockReset()
+    gitLibraries.isGitRepository.mockReset()
   })
 
   it("accepts legacy stage path payloads", async () => {
@@ -158,5 +164,40 @@ describe("git routes index mutations", () => {
     expect(response.statusCode).toBe(400)
     expect(response.body).toEqual({ error: "hash must be a valid commit SHA" })
     expect(gitLibraries.getCommitFiles).not.toHaveBeenCalled()
+  })
+
+  it("answers a directory that is not a repository with a full status shape", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+    gitLibraries.isGitRepository.mockResolvedValueOnce(false)
+
+    await getRoute("GET", "/api/git/status")({ query: { directory: "/not-a-repo" } }, response)
+
+    // The client stores this payload as a GitStatus and computes `isDirty: !status.isClean`, so a
+    // partial object reported a non-repository as having uncommitted changes.
+    expect(response.statusCode).toBe(200)
+    expect(response.body).toMatchObject({
+      isGitRepository: false,
+      current: "",
+      tracking: null,
+      ahead: 0,
+      behind: 0,
+      files: [],
+      isClean: true,
+    })
+  })
+
+  it("answers a status failure caused by a missing repository with the same shape", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+    gitLibraries.isGitRepository.mockResolvedValueOnce(true)
+    gitLibraries.getStatus.mockRejectedValueOnce(new Error("fatal: not a git repository (or any parent)"))
+
+    await getRoute("GET", "/api/git/status")({ query: { directory: "/gone" } }, response)
+
+    expect(response.statusCode).toBe(200)
+    expect(response.body).toMatchObject({ isGitRepository: false, current: "", isClean: true, files: [] })
   })
 })
