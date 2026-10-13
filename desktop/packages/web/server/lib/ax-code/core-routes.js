@@ -519,13 +519,30 @@ export const registerSettingsUtilityRoutes = (app, dependencies) => {
 export const registerCommonRequestMiddleware = (app, dependencies) => {
   const { express, verboseRequestLogs = false } = dependencies
 
+  // Express 5 / body-parser 2 leave `req.body` undefined when a request's content type does not
+  // match the parser, so every handler that destructures `req.body` threw a TypeError and answered
+  // 500 with the internal message instead of its own 400. The one route family that must keep
+  // seeing an unparsed body — the raw `/api/session/*` proxy path — falls to the `next()` branch
+  // below and never reaches these parsers.
+  const jsonBodyParser = (limit) => {
+    const parse = express.json({ limit })
+    return (req, res, next) =>
+      parse(req, res, () => {
+        if (req.body === undefined) req.body = {}
+        next()
+      })
+  }
+
+  const parseJsonSmall = jsonBodyParser("1mb")
+  const parseJsonLarge = jsonBodyParser("50mb")
+
   app.use((req, res, next) => {
     if (req.path.startsWith("/api/behavior")) {
       const contentLength = parseInt(req.headers["content-length"] || "0", 10)
       if (contentLength > 1024 * 1024) {
         return res.status(413).json({ error: "Content exceeds maximum size of 1048576 bytes" })
       }
-      express.json({ limit: "1mb" })(req, res, next)
+      parseJsonSmall(req, res, next)
     } else if (
       req.path.startsWith("/api/config/agents") ||
       req.path.startsWith("/api/config/commands") ||
@@ -546,11 +563,11 @@ export const registerCommonRequestMiddleware = (app, dependencies) => {
       req.path.startsWith("/api/session-folders") ||
       req.path.startsWith("/api/text")
     ) {
-      express.json({ limit: "50mb" })(req, res, next)
+      parseJsonLarge(req, res, next)
     } else if (req.path.startsWith("/api")) {
       next()
     } else {
-      express.json({ limit: "50mb" })(req, res, next)
+      parseJsonLarge(req, res, next)
     }
   })
 

@@ -145,6 +145,28 @@ describe("core-routes", () => {
     expect(response.body).toEqual({ body: { state: "state-1", name: "mcp-server" } })
   })
 
+  it("answers a JSON route with its own 400 when the request carries no JSON body", async () => {
+    const app = express()
+    registerCommonRequestMiddleware(app, { express })
+    app.post("/api/terminal/create", (req, res) => {
+      const { cwd } = req.body
+      if (!cwd) {
+        return res.status(400).json({ error: "cwd is required" })
+      }
+      return res.json({ cwd })
+    })
+
+    // Express 5 leaves req.body undefined for a non-JSON content type; destructuring it used to
+    // throw and answer 500 with the TypeError message instead of the handler's own 400.
+    const response = await request(app)
+      .post("/api/terminal/create")
+      .set("Content-Type", "text/plain")
+      .send("not json")
+      .expect(400)
+
+    expect(response.body).toEqual({ error: "cwd is required" })
+  })
+
   it("responds to manual config reload before the AX Code restart settles", async () => {
     const app = express()
     let resolveReload
