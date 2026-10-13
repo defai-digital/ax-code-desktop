@@ -28,6 +28,33 @@ const INITIAL_MESSAGE_PAGE_SIZE = 150
 const HISTORY_MESSAGE_PAGE_SIZE = 200
 const MAX_SEEN_DIRS = 30
 
+/**
+ * Whether `syncSession` may return without touching the network.
+ *
+ * The session record is a different concern from its cached messages: `trimSessions` evicts entries
+ * from the session list while leaving message and part caches behind, so a trimmed session still
+ * needs its own entry fetched even when its messages are cached and the prefetch cache reports a
+ * recent fetch. The TTL therefore only short-circuits while the record is already present.
+ */
+export const shouldSkipSessionSync = (input: {
+  force: boolean
+  hasSession: boolean
+  hasCachedMessages: boolean
+  prefetchInfo?: ReturnType<typeof getSessionPrefetch>
+  pageSize: number
+  now?: number
+}): boolean => {
+  if (input.force) return false
+  if (input.hasSession && input.hasCachedMessages) return true
+  if (!input.hasSession) return false
+  return shouldSkipSessionPrefetch({
+    hasMessages: input.hasCachedMessages,
+    info: input.prefetchInfo,
+    pageSize: input.pageSize,
+    now: input.now,
+  })
+}
+
 // Shared across useSync() instances so cache eviction is based on app-level
 // session recency, not whichever component happened to call sync first.
 const seenByDirectory = new Map<string, Set<string>>()
@@ -311,18 +338,16 @@ export function useSync() {
       const prefetchInfo = !force ? getSessionPrefetch(directory, sessionID) : undefined
       const cachedReady = cached
       const hasSession = Binary.has(current.session, sessionID, (s) => s.id)
-      if (cachedReady && hasSession && !force) return
-
-      // Skip if recently fetched (TTL)
-      if (!force) {
-        if (
-          shouldSkipSessionPrefetch({
-            hasMessages: cachedReady,
-            info: prefetchInfo,
-            pageSize: INITIAL_MESSAGE_PAGE_SIZE,
-          })
-        )
-          return
+      if (
+        shouldSkipSessionSync({
+          force: Boolean(force),
+          hasSession,
+          hasCachedMessages: cachedReady,
+          prefetchInfo,
+          pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+        })
+      ) {
+        return
       }
 
       const shouldFetchSession = !hasSession || force
