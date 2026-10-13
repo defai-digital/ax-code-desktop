@@ -41,8 +41,11 @@ function createAnimationAssetHandler(assetDir, manifest, read = readFile) {
 const DONE_CHANNEL = "ax-code:launch-animation-done"
 const REASONS = new Set(["ended", "skip", "disabled", "reduced-motion", "error"])
 
+// The player is an isolated view layered over the host (main) window instead of
+// a separate window, so opening and ending artwork reads as part of the app.
 function createLaunchAnimationController({
-  BrowserWindow,
+  WebContentsView,
+  getHostWindow,
   ipcMain,
   manifest,
   assetDir,
@@ -53,7 +56,6 @@ function createLaunchAnimationController({
   random = Math.random,
   logger = console,
   timeoutMs = 6000,
-  showWindow = true,
   onComplete = () => {},
   translate = (text) => text,
 }) {
@@ -71,7 +73,7 @@ function createLaunchAnimationController({
     active = null
     clearTimeout(current.timer)
     ipcMain.removeListener(DONE_CHANNEL, current.onDone)
-    if (!current.window.isDestroyed()) current.window.destroy()
+    current.detach()
     const result = { kind: current.kind, pair: pair.id, reason, frames }
     try {
       onComplete(result)
@@ -90,20 +92,11 @@ function createLaunchAnimationController({
     if (disposed || !enabled()) return Promise.resolve({ kind, reason: "disabled" })
     const clip = pair[kind]
     if (!clip || !/^[a-z0-9-]+\.webm$/.test(clip.file)) return Promise.resolve({ kind, reason: "missing" })
-    let window
+    const host = getHostWindow()
+    if (!host || host.isDestroyed()) return Promise.resolve({ kind, reason: "no-host" })
+    let view
     try {
-      window = new BrowserWindow({
-        width: 960,
-        height: 540,
-        useContentSize: true,
-        title: "AX Code",
-        backgroundColor: "#151313",
-        show: false,
-        resizable: false,
-        minimizable: false,
-        maximizable: false,
-        fullscreenable: false,
-        autoHideMenuBar: true,
+      view = new WebContentsView({
         webPreferences: {
           preload: preloadPath,
           contextIsolation: true,
@@ -114,25 +107,43 @@ function createLaunchAnimationController({
           partition: "ax-code-launch-animation",
         },
       })
+      view.setBackgroundColor("#151313")
+      host.contentView.addChildView(view)
     } catch (error) {
-      logger.warn("[electron] animation window unavailable", error.message)
+      logger.warn("[electron] animation view unavailable", error.message)
+      if (view && !view.webContents.isDestroyed()) view.webContents.close()
       return Promise.resolve({ kind, reason: "error" })
     }
+    const fit = () => {
+      if (host.isDestroyed()) return
+      const { width, height } = host.getContentBounds()
+      view.setBounds({ x: 0, y: 0, width, height })
+    }
+    fit()
+    host.on("resize", fit)
+    const onHostClosed = () => complete("skip")
+    host.once("closed", onHostClosed)
+    const detach = () => {
+      host.removeListener("resize", fit)
+      host.removeListener("closed", onHostClosed)
+      if (!host.isDestroyed()) host.contentView.removeChildView(view)
+      if (!view.webContents.isDestroyed()) view.webContents.close()
+    }
     const pageUrl = new URL(PLAYER_URL)
-    const animationSession = window.webContents.session
+    const animationSession = view.webContents.session
     if (!installedSessions.has(animationSession)) {
       animationSession.protocol.handle("ax-animation", createAnimationAssetHandler(assetDir, manifest))
       installedSessions.add(animationSession)
     }
-    const complete = (reason, frames) => {
-      if (active?.window === window) finish(reason, frames)
+    function complete(reason, frames) {
+      if (active?.view === view) finish(reason, frames)
     }
     let resolve
     const promise = new Promise((done) => {
       resolve = done
     })
     const onDone = (event, message) => {
-      if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) return
+      if (event.sender !== view.webContents || event.senderFrame !== view.webContents.mainFrame) return
       let senderUrl
       try {
         senderUrl = new URL(event.senderFrame.url)
@@ -142,7 +153,7 @@ function createLaunchAnimationController({
         return
       }
       if (senderUrl.href !== pageUrl.href || !REASONS.has(message?.reason)) return
-      if (active?.window !== window || active.finishing) return
+      if (active?.view !== view || active.finishing) return
       active.finishing = true
       const frames = Number.isSafeInteger(message.frames) && message.frames >= 0 ? message.frames : 0
       if (message.reason === "disabled") {
@@ -154,20 +165,20 @@ function createLaunchAnimationController({
       }
       complete(message.reason, frames)
     }
-    active = { kind, window, promise, resolve, onDone, timer: setTimeout(() => complete("timeout"), timeoutMs) }
+    active = { kind, view, detach, promise, resolve, onDone, timer: setTimeout(() => complete("timeout"), timeoutMs) }
     ipcMain.on(DONE_CHANNEL, onDone)
-    window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
-    window.webContents.on("will-navigate", (event) => event.preventDefault())
-    window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-    window.webContents.session.setPermissionCheckHandler(() => false)
-    window.webContents.once("render-process-gone", () => complete("error"))
-    window.once("closed", () => complete("skip"))
-    window.once("ready-to-show", () => {
-      if (showWindow && !window.isDestroyed()) window.show()
+    view.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
+    view.webContents.on("will-navigate", (event) => event.preventDefault())
+    view.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+    view.webContents.session.setPermissionCheckHandler(() => false)
+    view.webContents.once("render-process-gone", () => complete("error"))
+    // Keyboard focus moves to the overlay so Escape skips the artwork.
+    view.webContents.once("did-finish-load", () => {
+      if (active?.view === view && !view.webContents.isDestroyed()) view.webContents.focus()
     })
     try {
       Promise.resolve(
-        window.loadURL(
+        view.webContents.loadURL(
           `${PLAYER_URL}?${new URLSearchParams({
             clip: clip.file,
             kind,
@@ -191,8 +202,8 @@ function createLaunchAnimationController({
       finish("disposed")
     },
     enabled,
-    get window() {
-      return active?.window || null
+    get view() {
+      return active?.view || null
     },
     get playing() {
       return active !== null

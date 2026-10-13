@@ -1,5 +1,5 @@
 "use strict"
-const { app, BrowserWindow, ipcMain, protocol } = require("electron")
+const { app, BrowserWindow, WebContentsView, ipcMain, protocol } = require("electron")
 const fs = require("node:fs/promises")
 const path = require("node:path")
 const fsSync = require("node:fs")
@@ -21,15 +21,19 @@ app
   .whenReady()
   .then(async () => {
     const results = []
+    // The player is a view inside a host window. Chromium fails a view's load in
+    // a never-shown host, so show it without stealing focus, as production does.
+    const host = new BrowserWindow({ show: false, width: 960, height: 540 })
+    host.showInactive()
     for (const index of reducedMotionCase ? [] : [0, 1, 35]) {
       const controller = createLaunchAnimationController({
-        BrowserWindow,
+        WebContentsView,
+        getHostWindow: () => host,
         ipcMain,
         manifest,
         assetDir: path.join(__dirname, "../dist/launch-animations"),
         preloadPath: path.join(__dirname, "../dist/launch-animation-preload.js"),
         env: {},
-        showWindow: false,
         // This decode smoke includes cold renderer startup on hosted CPUs.
         // Production retains its six-second UX deadline; unit tests verify it.
         timeoutMs: 15000,
@@ -39,13 +43,13 @@ app
         const started = Date.now()
         let loadedMs
         const playing = kind === "opening" ? controller.playOpening() : controller.playEnding()
-        controller.window.webContents.once("did-finish-load", () => {
+        controller.view.webContents.once("did-finish-load", () => {
           loadedMs = Date.now() - started
         })
         if (index === 35 && process.env.AX_ANIMATION_SMOKE_EVIDENCE) {
           await new Promise((resolve) => setTimeout(resolve, 1400))
-          if (!controller.window) throw new Error("Player closed before visual capture")
-          const screenshot = await controller.window.webContents.capturePage()
+          if (!controller.view) throw new Error("Player closed before visual capture")
+          const screenshot = await controller.view.webContents.capturePage()
           await fs.writeFile(path.join(process.env.AX_ANIMATION_SMOKE_EVIDENCE, `${kind}.png`), screenshot.toPNG())
         }
         const result = await playing
@@ -58,13 +62,13 @@ app
     let reducedMotion
     if (reducedMotionCase) {
       const controller = createLaunchAnimationController({
-        BrowserWindow,
+        WebContentsView,
+        getHostWindow: () => host,
         ipcMain,
         manifest,
         assetDir: path.join(__dirname, "../dist/launch-animations"),
         preloadPath: path.join(__dirname, "../dist/launch-animation-preload.js"),
         env: {},
-        showWindow: false,
         random: () => 0,
       })
       reducedMotion = await controller.playOpening()
@@ -72,6 +76,7 @@ app
       if (reducedMotion.reason !== "reduced-motion" || reducedMotion.frames !== 0)
         throw new Error("The production player did not respect reduced motion")
     }
+    host.destroy()
     await fs.writeFile(process.env.AX_ANIMATION_SMOKE_OUTPUT, JSON.stringify({ results, reducedMotion }, null, 2))
     app.exit(0)
   })

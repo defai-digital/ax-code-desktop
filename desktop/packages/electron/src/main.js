@@ -624,11 +624,11 @@ function localRendererOrigin() {
   return getDevRendererUrl() || (app.isPackaged ? PACKAGED_RENDERER_ORIGIN : `http://127.0.0.1:${serverPort}`)
 }
 
-async function createWindow() {
+// Builds the main window without loading the renderer. Startup creates it
+// before the local server is ready so the opening artwork plays inside the
+// main window; createWindow() below loads the renderer into it later.
+function createMainWindowShell() {
   rendererReadyForOpenProject = false
-  if (serverPort > 0) {
-    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(serverPort, getDevRendererUrl())
-  }
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -775,10 +775,27 @@ async function createWindow() {
       .catch((dialogError) => console.error("[electron] failed to show unresponsive dialog:", dialogError))
   })
 
+  mainWindow.on("close", (event) => {
+    // Closing the last window quits on Windows/Linux, but by then the window is
+    // gone and the closing artwork has nowhere to play. Route it through the
+    // quit coordinator so the artwork plays inside this window first.
+    if (process.platform === "darwin" || isQuitting || !desktopStartupComplete) return
+    if (!launchAnimations?.enabled()) return
+    if (BrowserWindow.getAllWindows().some((win) => win !== mainWindow && !win.isDestroyed())) return
+    event.preventDefault()
+    app.quit()
+  })
+
   mainWindow.on("closed", () => {
     mainWindow = null
   })
+}
 
+async function createWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) createMainWindowShell()
+  if (serverPort > 0) {
+    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(serverPort, getDevRendererUrl())
+  }
   const rendererUrl =
     getDevRendererUrl() || (app.isPackaged ? `${PACKAGED_RENDERER_ORIGIN}/` : `http://127.0.0.1:${serverPort}`)
   recordStartupEvent("renderer.load-url.start", {
@@ -3142,8 +3159,15 @@ app.whenReady().then(async () => {
       console.log(`[electron] verified bundled ax-code runtime integrity (${bundledIntegrity.entries} entries)`)
       recordStartupEvent("runtime.integrity.verified", { entries: bundledIntegrity.entries })
     }
+    // The mini-chat and secondary windows never host the artwork. Only a
+    // visible main window does, so a hidden or minimized app skips it.
+    createMainWindowShell()
     launchAnimations = createLaunchAnimationController({
-      BrowserWindow,
+      WebContentsView,
+      getHostWindow: () =>
+        mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()
+          ? mainWindow
+          : null,
       ipcMain,
       manifest: launchAnimationManifest,
       assetDir: path.join(__dirname, "launch-animations"),
@@ -3158,6 +3182,10 @@ app.whenReady().then(async () => {
           frames: result.frames,
         }),
     })
+    // Show the shell now so the opening plays in the main window while the
+    // server and renderer start behind it. Without animations the window stays
+    // hidden until the renderer is ready, as before.
+    if (launchAnimations.enabled()) mainWindow.show()
     openingAnimation = launchAnimations.playOpening()
     await purgeDisabledRemoteAccessSettings().catch((error) => {
       // Runtime paths already ignore these values, so a read-only legacy
@@ -3267,6 +3295,9 @@ app.whenReady().then(async () => {
     })
   } catch (err) {
     launchAnimations?.dispose()
+    // Startup failed before the renderer loaded; do not leave the shell open.
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy()
+    mainWindow = null
     if (isQuitting) {
       await stopBackgroundServices()
       return

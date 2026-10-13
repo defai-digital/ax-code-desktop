@@ -18,24 +18,50 @@ const manifest = {
     { id: "02", opening: { file: "02-opening-city.webm" }, ending: { file: "02-ending-city.webm" } },
   ],
 }
-class Window extends EventEmitter {
+class View {
   constructor(options) {
-    super()
     this.options = options
-    this.destroyed = false
+    this.bounds = null
     this.webContents = new EventEmitter()
+    this.webContents.destroyed = false
     this.webContents.mainFrame = { url: "" }
     this.webContents.setWindowOpenHandler = vi.fn()
+    this.webContents.focus = vi.fn()
+    this.webContents.isDestroyed = () => this.webContents.destroyed
+    this.webContents.close = () => {
+      this.webContents.destroyed = true
+    }
     this.webContents.session = {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
       protocol: { handle: vi.fn() },
     }
+    this.webContents.loadURL = (url) => {
+      this.query = Object.fromEntries(new URL(url).searchParams)
+      this.webContents.mainFrame.url = url
+      return Promise.resolve()
+    }
   }
-  loadURL(url) {
-    this.query = Object.fromEntries(new URL(url).searchParams)
-    this.webContents.mainFrame.url = url
-    return Promise.resolve()
+  setBackgroundColor(color) {
+    this.background = color
+  }
+  setBounds(bounds) {
+    this.bounds = bounds
+  }
+}
+class Host extends EventEmitter {
+  constructor() {
+    super()
+    this.destroyed = false
+    this.size = { width: 1440, height: 900 }
+    this.children = []
+    this.contentView = {
+      addChildView: (view) => this.children.push(view),
+      removeChildView: (view) => this.children.splice(this.children.indexOf(view), 1),
+    }
+  }
+  getContentBounds() {
+    return { x: 0, y: 0, ...this.size }
   }
   isDestroyed() {
     return this.destroyed
@@ -44,12 +70,13 @@ class Window extends EventEmitter {
     this.destroyed = true
     this.emit("closed")
   }
-  show() {}
 }
 function fixture(overrides = {}) {
   const ipcMain = new EventEmitter()
+  const host = new Host()
   const controller = createLaunchAnimationController({
-    BrowserWindow: Window,
+    WebContentsView: View,
+    getHostWindow: () => host,
     ipcMain,
     manifest,
     assetDir: path.resolve("/tmp/animation-test-assets"),
@@ -61,31 +88,38 @@ function fixture(overrides = {}) {
   })
   controllers.push(controller)
   const done = (reason = "ended", frames = 72) => {
-    const window = controller.window
+    const view = controller.view
     ipcMain.emit(
       DONE_CHANNEL,
-      { sender: window.webContents, senderFrame: window.webContents.mainFrame },
+      { sender: view.webContents, senderFrame: view.webContents.mainFrame },
       { reason, frames },
     )
   }
-  return { controller, ipcMain, done }
+  return { controller, ipcMain, host, done }
 }
 
 describe("desktop animation lifecycle", () => {
   it("selects one pair per launch and reuses its matching ending", async () => {
     const random = vi.fn(() => 0.99)
-    const { controller, done } = fixture({ random })
+    const { controller, host, done } = fixture({ random })
     const opening = controller.playOpening()
-    expect(controller.window.query.clip).toBe("02-opening-city.webm")
-    expect(controller.window.options.webPreferences).toMatchObject({
+    expect(controller.view.query.clip).toBe("02-opening-city.webm")
+    expect(controller.view.options.webPreferences).toMatchObject({
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
     })
+    expect(host.children).toEqual([controller.view])
+    expect(controller.view.bounds).toEqual({ x: 0, y: 0, width: 1440, height: 900 })
+    host.size = { width: 1000, height: 700 }
+    host.emit("resize")
+    expect(controller.view.bounds).toEqual({ x: 0, y: 0, width: 1000, height: 700 })
     done()
     expect(await opening).toMatchObject({ reason: "ended", pair: "02", frames: 72 })
+    expect(host.children).toEqual([])
+    expect(host.listenerCount("resize")).toBe(0)
     const ending = controller.playEnding()
-    expect(controller.window.query.clip).toBe("02-ending-city.webm")
+    expect(controller.view.query.clip).toBe("02-ending-city.webm")
     done()
     await ending
     expect(random).toHaveBeenCalledTimes(1)
@@ -98,71 +132,94 @@ describe("desktop animation lifecycle", () => {
       const { controller } = fixture(options)
       expect(await controller.playOpening()).toMatchObject({ reason: "disabled" })
       expect(await controller.playEnding()).toMatchObject({ reason: "disabled" })
-      expect(controller.window).toBe(null)
+      expect(controller.view).toBe(null)
     },
   )
 
   it("rejects completion from other windows, frames, or navigated pages", async () => {
     const { controller, ipcMain, done } = fixture()
     const playing = controller.playOpening()
-    const window = controller.window
-    ipcMain.emit(DONE_CHANNEL, { sender: {}, senderFrame: window.webContents.mainFrame }, { reason: "ended" })
+    const view = controller.view
+    ipcMain.emit(DONE_CHANNEL, { sender: {}, senderFrame: view.webContents.mainFrame }, { reason: "ended" })
     ipcMain.emit(
       DONE_CHANNEL,
-      { sender: window.webContents, senderFrame: { url: window.webContents.mainFrame.url } },
+      { sender: view.webContents, senderFrame: { url: view.webContents.mainFrame.url } },
       { reason: "ended" },
     )
-    const original = window.webContents.mainFrame.url
-    window.webContents.mainFrame.url = "https://example.com/"
+    const original = view.webContents.mainFrame.url
+    view.webContents.mainFrame.url = "https://example.com/"
     done()
     expect(controller.playing).toBe(true)
-    window.webContents.mainFrame.url = original
+    view.webContents.mainFrame.url = original
     done("skip")
     expect(await playing).toMatchObject({ reason: "skip" })
     expect(ipcMain.listenerCount(DONE_CHANNEL)).toBe(0)
   })
 
-  it("bounds stalled playback and removes the window and IPC listener", async () => {
+  it("bounds stalled playback and removes the view and IPC listener", async () => {
     vi.useFakeTimers()
-    const { controller, ipcMain } = fixture({ timeoutMs: 50 })
+    const { controller, ipcMain, host } = fixture({ timeoutMs: 50 })
     const playing = controller.playOpening()
-    const window = controller.window
+    const view = controller.view
     await vi.advanceTimersByTimeAsync(50)
     expect(await playing).toMatchObject({ reason: "timeout" })
-    expect(window.isDestroyed()).toBe(true)
+    expect(view.webContents.isDestroyed()).toBe(true)
+    expect(host.children).toEqual([])
     expect(ipcMain.listenerCount(DONE_CHANNEL)).toBe(0)
   })
 
-  it("handles renderer crashes and manually closed players", async () => {
-    const { controller } = fixture()
+  it("handles renderer crashes and a host window closed during playback", async () => {
+    const { controller, host } = fixture()
     const opening = controller.playOpening()
-    controller.window.webContents.emit("render-process-gone")
+    controller.view.webContents.emit("render-process-gone")
     expect(await opening).toMatchObject({ reason: "error" })
     const ending = controller.playEnding()
-    controller.window.destroy()
+    host.destroy()
     expect(await ending).toMatchObject({ reason: "skip" })
+    expect(controller.playing).toBe(false)
+  })
+
+  it("plays nothing when there is no visible host window", async () => {
+    const { controller } = fixture({ getHostWindow: () => null })
+    expect(await controller.playOpening()).toMatchObject({ reason: "no-host" })
+    expect(await controller.playEnding()).toMatchObject({ reason: "no-host" })
+    expect(controller.view).toBe(null)
+  })
+
+  it("moves keyboard focus to the overlay once it loads", async () => {
+    const { controller } = fixture()
+    const opening = controller.playOpening()
+    const view = controller.view
+    view.webContents.emit("did-finish-load")
+    expect(view.webContents.focus).toHaveBeenCalledTimes(1)
+    controller.dispose()
+    await opening
   })
 
   it("ignores an obsolete opening load rejection after ending starts", async () => {
     let failOpening
-    class SlowWindow extends Window {
-      loadURL(url) {
-        super.loadURL(url)
-        if (this.query.kind === "opening")
-          return new Promise((_resolve, reject) => {
-            failOpening = reject
-          })
-        return Promise.resolve()
+    class SlowView extends View {
+      constructor(options) {
+        super(options)
+        const load = this.webContents.loadURL
+        this.webContents.loadURL = (url) => {
+          load(url)
+          if (this.query.kind === "opening")
+            return new Promise((_resolve, reject) => {
+              failOpening = reject
+            })
+          return Promise.resolve()
+        }
       }
     }
-    const { controller, done } = fixture({ BrowserWindow: SlowWindow })
+    const { controller, done } = fixture({ WebContentsView: SlowView })
     const opening = controller.playOpening()
     const ending = controller.playEnding()
     expect(await opening).toMatchObject({ reason: "replaced" })
     failOpening(new Error("old player destroyed"))
     await Promise.resolve()
     expect(controller.playing).toBe(true)
-    expect(controller.window.query.kind).toBe("ending")
+    expect(controller.view.query.kind).toBe("ending")
     done()
     expect(await ending).toMatchObject({ reason: "ended" })
   })
@@ -198,7 +255,7 @@ describe("desktop animation lifecycle", () => {
 
   it("keeps startup usable when a player cannot be created", async () => {
     const { controller } = fixture({
-      BrowserWindow: class {
+      WebContentsView: class {
         constructor() {
           throw new Error("unavailable")
         }
