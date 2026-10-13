@@ -89,6 +89,8 @@ export function GitHubPrPickerDialog({
     if (!projectDirectory) {
       setResult(null)
       setError(t("session.githubPrPicker.error.noActiveProject"))
+      setIsLoading(false)
+      setIsLoadingMore(false)
       return
     }
     if (githubAuthChecked && githubAuthStatus?.connected === false) {
@@ -97,11 +99,15 @@ export function GitHubPrPickerDialog({
       setHasMore(false)
       setPage(1)
       setError(null)
+      setIsLoading(false)
+      setIsLoadingMore(false)
       return
     }
     if (!github?.prsList) {
       setResult(null)
       setError(t("session.githubPrPicker.error.runtimeUnavailable"))
+      setIsLoading(false)
+      setIsLoadingMore(false)
       return
     }
 
@@ -178,11 +184,14 @@ export function GitHubPrPickerDialog({
   React.useEffect(() => {
     if (!open) return
     if (githubAuthChecked && githubAuthStatus?.connected === false) {
+      listRequestRef.current += 1
       setResult({ connected: false })
       setPrs([])
       setHasMore(false)
       setPage(1)
       setError(null)
+      setIsLoading(false)
+      setIsLoadingMore(false)
     }
   }, [githubAuthChecked, githubAuthStatus, open])
 
