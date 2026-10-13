@@ -85,7 +85,6 @@ export function formatPromptSendError(status: number, body: string): string {
 }
 const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//
 const ID_RANDOM_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-const ID_RANDOM_LENGTH = 14
 
 // The backend brands message and part identifiers and rejects the entire
 // prompt with an opaque `InvalidRequestError` (400, "Invalid request") when a
@@ -101,6 +100,17 @@ const isValidMessageId = (id: unknown): id is string => typeof id === "string" &
 
 let lastIdTimestamp = 0
 let idCounter = 0
+
+// Must match the server encoding (ax-code packages/ax-code/src/id/id.ts
+// Identifier.create): "z" marker + 7-byte big-endian timestamp * 0x1000 + counter.
+// The legacy 6-byte key wrapped every 2^36 ms (~795 days, last on 2026-08-14), so a
+// newly sent or retried message id sorted before older history and the id-sorted
+// store rendered it at the top of the transcript. The "z" marker also keeps new ids
+// ordered after every legacy id ("z" > hex), repairing sessions that span the wrap.
+const ID_TIME_BYTES = 7
+const ID_COUNTER_MODULO = 0x1000
+const ID_ASCENDING_MARKER = "z"
+const ID_RANDOM_LENGTH = 11
 
 const randomBase62 = (length: number): string => {
   const bytes = new Uint8Array(length)
@@ -120,24 +130,27 @@ const randomBase62 = (length: number): string => {
 }
 
 export const ascendingId = (prefix: "msg" | "prt"): string => {
-  const timestamp = Date.now()
+  let timestamp = Date.now()
+  if (timestamp < lastIdTimestamp) {
+    timestamp = lastIdTimestamp
+  }
   if (timestamp !== lastIdTimestamp) {
     lastIdTimestamp = timestamp
     idCounter = 0
+  } else if (idCounter === ID_COUNTER_MODULO - 1) {
+    lastIdTimestamp += 1
+    timestamp = lastIdTimestamp
+    idCounter = 0
   }
-  idCounter += 1
+  idCounter = (idCounter + 1) & (ID_COUNTER_MODULO - 1)
 
-  // Must match the server encoding (packages/ax-code/src/id/id.ts Identifier.create):
-  // timestamp * 0x1000 + counter. A different multiplier packs the timestamp into different
-  // bytes, so client (user) and server (assistant) ids sort inconsistently and the id-sorted
-  // sync store reorders the transcript (issue #325).
-  const sortable = BigInt(timestamp) * BigInt(0x1000) + BigInt(idCounter)
-  const timeBytes = new Uint8Array(6)
-  for (let index = 0; index < 6; index += 1) {
-    timeBytes[index] = Number((sortable >> BigInt(40 - 8 * index)) & BigInt(0xff))
+  const sortable = BigInt(timestamp) * BigInt(ID_COUNTER_MODULO) + BigInt(idCounter)
+  const timeBytes = new Uint8Array(ID_TIME_BYTES)
+  for (let index = 0; index < ID_TIME_BYTES; index += 1) {
+    timeBytes[index] = Number((sortable >> BigInt((ID_TIME_BYTES - 1 - index) * 8)) & BigInt(0xff))
   }
   const hex = Array.from(timeBytes, (byte) => byte.toString(16).padStart(2, "0")).join("")
-  return `${prefix}_${hex}${randomBase62(ID_RANDOM_LENGTH)}`
+  return `${prefix}_${ID_ASCENDING_MARKER}${hex}${randomBase62(ID_RANDOM_LENGTH)}`
 }
 
 const isRetryableFetchError = (error: unknown): boolean => {
