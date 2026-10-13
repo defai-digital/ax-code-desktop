@@ -1,4 +1,6 @@
 import React from "react"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
+import { WebMcpToolsCard } from "@/components/mcp/WebMcpBrowserTools"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -586,6 +588,7 @@ const buildMcpRuntimeActionKey = (name: string | null, directory?: string | null
 // McpPage
 // ─────────────────────────────────────────────────────────────
 export const McpPage: React.FC = () => {
+  const settingsCardSelected = useWebMcpBrowserStore((state) => state.settingsCardSelected)
   const { t } = useI18n()
   const tUnsafe = React.useCallback(
     (key: string, params?: Record<string, unknown>) => t(key as never, params as never),
@@ -1380,6 +1383,11 @@ export const McpPage: React.FC = () => {
       },
     )
   }, [currentDirectory, isAuthPolling, refreshStatus, selectedMcpName, t])
+
+  // ── Browser tools (native WebMCP) ──
+  if (!selectedMcpName && settingsCardSelected) {
+    return <WebMcpToolsCard />
+  }
 
   // ── Empty state ──
   if (!selectedMcpName) {

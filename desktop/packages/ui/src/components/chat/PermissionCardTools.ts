@@ -24,5 +24,9 @@ export const getPermissionToolPresentation = (toolName: string): PermissionToolP
     return { displayName: "webfetch", icon: "global" }
   }
 
+  if (tool === "webmcp" || tool === "desktop_webmcp") {
+    return { displayName: "webmcp", icon: "global" }
+  }
+
   return { displayName: toolName, icon: "tools" }
 }

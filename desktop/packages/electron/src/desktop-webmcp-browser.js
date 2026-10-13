@@ -90,6 +90,8 @@ function createDesktopWebMcpBrowser({
     origin: entry.adapter.snapshot().origin,
     tools: entry.adapter.snapshot().tools.length,
     generation: entry.adapter.generation,
+    // Shown in the pane's address bar; never logged.
+    url: entry.view.webContents.isDestroyed() ? "" : entry.view.webContents.getURL(),
   })
   async function synchronize(entry) {
     const connection = entry.connection
@@ -140,6 +142,22 @@ function createDesktopWebMcpBrowser({
   }
   async function command(sender, args) {
     if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("Invalid browser command")
+    if (args.action === "capability") {
+      // A read-only compatibility probe so the UI can explain an old runtime before any browser exists.
+      if (typeof args.directory !== "string" || !path.isAbsolute(args.directory) || args.directory.includes("\0")) {
+        throw new Error("Select a project before checking browser compatibility")
+      }
+      if (!BrowserWindow.fromWebContents(sender)) throw new Error("The browser requires a local desktop window")
+      let capability = null
+      let reachable = true
+      try {
+        capability = (await api(args.directory, "/capability"))?.capability ?? null
+      } catch {
+        // A runtime that is restarting or offline is unknown, not incompatible.
+        reachable = false
+      }
+      return { capability: CAPABILITY, runtimeCapability: capability, reachable, compatible: capability === CAPABILITY }
+    }
     if (args.action === "create") {
       if (
         typeof args.directory !== "string" ||

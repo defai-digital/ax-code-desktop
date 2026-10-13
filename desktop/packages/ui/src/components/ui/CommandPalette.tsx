@@ -33,6 +33,7 @@ import { scoreByFuzzyQuery } from "@/lib/search/fuzzySearch"
 import { truncatePathMiddle } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
 import { sessionEvents } from "@/lib/sessionEvents"
+import { openProjectFolder } from "@/lib/projectOpen"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import type { ThemeMode } from "@/types/theme"
@@ -171,7 +172,17 @@ export const CommandPalette: React.FC = () => {
         id: "add-project",
         title: t("commandPalette.item.addProject"),
         icon: <Icon name="folder-add" className="mr-2 h-4 w-4" />,
-        searchText: t("commandPalette.item.addProject"),
+        searchText: `${t("commandPalette.item.addProject")} open folder`,
+        shortcutId: "open_project_folder",
+        onSelect: run(() => {
+          void openProjectFolder({ t })
+        }),
+      },
+      {
+        id: "add-project-path",
+        title: t("commandPalette.item.addProjectByPath"),
+        icon: <Icon name="folder-6" className="mr-2 h-4 w-4" />,
+        searchText: `${t("commandPalette.item.addProjectByPath")} clone repository path`,
         onSelect: run(() => {
           sessionEvents.requestDirectoryDialog()
         }),

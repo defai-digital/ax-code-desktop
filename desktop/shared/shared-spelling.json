@@ -85,7 +85,8 @@
     "terminalView.quickKeys.controlLabel",
     "terminalView.quickKeys.enterAria",
     "terminalView.quickKeys.escape",
-    "terminalView.quickKeys.tabAria"
+    "terminalView.quickKeys.tabAria",
+    "webmcp.browser.addressPlaceholder"
   ],
   "fr": [
     "aboutDialog.versionLabel",

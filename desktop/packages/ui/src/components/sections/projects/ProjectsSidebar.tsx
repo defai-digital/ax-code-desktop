@@ -7,7 +7,7 @@ import { SettingsSidebarItem } from "@/components/sections/shared/SettingsSideba
 import { Icon } from "@/components/icon/Icon"
 import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/lib/projectMeta"
 import { cn } from "@/lib/utils"
-import { sessionEvents } from "@/lib/sessionEvents"
+import { openProjectFolder } from "@/lib/projectOpen"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { useI18n } from "@/lib/i18n"
 
@@ -19,9 +19,13 @@ export const ProjectsSidebar: React.FC<{ onItemSelect?: () => void }> = ({ onIte
   const { currentTheme } = useThemeSystem()
   const [brokenIconIds, setBrokenIconIds] = React.useState<Set<string>>(new Set())
 
+  const setSettingsDialogOpen = useUIStore((state) => state.setSettingsDialogOpen)
   const handleAddProject = React.useCallback(() => {
-    sessionEvents.requestDirectoryDialog()
-  }, [])
+    void openProjectFolder({ t }).then((outcome) => {
+      // The new draft sits behind the Settings window; get out of its way.
+      if (outcome === "added") setSettingsDialogOpen(false)
+    })
+  }, [setSettingsDialogOpen, t])
 
   React.useEffect(() => {
     if (projects.length === 0) {

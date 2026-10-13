@@ -478,7 +478,10 @@ const DesktopServicesMenu = React.memo(function DesktopServicesMenu({
         </div>
 
         {desktopServicesTab === "mcp" ? (
-          <McpDropdownContent active={isDesktopServicesOpen && desktopServicesTab === "mcp"} />
+          <McpDropdownContent
+            active={isDesktopServicesOpen && desktopServicesTab === "mcp"}
+            onOpenProjectBrowser={() => setIsDesktopServicesOpen(false)}
+          />
         ) : null}
 
         {desktopServicesTab === "usage" ? (

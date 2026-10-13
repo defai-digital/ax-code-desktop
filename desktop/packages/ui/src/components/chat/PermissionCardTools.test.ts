@@ -9,6 +9,11 @@ describe("getPermissionToolPresentation", () => {
     expect(getPermissionToolPresentation("curl")).toEqual({ displayName: "webfetch", icon: "global" })
   })
 
+  test("presents native WebMCP requests as browser tools", () => {
+    expect(getPermissionToolPresentation("webmcp")).toEqual({ displayName: "webmcp", icon: "global" })
+    expect(getPermissionToolPresentation("desktop_webmcp")).toEqual({ displayName: "webmcp", icon: "global" })
+  })
+
   test("keeps unknown tools visible by their original name", () => {
     expect(getPermissionToolPresentation("custom_tool")).toEqual({ displayName: "custom_tool", icon: "tools" })
   })

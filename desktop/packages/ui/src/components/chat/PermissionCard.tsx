@@ -195,7 +195,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
         <>
           {replaceAll && (
             <div className="typography-meta text-muted-foreground mb-2">
-              <span className="font-semibold">⚠️ Replace All Occurrences</span>
+              <span className="font-semibold">{t("chat.permissionCard.replaceAll")}</span>
             </div>
           )}
           {changes && (
@@ -284,11 +284,57 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
           )}
           {(timeout || format) && (
             <div className="typography-meta text-muted-foreground">
-              {timeout && <span>Timeout: {timeout}ms</span>}
+              {timeout && (
+                <span>
+                  {t("chat.permissionCard.timeout")} {timeout}ms
+                </span>
+              )}
               {timeout && format && <span> • </span>}
-              {format && <span>Response format: {format}</span>}
+              {format && (
+                <span>
+                  {t("chat.permissionCard.responseFormat")} {format}
+                </span>
+              )}
             </div>
           )}
+        </>
+      )
+    }
+
+    if (tool === "webmcp" || tool === "desktop_webmcp") {
+      const origin = getMeta("origin") || patterns[0] || ""
+      const operation = getMeta("operation")
+      const webTool = getMeta("toolName")
+      const fromDesktopBrowser = permission.metadata.desktopProvider === true
+      return (
+        <>
+          <div className="mb-2">
+            <div className="typography-meta text-muted-foreground mb-1">{t("chat.permissionCard.webmcp.origin")}</div>
+            <code className="typography-meta px-2 py-1 bg-muted/30 rounded block break-all font-medium text-foreground">
+              {origin || "—"}
+            </code>
+          </div>
+          {(webTool || operation) && (
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              {webTool ? (
+                <span className="inline-flex items-center gap-1 typography-meta">
+                  <span className="text-muted-foreground">{t("chat.permissionCard.webmcp.tool")}</span>
+                  <code className="px-1.5 py-0.5 bg-muted/30 rounded">{webTool}</code>
+                </span>
+              ) : null}
+              {operation ? (
+                <span className="inline-flex items-center gap-1 typography-meta">
+                  <span className="text-muted-foreground">{t("chat.permissionCard.webmcp.operation")}</span>
+                  <code className="px-1.5 py-0.5 bg-muted/30 rounded">{operation}</code>
+                </span>
+              ) : null}
+            </div>
+          )}
+          <div className="typography-micro text-muted-foreground">
+            {fromDesktopBrowser
+              ? t("chat.permissionCard.webmcp.fromProjectBrowser")
+              : t("chat.permissionCard.webmcp.fromBridge")}
+          </div>
         </>
       )
     }
@@ -333,10 +379,12 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Icon name="question" className="h-3.5 w-3.5 text-[var(--status-warning)]" />
-                <span className="typography-meta font-medium text-muted-foreground">Permission Required</span>
+                <span className="typography-meta font-medium text-muted-foreground">
+                  {t("chat.permissionCard.header.title")}
+                </span>
                 {isFromSubagent ? (
                   <span className="typography-micro text-muted-foreground px-1.5 py-0.5 rounded bg-foreground/5">
-                    From subagent
+                    {t("chat.permissionCard.header.fromSubagent")}
                   </span>
                 ) : null}
               </div>
@@ -382,7 +430,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
               }}
             >
               <Icon name="check" className="h-3.5 w-3.5 sm:h-3 sm:w-3 flex-shrink-0" />
-              Allow Once
+              {t("chat.permissionCard.actions.allowOnce")}
             </button>
 
             {alwaysPatterns.length > 0 ? (
@@ -410,7 +458,9 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
                   const text = displayPatterns.join(", ")
                   const hasMore = alwaysPatterns.length > 2
                   return (
-                    <span className="truncate max-w-[180px]">{hasMore ? `Always: ${text}...` : `Always: ${text}`}</span>
+                    <span className="truncate max-w-[180px]">
+                      {t("chat.permissionCard.alwaysPatterns", { patterns: hasMore ? `${text}...` : text })}
+                    </span>
                   )
                 })()}
               </button>
@@ -434,7 +484,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
                 }}
               >
                 <Icon name="time" className="h-3.5 w-3.5 sm:h-3 sm:w-3 flex-shrink-0" />
-                Always Allow
+                {t("chat.permissionCard.actions.allowAlways")}
               </button>
             )}
 
@@ -468,7 +518,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
               }}
             >
               <Icon name="close" className="h-3.5 w-3.5 sm:h-3 sm:w-3 flex-shrink-0" />
-              Deny
+              {t("chat.permissionCard.actions.deny")}
             </button>
 
             {isResponding && (

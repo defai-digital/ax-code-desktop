@@ -350,8 +350,12 @@ export const getDesktopHomeDirectory = async (): Promise<string | null> => {
   return null
 }
 
+/** Error text returned when the user dismisses the native folder picker. */
+export const DIRECTORY_SELECTION_CANCELLED = "Directory selection cancelled"
+
 export const requestDirectoryAccess = async (
   directoryPath: string,
+  options?: { title?: string },
 ): Promise<{ success: boolean; path?: string; projectId?: string; error?: string }> => {
   // Desktop shell on local instance: use native folder picker.
   if (isTauriShell() && isDesktopLocalOriginActive()) {
@@ -359,10 +363,10 @@ export const requestDirectoryAccess = async (
       const selected = await getDesktopBridge()?.openDialog?.({
         directory: true,
         multiple: false,
-        title: "Select Working Directory",
+        title: options?.title ?? "Select Working Directory",
       })
       if (!selected || typeof selected !== "string") {
-        return { success: false, error: "Directory selection cancelled" }
+        return { success: false, error: DIRECTORY_SELECTION_CANCELLED }
       }
       return { success: true, path: selected }
     } catch (error) {

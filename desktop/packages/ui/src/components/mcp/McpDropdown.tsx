@@ -8,6 +8,7 @@ import { useMcpConfigStore } from "@/stores/useMcpConfigStore"
 import { useMcpStore } from "@/stores/useMcpStore"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
+import { WebMcpToolsRow } from "@/components/mcp/WebMcpBrowserTools"
 
 const statusTooltip = (
   status: McpStatus | undefined,
@@ -56,9 +57,11 @@ const statusTone = (status: McpStatus | undefined): "default" | "success" | "war
 interface McpDropdownContentProps {
   active: boolean
   className?: string
+  /** Called after the project browser was opened so the hosting menu can close. */
+  onOpenProjectBrowser?: () => void
 }
 
-export const McpDropdownContent: React.FC<McpDropdownContentProps> = ({ active, className }) => {
+export const McpDropdownContent: React.FC<McpDropdownContentProps> = ({ active, className, onOpenProjectBrowser }) => {
   const { t } = useI18n()
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
   const directory = currentDirectory ?? null
@@ -131,7 +134,12 @@ export const McpDropdownContent: React.FC<McpDropdownContentProps> = ({ active, 
         </div>
       </div>
 
-      <div className="max-h-64 overflow-y-auto py-2">
+      <WebMcpToolsRow className="border-b border-[var(--interactive-border)] py-2.5" onOpen={onOpenProjectBrowser} />
+
+      <div className="px-4 pb-1 pt-2.5 typography-micro font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("mcpDropdown.section.servers")}
+      </div>
+      <div className="max-h-64 overflow-y-auto pb-2">
         {sortedNames.map((serverName) => {
           const serverStatus = status[serverName]
           const tone = statusTone(serverStatus)

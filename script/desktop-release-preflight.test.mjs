@@ -11,7 +11,7 @@ const input = () => ({
     },
     manifests: { root: { version: "7.24.5" }, electron: { devDependencies: { electron: "44.7.0" } } },
     identity: { updater: { repository: "defai-digital/ax-code-desktop", tagPrefix: "v" } },
-    runtime: { version: "7.24.4" },
+    runtime: { version: "7.25.1" },
     sdk: { version: "2.6.7" },
   },
   commit,
@@ -23,7 +23,7 @@ const input = () => ({
 
 describe("Desktop release preflight", () => {
   it("keeps Desktop and signed runtime versions independent", () => {
-    expect(releaseReadiness(input())).toMatchObject({ ready: true, tag: "v7.24.5", runtimeVersion: "7.24.4" })
+    expect(releaseReadiness(input())).toMatchObject({ ready: true, tag: "v7.24.5", runtimeVersion: "7.25.1" })
   })
   it("rejects successes for other source commits", () => {
     const data = input()

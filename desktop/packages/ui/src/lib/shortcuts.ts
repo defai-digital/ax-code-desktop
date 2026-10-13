@@ -166,6 +166,13 @@ const SHORTCUT_ACTIONS: ReadonlyArray<ShortcutAction> = [
     description: "Toggle the files panel",
   },
   {
+    id: "open_project_folder",
+    defaultCombo: "mod+o",
+    label: "Open a folder",
+    description: "Add a project folder and start a session in it",
+    customizable: true,
+  },
+  {
     id: "toggle_sidebar",
     defaultCombo: "mod+l",
     label: "Toggle sidebar",

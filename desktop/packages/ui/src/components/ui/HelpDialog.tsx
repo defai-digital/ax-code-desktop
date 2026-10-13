@@ -96,6 +96,12 @@ export const HelpDialog: React.FC = () => {
       categoryKey: "helpDialog.section.sessionManagement",
       items: [
         {
+          id: "open_project_folder",
+          descriptionKey: "helpDialog.item.openProjectFolder",
+          icon: "folder-add",
+          keys: "",
+        },
+        {
           id: "new_chat",
           descriptionKey: "helpDialog.item.createNewSession",
           icon: "add",

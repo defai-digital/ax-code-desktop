@@ -16,7 +16,8 @@ type SessionCreateRequest = {
 
 type DeleteListener = (request: SessionDeleteRequest) => void
 type CreateListener = (request: SessionCreateRequest) => void
-type DirectoryListener = () => void
+export type DirectoryDialogRequest = { mode?: "browse" | "clone" }
+type DirectoryListener = (request: DirectoryDialogRequest) => void
 type GitRefreshHint = { directory: string }
 type GitRefreshListener = (hint: GitRefreshHint) => void
 
@@ -54,8 +55,8 @@ export const sessionEvents = {
       directoryListeners.delete(listener)
     }
   },
-  requestDirectoryDialog() {
-    directoryListeners.forEach((listener) => listener())
+  requestDirectoryDialog(request: DirectoryDialogRequest = {}) {
+    directoryListeners.forEach((listener) => listener(request))
   },
   onGitRefreshHint(listener: GitRefreshListener) {
     gitRefreshListeners.add(listener)

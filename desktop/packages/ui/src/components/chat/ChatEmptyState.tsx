@@ -12,8 +12,9 @@ import { ProjectsHome } from "@/components/projects/ProjectsHome"
 import { cn } from "@/lib/utils"
 
 /**
- * Empty chat surface — project-first when workspaces exist (Codex-style home),
- * sparse welcome when there is nothing to open yet.
+ * Empty chat surface: the project-first home. With projects it lists them with
+ * live activity; without any it leads with "open a folder". Either way the next
+ * step is one click away and lands in a focused session draft.
  */
 const ChatEmptyState: React.FC = () => {
   const { t } = useI18n()
@@ -86,16 +87,7 @@ const ChatEmptyState: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-full w-full px-6 py-16 sm:py-20">
-      <div className="flex flex-col items-center gap-8 max-w-md w-full">
-        <AxCodeIcon width={56} height={56} className="opacity-[0.32] shrink-0" aria-hidden />
-        <div className="flex flex-col items-center gap-2.5 text-center">
-          <span className="typography-ui-header font-medium text-foreground tracking-tight">
-            {t("chat.emptyState.startNewChat")}
-          </span>
-          <span className="typography-meta text-muted-foreground leading-relaxed max-w-[22rem]">
-            {t("chat.emptyState.tagline")}
-          </span>
-        </div>
+      <div className="flex w-full max-w-md flex-col items-center gap-8">
         <ProjectsHome />
         <button
           type="button"

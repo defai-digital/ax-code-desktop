@@ -11,6 +11,7 @@ import { useInputStore } from "@/sync/input-store"
 import { useUIStore } from "@/stores/useUIStore"
 import { Skeleton } from "@/components/ui/skeleton"
 import ChatEmptyState from "./ChatEmptyState"
+import { ProjectsHome } from "@/components/projects/ProjectsHome"
 import { useGlobalSyncStore } from "@/sync/global-sync-store"
 import MessageList, { type MessageListHandle } from "./MessageList"
 import { PermissionCard } from "./PermissionCard"
@@ -558,9 +559,24 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
   const { isMobile } = useDeviceInfo()
   const chatSurfaceMode = useChatSurfaceMode()
   const draftOpen = Boolean(newSessionDraft?.open)
+  const draftProjectCount = useProjectsStore((state) => state.projects.length)
   const initError = useGlobalSyncStore((s) => s.error)
   const isDesktopExpandedInput = isExpandedInput && !isMobile
   const useCompactDraftLayout = isMobile || chatSurfaceMode === "mini-chat"
+  const showDraftProjects = !useCompactDraftLayout && !isDesktopExpandedInput && draftProjectCount > 0
+  const setNewSessionDraftTarget = useSessionUIStore((state) => state.setNewSessionDraftTarget)
+  // Picking a project row retargets the open draft instead of leaving the composer.
+  const switchDraftToProject = React.useCallback(
+    (projectId: string) => {
+      const project = useProjectsStore.getState().projects.find((entry) => entry.id === projectId)
+      if (!project) return
+      setNewSessionDraftTarget(
+        { projectId, selectedProjectId: projectId, directoryOverride: project.path },
+        { force: true },
+      )
+    },
+    [setNewSessionDraftTarget],
+  )
   const messageListRef = React.useRef<MessageListHandle | null>(null)
   const draftProjectLabel = React.useMemo(() => {
     const selectedProject = newSessionDraft?.selectedProjectId
@@ -886,7 +902,23 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
                 : "flex-1 items-center justify-center bg-background px-0 pb-[6vh]",
           )}
         >
-          {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
+          {showDraftProjects ? (
+            <div className="flex min-h-0 w-full flex-col items-center">
+              {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
+              {/* The portfolio lives under the composer: every project with its live activity. */}
+              <div className="chat-input-column mt-6 max-h-[32vh] overflow-y-auto">
+                <ProjectsHome
+                  variant="draft"
+                  onOpenProject={switchDraftToProject}
+                  onNewSession={switchDraftToProject}
+                />
+              </div>
+            </div>
+          ) : promptReadOnly ? (
+            <ReadOnlyPromptBanner />
+          ) : (
+            <ChatInput scrollToBottom={resumeToLatestInstant} />
+          )}
         </div>
       </div>
     )

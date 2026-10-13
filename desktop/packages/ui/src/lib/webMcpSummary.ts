@@ -1,0 +1,110 @@
+import type { I18nKey } from "@/lib/i18n"
+import type { WebMcpBrowserSnapshot } from "@/stores/useWebMcpBrowserStore"
+
+export type WebMcpTone = "default" | "success" | "warning" | "error"
+
+export interface WebMcpSummary {
+  tone: WebMcpTone
+  /** Short state label, e.g. "Agent access on". */
+  stateKey: I18nKey
+  /** One-line detail, e.g. the origin and tool count or the actionable failure. */
+  detailKey: I18nKey
+  detailParams?: Record<string, string | number>
+  /** Whether the surface should offer to open the project browser. */
+  canOpen: boolean
+}
+
+type SummaryInput = Pick<
+  WebMcpBrowserSnapshot,
+  "phase" | "nativeAvailable" | "runtimeCompatible" | "enabled" | "origin" | "tools" | "error"
+>
+
+export const describeWebMcpError = (error: WebMcpBrowserSnapshot["error"]): I18nKey => {
+  switch (error) {
+    case "session-required":
+      return "webmcp.detail.sessionRequired"
+    case "runtime-incompatible":
+      return "webmcp.detail.runtimeIncompatible"
+    case "disconnected":
+      return "webmcp.detail.disconnected"
+    case "enable-failed":
+      return "webmcp.detail.enableFailed"
+    case "operation-failed":
+      return "webmcp.detail.operationFailed"
+    case "start-failed":
+    default:
+      return "webmcp.detail.startFailed"
+  }
+}
+
+/**
+ * Collapses the browser projection into one status line shared by the
+ * Services dropdown, the Settings card and the browser pane itself, so every
+ * surface tells the same story about the same browser.
+ */
+export function summarizeWebMcpBrowser(state: SummaryInput, env: { isElectron: boolean }): WebMcpSummary {
+  if (!env.isElectron) {
+    return {
+      tone: "default",
+      stateKey: "webmcp.state.unavailable",
+      detailKey: "webmcp.detail.desktopOnly",
+      canOpen: false,
+    }
+  }
+  if (state.runtimeCompatible === false) {
+    return {
+      tone: "error",
+      stateKey: "webmcp.state.unavailable",
+      detailKey: "webmcp.detail.runtimeIncompatible",
+      canOpen: true,
+    }
+  }
+  if (state.phase === "error") {
+    return {
+      tone: state.error === "session-required" ? "default" : "error",
+      stateKey: state.error === "session-required" ? "webmcp.state.off" : "webmcp.state.error",
+      detailKey: describeWebMcpError(state.error),
+      canOpen: true,
+    }
+  }
+  if (state.error && state.error !== "session-required" && state.phase !== "starting") {
+    // An operation failed on a live browser: say so everywhere until the next attempt clears it.
+    return {
+      tone: "error",
+      stateKey: "webmcp.state.error",
+      detailKey: describeWebMcpError(state.error),
+      canOpen: true,
+    }
+  }
+  if (state.phase === "starting") {
+    return { tone: "default", stateKey: "webmcp.state.starting", detailKey: "webmcp.detail.starting", canOpen: true }
+  }
+  if (state.phase === "idle") {
+    return { tone: "default", stateKey: "webmcp.state.off", detailKey: "webmcp.detail.closed", canOpen: true }
+  }
+  if (!state.nativeAvailable) {
+    return {
+      tone: "error",
+      stateKey: "webmcp.state.unavailable",
+      detailKey: "webmcp.detail.nativeUnavailable",
+      canOpen: true,
+    }
+  }
+  const origin = state.origin ?? ""
+  if (state.enabled) {
+    return {
+      tone: "success",
+      stateKey: "webmcp.state.on",
+      detailKey: origin ? "webmcp.detail.enabledWithOrigin" : "webmcp.detail.enabledNoOrigin",
+      detailParams: { origin, count: state.tools },
+      canOpen: true,
+    }
+  }
+  return {
+    tone: "warning",
+    stateKey: "webmcp.state.off",
+    detailKey: origin ? "webmcp.detail.readyWithOrigin" : "webmcp.detail.readyNoOrigin",
+    detailParams: { origin, count: state.tools },
+    canOpen: true,
+  }
+}

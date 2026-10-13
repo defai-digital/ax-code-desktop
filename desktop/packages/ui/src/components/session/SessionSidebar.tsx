@@ -3,7 +3,7 @@ import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { useI18n } from "@/lib/i18n"
 import { useDeviceInfo } from "@/lib/device"
 import { isDesktopShell } from "@/lib/desktop"
-import { sessionEvents } from "@/lib/sessionEvents"
+import { openProjectFolder } from "@/lib/projectOpen"
 import { formatDirectoryName, cn } from "@/lib/utils"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useAllLiveSessions, useAllSessionStatuses } from "@/sync/sync-context"
@@ -599,8 +599,8 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   }, [deleteFolderConfirm, deleteFolder])
 
   const handleOpenDirectoryDialog = React.useCallback(() => {
-    sessionEvents.requestDirectoryDialog()
-  }, [])
+    void openProjectFolder({ t })
+  }, [t])
 
   // Auto-expand parent session when navigating to a subagent (child) session.
   // We don't know which render context the user will look at the parent in

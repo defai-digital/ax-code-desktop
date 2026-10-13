@@ -89,8 +89,70 @@ function fixture({ capability = "desktop.webmcp.v1", holdRevocation = false } = 
     await controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 800, height: 600 })
     return { sender, status }
   }
-  return { controller, create, requests, guests, revocations }
+  return { controller, create, requests, guests, revocations, owners }
 }
+
+describe("desktop WebMCP capability probe", () => {
+  it("reports a compatible runtime without creating a browser", async () => {
+    const { controller, requests, owners } = fixture()
+    const sender = Object.assign(new EventEmitter(), { id: 99, getZoomFactor: () => 1 })
+    owners.set(sender, { isDestroyed: () => false })
+    const result = await controller.command(sender, { action: "capability", directory: "/tmp/project" })
+    expect(result).toEqual({
+      capability: "desktop.webmcp.v1",
+      runtimeCapability: "desktop.webmcp.v1",
+      reachable: true,
+      compatible: true,
+    })
+    expect(requests.map((request) => request.url)).toEqual(["/desktop/browser/capability"])
+  })
+
+  it("reports an incompatible runtime as a status, not an error", async () => {
+    const { controller, owners } = fixture({ capability: "desktop.webmcp.v0" })
+    const sender = Object.assign(new EventEmitter(), { id: 98, getZoomFactor: () => 1 })
+    owners.set(sender, { isDestroyed: () => false })
+    const result = await controller.command(sender, { action: "capability", directory: "/tmp/project" })
+    expect(result).toMatchObject({ compatible: false, runtimeCapability: "desktop.webmcp.v0" })
+  })
+
+  it("reports an unreachable runtime as unknown rather than incompatible", async () => {
+    const { controller, owners } = fixture()
+    const sender = Object.assign(new EventEmitter(), { id: 95, getZoomFactor: () => 1 })
+    owners.set(sender, { isDestroyed: () => false })
+    const offline = createDesktopWebMcpBrowser({
+      BrowserWindow: { fromWebContents: (value) => owners.get(value) },
+      WebContentsView: class {},
+      session: { fromPartition: () => ({}) },
+      getRuntime: () => null,
+      getAuthorization: () => "Basic fixture",
+      providerToken: "fixture-only-token",
+    })
+    controllers.push(offline)
+    await expect(offline.command(sender, { action: "capability", directory: "/tmp/project" })).resolves.toMatchObject({
+      reachable: false,
+      compatible: false,
+      runtimeCapability: null,
+    })
+    expect(controller).toBeTruthy()
+  })
+
+  it("refuses the probe for a sender without a desktop window", async () => {
+    const { controller } = fixture()
+    const sender = Object.assign(new EventEmitter(), { id: 96, getZoomFactor: () => 1 })
+    await expect(controller.command(sender, { action: "capability", directory: "/tmp/project" })).rejects.toThrow(
+      "local desktop window",
+    )
+  })
+
+  it("rejects relative directories for the probe", async () => {
+    const { controller, owners } = fixture()
+    const sender = Object.assign(new EventEmitter(), { id: 97, getZoomFactor: () => 1 })
+    owners.set(sender, { isDestroyed: () => false })
+    await expect(controller.command(sender, { action: "capability", directory: "project" })).rejects.toThrow(
+      "Select a project",
+    )
+  })
+})
 
 describe("native project browser integration", () => {
   it("rejects another window using an enrolled browser ID", async () => {

@@ -7,7 +7,7 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useUpdateStore } from "@/stores/useUpdateStore"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
-import { sessionEvents } from "@/lib/sessionEvents"
+import { openProjectFolder } from "@/lib/projectOpen"
 import { createWorktreeSession } from "@/lib/worktreeSessionCreator"
 import { showAxCodeStatus } from "@/lib/axCodeStatus"
 import { isDesktopLocalOriginActive } from "@/lib/desktop"
@@ -139,8 +139,8 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
   }, [checkForUpdates, setAboutDialogOpen, t])
 
   const handleChangeWorkspace = React.useCallback(() => {
-    sessionEvents.requestDirectoryDialog()
-  }, [])
+    void openProjectFolder({ t })
+  }, [t])
 
   const navigateSession = React.useCallback(
     (direction: -1 | 1) => {

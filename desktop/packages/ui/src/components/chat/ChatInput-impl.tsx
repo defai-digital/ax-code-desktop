@@ -79,7 +79,7 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/lib/projectMeta"
 import { useGitBranches, useGitStore, useIsGitRepo } from "@/stores/useGitStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
-import { sessionEvents } from "@/lib/sessionEvents"
+import { openProjectFolder } from "@/lib/projectOpen"
 import { ProjectSwitcher } from "@/components/chat/ProjectSwitcher"
 import { useSkillsStore } from "@/stores/useSkillsStore"
 import { useCommandsStore } from "@/stores/useCommandsStore"
@@ -3479,8 +3479,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   )
 
   const handleAddProject = React.useCallback(() => {
-    sessionEvents.requestDirectoryDialog()
-  }, [])
+    void openProjectFolder({ t })
+  }, [t])
 
   React.useEffect(() => {
     if (!showDraftTargetSelectors || !selectedDraftProject || !selectedDraftDirectory) {

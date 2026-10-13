@@ -51,6 +51,7 @@ type DeleteDialogState = {
 export const SessionDialogs: React.FC = () => {
   const { t } = useI18n()
   const [isDirectoryDialogOpen, setIsDirectoryDialogOpen] = React.useState(false)
+  const [directoryDialogMode, setDirectoryDialogMode] = React.useState<"browse" | "clone">("browse")
   const [hasShownInitialDirectoryPrompt, setHasShownInitialDirectoryPrompt] = React.useState(false)
   const [deleteDialog, setDeleteDialog] = React.useState<DeleteDialogState | null>(null)
   const [deleteDialogSummaries, setDeleteDialogSummaries] = React.useState<
@@ -216,7 +217,8 @@ export const SessionDialogs: React.FC = () => {
   }, [openDeleteDialog, showDeletionDialog, deleteSessionsWithoutDialog])
 
   React.useEffect(() => {
-    return sessionEvents.onDirectoryRequest(() => {
+    return sessionEvents.onDirectoryRequest((request) => {
+      setDirectoryDialogMode(request.mode ?? "browse")
       setIsDirectoryDialogOpen(true)
     })
   }, [])
@@ -823,7 +825,11 @@ export const SessionDialogs: React.FC = () => {
         </Dialog>
       )}
 
-      <DirectoryExplorerDialog open={isDirectoryDialogOpen} onOpenChange={setIsDirectoryDialogOpen} />
+      <DirectoryExplorerDialog
+        open={isDirectoryDialogOpen}
+        onOpenChange={setIsDirectoryDialogOpen}
+        initialMode={directoryDialogMode}
+      />
     </>
   )
 }

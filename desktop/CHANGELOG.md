@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Project-first home: a single "Open a folder" action backed by the OS folder picker, with
+  clone, typed-path and import one click away, and a project list that shows live session activity
+  instead of a decorative status.
+- "Browser tools (WebMCP)" now appears beside MCP servers in the Services menu and in Settings → MCP,
+  sharing one status model with the project browser; the browser pane gained a localized toolbar,
+  status strip, explanation and actionable errors.
+- `Cmd/Ctrl+O` opens a folder as a project from anywhere in the app.
+- Browser-tool permission requests show the website first, then the tool and operation.
+
+### Changed
+
+- The bundled AX Code runtime pin moves to the signed v7.25.1, the first release that accepts the
+  desktop browser provider (`desktop.webmcp.v1`), so agent access in the project browser works.
+- The add-project dialog leads with "Choose folder…" and keeps the in-app path browser and clone
+  mode as secondary paths.
+
 ## [7.24.5] - Candidate
 
 ### Added

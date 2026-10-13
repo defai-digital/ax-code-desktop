@@ -9,12 +9,15 @@ export const useFileSystemAccess = () => {
   }, [])
 
   const requestAccess = useCallback(
-    async (directoryPath: string): Promise<{ success: boolean; path?: string; projectId?: string; error?: string }> => {
+    async (
+      directoryPath: string,
+      options?: { title?: string },
+    ): Promise<{ success: boolean; path?: string; projectId?: string; error?: string }> => {
       if (!isDesktop) {
         return { success: true, path: directoryPath }
       }
 
-      return await requestDirectoryAccess(directoryPath)
+      return await requestDirectoryAccess(directoryPath, options)
     },
     [isDesktop],
   )

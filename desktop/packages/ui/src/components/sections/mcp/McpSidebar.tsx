@@ -19,6 +19,9 @@ import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { SettingsProjectSelector } from "@/components/sections/shared/SettingsProjectSelector"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useI18n } from "@/lib/i18n"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
+import { WebMcpStatusDot } from "@/components/mcp/WebMcpBrowserTools"
+import { useWebMcpSummary } from "@/hooks/useWebMcpBrowser"
 import { runSettingsDeleteMutation } from "../settingsDeleteMutation"
 
 interface McpSidebarProps {
@@ -75,6 +78,17 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
   const refreshStatus = useMcpStore((state) => state.refresh)
   const getErrorForDirectory = useMcpStore((state) => state.getErrorForDirectory)
 
+  const webMcpSummary = useWebMcpSummary()
+  const settingsCardSelected = useWebMcpBrowserStore((state) => state.settingsCardSelected)
+  const setSettingsCardSelected = useWebMcpBrowserStore((state) => state.setSettingsCardSelected)
+  // Leaving the MCP page (or closing Settings) returns the selection to its default.
+  React.useEffect(() => () => setSettingsCardSelected(false), [setSettingsCardSelected])
+  const selectBrowserTools = React.useCallback(() => {
+    setSelectedMcp(null)
+    setMcpDraft(null)
+    setSettingsCardSelected(true)
+    onItemSelect?.()
+  }, [onItemSelect, setMcpDraft, setSelectedMcp, setSettingsCardSelected])
   const [deleteTarget, setDeleteTarget] = React.useState<McpServerConfig | null>(null)
   const [isDeleting, setIsDeleting] = React.useState(false)
   const [openMenuMcp, setOpenMenuMcp] = React.useState<string | null>(null)
@@ -106,6 +120,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
   }, [currentDirectory, getErrorForDirectory, isRefreshingStatus, refreshStatus])
 
   const handleCreateNew = () => {
+    setSettingsCardSelected(false)
     const baseName = "new-mcp-server"
     let newName = baseName
     let counter = 1
@@ -199,6 +214,26 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
 
       {/* List */}
       <ScrollableOverlay outerClassName="flex-1 min-h-0" className="space-y-1 px-3 py-2 overflow-x-hidden">
+        <div className="px-2 pb-1.5 pt-2 typography-micro font-semibold uppercase tracking-wide text-muted-foreground">
+          {t("settings.mcp.sidebar.group.thisApp")}
+        </div>
+        <button
+          type="button"
+          onClick={selectBrowserTools}
+          className={cn(
+            "flex w-full min-w-0 flex-col gap-0 rounded-md px-1.5 py-1 text-left transition-all duration-200 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+            settingsCardSelected && !selectedMcpName ? "bg-interactive-selection" : "hover:bg-interactive-hover",
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <WebMcpStatusDot tone={webMcpSummary.tone} />
+            <span className="typography-ui-label font-normal truncate text-foreground">{t("webmcp.title")}</span>
+            <Icon name="global" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+          </div>
+          <div className="typography-micro text-muted-foreground truncate leading-tight pl-4">
+            {webMcpSummary.detail}
+          </div>
+        </button>
         {mcpServers.length === 0 ? (
           <div className="py-12 px-4 text-center text-muted-foreground">
             <Icon name="plug" className="mx-auto mb-3 h-10 w-10 opacity-50" />
@@ -238,6 +273,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
                         onClick={() => {
                           setSelectedMcp(server.name)
                           setMcpDraft(null)
+                          setSettingsCardSelected(false)
                           onItemSelect?.()
                         }}
                         className="flex min-w-0 flex-1 flex-col gap-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
@@ -331,6 +367,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
                         onClick={() => {
                           setSelectedMcp(server.name)
                           setMcpDraft(null)
+                          setSettingsCardSelected(false)
                           onItemSelect?.()
                         }}
                         className="flex min-w-0 flex-1 flex-col gap-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"

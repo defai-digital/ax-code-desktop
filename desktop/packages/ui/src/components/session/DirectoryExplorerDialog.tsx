@@ -1,4 +1,5 @@
 import React from "react"
+import { DIRECTORY_SELECTION_CANCELLED } from "@/lib/desktop"
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,8 @@ import { normalizeDirectoryExplorerProjectPathKey as normalizeDirectoryPath } fr
 interface DirectoryExplorerDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Which mode the dialog opens in; "clone" shows the repository URL field first. */
+  initialMode?: "browse" | "clone"
 }
 
 type BrowseEntry = {
@@ -128,7 +131,11 @@ const resolveFreshFilesystemHome = async (): Promise<string | null> => {
   return axCodeClient.getFilesystemHome().catch(() => null)
 }
 
-export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = ({ open, onOpenChange }) => {
+export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = ({
+  open,
+  onOpenChange,
+  initialMode = "browse",
+}) => {
   const { t } = useI18n()
   const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
   const projects = useProjectsStore((s) => s.projects)
@@ -175,7 +182,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
     setHighlightedIndex(0)
     setIsConfirming(false)
     setIsOpeningFinder(false)
-    setIsCloneMode(false)
+    setIsCloneMode(initialMode === "clone")
     setCloneRemoteUrl("")
     setSelectedGitIdentityId(null)
     requestAnimationFrame(() => focusPathInput(inputRef.current))
@@ -191,7 +198,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
     return () => {
       cancelled = true
     }
-  }, [homeDirectory, open])
+  }, [homeDirectory, initialMode, open])
 
   React.useEffect(() => {
     if (!open) return
@@ -477,9 +484,9 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
     if (!isDesktop || isOpeningFinder) return
     setIsOpeningFinder(true)
     try {
-      const result = await requestAccess(targetPath)
+      const result = await requestAccess(targetPath, { title: t("directoryExplorerDialog.title") })
       if (!result.success || !result.path) {
-        if (result.error && result.error !== "Directory selection cancelled") {
+        if (result.error && result.error !== DIRECTORY_SELECTION_CANCELLED) {
           toast.error(t("directoryExplorerDialog.toast.failedToSelectDirectory"), {
             description: result.error,
           })
@@ -621,7 +628,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
   )
 
   const resultsSection = (
-    <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-border/60 bg-[var(--surface-elevated)] shadow-sm">
+    <div className="surface-inset relative min-h-0 flex-1 overflow-hidden">
       <div className="max-h-[min(28rem,58vh)] overflow-y-auto p-2">
         <div className="px-2 pb-1 pt-0.5 typography-meta font-medium uppercase tracking-wide text-muted-foreground">
           {t("directoryExplorerDialog.browse.directories")}
@@ -722,18 +729,6 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
     <>
       {!isMobile ? footerHints : null}
       <div className={cn("flex w-full flex-row justify-end gap-2 sm:w-auto", isMobile && "justify-stretch")}>
-        {isDesktop ? (
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={handleOpenInFinder}
-            disabled={isConfirming || isOpeningFinder || isCloneMode}
-          >
-            {isOpeningFinder
-              ? t("directoryExplorerDialog.actions.openingFinder")
-              : t("directoryExplorerDialog.actions.openInFinder")}
-          </Button>
-        ) : null}
         <Button
           variant="ghost"
           size="xs"
@@ -745,6 +740,14 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
             ? t("directoryExplorerDialog.actions.addLocalProject")
             : t("directoryExplorerDialog.actions.cloneRepository")}
         </Button>
+        {isDesktop && !isCloneMode ? (
+          <Button size="xs" className="gap-1" onClick={handleOpenInFinder} disabled={isConfirming || isOpeningFinder}>
+            <Icon name="folder-add" className="h-3.5 w-3.5" />
+            {isOpeningFinder
+              ? t("directoryExplorerDialog.actions.openingFinder")
+              : t("directoryExplorerDialog.actions.openInFinder")}
+          </Button>
+        ) : null}
         {isMobile ? (
           <Button
             size="xs"

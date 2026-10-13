@@ -75,7 +75,7 @@ describe("shadow release evidence", () => {
       source: { repository: "defai-digital/ax-coder", commit: "f".repeat(40) },
       target: "darwin-arm64",
       publication: { electronBuilderMode: "never", publicReleaseEnabled: false },
-      versions: { desktop: "7.24.5", sdk: "2.6.12", runtime: "7.24.4" },
+      versions: { desktop: "7.24.5", sdk: "2.6.12", runtime: "7.25.1" },
     })
     expect(JSON.stringify(evidence)).not.toContain("must-not-appear")
     expect(evidence.artifacts[0]).toMatchObject({
