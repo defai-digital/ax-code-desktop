@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events"
 import childProcess from "node:child_process"
 import { createRequire } from "node:module"
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 
 const require = createRequire(import.meta.url)
 const {
@@ -120,18 +120,6 @@ function createLogger() {
 }
 
 const flushMicrotasks = () => new Promise((resolve) => setImmediate(resolve))
-
-// Wait until `condition` holds, polling briefly. The retry backoff in these tests
-// is only a few milliseconds, so a fixed wall-clock sleep is really a guess about
-// how much work the event loop gets done in that window — under load the guess is
-// too small and the assertion that follows flakes. Polling a condition up to a
-// generous deadline removes the guess without weakening the assertion.
-const waitForCondition = async (condition, timeoutMs = 2_000) => {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline && !condition()) {
-    await new Promise((resolve) => setTimeout(resolve, 5))
-  }
-}
 
 function createSupervision({ clock = createFakeClock(), fetchQueue = [], settings = {}, env = {}, ...rest } = {}) {
   const fakeSpawn = createFakeSpawn()
@@ -573,8 +561,9 @@ describe("initial-start retry", () => {
 
     ctx.fakeSpawn.children[0].emitExit(1)
     await flushMicrotasks()
-    await waitForCondition(() => ctx.fakeSpawn.children.length === 2)
-    expect(ctx.fakeSpawn.children).toHaveLength(2)
+    // The retry backoff is only a few milliseconds, so wait for the condition
+    // rather than guessing how much the event loop gets done in the window.
+    await vi.waitFor(() => expect(ctx.fakeSpawn.children).toHaveLength(2))
     expect(ctx.warns.some((line) => line.includes("initial start attempt 1/3 failed"))).toBe(true)
 
     ctx.fakeSpawn.children[1].emitListening()
@@ -591,11 +580,9 @@ describe("initial-start retry", () => {
 
     await flushMicrotasks()
     ctx.fakeSpawn.children[0].emitExit(1)
-    await waitForCondition(() => ctx.fakeSpawn.children.length === 2)
-    expect(ctx.fakeSpawn.children).toHaveLength(2)
+    await vi.waitFor(() => expect(ctx.fakeSpawn.children).toHaveLength(2))
     ctx.fakeSpawn.children[1].emitExit(1)
-    await waitForCondition(() => ctx.fakeSpawn.children.length === 3)
-    expect(ctx.fakeSpawn.children).toHaveLength(3)
+    await vi.waitFor(() => expect(ctx.fakeSpawn.children).toHaveLength(3))
     ctx.fakeSpawn.children[2].emitExit(1)
 
     await assertion
