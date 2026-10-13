@@ -34,7 +34,10 @@ export const registerNotificationRoutes = (app, dependencies) => {
       ? await uiAuthController.ensureSessionToken(req, res)
       : getUiSessionTokenFromRequest(req)
     if (!uiToken) {
-      return
+      // The password-configured controller refuses by returning null and writing nothing itself,
+      // so returning silently left the socket open with zero bytes until the client timed out.
+      // Answer it, like the other loopback auth gates do.
+      return res.status(401).json({ error: "UI authentication required" })
     }
 
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8")

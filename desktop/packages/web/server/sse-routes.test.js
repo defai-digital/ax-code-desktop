@@ -37,4 +37,27 @@ describe("local SSE routes", () => {
     req.emit("close")
     expect(clients.has(res)).toBe(false)
   })
+
+  it("answers an unauthenticated stream request instead of leaving the socket open", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    const clients = new Set()
+
+    registerNotificationRoutes(app, {
+      // The password-configured controller refuses by returning null and writes nothing itself.
+      uiAuthController: { ensureSessionToken: async () => null },
+      getUiSessionTokenFromRequest: () => null,
+      getUiNotificationClients: () => clients,
+      writeSseEvent() {},
+    })
+
+    const handler = getRoute("GET", "/api/notifications/stream")
+    const req = createMockRequest()
+    const res = createMockResponse()
+
+    await handler(req, res)
+
+    expect(res.statusCode).toBe(401)
+    expect(res.body).toEqual({ error: "UI authentication required" })
+    expect(clients.has(res)).toBe(false)
+  })
 })
