@@ -1,6 +1,7 @@
 import React from "react"
 import type { EditPermissionMode } from "@/stores/types/sessionTypes"
 import type { ModelMetadata } from "@/types"
+import { formatDate, formatKnowledge } from "./modelMetadataDate"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -181,14 +182,6 @@ const CURRENCY_FORMATTER = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
 })
 
-const KNOWLEDGE_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" })
-
-const DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
-
 const ADD_PROVIDER_ID = "__add_provider__"
 
 const IconBadge: React.FC<{ iconName: ModelControlIconName; label: string }> = ({ iconName, label }) => (
@@ -249,37 +242,6 @@ const getCapabilityIcons = (metadata?: ModelMetadata) => {
     }
   }
   return result
-}
-
-const formatKnowledge = (knowledge?: string) => {
-  if (!knowledge) {
-    return "—"
-  }
-
-  const match = knowledge.match(/^(\d{4})-(\d{2})$/)
-  if (match) {
-    const year = Number.parseInt(match[1], 10)
-    const monthIndex = Number.parseInt(match[2], 10) - 1
-    const knowledgeDate = new Date(Date.UTC(year, monthIndex, 1))
-    if (!Number.isNaN(knowledgeDate.getTime())) {
-      return KNOWLEDGE_DATE_FORMATTER.format(knowledgeDate)
-    }
-  }
-
-  return knowledge
-}
-
-const formatDate = (value?: string) => {
-  if (!value) {
-    return "—"
-  }
-
-  const parsedDate = new Date(value)
-  if (Number.isNaN(parsedDate.getTime())) {
-    return value
-  }
-
-  return DATE_FORMATTER.format(parsedDate)
 }
 
 interface ModelControlsProps {
