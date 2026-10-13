@@ -20,7 +20,6 @@ vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn() } 
 import { PermissionCard } from "./PermissionCard"
 
 declare global {
-  // eslint-disable-next-line no-var
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined
 }
 

@@ -15,6 +15,7 @@ import {
   DEFAULT_DARK_THEME_ID,
 } from "@/lib/theme/themes"
 import { ThemeSystemContext, type ThemeContextValue } from "./theme-system-context"
+import { getSafeStorage } from "@/stores/utils/safeStorage"
 
 type ThemePreferences = {
   themeMode: ThemeMode
@@ -140,12 +141,13 @@ const buildInitialPreferences = (defaultThemeId?: string): ThemePreferences => {
   let themeMode: ThemeMode = "system"
 
   if (typeof window !== "undefined") {
-    const storedMode = localStorage.getItem("themeMode")
-    const storedLightId = localStorage.getItem("lightThemeId")
-    const storedDarkId = localStorage.getItem("darkThemeId")
-    const legacyUseSystem = localStorage.getItem("useSystemTheme")
-    const legacyThemeId = localStorage.getItem("selectedThemeId")
-    const legacyVariant = localStorage.getItem("selectedThemeVariant")
+    const storage = getSafeStorage()
+    const storedMode = storage.getItem("themeMode")
+    const storedLightId = storage.getItem("lightThemeId")
+    const storedDarkId = storage.getItem("darkThemeId")
+    const legacyUseSystem = storage.getItem("useSystemTheme")
+    const legacyThemeId = storage.getItem("selectedThemeId")
+    const legacyVariant = storage.getItem("selectedThemeVariant")
 
     if (storedMode === "light" || storedMode === "dark" || storedMode === "system") {
       themeMode = storedMode
@@ -361,22 +363,23 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
       return
     }
 
-    localStorage.setItem("themeMode", preferences.themeMode)
-    localStorage.setItem("lightThemeId", preferences.lightThemeId)
-    localStorage.setItem("darkThemeId", preferences.darkThemeId)
-    localStorage.setItem("useSystemTheme", String(preferences.themeMode === "system"))
-    localStorage.setItem("selectedThemeId", currentTheme.metadata.id)
-    localStorage.setItem("selectedThemeVariant", currentTheme.metadata.variant === "light" ? "light" : "dark")
+    const storage = getSafeStorage()
+    storage.setItem("themeMode", preferences.themeMode)
+    storage.setItem("lightThemeId", preferences.lightThemeId)
+    storage.setItem("darkThemeId", preferences.darkThemeId)
+    storage.setItem("useSystemTheme", String(preferences.themeMode === "system"))
+    storage.setItem("selectedThemeId", currentTheme.metadata.id)
+    storage.setItem("selectedThemeVariant", currentTheme.metadata.variant === "light" ? "light" : "dark")
 
     // Splash screen (packages/web/index.html) runs before the theme CSS vars load.
     // Persist just enough to theme it on next boot.
     const lightTheme = ensureThemeById(preferences.lightThemeId, "light")
     const darkTheme = ensureThemeById(preferences.darkThemeId, "dark")
 
-    localStorage.setItem("splashBgLight", lightTheme.colors.surface.background)
-    localStorage.setItem("splashFgLight", lightTheme.colors.surface.foreground)
-    localStorage.setItem("splashBgDark", darkTheme.colors.surface.background)
-    localStorage.setItem("splashFgDark", darkTheme.colors.surface.foreground)
+    storage.setItem("splashBgLight", lightTheme.colors.surface.background)
+    storage.setItem("splashFgLight", lightTheme.colors.surface.foreground)
+    storage.setItem("splashBgDark", darkTheme.colors.surface.background)
+    storage.setItem("splashFgDark", darkTheme.colors.surface.foreground)
   }, [preferences, currentTheme, ensureThemeById])
 
   useEffect(() => {
@@ -394,15 +397,16 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
       }
 
       setPreferences((prev) => {
-        const nextModeRaw = localStorage.getItem("themeMode")
+        const storage = getSafeStorage()
+        const nextModeRaw = storage.getItem("themeMode")
         const nextMode: ThemeMode =
           nextModeRaw === "light" || nextModeRaw === "dark" || nextModeRaw === "system" ? nextModeRaw : prev.themeMode
 
-        const nextLightRaw = localStorage.getItem("lightThemeId")
+        const nextLightRaw = storage.getItem("lightThemeId")
         const nextLight =
           typeof nextLightRaw === "string" && nextLightRaw.trim().length > 0 ? nextLightRaw.trim() : prev.lightThemeId
 
-        const nextDarkRaw = localStorage.getItem("darkThemeId")
+        const nextDarkRaw = storage.getItem("darkThemeId")
         const nextDark =
           typeof nextDarkRaw === "string" && nextDarkRaw.trim().length > 0 ? nextDarkRaw.trim() : prev.darkThemeId
 

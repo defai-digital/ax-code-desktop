@@ -16,6 +16,7 @@ import {
   type OpenInApp,
 } from "@/lib/openInApps"
 import { updateDesktopSettings } from "@/lib/persistence"
+import { getSafeStorage } from "./utils/safeStorage"
 
 export type OpenInAppOption = OpenInApp & {
   iconDataUrl?: string
@@ -72,7 +73,7 @@ const getStoredAppId = (): string => {
     return DEFAULT_OPEN_IN_APP_ID
   }
 
-  const stored = window.localStorage.getItem("openInAppId")
+  const stored = getSafeStorage().getItem("openInAppId")
   if (stored && getOpenInAppById(stored)) {
     return stored
   }
@@ -205,7 +206,7 @@ export const useOpenInAppsStore = create<OpenInAppsState>()((set, get) => ({
         return
       }
 
-      window.localStorage.setItem("openInAppId", nextId)
+      getSafeStorage().setItem("openInAppId", nextId)
       set({ selectedAppId: nextId })
     }
 
@@ -331,7 +332,7 @@ export const useOpenInAppsStore = create<OpenInAppsState>()((set, get) => ({
     set({ selectedAppId: appId })
 
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("openInAppId", appId)
+      getSafeStorage().setItem("openInAppId", appId)
     }
 
     await updateDesktopSettings({ openInAppId: appId })
