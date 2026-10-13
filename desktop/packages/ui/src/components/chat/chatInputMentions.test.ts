@@ -6,6 +6,7 @@ import {
   detectMentionQueryAtCursor,
   detectTriggerQueryAtCursor,
   extractInlineFileMentions,
+  filterMissingInlineAttachments,
   getConfirmedMentionsKey,
   insertMentionAtCursor,
   insertTriggerAtCursor,
@@ -17,6 +18,7 @@ import {
   toProjectRelativeMentionPath,
   toServerFileUrl,
 } from "./chatInputMentions"
+import type { AttachedFile } from "@/stores/types/sessionTypes"
 
 // Mirrors the closure in ChatInput-impl.tsx: a mention path "looks like" a file
 // when it has path separators, an extension, or was explicitly confirmed.
@@ -464,5 +466,56 @@ describe("resolveFileMentionPath", () => {
   test("falls back to the file name when the relative path is empty", () => {
     expect(resolveFileMentionPath({ name: "repo", path: "/repo/", relativePath: "/" }, "/repo")).toBe("/")
     expect(resolveFileMentionPath({ name: "app.ts", path: "/repo/" }, "/repo")).toBe("app.ts")
+  })
+})
+
+describe("filterMissingInlineAttachments", () => {
+  const inlineAttachment = (serverPath: string): AttachedFile => ({
+    id: `inline-server-1-${serverPath}`,
+    file: new File([], serverPath),
+    dataUrl: `file://${serverPath}`,
+    mimeType: "text/plain",
+    filename: serverPath.split("/").pop() ?? serverPath,
+    size: 0,
+    source: "server",
+    serverPath,
+  })
+
+  const pickerAttachment = (serverPath: string): AttachedFile => ({
+    ...inlineAttachment(serverPath),
+    id: `picker-${serverPath}`,
+  })
+
+  test("drops typed mentions whose path does not exist, keeping picker files and local uploads", async () => {
+    const ghost = inlineAttachment("/repo/masha.conner")
+    const real = inlineAttachment("/repo/README.md")
+    const picked = pickerAttachment("/repo/definitely-not-here")
+    const local = { ...inlineAttachment("/tmp/whatever"), id: "local-1", source: "local" as const }
+
+    const lister = async (directory: string) =>
+      directory === "/repo" ? [{ name: "README.md" }] : []
+
+    const result = await filterMissingInlineAttachments([ghost, real, picked, local], lister)
+
+    expect(result).toEqual([real, picked, local])
+  })
+
+  test("drops mentions whose parent directory cannot be listed at all", async () => {
+    const ghost = inlineAttachment("/repo/acme.io/careers")
+    const lister = async () => {
+      throw new Error("no such directory")
+    }
+
+    expect(await filterMissingInlineAttachments([ghost], lister)).toEqual([])
+  })
+
+  test("returns the input untouched when nothing is an inline mention", async () => {
+    const picked = pickerAttachment("/repo/file.ts")
+    const lister = vi.fn(async () => [])
+
+    const result = await filterMissingInlineAttachments([picked], lister)
+
+    expect(result).toEqual([picked])
+    expect(lister).not.toHaveBeenCalled()
   })
 })

@@ -110,6 +110,7 @@ import {
   detectMentionQueryAtCursor,
   detectTriggerQueryAtCursor,
   extractInlineFileMentions as extractInlineFileMentionsFromText,
+  filterMissingInlineAttachments,
   insertMentionAtCursor,
   insertTriggerAtCursor,
   loadConfirmedMentions,
@@ -1835,6 +1836,20 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       }
     } catch (error) {
       console.warn("[ChatInput] Failed to expand snippets, sending original text:", error)
+    }
+
+    // Mention heuristics can turn handles like `@name.dev` into ghost file
+    // attachments; drop the ones whose path does not exist, or the runtime
+    // rejects the whole prompt with a 400.
+    primaryAttachments = await filterMissingInlineAttachments(primaryAttachments, (directory) =>
+      axCodeClient.listLocalDirectory(directory),
+    )
+    for (const part of additionalParts) {
+      if (part.attachments && part.attachments.length > 0) {
+        part.attachments = await filterMissingInlineAttachments(part.attachments, (directory) =>
+          axCodeClient.listLocalDirectory(directory),
+        )
+      }
     }
 
     // Collect all attachments for error recovery

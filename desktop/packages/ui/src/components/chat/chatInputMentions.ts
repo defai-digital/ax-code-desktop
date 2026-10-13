@@ -347,3 +347,63 @@ export const extractInlineFileMentions = (
     attachments,
   }
 }
+
+const INLINE_SERVER_ATTACHMENT_ID_PREFIX = "inline-server-"
+
+const isInlineServerAttachment = (attachment: AttachedFile): boolean =>
+  attachment.source === "server" &&
+  typeof attachment.serverPath === "string" &&
+  attachment.id.startsWith(INLINE_SERVER_ATTACHMENT_ID_PREFIX)
+
+/**
+ * Drop inline mention attachments whose path does not exist. Handles and email
+ * domains like `@masha.conner` pass the file-path heuristic and become ghost
+ * `file://` attachments; the runtime then rejects the whole prompt with a 400.
+ * Only typed mentions (the `inline-server-` ids) are checked — picker-selected
+ * files are known to exist. A path whose parent directory cannot be listed is
+ * dropped too: the server could not read the file either, so sending the text
+ * without the attachment is strictly better than rejecting the message.
+ */
+export const filterMissingInlineAttachments = async (
+  attachments: AttachedFile[],
+  lister: (directory: string) => Promise<Array<{ name: string }>>,
+): Promise<AttachedFile[]> => {
+  if (!attachments.some(isInlineServerAttachment)) {
+    return attachments
+  }
+
+  const byDirectory = new Map<string, AttachedFile[]>()
+  for (const attachment of attachments) {
+    if (!isInlineServerAttachment(attachment)) continue
+    const serverPath = attachment.serverPath as string
+    const slash = serverPath.lastIndexOf("/")
+    const directory = slash > 0 ? serverPath.slice(0, slash) : "/"
+    const list = byDirectory.get(directory) ?? []
+    list.push(attachment)
+    byDirectory.set(directory, list)
+  }
+
+  const missing = new Set<AttachedFile>()
+  await Promise.all(
+    [...byDirectory].map(async ([directory, files]) => {
+      let names: Set<string>
+      try {
+        names = new Set((await lister(directory)).map((entry) => entry.name))
+      } catch {
+        for (const file of files) missing.add(file)
+        return
+      }
+      for (const file of files) {
+        const name = (file.serverPath as string).split("/").pop()
+        if (!name || !names.has(name)) {
+          missing.add(file)
+        }
+      }
+    }),
+  )
+
+  if (missing.size === 0) {
+    return attachments
+  }
+  return attachments.filter((attachment) => !missing.has(attachment))
+}
