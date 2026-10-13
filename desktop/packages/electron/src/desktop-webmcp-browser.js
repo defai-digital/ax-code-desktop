@@ -2,7 +2,7 @@
 
 const { randomBytes, randomUUID } = require("node:crypto")
 const path = require("node:path")
-const { NativeWebMcp, CAPABILITY, allowedUrl } = require("./native-webmcp")
+const { NativeWebMcp, CAPABILITY, allowedUrl, pageKind } = require("./native-webmcp")
 
 // This secret goes only to the supervised runtime child, never to a renderer or project config.
 const DESKTOP_BROWSER_TOKEN = randomBytes(32).toString("base64url")
@@ -83,16 +83,22 @@ function createDesktopWebMcpBrowser({
     if (!entry.view.webContents.isDestroyed()) entry.view.webContents.close({ waitForBeforeUnload: false })
     await disconnection
   }
-  const status = (entry) => ({
-    id: entry.id,
-    nativeAvailable: entry.adapter.available,
-    enabled: Boolean(entry.connection),
-    origin: entry.adapter.snapshot().origin,
-    tools: entry.adapter.snapshot().tools.length,
-    generation: entry.adapter.generation,
+  const status = (entry) => {
+    const snapshot = entry.adapter.snapshot()
     // Shown in the pane's address bar; never logged.
-    url: entry.view.webContents.isDestroyed() ? "" : entry.view.webContents.getURL(),
-  })
+    const url = entry.view.webContents.isDestroyed() ? "" : entry.view.webContents.getURL()
+    return {
+      id: entry.id,
+      nativeAvailable: entry.adapter.available,
+      enabled: Boolean(entry.connection),
+      origin: snapshot.origin,
+      tools: snapshot.tools.length,
+      generation: entry.adapter.generation,
+      // Lets the renderer say whether the pane is blank or shows a page the agent cannot be granted.
+      page: pageKind(url, snapshot.origin),
+      url,
+    }
+  }
   async function synchronize(entry) {
     const connection = entry.connection
     if (!connection) return

@@ -7,6 +7,7 @@ const base = {
   runtimeCompatible: null,
   enabled: false,
   origin: null,
+  page: null as "blank" | "unsupported" | "ready" | null,
   tools: 0,
   error: null,
 }
@@ -50,6 +51,60 @@ describe("summarizeWebMcpBrowser", () => {
       detailParams: { origin: "https://example.com", count: 3 },
       canOpen: true,
     })
+  })
+
+  test("asks for a page while agent access is on but the pane is blank", () => {
+    const enrolled = { ...base, phase: "ready" as const, nativeAvailable: true, enabled: true }
+    expect(summarizeWebMcpBrowser({ ...enrolled, page: "blank" }, { isElectron: true })).toEqual({
+      tone: "warning",
+      stateKey: "webmcp.state.waitingForPage",
+      detailKey: "webmcp.detail.waitingForPage",
+      canOpen: true,
+    })
+    // An older main process that does not report the page kind is treated the same way.
+    expect(summarizeWebMcpBrowser(enrolled, { isElectron: true })).toMatchObject({
+      stateKey: "webmcp.state.waitingForPage",
+    })
+  })
+
+  test("flags a loaded page the agent cannot be granted", () => {
+    const unsupported = { ...base, phase: "ready" as const, nativeAvailable: true, page: "unsupported" as const }
+    expect(summarizeWebMcpBrowser({ ...unsupported, enabled: true }, { isElectron: true })).toEqual({
+      tone: "warning",
+      stateKey: "webmcp.state.pageUnsupported",
+      detailKey: "webmcp.detail.pageUnsupported",
+      canOpen: true,
+    })
+    expect(summarizeWebMcpBrowser(unsupported, { isElectron: true })).toEqual({
+      tone: "warning",
+      stateKey: "webmcp.state.off",
+      detailKey: "webmcp.detail.pageUnsupported",
+      canOpen: true,
+    })
+  })
+
+  test("reports a page without registered tools as a normal result", () => {
+    expect(
+      summarizeWebMcpBrowser(
+        { ...base, phase: "ready", nativeAvailable: true, enabled: true, origin: "https://trip.com", page: "ready" },
+        { isElectron: true },
+      ),
+    ).toEqual({
+      tone: "success",
+      stateKey: "webmcp.state.on",
+      detailKey: "webmcp.detail.enabledNoTools",
+      detailParams: { origin: "https://trip.com" },
+      canOpen: true,
+    })
+  })
+
+  test("keeps an operation failure ahead of the enabled branch", () => {
+    expect(
+      summarizeWebMcpBrowser(
+        { ...base, phase: "ready", nativeAvailable: true, enabled: true, page: "blank", error: "operation-failed" },
+        { isElectron: true },
+      ),
+    ).toMatchObject({ tone: "error", stateKey: "webmcp.state.error", detailKey: "webmcp.detail.operationFailed" })
   })
 
   test("keeps agent access off as a warning rather than an error", () => {

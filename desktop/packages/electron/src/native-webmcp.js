@@ -42,6 +42,14 @@ const agentOrigin = (value) => {
   }
 }
 
+// Explains a null origin to the UI: a blank pane needs a URL, while a loaded page the agent cannot be
+// granted (for example http:// on a public host, or an error page) needs a different one.
+const pageKind = (url, origin) => {
+  if (origin) return "ready"
+  if (!url || url === "about:blank") return "blank"
+  return "unsupported"
+}
+
 // Only this adapter owns the native debugger. No caller can supply a CDP command or target.
 class NativeWebMcp {
   constructor(contents, changed = () => {}) {
@@ -251,4 +259,4 @@ class NativeWebMcp {
   }
 }
 
-module.exports = { NativeWebMcp, definitionDigest, CAPABILITY, agentOrigin, allowedUrl }
+module.exports = { NativeWebMcp, definitionDigest, CAPABILITY, agentOrigin, allowedUrl, pageKind }

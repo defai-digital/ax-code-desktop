@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
 import { getDesktopBridge } from "@/lib/desktopBridge"
 import { useSessionUIStore } from "@/sync/session-ui-store"
-import { useWebMcpBrowserStore, type WebMcpBrowserErrorCode } from "@/stores/useWebMcpBrowserStore"
+import { useWebMcpBrowserStore, type WebMcpBrowserErrorCode, type WebMcpPageKind } from "@/stores/useWebMcpBrowserStore"
 import { describeWebMcpError } from "@/lib/webMcpSummary"
 import { pauseChromeBridgeForProjectBrowser, resumeChromeBridgeForProjectBrowser } from "@/lib/webMcpBridgeCoordination"
 import { WebMcpStatusDot } from "@/components/mcp/WebMcpBrowserTools"
@@ -16,8 +16,19 @@ type BrowserStatus = {
   nativeAvailable: boolean
   enabled: boolean
   origin: string | null
+  page?: WebMcpPageKind
   tools: number
   url?: string
+}
+
+/** True while the user is typing somewhere, so enabling the browser never steals the caret. */
+const textEntryFocused = () => {
+  const active = document.activeElement
+  return (
+    active instanceof HTMLInputElement ||
+    active instanceof HTMLTextAreaElement ||
+    (active instanceof HTMLElement && active.isContentEditable)
+  )
 }
 
 const invoke = <T,>(args: Record<string, unknown>): Promise<T> => {
@@ -42,6 +53,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const browserId = useWebMcpBrowserStore((state) => state.browserId)
   const phase = useWebMcpBrowserStore((state) => state.phase)
   const enabled = useWebMcpBrowserStore((state) => state.enabled)
+  const origin = useWebMcpBrowserStore((state) => state.origin)
   const nativeAvailable = useWebMcpBrowserStore((state) => state.nativeAvailable)
   const runtimeCompatible = useWebMcpBrowserStore((state) => state.runtimeCompatible)
   const busy = useWebMcpBrowserStore((state) => state.busy)
@@ -71,6 +83,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         nativeAvailable: result.nativeAvailable,
         enabled: result.enabled,
         origin: result.origin,
+        page: result.page ?? null,
         tools: result.tools,
       })
     },
@@ -184,6 +197,9 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         const result = await invoke<BrowserStatus>({ action, id: browserId, ...extra })
         if (lifecycleRef.current !== lifecycle) return
         applyStatus(result, lifecycle)
+        // Access is on but there is no page to grant: the next step is a URL, so offer the address
+        // bar unless the user is already typing (the composer chip keeps its own focus).
+        if (action === "enable" && !result.origin && !textEntryFocused()) addressRef.current?.focus()
       } catch {
         if (lifecycleRef.current !== lifecycle) return
         const error: WebMcpBrowserErrorCode =
@@ -303,6 +319,11 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       {!enabled && ready ? (
         <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
           {t("webmcp.browser.explanation")}
+        </p>
+      ) : null}
+      {enabled && ready && !origin ? (
+        <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
+          {t("webmcp.browser.openPageHint")}
         </p>
       ) : null}
       {enabled && pausedBridgeServers.length > 0 ? (

@@ -11,6 +11,9 @@ import { create } from "zustand"
  */
 export type WebMcpBrowserPhase = "idle" | "starting" | "ready" | "error"
 
+/** What the pane shows while `origin` is null: nothing yet, or a page the agent cannot be granted. */
+export type WebMcpPageKind = "blank" | "unsupported" | "ready"
+
 export type WebMcpBrowserErrorCode =
   | "session-required"
   | "start-failed"
@@ -29,6 +32,8 @@ export interface WebMcpBrowserSnapshot {
   runtimeCompatible: boolean | null
   enabled: boolean
   origin: string | null
+  /** null until the browser reports its first status. */
+  page: WebMcpPageKind | null
   tools: number
   busy: boolean
   error: WebMcpBrowserErrorCode | null
@@ -62,6 +67,7 @@ const initialSnapshot: WebMcpBrowserSnapshot = {
   runtimeCompatible: null,
   enabled: false,
   origin: null,
+  page: null,
   tools: 0,
   busy: false,
   error: null,

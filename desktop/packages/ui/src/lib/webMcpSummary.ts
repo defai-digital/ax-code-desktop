@@ -16,7 +16,7 @@ export interface WebMcpSummary {
 
 type SummaryInput = Pick<
   WebMcpBrowserSnapshot,
-  "phase" | "nativeAvailable" | "runtimeCompatible" | "enabled" | "origin" | "tools" | "error"
+  "phase" | "nativeAvailable" | "runtimeCompatible" | "enabled" | "origin" | "page" | "tools" | "error"
 >
 
 export const describeWebMcpError = (error: WebMcpBrowserSnapshot["error"]): I18nKey => {
@@ -92,11 +92,46 @@ export function summarizeWebMcpBrowser(state: SummaryInput, env: { isElectron: b
   }
   const origin = state.origin ?? ""
   if (state.enabled) {
+    // Enrolled without a grantable page: the runtime refuses every call until the user loads one,
+    // so "on" would be a lie. Say what the user has to do instead.
+    if (!origin) {
+      return state.page === "unsupported"
+        ? {
+            tone: "warning",
+            stateKey: "webmcp.state.pageUnsupported",
+            detailKey: "webmcp.detail.pageUnsupported",
+            canOpen: true,
+          }
+        : {
+            tone: "warning",
+            stateKey: "webmcp.state.waitingForPage",
+            detailKey: "webmcp.detail.waitingForPage",
+            canOpen: true,
+          }
+    }
+    // A page that registered nothing is the normal result for most websites, not a fault.
+    if (state.tools === 0) {
+      return {
+        tone: "success",
+        stateKey: "webmcp.state.on",
+        detailKey: "webmcp.detail.enabledNoTools",
+        detailParams: { origin },
+        canOpen: true,
+      }
+    }
     return {
       tone: "success",
       stateKey: "webmcp.state.on",
-      detailKey: origin ? "webmcp.detail.enabledWithOrigin" : "webmcp.detail.enabledNoOrigin",
+      detailKey: "webmcp.detail.enabledWithOrigin",
       detailParams: { origin, count: state.tools },
+      canOpen: true,
+    }
+  }
+  if (!origin && state.page === "unsupported") {
+    return {
+      tone: "warning",
+      stateKey: "webmcp.state.off",
+      detailKey: "webmcp.detail.pageUnsupported",
       canOpen: true,
     }
   }

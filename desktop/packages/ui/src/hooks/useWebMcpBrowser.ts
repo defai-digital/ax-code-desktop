@@ -23,6 +23,7 @@ export function useWebMcpSummary() {
       runtimeCompatible: state.runtimeCompatible,
       enabled: state.enabled,
       origin: state.origin,
+      page: state.page,
       tools: state.tools,
       error: state.error,
     })),

@@ -123,3 +123,17 @@ describe("native WebMCP adapter", () => {
     f.adapter.close()
   })
 })
+
+describe("pageKind", () => {
+  test("separates a blank pane from a loaded page the agent cannot be granted", () => {
+    const { pageKind, agentOrigin } = createRequire(import.meta.url)("./native-webmcp.js")
+    const kind = (url) => pageKind(url, agentOrigin(url))
+    expect(kind("")).toBe("blank")
+    expect(kind("about:blank")).toBe("blank")
+    expect(kind("https://trip.com/")).toBe("ready")
+    expect(kind("http://127.0.0.1:3000/")).toBe("ready")
+    expect(kind("http://localhost:5173/")).toBe("ready")
+    expect(kind("http://trip.com/")).toBe("unsupported")
+    expect(kind("chrome-error://chromewebdata/")).toBe("unsupported")
+  })
+})
