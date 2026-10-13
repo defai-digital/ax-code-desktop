@@ -4407,5 +4407,10 @@
   "webmcp.actions.startSession": "\u521b\u5efa\u4f1a\u8bdd\u5e76\u542f\u7528\u4ee3\u7406\u8bbf\u95ee",
   "webmcp.session.title": "\u9879\u76ee\u6d4f\u89c8\u5668",
   "chat.permissionCard.actions.allowOnceCountdown": "\u5141\u8bb8\u4e00\u6b21\uff08{seconds} \u79d2\uff09",
-  "webmcp.detail.bridgePaused": "\u9879\u76ee\u6d4f\u89c8\u5668\u8fde\u63a5\u671f\u95f4\uff0cChrome \u6865\u63a5\uff08{servers}\uff09\u4f1a\u6682\u505c\uff1b\u65ad\u5f00\u4ee3\u7406\u8fde\u63a5\u540e\u4f1a\u81ea\u52a8\u91cd\u65b0\u8fde\u63a5\u3002"
+  "webmcp.detail.bridgePaused": "\u9879\u76ee\u6d4f\u89c8\u5668\u8fde\u63a5\u671f\u95f4\uff0cChrome \u6865\u63a5\uff08{servers}\uff09\u4f1a\u6682\u505c\uff1b\u65ad\u5f00\u4ee3\u7406\u8fde\u63a5\u540e\u4f1a\u81ea\u52a8\u91cd\u65b0\u8fde\u63a5\u3002",
+  "sessions.id.copied": "\u5df2\u590d\u5236\u4f1a\u8bdd ID",
+  "sessions.id.copyFailed": "\u65e0\u6cd5\u590d\u5236\u4f1a\u8bdd ID",
+  "sessions.id.copyAria": "\u590d\u5236\u4f1a\u8bdd ID {id}",
+  "sessions.id.copyHint": "\u70b9\u51fb\u590d\u5236\u4f1a\u8bdd ID",
+  "sessions.sidebar.session.menu.copyId": "\u590d\u5236\u4f1a\u8bdd ID"
 }

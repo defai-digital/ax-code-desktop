@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Icon } from "@/components/icon/Icon"
+import { copySessionId } from "@/lib/sessionId"
 import {
   buildExportFilename,
   downloadAsMarkdown,
@@ -851,6 +852,10 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
           <Icon name="pushpin" className="mr-1 h-4 w-4" />
         )}
         {isPinnedSession ? t("sessions.sidebar.session.menu.unpin") : t("sessions.sidebar.session.menu.pin")}
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => void copySessionId(session.id, t)} className="[&>svg]:mr-1">
+        <Icon name="file-copy" className="mr-1 h-4 w-4" />
+        {t("sessions.sidebar.session.menu.copyId")}
       </DropdownMenuItem>
       {!resolvedSession.share ? (
         <DropdownMenuItem onClick={() => handleShareSession(resolvedSession)} className="[&>svg]:mr-1">

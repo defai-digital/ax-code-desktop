@@ -4407,5 +4407,10 @@
   "webmcp.actions.startSession": "Sitzung starten und Agentenzugriff aktivieren",
   "webmcp.session.title": "Projektbrowser",
   "chat.permissionCard.actions.allowOnceCountdown": "Einmal erlauben ({seconds} s)",
-  "webmcp.detail.bridgePaused": "Die Chrome-Br\u00fccke ({servers}) ist pausiert, solange der Projektbrowser verbunden ist; sie verbindet sich wieder, wenn du den Agenten trennst."
+  "webmcp.detail.bridgePaused": "Die Chrome-Br\u00fccke ({servers}) ist pausiert, solange der Projektbrowser verbunden ist; sie verbindet sich wieder, wenn du den Agenten trennst.",
+  "sessions.id.copied": "Sitzungs-ID kopiert",
+  "sessions.id.copyFailed": "Sitzungs-ID konnte nicht kopiert werden",
+  "sessions.id.copyAria": "Sitzungs-ID {id} kopieren",
+  "sessions.id.copyHint": "Zum Kopieren der Sitzungs-ID klicken",
+  "sessions.sidebar.session.menu.copyId": "Sitzungs-ID kopieren"
 }

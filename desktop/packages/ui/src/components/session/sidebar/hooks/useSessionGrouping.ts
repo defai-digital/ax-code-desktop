@@ -32,7 +32,7 @@ export const useSessionGrouping = (args: Args) => {
       const sessionDirectory =
         normalizePath((session as Session & { directory?: string | null }).directory ?? null) ?? ""
       const sessionTitle = (session.title || t("sessions.sidebar.session.untitled")).trim()
-      return `${sessionTitle} ${sessionDirectory}`.toLowerCase()
+      return `${sessionTitle} ${sessionDirectory} ${session.id}`.toLowerCase()
     },
     [t],
   )

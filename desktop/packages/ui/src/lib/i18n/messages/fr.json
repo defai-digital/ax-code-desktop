@@ -4407,5 +4407,10 @@
   "webmcp.actions.startSession": "D\u00e9marrer une session et activer l'acc\u00e8s agent",
   "webmcp.session.title": "Navigateur de projet",
   "chat.permissionCard.actions.allowOnceCountdown": "Autoriser une fois ({seconds} s)",
-  "webmcp.detail.bridgePaused": "La passerelle Chrome ({servers}) est en pause tant que le navigateur de projet est connect\u00e9 ; elle se reconnecte lorsque vous d\u00e9connectez l'agent."
+  "webmcp.detail.bridgePaused": "La passerelle Chrome ({servers}) est en pause tant que le navigateur de projet est connect\u00e9 ; elle se reconnecte lorsque vous d\u00e9connectez l'agent.",
+  "sessions.id.copied": "ID de session copi\u00e9",
+  "sessions.id.copyFailed": "Impossible de copier l'ID de session",
+  "sessions.id.copyAria": "Copier l'ID de session {id}",
+  "sessions.id.copyHint": "Cliquer pour copier l'ID de session",
+  "sessions.sidebar.session.menu.copyId": "Copier l'ID de session"
 }

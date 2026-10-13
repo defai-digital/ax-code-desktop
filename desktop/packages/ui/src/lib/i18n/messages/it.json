@@ -4407,5 +4407,10 @@
   "webmcp.actions.startSession": "Avvia una sessione e attiva l'accesso agente",
   "webmcp.session.title": "Browser di progetto",
   "chat.permissionCard.actions.allowOnceCountdown": "Consenti una volta ({seconds} s)",
-  "webmcp.detail.bridgePaused": "Il bridge Chrome ({servers}) \u00e8 in pausa finch\u00e9 il browser di progetto \u00e8 connesso; si riconnette quando disconnetti l'agente."
+  "webmcp.detail.bridgePaused": "Il bridge Chrome ({servers}) \u00e8 in pausa finch\u00e9 il browser di progetto \u00e8 connesso; si riconnette quando disconnetti l'agente.",
+  "sessions.id.copied": "ID sessione copiato",
+  "sessions.id.copyFailed": "Impossibile copiare l'ID sessione",
+  "sessions.id.copyAria": "Copia l'ID sessione {id}",
+  "sessions.id.copyHint": "Fai clic per copiare l'ID sessione",
+  "sessions.sidebar.session.menu.copyId": "Copia ID sessione"
 }

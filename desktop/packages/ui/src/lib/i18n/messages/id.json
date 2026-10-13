@@ -4407,5 +4407,10 @@
   "webmcp.actions.startSession": "Mulai sesi dan aktifkan akses agen",
   "webmcp.session.title": "Peramban proyek",
   "chat.permissionCard.actions.allowOnceCountdown": "Izinkan sekali ({seconds} dtk)",
-  "webmcp.detail.bridgePaused": "Jembatan Chrome ({servers}) dijeda selama peramban proyek terhubung; ia akan tersambung kembali saat Anda memutuskan agen."
+  "webmcp.detail.bridgePaused": "Jembatan Chrome ({servers}) dijeda selama peramban proyek terhubung; ia akan tersambung kembali saat Anda memutuskan agen.",
+  "sessions.id.copied": "ID sesi disalin",
+  "sessions.id.copyFailed": "Gagal menyalin ID sesi",
+  "sessions.id.copyAria": "Salin ID sesi {id}",
+  "sessions.id.copyHint": "Klik untuk menyalin ID sesi",
+  "sessions.sidebar.session.menu.copyId": "Salin ID sesi"
 }

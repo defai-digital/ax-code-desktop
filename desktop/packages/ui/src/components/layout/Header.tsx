@@ -62,6 +62,7 @@ import { useTerminalStore } from "@/stores/useTerminalStore"
 import { isLoopbackHostname } from "@/lib/loopback"
 import { ProjectActionsButton } from "@/components/layout/ProjectActionsButton"
 import { SessionSwitcherDropdown } from "@/components/session/SessionSwitcherDropdown"
+import { SessionIdChip } from "@/components/session/SessionIdChip"
 import { invokeDesktop, isDesktopShell, startDesktopWindowDrag } from "@/lib/desktop"
 import {
   isDesktopWindowFullscreen as isDesktopWindowFullscreenNative,
@@ -1913,6 +1914,9 @@ export const Header: React.FC = () => {
             ) : null}
           </button>
         </SessionSwitcherDropdown>
+        {currentSessionId && !isNewSessionDraftOpen ? (
+          <SessionIdChip sessionId={currentSessionId} className="shrink-0" />
+        ) : null}
       </div>
 
       <HeaderIconActionButton
