@@ -159,7 +159,16 @@ function createDesktopWebMcpBrowser({
         // A runtime that is restarting or offline is unknown, not incompatible.
         reachable = false
       }
-      return { capability: CAPABILITY, runtimeCapability: capability, reachable, compatible: capability === CAPABILITY && browserMode === "embedded" }
+      // A runtime that predates `browserMode` (the pinned 7.25.x) is still compatible; only a runtime
+      // that explicitly routes browser tools elsewhere is rejected.
+      const embedded = browserMode === null || browserMode === "embedded"
+      return {
+        capability: CAPABILITY,
+        runtimeCapability: capability,
+        browserMode,
+        reachable,
+        compatible: capability === CAPABILITY && embedded,
+      }
     }
     if (args.action === "create") {
       if (
@@ -263,7 +272,8 @@ function createDesktopWebMcpBrowser({
         entry.revision === revision
       if (!active()) throw new Error("Browser access changed during enrollment")
       const capability = await api(entry.directory, "/capability")
-      if (capability?.capability !== CAPABILITY || capability?.browserMode !== "embedded")
+      const routedElsewhere = capability?.browserMode !== undefined && capability.browserMode !== "embedded"
+      if (capability?.capability !== CAPABILITY || routedElsewhere)
         throw new Error("The bundled coding runtime needs a compatible browser update")
       await entry.syncing
       if (!active()) throw new Error("Browser access changed during enrollment")

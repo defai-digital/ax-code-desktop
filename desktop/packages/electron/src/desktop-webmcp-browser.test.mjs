@@ -7,7 +7,7 @@ afterEach(async () => {
   await Promise.all(controllers.splice(0).map((controller) => controller.closeAll()))
 })
 
-function fixture({ capability = "desktop.webmcp.v1", holdRevocation = false } = {}) {
+function fixture({ capability = "desktop.webmcp.v1", browserMode, holdRevocation = false } = {}) {
   const owners = new Map()
   const guests = []
   const revocations = []
@@ -53,7 +53,8 @@ function fixture({ capability = "desktop.webmcp.v1", holdRevocation = false } = 
     clientFactory: () => ({
       request: (request) => {
         requests.push(request)
-        if (request.url.endsWith("/capability")) return Promise.resolve({ capability })
+        if (request.url.endsWith("/capability"))
+          return Promise.resolve(browserMode === undefined ? { capability } : { capability, browserMode })
         if (request.url.endsWith("/provider"))
           return Promise.resolve({
             providerID: `provider-${++provider}`,
@@ -101,10 +102,39 @@ describe("desktop WebMCP capability probe", () => {
     expect(result).toEqual({
       capability: "desktop.webmcp.v1",
       runtimeCapability: "desktop.webmcp.v1",
+      browserMode: null,
       reachable: true,
       compatible: true,
     })
     expect(requests.map((request) => request.url)).toEqual(["/desktop/browser/capability"])
+  })
+
+  it("accepts a runtime that routes browser tools to the embedded browser", async () => {
+    const { controller, owners } = fixture({ browserMode: "embedded" })
+    const sender = Object.assign(new EventEmitter(), { id: 94, getZoomFactor: () => 1 })
+    owners.set(sender, { isDestroyed: () => false })
+    await expect(
+      controller.command(sender, { action: "capability", directory: "/tmp/project" }),
+    ).resolves.toMatchObject({
+      browserMode: "embedded",
+      compatible: true,
+    })
+  })
+
+  it("rejects a runtime that routes browser tools somewhere else", async () => {
+    const { controller, owners, create } = fixture({ browserMode: "chrome" })
+    const sender = Object.assign(new EventEmitter(), { id: 93, getZoomFactor: () => 1 })
+    owners.set(sender, { isDestroyed: () => false })
+    await expect(
+      controller.command(sender, { action: "capability", directory: "/tmp/project" }),
+    ).resolves.toMatchObject({
+      browserMode: "chrome",
+      compatible: false,
+    })
+    const { sender: guestSender, status } = await create()
+    await expect(controller.command(guestSender, { action: "enable", id: status.id })).rejects.toThrow(
+      "compatible browser update",
+    )
   })
 
   it("reports an incompatible runtime as a status, not an error", async () => {
