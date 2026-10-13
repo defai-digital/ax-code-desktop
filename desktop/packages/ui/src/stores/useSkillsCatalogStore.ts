@@ -18,6 +18,7 @@ import { refreshSkillsAfterAxCodeRestart, useSkillsStore } from "@/stores/useSki
 import { getAxCodeCurrentDirectory } from "@/lib/ax-code/currentDirectory"
 import { startConfigUpdate, finishConfigUpdate, updateConfigUpdateMessage } from "@/lib/configUpdate"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
+import { createSingleFlight } from "@/lib/singleFlight"
 
 export const FALLBACK_SOURCES: SkillsCatalogSource[] = [
   {
@@ -74,7 +75,7 @@ export const FALLBACK_SOURCES: SkillsCatalogSource[] = [
 
 const SKILLS_CATALOG_LOAD_CACHE_TTL_MS = 5000
 const skillsCatalogLastLoadedAt = new Map<string, number>()
-const skillsCatalogLoadInFlight = new Map<string, Promise<boolean>>()
+const skillsCatalogLoadInFlight = createSingleFlight<boolean>()
 
 interface SkillsCatalogState {
   sources: SkillsCatalogSource[]
@@ -142,12 +143,12 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
           return true
         }
 
-        const inFlight = skillsCatalogLoadInFlight.get(cacheKey)
-        if (!options?.refresh && inFlight) {
-          return inFlight
+        // A forced refresh replaces any in-flight load instead of joining it.
+        if (options?.refresh) {
+          skillsCatalogLoadInFlight.clear(cacheKey)
         }
 
-        const request = (async () => {
+        return skillsCatalogLoadInFlight.run(cacheKey, async () => {
           set({ isLoadingCatalog: true, lastCatalogError: null })
 
           const previous = {
@@ -225,14 +226,7 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
           } finally {
             set({ isLoadingCatalog: false })
           }
-        })()
-
-        skillsCatalogLoadInFlight.set(cacheKey, request)
-        try {
-          return await request
-        } finally {
-          skillsCatalogLoadInFlight.delete(cacheKey)
-        }
+        })
       },
 
       loadSource: async (sourceId, options) => {

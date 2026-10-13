@@ -142,4 +142,28 @@ describe("useSkillsCatalogStore", () => {
     expect(useSkillsCatalogStore.getState().pageInfoBySource.clawdhub).toEqual({ nextCursor: "cursor-3" })
     expect(useSkillsCatalogStore.getState().clawdhubHasMoreBySource.clawdhub).toBe(true)
   })
+
+  test("a forced refresh is not evicted by an older in-flight catalog load", async () => {
+    const pending: Array<(response: Response) => void> = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>((resolve) => pending.push(resolve))),
+    )
+
+    const first = useSkillsCatalogStore.getState().loadCatalog()
+    const forced = useSkillsCatalogStore.getState().loadCatalog({ refresh: true })
+
+    // Settle the older, non-forced load while the forced one is still in flight.
+    // An unconditional release would drop the forced load's in-flight entry here.
+    pending[0](jsonResponse({ ok: true, sources: [], items: [] }))
+    await first
+
+    const third = useSkillsCatalogStore.getState().loadCatalog()
+
+    // The third call must join the still-pending forced load, not start a fetch.
+    expect(pending).toHaveLength(2)
+
+    pending[1](jsonResponse({ ok: true, sources: [], items: [] }))
+    await Promise.all([forced, third])
+  })
 })
