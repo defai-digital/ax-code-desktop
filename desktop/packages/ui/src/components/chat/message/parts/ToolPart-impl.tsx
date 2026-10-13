@@ -31,6 +31,7 @@ import { DiffViewToggle } from "../DiffViewToggle"
 import type { DiffViewMode } from "../types"
 import { MinDurationShineText } from "./MinDurationShineText"
 import { ToolRevealOnMount } from "./ToolRevealOnMount"
+import { WebMcpBrowserErrorAction } from "./WebMcpBrowserErrorAction"
 import { getToolIcon } from "./toolPresentation"
 import { useDurationTickerNow } from "./useDurationTicker"
 import { resolveFallbackTaskSessionId } from "./resolveFallbackTaskSessionId"
@@ -940,6 +941,7 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(
                 >
                   {state.error}
                 </div>
+                {normalizeToolName(part.tool) === "desktop_webmcp" ? <WebMcpBrowserErrorAction /> : null}
               </div>
             )}
           </>
