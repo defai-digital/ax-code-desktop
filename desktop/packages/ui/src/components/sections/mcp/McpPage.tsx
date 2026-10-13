@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { isStaleConfigSelection } from "@/components/sections/configSelection"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { startSingleFlightInterval } from "@/lib/singleFlightInterval"
@@ -598,6 +599,7 @@ export const McpPage: React.FC = () => {
     selectedMcpName,
     mcpServers,
     mcpDraft,
+    isLoading,
     setMcpDraft,
     setSelectedMcp,
     getMcpByName,
@@ -609,6 +611,7 @@ export const McpPage: React.FC = () => {
       selectedMcpName: s.selectedMcpName,
       mcpServers: s.mcpServers,
       mcpDraft: s.mcpDraft,
+      isLoading: s.isLoading,
       setMcpDraft: s.setMcpDraft,
       setSelectedMcp: s.setSelectedMcp,
       getMcpByName: s.getMcpByName,
@@ -632,6 +635,20 @@ export const McpPage: React.FC = () => {
   const selectedMcpNameKey = selectedMcpName ?? ""
   const selectedServer = getMcpByName(selectedMcpNameKey)
   const isNewServer = Boolean(mcpDraft && mcpDraft.name === selectedMcpNameKey && !selectedServer)
+
+  // Same stale persisted selection as the other config pages.
+  const hasStaleSelection = isStaleConfigSelection({
+    isLoading,
+    selectedName: selectedMcpName,
+    selectedItem: selectedServer,
+    draft: mcpDraft,
+  })
+  React.useEffect(() => {
+    if (!hasStaleSelection) {
+      return
+    }
+    setSelectedMcp(null)
+  }, [hasStaleSelection, setSelectedMcp])
 
   // ── form state ──
   const [draftName, setDraftName] = React.useState("")

@@ -17,6 +17,7 @@ import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { useI18n } from "@/lib/i18n"
 import { parseModelIdentifier } from "@/lib/modelIdentifier"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { isStaleConfigSelection } from "@/components/sections/configSelection"
 import { Icon } from "@/components/icon/Icon"
 import { normalizePermissionToolIds } from "./permissionToolIds"
 import {
@@ -166,6 +167,7 @@ export const AgentsPage: React.FC = () => {
     updateAgent,
     agents,
     agentDraft,
+    isLoading,
     setAgentDraft,
     setSelectedAgent,
   } = useAgentsStore(
@@ -176,6 +178,7 @@ export const AgentsPage: React.FC = () => {
       updateAgent: s.updateAgent,
       agents: s.agents,
       agentDraft: s.agentDraft,
+      isLoading: s.isLoading,
       setAgentDraft: s.setAgentDraft,
       setSelectedAgent: s.setSelectedAgent,
     })),
@@ -183,6 +186,21 @@ export const AgentsPage: React.FC = () => {
 
   const selectedAgent = selectedAgentName ? getAgentByName(selectedAgentName) : null
   const isNewAgent = Boolean(agentDraft && agentDraft.name === selectedAgentName && !selectedAgent)
+
+  // Same stale persisted selection as the Commands page: a name that no longer resolves would open a
+  // dead editor instead of the empty state.
+  const hasStaleSelection = isStaleConfigSelection({
+    isLoading,
+    selectedName: selectedAgentName,
+    selectedItem: selectedAgent,
+    draft: agentDraft,
+  })
+  React.useEffect(() => {
+    if (!hasStaleSelection) {
+      return
+    }
+    setSelectedAgent(null)
+  }, [hasStaleSelection, setSelectedAgent])
 
   const [draftName, setDraftName] = React.useState("")
   const [draftScope, setDraftScope] = React.useState<AgentScope>("user")

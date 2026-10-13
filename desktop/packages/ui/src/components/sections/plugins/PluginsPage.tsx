@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui"
+import { isStaleConfigSelection } from "@/components/sections/configSelection"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
@@ -90,6 +91,8 @@ export const PluginsPage: React.FC = () => {
   const entries = usePluginsStore((s) => s.entries)
   const files = usePluginsStore((s) => s.files)
   const draft = usePluginsStore((s) => s.draft)
+  const isLoading = usePluginsStore((s) => s.isLoading)
+  const setSelected = usePluginsStore((s) => s.setSelected)
   const setDraft = usePluginsStore((s) => s.setDraft)
   const updateEntry = usePluginsStore((s) => s.updateEntry)
   const updateFile = usePluginsStore((s) => s.updateFile)
@@ -103,6 +106,20 @@ export const PluginsPage: React.FC = () => {
     () => (selectedId ? (files.find((f) => f.id === selectedId) ?? null) : null),
     [files, selectedId],
   )
+
+  // A persisted selection that no longer exists in the list left the pane on its loading skeleton
+  // forever; wait for the list and clear it, like the Skills page does.
+  const hasStaleSelection = isStaleConfigSelection({
+    isLoading,
+    selectedName: selectedId,
+    selectedItem: selectedEntry ?? selectedFile,
+  })
+  React.useEffect(() => {
+    if (!hasStaleSelection) {
+      return
+    }
+    setSelected(null)
+  }, [hasStaleSelection, setSelected])
 
   const [isSaving, setIsSaving] = React.useState(false)
   const [isLoadingFile, setIsLoadingFile] = React.useState(false)

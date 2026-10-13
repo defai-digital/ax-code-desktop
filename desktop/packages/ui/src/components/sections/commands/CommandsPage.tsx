@@ -9,6 +9,7 @@ import { ModelSelector } from "../agents/ModelSelector"
 import { AgentSelector } from "./AgentSelector"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { isStaleConfigSelection } from "@/components/sections/configSelection"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { parseModelIdentifier } from "@/lib/modelIdentifier"
@@ -22,6 +23,7 @@ export const CommandsPage: React.FC = () => {
     updateCommand,
     commands,
     commandDraft,
+    isLoading,
     setCommandDraft,
     setSelectedCommand,
   } = useCommandsStore(
@@ -32,6 +34,7 @@ export const CommandsPage: React.FC = () => {
       updateCommand: s.updateCommand,
       commands: s.commands,
       commandDraft: s.commandDraft,
+      isLoading: s.isLoading,
       setCommandDraft: s.setCommandDraft,
       setSelectedCommand: s.setSelectedCommand,
     })),
@@ -39,6 +42,22 @@ export const CommandsPage: React.FC = () => {
 
   const selectedCommand = selectedCommandName ? getCommandByName(selectedCommandName) : null
   const isNewCommand = Boolean(commandDraft && commandDraft.name === selectedCommandName && !selectedCommand)
+
+  // The selection is persisted, so it can outlive the command (renamed or removed elsewhere, or a
+  // different project's list): the page would open a dead editor whose Save stays disabled. Wait for
+  // the list before deciding, and clear it the way the Skills page does.
+  const hasStaleSelection = isStaleConfigSelection({
+    isLoading,
+    selectedName: selectedCommandName,
+    selectedItem: selectedCommand,
+    draft: commandDraft,
+  })
+  React.useEffect(() => {
+    if (!hasStaleSelection) {
+      return
+    }
+    setSelectedCommand(null)
+  }, [hasStaleSelection, setSelectedCommand])
 
   const [draftName, setDraftName] = React.useState("")
   const [draftScope, setDraftScope] = React.useState<CommandScope>("user")
