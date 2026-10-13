@@ -95,17 +95,28 @@ const wallClockAsUtcMs = (ms: number, timezone: string): number => {
   )
 }
 
+const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+const isRealCalendarDate = (year: number, month: number, day: number): boolean => {
+  if (month < 1 || month > 12 || day < 1) return false
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
+  return day <= (month === 2 && leap ? 29 : DAYS_PER_MONTH[month - 1])
+}
+
 export const zonedTimeToEpochMs = (date: string, time: string, timezone: string): number | null => {
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
   const timeMatch = /^(\d{2}):(\d{2})$/.exec(time)
   if (!dateMatch || !timeMatch) return null
-  const target = Date.UTC(
-    Number(dateMatch[1]),
-    Number(dateMatch[2]) - 1,
-    Number(dateMatch[3]),
-    Number(timeMatch[1]),
-    Number(timeMatch[2]),
-  )
+  const year = Number(dateMatch[1])
+  const month = Number(dateMatch[2])
+  const day = Number(dateMatch[3])
+  const hour = Number(timeMatch[1])
+  const minute = Number(timeMatch[2])
+  // `Date.UTC` rolls out-of-range components over instead of failing, so "2026-02-30" or "99:99"
+  // would silently schedule a different moment than the draft asked for. The `\d{2}` patterns above
+  // accept those values, so the calendar and clock ranges are checked here.
+  if (!isRealCalendarDate(year, month, day) || hour > 23 || minute > 59) return null
+  const target = Date.UTC(year, month - 1, day, hour, minute)
   if (Number.isNaN(target)) return null
   let candidate = target
   try {

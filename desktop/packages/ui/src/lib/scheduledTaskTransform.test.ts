@@ -40,6 +40,22 @@ describe("zonedTimeToEpochMs", () => {
     expect(zonedTimeToEpochMs("2026-09-01", "9:30", "UTC")).toBeNull()
     expect(zonedTimeToEpochMs("2026-09-01", "09:30", "Not/AZone")).toBeNull()
   })
+
+  test("returns null for a calendar-invalid date instead of rolling it over", () => {
+    // Date.UTC turns 2026-02-30 into 2026-03-02 and 2026-13-01 into 2027-01-01.
+    expect(zonedTimeToEpochMs("2026-02-30", "09:30", "UTC")).toBeNull()
+    expect(zonedTimeToEpochMs("2026-13-01", "09:30", "UTC")).toBeNull()
+    expect(zonedTimeToEpochMs("2026-04-31", "09:30", "UTC")).toBeNull()
+    // A leap day is valid only in a leap year.
+    expect(zonedTimeToEpochMs("2028-02-29", "09:30", "UTC")).toBe(Date.parse("2028-02-29T09:30:00Z"))
+    expect(zonedTimeToEpochMs("2027-02-29", "09:30", "UTC")).toBeNull()
+  })
+
+  test("returns null for an out-of-range clock instead of rolling it over", () => {
+    expect(zonedTimeToEpochMs("2026-09-01", "24:00", "UTC")).toBeNull()
+    expect(zonedTimeToEpochMs("2026-09-01", "99:99", "UTC")).toBeNull()
+    expect(zonedTimeToEpochMs("2026-09-01", "23:59", "UTC")).toBe(Date.parse("2026-09-01T23:59:00Z"))
+  })
 })
 
 describe("buildRuntimeScheduledTaskPayloads", () => {
