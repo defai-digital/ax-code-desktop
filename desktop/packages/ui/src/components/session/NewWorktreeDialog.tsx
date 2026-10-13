@@ -22,7 +22,7 @@ import { useSelectionStore } from "@/sync/selection-store"
 import * as sessionActions from "@/sync/session-actions"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
-import { validateWorktreeCreate, createWorktree } from "@/lib/worktrees/worktreeManager"
+import { validateWorktreeCreate, createWorktree, removeProjectWorktree } from "@/lib/worktrees/worktreeManager"
 import { withWorktreeUpstreamDefaults } from "@/lib/worktrees/worktreeCreate"
 import { getWorktreeSetupCommands } from "@/lib/openchamberConfig"
 import { getRootBranch } from "@/lib/worktrees/worktreeStatus"
@@ -910,6 +910,14 @@ export function NewWorktreeDialog({ open, onOpenChange, onWorktreeCreated }: New
       const resolvedArgs = await withWorktreeUpstreamDefaults(projectDirectory, args)
       const metadata = await createWorktree(projectRef, resolvedArgs)
 
+      // Only the new-branch mode below creates a session, so a failure there leaves a worktree this
+      // flow never intended to keep: remove it (and the branch it just created) instead of leaving
+      // an orphan that the next attempt duplicates. Never runs for `existing-branch`, where the
+      // branch predates this dialog.
+      const discardCreatedWorktree = async () => {
+        await removeProjectWorktree(projectRef, metadata, { deleteLocalBranch: true }).catch(() => undefined)
+      }
+
       const linkedIssue = mode === "new-branch" ? newBranchState.linkedIssue : null
       const linkedPrState = mode === "new-branch" ? newBranchState.linkedPr : null
       const includePrDiff = mode === "new-branch" ? newBranchState.includePrDiff : false
@@ -923,8 +931,15 @@ export function NewWorktreeDialog({ open, onOpenChange, onWorktreeCreated }: New
             ? `#${linkedPrState.number} ${linkedPrState.title}`.trim()
             : t("session.newWorktree.newSessionTitle")
 
-        const session = await sessionActions.createSession(sessionTitle, metadata.path, null)
+        let session: { id?: string } | null = null
+        try {
+          session = await sessionActions.createSession(sessionTitle, metadata.path, null)
+        } catch (error) {
+          await discardCreatedWorktree()
+          throw error
+        }
         if (!session?.id) {
+          await discardCreatedWorktree()
           throw new Error("Failed to create session")
         }
 
