@@ -2,6 +2,7 @@ import React from "react"
 
 import { MessageFreshnessDetector } from "@/lib/messageFreshness"
 import { createScrollSpy } from "@/components/chat/lib/scroll/scrollSpy"
+import { retireScrollContent } from "@/components/chat/lib/scroll/retireScrollContent"
 import { useViewportStore, type SessionMemoryState } from "@/sync/viewport-store"
 
 type AutoFollowState = "following" | "released"
@@ -158,8 +159,13 @@ export const useChatAutoFollow = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useLayoutEffect(() => {
     if (scrollRef.current !== lastSeenContainerRef.current) {
+      const retired = lastSeenContainerRef.current
       lastSeenContainerRef.current = scrollRef.current
       setContainerEl(scrollRef.current)
+      // The viewport remounts per session; without this Chromium can keep the
+      // detached timeline alive until the next frame, growing DOM memory on
+      // every conversation switch.
+      if (retired) retireScrollContent(retired, () => lastSeenContainerRef.current === retired)
     }
   })
 
