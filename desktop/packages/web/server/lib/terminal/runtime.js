@@ -673,7 +673,8 @@ export function createTerminalRuntime({
     }
 
     res.setHeader("Content-Type", "text/event-stream")
-    res.setHeader("Cache-Control", "no-cache")
+    // no-transform: proxies/tunnels must not buffer or compress SSE frames.
+    res.setHeader("Cache-Control", "no-cache, no-transform")
     res.setHeader("Connection", "keep-alive")
     res.setHeader("X-Accel-Buffering", "no")
 

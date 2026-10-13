@@ -386,7 +386,8 @@ export const registerAxCodeProxy = (app, deps) => {
       }
 
       res.setHeader("Content-Type", contentType)
-      res.setHeader("Cache-Control", "no-cache")
+      // no-transform: proxies/tunnels must not buffer or compress SSE frames.
+      res.setHeader("Cache-Control", "no-cache, no-transform")
       res.setHeader("Connection", "keep-alive")
       res.setHeader("X-Accel-Buffering", "no")
       if (typeof res.flushHeaders === "function") {
