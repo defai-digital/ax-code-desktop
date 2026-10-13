@@ -12,11 +12,6 @@ type MessagePage = {
   complete: boolean
 }
 
-const hasParts = (parts: Part[] | undefined, want: Part[]) => {
-  if (!parts) return want.length === 0
-  return want.every((part) => Binary.has(parts, part.id, (item) => item.id))
-}
-
 const mergeParts = (parts: Part[] | undefined, want: Part[]) => {
   if (!parts) return sortPartsById(want)
   const next = [...parts]
@@ -44,7 +39,12 @@ export function mergeOptimisticPage(page: MessagePage, items: OptimisticItem[]) 
     if (!found) session.splice(result.index, 0, item.message)
 
     const current = part.get(item.message.id)
-    if (found && hasParts(current, item.parts)) {
+    // The server echoes the user message with its own server-minted part ids, so the
+    // client-minted optimistic part ids never appear in a fetched page. Requiring them
+    // kept every sent message in the shadow map forever and re-spliced its stale parts
+    // into each later page load, rendering the prompt text twice. Server parts for the
+    // message prove the echo landed; an empty entry means they are still on the way.
+    if (found && current && current.length > 0) {
       confirmed.push(item.message.id)
       continue
     }
