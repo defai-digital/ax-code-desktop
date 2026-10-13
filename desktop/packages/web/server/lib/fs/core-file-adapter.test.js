@@ -42,6 +42,30 @@ describe("core file adapter", () => {
     expect(String(fetchImpl.mock.calls[0][0])).toContain("/file/content")
   })
 
+  it("applies the caller's fallback MIME when the core payload omits one", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ type: "binary", encoding: "base64", content: Buffer.from("png").toString("base64") }),
+    }))
+    const adapter = createCoreFileAdapter({
+      fetchImpl,
+      getBaseUrl: () => "http://127.0.0.1:4090/",
+      getHeaders: () => ({}),
+    })
+
+    await expect(
+      adapter.raw({ path: "/repo/logo.png", directory: "/repo", fallbackMime: "image/png" }),
+    ).resolves.toEqual({
+      buffer: Buffer.from("png"),
+      mimeType: "image/png",
+    })
+    // Without a caller fallback the adapter keeps its own default.
+    await expect(adapter.raw({ path: "/repo/logo.png", directory: "/repo" })).resolves.toEqual({
+      buffer: Buffer.from("png"),
+      mimeType: "application/octet-stream",
+    })
+  })
+
   it("sends paths relative to the scoped directory, as the runtime resolves them", () => {
     expect(toRuntimeRelativePath("/repo", "/repo")).toBe(".")
     expect(toRuntimeRelativePath("/repo/", "/repo")).toBe(".")

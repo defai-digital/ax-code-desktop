@@ -116,13 +116,13 @@ export const createCoreFileAdapter = ({ fetchImpl = fetch, getBaseUrl, getHeader
       )
       return mapCoreFileContentToPlainText(payload)
     },
-    async raw({ path: filePath, directory } = {}) {
+    async raw({ path: filePath, directory, fallbackMime } = {}) {
       const payload = await requestJson(
         "/file/content",
         { path: toRuntimeRelativePath(filePath, directory) },
         { directory },
       )
-      return mapCoreFileContentToRaw(payload)
+      return mapCoreFileContentToRaw(payload, fallbackMime)
     },
     async list({ path: dirPath, directory } = {}) {
       return requestJson("/file", { path: toRuntimeRelativePath(dirPath, directory) }, { directory })

@@ -634,3 +634,85 @@ describe("fs exec git-read cache", () => {
     expect(calls.length).toBe(afterFill + 2)
   })
 })
+
+describe("fs core file adapter responses", () => {
+  it("answers a non-text read as a client error rather than a server fault", async () => {
+    const coreFileAdapter = {
+      read: vi.fn(async () => {
+        const error = new Error("Specified path is not a text file")
+        error.code = "EISDIR"
+        throw error
+      }),
+    }
+    const { getRoute } = registerFs({}, { approvedDirectories: [] }, coreFileAdapter)
+
+    const res = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: "/repo/src" } })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: "Specified path is not a text file" })
+  })
+
+  it("passes the extension MIME to the core adapter for raw reads", async () => {
+    const content = Buffer.from("png-bytes")
+    const coreFileAdapter = {
+      raw: vi.fn(async () => ({ buffer: content, mimeType: "image/png" })),
+    }
+    const { getRoute } = registerFs({}, { approvedDirectories: [] }, coreFileAdapter)
+
+    const res = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/logo.png" } })
+
+    expect(res.statusCode).toBe(200)
+    expect(coreFileAdapter.raw).toHaveBeenCalledWith({
+      path: "/repo/logo.png",
+      directory: "/repo",
+      fallbackMime: "image/png",
+    })
+    expect(res.contentType).toContain("image/png")
+  })
+
+  it("answers a non-file raw read as a client error", async () => {
+    const coreFileAdapter = {
+      raw: vi.fn(async () => {
+        const error = new Error("Specified path is not a file")
+        error.code = "EISDIR"
+        throw error
+      }),
+    }
+    const { getRoute } = registerFs({}, { approvedDirectories: [] }, coreFileAdapter)
+
+    const res = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/src" } })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: "Specified path is not a file" })
+  })
+
+  it("reports a missing path when deleting instead of claiming success", async () => {
+    // `fs.rm` only reports ENOENT when `force` is not set, so the mock models that.
+    const fsPromises = {
+      rm: vi.fn(async (_target, options = {}) => {
+        if (options.force) return
+        const error = new Error("ENOENT: no such file or directory")
+        error.code = "ENOENT"
+        throw error
+      }),
+    }
+    const { getRoute } = registerFs(fsPromises)
+
+    const res = await callRoute(getRoute("POST", "/api/fs/delete"), { body: { path: "/repo/gone.txt" } })
+
+    expect(res.statusCode).toBe(404)
+    expect(res.body).toEqual({ error: "File or directory not found" })
+    expect(fsPromises.rm).toHaveBeenCalledWith("/repo/gone.txt", { recursive: true })
+  })
+
+  it("deletes an existing path", async () => {
+    const fsPromises = { rm: vi.fn(async () => undefined) }
+    const { getRoute } = registerFs(fsPromises)
+
+    const res = await callRoute(getRoute("POST", "/api/fs/delete"), { body: { path: "/repo/stale.txt" } })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ success: true, path: "/repo/stale.txt" })
+    expect(fsPromises.rm).toHaveBeenCalledWith("/repo/stale.txt", { recursive: true })
+  })
+})

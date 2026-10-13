@@ -953,6 +953,10 @@ export const registerFsRoutes = (app, dependencies) => {
       return res.type("text/plain").send(content)
     } catch (error) {
       const err = error
+      if (err && typeof err === "object" && err.code === "EISDIR") {
+        // The core marks a directory (or a non-text payload) as a client error, not a server fault.
+        return res.status(400).json({ error: err.message || "Path is not a text file" })
+      }
       if (err && typeof err === "object" && err.code === "ENOENT") {
         if (optional) {
           return res.type("text/plain").send("")
@@ -1020,11 +1024,14 @@ export const registerFsRoutes = (app, dependencies) => {
       if (!coreFileAdapter || typeof coreFileAdapter.raw !== "function") {
         return res.status(503).json({ error: "AX Code core file API is not ready" })
       }
-      const raw = await coreFileAdapter.raw({ path: canonicalPath, directory: canonicalBase })
+      const raw = await coreFileAdapter.raw({ path: canonicalPath, directory: canonicalBase, fallbackMime: mimeType })
       res.setHeader("Cache-Control", "no-store")
       return res.type(raw.mimeType || mimeType).send(raw.buffer)
     } catch (error) {
       const err = error
+      if (err && typeof err === "object" && err.code === "EISDIR") {
+        return res.status(400).json({ error: err.message || "Path is not a file" })
+      }
       if (err && typeof err === "object" && err.code === "ENOENT") {
         return res.status(404).json({ error: "File not found" })
       }
@@ -1116,7 +1123,7 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(canonical.statusCode).json({ error: canonical.error })
       }
 
-      await fsPromises.rm(resolved.resolved, { recursive: true, force: true })
+      await fsPromises.rm(resolved.resolved, { recursive: true })
       return res.json({ success: true, path: resolved.resolved })
     } catch (error) {
       const err = error
