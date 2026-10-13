@@ -4383,7 +4383,7 @@
   "webmcp.browser.explanation": "Ajan bu sayfan\u0131n sundu\u011fu ara\u00e7lar\u0131 \u00e7a\u011f\u0131rabilir. Her \u00e7a\u011fr\u0131 yine de \u00f6nce size sorar.",
   "webmcp.browser.modeAria": "Taray\u0131c\u0131 modu",
   "webmcp.browser.mode.preview": "\u00d6nizleme",
-  "webmcp.browser.mode.agent": "Proje taray\u0131c\u0131s\u0131",
+  "webmcp.browser.mode.agent": "Proje taray\u0131c\u0131s\u0131 (WebMCP)",
   "webmcp.settings.description": "MCP sunucular\u0131 sizin yap\u0131land\u0131rd\u0131\u011f\u0131n\u0131z ara\u00e7lard\u0131r. Taray\u0131c\u0131 ara\u00e7lar\u0131 ise proje taray\u0131c\u0131s\u0131nda a\u00e7\u0131k olan web sayfas\u0131n\u0131n yerel WebMCP ile sundu\u011fu ara\u00e7lard\u0131r. \u0130kisi de AX Code izinleri alt\u0131nda \u00e7al\u0131\u015f\u0131r.",
   "webmcp.settings.servers.title": "MCP sunucular\u0131",
   "webmcp.settings.servers.description": "Ajan\u0131n herhangi bir oturumda \u00e7a\u011f\u0131rabilece\u011fi yap\u0131land\u0131r\u0131lm\u0131\u015f s\u00fcre\u00e7ler veya uzak u\u00e7 noktalar.",
@@ -4394,5 +4394,9 @@
   "webmcp.settings.steps.approve": "Ajan istedi\u011finde her taray\u0131c\u0131 arac\u0131 \u00e7a\u011fr\u0131s\u0131n\u0131 onaylay\u0131n.",
   "chat.permissionCard.replaceAll": "\u26a0\ufe0f T\u00fcm e\u015fle\u015fmeleri de\u011fi\u015ftir",
   "chat.permissionCard.responseFormat": "Yan\u0131t bi\u00e7imi:",
-  "chat.permissionCard.alwaysPatterns": "Her zaman: {patterns}"
+  "chat.permissionCard.alwaysPatterns": "Her zaman: {patterns}",
+  "webmcp.browser.cta": "Proje taray\u0131c\u0131s\u0131na ge\u00e7in ve ajan\u0131n bu sayfan\u0131n ara\u00e7lar\u0131n\u0131 kullanmas\u0131na izin verin.",
+  "webmcp.header.aria": "Proje taray\u0131c\u0131s\u0131 (WebMCP): {state}",
+  "commandPalette.item.openProjectBrowser": "Proje taray\u0131c\u0131s\u0131n\u0131 a\u00e7 (WebMCP)",
+  "contextPanel.browser.openProjectBrowser": "Proje taray\u0131c\u0131s\u0131n\u0131 a\u00e7 (WebMCP)"
 }

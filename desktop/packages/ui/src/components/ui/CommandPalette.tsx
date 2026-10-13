@@ -34,6 +34,7 @@ import { truncatePathMiddle } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
 import { sessionEvents } from "@/lib/sessionEvents"
 import { openProjectFolder } from "@/lib/projectOpen"
+import { useOpenProjectBrowser } from "@/hooks/useWebMcpBrowser"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import type { ThemeMode } from "@/types/theme"
@@ -63,6 +64,7 @@ const normalizePath = (value: string): string => {
 
 export const CommandPalette: React.FC = () => {
   const { t } = useI18n()
+  const openProjectBrowser = useOpenProjectBrowser()
 
   const isCommandPaletteOpen = useUIStore((s) => s.isCommandPaletteOpen)
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen)
@@ -176,6 +178,15 @@ export const CommandPalette: React.FC = () => {
         shortcutId: "open_project_folder",
         onSelect: run(() => {
           void openProjectFolder({ t })
+        }),
+      },
+      {
+        id: "open-project-browser",
+        title: t("commandPalette.item.openProjectBrowser"),
+        icon: <Icon name="global" className="mr-2 h-4 w-4" />,
+        searchText: `${t("commandPalette.item.openProjectBrowser")} webmcp agent browser tools`,
+        onSelect: run(() => {
+          openProjectBrowser({ enable: false })
         }),
       },
       {
@@ -330,6 +341,7 @@ export const CommandPalette: React.FC = () => {
   }, [
     t,
     run,
+    openProjectBrowser,
     isMobile,
     setActiveMainTab,
     setSessionSwitcherOpen,

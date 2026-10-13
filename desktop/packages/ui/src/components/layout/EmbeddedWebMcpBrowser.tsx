@@ -201,6 +201,15 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
 
   const ready = phase === "ready" && Boolean(browserId)
   const canEnable = ready && nativeAvailable && runtimeCompatible !== false
+  const enableRequests = useWebMcpBrowserStore((state) => state.enableRequests)
+  const consumeEnableRequest = useWebMcpBrowserStore((state) => state.consumeEnableRequest)
+  React.useEffect(() => {
+    if (!canEnable || enabled || busy) return
+    if (!consumeEnableRequest()) return
+    // Bounds reach the native view a frame after the browser reports ready; give it that frame.
+    const timer = window.setTimeout(() => void command("enable"), 150)
+    return () => window.clearTimeout(timer)
+  }, [busy, canEnable, command, consumeEnableRequest, enableRequests, enabled])
   const error = useWebMcpBrowserStore((state) => state.error)
   const showErrorBanner = Boolean(browserId) && error !== null && error !== "session-required"
 
@@ -247,7 +256,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       <div className="flex items-center gap-3 border-b border-border/40 px-2.5 py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <WebMcpStatusDot tone={summary.tone} className={cn(enabled && "status-dot-running")} />
-          <span className="typography-meta font-medium text-foreground">{summary.stateLabel}</span>
+          <span className="whitespace-nowrap typography-meta font-medium text-foreground">{summary.stateLabel}</span>
           <span className="typography-micro truncate text-muted-foreground" title={summary.detail}>
             {summary.detail}
           </span>
@@ -321,6 +330,8 @@ export function EmbeddedBrowserChoice({
   const [agentBrowser, setAgentBrowser] = React.useState(false)
   const agentModeRequests = useWebMcpBrowserStore((state) => state.agentModeRequests)
   const consumeAgentModeRequest = useWebMcpBrowserStore((state) => state.consumeAgentModeRequest)
+  const requestAgentMode = useWebMcpBrowserStore((state) => state.requestAgentMode)
+  const summary = useWebMcpSummary()
 
   React.useEffect(() => {
     if (consumeAgentModeRequest()) setAgentBrowser(true)
@@ -365,6 +376,25 @@ export function EmbeddedBrowserChoice({
             {mode.label}
           </button>
         ))}
+        {!agentBrowser ? (
+          <div className="ml-auto flex min-w-0 items-center gap-2 pl-2">
+            <span className="hidden min-w-0 items-center gap-1.5 typography-micro text-muted-foreground sm:inline-flex">
+              <WebMcpStatusDot tone={summary.tone} />
+              <span className="truncate">WebMCP · {summary.stateLabel}</span>
+            </span>
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              className="gap-1"
+              onClick={() => requestAgentMode({ enable: true })}
+              title={t("webmcp.browser.cta")}
+            >
+              <Icon name="global" className="h-3.5 w-3.5" />
+              {t("webmcp.actions.enable")}
+            </Button>
+          </div>
+        ) : null}
       </div>
       <div
         id="webmcp-mode-panel"

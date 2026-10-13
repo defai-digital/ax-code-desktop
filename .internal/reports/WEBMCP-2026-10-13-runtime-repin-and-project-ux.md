@@ -110,6 +110,22 @@ real defects that the green test suite had not caught, all fixed before the comm
 - "Browser tools (WebMCP)" was renamed "Project browser (WebMCP)" so it is not confused with AX
   Code's pre-registered `webmcp` MCP server (the Chrome bridge) listed right below it.
 
+## Discoverability follow-up
+
+The owner's first test came back with "cannot find the WebMCP button": the only way in was the
+header's globe icon (tooltip "Open browser panel") and then a second tab inside that panel. Four
+entry points now say "WebMCP" out loud, all driving the same shared projection:
+
+- A labeled `WebMCP` button with a live status dot in the header, next to the browser toggle
+  (`components/mcp/WebMcpHeaderButton.tsx`, desktop app only).
+- Inside the browser panel's Preview mode, the tab row shows `WebMCP · <state>` and an "Enable agent
+  access" button that switches to the project browser and, once the browser is ready and attached,
+  turns agent access on. That click is the user's explicit consent; access is still off for every
+  fresh browser.
+- The empty browser pane offers "Open the project browser (WebMCP)".
+- The command palette has "Open project browser (WebMCP)".
+- The mode tab itself is labeled "Project browser (WebMCP)".
+
 ## Verification
 
 - `pnpm run typecheck`, `pnpm run lint` (UI), `pnpm run check:boundaries` (all eleven checks),

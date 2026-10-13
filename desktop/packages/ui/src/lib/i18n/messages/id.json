@@ -4383,7 +4383,7 @@
   "webmcp.browser.explanation": "Agen dapat memanggil alat yang disediakan halaman ini. Setiap panggilan tetap meminta persetujuan Anda terlebih dahulu.",
   "webmcp.browser.modeAria": "Mode peramban",
   "webmcp.browser.mode.preview": "Pratinjau",
-  "webmcp.browser.mode.agent": "Peramban proyek",
+  "webmcp.browser.mode.agent": "Peramban proyek (WebMCP)",
   "webmcp.settings.description": "Server MCP adalah alat yang Anda konfigurasi. Alat peramban adalah apa pun yang disediakan halaman web yang terbuka di peramban proyek melalui WebMCP asli. Keduanya berjalan di bawah izin AX Code.",
   "webmcp.settings.servers.title": "Server MCP",
   "webmcp.settings.servers.description": "Proses yang dikonfigurasi atau titik akhir jarak jauh yang dapat dipanggil agen di sesi mana pun.",
@@ -4394,5 +4394,9 @@
   "webmcp.settings.steps.approve": "Setujui setiap panggilan alat peramban saat agen meminta.",
   "chat.permissionCard.replaceAll": "\u26a0\ufe0f Ganti semua kemunculan",
   "chat.permissionCard.responseFormat": "Format respons:",
-  "chat.permissionCard.alwaysPatterns": "Selalu: {patterns}"
+  "chat.permissionCard.alwaysPatterns": "Selalu: {patterns}",
+  "webmcp.browser.cta": "Beralih ke peramban proyek dan izinkan agen menggunakan alat halaman ini.",
+  "webmcp.header.aria": "Peramban proyek (WebMCP): {state}",
+  "commandPalette.item.openProjectBrowser": "Buka peramban proyek (WebMCP)",
+  "contextPanel.browser.openProjectBrowser": "Buka peramban proyek (WebMCP)"
 }

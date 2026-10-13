@@ -1,4 +1,5 @@
 import { EmbeddedBrowserChoice } from "./EmbeddedWebMcpBrowser"
+import { useOpenProjectBrowser } from "@/hooks/useWebMcpBrowser"
 import React from "react"
 
 import { FileTypeIcon } from "@/components/icons/FileTypeIcon"
@@ -1679,6 +1680,7 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
 }
 
 const DesktopBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, directory }) => {
+  const openProjectBrowser = useOpenProjectBrowser()
   const { t } = useI18n()
   const webviewRef = React.useRef<WebviewElement | null>(null)
   const setContextBrowserUrl = useUIStore((state) => state.setContextBrowserUrl)
@@ -2079,6 +2081,19 @@ const DesktopBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dir
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-background p-6 text-center">
             <AxCodeIcon width={140} height={140} className="opacity-20" />
             <span className="typography-ui-header text-muted-foreground">{t("contextPanel.browser.empty")}</span>
+            <span className="max-w-sm typography-micro text-muted-foreground">
+              {t("contextPanel.browser.emptyHint")}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => openProjectBrowser({ enable: false })}
+            >
+              <Icon name="global" className="h-3.5 w-3.5" />
+              {t("contextPanel.browser.openProjectBrowser")}
+            </Button>
           </div>
         ) : null}
         {showLoading ? (

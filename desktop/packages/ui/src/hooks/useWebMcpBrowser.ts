@@ -32,14 +32,20 @@ export function useWebMcpSummary() {
   }
 }
 
-/** Opens (or focuses) the context-panel browser and asks it for agent mode. */
+/**
+ * Opens (or focuses) the context-panel browser and asks it for agent mode. With `enable`, the
+ * pane also turns agent access on once the browser is ready; that is the user's explicit click.
+ */
 export function useOpenProjectBrowser() {
   const focusContextBrowser = useUIStore((state) => state.focusContextBrowser)
   const requestAgentMode = useWebMcpBrowserStore((state) => state.requestAgentMode)
-  return React.useCallback(() => {
-    requestAgentMode()
-    focusContextBrowser()
-  }, [focusContextBrowser, requestAgentMode])
+  return React.useCallback(
+    (options?: { enable?: boolean }) => {
+      requestAgentMode(options)
+      focusContextBrowser()
+    },
+    [focusContextBrowser, requestAgentMode],
+  )
 }
 
 const CAPABILITY_CACHE_MS = 60_000

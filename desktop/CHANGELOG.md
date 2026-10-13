@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file.
   sharing one status model with the project browser; the browser pane gained a localized toolbar,
   status strip, explanation and actionable errors.
 - `Cmd/Ctrl+O` opens a folder as a project from anywhere in the app.
+- A labeled `WebMCP` header button, an "Enable agent access" call to action in the browser panel,
+  an empty-pane entry and a command palette item all lead to the project browser.
 - Browser-tool permission requests show the website first, then the tool and operation.
 
 ### Changed

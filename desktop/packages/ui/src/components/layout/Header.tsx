@@ -30,6 +30,7 @@ import { ContextUsageDisplay } from "@/components/ui/ContextUsageDisplay"
 import { cn } from "@/lib/utils"
 import { ROUTE_PARAMS } from "@/lib/router"
 import { McpDropdownContent } from "@/components/mcp/McpDropdown"
+import { WebMcpHeaderButton } from "@/components/mcp/WebMcpHeaderButton"
 import { ProviderLogo } from "@/components/ui/ProviderLogo"
 import {
   formatQuotaValueLabel,
@@ -1823,6 +1824,7 @@ export const Header: React.FC = () => {
         pressed={isContextBrowserActive}
         Icon={"global"}
       />
+      <WebMcpHeaderButton />
       <HeaderIconActionButton
         title={t("header.actions.rightSidebarWithShortcut", { shortcut: shortcutLabel("toggle_right_sidebar") })}
         ariaLabel={t("header.actions.toggleRightSidebarAria")}

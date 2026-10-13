@@ -38,12 +38,16 @@ interface WebMcpBrowserState extends WebMcpBrowserSnapshot {
   /** Monotonic counter: each increment asks the browser pane to switch to agent mode. */
   agentModeRequests: number
   agentModeConsumed: number
+  /** Monotonic counter: the user explicitly asked for agent access to be enabled once the browser is ready. */
+  enableRequests: number
+  enableConsumed: number
   /** Settings → MCP shows the browser-tools card instead of a server page. */
   settingsCardSelected: boolean
   updateSnapshot: (partial: Partial<WebMcpBrowserSnapshot>) => void
   resetSnapshot: () => void
-  requestAgentMode: () => void
+  requestAgentMode: (options?: { enable?: boolean }) => void
   consumeAgentModeRequest: () => boolean
+  consumeEnableRequest: () => boolean
   setSettingsCardSelected: (selected: boolean) => void
 }
 
@@ -65,6 +69,8 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
   ...initialSnapshot,
   agentModeRequests: 0,
   agentModeConsumed: 0,
+  enableRequests: 0,
+  enableConsumed: 0,
   settingsCardSelected: false,
   updateSnapshot: (partial) => set(partial),
   resetSnapshot: () =>
@@ -73,11 +79,21 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
       // The runtime compatibility answer does not depend on a live browser.
       runtimeCompatible: state.runtimeCompatible,
     })),
-  requestAgentMode: () => set((state) => ({ agentModeRequests: state.agentModeRequests + 1 })),
+  requestAgentMode: (options) =>
+    set((state) => ({
+      agentModeRequests: state.agentModeRequests + 1,
+      enableRequests: options?.enable ? state.enableRequests + 1 : state.enableRequests,
+    })),
   consumeAgentModeRequest: () => {
     const { agentModeRequests, agentModeConsumed } = get()
     if (agentModeRequests <= agentModeConsumed) return false
     set({ agentModeConsumed: agentModeRequests })
+    return true
+  },
+  consumeEnableRequest: () => {
+    const { enableRequests, enableConsumed } = get()
+    if (enableRequests <= enableConsumed) return false
+    set({ enableConsumed: enableRequests })
     return true
   },
   setSettingsCardSelected: (selected) => set({ settingsCardSelected: selected }),

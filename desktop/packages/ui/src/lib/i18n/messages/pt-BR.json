@@ -4383,7 +4383,7 @@
   "webmcp.browser.explanation": "O agente pode chamar as ferramentas que esta p\u00e1gina exp\u00f5e. Cada chamada ainda pede sua confirma\u00e7\u00e3o antes.",
   "webmcp.browser.modeAria": "Modo do navegador",
   "webmcp.browser.mode.preview": "Pr\u00e9-visualiza\u00e7\u00e3o",
-  "webmcp.browser.mode.agent": "Navegador de projeto",
+  "webmcp.browser.mode.agent": "Navegador de projeto (WebMCP)",
   "webmcp.settings.description": "Servidores MCP s\u00e3o ferramentas que voc\u00ea configura. Ferramentas do navegador s\u00e3o as que a p\u00e1gina aberta no navegador de projeto exp\u00f5e por meio do WebMCP nativo. Ambas obedecem \u00e0s permiss\u00f5es do AX Code.",
   "webmcp.settings.servers.title": "Servidores MCP",
   "webmcp.settings.servers.description": "Processos configurados ou endpoints remotos que o agente pode chamar em qualquer sess\u00e3o.",
@@ -4394,5 +4394,9 @@
   "webmcp.settings.steps.approve": "Aprove cada chamada de ferramenta do navegador quando o agente pedir.",
   "chat.permissionCard.replaceAll": "\u26a0\ufe0f Substituir todas as ocorr\u00eancias",
   "chat.permissionCard.responseFormat": "Formato da resposta:",
-  "chat.permissionCard.alwaysPatterns": "Sempre: {patterns}"
+  "chat.permissionCard.alwaysPatterns": "Sempre: {patterns}",
+  "webmcp.browser.cta": "Mudar para o navegador de projeto e deixar o agente usar as ferramentas desta p\u00e1gina.",
+  "webmcp.header.aria": "Navegador de projeto (WebMCP): {state}",
+  "commandPalette.item.openProjectBrowser": "Abrir o navegador de projeto (WebMCP)",
+  "contextPanel.browser.openProjectBrowser": "Abrir o navegador de projeto (WebMCP)"
 }
