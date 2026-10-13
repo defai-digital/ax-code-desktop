@@ -128,6 +128,23 @@ describe("core-routes", () => {
     expect(response.body).toEqual({ body: { content: "Snippet body" } })
   })
 
+  it("should parse JSON bodies for MCP auth pending routes", async () => {
+    const app = express()
+    registerCommonRequestMiddleware(app, { express })
+    app.post("/api/mcp/auth/pending", (req, res) => {
+      res.json({ body: req.body })
+    })
+
+    // The handler stores the pending OAuth context from req.body; without a JSON parser for this
+    // prefix the body is undefined and the callback later finds nothing to resume.
+    const response = await request(app)
+      .post("/api/mcp/auth/pending")
+      .send({ state: "state-1", name: "mcp-server" })
+      .expect(200)
+
+    expect(response.body).toEqual({ body: { state: "state-1", name: "mcp-server" } })
+  })
+
   it("responds to manual config reload before the AX Code restart settles", async () => {
     const app = express()
     let resolveReload

@@ -779,7 +779,17 @@ async function createWindow() {
   })
   // Rejects on timeout into the whenReady startup-failure path, so a wedged
   // server cannot leave the app looking dead with a hidden window.
-  await loadUrlWithTimeout(mainWindow, rendererUrl, { timeoutMs: WINDOW_LOAD_TIMEOUT_MS })
+  try {
+    await loadUrlWithTimeout(mainWindow, rendererUrl, { timeoutMs: WINDOW_LOAD_TIMEOUT_MS })
+  } catch (error) {
+    // Never leave a hidden show:false window behind a wedged load, like the
+    // additional/mini-chat windows: keeping the global set would make every
+    // later activate/open-project path take the "window already exists" branch
+    // and focus a window the user can never see.
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy()
+    mainWindow = null
+    throw error
+  }
 }
 
 // ── Auto-update ───────────────────────────────────────────────────────────

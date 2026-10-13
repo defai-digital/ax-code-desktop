@@ -30,6 +30,15 @@ class FakeSocket extends EventEmitter {
   }
 }
 
+// The runtime works on timers: under a loaded test runner a fixed sleep races the first heartbeat or
+// the reconnect, so wait for the observable effect instead of guessing a duration.
+const waitFor = async (predicate, timeoutMs = 2000) => {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+}
+
 describe("event stream broadcaster", () => {
   it("fans out synthetic events to SSE and WS clients", () => {
     const sseEvents = []
@@ -275,7 +284,7 @@ describe("message stream websocket runtime", () => {
     const socket = new FakeSocket()
     runtime.wsServer.emit("connection", socket, { url: "/api/event/ws?directory=/tmp/project" })
 
-    await new Promise((resolve) => setTimeout(resolve, 25))
+    await waitFor(() => socket.sent.some((frame) => frame.payload?.type === "openchamber:heartbeat"))
 
     const heartbeats = socket.sent.filter((frame) => frame.payload?.type === "openchamber:heartbeat")
     expect(heartbeats.length).toBeGreaterThan(0)
@@ -488,7 +497,7 @@ describe("message stream websocket runtime", () => {
     const socket = new FakeSocket()
     runtime.wsServer.emit("connection", socket, { url: "/api/global/event/ws" })
 
-    await new Promise((resolve) => setTimeout(resolve, 35))
+    await waitFor(() => fetchCalls.length >= 2)
 
     const readyFrames = socket.sent.filter((frame) => frame.type === "ready")
     const eventFrames = socket.sent.filter(
