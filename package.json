@@ -19,6 +19,8 @@
     "lint": "pnpm --filter \"./desktop/packages/*\" --if-present run lint",
     "test": "pnpm run test:scripts && pnpm --filter \"./desktop/packages/*\" --if-present run test",
     "test:scripts": "vitest run --config vitest.config.ts",
+    "bench:sync-transport": "pnpm --dir desktop/packages/ui exec tsx scripts/benchmark-sync-transport.mts",
+    "bench:sync-hotpath": "pnpm --dir desktop/packages/ui exec tsx src/sync/__tests__/streaming-hotpath.bench.ts",
     "check:desktop-boundaries": "tsx script/check-desktop-boundaries.ts --fail-on-violation",
     "check:desktop-store-boundaries": "tsx script/check-desktop-store-boundaries.ts",
     "check:desktop-electron-runtime": "node desktop/scripts/check-electron-runtime.mjs",

@@ -15,6 +15,11 @@
 import type { Event, AxCodeClient, SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { syncDebug } from "./debug"
+import {
+  getLocalSyncPerformanceRecorder,
+  type PendingSyncMeasurement,
+  type SyncPerformanceRecorder,
+} from "./performance"
 import { API_PATHS } from "@/lib/http"
 import { createEventTransport } from "@/lib/event-stream/client"
 import { markStreamConnected, markStreamDisconnected } from "@/lib/event-stream/connection-state"
@@ -73,6 +78,8 @@ export type EventPipelineInput = {
   heartbeatTimeoutMs?: number
   reconnectDelayMs?: number
   wsReadyTimeoutMs?: number
+  /** Optional local numeric diagnostics; defaults to the explicit browser opt-in. */
+  performanceRecorder?: SyncPerformanceRecorder
 }
 
 type EventPipeline = {
@@ -250,6 +257,7 @@ type DirectoryQueue = {
   coalesced: Map<string, number>
   timer: ReturnType<typeof setTimeout> | undefined
   last: number
+  measurement?: PendingSyncMeasurement
 }
 
 type CoalescedPart = {
@@ -355,6 +363,7 @@ export function coalesceQueuedEvent(previous: Event, next: Event): Event {
 }
 
 export function createEventPipeline(input: EventPipelineInput): EventPipeline {
+  const performanceRecorder = input.performanceRecorder ?? getLocalSyncPerformanceRecorder()
   const {
     sdk,
     onEvent,
@@ -444,6 +453,11 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     if (d.queue.length === 0) return
 
     const events = d.queue
+    const measurement = d.measurement
+    d.measurement = undefined
+    const startedAt = measurement ? performanceRecorder!.now() : 0
+    const dispatchedEvents = events.length
+    let failedCallbacks = 0
     d.queue = d.buffer
     d.buffer = events
     d.queue.length = 0
@@ -467,10 +481,23 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
             onEvent(directory, payload)
           }
         } catch (error) {
+          failedCallbacks++
           console.error("[event-pipeline] event handler threw during flush", error)
         }
       }
     } finally {
+      if (measurement && performanceRecorder) {
+        performanceRecorder.record({
+          transport: measurement.transport,
+          receivedEvents: measurement.receivedEvents,
+          dispatchedEvents,
+          coalescedEvents: measurement.coalescedEvents,
+          failedCallbacks,
+          backpressure: measurement.backpressure,
+          queueWaitMs: startedAt - measurement.receivedAt,
+          callbackMs: performanceRecorder.now() - startedAt,
+        })
+      }
       // Clearing the buffer even on unexpected throws keeps the pipeline
       // from re-delivering the same events on the next flush — a
       // deterministic throw would otherwise enter an infinite loop.
@@ -524,7 +551,8 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     onReconnect?.()
   }
 
-  const enqueueEvent = (directory: string, payload: Event) => {
+  const enqueueEvent = (directory: string, payload: Event, eventTransport: "ws" | "sse") => {
+    const receivedAt = performanceRecorder?.now()
     const normalizedPayload = normalizeEventType(payload)
     const routedDirectory =
       normalizedPayload.type === "server.resync_required"
@@ -532,6 +560,20 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
         : routeDirectory?.(directory, normalizedPayload) || directory
 
     const d = getOrCreateDir(routedDirectory)
+    if (receivedAt !== undefined) {
+      if (!d.measurement) {
+        d.measurement = {
+          receivedAt,
+          receivedEvents: 0,
+          coalescedEvents: 0,
+          transport: eventTransport,
+          backpressure: false,
+        }
+      }
+      d.measurement.receivedEvents++
+      if (d.measurement.transport !== eventTransport) d.measurement.transport = "mixed"
+      d.measurement.backpressure ||= Date.now() < backpressureUntil
+    }
     const updatedKeyInterruptedByDelta = updatedPartKeyForDelta(normalizedPayload)
     if (updatedKeyInterruptedByDelta) {
       d.coalesced.delete(updatedKeyInterruptedByDelta)
@@ -548,6 +590,7 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     if (k) {
       const i = d.coalesced.get(k)
       if (i !== undefined) {
+        if (d.measurement) d.measurement.coalescedEvents++
         if (normalizedPayload.type === "message.part.delta") {
           const prev = d.queue[i] as unknown as { properties: { delta: string } }
           const inc = normalizedPayload.properties as { delta: string }
@@ -681,7 +724,7 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
             return
           }
           const directory = resolveEventDirectory({ directory: wsFrame.directory, payload }, payload)
-          enqueueEvent(directory, payload)
+          enqueueEvent(directory, payload, "ws")
           return
         }
 
@@ -690,7 +733,7 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
           return
         }
         const directory = resolveEventDirectory(frame, payload)
-        enqueueEvent(directory, payload)
+        enqueueEvent(directory, payload, "sse")
 
         if (payload.type === "server.connected") {
           // The SDK returns a lazy async generator before it performs fetch.
