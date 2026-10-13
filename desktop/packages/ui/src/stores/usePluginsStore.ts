@@ -7,6 +7,7 @@ import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
 import { createSingleFlight } from "@/lib/singleFlight"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
+import { setConfigCacheEntry } from "./utils/configCache"
 
 export type PluginScope = "user" | "project"
 export type PluginParsedKind = "npm" | "path"
@@ -195,7 +196,7 @@ export const usePluginsStore = create<PluginsStore>()(
               const entries = data.entries ?? []
               const files = data.files ?? []
               set({ entries, files, isLoading: false })
-              pluginsCacheByKey.set(cacheKey, { entries, files })
+              setConfigCacheEntry(pluginsCacheByKey, cacheKey, { entries, files })
               pluginsLastLoadedAt.set(cacheKey, Date.now())
               if (!options?.force) {
                 void get().loadRegistryInfo()

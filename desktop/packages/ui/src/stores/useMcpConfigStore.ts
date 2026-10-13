@@ -7,6 +7,7 @@ import { createSingleFlight } from "@/lib/singleFlight"
 import { refreshAfterAxCodeRestart } from "@/stores/useAgentsStore"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
+import { setConfigCacheEntry } from "./utils/configCache"
 
 export type McpScope = "user" | "project"
 
@@ -161,7 +162,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
               const data: McpServerWithScope[] = await response.json()
               if (!isCurrentLoad()) return true
               set({ mcpServers: data, isLoading: false })
-              mcpCacheByKey.set(cacheKey, data)
+              setConfigCacheEntry(mcpCacheByKey, cacheKey, data)
               mcpLastLoadedAt.set(cacheKey, Date.now())
               return true
             } catch (error) {

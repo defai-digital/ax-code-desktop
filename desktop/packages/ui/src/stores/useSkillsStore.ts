@@ -9,6 +9,7 @@ import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
 import { parseConfigPathGroup } from "@/lib/configPathGroup"
 import { getAxCodeCurrentDirectory } from "@/lib/ax-code/currentDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
+import { setConfigCacheEntry } from "./utils/configCache"
 
 export type SkillScope = "user" | "project"
 export type SkillSource = "ax-code" | "claude" | "agents"
@@ -191,7 +192,7 @@ export const useSkillsStore = create<SkillsStore>()(
 
                 if (!isCurrentLoad()) return true
                 set({ skills: configSkills, isLoading: false })
-                skillsCacheByKey.set(cacheKey, configSkills)
+                setConfigCacheEntry(skillsCacheByKey, cacheKey, configSkills)
                 skillsLastLoadedAt.set(cacheKey, Date.now())
                 return true
               } catch (error) {

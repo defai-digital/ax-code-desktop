@@ -11,6 +11,7 @@ import { streamDebugEnabled } from "@/stores/utils/streamDebug"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
 import { buildRecordSignature } from "@/stores/utils/signature"
+import { setConfigCacheEntry } from "./utils/configCache"
 
 export type CommandScope = "user" | "project"
 
@@ -186,7 +187,7 @@ export const useCommandsStore = create<CommandsStore>()(
                 } else {
                   set({ isLoading: false })
                 }
-                commandsCacheByKey.set(cacheKey, commandsWithScope)
+                setConfigCacheEntry(commandsCacheByKey, cacheKey, commandsWithScope)
                 commandsLastLoadedAt.set(cacheKey, Date.now())
                 return true
               } catch (error) {
