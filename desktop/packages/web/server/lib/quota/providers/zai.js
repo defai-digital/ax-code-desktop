@@ -1,7 +1,6 @@
-import { readAuthFile } from "../../ax-code/auth.js"
 import {
-  getAuthEntry,
-  normalizeAuthEntry,
+  notConfiguredResult,
+  readProviderAuthEntry,
   buildResult,
   toUsageWindow,
   resolveWindowSeconds,
@@ -14,24 +13,16 @@ export const providerName = "z.ai"
 export const aliases = ["zai-coding-plan", "zai", "z.ai"]
 
 export const isConfigured = () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   return Boolean(entry?.key || entry?.token)
 }
 
 export const fetchQuota = async () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   const apiKey = entry?.key ?? entry?.token
 
   if (!apiKey) {
-    return buildResult({
-      providerId,
-      providerName,
-      ok: false,
-      configured: false,
-      error: "Not configured",
-    })
+    return notConfiguredResult({ providerId, providerName })
   }
 
   try {

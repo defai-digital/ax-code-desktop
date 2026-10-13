@@ -2,6 +2,8 @@ import fs from "fs"
 import path from "path"
 import os from "os"
 
+import { readAuthFile } from "../../ax-code/auth.js"
+
 const AX_CODE_CONFIG_DIR = process.env.AX_CODE_CONFIG_DIR || path.join(os.homedir(), ".config", "ax-code")
 const AX_CODE_DATA_DIR = process.env.AX_CODE_DATA_DIR || path.join(os.homedir(), ".local", "share", "ax-code")
 
@@ -43,4 +45,15 @@ export const normalizeAuthEntry = (entry) => {
     return entry
   }
   return null
+}
+
+/**
+ * Read and normalize the stored auth entry for the first matching provider alias.
+ * Centralized so every provider resolves stored credentials the same way instead
+ * of repeating readAuthFile + getAuthEntry + normalizeAuthEntry. Returns null
+ * when the config holds no entry for any alias.
+ */
+export const readProviderAuthEntry = (aliases) => {
+  const auth = readAuthFile()
+  return normalizeAuthEntry(getAuthEntry(auth, aliases))
 }

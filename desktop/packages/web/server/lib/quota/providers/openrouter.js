@@ -1,5 +1,11 @@
-import { readAuthFile } from "../../ax-code/auth.js"
-import { getAuthEntry, normalizeAuthEntry, buildResult, toUsageWindow, toNumber, formatMoney } from "../utils/index.js"
+import {
+  notConfiguredResult,
+  readProviderAuthEntry,
+  buildResult,
+  toUsageWindow,
+  toNumber,
+  formatMoney,
+} from "../utils/index.js"
 
 export const providerId = "openrouter"
 export const providerName = "OpenRouter"
@@ -7,24 +13,16 @@ export const aliases = ["openrouter"]
 const MONETARY_QUOTA_LABELS_ENABLED = false
 
 export const isConfigured = () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   return Boolean(entry?.key || entry?.token)
 }
 
 export const fetchQuota = async () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   const apiKey = entry?.key ?? entry?.token
 
   if (!apiKey) {
-    return buildResult({
-      providerId,
-      providerName,
-      ok: false,
-      configured: false,
-      error: "Not configured",
-    })
+    return notConfiguredResult({ providerId, providerName })
   }
 
   try {

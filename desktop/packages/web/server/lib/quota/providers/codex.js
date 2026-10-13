@@ -1,7 +1,6 @@
-import { readAuthFile } from "../../ax-code/auth.js"
 import {
-  getAuthEntry,
-  normalizeAuthEntry,
+  notConfiguredResult,
+  readProviderAuthEntry,
   buildResult,
   toUsageWindow,
   toNumber,
@@ -15,25 +14,17 @@ export const aliases = ["openai", "codex", "chatgpt"]
 const MONETARY_QUOTA_LABELS_ENABLED = false
 
 export const isConfigured = () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   return Boolean(entry?.access || entry?.token)
 }
 
 export const fetchQuota = async () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   const accessToken = entry?.access ?? entry?.token
   const accountId = entry?.accountId
 
   if (!accessToken) {
-    return buildResult({
-      providerId,
-      providerName,
-      ok: false,
-      configured: false,
-      error: "Not configured",
-    })
+    return notConfiguredResult({ providerId, providerName })
   }
 
   try {

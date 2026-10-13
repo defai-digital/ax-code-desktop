@@ -1,5 +1,11 @@
-import { readAuthFile } from "../../ax-code/auth.js"
-import { getAuthEntry, normalizeAuthEntry, buildResult, toUsageWindow, toNumber, toTimestamp } from "../utils/index.js"
+import {
+  notConfiguredResult,
+  readProviderAuthEntry,
+  buildResult,
+  toUsageWindow,
+  toNumber,
+  toTimestamp,
+} from "../utils/index.js"
 
 const NANO_GPT_DAILY_WINDOW_SECONDS = 86400
 
@@ -8,24 +14,16 @@ export const providerName = "NanoGPT"
 export const aliases = ["nano-gpt", "nanogpt", "nano_gpt"]
 
 export const isConfigured = () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   return Boolean(entry?.key || entry?.token)
 }
 
 export const fetchQuota = async () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   const apiKey = entry?.key ?? entry?.token
 
   if (!apiKey) {
-    return buildResult({
-      providerId,
-      providerName,
-      ok: false,
-      configured: false,
-      error: "Not configured",
-    })
+    return notConfiguredResult({ providerId, providerName })
   }
 
   try {

@@ -25,11 +25,10 @@
  * @property {number} [nextResetTime]
  * @property {Array<{modelCode: string, usage: number}>} [usageDetails]
  */
-import { readAuthFile } from "../../ax-code/auth.js"
 import { readConfigLayers } from "../../ax-code/shared.js"
 import {
-  getAuthEntry,
-  normalizeAuthEntry,
+  notConfiguredResult,
+  readProviderAuthEntry,
   buildResult,
   toUsageWindow,
   resolveWindowSeconds,
@@ -41,8 +40,7 @@ export const providerName = "Zhipu AI Coding Plan"
 export const aliases = ["zhipuai-coding-plan", "zhipuai", "zhipu"]
 
 function getApiKey() {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   const apiKeyFromAuth = entry?.key ?? entry?.token
 
   if (apiKeyFromAuth) {
@@ -73,13 +71,7 @@ export const fetchQuota = async () => {
   const apiKey = getApiKey()
 
   if (!apiKey) {
-    return buildResult({
-      providerId,
-      providerName,
-      ok: false,
-      configured: false,
-      error: "Not configured",
-    })
+    return notConfiguredResult({ providerId, providerName })
   }
 
   try {

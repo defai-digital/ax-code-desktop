@@ -17,7 +17,7 @@ export { resolveGoogleWindow, transformQuotaBucket, transformModelData } from ".
 
 export { refreshGoogleAccessToken, fetchGoogleQuotaBuckets, fetchGoogleModels } from "./api.js"
 
-import { buildResult } from "../../utils/index.js"
+import { buildResult, notConfiguredResult } from "../../utils/index.js"
 import { resolveGoogleAuthSources, resolveGoogleOAuthClient, DEFAULT_PROJECT_ID } from "./auth.js"
 import { transformQuotaBucket, transformModelData } from "./transforms.js"
 import { refreshGoogleAccessToken, fetchGoogleQuotaBuckets, fetchGoogleModels } from "./api.js"
@@ -25,13 +25,7 @@ import { refreshGoogleAccessToken, fetchGoogleQuotaBuckets, fetchGoogleModels } 
 export const fetchGoogleQuota = async () => {
   const authSources = resolveGoogleAuthSources()
   if (!authSources.length) {
-    return buildResult({
-      providerId: "google",
-      providerName: "Google",
-      ok: false,
-      configured: false,
-      error: "Not configured",
-    })
+    return notConfiguredResult({ providerId: "google", providerName: "Google" })
   }
 
   const models = {}

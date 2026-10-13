@@ -63,6 +63,13 @@ export const buildResult = ({ providerId, providerName, ok, configured, usage, e
   fetchedAt: Date.now(),
 })
 
+/**
+ * The shared "no stored credential" result every provider returns instead of
+ * calling its API, so the not-configured contract stays identical everywhere.
+ */
+export const notConfiguredResult = ({ providerId, providerName }) =>
+  buildResult({ providerId, providerName, ok: false, configured: false, error: "Not configured" })
+
 export const durationToLabel = (duration, unit) => {
   if (!duration || !unit) return "limit"
   if (unit === "TIME_UNIT_MINUTE") return `${duration}m`

@@ -1,5 +1,11 @@
-import { readAuthFile } from "../../ax-code/auth.js"
-import { buildResult, getAuthEntry, normalizeAuthEntry, toNumber, toTimestamp, toUsageWindow } from "../utils/index.js"
+import {
+  buildResult,
+  notConfiguredResult,
+  readProviderAuthEntry,
+  toNumber,
+  toTimestamp,
+  toUsageWindow,
+} from "../utils/index.js"
 
 export const transformMinimaxWindows = (model) => {
   const intervalTotal = toNumber(model.current_interval_total_count)
@@ -43,24 +49,16 @@ export const createMinimaxProvider = ({ providerId, providerName, endpoint }) =>
   const aliases = [providerId]
 
   const isConfigured = () => {
-    const auth = readAuthFile()
-    const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+    const entry = readProviderAuthEntry(aliases)
     return Boolean(entry?.key || entry?.token)
   }
 
   const fetchQuota = async () => {
-    const auth = readAuthFile()
-    const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+    const entry = readProviderAuthEntry(aliases)
     const apiKey = entry?.key ?? entry?.token
 
     if (!apiKey) {
-      return buildResult({
-        providerId,
-        providerName,
-        ok: false,
-        configured: false,
-        error: "Not configured",
-      })
+      return notConfiguredResult({ providerId, providerName })
     }
 
     try {

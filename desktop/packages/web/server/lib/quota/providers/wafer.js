@@ -1,7 +1,6 @@
-import { readAuthFile } from "../../ax-code/auth.js"
 import {
-  getAuthEntry,
-  normalizeAuthEntry,
+  notConfiguredResult,
+  readProviderAuthEntry,
   buildResult,
   toUsageWindow,
   toNumber,
@@ -18,24 +17,16 @@ const WAFER_QUOTA_URL = "https://pass.wafer.ai/v1/inference/quota"
 const WAFER_WINDOW_SECONDS = 5 * 3600
 
 export const isConfigured = () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   return Boolean(entry?.key || entry?.token)
 }
 
 export const fetchQuota = async () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   const apiKey = entry?.key ?? entry?.token
 
   if (!apiKey) {
-    return buildResult({
-      providerId,
-      providerName,
-      ok: false,
-      configured: false,
-      error: "Not configured",
-    })
+    return notConfiguredResult({ providerId, providerName })
   }
 
   const timeoutSignal = AbortSignal.timeout(15_000)

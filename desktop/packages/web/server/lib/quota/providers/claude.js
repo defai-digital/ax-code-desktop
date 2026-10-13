@@ -1,29 +1,27 @@
-import { readAuthFile } from "../../ax-code/auth.js"
-import { getAuthEntry, normalizeAuthEntry, buildResult, toUsageWindow, toNumber, toTimestamp } from "../utils/index.js"
+import {
+  notConfiguredResult,
+  readProviderAuthEntry,
+  buildResult,
+  toUsageWindow,
+  toNumber,
+  toTimestamp,
+} from "../utils/index.js"
 
 export const providerId = "claude"
 export const providerName = "Claude"
 export const aliases = ["anthropic", "claude"]
 
 export const isConfigured = () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   return Boolean(entry?.access || entry?.token)
 }
 
 export const fetchQuota = async () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   const accessToken = entry?.access ?? entry?.token
 
   if (!accessToken) {
-    return buildResult({
-      providerId,
-      providerName,
-      ok: false,
-      configured: false,
-      error: "Not configured",
-    })
+    return notConfiguredResult({ providerId, providerName })
   }
 
   try {

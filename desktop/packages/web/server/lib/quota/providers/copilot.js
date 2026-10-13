@@ -1,5 +1,11 @@
-import { readAuthFile } from "../../ax-code/auth.js"
-import { getAuthEntry, normalizeAuthEntry, buildResult, toUsageWindow, toNumber, toTimestamp } from "../utils/index.js"
+import {
+  notConfiguredResult,
+  readProviderAuthEntry,
+  buildResult,
+  toUsageWindow,
+  toNumber,
+  toTimestamp,
+} from "../utils/index.js"
 
 const buildCopilotWindows = (payload) => {
   const quota = payload?.quota_snapshots ?? {}
@@ -33,24 +39,16 @@ export const providerName = "GitHub Copilot"
 export const aliases = ["github-copilot", "copilot"]
 
 export const isConfigured = () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   return Boolean(entry?.access || entry?.token)
 }
 
 export const fetchQuota = async () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   const accessToken = entry?.access ?? entry?.token
 
   if (!accessToken) {
-    return buildResult({
-      providerId,
-      providerName,
-      ok: false,
-      configured: false,
-      error: "Not configured",
-    })
+    return notConfiguredResult({ providerId, providerName })
   }
 
   try {
@@ -98,18 +96,11 @@ export const providerIdAddon = "github-copilot-addon"
 export const providerNameAddon = "GitHub Copilot Add-on"
 
 export const fetchQuotaAddon = async () => {
-  const auth = readAuthFile()
-  const entry = normalizeAuthEntry(getAuthEntry(auth, aliases))
+  const entry = readProviderAuthEntry(aliases)
   const accessToken = entry?.access ?? entry?.token
 
   if (!accessToken) {
-    return buildResult({
-      providerId: providerIdAddon,
-      providerName: providerNameAddon,
-      ok: false,
-      configured: false,
-      error: "Not configured",
-    })
+    return notConfiguredResult({ providerId: providerIdAddon, providerName: providerNameAddon })
   }
 
   try {
