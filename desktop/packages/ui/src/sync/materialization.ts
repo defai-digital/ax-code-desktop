@@ -96,8 +96,17 @@ function hasLiveStreamingField(part: Part): boolean {
   })
 }
 
+// The reducer marks a part whose snapshot text extends the live text, so the next delta may drop the
+// overlap it re-sends. That mark describes the *next* delta, so it must survive a merge that replaces
+// the part object — dropping it lets a re-sent overlap append twice.
+function carryDedupeMarker(existing: Part | undefined, part: Part): Part {
+  const fields = (existing as { __dedupeNextDeltaFields?: string[] } | undefined)?.__dedupeNextDeltaFields
+  if (!Array.isArray(fields) || fields.length === 0) return part
+  return { ...part, __dedupeNextDeltaFields: fields } as unknown as Part
+}
+
 function mergeMaterializedPart(existing: Part | undefined, next: Part): Part {
-  if (!existing || getValidPartEndTime(next) !== undefined) return next
+  if (!existing || getValidPartEndTime(next) !== undefined) return carryDedupeMarker(existing, next)
 
   let merged: Part = next
   for (const field of STREAMING_PART_FIELDS) {
@@ -113,7 +122,7 @@ function mergeMaterializedPart(existing: Part | undefined, next: Part): Part {
     mergedRecord[field] = existingValue
   }
 
-  return merged
+  return carryDedupeMarker(existing, merged)
 }
 
 function mergeMaterializedParts(

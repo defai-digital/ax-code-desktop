@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest"
-import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
+import type { Event, Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import { getSessionMaterializationStatus, materializeSessionSnapshots } from "../materialization"
+import { applyDirectoryEvent } from "../event-reducer"
+import { INITIAL_STATE, type State } from "../types"
 
 function message(id: string, sessionID = "ses_1"): Message {
   return { id, sessionID, role: "assistant", time: { created: 1 } } as Message
@@ -84,6 +86,53 @@ describe("materializeSessionSnapshots", () => {
 
     expect(result.part.msg_1[0]).toBe(livePart)
     expect((result.part.msg_1[0] as { text?: string })?.text).toBe("First chunk ")
+  })
+
+  test("keeps the delta dedupe marker when a stale snapshot merges into live text", () => {
+    // The reducer marks a part when a snapshot's text extends the live text, so the next delta can
+    // drop the overlap it re-sends. A materialization that keeps the live text must keep the mark:
+    // it is about the next delta, not about the snapshot that set it.
+    const livePart = {
+      ...part("prt_1", "msg_1", "text", "Hello world"),
+      __dedupeNextDeltaFields: ["text"],
+    } as unknown as Part
+    const staleSnapshot = part("prt_1", "msg_1", "text", "Hello ")
+    const state = {
+      message: { ses_1: [message("msg_1")] },
+      part: { msg_1: [livePart] },
+    }
+
+    const result = materializeSessionSnapshots(state, "ses_1", [{ info: message("msg_1"), parts: [staleSnapshot] }])
+
+    const merged = result.part.msg_1[0] as unknown as { text?: string; __dedupeNextDeltaFields?: string[] }
+    expect(merged.text).toBe("Hello world")
+    expect(merged.__dedupeNextDeltaFields).toEqual(["text"])
+  })
+
+  test("a materialized part still dedupes the next overlapping delta", () => {
+    const livePart = {
+      ...part("prt_1", "msg_1", "text", "Hello world"),
+      __dedupeNextDeltaFields: ["text"],
+    } as unknown as Part
+    const state = {
+      ...INITIAL_STATE,
+      message: { ses_1: [message("msg_1")] },
+      part: { msg_1: [livePart] },
+      session_status: {},
+    } as State
+
+    const materialized = materializeSessionSnapshots(state, "ses_1", [
+      { info: message("msg_1"), parts: [part("prt_1", "msg_1", "text", "Hello ")] },
+    ])
+    const mergedState: State = { ...state, message: materialized.message, part: materialized.part }
+
+    // The runtime re-sends the tail it already delivered; it must not land twice in the transcript.
+    applyDirectoryEvent(mergedState, {
+      type: "message.part.delta",
+      properties: { messageID: "msg_1", partID: "prt_1", field: "text", delta: "world!" },
+    } as Event)
+
+    expect((mergedState.part.msg_1[0] as { text?: string }).text).toBe("Hello world!")
   })
 
   test("preserves live streaming text when a stale snapshot has an invalid end time", () => {
