@@ -3,6 +3,7 @@ import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { startConfigUpdate, finishConfigUpdate, updateConfigUpdateMessage } from "@/lib/configUpdate"
 import { emitConfigChange, scopeMatches, subscribeToConfigChanges } from "@/lib/configSync"
+import { createSingleFlight } from "@/lib/singleFlight"
 import { getSafeStorage } from "./utils/safeStorage"
 import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
@@ -38,7 +39,7 @@ const CONFIG_EVENT_SOURCE = "useCommandsStore"
 const COMMANDS_LOAD_CACHE_TTL_MS = 5000
 const commandsLastLoadedAt = new Map<string, number>()
 const commandsCacheByKey = new Map<string, Command[]>()
-const commandsLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
+const commandsLoadInFlight = createSingleFlight<boolean>()
 const commandsLoadRequestIds = new Map<string, number>()
 let commandsLoadSequence = 0
 
@@ -111,17 +112,12 @@ export const useCommandsStore = create<CommandsStore>()(
             return true
           }
 
-          const inFlight = commandsLoadInFlight.get(cacheKey)
-          if (inFlight) {
-            return inFlight.promise
-          }
-
           const requestId = ++commandsLoadSequence
           commandsLoadRequestIds.set(cacheKey, requestId)
           const isCurrentLoad = () =>
             commandsLoadSequence === requestId && commandsLoadRequestIds.get(cacheKey) === requestId
 
-          const request = (async () => {
+          return commandsLoadInFlight.run(cacheKey, async () => {
             set({ isLoading: true })
             const previousCommands = get().commands
             const previousSignature = buildCommandsSignature(previousCommands)
@@ -205,17 +201,7 @@ export const useCommandsStore = create<CommandsStore>()(
               set({ commands: previousCommands, isLoading: false })
             }
             return false
-          })()
-
-          const slot = { promise: request }
-          commandsLoadInFlight.set(cacheKey, slot)
-          try {
-            return await request
-          } finally {
-            if (commandsLoadInFlight.get(cacheKey) === slot) {
-              commandsLoadInFlight.delete(cacheKey)
-            }
-          }
+          })
         },
 
         createCommand: async (config: CommandConfig) => {

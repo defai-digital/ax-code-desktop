@@ -3,6 +3,7 @@ import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import { getSafeStorage } from "./utils/safeStorage"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
 import { startConfigUpdate, finishConfigUpdate } from "@/lib/configUpdate"
+import { createSingleFlight } from "@/lib/singleFlight"
 import { refreshAfterAxCodeRestart } from "@/stores/useAgentsStore"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
@@ -87,7 +88,7 @@ const CLIENT_RELOAD_DELAY_MS = 800
 const MCP_LOAD_CACHE_TTL_MS = 5000
 const mcpLastLoadedAt = new Map<string, number>()
 const mcpCacheByKey = new Map<string, McpServerWithScope[]>()
-const mcpLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
+const mcpLoadInFlight = createSingleFlight<boolean>()
 const mcpLoadRequestIds = new Map<string, number>()
 let mcpLoadSequence = 0
 
@@ -139,16 +140,15 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             return true
           }
 
-          const inFlight = mcpLoadInFlight.get(cacheKey)
-          if (!options?.force && inFlight) {
-            return inFlight.promise
+          if (options?.force) {
+            mcpLoadInFlight.clear(cacheKey)
           }
 
           const requestId = ++mcpLoadSequence
           mcpLoadRequestIds.set(cacheKey, requestId)
           const isCurrentLoad = () => mcpLoadSequence === requestId && mcpLoadRequestIds.get(cacheKey) === requestId
 
-          const request = (async () => {
+          return mcpLoadInFlight.run(cacheKey, async () => {
             set({ isLoading: true })
             try {
               const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : ""
@@ -171,17 +171,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
               }
               return false
             }
-          })()
-
-          const slot = { promise: request }
-          mcpLoadInFlight.set(cacheKey, slot)
-          try {
-            return await request
-          } finally {
-            if (mcpLoadInFlight.get(cacheKey) === slot) {
-              mcpLoadInFlight.delete(cacheKey)
-            }
-          }
+          })
         },
 
         createMcp: async (config: McpDraft) => {

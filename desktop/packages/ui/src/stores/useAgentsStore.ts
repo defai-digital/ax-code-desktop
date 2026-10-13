@@ -10,6 +10,7 @@ import {
   type ConfigChangeScope,
 } from "@/lib/configSync"
 import { startConfigUpdate, finishConfigUpdate, updateConfigUpdateMessage } from "@/lib/configUpdate"
+import { createSingleFlight } from "@/lib/singleFlight"
 import { getSafeStorage } from "./utils/safeStorage"
 import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection"
 import { useConfigStore } from "@/stores/useConfigStore"
@@ -28,7 +29,7 @@ import { streamDebugEnabled } from "@/stores/utils/streamDebug"
 
 const AGENTS_LOAD_CACHE_TTL_MS = 5000
 const agentsLastLoadedAt = new Map<string, number>()
-const agentsLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
+const agentsLoadInFlight = createSingleFlight<boolean>()
 const agentsLoadRequestIds = new Map<string, number>()
 let agentsLoadSequence = 0
 
@@ -133,17 +134,12 @@ export const useAgentsStore = create<AgentsStore>()(
             return true
           }
 
-          const inFlight = agentsLoadInFlight.get(cacheKey)
-          if (inFlight) {
-            return inFlight.promise
-          }
-
           const requestId = ++agentsLoadSequence
           agentsLoadRequestIds.set(cacheKey, requestId)
           const isCurrentLoad = () =>
             agentsLoadSequence === requestId && agentsLoadRequestIds.get(cacheKey) === requestId
 
-          const request = (async () => {
+          return agentsLoadInFlight.run(cacheKey, async () => {
             set({ isLoading: true })
             const previousAgents = get().agents
             const previousSignature = buildAgentsSignature(previousAgents)
@@ -223,17 +219,7 @@ export const useAgentsStore = create<AgentsStore>()(
               set({ isLoading: false })
             }
             return false
-          })()
-
-          const slot = { promise: request }
-          agentsLoadInFlight.set(cacheKey, slot)
-          try {
-            return await request
-          } finally {
-            if (agentsLoadInFlight.get(cacheKey) === slot) {
-              agentsLoadInFlight.delete(cacheKey)
-            }
-          }
+          })
         },
 
         createAgent: async (config: AgentConfig) => {

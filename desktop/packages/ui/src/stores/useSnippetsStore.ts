@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { devtools } from "zustand/middleware"
 import type { Snippet } from "@/types/snippet"
 import { API_ENDPOINTS } from "@/lib/http"
+import { createSingleFlight } from "@/lib/singleFlight"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
 
@@ -41,7 +42,7 @@ interface SnippetsStore {
 const SNIPPETS_LOAD_CACHE_TTL_MS = 5000
 const snippetsByCacheKey = new Map<string, Snippet[]>()
 const snippetsLastLoadedAt = new Map<string, number>()
-const snippetsLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
+const snippetsLoadInFlight = createSingleFlight<boolean>()
 const snippetsCacheVersions = new Map<string, number>()
 let activeSnippetsCacheKey = getDirectoryCacheKey(null)
 
@@ -51,7 +52,7 @@ const invalidateSnippetsCache = (directory: string | null): void => {
   const cacheKey = getDirectoryCacheKey(directory)
   snippetsByCacheKey.delete(cacheKey)
   snippetsLastLoadedAt.delete(cacheKey)
-  snippetsLoadInFlight.delete(cacheKey)
+  snippetsLoadInFlight.clear(cacheKey)
   snippetsCacheVersions.set(cacheKey, getSnippetsCacheVersion(cacheKey) + 1)
 }
 
@@ -81,15 +82,9 @@ export const useSnippetsStore = create<SnippetsStore>()(
           return true
         }
 
-        const inFlight = snippetsLoadInFlight.get(cacheKey)
-        if (inFlight) {
-          set({ isLoading: true, snippets: cachedSnippets ?? [] })
-          return inFlight.promise
-        }
-
         const requestVersion = getSnippetsCacheVersion(cacheKey)
 
-        const request = (async () => {
+        return snippetsLoadInFlight.run(cacheKey, async () => {
           set({ isLoading: true, snippets: cachedSnippets ?? [] })
           try {
             const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : ""
@@ -114,17 +109,7 @@ export const useSnippetsStore = create<SnippetsStore>()(
             }
             return false
           }
-        })()
-
-        const slot = { promise: request }
-        snippetsLoadInFlight.set(cacheKey, slot)
-        try {
-          return await request
-        } finally {
-          if (snippetsLoadInFlight.get(cacheKey) === slot) {
-            snippetsLoadInFlight.delete(cacheKey)
-          }
-        }
+        })
       },
 
       createSnippet: async (name, content, options = {}) => {

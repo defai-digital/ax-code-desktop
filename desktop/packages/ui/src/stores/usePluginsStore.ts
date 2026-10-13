@@ -4,6 +4,7 @@ import { getSafeStorage } from "./utils/safeStorage"
 import { startConfigUpdate, finishConfigUpdate } from "@/lib/configUpdate"
 import { refreshAfterAxCodeRestart } from "@/stores/useAgentsStore"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
+import { createSingleFlight } from "@/lib/singleFlight"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
 
@@ -129,7 +130,7 @@ const CLIENT_RELOAD_DELAY_MS = 800
 const PLUGINS_LOAD_CACHE_TTL_MS = 5000
 const pluginsLastLoadedAt = new Map<string, number>()
 const pluginsCacheByKey = new Map<string, { entries: PluginEntry[]; files: PluginFile[] }>()
-const pluginsLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
+const pluginsLoadInFlight = createSingleFlight<boolean>()
 const pluginsLoadRequestIds = new Map<string, number>()
 let pluginsLoadSequence = 0
 const pluginRegistrySpecRequestIds = new Map<string, number>()
@@ -171,9 +172,8 @@ export const usePluginsStore = create<PluginsStore>()(
             return true
           }
 
-          const inFlight = pluginsLoadInFlight.get(cacheKey)
-          if (!options?.force && inFlight) {
-            return inFlight.promise
+          if (options?.force) {
+            pluginsLoadInFlight.clear(cacheKey)
           }
 
           const requestId = ++pluginsLoadSequence
@@ -181,7 +181,7 @@ export const usePluginsStore = create<PluginsStore>()(
           const isCurrentLoad = () =>
             pluginsLoadSequence === requestId && pluginsLoadRequestIds.get(cacheKey) === requestId
 
-          const request = (async () => {
+          return pluginsLoadInFlight.run(cacheKey, async () => {
             set({ isLoading: true })
             try {
               const response = await fetch(buildPluginsUrl(API_ENDPOINTS.config.plugin, configDirectory), {
@@ -208,17 +208,7 @@ export const usePluginsStore = create<PluginsStore>()(
               }
               return false
             }
-          })()
-
-          const slot = { promise: request }
-          pluginsLoadInFlight.set(cacheKey, slot)
-          try {
-            return await request
-          } finally {
-            if (pluginsLoadInFlight.get(cacheKey) === slot) {
-              pluginsLoadInFlight.delete(cacheKey)
-            }
-          }
+          })
         },
 
         loadRegistryInfo: async (opts) => {

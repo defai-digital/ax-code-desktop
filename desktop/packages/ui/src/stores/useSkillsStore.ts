@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import { emitConfigChange, scopeMatches, subscribeToConfigChanges } from "@/lib/configSync"
 import { startConfigUpdate, finishConfigUpdate, updateConfigUpdateMessage } from "@/lib/configUpdate"
+import { createSingleFlight } from "@/lib/singleFlight"
 import { getSafeStorage } from "./utils/safeStorage"
 import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
@@ -119,7 +120,7 @@ const CONFIG_EVENT_SOURCE = "useSkillsStore"
 const SKILLS_LOAD_CACHE_TTL_MS = 5000
 const skillsLastLoadedAt = new Map<string, number>()
 const skillsCacheByKey = new Map<string, DiscoveredSkill[]>()
-const skillsLoadInFlight = new Map<string, { promise: Promise<boolean> }>()
+const skillsLoadInFlight = createSingleFlight<boolean>()
 const skillsLoadRequestIds = new Map<string, number>()
 let skillsLoadSequence = 0
 
@@ -158,17 +159,12 @@ export const useSkillsStore = create<SkillsStore>()(
             return true
           }
 
-          const inFlight = skillsLoadInFlight.get(cacheKey)
-          if (inFlight) {
-            return inFlight.promise
-          }
-
           const requestId = ++skillsLoadSequence
           skillsLoadRequestIds.set(cacheKey, requestId)
           const isCurrentLoad = () =>
             skillsLoadSequence === requestId && skillsLoadRequestIds.get(cacheKey) === requestId
 
-          const request = (async () => {
+          return skillsLoadInFlight.run(cacheKey, async () => {
             set({ isLoading: true })
             const previousSkills = get().skills
             let lastError: unknown = null
@@ -210,17 +206,7 @@ export const useSkillsStore = create<SkillsStore>()(
               set({ skills: previousSkills, isLoading: false })
             }
             return false
-          })()
-
-          const slot = { promise: request }
-          skillsLoadInFlight.set(cacheKey, slot)
-          try {
-            return await request
-          } finally {
-            if (skillsLoadInFlight.get(cacheKey) === slot) {
-              skillsLoadInFlight.delete(cacheKey)
-            }
-          }
+          })
         },
 
         getSkillDetail: async (name: string) => {
