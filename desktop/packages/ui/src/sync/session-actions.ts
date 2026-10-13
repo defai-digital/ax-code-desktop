@@ -17,6 +17,7 @@ import { useSessionUIStore } from "./session-ui-store"
 import { useInputStore } from "./input-store"
 import type { ChildStoreManager } from "./child-store"
 import { axCodeClient, ascendingId } from "@/lib/ax-code/client"
+import { formatSdkError } from "@/lib/ax-code/sdkError"
 // NOTE (SPEC-2026-08-30, S4.5): the session lifecycle event stream
 // (`session.created/updated/deleted` applied via sync/global-session-events.ts)
 // is the sole writer of record for `useGlobalSessionsStore`. The few remaining
@@ -126,24 +127,6 @@ function dir() {
 function scopedClientForDirectory(directory?: string | null): AxCodeClient {
   if (directory) return axCodeClient.getScopedSdkClient(directory)
   return sdk()
-}
-
-function formatSdkError(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === "string") return error
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message
-  }
-  try {
-    return JSON.stringify(error)
-  } catch {
-    return String(error)
-  }
 }
 
 function connectionLostError(): Error {

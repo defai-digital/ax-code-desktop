@@ -6,10 +6,31 @@ import { extractImportSpecifiers, type ImportSpecifier } from "./import-specifie
 
 const root = path.resolve(import.meta.dirname, "..")
 
+// Package-root files (Vite/build config and dev-only plugins) are scanned too:
+// they are TypeScript the repository ships and can import a sibling package's
+// source, so they belong to the same policy as src/server trees.
 const desktopSourceGlobs = [
+  "desktop/packages/ui/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
   "desktop/packages/ui/src/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+  "desktop/packages/web/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
   "desktop/packages/web/{src,server,bin}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+  "desktop/packages/electron/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
   "desktop/packages/electron/{src,scripts}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+]
+
+/**
+ * Reviewed dev-only exceptions to the sibling-source rule. Each entry pins the
+ * importing file AND the exact specifier, so any other cross-package import in
+ * the same file is still reported. These run inside the Vite build/dev config
+ * only and never reach a packaged application bundle.
+ */
+const devOnlySiblingSourceImports: ReadonlyArray<{ file: string; specifier: string; reason: string }> = [
+  {
+    file: "desktop/packages/web/vite-api-runtime-proxy.ts",
+    specifier: "../electron/src/api-prefix-router.js",
+    reason:
+      "Dev-mode Vite proxy reuses the packaged app:// route-ownership table so dev and packaged API routing stay in parity (SPEC-2026-08-29 S2.4b).",
+  },
 ]
 
 const blockedRuntimeAreas = ["session", "provider", "tool", "storage", "mcp", "workflow", "runtime", "config"]
@@ -104,6 +125,13 @@ function siblingSourcePackage(file: string, resolved: string | undefined) {
   return target
 }
 
+function isDevOnlySiblingSourceImport(file: string, specifier: string) {
+  const normalized = normalize(specifier)
+  return devOnlySiblingSourceImports.some(
+    (entry) => entry.file === rel(file) && entry.specifier === normalized,
+  )
+}
+
 function violation(
   file: string,
   item: ImportSpecifier,
@@ -146,7 +174,7 @@ export function analyzeDesktopSource(file: string, source: string) {
       violations.push(violation(file, item, DESKTOP_BOUNDARY_REASONS.webUiAlias, sourceLines))
     }
 
-    if (siblingSourcePackage(file, resolved)) {
+    if (siblingSourcePackage(file, resolved) && !isDevOnlySiblingSourceImport(file, item.specifier)) {
       violations.push(violation(file, item, DESKTOP_BOUNDARY_REASONS.siblingSource, sourceLines))
     }
   }

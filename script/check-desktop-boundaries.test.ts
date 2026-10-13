@@ -73,6 +73,20 @@ describe("Desktop source boundaries", () => {
   test("allows the UI package to use its own local alias", () => {
     expect(analyzeDesktopSource(uiSource, 'import "@/lib/http"')).toEqual([])
   })
+
+  test("allows only the reviewed dev-only sibling source import", () => {
+    const devProxy = path.join(root, "desktop/packages/web/vite-api-runtime-proxy.ts")
+    const siblingRootFile = path.join(root, "desktop/packages/web/vite-api-ws-proxy.ts")
+    const reviewed = 'const router = require("../electron/src/api-prefix-router.js")'
+
+    expect(analyzeDesktopSource(devProxy, reviewed)).toEqual([])
+    // the identical specifier from another file at the same depth is still a violation
+    expect(reasons(siblingRootFile, reviewed)).toEqual([DESKTOP_BOUNDARY_REASONS.siblingSource])
+    // a different sibling import in the reviewed file is still a violation
+    expect(reasons(devProxy, 'import other from "../electron/src/other.js"')).toEqual([
+      DESKTOP_BOUNDARY_REASONS.siblingSource,
+    ])
+  })
 })
 
 describe("Desktop manifest boundaries", () => {

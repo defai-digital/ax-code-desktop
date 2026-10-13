@@ -18,6 +18,7 @@ import type { PermissionRequest } from "@/types/permission"
 import type { QuestionRequest } from "@/types/question"
 import { waitForWorktreeBootstrap } from "@/lib/worktrees/worktreeBootstrap"
 import { buildAxCodeApiUrl, normalizeAxCodeSdkBaseUrl } from "./baseUrl"
+import { formatSdkError } from "./sdkError"
 import {
   assertProviderCircuitClosed,
   recordProviderSuccess,
@@ -42,30 +43,6 @@ const DEFAULT_BASE_URL = getConfiguredBaseUrl() || API_PATHS.base
 // spinning forever. The hung caller still awaits its own real result; only the
 // queue's readiness for the NEXT call is bounded.
 const DIRECTORY_CONTEXT_QUEUE_TIMEOUT_MS = 15_000
-
-/**
- * Render an SDK error payload into a short string for Error messages.
- * The SDK returns `{data, error}` shape without throwing on non-2xx; methods
- * that need to signal failure (so callers can preserve state instead of
- * conflating failure with an empty success) wrap the error with this helper.
- */
-function formatSdkError(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === "string") return error
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message
-  }
-  try {
-    return JSON.stringify(error)
-  } catch {
-    return String(error)
-  }
-}
 
 /**
  * Render a non-OK prompt_async response body into a user-facing message.
