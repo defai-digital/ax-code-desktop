@@ -28,7 +28,7 @@ import { useDeviceInfo } from "@/lib/device"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
 import type { EditorAPI } from "@/lib/api/types"
-import { clearCopyResetTimer, replaceCopyResetTimer } from "./copyResetTimer"
+import { clearReplaceableTimeout, resetReplaceableTimeout } from "@/lib/replaceableTimeout"
 import { getSafeMarkdownHref } from "./markdownLinks"
 import { sanitizeMermaidSvg } from "./sanitizeSvg"
 import { useStableMarkdownBlocks } from "./useMarkdownBlocks"
@@ -233,16 +233,16 @@ const TableCopyButton: React.FC<{ tableRef: React.RefObject<HTMLDivElement | nul
 
   React.useEffect(() => {
     return () => {
-      copiedResetTimerRef.current = clearCopyResetTimer(copiedResetTimerRef.current)
+      copiedResetTimerRef.current = clearReplaceableTimeout(copiedResetTimerRef.current)
     }
   }, [])
 
   const markCopied = React.useCallback(() => {
     setCopied(true)
-    copiedResetTimerRef.current = replaceCopyResetTimer(copiedResetTimerRef.current, () => {
+    copiedResetTimerRef.current = resetReplaceableTimeout(copiedResetTimerRef.current, () => {
       setCopied(false)
       copiedResetTimerRef.current = null
-    })
+    }, 2_000)
   }, [])
 
   const handleCopy = async (format: "csv" | "tsv") => {
@@ -433,25 +433,25 @@ const MermaidBlock: React.FC<{ source: string; mode: "svg" | "ascii"; deferRende
 
   React.useEffect(() => {
     return () => {
-      copiedResetTimerRef.current = clearCopyResetTimer(copiedResetTimerRef.current)
-      downloadedResetTimerRef.current = clearCopyResetTimer(downloadedResetTimerRef.current)
+      copiedResetTimerRef.current = clearReplaceableTimeout(copiedResetTimerRef.current)
+      downloadedResetTimerRef.current = clearReplaceableTimeout(downloadedResetTimerRef.current)
     }
   }, [])
 
   const markCopied = React.useCallback(() => {
     setCopied(true)
-    copiedResetTimerRef.current = replaceCopyResetTimer(copiedResetTimerRef.current, () => {
+    copiedResetTimerRef.current = resetReplaceableTimeout(copiedResetTimerRef.current, () => {
       setCopied(false)
       copiedResetTimerRef.current = null
-    })
+    }, 2_000)
   }, [])
 
   const markDownloaded = React.useCallback(() => {
     setDownloaded(true)
-    downloadedResetTimerRef.current = replaceCopyResetTimer(downloadedResetTimerRef.current, () => {
+    downloadedResetTimerRef.current = resetReplaceableTimeout(downloadedResetTimerRef.current, () => {
       setDownloaded(false)
       downloadedResetTimerRef.current = null
-    })
+    }, 2_000)
   }, [])
 
   const handleCopyAscii = async (asciiText: string) => {
@@ -737,7 +737,7 @@ const MarkdownCodeBlock: React.FC<{
 
   React.useEffect(() => {
     return () => {
-      copiedResetTimerRef.current = clearCopyResetTimer(copiedResetTimerRef.current)
+      copiedResetTimerRef.current = clearReplaceableTimeout(copiedResetTimerRef.current)
     }
   }, [])
 
@@ -745,10 +745,10 @@ const MarkdownCodeBlock: React.FC<{
     const result = await copyTextToClipboard(code)
     if (!result.ok) return
     setCopied(true)
-    copiedResetTimerRef.current = replaceCopyResetTimer(copiedResetTimerRef.current, () => {
+    copiedResetTimerRef.current = resetReplaceableTimeout(copiedResetTimerRef.current, () => {
       setCopied(false)
       copiedResetTimerRef.current = null
-    })
+    }, 2_000)
   }, [code])
 
   const handleDownload = React.useCallback(() => {

@@ -11,7 +11,7 @@ import { API_ENDPOINTS, HTTP_DEFAULTS } from "@/lib/http"
 import { desktopHostsGet, desktopHostsSet } from "@/lib/desktopHosts"
 import { useI18n } from "@/lib/i18n"
 import type { OnboardingPlatform } from "./types"
-import { clearOnboardingTimer, replaceOnboardingTimer } from "./onboardingTimers"
+import { clearReplaceableTimeout, resetReplaceableTimeout } from "@/lib/replaceableTimeout"
 import {
   getBinaryPathPlaceholder,
   getInstallCommand,
@@ -93,8 +93,8 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
 
   React.useEffect(() => {
     return () => {
-      copiedResetTimerRef.current = clearOnboardingTimer(copiedResetTimerRef.current)
-      applyingResetTimerRef.current = clearOnboardingTimer(applyingResetTimerRef.current)
+      copiedResetTimerRef.current = clearReplaceableTimeout(copiedResetTimerRef.current)
+      applyingResetTimerRef.current = clearReplaceableTimeout(applyingResetTimerRef.current)
     }
   }, [])
 
@@ -250,7 +250,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
       }
       await fetch(API_ENDPOINTS.config.reload, { method: "POST" })
     } finally {
-      applyingResetTimerRef.current = replaceOnboardingTimer(
+      applyingResetTimerRef.current = resetReplaceableTimeout(
         applyingResetTimerRef.current,
         () => {
           setIsApplyingPath(false)
@@ -265,7 +265,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
     const result = await copyTextToClipboard(getInstallCommand(platform))
     if (result.ok) {
       setCopied(true)
-      copiedResetTimerRef.current = replaceOnboardingTimer(
+      copiedResetTimerRef.current = resetReplaceableTimeout(
         copiedResetTimerRef.current,
         () => {
           setCopied(false)

@@ -10,7 +10,7 @@ import { openExternalUrl } from "@/lib/url"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "@/lib/http"
 import { useI18n } from "@/lib/i18n"
 import type { OnboardingPlatform } from "./types"
-import { clearOnboardingTimer, replaceOnboardingTimer } from "./onboardingTimers"
+import { clearReplaceableTimeout, resetReplaceableTimeout } from "@/lib/replaceableTimeout"
 import {
   getBinaryPathPlaceholder,
   getInstallCommand,
@@ -95,8 +95,8 @@ export function LocalSetupScreen({ onBack, onCliAvailable }: LocalSetupScreenPro
 
   React.useEffect(() => {
     return () => {
-      copiedResetTimerRef.current = clearOnboardingTimer(copiedResetTimerRef.current)
-      retryResetTimerRef.current = clearOnboardingTimer(retryResetTimerRef.current)
+      copiedResetTimerRef.current = clearReplaceableTimeout(copiedResetTimerRef.current)
+      retryResetTimerRef.current = clearReplaceableTimeout(retryResetTimerRef.current)
     }
   }, [])
 
@@ -221,7 +221,7 @@ export function LocalSetupScreen({ onBack, onCliAvailable }: LocalSetupScreenPro
 
       await fetch(API_ENDPOINTS.config.reload, { method: "POST" })
     } finally {
-      retryResetTimerRef.current = replaceOnboardingTimer(
+      retryResetTimerRef.current = resetReplaceableTimeout(
         retryResetTimerRef.current,
         () => {
           setIsRetrying(false)
@@ -236,7 +236,7 @@ export function LocalSetupScreen({ onBack, onCliAvailable }: LocalSetupScreenPro
     const result = await copyTextToClipboard(getInstallCommand(platform))
     if (result.ok) {
       setCopied(true)
-      copiedResetTimerRef.current = replaceOnboardingTimer(
+      copiedResetTimerRef.current = resetReplaceableTimeout(
         copiedResetTimerRef.current,
         () => {
           setCopied(false)

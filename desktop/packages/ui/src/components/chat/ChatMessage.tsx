@@ -39,7 +39,7 @@ import {
   areRelevantTurnGroupingContextsEqual,
 } from "./message/renderCompare"
 import { LazyToolOutputDialog } from "./message/LazyToolOutputDialog"
-import { clearCopyResetTimer, replaceCopyResetTimer } from "./copyResetTimer"
+import { clearReplaceableTimeout, resetReplaceableTimeout } from "@/lib/replaceableTimeout"
 import { isBashTool, isEditTool } from "./message/parts/toolRenderUtils"
 import { getAssistantErrorPresentation } from "./message/assistantErrorPresentation"
 
@@ -192,8 +192,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 
   React.useEffect(() => {
     return () => {
-      copiedCodeResetTimerRef.current = clearCopyResetTimer(copiedCodeResetTimerRef.current)
-      copiedMessageResetTimerRef.current = clearCopyResetTimer(copiedMessageResetTimerRef.current)
+      copiedCodeResetTimerRef.current = clearReplaceableTimeout(copiedCodeResetTimerRef.current)
+      copiedMessageResetTimerRef.current = clearReplaceableTimeout(copiedMessageResetTimerRef.current)
     }
   }, [])
 
@@ -645,10 +645,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         return
       }
       setCopiedCode(code)
-      copiedCodeResetTimerRef.current = replaceCopyResetTimer(copiedCodeResetTimerRef.current, () => {
+      copiedCodeResetTimerRef.current = resetReplaceableTimeout(copiedCodeResetTimerRef.current, () => {
         setCopiedCode(null)
         copiedCodeResetTimerRef.current = null
-      })
+      }, 2_000)
     })
   }, [])
 
@@ -796,10 +796,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     }
     if (isUser) {
       setCopiedMessage(true)
-      copiedMessageResetTimerRef.current = replaceCopyResetTimer(copiedMessageResetTimerRef.current, () => {
+      copiedMessageResetTimerRef.current = resetReplaceableTimeout(copiedMessageResetTimerRef.current, () => {
         setCopiedMessage(false)
         copiedMessageResetTimerRef.current = null
-      })
+      }, 2_000)
     }
     return true
   }, [isUser, messageTextContent])
