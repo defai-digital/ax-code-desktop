@@ -474,6 +474,14 @@ export const useKeyboardShortcuts = () => {
       }
 
       if (e.key === "Escape") {
+        // An Escape another handler consumed (closing a picker, a menu or a
+        // dialog, leaving shell mode) must not count toward the double-Escape
+        // abort — otherwise the next stray Escape stops the run.
+        if (e.defaultPrevented) {
+          resetAbortPriming()
+          return
+        }
+
         const target = e.target as Element | null
         const isInsideDialog = Boolean(target?.closest('[role="dialog"]'))
         const isSettingsMounted = Boolean(document.querySelector('[data-settings-view="true"]'))
