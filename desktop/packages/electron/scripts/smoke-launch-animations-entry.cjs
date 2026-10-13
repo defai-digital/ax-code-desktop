@@ -12,13 +12,34 @@ app.name = "AX Code Animation Smoke"
 fsSync.mkdirSync(process.env.AX_ANIMATION_SMOKE_DATA_DIR, { recursive: true })
 app.setPath("userData", process.env.AX_ANIMATION_SMOKE_DATA_DIR)
 app.on("window-all-closed", () => {})
+
+function mediaPreferenceWindow(value) {
+  return function SmokeWindow(options) {
+    const window = new BrowserWindow({
+      ...options,
+      webPreferences: { ...options.webPreferences, backgroundThrottling: false },
+    })
+    const loadURL = window.loadURL.bind(window)
+    window.loadURL = async (...args) => {
+      // Initialize a renderer before issuing CDP commands; an unloaded hidden
+      // window otherwise cannot answer the command before the playback timeout.
+      await loadURL("about:blank")
+      window.webContents.debugger.attach("1.3")
+      await window.webContents.debugger.sendCommand("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value }],
+      })
+      return loadURL(...args)
+    }
+    return window
+  }
+}
 app
   .whenReady()
   .then(async () => {
     const results = []
     for (const index of [0, 1, 35]) {
       const controller = createLaunchAnimationController({
-        BrowserWindow,
+        BrowserWindow: mediaPreferenceWindow("no-preference"),
         ipcMain,
         manifest,
         assetDir: path.join(__dirname, "../dist/launch-animations"),
@@ -42,7 +63,21 @@ app
       }
       controller.dispose()
     }
-    await fs.writeFile(process.env.AX_ANIMATION_SMOKE_OUTPUT, JSON.stringify({ results }, null, 2))
+    const reducedController = createLaunchAnimationController({
+      BrowserWindow: mediaPreferenceWindow("reduce"),
+      ipcMain,
+      manifest,
+      assetDir: path.join(__dirname, "../dist/launch-animations"),
+      preloadPath: path.join(__dirname, "../dist/launch-animation-preload.js"),
+      env: {},
+      showWindow: false,
+      random: () => 0,
+    })
+    const reducedMotion = await reducedController.playOpening()
+    reducedController.dispose()
+    if (reducedMotion.reason !== "reduced-motion" || reducedMotion.frames !== 0)
+      throw new Error("The production player did not respect reduced motion")
+    await fs.writeFile(process.env.AX_ANIMATION_SMOKE_OUTPUT, JSON.stringify({ results, reducedMotion }, null, 2))
     app.exit(0)
   })
   .catch((error) => {
