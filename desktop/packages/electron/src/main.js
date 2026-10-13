@@ -2443,6 +2443,9 @@ const setupTray = () => {
 const clearCacheAndReload = async () => {
   await session.defaultSession.clearStorageData()
   for (const browserWindow of BrowserWindow.getAllWindows()) {
+    // The storage clear can take seconds; a window closed meanwhile must be skipped
+    // like every other window fan-out in this file.
+    if (browserWindow.isDestroyed()) continue
     browserWindow.webContents.reload()
   }
 }
