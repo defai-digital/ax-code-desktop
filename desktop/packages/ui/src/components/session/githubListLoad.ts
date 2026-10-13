@@ -1,17 +1,15 @@
-import type { GitHubIssuesListResult } from "@/lib/api/types"
-
-type GitHubIssueListLoadResult =
-  | { status: "loaded"; result: GitHubIssuesListResult }
+export type GitHubListLoadResult<T> =
+  | { status: "loaded"; result: T }
   | { status: "stale" }
   | { status: "failed"; error: unknown }
 
-export const loadCurrentGitHubIssueList = async ({
+export const loadCurrentGitHubList = async <T>({
   load,
   isCurrent,
 }: {
-  load: () => Promise<GitHubIssuesListResult>
+  load: () => Promise<T>
   isCurrent: () => boolean
-}): Promise<GitHubIssueListLoadResult> => {
+}): Promise<GitHubListLoadResult<T>> => {
   try {
     const result = await load()
     if (!isCurrent()) {

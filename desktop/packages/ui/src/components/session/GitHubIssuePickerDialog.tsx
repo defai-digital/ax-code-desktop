@@ -32,26 +32,8 @@ import type {
 } from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n"
 import { loadCurrentGitHubIssueDetail } from "./githubIssueDetailLoad"
-import { loadCurrentGitHubIssueList } from "./githubIssueListLoad"
-
-const parseIssueNumber = (value: string): number | null => {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  const urlMatch = trimmed.match(/\/issues\/(\d+)(?:\b|\/|$)/i)
-  if (urlMatch) {
-    const parsed = Number(urlMatch[1])
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
-  }
-
-  const hashMatch = trimmed.match(/^#?(\d+)$/)
-  if (hashMatch) {
-    const parsed = Number(hashMatch[1])
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
-  }
-
-  return null
-}
+import { loadCurrentGitHubList } from "./githubListLoad"
+import { filterGitHubItemsByQuery, parseGitHubNumber } from "./githubPickerQuery"
 
 const buildIssueContextText = (args: {
   repo: GitHubIssuesListResult["repo"] | undefined
@@ -150,7 +132,7 @@ export function GitHubIssuePickerDialog({
 
     setIsLoading(true)
     setError(null)
-    const loaded = await loadCurrentGitHubIssueList({
+    const loaded = await loadCurrentGitHubList({
       load: () => github.issuesList(projectDirectory, { page: 1 }),
       isCurrent: () => listRequestRef.current === requestId,
     })
@@ -181,7 +163,7 @@ export function GitHubIssuePickerDialog({
     listRequestRef.current = requestId
     setIsLoadingMore(true)
     const nextPage = page + 1
-    const loaded = await loadCurrentGitHubIssueList({
+    const loaded = await loadCurrentGitHubList({
       load: () => github.issuesList(projectDirectory, { page: nextPage }),
       isCurrent: () => listRequestRef.current === requestId,
     })
@@ -243,16 +225,9 @@ export function GitHubIssuePickerDialog({
     setSettingsDialogOpen(true)
   }, [setSettingsDialogOpen, setSettingsPage])
 
-  const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return issues
-    return issues.filter((issue) => {
-      if (String(issue.number) === q.replace(/^#/, "")) return true
-      return issue.title.toLowerCase().includes(q)
-    })
-  }, [issues, query])
+  const filtered = React.useMemo(() => filterGitHubItemsByQuery(issues, query), [issues, query])
 
-  const directNumber = React.useMemo(() => parseIssueNumber(query), [query])
+  const directNumber = React.useMemo(() => parseGitHubNumber(query, "issues"), [query])
 
   const resolveDefaultAgentName = React.useCallback((): string | undefined => {
     const configState = useConfigStore.getState()

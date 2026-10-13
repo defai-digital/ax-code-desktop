@@ -22,27 +22,9 @@ import type {
 } from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n"
 import { getSafeExternalUrl, openExternalUrl } from "@/lib/url"
+import { loadCurrentGitHubList } from "./githubListLoad"
+import { filterGitHubItemsByQuery, parseGitHubNumber } from "./githubPickerQuery"
 import { loadCurrentGitHubPrAttach } from "./githubPrAttachLoad"
-import { loadCurrentGitHubPrList } from "./githubPrListLoad"
-
-const parsePrNumber = (value: string): number | null => {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  const urlMatch = trimmed.match(/\/pull\/(\d+)(?:\b|\/|$)/i)
-  if (urlMatch) {
-    const parsed = Number(urlMatch[1])
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
-  }
-
-  const hashMatch = trimmed.match(/^#?(\d+)$/)
-  if (hashMatch) {
-    const parsed = Number(hashMatch[1])
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
-  }
-
-  return null
-}
 
 const buildPullRequestContextText = (payload: GitHubPullRequestContextResult) => {
   return `GitHub pull request context (JSON)\n${JSON.stringify(payload, null, 2)}`
@@ -125,7 +107,7 @@ export function GitHubPrPickerDialog({
 
     setIsLoading(true)
     setError(null)
-    const loaded = await loadCurrentGitHubPrList({
+    const loaded = await loadCurrentGitHubList({
       load: () => github.prsList(projectDirectory, { page: 1 }),
       isCurrent: () => listRequestRef.current === requestId,
     })
@@ -156,7 +138,7 @@ export function GitHubPrPickerDialog({
     listRequestRef.current = requestId
     setIsLoadingMore(true)
     const nextPage = page + 1
-    const loaded = await loadCurrentGitHubPrList({
+    const loaded = await loadCurrentGitHubList({
       load: () => github.prsList(projectDirectory, { page: nextPage }),
       isCurrent: () => listRequestRef.current === requestId,
     })
@@ -213,16 +195,9 @@ export function GitHubPrPickerDialog({
     setSettingsDialogOpen(true)
   }, [setSettingsDialogOpen, setSettingsPage])
 
-  const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return prs
-    return prs.filter((pr) => {
-      if (String(pr.number) === q.replace(/^#/, "")) return true
-      return pr.title.toLowerCase().includes(q)
-    })
-  }, [prs, query])
+  const filtered = React.useMemo(() => filterGitHubItemsByQuery(prs, query), [prs, query])
 
-  const directNumber = React.useMemo(() => parsePrNumber(query), [query])
+  const directNumber = React.useMemo(() => parseGitHubNumber(query, "pull"), [query])
 
   const attachPr = React.useCallback(
     async (prNumber: number, sourceRepo?: GitHubRepoSelector | null) => {
