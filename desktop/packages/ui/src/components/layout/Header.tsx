@@ -772,9 +772,6 @@ export const Header: React.FC = () => {
   const toggleRightSidebar = useUIStore((state) => state.toggleRightSidebar)
   const openContextOverview = useUIStore((state) => state.openContextOverview)
   const openContextPlan = useUIStore((state) => state.openContextPlan)
-  const openContextBrowser = useUIStore((state) => state.openContextBrowser)
-  const browserPanel = useUIStore((state) => state.browserPanel)
-  const closeContextBrowser = useUIStore((state) => state.closeContextBrowser)
   const closeContextPanel = useUIStore((state) => state.closeContextPanel)
   const contextPanelByDirectory = useUIStore((state) => state.contextPanelByDirectory)
   const activeMainTab = useUIStore((state) => state.activeMainTab)
@@ -1407,15 +1404,6 @@ export const Header: React.FC = () => {
     openContextPlan(directory)
   }, [closeContextPanel, contextPanelByDirectory, openContextPlan, openDirectory])
 
-  const handleOpenContextBrowser = React.useCallback(() => {
-    // The browser is a single global panel — toggle it independent of the directory.
-    if (browserPanel.isOpen && browserPanel.focused) {
-      closeContextBrowser()
-      return
-    }
-    openContextBrowser("")
-  }, [browserPanel.isOpen, browserPanel.focused, closeContextBrowser, openContextBrowser])
-
   const isContextPlanActive = React.useMemo(() => {
     const directory = normalize(openDirectory || "")
     if (!directory) {
@@ -1424,11 +1412,6 @@ export const Header: React.FC = () => {
     const panelState = contextPanelByDirectory[directory]
     return getActiveContextMode(panelState) === "plan"
   }, [contextPanelByDirectory, openDirectory])
-
-  const isContextBrowserActive = React.useMemo(
-    () => browserPanel.isOpen && browserPanel.focused,
-    [browserPanel.isOpen, browserPanel.focused],
-  )
 
   const desktopHeaderIconButtonClass = DESKTOP_HEADER_ICON_BUTTON_CLASS
 
@@ -1817,13 +1800,6 @@ export const Header: React.FC = () => {
         onClick={toggleSplitPane}
         pressed={splitPaneEnabled}
         Icon={"layout-column"}
-      />
-      <HeaderIconActionButton
-        title={t("contextPanel.browser.open")}
-        ariaLabel={t("contextPanel.browser.open")}
-        onClick={handleOpenContextBrowser}
-        pressed={isContextBrowserActive}
-        Icon={"global"}
       />
       <WebMcpHeaderButton />
       <HeaderIconActionButton
