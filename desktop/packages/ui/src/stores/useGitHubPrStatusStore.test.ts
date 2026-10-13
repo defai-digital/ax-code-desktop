@@ -83,4 +83,51 @@ describe("useGitHubPrStatusStore", () => {
     expect(useGitHubPrStatusStore.getState().entries[originKey]?.status?.pr?.number).toBe(11)
     expect(useGitHubPrStatusStore.getState().entries[upstreamKey]?.status?.pr?.number).toBe(22)
   })
+
+  test("keeps only the most recently tracked entries", async () => {
+    const { getGitHubPrStatusKey, useGitHubPrStatusStore } = await loadStore()
+    useGitHubPrStatusStore.setState({ entries: {} })
+
+    const keys = Array.from({ length: 60 }, (_, index) => getGitHubPrStatusKey(`/repo-${index}`, "main", "origin"))
+    for (const key of keys) {
+      useGitHubPrStatusStore.getState().ensureEntry(key)
+    }
+
+    const tracked = Object.keys(useGitHubPrStatusStore.getState().entries)
+    // The map is persisted on every write, so an unbounded one grows memory and storage together.
+    expect(tracked).toHaveLength(50)
+    expect(tracked).toEqual(keys.slice(10))
+  })
+
+  test("never drops an entry something is still watching", async () => {
+    const { getGitHubPrStatusKey, useGitHubPrStatusStore } = await loadStore()
+    const watchedKey = getGitHubPrStatusKey("/watched", "main", "origin")
+    useGitHubPrStatusStore.setState({
+      entries: {
+        [watchedKey]: {
+          status: null,
+          isLoading: false,
+          error: null,
+          isInitialStatusResolved: false,
+          lastRefreshAt: 0,
+          lastDiscoveryPollAt: 0,
+          watchers: 1,
+          params: null,
+          identity: null,
+          resolvedRemoteName: null,
+        },
+      },
+    })
+
+    for (let index = 0; index < 60; index += 1) {
+      useGitHubPrStatusStore.getState().ensureEntry(getGitHubPrStatusKey(`/repo-${index}`, "main", "origin"))
+    }
+
+    const tracked = Object.keys(useGitHubPrStatusStore.getState().entries)
+    expect(tracked).toContain(watchedKey)
+    // The bound still holds: the slot is taken from the unwatched, least recent entries instead.
+    expect(tracked).toHaveLength(50)
+    expect(tracked).toContain(getGitHubPrStatusKey("/repo-59", "main", "origin"))
+    expect(tracked).not.toContain(getGitHubPrStatusKey("/repo-0", "main", "origin"))
+  })
 })

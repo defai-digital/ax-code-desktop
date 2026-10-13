@@ -24,6 +24,38 @@ const isPendingChecks = (status: GitHubPullRequestStatus | null): boolean => {
   return checks.state === "pending" || checks.pending > 0
 }
 
+// One entry per tracked (project, branch, remote) lives for the app session and is persisted, and
+// every write re-serializes the whole map, so an unbounded map grows both memory and the persisted
+// blob. Keep the most recently tracked entries only; a dropped entry is refetched on demand (the
+// status is stale after PR_REVALIDATE_TTL_MS anyway), and an entry someone is watching is never
+// dropped.
+const MAX_PR_STATUS_ENTRIES = 50
+
+export const boundPrStatusEntries = (
+  entries: Record<string, PrStatusEntry>,
+  keepKey?: string,
+): Record<string, PrStatusEntry> => {
+  const keys = Object.keys(entries)
+  if (keys.length <= MAX_PR_STATUS_ENTRIES) {
+    return entries
+  }
+
+  const bounded = { ...entries }
+  const excess = keys.length - MAX_PR_STATUS_ENTRIES
+  // Object keys keep insertion order, so the leading keys are the least recently tracked.
+  const victims = keys.filter((key) => key !== keepKey && (bounded[key].watchers ?? 0) === 0)
+  for (const victim of victims.slice(0, excess)) {
+    delete bounded[victim]
+  }
+  return bounded
+}
+
+const writeEntry = (
+  entries: Record<string, PrStatusEntry>,
+  key: string,
+  entry: PrStatusEntry,
+): Record<string, PrStatusEntry> => boundPrStatusEntries({ ...entries, [key]: entry }, key)
+
 export const getGitHubPrStatusKey = (directory: string, branch: string, remoteName?: string | null): string => {
   const remote = typeof remoteName === "string" ? remoteName.trim() : ""
   return remote ? `${directory}::${branch}::${remote}` : `${directory}::${branch}`
@@ -233,10 +265,7 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
             return state
           }
           return {
-            entries: {
-              ...state.entries,
-              [key]: createEntry(),
-            },
+            entries: writeEntry(state.entries, key, createEntry()),
           }
         })
       },
@@ -245,10 +274,7 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
         set((state) => {
           const current = state.entries[key] ?? createEntry()
           return {
-            entries: {
-              ...state.entries,
-              [key]: mergeParams(current, params),
-            },
+            entries: writeEntry(state.entries, key, mergeParams(current, params)),
           }
         })
       },
@@ -257,13 +283,10 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
         set((state) => {
           const current = state.entries[key] ?? createEntry()
           return {
-            entries: {
-              ...state.entries,
-              [key]: {
-                ...current,
-                watchers: current.watchers + 1,
-              },
-            },
+            entries: writeEntry(state.entries, key, {
+              ...current,
+              watchers: current.watchers + 1,
+            }),
           }
         })
 
@@ -315,13 +338,10 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
                 return state
               }
               return {
-                entries: {
-                  ...state.entries,
-                  [key]: {
-                    ...current,
-                    lastDiscoveryPollAt: now,
-                  },
-                },
+                entries: writeEntry(state.entries, key, {
+                  ...current,
+                  lastDiscoveryPollAt: now,
+                }),
               }
             })
             void get().refresh(key, { force: true, silent: true, markInitialResolved: true })
@@ -357,13 +377,10 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
 
           const watchers = Math.max(0, current.watchers - 1)
           return {
-            entries: {
-              ...state.entries,
-              [key]: {
-                ...current,
-                watchers,
-              },
-            },
+            entries: writeEntry(state.entries, key, {
+              ...current,
+              watchers,
+            }),
           }
         })
 
@@ -601,13 +618,10 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
         set((state) => {
           const current = state.entries[key] ?? createEntry()
           return {
-            entries: {
-              ...state.entries,
-              [key]: {
-                ...current,
-                status: updater(current.status),
-              },
-            },
+            entries: writeEntry(state.entries, key, {
+              ...current,
+              status: updater(current.status),
+            }),
           }
         })
       },
@@ -635,8 +649,8 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
         const current = currentState as GitHubPrStatusStore
         return {
           ...current,
-          entries: Object.fromEntries(
-            Object.entries(persistedEntries).map(([key, entry]) => [key, hydrateEntry(entry)]),
+          entries: boundPrStatusEntries(
+            Object.fromEntries(Object.entries(persistedEntries).map(([key, entry]) => [key, hydrateEntry(entry)])),
           ),
         }
       },
