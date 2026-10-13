@@ -5,6 +5,7 @@ import {
   analyzeDesktopManifest,
   analyzeDesktopSource,
   collectDesktopBoundaryViolations,
+  collectDesktopSourceFiles,
 } from "./check-desktop-boundaries"
 
 const root = path.resolve(import.meta.dirname, "..")
@@ -109,3 +110,16 @@ describe("Desktop manifest boundaries", () => {
 test("the current Desktop tree satisfies the authoritative boundary policy", async () => {
   expect(await collectDesktopBoundaryViolations()).toEqual([])
 }, 30_000)
+
+test("the scan covers the package script trees, not only src and server", async () => {
+  const files = await collectDesktopSourceFiles()
+  const covered = (directory: string) => files.some((file) => file.includes(`/desktop/packages/${directory}/`))
+
+  expect(covered("ui/src")).toBe(true)
+  expect(covered("ui/scripts")).toBe(true)
+  expect(covered("web/src")).toBe(true)
+  expect(covered("web/server")).toBe(true)
+  expect(covered("web/scripts")).toBe(true)
+  expect(covered("electron/src")).toBe(true)
+  expect(covered("electron/scripts")).toBe(true)
+})

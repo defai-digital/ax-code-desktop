@@ -12,9 +12,9 @@ const root = path.resolve(import.meta.dirname, "..")
 // source, so they belong to the same policy as src/server trees.
 const desktopSourceGlobs = [
   "desktop/packages/ui/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
-  "desktop/packages/ui/src/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+  "desktop/packages/ui/{src,scripts}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
   "desktop/packages/web/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
-  "desktop/packages/web/{src,server,bin}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
+  "desktop/packages/web/{src,server,bin,scripts}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
   "desktop/packages/electron/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
   "desktop/packages/electron/{src,scripts}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
 ]
@@ -114,9 +114,7 @@ function siblingSourcePackage(file: string, resolved: string | undefined) {
 
 function isDevOnlySiblingSourceImport(file: string, specifier: string) {
   const normalized = normalize(specifier)
-  return devOnlySiblingSourceImports.some(
-    (entry) => entry.file === rel(file) && entry.specifier === normalized,
-  )
+  return devOnlySiblingSourceImports.some((entry) => entry.file === rel(file) && entry.specifier === normalized)
 }
 
 function violation(
@@ -199,13 +197,17 @@ export function analyzeDesktopManifest(file: string, source: string) {
   return violations
 }
 
-export async function collectDesktopBoundaryViolations() {
-  const files = await fg(desktopSourceGlobs, {
+export async function collectDesktopSourceFiles() {
+  return fg(desktopSourceGlobs, {
     cwd: root,
     absolute: true,
     onlyFiles: true,
     ignore: ["**/node_modules/**", "**/dist/**", "**/out/**", "**/resources/**"],
   })
+}
+
+export async function collectDesktopBoundaryViolations() {
+  const files = await collectDesktopSourceFiles()
 
   const violations: DesktopBoundaryViolation[] = []
   for (const file of files.sort()) {
@@ -227,6 +229,15 @@ export async function collectDesktopBoundaryViolations() {
 
 async function main() {
   const warnOnly = process.argv.includes("--warn-only")
+  // A glob that stops matching (renamed tree, typo) would otherwise report a clean pass over
+  // nothing, which is the one failure mode this check cannot detect from its own output.
+  const scanned = await collectDesktopSourceFiles()
+  if (scanned.length === 0) {
+    console.error("Desktop boundary check found no files to scan")
+    process.exitCode = 1
+    return
+  }
+
   const violations = await collectDesktopBoundaryViolations()
 
   if (!violations.length) {
