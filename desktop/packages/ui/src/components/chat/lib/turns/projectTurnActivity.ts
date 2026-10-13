@@ -125,7 +125,11 @@ export const projectTurnActivity = (input: ProjectActivityInput): ProjectActivit
         part.type === "text" &&
         text &&
         !isConfirmedSummaryText &&
-        (messageHasTool || (typeof finish === "string" && finish !== "stop"))
+        // A stop-finished message is a completed answer, never narration: when a
+        // turn contains two answers, the earlier one must stay visible too, not
+        // fold into the collapsed activity just because its message also ran tools.
+        finish !== "stop" &&
+        (messageHasTool || typeof finish === "string")
       ) {
         kind = "justification"
       }
