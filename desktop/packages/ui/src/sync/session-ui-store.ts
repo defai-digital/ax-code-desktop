@@ -47,6 +47,7 @@ import { EXECUTION_FORK_META_TEXT } from "@/lib/messages/executionMeta"
 import { waitForWorktreeBootstrap } from "@/lib/worktrees/worktreeBootstrap"
 import { waitForPendingDraftWorktreeRequest } from "@/lib/worktrees/pendingDraftWorktree"
 import { resolveProjectForSessionDirectory } from "@/lib/projectResolution"
+import { extractMessageModelRef } from "@/lib/messageModelRef"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 import { getSyncSessions, getAllSyncSessions, getSyncMessages, getSyncParts, getDirectoryState } from "./sync-refs"
 import { markSessionViewed } from "./notification-store"
@@ -1371,25 +1372,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         continue
       }
 
-      const providerID =
-        typeof message.model?.providerID === "string" && message.model.providerID.trim().length > 0
-          ? message.model.providerID
-          : undefined
-      const modelID =
-        typeof message.model?.modelID === "string" && message.model.modelID.trim().length > 0
-          ? message.model.modelID
-          : undefined
-      const agent =
-        typeof message.agent === "string" && message.agent.trim().length > 0
-          ? message.agent
-          : typeof message.mode === "string" && message.mode.trim().length > 0
-            ? message.mode
-            : undefined
-      const variantCandidate = message.model?.variant ?? message.variant
-      const variant =
-        typeof variantCandidate === "string" && variantCandidate.trim().length > 0 ? variantCandidate : undefined
-
-      return { agent, providerID, modelID, variant }
+      return extractMessageModelRef(message)
     }
     return null
   },

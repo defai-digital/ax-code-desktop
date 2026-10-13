@@ -27,6 +27,7 @@ import { getAgentColor } from "@/lib/agentColors"
 import { mergeModelMetadataWithLiveModel } from "@/lib/modelMetadata"
 import { getEditModeColors } from "@/lib/permissions/editModeColors"
 import { isProviderModelSelectable } from "@/lib/providerModelAvailability"
+import { extractMessageModelRef } from "@/lib/messageModelRef"
 import { cn, fuzzyMatch } from "@/lib/utils"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
@@ -556,27 +557,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
         continue
       }
 
-      const providerID =
-        typeof message.model?.providerID === "string" && message.model.providerID.trim().length > 0
-          ? message.model.providerID
-          : undefined
-      const modelID =
-        typeof message.model?.modelID === "string" && message.model.modelID.trim().length > 0
-          ? message.model.modelID
-          : undefined
-      const agent =
-        typeof message.agent === "string" && message.agent.trim().length > 0
-          ? message.agent
-          : typeof message.mode === "string" && message.mode.trim().length > 0
-            ? message.mode
-            : undefined
-      // AX Code 1.4.0 moved variant from top-level to model.variant.
-      // Prefer the new location, fall back to the legacy one for older servers.
-      const variantCandidate = message.model?.variant ?? message.variant
-      const variant =
-        typeof variantCandidate === "string" && variantCandidate.trim().length > 0 ? variantCandidate : undefined
-
-      return { id: message.id, agent, providerID, modelID, variant }
+      return { id: message.id, ...extractMessageModelRef(message) }
     }
     return null
   }, [currentSessionMessagesFromSync])
