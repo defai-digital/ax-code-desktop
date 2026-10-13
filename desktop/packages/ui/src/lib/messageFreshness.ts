@@ -1,5 +1,11 @@
 import type { Message } from "@defai-digital/ax-code-sdk/v2"
 
+// The id containers below are keyed by message id and live for the process lifetime, so a session
+// that browses many messages would grow them without bound. Keep the newest entries only (the same
+// order of magnitude as the other render caches in this app). Evicting is safe: a dropped id is
+// re-evaluated on the next render, and an old message is never fresh again.
+const MAX_TRACKED_MESSAGE_IDS = 5000
+
 export class MessageFreshnessDetector {
   private static instance: MessageFreshnessDetector
   private sessionStartTimes: Map<string, number> = new Map()
@@ -7,6 +13,22 @@ export class MessageFreshnessDetector {
   private messageCreationTimes: Map<string, number> = new Map()
 
   private constructor() {}
+
+  private trackMessage(messageId: string, createdTime: number): void {
+    this.seenMessageIds.add(messageId)
+    this.messageCreationTimes.set(messageId, createdTime)
+
+    if (this.seenMessageIds.size <= MAX_TRACKED_MESSAGE_IDS) {
+      return
+    }
+
+    // A Set keeps insertion order, so the first key is the oldest surviving id.
+    const oldest = this.seenMessageIds.keys().next().value
+    if (oldest !== undefined) {
+      this.seenMessageIds.delete(oldest)
+      this.messageCreationTimes.delete(oldest)
+    }
+  }
 
   static getInstance(): MessageFreshnessDetector {
     if (!MessageFreshnessDetector.instance) {
@@ -35,16 +57,14 @@ export class MessageFreshnessDetector {
     const sessionStartTime = this.sessionStartTimes.get(sessionId)
 
     if (!sessionStartTime) {
-      this.seenMessageIds.add(message.id)
-      this.messageCreationTimes.set(message.id, message.time.created)
+      this.trackMessage(message.id, message.time.created)
       return false
     }
 
     const isFresh = message.time.created > sessionStartTime - 5000
 
     if (!isFresh) {
-      this.seenMessageIds.add(message.id)
-      this.messageCreationTimes.set(message.id, message.time.created)
+      this.trackMessage(message.id, message.time.created)
     }
 
     return isFresh
@@ -63,8 +83,7 @@ export class MessageFreshnessDetector {
   }
 
   markMessageAsAnimated(messageId: string, createdTime: number): void {
-    this.seenMessageIds.add(messageId)
-    this.messageCreationTimes.set(messageId, createdTime)
+    this.trackMessage(messageId, createdTime)
   }
 
   clearAll(): void {
