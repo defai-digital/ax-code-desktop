@@ -2,8 +2,22 @@ import { getRemotes, getStatus } from "../git/index.js"
 import { resolveGitHubRepoFromDirectory } from "./repo/index.js"
 
 const REPO_DEFAULT_BRANCH_TTL_MS = 5 * 60_000
+// Both caches live for the process lifetime and are keyed by repo, so visiting many repos (or
+// forks of them) would grow them without bound. Cap them the way the sibling repo cache does
+// (`repo/fork-detection.js`), evicting the oldest entry before inserting a new key.
+const REPO_RESOLUTION_CACHE_MAX_ENTRIES = 200
 const defaultBranchCache = new Map()
 const repoMetadataCache = new Map()
+
+export const setCappedCacheEntry = (cache, key, value) => {
+  if (cache.size >= REPO_RESOLUTION_CACHE_MAX_ENTRIES && !cache.has(key)) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) {
+      cache.delete(oldest)
+    }
+  }
+  cache.set(key, value)
+}
 
 // Caches above are keyed by repo, not by GitHub account, so a switch of the
 // active account (see routes.js auth/activate, auth/complete, DELETE auth)
@@ -175,7 +189,7 @@ const getRepoDefaultBranch = async (octokit, repo) => {
       repo: repo.repo,
     })
     const defaultBranch = normalizeText(response?.data?.default_branch) || null
-    defaultBranchCache.set(repoKey, {
+    setCappedCacheEntry(defaultBranchCache, repoKey, {
       defaultBranch,
       fetchedAt: Date.now(),
     })
@@ -202,14 +216,14 @@ const getRepoMetadata = async (octokit, repo) => {
       repo: repo.repo,
     })
     const data = response?.data ?? null
-    repoMetadataCache.set(repoKey, {
+    setCappedCacheEntry(repoMetadataCache, repoKey, {
       data,
       fetchedAt: Date.now(),
     })
     return data
   } catch (error) {
     if (error?.status === 403 || error?.status === 404) {
-      repoMetadataCache.set(repoKey, {
+      setCappedCacheEntry(repoMetadataCache, repoKey, {
         data: null,
         fetchedAt: Date.now(),
       })
