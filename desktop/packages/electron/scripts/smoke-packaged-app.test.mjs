@@ -1,3 +1,4 @@
+import path from "node:path"
 import { describe, expect, test } from "vitest"
 import {
   buildSmokeAppArgs,
@@ -9,9 +10,17 @@ import {
   parseArgs,
   readExpectedBundledAxCodeVersion,
   resolveBundledPhaseAction,
+  resolveDesktopRoot,
 } from "./smoke-packaged-app.mjs"
 
 describe("smoke-packaged-app args", () => {
+  test("resolves the desktop root from the module URL without percent-encoding", () => {
+    const moduleUrl =
+      "file:///Users/a/my%20project/ax-code-desktop/desktop/packages/electron/scripts/smoke-packaged-app.mjs"
+
+    expect(resolveDesktopRoot(moduleUrl)).toBe(path.resolve("/Users/a/my project/ax-code-desktop/desktop"))
+  })
+
   test("expects the independently pinned runtime rather than the Desktop release version", async () => {
     expect(await readExpectedBundledAxCodeVersion({})).toBe("7.25.3")
     expect(await readExpectedBundledAxCodeVersion({ AX_CODE_DESKTOP_SMOKE_EXPECTED_AX_CODE_VERSION: "v7.24.3" })).toBe(

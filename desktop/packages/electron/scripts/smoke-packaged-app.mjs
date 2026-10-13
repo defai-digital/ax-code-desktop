@@ -10,7 +10,11 @@ import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { readRuntimePin } from "../../../../script/runtime-pin.mjs"
 
-const desktopRoot = path.resolve(new URL("../../..", import.meta.url).pathname)
+// `.pathname` keeps percent-encoding, so a checkout under a path with a space or a non-ASCII
+// character resolved to a directory that does not exist and the default app path was never found.
+export const resolveDesktopRoot = (moduleUrl) => path.resolve(fileURLToPath(new URL("../../..", moduleUrl)))
+
+const desktopRoot = resolveDesktopRoot(import.meta.url)
 const execFileAsync = promisify(execFile)
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const DEFAULT_TIMEOUT_MS = 45_000
