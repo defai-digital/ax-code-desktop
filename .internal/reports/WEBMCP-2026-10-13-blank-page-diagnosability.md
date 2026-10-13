@@ -87,8 +87,12 @@ Consumer (this repository):
 
 - Producer: `pnpm --dir packages/ax-code run typecheck` passed; `test/mcp/desktop-browser.test.ts`,
   `desktop-browser-native.test.ts`, `desktop-browser-chrome-mode.test.ts`, `browser-routing.test.ts`
-  and `test/tool/skill-invocation.test.ts` passed. The deterministic CI group result is recorded in the
-  commit message of the producer change.
+  and `test/tool/skill-invocation.test.ts` passed. The deterministic CI group passed with the producer
+  change applied: 1286 test files, 14299 tests passed, 22 skipped, zero failures.
+- Producer commit: the four producer files landed on `ax-code` `main` in `2879d899d` ("Count MCP and
+  browser_workflow tools in the preflight schema estimate"). A concurrent session committed with the
+  whole index while these files were staged, so they share that commit with unrelated preflight work.
+  The content is identical to the reviewed change; the history was deliberately not rewritten.
 - Consumer: `pnpm run typecheck`, `pnpm run lint` (one pre-existing warning), `pnpm run check:locales`
   (14 locales, 4409 keys), the full UI vitest suite (266 files) and the Electron WebMCP tests passed.
 
