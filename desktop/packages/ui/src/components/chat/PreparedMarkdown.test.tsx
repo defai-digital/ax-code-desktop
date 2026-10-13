@@ -44,3 +44,30 @@ describe("Worker Markdown rendering parity", () => {
     expect(html).not.toContain("<img")
   })
 })
+
+describe("malformed markdown fallback", () => {
+  test("renders pathologically nested markdown as plain text instead of crashing the chat", async () => {
+    const React = await import("react")
+    const { createRoot } = await import("react-dom/client")
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+
+    // Deep nesting overflows remark during render; the boundary must catch it.
+    const text = "> ".repeat(6000) + "deep"
+    const container = document.createElement("div")
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    React.act(() => {
+      root.render(<PreparedMarkdown block={buildFullMarkdownBlock(text, "test")} components={{}} />)
+    })
+
+    expect(container.textContent).toContain("deep")
+
+    React.act(() => root.unmount())
+    container.remove()
+  })
+})
+
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined
+}

@@ -118,4 +118,13 @@ describe("buildLiveMarkdownBlocks", () => {
     expect(blocks).toHaveLength(1)
     expect(blocks[0]?.mode).toBe("live")
   })
+
+  test("pathologically nested input falls back to one live block instead of throwing", () => {
+    // Deep nesting overflows the marked lexer (stack); the chat must not crash.
+    const text = "> ".repeat(2500) + "deep"
+    const { blocks } = buildLiveMarkdownBlocks(text, BASE_KEY, null)
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]?.mode).toBe("live")
+    expect(blocks[0]?.raw).toBe(text)
+  })
 })

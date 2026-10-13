@@ -13,17 +13,43 @@ function remarkPreparsed(this: Processor, tree: Root) {
   this.parser = () => tree
 }
 
+// Pathologically nested or malformed Markdown can throw inside ReactMarkdown's
+// render (e.g. a stack overflow in remark). Show the original source instead of
+// taking down the whole chat boundary.
+class MarkdownRenderBoundary extends React.Component<{ raw: string; children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  componentDidUpdate(prevProps: { raw: string }) {
+    if (prevProps.raw !== this.props.raw && this.state.failed) {
+      this.setState({ failed: false })
+    }
+  }
+
+  render() {
+    if (this.state.failed) {
+      return <div className="whitespace-pre-wrap break-words">{this.props.raw}</div>
+    }
+    return this.props.children
+  }
+}
+
 export const PreparedMarkdown = React.memo(
   ({ block, components }: { block: ParsedMarkdownBlock; components: Components }) => {
     if (block.plain) return <div className="whitespace-pre-wrap">{block.raw}</div>
     return (
-      <ReactMarkdown
-        remarkPlugins={block.tree ? [remarkGfm, remarkMath, [remarkPreparsed, block.tree]] : [remarkGfm, remarkMath]}
-        rehypePlugins={[[rehypeKatex, { throwOnError: false, errorColor: "var(--destructive)" }]]}
-        components={components}
-      >
-        {block.src}
-      </ReactMarkdown>
+      <MarkdownRenderBoundary raw={block.raw}>
+        <ReactMarkdown
+          remarkPlugins={block.tree ? [remarkGfm, remarkMath, [remarkPreparsed, block.tree]] : [remarkGfm, remarkMath]}
+          rehypePlugins={[[rehypeKatex, { throwOnError: false, errorColor: "var(--destructive)" }]]}
+          components={components}
+        >
+          {block.src}
+        </ReactMarkdown>
+      </MarkdownRenderBoundary>
     )
   },
 )

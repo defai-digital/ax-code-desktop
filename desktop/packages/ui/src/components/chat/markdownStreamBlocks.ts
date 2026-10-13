@@ -103,7 +103,14 @@ export const buildLiveMarkdownBlocks = (
   const stableBlocks = canReusePrefix ? cache.stableBlocks : []
   const stablePrefixLength = canReusePrefix ? cache.stablePrefixLength : 0
 
-  const tokens = marked.lexer(text.slice(stablePrefixLength))
+  let tokens: ReturnType<typeof marked.lexer>
+  try {
+    tokens = marked.lexer(text.slice(stablePrefixLength))
+  } catch {
+    // Pathologically nested or malformed input can overflow the lexer; fall back
+    // to one live block so the text renders instead of crashing the chat.
+    return { blocks: [buildWholeLiveBlock(text, baseKey)], cache: emptyCache(baseKey, text) }
+  }
 
   let lastMeaningfulIndex = -1
   for (let index = 0; index < tokens.length; index += 1) {
