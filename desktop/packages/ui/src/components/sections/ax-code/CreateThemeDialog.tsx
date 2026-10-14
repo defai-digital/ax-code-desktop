@@ -23,7 +23,7 @@ type ThemeVariant = "light" | "dark"
 type CreateThemeDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  reloadCustomThemes: () => Promise<void>
+  reloadCustomThemes: () => Promise<Theme[] | null>
   /** Selects the saved theme once the reloaded theme list contains it. */
   onThemeSaved: (saved: { id: string; variant: ThemeVariant }) => void
 }
@@ -151,8 +151,14 @@ export function CreateThemeDialog({ open, onOpenChange, reloadCustomThemes, onTh
       if (!response.ok) {
         throw new Error("Theme save failed")
       }
-      onThemeSaved({ id: theme.metadata.id, variant })
-      await reloadCustomThemes()
+      const savedId = theme.metadata.id
+      const reloaded = await reloadCustomThemes()
+      // Arm the selection only when the reloaded list actually holds the theme: a
+      // failed or empty reload used to leave a pending selection behind that the next
+      // successful reload applied on its own, silently changing the user's theme.
+      if (reloaded?.some((candidate) => candidate.metadata.id === savedId)) {
+        onThemeSaved({ id: savedId, variant })
+      }
       onOpenChange(false)
       toast.success(t("settings.openchamber.visual.createTheme.toast.saved"))
     } catch {

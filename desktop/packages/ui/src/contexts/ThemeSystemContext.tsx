@@ -259,9 +259,9 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
       : ensureThemeById(preferences.lightThemeId, "light")
   }, [ensureThemeById, preferences, systemPrefersDark])
 
-  const reloadCustomThemes = useCallback(async () => {
+  const reloadCustomThemes = useCallback(async (): Promise<Theme[] | null> => {
     if (typeof window === "undefined") {
-      return
+      return null
     }
 
     setCustomThemesLoading(true)
@@ -276,19 +276,21 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
 
       if (res.status === 401) {
         // UI auth gate will handle prompting; avoid noisy retries here.
-        return
+        return null
       }
 
       if (!res.ok) {
-        return
+        return null
       }
 
       const payload = await res.json()
       const incoming = Array.isArray(payload?.themes) ? payload.themes : []
       const normalized = incoming.filter(isValidCustomTheme)
       setCustomThemes(normalized)
+      return normalized
     } catch {
       // ignore
+      return null
     } finally {
       setCustomThemesLoading(false)
     }

@@ -44,7 +44,7 @@ describe("CreateThemeDialog", () => {
     const defaults = {
       open: true,
       onOpenChange: vi.fn(),
-      reloadCustomThemes: vi.fn(async () => {}),
+      reloadCustomThemes: vi.fn(async () => []),
       onThemeSaved: vi.fn(),
     }
     const merged = { ...defaults, ...props }
@@ -118,7 +118,6 @@ describe("CreateThemeDialog", () => {
   })
 
   test("posts the generated theme, reloads themes, and asks for it to be selected", async () => {
-    const reloadCustomThemes = vi.fn(async () => {})
     const onOpenChange = vi.fn()
     const onThemeSaved = vi.fn()
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -127,6 +126,11 @@ describe("CreateThemeDialog", () => {
       return { ok: true, json: async () => ({}) }
     })
     vi.stubGlobal("fetch", fetchMock)
+    // The selection is armed only for a theme the reloaded list actually holds.
+    const reloadCustomThemes = vi.fn(async () => {
+      const sent = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body)) as { theme?: { metadata?: unknown } }
+      return sent.theme ? [{ metadata: sent.theme.metadata }] : []
+    })
     renderDialog({ reloadCustomThemes, onOpenChange, onThemeSaved })
 
     const nameInput = container.querySelector("input") as HTMLInputElement
@@ -155,6 +159,32 @@ describe("CreateThemeDialog", () => {
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(toastSuccess).toHaveBeenCalledOnce()
+  })
+
+  test("does not arm a selection when the reloaded list never holds the theme", async () => {
+    // Regression: the pending selection survived a failed reload, so the next
+    // successful one silently switched the user's theme.
+    const onThemeSaved = vi.fn()
+    const reloadCustomThemes = vi.fn(async () => null)
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input
+      void init
+      return { ok: true, json: async () => ({}) }
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    renderDialog({ reloadCustomThemes, onThemeSaved })
+
+    const nameInput = container.querySelector("input") as HTMLInputElement
+    act(() => setInputValue(nameInput, "Ocean Blue"))
+    const saveButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Save theme",
+    )
+    await act(async () => {
+      saveButton?.click()
+    })
+
+    expect(reloadCustomThemes).toHaveBeenCalledOnce()
+    expect(onThemeSaved).not.toHaveBeenCalled()
   })
 
   test("gives distinct names distinct ids that fit the server rule", async () => {
