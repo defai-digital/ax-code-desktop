@@ -161,16 +161,28 @@ export const useChatTurnNavigation = ({
     resumeToBottom()
   }, [resumeToBottom])
 
+  // Hash targets are applied once. Re-applying on every new turn (the effect depends on
+  // turnIds.length so the target may not exist yet when the hash arrives) would drag the
+  // reader back to a stale turn and release the follow whenever a turn is appended.
+  const appliedHashRef = React.useRef<string | null>(null)
+
   React.useEffect(() => {
     if (!sessionId || typeof window === "undefined") {
       return
     }
 
     const applyHash = () => {
-      const target = parseChatHashTarget(window.location.hash)
+      const hash = window.location.hash
+      if (hash && appliedHashRef.current === hash) {
+        return
+      }
+
+      const target = parseChatHashTarget(hash)
       if (!target) {
         return
       }
+
+      appliedHashRef.current = hash
 
       if (target.kind === "turn") {
         void scrollToTurnId(target.id, { behavior: "auto", updateHash: false })
