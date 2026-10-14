@@ -2119,6 +2119,8 @@
   "sessions.sidebar.session.archive.error": "Gagal mengarsipkan sesi",
   "sessions.sidebar.session.unarchive.success": "Sesi dipulihkan",
   "sessions.sidebar.session.unarchive.error": "Gagal memulihkan sesi",
+  "sessions.sidebar.session.rename.error": "Gagal mengganti nama sesi",
+  "sessions.sidebar.session.abort.error": "Gagal menghentikan proses",
   "sessions.sidebar.group.pr.checksPassed": "{success}/{total} pemeriksaan lolos",
   "sessions.sidebar.group.pr.failingCount": "{count} gagal",
   "sessions.sidebar.group.pr.pendingCount": "{count} tertunda",

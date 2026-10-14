@@ -2125,6 +2125,8 @@
   "sessions.sidebar.session.archive.error": "Kh\u00f4ng l\u01b0u tr\u1eef \u0111\u01b0\u1ee3c phi\u00ean",
   "sessions.sidebar.session.unarchive.success": "\u0110\u00e3 kh\u00f4i ph\u1ee5c phi\u00ean",
   "sessions.sidebar.session.unarchive.error": "Kh\u00f4ng kh\u00f4i ph\u1ee5c \u0111\u01b0\u1ee3c phi\u00ean",
+  "sessions.sidebar.session.rename.error": "Kh\u00f4ng \u0111\u1ed5i \u0111\u01b0\u1ee3c t\u00ean phi\u00ean",
+  "sessions.sidebar.session.abort.error": "Kh\u00f4ng d\u1eebng \u0111\u01b0\u1ee3c ti\u1ebfn tr\u00ecnh",
   "sessions.sidebar.group.pr.checksPassed": "{success}/{total} ki\u1ec3m tra \u0111\u00e3 \u0111\u1ea1t",
   "sessions.sidebar.group.pr.failingCount": "{count} th\u1ea5t b\u1ea1i",
   "sessions.sidebar.group.pr.pendingCount": "{count} \u0111ang ch\u1edd",

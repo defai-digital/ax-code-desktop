@@ -2119,6 +2119,8 @@
   "sessions.sidebar.session.archive.error": "\u5c01\u5b58\u5de5\u4f5c\u968e\u6bb5\u5931\u6557",
   "sessions.sidebar.session.unarchive.success": "\u5df2\u9084\u539f\u5de5\u4f5c\u968e\u6bb5",
   "sessions.sidebar.session.unarchive.error": "\u9084\u539f\u5de5\u4f5c\u968e\u6bb5\u5931\u6557",
+  "sessions.sidebar.session.rename.error": "\u7121\u6cd5\u91cd\u65b0\u547d\u540d\u5de5\u4f5c\u968e\u6bb5",
+  "sessions.sidebar.session.abort.error": "\u7121\u6cd5\u505c\u6b62\u57f7\u884c",
   "sessions.sidebar.group.pr.checksPassed": "{success}/{total} \u9805\u6aa2\u67e5\u901a\u904e",
   "sessions.sidebar.group.pr.failingCount": "{count} \u9805\u5931\u6557",
   "sessions.sidebar.group.pr.pendingCount": "{count} \u9805\u5f85\u8655\u7406",

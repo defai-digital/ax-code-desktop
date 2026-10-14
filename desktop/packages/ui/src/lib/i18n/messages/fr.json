@@ -2119,6 +2119,8 @@
   "sessions.sidebar.session.archive.error": "\u00c9chec de l\u2019archivage de la session",
   "sessions.sidebar.session.unarchive.success": "Session restaur\u00e9e",
   "sessions.sidebar.session.unarchive.error": "\u00c9chec de la restauration de la session",
+  "sessions.sidebar.session.rename.error": "\u00c9chec du renommage de la session",
+  "sessions.sidebar.session.abort.error": "\u00c9chec de l'arr\u00eat de l'ex\u00e9cution",
   "sessions.sidebar.group.pr.checksPassed": "{success}/{total} v\u00e9rifications r\u00e9ussies",
   "sessions.sidebar.group.pr.failingCount": "{count} en \u00e9chec",
   "sessions.sidebar.group.pr.pendingCount": "{count} en attente",

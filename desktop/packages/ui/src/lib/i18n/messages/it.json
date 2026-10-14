@@ -2125,6 +2125,8 @@
   "sessions.sidebar.session.archive.error": "Impossibile archiviare la sessione",
   "sessions.sidebar.session.unarchive.success": "Sessione ripristinata",
   "sessions.sidebar.session.unarchive.error": "Impossibile ripristinare la sessione",
+  "sessions.sidebar.session.rename.error": "Impossibile rinominare la sessione",
+  "sessions.sidebar.session.abort.error": "Impossibile interrompere l'esecuzione",
   "sessions.sidebar.group.pr.checksPassed": "{success}/{total} controlli superati",
   "sessions.sidebar.group.pr.failingCount": "{count} non superati",
   "sessions.sidebar.group.pr.pendingCount": "{count} in sospeso",

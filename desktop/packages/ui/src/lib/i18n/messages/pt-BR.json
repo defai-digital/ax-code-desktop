@@ -2119,6 +2119,8 @@
   "sessions.sidebar.session.archive.error": "Falha ao arquivar sess\u00e3o",
   "sessions.sidebar.session.unarchive.success": "Sess\u00e3o restaurada",
   "sessions.sidebar.session.unarchive.error": "Falha ao restaurar sess\u00e3o",
+  "sessions.sidebar.session.rename.error": "Falha ao renomear a sess\u00e3o",
+  "sessions.sidebar.session.abort.error": "Falha ao interromper a execu\u00e7\u00e3o",
   "sessions.sidebar.group.pr.checksPassed": "{success}/{total} verifica\u00e7\u00f5es aprovadas",
   "sessions.sidebar.group.pr.failingCount": "{count} com falha",
   "sessions.sidebar.group.pr.pendingCount": "{count} pendentes",

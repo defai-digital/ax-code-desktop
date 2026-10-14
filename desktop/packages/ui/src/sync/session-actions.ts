@@ -614,7 +614,7 @@ function rollbackOptimisticRemoval(store: ReturnType<typeof getDirectoryStore>, 
   })
 }
 
-type SessionActionFailureKind = "delete" | "archive" | "unarchive"
+type SessionActionFailureKind = "delete" | "archive" | "unarchive" | "rename" | "abort"
 
 // Surface action failures from this layer so no caller can silently drop them.
 // A stable toast id dedups repeats — the same failing action retried in a loop
@@ -624,6 +624,20 @@ function notifySessionActionFailure(kind: SessionActionFailureKind): void {
   toast.error(formatMessage(dictionary, `sessions.sidebar.session.${kind}.error`), {
     id: `session-action-${kind}-failed`,
   })
+}
+
+/**
+ * The generated SDK resolves with `{ error }` instead of throwing on non-2xx
+ * responses (see lib/ax-code/sdkError.ts), so every awaited mutating call has
+ * to check the result. Without this a rejected request is applied as a success:
+ * the optimistic removal stays, the persisted per-session state is dropped, and
+ * the session reappears on the next load with no error shown.
+ */
+function assertSessionCallSucceeded(result: { error?: unknown } | null | undefined, action: string): void {
+  if (!result || typeof result !== "object" || !result.error) {
+    return
+  }
+  throw new Error(`${action} failed: ${formatSdkError(result.error)}`)
 }
 
 export async function deleteSession(sessionId: string, options?: { notify?: boolean }): Promise<boolean> {
@@ -654,10 +668,11 @@ export async function deleteSession(sessionId: string, options?: { notify?: bool
     ui.setCurrentSession(null)
   }
   try {
-    await scopedClientForDirectory(sessionDirectory).session.delete({
+    const result = await scopedClientForDirectory(sessionDirectory).session.delete({
       sessionID: sessionId,
       directory: sessionDirectory,
     })
+    assertSessionCallSucceeded(result, "deleteSession")
     // Optimistic removal (load-bearing): hard-delete callers (confirm dialog,
     // bulk delete) have no pendingRemoval undo window, so this post-success
     // write is the only guaranteed instant sidebar update — a dropped
@@ -688,11 +703,12 @@ export async function archiveSession(sessionId: string, options?: { notify?: boo
   }
   try {
     const archivedAt = Date.now()
-    await scopedClientForDirectory(sessionDirectory).session.update({
+    const result = await scopedClientForDirectory(sessionDirectory).session.update({
       sessionID: sessionId,
       directory: sessionDirectory,
       time: { archived: archivedAt },
     })
+    assertSessionCallSucceeded(result, "archiveSession")
     // Optimistic bucket move (load-bearing): hard-archive callers (confirm
     // dialog, bulk archive) have no pendingRemoval undo window, so this
     // post-success write is the instant sidebar update; the
@@ -718,11 +734,12 @@ export async function unarchiveSession(sessionId: string, options?: { notify?: b
   try {
     // No manual global-store write: the session.updated(time.archived=null)
     // event restores the session to the active list (S4.5 single writer).
-    await scopedClientForDirectory(sessionDirectory).session.update({
+    const result = await scopedClientForDirectory(sessionDirectory).session.update({
       sessionID: sessionId,
       directory: sessionDirectory,
       time: { archived: null },
     })
+    assertSessionCallSucceeded(result, "unarchiveSession")
     return true
   } catch (error) {
     console.error("[session-actions] unarchiveSession failed", error)
@@ -733,13 +750,20 @@ export async function unarchiveSession(sessionId: string, options?: { notify?: b
 
 export async function updateSessionTitle(sessionId: string, title: string): Promise<void> {
   const sessionDirectory = getSessionDirectory(sessionId)
-  // No manual global-store write: the session.updated event applies the new
-  // title to the global index (S4.5 single writer).
-  await scopedClientForDirectory(sessionDirectory).session.update({
-    sessionID: sessionId,
-    directory: sessionDirectory,
-    title,
-  })
+  try {
+    // No manual global-store write: the session.updated event applies the new
+    // title to the global index (S4.5 single writer).
+    const result = await scopedClientForDirectory(sessionDirectory).session.update({
+      sessionID: sessionId,
+      directory: sessionDirectory,
+      title,
+    })
+    assertSessionCallSucceeded(result, "updateSessionTitle")
+  } catch (error) {
+    console.error("[session-actions] updateSessionTitle failed", error)
+    notifySessionActionFailure("rename")
+    throw error
+  }
 }
 
 export async function validateSessionMoveTarget(
@@ -922,17 +946,22 @@ export async function abortCurrentOperation(sessionId: string): Promise<void> {
   // run continues, and the runtime answers an abort for a foreign project with
   // a 409 that leaves the run going.
   const directory = getSessionDirectory(sessionId)
-  // Record the user-initiated stop before the call: the busy -> idle edge it
-  // produces must not immediately fire the queued-message auto-send, and the
-  // status row shows the aborted state until the next user message
-  // (acknowledged in sendMessage) re-arms the working indicator.
+  // Arm the stop marker before the request: the abort's busy -> idle edge can
+  // reach the client over SSE before the response does, and it must not fire
+  // the queued-message auto-send. Cleared again below when the runtime refused
+  // the abort, so a run that keeps going is not reported as stopped.
   if (sessionId) {
     useSessionUIStore.getState().markSessionAborted(sessionId)
   }
   try {
-    await sdk().session.abort({ sessionID: sessionId, directory })
+    const result = await sdk().session.abort({ sessionID: sessionId, directory })
+    assertSessionCallSucceeded(result, "abortCurrentOperation")
   } catch (error) {
     console.error("[session-actions] abort failed", error)
+    if (sessionId) {
+      useSessionUIStore.getState().clearSessionAbort(sessionId)
+    }
+    notifySessionActionFailure("abort")
   }
 }
 

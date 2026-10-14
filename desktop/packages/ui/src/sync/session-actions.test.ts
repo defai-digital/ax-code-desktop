@@ -8,10 +8,13 @@ import { useConnectionStore } from "@/lib/event-stream/connection-state"
 const replyCalls: Array<{ method: string; params: Record<string, unknown> }> = []
 const createSessionCalls: Array<{ client: "scoped" | "global"; params: Record<string, unknown> }> = []
 const sessionCalls: Array<{ method: string; params: Record<string, unknown> }> = []
+const toastErrorMock = vi.fn()
 const setCurrentSessionMock = vi.fn()
 const markSessionAbortedMock = vi.fn()
+const clearSessionAbortMock = vi.fn()
 const upsertSessionMock = vi.fn()
 const removeSessionsMock = vi.fn()
+const archiveSessionsMock = vi.fn()
 const registeredSessionDirectories: Array<{ sessionID: string; directory: string }> = []
 const inputCalls: Array<{ method: string; params?: Record<string, unknown> }> = []
 let mockCurrentSessionId: string | null = null
@@ -174,6 +177,10 @@ const mockScopedClient = {
         },
       })
     }),
+    delete: vi.fn((params: Record<string, unknown>) => {
+      sessionCalls.push({ method: "session.delete", params })
+      return Promise.resolve({ data: true })
+    }),
   },
   question: {
     reply: vi.fn((params: Record<string, unknown>) => {
@@ -223,6 +230,9 @@ const mockSdk = {
 // Mock axCodeClient singleton. `ascendingId` is a pure, monotonic id generator used by
 // optimisticSend — provide a faithful stub so store insertion order (sorted by id) is stable.
 let mockIdCounter = 0
+vi.doMock("@/components/ui", () => ({
+  toast: { error: toastErrorMock, success: vi.fn(), message: vi.fn() },
+}))
 vi.doMock("@/lib/ax-code/client", () => ({
   axCodeClient: {
     getScopedSdkClient: () => mockScopedClient,
@@ -253,6 +263,7 @@ vi.doMock("./session-ui-store", () => ({
       },
       setCurrentSession: setCurrentSessionMock,
       markSessionAborted: markSessionAbortedMock,
+      clearSessionAbort: clearSessionAbortMock,
     }),
   },
 }))
@@ -292,6 +303,7 @@ vi.doMock("@/stores/useGlobalSessionsStore", () => ({
     getState: () => ({
       upsertSession: upsertSessionMock,
       removeSessions: removeSessionsMock,
+      archiveSessions: archiveSessionsMock,
     }),
   },
 }))
@@ -475,6 +487,119 @@ describe("unarchiveSession", () => {
     // S4.5: no manual global-store write — the session.updated(archived: null)
     // event is the writer of record that restores the session to active.
     expect(upsertSessionMock).not.toHaveBeenCalled()
+  })
+})
+
+describe("session mutations treat an SDK error response as a failure", () => {
+  beforeEach(() => {
+    sessionCalls.length = 0
+    toastErrorMock.mockClear()
+    removeSessionsMock.mockClear()
+    markSessionAbortedMock.mockClear()
+  })
+
+  test("deleteSession rolls back and reports failure when the SDK answers with an error", async () => {
+    // The generated SDK resolves with `{ error }` instead of throwing on a
+    // non-2xx response; treating that as success deleted the session from the
+    // UI, dropped its persisted state and showed no error.
+    const store = createStore({})
+    store.setState({
+      session: [{ id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session],
+    })
+    mockScopedClient.session.delete.mockImplementationOnce((params: Record<string, unknown>) => {
+      sessionCalls.push({ method: "session.delete", params })
+      return Promise.resolve({ error: { message: "Internal error" } } as never)
+    })
+
+    const { deleteSession, setActionRefs } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/test/project", store]]),
+      () => "/test/project",
+    )
+
+    await expect(deleteSession("session-a")).resolves.toBe(false)
+
+    expect(store.getState().session.map((session) => session.id)).toEqual(["session-a"])
+    expect(removeSessionsMock).not.toHaveBeenCalled()
+    expect(toastErrorMock).toHaveBeenCalledWith("Failed to delete session", {
+      id: "session-action-delete-failed",
+    })
+  })
+
+  test("archiveSession rolls back and reports failure when the SDK answers with an error", async () => {
+    const store = createStore({})
+    store.setState({
+      session: [{ id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session],
+    })
+    mockScopedClient.session.update.mockImplementationOnce((params: Record<string, unknown>) => {
+      sessionCalls.push({ method: "session.update", params })
+      return Promise.resolve({ error: { message: "Internal error" } } as never)
+    })
+
+    const { archiveSession, setActionRefs } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/test/project", store]]),
+      () => "/test/project",
+    )
+
+    await expect(archiveSession("session-a")).resolves.toBe(false)
+
+    expect(store.getState().session.map((session) => session.id)).toEqual(["session-a"])
+    expect(archiveSessionsMock).not.toHaveBeenCalled()
+    expect(toastErrorMock).toHaveBeenCalledWith("Failed to archive session", {
+      id: "session-action-archive-failed",
+    })
+  })
+
+  test("updateSessionTitle surfaces the failure instead of silently keeping the old title", async () => {
+    mockScopedClient.session.update.mockImplementationOnce((params: Record<string, unknown>) => {
+      sessionCalls.push({ method: "session.update", params })
+      return Promise.resolve({ error: { message: "Internal error" } } as never)
+    })
+
+    const { setActionRefs, updateSessionTitle } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/test/project", createStore({})]]),
+      () => "/test/project",
+    )
+
+    await expect(updateSessionTitle("session-a", "new title")).rejects.toThrow(/Internal error/)
+    expect(toastErrorMock).toHaveBeenCalledWith("Failed to rename session", {
+      id: "session-action-rename-failed",
+    })
+  })
+
+  test("a rejected abort clears the stop marker it armed", async () => {
+    mockSdk.session.abort.mockImplementationOnce((params: Record<string, unknown>) => {
+      sessionCalls.push({ method: "session.abort", params })
+      return Promise.resolve({ error: { message: "Run is not active" } } as never)
+    })
+
+    const { abortCurrentOperation, setActionRefs } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/test/project", createStore({})]]),
+      () => "/test/project",
+    )
+
+    await abortCurrentOperation("session-a")
+    // The marker is armed before the call (the idle edge can beat the response)
+    // and cleared again when the runtime refused the abort.
+    expect(markSessionAbortedMock).toHaveBeenCalledWith("session-a")
+    expect(clearSessionAbortMock).toHaveBeenCalledWith("session-a")
+    expect(toastErrorMock).toHaveBeenCalledWith("Failed to stop the run", {
+      id: "session-action-abort-failed",
+    })
+
+    markSessionAbortedMock.mockClear()
+    clearSessionAbortMock.mockClear()
+
+    await abortCurrentOperation("session-a")
+    expect(markSessionAbortedMock).toHaveBeenCalledWith("session-a")
+    expect(clearSessionAbortMock).not.toHaveBeenCalled()
   })
 })
 

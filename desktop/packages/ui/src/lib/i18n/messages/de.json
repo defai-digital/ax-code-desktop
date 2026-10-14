@@ -2125,6 +2125,8 @@
   "sessions.sidebar.session.archive.error": "Sitzung konnte nicht archiviert werden",
   "sessions.sidebar.session.unarchive.success": "Sitzung wiederhergestellt",
   "sessions.sidebar.session.unarchive.error": "Sitzung konnte nicht wiederhergestellt werden",
+  "sessions.sidebar.session.rename.error": "Umbenennen der Sitzung fehlgeschlagen",
+  "sessions.sidebar.session.abort.error": "Ausf\u00fchrung konnte nicht gestoppt werden",
   "sessions.sidebar.group.pr.checksPassed": "{success}/{total} Pr\u00fcfungen bestanden",
   "sessions.sidebar.group.pr.failingCount": "{count} fehlgeschlagen",
   "sessions.sidebar.group.pr.pendingCount": "{count} ausstehend",

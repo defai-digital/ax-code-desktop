@@ -343,6 +343,7 @@ type SessionUIState = {
   setDraftPreserveDirectoryOverride: (value: boolean) => void
   acknowledgeSessionAbort: (sessionId: string) => void
   markSessionAborted: (sessionId: string) => void
+  clearSessionAbort: (sessionId: string) => void
   clearAbortPrompt: () => void
   armAbortPrompt: (durationMs?: number) => number | null
   clearError: () => void
@@ -754,6 +755,16 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     set((s) => {
       const flags = new Map(s.sessionAbortFlags)
       flags.set(sessionId, { timestamp: Date.now(), acknowledged: false })
+      return { sessionAbortFlags: flags }
+    })
+  },
+
+  clearSessionAbort: (sessionId) => {
+    if (!sessionId) return
+    set((s) => {
+      if (!s.sessionAbortFlags.has(sessionId)) return s
+      const flags = new Map(s.sessionAbortFlags)
+      flags.delete(sessionId)
       return { sessionAbortFlags: flags }
     })
   },

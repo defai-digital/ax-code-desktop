@@ -336,4 +336,17 @@ describe("session abort flags lifecycle", () => {
 
     expect(useSessionUIStore.getState().sessionAbortFlags.size).toBe(0)
   })
+
+  test("clearSessionAbort drops a marker armed for an abort the runtime refused", () => {
+    useSessionUIStore.getState().markSessionAborted("session-y")
+    expect(useSessionUIStore.getState().sessionAbortFlags.has("session-y")).toBe(true)
+
+    useSessionUIStore.getState().clearSessionAbort("session-y")
+    expect(useSessionUIStore.getState().sessionAbortFlags.has("session-y")).toBe(false)
+
+    // Clearing an unknown session leaves the map reference stable.
+    const before = useSessionUIStore.getState().sessionAbortFlags
+    useSessionUIStore.getState().clearSessionAbort("session-absent")
+    expect(useSessionUIStore.getState().sessionAbortFlags).toBe(before)
+  })
 })

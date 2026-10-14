@@ -469,6 +469,8 @@ export const dict = {
   "sessions.sidebar.session.archive.error": "Failed to archive session",
   "sessions.sidebar.session.unarchive.success": "Session restored",
   "sessions.sidebar.session.unarchive.error": "Failed to restore session",
+  "sessions.sidebar.session.rename.error": "Failed to rename session",
+  "sessions.sidebar.session.abort.error": "Failed to stop the run",
   "sessions.sidebar.group.pr.checksPassed": "{success}/{total} checks passed",
   "sessions.sidebar.group.pr.failingCount": "{count} failing",
   "sessions.sidebar.group.pr.pendingCount": "{count} pending",

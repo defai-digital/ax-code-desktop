@@ -2125,6 +2125,8 @@
   "sessions.sidebar.session.archive.error": "\uc138\uc158\uc744 \ubcf4\uad00\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
   "sessions.sidebar.session.unarchive.success": "\uc138\uc158\uc744 \ubcf5\uc6d0\ud588\uc2b5\ub2c8\ub2e4",
   "sessions.sidebar.session.unarchive.error": "\uc138\uc158\uc744 \ubcf5\uc6d0\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
+  "sessions.sidebar.session.rename.error": "\uc138\uc158 \uc774\ub984\uc744 \ubc14\uafb8\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
+  "sessions.sidebar.session.abort.error": "\uc2e4\ud589\uc744 \uc911\uc9c0\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
   "sessions.sidebar.group.pr.checksPassed": "\uac80\uc0ac {success}/{total}\uac1c \ud1b5\uacfc",
   "sessions.sidebar.group.pr.failingCount": "{count}\uac1c \uc2e4\ud328",
   "sessions.sidebar.group.pr.pendingCount": "{count}\uac1c \ub300\uae30 \uc911",

@@ -2119,6 +2119,8 @@
   "sessions.sidebar.session.archive.error": "No se pudo archivar la sesi\u00f3n",
   "sessions.sidebar.session.unarchive.success": "Sesi\u00f3n restaurada",
   "sessions.sidebar.session.unarchive.error": "No se pudo restaurar la sesi\u00f3n",
+  "sessions.sidebar.session.rename.error": "No se pudo cambiar el nombre de la sesi\u00f3n",
+  "sessions.sidebar.session.abort.error": "No se pudo detener la ejecuci\u00f3n",
   "sessions.sidebar.group.pr.checksPassed": "{success}/{total} comprobaciones superadas",
   "sessions.sidebar.group.pr.failingCount": "{count} fallidas",
   "sessions.sidebar.group.pr.pendingCount": "{count} pendientes",

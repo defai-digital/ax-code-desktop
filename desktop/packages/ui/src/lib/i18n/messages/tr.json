@@ -2125,6 +2125,8 @@
   "sessions.sidebar.session.archive.error": "Oturum ar\u015fivlenemedi",
   "sessions.sidebar.session.unarchive.success": "Oturum geri y\u00fcklendi",
   "sessions.sidebar.session.unarchive.error": "Oturum geri y\u00fcklenemedi",
+  "sessions.sidebar.session.rename.error": "Oturum yeniden adland\u0131r\u0131lamad\u0131",
+  "sessions.sidebar.session.abort.error": "\u00c7al\u0131\u015ft\u0131rma durdurulamad\u0131",
   "sessions.sidebar.group.pr.checksPassed": "{success}/{total} denetim ge\u00e7ti",
   "sessions.sidebar.group.pr.failingCount": "{count} ba\u015far\u0131s\u0131z",
   "sessions.sidebar.group.pr.pendingCount": "{count} beklemede",
