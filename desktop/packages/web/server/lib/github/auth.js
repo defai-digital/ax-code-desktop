@@ -1,3 +1,4 @@
+import crypto from "crypto"
 import fs from "fs"
 import path from "path"
 import os from "os"
@@ -87,7 +88,11 @@ function resolveAccountId({ user, accessToken, accountId }) {
     return String(user.id)
   }
   if (typeof accessToken === "string" && accessToken.trim()) {
-    return `token:${accessToken.slice(0, 8)}`
+    // The fallback id must stay stable for the same token (it is the dedupe
+    // key in setGitHubAuth) but must not embed raw token characters, since the
+    // id is persisted and can reach the renderer via the accounts list.
+    const digest = crypto.createHash("sha256").update(accessToken).digest("hex").slice(0, 12)
+    return `token:${digest}`
   }
   return ""
 }

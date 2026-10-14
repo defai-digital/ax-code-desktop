@@ -110,6 +110,28 @@ describe("github auth storage", () => {
     }
   })
 
+  it("derives token-fallback account ids without exposing token characters", async () => {
+    const { setGitHubAuth } = await importAuth()
+    const token = "ghp_secretvalue1234567890"
+    setGitHubAuth({ accessToken: token })
+
+    const stored = JSON.parse(fs.readFileSync(authFile(), "utf8"))
+    expect(stored).toHaveLength(1)
+    const accountId = stored[0].accountId
+    expect(accountId.startsWith("token:")).toBe(true)
+    expect(accountId).not.toContain(token.slice(0, 8))
+    expect(token.startsWith(accountId.slice("token:".length))).toBe(false)
+
+    // Deterministic: re-storing the same token replaces instead of duplicating.
+    setGitHubAuth({ accessToken: token })
+    expect(JSON.parse(fs.readFileSync(authFile(), "utf8"))).toHaveLength(1)
+
+    setGitHubAuth({ accessToken: "ghp_othervalue0987654321" })
+    const two = JSON.parse(fs.readFileSync(authFile(), "utf8"))
+    expect(two).toHaveLength(2)
+    expect(two[1].accountId).not.toBe(two[0].accountId)
+  })
+
   it("loads a configured GitHub client id without a preflight existence check", async () => {
     fs.writeFileSync(settingsFile(), JSON.stringify({ githubClientId: "custom-client" }), "utf8")
     const originalExistsSync = fs.existsSync
