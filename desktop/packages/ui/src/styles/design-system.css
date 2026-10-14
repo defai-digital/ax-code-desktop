@@ -86,8 +86,8 @@
     --accent-foreground: #ededed;
     --destructive: #e5484d;
     --destructive-foreground: #0a0a0a;
-    --border: #1f1f1f;
-    --input: #1f1f1f;
+    --border: #292929;
+    --input: #292929;
     --ring: #46a758;
     --chart-1: #52a8ff;
     --chart-2: #46a758;
@@ -100,7 +100,7 @@
     --sidebar-primary-foreground: #06120a;
     --sidebar-accent: #1f1f1f;
     --sidebar-accent-foreground: #ededed;
-    --sidebar-border: #1f1f1f;
+    --sidebar-border: #292929;
     --sidebar-ring: #46a758;
     --sidebar-stuck-bg: var(--sidebar); /* Desktop sidebar sticky header background (match sidebar) */
     --elevation-popover:
