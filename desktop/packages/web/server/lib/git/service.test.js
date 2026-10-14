@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { simpleGit } from "simple-git"
 
 import {
+  checkoutBranch,
   checkoutCommit,
   cherryPick,
   countStashFiles,
@@ -498,5 +499,55 @@ describe("hash validation", () => {
     await expect(resetToCommit("/tmp", "1234567890abcdef1234567890abcdef12345678", "soft")).rejects.not.toThrow(
       "Invalid commit hash",
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// checkoutBranch
+// ---------------------------------------------------------------------------
+
+describe("checkoutBranch", () => {
+  it("turns a remote-tracking branch into the local branch that tracks it", async () => {
+    // `git checkout origin/feature` detaches HEAD; a commit made there belongs to no
+    // branch, so the remote-tracking name must become a local branch instead.
+    const { tmpDir, git } = await createTempRepo()
+    await fs.promises.writeFile(path.join(tmpDir, "file.txt"), "one\n", "utf8")
+    await git.add("file.txt")
+    await git.commit("Initial commit")
+    // A real remote, so the fetched ref is a genuine remote-tracking branch. The
+    // remote branch is pushed from a differently named local one, so no local
+    // `feature` exists and the checkout has to create it.
+    const remoteDir = createTempDir()
+    runGit(remoteDir, ["init", "--bare"])
+    await git.addRemote("origin", remoteDir)
+    await git.checkoutBranch("feature-source", "HEAD")
+    await git.push("origin", "feature-source:refs/heads/feature")
+    await git.checkout("main")
+    await git.fetch("origin")
+
+    const result = await checkoutBranch(tmpDir, "origin/feature")
+
+    expect(result).toEqual({ success: true, branch: "feature" })
+    const status = await git.status()
+    expect(status.detached).toBe(false)
+    expect((await git.branch()).current).toBe("feature")
+    // The local branch tracks the remote-tracking ref it was created from.
+    const upstream = await git.raw(["rev-parse", "--abbrev-ref", "feature@{upstream}"])
+    expect(upstream.trim()).toBe("origin/feature")
+  })
+
+  it("checks out an existing local branch by its remote-tracking name", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    await fs.promises.writeFile(path.join(tmpDir, "file.txt"), "one\n", "utf8")
+    await git.add("file.txt")
+    await git.commit("Initial commit")
+    await git.checkoutBranch("feature", "HEAD")
+    await git.checkout("main")
+    await git.raw(["update-ref", "refs/remotes/origin/feature", "refs/heads/feature"])
+
+    const result = await checkoutBranch(tmpDir, "origin/feature")
+
+    expect(result).toEqual({ success: true, branch: "feature" })
+    expect((await git.branch()).current).toBe("feature")
   })
 })

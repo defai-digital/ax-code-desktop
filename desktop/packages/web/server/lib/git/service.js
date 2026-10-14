@@ -2784,12 +2784,67 @@ export async function checkoutBranch(directory, branchName) {
   const { git } = await createRepositoryGitContext(directory)
 
   try {
-    await git.checkout(branchName)
-    return { success: true, branch: branchName }
+    const target = await resolveCheckoutBranchName(git, branchName)
+    // `git checkout origin/feature` detaches HEAD when the remote-tracking ref
+    // resolves: the new commits then belong to no branch and are easy to lose. A
+    // remote-tracking name therefore becomes (or reuses) a local branch that tracks it.
+    if (target.remoteRef) {
+      if (target.existsLocally) {
+        await git.checkout(target.local)
+        await git.raw(["branch", "--set-upstream-to", target.remoteRef, target.local]).catch(() => {})
+      } else {
+        try {
+          // --track explicitly, so the upstream is set regardless of the user's
+          // branch.autoSetupMerge setting.
+          await git.raw(["checkout", "-b", target.local, "--track", target.remoteRef])
+        } catch {
+          // Without a configured remote there is nothing to track, but the local
+          // branch must still be created rather than detaching HEAD.
+          await git.raw(["checkout", "-b", target.local, target.remoteRef])
+        }
+      }
+    } else {
+      await git.checkout(target.local)
+    }
+    return { success: true, branch: target.local }
   } catch (error) {
     console.error("Failed to checkout branch:", error)
     throw error
   }
+}
+
+/** Resolve `origin/feature` to the local branch it should be worked on. */
+async function resolveCheckoutBranchName(git, branchName) {
+  const name = String(branchName || "").trim()
+  if (!name) {
+    return { local: name, remoteRef: null, existsLocally: false }
+  }
+
+  const locals = await git
+    .branchLocal()
+    .then((result) => (Array.isArray(result?.all) ? result.all : []))
+    .catch(() => [])
+
+  if (locals.includes(name)) {
+    return { local: name, remoteRef: null, existsLocally: true }
+  }
+
+  const remotes = await git
+    .branch(["-r"])
+    .then((result) => (Array.isArray(result?.all) ? result.all : []))
+    .catch(() => [])
+
+  if (!remotes.includes(name)) {
+    return { local: name, remoteRef: null, existsLocally: false }
+  }
+
+  const separator = name.indexOf("/")
+  if (separator <= 0) {
+    return { local: name, remoteRef: null, existsLocally: false }
+  }
+
+  const local = name.slice(separator + 1)
+  return { local, remoteRef: name, existsLocally: locals.includes(local) }
 }
 
 export async function checkoutCommit(directory, hash) {
