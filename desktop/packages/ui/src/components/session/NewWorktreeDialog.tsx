@@ -24,6 +24,7 @@ import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
 import { validateWorktreeCreate, createWorktree, removeProjectWorktree } from "@/lib/worktrees/worktreeManager"
 import { withWorktreeUpstreamDefaults } from "@/lib/worktrees/worktreeCreate"
+import { normalizeBranchName, resolvePrWorktreeConfig } from "@/lib/git/prWorktreeConfig"
 import { getWorktreeSetupCommands } from "@/lib/openchamberConfig"
 import { getRootBranch } from "@/lib/worktrees/worktreeStatus"
 import { generateBranchSlug } from "@/lib/git/branchNameGenerator"
@@ -75,15 +76,6 @@ interface ExistingBranchState {
   worktreeName: string
 }
 
-const normalizeBranchName = (value: string): string => {
-  return value
-    .trim()
-    .replace(/^refs\/heads\//, "")
-    .replace(/^heads\//, "")
-    .replace(/\s+/g, "-")
-    .replace(/^\/+|\/+$/g, "")
-}
-
 const slugifyWorktreeName = (value: string): string => {
   return value
     .trim()
@@ -100,78 +92,6 @@ const slugifyWorktreeName = (value: string): string => {
 }
 
 const LAST_SOURCE_BRANCH_KEY = "oc:lastWorktreeSourceBranch"
-
-const sanitizeRemoteName = (value: string): string => {
-  const normalized = String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "")
-  return normalized || "pr-head"
-}
-
-const resolvePrWorktreeConfig = (pr: GitHubPullRequestSummary, localBranches: string[], remoteBranches: string[]) => {
-  const headBranch = normalizeBranchName(pr.head || "")
-  if (!headBranch) {
-    throw new Error("PR head branch is missing")
-  }
-
-  if (localBranches.includes(headBranch)) {
-    return {
-      existingBranch: headBranch,
-      setUpstream: undefined,
-      upstreamRemote: undefined,
-      upstreamBranch: undefined,
-      ensureRemoteName: undefined,
-      ensureRemoteUrl: undefined,
-      sourceLabel: headBranch,
-    }
-  }
-
-  const availableRemoteBranch = remoteBranches.find((remoteBranch) => {
-    const slashIndex = remoteBranch.indexOf("/")
-    if (slashIndex <= 0 || slashIndex >= remoteBranch.length - 1) {
-      return false
-    }
-    return remoteBranch.slice(slashIndex + 1) === headBranch
-  })
-
-  if (availableRemoteBranch) {
-    const slashIndex = availableRemoteBranch.indexOf("/")
-    const remoteName = availableRemoteBranch.slice(0, slashIndex)
-    return {
-      existingBranch: `remotes/${availableRemoteBranch}`,
-      setUpstream: true as const,
-      upstreamRemote: remoteName,
-      upstreamBranch: headBranch,
-      ensureRemoteName: undefined,
-      ensureRemoteUrl: undefined,
-      sourceLabel: `${remoteName}/${headBranch}`,
-    }
-  }
-
-  const ownerFromLabel = String(pr.headLabel || "")
-    .split(":")[0]
-    ?.trim()
-  const remoteSeed = pr.headRepo?.owner || ownerFromLabel || "pr-head"
-  const remoteName = `pr-${sanitizeRemoteName(remoteSeed)}`
-  const remoteUrl = pr.headRepo?.sshUrl || pr.headRepo?.cloneUrl || ""
-
-  if (!remoteUrl) {
-    throw new Error("PR head repository URL is unavailable")
-  }
-
-  return {
-    existingBranch: `remotes/${remoteName}/${headBranch}`,
-    setUpstream: true as const,
-    upstreamRemote: remoteName,
-    upstreamBranch: headBranch,
-    ensureRemoteName: remoteName,
-    ensureRemoteUrl: remoteUrl,
-    sourceLabel: `${remoteName}/${headBranch}`,
-  }
-}
 
 interface NewWorktreeDialogProps {
   open: boolean
@@ -875,10 +795,13 @@ export function NewWorktreeDialog({ open, onOpenChange, onWorktreeCreated }: New
       const linkedPr = mode === "new-branch" ? newBranchState.linkedPr : null
       const sourceBranch = newBranchState.sourceBranch
 
+      const prConfig = linkedPr ? resolvePrWorktreeConfig(linkedPr, localBranches, remoteBranches) : null
+      // A PR branch that already existed locally is reused, not created here.
+      const localPrBranch = prConfig?.localBranchExists === true
+
       let sourceLabel = ""
       const args = (() => {
-        if (linkedPr) {
-          const prConfig = resolvePrWorktreeConfig(linkedPr, localBranches, remoteBranches)
+        if (prConfig) {
           sourceLabel = prConfig.sourceLabel
           return {
             preferredName: normalizedBranch || normalizedWorktree,
@@ -911,11 +834,18 @@ export function NewWorktreeDialog({ open, onOpenChange, onWorktreeCreated }: New
       const metadata = await createWorktree(projectRef, resolvedArgs)
 
       // Only the new-branch mode below creates a session, so a failure there leaves a worktree this
-      // flow never intended to keep: remove it (and the branch it just created) instead of leaving
-      // an orphan that the next attempt duplicates. Never runs for `existing-branch`, where the
-      // branch predates this dialog.
+      // flow never intended to keep: remove it instead of leaving an orphan that the next attempt
+      // duplicates. Never runs for `existing-branch`, where the branch predates this dialog.
+      //
+      // The branch is only deleted when this flow created it: a PR whose head branch is
+      // already local reuses that branch (`mode: "existing"`), and `git branch -D` skips
+      // the unmerged-commits check, so deleting it would discard the user's commits with
+      // only the reflog as a way back.
+      const deleteCreatedBranch = !localPrBranch
       const discardCreatedWorktree = async () => {
-        await removeProjectWorktree(projectRef, metadata, { deleteLocalBranch: true }).catch(() => undefined)
+        await removeProjectWorktree(projectRef, metadata, { deleteLocalBranch: deleteCreatedBranch }).catch(
+          () => undefined,
+        )
       }
 
       const linkedIssue = mode === "new-branch" ? newBranchState.linkedIssue : null
