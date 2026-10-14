@@ -1066,7 +1066,11 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     sweepTimer.unref?.()
   }
 
-  const createTarget = (origin, ttlMs, { token: inheritedToken, expiresAt: inheritedExpiresAt } = {}) => {
+  const createTarget = (
+    origin,
+    ttlMs,
+    { token: inheritedToken, expiresAt: inheritedExpiresAt, external = false } = {},
+  ) => {
     const id = crypto.randomBytes(16).toString("hex")
     const token = inheritedToken || crypto.randomBytes(16).toString("hex")
     const createdAt = now()
@@ -1079,6 +1083,7 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       token,
       createdAt,
       expiresAt,
+      external: Boolean(external),
     })
     return { id, token, expiresAt }
   }
@@ -1206,6 +1211,7 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
         redirectTarget = createTarget(normalized.origin, resolved.entry.expiresAt - now(), {
           token: resolved.entry.token,
           expiresAt: resolved.entry.expiresAt,
+          external: resolved.entry.external,
         })
         targetId = redirectTarget.id
       }
@@ -1216,6 +1222,30 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     } catch {
       return null
     }
+  }
+
+  // External previews are proxied from the app's own origin, so without this the
+  // previewed page would run with the session cookie attached: its scripts could
+  // call /api/fs, /api/terminal, … as the signed-in user. A `sandbox` directive
+  // WITHOUT allow-same-origin makes the document an opaque origin, which turns
+  // those same-origin calls into cross-site ones (the cookie is SameSite=Strict)
+  // and hides document.cookie. Local dev previews keep the current behaviour:
+  // they are the user's own server and often rely on same-origin storage.
+  const EXTERNAL_PREVIEW_SANDBOX_CSP =
+    "sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-pointer-lock allow-presentation"
+
+  const applyExternalPreviewSandbox = (res, resolved, isHtml) => {
+    if (!isHtml || !resolved?.entry?.external || !res || typeof res.setHeader !== "function") {
+      return
+    }
+    const existing = typeof res.getHeader === "function" ? res.getHeader("content-security-policy") : null
+    if (typeof existing === "string" && /(^|;\s*)sandbox(\s|;|$)/i.test(existing)) {
+      return
+    }
+    const merged = typeof existing === "string" && existing.trim().length > 0
+      ? `${existing}; ${EXTERNAL_PREVIEW_SANDBOX_CSP}`
+      : EXTERNAL_PREVIEW_SANDBOX_CSP
+    res.setHeader("content-security-policy", merged)
   }
 
   const attach = (app, { server, express, uiAuthController, isRequestOriginAllowed, rejectWebSocketUpgrade }) => {
@@ -1292,7 +1322,7 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
           return res.status(400).json({ error: normalized.error })
         }
 
-        const target = createTarget(normalized.origin, ttlMs)
+        const target = createTarget(normalized.origin, ttlMs, { external: allowExternal })
         const cookiePath = `/api/preview/proxy/${target.id}`
         const secure = Boolean(req.secure)
         res.setHeader(
@@ -1439,7 +1469,11 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
             targetOrigin: resolved.entry.origin,
             kind: isHtml ? "html" : isCss ? "css" : "javascript",
           })
-          return isHtml ? injectPreviewBridge(rewrittenBody, resolved.entry.origin) : rewrittenBody
+          if (isHtml) {
+            applyExternalPreviewSandbox(res, resolved, isHtml)
+            return injectPreviewBridge(rewrittenBody, resolved.entry.origin)
+          }
+          return rewrittenBody
         }),
         error: (err, _req, res) => {
           const isDev =

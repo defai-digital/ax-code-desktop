@@ -501,3 +501,96 @@ describe("preview proxy upstream request hygiene", () => {
     expect(rejectWebSocketUpgrade).not.toHaveBeenCalled()
   })
 })
+
+describe("external preview documents are sandboxed", () => {
+  const buildHarness = async ({ allowExternal }) => {
+    let targetRoute = null
+    let proxyOptions = null
+    let randomCounter = 0
+    const app = {
+      post: (_path, ...handlers) => {
+        targetRoute = handlers.at(-1)
+      },
+      use() {},
+    }
+    const runtime = createPreviewProxyRuntime({
+      crypto: { randomBytes: () => Buffer.from(String(++randomCounter).padStart(32, "0"), "hex") },
+      URL,
+      createProxyMiddleware: (options) => {
+        proxyOptions = options
+        const middleware = vi.fn()
+        middleware.upgrade = vi.fn()
+        return middleware
+      },
+      responseInterceptor: (handler) => handler,
+    })
+    runtime.attach(app, {
+      server: { on: vi.fn() },
+      express: { json: vi.fn(() => vi.fn()) },
+      uiAuthController: null,
+      isRequestOriginAllowed: vi.fn(async () => true),
+      rejectWebSocketUpgrade: vi.fn(),
+    })
+
+    const headers = new Map()
+    const targetResponse = {
+      setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+      json: vi.fn(),
+    }
+    await targetRoute(
+      { body: { url: allowExternal ? "https://example.com" : "http://127.0.0.1:3000", allowExternal }, secure: false },
+      targetResponse,
+    )
+    const target = targetResponse.json.mock.calls[0][0]
+    const [sourceCookie] = String(headers.get("set-cookie")).split(";", 1)
+    const request = {
+      originalUrl: `${target.proxyBasePath}/`,
+      headers: { cookie: sourceCookie },
+      secure: false,
+    }
+    return { proxyOptions, request, target }
+  }
+
+  const runProxyRes = async ({ proxyOptions, request }, contentType) => {
+    const responseHeaders = new Map()
+    const res = {
+      statusCode: 200,
+      removeHeader: vi.fn(),
+      getHeader: (name) => responseHeaders.get(name.toLowerCase()),
+      setHeader: (name, value) => responseHeaders.set(name.toLowerCase(), value),
+    }
+    const body = await proxyOptions.on.proxyRes(
+      Buffer.from("<html><head></head><body>hi</body></html>"),
+      { statusCode: 200, headers: { "content-type": contentType } },
+      request,
+      res,
+    )
+    return { responseHeaders, body }
+  }
+
+  it("adds a sandbox policy without allow-same-origin to an external HTML document", async () => {
+    const harness = await buildHarness({ allowExternal: true })
+
+    const { responseHeaders } = await runProxyRes(harness, "text/html; charset=utf-8")
+
+    const csp = String(responseHeaders.get("content-security-policy") ?? "")
+    expect(csp).toContain("sandbox")
+    expect(csp).not.toContain("allow-same-origin")
+  })
+
+  it("leaves a local dev preview unsandboxed", async () => {
+    const harness = await buildHarness({ allowExternal: false })
+
+    const { responseHeaders } = await runProxyRes(harness, "text/html; charset=utf-8")
+
+    expect(String(responseHeaders.get("content-security-policy") ?? "")).not.toContain("sandbox")
+  })
+
+  it("does not sandbox a non-document response", async () => {
+    const harness = await buildHarness({ allowExternal: true })
+
+    const { responseHeaders } = await runProxyRes(harness, "text/css")
+
+    expect(String(responseHeaders.get("content-security-policy") ?? "")).not.toContain("sandbox")
+  })
+})
