@@ -36,6 +36,7 @@ function SessionPermissionWatcher({
   const permissions = useSessionPermissions(sessionId)
   const notifyOnPermission = useUIStore((s) => s.notifyOnPermission)
   const nativeNotificationsEnabled = useUIStore((s) => s.nativeNotificationsEnabled)
+  const notificationMode = useUIStore((s) => s.notificationMode)
   // Subscribed (not just read imperatively) so the effect re-evaluates when
   // the user navigates away from a session with a still-pending request.
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
@@ -102,7 +103,11 @@ function SessionPermissionWatcher({
       return
     }
     if (notifiedRef.current || !enabled) return
-    if (isAppFocused() && currentSessionId === sessionId) return
+    // The server notifies on its own (its `requireHidden` rule covers the unfocused
+    // window, and `always` mode covers every case), so this watcher must only fill
+    // the gap the server leaves: the app focused while another session is on screen.
+    if (notificationMode === "always") return
+    if (!isAppFocused() || currentSessionId === sessionId) return
 
     const timer = setTimeout(() => {
       // Re-check at fire time: the user may have focused the session during
@@ -123,7 +128,7 @@ function SessionPermissionWatcher({
     }, PERMISSION_NOTIFY_DEBOUNCE_MS)
 
     return () => clearTimeout(timer)
-  }, [sessionId, sessionTitle, hasPermissions, enabled, currentSessionId, sessionDirectory, t])
+  }, [sessionId, sessionTitle, hasPermissions, enabled, currentSessionId, sessionDirectory, notificationMode, t])
 
   return null
 }
