@@ -12,7 +12,20 @@ import { formatMessage, useI18nStore, type I18nKey, type I18nParams } from "@/li
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 const UNDO_DURATION_MS = 7000
-const STORAGE_KEY = "axcode.pending-session-removals"
+const STORAGE_KEY_PREFIX = "axcode.pending-session-removals"
+
+// Each window persists to its own slot so concurrently open windows (or
+// browser tabs on the web build) never overwrite each other's pending
+// removals: with a single shared key, one window's undo/empty persist
+// wiped every other window's quit-recovery entries. Recovery reads and
+// clears every slot, including the legacy un-suffixed key written by
+// older versions.
+const WINDOW_STORAGE_ID =
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+
+const OWN_STORAGE_KEY = `${STORAGE_KEY_PREFIX}.${WINDOW_STORAGE_ID}`
 
 type PersistedRemoval = {
   id: string
@@ -33,16 +46,16 @@ function clearTimers(ids: string[]): void {
 }
 
 /**
- * Mirror the store's pending-removal map to localStorage so removals the
- * user did not undo are still committed if the app quits during the undo
- * window (see recoverPendingRemovals).
+ * Mirror the store's pending-removal map to this window's localStorage slot
+ * so removals the user did not undo are still committed if the app quits
+ * during the undo window (see recoverPendingRemovals).
  */
 function persistPending(): void {
   if (typeof window === "undefined") return
   try {
     const entries = Array.from(useGlobalSessionsStore.getState().pendingRemoval.values())
     if (entries.length === 0) {
-      window.localStorage.removeItem(STORAGE_KEY)
+      window.localStorage.removeItem(OWN_STORAGE_KEY)
       return
     }
     const payload: PersistedRemoval[] = entries.map((entry) => ({
@@ -50,27 +63,50 @@ function persistPending(): void {
       kind: entry.kind,
       directory: resolveGlobalSessionDirectory(entry.session),
     }))
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    window.localStorage.setItem(OWN_STORAGE_KEY, JSON.stringify(payload))
   } catch {
     // Storage unavailable — quit-recovery degrades to best-effort flush.
   }
 }
 
-function readPersisted(): PersistedRemoval[] {
+function listPersistedKeys(): string[] {
   if (typeof window === "undefined") return []
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((item): item is PersistedRemoval => {
-      if (typeof item !== "object" || item === null) return false
-      const candidate = item as Partial<PersistedRemoval>
-      return typeof candidate.id === "string" && (candidate.kind === "archive" || candidate.kind === "delete")
-    })
+    const storage = window.localStorage
+    const keys: string[] = []
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index)
+      if (key === STORAGE_KEY_PREFIX || (key !== null && key.startsWith(`${STORAGE_KEY_PREFIX}.`))) {
+        keys.push(key)
+      }
+    }
+    return keys
   } catch {
     return []
   }
+}
+
+function readPersisted(): PersistedRemoval[] {
+  if (typeof window === "undefined") return []
+  const entries: PersistedRemoval[] = []
+  for (const key of listPersistedKeys()) {
+    try {
+      const raw = window.localStorage.getItem(key)
+      if (!raw) continue
+      const parsed: unknown = JSON.parse(raw)
+      if (!Array.isArray(parsed)) continue
+      for (const item of parsed) {
+        if (typeof item !== "object" || item === null) continue
+        const candidate = item as Partial<PersistedRemoval>
+        if (typeof candidate.id === "string" && (candidate.kind === "archive" || candidate.kind === "delete")) {
+          entries.push(candidate as PersistedRemoval)
+        }
+      }
+    } catch {
+      // A single unreadable slot must not block recovery of the others.
+    }
+  }
+  return entries
 }
 
 function successMessage(kind: PendingRemovalKind, count: number): string {
@@ -215,7 +251,9 @@ export async function recoverPendingRemovals(): Promise<void> {
   const persisted = readPersisted()
   if (persisted.length === 0) return
   try {
-    window.localStorage.removeItem(STORAGE_KEY)
+    for (const key of listPersistedKeys()) {
+      window.localStorage.removeItem(key)
+    }
   } catch {
     // ignore
   }

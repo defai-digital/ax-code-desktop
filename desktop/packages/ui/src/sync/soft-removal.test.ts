@@ -50,7 +50,18 @@ vi.doMock("@/lib/i18n/store", () => ({
 
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 
-const { softDeleteSession, softArchiveSession, flushPendingRemovals } = await import("./soft-removal")
+// vi.doMock above is not hoisted, so the mocked modules must be imported
+// dynamically after registration.
+const { toast } = await import("@/components/ui")
+const { axCodeClient } = await import("@/lib/ax-code/client")
+
+const { softDeleteSession, softArchiveSession, flushPendingRemovals, recoverPendingRemovals } = await import(
+  "./soft-removal"
+)
+
+const STORAGE_KEY_PREFIX = "axcode.pending-session-removals"
+
+const toastSuccessMock = vi.mocked(toast.success)
 
 const makeSession = (id: string, overrides: Partial<Session> = {}): Session =>
   ({
@@ -154,5 +165,64 @@ describe("soft-removal S4.5 contract", () => {
     useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.updated", archived))
     expect(useGlobalSessionsStore.getState().activeSessions).toHaveLength(0)
     expect(useGlobalSessionsStore.getState().archivedSessions.map((s) => s.id)).toEqual(["ses_c"])
+  })
+
+  test("an undo in one window does not erase another window's persisted pending removals", async () => {
+    const session = makeSession("ses_mine", { directory: "/repo" } as Partial<Session>)
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+
+    deleteSessionMock.mockResolvedValue(true)
+    softDeleteSession(session)
+
+    // A second, concurrently open window has its own pending removal persisted.
+    const otherKey = `${STORAGE_KEY_PREFIX}.other-window`
+    window.localStorage.setItem(otherKey, JSON.stringify([{ id: "ses_other", kind: "delete", directory: null }]))
+
+    // Undo via the toast action empties this window's map, which used to
+    // removeItem() the single shared key and wipe the other window's entry.
+    const call = toastSuccessMock.mock.calls.at(-1)
+    const action = call?.[1]?.action as { onClick: () => void } | undefined
+    expect(action).toBeDefined()
+    action?.onClick()
+
+    expect(useGlobalSessionsStore.getState().pendingRemoval.size).toBe(0)
+    expect(window.localStorage.getItem(otherKey)).not.toBeNull()
+    // This window's own slot is gone (its undo cleared it).
+    expect(useGlobalSessionsStore.getState().activeSessions.map((s) => s.id)).toEqual(["ses_mine"])
+  })
+
+  test("recoverPendingRemovals commits and clears every window slot plus the legacy shared key", async () => {
+    const sdkDelete = vi.fn(async () => ({}))
+    const sdkUpdate = vi.fn(async () => ({}))
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({
+      session: { delete: sdkDelete, update: sdkUpdate },
+    } as never)
+
+    window.localStorage.setItem(
+      `${STORAGE_KEY_PREFIX}.window-a`,
+      JSON.stringify([{ id: "ses_a1", kind: "delete", directory: "/repo" }]),
+    )
+    window.localStorage.setItem(
+      `${STORAGE_KEY_PREFIX}.window-b`,
+      JSON.stringify([{ id: "ses_b1", kind: "archive", directory: null }]),
+    )
+    // Legacy single-key layout written by older versions.
+    window.localStorage.setItem(
+      STORAGE_KEY_PREFIX,
+      JSON.stringify([{ id: "ses_legacy", kind: "delete", directory: null }]),
+    )
+
+    await recoverPendingRemovals()
+
+    expect(sdkDelete).toHaveBeenCalledWith({ sessionID: "ses_a1", directory: "/repo" })
+    expect(sdkDelete).toHaveBeenCalledWith({ sessionID: "ses_legacy", directory: undefined })
+    expect(sdkUpdate).toHaveBeenCalledWith({
+      sessionID: "ses_b1",
+      directory: undefined,
+      time: { archived: expect.any(Number) },
+    })
+    expect(window.localStorage.getItem(`${STORAGE_KEY_PREFIX}.window-a`)).toBeNull()
+    expect(window.localStorage.getItem(`${STORAGE_KEY_PREFIX}.window-b`)).toBeNull()
+    expect(window.localStorage.getItem(STORAGE_KEY_PREFIX)).toBeNull()
   })
 })
