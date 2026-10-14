@@ -10,6 +10,11 @@ type AutoFollowState = "following" | "released"
 
 export type ContentChangeReason = "text" | "structural" | "permission"
 
+export interface GoToBottomOptions {
+  reason?: "reader"
+  turnId?: string | null
+}
+
 export interface AnimationHandlers {
   onChunk: () => void
   onComplete: () => void
@@ -38,7 +43,7 @@ interface UseChatAutoFollowResult {
   unseenCount: number
   notifyContentChange: (reason?: ContentChangeReason) => void
   getAnimationHandlers: (messageId: string) => AnimationHandlers
-  goToBottom: (mode?: "instant" | "smooth") => void
+  goToBottom: (mode?: "instant" | "smooth", options?: GoToBottomOptions) => void
   releaseAutoFollow: () => void
   saveSnapshotNow: () => void
   restoreSnapshot: () => Promise<boolean>
@@ -78,31 +83,41 @@ const isNearBottom = (el: HTMLElement, isMobile: boolean): boolean => {
   return distanceFromBottom(el) <= computeBottomZoneThreshold(isMobile, el)
 }
 
-const isReleaseKey = (event: KeyboardEvent): boolean => {
+const isScrollKey = (event: KeyboardEvent): boolean => {
   if (event.altKey || event.ctrlKey || event.metaKey) {
+    return false
+  }
+  if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) {
     return false
   }
   switch (event.key) {
     case "ArrowUp":
+    case "ArrowDown":
     case "PageUp":
+    case "PageDown":
     case "Home":
+    case "End":
+    case " ":
       return true
     default:
       return false
   }
 }
 
-const nestedScrollableTarget = (root: HTMLElement, target: EventTarget | null): HTMLElement | null => {
-  if (!(target instanceof Element)) return null
-  const nested = target.closest("[data-scrollable]")
-  if (!nested || nested === root || !(nested instanceof HTMLElement)) return null
-  return nested
+const isReleaseKey = (event: KeyboardEvent): boolean => {
+  return isScrollKey(event) && (event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home")
 }
 
-const nestedScrollableCanConsumeUp = (root: HTMLElement, target: EventTarget | null): boolean => {
-  const nested = nestedScrollableTarget(root, target)
-  if (!nested) return false
-  return nested.scrollTop > 0
+const nestedScrollableCanConsume = (root: HTMLElement, target: EventTarget | null, deltaY?: number): boolean => {
+  if (!(target instanceof Element) || !root.contains(target)) return false
+  for (let nested: Element | null = target; nested && nested !== root; nested = nested.parentElement) {
+    if (!(nested instanceof HTMLElement) || nested.scrollHeight <= nested.clientHeight) continue
+    const style = window.getComputedStyle(nested)
+    if (!nested.hasAttribute("data-scrollable") && !/^(auto|scroll|overlay)$/.test(style.overflowY || style.overflow)) continue
+    if (deltaY === undefined) return true
+    if (deltaY < 0 ? nested.scrollTop > 0 : nested.scrollTop + nested.clientHeight < nested.scrollHeight) return true
+  }
+  return false
 }
 
 const isAtBottomSnapshot = (
@@ -387,8 +402,15 @@ export const useChatAutoFollow = ({
   releaseFromFollowStopRef.current = releaseAtFollowStop
 
   const goToBottom = React.useCallback(
-    (mode: "instant" | "smooth" = "instant") => {
+    (mode: "instant" | "smooth" = "instant", options?: GoToBottomOptions) => {
       const container = scrollRef.current
+      if (container && options?.reason === "reader") {
+        const turns = container.querySelectorAll("section[data-turn-id]")
+        const turnId = options.turnId === undefined
+          ? turns.item(turns.length - 1)?.getAttribute("data-turn-id")
+          : options.turnId
+        if (turnId) followedTurnStopsRef.current.add(turnId)
+      }
       heldAtFollowStopRef.current = false
       setStateValue("following")
       lastUserReleaseAtRef.current = 0
@@ -585,9 +607,9 @@ export const useChatAutoFollow = ({
     }
 
     const handleWheel = (event: WheelEvent) => {
+      if (event.deltaY === 0 || nestedScrollableCanConsume(container, event.target, event.deltaY)) return
       endFollowStopHold()
       if (event.deltaY >= 0) return
-      if (nestedScrollableCanConsumeUp(container, event.target)) return
       releaseFromUserIntent()
     }
 
@@ -597,7 +619,6 @@ export const useChatAutoFollow = ({
       touchLastY = touch ? touch.clientY : null
     }
     const handleTouchMove = (event: TouchEvent) => {
-      endFollowStopHold()
       const touch = event.touches.item(0)
       if (!touch) {
         touchLastY = null
@@ -607,8 +628,9 @@ export const useChatAutoFollow = ({
       touchLastY = touch.clientY
       if (previousY === null) return
       const fingerDelta = touch.clientY - previousY
+      if (Math.abs(fingerDelta) <= TOUCH_FINGER_DOWN_THRESHOLD || nestedScrollableCanConsume(container, event.target, -fingerDelta)) return
+      endFollowStopHold()
       if (fingerDelta <= TOUCH_FINGER_DOWN_THRESHOLD) return
-      if (nestedScrollableCanConsumeUp(container, event.target)) return
       releaseFromUserIntent()
     }
     const handleTouchEnd = () => {
@@ -616,6 +638,7 @@ export const useChatAutoFollow = ({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isScrollKey(event)) return
       endFollowStopHold()
       if (!isReleaseKey(event)) return
       releaseFromUserIntent()

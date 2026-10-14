@@ -13,6 +13,7 @@ import {
 } from "../lib/turns/windowTurns"
 import type { TurnHistorySignals } from "../lib/turns/historySignals"
 import { getMemoryLimits } from "@/stores/types/sessionTypes"
+import type { GoToBottomOptions } from "@/hooks/useChatAutoFollow"
 
 type TimelineViewportAnchor = { messageId: string; offsetTop: number }
 
@@ -38,7 +39,7 @@ interface UseChatTimelineControllerOptions {
   scrollRef: React.RefObject<HTMLDivElement | null>
   messageListRef: React.RefObject<MessageListHandle | null>
   loadMoreMessages: (sessionId: string, direction: "up" | "down") => Promise<void>
-  goToBottom: (mode?: "instant" | "smooth") => void
+  goToBottom: (mode?: "instant" | "smooth", options?: GoToBottomOptions) => void
   releaseAutoFollow: () => void
   isPinned: boolean
   showScrollButton: boolean
@@ -57,7 +58,7 @@ interface UseChatTimelineControllerResult {
   loadEarlier: (options?: { userInitiated?: boolean }) => Promise<void>
   revealBufferedTurns: () => Promise<boolean>
   resumeToBottom: () => void
-  resumeToBottomInstant: () => Promise<void>
+  resumeToBottomInstant: (options?: Pick<GoToBottomOptions, "reason">) => Promise<void>
   scrollToTurn: (turnId: string, options?: { behavior?: ScrollBehavior }) => Promise<boolean>
   scrollToMessage: (messageId: string, options?: { behavior?: ScrollBehavior }) => Promise<boolean>
   handleHistoryScroll: () => void
@@ -663,6 +664,7 @@ export const useChatTimelineController = ({
   )
 
   const resumeToBottom = React.useCallback(async () => {
+    const turnId = turnModelRef.current.turnIds.at(-1) ?? null
     const nextStart = getInitialTurnStart(turnModelRef.current.turnCount)
     setPendingRevealWork(false)
     setIsLoadingOlder(false)
@@ -673,10 +675,11 @@ export const useChatTimelineController = ({
       await waitForNextRenderCommit()
     }
 
-    goToBottom("smooth")
+    goToBottom("smooth", { reason: "reader", turnId })
   }, [goToBottom, waitForNextRenderCommit])
 
-  const resumeToBottomInstant = React.useCallback(async () => {
+  const resumeToBottomInstant = React.useCallback(async (options?: Pick<GoToBottomOptions, "reason">) => {
+    const turnId = turnModelRef.current.turnIds.at(-1) ?? null
     const nextStart = getInitialTurnStart(turnModelRef.current.turnCount)
     setPendingRevealWork(false)
     setIsLoadingOlder(false)
@@ -687,7 +690,7 @@ export const useChatTimelineController = ({
       await waitForNextRenderCommit()
     }
 
-    goToBottom("instant")
+    goToBottom("instant", { ...options, turnId })
   }, [goToBottom, waitForNextRenderCommit])
 
   const handleActiveTurnChange = React.useCallback((turnId: string | null) => {

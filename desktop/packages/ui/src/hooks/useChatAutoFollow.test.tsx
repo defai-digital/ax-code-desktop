@@ -98,6 +98,20 @@ describe("useChatAutoFollow collapsed activity", () => {
     return scrollContainer
   }
 
+  const clampToBottom = (scrollContainer: HTMLElement) => {
+    vi.spyOn(performance, "now").mockReturnValue(performance.now() + 5000)
+    scrollContainer.scrollTop = 900
+    React.act(() => {
+      scrollContainer.dispatchEvent(new Event("scroll"))
+    })
+  }
+
+  const dispatchTouch = (target: HTMLElement, type: string, clientY: number) => {
+    const event = new Event(type, { bubbles: true })
+    Object.defineProperty(event, "touches", { value: { item: () => ({ clientY }) } })
+    target.dispatchEvent(event)
+  }
+
   test("stops at the last turn section top and releases the live follow", () => {
     render()
     const scrollContainer = setLayout(300)
@@ -125,6 +139,85 @@ describe("useChatAutoFollow collapsed activity", () => {
 
     expect(result?.state).toBe("following")
     expect(scrollContainer.scrollTop).toBe(900)
+  })
+
+  test.each(["smooth", "instant"] as const)("reader navigation bypasses an unconsumed stop in %s mode", (mode) => {
+    render()
+    const scrollContainer = setLayout(300)
+    flushFrame()
+
+    React.act(() => {
+      result?.releaseAutoFollow()
+      result?.goToBottom(mode, { reason: "reader" })
+    })
+    flushFrames()
+
+    expect(scrollContainer.scrollTop).toBe(900)
+    expect(result?.state).toBe("following")
+
+    React.act(() => {
+      result?.releaseAutoFollow()
+      scrollContainer.scrollTop = 0
+      result?.goToBottom("smooth")
+    })
+    flushFrames()
+    expect(scrollContainer.scrollTop).toBe(900)
+    expect(result?.state).toBe("following")
+  })
+
+  test("reader navigation only consumes the turn present when clicked even if its node is reused", () => {
+    render()
+    const scrollContainer = setLayout(300)
+    React.act(() => {
+      result?.releaseAutoFollow()
+      result?.goToBottom("smooth", { reason: "reader" })
+    })
+    getElements().lastTurn.dataset.turnId = "turn-c"
+    setLayout(600)
+    flushFrames()
+
+    expect(scrollContainer.scrollTop).toBe(600)
+    expect(result?.state).toBe("released")
+  })
+
+  test("reader navigation preserves a newer turn stop after a delayed render", () => {
+    render()
+    const scrollContainer = setLayout(300)
+    React.act(() => {
+      result?.releaseAutoFollow()
+    })
+    const turnId = getElements().lastTurn.dataset.turnId
+    getElements().lastTurn.dataset.turnId = "turn-c"
+    setLayout(600)
+    React.act(() => {
+      result?.goToBottom("smooth", { reason: "reader", turnId })
+    })
+    flushFrames()
+
+    expect(scrollContainer.scrollTop).toBe(600)
+    expect(result?.state).toBe("released")
+  })
+
+  test("sending a message preserves the new turn stop as the turn grows", () => {
+    render()
+    const scrollContainer = setLayout(300)
+    flushFrames()
+    getElements().lastTurn.dataset.turnId = "turn-c"
+    setLayout(900)
+    React.act(() => {
+      result?.goToBottom("instant")
+    })
+    vi.spyOn(performance, "now").mockReturnValue(performance.now() + 1000)
+    flushFrames()
+
+    Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, value: 1500 })
+    React.act(() => {
+      result?.notifyContentChange()
+    })
+    flushFrames()
+
+    expect(scrollContainer.scrollTop).toBe(900)
+    expect(result?.state).toBe("released")
   })
 
   test("keeps following to the bottom when Activity is in summary mode", () => {
@@ -215,5 +308,131 @@ describe("useChatAutoFollow collapsed activity", () => {
       scrollContainer.dispatchEvent(new Event("scroll"))
     })
     expect(result?.state).toBe("following")
+  })
+
+  test.each([
+    { key: "c", ctrlKey: true },
+    { key: "c", metaKey: true },
+    { key: "PageDown", ctrlKey: true },
+    { key: "End", metaKey: true },
+    { key: "ArrowDown", altKey: true },
+    { key: "a" },
+  ])("keeps the follow stop hold for non-scroll input %j", (init) => {
+    render()
+    const scrollContainer = setLayout(300)
+    flushFrames()
+
+    React.act(() => {
+      scrollContainer.dispatchEvent(new KeyboardEvent("keydown", { ...init, bubbles: true }))
+    })
+    clampToBottom(scrollContainer)
+
+    expect(result?.state).toBe("released")
+  })
+
+  test.each(["input", "textarea", "contenteditable"])("keeps the follow stop hold for keys in %s", (kind) => {
+    render()
+    const scrollContainer = setLayout(300)
+    flushFrames()
+    const editable = document.createElement(kind === "contenteditable" ? "div" : kind)
+    if (kind === "contenteditable") editable.setAttribute("contenteditable", "true")
+    const target = kind === "contenteditable" ? editable.appendChild(document.createElement("span")) : editable
+    scrollContainer.appendChild(editable)
+
+    React.act(() => {
+      target.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }))
+    })
+    clampToBottom(scrollContainer)
+
+    expect(result?.state).toBe("released")
+  })
+
+  test.each(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "])("ends the hold for outer scroll key %j", (key) => {
+    render()
+    const scrollContainer = setLayout(300)
+    flushFrames()
+
+    React.act(() => {
+      scrollContainer.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
+    })
+    clampToBottom(scrollContainer)
+
+    expect(result?.state).toBe("following")
+  })
+
+  test.each([
+    { deltaY: -40, scrollTop: 50, held: true },
+    { deltaY: 40, scrollTop: 50, held: true },
+    { deltaY: -40, scrollTop: 0, held: false },
+    { deltaY: 40, scrollTop: 200, held: false },
+    { deltaY: 0, scrollTop: 50, held: true },
+  ])("only ends the hold when nested wheel input reaches the timeline %j", ({ deltaY, scrollTop, held }) => {
+    render()
+    const scrollContainer = setLayout(300)
+    flushFrames()
+    const nested = document.createElement("div")
+    nested.style.overflowY = "auto"
+    Object.defineProperties(nested, {
+      clientHeight: { value: 100 },
+      scrollHeight: { value: 300 },
+    })
+    nested.scrollTop = scrollTop
+    const target = nested.appendChild(document.createElement("code"))
+    scrollContainer.appendChild(nested)
+
+    React.act(() => {
+      target.dispatchEvent(new WheelEvent("wheel", { deltaY, deltaX: 40, bubbles: true }))
+    })
+    clampToBottom(scrollContainer)
+
+    expect(result?.state).toBe(held ? "released" : "following")
+  })
+
+  test("checks every nested ancestor for wheel consumption", () => {
+    render()
+    const scrollContainer = setLayout(300)
+    flushFrames()
+    const outer = document.createElement("div")
+    const inner = outer.appendChild(document.createElement("div"))
+    for (const nested of [outer, inner]) {
+      nested.setAttribute("data-scrollable", "")
+      Object.defineProperties(nested, {
+        clientHeight: { value: 100 },
+        scrollHeight: { value: 300 },
+      })
+    }
+    outer.scrollTop = 50
+    scrollContainer.appendChild(outer)
+
+    React.act(() => {
+      inner.dispatchEvent(new WheelEvent("wheel", { deltaY: -40, bubbles: true }))
+    })
+    clampToBottom(scrollContainer)
+
+    expect(result?.state).toBe("released")
+  })
+
+  test.each([true, false])("only ends the hold for touch input outside a vertical nested scroller: %j", (vertical) => {
+    render()
+    const scrollContainer = setLayout(300)
+    flushFrames()
+    const nested = document.createElement("div")
+    nested.style.overflow = "auto"
+    Object.defineProperties(nested, {
+      clientHeight: { value: 100 },
+      scrollHeight: { value: vertical ? 300 : 100 },
+      clientWidth: { value: 100 },
+      scrollWidth: { value: 300 },
+    })
+    const target = nested.appendChild(document.createElement("code"))
+    scrollContainer.appendChild(nested)
+
+    React.act(() => {
+      dispatchTouch(target, "touchstart", 100)
+      dispatchTouch(target, "touchmove", 50)
+    })
+    clampToBottom(scrollContainer)
+
+    expect(result?.state).toBe(vertical ? "released" : "following")
   })
 })

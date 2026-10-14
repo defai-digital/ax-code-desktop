@@ -705,13 +705,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
     void loadEarlier({ userInitiated: true })
   }, [loadEarlier])
 
+  const resumeToLatestFromReader = React.useCallback(() => {
+    void resumeToBottomInstant({ reason: "reader" })
+  }, [resumeToBottomInstant])
+
   const navigation = useChatTurnNavigation({
     sessionId: currentSessionId,
     turnIds: timelineController.turnIds,
     activeTurnId: timelineController.activeTurnId,
     scrollToTurn: timelineController.scrollToTurn,
     scrollToMessage: timelineController.scrollToMessage,
-    resumeToBottom: timelineController.resumeToBottomInstant,
+    resumeToBottom: resumeToLatestFromReader,
   })
 
   React.useEffect(() => {
