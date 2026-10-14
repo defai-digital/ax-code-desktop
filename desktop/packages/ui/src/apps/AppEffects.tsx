@@ -1,6 +1,7 @@
 import React from "react"
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import { useQueuedMessageAutoSend } from "@/hooks/useQueuedMessageAutoSend"
+import { useTraySync } from "@/hooks/useTraySync"
 import { useSessionAutoCleanup } from "@/hooks/useSessionAutoCleanup"
 import { useWindowControlsOverlayLayout } from "@/hooks/useWindowControlsOverlayLayout"
 import { setOptimisticRefs } from "@/sync/session-actions"
@@ -65,6 +66,9 @@ export function SyncRuntimeEffects({
 }) {
   useSessionAutoCleanup(embeddedBackgroundWorkEnabled && globalHousekeepingEnabled)
   useQueuedMessageAutoSend(embeddedBackgroundWorkEnabled)
+  // Streams the session/approval snapshot to the Electron tray and keeps the dock
+  // badge in step. No-op outside the desktop shell.
+  useTraySync(embeddedBackgroundWorkEnabled)
 
   return <SyncOptimisticBridge />
 }

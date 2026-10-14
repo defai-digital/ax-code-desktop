@@ -7,6 +7,7 @@
     { "command": "desktop_download_and_install_update", "safeForRemote": false, "args": "object" },
     { "command": "desktop_quit_and_install", "safeForRemote": false, "args": "object" },
     { "command": "desktop_restart", "safeForRemote": false, "args": "object" },
+    { "command": "desktop_tray_update", "safeForRemote": false, "args": "object" },
     { "command": "desktop_set_badge_count", "safeForRemote": false, "args": "object" },
     { "command": "desktop_dialog_open", "safeForRemote": false, "args": "object" },
     { "command": "desktop_record_startup_event", "safeForRemote": false, "args": "object" },

@@ -1040,6 +1040,17 @@ handleCommand("desktop_restart", async () => {
   app.exit(0)
 })
 
+// State push from the renderer (see the UI's useTraySync): the tray controller
+// owns presentation only, so the renderer streams the session/approval snapshot
+// here. Ignored when the platform has no tray (the badge has its own command).
+handleCommand("desktop_tray_update", async (args) => {
+  if (!trayController) {
+    return { updated: false }
+  }
+  trayController.update(args ?? {})
+  return { updated: true }
+})
+
 handleCommand("desktop_set_badge_count", async (args) => {
   const { count } = args ?? {}
   const value = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0

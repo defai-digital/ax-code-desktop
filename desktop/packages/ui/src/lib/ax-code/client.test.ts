@@ -271,6 +271,11 @@ describe("withDirectory queue resilience", () => {
         secondRan = true
         return "second"
       })
+      // Attach the rejection expectation before the timer fires so the refusal is
+      // never an unhandled rejection.
+      const secondRejected = expect(second).rejects.toThrow(
+        /Timed out waiting for another directory-scoped request/,
+      )
 
       // Before the safety timeout the second call is still queued behind the hang.
       await Promise.resolve()
@@ -278,7 +283,7 @@ describe("withDirectory queue resilience", () => {
 
       await vi.advanceTimersByTimeAsync(60_001)
 
-      await expect(second).rejects.toThrow(/Timed out waiting for another directory-scoped request/)
+      await secondRejected
       expect(secondRan).toBe(false)
 
       // Once the stalled call finally settles the context is free again.
