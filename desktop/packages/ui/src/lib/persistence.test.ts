@@ -107,3 +107,96 @@ describe("updateDesktopSettings", () => {
     expect(save).toHaveBeenCalledTimes(1)
   })
 })
+
+describe("settings save response application", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.resetModules()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    vi.doUnmock("@/contexts/runtimeAPIRegistry")
+  })
+
+  test("does not roll back a change queued while the save was in flight", async () => {
+    const saveControl: { resolve?: (value: unknown) => void } = {}
+    const save = vi.fn(
+      () =>
+        new Promise<unknown>((resolve) => {
+          saveControl.resolve = resolve
+        }),
+    )
+
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => ({
+        settings: {
+          load: vi.fn(),
+          save,
+        },
+      }),
+    }))
+
+    const { updateDesktopSettings } = await import("./persistence")
+
+    const synced: unknown[] = []
+    window.addEventListener("openchamber:settings-synced", (event) => {
+      synced.push((event as CustomEvent).detail)
+    })
+
+    const first = updateDesktopSettings({ fontSize: 110 })
+    await vi.advanceTimersByTimeAsync(200)
+    expect(save).toHaveBeenCalledWith({ fontSize: 110 })
+
+    // The user flips another setting while the first save is out; the response
+    // still carries the pre-change value and must not roll it back.
+    void updateDesktopSettings({ showReasoningTraces: false })
+    saveControl.resolve?.({ fontSize: 110, showReasoningTraces: true })
+    await first
+
+    const applied = synced.at(-1) as Record<string, unknown>
+    expect(applied.fontSize).toBe(110)
+    expect(applied.showReasoningTraces).toBe(false)
+  })
+})
+
+describe("persistToLocalStorage via save response", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.resetModules()
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    vi.doUnmock("@/contexts/runtimeAPIRegistry")
+    localStorage.clear()
+  })
+
+  const saveAndSettle = async (response: Record<string, unknown>) => {
+    const save = vi.fn(async () => response)
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => ({
+        settings: { load: vi.fn(), save },
+      }),
+    }))
+    const { updateDesktopSettings } = await import("./persistence")
+    const done = updateDesktopSettings({ fontSize: 110 })
+    await vi.advanceTimersByTimeAsync(200)
+    await done
+  }
+
+  test("keeps the cached project list when the response carries no projects key", async () => {
+    localStorage.setItem("projects", JSON.stringify([{ id: "p1", path: "/repo" }]))
+    await saveAndSettle({ fontSize: 110 })
+    expect(localStorage.getItem("projects")).toBe(JSON.stringify([{ id: "p1", path: "/repo" }]))
+  })
+
+  test("clears the cached project list only for an explicit empty list", async () => {
+    localStorage.setItem("projects", JSON.stringify([{ id: "p1", path: "/repo" }]))
+    await saveAndSettle({ fontSize: 110, projects: [] })
+    expect(localStorage.getItem("projects")).toBeNull()
+  })
+})

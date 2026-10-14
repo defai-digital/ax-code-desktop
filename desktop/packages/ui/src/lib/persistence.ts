@@ -46,20 +46,28 @@ const persistToLocalStorage = (settings: DesktopSettings) => {
       /* read-only contextBridge property — leave preload-seeded value */
     }
   }
-  if (Array.isArray(settings.projects) && settings.projects.length > 0) {
-    localStorage.setItem("projects", JSON.stringify(settings.projects))
-  } else {
-    localStorage.removeItem("projects")
+  if (Array.isArray(settings.projects)) {
+    // Only touch the boot cache when the payload actually carries the key — a
+    // partial or rebuilt server settings file must not wipe the local project list.
+    if (settings.projects.length > 0) {
+      localStorage.setItem("projects", JSON.stringify(settings.projects))
+    } else {
+      localStorage.removeItem("projects")
+    }
   }
-  if (settings.activeProjectId) {
-    localStorage.setItem("activeProjectId", settings.activeProjectId)
-  } else {
-    localStorage.removeItem("activeProjectId")
+  if ("activeProjectId" in settings) {
+    if (settings.activeProjectId) {
+      localStorage.setItem("activeProjectId", settings.activeProjectId)
+    } else {
+      localStorage.removeItem("activeProjectId")
+    }
   }
-  if (Array.isArray(settings.pinnedDirectories) && settings.pinnedDirectories.length > 0) {
-    localStorage.setItem("pinnedDirectories", JSON.stringify(settings.pinnedDirectories))
-  } else {
-    localStorage.removeItem("pinnedDirectories")
+  if (Array.isArray(settings.pinnedDirectories)) {
+    if (settings.pinnedDirectories.length > 0) {
+      localStorage.setItem("pinnedDirectories", JSON.stringify(settings.pinnedDirectories))
+    } else {
+      localStorage.removeItem("pinnedDirectories")
+    }
   }
 
   if (Array.isArray(settings.projects) && settings.projects.length > 0) {
@@ -1131,13 +1139,16 @@ const _flushSettingsUpdate = async (): Promise<void> => {
       try {
         const updated = await runtimeSettings.save(changes)
         if (updated) {
-          persistToLocalStorage(updated)
-          applyDesktopUiPreferences(updated)
-          dispatchSettingsSynced(updated)
+          // The response predates any change queued while the request was in
+          // flight; overlay the still-pending values so they are not rolled back.
+          const effective = { ...updated, ...(_pendingSettingsChanges ?? {}) }
+          persistToLocalStorage(effective)
+          applyDesktopUiPreferences(effective)
+          dispatchSettingsSynced(effective)
           // Keep the read cache coherent with the just-saved value (the fetch(PUT)
           // branch below clears it). Otherwise a re-fetch within the cache TTL serves
           // the pre-save snapshot and reverts the store to the old value.
-          _settingsCache = { value: updated, at: Date.now() }
+          _settingsCache = { value: effective, at: Date.now() }
         }
         resolveSettingsWaiters(waiters)
         return
@@ -1161,9 +1172,12 @@ const _flushSettingsUpdate = async (): Promise<void> => {
 
     const updated = (await response.json().catch(() => null)) as DesktopSettings | null
     if (updated) {
-      persistToLocalStorage(updated)
-      applyDesktopUiPreferences(updated)
-      dispatchSettingsSynced(updated)
+      // Same in-flight guard as the runtime path above: keep values that changed
+      // locally while this request was out.
+      const effective = { ...updated, ...(_pendingSettingsChanges ?? {}) }
+      persistToLocalStorage(effective)
+      applyDesktopUiPreferences(effective)
+      dispatchSettingsSynced(effective)
       // Invalidate GET cache so next read sees the fresh data
       _settingsCache = null
     }
