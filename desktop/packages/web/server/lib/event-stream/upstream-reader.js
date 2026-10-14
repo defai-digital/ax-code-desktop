@@ -3,6 +3,11 @@ import { parseSseEventEnvelope } from "./protocol.js"
 export const DEFAULT_UPSTREAM_STALL_TIMEOUT_MS = 20_000
 export const UPSTREAM_STALL_TIMEOUT_CONCURRENT_MS = DEFAULT_UPSTREAM_STALL_TIMEOUT_MS * 3
 export const DEFAULT_UPSTREAM_RECONNECT_DELAY_MS = 250
+// An upstream that keeps sending data without ever completing an event block
+// resets the stall timer on every chunk, so the decode buffer needs its own
+// ceiling: without one a single hostile or broken stream grows an unbounded
+// string per subscriber until the process runs out of memory.
+export const DEFAULT_UPSTREAM_MAX_BUFFER_BYTES = 1024 * 1024
 
 function resolveTimeoutMs(value, fallback) {
   const resolved = typeof value === "function" ? value() : value
@@ -57,6 +62,7 @@ export function createUpstreamSseReader({
   signal,
   stallTimeoutMs = DEFAULT_UPSTREAM_STALL_TIMEOUT_MS,
   reconnectDelayMs = DEFAULT_UPSTREAM_RECONNECT_DELAY_MS,
+  maxBufferBytes = DEFAULT_UPSTREAM_MAX_BUFFER_BYTES,
   onEvent,
   onConnect,
   onDisconnect,
@@ -176,6 +182,14 @@ export function createUpstreamSseReader({
 
             resetStallTimer()
             buffer = `${buffer}${decoder.decode(value, { stream: true })}`.replace(/\r\n/g, "\n")
+            if (buffer.length > maxBufferBytes) {
+              // The peer is streaming data that never completes an event block.
+              // Drop this connection (the outer loop reconnects) instead of
+              // buffering until the process dies.
+              throw new Error(
+                `upstream event stream exceeded ${maxBufferBytes} bytes without a complete event`,
+              )
+            }
 
             let separatorIndex = buffer.indexOf("\n\n")
             while (separatorIndex !== -1 && !stopped && !signal?.aborted) {

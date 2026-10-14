@@ -25,6 +25,51 @@ function createTrackedSignal() {
   }
 }
 
+describe("createUpstreamSseReader buffer ceiling", () => {
+  it("drops a stream that never completes an event block instead of buffering forever", async () => {
+    const errors = []
+    const disconnects = []
+    let attempts = 0
+    let reader
+
+    reader = createUpstreamSseReader({
+      buildUrl: () => "http://127.0.0.1:4096/global/event",
+      reconnectDelayMs: 0,
+      maxBufferBytes: 512,
+      fetchImpl: async (_url, options) => {
+        attempts += 1
+        if (attempts === 1) {
+          // Data without a single event separator: the stall timer keeps being
+          // reset, so
+          // only a buffer ceiling can stop this from growing without bound.
+          return createSseResponse({
+            signal: options.signal,
+            blocks: ["dat" + "a".repeat(2000)],
+          })
+        }
+        return createSseResponse({ blocks: ['data: {"type":"server.connected"}\n\n'] })
+      },
+      onEvent() {
+        reader.stop()
+      },
+      onDisconnect(payload) {
+        disconnects.push(payload)
+      },
+      onError(payload) {
+        errors.push(payload)
+      },
+    })
+
+    await reader.start()
+
+    expect(errors).toHaveLength(1)
+    expect(errors[0].type).toBe("stream_error")
+    expect(errors[0].error.message).toContain("without a complete event")
+    expect(disconnects.length).toBeGreaterThan(0)
+    expect(attempts).toBe(2)
+  })
+})
+
 describe("createUpstreamSseReader", () => {
   it("emits parsed events and tracks the latest event id", async () => {
     const events = []

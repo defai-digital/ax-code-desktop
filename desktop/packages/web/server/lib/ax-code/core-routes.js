@@ -290,6 +290,17 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     if (!isSameOriginRequest(req)) {
       return res.status(403).json({ ok: false, error: "Invalid origin" })
     }
+    // The dev flag and a same-origin check are not authentication: this route
+    // kills the process group, so a configured UI password must gate it too.
+    if (uiAuthController) {
+      let authorized = false
+      await uiAuthController.requireAuth(req, res, () => {
+        authorized = true
+      })
+      if (!authorized) {
+        return
+      }
+    }
 
     res.json({ ok: true })
 

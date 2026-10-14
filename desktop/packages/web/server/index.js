@@ -1269,6 +1269,12 @@ async function main(options = {}) {
   // route handlers so state-changing endpoints (shutdown, config reload, …)
   // are covered even though they are registered first inside the bootstrap.
   app.use("/api", createApiRequestSecurityMiddleware())
+  // The same guard for the two surfaces that sit outside /api but are still
+  // reachable without a session: the login/passkey endpoints (otherwise a
+  // rebound page can drive them same-origin) and /health, whose snapshot
+  // carries binary paths and launch arguments.
+  app.use("/auth", createApiRequestSecurityMiddleware())
+  app.use("/health", createApiRequestSecurityMiddleware())
   expressApp = app
   server = http.createServer(app)
 

@@ -282,14 +282,38 @@ const AX_CODE_DESKTOP_DATA_DIR = process.env.AX_CODE_DESKTOP_DATA_DIR
   : path.join(os.homedir(), ".config", "openchamber")
 const JWT_SECRET_FILE = path.join(AX_CODE_DESKTOP_DATA_DIR, "jwt-secret")
 
-function getOrCreateJwtSecret() {
+// HS256 with a short key is guessable: a captured session cookie could be
+// forged offline. Require 256 bits and treat anything shorter as absent.
+export const MIN_JWT_SECRET_BYTES = 32
+export const isStrongJwtSecret = (value) =>
+  typeof value === "string" && Buffer.byteLength(value.trim(), "utf8") >= MIN_JWT_SECRET_BYTES
+
+const resolveEnvJwtSecret = () => {
   const envSecret = process.env.AX_CODE_JWT_SECRET || process.env.AX_CODE_DESKTOP_JWT_SECRET
+  if (!envSecret) {
+    return null
+  }
+  if (!isStrongJwtSecret(envSecret)) {
+    console.error(
+      `[JWT] Ignoring AX_CODE_JWT_SECRET: it must be at least ${MIN_JWT_SECRET_BYTES} bytes; generating a strong secret instead.`,
+    )
+    return null
+  }
+  return envSecret
+}
+
+function getOrCreateJwtSecret() {
+  const envSecret = resolveEnvJwtSecret()
   if (envSecret) {
     return new TextEncoder().encode(envSecret)
   }
 
   try {
-    return new TextEncoder().encode(fs.readFileSync(JWT_SECRET_FILE, "utf8").trim())
+    const stored = fs.readFileSync(JWT_SECRET_FILE, "utf8").trim()
+    if (isStrongJwtSecret(stored)) {
+      return new TextEncoder().encode(stored)
+    }
+    console.warn(`[JWT] Replacing a too-short stored secret at ${JWT_SECRET_FILE}`)
   } catch (e) {
     if (e?.code !== "ENOENT") {
       console.warn("[JWT] Failed to read secret file:", e.message)
@@ -309,7 +333,9 @@ function getOrCreateJwtSecret() {
 }
 
 function persistJwtSecret(secret) {
-  if (process.env.AX_CODE_JWT_SECRET || process.env.AX_CODE_DESKTOP_JWT_SECRET) {
+  // Same strongness rule as getOrCreateJwtSecret: a weak env secret is ignored,
+  // so signing out globally must not be blocked by it.
+  if (resolveEnvJwtSecret()) {
     const error = new Error("Global sign-out is unavailable while AX_CODE_JWT_SECRET is set")
     error.statusCode = 400
     throw error

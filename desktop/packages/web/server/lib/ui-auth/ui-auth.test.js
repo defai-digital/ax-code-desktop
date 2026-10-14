@@ -44,7 +44,7 @@ describe("ui auth", () => {
   it("loads an existing JWT secret without a preflight existence check", async () => {
     process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
     const secretFile = path.join(tempRoot, "jwt-secret")
-    fs.writeFileSync(secretFile, "persisted-secret", "utf8")
+    fs.writeFileSync(secretFile, "persisted-secret-at-least-32-bytes-long", "utf8")
     const existsSync = vi.spyOn(fs, "existsSync").mockImplementation((candidate) => {
       if (candidate === secretFile) {
         return false
@@ -58,7 +58,7 @@ describe("ui auth", () => {
     const auth = createUiAuth({ password: "correct horse battery staple" })
 
     try {
-      expect(fs.readFileSync(secretFile, "utf8")).toBe("persisted-secret")
+      expect(fs.readFileSync(secretFile, "utf8")).toBe("persisted-secret-at-least-32-bytes-long")
       expect(log).not.toHaveBeenCalledWith(
         expect.stringContaining("[JWT] Generated and persisted new secret to"),
         secretFile,
@@ -72,7 +72,7 @@ describe("ui auth", () => {
 
   it("refuses reset-auth without deleting passkeys when the JWT secret is env-pinned", async () => {
     process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
-    process.env.AX_CODE_JWT_SECRET = "env-pinned-secret"
+    process.env.AX_CODE_JWT_SECRET = "env-pinned-secret-at-least-32-bytes-long"
     vi.resetModules()
 
     const { createUiAuth } = await import("./ui-auth.js")
@@ -104,6 +104,47 @@ describe("ui auth", () => {
     } finally {
       auth.dispose()
       writeSpy.mockRestore()
+    }
+  })
+})
+
+describe("jwt secret strength", () => {
+  it("accepts only secrets of at least 32 bytes", async () => {
+    const { isStrongJwtSecret, MIN_JWT_SECRET_BYTES } = await import("./ui-auth.js")
+
+    expect(MIN_JWT_SECRET_BYTES).toBe(32)
+    expect(isStrongJwtSecret("a".repeat(31))).toBe(false)
+    expect(isStrongJwtSecret("a".repeat(32))).toBe(true)
+    expect(isStrongJwtSecret("")).toBe(false)
+    expect(isStrongJwtSecret(undefined)).toBe(false)
+  })
+
+  it("ignores a too-short env secret and signs sessions with a generated one", async () => {
+    const originalDataDir = process.env.AX_CODE_DESKTOP_DATA_DIR
+    const originalSecret = process.env.AX_CODE_JWT_SECRET
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-jwt-"))
+    process.env.AX_CODE_DESKTOP_DATA_DIR = dir
+    process.env.AX_CODE_JWT_SECRET = "short"
+    vi.resetModules()
+
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const { createUiAuth } = await import("./ui-auth.js")
+      const auth = createUiAuth({ password: "correct horse battery staple" })
+
+      // A 5-byte HS256 key is guessable, so it must not be used: a strong local
+      // secret is generated and persisted instead.
+      expect(fs.readFileSync(path.join(dir, "jwt-secret"), "utf8").length).toBeGreaterThanOrEqual(32)
+      expect(log).toHaveBeenCalledWith(expect.stringContaining("[JWT] Ignoring AX_CODE_JWT_SECRET"))
+      auth.dispose()
+    } finally {
+      log.mockRestore()
+      fs.rmSync(dir, { recursive: true, force: true })
+      if (originalDataDir === undefined) delete process.env.AX_CODE_DESKTOP_DATA_DIR
+      else process.env.AX_CODE_DESKTOP_DATA_DIR = originalDataDir
+      if (originalSecret === undefined) delete process.env.AX_CODE_JWT_SECRET
+      else process.env.AX_CODE_JWT_SECRET = originalSecret
+      vi.resetModules()
     }
   })
 })
