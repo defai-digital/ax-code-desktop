@@ -36,4 +36,23 @@ describe("CSSVariableGenerator", () => {
       expect(generator.generateLines(theme).filter((line) => !isSafeCssLine(line)), theme.metadata.id).toEqual([])
     }
   })
+
+  test("emits only valid hex colours for the bundled themes", () => {
+    // Regression: appending an alpha byte to an 8-digit (or shorthand) hex produced a
+    // ten-digit value that is not a colour, so the focus ring of the Vitesse themes
+    // resolved to nothing.
+    const generator = new CSSVariableGenerator()
+    for (const theme of themes) {
+      for (const line of generator.generateLines(theme)) {
+        for (const match of line.matchAll(/#([0-9a-fA-F]+)/g)) {
+          expect([3, 4, 6, 8], `${theme.metadata.id}: ${line.trim()}`).toContain(match[1].length)
+        }
+      }
+      if (theme.metadata.id.startsWith("vitesse-")) {
+        // The literal in these themes is semi-transparent black; it must survive as a
+        // valid four-byte hex rather than the ten-digit value it replaced.
+        expect(generator.generate(theme), theme.metadata.id).toContain("--interactive-focus-ring: #00000050")
+      }
+    }
+  })
 })

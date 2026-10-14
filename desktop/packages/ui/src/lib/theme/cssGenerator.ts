@@ -671,7 +671,14 @@ export class CSSVariableGenerator {
 
   private opacity(color: string, alpha: number): string {
     if (color.startsWith("#")) {
-      return `${color}${Math.round(alpha * 255)
+      // Drop any existing alpha and expand a shorthand first: appending the byte to
+      // "#dbd7caee" or "#639" produced ten- and five-digit hex, which is not a colour
+      // at all and silently killed the property (e.g. every focus ring).
+      const hex = this.normalizeHexRgb(color)
+      if (hex.length !== 6) {
+        return color
+      }
+      return `#${hex}${Math.round(alpha * 255)
         .toString(16)
         .padStart(2, "0")}`
     }

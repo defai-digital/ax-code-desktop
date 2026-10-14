@@ -33,7 +33,7 @@
       "selection": "#eeeeee18",
       "selectionForeground": "#dbd7caee",
       "focus": "#00000000",
-      "focusRing": "#0000000050",
+      "focusRing": "#00000050",
       "cursor": "#CECDC3",
       "hover": "#eeeeee14",
       "active": "#eeeeee18"
@@ -126,7 +126,7 @@
     "tools": {
       "background": "#12121250",
       "border": "#2d2c2c",
-      "headerHover": "#ffffff1550",
+      "headerHover": "#ffffff50",
       "icon": "#dedcd5a4",
       "title": "#dbd7caee",
       "description": "#dedcd550",
