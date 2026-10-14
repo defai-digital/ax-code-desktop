@@ -227,7 +227,7 @@ export function MultiRunFusionDialog({
               maxModels={1}
               addButtonLabel={selectedModelLabel}
               showChips={false}
-              addButtonClassName="h-8 w-fit max-w-[min(28rem,calc(100vw-8rem))] justify-start rounded-[9px] [corner-shape:squircle] supports-[corner-shape:squircle]:rounded-[50px] px-3 py-1.5"
+              addButtonClassName="h-8 w-fit max-w-[min(28rem,calc(100vw-8rem))] justify-start rounded-[9px] squircle px-3 py-1.5"
               dropdownSide="bottom"
               dropdownClassName="w-[min(28rem,calc(100vw-8rem))]"
               triggerIcon={
@@ -243,7 +243,7 @@ export function MultiRunFusionDialog({
             >
               <SelectTrigger
                 size="lg"
-                className="h-8 w-fit rounded-[9px] [corner-shape:squircle] supports-[corner-shape:squircle]:rounded-[50px] !border-border/80 !bg-[var(--surface-subtle)] hover:!bg-[var(--interactive-hover)]/70 typography-meta font-medium text-foreground px-3 py-1.5"
+                className="h-8 w-fit rounded-[9px] squircle !border-border/80 !bg-[var(--surface-subtle)] hover:!bg-[var(--interactive-hover)]/70 typography-meta font-medium text-foreground px-3 py-1.5"
               >
                 <Icon name="brain-ai-3" className="h-3.5 w-3.5 text-muted-foreground" />
                 <SelectValue>
@@ -265,7 +265,7 @@ export function MultiRunFusionDialog({
             value={agent}
             onChange={setAgent}
             portalToBody
-            className="h-8 rounded-[9px] [corner-shape:squircle] supports-[corner-shape:squircle]:rounded-[50px] px-3 py-1.5"
+            className="h-8 rounded-[9px] squircle px-3 py-1.5"
           />
         </div>
 

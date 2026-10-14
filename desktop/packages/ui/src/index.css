@@ -1534,6 +1534,19 @@ input[aria-label="Terminal input"] {
   }
 }
 
+/* Squircle controls: a superellipse where corner-shape is supported (always in
+   the desktop shell), else the element's own rounded-* radius. Unlayered, so it
+   wins over that fallback utility. */
+.squircle {
+  corner-shape: squircle;
+}
+
+@supports (corner-shape: squircle) {
+  .squircle {
+    border-radius: 50px;
+  }
+}
+
 /* Settings dialog: hide the overlay scrollbar; wheel/keyboard scroll still works. */
 [data-settings-view="true"] .overlay-scrollbar {
   display: none;

@@ -129,7 +129,7 @@ export const OpenInAppButton = ({ directory, className }: OpenInAppButtonProps) 
   return (
     <div
       className={cn(
-        "app-region-no-drag inline-flex h-7 items-center self-center rounded-[9px] [corner-shape:squircle] supports-[corner-shape:squircle]:rounded-[50px]",
+        "app-region-no-drag inline-flex h-7 items-center self-center rounded-[9px] squircle",
         "bg-[var(--surface-elevated)] overflow-hidden",
         "border border-border/60",
         className,

@@ -34,7 +34,7 @@ const TINT_DESTRUCTIVE = [
 
 const buttonVariants = cva(
   [
-    "group relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[10px] [corner-shape:squircle] supports-[corner-shape:squircle]:rounded-[50px] typography-ui-label font-medium lowercase tracking-[0.01em] shrink-0 select-none",
+    "group relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[10px] squircle typography-ui-label font-medium lowercase tracking-[0.01em] shrink-0 select-none",
     "transition-[background-color,border-color,color,opacity] duration-150 ease-out outline-none",
     "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
     "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
@@ -69,9 +69,9 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-9 px-3.5 has-[>svg]:px-3",
-        sm: "h-8 gap-1.5 px-2.5 has-[>svg]:px-2 rounded-[9px] supports-[corner-shape:squircle]:rounded-[50px]",
-        xs: "h-6 gap-1 px-2 typography-micro has-[>svg]:px-1.5 rounded-[7px] supports-[corner-shape:squircle]:rounded-[50px]",
-        lg: "h-10 px-4 has-[>svg]:px-3.5 rounded-[12px] supports-[corner-shape:squircle]:rounded-[50px]",
+        sm: "h-8 gap-1.5 px-2.5 has-[>svg]:px-2 rounded-[9px]",
+        xs: "h-6 gap-1 px-2 typography-micro has-[>svg]:px-1.5 rounded-[7px]",
+        lg: "h-10 px-4 has-[>svg]:px-3.5 rounded-[12px]",
         icon: "size-9",
       },
     },

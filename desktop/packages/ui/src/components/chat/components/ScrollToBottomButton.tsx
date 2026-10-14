@@ -28,7 +28,7 @@ const ScrollToBottomButton: React.FC<ScrollToBottomButtonProps> = ({ visible, on
         size="sm"
         onClick={onClick}
         className={cn(
-          "rounded-full [corner-shape:round] p-0 shadow-none bg-background/95 hover:bg-interactive-hover",
+          "rounded-full [corner-shape:round]! p-0 shadow-none bg-background/95 hover:bg-interactive-hover",
           hasUnseen ? "h-7 gap-1 px-2.5" : "size-8",
         )}
         aria-label={t("chat.scrollToBottom.aria")}
