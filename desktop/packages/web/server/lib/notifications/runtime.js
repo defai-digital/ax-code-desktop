@@ -160,6 +160,69 @@ export const createNotificationTriggerRuntime = (deps) => {
     return typeof sessionId === "string" && sessionId.length > 0 ? sessionId : null
   }
 
+  // One ask's notification work, run once per pending entry at the debounce flush.
+  const flushPermissionAsk = async (sessionId, requestKey, payload) => {
+    if (await isSessionAutoAccepting(sessionId)) {
+      rememberNotifiedPermissionRequest(requestKey)
+      return
+    }
+
+    const settings = await readSettingsFromDisk()
+
+    if (settings.notifyOnQuestion === false) {
+      return
+    }
+
+    if (settings.notificationMode !== "always" && getIsWindowFocused?.()) {
+      return
+    }
+
+    const sessionTitle = payload.properties?.sessionTitle
+    const permission = payload.properties?.permission
+    const permissionText = typeof permission === "string" && permission.length > 0 ? permission : ""
+    const fallbackMessage = asTrimmedString(sessionTitle) || permissionText || "Agent is waiting for your approval"
+
+    let title = "Permission required"
+    let body = fallbackMessage
+
+    try {
+      const variables = await buildTemplateVariables(payload, sessionId)
+      variables.last_message = fallbackMessage
+
+      const templates = settings.notificationTemplates || {}
+      const questionTemplate = templates.question || { title: "Permission required", message: "{last_message}" }
+
+      const resolvedTitle = resolveNotificationTemplate(questionTemplate.title, variables)
+      const resolvedBody = resolveNotificationTemplate(questionTemplate.message, variables)
+      if (resolvedTitle) title = resolvedTitle
+      if (shouldApplyResolvedTemplateMessage(questionTemplate.message, resolvedBody, variables)) body = resolvedBody
+    } catch (error) {
+      console.warn("[Notification] Permission template resolution failed, using defaults:", error?.message || error)
+    }
+
+    if (settings.nativeNotificationsEnabled) {
+      emitDesktopNotification({
+        kind: "permission",
+        title,
+        body,
+        tag: requestKey ? `permission-${requestKey}` : `permission-${sessionId}`,
+        sessionId,
+        requireHidden: settings.notificationMode !== "always",
+      })
+
+      broadcastUiNotification({
+        kind: "permission",
+        title,
+        body,
+        tag: requestKey ? `permission-${requestKey}` : `permission-${sessionId}`,
+        sessionId,
+        requireHidden: settings.notificationMode !== "always",
+      })
+    }
+
+    rememberNotifiedPermissionRequest(requestKey)
+  }
+
   const maybeDispatchNotificationForTrigger = async (payload) => {
     if (!payload || typeof payload !== "object") {
       return
@@ -387,7 +450,6 @@ export const createNotificationTriggerRuntime = (deps) => {
 
     if (payload.type === "permission.asked" && sessionId) {
       const requestId = payload.properties?.id ?? payload.properties?.requestID ?? payload.properties?.requestId
-      const permission = payload.properties?.permission
       const requestKey = typeof requestId === "string" ? `${sessionId}:${requestId}` : null
       if (requestKey && notifiedPermissionRequests.has(requestKey)) {
         return
@@ -401,75 +463,36 @@ export const createNotificationTriggerRuntime = (deps) => {
         return
       }
 
-      const existingTimer = permissionNotificationDebounceTimers.get(sessionId)
-      if (existingTimer) {
-        clearTimeout(existingTimer.timer)
+      const existing = permissionNotificationDebounceTimers.get(sessionId)
+      if (existing) {
+        clearTimeout(existing.timer)
       }
+      // Coalesce the debounce window's timing, not its asks: replacing the pending
+      // entry used to drop the earlier ask's notification, so only the last one in a
+      // burst ever reached the user.
+      const pending = existing?.pending ?? new Map()
+      pending.set(requestKey ?? `unkeyed:${sessionId}`, payload)
 
       const timer = setTimeout(async () => {
         permissionNotificationDebounceTimers.delete(sessionId)
 
         if (await isSessionAutoAccepting(sessionId)) {
-          rememberNotifiedPermissionRequest(requestKey)
+          for (const key of pending.keys()) {
+            rememberNotifiedPermissionRequest(key.startsWith("unkeyed:") ? null : key)
+          }
           return
         }
 
-        const settings = await readSettingsFromDisk()
-
-        if (settings.notifyOnQuestion === false) {
-          return
-        }
-
-        if (settings.notificationMode !== "always" && getIsWindowFocused?.()) {
-          return
-        }
-
-        const sessionTitle = payload.properties?.sessionTitle
-        const permissionText = typeof permission === "string" && permission.length > 0 ? permission : ""
-        const fallbackMessage = asTrimmedString(sessionTitle) || permissionText || "Agent is waiting for your approval"
-
-        let title = "Permission required"
-        let body = fallbackMessage
-
-        try {
-          const variables = await buildTemplateVariables(payload, sessionId)
-          variables.last_message = fallbackMessage
-
-          const templates = settings.notificationTemplates || {}
-          const questionTemplate = templates.question || { title: "Permission required", message: "{last_message}" }
-
-          const resolvedTitle = resolveNotificationTemplate(questionTemplate.title, variables)
-          const resolvedBody = resolveNotificationTemplate(questionTemplate.message, variables)
-          if (resolvedTitle) title = resolvedTitle
-          if (shouldApplyResolvedTemplateMessage(questionTemplate.message, resolvedBody, variables)) body = resolvedBody
-        } catch (error) {
-          console.warn("[Notification] Permission template resolution failed, using defaults:", error?.message || error)
-        }
-
-        if (settings.nativeNotificationsEnabled) {
-          emitDesktopNotification({
-            kind: "permission",
-            title,
-            body,
-            tag: requestKey ? `permission-${requestKey}` : `permission-${sessionId}`,
+        for (const [pendingKey, pendingPayload] of pending) {
+          await flushPermissionAsk(
             sessionId,
-            requireHidden: settings.notificationMode !== "always",
-          })
-
-          broadcastUiNotification({
-            kind: "permission",
-            title,
-            body,
-            tag: requestKey ? `permission-${requestKey}` : `permission-${sessionId}`,
-            sessionId,
-            requireHidden: settings.notificationMode !== "always",
-          })
+            pendingKey.startsWith("unkeyed:") ? null : pendingKey,
+            pendingPayload,
+          )
         }
-
-        rememberNotifiedPermissionRequest(requestKey)
       }, PERMISSION_NOTIFICATION_DEBOUNCE_MS)
 
-      permissionNotificationDebounceTimers.set(sessionId, { timer, requestKey })
+      permissionNotificationDebounceTimers.set(sessionId, { timer, pending })
     }
   }
 

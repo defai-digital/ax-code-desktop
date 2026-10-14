@@ -132,3 +132,35 @@ describe("notification trigger runtime", () => {
 
     expect(sessionListFetches).toHaveBeenCalledTimes(1)
   })
+
+  it("notifies every permission ask in a burst instead of dropping the earlier ones", async () => {
+    // Two parallel asks within one debounce window used to leave only the second one
+    // told; the first sat pending with no prompt.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => [],
+        body: { cancel: async () => {} },
+      })),
+    )
+    vi.useFakeTimers()
+    try {
+      const { runtime, emitted } = createRuntime()
+      const ask = (id) => ({
+        type: "permission.asked",
+        properties: { id, permission: "bash", sessionTitle: "My session", sessionID: "ses_a" },
+      })
+
+      await runtime.maybeDispatchNotificationForTrigger(ask("req_a"))
+      await runtime.maybeDispatchNotificationForTrigger(ask("req_b"))
+
+      await vi.advanceTimersByTimeAsync(600)
+
+      const tags = emitted.map((entry) => entry.tag)
+      expect(tags).toContain("permission-ses_a:req_a")
+      expect(tags).toContain("permission-ses_a:req_b")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
