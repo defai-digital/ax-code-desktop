@@ -1594,6 +1594,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
     if (!primaryText && primaryAttachments.length === 0 && additionalParts.length === 0) return
 
+    // Snapshot what this submit consumes, so a failed send can put it back: the queue
+    // entries it takes and the composer text it folds into the payload. Both are
+    // cleared below, before the send resolves.
+    const consumedQueueSnapshot = currentSessionId ? [...queuedMessagesToSend] : []
+    const consumedInputSnapshot = !queuedOnly && inputSnapshot.hasContent ? inputSnapshot.message : ""
+
     // Clear queue and input
     if (currentSessionId && queuedMessageId) {
       removeFromQueue(currentSessionId, queuedMessageId)
@@ -1913,11 +1919,33 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         // draft, but only write it into the live composer (`setMessage`) if the
         // user is still viewing that same session — otherwise the failed send
         // from session A would overwrite whatever session B currently has typed.
-        if (originalPrimaryText && messageRef.current.trim().length === 0) {
+        if (consumedQueueSnapshot.length === 0 && originalPrimaryText && messageRef.current.trim().length === 0) {
           if (useSessionUIStore.getState().currentSessionId === currentSessionId) {
             setMessage(originalPrimaryText)
           }
           saveStoredDraft(currentSessionId, originalPrimaryText)
+        }
+
+        // A failed send must not consume the queue or the composer text: put the taken
+        // entries back at the head and restore the text that was folded into them.
+        if (currentSessionId && consumedQueueSnapshot.length > 0) {
+          useMessageQueueStore.setState((queueState) => {
+            const queue = queueState.queuedMessages[currentSessionId] ?? []
+            const present = new Set(queue.map((message) => message.id))
+            const restored = consumedQueueSnapshot.filter((message) => !present.has(message.id))
+            if (restored.length === 0) {
+              return queueState
+            }
+            return {
+              queuedMessages: { ...queueState.queuedMessages, [currentSessionId]: [...restored, ...queue] },
+            }
+          })
+        }
+        if (consumedInputSnapshot && messageRef.current.trim().length === 0) {
+          if (useSessionUIStore.getState().currentSessionId === currentSessionId) {
+            setMessage(consumedInputSnapshot)
+          }
+          saveStoredDraft(currentSessionId, consumedInputSnapshot)
         }
 
         const isSoftNetworkError =
