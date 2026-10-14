@@ -64,18 +64,34 @@ describe("messageQueueStore", () => {
     // The claim is check-then-set, so the losing interleaving is: our write lands,
     // the other window's write lands after it. Reading the record back and
     // requiring our own owner token is what makes the last writer win.
-    const original = window.localStorage.setItem.bind(window.localStorage)
-    const spy = vi.spyOn(window.localStorage, "setItem").mockImplementation((key, value) => {
-      original(key, value)
-      if (typeof key === "string" && key.startsWith("oc.queue.dispatch.")) {
-        original(key, `${Date.now()}:another-window`)
-      }
-    })
+    // The storage object itself is swapped instead of spying on setItem: jsdom's
+    // localStorage is getter-backed, so a spy on it is never called.
+    const originalDescriptor = Object.getOwnPropertyDescriptor(window, "localStorage")
+    const map = new Map<string, string>()
+    const racingStorage = {
+      get length() {
+        return map.size
+      },
+      key: (index: number) => Array.from(map.keys())[index] ?? null,
+      getItem: (key: string) => map.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        map.set(key, value)
+        // Another window writes the same record immediately afterwards.
+        if (key.startsWith("oc.queue.dispatch.")) map.set(key, `${Date.now()}:another-window`)
+      },
+      removeItem: (key: string) => {
+        map.delete(key)
+      },
+      clear: () => map.clear(),
+    }
+    Object.defineProperty(window, "localStorage", { configurable: true, value: racingStorage })
 
     try {
       expect(claimQueuedDispatch("queued-race")).toBe(false)
     } finally {
-      spy.mockRestore()
+      if (originalDescriptor) {
+        Object.defineProperty(window, "localStorage", originalDescriptor)
+      }
     }
   })
 
