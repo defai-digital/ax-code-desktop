@@ -12,6 +12,10 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
   const guests = []
   const revocations = []
   let provider = 0
+  // Set by a test before a load to model a guest whose loadURL never settles: a
+  // server that accepts TCP and never answers would leave the pane starting
+  // forever without the load deadline.
+  let hangLoad = false
   class View {
     constructor() {
       this.webContents = new EventEmitter()
@@ -23,6 +27,7 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
       }
       contents.setWindowOpenHandler = vi.fn()
       contents.loadURL = async (url) => {
+        if (hangLoad) return new Promise(() => {})
         contents.url = url
       }
       contents.getURL = () => contents.url
@@ -40,6 +45,8 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
   const controller = createDesktopWebMcpBrowser({
     BrowserWindow: { fromWebContents: (sender) => owners.get(sender) },
     WebContentsView: View,
+    // Short deadline so the hang tests stay fast.
+    loadTimeoutMs: 20,
     session: {
       fromPartition: () =>
         Object.assign(new EventEmitter(), {
@@ -89,7 +96,17 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
     await controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 800, height: 600 })
     return { sender, status }
   }
-  return { controller, create, requests, guests, revocations, owners }
+  return {
+    controller,
+    create,
+    requests,
+    guests,
+    revocations,
+    owners,
+    hangLoads: (value) => {
+      hangLoad = value
+    },
+  }
 }
 
 describe("desktop WebMCP capability probe", () => {
@@ -202,5 +219,51 @@ describe("native project browser integration", () => {
     expect(f.revocations).toHaveLength(2)
     f.revocations.forEach((resolve) => resolve({}))
     await closing
+  })
+
+  it("fails a first load that never settles instead of leaving the pane without an id", async () => {
+    // A server that accepts TCP and never answers used to hang the pane in
+    // "starting": the renderer never received an id, so every control it offers
+    // (address bar, Go, Reload) stayed disabled and the agent saw the browser as
+    // unavailable. The deadline turns the hang into a settled, failed load, which
+    // the create path already handles by keeping the pane usable.
+    const f = fixture()
+    f.hangLoads(true)
+    const sender = Object.assign(new EventEmitter(), { id: 77, getZoomFactor: () => 1 })
+    f.owners.set(
+      sender,
+      Object.assign(new EventEmitter(), {
+        isDestroyed: () => false,
+        isVisible: () => true,
+        isMinimized: () => false,
+        getContentBounds: () => ({ width: 800, height: 600 }),
+        contentView: { addChildView() {}, removeChildView() {} },
+      }),
+    )
+
+    const created = await Promise.race([
+      f.controller.command(sender, {
+        action: "create",
+        directory: "/tmp/project",
+        sessionID: "ses_fixture",
+        url: "https://example.com/",
+      }),
+      new Promise((_resolve, reject) =>
+        setTimeout(() => reject(new Error("create never settled while the page load hung")), 1000),
+      ),
+    ])
+
+    expect(created.id).toBeTruthy()
+  })
+
+  it("fails a navigation that never settles instead of leaving the pane busy", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+
+    f.hangLoads(true)
+
+    await expect(
+      f.controller.command(sender, { action: "navigate", id: status.id, url: "https://example.org/next" }),
+    ).rejects.toThrow("failed to load within")
   })
 })

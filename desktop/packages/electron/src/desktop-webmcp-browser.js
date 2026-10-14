@@ -3,6 +3,7 @@
 const { randomBytes, randomUUID } = require("node:crypto")
 const path = require("node:path")
 const { NativeWebMcp, CAPABILITY, allowedUrl, pageKind } = require("./native-webmcp")
+const { loadUrlWithTimeout, DEFAULT_LOAD_URL_TIMEOUT_MS } = require("./load-url-timeout")
 
 // This secret goes only to the supervised runtime child, never to a renderer or project config.
 const DESKTOP_BROWSER_TOKEN = randomBytes(32).toString("base64url")
@@ -15,6 +16,7 @@ function createDesktopWebMcpBrowser({
   getAuthorization,
   clientFactory,
   providerToken = DESKTOP_BROWSER_TOKEN,
+  loadTimeoutMs = DEFAULT_LOAD_URL_TIMEOUT_MS,
 }) {
   const views = new Map()
   // Partitions whose guest session already has the hardened handlers attached.
@@ -272,8 +274,11 @@ function createDesktopWebMcpBrowser({
         // A page that fails to load (server down, bad certificate) must not kill the
         // pane: closing the entry would leave the renderer without an id, so the
         // address bar and Go/Reload would stay inert and the failure would repeat on
-        // every re-entry. The user can navigate somewhere else instead.
-        await view.webContents.loadURL(args.url).catch(() => {})
+        // every re-entry. The user can navigate somewhere else instead. A load that
+        // never settles is treated the same way instead of hanging the pane's start
+        // forever: without the deadline the renderer never receives an id and no
+        // command it offers can be used.
+        await loadUrlWithTimeout(view.webContents, args.url, { timeoutMs: loadTimeoutMs }).catch(() => {})
         if (entry.closed) throw new Error("Browser closed during loading")
         await entry.adapter.start()
         owner.contentView.removeChildView(view)
@@ -327,7 +332,9 @@ function createDesktopWebMcpBrowser({
     }
     if (args.action === "navigate") {
       if (!allowedUrl(args.url)) throw new Error("Only ordinary web page URLs are supported")
-      await entry.view.webContents.loadURL(args.url)
+      // Same deadline as the first load: a load that never settles would otherwise
+      // leave the pane busy forever, with every toolbar command disabled.
+      await loadUrlWithTimeout(entry.view.webContents, args.url, { timeoutMs: loadTimeoutMs })
       return status(entry)
     }
     if (args.action === "reload") {
