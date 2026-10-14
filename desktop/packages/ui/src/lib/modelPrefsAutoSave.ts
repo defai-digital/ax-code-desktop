@@ -19,8 +19,16 @@ export const startModelPrefsAutoSave = () => {
   }
 
   let timer: number | null = null
-  let lastSent: { favoriteModels: ModelRef[]; recentModels: ModelRef[] } | null = null
-  let didSkipInitial = false
+  // Seeded with the values the app starts from, so only real changes are written.
+  // Skipping the first *change* instead (the previous behaviour) also swallowed the
+  // user's first favourite: hydration that leaves the store untouched (its values
+  // already match) produces no change, so the user's first click became that first,
+  // skipped change and never reached the server.
+  const initialPrefs = useUIStore.getState()
+  let lastSent: { favoriteModels: ModelRef[]; recentModels: ModelRef[] } | null = {
+    favoriteModels: initialPrefs.favoriteModels.slice(),
+    recentModels: initialPrefs.recentModels.slice(),
+  }
 
   const flush = () => {
     timer = null
@@ -44,10 +52,6 @@ export const startModelPrefsAutoSave = () => {
   }
 
   const schedule = () => {
-    if (!didSkipInitial) {
-      didSkipInitial = true
-      return
-    }
     if (timer !== null) {
       window.clearTimeout(timer)
     }
