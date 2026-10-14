@@ -130,6 +130,46 @@ function createDesktopWebMcpBrowser({
       if (entry.connection === connection) await disconnect(entry)
     }
   }
+  /**
+   * Serve one `navigate` request: load the URL the agent asked for, then report the
+   * document the pane landed on. The runtime pushes the new snapshot through the
+   * usual state channel first, so its reply check sees the page it will list next.
+   */
+  async function serveNavigation(entry, connection, request, canceled, signal) {
+    const reply = async (payload) => {
+      if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
+      await api(entry.directory, `/provider/${connection.providerID}/reply`, "POST", payload, signal)
+    }
+    try {
+      if (typeof request.url !== "string" || !allowedUrl(request.url))
+        throw new Error("Only ordinary web page URLs can be opened")
+      const before = entry.adapter.generation
+      await loadUrlWithTimeout(entry.view.webContents, request.url, { timeoutMs: loadTimeoutMs })
+      // The adapter observes the new document asynchronously; give it a brief
+      // moment so the reply carries the generation the runtime will hold. The
+      // listing that follows is its own round trip, so a short bound is enough and
+      // a page that never reports a generation must not delay the reply.
+      const deadline = Date.now() + 300
+      while (entry.adapter.generation === before && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+      const snapshot = entry.adapter.snapshot()
+      await synchronize(entry)
+      await reply({
+        requestID: request.requestID,
+        generation: snapshot.generation,
+        status: "Completed",
+        snapshot,
+      })
+    } catch {
+      await reply({
+        requestID: request.requestID,
+        generation: entry.adapter.snapshot().generation,
+        status: "Error",
+      })
+    }
+  }
+
   async function run(entry, connection, signal) {
     const canceled = new Set()
     try {
@@ -151,6 +191,14 @@ function createDesktopWebMcpBrowser({
           request.sessionID !== entry.sessionID
         ) {
           throw new Error("Browser request identity mismatch")
+        }
+        // Navigation is not a native tool call: the pane owns the load, so the
+        // bridge performs it and replies with the document it opened.
+        if (request.operation === "navigate") {
+          void serveNavigation(entry, connection, request, canceled, signal).catch(() => {
+            if (!signal.aborted) void disconnect(entry)
+          })
+          continue
         }
         // Invocation and polling run concurrently so abort can reach a waiting native form/tool.
         void entry.adapter

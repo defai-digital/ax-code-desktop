@@ -26,9 +26,11 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
         contents.destroyed = true
       }
       contents.setWindowOpenHandler = vi.fn()
+      contents.loadedUrls = []
       contents.loadURL = async (url) => {
         if (hangLoad) return new Promise(() => {})
         contents.url = url
+        contents.loadedUrls.push(url)
       }
       contents.getURL = () => contents.url
       contents.debugger = new EventEmitter()
@@ -42,6 +44,34 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
     setBounds() {}
   }
   const requests = []
+  // The provider stream hands the bridge one request per poll; a test can push a
+  // request before or after the stream starts.
+  const streamRequests = []
+  const streamWaiters = []
+  const pushStreamRequest = (request) => {
+    const waiter = streamWaiters.shift()
+    if (waiter) waiter(request)
+    else streamRequests.push(request)
+  }
+  const nextStreamRequest = (signal) =>
+    new Promise((resolve, reject) => {
+      const queued = streamRequests.shift()
+      if (queued) {
+        resolve(queued)
+        return
+      }
+      const waiter = (request) => resolve(request)
+      streamWaiters.push(waiter)
+      signal?.addEventListener(
+        "abort",
+        () => {
+          const index = streamWaiters.indexOf(waiter)
+          if (index >= 0) streamWaiters.splice(index, 1)
+          reject(new Error("aborted"))
+        },
+        { once: true },
+      )
+    })
   const controller = createDesktopWebMcpBrowser({
     BrowserWindow: { fromWebContents: (sender) => owners.get(sender) },
     WebContentsView: View,
@@ -68,9 +98,7 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
             projectID: "project",
           })
         if (request.url.endsWith("/next"))
-          return new Promise((_resolve, reject) => {
-            request.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true })
-          })
+          return nextStreamRequest(request.signal).then((next) => ({ request: next, canceled: [] }))
         if (request.method === "DELETE" && holdRevocation) return new Promise((resolve) => revocations.push(resolve))
         return Promise.resolve({})
       },
@@ -100,6 +128,7 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
     controller,
     create,
     requests,
+    pushStreamRequest,
     guests,
     revocations,
     owners,
@@ -108,6 +137,64 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
     },
   }
 }
+
+describe("desktop WebMCP navigation requests", () => {
+  const navigateRequest = (overrides = {}) => ({
+    providerID: "provider-1",
+    epoch: "boot",
+    projectID: "project",
+    sessionID: "ses_fixture",
+    generation: "generation-1",
+    origin: null,
+    frameId: "",
+    requestID: "req-navigate",
+    operation: "navigate",
+    deadline: Date.now() + 30000,
+    url: "https://example.org/flights",
+    ...overrides,
+  })
+
+  it("loads the requested page and replies with the document it opened", async () => {
+    // The agent could not put a page in front of itself before: the pane had to be
+    // filled by hand. The request now arrives over the provider stream.
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    f.pushStreamRequest(navigateRequest())
+
+    await vi.waitFor(() => {
+      expect(f.requests.some((request) => request.url.endsWith("/reply"))).toBe(true)
+    })
+
+    const replyIndex = f.requests.findIndex((request) => request.url.endsWith("/reply"))
+    const reply = f.requests[replyIndex].body
+    expect(reply).toMatchObject({ requestID: "req-navigate", status: "Completed" })
+    expect(typeof reply.generation).toBe("string")
+
+    // The pane really loaded the URL, and the state was pushed before the reply so
+    // the runtime's reply check sees the page it will list next.
+    const guest = f.guests.at(-1)
+    expect(guest.loadedUrls).toContain("https://example.org/flights")
+    const stateIndex = f.requests.findIndex((request) => request.method === "PUT" && request.url.endsWith("/state"))
+    expect(stateIndex).toBeGreaterThan(-1)
+    expect(stateIndex).toBeLessThan(replyIndex)
+  })
+
+  it("refuses a URL the pane cannot open and replies with an error status", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    f.pushStreamRequest(navigateRequest({ url: "file:///etc/passwd" }))
+
+    await vi.waitFor(() => {
+      expect(f.requests.some((request) => request.url.endsWith("/reply"))).toBe(true)
+    })
+
+    const reply = f.requests.find((request) => request.url.endsWith("/reply")).body
+    expect(reply).toMatchObject({ requestID: "req-navigate", status: "Error" })
+    expect(f.guests.at(-1).loadedUrls).not.toContain("file:///etc/passwd")
+  })
+})
 
 describe("desktop WebMCP capability probe", () => {
   it("reports a compatible runtime without creating a browser", async () => {

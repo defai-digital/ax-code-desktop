@@ -1,39 +1,56 @@
-# WebMCP: agent-initiated navigation — consumer side already supports it
+# WebMCP: agent-initiated navigation — producer and consumer both implemented
 
 Date: 2026-10-14
 
 ## Question
 
 `WEBMCP-2026-10-13-blank-page-diagnosability.md` recorded "agent-initiated navigation" as left out
-of that round. This note checks whether anything is missing on the Desktop (consumer) side, so the
-remaining work can be attributed precisely.
+of that round. The first version of this note found the Desktop (consumer) side complete and the gap
+producer-side only. This revision records the producer change and the consumer work it required.
 
-## Finding
+## Producer (canonical runtime)
 
-Nothing is missing here. The Electron shell already implements programmatic navigation of the
-project browser:
+`defai-digital/ax-code` `227ec97a5` — *"Let desktop_webmcp open a page on the agent's behalf"*:
 
-- `desktop/packages/electron/src/desktop-webmcp-browser.js:348` — `{ action: "navigate", url }`
-  loads the URL in the enrolled project-browser view, after `allowedUrl(...)`
-  (`desktop/packages/electron/src/native-webmcp.js`) allows only ordinary web-page URLs, and with the
-  same load deadline as the first load so a never-settling page cannot leave the pane busy.
-- `desktop/packages/electron/src/main.js` exposes it through the guarded `desktop_webmcp_browser` IPC
-  command, which additionally requires the window's main frame.
+- `packages/ax-code/src/mcp/desktop-browser.ts`: the bound-request schema became a
+  `BoundRequest | NavigateRequest` union, so a request can be issued while the pane is still blank
+  (`origin: null`, `frameId: ""`) and carries only `url`. `navigableUrl()` accepts `https:` anywhere
+  plus `http:` on loopback, and rejects embedded credentials. `retire(provider, { keepNavigate: true })`
+  keeps a waiting navigation alive across the snapshot change that is its own result, and `respond()`
+  checks only the pushed snapshot generation for a navigate reply.
+- `packages/ax-code/src/tool/desktop_webmcp.ts`, `desktop_webmcp.txt`, `skills/webmcp/SKILL.md`: the
+  tool gained `action: "navigate"` with `url`, asks once for the target origin, and the text no longer
+  claims the tool cannot open pages.
+- `packages/ax-code/src/mcp/webmcp-auto-approval.ts`: the approved operation set is
+  `"list" | "invoke" | "navigate"`, with `fullAccessOnly` for everything except `list`.
+- `packages/ax-code/test/mcp/desktop-browser.test.ts`: three new cases; the file's 21 tests pass.
 
-The gap is producer-side only: the AX Code runtime's `desktop_webmcp` tool and its skill/tool text
-state that `desktop_webmcp` "cannot open pages" and that the user must open the exact URL
-(verified inside signed runtime 7.25.5 — see `RUNTIME-2026-10-14-7.25.5.md`). Until the producer
-relaxes that rule and issues the navigation request, the shell's capability is simply unused.
+## Consumer (this repository)
 
-## Where a fix belongs
+`desktop/packages/electron/src/desktop-webmcp-browser.js` gained `serveNavigation()`. A `navigate`
+request is not a native tool call — the pane owns the load — so the bridge loads the URL itself with
+the same deadline used for the first load, waits briefly for the adapter to observe the new document,
+pushes the snapshot through the existing `/provider/:id/state` channel, and only then replies with
+`{ requestID, generation, status, snapshot }`. State-before-reply is the order the runtime's
+`respond()` requires: it compares the reply generation against the snapshot it already holds.
 
-`defai-digital/ax-code` (the canonical runtime): the desktop-browser bridge tool (`packages/ax-code/src/mcp/desktop-browser.ts`)
-plus its tool text and the `webmcp` skill. Per AGENTS.md this repository must not fork or duplicate
-the runtime, and the shell must not open a second path to the same capability, so no Desktop change
-is appropriate here.
+A URL the pane cannot open (`allowedUrl()` refuses `file:`, `data:` and credentialed URLs) is
+answered with `status: "Error"` and no load. The producer's `navigableUrl()` is the stricter gate and
+runs first, so the shell's copy is defence in depth.
 
-## What the Desktop side would need once the producer calls it
+`desktop/packages/electron/src/desktop-webmcp-browser.test.mjs` gained a pushable provider stream and
+two cases: the successful load (asserting the pane really loaded the URL, and that the `/state` push
+precedes the `/reply`) and the refused URL. Both fail against the pre-change bridge.
 
-Nothing structural: the IPC command, the URL allowlist, the load deadline and the pane-state
-refresh already exist and are covered by `desktop-webmcp-browser.test.mjs`. A producer change should
-be able to navigate by invoking the existing `navigate` action with the requested URL.
+## Boundary
+
+The pinned signed runtime is still 7.25.5, which predates `227ec97a5`. An installed app therefore
+keeps the old behaviour until a signed runtime containing this change is pinned and verified. The
+change is implemented, tested at the unit level, and does not affect the running app on its own.
+
+## Not verified
+
+End-to-end agent navigation on a real Electron window with a real runtime has not been exercised.
+Both sides are covered only by unit tests against a fake guest page and a fake provider stream. If an
+end-to-end run fails, check that the shell pushes `/state` before `/reply` and that the generation in
+the reply matches the snapshot the runtime holds.
