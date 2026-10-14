@@ -3415,6 +3415,7 @@
   "chat.queuedMessage.held": "tertahan \u2014 agen mengalami kesalahan",
   "chat.queuedMessage.edit": "sunting",
   "chat.queuedMessage.send": "kirim",
+  "chat.queuedMessage.sendFailed": "Gagal mengirim pesan dalam antrean",
   "chat.queuedMessage.removeAria": "Hapus dari antrean",
   "chat.container.returnToParent.aria": "Kembali ke sesi induk",
   "chat.container.returnToParent.titleNamed": "Kembali ke: {title}",

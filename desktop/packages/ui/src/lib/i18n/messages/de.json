@@ -3421,6 +3421,7 @@
   "chat.queuedMessage.held": "zur\u00fcckgehalten \u2014 Agent-Fehler",
   "chat.queuedMessage.edit": "bearbeiten",
   "chat.queuedMessage.send": "senden",
+  "chat.queuedMessage.sendFailed": "Nachricht aus der Warteschlange konnte nicht gesendet werden",
   "chat.queuedMessage.removeAria": "Aus der Warteschlange entfernen",
   "chat.container.returnToParent.aria": "Zur \u00fcbergeordneten Sitzung zur\u00fcck",
   "chat.container.returnToParent.titleNamed": "Zur\u00fcck zu: {title}",

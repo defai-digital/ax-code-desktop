@@ -83,6 +83,17 @@ vi.doMock("@/sync/sync-refs", () => ({
   getGlobalSyncSessionStatus: (sessionId: string) => statusState.current[sessionId],
 }))
 
+const toastErrorMock = vi.fn()
+
+vi.doMock("@/components/ui", () => ({
+  toast: { success: vi.fn(), error: toastErrorMock },
+}))
+
+vi.doMock("@/lib/i18n/store", () => ({
+  formatMessage: (_dictionary: unknown, key: string) => key,
+  useI18nStore: { getState: () => ({ dictionary: {} }) },
+}))
+
 const {
   buildQueuedAutoSendPayload,
   computeQueuedAutoSendStatusUpdate,
@@ -355,6 +366,7 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     renderTick = 0
     sendMessageCalls.length = 0
     sendShouldFail = false
+    toastErrorMock.mockClear()
     statusState.current = { "session-a": { type: "busy" } }
     useMessageQueueStore.setState({ queuedMessages: {} })
     useSyncNotificationStore.setState({
@@ -479,6 +491,24 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     // A real msg-branded id, not just "both undefined".
     expect(firstId).toMatch(/^msg_/)
     expect(sendOptionsOf(1).messageId).toBe(firstId)
+  })
+
+  test("surfaces a toast when the queued auto-send fails", async () => {
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+
+    sendShouldFail = true
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+
+    // The entry is restored for a manual retry, and the failure is visible
+    // instead of console-only.
+    expect(toastErrorMock).toHaveBeenCalledWith("chat.queuedMessage.sendFailed", { id: "queued-auto-send-failed" })
+    expect(useMessageQueueStore.getState().getQueueForSession("session-a")).toHaveLength(1)
   })
 
   test("a lost cross-window claim does not wedge the session's auto-send", async () => {

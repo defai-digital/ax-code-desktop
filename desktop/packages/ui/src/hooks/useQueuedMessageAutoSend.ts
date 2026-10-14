@@ -5,6 +5,8 @@ import {
   useMessageQueueStore,
   type QueuedMessage,
 } from "@/stores/messageQueueStore"
+import { toast } from "@/components/ui"
+import { formatMessage, useI18nStore } from "@/lib/i18n/store"
 import { ascendingId } from "@/lib/ax-code/client"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSelectionStore } from "@/sync/selection-store"
@@ -294,6 +296,12 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         )
       } catch (error) {
         console.warn("[queue] queued auto-send failed:", error)
+        // The entry is restored below and waits for a manual retry from the
+        // chip; without a visible notice the user has no way to know the
+        // send failed. A stable toast id dedupes a flapping failure.
+        toast.error(formatMessage(useI18nStore.getState().dictionary, "chat.queuedMessage.sendFailed"), {
+          id: "queued-auto-send-failed",
+        })
         // Let this or another window try again.
         releaseQueuedDispatchClaim(payload.queuedMessageId)
         if (dispatchedEntry) {

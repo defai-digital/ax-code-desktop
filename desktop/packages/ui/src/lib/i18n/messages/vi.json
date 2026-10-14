@@ -3421,6 +3421,7 @@
   "chat.queuedMessage.held": "\u0111ang gi\u1eef \u2014 t\u00e1c nh\u00e2n g\u1eb7p l\u1ed7i",
   "chat.queuedMessage.edit": "s\u1eeda",
   "chat.queuedMessage.send": "g\u1eedi",
+  "chat.queuedMessage.sendFailed": "Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c tin nh\u1eafn trong h\u00e0ng \u0111\u1ee3i",
   "chat.queuedMessage.removeAria": "X\u00f3a kh\u1ecfi h\u00e0ng \u0111\u1ee3i",
   "chat.container.returnToParent.aria": "Quay l\u1ea1i phi\u00ean cha",
   "chat.container.returnToParent.titleNamed": "Quay l\u1ea1i: {title}",

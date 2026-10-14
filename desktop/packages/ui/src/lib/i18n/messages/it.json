@@ -3421,6 +3421,7 @@
   "chat.queuedMessage.held": "trattenuto \u2014 errore dell'agente",
   "chat.queuedMessage.edit": "modifica",
   "chat.queuedMessage.send": "invia",
+  "chat.queuedMessage.sendFailed": "Impossibile inviare il messaggio in coda",
   "chat.queuedMessage.removeAria": "Rimuovi dalla coda",
   "chat.container.returnToParent.aria": "Torna alla sessione padre",
   "chat.container.returnToParent.titleNamed": "Torna a: {title}",

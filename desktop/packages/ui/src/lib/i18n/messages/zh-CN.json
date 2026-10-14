@@ -3421,6 +3421,7 @@
   "chat.queuedMessage.held": "\u5df2\u6682\u6302 \u2014 \u4ee3\u7406\u51fa\u9519",
   "chat.queuedMessage.edit": "\u7f16\u8f91",
   "chat.queuedMessage.send": "\u53d1\u9001",
+  "chat.queuedMessage.sendFailed": "\u53d1\u9001\u6392\u961f\u6d88\u606f\u5931\u8d25",
   "chat.queuedMessage.removeAria": "\u4ece\u961f\u5217\u4e2d\u79fb\u9664",
   "chat.container.returnToParent.aria": "\u8fd4\u56de\u7236\u4f1a\u8bdd",
   "chat.container.returnToParent.titleNamed": "\u8fd4\u56de\uff1a{title}",

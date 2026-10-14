@@ -3415,6 +3415,7 @@
   "chat.queuedMessage.held": "\u4fdd\u7559\u4e2d \u2014 \u30a8\u30fc\u30b8\u30a7\u30f3\u30c8\u3067\u30a8\u30e9\u30fc",
   "chat.queuedMessage.edit": "\u7de8\u96c6",
   "chat.queuedMessage.send": "\u9001\u4fe1",
+  "chat.queuedMessage.sendFailed": "\u30ad\u30e5\u30fc\u5185\u306e\u30e1\u30c3\u30bb\u30fc\u30b8\u3092\u9001\u4fe1\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f",
   "chat.queuedMessage.removeAria": "\u30ad\u30e5\u30fc\u304b\u3089\u524a\u9664",
   "chat.container.returnToParent.aria": "\u89aa\u30bb\u30c3\u30b7\u30e7\u30f3\u306b\u623b\u308b",
   "chat.container.returnToParent.titleNamed": "\u623b\u308a\u5148: {title}",

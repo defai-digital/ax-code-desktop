@@ -3415,6 +3415,7 @@
   "chat.queuedMessage.held": "retidas \u2014 erro do agente",
   "chat.queuedMessage.edit": "editar",
   "chat.queuedMessage.send": "enviar",
+  "chat.queuedMessage.sendFailed": "Falha ao enviar a mensagem da fila",
   "chat.queuedMessage.removeAria": "Remover da fila",
   "chat.container.returnToParent.aria": "Voltar \u00e0 sess\u00e3o pai",
   "chat.container.returnToParent.titleNamed": "Voltar para: {title}",

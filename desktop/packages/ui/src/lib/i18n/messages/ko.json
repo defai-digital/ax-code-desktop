@@ -3421,6 +3421,7 @@
   "chat.queuedMessage.held": "\ubcf4\ub958\ub428 \u2014 \uc5d0\uc774\uc804\ud2b8 \uc624\ub958",
   "chat.queuedMessage.edit": "\ud3b8\uc9d1",
   "chat.queuedMessage.send": "\ubcf4\ub0b4\uae30",
+  "chat.queuedMessage.sendFailed": "\ub300\uae30\uc5f4\uc758 \uba54\uc2dc\uc9c0\ub97c \ubcf4\ub0b4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
   "chat.queuedMessage.removeAria": "\ub300\uae30\uc5f4\uc5d0\uc11c \uc81c\uac70",
   "chat.container.returnToParent.aria": "\uc0c1\uc704 \uc138\uc158\uc73c\ub85c \ub3cc\uc544\uac00\uae30",
   "chat.container.returnToParent.titleNamed": "\ub3cc\uc544\uac00\uae30: {title}",
