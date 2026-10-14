@@ -3439,14 +3439,23 @@ export async function removeWorktree(directory, input = {}) {
     "Failed to remove git worktree",
   )
 
+  let branchDeleteWarning = null
   if (deleteLocalBranch) {
     const branchName = cleanBranchName(String(matchedEntry.branchRef || matchedEntry.branch || "").trim())
     if (branchName) {
-      await runGitCommandOrThrow(
-        context.primaryWorktree,
-        ["branch", "-D", branchName],
-        `Failed to delete local branch ${branchName}`,
-      )
+      try {
+        await runGitCommandOrThrow(
+          context.primaryWorktree,
+          ["branch", "-D", branchName],
+          `Failed to delete local branch ${branchName}`,
+        )
+      } catch (error) {
+        // The worktree directory is already gone. Failing the call here would skip
+        // the sandbox and bootstrap bookkeeping below and hand the UI a 500 for an
+        // operation that did happen, so report the branch left behind instead.
+        branchDeleteWarning = error instanceof Error ? error.message : String(error)
+        console.warn(`[git] worktree removed but its local branch was kept: ${branchDeleteWarning}`)
+      }
     }
   }
 
@@ -3461,7 +3470,7 @@ export async function removeWorktree(directory, input = {}) {
 
   clearWorktreeBootstrapState(matchedEntry.worktree)
 
-  return true
+  return branchDeleteWarning ? { removed: true, branchDeleted: false, warning: branchDeleteWarning } : true
 }
 
 export async function deleteBranch(directory, branch, options = {}) {

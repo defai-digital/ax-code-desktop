@@ -11,6 +11,7 @@ import {
   cherryPick,
   countStashFiles,
   getStatus,
+  removeWorktree,
   resetToCommit,
   resolveRepositoryFilePath,
   resolveBaseRefForLog,
@@ -626,5 +627,60 @@ describe("checkoutBranch", () => {
 
     expect(result).toEqual({ success: true, branch: "feature" })
     expect((await git.branch()).current).toBe("feature")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// removeWorktree
+// ---------------------------------------------------------------------------
+
+describe("removeWorktree", () => {
+  it("removes the worktree and reports a branch it could not delete", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
+    runGit(repo, ["add", "README.md"])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+    runGit(repo, ["branch", "feat"])
+
+    // Two worktrees on the same branch: git refuses to delete a branch that another
+    // worktree still has checked out, which is what makes `branch -D` fail after the
+    // first worktree is removed.
+    const target = path.join(repo, ".worktrees", "target")
+    const other = path.join(repo, ".worktrees", "other")
+    runGit(repo, ["worktree", "add", "--force", target, "feat"])
+    runGit(repo, ["worktree", "add", "--force", other, "feat"])
+
+    const result = await removeWorktree(repo, { directory: target, deleteLocalBranch: true })
+
+    // The worktree is gone, so the call reports success and says why the branch stayed.
+    expect(result).toMatchObject({ removed: true, branchDeleted: false })
+    expect(String(result.warning)).toContain("feat")
+    expect(fs.existsSync(target)).toBe(false)
+    expect(runGit(repo, ["branch", "--list", "feat"])).toContain("feat")
+  })
+
+  it("deletes the branch when it is only checked out in the removed worktree", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
+    runGit(repo, ["add", "README.md"])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+
+    const target = path.join(repo, ".worktrees", "solo")
+    runGit(repo, ["worktree", "add", "-b", "solo", target])
+
+    const result = await removeWorktree(repo, { directory: target, deleteLocalBranch: true })
+
+    expect(result).toBe(true)
+    expect(runGit(repo, ["branch", "--list", "solo"]).trim()).toBe("")
   })
 })

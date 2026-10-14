@@ -988,7 +988,10 @@ export function registerGitRoutes(app) {
         directory: worktreeDirectory,
         deleteLocalBranch: req.body?.deleteLocalBranch === true,
       })
-      res.json({ success: Boolean(result) })
+      // The worktree is gone even when its local branch could not be deleted, so the
+      // call still succeeds and carries why the branch stayed behind.
+      const warning = result && typeof result === "object" ? result.warning : undefined
+      res.json({ success: Boolean(result), ...(warning ? { warning: String(warning) } : {}) })
     } catch (error) {
       console.error("Failed to remove worktree:", error)
       res.status(500).json({ error: error.message || "Failed to remove worktree" })
