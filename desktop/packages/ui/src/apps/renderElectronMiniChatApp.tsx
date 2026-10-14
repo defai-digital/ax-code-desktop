@@ -14,9 +14,25 @@ import { initializeLocale, I18nProvider } from "@/lib/i18n"
 import { initializeAppearancePreferences, syncDesktopSettings } from "@/lib/persistence"
 import { startModelPrefsAutoSave } from "@/lib/modelPrefsAutoSave"
 import { startTypographyWatcher } from "@/lib/typographyWatcher"
+import { useUIStore } from "@/stores/useUIStore"
 import { ElectronMiniChatApp } from "./ElectronMiniChatApp"
 
+/**
+ * Appearance settings live in the shared `ui-store`. A window only learns about the
+ * other window's change by rehydrating from the storage event, and the mini chat has
+ * no other path — without this it keeps the appearance it was opened with (font size,
+ * font, padding, reasoning traces) until it is closed.
+ */
+const startSharedUiStoreSync = () => {
+  if (typeof window === "undefined") return
+  window.addEventListener("storage", (event) => {
+    if (event.storageArea !== window.localStorage || event.key !== "ui-store") return
+    void useUIStore.persist.rehydrate()
+  })
+}
+
 const initializeSharedPreferences = () => {
+  startSharedUiStoreSync()
   const localeReady = initializeLocale()
 
   void initializeAppearancePreferences()
