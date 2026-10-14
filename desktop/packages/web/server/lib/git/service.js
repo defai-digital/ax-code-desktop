@@ -24,6 +24,7 @@ const SIMPLE_GIT_ALLOWED_ENV_KEYS = [
   "GIT_COMMITTER_EMAIL",
   "GIT_COMMITTER_NAME",
   "GIT_EDITOR",
+  "GIT_OPTIONAL_LOCKS",
   "GIT_SSH_COMMAND",
 ]
 const SIMPLE_GIT_GUARDED_ENV_KEYS = new Set(["editor", "pager", "prefix", "ssh_askpass", "visual"])
@@ -351,6 +352,11 @@ const buildGitEnv = async () => {
       env.SSH_AUTH_SOCK = resolved
     }
   }
+  // Read-only commands refresh the index as an optional side effect of status and
+  // diff. That refresh takes .git/index.lock for a moment, which makes a git
+  // command the user runs in a terminal fail with "Unable to create
+  // index.lock". Required locks are still taken, so mutations keep working.
+  env.GIT_OPTIONAL_LOCKS = "0"
   return env
 }
 
@@ -1549,7 +1555,7 @@ export async function getStatus(directory, options = {}) {
       ? ["", ""]
       : await Promise.all([
           git.raw(["diff", "--cached", "--numstat"]).catch(() => ""),
-          git.raw(["diff", "--numstat"]).catch(() => ""),
+          git.raw(["diff-files", "--numstat"]).catch(() => ""),
         ])
 
     const diffStatsMap = new Map()
@@ -4186,14 +4192,14 @@ export async function getConflictDetails(directory) {
     const statusPorcelain = await git.raw(["status", "--porcelain"]).catch(() => "")
 
     // Get unmerged files
-    const unmergedFilesRaw = await git.raw(["diff", "--name-only", "--diff-filter=U"]).catch(() => "")
+    const unmergedFilesRaw = await git.raw(["diff-files", "--name-only", "--diff-filter=U"]).catch(() => "")
     const unmergedFiles = unmergedFilesRaw
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
 
     // Get current diff
-    const diff = await git.raw(["diff"]).catch(() => "")
+    const diff = await git.raw(["diff-files", "-p"]).catch(() => "")
 
     // Detect operation type and get head info
     let operation = "merge"

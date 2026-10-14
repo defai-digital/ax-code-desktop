@@ -162,6 +162,29 @@ describe("getStatus", () => {
 
     await expect(getStatus(repo)).resolves.toMatchObject({ current: "main" })
   })
+
+  it("refreshes the index without taking the optional index lock", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
+    runGit(repo, ["add", "README.md"])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+
+    // An mtime older than the recorded stat makes git distrust the cached entry,
+    // so an unguarded status would rewrite the index under .git/index.lock.
+    const stale = new Date("2001-01-01T00:00:00.000Z")
+    fs.utimesSync(path.join(repo, "README.md"), stale, stale)
+    const indexPath = path.join(repo, ".git", "index")
+    const indexBefore = fs.readFileSync(indexPath)
+
+    await getStatus(repo)
+
+    expect(fs.readFileSync(indexPath)).toEqual(indexBefore)
+  })
 })
 
 // ---------------------------------------------------------------------------
