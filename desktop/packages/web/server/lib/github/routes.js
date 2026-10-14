@@ -130,6 +130,9 @@ export function registerGitHubRoutes(app) {
       } catch (error) {
         if (isGitHubAuthInvalid(error)) {
           clearGitHubAuth()
+          // The token is gone: cached PR/repo data belongs to the account that just
+          // stopped being current, so it must not outlive the switch.
+          await clearGitHubAccountScopedCaches()
           return res.json({ connected: false, accounts: getGitHubAuthAccounts() })
         }
       }
@@ -269,6 +272,7 @@ export function registerGitHubRoutes(app) {
       } catch (error) {
         if (isGitHubAuthInvalid(error)) {
           clearGitHubAuth()
+          await clearGitHubAccountScopedCaches()
           return res.json({ connected: false, accounts: getGitHubAuthAccounts() })
         }
       }
@@ -313,6 +317,7 @@ export function registerGitHubRoutes(app) {
       } catch (error) {
         if (isGitHubAuthInvalid(error)) {
           clearGitHubAuth()
+          await clearGitHubAccountScopedCaches()
           return res.status(401).json({ error: "GitHub token expired or revoked" })
         }
         throw error
@@ -513,6 +518,7 @@ export function registerGitHubRoutes(app) {
       if (error?.status === 401) {
         const { clearGitHubAuth } = await getGitHubLibraries()
         clearGitHubAuth()
+        await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }
       if (isGitHubResourceUnavailable(error)) {
@@ -1290,6 +1296,7 @@ export function registerGitHubRoutes(app) {
       if (error?.status === 401) {
         const { clearGitHubAuth } = await getGitHubLibraries()
         clearGitHubAuth()
+        await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }
       console.error("Failed to list GitHub pull requests:", error)
@@ -1652,6 +1659,7 @@ export function registerGitHubRoutes(app) {
       if (error?.status === 401) {
         const { clearGitHubAuth } = await getGitHubLibraries()
         clearGitHubAuth()
+        await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }
       console.error("Failed to load GitHub PR context:", error)
