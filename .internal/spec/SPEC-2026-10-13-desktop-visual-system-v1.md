@@ -100,7 +100,9 @@ Each stage is a separate reviewed change. Stage order is the recommendation, not
   - `lib/theme/oklch.ts`, `generateTheme.ts` and `themeContrast.ts` are in place. A test audits every bundled theme:
     body and button text must reach 4.5:1.
   - Ten light themes had pastel button text and were fixed in `b82c9742`; git ref badges now use the canvas colour.
-  - The generator is not exposed in the UI; that is a product decision for a later change.
+  - `d77e05a2` exposes the generator in Appearance settings as "Create theme from colours". It previews the
+    theme, runs the contrast check, saves only `generated-*` theme files through `POST /api/config/themes` and selects
+    the theme. Verified live in a dev build.
 
 ### Stage 5: transcript polish (Activity fold done 2026-10-13)
 
