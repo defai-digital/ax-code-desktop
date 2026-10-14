@@ -142,13 +142,18 @@ export function useRouter(): void {
 
     const unsubscribe = useSessionUIStore.subscribe((state) => {
       const sessionId = state.currentSessionId
+      const previous = prevSessionId
+
+      // Keep the baseline current even while a route is being applied. Leaving it
+      // stale makes a later change back to that value look like no change, so the
+      // URL stops tracking the session after a back/forward navigation.
+      prevSessionId = sessionId
 
       // Skip if no change or if we're currently applying a route
-      if (sessionId === prevSessionId || isApplyingRouteRef.current) {
+      if (sessionId === previous || isApplyingRouteRef.current) {
         return
       }
 
-      prevSessionId = sessionId
       syncURLFromState()
     })
 
@@ -163,11 +168,6 @@ export function useRouter(): void {
     let prevDiffFile: string | null = useUIStore.getState().pendingDiffFile
 
     const unsubscribe = useUIStore.subscribe((state) => {
-      // Skip if we're currently applying a route
-      if (isApplyingRouteRef.current) {
-        return
-      }
-
       const tabChanged = state.activeMainTab !== prevTab
       const settingsOpenChanged = state.isSettingsDialogOpen !== prevSettingsOpen
       const settingsPathChanged = state.settingsPage !== prevSettingsPath
@@ -178,6 +178,11 @@ export function useRouter(): void {
       prevSettingsOpen = state.isSettingsDialogOpen
       prevSettingsPath = state.settingsPage
       prevDiffFile = state.pendingDiffFile
+
+      // Skip if we're currently applying a route (the baseline is already current).
+      if (isApplyingRouteRef.current) {
+        return
+      }
 
       // Only sync if something relevant changed
       if (tabChanged || settingsOpenChanged || settingsPathChanged || diffFileChanged) {
