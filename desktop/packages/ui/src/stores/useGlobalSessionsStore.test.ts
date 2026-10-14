@@ -19,7 +19,7 @@ vi.mock("@/lib/sessionRemovalCleanup", () => ({
   cleanupRemovedSessions: cleanupRemovedSessionsMock,
 }))
 
-import { resolveGlobalSessionDirectory, useGlobalSessionsStore } from "./useGlobalSessionsStore"
+import { ensureGlobalSessionsLoaded, resolveGlobalSessionDirectory, useGlobalSessionsStore } from "./useGlobalSessionsStore"
 
 type SessionOverrides = Partial<Session> & {
   directory?: string | null
@@ -474,7 +474,33 @@ describe("loadSessions keeps the snapshot on a server error", () => {
     await useGlobalSessionsStore.getState().loadSessions()
 
     expect(useGlobalSessionsStore.getState().activeSessions).toEqual([existing])
+    // Not "ready": the failed half must stay retryable (ensureGlobalSessionsLoaded
+    // only reloads from the error state), while the preserved snapshot stays
+    // visible.
+    expect(useGlobalSessionsStore.getState().status).toBe("error")
+  })
+
+  test("a later ensureGlobalSessionsLoaded retries after a partial load failure", async () => {
+    useGlobalSessionsStore.setState({
+      activeSessions: [],
+      archivedSessions: [],
+      sessionsByDirectory: new Map(),
+      pendingRemoval: new Map(),
+      deleteTombstones: new Map(),
+      hasLoaded: false,
+      status: "idle",
+    })
+    // The active list fails while the archived list answers: without the error
+    // status the index would stay empty for the rest of the session.
+    listGlobalSessionPagesMock.mockRejectedValueOnce(new Error("session.list failed (503): unavailable"))
+    await useGlobalSessionsStore.getState().loadSessions()
+    expect(useGlobalSessionsStore.getState().status).toBe("error")
+
+    listGlobalSessionPagesMock.mockResolvedValue([])
+    await ensureGlobalSessionsLoaded()
+
     expect(useGlobalSessionsStore.getState().status).toBe("ready")
+    expect(listGlobalSessionPagesMock).toHaveBeenCalled()
   })
 })
 

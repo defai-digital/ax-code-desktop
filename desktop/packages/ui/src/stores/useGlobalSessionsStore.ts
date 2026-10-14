@@ -564,7 +564,12 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
           )
         }
 
-        set((state) => applySnapshot(state, nextActiveSessions, nextArchivedSessions, "ready"))
+        // A partial failure keeps the preserved snapshot(s) but must not report
+        // "ready": ensureGlobalSessionsLoaded only retries from the error state,
+        // so claiming readiness on a cold start would leave the sidebar empty
+        // with nothing to trigger another load.
+        const loadFailed = activeResult.status === "rejected" || archivedResult.status === "rejected"
+        set((state) => applySnapshot(state, nextActiveSessions, nextArchivedSessions, loadFailed ? "error" : "ready"))
         return { activeSessions: nextActiveSessions, archivedSessions: nextArchivedSessions }
       } catch (error) {
         const live = get()
