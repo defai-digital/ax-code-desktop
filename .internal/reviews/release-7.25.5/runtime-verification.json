@@ -1,0 +1,40 @@
+{
+  "version": "7.25.5",
+  "releaseTag": "v7.25.5",
+  "artifacts": {
+    "darwin-arm64": {
+      "filename": "ax-code-darwin-arm64.zip",
+      "size": 79120963,
+      "sha256": "d6fd7d15bbb836e24dcd14611aa4ca9e2e5975cba4548418caff644244b618b6",
+      "signatureSize": 377,
+      "signatureSha256": "bbeda6ea18516d6293bd808224a600a7a9fa2b240ef9a93ddd8d4ec31e3bb022"
+    },
+    "linux-arm64": {
+      "filename": "ax-code-linux-arm64.tar.gz",
+      "size": 85513382,
+      "sha256": "64a12cbd8246cd1a8d2f72c17967174314ed77a4080cd7972a2f0ffc3d9962ef",
+      "signatureSize": 379,
+      "signatureSha256": "46855e0e46e19537b6cfe56e5ca78aea7b9f6e51caa01adcc2b7a278fb295d28"
+    },
+    "linux-x64": {
+      "filename": "ax-code-linux-x64.tar.gz",
+      "size": 87238660,
+      "sha256": "d08ba8685e93a193facbc8d79672d9da21e7cc143168a09da3b4c2f0ade458c6",
+      "signatureSize": 377,
+      "signatureSha256": "e7bf06f6ae480783bca3b772357fcb4a59ab692a88093d7dd66ef8e99c1bb317"
+    },
+    "win32-x64": {
+      "filename": "ax-code-windows-x64.zip",
+      "size": 93626477,
+      "sha256": "d5b82906bd5c31bfec8aeed6ced562817c010b6b0018a3ff5e80076c97199527",
+      "signatureSize": 376,
+      "signatureSha256": "0af88c396465aa1f5ada699728b042a14a994a72a929f1c979b233d450da9ea9"
+    }
+  },
+  "minisignVerifiedTargets": [
+    "darwin-arm64",
+    "linux-arm64",
+    "linux-x64",
+    "win32-x64"
+  ]
+}
