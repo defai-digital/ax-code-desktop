@@ -10,7 +10,6 @@ import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
 import { parseModelIdentifier } from "@/lib/modelIdentifier"
-import { API_ENDPOINTS } from "@/lib/http"
 import { loadDefaultsSettings } from "./defaultsSettingsLoad"
 
 const getDisplayModel = (storedModel: string | undefined): { providerId: string; modelId: string } => {
@@ -101,15 +100,12 @@ export const DefaultsSettings: React.FC = () => {
       }
 
       try {
+        // One write for both fields. This used to be followed by a direct
+        // `fetch(PUT { defaultModel })`, which bypassed the coalescing queue and the
+        // settings cache: two unordered writes for the same field meant a quick
+        // second change could lose to the first, and a later read could still serve
+        // the pre-write snapshot.
         await updateDesktopSettings({ defaultModel: newValue ?? "", defaultVariant: "" })
-        const response = await fetch(API_ENDPOINTS.config.settings, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ defaultModel: newValue }),
-        })
-        if (!response.ok) {
-          console.warn("Failed to save default model to server:", response.status, response.statusText)
-        }
       } catch (error) {
         console.warn("Failed to save default model:", error)
       }
