@@ -22,7 +22,7 @@ import {
 } from "./performance"
 import { API_PATHS } from "@/lib/http"
 import { createEventTransport } from "@/lib/event-stream/client"
-import { markStreamConnected, markStreamDisconnected } from "@/lib/event-stream/connection-state"
+import { markStreamConnected, markStreamDisconnected, useConnectionStore } from "@/lib/event-stream/connection-state"
 import { isAbortError, type SdkSseDriver, type TransportError, type WsDriver } from "@/lib/event-stream/types"
 import type { MessageStreamWsFrame } from "@/lib/event-stream/adapters/websocket"
 import { SYNC_RETRY_NOW_EVENT as TRANSPORT_SYNC_RETRY_NOW_EVENT } from "@/lib/event-stream/visibility"
@@ -758,10 +758,18 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
         notifyDisconnected(reasonFromTransportError(error))
       },
       onTransportSwitch: () => {
-        // A transport switch (WS → SSE fallback) is not a disconnection: the
-        // stream is about to re-establish on the fallback driver, so the
-        // canonical phase stays/flips to connected (S4.7).
-        markStreamConnected()
+        // A transport switch (WS → SSE fallback) is not a disconnection: a healthy
+        // fallback takes over and the UI must not flash "reconnecting". Clearing the
+        // latch is what makes that safe — it is the latch, not the switch, that was
+        // swallowing the outcome: a fallback that also failed left the phase at
+        // "connected" for the whole outage, and a boot against a dead server claimed
+        // a connection it never had. Only claim connected once one actually happened
+        // (the store's hasEverConnected) — otherwise the phase stays "connecting"
+        // until the fallback acknowledges.
+        disconnected = false
+        if (useConnectionStore.getState().hasEverConnected) {
+          markStreamConnected()
+        }
         onTransportSwitch?.()
       },
     },
