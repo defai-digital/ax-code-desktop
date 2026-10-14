@@ -119,6 +119,22 @@ Each stage is a separate reviewed change. Stage order is the recommendation, not
   - `9ca8392a` and `9a73b7dc`: the follow stop at the reader's message in collapsed mode.
   - `b510c1ae`: the per-fold message window.
 
+### Closing review (2026-10-14)
+
+Codex and ax-code deepseek reviewed every commit above. The fixes:
+
+- `98a50515`: the CSS generator drops theme values that could close the declaration block. Theme route errors
+  no longer return filesystem paths.
+- `b640944c`: reader navigation passes the current turn's follow stop. The hold ends only on input that scrolls the
+  outer timeline, so copying text keeps it.
+- `c607a9b9`:
+  - Generated themes reach 4.5:1 for status colours, syntax tokens and the tinted primary button on every
+    background they render on. `checkGeneratedThemeContrast` gates saving.
+  - Shiki and Pierre theme ids include a palette hash, so a re-saved theme repaints code and diffs.
+- `ce808ef0`:
+  - Message navigation opens the fold and mounts the target step.
+  - Hidden-step spacers carry a focusable "Show N earlier/later steps" button.
+
 ## Verification
 
 Use `pnpm run typecheck`, `lint`, `test`, `check:locales` and `check:boundaries`. Window chrome and motion also need
