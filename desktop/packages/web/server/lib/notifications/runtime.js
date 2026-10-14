@@ -73,8 +73,10 @@ export const createNotificationTriggerRuntime = (deps) => {
   }
 
   const setCachedSessionParentId = (sessionId, parentID) => {
-    if (!parentID) return
-    sessionParentIdCache.set(sessionId, { parentID, at: Date.now() })
+    // A root session's negative answer is worth caching too: without it every
+    // notification trigger re-fetches the full session list (and a parent-chain walk
+    // pays one such fetch per hop).
+    sessionParentIdCache.set(sessionId, { parentID: parentID ?? null, at: Date.now() })
   }
 
   const getParentIdFromPayload = (payload) => {

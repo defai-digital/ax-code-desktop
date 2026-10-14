@@ -102,3 +102,33 @@ describe("notification trigger runtime", () => {
     }
   })
 })
+
+  it("caches a root session's no-parent answer instead of re-fetching the list", async () => {
+    const sessionListFetches = vi.fn(async () => ({
+      ok: true,
+      json: async () => [{ id: "ses_root", parentID: null }],
+      body: { cancel: async () => {} },
+    }))
+    vi.stubGlobal("fetch", sessionListFetches)
+
+    const { runtime } = createRuntime({
+      readSettingsFromDisk: vi.fn(async () => ({
+        nativeNotificationsEnabled: true,
+        notificationMode: "always",
+        notifyOnSubtasks: false,
+        notifyOnCompletion: true,
+      })),
+    })
+
+    const trigger = {
+      type: "message.updated",
+      properties: { info: { role: "assistant", finish: "stop", sessionID: "ses_root" } },
+    }
+
+    // Two completion triggers for the same root session: the parent lookup must be
+    // served from the cache the second time, not by another full session-list fetch.
+    await runtime.maybeDispatchNotificationForTrigger(trigger)
+    await runtime.maybeDispatchNotificationForTrigger(trigger)
+
+    expect(sessionListFetches).toHaveBeenCalledTimes(1)
+  })
