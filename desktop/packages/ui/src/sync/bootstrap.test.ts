@@ -1,5 +1,14 @@
 import { describe, expect, test, vi } from "vitest"
 import type { AxCodeClient, PermissionRequest, QuestionRequest } from "@defai-digital/ax-code-sdk/v2/client"
+
+const { wasPromptRecentlyAcceptedMock } = vi.hoisted(() => ({
+  wasPromptRecentlyAcceptedMock: vi.fn((_sessionId: string) => false),
+}))
+
+vi.mock("./session-actions", () => ({
+  wasPromptRecentlyAccepted: wasPromptRecentlyAcceptedMock,
+}))
+
 import { bootstrapDirectory } from "./bootstrap"
 import { INITIAL_STATE, type State } from "./types"
 
@@ -122,5 +131,45 @@ describe("bootstrapDirectory — deferred permission/question resync", () => {
     await flush()
 
     expect(getState().permission.ses_a?.map((p) => p.id)).toEqual(["perm_1"])
+  })
+})
+
+describe("bootstrapDirectory — session status snapshot", () => {
+  const boot = (harness: ReturnType<typeof makeHarness>, sdk: AxCodeClient) =>
+    bootstrapDirectory({
+      directory: "/repo",
+      sdk,
+      getState: harness.getState,
+      set: harness.set,
+      global: { projects: [{ id: "proj_1", worktree: "/repo" } as never] },
+      loadSessions: () => undefined,
+    })
+
+  test("keeps a just-sent turn's status when the snapshot does not list it yet", async () => {
+    // prompt_async returns before the turn registers as busy, so a snapshot taken in
+    // that gap omits the session. Taking the snapshot wholesale flipped the
+    // optimistic busy back to idle and the turn looked dead.
+    wasPromptRecentlyAcceptedMock.mockImplementation((sessionId: string) => sessionId === "ses_a")
+    const harness = makeHarness({ session_status: { ses_a: { type: "busy" }, ses_b: { type: "busy" } } })
+    const sdk = makeBaseSdk({
+      session: { status: vi.fn(async () => ({ data: { ses_b: { type: "busy" } } })) },
+    })
+
+    await boot(harness, sdk)
+    await flush()
+
+    expect(harness.getState().session_status.ses_a).toEqual({ type: "busy" })
+    expect(harness.getState().session_status.ses_b).toEqual({ type: "busy" })
+  })
+
+  test("still settles a session the server omits once the grace window has passed", async () => {
+    wasPromptRecentlyAcceptedMock.mockReturnValue(false)
+    const harness = makeHarness({ session_status: { ses_a: { type: "busy" } } })
+    const sdk = makeBaseSdk({ session: { status: vi.fn(async () => ({ data: {} })) } })
+
+    await boot(harness, sdk)
+    await flush()
+
+    expect(harness.getState().session_status.ses_a).toEqual({ type: "idle" })
   })
 })

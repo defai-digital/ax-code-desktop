@@ -1,6 +1,14 @@
-import type { AxCodeClient, PermissionRequest, Project, QuestionRequest } from "@defai-digital/ax-code-sdk/v2/client"
+import type {
+  AxCodeClient,
+  PermissionRequest,
+  Project,
+  QuestionRequest,
+  SessionStatus,
+} from "@defai-digital/ax-code-sdk/v2/client"
 import { retry } from "./retry"
 import type { GlobalState, State } from "./types"
+import { hasCompletedAssistantReply, resolveResyncedSessionStatus } from "./reconnect-recovery"
+import { wasPromptRecentlyAccepted } from "./session-actions"
 import { API_ENDPOINTS } from "@/lib/http"
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
@@ -145,7 +153,28 @@ export async function bootstrapDirectory(input: {
         if (next) set({ project: next })
       }),
     ),
-    retry(() => sdk.session.status().then((x) => set({ session_status: unwrap(x, "session.status") }))),
+    retry(() =>
+      sdk.session.status().then((x) => {
+        const snapshot = unwrap(x, "session.status") as unknown as Record<string, SessionStatus>
+        // The snapshot lists only the sessions the server currently considers active,
+        // so taking it wholesale flipped a just-sent turn's optimistic busy back to
+        // idle: prompt_async returns before the turn registers as busy. Merge through
+        // the same resolver the reconnect/poll paths use, which keeps the optimistic
+        // status inside the accepted-prompt grace window.
+        const current = getState()
+        const existing = current.session_status ?? {}
+        const merged: Record<string, SessionStatus> = {}
+        for (const sessionId of new Set([...Object.keys(existing), ...Object.keys(snapshot)])) {
+          merged[sessionId] = resolveResyncedSessionStatus({
+            serverStatus: snapshot[sessionId],
+            existingStatus: existing[sessionId],
+            promptRecentlyAccepted: wasPromptRecentlyAccepted(sessionId),
+            hasCompletedAssistantReply: hasCompletedAssistantReply(current.message?.[sessionId]),
+          })
+        }
+        set({ session_status: merged })
+      }),
+    ),
   ])
 
   const phase1Errors = phase1Results
