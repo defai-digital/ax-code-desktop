@@ -120,6 +120,20 @@ const normalizeOptionalString = (value: unknown): string | undefined => {
 
 const hasProviderModel = hasSelectableProviderModel
 
+/**
+ * Whether a recomputed default may replace the current selection. A last-resort
+ * default (the hardcoded fallback or the first selectable provider) must never move
+ * a still-selectable selection — that is what made the composer jump to another
+ * provider on every loadAgents/loadProviders run. A configured settings default or
+ * an agent preference may still apply, per the documented resolution order.
+ */
+export const shouldKeepCurrentSelection = (
+  resolvedIsLastResort: boolean,
+  providers: ProviderWithModelList[],
+  providerId: string,
+  modelId: string,
+): boolean => resolvedIsLastResort && hasProviderModel(providers, providerId, modelId)
+
 const resolveGitGenerationModelSelection = ({
   providers,
   settingsZenModel,
@@ -803,7 +817,10 @@ export const useConfigStore = create<ConfigStore>()(
                       state.settingsDefaultModel,
                       state.settingsDefaultVariant,
                     )
-                    if (!currentSelectionIsSelectable) {
+                    // An empty list is the discovery window, not an authoritative
+                    // "your provider is gone": resolving against it would clear the
+                    // model or jump to the first selectable provider.
+                    if (!currentSelectionIsSelectable && processedProviders.length > 0) {
                       const fallback =
                         resolved ?? resolveFirstSelectableSelection(processedProviders, state.currentProviderId)
                       const nextSelection =
@@ -923,7 +940,9 @@ export const useConfigStore = create<ConfigStore>()(
                   state.settingsDefaultModel,
                   state.settingsDefaultVariant,
                 )
-                if (!currentSelectionIsSelectable) {
+                // Same discovery-window guard as the success path: an empty fallback
+                // list cannot prove the current selection is gone.
+                if (!currentSelectionIsSelectable && fallbackProviders.length > 0) {
                   const fallback =
                     resolved ?? resolveFirstSelectableSelection(fallbackProviders, state.currentProviderId)
                   const nextSelection =
@@ -1403,16 +1422,19 @@ export const useConfigStore = create<ConfigStore>()(
                 }
 
                 // 3. Fall back to ax-code/big-pickle
+                let resolvedIsLastResort = false
                 if (!resolvedProviderId) {
                   if (modelIsSelectable(FALLBACK_PROVIDER_ID, FALLBACK_MODEL_ID)) {
                     resolvedProviderId = FALLBACK_PROVIDER_ID
                     resolvedModelId = FALLBACK_MODEL_ID
+                    resolvedIsLastResort = true
                   } else {
                     // Last resort: first selectable provider model.
                     const fallback = resolveFirstSelectableSelection(providers, FALLBACK_PROVIDER_ID)
                     if (fallback) {
                       resolvedProviderId = fallback.currentProviderId
                       resolvedModelId = fallback.currentModelId
+                      resolvedIsLastResort = true
                     }
                   }
                 }
@@ -1428,13 +1450,31 @@ export const useConfigStore = create<ConfigStore>()(
                     defaultProviders: {},
                   }
 
+                  // A still-selectable selection wins over a LAST-RESORT default.
+                  // loadAgents runs on startup, directory activation and every config
+                  // refresh; without this guard each run moved the composer to the
+                  // first selectable provider (alphabetically first, usually
+                  // claude-code), which is what made the selection jump on its own.
+                  // A settings default or an agent preference still applies as
+                  // documented — only the hardcoded fallback yields to the user.
+                  const keepSnapshotSelection = shouldKeepCurrentSelection(
+                    resolvedIsLastResort,
+                    providers,
+                    baseSnapshot.currentProviderId,
+                    baseSnapshot.currentModelId,
+                  )
+
                   const nextSnapshot: DirectoryScopedConfig = {
                     ...baseSnapshot,
                     providers,
                     currentAgentName: resolvedAgent.name,
-                    currentProviderId: resolvedProviderId ?? baseSnapshot.currentProviderId,
-                    currentModelId: resolvedModelId ?? baseSnapshot.currentModelId,
-                    currentVariant: resolvedVariant,
+                    currentProviderId: keepSnapshotSelection
+                      ? baseSnapshot.currentProviderId
+                      : (resolvedProviderId ?? baseSnapshot.currentProviderId),
+                    currentModelId: keepSnapshotSelection
+                      ? baseSnapshot.currentModelId
+                      : (resolvedModelId ?? baseSnapshot.currentModelId),
+                    currentVariant: keepSnapshotSelection ? baseSnapshot.currentVariant : resolvedVariant,
                   }
 
                   const nextState: Partial<ConfigStore> = {
@@ -1446,7 +1486,13 @@ export const useConfigStore = create<ConfigStore>()(
 
                   if (state.activeDirectoryKey === directoryKey) {
                     nextState.currentAgentName = resolvedAgent.name
-                    if (resolvedProviderId && resolvedModelId) {
+                    const keepActiveSelection = shouldKeepCurrentSelection(
+                      resolvedIsLastResort,
+                      providers,
+                      state.currentProviderId,
+                      state.currentModelId,
+                    )
+                    if (!keepActiveSelection && resolvedProviderId && resolvedModelId) {
                       nextState.currentProviderId = resolvedProviderId
                       nextState.currentModelId = resolvedModelId
                       nextState.currentVariant = resolvedVariant
