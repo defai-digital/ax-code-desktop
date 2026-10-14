@@ -428,12 +428,30 @@ const applySnapshot = (
   // soft-removed (pendingRemoval undo window) or hard-deleted (delete
   // tombstone — preserveNewerSessions cannot cover deletes because the
   // session has no current entry left); keep both out of the incoming lists.
+  //
+  // Cross-bucket moves are a third case: a snapshot may still list a session in the
+  // bucket it was moved out of (archive/unarchive land via events or optimistic
+  // updates before a slow load resolves). preserveNewerSessions compares only
+  // within the incoming list's own bucket, so without this guard the stale copy
+  // would resurrect the session in the wrong bucket. Drop any incoming entry whose
+  // current counterpart (in either list) is newer.
+  // Only drop an incoming entry when its *other-bucket* counterpart is the newer
+  // one: same-bucket freshness is preserveNewerSessions's job, and dropping the
+  // incoming copy there would lose the fresher current entry entirely.
+  const dropStaleAcrossBuckets = (incoming: Session[], other: Session[]) => {
+    const otherById = new Map(other.map((session) => [session.id, session]))
+    return incoming.filter((session) => {
+      const cross = otherById.get(session.id)
+      return !cross || getSessionFreshness(cross) <= getSessionFreshness(session)
+    })
+  }
+
   const incomingActive = withoutDeleteTombstones(
-    withoutPendingRemoval(preserveNewerSessions(activeSessions, state.activeSessions), state.pendingRemoval),
+    withoutPendingRemoval(preserveNewerSessions(dropStaleAcrossBuckets(activeSessions, state.archivedSessions), state.activeSessions), state.pendingRemoval),
     state.deleteTombstones,
   )
   const incomingArchived = withoutDeleteTombstones(
-    withoutPendingRemoval(preserveNewerSessions(archivedSessions, state.archivedSessions), state.pendingRemoval),
+    withoutPendingRemoval(preserveNewerSessions(dropStaleAcrossBuckets(archivedSessions, state.activeSessions), state.archivedSessions), state.pendingRemoval),
     state.deleteTombstones,
   )
   const nextActiveSessions = sameSessionList(state.activeSessions, incomingActive)

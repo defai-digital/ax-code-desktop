@@ -505,3 +505,47 @@ describe("loadSessions recovers from a wedged request", () => {
     }
   })
 })
+
+describe("applySnapshot cross-bucket freshness", () => {
+  test("a stale snapshot cannot resurrect a session into the bucket it was moved out of", () => {
+    // X was archived at t=200 (so its active entry is gone); a slow load started before
+    // the move lands with X still in its active list at t=100. The stale copy must not
+    // become active again.
+    const archivedX = makeSession("ses_x", { time: { created: 1, updated: 200 } })
+    const staleX = makeSession("ses_x", { time: { created: 1, updated: 100 } })
+    useGlobalSessionsStore.setState({
+      activeSessions: [],
+      archivedSessions: [archivedX],
+      sessionsByDirectory: new Map(),
+      pendingRemoval: new Map(),
+      deleteTombstones: new Map(),
+      hasLoaded: true,
+      status: "ready",
+    })
+
+    useGlobalSessionsStore.getState().applySnapshot([staleX], [])
+
+    // The stale copy must not become active again. (A snapshot that lists the session
+    // nowhere still wins each bucket wholesale, as before; that part is unchanged.)
+    expect(useGlobalSessionsStore.getState().activeSessions).toEqual([])
+  })
+
+  test("a fresh archived entry supersedes an older active copy", () => {
+    const oldActiveX = makeSession("ses_y", { time: { created: 1, updated: 100 } })
+    const newArchivedX = makeSession("ses_y", { time: { created: 1, updated: 200 } })
+    useGlobalSessionsStore.setState({
+      activeSessions: [oldActiveX],
+      archivedSessions: [],
+      sessionsByDirectory: new Map(),
+      pendingRemoval: new Map(),
+      deleteTombstones: new Map(),
+      hasLoaded: true,
+      status: "ready",
+    })
+
+    useGlobalSessionsStore.getState().applySnapshot([], [newArchivedX])
+
+    expect(useGlobalSessionsStore.getState().activeSessions).toEqual([])
+    expect(useGlobalSessionsStore.getState().archivedSessions).toEqual([newArchivedX])
+  })
+})
