@@ -325,22 +325,24 @@ export async function removeProjectWorktree(
     projectWorktrees.filter((w) => normalizeWorktreePath(w.path) !== normalizedWorktreePath),
   )
 
-  // Clean up worktreeMetadata for sessions in the removed worktree
-  const currentMetadata = useSessionUIStore.getState().worktreeMetadata
-  const updatedMetadata = new Map(currentMetadata)
-  for (const [sid, meta] of currentMetadata.entries()) {
-    if (meta && normalizeWorktreePath(meta.path) === normalizedWorktreePath) {
-      updatedMetadata.delete(sid)
-    }
-  }
+  // Sessions attached to the removed worktree. Detach them through the store
+  // action: readers resolve a session's directory from the authoritative
+  // session-worktree attachment first, so deleting only the metadata map would
+  // leave those sessions pointing at the directory that no longer exists.
+  const detachedSessionIds = [...useSessionUIStore.getState().worktreeMetadata.entries()]
+    .filter(([, meta]) => meta && normalizeWorktreePath(meta.path) === normalizedWorktreePath)
+    .map(([sid]) => sid)
 
   useSessionUIStore.setState({
     availableWorktreesByProject: updatedByProject,
     availableWorktrees: useSessionUIStore
       .getState()
       .availableWorktrees.filter((w) => normalizeWorktreePath(w.path) !== normalizedWorktreePath),
-    worktreeMetadata: updatedMetadata,
   })
+
+  for (const sid of detachedSessionIds) {
+    useSessionUIStore.getState().setWorktreeMetadata(sid, null)
+  }
 
   const branchName = (worktree.branch || "").replace(/^refs\/heads\//, "").trim()
   if (deleteRemote && branchName) {
