@@ -22,7 +22,10 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
         const parsed = JSON.parse(raw)
         return res.json(parsed)
       } catch {
-        return res.json({ version: 1, foldersMap: {}, collapsedFolderIds: [], updatedAt: 0 })
+        // A corrupted file must not read as "no folders": the client treats the empty
+        // snapshot as authoritative and a follow-up write would replace the user's
+        // folders with nothing. Fail loudly so the client keeps its own copy.
+        return res.status(500).json({ error: "Session folders data is corrupted" })
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to read session folders"

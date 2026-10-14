@@ -5,6 +5,29 @@ import { registerSessionFoldersRoutes } from "./routes.js"
 import { createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
 
 describe("session folders routes", () => {
+  it("answers with an error instead of an empty snapshot when the stored file is corrupted", async () => {
+    // The client's disk hydration treats an empty snapshot as authoritative, so a
+    // corrupt file used to read as "no folders" and a follow-up write would replace
+    // the user's organization with nothing.
+    const { app, getRoute } = createRouteRegistry()
+    const fsPromises = {
+      readFile: vi.fn(async () => "not json {"),
+    }
+
+    registerSessionFoldersRoutes(app, {
+      fsPromises,
+      path,
+      openchamberDataDir: "/tmp/openchamber-test",
+    })
+
+    const handler = getRoute("GET", "/api/session-folders")
+    const response = createMockResponse()
+    await handler({}, response)
+
+    expect(response.statusCode).toBe(500)
+    expect(response.body.error).toMatch(/corrupt/i)
+  })
+
   it("uses unique temp files for concurrent saves", async () => {
     const { app, getRoute } = createRouteRegistry()
     const tempPaths = []
