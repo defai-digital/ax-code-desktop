@@ -185,6 +185,60 @@ describe("getStatus", () => {
 
     expect(fs.readFileSync(indexPath)).toEqual(indexBefore)
   })
+
+  it("reports the merge head and message while a merge is in progress", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "base\n")
+    runGit(repo, ["add", "f.txt"])
+    runGit(repo, ["commit", "-m", "base"])
+    runGit(repo, ["checkout", "-b", "other"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "other\n")
+    runGit(repo, ["commit", "-am", "other"])
+    runGit(repo, ["checkout", "main"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "main\n")
+    runGit(repo, ["commit", "-am", "main"])
+    expect(() => runGit(repo, ["merge", "--no-edit", "-m", "Merge other into main", "other"])).toThrow()
+
+    const status = await getStatus(repo)
+
+    expect(status.mergeInProgress).toEqual({
+      head: runGit(repo, ["rev-parse", "--short=7", "MERGE_HEAD"]).trim(),
+      message: "Merge other into main",
+    })
+    expect(status.rebaseInProgress).toBeNull()
+  })
+
+  it("reports the branch and base of an in-progress rebase", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "base\n")
+    runGit(repo, ["add", "f.txt"])
+    runGit(repo, ["commit", "-m", "base"])
+    runGit(repo, ["checkout", "-b", "feature"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "feature\n")
+    runGit(repo, ["commit", "-am", "feature"])
+    runGit(repo, ["checkout", "main"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "main\n")
+    runGit(repo, ["commit", "-am", "main"])
+    expect(() => runGit(repo, ["rebase", "feature"])).toThrow()
+
+    const status = await getStatus(repo)
+
+    expect(status.mergeInProgress).toBeNull()
+    expect(status.rebaseInProgress).toEqual({
+      headName: "main",
+      onto: runGit(repo, ["rev-parse", "--short=7", "feature"]).trim(),
+    })
+  })
 })
 
 // ---------------------------------------------------------------------------

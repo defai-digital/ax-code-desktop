@@ -501,6 +501,42 @@ const resolveGitInternalPath = async (repoRoot, git, gitPath) => {
   return absolutePath
 }
 
+const readGitInternalText = async (repoRoot, git, gitPath) => {
+  const resolvedPath = await resolveGitInternalPath(repoRoot, git, gitPath).catch(() => "")
+  if (!resolvedPath) {
+    return ""
+  }
+  return fsp.readFile(resolvedPath, "utf8").catch(() => "")
+}
+
+// Rebase state lives in .git/rebase-merge (merge backend) or .git/rebase-apply
+// (apply backend and git am). head-name holds the branch being rebased and onto
+// the base it is replayed on; REBASE_HEAD instead points at the commit being
+// replayed, so it cannot describe the operation on its own.
+const readRebaseInProgress = async (repoRoot, git) => {
+  for (const stateDir of ["rebase-merge", "rebase-apply"]) {
+    const stateDirPath = await resolveGitInternalPath(repoRoot, git, stateDir).catch(() => "")
+    const active = stateDirPath
+      ? await fsp
+          .stat(stateDirPath)
+          .then((stat) => stat.isDirectory())
+          .catch(() => false)
+      : false
+    if (!active) {
+      continue
+    }
+
+    const headName = (await readGitInternalText(repoRoot, git, `${stateDir}/head-name`)).trim()
+    const onto = (await readGitInternalText(repoRoot, git, `${stateDir}/onto`)).trim()
+    return {
+      headName: headName.replace(/^refs\/heads\//, ""),
+      onto: onto.slice(0, 7),
+    }
+  }
+
+  return null
+}
+
 const resolveGitFileContext = async (directoryPath, git, filePath, repoRootOverride = null) => {
   const repoRoot = repoRootOverride || (await resolveGitRepositoryRoot(directoryPath, git))
   const candidates = Array.from(new Set([path.resolve(repoRoot, filePath), path.resolve(directoryPath, filePath)]))
@@ -1765,9 +1801,10 @@ export async function getStatus(directory, options = {}) {
         const headSha = mergeHead.trim().slice(0, 7)
         // Only set mergeInProgress if we actually have a valid head SHA
         if (headSha) {
+          const mergeMessage = await readGitInternalText(repoRoot, git, "MERGE_MSG")
           mergeInProgress = {
             head: headSha,
-            message: "",
+            message: mergeMessage.trim().split("\n")[0] || "",
           }
         }
       }
@@ -1776,21 +1813,7 @@ export async function getStatus(directory, options = {}) {
     }
 
     try {
-      const rebaseHead = await git
-        .raw(["rev-parse", "--verify", "--quiet", "REBASE_HEAD"])
-        .then((value) =>
-          String(value || "")
-            .trim()
-            .slice(0, 7),
-        )
-        .catch(() => "")
-
-      if (rebaseHead) {
-        rebaseInProgress = {
-          headName: "",
-          onto: rebaseHead,
-        }
-      }
+      rebaseInProgress = await readRebaseInProgress(repoRoot, git)
     } catch {
       // ignore
     }
@@ -4218,16 +4241,15 @@ export async function getConflictDetails(directory) {
       const mergeMsg = mergeMsgPath ? await fsp.readFile(mergeMsgPath, "utf8").catch(() => "") : ""
       headInfo = `MERGE_HEAD: ${mergeHead.trim()}\n${mergeMsg}`
     } else {
-      // Check for REBASE_HEAD (rebase in progress)
-      const rebaseHeadExists = await git
-        .raw(["rev-parse", "--verify", "--quiet", "REBASE_HEAD"])
-        .then(() => true)
-        .catch(() => false)
+      // Detect the rebase from its state directory: REBASE_HEAD is absent while
+      // the apply backend (git am, rebase --apply) is in progress.
+      const rebaseState = await readRebaseInProgress(repoRoot, git).catch(() => null)
 
-      if (rebaseHeadExists) {
+      if (rebaseState) {
         operation = "rebase"
         const rebaseHead = await git.raw(["rev-parse", "REBASE_HEAD"]).catch(() => "")
-        headInfo = `REBASE_HEAD: ${rebaseHead.trim()}`
+        const headSha = rebaseHead.trim()
+        headInfo = headSha ? `REBASE_HEAD: ${headSha}` : `REBASE onto: ${rebaseState.onto}`
       }
     }
 
