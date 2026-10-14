@@ -2348,6 +2348,16 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
       return
     }
 
+    // The tabs store refuses paths outside the project root, so a navigation to one
+    // could never take effect: handleSelectFile would clear the draft/loaded file, the
+    // effect would re-run on every reload that caused, and the pane would clear and
+    // re-read the previous file forever. Drop the intent instead of looping.
+    if (!isPathWithinRoot(targetPath, root)) {
+      setPendingFileNavigation(null)
+      pendingNavigationCycleRef.current = { key: "", attempts: 0 }
+      return
+    }
+
     const navigationKey = `${targetPath}:${pendingFileNavigation.line}:${pendingFileNavigation.column ?? 1}`
     if (pendingNavigationCycleRef.current.key !== navigationKey) {
       pendingNavigationCycleRef.current = { key: navigationKey, attempts: 0 }
@@ -2457,6 +2467,14 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
       return
     }
 
+    // Same acceptance rule as the tabs store: a path outside the root can never be
+    // selected, so this intent would spin the navigation effect (and leave the flag in
+    // the store for a later pane to act on).
+    if (!isPathWithinRoot(targetPath, root)) {
+      setPendingFileFocusPath(null)
+      return
+    }
+
     if (selectedFile?.path !== targetPath) {
       if (confirmDiscardOpen) {
         return
@@ -2472,6 +2490,10 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     if (canEdit && textViewMode === "edit") {
       const view = editorViewRef.current
       if (!view) {
+        // No editor to focus yet. Drop the intent: this effect does not observe the
+        // editor-ready tick, so waiting here would either spin or leave the flag in the
+        // store for a later pane to act on. The file itself stays selected.
+        setPendingFileFocusPath(null)
         return
       }
       view.focus()
