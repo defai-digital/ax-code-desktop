@@ -107,7 +107,7 @@ export function registerGitHubRoutes(app) {
     }
   }
 
-  const isGitHubAuthInvalid = (error) => error?.status === 401 || error?.status === 403
+  const isGitHubAuthInvalid = (error) => error?.status === 401
   const isGitHubResourceUnavailable = (error) => error?.status === 403 || error?.status === 404
 
   app.get("/api/github/auth/status", async (_req, res) => {

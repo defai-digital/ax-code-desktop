@@ -34,6 +34,51 @@ describe("github routes", () => {
     getGitHubAuthAccounts.mockReturnValue([{ id: "known-account" }])
   })
 
+  it("does not clear stored credentials on a 403 rate limit", async () => {
+    // GitHub returns 403 for primary and secondary rate limits, which previously read
+    // as "auth invalid": the route deleted the stored OAuth token and wiped every
+    // account-scoped cache. A 403 must keep the credentials.
+    const { getGitHubAuth, getOctokitOrNull, clearGitHubAuth } = await import("./index.js")
+    getGitHubAuth.mockReturnValueOnce({ accessToken: "tok", user: { login: "alice" }, scope: "repo" })
+    getOctokitOrNull.mockReturnValueOnce({
+      rest: {
+        users: {
+          getAuthenticated: vi.fn(async () => {
+            throw Object.assign(new Error("rate limited"), { status: 403 })
+          }),
+          listEmailsForAuthenticatedUser: vi.fn(async () => ({ data: [] })),
+        },
+      },
+    })
+
+    const app = createApp()
+    const response = await request(app).get("/api/github/auth/status").expect(200)
+
+    expect(response.body.connected).toBe(true)
+    expect(clearGitHubAuth).not.toHaveBeenCalled()
+  })
+
+  it("clears stored credentials on a 401", async () => {
+    const { getGitHubAuth, getOctokitOrNull, clearGitHubAuth } = await import("./index.js")
+    getGitHubAuth.mockReturnValueOnce({ accessToken: "tok", user: { login: "alice" }, scope: "repo" })
+    getOctokitOrNull.mockReturnValueOnce({
+      rest: {
+        users: {
+          getAuthenticated: vi.fn(async () => {
+            throw Object.assign(new Error("bad credentials"), { status: 401 })
+          }),
+          listEmailsForAuthenticatedUser: vi.fn(async () => ({ data: [] })),
+        },
+      },
+    })
+
+    const app = createApp()
+    const response = await request(app).get("/api/github/auth/status").expect(200)
+
+    expect(response.body.connected).toBe(false)
+    expect(clearGitHubAuth).toHaveBeenCalledTimes(1)
+  })
+
   it("rejects unknown account activation before mutating auth state", async () => {
     const app = createApp()
 
