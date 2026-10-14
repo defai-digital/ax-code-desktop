@@ -162,7 +162,13 @@ export const useChatAutoFollow = ({
   const settledFramesRef = React.useRef(0)
   const lastScrollTopRef = React.useRef(0)
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingSaveRef = React.useRef<{ sessionId: string; anchor: number } | null>(null)
+  // The scroll metrics are captured with the anchor: by the time a debounced save
+  // flushes, the container may already belong to the next session.
+  const pendingSaveRef = React.useRef<{
+    sessionId: string
+    anchor: number
+    metrics: { scrollTop: number; scrollHeight: number; clientHeight: number }
+  } | null>(null)
   const settleBurstRafRef = React.useRef<number | null>(null)
   const lastUserReleaseAtRef = React.useRef(0)
   const releaseFromFollowStopRef = React.useRef<() => void>(() => {})
@@ -382,16 +388,7 @@ export const useChatAutoFollow = ({
     }
     const pending = pendingSaveRef.current
     if (!pending) return
-    const container = scrollRef.current
-    if (!container) {
-      pendingSaveRef.current = null
-      return
-    }
-    updateViewportAnchor(pending.sessionId, pending.anchor, {
-      scrollTop: container.scrollTop,
-      scrollHeight: container.scrollHeight,
-      clientHeight: container.clientHeight,
-    })
+    updateViewportAnchor(pending.sessionId, pending.anchor, pending.metrics)
     pendingSaveRef.current = null
   }, [updateViewportAnchor])
 
@@ -405,7 +402,7 @@ export const useChatAutoFollow = ({
     const anchorRatio = scrollHeight > 0 ? (scrollTop + clientHeight / 2) / scrollHeight : 0
     const anchor = Math.floor(anchorRatio * sessionMessageCountRef.current)
 
-    pendingSaveRef.current = { sessionId, anchor }
+    pendingSaveRef.current = { sessionId, anchor, metrics: { scrollTop, scrollHeight, clientHeight } }
     if (saveTimerRef.current !== null) return
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null
