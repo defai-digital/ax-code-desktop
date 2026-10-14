@@ -20,8 +20,25 @@ export const createNotificationEmitterRuntime = (dependencies) => {
     onDesktopNotification = typeof cb === "function" ? cb : null
   }
 
+  // A frozen client (asleep laptop, throttled tab, dead tunnel that never sent an
+  // RST) buffers every notification forever; the SSE stream has no other
+  // backpressure. End a stream whose pending buffer exceeds the cap — the route's
+  // close handler removes the client.
+  const SSE_MAX_BUFFERED_BYTES = 4 * 1024 * 1024
+
   const writeSseEvent = (res, payload) => {
+    const buffered = typeof res?.writableLength === "number" ? res.writableLength : 0
+    if (buffered > SSE_MAX_BUFFERED_BYTES) {
+      try {
+        res.end()
+      } catch {
+        // ignore
+      }
+      return false
+    }
+
     res.write(`data: ${JSON.stringify(payload)}\n\n`)
+    return true
   }
 
   const emitDesktopNotification = (payload) => {
