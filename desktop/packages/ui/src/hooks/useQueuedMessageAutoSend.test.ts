@@ -88,7 +88,7 @@ const {
   useQueuedMessageAutoSend,
 } = await import("./useQueuedMessageAutoSend")
 const { useSyncNotificationStore } = await import("@/sync/notification-store")
-const { useMessageQueueStore } = await import("@/stores/messageQueueStore")
+const { useMessageQueueStore, claimQueuedDispatch } = await import("@/stores/messageQueueStore")
 
 describe("shouldDispatchQueuedAutoSend", () => {
   test("dispatches only after an active session becomes idle", () => {
@@ -414,5 +414,38 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     await React.act(async () => {})
 
     expect(sendMessageCalls).toHaveLength(1)
+  })
+
+  test("a lost cross-window claim does not wedge the session's auto-send", async () => {
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+    const [claimed] = useMessageQueueStore.getState().getQueueForSession("session-a")
+    // Another window owns this entry and sends it.
+    expect(claimQueuedDispatch(claimed.id)).toBe(true)
+
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+    expect(sendMessageCalls).toHaveLength(0)
+
+    // That window's copy of the queue and its claim go away; a new entry arrives.
+    useMessageQueueStore.setState({ queuedMessages: {} })
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "later queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+
+    statusState.current = { "session-a": { type: "busy" } }
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+
+    // The lost claim must not have left the session marked in-flight forever.
+    expect(sendMessageCalls).toHaveLength(1)
+    expect(sendMessageCalls[0][0]).toBe("later queued message")
   })
 })

@@ -248,13 +248,15 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         return
       }
 
-      inFlightSessionsRef.current.add(sessionId)
-
       // Another window may be reacting to the same busy -> idle edge with the same
       // entry in its own copy of the shared queue; only the claim owner sends it.
+      // Claimed before the in-flight mark so a lost claim leaves no state behind —
+      // a session stuck in inFlightSessionsRef never dispatches again.
       if (!claimQueuedDispatch(payload.queuedMessageId)) {
         return
       }
+
+      inFlightSessionsRef.current.add(sessionId)
 
       // Take the entry out before the send: the chip stays interactive while the
       // prompt is in flight, and sending it by hand would deliver it twice (each
