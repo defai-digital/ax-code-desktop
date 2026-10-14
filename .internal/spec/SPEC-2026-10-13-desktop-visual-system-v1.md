@@ -82,14 +82,14 @@ Each stage is a separate reviewed change. Stage order is the recommendation, not
   - Done in `a3cb2860`: `--elevation-popover` with the `shadow-popover` utility.
   - Done in `2e39b654`: the squircle hack became a `.squircle` class.
 - **Separation.** The default dark border on canvas is about 1.2:1, so surfaces separate mostly by tone. Decide
-  between hairline borders and tone steps, and write the rule into the theme documentation.
-  - Done in `253a4b52`: the dark border moved to #292929, matching the light theme's 1.36:1. The rule is documented
-    in CUSTOM_THEMES.md. Upstream's rules are a
+  between hairline borders and tone steps, and write the rule into the theme documentation. Upstream's rules are a
   starting point:
   - The sidebar is darker than the canvas.
   - Elevated surfaces are lighter in dark mode.
   - The user bubble is tinted with the primary colour.
   - Code backgrounds stay within about 1.10 contrast of the canvas.
+  - Done in `253a4b52`: hairline borders. The dark border moved to #292929, matching the light theme's 1.36:1;
+    surface tones are unchanged. The rule is documented in CUSTOM_THEMES.md.
 
 ### Stage 4: theme generation (implemented 2026-10-13, `617b32b8`)
 
