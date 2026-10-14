@@ -257,7 +257,17 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     }
   }
 
-  app.get("/health", (_req, res) => {
+  app.get("/health", async (req, res) => {
+    // Liveness stays public (readiness probes must work before anyone logs in),
+    // but the detailed snapshot carries absolute binary paths, launch arguments
+    // and the last runtime error, so an unauthenticated caller only sees that the
+    // server is up. The authenticated app keeps the full payload it renders in
+    // the About dialog and the engine-model API.
+    const authorized =
+      !uiAuthController || Boolean(await uiAuthController.ensureSessionToken?.(req, res))
+    if (!authorized) {
+      return res.json({ status: "ok", timestamp: new Date().toISOString() })
+    }
     res.json({
       status: "ok",
       timestamp: new Date().toISOString(),

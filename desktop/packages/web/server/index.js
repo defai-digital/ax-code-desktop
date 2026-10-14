@@ -27,6 +27,7 @@ import { createAxCodeEnvRuntime } from "./lib/ax-code/env-runtime.js"
 import { resolveAxCodeEnvConfig } from "./lib/ax-code/env-config.js"
 import { createHmrStateRuntime } from "./lib/ax-code/hmr-state-runtime.js"
 import { createAxCodeNetworkRuntime } from "./lib/ax-code/network-runtime.js"
+import { createFinalErrorHandler } from "./lib/final-error-handler.js"
 import { createAxCodeAuthStateRuntime } from "./lib/ax-code/auth-state-runtime.js"
 import { createProjectDirectoryRuntime } from "./lib/ax-code/project-directory-runtime.js"
 import { createSettingsNormalizationRuntime } from "./lib/ax-code/settings-normalization-runtime.js"
@@ -1279,6 +1280,9 @@ async function main(options = {}) {
   // dashboard panel; they inject the runtime credential, so they need the host
   // and origin guard as well as the session gate.
   app.use(["/global", "/dre-graph", "/run-report", "/graph"], createApiRequestSecurityMiddleware())
+  // Terminal error handler: must be registered after every route (the startup
+  // pipeline mounts the last of them) and before the server starts listening.
+  registerFinalErrorHandler?.(app)
   expressApp = app
   server = http.createServer(app)
 

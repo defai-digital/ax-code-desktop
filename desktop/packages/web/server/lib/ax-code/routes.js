@@ -37,6 +37,19 @@ const resolveProviderAuthScope = (scope) => {
   throw new ProviderAuthRouteError(400, "Invalid scope")
 }
 
+/**
+ * Answer an unexpected failure with a stable message and log the detail. The raw
+ * exception message can carry absolute paths (fs errors, the managed runtime
+ * binary) and upstream output, so it must not reach the client.
+ */
+const sendUnexpectedError = (res, message, error, { status = 500, extras = {} } = {}) => {
+  console.error(`[ax-code routes] ${message}:`, error instanceof Error ? error.message : error)
+  if (res.headersSent) {
+    return
+  }
+  res.status(status).json({ error: message, ...extras })
+}
+
 export const registerAxCodeRoutes = (app, dependencies) => {
   const {
     clientReloadDelayMs,
@@ -258,10 +271,9 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       if (key) {
         promptAsyncRequestsByKey.delete(key)
       }
-      console.error("Failed to forward prompt_async:", error)
-      return res.status(503).json({
-        error: error instanceof Error ? error.message : "Failed to send prompt",
-        restarting: true,
+      return sendUnexpectedError(res, "Failed to send prompt", error, {
+        status: 503,
+        extras: { restarting: true },
       })
     }
   })
@@ -304,10 +316,9 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       }
       return sendAxCodeRouteResult(res, result)
     } catch (error) {
-      console.error("Failed to forward session command:", error)
-      return res.status(503).json({
-        error: error instanceof Error ? error.message : "Failed to run command",
-        restarting: true,
+      return sendUnexpectedError(res, "Failed to run command", error, {
+        status: 503,
+        extras: { restarting: true },
       })
     }
   })
@@ -365,23 +376,14 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       try {
         await refreshAxCodeAfterConfigChange("ax-code upgrade")
       } catch (restartError) {
-        return res.status(500).json({
-          success: false,
-          upgraded: true,
-          error:
-            restartError instanceof Error
-              ? `ax-code upgraded, but restart failed: ${restartError.message}`
-              : "ax-code upgraded, but restart failed",
+        return sendUnexpectedError(res, "ax-code upgraded, but restart failed", restartError, {
+          extras: { success: false, upgraded: true },
         })
       }
 
       return res.json({ ...(payload ?? { success: true }), restarted: true })
     } catch (error) {
-      console.error("Failed to upgrade ax-code:", error)
-      return res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : "Failed to upgrade ax-code",
-      })
+      return sendUnexpectedError(res, "Failed to upgrade ax-code", error, { extras: { success: false } })
     }
   })
 
@@ -396,9 +398,10 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       ])
       const health = await healthResponse.json().catch(() => null)
       if (!healthResponse.ok) {
+        console.warn("ax-code upgrade status probe failed:", health?.error || healthResponse.statusText)
         return res.status(healthResponse.status).json({
           available: null,
-          error: health?.error || healthResponse.statusText || "Failed to read ax-code version",
+          error: "Failed to read ax-code version",
         })
       }
       const currentVersion = typeof health?.version === "string" ? health.version.replace(/^v/, "") : null
@@ -423,9 +426,8 @@ export const registerAxCodeRoutes = (app, dependencies) => {
         binarySource: resolvedBinarySource(),
       })
     } catch (error) {
-      return res.status(500).json({
-        available: null,
-        error: error instanceof Error ? error.message : "Failed to check ax-code upgrade status",
+      return sendUnexpectedError(res, "Failed to check ax-code upgrade status", error, {
+        extras: { available: null },
       })
     }
   })
@@ -473,7 +475,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("Failed to store pending MCP auth context:", error)
-      return res.status(500).json({ error: error.message || "Failed to store pending MCP auth context" })
+      return sendUnexpectedError(res, "Failed to store pending MCP auth context", error)
     }
   })
 
@@ -494,7 +496,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       return res.json(pendingMcpAuthContext)
     } catch (error) {
       console.error("Failed to read pending MCP auth context:", error)
-      return res.status(500).json({ error: error.message || "Failed to read pending MCP auth context" })
+      return sendUnexpectedError(res, "Failed to read pending MCP auth context", error)
     }
   })
 
@@ -511,7 +513,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       return res.json({ success: true })
     } catch (error) {
       console.error("Failed to clear pending MCP auth context:", error)
-      return res.status(500).json({ error: error.message || "Failed to clear pending MCP auth context" })
+      return sendUnexpectedError(res, "Failed to clear pending MCP auth context", error)
     }
   })
 
@@ -545,7 +547,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("Failed to get provider sources:", error)
-      return res.status(500).json({ error: error.message || "Failed to get provider sources" })
+      return sendUnexpectedError(res, "Failed to get provider sources", error)
     }
   })
 
@@ -647,7 +649,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
         return res.status(error.statusCode).json({ error: error.message })
       }
       console.error("Failed to disconnect provider:", error)
-      return res.status(500).json({ error: error.message || "Failed to disconnect provider" })
+      return sendUnexpectedError(res, "Failed to disconnect provider", error)
     }
   })
 
@@ -696,7 +698,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("Failed to update ax-code working directory:", error)
-      return res.status(500).json({ error: error.message || "Failed to update working directory" })
+      return sendUnexpectedError(res, "Failed to update working directory", error)
     }
   })
 
@@ -741,7 +743,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       return res.json({ success: true })
     } catch (error) {
       console.error("Failed to write AGENTS.md:", error)
-      return res.status(500).json({ error: error.message || "Failed to write AGENTS.md" })
+      return sendUnexpectedError(res, "Failed to write AGENTS.md", error)
     }
   })
 }

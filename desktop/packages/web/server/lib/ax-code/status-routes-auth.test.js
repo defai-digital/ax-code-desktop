@@ -10,7 +10,10 @@ const buildApp = ({ authController }) => {
     express,
     uiAuthController: authController,
     gracefulShutdown: vi.fn(),
-    getHealthSnapshot: () => ({ status: "ok" }),
+    getHealthSnapshot: () => ({
+      axCodeBinaryResolved: "/usr/local/bin/ax-code",
+      axCodeLaunchArgs: ["--port", "4096"],
+    }),
     getStartupDiagnosticsSnapshot: () => ({ bootId: "boot-a", events: [] }),
     openchamberVersion: "1.0.0",
     runtimeName: "test",
@@ -27,6 +30,8 @@ const createController = ({ authorized }) => ({
     }
     res.status(401).json({ error: "UI authentication required", locked: true })
   }),
+  // Mirrors the real controller: reports the token (or null) without responding.
+  ensureSessionToken: vi.fn(async () => (authorized ? "session-token" : null)),
 })
 
 describe("status routes and the UI session", () => {
@@ -52,13 +57,30 @@ describe("status routes and the UI session", () => {
     expect(response.status).toBe(200)
   })
 
-  it("keeps /health public for readiness probes", async () => {
+  it("keeps /health public but minimal for unauthenticated probes", async () => {
     const app = buildApp({ authController: createController({ authorized: false }) })
 
     const response = await request(app).get("/health").agent(false)
 
     expect(response.status).toBe(200)
     expect(response.body).toMatchObject({ status: "ok" })
+    // The detailed snapshot carries absolute binary paths and launch arguments.
+    expect(response.body).not.toHaveProperty("axCodeBinaryResolved")
+  })
+
+  it("serves the detailed health snapshot to an authenticated caller", async () => {
+    const app = buildApp({
+      authController: {
+        requireAuth: vi.fn((_req, _res, next) => next()),
+        ensureSessionToken: vi.fn(async () => "session-token"),
+      },
+    })
+
+    const response = await request(app).get("/health").agent(false)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toHaveProperty("axCodeBinaryResolved", "/usr/local/bin/ax-code")
+    expect(response.body).toHaveProperty("axCodeLaunchArgs")
   })
 
   it("serves the status routes when no password is configured", async () => {
