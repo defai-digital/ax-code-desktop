@@ -233,6 +233,8 @@ function createAxCodeRuntimeSupervision(options = {}) {
     typeof options.fsmFactory === "function" ? options.fsmFactory : (fsmOptions) => createSupervisionFsm(fsmOptions)
   const getPassword = typeof options.getPassword === "function" ? options.getPassword : getRuntimeAuthPassword
   const spawnImpl = typeof options.spawn === "function" ? options.spawn : (...args) => childProcess.spawn(...args)
+  const spawnSyncImpl =
+    typeof options.spawnSync === "function" ? options.spawnSync : (...args) => childProcess.spawnSync(...args)
   const fetchImpl = typeof options.fetch === "function" ? options.fetch : (...args) => fetch(...args)
   const isExecutable = typeof options.isExecutable === "function" ? options.isExecutable : defaultIsExecutable
   const probeVersion = typeof options.probeVersion === "function" ? options.probeVersion : defaultProbeVersion
@@ -272,6 +274,9 @@ function createAxCodeRuntimeSupervision(options = {}) {
   // Set by stop(): cancels an in-flight start() (initial-start retry backoff
   // or the pre-FSM prepare window) so a stopped supervision never spawns.
   let stopRequested = false
+  // Set by stop() and never cleared: a quit must not be followed by a spawn
+  // from a restart() that was already in flight when the quit landed.
+  let terminated = false
   let startBackoffCancel = null
 
   const authorizationHeader = () => `Basic ${Buffer.from(`ax-code:${getPassword()}`).toString("base64")}`
@@ -343,11 +348,7 @@ function createAxCodeRuntimeSupervision(options = {}) {
         if (settled) return
         settled = true
         clearTimeout(listeningTimer)
-        try {
-          child.kill("SIGKILL")
-        } catch {
-          /* the process may already be gone */
-        }
+        killProcessTree(child, "SIGKILL")
         reject(error)
       }
 
@@ -447,12 +448,29 @@ function createAxCodeRuntimeSupervision(options = {}) {
     })
   }
 
-  function terminateRuntime(handle) {
+  // On Windows the runtime runs behind a cmd.exe shim whenever the resolved
+  // binary is an .cmd/.bat, so terminating the direct child leaves the real
+  // node runtime alive and holding its port. taskkill /T kills the tree.
+  // Every other platform spawns the binary directly: the plain signal is both
+  // correct and cheaper.
+  function killProcessTree(child, signal) {
+    if (platform === "win32" && child.pid) {
+      try {
+        const result = spawnSyncImpl("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true })
+        if (!result || !result.error) return
+      } catch {
+        /* fall through to the direct kill */
+      }
+    }
     try {
-      handle.child.kill("SIGKILL")
+      child.kill(signal)
     } catch {
       /* the process may already be gone */
     }
+  }
+
+  function terminateRuntime(handle) {
+    killProcessTree(handle.child, "SIGKILL")
   }
 
   // SIGTERM, escalate to SIGKILL after termTimeoutMs, give up after a further
@@ -475,18 +493,9 @@ function createAxCodeRuntimeSupervision(options = {}) {
         resolve()
       }
       child.once("exit", finish)
-      try {
-        child.kill("SIGTERM")
-      } catch {
-        finish()
-        return
-      }
+      killProcessTree(child, "SIGTERM")
       termTimer = setTimeout(() => {
-        try {
-          child.kill("SIGKILL")
-        } catch {
-          /* ignore */
-        }
+        killProcessTree(child, "SIGKILL")
         killTimer = setTimeout(finish, killTimeoutMs)
       }, termTimeoutMs)
     })
@@ -644,9 +653,15 @@ function createAxCodeRuntimeSupervision(options = {}) {
   }
 
   async function start() {
+    // A terminal stop() is final for this supervision: a restart() that was
+    // still preparing when the quit landed must not bring the runtime back.
+    // Checked before the startSlot pin, which describes a run that is gone.
+    if (terminated) {
+      return Promise.reject(new Error("ax-code runtime start cancelled by stop()"))
+    }
     if (startSlot) return startSlot.promise
     const mine = (async () => {
-      // A previous stop() must not pin future starts (e.g. restart() above);
+      // A previous stopRuntime() must not pin future starts (restart() above);
       // a stop() landing AFTER this point still cancels via the checks below.
       stopRequested = false
       await prepare()
@@ -695,7 +710,15 @@ function createAxCodeRuntimeSupervision(options = {}) {
     }
   }
 
+  // Terminal: cancels an in-flight start() and refuses any later one, so a
+  // quit cannot be followed by a spawn from a restart() that was already
+  // running when the quit landed.
   async function stop() {
+    terminated = true
+    await stopRuntime()
+  }
+
+  async function stopRuntime() {
     stopRequested = true
     // Cancel a pending initial-start retry backoff so the quit path never
     // waits out the delay; the start() loop observes stopRequested and exits.
@@ -708,11 +731,7 @@ function createAxCodeRuntimeSupervision(options = {}) {
     const orphan = currentChild
     currentChild = null
     if (orphan) {
-      try {
-        orphan.kill("SIGKILL")
-      } catch {
-        /* the process may already be gone */
-      }
+      killProcessTree(orphan, "SIGKILL")
     }
   }
 
@@ -724,7 +743,9 @@ function createAxCodeRuntimeSupervision(options = {}) {
   async function restart({ reprepare = false } = {}) {
     if (restartSlot) return restartSlot.promise
     const mine = (async () => {
-      await stop()
+      // Internal stop only: a user quit that lands while this restart is in
+      // flight still wins, because the terminal flag is not cleared here.
+      await stopRuntime()
       // The cancelled in-flight start() (if any) rejects on its own and its
       // finally guard only clears its own pin; make sure the fresh start()
       // below never joins the stale promise.

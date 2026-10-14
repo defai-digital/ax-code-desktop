@@ -124,6 +124,7 @@ const flushMicrotasks = () => new Promise((resolve) => setImmediate(resolve))
 function createSupervision({ clock = createFakeClock(), fetchQueue = [], settings = {}, env = {}, ...rest } = {}) {
   const fakeSpawn = createFakeSpawn()
   const fakeFetch = createFakeFetch(fetchQueue)
+  const killCommands = []
   const { logger, logs, warns, errors } = createLogger()
   const originReports = []
   let fsmOptions = null
@@ -134,6 +135,10 @@ function createSupervision({ clock = createFakeClock(), fetchQueue = [], setting
     onOriginChange: (origin, context) => originReports.push({ origin, ...context }),
     getPassword: () => TEST_PASSWORD,
     spawn: fakeSpawn.spawn,
+    spawnSync: (command, args, options) => {
+      killCommands.push({ command, args, options })
+      return { status: 0, error: null }
+    },
     fetch: fakeFetch.fetch,
     isExecutable: (candidate) => candidate === "/custom/ax-code" || candidate === "/usr/bin/ax-code",
     probeVersion: () => "ax-code 7.7.9",
@@ -154,6 +159,7 @@ function createSupervision({ clock = createFakeClock(), fetchQueue = [], setting
     clock,
     fakeSpawn,
     fakeFetch,
+    killCommands,
     fetchQueue: fakeFetch.queue,
     logs,
     warns,
@@ -816,5 +822,51 @@ describe("supervision restart with re-resolution", () => {
     await expect(first).resolves.toEqual({ port: RESERVED_PORT, origin: FIXED_ORIGIN })
     await expect(second).resolves.toEqual({ port: RESERVED_PORT, origin: FIXED_ORIGIN })
     expect(ctx.supervision.state).toBe("healthy")
+  })
+})
+
+describe("runtime process termination", () => {
+  test("kills the whole process tree on Windows, where the runtime runs behind cmd.exe", async () => {
+    const ctx = createSupervision({ platform: "win32" })
+    await startHealthy(ctx)
+    const child = ctx.fakeSpawn.children[0]
+
+    const stopped = ctx.supervision.stop()
+    await flushMicrotasks()
+
+    // taskkill /T reaches the node runtime the cmd.exe shim spawned; a plain
+    // child.kill only terminates the shim and orphans the real runtime.
+    expect(ctx.killCommands).toEqual([
+      { command: "taskkill", args: ["/pid", String(child.pid), "/t", "/f"], options: { windowsHide: true } },
+    ])
+    expect(child.killSignals).toEqual([])
+
+    child.emitExit(0)
+    await stopped
+    expect(ctx.supervision.state).toBe("stopped")
+  })
+
+  test("signals the spawned process directly on platforms without a cmd.exe shim", async () => {
+    const ctx = createSupervision({ platform: "darwin" })
+    await startHealthy(ctx)
+
+    const stopped = ctx.supervision.stop()
+    await flushMicrotasks()
+
+    expect(ctx.killCommands).toHaveLength(0)
+    expect(ctx.fakeSpawn.children[0].killSignals).toEqual(["SIGTERM"])
+    ctx.fakeSpawn.children[0].emitExit(0)
+    await stopped
+  })
+
+  test("a terminal stop() refuses to start again, so a late restart cannot respawn the runtime", async () => {
+    const ctx = createSupervision()
+    await startHealthy(ctx)
+    await ctx.supervision.stop()
+
+    await expect(ctx.supervision.start()).rejects.toThrow(/cancelled by stop/)
+    await expect(ctx.supervision.restart({ reprepare: true })).rejects.toThrow(/cancelled by stop/)
+    expect(ctx.fakeSpawn.calls).toHaveLength(1)
+    expect(ctx.supervision.state).toBe("stopped")
   })
 })
