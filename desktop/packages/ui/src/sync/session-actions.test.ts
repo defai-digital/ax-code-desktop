@@ -881,6 +881,50 @@ describe("rollback and fork actions use the session directory", () => {
     expect(store.getState().part["msg-stale"]).toBeUndefined()
   })
 
+  test("applyRollbackPoint surfaces a rejected rollback instead of reporting success", async () => {
+    const store = createStore({})
+    mockScopedClient.session.rollback.mockImplementationOnce((params: Record<string, unknown>) => {
+      sessionCalls.push({ method: "session.rollback", params })
+      return Promise.resolve({ error: { message: "Rollback refused" } } as never)
+    })
+
+    const { applyRollbackPoint, setActionRefs } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/other/project", store]]),
+      () => "/test/project",
+    )
+
+    // The caller (TimelineDialog) closes the dialog and clears the preview on a
+    // resolved call, so a rejected rollback must reject.
+    await expect(applyRollbackPoint("session-b", { step: 3 })).rejects.toThrow(/Rollback refused/)
+  })
+
+  test("revertToMessage rolls the optimistic marker back when the runtime rejects it", async () => {
+    const store = createStore({})
+    store.setState({
+      session: [
+        { id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session,
+      ],
+    })
+    mockScopedClient.session.revert.mockImplementationOnce((params: Record<string, unknown>) => {
+      sessionCalls.push({ method: "session.revert", params })
+      return Promise.resolve({ error: { message: "Revert refused" } } as never)
+    })
+
+    const { revertToMessage, setActionRefs } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/test/project", store]]),
+      () => "/test/project",
+    )
+
+    await expect(revertToMessage("session-a", "msg-a")).rejects.toThrow(/Revert refused/)
+
+    // The optimistic revert marker is gone again.
+    expect((store.getState().session[0] as { revert?: unknown }).revert ?? null).toBeNull()
+  })
+
   test("validateSessionMoveTarget uses the mapped session directory", async () => {
     const { validateSessionMoveTarget, setActionRefs } = await import("./session-actions")
     setActionRefs(

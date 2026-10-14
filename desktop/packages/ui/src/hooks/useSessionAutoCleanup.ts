@@ -66,6 +66,28 @@ type CleanupOptions = {
   enabled?: boolean
 }
 
+type ScopedSdkClient = ReturnType<typeof axCodeClient.getScopedSdkClient>
+
+/**
+ * Applies one retention action through the session's scoped client. Returns
+ * false when the runtime rejected it: the generated SDK resolves with `{ error }`
+ * instead of throwing, so a rejected cleanup used to be reported as completed —
+ * which both hid the failure and recorded a "last run" that deferred the next
+ * attempt by a day.
+ */
+export const applySessionRetentionAction = async (
+  scopedSdk: ScopedSdkClient,
+  id: string,
+  directory: string,
+  action: "archive" | "delete",
+): Promise<boolean> => {
+  const result =
+    action === "archive"
+      ? await scopedSdk.session.update({ sessionID: id, directory, time: { archived: Date.now() } })
+      : await scopedSdk.session.delete({ sessionID: id, directory })
+  return !result?.error
+}
+
 export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOptions) => {
   const options = typeof enabledOrOptions === "object" ? enabledOrOptions : undefined
   const autoRun = options?.autoRun !== false
@@ -157,12 +179,12 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
           const scopedSdk = axCodeClient.getScopedSdkClient(directory)
 
           try {
-            if (sessionRetentionAction === "archive") {
-              await scopedSdk.session.update({ sessionID: id, directory, time: { archived: Date.now() } })
+            const completed = await applySessionRetentionAction(scopedSdk, id, directory, sessionRetentionAction)
+            if (completed) {
+              completedIds.push(id)
             } else {
-              await scopedSdk.session.delete({ sessionID: id, directory })
+              failedIds.push(id)
             }
-            completedIds.push(id)
           } catch {
             failedIds.push(id)
           }

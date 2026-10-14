@@ -1143,6 +1143,10 @@ export async function revertToMessage(sessionId: string, messageId: string): Pro
   // Call SDK and merge authoritative result into store
   try {
     const result = await client.session.revert({ sessionID: sessionId, directory, messageID: messageId })
+    // The SDK answers a rejected revert with `{ error }` instead of throwing;
+    // without this the optimistic revert marker + composer text stayed applied
+    // and the rollback below never ran.
+    assertSessionCallSucceeded(result, "revertToMessage")
     if (result.data) {
       const current = store.getState()
       const updated = [...current.session]
@@ -1285,6 +1289,7 @@ export async function unrevertSession(sessionId: string): Promise<void> {
   }
 
   const result = await client.session.unrevert({ sessionID: sessionId, directory })
+  assertSessionCallSucceeded(result, "unrevertSession")
   if (result.data) {
     const current = store.getState()
     const sessions = [...current.session]
@@ -1322,6 +1327,7 @@ export async function applyRollbackPoint(sessionId: string, input: SessionRollba
     directory,
     sessionRollbackApplyInput: input,
   })
+  assertSessionCallSucceeded(result, "applyRollbackPoint")
   if (result.data) {
     const current = store.getState()
     const sessions = [...current.session]
