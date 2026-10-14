@@ -556,6 +556,10 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
 
   const currentDirectory = useEffectiveDirectory() ?? ""
   const root = normalizePath(currentDirectory.trim())
+  // Live root for async continuations: a save that resolves after a project switch
+  // must not write its file's content into the newly displayed file's state.
+  const rootRef = React.useRef(root)
+  rootRef.current = root
   const showEditorTabsRow = isMobile || mode !== "editor-only"
   const suppressFileLoadingIndicator = mode === "editor-only" && !isMobile
   const searchFiles = useFileSearchStore((state) => state.searchFiles)
@@ -1471,8 +1475,9 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     // that's shared with the currently-displayed file, so a slow save for the old file
     // can't clobber the newly-opened file's content.
     const isStillSelected = () => {
-      if (!root) return false
-      const rootState = useFilesViewTabsStore.getState().byRoot[root]
+      const liveRoot = rootRef.current
+      if (!liveRoot || liveRoot !== root) return false
+      const rootState = useFilesViewTabsStore.getState().byRoot[liveRoot]
       const currentPath = rootState?.selectedPath ?? rootState?.openPaths[0] ?? null
       return currentPath === savedPath
     }
