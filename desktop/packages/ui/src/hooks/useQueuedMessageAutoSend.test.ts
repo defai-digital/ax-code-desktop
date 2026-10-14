@@ -71,10 +71,12 @@ const statusState: { current: Record<string, { type: string }> } = { current: {}
 vi.doMock("@/sync/sync-context", () => ({
   useDirectorySync: (selector: (state: { session_status: Record<string, { type: string }> }) => unknown) =>
     selector({ session_status: statusState.current }),
+  useAllSessionStatuses: () => statusState.current,
 }))
 
 vi.doMock("@/sync/sync-refs", () => ({
   getSyncSessionStatus: (sessionId: string) => statusState.current[sessionId],
+  getGlobalSyncSessionStatus: (sessionId: string) => statusState.current[sessionId],
 }))
 
 const {
@@ -387,5 +389,30 @@ describe("useQueuedMessageAutoSend hold lift", () => {
 
     expect(sendMessageCalls).toHaveLength(1)
     expect(sendMessageCalls[0][0]).toBe("queued message")
+  })
+
+  test("holds the queued message while the session's status is unknown", async () => {
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+
+    // Arm the busy baseline, then the session disappears from the tracked record
+    // (e.g. another project became active). An untracked session may still be
+    // working, so nothing may be sent into it.
+    render()
+    statusState.current = {}
+    render()
+    await React.act(async () => {})
+
+    expect(sendMessageCalls).toHaveLength(0)
+
+    // The edge must still be armed: once the session is confirmed idle, the queued
+    // message goes out. (Spending the edge on the unknown status would strand it.)
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+
+    expect(sendMessageCalls).toHaveLength(1)
   })
 })

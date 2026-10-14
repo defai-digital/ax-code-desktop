@@ -87,3 +87,18 @@ export function getSyncParts(messageId: string, directory?: string) {
 export function getSyncSessionStatus(sessionId: string, directory?: string) {
   return getDirectoryState(directory)?.session_status[sessionId]
 }
+
+/**
+ * Read a session's status from whichever child store owns it. Callers that act on a
+ * session outside the active directory must use this: the per-directory read answers
+ * `undefined` (i.e. "idle") for a session that is actually busy in another project.
+ */
+export function getGlobalSyncSessionStatus(sessionId: string) {
+  const stores = _childStores
+  if (!stores) return undefined
+  for (const store of stores.children.values()) {
+    const status = store.getState().session_status[sessionId]
+    if (status) return status
+  }
+  return undefined
+}

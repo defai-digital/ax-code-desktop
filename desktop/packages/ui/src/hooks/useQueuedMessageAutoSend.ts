@@ -10,8 +10,8 @@ import { useSelectionStore } from "@/sync/selection-store"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
 import { parseAgentMentions } from "@/lib/messages/agentMentions"
-import { getSyncSessionStatus } from "@/sync/sync-refs"
-import { useDirectorySync } from "@/sync/sync-context"
+import { getGlobalSyncSessionStatus } from "@/sync/sync-refs"
+import { useAllSessionStatuses } from "@/sync/sync-context"
 import { useSyncNotificationStore } from "@/sync/notification-store"
 
 type SessionStatusType = "idle" | "busy" | "retry"
@@ -188,7 +188,10 @@ export const computeQueuedAutoSendStatusUpdate = (
 export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?: boolean }) {
   const enabled = typeof enabledOrOptions === "boolean" ? enabledOrOptions : (enabledOrOptions?.enabled ?? true)
   const queuedMessages = useMessageQueueStore((state) => state.queuedMessages)
-  const sessionStatusRecord = useDirectorySync((state) => state.session_status)
+  // Statuses from every live directory: a queued message can belong to a session in a
+  // project that is not the active one, and the per-directory record reads such a
+  // session as idle - which would dispatch while it is still busy.
+  const sessionStatusRecord = useAllSessionStatuses()
   // The error hold is read imperatively through `isQueuedAutoSendHeld`, so subscribe to the same
   // index here. Viewing a session clears only the notification store: without this subscription the
   // effect never runs again to spend the busy -> idle edge kept armed while the hold was up.
@@ -207,7 +210,13 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
     // deferred (in-flight dispatch, recent abort, or an unseen error), the head
     // is stranded once the hold lifts with no further transition to re-trigger.
     const isAutoSendDeferred = (sessionId: string): boolean =>
-      inFlightSessionsRef.current.has(sessionId) || hasRecentAbort(sessionId) || isQueuedAutoSendHeld(sessionId)
+      inFlightSessionsRef.current.has(sessionId) ||
+      hasRecentAbort(sessionId) ||
+      isQueuedAutoSendHeld(sessionId) ||
+      // A session whose status is not tracked (its project is not the active one,
+      // or the store has not seen it yet) may still be working: hold the edge
+      // instead of spending it, so the queue fires on a confirmed busy -> idle.
+      getGlobalSyncSessionStatus(sessionId) === undefined
 
     const dispatchSessionQueue = async (sessionId: string, queueSnapshot: QueuedMessage[]) => {
       if (queueSnapshot.length === 0) {
@@ -217,7 +226,9 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         return
       }
 
-      const currentStatus = getSyncSessionStatus(sessionId)?.type ?? "idle"
+      // Skip when the session's status is unknown rather than assuming idle: an
+      // untracked session may still be working, and the queue waits for the next edge.
+      const currentStatus = getGlobalSyncSessionStatus(sessionId)?.type
       if (currentStatus !== "idle") {
         return
       }
