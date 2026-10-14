@@ -59,7 +59,7 @@ const REPIN_GRACE_AFTER_RELEASE_MS = 1200
 // — its height is exactly how far above scrollHeight the user can be while still
 // looking at "empty" space. We use that same value as the threshold for both
 // re-pinning auto-follow and showing the scroll-to-bottom button.
-const computeBottomZoneThreshold = (isMobile: boolean, container?: HTMLElement | null): number => {
+export const computeBottomZoneThreshold = (isMobile: boolean, container?: HTMLElement | null): number => {
   if (isMobile) return BOTTOM_SPACER_MOBILE_PX
   const height = container?.clientHeight ?? 0
   if (height <= 0) return 96
@@ -249,7 +249,9 @@ export const useChatAutoFollow = ({
         if (!eligibility.has(turnKey)) eligibility.set(turnKey, container.scrollTop <= turnTop + 1)
         if (eligibility.get(turnKey) === true) {
           target = Math.min(target, Math.max(0, turnTop))
-          stoppedAtTurn = turnTop <= bottomTarget ? lastTurn : null
+          // Only a turn taller than the viewport stops the follow; one that
+          // still fits is followed to the end without spending its stop.
+          stoppedAtTurn = turnTop + 1 < bottomTarget ? lastTurn : null
           stoppedAtTurnKey = stoppedAtTurn ? turnKey : null
         }
       }
@@ -362,11 +364,25 @@ export const useChatAutoFollow = ({
       lastUserReleaseAtRef.current = typeof performance !== "undefined" ? performance.now() : Date.now()
     }
   }, [setStateValue, stopFollowLoop, stopSettleBurst])
-  releaseFromFollowStopRef.current = releaseFromUserIntent
+  // Not a user gesture: no re-arm grace, so a reader who scrolls back to the
+  // end is followed again right away.
+  const releaseAtFollowStop = React.useCallback(() => {
+    if (stateRef.current !== "following") return
+    stopFollowLoop()
+    stopSettleBurst()
+    unseenBaseRef.current = sessionMessageCountRef.current
+    setStateValue("released")
+  }, [setStateValue, stopFollowLoop, stopSettleBurst])
+  releaseFromFollowStopRef.current = releaseAtFollowStop
 
   const goToBottom = React.useCallback(
     (mode: "instant" | "smooth" = "instant") => {
       const container = scrollRef.current
+      // Going to the end spends the current turn's follow stop, so an
+      // in-flight follow tick aims at the real end instead of that turn.
+      const turns = container?.querySelectorAll("section[data-turn-id]")
+      const lastTurnKey = turns?.item(turns.length - 1)?.getAttribute("data-turn-id")
+      if (lastTurnKey) followedTurnStopsRef.current.add(lastTurnKey)
       setStateValue("following")
       lastUserReleaseAtRef.current = 0
       if (!container) return

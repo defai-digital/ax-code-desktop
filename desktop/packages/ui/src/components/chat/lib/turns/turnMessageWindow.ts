@@ -1,5 +1,7 @@
 import { createContext } from "react"
 
+import { computeBottomZoneThreshold } from "@/hooks/useChatAutoFollow"
+
 // A turn's assistant messages are one row of the virtualized timeline, so a
 // long agentic turn mounted every step at once whenever any part of it was on
 // screen. Past this many messages a turn mounts only a window of its steps
@@ -7,10 +9,6 @@ import { createContext } from "react"
 export const TURN_MESSAGE_WINDOW_THRESHOLD = 30
 export const TURN_MESSAGE_WINDOW_SIZE = 20
 export const TURN_MESSAGE_REVEAL_CHUNK = 20
-
-// Upstream takes this from timeline scroll anchoring. That module is not in
-// this package; a reader within 48px of the end still counts as following it.
-const TIMELINE_FOLLOW_REARM_THRESHOLD_PX = 48
 
 /**
  * Which messages of a turn are mounted: all but the first `hiddenHead` and
@@ -46,11 +44,15 @@ export const openedFoldMessageWindow = (messageCount: number, readerAtEnd: boole
     ? { hiddenHead: windowedCount(messageCount), hiddenTail: 0 }
     : { hiddenHead: 0, hiddenTail: windowedCount(messageCount) }
 
-/** Whether the chat timeline holding `element` is scrolled to its end. */
+/**
+ * Whether the chat timeline holding `element` is scrolled to its end, using the
+ * same bottom zone that re-arms the live follow (the end spacer's height).
+ */
 export const isReaderAtTimelineEnd = (element: Element): boolean => {
-  const scroller = element.closest('[data-scrollbar="chat"]')
+  const scroller = element.closest<HTMLElement>('[data-scrollbar="chat"]')
   if (!scroller) return false
-  return scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop <= TIMELINE_FOLLOW_REARM_THRESHOLD_PX
+  const distance = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop
+  return distance <= computeBottomZoneThreshold(false, scroller)
 }
 
 /**

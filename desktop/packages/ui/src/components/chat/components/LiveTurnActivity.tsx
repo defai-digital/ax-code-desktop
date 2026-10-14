@@ -172,12 +172,13 @@ export function LiveTurnActivity({
       if (!expanded && windowStore) {
         windowStore.setRange(
           turn.turnId,
-          openedFoldMessageWindow(activityMessages.length, isReaderAtTimelineEnd(event.currentTarget)),
+          // A working turn keeps its newest steps mounted (no hidden tail).
+          openedFoldMessageWindow(activityMessages.length, !settled || isReaderAtTimelineEnd(event.currentTarget)),
         )
       }
       onToggle()
     },
-    [activityMessages.length, expanded, onToggle, turn.turnId, windowStore],
+    [activityMessages.length, expanded, onToggle, settled, turn.turnId, windowStore],
   )
   const headerClass =
     "w-full justify-start normal-case !ps-px !pe-2 text-[var(--tools-description)] hover:!bg-transparent active:!bg-transparent"

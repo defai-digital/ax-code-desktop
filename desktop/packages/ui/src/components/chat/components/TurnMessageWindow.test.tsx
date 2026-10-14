@@ -182,11 +182,12 @@ describe("reader at the timeline end", () => {
 
   test("on the end, within the follow band, and away from it", () => {
     // scrollHeight 3000, clientHeight 800: distance from the end is 2200 - scrollTop.
-    // The local follow band is 48px, so 2152 is still the end and 2151 is not.
+    // The follow band is the end spacer, max(48px, 10% of 800px) = 80px, so 2120
+    // is still the end and 2119 is not.
     expect(isReaderAtTimelineEnd(scrollerWith(2200))).toBe(true)
     expect(isReaderAtTimelineEnd(scrollerWith(2170))).toBe(true)
-    expect(isReaderAtTimelineEnd(scrollerWith(2152))).toBe(true)
-    expect(isReaderAtTimelineEnd(scrollerWith(2151))).toBe(false)
+    expect(isReaderAtTimelineEnd(scrollerWith(2120))).toBe(true)
+    expect(isReaderAtTimelineEnd(scrollerWith(2119))).toBe(false)
     expect(isReaderAtTimelineEnd(scrollerWith(1500))).toBe(false)
   })
 

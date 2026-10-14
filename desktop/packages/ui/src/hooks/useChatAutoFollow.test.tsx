@@ -162,4 +162,14 @@ describe("useChatAutoFollow collapsed activity", () => {
     expect(scrollContainer.scrollTop).toBe(900)
     expect(result?.state).toBe("following")
   })
+
+  test("follows a turn that still fits to the end without spending its stop", () => {
+    render()
+    const scrollContainer = setLayout(900)
+
+    flushFrames()
+
+    expect(scrollContainer.scrollTop).toBe(900)
+    expect(result?.state).toBe("following")
+  })
 })
