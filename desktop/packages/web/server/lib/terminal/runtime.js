@@ -69,6 +69,15 @@ export const observeTerminalShellStartup = (ptyProcess, graceMs) =>
 // long enough to fall back before exposing a dead terminal tab to the UI.
 export const TERMINAL_SHELL_STARTUP_GRACE_MS = 1_500
 
+// Per-client pending outbound WS buffer for terminal output. Unbounded pty output
+// against a stalled client would otherwise sit in the socket's send queue for the
+// process lifetime (the SSE path pauses the pty; this path has no pause). A late
+// client is disconnected instead — it reconnects and replays from its cursor.
+export const TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES = 16 * 1024 * 1024
+
+export const isTerminalOutputClientStalled = (socket, maxBufferedBytes = TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES) =>
+  typeof socket?.bufferedAmount === "number" && socket.bufferedAmount > maxBufferedBytes
+
 export function createTerminalRuntime({
   app,
   server,
@@ -311,6 +320,13 @@ export function createTerminalRuntime({
 
   const sendTerminalOutputWsData = (socket, sessionId, replayChunk, data = replayChunk?.data) => {
     if (!socket || socket.readyState !== 1 || !replayChunk) {
+      return false
+    }
+
+    if (isTerminalOutputClientStalled(socket)) {
+      try {
+        socket.close(1013, "Terminal client is too slow")
+      } catch {}
       return false
     }
 

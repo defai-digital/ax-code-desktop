@@ -3,7 +3,13 @@ import fs from "node:fs"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
 
-import { TERMINAL_SHELL_STARTUP_GRACE_MS, createTerminalRuntime, observeTerminalShellStartup } from "./runtime.js"
+import {
+  TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES,
+  TERMINAL_SHELL_STARTUP_GRACE_MS,
+  createTerminalRuntime,
+  isTerminalOutputClientStalled,
+  observeTerminalShellStartup,
+} from "./runtime.js"
 import { createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
 
 function createRuntime(server, overrides = {}) {
@@ -323,5 +329,15 @@ describe("terminal restart", () => {
     } finally {
       await runtime.shutdown()
     }
+  })
+})
+
+describe("terminal output backpressure", () => {
+  it("treats a socket with a modest buffer as healthy and a far-behind one as stalled", () => {
+    expect(isTerminalOutputClientStalled({ bufferedAmount: 0 })).toBe(false)
+    expect(isTerminalOutputClientStalled({ bufferedAmount: undefined })).toBe(false)
+    expect(isTerminalOutputClientStalled({ bufferedAmount: TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES })).toBe(false)
+    // A stalled client must be disconnected instead of buffering pty output forever.
+    expect(isTerminalOutputClientStalled({ bufferedAmount: TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES + 1 })).toBe(true)
   })
 })
