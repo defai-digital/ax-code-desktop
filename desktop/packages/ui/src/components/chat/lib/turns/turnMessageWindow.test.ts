@@ -71,6 +71,21 @@ describe("navigation window", () => {
     revealNavigatedMessage(store, "turn", 100, 80)
     expect(store.range("turn")).toEqual({ hiddenHead: 0, hiddenTail: 19 })
   })
+
+  test("revealNavigatedMessage seeds a window around a never-opened fold", () => {
+    // Regression: a turn with no stored range used to seed the whole turn, mounting
+    // every step of a long turn at once and keeping it mounted for the session.
+    const store = createTurnMessageWindowStore()
+    revealNavigatedMessage(store, "turn", 400, 30)
+
+    const range = store.range("turn")
+    expect(range).not.toEqual(FULL_MESSAGE_WINDOW)
+    // A window around the target: a step of context either side, nothing else mounted.
+    expect(range?.hiddenHead).toBe(30 - TURN_MESSAGE_WINDOW_SIZE)
+    expect(range?.hiddenTail).toBe(400 - (30 + TURN_MESSAGE_WINDOW_SIZE + 1))
+    const mounted = 400 - (range?.hiddenHead ?? 0) - (range?.hiddenTail ?? 0)
+    expect(mounted).toBe(TURN_MESSAGE_WINDOW_SIZE * 2 + 1)
+  })
 })
 
 describe("turn message window store", () => {

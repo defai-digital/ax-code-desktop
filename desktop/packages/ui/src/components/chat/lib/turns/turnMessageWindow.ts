@@ -92,14 +92,25 @@ export const messageWindowContaining = (
   return { hiddenHead, hiddenTail: messageCount - messageIndex - 1 }
 }
 
-/** Mounts the step navigation is about to scroll to. A missing range mounts the whole turn. */
+/**
+ * Mounts the step navigation is about to scroll to. A turn whose fold was never opened
+ * has no range yet: seeding the whole turn would mount every step at once (the mount
+ * storm the windowing exists to avoid) and leave it mounted for the rest of the
+ * session, so seed a window that just contains the target instead.
+ */
 export const revealNavigatedMessage = (
   store: TurnMessageWindowStore,
   turnId: string,
   messageCount: number,
   messageIndex: number,
 ): void => {
-  const current = store.range(turnId) ?? FULL_MESSAGE_WINDOW
+  const context = TURN_MESSAGE_WINDOW_SIZE
+  const current =
+    store.range(turnId) ??
+    ({
+      hiddenHead: Math.max(0, messageIndex - context),
+      hiddenTail: Math.max(0, messageCount - (messageIndex + context + 1)),
+    } satisfies TurnMessageWindowRange)
   store.setRange(turnId, messageWindowContaining(current, messageCount, messageIndex))
 }
 
