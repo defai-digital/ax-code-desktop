@@ -454,6 +454,7 @@ export const useChatAutoFollow = ({
     const saved = useViewportStore.getState().sessionMemoryState.get(sessionId)?.scrollPosition
 
     if (!saved || isAtBottomSnapshot(saved, isMobile, container)) {
+      heldAtFollowStopRef.current = false
       setStateValue("following")
       lastUserReleaseAtRef.current = 0
       const target = Math.max(0, container.scrollHeight - container.clientHeight)
