@@ -68,6 +68,9 @@ export const AddCatalogDialog: React.FC<AddCatalogDialogProps> = ({ open, onOpen
   const [subpath, setSubpath] = React.useState("")
 
   const [existingCatalogs, setExistingCatalogs] = React.useState<SkillCatalogConfig[]>([])
+  // Existing catalogs are read once per open; a failed read must not look like an
+  // empty list, or saving would overwrite every other custom catalog.
+  const [catalogsLoaded, setCatalogsLoaded] = React.useState(false)
 
   const [scanCount, setScanCount] = React.useState<number | null>(null)
   const [scanOk, setScanOk] = React.useState(false)
@@ -97,12 +100,17 @@ export const AddCatalogDialog: React.FC<AddCatalogDialogProps> = ({ open, onOpen
     setScanOk(false)
     setIdentityOptions([])
     setGitIdentityId(null)
+    setCatalogsLoaded(false)
     void loadDefaultGitIdentityId()
 
     void (async () => {
       const settings = await loadSettings()
-      const catalogs = Array.isArray(settings?.skillCatalogs) ? settings?.skillCatalogs : []
+      if (!settings) {
+        return
+      }
+      const catalogs = Array.isArray(settings.skillCatalogs) ? settings.skillCatalogs : []
       setExistingCatalogs(catalogs || [])
+      setCatalogsLoaded(true)
     })()
   }, [open, loadDefaultGitIdentityId])
 
@@ -187,6 +195,12 @@ export const AddCatalogDialog: React.FC<AddCatalogDialogProps> = ({ open, onOpen
 
     if (!trimmedSource) {
       toast.error(t("settings.skills.catalog.add.toast.repositoryRequired"))
+      return
+    }
+
+    if (!catalogsLoaded) {
+      // Saving now would replace the whole list with just this entry.
+      toast.error(t("settings.skills.catalog.add.toast.saveFailed"))
       return
     }
 

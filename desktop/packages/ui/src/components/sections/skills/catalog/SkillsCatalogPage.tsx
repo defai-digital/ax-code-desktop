@@ -148,7 +148,10 @@ export const SkillsCatalogPage: React.FC<SkillsCatalogPageProps> = ({ mode, onMo
     setIsRemovingCatalog(true)
     try {
       const settings = await loadSettings()
-      const catalogs = (Array.isArray(settings?.skillCatalogs) ? settings?.skillCatalogs : []) as SkillCatalogConfig[]
+      // A failed read must not be treated as "no catalogs": writing [] would wipe
+      // every custom catalog in settings.json.
+      if (!settings) return
+      const catalogs = (Array.isArray(settings.skillCatalogs) ? settings.skillCatalogs : []) as SkillCatalogConfig[]
       const updated = catalogs.filter((c) => c.id !== selectedSourceId)
       await updateDesktopSettings({ skillCatalogs: updated })
       await loadCatalog({ refresh: true })
