@@ -1,3 +1,4 @@
+import { setCappedCacheEntry } from "../capped-cache.js"
 import { formatNotificationModeLabel, formatNotificationModelLabel } from "./label-format.js"
 
 export const createNotificationTriggerRuntime = (deps) => {
@@ -76,7 +77,7 @@ export const createNotificationTriggerRuntime = (deps) => {
     // A root session's negative answer is worth caching too: without it every
     // notification trigger re-fetches the full session list (and a parent-chain walk
     // pays one such fetch per hop).
-    sessionParentIdCache.set(sessionId, { parentID: parentID ?? null, at: Date.now() })
+    setCappedCacheEntry(sessionParentIdCache, sessionId, { parentID: parentID ?? null, at: Date.now() })
   }
 
   const getParentIdFromPayload = (payload) => {
@@ -258,7 +259,7 @@ export const createNotificationTriggerRuntime = (deps) => {
         if (now - lastAt < READY_NOTIFICATION_COOLDOWN_MS) {
           return
         }
-        lastReadyNotificationAt.set(sessionId, now)
+        setCappedCacheEntry(lastReadyNotificationAt, sessionId, now)
 
         let title = `${formatNotificationModeLabel(info?.mode)} agent is ready`
         let body = `${formatNotificationModelLabel(info?.modelID)} completed the task`

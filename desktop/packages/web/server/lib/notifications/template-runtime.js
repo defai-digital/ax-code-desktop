@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
+import { setCappedCacheEntry } from "../capped-cache.js"
 import { summarizeText as summarizeSharedText } from "../text/summarization.js"
 import {
   formatNotificationModeLabel,
@@ -186,7 +187,7 @@ export const createNotificationTemplateRuntime = (deps) => {
 
   const cacheSessionTitle = (sessionId, title) => {
     if (typeof sessionId === "string" && sessionId.length > 0 && typeof title === "string" && title.length > 0) {
-      sessionTitleCache.set(sessionId, title)
+      setCappedCacheEntry(sessionTitleCache, sessionId, title)
     }
   }
 
@@ -228,7 +229,7 @@ export const createNotificationTemplateRuntime = (deps) => {
       }
       const data = await response.json().catch(() => null)
       if (data && typeof data === "object") {
-        sessionInfoCache.set(sessionId, { data, at: Date.now() })
+        setCappedCacheEntry(sessionInfoCache, sessionId, { data, at: Date.now() })
         return data
       }
       return null
