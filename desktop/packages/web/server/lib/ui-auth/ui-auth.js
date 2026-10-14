@@ -33,10 +33,15 @@ const rateLimitLocks = new Map()
 const withRateLimitLock = (key, fn) => {
   const previousTail = rateLimitLocks.get(key) || Promise.resolve()
   const result = previousTail.then(fn)
-  rateLimitLocks.set(
-    key,
-    result.catch(() => {}),
-  )
+  const tail = result.catch(() => {})
+  rateLimitLocks.set(key, tail)
+  // Release the entry once this chain drains, or every client key that ever hit a
+  // login endpoint stays in the map for the life of the process.
+  void tail.then(() => {
+    if (rateLimitLocks.get(key) === tail) {
+      rateLimitLocks.delete(key)
+    }
+  })
   return result
 }
 
