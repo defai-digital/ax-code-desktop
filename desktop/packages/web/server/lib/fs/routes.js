@@ -522,6 +522,21 @@ export const registerFsRoutes = (app, dependencies) => {
       }
     }
 
+    // realpath() answered ENOENT: the target does not exist yet. The final component
+    // may still be a symlink (a dangling one), and writing to it would create a file
+    // wherever it points — outside the workspace if that is where it points. lstat
+    // sees the link itself, so a symlink here is refused.
+    const targetStats = await Promise.resolve()
+      .then(() => (typeof fsPromises.lstat === "function" ? fsPromises.lstat(resolvedPath) : null))
+      .catch((error) => {
+        const code = error && typeof error === "object" ? error.code : undefined
+        if (code === "ENOENT") return null
+        throw error
+      })
+    if (targetStats?.isSymbolicLink?.()) {
+      return { ok: false, statusCode: 403, error: "Access to path denied" }
+    }
+
     const canonicalParent = await findExistingParentRealpath(path.dirname(resolvedPath))
     if (!isPathWithinRoot(canonicalParent, canonicalBase, path, os)) {
       return { ok: false, statusCode: 403, error: "Access to path denied" }
@@ -1134,8 +1149,11 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(canonical.statusCode).json({ error: canonical.error })
       }
 
-      await fsPromises.rm(resolved.resolved, { recursive: true })
-      return res.json({ success: true, path: resolved.resolved })
+      // Remove the path the containment check validated, not the raw string: the
+      // check resolves through a cache, so acting on the raw path could follow a
+      // component that became a symlink since.
+      await fsPromises.rm(canonical.path, { recursive: true })
+      return res.json({ success: true, path: canonical.path })
     } catch (error) {
       const err = error
       if (err && typeof err === "object" && err.code === "ENOENT") {
@@ -1203,7 +1221,7 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(writableNew.statusCode).json({ error: writableNew.error })
       }
 
-      await fsPromises.rename(resolvedOld.resolved, writableNew.path)
+      await fsPromises.rename(canonicalOld.path, writableNew.path)
       return res.json({ success: true, path: writableNew.path })
     } catch (error) {
       const err = error

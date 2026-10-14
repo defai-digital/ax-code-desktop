@@ -320,6 +320,32 @@ describe("fs outside workspace authorization", () => {
     expect(fsPromises.writeFile).not.toHaveBeenCalled()
   })
 
+  it("rejects a write whose target is a dangling symlink", async () => {
+    // realpath() reports ENOENT for a symlink whose target does not exist yet, so the
+    // parent check alone passed and the write created the file wherever it pointed.
+    const fsPromises = {
+      realpath: vi.fn(async (targetPath) => {
+        if (targetPath === "/repo/notes") {
+          const error = new Error("ENOENT")
+          error.code = "ENOENT"
+          throw error
+        }
+        return targetPath
+      }),
+      lstat: vi.fn(async () => ({ isSymbolicLink: () => true })),
+      readFile: vi.fn(async () => "old"),
+      mkdir: vi.fn(async () => undefined),
+      writeFile: vi.fn(async () => undefined),
+    }
+    const handler = registerWrite(fsPromises)
+
+    const res = await callWrite(handler, { path: "/repo/notes", content: "new" })
+
+    expect(res.statusCode).toBe(403)
+    expect(res.body).toEqual({ error: "Access to path denied" })
+    expect(fsPromises.writeFile).not.toHaveBeenCalled()
+  })
+
   it("rejects mkdir outside workspace when the directory was not approved", async () => {
     const fsPromises = {
       mkdir: vi.fn(async () => undefined),
@@ -751,5 +777,22 @@ describe("fs core file adapter responses", () => {
     expect(res.statusCode).toBe(200)
     expect(res.body).toEqual({ success: true, path: "/repo/stale.txt" })
     expect(fsPromises.rm).toHaveBeenCalledWith("/repo/stale.txt", { recursive: true })
+  })
+
+  it("deletes the path the containment check resolved, not the requested string", async () => {
+    // The check resolves through a cache, so acting on the raw path could follow a
+    // component that turned into a symlink after the cached check.
+    const fsPromises = {
+      rm: vi.fn(async () => undefined),
+      realpath: vi.fn(async (targetPath) =>
+        targetPath === "/repo/link/notes.txt" ? "/repo/real/notes.txt" : targetPath,
+      ),
+    }
+    const { getRoute } = registerFs(fsPromises)
+
+    const res = await callRoute(getRoute("POST", "/api/fs/delete"), { body: { path: "/repo/link/notes.txt" } })
+
+    expect(res.statusCode).toBe(200)
+    expect(fsPromises.rm).toHaveBeenCalledWith("/repo/real/notes.txt", { recursive: true })
   })
 })
