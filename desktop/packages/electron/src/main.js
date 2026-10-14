@@ -28,6 +28,7 @@ const { runOpenSpecChain } = require("./open-app-launcher")
 const { promisify } = require("util")
 const { createStartupDiagnostics } = require("./startup-diagnostics")
 const { assertShellOpenPathSucceeded, collectOpenPathCandidates } = require("./open-paths")
+const { FOCUS_MAIN_WINDOW_ACTION, resolveFocusMainWindowAction } = require("./focus-main-window")
 const { mapWithConcurrency } = require("./map-with-concurrency")
 const { assertDesktopReadFileAllowed } = require("./desktop-read-file-policy")
 const { sanitizeDesktopWindowTitle } = require("./desktop-window-title")
@@ -2486,6 +2487,11 @@ const setupTray = () => {
 // ── Shared command bodies (used by handlers and menu items) ────────────────
 const clearCacheAndReload = async () => {
   await session.defaultSession.clearStorageData()
+  // Every renderer reloads here, so none of them is listening until the ready
+  // signal arrives again. Leaving the flag set made later open/hand-off requests
+  // emit into a reloading renderer, where they were dropped, and the queue drained
+  // with nothing delivered.
+  rendererReadyForOpenProject = false
   for (const browserWindow of BrowserWindow.getAllWindows()) {
     // The storage clear can take seconds; a window closed meanwhile must be skipped
     // like every other window fan-out in this file.
@@ -3028,21 +3034,32 @@ handleCommand("desktop_focus_main_window", async (args) => {
   if (!hadWindow) {
     await createWindow()
   }
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.show()
-    mainWindow.focus()
-    if (hadWindow) {
-      emitOpen()
-    } else {
-      // A freshly created window's renderer hasn't mounted React (and attached
-      // the window 'openchamber:open-session' listener) by the time loadURL
-      // resolves — and loadURL resolves only AFTER 'did-finish-load' has fired,
-      // so a listener attached here would never run. Queue the hand-off and let
-      // the 'ax-code:renderer-app-ready' signal flush it once React is mounted.
-      pendingFocusOpen = { sessionId, directory, mode, projectId }
-      flushPendingFocusOpen()
-    }
+  const action = resolveFocusMainWindowAction({
+    hasUsableWindow: Boolean(mainWindow && !mainWindow.isDestroyed()),
+    rendererReady: rendererReadyForOpenProject,
+  })
+  if (action === FOCUS_MAIN_WINDOW_ACTION.UNAVAILABLE) {
+    // Nothing can deliver the hand-off (the window failed to open) and nothing is
+    // queued for it: report failure so the caller keeps its own window instead of
+    // closing onto an empty hand-off.
+    return { focused: false }
+  }
+
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+
+  if (action === FOCUS_MAIN_WINDOW_ACTION.DELIVER) {
+    emitOpen()
+  } else {
+    // A renderer that has not signalled 'ax-code:renderer-app-ready' is not
+    // listening: a freshly created window, one that is reloading, or one that was
+    // reloaded after a server restart (loadURL resolves only after
+    // 'did-finish-load', so a listener attached here would never run). Queue the
+    // hand-off and let that signal flush it, the same path external open-project
+    // requests take.
+    pendingFocusOpen = { sessionId, directory, mode, projectId }
+    flushPendingFocusOpen()
   }
   return { focused: true }
 })
