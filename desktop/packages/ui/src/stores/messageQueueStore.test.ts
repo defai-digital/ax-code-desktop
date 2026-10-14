@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { MESSAGE_QUEUE_MAX_PER_SESSION, useMessageQueueStore } from "./messageQueueStore"
+import {
+  MESSAGE_QUEUE_MAX_PER_SESSION,
+  claimQueuedDispatch,
+  releaseQueuedDispatchClaim,
+  useMessageQueueStore,
+} from "./messageQueueStore"
 
 describe("messageQueueStore", () => {
   beforeEach(() => {
@@ -27,5 +32,31 @@ describe("messageQueueStore", () => {
     // Oldest entries dropped; newest retained.
     expect(queue[0]?.content).toBe("msg-10")
     expect(queue[queue.length - 1]?.content).toBe(`msg-${MESSAGE_QUEUE_MAX_PER_SESSION + 9}`)
+  })
+
+  it("gives the first window the dispatch claim for a queued entry", () => {
+    // Two windows see the same busy → idle edge with the same entry in their shared
+    // queue; without a claim both would send it.
+    expect(claimQueuedDispatch("queued-1")).toBe(true)
+    expect(claimQueuedDispatch("queued-1")).toBe(false)
+  })
+
+  it("frees the claim again after a failed send", () => {
+    expect(claimQueuedDispatch("queued-2")).toBe(true)
+    releaseQueuedDispatchClaim("queued-2")
+    expect(claimQueuedDispatch("queued-2")).toBe(true)
+  })
+
+  it("ignores and prunes an expired claim", () => {
+    window.localStorage.setItem("oc.queue.dispatch.queued-3", String(Date.now() - 120_000))
+    expect(claimQueuedDispatch("queued-3")).toBe(true)
+    // The stale key was replaced by the fresh claim, not duplicated.
+    expect(window.localStorage.getItem("oc.queue.dispatch.queued-3")).not.toBeNull()
+  })
+
+  it("rehydrates from another window's storage write", () => {
+    useMessageQueueStore.getState().addToQueue("ses_shared", { content: "from another window" })
+    const persisted = window.localStorage.getItem("message-queue-store")
+    expect(persisted).toContain("from another window")
   })
 })

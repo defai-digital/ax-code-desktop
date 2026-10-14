@@ -1,5 +1,10 @@
 import React from "react"
-import { useMessageQueueStore, type QueuedMessage } from "@/stores/messageQueueStore"
+import {
+  claimQueuedDispatch,
+  releaseQueuedDispatchClaim,
+  useMessageQueueStore,
+  type QueuedMessage,
+} from "@/stores/messageQueueStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSelectionStore } from "@/sync/selection-store"
 import { useConfigStore } from "@/stores/useConfigStore"
@@ -234,6 +239,12 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
 
       inFlightSessionsRef.current.add(sessionId)
 
+      // Another window may be reacting to the same busy -> idle edge with the same
+      // entry in its own copy of the shared queue; only the claim owner sends it.
+      if (!claimQueuedDispatch(payload.queuedMessageId)) {
+        return
+      }
+
       // Take the entry out before the send: the chip stays interactive while the
       // prompt is in flight, and sending it by hand would deliver it twice (each
       // send mints its own message id, so nothing downstream dedupes).
@@ -249,6 +260,8 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         })
       } catch (error) {
         console.warn("[queue] queued auto-send failed:", error)
+        // Let this or another window try again.
+        releaseQueuedDispatchClaim(payload.queuedMessageId)
         if (dispatchedEntry) {
           // Restore the message so a failed send does not lose it.
           useMessageQueueStore.setState((state) => {

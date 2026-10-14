@@ -40,6 +40,51 @@ type MessageQueueStore = MessageQueueState & MessageQueueActions
 /** Cap per-session queue length to bound localStorage / memory growth (STAB-12). */
 export const MESSAGE_QUEUE_MAX_PER_SESSION = 50
 
+const QUEUE_STORAGE_KEY = "message-queue-store"
+const DISPATCH_CLAIM_PREFIX = "oc.queue.dispatch."
+// Long enough to cover the gap until the other window notices the removal through
+// its storage event, short enough that a stale claim cannot block a real retry.
+const DISPATCH_CLAIM_TTL_MS = 60_000
+
+/**
+ * Cross-window claim for one queued entry. Both windows can see the same busy → idle
+ * edge and each would dispatch the entry; the first to claim it sends, the other
+ * skips. Expired claims are pruned on the way through so the keys stay bounded.
+ */
+export const claimQueuedDispatch = (messageId: string): boolean => {
+  if (typeof window === "undefined") return true
+  try {
+    const storage = window.localStorage
+    const now = Date.now()
+    const expired: string[] = []
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index)
+      if (!key || !key.startsWith(DISPATCH_CLAIM_PREFIX)) continue
+      const claimedAt = Number(storage.getItem(key))
+      if (!Number.isFinite(claimedAt) || now - claimedAt >= DISPATCH_CLAIM_TTL_MS) expired.push(key)
+    }
+    for (const key of expired) storage.removeItem(key)
+
+    const key = `${DISPATCH_CLAIM_PREFIX}${messageId}`
+    const existing = storage.getItem(key)
+    if (existing !== null && now - Number(existing) < DISPATCH_CLAIM_TTL_MS) return false
+    storage.setItem(key, String(now))
+    return true
+  } catch {
+    // Storage unavailable: behave as before (single-window assumption).
+    return true
+  }
+}
+
+export const releaseQueuedDispatchClaim = (messageId: string): void => {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.removeItem(`${DISPATCH_CLAIM_PREFIX}${messageId}`)
+  } catch {
+    /* ignore */
+  }
+}
+
 export const useMessageQueueStore = create<MessageQueueStore>()(
   devtools(
     persist(
@@ -177,3 +222,13 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
     },
   ),
 )
+
+// The queue is a shared, persisted resource: a removal in one window must reach the
+// other, or the other window keeps a stale entry and dispatches it again. Storage
+// events only fire in the *other* windows, so this cannot loop.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key !== QUEUE_STORAGE_KEY) return
+    void useMessageQueueStore.persist.rehydrate()
+  })
+}
