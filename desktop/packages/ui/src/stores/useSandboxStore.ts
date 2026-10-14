@@ -134,6 +134,10 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
 
     if (result === null) {
       toast.error(formatMessage(useI18nStore.getState().dictionary, "chat.chatInput.sandbox.updateFailed"))
+      // The write may still have landed on the server even though the response was
+      // lost to the timeout: re-read it so the toggle converges with the server
+      // instead of staying on the reverted value.
+      await get().loadSandbox(directory)
     }
   },
 }))

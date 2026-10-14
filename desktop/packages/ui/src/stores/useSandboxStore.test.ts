@@ -49,12 +49,15 @@ describe("useSandboxStore", () => {
   })
 
   test("reverts optimistic sandbox toggle when isolation update fails", async () => {
-    const { setIsolationMock, toastErrorMock, useSandboxStore } = await importStore()
+    const { getIsolationMock, setIsolationMock, toastErrorMock, useSandboxStore } = await importStore()
     useSandboxStore.setState({
       sandboxByDirectory: { "/repo": false },
       pendingByDirectory: {},
     })
     setIsolationMock.mockRejectedValueOnce(new Error("server unavailable"))
+    // The write failed, so the server still reports the previous mode; the reload the
+    // timeout path now does reads it and keeps the toggle on the unchanged value.
+    getIsolationMock.mockResolvedValue({ mode: "full-access" })
 
     await useSandboxStore.getState().setSandbox("/repo", true)
 
@@ -102,3 +105,30 @@ describe("useSandboxStore", () => {
     expect(useSandboxStore.getState().isSandbox("c:\\Repo\\")).toBe(true)
   })
 })
+
+  test("a timed-out write reloads the real server state instead of staying reverted", async () => {
+    const { useSandboxStore, getIsolationMock, setIsolationMock } = await importStore()
+    useSandboxStore.setState({
+      sandboxByDirectory: { "/repo": true },
+      pendingByDirectory: {},
+      restrictedModeByDirectory: {},
+    })
+
+    // The write is accepted by the server but its response never arrives.
+    setIsolationMock.mockImplementationOnce(() => new Promise(() => {}))
+    // The follow-up reload reads the server's actual mode (the write did land).
+    getIsolationMock.mockResolvedValue({ mode: "full-access" })
+
+    vi.useFakeTimers()
+    try {
+      const write = useSandboxStore.getState().setSandbox("/repo", false)
+      await vi.advanceTimersByTimeAsync(12_500)
+      await write
+
+      // Without the reload the toggle would sit on the pre-write value while the
+      // server holds the other: the desync is invisible until a reload.
+      expect(useSandboxStore.getState().isSandbox("/repo")).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
