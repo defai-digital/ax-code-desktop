@@ -48,4 +48,31 @@ printf 'untrusted comment: minisign public key CF42FC69BEEF0EA5\npublic\n' > "$p
       fs.rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  test("refuses an already group/world-accessible key directory", () => {
+    // Regression: on GNU stat hosts the old path_mode concatenated a failed
+    // `stat -f` filesystem report into the mode, so the numeric test raised
+    // "invalid integer constant" and the guard silently passed.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-minisign-keygen-exposed-test-"))
+    try {
+      const bin = path.join(dir, "bin")
+      const keyDir = path.join(dir, "signkey")
+      fs.mkdirSync(bin)
+      fs.writeFileSync(path.join(bin, "minisign"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 })
+      fs.mkdirSync(keyDir)
+      fs.chmodSync(keyDir, 0o755)
+
+      const result = spawnSync("bash", [script, "--key-dir", keyDir, "--allow-unencrypted-test-key"], {
+        cwd: desktopRoot,
+        encoding: "utf8",
+        env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
+      })
+
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain("must not be group/world accessible")
+      expect(result.stderr).not.toContain("invalid integer")
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })

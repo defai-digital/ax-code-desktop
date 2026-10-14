@@ -39,10 +39,17 @@ Environment:
 EOF
 }
 
-# Portable permission mode: stat -f (BSD/macOS) then stat -c (GNU/Linux).
+# Portable permission mode: capture each dialect separately, because a failed GNU
+# `stat -f` still prints filesystem data to stdout and the concatenation made the
+# guard below raise "invalid integer constant" and skip the check entirely.
 path_mode() {
   local path="$1"
-  stat -f '%Lp' "$path" 2>/dev/null || stat -c '%a' "$path" 2>/dev/null || true
+  local mode
+  if mode="$(stat -L -c '%a' "$path" 2>/dev/null)" && [[ "$mode" =~ ^[0-7]{3,4}$ ]]; then
+    printf '%s\n' "$mode"
+  elif mode="$(stat -L -f '%Lp' "$path" 2>/dev/null)" && [[ "$mode" =~ ^[0-7]{3,4}$ ]]; then
+    printf '%s\n' "$mode"
+  fi
 }
 
 require_private_path() {
