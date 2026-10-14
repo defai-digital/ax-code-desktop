@@ -222,9 +222,11 @@ Design rules used for Ink (and recommended for custom calm themes):
 }
 ```
 
-## Surface Alpha Requirement
+## Surface Alpha
 
-- `colors.surface.muted` and `colors.surface.elevated` must always use 90 alpha (`...90` in 8-digit hex, e.g. `#1C1B1A90`).
+- `colors.surface.muted` and `colors.surface.elevated` may be opaque (the AutomatosX defaults are) or translucent
+  (for example `...90` in 8-digit hex, `#1C1B1A90`) to let the canvas tint through. Contrast is checked against the
+  composited colour.
 
 ## Validation
 
@@ -235,6 +237,19 @@ Common issues:
 - Missing required fields
 - Invalid `variant` (must be `"light"` or `"dark"`)
 - File size > 512KB
+
+## Contrast
+
+Bundled themes are checked by `packages/ui/src/lib/theme/themeContrast.test.ts`; aim for the same in custom themes:
+
+- `surface.foreground` on `surface.background`: at least 4.5:1.
+- `primary.foreground` on `primary.base` (button text): at least 4.5:1.
+- `surface.mutedForeground` on `surface.background`: at least 3:1 for secondary text.
+- `interactive.border` on `surface.background`: about 1.3:1 or more so cards and inputs separate; the default
+  themes use 1.36:1 in both modes.
+
+`packages/ui/src/lib/theme/generateTheme.ts` can produce a complete theme from a base colour, an accent and a
+contrast level (OKLCH), meeting these rules; its output is a good starting point for a custom theme.
 
 ## Tips
 
