@@ -92,8 +92,11 @@ export const DefaultsSettings: React.FC = () => {
       if (providerId && modelId) {
         const provider = providers.find((p) => p.id === providerId)
         if (provider) {
-          setProvider(providerId)
-          setModel(modelId)
+          // Editing the default previews it in the active project. That is not a
+          // project-level pick, so it must stay replaceable by later default
+          // changes ("auto").
+          setProvider(providerId, "auto")
+          setModel(modelId, "auto")
         }
       }
 

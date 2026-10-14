@@ -1,6 +1,7 @@
-import { describe, expect, test } from "vitest"
+import { afterEach, describe, expect, test, vi } from "vitest"
 import type { ProviderWithModelList } from "@/types/providerModels"
-import { shouldKeepCurrentSelection } from "./useConfigStore-impl"
+import { registerAgentsSource } from "@/lib/agents"
+import { keepsManualSelection, shouldKeepCurrentSelection, useConfigStore } from "./useConfigStore-impl"
 
 const providers = [
   {
@@ -38,5 +39,116 @@ describe("shouldKeepCurrentSelection", () => {
     // The jump happens later, once the list returns: nothing may be resolved against
     // an empty list. Here the empty list simply cannot confirm the selection.
     expect(shouldKeepCurrentSelection(true, [], "defai", "deepseek-flash")).toBe(false)
+  })
+})
+
+describe("keepsManualSelection", () => {
+  test("keeps a selectable pick the user made", () => {
+    expect(keepsManualSelection("manual", providers, "defai", "deepseek-flash")).toBe(true)
+  })
+
+  test("treats a selection the project only inherited as replaceable", () => {
+    expect(keepsManualSelection("auto", providers, "defai", "deepseek-flash")).toBe(false)
+    expect(keepsManualSelection(undefined, providers, "defai", "deepseek-flash")).toBe(false)
+  })
+
+  test("does not keep a pick the fresh provider list no longer offers", () => {
+    expect(keepsManualSelection("manual", providers, "defai", "removed-model")).toBe(false)
+    expect(keepsManualSelection("manual", providers, "removed-provider", "deepseek-flash")).toBe(false)
+  })
+
+  test("does not keep an empty pick", () => {
+    expect(keepsManualSelection("manual", providers, "", "")).toBe(false)
+  })
+})
+
+const PROJECT_DIRECTORY = "/project"
+const SETTINGS_DEFAULT_MODEL = "claude-code/claude-sonnet"
+
+const seedProject = (selectionSource: "auto" | "manual") => {
+  registerAgentsSource({
+    getAgents: () => [{ name: "build" }, { name: "plan" }] as never,
+    loadAgents: async () => true,
+  })
+  vi.stubGlobal("fetch", async () => ({
+    ok: true,
+    json: async () => ({ defaultModel: SETTINGS_DEFAULT_MODEL }),
+  }))
+  useConfigStore.setState({
+    activeDirectoryKey: PROJECT_DIRECTORY,
+    providers,
+    currentProviderId: "defai",
+    currentModelId: "deepseek-flash",
+    currentAgentName: "build",
+    settingsDefaultModel: undefined,
+    directoryScoped: {
+      [PROJECT_DIRECTORY]: {
+        providers,
+        currentProviderId: "defai",
+        currentModelId: "deepseek-flash",
+        currentAgentName: "build",
+        selectedProviderId: "defai",
+        agentModelSelections: {},
+        defaultProviders: {},
+        selectionSource,
+      },
+    },
+  })
+}
+
+describe("loadAgents and a manual project selection", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  test("keeps the pick the user made instead of applying the settings default", async () => {
+    // Regression: the settings default overwrote a still-valid manual pick on every
+    // loadAgents run (startup, directory activation, MCP/plugin/agent refresh) and
+    // persisted the replacement, so the composer jumped to another provider on its
+    // own.
+    seedProject("manual")
+
+    await useConfigStore.getState().loadAgents()
+
+    const state = useConfigStore.getState()
+    expect(state.currentProviderId).toBe("defai")
+    expect(state.currentModelId).toBe("deepseek-flash")
+    expect(state.directoryScoped[PROJECT_DIRECTORY].selectionSource).toBe("manual")
+  })
+
+  test("applies the settings default to a project that never picked one", async () => {
+    seedProject("auto")
+
+    await useConfigStore.getState().loadAgents()
+
+    const state = useConfigStore.getState()
+    expect(state.currentProviderId).toBe("claude-code")
+    expect(state.currentModelId).toBe("claude-sonnet")
+    expect(state.directoryScoped[PROJECT_DIRECTORY].selectionSource).toBe("auto")
+  })
+})
+
+describe("selection source tracking", () => {
+  test("picking a model marks the project pick as manual, a default does not", () => {
+    seedProject("auto")
+
+    useConfigStore.getState().setModel("deepseek-flash")
+    expect(useConfigStore.getState().directoryScoped[PROJECT_DIRECTORY].selectionSource).toBe("manual")
+
+    // The settings-default editor previews its value in the active project: that is
+    // not a project pick, so a later default change may still replace it.
+    useConfigStore.getState().setProvider("claude-code", "auto")
+    useConfigStore.getState().setModel("claude-sonnet", "auto")
+    expect(useConfigStore.getState().directoryScoped[PROJECT_DIRECTORY].selectionSource).toBe("auto")
+  })
+
+  test("picking an agent marks the pick as manual so the cascade leaves it alone", () => {
+    seedProject("auto")
+
+    useConfigStore.getState().setAgent("plan")
+
+    const snapshot = useConfigStore.getState().directoryScoped[PROJECT_DIRECTORY]
+    expect(snapshot.currentAgentName).toBe("plan")
+    expect(snapshot.selectionSource).toBe("manual")
   })
 })

@@ -124,8 +124,7 @@ const hasProviderModel = hasSelectableProviderModel
  * Whether a recomputed default may replace the current selection. A last-resort
  * default (the hardcoded fallback or the first selectable provider) must never move
  * a still-selectable selection — that is what made the composer jump to another
- * provider on every loadAgents/loadProviders run. A configured settings default or
- * an agent preference may still apply, per the documented resolution order.
+ * provider on every loadAgents/loadProviders run.
  */
 export const shouldKeepCurrentSelection = (
   resolvedIsLastResort: boolean,
@@ -133,6 +132,21 @@ export const shouldKeepCurrentSelection = (
   providerId: string,
   modelId: string,
 ): boolean => resolvedIsLastResort && hasProviderModel(providers, providerId, modelId)
+
+/**
+ * Whether the project's selection was picked by hand and must outlive the
+ * recomputed defaults. Settings defaults and agent preferences are only fills for
+ * projects the user has not chosen for; without this a configured default replaced
+ * a still-valid manual pick on every loadAgents run (startup, directory
+ * activation, MCP/plugin/agent config refresh) and persisted the replacement. A
+ * pick the fresh provider list no longer offers yields to the defaults again.
+ */
+export const keepsManualSelection = (
+  selectionSource: "auto" | "manual" | undefined,
+  providers: ProviderWithModelList[],
+  providerId: string,
+  modelId: string,
+): boolean => selectionSource === "manual" && hasProviderModel(providers, providerId, modelId)
 
 const resolveGitGenerationModelSelection = ({
   providers,
@@ -446,6 +460,12 @@ interface DirectoryScopedConfig {
   selectedProviderId: string
   agentModelSelections: { [agentName: string]: { providerId: string; modelId: string } }
   defaultProviders: { [key: string]: string }
+  /**
+   * "manual" once the user picked the provider, model or agent for this project.
+   * A manual pick survives the defaults cascade in loadAgents; an "auto" one is
+   * replaced by the settings default / agent preference as documented.
+   */
+  selectionSource?: "auto" | "manual"
 }
 
 interface ConfigStore {
@@ -487,8 +507,9 @@ interface ConfigStore {
   loadProviders: (options?: { directory?: string | null }) => Promise<void>
   loadAgents: (options?: { directory?: string | null }) => Promise<boolean>
   invalidateModelMetadataCache: () => void
-  setProvider: (providerId: string) => void
-  setModel: (modelId: string) => void
+  /** `source` records whether the user picked this ("manual", the default) or a default was applied ("auto"). */
+  setProvider: (providerId: string, source?: "auto" | "manual") => void
+  setModel: (modelId: string, source?: "auto" | "manual") => void
   setCurrentVariant: (variant: string | undefined) => void
   cycleCurrentVariant: () => void
   getCurrentModelVariants: () => string[]
@@ -970,7 +991,7 @@ export const useConfigStore = create<ConfigStore>()(
           return promise
         },
 
-        setProvider: (providerId: string) => {
+        setProvider: (providerId: string, source: "auto" | "manual" = "manual") => {
           const { providers } = get()
           const provider = providers.find((p) => p.id === providerId)
 
@@ -1008,6 +1029,7 @@ export const useConfigStore = create<ConfigStore>()(
               currentModelId: newModelId,
               currentVariant: nextVariant,
               selectedProviderId: providerId,
+              selectionSource: source,
             }
 
             return {
@@ -1023,7 +1045,7 @@ export const useConfigStore = create<ConfigStore>()(
           })
         },
 
-        setModel: (modelId: string) => {
+        setModel: (modelId: string, source: "auto" | "manual" = "manual") => {
           set((state) => {
             const provider = state.currentProviderId
               ? state.providers.find((item) => item.id === state.currentProviderId)
@@ -1061,6 +1083,7 @@ export const useConfigStore = create<ConfigStore>()(
               ...baseSnapshot,
               currentModelId: modelId,
               currentVariant: nextVariant,
+              selectionSource: source,
             }
 
             return {
@@ -1450,24 +1473,35 @@ export const useConfigStore = create<ConfigStore>()(
                     defaultProviders: {},
                   }
 
-                  // A still-selectable selection wins over a LAST-RESORT default.
-                  // loadAgents runs on startup, directory activation and every config
-                  // refresh; without this guard each run moved the composer to the
-                  // first selectable provider (alphabetically first, usually
-                  // claude-code), which is what made the selection jump on its own.
-                  // A settings default or an agent preference still applies as
-                  // documented — only the hardcoded fallback yields to the user.
-                  const keepSnapshotSelection = shouldKeepCurrentSelection(
-                    resolvedIsLastResort,
-                    providers,
-                    baseSnapshot.currentProviderId,
-                    baseSnapshot.currentModelId,
-                  )
+                  // A selection the user picked by hand wins over every recomputed
+                  // default, settings and agent preference included; a selection this
+                  // project only inherited may be replaced. A still-selectable
+                  // selection also wins over a LAST-RESORT default: loadAgents runs on
+                  // startup, directory activation and every config refresh, and
+                  // without these guards each run moved the composer to the first
+                  // selectable provider (alphabetically first, usually claude-code),
+                  // which is what made the selection jump on its own.
+                  const manualSource = baseSnapshot.selectionSource === "manual"
+                  const keepSnapshotAgent = manualSource && !!baseSnapshot.currentAgentName
+                  const keepSnapshotSelection =
+                    keepSnapshotAgent ||
+                    keepsManualSelection(
+                      baseSnapshot.selectionSource,
+                      providers,
+                      baseSnapshot.currentProviderId,
+                      baseSnapshot.currentModelId,
+                    ) ||
+                    shouldKeepCurrentSelection(
+                      resolvedIsLastResort,
+                      providers,
+                      baseSnapshot.currentProviderId,
+                      baseSnapshot.currentModelId,
+                    )
 
                   const nextSnapshot: DirectoryScopedConfig = {
                     ...baseSnapshot,
                     providers,
-                    currentAgentName: resolvedAgent.name,
+                    currentAgentName: keepSnapshotAgent ? baseSnapshot.currentAgentName : resolvedAgent.name,
                     currentProviderId: keepSnapshotSelection
                       ? baseSnapshot.currentProviderId
                       : (resolvedProviderId ?? baseSnapshot.currentProviderId),
@@ -1475,6 +1509,7 @@ export const useConfigStore = create<ConfigStore>()(
                       ? baseSnapshot.currentModelId
                       : (resolvedModelId ?? baseSnapshot.currentModelId),
                     currentVariant: keepSnapshotSelection ? baseSnapshot.currentVariant : resolvedVariant,
+                    selectionSource: keepSnapshotSelection ? baseSnapshot.selectionSource : "auto",
                   }
 
                   const nextState: Partial<ConfigStore> = {
@@ -1485,13 +1520,21 @@ export const useConfigStore = create<ConfigStore>()(
                   }
 
                   if (state.activeDirectoryKey === directoryKey) {
-                    nextState.currentAgentName = resolvedAgent.name
-                    const keepActiveSelection = shouldKeepCurrentSelection(
-                      resolvedIsLastResort,
-                      providers,
-                      state.currentProviderId,
-                      state.currentModelId,
-                    )
+                    nextState.currentAgentName = nextSnapshot.currentAgentName
+                    const keepActiveSelection =
+                      keepSnapshotAgent ||
+                      keepsManualSelection(
+                        baseSnapshot.selectionSource,
+                        providers,
+                        state.currentProviderId,
+                        state.currentModelId,
+                      ) ||
+                      shouldKeepCurrentSelection(
+                        resolvedIsLastResort,
+                        providers,
+                        state.currentProviderId,
+                        state.currentModelId,
+                      )
                     if (!keepActiveSelection && resolvedProviderId && resolvedModelId) {
                       nextState.currentProviderId = resolvedProviderId
                       nextState.currentModelId = resolvedModelId
@@ -1557,6 +1600,9 @@ export const useConfigStore = create<ConfigStore>()(
             const nextSnapshot: DirectoryScopedConfig = {
               ...baseSnapshot,
               currentAgentName: agentName,
+              // Picking an agent also fixes the model resolved for it, so the
+              // whole pick must survive the defaults cascade.
+              selectionSource: agentName ? "manual" : baseSnapshot.selectionSource,
             }
 
             return {
