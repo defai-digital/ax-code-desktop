@@ -601,6 +601,37 @@ describe("rollback and fork actions use the session directory", () => {
     expect(reverted.revert?.messageID).toBe("msg-b")
   })
 
+  test("forkFromMessage rejects when the runtime returns no fork", async () => {
+    // Regression: the SDK call omitted throwOnError, so a failed fork resolved and
+    // the caller showed its success toast with no new session behind it.
+    const store = createStore({})
+    store.setState({
+      session: [
+        {
+          id: "session-b",
+          directory: "/other/project",
+          time: { created: 1, updated: 1 },
+        } as unknown as Session,
+      ],
+      part: {
+        "msg-b": [{ id: "prt-text", type: "text", messageID: "msg-b", text: "try an alternate path" } as unknown as Part],
+      },
+    })
+    mockScopedClient.session.fork.mockImplementationOnce((params: Record<string, unknown>) => {
+      sessionCalls.push({ method: "session.fork", params })
+      return Promise.resolve({ error: { message: "Session is busy" }, data: undefined })
+    })
+
+    const { forkFromMessage, setActionRefs } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/other/project", store]]),
+      () => "/test/project",
+    )
+
+    await expect(forkFromMessage("session-b", "msg-b")).rejects.toThrow("Failed to fork session")
+  })
+
   test("forkFromMessage switches to the fork in the original session directory", async () => {
     const store = createStore({})
     store.setState({

@@ -1309,10 +1309,12 @@ export async function forkFromMessage(sessionId: string, messageId: string): Pro
     .trim()
   const fileParts = parts.filter((p) => p.type === "file" && !isSyntheticPart(p)) as Array<Record<string, unknown>>
 
-  const result = await client.session.fork({ sessionID: sessionId, directory, messageID: messageId })
-  if (!result.data) return
-
+  const result = await client.session.fork(
+    { sessionID: sessionId, directory, messageID: messageId },
+    { throwOnError: true },
+  )
   const forkedSession = result.data
+  if (!forkedSession) throw new Error("Failed to fork session")
 
   // Insert new session into child store so sidebar updates immediately
   const current = store.getState()
