@@ -52,6 +52,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The bundled AX Code runtime pin moves to the signed v7.25.7 and the SDK pin to 2.6.17, the newest
+  published producer versions.
 - The bundled AX Code runtime pin moves to the signed v7.25.1, the first release that accepts the
   desktop browser provider (`desktop.webmcp.v1`), so agent access in the project browser works.
 - The add-project dialog leads with "Choose folder…" and keeps the in-app path browser and clone
