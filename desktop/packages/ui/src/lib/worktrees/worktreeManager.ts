@@ -193,7 +193,15 @@ export async function listProjectWorktrees(project: ProjectRef): Promise<Worktre
           worktreeSource: canonical.worktreeSource,
         }
       })
-      .filter((entry) => normalizeWorktreePath(entry.path) !== normalizedProjectDirectory)
+      .filter((entry) => {
+        // The primary worktree is the repository root, not "another worktree" of the
+        // project. A project that lives in a subdirectory of its repository has a
+        // project path different from that root, so both have to be dropped —
+        // otherwise the project adopts the enclosing repository as one of its
+        // worktrees and claims sessions that belong to the outer project.
+        const entryPath = normalizeWorktreePath(entry.path)
+        return entryPath !== normalizedProjectDirectory && entryPath !== normalizeWorktreePath(metadataProjectDirectory)
+      })
 
     const sorted = results.sort((a, b) => {
       const aLabel = (a.label || a.branch || a.path).toLowerCase()

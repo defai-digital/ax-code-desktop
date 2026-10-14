@@ -1,16 +1,22 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
 import type { WorktreeMetadata } from "@/types/worktree"
 
-const { removeWorktreeMock } = vi.hoisted(() => ({
+const { removeWorktreeMock, listWorktreesMock } = vi.hoisted(() => ({
   removeWorktreeMock: vi.fn(async () => ({ success: true })),
+  listWorktreesMock: vi.fn(async () => [] as Array<{ path: string; branch?: string }>),
 }))
 
 vi.mock("@/lib/gitApi", () => ({
-  git: { worktree: { remove: removeWorktreeMock } },
+  git: { worktree: { remove: removeWorktreeMock, list: listWorktreesMock } },
   deleteRemoteBranch: vi.fn(async () => undefined),
 }))
 
-import { pruneExpiredWorktreeListEntries, removeProjectWorktree } from "./worktreeManager"
+vi.mock("@/lib/worktrees/worktreeStatus", () => ({
+  invalidateResolvedProjectRootCache: () => {},
+  resolveProjectRoot: async () => "/repo",
+}))
+
+import { listProjectWorktrees, pruneExpiredWorktreeListEntries, removeProjectWorktree } from "./worktreeManager"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSessionWorktreeStore } from "@/sync/session-worktree-store"
 
@@ -79,5 +85,37 @@ describe("removeProjectWorktree", () => {
 
     expect(useSessionUIStore.getState().worktreeMetadata.has("ses_other")).toBe(true)
     expect(useSessionWorktreeStore.getState().getAttachment("ses_other")?.cwd).toBe(other.path)
+  })
+})
+
+describe("listProjectWorktrees", () => {
+  beforeEach(() => {
+    listWorktreesMock.mockClear()
+  })
+
+  test("does not list the enclosing repository root as a worktree of a subdirectory project", async () => {
+    // The project lives in /repo/packages/web, so its repository root (/repo) is a
+    // different directory: listing it made the inner project adopt the outer
+    // repository as a worktree and claim its sessions.
+    listWorktreesMock.mockResolvedValue([
+      { path: "/repo", branch: "refs/heads/main" },
+      { path: "/repo/packages/web", branch: "refs/heads/web" },
+      { path: "/tmp/wt/feature", branch: "refs/heads/feature-abc" },
+    ])
+
+    const worktrees = await listProjectWorktrees({ path: "/repo/packages/web", name: "web" } as never)
+
+    expect(worktrees.map((entry) => entry.path)).toEqual(["/tmp/wt/feature"])
+  })
+
+  test("keeps a linked worktree of a project that is itself the repository root", async () => {
+    listWorktreesMock.mockResolvedValue([
+      { path: "/repo2", branch: "refs/heads/main" },
+      { path: "/tmp/wt/other", branch: "refs/heads/other-xyz" },
+    ])
+
+    const worktrees = await listProjectWorktrees({ path: "/repo2", name: "repo2" } as never)
+
+    expect(worktrees.map((entry) => entry.path)).toEqual(["/tmp/wt/other"])
   })
 })
