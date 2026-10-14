@@ -172,4 +172,48 @@ describe("useChatAutoFollow collapsed activity", () => {
     expect(scrollContainer.scrollTop).toBe(900)
     expect(result?.state).toBe("following")
   })
+
+  test("snaps onto a stop a few pixels away instead of creeping toward it", () => {
+    render()
+    const scrollContainer = setLayout(300)
+    // Browsers round scroll positions, so a lerp step under a pixel is lost;
+    // the stop must still land and release rather than follow forever.
+    let roundedTop = 296
+    Object.defineProperty(scrollContainer, "scrollTop", {
+      configurable: true,
+      get: () => roundedTop,
+      set: (value: number) => {
+        roundedTop = Math.floor(value)
+      },
+    })
+
+    flushFrames()
+
+    expect(scrollContainer.scrollTop).toBe(300)
+    expect(result?.state).toBe("released")
+  })
+
+  test("stays at the stop when a re-measure clamps the scroll position to the end", () => {
+    render()
+    const scrollContainer = setLayout(300)
+    flushFrames()
+    expect(result?.state).toBe("released")
+
+    // The settled turn's row re-measures and the browser clamps to the end,
+    // well after the follow's own writes.
+    const later = performance.now() + 5000
+    vi.spyOn(performance, "now").mockReturnValue(later)
+    scrollContainer.scrollTop = 900
+    React.act(() => {
+      scrollContainer.dispatchEvent(new Event("scroll"))
+    })
+    expect(result?.state).toBe("released")
+
+    // Once the reader scrolls themselves, reaching the end follows again.
+    React.act(() => {
+      scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: 40 }))
+      scrollContainer.dispatchEvent(new Event("scroll"))
+    })
+    expect(result?.state).toBe("following")
+  })
 })

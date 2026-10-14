@@ -51,6 +51,10 @@ const SAVE_DEBOUNCE_MS = 150
 const LERP = 0.18
 const SETTLE_EPSILON = 0.5
 const SETTLE_FRAMES = 4
+// Within this distance a lerp step moves the scroll position by less than a
+// pixel, which the browser rounds away, so the follow stop snaps instead of
+// creeping toward a target it can never reach.
+const FOLLOW_STOP_SNAP_PX = Math.ceil(1 / LERP)
 const TOUCH_FINGER_DOWN_THRESHOLD = 2
 const SETTLE_BURST_DURATION_MS = 280
 const REPIN_GRACE_AFTER_RELEASE_MS = 1200
@@ -154,6 +158,7 @@ export const useChatAutoFollow = ({
     // Turn ids are session-scoped; dropping the latches on a switch keeps them bounded.
     followedTurnStopsRef.current.clear()
     followStopEligibilityRef.current.clear()
+    heldAtFollowStopRef.current = false
   }, [currentSessionId])
 
   const lastSessionIdRef = React.useRef<string | null>(null)
@@ -172,6 +177,11 @@ export const useChatAutoFollow = ({
   const settleBurstRafRef = React.useRef<number | null>(null)
   const lastUserReleaseAtRef = React.useRef(0)
   const releaseFromFollowStopRef = React.useRef<() => void>(() => {})
+  // Set when the follow stopped at a turn. Until the reader scrolls themselves,
+  // reaching the end does not re-arm following: when the turn settles, its row
+  // re-measures and the browser can clamp the scroll position to the end,
+  // which would otherwise pull the reader away from the start they are reading.
+  const heldAtFollowStopRef = React.useRef(false)
   // When restoreSnapshot is invoked while ChatViewport is still hydrating
   // (skeleton rendered, no scroll container yet), we record the session here
   // so a follow-up effect can replay the restore once the container mounts.
@@ -259,7 +269,7 @@ export const useChatAutoFollow = ({
     const current = container.scrollTop
     const delta = target - current
 
-    if (stoppedAtTurn && stoppedAtTurnKey && Math.abs(delta) <= SETTLE_EPSILON) {
+    if (stoppedAtTurn && stoppedAtTurnKey && Math.abs(delta) <= FOLLOW_STOP_SNAP_PX) {
       if (current !== target) {
         markProgrammaticWrite()
         container.scrollTop = target
@@ -371,6 +381,7 @@ export const useChatAutoFollow = ({
     stopFollowLoop()
     stopSettleBurst()
     unseenBaseRef.current = sessionMessageCountRef.current
+    heldAtFollowStopRef.current = true
     setStateValue("released")
   }, [setStateValue, stopFollowLoop, stopSettleBurst])
   releaseFromFollowStopRef.current = releaseAtFollowStop
@@ -378,11 +389,7 @@ export const useChatAutoFollow = ({
   const goToBottom = React.useCallback(
     (mode: "instant" | "smooth" = "instant") => {
       const container = scrollRef.current
-      // Going to the end spends the current turn's follow stop, so an
-      // in-flight follow tick aims at the real end instead of that turn.
-      const turns = container?.querySelectorAll("section[data-turn-id]")
-      const lastTurnKey = turns?.item(turns.length - 1)?.getAttribute("data-turn-id")
-      if (lastTurnKey) followedTurnStopsRef.current.add(lastTurnKey)
+      heldAtFollowStopRef.current = false
       setStateValue("following")
       lastUserReleaseAtRef.current = 0
       if (!container) return
@@ -545,7 +552,12 @@ export const useChatAutoFollow = ({
 
     const now = typeof performance !== "undefined" ? performance.now() : Date.now()
     const inGrace = now - lastUserReleaseAtRef.current < REPIN_GRACE_AFTER_RELEASE_MS
-    if (stateRef.current === "released" && isNearBottom(container, isMobile) && !inGrace) {
+    if (
+      stateRef.current === "released" &&
+      isNearBottom(container, isMobile) &&
+      !inGrace &&
+      !heldAtFollowStopRef.current
+    ) {
       setStateValue("following")
       startFollowLoop()
     }
@@ -566,7 +578,13 @@ export const useChatAutoFollow = ({
     const container = containerEl
     if (!container) return
 
+    // Any scroll input from the reader ends a hold at a follow stop.
+    const endFollowStopHold = () => {
+      heldAtFollowStopRef.current = false
+    }
+
     const handleWheel = (event: WheelEvent) => {
+      endFollowStopHold()
       if (event.deltaY >= 0) return
       if (nestedScrollableCanConsumeUp(container, event.target)) return
       releaseFromUserIntent()
@@ -578,6 +596,7 @@ export const useChatAutoFollow = ({
       touchLastY = touch ? touch.clientY : null
     }
     const handleTouchMove = (event: TouchEvent) => {
+      endFollowStopHold()
       const touch = event.touches.item(0)
       if (!touch) {
         touchLastY = null
@@ -596,6 +615,7 @@ export const useChatAutoFollow = ({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      endFollowStopHold()
       if (!isReleaseKey(event)) return
       releaseFromUserIntent()
     }
@@ -604,6 +624,7 @@ export const useChatAutoFollow = ({
       const target = event.target
       if (!(target instanceof Element)) return
       if (!target.closest("[data-overlay-scrollbar-thumb]")) return
+      endFollowStopHold()
       releaseFromUserIntent()
     }
 
