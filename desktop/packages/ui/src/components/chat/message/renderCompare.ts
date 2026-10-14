@@ -29,6 +29,30 @@ const readPartTime = (part: Part | undefined) => {
   }
 }
 
+/**
+ * Value key for fields that bridges inject onto a part after the fact — the shell
+ * command block (`shellAction`) and the subtask session link (`taskSessionID`).
+ * These change while the part's own id and text stay identical, so a comparison that
+ * ignores them freezes the rendered block (the shell output never appears) until the
+ * row happens to remount.
+ */
+const readPartBridgeKey = (part: Part | undefined): string => {
+  const candidate = part as
+    | {
+        shellAction?: { command?: unknown; output?: unknown; status?: unknown }
+        taskSessionID?: unknown
+      }
+    | undefined
+  if (!candidate) return ""
+  const shell = candidate.shellAction
+  const shellKey =
+    shell && typeof shell === "object"
+      ? `${String(shell.command ?? "")}\u0000${String(shell.output ?? "")}\u0000${String(shell.status ?? "")}`
+      : ""
+  const taskKey = typeof candidate.taskSessionID === "string" ? candidate.taskSessionID : ""
+  return `${shellKey}\u0000${taskKey}`
+}
+
 const readPartText = (part: Part | undefined): string => {
   const candidate = part as { text?: unknown; content?: unknown; value?: unknown } | undefined
   if (!candidate) return ""
@@ -53,6 +77,10 @@ export const areRenderRelevantPartsEqual = (left: Part[], right: Part[]): boolea
     const leftId = readPartId(leftPart)
     const rightId = readPartId(rightPart)
     if (leftId !== rightId) {
+      return false
+    }
+
+    if (readPartBridgeKey(leftPart) !== readPartBridgeKey(rightPart)) {
       return false
     }
 
