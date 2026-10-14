@@ -22,16 +22,22 @@ describe("messageQueueStore", () => {
     expect(useMessageQueueStore.getState().getQueueForSession("ses_kept")).toHaveLength(1)
   })
 
-  it("caps per-session queue length at MESSAGE_QUEUE_MAX_PER_SESSION", () => {
+  it("refuses entries once the session queue is full instead of dropping the oldest", () => {
+    // Regression: the cap trimmed the oldest entry, which is the next one to send - a
+    // message the user had already written disappeared with no notice. Refusing lets
+    // the caller keep the input it was about to queue.
     const sessionId = "ses_cap"
+    const results: boolean[] = []
     for (let i = 0; i < MESSAGE_QUEUE_MAX_PER_SESSION + 10; i++) {
-      useMessageQueueStore.getState().addToQueue(sessionId, { content: `msg-${i}` })
+      results.push(useMessageQueueStore.getState().addToQueue(sessionId, { content: `msg-${i}` }))
     }
+
+    expect(results.filter(Boolean)).toHaveLength(MESSAGE_QUEUE_MAX_PER_SESSION)
     const queue = useMessageQueueStore.getState().getQueueForSession(sessionId)
     expect(queue).toHaveLength(MESSAGE_QUEUE_MAX_PER_SESSION)
-    // Oldest entries dropped; newest retained.
-    expect(queue[0]?.content).toBe("msg-10")
-    expect(queue[queue.length - 1]?.content).toBe(`msg-${MESSAGE_QUEUE_MAX_PER_SESSION + 9}`)
+    expect(queue[0]?.content).toBe("msg-0")
+    expect(queue[queue.length - 1]?.content).toBe(`msg-${MESSAGE_QUEUE_MAX_PER_SESSION - 1}`)
+    expect(results.at(-1)).toBe(false)
   })
 
   it("gives the first window the dispatch claim for a queued entry", () => {

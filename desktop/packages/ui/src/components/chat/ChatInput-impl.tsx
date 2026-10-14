@@ -36,6 +36,7 @@ import { WorkModeSelector } from "./WorkModeSelector"
 import { SandboxToggle } from "./SandboxToggle"
 import { ComposerOverflowMenu } from "./ComposerOverflowMenu"
 import { parseAgentMentions } from "@/lib/messages/agentMentions"
+import { appendQueuedContentToDraft } from "@/lib/messages/queuedMessageDraft"
 import { StatusRow } from "./StatusRow"
 import { PendingChangesBar } from "./PendingChangesBar"
 import { DoneNotCommittedNudge } from "./DoneNotCommittedNudge"
@@ -1372,7 +1373,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     }
     const attachmentsToQueue = sanitizeAttachmentsForSend(sendableAttachedFiles)
 
-    addToQueue(currentSessionId, {
+    const queued = addToQueue(currentSessionId, {
       content: messageToQueue,
       attachments: attachmentsToQueue.length > 0 ? attachmentsToQueue : undefined,
       sendConfig:
@@ -1385,6 +1386,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             }
           : undefined,
     })
+
+    // A full queue refuses the entry: keep the composer (and its attachments) intact
+    // instead of clearing input that was never queued.
+    if (!queued) return
 
     // Clear input and attachments
     // Note: confirmedMentionsRef is NOT cleared here because queued messages
@@ -1414,7 +1419,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   ])
 
   const handleQueuedMessageEdit = React.useCallback((content: string) => {
-    setMessage(content)
+    // Popping the chip removed the entry from the queue, so that text now lives only
+    // here: append instead of replacing the user's in-progress draft.
+    setMessage((previous) => appendQueuedContentToDraft(previous, content))
     setTimeout(() => {
       textareaRef.current?.focus()
     }, 0)
@@ -1878,7 +1885,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       additionalParts.length > 0 ? additionalParts : undefined,
       variantToSend,
       inputMode,
-      { sessionId: currentSessionId ?? undefined },
+      {
+        sessionId: currentSessionId ?? undefined,
+        // A queued entry keeps one id across its attempts, so a manual send racing the
+        // auto-sender (or a retry) is deduplicated by the server instead of delivering
+        // the same prompt twice.
+        messageId: queuedOnly ? consumedQueueSnapshot[0]?.messageId : undefined,
+      },
     )
 
     if (typeof window === "undefined") {

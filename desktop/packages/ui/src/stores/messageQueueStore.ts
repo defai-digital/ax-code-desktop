@@ -33,7 +33,8 @@ interface MessageQueueState {
 }
 
 interface MessageQueueActions {
-  addToQueue: (sessionId: string, message: Omit<QueuedMessage, "id" | "createdAt">) => void
+  /** Returns false when the session's queue is full, so the caller can keep the input. */
+  addToQueue: (sessionId: string, message: Omit<QueuedMessage, "id" | "createdAt">) => boolean
   /** Record the retry id minted for an entry at its first dispatch attempt. */
   assignMessageId: (sessionId: string, queuedMessageId: string, messageId: string) => void
   removeFromQueue: (sessionId: string, messageId: string) => void
@@ -104,6 +105,14 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
         queueModeEnabled: true,
 
         addToQueue: (sessionId, message) => {
+          const currentQueue = get().queuedMessages[sessionId] ?? []
+          // Refuse instead of trimming: the oldest entry is the next one to send, and
+          // dropping it silently lost a message the user had already written. The
+          // caller keeps the input it was about to queue.
+          if (currentQueue.length >= MESSAGE_QUEUE_MAX_PER_SESSION) {
+            return false
+          }
+
           const id = `queued-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
           const queuedMessage: QueuedMessage = {
             id,
@@ -113,21 +122,13 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
             sendConfig: message.sendConfig,
           }
 
-          set((state) => {
-            const currentQueue = state.queuedMessages[sessionId] ?? []
-            const nextQueue = [...currentQueue, queuedMessage]
-            // Drop oldest when over cap so a runaway queue cannot bloat storage.
-            const capped =
-              nextQueue.length > MESSAGE_QUEUE_MAX_PER_SESSION
-                ? nextQueue.slice(nextQueue.length - MESSAGE_QUEUE_MAX_PER_SESSION)
-                : nextQueue
-            return {
-              queuedMessages: {
-                ...state.queuedMessages,
-                [sessionId]: capped,
-              },
-            }
-          })
+          set((state) => ({
+            queuedMessages: {
+              ...state.queuedMessages,
+              [sessionId]: [...(state.queuedMessages[sessionId] ?? []), queuedMessage],
+            },
+          }))
+          return true
         },
 
         assignMessageId: (sessionId, queuedMessageId, messageId) => {
