@@ -1,5 +1,6 @@
 import { sendMessageStreamWsEvent, sendMessageStreamWsFrame } from "./protocol.js"
 import { shouldTriggerUpstreamHealthCheck } from "./upstream-health.js"
+import { createWsLivenessTracker } from "./ws-liveness.js"
 
 export function createGlobalMessageStreamWsBridge({
   globalHub,
@@ -187,16 +188,16 @@ export function createGlobalMessageStreamWsBridge({
   })
 
   const accept = (socket, { requestedLastEventId = "" } = {}) => {
-    const pingInterval = setInterval(() => {
-      if (socket.readyState !== 1) {
-        return
-      }
-
-      try {
-        socket.ping()
-      } catch {}
-    }, heartbeatIntervalMs)
-    if (typeof pingInterval.unref === "function") pingInterval.unref()
+    // Same pong supervision as the directory bridge: a silently dead peer must
+    // not keep its interval and client-set entry alive.
+    const livenessTracker = createWsLivenessTracker(socket, {
+      intervalMs: heartbeatIntervalMs,
+      onDead: () => {
+        try {
+          socket.terminate()
+        } catch {}
+      },
+    })
 
     const heartbeatInterval = setInterval(() => {
       // Only send to ready clients — the heartbeat is an event frame, and the
@@ -215,7 +216,7 @@ export function createGlobalMessageStreamWsBridge({
     if (typeof heartbeatInterval.unref === "function") heartbeatInterval.unref()
 
     socket.on("close", () => {
-      clearInterval(pingInterval)
+      livenessTracker.stop()
       clearInterval(heartbeatInterval)
       removeClient(socket)
       stopHubIfUnused()

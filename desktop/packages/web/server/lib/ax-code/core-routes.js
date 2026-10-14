@@ -560,7 +560,16 @@ export const registerCommonRequestMiddleware = (app, dependencies) => {
   const jsonBodyParser = (limit) => {
     const parse = express.json({ limit })
     return (req, res, next) =>
-      parse(req, res, () => {
+      parse(req, res, (err) => {
+        if (err) {
+          // Malformed JSON and an over-limit body used to be swallowed here: the
+          // handler then saw `{}` and answered whatever an empty payload does
+          // instead of 400/413.
+          const status =
+            typeof err.status === "number" && err.status >= 400 && err.status < 600 ? err.status : 400
+          const message = err.type === "entity.too.large" ? "Request body too large" : "Invalid JSON body"
+          return res.status(status).json({ error: message })
+        }
         if (req.body === undefined) req.body = {}
         next()
       })

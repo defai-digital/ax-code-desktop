@@ -1,6 +1,7 @@
 import { isUpstreamSubscriptionControl, sendMessageStreamWsEvent, sendMessageStreamWsFrame } from "./protocol.js"
 import { shouldTriggerUpstreamHealthCheck } from "./upstream-health.js"
 import { createUpstreamSseReader } from "./upstream-reader.js"
+import { createWsLivenessTracker } from "./ws-liveness.js"
 
 export function acceptDirectoryMessageStreamWsConnection({
   socket,
@@ -19,6 +20,11 @@ export function acceptDirectoryMessageStreamWsConnection({
   const controller = new AbortController()
   let upstreamConnected = false
   let streamReady = false
+  // The client protocol requires the ready frame to precede any event frame;
+  // events that arrive from the upstream before it are held here (bounded) and
+  // flushed once ready has been sent.
+  const pendingEvents = []
+  const MAX_PENDING_EVENTS = 200
   let reader = null
   let closed = false
 
@@ -35,7 +41,8 @@ export function acceptDirectoryMessageStreamWsConnection({
       return
     }
     closed = true
-    clearInterval(pingInterval)
+    livenessTracker.stop()
+    pendingEvents.length = 0
     clearInterval(heartbeatInterval)
     upstreamConnected = false
     cleanup()
@@ -50,18 +57,17 @@ export function acceptDirectoryMessageStreamWsConnection({
     } catch {}
   }
 
-  const pingInterval = setInterval(() => {
-    if (socket.readyState !== 1) {
-      return
-    }
-
-    try {
-      socket.ping()
-    } catch {}
-  }, heartbeatIntervalMs)
-  // Intervals must not prevent the server process from exiting
-  // during graceful shutdown.
-  if (typeof pingInterval.unref === "function") pingInterval.unref()
+  // Pinging is not enough on its own: without pong supervision a peer that
+  // vanished silently kept its interval, upstream subscription and client-set
+  // entry until the OS TCP timeout fired.
+  const livenessTracker = createWsLivenessTracker(socket, {
+    intervalMs: heartbeatIntervalMs,
+    onDead: () => {
+      try {
+        socket.terminate()
+      } catch {}
+    },
+  })
 
   const heartbeatInterval = setInterval(() => {
     if (!upstreamConnected) {
@@ -93,10 +99,7 @@ export function acceptDirectoryMessageStreamWsConnection({
   })
 
   const run = async () => {
-    const forwardEvent = ({ envelope, payload }) => {
-      if (isUpstreamSubscriptionControl(payload)) {
-        return
-      }
+    const sendEvent = ({ envelope, payload }) => {
       const directory = requestedDirectory || envelope?.directory || "global"
 
       const sent = sendMessageStreamWsEvent(socket, payload, {
@@ -108,12 +111,33 @@ export function acceptDirectoryMessageStreamWsConnection({
         return
       }
 
-      processForwardedEventPayload(payload, (syntheticPayload) => {
-        const syntheticSent = sendMessageStreamWsEvent(socket, syntheticPayload, { directory: "global" })
-        if (!syntheticSent) {
-          closeAndCleanup()
+      // A throwing handler used to escape into the reader, which reported a
+      // stream error, reconnected, and lost this event (its id had already been
+      // recorded as delivered). One bad payload must not cost the connection.
+      try {
+        processForwardedEventPayload(payload, (syntheticPayload) => {
+          const syntheticSent = sendMessageStreamWsEvent(socket, syntheticPayload, { directory: "global" })
+          if (!syntheticSent) {
+            closeAndCleanup()
+          }
+        })
+      } catch (error) {
+        console.warn("[directory-ws-bridge] forwarded-event handler failed:", error?.message ?? error)
+      }
+    }
+
+    const forwardEvent = (event) => {
+      if (isUpstreamSubscriptionControl(event?.payload)) {
+        return
+      }
+      if (!streamReady) {
+        pendingEvents.push(event)
+        if (pendingEvents.length > MAX_PENDING_EVENTS) {
+          pendingEvents.shift()
         }
-      })
+        return
+      }
+      sendEvent(event)
     }
 
     try {
@@ -167,6 +191,12 @@ export function acceptDirectoryMessageStreamWsConnection({
             }
             streamReady = true
             wsClients.add(socket)
+            for (const event of pendingEvents.splice(0, pendingEvents.length)) {
+              sendEvent(event)
+              if (closed) {
+                return
+              }
+            }
           }
 
           upstreamConnected = true
