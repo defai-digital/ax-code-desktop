@@ -178,6 +178,10 @@ const createInstantWorktreeDraft = async (options?: {
 
   isCreatingWorktreeSession = true
 
+  // The preview path is set as the working directory before the worktree exists, so
+  // a failed creation has to undo it (the value is also persisted as lastDirectory).
+  let previewDirectory: string | null = null
+
   try {
     const projectRef: ProjectRef = { id: activeProject.id, path: projectDirectory }
     const pendingRequestId = createPendingDraftWorktreeRequest()
@@ -215,6 +219,7 @@ const createInstantWorktreeDraft = async (options?: {
 
     // Refine draft target once we know the actual worktree path from the preview.
     if (preview?.path) {
+      previewDirectory = preview.path
       useSessionUIStore.getState().overrideNewSessionDraftTarget({
         projectId: projectRef.id,
         directoryOverride: preview.path,
@@ -257,6 +262,22 @@ const createInstantWorktreeDraft = async (options?: {
       useSessionUIStore.getState().resolvePendingDraftWorktreeTarget(requestId, null)
     }
     useSessionUIStore.getState().setDraftBootstrapPendingDirectory(null)
+    // Undo our own preview target: the worktree was never created, so Git/Files/
+    // Terminal (and the persisted lastDirectory) must not point at the ghost path.
+    if (previewDirectory) {
+      const directoryStore = useDirectoryStore.getState()
+      if (directoryStore.currentDirectory === previewDirectory) {
+        directoryStore.setDirectory(projectDirectory, { showOverlay: false })
+      }
+      const draft = useSessionUIStore.getState().newSessionDraft
+      if (draft?.directoryOverride === previewDirectory) {
+        useSessionUIStore.getState().overrideNewSessionDraftTarget({
+          projectId: activeProject.id,
+          directoryOverride: projectDirectory,
+          pendingWorktreeRequestId: null,
+        })
+      }
+    }
     toast.error(tr("worktreeSessionCreator.error.createWorktreeFailed"), {
       description: message,
     })
