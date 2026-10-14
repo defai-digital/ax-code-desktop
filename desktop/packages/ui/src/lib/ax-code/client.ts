@@ -1281,20 +1281,19 @@ class AxCodeService {
 
   // Tools
   async listToolIds(options?: { directory?: string | null }): Promise<string[]> {
-    try {
-      const directory =
-        typeof options?.directory === "string"
-          ? options.directory.trim()
-          : this.currentDirectory
-            ? this.currentDirectory.trim()
-            : ""
+    const directory =
+      typeof options?.directory === "string"
+        ? options.directory.trim()
+        : this.currentDirectory
+          ? this.currentDirectory.trim()
+          : ""
 
-      const result = await this.client.tool.ids(directory ? { directory } : undefined)
-      const tools = (result.data || []) as unknown as string[]
-      return tools.filter((tool) => typeof tool === "string" && tool !== "invalid")
-    } catch {
-      return []
+    const result = await this.client.tool.ids(directory ? { directory } : undefined)
+    if (result.error) {
+      throw new Error(`tool.ids failed: ${formatSdkError(result.error)}`)
     }
+    const tools = (result.data || []) as unknown as string[]
+    return tools.filter((tool) => typeof tool === "string" && tool !== "invalid")
   }
 
   // Execution modes (autonomous / super-long supervised long-run).
@@ -1630,73 +1629,74 @@ class AxCodeService {
   async listCommands(): Promise<
     Array<{ name: string; description?: string; agent?: string; model?: string; source?: string }>
   > {
-    try {
-      const response = await this.client.command.list(
-        this.currentDirectory ? { directory: this.currentDirectory } : undefined,
-      )
-      // Return only lightweight info for autocomplete
-      return (response.data || []).map((cmd: Record<string, unknown>) => ({
-        name: cmd.name as string,
-        description: cmd.description as string | undefined,
-        agent: cmd.agent as string | undefined,
-        model: cmd.model as string | undefined,
-        source: cmd.source as string | undefined,
-        // Intentionally excluding template to keep memory usage low
-      }))
-    } catch {
-      return []
+    const response = await this.client.command.list(
+      this.currentDirectory ? { directory: this.currentDirectory } : undefined,
+    )
+    // Throws on failure like listAgents: the SDK answers a non-2xx with
+    // `{ error }` instead of throwing, and returning an empty list here made
+    // the caller's retry/keep-old-list logic unreachable while caching the
+    // empty result as fresh.
+    if (response.error) {
+      throw new Error(`command.list failed: ${formatSdkError(response.error)}`)
     }
+    // Return only lightweight info for autocomplete
+    return (response.data || []).map((cmd: Record<string, unknown>) => ({
+      name: cmd.name as string,
+      description: cmd.description as string | undefined,
+      agent: cmd.agent as string | undefined,
+      model: cmd.model as string | undefined,
+      source: cmd.source as string | undefined,
+      // Intentionally excluding template to keep memory usage low
+    }))
   }
 
   async listCommandsWithDetails(): Promise<
     Array<{ name: string; description?: string; agent?: string; model?: string; source?: string; template?: string }>
   > {
-    try {
-      const response = await this.client.command.list(
-        this.currentDirectory ? { directory: this.currentDirectory } : undefined,
-      )
-      // Return full command details including template
-      return (response.data || []).map((cmd: Record<string, unknown>) => ({
-        name: cmd.name as string,
-        description: cmd.description as string | undefined,
-        agent: cmd.agent as string | undefined,
-        model: cmd.model as string | undefined,
-        source: cmd.source as string | undefined,
-        template: cmd.template as string | undefined,
-      }))
-    } catch {
-      return []
+    const response = await this.client.command.list(
+      this.currentDirectory ? { directory: this.currentDirectory } : undefined,
+    )
+    if (response.error) {
+      throw new Error(`command.list failed: ${formatSdkError(response.error)}`)
     }
+    // Return full command details including template
+    return (response.data || []).map((cmd: Record<string, unknown>) => ({
+      name: cmd.name as string,
+      description: cmd.description as string | undefined,
+      agent: cmd.agent as string | undefined,
+      model: cmd.model as string | undefined,
+      source: cmd.source as string | undefined,
+      template: cmd.template as string | undefined,
+    }))
   }
 
   async listSkillsWithDetails(): Promise<
     Array<{ name: string; description?: string; location: string; content?: string }>
   > {
-    try {
-      const response = await this.client.app.skills(
-        this.currentDirectory ? { directory: this.currentDirectory } : undefined,
-      )
-      const data = response.data
-      if (!Array.isArray(data)) {
-        return []
-      }
-
-      const skills: Array<{ name: string; description?: string; location: string; content?: string }> = []
-      for (const item of data as Array<Record<string, unknown>>) {
-        const name = typeof item.name === "string" ? item.name.trim() : ""
-        const location = typeof item.location === "string" ? item.location : ""
-        if (!name || !location) {
-          continue
-        }
-        const skill: { name: string; description?: string; location: string; content?: string } = { name, location }
-        if (typeof item.description === "string") skill.description = item.description
-        if (typeof item.content === "string") skill.content = item.content
-        skills.push(skill)
-      }
-      return skills
-    } catch {
+    const response = await this.client.app.skills(
+      this.currentDirectory ? { directory: this.currentDirectory } : undefined,
+    )
+    if (response.error) {
+      throw new Error(`app.skills failed: ${formatSdkError(response.error)}`)
+    }
+    const data = response.data
+    if (!Array.isArray(data)) {
       return []
     }
+
+    const skills: Array<{ name: string; description?: string; location: string; content?: string }> = []
+    for (const item of data as Array<Record<string, unknown>>) {
+      const name = typeof item.name === "string" ? item.name.trim() : ""
+      const location = typeof item.location === "string" ? item.location : ""
+      if (!name || !location) {
+        continue
+      }
+      const skill: { name: string; description?: string; location: string; content?: string } = { name, location }
+      if (typeof item.description === "string") skill.description = item.description
+      if (typeof item.content === "string") skill.content = item.content
+      skills.push(skill)
+    }
+    return skills
   }
 
   async getCommandDetails(

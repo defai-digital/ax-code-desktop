@@ -239,12 +239,19 @@ export const AgentsPage: React.FC = () => {
     let cancelled = false
 
     const fetchToolIds = async () => {
-      const ids = await axCodeClient.listToolIds({ directory: currentDirectory })
-      if (cancelled) {
-        return
-      }
+      try {
+        const ids = await axCodeClient.listToolIds({ directory: currentDirectory })
+        if (cancelled) {
+          return
+        }
 
-      setToolIds(normalizePermissionToolIds(ids))
+        setToolIds(normalizePermissionToolIds(ids))
+      } catch (error) {
+        // Keep the previous list: a failed fetch must not read as "no tools".
+        if (!cancelled) {
+          console.warn("[AgentsPage] failed to load tool ids", error)
+        }
+      }
     }
 
     void fetchToolIds()
