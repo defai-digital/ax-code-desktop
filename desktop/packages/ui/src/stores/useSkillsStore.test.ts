@@ -128,4 +128,15 @@ describe("useSkillsStore", () => {
     ])
     expect(useSkillsStore.getState().isLoading).toBe(false)
   })
+
+  test("reads a supporting file with a directory query, not an appended path fragment", async () => {
+    // Regression: `&directory=` on a URL with no query string made the server read
+    // the file name as "…notes.md&directory=…", so every supporting file came back
+    // empty and a rename/duplicate could then drop it for good.
+    queuedResponses = [jsonResponse({ content: "notes" })]
+
+    await useSkillsStore.getState().readSupportingFile("demo-skill", "notes.md")
+
+    expect(fetchCalls.map(String)).toEqual(["/api/config/skills/demo-skill/files/notes.md?directory=%2Fworkspace%2Fproject"])
+  })
 })
