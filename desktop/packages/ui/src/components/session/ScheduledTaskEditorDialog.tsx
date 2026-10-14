@@ -204,13 +204,19 @@ const getWeekStartsOn = (locale: string): number => {
   try {
     const localeApi = (
       Intl as unknown as {
-        Locale?: new (tag: string) => { weekInfo?: { firstDay?: number } }
+        Locale?: new (tag: string) => {
+          weekInfo?: { firstDay?: number }
+          getWeekInfo?: () => { firstDay?: number } | undefined
+        }
       }
     ).Locale
     if (typeof localeApi !== "function") {
       return 1
     }
-    const weekInfo = new localeApi(locale).weekInfo
+    // `weekInfo` was removed from the shipped runtime (it is undefined there), so
+    // every locale used to fall back to Monday; read the current accessor first.
+    const localeInstance = new localeApi(locale)
+    const weekInfo = localeInstance.getWeekInfo?.() ?? localeInstance.weekInfo
     const firstDayRaw = weekInfo?.firstDay
     if (typeof firstDayRaw !== "number") {
       return 1
@@ -603,7 +609,7 @@ export function ScheduledTaskEditorDialog(props: {
   onSave: (submit: { id?: string; enabled: boolean; input: ScheduledTaskDraftInput }) => Promise<void>
 }) {
   const { open, task, onOpenChange, onSave } = props
-  const { t, locale } = useI18n()
+  const { t, formatLocale } = useI18n()
   const loadProviders = useConfigStore((state) => state.loadProviders)
   const loadAgents = useConfigStore((state) => state.loadAgents)
   const currentProviderID = useConfigStore((state) => state.currentProviderId)
@@ -640,8 +646,8 @@ export function ScheduledTaskEditorDialog(props: {
   const mentionRef = React.useRef<FileMentionHandle>(null)
   const commandRef = React.useRef<CommandAutocompleteHandle>(null)
   const snippetRef = React.useRef<SnippetAutocompleteHandle>(null)
-  const localeUse24Hour = React.useMemo(() => getUses24Hour(locale), [locale])
-  const localeWeekStartsOn = React.useMemo(() => getWeekStartsOn(locale), [locale])
+  const localeUse24Hour = React.useMemo(() => getUses24Hour(formatLocale), [formatLocale])
+  const localeWeekStartsOn = React.useMemo(() => getWeekStartsOn(formatLocale), [formatLocale])
   const use24Hour = React.useMemo(() => {
     if (timeFormatPreference === "24h") {
       return true
@@ -661,12 +667,12 @@ export function ScheduledTaskEditorDialog(props: {
     return localeWeekStartsOn
   }, [weekStartPreference, localeWeekStartsOn])
   const orderedWeekdays = React.useMemo(() => {
-    const labels = getLocalizedWeekdayLabels(locale)
+    const labels = getLocalizedWeekdayLabels(formatLocale)
     return rotateWeekdays(
       WEEKDAY_INDEXES.map((value) => ({ value, label: labels[value] || "" })),
       weekStartsOn,
     )
-  }, [locale, weekStartsOn])
+  }, [formatLocale, weekStartsOn])
 
   React.useEffect(() => {
     if (!open) {
@@ -778,8 +784,8 @@ export function ScheduledTaskEditorDialog(props: {
     if (isSameCalendarDay(selectedDate, todayDate)) {
       return t("sessions.scheduledTasks.editor.date.today")
     }
-    return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(selectedDate)
-  }, [draft.schedule.onceDate, locale, t, todayDate])
+    return new Intl.DateTimeFormat(formatLocale, { weekday: "short" }).format(selectedDate)
+  }, [draft.schedule.onceDate, formatLocale, t, todayDate])
   const isAtCurrentMonth = React.useMemo(
     () => startOfMonth(calendarMonth).getTime() <= currentMonthStart.getTime(),
     [calendarMonth, currentMonthStart],
@@ -1120,7 +1126,7 @@ export function ScheduledTaskEditorDialog(props: {
                     {formatDateLabel(
                       draft.schedule.onceDate,
                       t("sessions.scheduledTasks.editor.date.placeholder"),
-                      locale,
+                      formatLocale,
                     )}
                   </span>
                 </span>
@@ -1140,7 +1146,7 @@ export function ScheduledTaskEditorDialog(props: {
                       <Icon name="arrow-left-s" className="h-4 w-4" />
                     </button>
                     <div className="typography-ui-label text-foreground">
-                      {new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(calendarMonth)}
+                      {new Intl.DateTimeFormat(formatLocale, { month: "long", year: "numeric" }).format(calendarMonth)}
                     </div>
                     <button
                       type="button"

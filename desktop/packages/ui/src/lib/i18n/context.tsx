@@ -20,6 +20,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const relative = new Intl.RelativeTimeFormat(formatLocale, { numeric: "auto" })
     return {
       locale,
+      formatLocale,
       locales: LOCALES,
       setLocale,
       label: (targetLocale) => LANGUAGE_LABELS[targetLocale],

@@ -5,6 +5,8 @@ import type { Locale } from "./runtime"
 
 export type I18nContextValue = {
   locale: Locale
+  /** BCP-47 tag for Intl formatting (differs from `locale`: en-GB vs en). */
+  formatLocale: string
   locales: readonly Locale[]
   setLocale: (locale: Locale) => Promise<void>
   label: (locale: Locale) => string
