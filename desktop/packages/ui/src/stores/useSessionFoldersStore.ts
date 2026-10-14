@@ -47,6 +47,8 @@ const ARCHIVED_SCOPE_PREFIX = "__archived__:"
 
 const safeStorage = getSafeStorage()
 let diskWriteTimer: ReturnType<typeof setTimeout> | null = null
+/** Body of the disk write still sitting in the debounce window. */
+let pendingDiskWriteBody: string | null = null
 let diskHydrated = false
 let diskHydrationInFlight = false
 let persistFoldersTimer: ReturnType<typeof setTimeout> | undefined
@@ -79,6 +81,19 @@ const toNonEmptyStringSet = (values: readonly unknown[]): Set<string> =>
 
 const toSessionIdSet = (sessionIds: readonly unknown[]): Set<string> => toNonEmptyStringSet(sessionIds)
 
+const sendSessionFoldersToDisk = async (body: string, keepalive = false): Promise<void> => {
+  try {
+    await fetch(SESSION_FOLDERS_API_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      ...(keepalive ? { keepalive: true } : {}),
+    })
+  } catch {
+    /* best-effort */
+  }
+}
+
 const schedulePersistToDisk = (foldersMap: SessionFoldersMap, collapsedFolderIds: Set<string>): void => {
   if (typeof window === "undefined") {
     return
@@ -91,21 +106,18 @@ const schedulePersistToDisk = (foldersMap: SessionFoldersMap, collapsedFolderIds
   const foldersSnapshot = cloneSessionFoldersMap(foldersMap)
   const collapsedSnapshot = Array.from(collapsedFolderIds)
 
+  const body = JSON.stringify({
+    version: 1,
+    foldersMap: foldersSnapshot,
+    collapsedFolderIds: collapsedSnapshot,
+    updatedAt: Date.now(),
+  })
+  pendingDiskWriteBody = body
+
   diskWriteTimer = setTimeout(() => {
     diskWriteTimer = null
-    const payload = {
-      version: 1,
-      foldersMap: foldersSnapshot,
-      collapsedFolderIds: collapsedSnapshot,
-      updatedAt: Date.now(),
-    }
-    void fetch(SESSION_FOLDERS_API_PATH, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }).catch(() => {
-      /* best-effort */
-    })
+    pendingDiskWriteBody = null
+    void sendSessionFoldersToDisk(body)
   }, DISK_WRITE_DEBOUNCE_MS)
 }
 
@@ -209,6 +221,18 @@ if (typeof window !== "undefined") {
         /* ignored */
       }
       pendingCollapsedIds = null
+    }
+    // Send the disk write the debounce window was still holding. Without this the
+    // disk copy lags localStorage, and the next launch's disk hydration overwrites
+    // the newer local state (a folder created just before quitting disappears).
+    if (pendingDiskWriteBody !== null) {
+      if (diskWriteTimer) {
+        clearTimeout(diskWriteTimer)
+        diskWriteTimer = null
+      }
+      const body = pendingDiskWriteBody
+      pendingDiskWriteBody = null
+      void sendSessionFoldersToDisk(body, true)
     }
   })
 }
