@@ -1150,7 +1150,6 @@ const dispatchAxCodeUpdateAvailable = (payload: { version: string }) => {
 }
 
 export function SyncProvider(props: { sdk: AxCodeClient; directory: string; children: React.ReactNode }) {
-  const messageStreamTransport = useConfigStore((state) => state.settingsMessageStreamTransport)
   const childStoresRef = useRef<ChildStoreManager | null>(null)
   if (!childStoresRef.current) childStoresRef.current = new ChildStoreManager()
   const childStores = childStoresRef.current
@@ -1306,7 +1305,6 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
   useEffect(() => {
     const pipeline = createEventPipeline({
       sdk: props.sdk,
-      transport: messageStreamTransport,
       routeDirectory: (directory, payload) => {
         return resolveDirectoryFromRoutingIndex(routingIndex, directory, payload, childStores)
       },
@@ -1375,7 +1373,7 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
     return () => {
       pipeline.cleanup()
     }
-  }, [props.sdk, childStores, routingIndex, messageStreamTransport, triggerDirectoryResync])
+  }, [props.sdk, childStores, routingIndex, triggerDirectoryResync])
 
   useEffect(() => {
     let stopped = false

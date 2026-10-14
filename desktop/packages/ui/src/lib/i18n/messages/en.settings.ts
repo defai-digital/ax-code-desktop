@@ -1508,7 +1508,6 @@ export const settingsDict = {
   "settings.openchamber.visual.section.navigation": "Navigation",
   "settings.openchamber.visual.section.chatRenderMode": "Chat Render Mode",
   "settings.openchamber.visual.section.chatRenderModeAria": "Chat render mode",
-  "settings.openchamber.visual.section.messageStreamTransport": "Message Stream Transport",
   "settings.openchamber.visual.section.activityDefault": "Activity Default",
   "settings.openchamber.visual.section.activityDefaultAria": "Activity default mode",
   "settings.openchamber.visual.section.showToolsOpenedByDefault": "Show tools opened by default:",
@@ -1620,14 +1619,6 @@ export const settingsDict = {
   "settings.openchamber.visual.option.chatRenderMode.live.label": "Live",
   "settings.openchamber.visual.option.chatRenderMode.live.description":
     "Stream assistant text and tools as they arrive.",
-  "settings.openchamber.visual.option.messageTransport.auto.label": "Auto",
-  "settings.openchamber.visual.option.messageTransport.auto.description":
-    "Prefer WebSocket and fall back to SSE if needed.",
-  "settings.openchamber.visual.option.messageTransport.ws.label": "WebSocket",
-  "settings.openchamber.visual.option.messageTransport.ws.description": "Use WebSocket for message streaming.",
-  "settings.openchamber.visual.option.messageTransport.sse.label": "SSE",
-  "settings.openchamber.visual.option.messageTransport.sse.description":
-    "Use Server-Sent Events for message streaming.",
   "settings.openchamber.visual.option.activityRenderMode.collapsed.label": "Collapsed",
   "settings.openchamber.visual.option.activityRenderMode.collapsed.description": "Keep Activity collapsed by default.",
   "settings.openchamber.visual.option.activityRenderMode.summary.label": "Expanded",

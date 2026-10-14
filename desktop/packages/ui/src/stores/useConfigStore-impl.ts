@@ -37,7 +37,6 @@ interface OpenChamberDefaults {
   gitmojiEnabled?: boolean
   defaultFileViewerPreview?: boolean
   zenModel?: string
-  messageStreamTransport?: "auto" | "ws" | "sse"
 }
 
 const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
@@ -56,12 +55,6 @@ const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
           const defaultFileViewerPreview =
             typeof data?.defaultFileViewerPreview === "boolean" ? data.defaultFileViewerPreview : undefined
           const zenModel = typeof data?.zenModel === "string" ? data.zenModel.trim() : ""
-          const messageStreamTransport =
-            data?.messageStreamTransport === "ws" ||
-            data?.messageStreamTransport === "sse" ||
-            data?.messageStreamTransport === "auto"
-              ? data.messageStreamTransport
-              : undefined
 
           return {
             defaultModel: defaultModel.length > 0 ? defaultModel : undefined,
@@ -71,7 +64,6 @@ const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
             gitmojiEnabled,
             defaultFileViewerPreview,
             zenModel: zenModel.length > 0 ? zenModel : undefined,
-            messageStreamTransport,
           }
         }
       } catch {
@@ -95,12 +87,6 @@ const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
     const defaultFileViewerPreview =
       typeof data?.defaultFileViewerPreview === "boolean" ? data.defaultFileViewerPreview : undefined
     const zenModel = typeof data?.zenModel === "string" ? data.zenModel.trim() : ""
-    const messageStreamTransport =
-      data?.messageStreamTransport === "ws" ||
-      data?.messageStreamTransport === "sse" ||
-      data?.messageStreamTransport === "auto"
-        ? data.messageStreamTransport
-        : undefined
 
     return {
       defaultModel: defaultModel.length > 0 ? defaultModel : undefined,
@@ -110,7 +96,6 @@ const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
       gitmojiEnabled,
       defaultFileViewerPreview,
       zenModel: zenModel.length > 0 ? zenModel : undefined,
-      messageStreamTransport,
     }
   } catch {
     return {}
@@ -480,7 +465,6 @@ interface ConfigStore {
   settingsGitmojiEnabled: boolean
   settingsDefaultFileViewerPreview: boolean
   settingsZenModel: string | undefined
-  settingsMessageStreamTransport: "auto" | "ws" | "sse"
 
   activateDirectory: (directory: string | null | undefined) => Promise<void>
   /** Drop all per-project provider snapshots (auth is global; caches must not stay stale). */
@@ -503,7 +487,6 @@ interface ConfigStore {
   setSettingsGitmojiEnabled: (enabled: boolean) => void
   setSettingsDefaultFileViewerPreview: (enabled: boolean) => void
   setSettingsZenModel: (model: string | undefined) => void
-  setSettingsMessageStreamTransport: (transport: "auto" | "ws" | "sse") => void
   getResolvedGitGenerationModel: () => { providerId: string; modelId: string } | null
   saveAgentModelSelection: (agentName: string, providerId: string, modelId: string) => void
   getAgentModelSelection: (agentName: string) => { providerId: string; modelId: string } | null
@@ -651,7 +634,6 @@ export const useConfigStore = create<ConfigStore>()(
         settingsGitmojiEnabled: false,
         settingsDefaultFileViewerPreview: false,
         settingsZenModel: undefined,
-        settingsMessageStreamTransport: "auto",
         invalidateAllProviderCaches: () => {
           // Provider credentials are global. After connect/disconnect, every
           // project snapshot would otherwise keep a pre-auth empty list until
@@ -1282,8 +1264,6 @@ export const useConfigStore = create<ConfigStore>()(
                     settingsGitmojiEnabled: openChamberDefaults.gitmojiEnabled ?? false,
                     settingsDefaultFileViewerPreview: openChamberDefaults.defaultFileViewerPreview ?? false,
                     settingsZenModel: resolvedZenModel,
-                    settingsMessageStreamTransport:
-                      openChamberDefaults.messageStreamTransport ?? state.settingsMessageStreamTransport ?? "auto",
                     directoryScoped: {
                       ...state.directoryScoped,
                       [directoryKey]: nextSnapshot,
@@ -1687,10 +1667,6 @@ export const useConfigStore = create<ConfigStore>()(
           set({ settingsZenModel: model })
         },
 
-        setSettingsMessageStreamTransport: (transport: "auto" | "ws" | "sse") => {
-          set({ settingsMessageStreamTransport: transport })
-        },
-
         getResolvedGitGenerationModel: () => {
           const state = get()
           return resolveGitGenerationModelSelection({
@@ -1849,7 +1825,6 @@ export const useConfigStore = create<ConfigStore>()(
           settingsGitmojiEnabled: state.settingsGitmojiEnabled,
           settingsDefaultFileViewerPreview: state.settingsDefaultFileViewerPreview,
           settingsZenModel: state.settingsZenModel,
-          settingsMessageStreamTransport: state.settingsMessageStreamTransport,
         }),
       },
     ),

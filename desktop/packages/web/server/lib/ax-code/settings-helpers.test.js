@@ -15,24 +15,12 @@ const createTestHelpers = (overrides = {}) =>
   })
 
 describe("settings helpers", () => {
-  it("accepts messageStreamTransport as a persisted shared setting", () => {
+  it("rejects the retired messageStreamTransport setting", () => {
     const helpers = createTestHelpers()
 
-    expect(helpers.sanitizeSettingsUpdate({ messageStreamTransport: "ws" })).toEqual({
-      messageStreamTransport: "ws",
-    })
-    expect(helpers.sanitizeSettingsUpdate({ messageStreamTransport: "sse" })).toEqual({
-      messageStreamTransport: "sse",
-    })
-    expect(helpers.sanitizeSettingsUpdate({ messageStreamTransport: "auto" })).toEqual({
-      messageStreamTransport: "auto",
-    })
-  })
-
-  it("rejects invalid messageStreamTransport values", () => {
-    const helpers = createTestHelpers()
-
-    expect(helpers.sanitizeSettingsUpdate({ messageStreamTransport: "websocket" })).toEqual({})
+    // The renderer always uses the WebSocket bridge with SSE fallback; the
+    // choice is no longer a user setting.
+    expect(helpers.sanitizeSettingsUpdate({ messageStreamTransport: "sse" })).toEqual({})
   })
 
   it("rejects removed LAN access and UI password settings", () => {

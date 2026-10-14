@@ -23,7 +23,6 @@ import {
   type UiFontOption,
 } from "@/lib/fontOptions"
 import { useI18n } from "@/lib/i18n"
-import { useConfigStore } from "@/stores/useConfigStore"
 import { setDirectoryShowHidden, useDirectoryShowHidden } from "@/lib/directoryShowHidden"
 import { toast } from "@/components/ui"
 
@@ -118,24 +117,6 @@ const CHAT_RENDER_MODE_OPTIONS: Option<"sorted" | "live">[] = [
   },
 ]
 
-const MESSAGE_STREAM_TRANSPORT_OPTIONS: Option<"auto" | "ws" | "sse">[] = [
-  {
-    id: "auto",
-    labelKey: "settings.openchamber.visual.option.messageTransport.auto.label",
-    descriptionKey: "settings.openchamber.visual.option.messageTransport.auto.description",
-  },
-  {
-    id: "ws",
-    labelKey: "settings.openchamber.visual.option.messageTransport.ws.label",
-    descriptionKey: "settings.openchamber.visual.option.messageTransport.ws.description",
-  },
-  {
-    id: "sse",
-    labelKey: "settings.openchamber.visual.option.messageTransport.sse.label",
-    descriptionKey: "settings.openchamber.visual.option.messageTransport.sse.description",
-  },
-]
-
 const ACTIVITY_RENDER_MODE_OPTIONS: Option<"collapsed" | "summary">[] = [
   {
     id: "collapsed",
@@ -198,7 +179,6 @@ type VisibleSetting =
   | "mermaidRendering"
   | "userMessageRendering"
   | "chatRenderMode"
-  | "messageTransport"
   | "activityRenderMode"
   | "stickyUserHeader"
   | "wideChatLayout"
@@ -279,8 +259,6 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
   const setWeekStartPreference = useUIStore((state) => state.setWeekStartPreference)
   const showSplitAssistantMessageActions = useUIStore((state) => state.showSplitAssistantMessageActions)
   const setShowSplitAssistantMessageActions = useUIStore((state) => state.setShowSplitAssistantMessageActions)
-  const messageStreamTransport = useConfigStore((state) => state.settingsMessageStreamTransport)
-  const setMessageStreamTransport = useConfigStore((state) => state.setSettingsMessageStreamTransport)
   const isSettingsDialogOpen = useUIStore((state) => state.isSettingsDialogOpen)
   const {
     themeMode,
@@ -395,14 +373,6 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
       void updateDesktopSettings({ chatRenderMode: mode })
     },
     [setChatRenderMode],
-  )
-
-  const handleMessageStreamTransportChange = React.useCallback(
-    (mode: "auto" | "ws" | "sse") => {
-      setMessageStreamTransport(mode)
-      void updateDesktopSettings({ messageStreamTransport: mode })
-    },
-    [setMessageStreamTransport],
   )
 
   const handleActivityRenderModeChange = React.useCallback(
@@ -522,7 +492,6 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
     shouldShow("mermaidRendering") ||
     shouldShow("userMessageRendering") ||
     shouldShow("chatRenderMode") ||
-    shouldShow("messageTransport") ||
     (shouldShow("activityRenderMode") && chatRenderMode === "sorted") ||
     shouldShow("stickyUserHeader") ||
     shouldShow("wideChatLayout") ||
@@ -1005,8 +974,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
           {(shouldShow("userMessageRendering") ||
             shouldShow("mermaidRendering") ||
             shouldShow("chatRenderMode") ||
-            shouldShow("messageTransport") ||
-            (shouldShow("activityRenderMode") && chatRenderMode === "sorted") ||
+                    (shouldShow("activityRenderMode") && chatRenderMode === "sorted") ||
             shouldShow("diffLayout")) && (
             <div className="grid grid-cols-1 gap-y-2 md:grid-cols-[minmax(0,16rem)_minmax(0,16rem)] md:justify-start md:gap-x-2">
               {shouldShow("chatRenderMode") && (
@@ -1098,38 +1066,6 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                         </button>
                       )
                     })}
-                  </div>
-                </section>
-              )}
-
-              {shouldShow("messageTransport") && (
-                <section className="p-2 md:col-span-2">
-                  <h4 className="typography-ui-header font-medium text-foreground">
-                    {t("settings.openchamber.visual.section.messageStreamTransport")}
-                  </h4>
-                  <div className="mt-1 flex max-w-[24rem] flex-col gap-2">
-                    <div className="flex flex-wrap items-center gap-1">
-                      {MESSAGE_STREAM_TRANSPORT_OPTIONS.map((option) => (
-                        <Button
-                          key={option.id}
-                          variant="chip"
-                          size="xs"
-                          aria-pressed={messageStreamTransport === option.id}
-                          className="!font-normal"
-                          onClick={() => handleMessageStreamTransportChange(option.id)}
-                        >
-                          {tUnsafe(option.labelKey)}
-                        </Button>
-                      ))}
-                    </div>
-                    <span className="typography-meta text-muted-foreground">
-                      {(() => {
-                        const option = MESSAGE_STREAM_TRANSPORT_OPTIONS.find(
-                          (item) => item.id === messageStreamTransport,
-                        )
-                        return option?.descriptionKey ? tUnsafe(option.descriptionKey) : ""
-                      })()}
-                    </span>
                   </div>
                 </section>
               )}
