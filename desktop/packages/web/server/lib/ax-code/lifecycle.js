@@ -1388,6 +1388,22 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     return true
   }
 
+  // A health-driven restart that fails leaves no managed process behind, and every
+  // health-check entry point (this cycle, the periodic timer, the immediate trigger)
+  // requires one — so nothing would ever try again and the runtime stayed dead until
+  // a settings refresh or an app restart. Schedule the same bounded start retry the
+  // bootstrap path uses, which re-runs this restart with backoff.
+  const restartAfterHealthFailure = async () => {
+    try {
+      await restartAxCode()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      state.lastAxCodeError = message
+      console.warn(`[lifecycle] restart after a health failure did not start ax-code: ${message}`)
+      scheduleBootstrapRetry()
+    }
+  }
+
   const runHealthCheckCycle = async (source) => {
     if (!state.axCodeProcess || state.isShuttingDown || state.isRestartingAxCode) return
     if (healthCheckCyclePromise) return healthCheckCyclePromise
@@ -1399,7 +1415,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
           console.log(`[lifecycle] ${source} health check: ax-code process exited, restarting...`)
           consecutiveHealthFailures = 0
           lastHealthProbeResult = null
-          await restartAxCode()
+          await restartAfterHealthFailure()
           return
         }
         consecutiveHealthFailures += 1
@@ -1411,7 +1427,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         console.log(`[lifecycle] ${source} health check failure threshold reached, restarting ax-code...`)
         consecutiveHealthFailures = 0
         lastHealthProbeResult = null
-        await restartAxCode()
+        await restartAfterHealthFailure()
       } else {
         resetHealthFailureState()
       }

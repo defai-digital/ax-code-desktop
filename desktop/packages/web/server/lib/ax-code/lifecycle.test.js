@@ -486,6 +486,59 @@ describe("ax-code lifecycle", () => {
     expect(state.healthCheckInterval).toBe(null)
   })
 
+  it("keeps retrying when the restart triggered by a health failure cannot start", async () => {
+    delete process.env.AX_CODE_BINARY
+    const live = createLiveSdkHandle()
+    startHeadlessBackendMock.mockResolvedValueOnce(live.handle)
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, body: { cancel: vi.fn(async () => undefined) }, json: async () => ({}) })),
+    )
+
+    try {
+      const state = createLifecycleState()
+      const runtime = createRuntime({ state })
+
+      await runtime.bootstrapAxCodeAtStartup()
+      expect(state.axCodeProcess).toBeTruthy()
+
+      // The managed process exits, the health check sees it gone, and the restart it
+      // triggers cannot spawn a replacement.
+      live.resolveClosed()
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new Error("connection refused")
+        }),
+      )
+      startHeadlessBackendMock.mockRejectedValueOnce(new Error("spawn failed after crash"))
+
+      await runtime.triggerHealthCheck()
+
+      // Regression: the failed restart cleared the process handle, and every
+      // health-check entry point requires one, so nothing retried and the UI stayed on
+      // 503 {restarting:true} until a settings refresh or an app restart.
+      expect(state.axCodeProcess).toBe(null)
+      expect(state.axCodeNextRetryAt).toBeGreaterThan(0)
+
+      // The scheduled retry (50ms base delay in tests) brings the backend back.
+      startHeadlessBackendMock.mockResolvedValue({
+        url: "http://127.0.0.1:45678",
+        headers: { Authorization: "Basic test" },
+        close: vi.fn(async () => undefined),
+        closed: new Promise(() => {}),
+      })
+      await vi.waitFor(() => {
+        expect(state.axCodeProcess).toBeTruthy()
+      })
+      expect(state.axCodeNextRetryAt).toBe(0)
+
+      runtime.shutdown()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it("reports the runtime origin when a managed start assigns the port (S2.4a)", async () => {
     delete process.env.AX_CODE_BINARY
     startHeadlessBackendMock.mockResolvedValueOnce({
