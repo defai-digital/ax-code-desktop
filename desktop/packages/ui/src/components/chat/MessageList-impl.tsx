@@ -1584,7 +1584,11 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
       [findMessageElement, resolveScrollContainer],
     )
 
-    React.useEffect(() => {
+    // Published in a layout effect: a controller request that reveals an older turn
+    // attempts its scroll in the same commit, and a handle from the previous commit's
+    // passive flush has no index for the newly revealed turn — the jump then failed
+    // and retired its request.
+    React.useLayoutEffect(() => {
       if (!ref) {
         return
       }
