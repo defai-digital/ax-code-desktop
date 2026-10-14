@@ -93,24 +93,25 @@
     transform: scale(0.95);
   }
 
-  /* Heading typography - all use markdown size, differentiated by weight/color */
+  /* Heading typography: a modest ramp over the markdown size (20/17/15px at the
+     default 15px); unitless line heights follow the font-size setting. */
 
   .typography-h1 {
-    font-size: var(--text-markdown);
+    font-size: calc(var(--text-markdown) * 1.3333);
     line-height: var(--h1-line-height);
     letter-spacing: var(--h1-letter-spacing);
     font-weight: var(--h1-font-weight);
   }
 
   .typography-h2 {
-    font-size: var(--text-markdown);
+    font-size: calc(var(--text-markdown) * 1.1333);
     line-height: var(--h2-line-height);
     letter-spacing: var(--h2-letter-spacing);
     font-weight: var(--h2-font-weight);
   }
 
   .typography-h3 {
-    font-size: var(--text-markdown);
+    font-size: calc(var(--text-markdown) * 1);
     line-height: var(--h3-line-height);
     letter-spacing: var(--h3-letter-spacing);
     font-weight: var(--h3-font-weight);
@@ -131,7 +132,8 @@
     font-weight: var(--ui-caption-font-weight);
   }
 
-  /* Markdown typography - all use semantic markdown size */
+  /* Markdown typography. Heading sizes are em so tool and reasoning markdown,
+     which render smaller, keep the same ramp. */
   .typography-markdown-body {
     font-size: var(--text-markdown);
     line-height: var(--markdown-body-line-height);
@@ -140,28 +142,28 @@
   }
 
   .typography-markdown-h1 {
-    font-size: var(--text-markdown);
+    font-size: 1.3333em;
     line-height: var(--markdown-h1-line-height);
     letter-spacing: var(--markdown-h1-letter-spacing);
     font-weight: var(--markdown-h1-font-weight);
   }
 
   .typography-markdown-h2 {
-    font-size: var(--text-markdown);
+    font-size: 1.1333em;
     line-height: var(--markdown-h2-line-height);
     letter-spacing: var(--markdown-h2-letter-spacing);
     font-weight: var(--markdown-h2-font-weight);
   }
 
   .typography-markdown-h3 {
-    font-size: var(--text-markdown);
+    font-size: 1em;
     line-height: var(--markdown-h3-line-height);
     letter-spacing: var(--markdown-h3-letter-spacing);
     font-weight: var(--markdown-h3-font-weight);
   }
 
   .typography-markdown-h4 {
-    font-size: var(--text-markdown);
+    font-size: 1em;
     line-height: var(--markdown-h4-line-height);
     letter-spacing: var(--markdown-h4-letter-spacing);
     font-weight: var(--markdown-h4-font-weight);

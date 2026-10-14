@@ -867,24 +867,30 @@ html:not(.dark) .chat-scroll {
   font-size: inherit !important;
 }
 
-/* Streamdown headers: modest ramp so long answers stay scannable without
-   oversized headings inside chat bubbles (~half of GitHub's scale). */
+/* Markdown headings: a modest ramp (20/17/15px at the default 15px body) so
+   long answers stay scannable without oversized headings. Sizes are relative
+   to the container (tool and reasoning markdown are smaller) and line heights
+   are unitless so they follow the interface font-size setting. These
+   unlayered rules win over the .typography-markdown-h* classes. */
 .markdown-content h1 {
-  font-size: 1.375em;
+  font-size: 1.3333em;
+  line-height: 1.3;
   font-weight: 600;
   margin-top: 1em;
   margin-bottom: 0.5em;
 }
 
 .markdown-content h2 {
-  font-size: 1.2em;
+  font-size: 1.1333em;
+  line-height: 1.35;
   font-weight: 600;
   margin-top: 0.875em;
   margin-bottom: 0.375em;
 }
 
 .markdown-content h3 {
-  font-size: 1.1em;
+  font-size: 1em;
+  line-height: 1.45;
   font-weight: 600;
   margin-top: 0.75em;
   margin-bottom: 0.25em;
@@ -894,6 +900,7 @@ html:not(.dark) .chat-scroll {
 .markdown-content h5,
 .markdown-content h6 {
   font-size: 1em;
+  line-height: 1.45;
   font-weight: 600;
   margin-top: 0.625em;
   margin-bottom: 0.25em;
