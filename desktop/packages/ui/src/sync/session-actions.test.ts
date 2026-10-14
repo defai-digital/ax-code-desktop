@@ -1552,6 +1552,99 @@ describe("optimisticSend: stale watchdog from previous prompt is cancelled (stal
       globalThis.clearTimeout = originalClearTimeout
     }
   })
+
+  test("does not force idle while the newer turn's reply is still streaming", async () => {
+    // The cross-turn guard used to treat ANY assistant message under the newer
+    // user message as "answered". A reply that is still streaming has no
+    // completion yet, so forcing idle there clobbered the live turn — and the
+    // queued-message auto-send read that idle edge as "turn ended".
+    const originalSetTimeout = globalThis.setTimeout
+    const originalClearTimeout = globalThis.clearTimeout
+    const timers: Array<{ id: number; callback: () => void }> = []
+    let nextTimerId = 1
+
+    globalThis.setTimeout = ((callback: () => void) => {
+      const id = nextTimerId++
+      timers.push({ id, callback })
+      return id as unknown as ReturnType<typeof setTimeout>
+    }) as unknown as typeof setTimeout
+
+    globalThis.clearTimeout = (() => {
+      // Intentionally a no-op: the stale timer must be allowed to fire.
+    }) as unknown as typeof clearTimeout
+
+    try {
+      const store = createStore({})
+      const { optimisticSend } = await setupOptimistic(store)
+
+      let firstMessageId = ""
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "first prompt",
+        providerID: "provider",
+        modelID: "model",
+        send: (messageID) => {
+          firstMessageId = messageID
+          return Promise.resolve()
+        },
+      })
+
+      // First turn completed.
+      store.setState((state) => ({
+        session_status: { ...state.session_status, "session-a": { type: "idle" as const } },
+        message: {
+          ...state.message,
+          "session-a": [
+            ...(state.message["session-a"] ?? []),
+            {
+              id: "msg_first_assistant",
+              role: "assistant",
+              sessionID: "session-a",
+              parentID: firstMessageId,
+              time: { created: 1, completed: 2 },
+            } as unknown as Message,
+          ],
+        },
+      }))
+
+      // Second prompt: busy again, its reply starts streaming (no completion).
+      let secondMessageId = ""
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "second prompt",
+        providerID: "provider",
+        modelID: "model",
+        send: (messageID) => {
+          secondMessageId = messageID
+          return Promise.resolve()
+        },
+      })
+      store.setState((state) => ({
+        message: {
+          ...state.message,
+          "session-a": [
+            ...(state.message["session-a"] ?? []),
+            {
+              id: "msg_second_assistant",
+              role: "assistant",
+              sessionID: "session-a",
+              parentID: secondMessageId,
+              time: { created: 3 },
+            } as unknown as Message,
+          ],
+        },
+      }))
+
+      // The first prompt's stale watchdog fires mid-stream.
+      await timers[0].callback()
+      await new Promise((resolve) => originalSetTimeout(resolve, 0))
+
+      expect(store.getState().session_status?.["session-a"]).toEqual({ type: "busy" })
+    } finally {
+      globalThis.setTimeout = originalSetTimeout
+      globalThis.clearTimeout = originalClearTimeout
+    }
+  })
 })
 
 describe("optimisticSend: markPromptAccepted is synchronous with busy-set (race condition fix)", () => {

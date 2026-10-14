@@ -149,19 +149,32 @@ function isSessionWorking(store: WatchdogStore, sessionId: string): boolean {
 
 /**
  * True when a user message NEWER than `messageID` exists without its own
- * assistant reply. This means a later turn is still in progress — the current
- * watchdog is for an already-completed turn and must NOT force idle or
+ * FINISHED assistant reply. This means a later turn is still in progress — the
+ * current watchdog is for an already-completed turn and must NOT force idle or
  * fabricate an error, as that would clobber the in-progress turn.
+ *
+ * "Finished" matters: a reply that is still streaming already has a message
+ * record, and treating that as answered let a stale watchdog force idle in the
+ * middle of a live turn (which the queued-message auto-send then read as "turn
+ * ended").
  *
  * Used by both watchdog branches (initial store match + post-recovery) to
  * prevent cross-turn clobbering. Without this, a stale watchdog from prompt N
  * that fires or completes its async recovery during prompt N+1's turn would
  * see the busy status from N+1 and incorrectly force idle.
  */
+function hasFinishedAssistantReply(messages: Message[], userMessageID: string): boolean {
+  return messages.some((message) => {
+    if (message.role !== "assistant" || message.parentID !== userMessageID) return false
+    const completedAt = (message as { time?: { completed?: number } }).time?.completed
+    const finish = (message as { finish?: string }).finish
+    return Boolean(completedAt) || finish === "stop"
+  })
+}
+
 function hasNewerUnansweredUserMessage(messages: Message[], messageID: string): boolean {
   return messages.some(
-    (m) =>
-      m.role === "user" && m.id > messageID && !messages.some((am) => am.role === "assistant" && am.parentID === m.id),
+    (m) => m.role === "user" && m.id > messageID && !hasFinishedAssistantReply(messages, m.id),
   )
 }
 
