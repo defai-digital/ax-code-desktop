@@ -6,6 +6,7 @@ import { useOptionalThemeSystem } from "./useThemeSystem"
 import { workerFactory } from "@/lib/diff/workerFactory"
 import { getDefaultTheme } from "@/lib/theme/themes"
 import { getAppThemeRegistrationId } from "@/lib/shiki/textMateThemeFromAppTheme"
+import type { Theme } from "@/types/theme"
 // NOTE: keep provider lightweight; avoid main-thread diff parsing here.
 
 // Preload common languages for faster initial diff rendering
@@ -118,30 +119,52 @@ const ensureWorkerPool = (style: WorkerPoolStyle): Promise<WorkerPoolManager | u
   return unifiedWorkerPoolPromise
 }
 
-const syncPoolRenderTheme = (renderTheme: { light: string; dark: string }) => {
+const syncPoolRenderTheme = (themes: { light: Theme; dark: Theme }) => {
   // Only sync pools that already exist — never create them here.
-  if (unifiedWorkerPool) {
-    void unifiedWorkerPool.setRenderOptions({
-      theme: renderTheme,
-      lineDiffType: WORKER_POOL_CONFIG.unified.lineDiffType,
-    })
+  if (!unifiedWorkerPool && !splitWorkerPool) {
+    return
   }
-  if (splitWorkerPool) {
-    void splitWorkerPool.setRenderOptions({
-      theme: renderTheme,
-      lineDiffType: WORKER_POOL_CONFIG.split.lineDiffType,
-    })
+
+  const renderTheme = {
+    light: getAppThemeRegistrationId(themes.light),
+    dark: getAppThemeRegistrationId(themes.dark),
   }
+
+  const apply = () => {
+    if (unifiedWorkerPool) {
+      void unifiedWorkerPool.setRenderOptions({
+        theme: renderTheme,
+        lineDiffType: WORKER_POOL_CONFIG.unified.lineDiffType,
+      })
+    }
+    if (splitWorkerPool) {
+      void splitWorkerPool.setRenderOptions({
+        theme: renderTheme,
+        lineDiffType: WORKER_POOL_CONFIG.split.lineDiffType,
+      })
+    }
+  }
+
+  // A pool rejects an id it has no loader for, and this warmup is a child: its effect
+  // (and the idle warm-up callback) can run before the provider registers the palette,
+  // which used to drop the sync silently and leave the workers on the old theme.
+  void import("@/lib/shiki/appThemeRegistry")
+    .then(({ ensurePierreThemeRegistered }) => {
+      ensurePierreThemeRegistered(themes.light)
+      ensurePierreThemeRegistered(themes.dark)
+      apply()
+    })
+    .catch(apply)
 }
 
 const WorkerPoolWarmup: React.FC<{
   children: React.ReactNode
-  renderTheme: { light: string; dark: string }
-}> = ({ children, renderTheme }) => {
-  const renderThemeRef = useRef(renderTheme)
+  themes: { light: Theme; dark: Theme }
+}> = ({ children, themes }) => {
+  const themesRef = useRef(themes)
   useEffect(() => {
-    renderThemeRef.current = renderTheme
-  }, [renderTheme])
+    themesRef.current = themes
+  }, [themes])
 
   // Defer worker-pool creation off the cold-start critical path. Creating a pool
   // loads the Shiki highlighter + preload languages inside the worker (a separate,
@@ -155,7 +178,7 @@ const WorkerPoolWarmup: React.FC<{
     const warm = () => {
       if (cancelled) return
       void Promise.all([ensureWorkerPool("unified"), ensureWorkerPool("split")]).then(() => {
-        syncPoolRenderTheme(renderThemeRef.current)
+        syncPoolRenderTheme(themesRef.current)
       })
     }
 
@@ -176,8 +199,8 @@ const WorkerPoolWarmup: React.FC<{
 
   // Keep already-warmed pools in sync with theme changes.
   useEffect(() => {
-    syncPoolRenderTheme(renderTheme)
-  }, [renderTheme])
+    syncPoolRenderTheme(themes)
+  }, [themes])
 
   return <>{children}</>
 }
@@ -210,15 +233,9 @@ export const DiffWorkerProvider: React.FC<DiffWorkerProviderProps> = ({ children
     }
   }, [darkTheme, lightTheme])
 
-  const renderTheme = useMemo(
-    () => ({
-      light: getAppThemeRegistrationId(lightTheme),
-      dark: getAppThemeRegistrationId(darkTheme),
-    }),
-    [darkTheme, lightTheme],
-  )
+  const themes = useMemo(() => ({ light: lightTheme, dark: darkTheme }), [darkTheme, lightTheme])
 
-  return <WorkerPoolWarmup renderTheme={renderTheme}>{children}</WorkerPoolWarmup>
+  return <WorkerPoolWarmup themes={themes}>{children}</WorkerPoolWarmup>
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
