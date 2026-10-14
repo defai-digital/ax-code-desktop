@@ -34,10 +34,18 @@ export const createAxCodeWatcherRuntime = (deps) => {
       return
     }
 
+    // Claimed before the port wait so stop() can cancel a start that is still waiting
+    // for the runtime: stop() used to return early with no controller, and this start
+    // then subscribed and started the shared hub after the caller had stopped it.
+    const controller = new AbortController()
+    abortController = controller
+    const signal = controller.signal
+
     await waitForAxCodePort()
 
-    abortController = new AbortController()
-    const signal = abortController.signal
+    if (signal.aborted || abortController !== controller) {
+      return
+    }
 
     if (globalEventHub) {
       unsubscribeEvent = globalEventHub.subscribeEvent((event) => {

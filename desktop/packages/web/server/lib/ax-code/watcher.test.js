@@ -158,6 +158,48 @@ describe("createAxCodeWatcherRuntime", () => {
     ])
   })
 
+  it("does not start watching when stop() lands while the start still waits for the port", async () => {
+    // Regression: start() only set its abort controller after the wait, so stop()
+    // returned early and the start went on to subscribe and start the shared hub after
+    // the caller had stopped it — a reader that reconnects to a dead runtime forever.
+    let releasePort = () => {}
+    const portGate = new Promise((resolve) => {
+      releasePort = resolve
+    })
+
+    const events = new Set()
+    let startCalls = 0
+    const globalEventHub = {
+      start() {
+        startCalls += 1
+      },
+      subscribeEvent(subscriber) {
+        events.add(subscriber)
+        return () => events.delete(subscriber)
+      },
+      subscribeStatus(subscriber) {
+        events.add(subscriber)
+        return () => events.delete(subscriber)
+      },
+    }
+
+    const watcher = createAxCodeWatcherRuntime({
+      waitForAxCodePort: () => portGate,
+      buildAxCodeUrl: (path) => `http://127.0.0.1:4096${path}`,
+      getAxCodeAuthHeaders: () => ({}),
+      globalEventHub,
+      onPayload: () => {},
+    })
+
+    const starting = watcher.start()
+    watcher.stop()
+    releasePort()
+    await starting
+
+    expect(startCalls).toBe(0)
+    expect(events.size).toBe(0)
+  })
+
   it("does not stop a shared global event hub when the watcher stops", async () => {
     const events = new Set()
     const statuses = new Set()
