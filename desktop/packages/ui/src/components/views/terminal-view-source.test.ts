@@ -37,6 +37,19 @@ describe("TerminalView source guards", () => {
     expect(source).toMatch(/session not found/i)
   })
 
+  test("keeps the fatal-error banner visible for the tab that produced it", async () => {
+    const source = await readFile(sourcePath, "utf8")
+
+    // The banner's owning tab is recorded where the fatal error is written; the attach
+    // effect's exited-branch must clear the banner only when a *different* tab owns it,
+    // or the banner is erased the moment it appears (the cleared lifecycle that the
+    // banner itself caused).
+    expect(source).toContain("fatalErrorOwnerRef")
+    expect(source).toMatch(/fatalErrorOwnerRef\.current = tabId\n\s*setConnectionError\(t\("terminalView\.error\.connectionFailed"/)
+    expect(source).toMatch(/fatalErrorOwnerRef\.current = tabId\n\s*setConnectionError\(error instanceof Error/)
+    expect(source).toContain("if (fatalErrorOwnerRef.current !== tabId) {")
+  })
+
   test("ships the Ghostty runtime asset instead of leaving the terminal renderer blank", async () => {
     const [terminalViewportSource, viteConfigSource] = await Promise.all([
       readFile(path.resolve(__dirname, "../terminal/TerminalViewport.tsx"), "utf8"),

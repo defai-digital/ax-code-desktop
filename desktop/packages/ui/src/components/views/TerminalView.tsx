@@ -163,6 +163,9 @@ export const TerminalView: React.FC = () => {
 
   const [connectionError, setConnectionError] = React.useState<string | null>(null)
   const [isFatalError, setIsFatalError] = React.useState(false)
+  // Which tab owns the fatal banner: the attach effect clears it for every exited tab
+  // it meets, which used to erase the banner this tab had just set.
+  const fatalErrorOwnerRef = React.useRef<string | null>(null)
   const [isReconnectPending, setIsReconnectPending] = React.useState(false)
   const [activeModifier, setActiveModifier] = React.useState<Modifier | null>(null)
   const [isRestarting, setIsRestarting] = React.useState(false)
@@ -465,6 +468,7 @@ export const TerminalView: React.FC = () => {
               return
             }
 
+            fatalErrorOwnerRef.current = tabId
             setConnectionError(t("terminalView.error.connectionFailed", { message: error.message }))
             setIsFatalError(true)
             setTabSessionId(directory, tabId, null, {
@@ -545,10 +549,15 @@ export const TerminalView: React.FC = () => {
       if (!terminalId) {
         if (terminalLifecycle === "exited") {
           // Switching here from a tab/session that had a fatal connection error must not
-          // leave that stale banner showing over this (unrelated, already-exited) tab.
-          setConnectionError(null)
-          setIsFatalError(false)
-          setIsReconnectPending(false)
+          // leave that stale banner showing over this (unrelated, already-exited) tab,
+          // but the banner this tab just set for itself must survive so the user can
+          // read it and use Hard Restart.
+          if (fatalErrorOwnerRef.current !== tabId) {
+            setConnectionError(null)
+            setIsFatalError(false)
+            setIsReconnectPending(false)
+            fatalErrorOwnerRef.current = null
+          }
           setConnecting(directory, tabId, false)
           return
         }
@@ -614,6 +623,7 @@ export const TerminalView: React.FC = () => {
           if (cancelled) {
             setConnecting(directory, tabId, false)
           } else {
+            fatalErrorOwnerRef.current = tabId
             setConnectionError(error instanceof Error ? error.message : t("terminalView.error.startSessionFailed"))
             setIsFatalError(true)
             setIsReconnectPending(false)
@@ -684,6 +694,7 @@ export const TerminalView: React.FC = () => {
   }, [activeTabId, focusTerminalWhenWindowActive, isTerminalVisible, useTouchTerminalInput])
 
   const handleRestart = React.useCallback(async () => {
+    fatalErrorOwnerRef.current = null
     // The no-directory error state is exactly where the Retry button shows, so
     // fall back to the app's current directory instead of doing nothing.
     const directory = effectiveDirectory ?? useDirectoryStore.getState().currentDirectory ?? null
