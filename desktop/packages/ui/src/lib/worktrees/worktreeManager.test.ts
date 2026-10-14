@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
 import type { WorktreeMetadata } from "@/types/worktree"
 
-const { removeWorktreeMock, listWorktreesMock } = vi.hoisted(() => ({
+const { removeWorktreeMock, listWorktreesMock, deleteRemoteBranchMock } = vi.hoisted(() => ({
   removeWorktreeMock: vi.fn(async () => ({ success: true })),
   listWorktreesMock: vi.fn(async () => [] as Array<{ path: string; branch?: string }>),
+  deleteRemoteBranchMock: vi.fn(async () => undefined as unknown),
 }))
 
 vi.mock("@/lib/gitApi", () => ({
   git: { worktree: { remove: removeWorktreeMock, list: listWorktreesMock } },
-  deleteRemoteBranch: vi.fn(async () => undefined),
+  deleteRemoteBranch: deleteRemoteBranchMock,
 }))
 
 vi.mock("@/lib/worktrees/worktreeStatus", () => ({
@@ -70,6 +71,24 @@ describe("removeProjectWorktree", () => {
     expect(removeWorktreeMock).toHaveBeenCalledTimes(1)
     expect(useSessionUIStore.getState().worktreeMetadata.has("ses_feature")).toBe(false)
     expect(useSessionWorktreeStore.getState().getAttachment("ses_feature")).toBeUndefined()
+  })
+
+  test("reports a remote branch it could not delete instead of claiming success", async () => {
+    // The remote delete is best-effort; the caller used to be told the remote branch
+    // was gone either way.
+    deleteRemoteBranchMock.mockRejectedValueOnce(new Error("remote ref does not exist"))
+
+    const result = await removeProjectWorktree(project, metadata, { deleteRemoteBranch: true })
+
+    expect(result).toEqual({ remoteBranchRemoved: false })
+  })
+
+  test("reports the remote branch when the delete succeeded", async () => {
+    deleteRemoteBranchMock.mockResolvedValueOnce({ success: true })
+
+    const result = await removeProjectWorktree(project, metadata, { deleteRemoteBranch: true })
+
+    expect(result).toEqual({ remoteBranchRemoved: true })
   })
 
   test("leaves sessions in other worktrees alone", async () => {

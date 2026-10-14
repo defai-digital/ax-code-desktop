@@ -8,6 +8,12 @@ import { invalidateResolvedProjectRootCache, resolveProjectRoot } from "@/lib/wo
 import type { CreateGitWorktreePayload, GitWorktreeValidationResult } from "@/lib/api/types"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 
+/** What a removal actually did, so callers report it instead of assuming. */
+export type WorktreeRemovalResult = {
+  /** True only when the remote branch was asked for and the delete succeeded. */
+  remoteBranchRemoved: boolean
+}
+
 type WorktreeListEntry = {
   path?: string
   branch?: string
@@ -301,7 +307,7 @@ export async function removeProjectWorktree(
     deleteLocalBranch?: boolean
     remoteName?: string
   },
-): Promise<void> {
+): Promise<WorktreeRemovalResult> {
   const projectDirectory = normalizeWorktreePath(project.path)
 
   const deleteRemote = Boolean(options?.deleteRemoteBranch)
@@ -353,7 +359,16 @@ export async function removeProjectWorktree(
   }
 
   const branchName = (worktree.branch || "").replace(/^refs\/heads\//, "").trim()
-  if (deleteRemote && branchName) {
-    await deleteRemoteBranch(projectDirectory, { branch: branchName, remote: remoteName }).catch(() => undefined)
+  if (!deleteRemote || !branchName) {
+    return { remoteBranchRemoved: false }
   }
+
+  // Reported, not assumed: telling the user the remote branch is gone when the push
+  // failed (no such remote ref, no network, wrong remote) claims something that did
+  // not happen.
+  const removed = await deleteRemoteBranch(projectDirectory, { branch: branchName, remote: remoteName }).then(
+    () => true,
+    () => false,
+  )
+  return { remoteBranchRemoved: removed }
 }

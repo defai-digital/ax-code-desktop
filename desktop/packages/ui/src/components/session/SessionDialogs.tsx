@@ -17,7 +17,7 @@ import { cn, formatPathForDisplay } from "@/lib/utils"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import type { WorktreeMetadata } from "@/types/worktree"
 import { getWorktreeStatus } from "@/lib/worktrees/worktreeStatus"
-import { removeProjectWorktree } from "@/lib/worktrees/worktreeManager"
+import { removeProjectWorktree, type WorktreeRemovalResult } from "@/lib/worktrees/worktreeManager"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import * as sessionActions from "@/sync/session-actions"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
@@ -348,13 +348,16 @@ export const SessionDialogs: React.FC = () => {
   }, [canRemoveRemoteBranches])
 
   const removeSelectedWorktree = React.useCallback(
-    async (worktree: WorktreeMetadata, deleteLocalBranch: boolean): Promise<boolean> => {
+    async (worktree: WorktreeMetadata, deleteLocalBranch: boolean): Promise<WorktreeRemovalResult | null> => {
       const shouldRemoveRemote = deleteDialogShouldRemoveRemote && canRemoveRemoteBranches
       const projectRef = getProjectRefForWorktree(worktree)
       const normalizedWorktreePath = normalizeProjectDirectory(worktree.path)
       const normalizedProjectPath = normalizeProjectDirectory(projectRef.path)
       try {
-        await removeProjectWorktree(projectRef, worktree, { deleteRemoteBranch: shouldRemoveRemote, deleteLocalBranch })
+        const removal = await removeProjectWorktree(projectRef, worktree, {
+          deleteRemoteBranch: shouldRemoveRemote,
+          deleteLocalBranch,
+        })
 
         const draftDirectory = normalizeProjectDirectory(newSessionDraft?.directoryOverride)
         if (
@@ -377,14 +380,14 @@ export const SessionDialogs: React.FC = () => {
           useDirectoryStore.getState().setDirectory(normalizedProjectPath, { showOverlay: false })
         }
 
-        return true
+        return removal
       } catch (error) {
         toast.error(t("sessions.sidebar.sessionDialogs.worktree.errorRemoveTitle"), {
           description: renderToastDescription(
             error instanceof Error ? error.message : t("sessions.sidebar.dialogs.deleteResult.tryAgain"),
           ),
         })
-        return false
+        return null
       }
     },
     [
@@ -412,13 +415,14 @@ export const SessionDialogs: React.FC = () => {
       const deleteLocalBranch = shouldArchive && deleteDialogShouldDeleteLocalBranch
 
       if (deleteDialog.sessions.length === 0 && isWorktreeDelete && deleteDialog.worktree) {
-        const removed = await removeSelectedWorktree(deleteDialog.worktree, deleteLocalBranch)
-        if (!removed) {
+        const removal = await removeSelectedWorktree(deleteDialog.worktree, deleteLocalBranch)
+        if (!removal) {
           closeDeleteDialog()
           return
         }
-        const shouldRemoveRemote = deleteDialogShouldRemoveRemote && canRemoveRemoteBranches
-        const archiveNote = shouldRemoveRemote
+        // Report what the removal actually did: the remote delete is best-effort,
+        // and claiming it happened when the push failed misleads the user.
+        const archiveNote = removal.remoteBranchRemoved
           ? t("sessions.sidebar.sessionDialogs.worktree.removedWithRemote")
           : t("sessions.sidebar.sessionDialogs.worktree.removed")
         toast.success(t("sessions.sidebar.sessionDialogs.worktree.removedTitle"), {
@@ -553,7 +557,6 @@ export const SessionDialogs: React.FC = () => {
     closeDeleteDialog,
     shouldArchiveWorktree,
     isWorktreeDelete,
-    canRemoveRemoteBranches,
     removeSelectedWorktree,
     t,
   ])
