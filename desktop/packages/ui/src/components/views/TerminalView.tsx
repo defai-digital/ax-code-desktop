@@ -2,6 +2,7 @@ import React from "react"
 
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useTerminalStore } from "@/stores/useTerminalStore"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { type TerminalStreamEvent } from "@/lib/api/types"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
@@ -683,14 +684,27 @@ export const TerminalView: React.FC = () => {
   }, [activeTabId, focusTerminalWhenWindowActive, isTerminalVisible, useTouchTerminalInput])
 
   const handleRestart = React.useCallback(async () => {
-    if (!effectiveDirectory) return
+    // The no-directory error state is exactly where the Retry button shows, so
+    // fall back to the app's current directory instead of doing nothing.
+    const directory = effectiveDirectory ?? useDirectoryStore.getState().currentDirectory ?? null
+    if (!directory) return
     if (isRestarting) return
 
-    const state = useTerminalStore.getState().getDirectoryState(effectiveDirectory)
+    const state = useTerminalStore.getState().getDirectoryState(directory)
     const tabId = enableTabs
       ? (activeTabId ?? state?.activeTabId ?? state?.tabs[0]?.id ?? null)
       : (state?.tabs[0]?.id ?? null)
-    if (!tabId) return
+    if (!tabId) {
+      // No tab under the resolved directory yet (e.g. the session's own directory
+      // vanished): start a fresh one, same as the new-tab action.
+      const newTabId = createTab(directory)
+      setActiveTab(directory, newTabId)
+      setConnectionError(null)
+      setIsFatalError(false)
+      setIsReconnectPending(false)
+      disconnectStream()
+      return
+    }
 
     setIsRestarting(true)
     setConnectionError(null)
@@ -698,11 +712,11 @@ export const TerminalView: React.FC = () => {
     setIsReconnectPending(false)
 
     disconnectStream()
-    clearBuffer(effectiveDirectory, tabId)
+    clearBuffer(directory, tabId)
     resetTerminalPreviewScan()
 
     try {
-      await closeTab(effectiveDirectory, tabId)
+      await closeTab(directory, tabId)
     } catch (error) {
       setConnectionError(error instanceof Error ? error.message : t("terminalView.error.restartFailed"))
       setIsFatalError(true)
@@ -714,11 +728,13 @@ export const TerminalView: React.FC = () => {
     activeTabId,
     clearBuffer,
     closeTab,
+    createTab,
     disconnectStream,
     effectiveDirectory,
     enableTabs,
     isRestarting,
     resetTerminalPreviewScan,
+    setActiveTab,
     t,
   ])
 
