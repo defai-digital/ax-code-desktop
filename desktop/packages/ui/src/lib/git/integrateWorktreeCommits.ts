@@ -50,15 +50,16 @@ const stdoutText = (result: CommandExecResult): string => (result.stdout || "").
 const stderrText = (result: CommandExecResult): string => (result.stderr || "").trim()
 
 /**
- * A command the executor refuses outright (the Desktop HTTP exec endpoint only
- * accepts git path queries) reports no exit code; a command that really ran and
- * failed always does. Treating the former like a silent non-zero exit turned the
- * plan into "no commits to move" — a confident answer to a question that was
- * never actually asked.
+ * A command that never produced an exit code cannot be read as "the command ran
+ * and found nothing": the exec endpoint answers an unsupported command without
+ * spawning anything, and a spawn failure, a killed child or a timeout also
+ * leaves `exitCode` undefined. Every one of those must surface as an error —
+ * silently turning them into an empty plan is what made the integrate section
+ * claim there was nothing to move.
  */
-const assertCommandExecuted = (result: CommandExecResult, action: string): void => {
+const assertCommandCompleted = (result: CommandExecResult, action: string): void => {
   if (result.success || typeof result.exitCode === "number") return
-  throw new Error(`${action} (${stderrText(result) || result.error || "command was not executed"})`)
+  throw new Error(`${action} (${stderrText(result) || result.error || "command did not complete"})`)
 }
 
 type GitWorktreeEntry = { path: string; branchRef: string | null }
@@ -177,7 +178,7 @@ export async function computeIntegratePlan(args: {
   const targetBranch = await ensureLocalBranch(repoRoot, targetBranchRaw)
 
   const cherry = await execCommand(`git cherry ${shellQuote(targetBranch)} ${shellQuote(sourceBranch)}`, repoRoot)
-  assertCommandExecuted(cherry, "Unable to list commits to move")
+  assertCommandCompleted(cherry, "Unable to list commits to move")
   const cherryLines = trimLines(cherry.stdout)
   const plus = new Set<string>()
   for (const line of cherryLines) {
@@ -191,7 +192,7 @@ export async function computeIntegratePlan(args: {
     `git rev-list --reverse ${shellQuote(`${targetBranch}..${sourceBranch}`)}`,
     repoRoot,
   )
-  assertCommandExecuted(revList, "Unable to list commits to move")
+  assertCommandCompleted(revList, "Unable to list commits to move")
   const ordered = trimLines(revList.stdout)
   const commits = ordered.filter((sha) => plus.has(sha))
 
