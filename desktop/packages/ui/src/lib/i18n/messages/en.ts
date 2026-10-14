@@ -710,6 +710,7 @@ export const dict = {
   "gitView.integrate.noActiveSession": "No Active Session",
   "gitView.integrate.noActiveSessionDescription": "No Active Session Description",
   "gitView.integrate.noCommitsToMove": "No commits to move.",
+  "gitView.integrate.planFailed": "Unable to check commits to move.",
   "gitView.integrate.noCommitsToMoveToast": "No Commits To Move Toast",
   "gitView.integrate.previewUnavailable": "Preview Unavailable",
   "gitView.integrate.showAll": "Show All",

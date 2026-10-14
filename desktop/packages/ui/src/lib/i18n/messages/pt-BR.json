@@ -2356,6 +2356,7 @@
   "gitView.integrate.noActiveSession": "Sem sess\u00e3o ativa",
   "gitView.integrate.noActiveSessionDescription": "Nenhuma sess\u00e3o ativa para integra\u00e7\u00e3o.",
   "gitView.integrate.noCommitsToMove": "Sem commits para mover.",
+  "gitView.integrate.planFailed": "N\u00e3o foi poss\u00edvel verificar os commits a mover.",
   "gitView.integrate.noCommitsToMoveToast": "Sem commits para mover",
   "gitView.integrate.previewUnavailable": "Pr\u00e9via indispon\u00edvel",
   "gitView.integrate.showAll": "Mostrar tudo",

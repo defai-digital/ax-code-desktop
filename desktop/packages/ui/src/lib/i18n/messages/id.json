@@ -2356,6 +2356,7 @@
   "gitView.integrate.noActiveSession": "Tidak Ada Sesi Aktif",
   "gitView.integrate.noActiveSessionDescription": "Deskripsi Tidak Ada Sesi Aktif",
   "gitView.integrate.noCommitsToMove": "Tidak ada komit untuk dipindah.",
+  "gitView.integrate.planFailed": "Tidak dapat memeriksa commit yang akan dipindahkan.",
   "gitView.integrate.noCommitsToMoveToast": "Toast Tidak Ada Komit Untuk Dipindah",
   "gitView.integrate.previewUnavailable": "Pratinjau Tidak Tersedia",
   "gitView.integrate.showAll": "Tampilkan Semua",

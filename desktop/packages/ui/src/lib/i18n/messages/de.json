@@ -2362,6 +2362,7 @@
   "gitView.integrate.noActiveSession": "Keine aktive Sitzung",
   "gitView.integrate.noActiveSessionDescription": "Keine aktive Sitzung, in der die Commits neu integriert werden k\u00f6nnen.",
   "gitView.integrate.noCommitsToMove": "Keine Commits zum Verschieben.",
+  "gitView.integrate.planFailed": "Commits zum Verschieben konnten nicht gepr\u00fcft werden.",
   "gitView.integrate.noCommitsToMoveToast": "Keine Commits zum Verschieben",
   "gitView.integrate.previewUnavailable": "Vorschau nicht verf\u00fcgbar",
   "gitView.integrate.showAll": "Alle anzeigen",

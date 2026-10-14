@@ -2362,6 +2362,7 @@
   "gitView.integrate.noActiveSession": "Etkin oturum yok",
   "gitView.integrate.noActiveSessionDescription": "Etkin oturum yok a\u00e7\u0131klamas\u0131",
   "gitView.integrate.noCommitsToMove": "Ta\u015f\u0131nacak i\u015fleme yok.",
+  "gitView.integrate.planFailed": "Ta\u015f\u0131nacak commit'ler denetlenemedi.",
   "gitView.integrate.noCommitsToMoveToast": "Ta\u015f\u0131nacak i\u015fleme yok bildirimi",
   "gitView.integrate.previewUnavailable": "\u00d6nizleme kullan\u0131lam\u0131yor",
   "gitView.integrate.showAll": "T\u00fcm\u00fcn\u00fc g\u00f6ster",

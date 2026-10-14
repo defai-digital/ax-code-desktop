@@ -2362,6 +2362,7 @@
   "gitView.integrate.noActiveSession": "Nessuna sessione attiva",
   "gitView.integrate.noActiveSessionDescription": "Nessuna sessione attiva",
   "gitView.integrate.noCommitsToMove": "Nessun commit da spostare.",
+  "gitView.integrate.planFailed": "Impossibile verificare i commit da spostare.",
   "gitView.integrate.noCommitsToMoveToast": "Nessun commit da spostare",
   "gitView.integrate.previewUnavailable": "Anteprima non disponibile",
   "gitView.integrate.showAll": "Mostra tutto",

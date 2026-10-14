@@ -2356,6 +2356,7 @@
   "gitView.integrate.noActiveSession": "\u6c92\u6709\u4f5c\u7528\u4e2d\u7684\u5de5\u4f5c\u968e\u6bb5",
   "gitView.integrate.noActiveSessionDescription": "\u6c92\u6709\u4f5c\u7528\u4e2d\u5de5\u4f5c\u968e\u6bb5\u7684\u63cf\u8ff0",
   "gitView.integrate.noCommitsToMove": "\u6c92\u6709\u8981\u79fb\u52d5\u7684\u63d0\u4ea4\u3002",
+  "gitView.integrate.planFailed": "\u7121\u6cd5\u6aa2\u67e5\u8981\u79fb\u52d5\u7684\u63d0\u4ea4\u3002",
   "gitView.integrate.noCommitsToMoveToast": "\u6c92\u6709\u8981\u79fb\u52d5\u7684\u63d0\u4ea4",
   "gitView.integrate.previewUnavailable": "\u7121\u6cd5\u9810\u89bd",
   "gitView.integrate.showAll": "\u986f\u793a\u5168\u90e8",

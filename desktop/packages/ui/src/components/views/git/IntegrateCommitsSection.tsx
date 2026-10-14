@@ -29,6 +29,7 @@ type IntegrateUiState =
   | { kind: "loading" }
   | { kind: "ready"; plan: IntegratePlan }
   | { kind: "running"; plan: IntegratePlan }
+  | { kind: "error"; message: string }
   | { kind: "conflict"; state: IntegrateInProgress; details: IntegrateConflictDetails }
 
 export const IntegrateCommitsSection: React.FC<{
@@ -138,8 +139,12 @@ export const IntegrateCommitsSection: React.FC<{
             setShowAllCommits(false)
           }
         }
-      } catch {
-        if (!cancelled) setUi({ kind: "idle" })
+      } catch (error) {
+        // A failed plan check must not read as "nothing to move": surface the
+        // refusal (e.g. an exec endpoint that will not run git commands).
+        if (!cancelled) {
+          setUi({ kind: "error", message: error instanceof Error ? error.message : String(error) })
+        }
       }
     })()
     return () => {
@@ -426,6 +431,12 @@ export const IntegrateCommitsSection: React.FC<{
 
         {ui.kind === "ready" && ui.plan.commits.length === 0 && (
           <div className="typography-meta text-muted-foreground">{t("gitView.integrate.noCommitsToMove")}</div>
+        )}
+
+        {ui.kind === "error" && (
+          <div className="typography-meta text-muted-foreground" title={ui.message}>
+            {t("gitView.integrate.planFailed")}
+          </div>
         )}
 
         {ui.kind === "ready" && ui.plan.commits.length > 0 && (

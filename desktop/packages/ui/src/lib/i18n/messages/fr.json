@@ -2356,6 +2356,7 @@
   "gitView.integrate.noActiveSession": "Aucune session active",
   "gitView.integrate.noActiveSessionDescription": "Aucune description de session active",
   "gitView.integrate.noCommitsToMove": "Aucun commit \u00e0 d\u00e9placer.",
+  "gitView.integrate.planFailed": "Impossible de v\u00e9rifier les commits \u00e0 d\u00e9placer.",
   "gitView.integrate.noCommitsToMoveToast": "Aucun commit \u00e0 d\u00e9placer",
   "gitView.integrate.previewUnavailable": "Aper\u00e7u indisponible",
   "gitView.integrate.showAll": "Tout afficher",
