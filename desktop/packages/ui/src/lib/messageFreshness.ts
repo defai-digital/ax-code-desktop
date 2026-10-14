@@ -63,9 +63,10 @@ export class MessageFreshnessDetector {
 
     const isFresh = message.time.created > sessionStartTime - 5000
 
-    if (!isFresh) {
-      this.trackMessage(message.id, message.time.created)
-    }
+    // Record fresh messages too so each animates at most once: the detector is a
+    // module singleton that outlives ChatViewport remounts, so an unrecorded id is
+    // re-evaluated against the stale session start time and replays the animation.
+    this.trackMessage(message.id, message.time.created)
 
     return isFresh
   }

@@ -18,6 +18,18 @@ describe("MessageFreshnessDetector", () => {
     expect(detector.shouldAnimateMessage(assistantMessage("msg_fresh", Date.now()), "ses_1")).toBe(true)
   })
 
+  test("animates a fresh message only once", () => {
+    // Regression (upstream #2124): the detector is a module singleton that outlives
+    // ChatViewport remounts; an unrecorded fresh id replays the entry animation
+    // every time the message is re-evaluated.
+    detector.recordSessionStart("ses_1")
+    const message = assistantMessage("msg_fresh_once", Date.now())
+
+    expect(detector.shouldAnimateMessage(message, "ses_1")).toBe(true)
+    expect(detector.shouldAnimateMessage(message, "ses_1")).toBe(false)
+    expect(detector.hasBeenAnimated("msg_fresh_once")).toBe(true)
+  })
+
   test("never animates a user message", () => {
     detector.recordSessionStart("ses_1")
     const userMessage = { id: "msg_user", sessionID: "ses_1", role: "user", time: { created: Date.now() } } as Message
