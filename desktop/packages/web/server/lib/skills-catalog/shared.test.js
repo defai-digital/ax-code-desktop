@@ -67,6 +67,17 @@ describe("skills-catalog shared helpers", () => {
     expect(isRepoPathInside("../skills/review-code", "skills")).toBe(false)
   })
 
+  it("treats an absent parent as no filter but an unusable one as nothing allowed", () => {
+    expect(isRepoPathInside("skills/review-code", undefined)).toBe(true)
+    expect(isRepoPathInside("skills/review-code", "")).toBe(true)
+    // Regression: an unsafe parent (.., ., backslashes) fell into the "no parent
+    // filter" branch, so a request carrying `subpath: ".."` could install skills from
+    // outside the catalog's advertised subpath.
+    expect(isRepoPathInside("skills/evil", "..")).toBe(false)
+    expect(isRepoPathInside("skills/evil", ".")).toBe(false)
+    expect(isRepoPathInside("skills/evil", "skills\\..\\..")).toBe(false)
+  })
+
   it("builds catalog items from SKILL.md frontmatter", () => {
     const item = getCatalogItemFromSkillDocument({
       source: "owner/repo",

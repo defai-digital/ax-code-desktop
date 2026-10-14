@@ -29,8 +29,13 @@ export function normalizeRepoRelativePath(repoRelPosixPath) {
 export function isRepoPathInside(candidatePath, parentPath) {
   const candidate = normalizeRepoRelativePath(candidatePath)
   if (!candidate) return false
+  // No parent filter at all: everything within the repository is inside it.
+  if (parentPath === undefined || parentPath === null || String(parentPath).trim() === "") return true
   const parent = normalizeRepoRelativePath(parentPath)
-  if (!parent) return true
+  // A parent that cannot be normalized is unsafe (.., ., backslashes), not "no
+  // filter": treating it as no filter let a request with `subpath: ".."` install
+  // skills from outside the catalog's subpath.
+  if (!parent) return false
   return candidate === parent || candidate.startsWith(`${parent}/`)
 }
 
