@@ -102,6 +102,11 @@ const {
 protocol.registerSchemesAsPrivileged([...PACKAGED_RENDERER_PRIVILEGED_SCHEMES, ...ANIMATION_PRIVILEGED_SCHEMES])
 const { normalizeSafeExternalUrl } = require("./external-url")
 const { buildDesktopOpenDialogOptions, resolveDesktopDialogOwnerWindow } = require("./desktop-dialog")
+const {
+  attachRendererNavigationGuards,
+  createUpdateInstallGate,
+  quotePowerShellLiteral,
+} = require("./desktop-renderer-guards")
 const { createTrayController } = require("./tray.mjs")
 const { createLanguageController } = require("../../../shared/localization.mjs")
 const { createNativeLocalizer, localizeMenuTemplate, createLocalizedDialog } = require("./native-localization")
@@ -695,12 +700,9 @@ function createMainWindowShell() {
     return { action: "deny" }
   })
 
-  mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (isTrustedRendererNavigation(url)) {
-      return
-    }
-    event.preventDefault()
-    safeOpenExternal(url)
+  attachRendererNavigationGuards(mainWindow.webContents, {
+    isTrustedUrl: isTrustedRendererNavigation,
+    onBlocked: safeOpenExternal,
   })
 
   mainWindow.webContents.on("console-message", (event, level, message, line, sourceId) => {
@@ -864,14 +866,23 @@ function sendUpdateProgress(event, data) {
 autoUpdater.on("download-progress", (p) => {
   sendUpdateProgress("Progress", { downloaded: p.transferred, total: p.total })
 })
-autoUpdater.on("update-downloaded", () => {
+// electron-updater's quitAndInstall() does NOT quit when nothing is downloaded
+// (it emits `error` and returns), and the shell stops its server + runtime
+// before asking — so the gate decides before any shutdown happens.
+const updateInstallGate = createUpdateInstallGate()
+autoUpdater.on("update-downloaded", (info) => {
+  updateInstallGate.onDownloaded(info)
   sendUpdateProgress("Finished", {})
+})
+autoUpdater.on("update-not-available", () => {
+  updateInstallGate.onNotInstallable()
 })
 // electron-updater emits 'error' alongside rejecting its promises; without a
 // listener, Node's EventEmitter turns the emit into an uncaught exception that
 // crashes the main process. The IPC handlers already report failures to the
 // renderer, so logging here is enough.
 autoUpdater.on("error", (err) => {
+  updateInstallGate.onNotInstallable()
   console.warn("[updater] error:", err instanceof Error ? err.message : err)
 })
 
@@ -908,6 +919,12 @@ const handleCommand = (name, fn, { safeForRemote = false } = {}) => {
   ipcMain.handle(name, async (event, args) => {
     if (!isLocalSender(event.sender) && !safeForRemote) {
       throw new Error("IPC not available for this origin")
+    }
+    // The preload bridge only exists in a window's main frame (the app never
+    // sets nodeIntegrationInSubFrames), so requiring the main frame here costs
+    // nothing and keeps privileged commands out of any embedded frame.
+    if (!safeForRemote && event.senderFrame && event.senderFrame !== event.sender.mainFrame) {
+      throw new Error("IPC is only available to the window's main frame")
     }
     return fn(args || {}, event)
   })
@@ -1006,8 +1023,15 @@ async function shutdownForExit() {
 }
 
 handleCommand("desktop_quit_and_install", async () => {
+  if (!updateInstallGate.canInstall()) {
+    // Never stop the services for an install that the updater will refuse: the
+    // window would stay open with a dead server and runtime, and isQuitting
+    // blocks re-creating it.
+    return { installed: false, reason: "no-downloaded-update" }
+  }
   await shutdownForExit()
   autoUpdater.quitAndInstall()
+  return { installed: true, version: updateInstallGate.version() ?? undefined }
 })
 
 handleCommand("desktop_restart", async () => {
@@ -1837,7 +1861,7 @@ const buildWindowsOpenProjectSpecs = ({ projectPath, appId, appName }) => {
     if (shellProgram) {
       specs.push({
         program: shellProgram,
-        args: ["-NoExit", "-Command", `Set-Location -LiteralPath ${JSON.stringify(projectPath)}`],
+        args: ["-NoExit", "-Command", `Set-Location -LiteralPath ${quotePowerShellLiteral(projectPath)}`],
         shellStart: true,
       })
     }
@@ -2097,10 +2121,9 @@ const createAdditionalWindow = async (url) => {
     safeOpenExternal(targetUrl)
     return { action: "deny" }
   })
-  win.webContents.on("will-navigate", (event, targetUrl) => {
-    if (isTrustedRendererNavigation(targetUrl)) return
-    event.preventDefault()
-    safeOpenExternal(targetUrl)
+  attachRendererNavigationGuards(win.webContents, {
+    isTrustedUrl: isTrustedRendererNavigation,
+    onBlocked: safeOpenExternal,
   })
   try {
     await loadUrlWithTimeout(win, url, { timeoutMs: WINDOW_LOAD_TIMEOUT_MS })
@@ -2965,10 +2988,9 @@ const createMiniChatWindow = async ({ mode, sessionId, directory, projectId }) =
     safeOpenExternal(targetUrl)
     return { action: "deny" }
   })
-  win.webContents.on("will-navigate", (event, targetUrl) => {
-    if (isTrustedRendererNavigation(targetUrl)) return
-    event.preventDefault()
-    safeOpenExternal(targetUrl)
+  attachRendererNavigationGuards(win.webContents, {
+    isTrustedUrl: isTrustedRendererNavigation,
+    onBlocked: safeOpenExternal,
   })
   const params = new URLSearchParams()
   params.set("mode", mode === "session" ? "session" : "draft")
