@@ -1,9 +1,13 @@
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
 import { summarizeText as summarizeSharedText } from "../text/summarization.js"
 import {
   formatNotificationModeLabel,
   formatNotificationModelLabel,
   formatNotificationProjectLabel,
 } from "./label-format.js"
+
+const execFileAsync = promisify(execFile)
 
 // Races a promise against a fixed deadline and always clears the deadline timer. A bare
 // `Promise.race` with `setTimeout` leaves that timer pending when the promise wins, which keeps the
@@ -317,14 +321,16 @@ export const createNotificationTemplateRuntime = (deps) => {
 
     if (worktreeDir) {
       try {
-        const { simpleGit } = await import("simple-git")
-        const git = simpleGit({
-          baseDir: worktreeDir,
-          spawnOptions: { windowsHide: true },
-          binary: resolveGitBinaryForSpawn(),
-          unsafe: { allowUnsafeCustomBinary: true },
+        // execFile's own timeout kills the child; racing a simple-git promise would
+        // abandon it, and on a hung worktree mount every notification would leak a git
+        // process.
+        const { stdout } = await execFileAsync(resolveGitBinaryForSpawn(), ["rev-parse", "--abbrev-ref", "HEAD"], {
+          cwd: worktreeDir,
+          windowsHide: true,
+          timeout: 3_000,
+          maxBuffer: 1024 * 1024,
         })
-        branch = await withTimeout(git.revparse(["--abbrev-ref", "HEAD"]), 3000, "git timeout").catch(() => "")
+        branch = stdout.trim()
       } catch {}
     }
 

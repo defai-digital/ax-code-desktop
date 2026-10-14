@@ -2,13 +2,14 @@ import { describe, expect, it, vi } from "vitest"
 
 import { createNotificationTemplateRuntime, withTimeout } from "./template-runtime.js"
 
-const createRuntime = (settings = {}) =>
+const createRuntime = (settings = {}, overrides = {}) =>
   createNotificationTemplateRuntime({
     readSettingsFromDisk: async () => settings,
     persistSettings: vi.fn(async () => {}),
     buildAxCodeUrl: (path) => path,
     getAxCodeAuthHeaders: () => ({}),
     resolveGitBinaryForSpawn: () => "git",
+    ...overrides,
   })
 
 describe("notification template runtime zen models", () => {
@@ -170,5 +171,36 @@ describe("notification template git deadline", () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe("branch resolution", () => {
+  it("kills a hung git child when its timeout fires instead of leaving a zombie", async () => {
+    // The previous implementation raced a simple-git promise, so the child it spawned
+    // kept running past the timeout; on a hung worktree mount every notification would
+    // leak one git process.
+    const fs = await import("node:fs")
+    const os = await import("node:os")
+    const path = await import("node:path")
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "git-stub-"))
+    const stub = path.join(dir, "git")
+    const pidFile = path.join(dir, "pid")
+    fs.writeFileSync(stub, `#!/bin/sh\necho $$ > ${pidFile}\nsleep 60\n`, { mode: 0o755 })
+
+    const runtime = createRuntime({}, { resolveGitBinaryForSpawn: () => stub })
+    const startedAt = Date.now()
+    const variables = await runtime.buildTemplateVariables(
+      { properties: { info: { path: { root: dir } } } },
+      "ses_x",
+    )
+
+    expect(Date.now() - startedAt).toBeLessThan(30_000)
+    expect(variables.branch).toBe("")
+
+    // The point of the timeout: the child must be dead, not merely abandoned.
+    const pid = Number(fs.readFileSync(pidFile, "utf8").trim())
+    expect(Number.isFinite(pid)).toBe(true)
+    expect(() => process.kill(pid, 0)).toThrow()
+    fs.rmSync(dir, { recursive: true, force: true })
   })
 })
