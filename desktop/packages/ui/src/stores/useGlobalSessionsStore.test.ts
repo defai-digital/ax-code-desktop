@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
+// loadSessions uses a bounded timeout so a wedged request does not hold the index
+// forever; tests drive it with fake timers.
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 const { listGlobalSessionPagesMock } = vi.hoisted(() => ({
@@ -465,5 +467,41 @@ describe("loadSessions keeps the snapshot on a server error", () => {
 
     expect(useGlobalSessionsStore.getState().activeSessions).toEqual([existing])
     expect(useGlobalSessionsStore.getState().status).toBe("ready")
+  })
+})
+
+describe("loadSessions recovers from a wedged request", () => {
+  test("a never-settling request lets the next load run instead of wedging forever", async () => {
+    const existing = makeSession("ses_keep", {})
+    useGlobalSessionsStore.setState({
+      activeSessions: [existing],
+      archivedSessions: [],
+      sessionsByDirectory: new Map(),
+      pendingRemoval: new Map(),
+      deleteTombstones: new Map(),
+      hasLoaded: true,
+      status: "ready",
+    })
+
+    vi.useFakeTimers()
+    try {
+      listGlobalSessionPagesMock.mockImplementation(() => new Promise(() => {}))
+
+      const first = useGlobalSessionsStore.getState().loadSessions()
+      await vi.advanceTimersByTimeAsync(12_000)
+      await first
+
+      // The timeout flips the load to error and frees the in-flight promise, so the
+      // next call starts a fresh request instead of joining the dead one.
+      expect(useGlobalSessionsStore.getState().status).toBe("error")
+      expect(useGlobalSessionsStore.getState().activeSessions).toEqual([existing])
+
+      listGlobalSessionPagesMock.mockResolvedValue([])
+      await useGlobalSessionsStore.getState().loadSessions()
+      expect(listGlobalSessionPagesMock.mock.calls.length).toBeGreaterThanOrEqual(4)
+      expect(useGlobalSessionsStore.getState().status).toBe("ready")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

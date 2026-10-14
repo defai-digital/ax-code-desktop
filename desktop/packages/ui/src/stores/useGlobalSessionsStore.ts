@@ -2,6 +2,7 @@ import { create } from "zustand"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { normalizeProjectPath } from "@/lib/projectResolution"
+import { withTimeout } from "@/lib/asyncTimeout"
 import { listGlobalSessionPages } from "@/stores/globalSessions"
 
 type GlobalSessionsStatus = "idle" | "loading" | "ready" | "error"
@@ -508,10 +509,19 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
     inflightLoad = (async () => {
       try {
         const sdk = axCodeClient.getSdkClient()
-        const [activeResult, archivedResult] = await Promise.allSettled([
-          listGlobalSessionPages(sdk, { archived: false, pageSize: PAGE_SIZE }),
-          listGlobalSessionPages(sdk, { archived: true, pageSize: PAGE_SIZE }),
-        ])
+        // Bound the request: the SDK's default fetch has no timeout, so a wedged
+        // session.list would hold the in-flight promise forever and every later
+        // loadSessions would join it — the index could never refresh again.
+        const [activeResult, archivedResult] = await withTimeout(
+          Promise.allSettled([
+            listGlobalSessionPages(sdk, { archived: false, pageSize: PAGE_SIZE }),
+            listGlobalSessionPages(sdk, { archived: true, pageSize: PAGE_SIZE }),
+          ]),
+          12_000,
+          () => {
+            throw new Error("session.list timed out")
+          },
+        )
 
         // Read fresh state after the await (not a pre-fetch snapshot): a
         // session.created/updated event may have landed via applySessionEvent
