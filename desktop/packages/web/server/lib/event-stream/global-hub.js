@@ -22,6 +22,10 @@ export function createGlobalMessageStreamHub({
   let connected = false
   let everConnected = false
   let buildUrlFailed = false
+  // A stopped reader still delivers its final onDisconnect/onEvent callbacks.
+  // Without a generation guard a stop() followed by an immediate start() let the
+  // old reader's teardown mark the fresh connection as disconnected.
+  let connectionGeneration = 0
 
   const notifySubscriber = (kind, subscriber, payload) => {
     try {
@@ -59,6 +63,10 @@ export function createGlobalMessageStreamHub({
       return
     }
 
+    connectionGeneration += 1
+    const generation = connectionGeneration
+    const isCurrentConnection = () => generation === connectionGeneration
+
     controller = new AbortController()
     reader = createUpstreamSseReader({
       signal: controller.signal,
@@ -77,16 +85,25 @@ export function createGlobalMessageStreamHub({
       getHeaders: getAxCodeAuthHeaders,
       isReadyEvent: ({ payload }) => payload?.type === "server.connected",
       onConnect() {
+        if (!isCurrentConnection()) {
+          return
+        }
         connected = true
         const wasReady = everConnected
         everConnected = true
         notifyStatus({ type: "connect", wasReady })
       },
       onDisconnect({ reason }) {
+        if (!isCurrentConnection()) {
+          return
+        }
         connected = false
         notifyStatus({ type: "disconnect", reason })
       },
       onEvent(event) {
+        if (!isCurrentConnection()) {
+          return
+        }
         const normalized = normalizeEvent(event)
         if (isUpstreamSubscriptionControl(normalized.payload)) {
           return
@@ -103,7 +120,7 @@ export function createGlobalMessageStreamHub({
         }
       },
       onError(error) {
-        if (controller?.signal.aborted) {
+        if (!isCurrentConnection() || controller?.signal.aborted) {
           return
         }
 
@@ -119,6 +136,10 @@ export function createGlobalMessageStreamHub({
   }
 
   const stop = () => {
+    // Invalidate this connection before tearing it down so its late callbacks
+    // cannot touch state that a following start() now owns.
+    connectionGeneration += 1
+    const wasConnected = connected
     connected = false
     reader?.stop()
     if (controller && !controller.signal.aborted) {
@@ -128,6 +149,11 @@ export function createGlobalMessageStreamHub({
     controller = null
     everConnected = false
     buildUrlFailed = false
+    if (wasConnected) {
+      // The reader's own onDisconnect no longer reports this (it is stale now),
+      // so the deliberate stop announces it instead.
+      notifyStatus({ type: "disconnect", reason: "stopped" })
+    }
     // Keep the bounded replay buffer across full teardown so the last browser
     // client can reconnect with Last-Event-ID and recover events it already saw
     // advertised by the previous upstream connection.

@@ -1,6 +1,20 @@
+import { setCappedCacheEntry } from "../capped-cache.js"
+
 const DEFAULT_TTL_MS = 30 * 60 * 1000
+// Scans are keyed by repo + subpath + identity, so a long-lived server that has
+// looked at many repositories accumulated one entry per key forever: expiry was
+// only ever checked for the key being read.
+const MAX_CACHE_ENTRIES = 500
 
 const cache = new Map()
+
+const pruneExpired = (now) => {
+  for (const [key, entry] of cache.entries()) {
+    if (!entry || typeof entry.expiresAt !== "number" || now >= entry.expiresAt) {
+      cache.delete(key)
+    }
+  }
+}
 
 export function getCacheKey({ normalizedRepo, subpath, identityId }) {
   const safeRepo = String(normalizedRepo || "").trim()
@@ -21,7 +35,11 @@ export function getCachedScan(key) {
 
 export function setCachedScan(key, value, ttlMs = DEFAULT_TTL_MS) {
   const ttl = Number.isFinite(ttlMs) ? ttlMs : DEFAULT_TTL_MS
-  cache.set(key, { expiresAt: Date.now() + ttl, value })
+  const now = Date.now()
+  pruneExpired(now)
+  // Re-insert so the map's insertion order stays the eviction order.
+  cache.delete(key)
+  setCappedCacheEntry(cache, key, { expiresAt: now + ttl, value }, MAX_CACHE_ENTRIES)
 }
 
 export function clearCache() {

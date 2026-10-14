@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
 import express from "express"
 import request from "supertest"
+import { EventEmitter } from "node:events"
 import { registerAxCodeRoutes } from "./routes.js"
+import { createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
 
 const createApp = (overrides = {}, { parseJson = true } = {}) => {
   const app = express()
@@ -43,6 +45,28 @@ const createApp = (overrides = {}, { parseJson = true } = {}) => {
   registerAxCodeRoutes(app, dependencies)
   return { app, dependencies }
 }
+
+const createDependencies = () => ({
+  crypto: globalThis.crypto,
+  clientReloadDelayMs: 25,
+  getAxCodeResolutionSnapshot: vi.fn(() => ({})),
+  getAxCodeBinarySource: vi.fn(() => null),
+  formatSettingsResponse: vi.fn((settings) => settings),
+  readSettingsFromDisk: vi.fn(async () => ({})),
+  readSettingsFromDiskMigrated: vi.fn(async () => ({})),
+  persistSettings: vi.fn(async (settings) => settings),
+  sanitizeProjects: vi.fn((projects) => projects),
+  validateDirectoryPath: vi.fn(() => ({ valid: true })),
+  resolveProjectDirectory: vi.fn(async () => ({ directory: "/tmp/project", error: null })),
+  getProviderSources: vi.fn(() => ({ sources: {} })),
+  removeProviderConfig: vi.fn(() => true),
+  refreshAxCodeAfterConfigChange: vi.fn(async () => {}),
+  backgroundAxCodeReloader: {
+    start: vi.fn(() => ({ alreadyRunning: false, reloadDelayMs: 1500, reloadTimeoutMs: 360000 })),
+  },
+  buildAxCodeUrl: vi.fn((path) => `http://127.0.0.1:4096${path}`),
+  getAxCodeAuthHeaders: vi.fn(() => ({})),
+})
 
 describe("ax-code routes", () => {
   it("queues provider disconnect reload without awaiting the AX Code restart", async () => {
@@ -366,6 +390,110 @@ describe("ax-code routes", () => {
       expect(secondResponse.body).toEqual({ accepted: true })
     } finally {
       globalThis.fetch = originalFetch
+    }
+  })
+
+  it("keeps deduplicating a prompt_async request that runs longer than the idempotency TTL", async () => {
+    // Pruning used to age out an entry that was still in flight, so a retry with
+    // the same messageID after the TTL started a second upstream prompt. The
+    // route is driven directly (no TCP) so the second call is guaranteed to
+    // arrive while the first upstream request is still pending.
+    const { app, getRoute } = createRouteRegistry()
+    const dependencies = createDependencies()
+    registerAxCodeRoutes(app, dependencies)
+    const handler = getRoute("POST", "/api/session/:sessionId/prompt_async")
+
+    const originalFetch = globalThis.fetch
+    const realNow = Date.now
+    let offsetMs = 0
+    let releaseFetch = () => {}
+    const fetchStarted = new Promise((resolve) => {
+      globalThis.fetch = vi.fn(async () => {
+        resolve(undefined)
+        await new Promise((release) => {
+          releaseFetch = release
+        })
+        return new Response(JSON.stringify({ accepted: true }), {
+          status: 202,
+          headers: { "Content-Type": "application/json" },
+        })
+      })
+    })
+    const payload = JSON.stringify({
+      model: { providerID: "provider", modelID: "model" },
+      messageID: "msg-long",
+      parts: [{ type: "text", text: "hello" }],
+    })
+    const makeRequest = () => {
+      const req = new EventEmitter()
+      req.method = "POST"
+      req.params = { sessionId: "ses-1" }
+      req.url = "/api/session/ses-1/prompt_async"
+      req.originalUrl = req.url
+      req.headers = {}
+      req.get = () => undefined
+      queueMicrotask(() => {
+        req.emit("data", Buffer.from(payload))
+        req.emit("end")
+      })
+      return req
+    }
+
+    try {
+      Date.now = () => realNow() + offsetMs
+
+      const firstRes = createMockResponse()
+      const first = handler(makeRequest(), firstRes)
+      await fetchStarted
+      await Promise.resolve()
+
+      // The upstream call is still running when the TTL has long expired.
+      offsetMs = 5 * 60 * 1000
+
+      const secondRes = createMockResponse()
+      const second = handler(makeRequest(), secondRes)
+      for (let i = 0; i < 10; i += 1) {
+        await Promise.resolve()
+      }
+
+      // Still a single upstream prompt while the first is in flight.
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+
+      releaseFetch()
+      await Promise.all([first, second])
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+      expect(String(firstRes.body)).toContain("accepted")
+      expect(String(secondRes.body)).toContain("accepted")
+    } finally {
+      Date.now = realNow
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("rejects a forwarded body that exceeds the ceiling", async () => {
+    // The cap only applies on the raw-body path production uses for
+    // /api/session/* (no express.json() there).
+    const { app } = createApp({}, { parseJson: false })
+    const originalFetch = globalThis.fetch
+    const originalLimit = process.env.AX_CODE_DESKTOP_MAX_FORWARD_BODY_BYTES
+    // The limit is read once at module load, so exercise the parse-time path by
+    // sending a body over the configured (test-sized) ceiling instead.
+    globalThis.fetch = vi.fn(async () => new Response("{}", { status: 200 }))
+    process.env.AX_CODE_DESKTOP_MAX_FORWARD_BODY_BYTES = "1024"
+
+    try {
+      const response = await request(app)
+        .post("/api/session/ses-1/prompt_async")
+        .set("content-type", "application/json")
+        .send(JSON.stringify({ messageID: "msg-big", parts: [{ type: "text", text: "a".repeat(4096) }] }))
+
+      expect(response.status).toBe(413)
+      expect(globalThis.fetch).not.toHaveBeenCalled()
+    } finally {
+      globalThis.fetch = originalFetch
+      process.env.AX_CODE_DESKTOP_MAX_FORWARD_BODY_BYTES = originalLimit ?? ""
+      if (originalLimit === undefined) delete process.env.AX_CODE_DESKTOP_MAX_FORWARD_BODY_BYTES
     }
   })
 

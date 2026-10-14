@@ -4,7 +4,17 @@ import { AX_CODE_CONFIG_DIR } from "./shared.js"
 import fs from "fs"
 import path from "path"
 
+// Ceiling for a body forwarded verbatim to the runtime (a prompt with
+// attachments). Resolved per request so an operator (or a test) can lower it
+// without a rebuild.
+const DEFAULT_MAX_FORWARD_BODY_BYTES = 64 * 1024 * 1024
+const resolveMaxForwardBodyBytes = () => {
+  const raw = Number(process.env.AX_CODE_DESKTOP_MAX_FORWARD_BODY_BYTES)
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_MAX_FORWARD_BODY_BYTES
+}
+
 const PROMPT_ASYNC_IDEMPOTENCY_TTL_MS = 2 * 60 * 1000
+const PROMPT_ASYNC_INFLIGHT_MAX_MS = PROMPT_ASYNC_IDEMPOTENCY_TTL_MS * 20
 const PROVIDER_AUTH_SCOPES = new Set(["auth", "user", "project", "custom", "all"])
 
 class ProviderAuthRouteError extends Error {
@@ -91,7 +101,13 @@ export const registerAxCodeRoutes = (app, dependencies) => {
       const completedAt = typeof entry?.completedAt === "number" ? entry.completedAt : 0
       const startedAt = typeof entry?.startedAt === "number" ? entry.startedAt : 0
       const reference = completedAt || startedAt
-      if (!reference || now - reference > PROMPT_ASYNC_IDEMPOTENCY_TTL_MS) {
+      const inFlight = !entry?.result && Boolean(entry?.promise)
+      // Only a settled entry may be aged out: pruning a request that is still
+      // running dropped its dedup key, so a retry with the same messageID issued
+      // a second upstream prompt. The longer limit only exists so a request that
+      // never settles cannot keep its entry forever.
+      const limit = inFlight ? PROMPT_ASYNC_INFLIGHT_MAX_MS : PROMPT_ASYNC_IDEMPOTENCY_TTL_MS
+      if (!reference || now - reference > limit) {
         promptAsyncRequestsByKey.delete(key)
       }
     }
@@ -121,9 +137,34 @@ export const registerAxCodeRoutes = (app, dependencies) => {
         return
       }
       const chunks = []
-      req.on("data", (chunk) => chunks.push(chunk))
-      req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8") || "{}"))
-      req.on("error", reject)
+      let totalBytes = 0
+      let settled = false
+      const fail = (error) => {
+        if (settled) return
+        settled = true
+        reject(error)
+      }
+      req.on("data", (chunk) => {
+        if (settled) return
+        totalBytes += chunk?.length ?? 0
+        if (totalBytes > resolveMaxForwardBodyBytes()) {
+          // The body was accumulated without any ceiling, so a large or endless
+          // upload could exhaust the server before the upstream ever saw it.
+          const error = new Error("Request body too large")
+          error.statusCode = 413
+          // Reject without destroying the socket: the error handler answers 413,
+          // and killing the request here made the client see a hang-up instead.
+          fail(error)
+          return
+        }
+        chunks.push(chunk)
+      })
+      req.on("end", () => {
+        if (settled) return
+        settled = true
+        resolve(Buffer.concat(chunks).toString("utf8") || "{}")
+      })
+      req.on("error", fail)
     })
 
   const fetchAxCodeJsonRoute = async (req, upstreamPath, forwardBody) => {

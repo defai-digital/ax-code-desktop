@@ -83,6 +83,86 @@ describe("createGlobalMessageStreamHub", () => {
     }
   })
 
+  it("keeps a restarted connection connected when the previous reader tears down late", async () => {
+    // stop() followed by an immediate start(): the old reader's final
+    // onDisconnect used to run after the new connection was ready and clobber
+    // connected back to false, so the hub reported a dead stream while events
+    // were still flowing.
+    let attempt = 0
+    let releaseFirst = () => {}
+
+    const hub = createGlobalMessageStreamHub({
+      buildAxCodeUrl: (pathname) => `http://127.0.0.1:4096${pathname}`,
+      getAxCodeAuthHeaders: () => ({}),
+      // Long enough that the restarted connection cannot stall inside this test:
+      // the only status it should see after the restart is a stale teardown
+      // (which the generation guard suppresses).
+      upstreamStallTimeoutMs: 5_000,
+      upstreamReconnectDelayMs: 0,
+      fetchImpl: async (_url, options) => {
+        attempt += 1
+        if (attempt === 1) {
+          const first = createSseResponse({
+            signal: options.signal,
+            blocks: ['id: ready-1\ndata: {"type":"server.connected","properties":{}}\n\n'],
+          })
+          // Keep the first reader open: its teardown is released by the test
+          // after the restarted connection is already ready.
+          const originalReader = first.body.getReader()
+          return {
+            ...first,
+            body: {
+              getReader: () => ({
+                read: async () => {
+                  const chunk = await originalReader.read()
+                  if (chunk.done) {
+                    return new Promise((resolve) => {
+                      releaseFirst = () => resolve({ value: undefined, done: true })
+                    })
+                  }
+                  return chunk
+                },
+                cancel: async () => {},
+              }),
+            },
+          }
+        }
+        return createSseResponse({
+          signal: options.signal,
+          holdOpen: true,
+          blocks: [
+            'id: ready-2\ndata: {"type":"server.connected","properties":{}}\n\n',
+            'id: evt-2\ndata: {"type":"session.updated","properties":{}}\n\n',
+          ],
+        })
+      },
+    })
+
+    try {
+      hub.start()
+      await waitForAssertion(() => expect(hub.isConnected()).toBe(true))
+
+      hub.stop()
+      const statuses = []
+      hub.subscribeStatus((status) => statuses.push(status))
+
+      hub.start()
+      await waitForAssertion(() => expect(hub.isConnected()).toBe(true))
+      statuses.length = 0
+
+      // The previous reader finishes its teardown now.
+      releaseFirst()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      // A stale teardown must not flip the restarted connection to
+      // disconnected, nor announce it to subscribers.
+      expect(hub.isConnected()).toBe(true)
+      expect(statuses).toEqual([])
+    } finally {
+      hub.stop()
+    }
+  })
+
   it("continues fanout when an event subscriber throws", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
     const received = []
