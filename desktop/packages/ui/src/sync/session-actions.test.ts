@@ -27,6 +27,12 @@ type MockSessionCreateResult = {
   data?: { id: string; directory: unknown }
   error?: { message: string }
 }
+// A failed fork returns an error and no session, which the mock must be able to
+// express: the SDK's own result type is a union of both shapes.
+type MockSessionForkResult = {
+  data?: { id: string; directory: unknown; title: string; time: { created: number; updated: number } }
+  error?: { message: string }
+}
 
 let configState: {
   probeConnection: (options?: { timeoutMs?: number }) => Promise<boolean>
@@ -100,7 +106,7 @@ const mockScopedClient = {
         },
       })
     }),
-    fork: vi.fn((params: Record<string, unknown>) => {
+    fork: vi.fn((params: Record<string, unknown>): Promise<MockSessionForkResult> => {
       sessionCalls.push({ method: "session.fork", params })
       return Promise.resolve({
         data: {
