@@ -27,6 +27,19 @@ export const createNotificationTriggerRuntime = (deps) => {
   const questionNotificationDebounceTimers = new Map()
   const permissionNotificationDebounceTimers = new Map()
   const notifiedPermissionRequests = new Set()
+  // Unique request keys accumulate for the life of the process; keep the dedupe
+  // window bounded. A request older than the cap is long answered.
+  const NOTIFIED_PERMISSION_REQUESTS_MAX = 500
+  const rememberNotifiedPermissionRequest = (requestKey) => {
+    if (!requestKey) return
+    if (notifiedPermissionRequests.size >= NOTIFIED_PERMISSION_REQUESTS_MAX) {
+      const oldest = notifiedPermissionRequests.values().next().value
+      if (typeof oldest === "string") {
+        notifiedPermissionRequests.delete(oldest)
+      }
+    }
+    notifiedPermissionRequests.add(requestKey)
+  }
   const lastReadyNotificationAt = new Map()
 
   const asTrimmedString = (value) => (typeof value === "string" ? value.trim() : "")
@@ -382,7 +395,7 @@ export const createNotificationTriggerRuntime = (deps) => {
       // ancestor). Skip the whole notification path — the client responds
       // directly and the user has opted out of approval prompts.
       if (await isSessionAutoAccepting(sessionId)) {
-        if (requestKey) notifiedPermissionRequests.add(requestKey)
+        rememberNotifiedPermissionRequest(requestKey)
         return
       }
 
@@ -395,7 +408,7 @@ export const createNotificationTriggerRuntime = (deps) => {
         permissionNotificationDebounceTimers.delete(sessionId)
 
         if (await isSessionAutoAccepting(sessionId)) {
-          if (requestKey) notifiedPermissionRequests.add(requestKey)
+          rememberNotifiedPermissionRequest(requestKey)
           return
         }
 
@@ -451,9 +464,7 @@ export const createNotificationTriggerRuntime = (deps) => {
           })
         }
 
-        if (requestKey) {
-          notifiedPermissionRequests.add(requestKey)
-        }
+        rememberNotifiedPermissionRequest(requestKey)
       }, PERMISSION_NOTIFICATION_DEBOUNCE_MS)
 
       permissionNotificationDebounceTimers.set(sessionId, { timer, requestKey })
