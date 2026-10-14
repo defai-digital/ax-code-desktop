@@ -40,6 +40,18 @@ const resolveLocalBranchName = (args: CreateWorktreeArgs): string => {
   return normalizeBranchName(args.preferredName || "")
 }
 
+/**
+ * The upstream is composed server-side as `<remote>/<branch>`. A selected remote
+ * branch arrives qualified ("origin/foo"), so passing it through made the upstream
+ * "origin/origin/foo" — a ref that does not exist, leaving the worktree branch with
+ * no upstream. Strip the qualifier only when it is the remote we are configuring.
+ */
+export const resolveUpstreamBranchName = (remote: string, localBranch: string): string => {
+  const normalizedBranch = normalizeBranchName(localBranch)
+  const prefix = `${remote}/`
+  return remote && normalizedBranch.startsWith(prefix) ? normalizedBranch.slice(prefix.length) : normalizedBranch
+}
+
 export const resolveRootTrackingRemote = async (projectDirectory: string): Promise<string | null> => {
   const rootBranch = await getRootBranch(projectDirectory)
 
@@ -80,7 +92,7 @@ const resolveWorktreeUpstreamDefaults = async (
   return {
     setUpstream: true,
     upstreamRemote: remote,
-    upstreamBranch: normalizedBranch,
+    upstreamBranch: resolveUpstreamBranchName(remote, normalizedBranch),
   }
 }
 
@@ -98,7 +110,7 @@ export const withWorktreeUpstreamDefaults = async (
         ? {
             setUpstream: true as const,
             upstreamRemote: resolvedRemote,
-            upstreamBranch: normalizeBranchName(localBranch),
+            upstreamBranch: resolveUpstreamBranchName(resolvedRemote, localBranch),
           }
         : null
   if (!defaults) {
