@@ -331,8 +331,15 @@ export const createSessionRuntime = ({ writeSseEvent, getNotificationClients, br
     }
   }
 
-  const cleanupInterval = setInterval(cleanupOldSessionStates, SESSION_STATE_CLEANUP_INTERVAL_MS)
-  if (typeof cleanupInterval.unref === "function") cleanupInterval.unref()
+  let cleanupInterval = null
+
+  const startCleanupInterval = () => {
+    if (cleanupInterval) return
+    cleanupInterval = setInterval(cleanupOldSessionStates, SESSION_STATE_CLEANUP_INTERVAL_MS)
+    if (typeof cleanupInterval.unref === "function") cleanupInterval.unref()
+  }
+
+  startCleanupInterval()
 
   const processAxCodeSsePayload = (payload) => {
     const transitions = deriveSessionActivityTransitions(payload)
@@ -353,11 +360,25 @@ export const createSessionRuntime = ({ writeSseEvent, getNotificationClients, br
   }
 
   const dispose = () => {
-    clearInterval(cleanupInterval)
+    if (cleanupInterval) {
+      clearInterval(cleanupInterval)
+      cleanupInterval = null
+    }
     for (const timer of sessionActivityCooldowns.values()) {
       clearTimeout(timer)
     }
     sessionActivityCooldowns.clear()
+  }
+
+  /**
+   * Re-arm after an in-process restart. dispose() clears the only cleanup timer
+   * this runtime owns, and nothing recreated it, so a restarted server kept
+   * stale activity entries (a session left "busy" would keep the runtime-busy
+   * reporter claiming work was in flight).
+   */
+  const resume = () => {
+    startCleanupInterval()
+    resetAllSessionActivityToIdle()
   }
 
   return {
@@ -370,6 +391,7 @@ export const createSessionRuntime = ({ writeSseEvent, getNotificationClients, br
     markSessionViewed,
     markSessionUnviewed,
     markUserMessageSent,
+    resume,
     resetAllSessionActivityToIdle,
     dispose,
   }

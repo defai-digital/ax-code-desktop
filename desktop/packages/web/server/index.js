@@ -379,6 +379,7 @@ let isExternalAxCode = false
 let exitOnShutdown = true
 let uiAuthController = null
 let globalWatcherStartPromise = null
+let previewProxyRuntime = null
 let terminalRuntime = null
 let messageStreamRuntime = null
 const userProvidedAxCodePassword = hmrStateRuntime.getUserProvidedAxCodePassword(hmrState)
@@ -1184,6 +1185,24 @@ async function main(options = {}) {
   const port = Number.isFinite(options.port) && options.port >= 0 ? Math.trunc(options.port) : DEFAULT_PORT
   const host = typeof options.host === "string" && options.host.length > 0 ? options.host : undefined
   const attachSignals = options.attachSignals !== false
+
+  // An in-process restart (startWebUiServer after the returned controller's
+  // stop()) must not inherit shutdown state: isShuttingDown made
+  // gracefulShutdown a no-op and blocked every runtime start, the watcher
+  // promise stayed settled so the notification stream never resumed, the
+  // session runtime's cleanup timer was gone, and the previous preview proxy
+  // kept its sweep interval alive.
+  isShuttingDown = false
+  globalWatcherStartPromise = null
+  sessionRuntime.resume()
+  if (previewProxyRuntime) {
+    try {
+      previewProxyRuntime.dispose()
+    } catch (error) {
+      console.warn("Failed to dispose the previous preview proxy runtime:", error?.message || error)
+    }
+    previewProxyRuntime = null
+  }
   startupDiagnosticsRuntime = createStartupDiagnosticsRuntime({
     initialSnapshot: options.startupDiagnosticsSnapshot ?? null,
     source: "web-server",
@@ -1386,7 +1405,7 @@ async function main(options = {}) {
     projectConfigRuntime,
   })
 
-  const previewProxyRuntime = createPreviewProxyRuntime({
+  previewProxyRuntime = createPreviewProxyRuntime({
     crypto,
     URL,
     createProxyMiddleware,

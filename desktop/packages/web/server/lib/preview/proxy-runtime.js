@@ -1565,7 +1565,16 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     })
   }
 
+  const dispose = () => {
+    if (sweepTimer) {
+      clearInterval(sweepTimer)
+      sweepTimer = null
+    }
+    targets.clear()
+  }
+
   return {
     attach,
+    dispose,
   }
 }

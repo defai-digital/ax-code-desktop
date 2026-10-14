@@ -2,6 +2,41 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createSessionRuntime } from "./session-runtime.js"
 
+describe("session runtime restart", () => {
+  it("re-arms cleanup and clears stale activity after an in-process restart", async () => {
+    vi.useFakeTimers()
+    try {
+      const runtime = createSessionRuntime({
+        writeSseEvent() {},
+        getNotificationClients: () => new Set(),
+        broadcastEvent() {},
+      })
+
+      // A session left busy, then the server shuts down and starts again.
+      runtime.processAxCodeSsePayload({
+        type: "session.status",
+        properties: { sessionID: "session-1", status: { type: "busy" } },
+      })
+      expect(runtime.getSessionActivitySnapshot()["session-1"].type).toBe("busy")
+
+      runtime.dispose()
+      runtime.resume()
+
+      // dispose() used to be permanent: the hourly cleanup interval was never
+      // re-created and the stale busy entry survived the restart.
+      expect(runtime.getSessionActivitySnapshot()["session-1"].type).toBe("idle")
+
+      runtime.markSessionViewed("session-stale", "client")
+      await vi.advanceTimersByTimeAsync(25 * 60 * 60 * 1000)
+      expect(runtime.getSessionAttentionState("session-stale")).toBeNull()
+
+      runtime.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe("session runtime tracking caps", () => {
   const runtimes = []
 
