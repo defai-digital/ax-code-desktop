@@ -10,6 +10,16 @@ import { useMcpStore } from "@/stores/useMcpStore"
  * servers afterwards. Nothing here changes configuration; it only connects and disconnects.
  */
 const pausedByDirectory = new Map<string, string[]>()
+// Bumped by every pause and resume. A pause that observes a newer value while its
+// disconnects are in flight knows a resume overtook it and must not record a pause
+// nothing will ever lift.
+const pauseEpochByDirectory = new Map<string, number>()
+
+const bumpPauseEpoch = (key: string): number => {
+  const next = (pauseEpochByDirectory.get(key) ?? 0) + 1
+  pauseEpochByDirectory.set(key, next)
+  return next
+}
 
 const directoryKey = (directory: string | null | undefined): string => (directory ?? "").trim().replace(/[\\/]+$/, "")
 
@@ -24,6 +34,7 @@ export function pausedChromeBridgeServers(directory: string | null | undefined):
 /** Disconnects every connected Chrome bridge for the directory and remembers which ones to restore. */
 export async function pauseChromeBridgeForProjectBrowser(directory: string): Promise<string[]> {
   const key = directoryKey(directory)
+  const epoch = bumpPauseEpoch(key)
   const servers = useMcpConfigStore.getState().mcpServers as Array<{ name: string; webmcp?: unknown }>
   const status = useMcpStore.getState().getStatusForDirectory(directory)
   const connected = servers
@@ -32,14 +43,30 @@ export async function pauseChromeBridgeForProjectBrowser(directory: string): Pro
     .filter((name) => status[name]?.status === "connected")
   if (connected.length === 0) return pausedChromeBridgeServers(directory)
   const paused = new Set(pausedByDirectory.get(key) ?? [])
+  const disconnectedHere: string[] = []
   for (const name of connected) {
     try {
       await useMcpStore.getState().disconnect(name, directory)
       paused.add(name)
+      disconnectedHere.push(name)
     } catch (error) {
       console.warn("[webmcp] could not pause the Chrome bridge", name, error)
     }
   }
+
+  if ((pauseEpochByDirectory.get(key) ?? 0) !== epoch) {
+    // A resume ran while we were disconnecting: its intent wins, so put back what
+    // this pause disconnected instead of recording a pause nobody will lift.
+    for (const name of disconnectedHere) {
+      try {
+        await useMcpStore.getState().connect(name, directory)
+      } catch (error) {
+        console.warn("[webmcp] could not restore the Chrome bridge", name, error)
+      }
+    }
+    return pausedChromeBridgeServers(directory)
+  }
+
   pausedByDirectory.set(key, [...paused])
   return [...paused]
 }
@@ -47,6 +74,8 @@ export async function pauseChromeBridgeForProjectBrowser(directory: string): Pro
 /** Reconnects the bridges that were paused for the directory, then forgets them. */
 export async function resumeChromeBridgeForProjectBrowser(directory: string): Promise<void> {
   const key = directoryKey(directory)
+  // Invalidate any pause still in flight for this directory.
+  bumpPauseEpoch(key)
   const names = pausedByDirectory.get(key) ?? []
   pausedByDirectory.delete(key)
   for (const name of names) {
@@ -61,4 +90,5 @@ export async function resumeChromeBridgeForProjectBrowser(directory: string): Pr
 /** Test seam: forget every paused bridge without touching the runtime. */
 export function resetChromeBridgeCoordinationForTests(): void {
   pausedByDirectory.clear()
+  pauseEpochByDirectory.clear()
 }

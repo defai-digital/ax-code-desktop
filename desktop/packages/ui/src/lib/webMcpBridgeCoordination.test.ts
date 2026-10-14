@@ -57,6 +57,35 @@ describe("Chrome bridge coordination", () => {
     expect(pausedChromeBridgeServers("/Users/dev/app")).toEqual([])
   })
 
+  test("a resume during the pause's disconnects restores the bridge instead of stranding it", async () => {
+    // Regression: resume ran first (nothing recorded yet, so it reconnected nothing),
+    // then the in-flight pause recorded the bridge as paused — disconnected for the
+    // rest of the session with nothing left to resume it.
+    let releaseDisconnect: () => void = () => {}
+    const disconnect = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseDisconnect = resolve
+        }),
+    )
+    const connect = vi.fn(async () => {})
+    useMcpConfigStore.setState({ mcpServers: servers as never })
+    useMcpStore.setState({
+      disconnect,
+      connect,
+      getStatusForDirectory: () => ({ webmcp: { status: "connected" } }) as never,
+    })
+
+    const pausing = pauseChromeBridgeForProjectBrowser("/Users/dev/app")
+    await vi.waitFor(() => expect(disconnect).toHaveBeenCalledTimes(1))
+    await resumeChromeBridgeForProjectBrowser("/Users/dev/app")
+    releaseDisconnect()
+    await pausing
+
+    expect(pausedChromeBridgeServers("/Users/dev/app")).toEqual([])
+    expect(connect).toHaveBeenCalledWith("webmcp", "/Users/dev/app")
+  })
+
   test("does nothing when no bridge is connected", async () => {
     const disconnect = vi.fn(async () => {})
     useMcpConfigStore.setState({ mcpServers: servers as never })
