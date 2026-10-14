@@ -30,15 +30,20 @@ export const usePierreThemeConfig = (): PierreThemeConfig => {
     [availableThemes, darkThemeId, fallbackDarkTheme],
   )
 
-  React.useEffect(() => {
+  // Register during render, like PierreDiffViewer does: consumers resolve the theme
+  // name in their layout effect, which runs before this component's passive effects,
+  // so registering there left the first diff after a palette change unresolved (the
+  // rejection was swallowed and the panel kept the old colours).
+  const theme = React.useMemo(() => {
     ensurePierreThemeRegistered(lightTheme)
     ensurePierreThemeRegistered(darkTheme)
+    return { light: getAppThemeRegistrationId(lightTheme), dark: getAppThemeRegistrationId(darkTheme) }
   }, [darkTheme, lightTheme])
 
   const currentVariant = themeSystem?.currentTheme.metadata.variant ?? "light"
 
   return {
-    theme: { light: getAppThemeRegistrationId(lightTheme), dark: getAppThemeRegistrationId(darkTheme) },
+    theme,
     themeType: currentVariant === "dark" ? "dark" : "light",
   }
 }

@@ -617,9 +617,13 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     [availableThemes, darkThemeId],
   )
 
-  React.useEffect(() => {
+  // Registered during render rather than in an effect: PIERRE consumers resolve the
+  // theme name in their layout effect, which runs first, so a passive registration left
+  // the first diff after a palette change unresolved (and the rejection was swallowed).
+  React.useMemo(() => {
     ensurePierreThemeRegistered(lightTheme)
     ensurePierreThemeRegistered(darkTheme)
+    return null
   }, [lightTheme, darkTheme])
 
   const EMPTY_PATHS: string[] = React.useMemo(() => [], [])
