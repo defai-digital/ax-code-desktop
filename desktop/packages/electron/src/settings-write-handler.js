@@ -20,6 +20,23 @@
 // logged here.
 const DEFAULT_MAX_SETTINGS_PAYLOAD_BYTES = 1024 * 1024
 
+// Keys only Electron main writes. The web side merges its changes against a read of
+// the file, so its full-object payload can predate one of main's own writes (window
+// geometry saved on close, vibrancy, the missing-runtime repair). A plain replace
+// then dropped them — that is how the app "forgot" the window size. Serializing the
+// write does not help: the payload is already stale when it arrives.
+const MAIN_OWNED_SETTINGS_KEYS = ["desktopVibrancy", "desktopWindowState"]
+
+const withMainOwnedSettings = (settings, currentRoot) => {
+  const next = { ...settings }
+  for (const key of MAIN_OWNED_SETTINGS_KEYS) {
+    if (currentRoot && Object.prototype.hasOwnProperty.call(currentRoot, key)) {
+      next[key] = currentRoot[key]
+    }
+  }
+  return next
+}
+
 const createSettingsWriteHandler = ({ mutateSettingsRoot, postMessage, maxPayloadBytes, logger }) => {
   const log = logger || console
   const limit =
@@ -60,11 +77,13 @@ const createSettingsWriteHandler = ({ mutateSettingsRoot, postMessage, maxPayloa
       return true
     }
 
-    // Full-object replace. mutateSettingsRoot serializes this against main's
-    // own mutations (window state, vibrancy, remote-access purge), so two
-    // concurrent delegated writes cannot interleave with them or each other.
+    // Full-object replace, except for the keys only main writes: the payload is
+    // merged against the root inside the serialized chain so a main-side write that
+    // landed after the sender's read is not lost. mutateSettingsRoot serializes this
+    // against main's own mutations (window state, vibrancy, remote-access purge), so
+    // two concurrent delegated writes cannot interleave with them or each other.
     void Promise.resolve()
-      .then(() => mutateSettingsRoot(() => settings))
+      .then(() => mutateSettingsRoot((currentRoot) => withMainOwnedSettings(settings, currentRoot)))
       .then(() => reply(true))
       .catch((error) => {
         reply(false, error instanceof Error ? error.message : String(error))

@@ -75,10 +75,47 @@ describe("settings write handler", () => {
     }
     // Three mutations ran (two delegated writes + one main-side).
     expect(store.events).toHaveLength(6)
-    // Last delegated write wins the replace.
-    expect(store.getRoot()).toEqual({ b: 2 })
+    // The last delegated write replaces everything except the keys only main
+    // writes: the window state it recorded while that payload was being prepared
+    // survives instead of being clobbered by the stale snapshot.
+    expect(store.getRoot()).toEqual({ b: 2, desktopWindowState: { width: 800 } })
     expect(postMessage).toHaveBeenNthCalledWith(1, { type: "settings-write-result", id: "req-1", ok: true })
     expect(postMessage).toHaveBeenNthCalledWith(2, { type: "settings-write-result", id: "req-2", ok: true })
+  })
+
+  test("keeps the keys only main writes across a delegated full-object write", async () => {
+    const store = createSerializedStore({
+      desktopWindowState: { width: 1440, height: 900 },
+      desktopVibrancy: true,
+      defaultModel: "defai/old",
+    })
+    const postMessage = vi.fn()
+    const handler = createSettingsWriteHandler({ mutateSettingsRoot: store.mutateSettingsRoot, postMessage })
+
+    // The renderer's payload was computed from a read taken before main recorded the
+    // geometry above; it must still not drop it.
+    expect(
+      handler.handleMessage({ type: "settings-write", id: "req-1", settings: { defaultModel: "defai/new" } }),
+    ).toBe(true)
+    await vi.waitFor(() => expect(postMessage).toHaveBeenCalledTimes(1))
+
+    expect(store.getRoot()).toEqual({
+      defaultModel: "defai/new",
+      desktopVibrancy: true,
+      desktopWindowState: { width: 1440, height: 900 },
+    })
+  })
+
+  test("lets a delegated write clear keys main does not own", async () => {
+    const store = createSerializedStore({ desktopVibrancy: true, theme: "dark" })
+    const postMessage = vi.fn()
+    const handler = createSettingsWriteHandler({ mutateSettingsRoot: store.mutateSettingsRoot, postMessage })
+
+    handler.handleMessage({ type: "settings-write", id: "req-1", settings: {} })
+    await vi.waitFor(() => expect(postMessage).toHaveBeenCalledTimes(1))
+
+    // Replace semantics stay intact for everything else.
+    expect(store.getRoot()).toEqual({ desktopVibrancy: true })
   })
 
   test.each([
