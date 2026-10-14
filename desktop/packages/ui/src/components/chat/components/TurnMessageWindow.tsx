@@ -1,5 +1,6 @@
 import React from "react"
 
+import { useI18n } from "@/lib/i18n"
 import type { ChatMessageEntry } from "../lib/turns/types"
 import {
   TURN_MESSAGE_REVEAL_CHUNK,
@@ -59,6 +60,7 @@ interface TurnMessageWindowProps {
  * they were looking at still.
  */
 export function TurnMessageWindow({ turnId, messages, renderMessage }: TurnMessageWindowProps) {
+  const { t } = useI18n()
   const store = React.useContext(TurnMessageWindowContext)
   const [initialRange] = React.useState(() => store?.range(turnId) ?? initialMessageWindow(messages.length))
   const storedRange = React.useSyncExternalStore(store?.subscribe ?? subscribeNowhere, () => store?.range(turnId))
@@ -69,18 +71,20 @@ export function TurnMessageWindow({ turnId, messages, renderMessage }: TurnMessa
   const headSpacerRef = React.useRef<HTMLDivElement | null>(null)
   const tailSpacerRef = React.useRef<HTMLDivElement | null>(null)
   const anchorRef = React.useRef<{ element: Element; top: number } | null>(null)
+  const pendingFocusRef = React.useRef<string | null>(null)
+  const focusScopeRef = React.useRef<ParentNode | null>(null)
 
   React.useLayoutEffect(() => {
     if (store && store.range(turnId) === undefined) store.setRange(turnId, initialRange)
   }, [initialRange, store, turnId])
 
   const revealHead = React.useCallback(
-    (nextHidden: number) => {
+    (nextHidden: number, hold = true) => {
       const spacer = headSpacerRef.current
       const scroller = spacer?.closest(CHAT_SCROLLER_SELECTOR)
       const firstMounted = spacer?.nextElementSibling
       anchorRef.current = null
-      if (spacer && scroller && firstMounted) {
+      if (hold && spacer && scroller && firstMounted) {
         const view = scroller.getBoundingClientRect()
         const top = firstMounted.getBoundingClientRect().top
         if (
@@ -117,6 +121,42 @@ export function TurnMessageWindow({ turnId, messages, renderMessage }: TurnMessa
     return holdAnchor(scroller, anchor.element, anchor.top)
   }, [hiddenHead])
 
+  React.useLayoutEffect(() => {
+    const messageId = pendingFocusRef.current
+    if (!messageId) return
+    pendingFocusRef.current = null
+    const element = focusScopeRef.current?.querySelector<HTMLElement>(
+      `[data-message-id="${messageId.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`,
+    )
+    if (!element) return
+    if (element.tabIndex < 0) element.tabIndex = -1
+    element.focus()
+  }, [hiddenHead, hiddenTail])
+
+  const queueRevealedFocus = (scope: HTMLElement | null, messageId: string | undefined) => {
+    if (!messageId) return
+    focusScopeRef.current = scope
+    pendingFocusRef.current = messageId
+  }
+
+  const showEarlier = () => {
+    queueRevealedFocus(headSpacerRef.current?.parentElement ?? null, messages[0]?.info.id)
+    revealHead(0, false)
+  }
+
+  const showLater = () => {
+    queueRevealedFocus(tailSpacerRef.current?.parentElement ?? null, messages[messages.length - hiddenTail]?.info.id)
+    revealTail(0)
+  }
+
+  const earlierLabel = t(
+    hiddenHead === 1 ? "chat.liveActivity.showEarlierStep" : "chat.liveActivity.showEarlierSteps",
+    { count: hiddenHead },
+  )
+  const laterLabel = t(hiddenTail === 1 ? "chat.liveActivity.showLaterStep" : "chat.liveActivity.showLaterSteps", {
+    count: hiddenTail,
+  })
+
   useSpacerReveal(headSpacerRef, hiddenHead, revealHead)
   useSpacerReveal(tailSpacerRef, hiddenTail, revealTail)
 
@@ -127,19 +167,38 @@ export function TurnMessageWindow({ turnId, messages, renderMessage }: TurnMessa
       {hiddenHead > 0 ? (
         <div
           ref={headSpacerRef}
-          aria-hidden="true"
           data-turn-message-spacer="head"
+          className="relative"
           style={{ height: hiddenHead * ESTIMATED_MESSAGE_HEIGHT_PX }}
-        />
+        >
+          {/* Out of flow until focused, so the estimated spacer height stays put. */}
+          <button
+            type="button"
+            className="sr-only focus:not-sr-only"
+            data-turn-message-reveal="head"
+            onClick={showEarlier}
+          >
+            {earlierLabel}
+          </button>
+        </div>
       ) : null}
       {visibleMessages.map((message) => renderMessage(message))}
       {hiddenTail > 0 ? (
         <div
           ref={tailSpacerRef}
-          aria-hidden="true"
           data-turn-message-spacer="tail"
+          className="relative"
           style={{ height: hiddenTail * ESTIMATED_MESSAGE_HEIGHT_PX }}
-        />
+        >
+          <button
+            type="button"
+            className="sr-only focus:not-sr-only"
+            data-turn-message-reveal="tail"
+            onClick={showLater}
+          >
+            {laterLabel}
+          </button>
+        </div>
       ) : null}
     </>
   )

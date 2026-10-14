@@ -6,7 +6,9 @@ import {
   TURN_MESSAGE_WINDOW_THRESHOLD,
   createTurnMessageWindowStore,
   initialMessageWindow,
+  messageWindowContaining,
   openedFoldMessageWindow,
+  revealNavigatedMessage,
 } from "./turnMessageWindow"
 
 describe("message window thresholds", () => {
@@ -35,6 +37,39 @@ describe("message window thresholds", () => {
     })
     expect(openedFoldMessageWindow(100, true)).toEqual({ hiddenHead: 100 - TURN_MESSAGE_WINDOW_SIZE, hiddenTail: 0 })
     expect(openedFoldMessageWindow(100, false)).toEqual({ hiddenHead: 0, hiddenTail: 100 - TURN_MESSAGE_WINDOW_SIZE })
+  })
+})
+
+describe("navigation window", () => {
+  test("extends a head window down through the requested step", () => {
+    expect(messageWindowContaining({ hiddenHead: 80, hiddenTail: 0 }, 100, 10)).toEqual({
+      hiddenHead: 10,
+      hiddenTail: 0,
+    })
+  })
+
+  test("extends a tail window through the requested step", () => {
+    expect(messageWindowContaining(openedFoldMessageWindow(100, false), 100, 80)).toEqual({
+      hiddenHead: 0,
+      hiddenTail: 19,
+    })
+  })
+
+  test("leaves a window that already shows the step", () => {
+    const current = openedFoldMessageWindow(100, false)
+    expect(messageWindowContaining(current, 100, 5)).toEqual(current)
+  })
+
+  test("an index outside the turn mounts the whole turn", () => {
+    expect(messageWindowContaining({ hiddenHead: 40, hiddenTail: 10 }, 100, -1)).toEqual(FULL_MESSAGE_WINDOW)
+    expect(messageWindowContaining({ hiddenHead: 40, hiddenTail: 10 }, 100, 100)).toEqual(FULL_MESSAGE_WINDOW)
+  })
+
+  test("revealNavigatedMessage writes the containing range", () => {
+    const store = createTurnMessageWindowStore()
+    store.setRange("turn", openedFoldMessageWindow(100, false))
+    revealNavigatedMessage(store, "turn", 100, 80)
+    expect(store.range("turn")).toEqual({ hiddenHead: 0, hiddenTail: 19 })
   })
 })
 

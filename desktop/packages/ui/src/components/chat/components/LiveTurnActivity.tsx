@@ -10,7 +10,7 @@ import {
   planActivityTrim,
 } from "../lib/turns/activityRows"
 import type { ChatMessageEntry, TurnRecord } from "../lib/turns/types"
-import { getLiveFinalMessage } from "../lib/turns/liveActivity"
+import { getLiveActivityMessages, getLiveFinalMessage } from "../lib/turns/liveActivity"
 import { summarizeLiveActivity } from "../lib/turns/liveActivitySummary"
 import {
   TurnMessageWindowContext,
@@ -45,9 +45,8 @@ export function LiveTurnActivity({
   const finalContentId = React.useId()
   const finalMessage = getLiveFinalMessage(turn.assistantMessages)
   const activityMessages = React.useMemo(
-    () =>
-      finalMessage ? turn.assistantMessages.filter((message) => message !== finalMessage) : turn.assistantMessages,
-    [finalMessage, turn.assistantMessages],
+    () => getLiveActivityMessages(turn.assistantMessages),
+    [turn.assistantMessages],
   )
   // A turn that ended without a text answer (an error, an abort, tools only)
   // settles once the session stops working on it and none of its messages is

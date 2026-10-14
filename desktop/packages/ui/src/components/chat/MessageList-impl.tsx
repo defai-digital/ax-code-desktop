@@ -22,12 +22,24 @@ import { streamPerfCount, streamPerfMeasure } from "@/stores/utils/streamDebug"
 import type { StreamPhase } from "./message/types"
 import { normalizeParts } from "./message/partUtils"
 import { omitRecoveredAssistantMessages } from "./lib/turns/recoveredAssistantMessages"
-import { getTurnsWithLaterAssistant, hasLiveActivity } from "./lib/turns/liveActivity"
-import { TurnMessageWindowContext, createTurnMessageWindowStore } from "./lib/turns/turnMessageWindow"
+import { getLiveActivityMessages, getTurnsWithLaterAssistant, hasLiveActivity } from "./lib/turns/liveActivity"
+import { TurnMessageWindowContext, createTurnMessageWindowStore, revealNavigatedMessage } from "./lib/turns/turnMessageWindow"
 import { LiveTurnActivity } from "./components/LiveTurnActivity"
 import { LiveActivityFoldContext } from "./components/liveActivityFoldContext"
 
 const MESSAGE_LIST_VIRTUALIZE_THRESHOLD = 5
+// Two frames per attempt. The bound covers the fold-open animation (180ms)
+// plus the commit that mounts the requested step.
+const MESSAGE_NAVIGATION_ATTEMPTS = 12
+
+const nextFrame = (): Promise<void> =>
+  new Promise((resolve) => {
+    if (typeof requestAnimationFrame !== "function") {
+      resolve()
+      return
+    }
+    requestAnimationFrame(() => resolve())
+  })
 const MESSAGE_LIST_OVERSCAN = 6
 const EMPTY_STATIC_ENTRY_MESSAGES: ChatMessageEntry[] = []
 const EMPTY_UNGROUPED_MESSAGE_IDS = new Set<string>()
@@ -444,7 +456,7 @@ interface MessageListProps {
 
 export interface MessageListHandle {
   scrollToTurnId: (turnId: string, options?: { behavior?: ScrollBehavior }) => boolean
-  scrollToMessageId: (messageId: string, options?: { behavior?: ScrollBehavior }) => boolean
+  scrollToMessageId: (messageId: string, options?: { behavior?: ScrollBehavior }) => boolean | Promise<boolean>
   captureViewportAnchor: () => { messageId: string; offsetTop: number } | null
   restoreViewportAnchor: (anchor: { messageId: string; offsetTop: number }) => boolean
   scrollToBottom: () => void
@@ -1131,6 +1143,7 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
     const { t } = useI18n()
     const stickyUserHeader = useUIStore((state) => state.stickyUserHeader)
     const activityRenderMode = useUIStore((state) => state.activityRenderMode)
+    const showReasoningTraces = useUIStore((state) => state.showReasoningTraces)
     const defaultActivityExpanded = activityRenderMode === "summary"
     const [turnUiStates, setTurnUiStates] = React.useState<Map<string, TurnUiState>>(() => new Map())
     // The window outlives a turn row (the row remounts when a stream settles)
@@ -1458,6 +1471,38 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
       return trailingStreamingEntry ? [...historyEntries, trailingStreamingEntry] : historyEntries
     }, [historyEntries, trailingStreamingEntry])
 
+    const activityMessageLocation = React.useMemo(() => {
+      const locations = new Map<string, { turnId: string; index: number; count: number }>()
+      if (!liveActivityFold.enabled) return locations
+      for (const entry of allEntries) {
+        if (entry.kind !== "turn") continue
+        const visibleAssistants = omitRecoveredAssistantMessages(entry.turn.assistantMessages)
+        const turn =
+          visibleAssistants === entry.turn.assistantMessages
+            ? entry.turn
+            : { ...entry.turn, assistantMessages: visibleAssistants }
+        if (!hasLiveActivity(turn, showReasoningTraces)) continue
+        const activity = getLiveActivityMessages(turn.assistantMessages)
+        activity.forEach((message, index) => {
+          locations.set(message.info.id, { turnId: turn.turnId, index, count: activity.length })
+        })
+      }
+      return locations
+    }, [allEntries, liveActivityFold.enabled, showReasoningTraces])
+
+    const ensureTurnExpanded = React.useCallback(
+      (turnId: string) => {
+        setTurnUiStates((previous) => {
+          const expanded = previous.get(turnId)?.isExpanded ?? defaultActivityExpanded
+          if (expanded) return previous
+          const next = new Map(previous)
+          next.set(turnId, { isExpanded: true })
+          return next
+        })
+      },
+      [defaultActivityExpanded],
+    )
+
     const stableHistoryContentChange = useStableEvent((reason?: ContentChangeReason) => {
       scheduleVirtualMeasure()
       onMessageContentChange(reason)
@@ -1584,6 +1629,25 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
       [findMessageElement, resolveScrollContainer],
     )
 
+    // A collapsed fold mounts its steps inside a box that animates open from
+    // height 0. The nodes exist immediately, but their position is clipped
+    // until that box has grown past them.
+    const messageFoldStillOpening = React.useCallback(
+      (messageId: string) => {
+        const element = findMessageElement(messageId)
+        if (!element) return false
+        const collapse = element.closest("[data-live-activity-content]")
+        if (!(collapse instanceof HTMLElement)) return false
+        const height = collapse.style.height
+        if (height === "" || height === "auto") return false
+        const collapseRect = collapse.getBoundingClientRect()
+        const messageRect = element.getBoundingClientRect()
+        if (collapseRect.height < 1 && messageRect.height < 1) return true
+        return messageRect.bottom > collapseRect.bottom + 1
+      },
+      [findMessageElement],
+    )
+
     // Published in a layout effect: a controller request that reveals an older turn
     // attempts its scroll in the same commit, and a handle from the previous commit's
     // passive flush has no index for the newly revealed turn — the jump then failed
@@ -1626,12 +1690,36 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
             return false
           }
 
-          return (
-            scrollMessageElementIntoView(messageId, behavior) ||
-            (trailingStreamingEntry !== undefined && index >= historyEntries.length
+          if (scrollMessageElementIntoView(messageId, behavior)) return true
+
+          const located = activityMessageLocation.get(messageId)
+          if (!located) {
+            return trailingStreamingEntry !== undefined && index >= historyEntries.length
               ? false
-              : scrollHistoryIndexIntoView(index, behavior))
-          )
+              : scrollHistoryIndexIntoView(index, behavior)
+          }
+
+          // The fold mounts only a window of its steps, and a collapsed fold
+          // mounts none. Open it and widen the window, then scroll to the
+          // message once that commit is in the DOM.
+          ensureTurnExpanded(located.turnId)
+          revealNavigatedMessage(turnMessageWindow, located.turnId, located.count, located.index)
+          const container = resolveScrollContainer()
+          const turnMounted = Boolean(container?.querySelector(`[data-turn-id="${located.turnId}"]`))
+          if (!turnMounted) {
+            const targetIsTail = trailingStreamingEntry !== undefined && index >= historyEntries.length
+            if (!targetIsTail) scrollHistoryIndexIntoView(index, "auto")
+          }
+
+          return (async () => {
+            for (let attempt = 0; attempt < MESSAGE_NAVIGATION_ATTEMPTS; attempt += 1) {
+              await nextFrame()
+              await nextFrame()
+              if (messageFoldStillOpening(messageId)) continue
+              if (scrollMessageElementIntoView(messageId, behavior)) return true
+            }
+            return false
+          })()
         },
 
         captureViewportAnchor: () => {
@@ -1730,9 +1818,12 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
         objectRef.current = null
       }
     }, [
+      activityMessageLocation,
+      ensureTurnExpanded,
       findMessageElement,
       historyEntries.length,
       historyVirtualizer,
+      messageFoldStillOpening,
       messageIndexMap,
       resolveScrollContainer,
       scrollHistoryIndexIntoView,
@@ -1740,6 +1831,7 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
       shouldVirtualizeHistory,
       trailingStreamingEntry,
       turnIndexMap,
+      turnMessageWindow,
       ref,
     ])
 

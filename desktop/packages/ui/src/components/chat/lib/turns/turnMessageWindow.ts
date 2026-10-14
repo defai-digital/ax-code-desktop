@@ -74,6 +74,36 @@ export const shouldHoldRevealAnchor = (input: {
 }): boolean => input.spacerTop <= input.viewTop && input.firstMountedTop < input.viewBottom
 
 /**
+ * Extends `current` until `messageIndex` is mounted, keeping every message
+ * between the requested one and the steps already on screen. An index outside
+ * the turn mounts the whole turn.
+ */
+export const messageWindowContaining = (
+  current: TurnMessageWindowRange,
+  messageCount: number,
+  messageIndex: number,
+): TurnMessageWindowRange => {
+  if (messageCount <= 0 || messageIndex < 0 || messageIndex >= messageCount) return FULL_MESSAGE_WINDOW
+  const hiddenHead = Math.min(Math.max(0, current.hiddenHead), messageCount)
+  const hiddenTail = Math.min(Math.max(0, current.hiddenTail), Math.max(0, messageCount - hiddenHead))
+  const visibleEnd = messageCount - hiddenTail
+  if (messageIndex >= hiddenHead && messageIndex < visibleEnd) return { hiddenHead, hiddenTail }
+  if (messageIndex < hiddenHead) return { hiddenHead: messageIndex, hiddenTail }
+  return { hiddenHead, hiddenTail: messageCount - messageIndex - 1 }
+}
+
+/** Mounts the step navigation is about to scroll to. A missing range mounts the whole turn. */
+export const revealNavigatedMessage = (
+  store: TurnMessageWindowStore,
+  turnId: string,
+  messageCount: number,
+  messageIndex: number,
+): void => {
+  const current = store.range(turnId) ?? FULL_MESSAGE_WINDOW
+  store.setRange(turnId, messageWindowContaining(current, messageCount, messageIndex))
+}
+
+/**
  * The mounted window of each turn, per open timeline.
  *
  * Lives above the rows because a turn row remounts while the timeline stays

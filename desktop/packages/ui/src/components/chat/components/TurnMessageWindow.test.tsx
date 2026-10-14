@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test } from "vitest"
 import type { Message } from "@defai-digital/ax-code-sdk/v2"
 
+import { I18nProvider } from "@/lib/i18n"
 import type { ChatMessageEntry } from "../lib/turns/types"
 import {
   FULL_MESSAGE_WINDOW,
@@ -12,6 +13,7 @@ import {
   createTurnMessageWindowStore,
   isReaderAtTimelineEnd,
   openedFoldMessageWindow,
+  revealNavigatedMessage,
   shouldHoldRevealAnchor,
   type TurnMessageWindowStore,
 } from "../lib/turns/turnMessageWindow"
@@ -49,9 +51,11 @@ describe("turn message window", () => {
   const renderWindow = (store: TurnMessageWindowStore | null, messages: ChatMessageEntry[]) => {
     act(() => {
       root.render(
-        <TurnMessageWindowContext.Provider value={store}>
-          <TurnMessageWindow turnId="turn" messages={messages} renderMessage={renderMessage} />
-        </TurnMessageWindowContext.Provider>,
+        <I18nProvider>
+          <TurnMessageWindowContext.Provider value={store}>
+            <TurnMessageWindow turnId="turn" messages={messages} renderMessage={renderMessage} />
+          </TurnMessageWindowContext.Provider>
+        </I18nProvider>,
       )
     })
   }
@@ -102,14 +106,66 @@ describe("turn message window", () => {
     expect(mountedIds()[0]).toBe("step-40")
   })
 
-  test("navigation mounts the whole turn through the store", () => {
+  test("navigation reveals the requested message through the store", () => {
     const store = createTurnMessageWindowStore()
-    renderWindow(store, steps(100))
+    const messages = steps(100)
+    store.setRange("turn", openedFoldMessageWindow(messages.length, false))
+    renderWindow(store, messages)
+    expect(mountedIds()).not.toContain("step-80")
     act(() => {
-      store.setRange("turn", FULL_MESSAGE_WINDOW)
+      revealNavigatedMessage(store, "turn", messages.length, 80)
     })
+    expect(mountedIds()).toContain("step-80")
+    expect(mountedIds()).not.toContain("step-81")
+    expect(mountedIds()[0]).toBe("step-0")
+  })
+
+  test("a hidden tail offers a control that reveals later steps and focuses the first one", () => {
+    const store = createTurnMessageWindowStore()
+    const messages = steps(100)
+    store.setRange("turn", openedFoldMessageWindow(messages.length, false))
+    renderWindow(store, messages)
+    const tail = tailSpacer() as HTMLElement
+    const button = tail.querySelector("button")
+    expect(tail.getAttribute("aria-hidden")).not.toBe("true")
+    expect(tail.style.height).toBe(`${(100 - TURN_MESSAGE_WINDOW_SIZE) * 64}px`)
+    expect(button?.className).toContain("sr-only")
+    expect(button?.className).toContain("focus:not-sr-only")
+    expect(button?.textContent).toBe(`Show ${100 - TURN_MESSAGE_WINDOW_SIZE} later steps`)
+    act(() => {
+      button?.click()
+    })
+    const revealed = container.querySelector<HTMLElement>('[data-message-id="step-20"]')
+    expect(revealed).not.toBeNull()
+    expect(revealed).toBe(document.activeElement)
+    expect(mountedIds()).toContain("step-99")
+    expect(tailSpacer()).toBeNull()
+  })
+
+  test("a hidden head offers a control that reveals earlier steps and focuses the first one", () => {
+    const store = createTurnMessageWindowStore()
+    const messages = steps(100)
+    store.setRange("turn", openedFoldMessageWindow(messages.length, true))
+    renderWindow(store, messages)
+    const head = spacer() as HTMLElement
+    const button = head.querySelector("button")
+    expect(head.style.height).toBe(`${(100 - TURN_MESSAGE_WINDOW_SIZE) * 64}px`)
+    expect(button?.textContent).toBe(`Show ${100 - TURN_MESSAGE_WINDOW_SIZE} earlier steps`)
+    act(() => {
+      button?.click()
+    })
+    const revealed = container.querySelector<HTMLElement>('[data-message-id="step-0"]')
+    expect(revealed).toBe(document.activeElement)
     expect(mountedIds()).toHaveLength(100)
     expect(spacer()).toBeNull()
+  })
+
+  test("a single hidden step uses the singular label", () => {
+    const store = createTurnMessageWindowStore()
+    store.setRange("turn", { hiddenHead: 1, hiddenTail: 1 })
+    renderWindow(store, steps(3))
+    expect(spacer()?.querySelector("button")?.textContent).toBe("Show 1 earlier step")
+    expect(tailSpacer()?.querySelector("button")?.textContent).toBe("Show 1 later step")
   })
 
   test("a fold opened away from the end mounts its first steps above a tail spacer", () => {

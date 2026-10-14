@@ -23,6 +23,12 @@ const conversationRole = (message: ChatMessageEntry): string => {
   return typeof role === "string" ? role : ""
 }
 
+/** Assistant steps the Activity fold windows. The final answer stays outside the fold. */
+export function getLiveActivityMessages(messages: ChatMessageEntry[]): ChatMessageEntry[] {
+  const finalMessage = getLiveFinalMessage(messages)
+  return finalMessage ? messages.filter((message) => message !== finalMessage) : messages
+}
+
 export function getLiveFinalMessage(messages: readonly ChatMessageEntry[]): ChatMessageEntry | undefined {
   // Compaction, synthetic prompts, and shell records can trail the answer.
   // Skip them, then accept only that last user or assistant record — an

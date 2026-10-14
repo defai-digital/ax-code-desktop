@@ -291,27 +291,34 @@ export const useChatTimelineController = ({
       return
     }
 
-    const didScroll =
+    const finish = (didScroll: boolean) => {
+      if (pendingScrollRequestRef.current !== pending) return
+      if (didScroll) {
+        if (pending.turnId) setActiveTurnId(pending.turnId)
+        resolvePendingScrollRequest(true)
+        return
+      }
+
+      const targetIndex =
+        pending.kind === "turn"
+          ? turnModelRef.current.turnIndexById.get(pending.id)
+          : turnModelRef.current.messageToTurnIndex.get(pending.id)
+
+      if (typeof targetIndex === "number" && targetIndex >= turnStartRef.current) {
+        resolvePendingScrollRequest(false)
+      }
+    }
+
+    const outcome =
       pending.kind === "turn"
         ? (messageListRef.current?.scrollToTurnId(pending.id, { behavior: pending.behavior }) ?? false)
         : (messageListRef.current?.scrollToMessageId(pending.id, { behavior: pending.behavior }) ?? false)
 
-    if (didScroll) {
-      if (pending.turnId) {
-        setActiveTurnId(pending.turnId)
-      }
-      resolvePendingScrollRequest(true)
+    if (typeof outcome === "boolean") {
+      finish(outcome)
       return
     }
-
-    const targetIndex =
-      pending.kind === "turn"
-        ? turnModelRef.current.turnIndexById.get(pending.id)
-        : turnModelRef.current.messageToTurnIndex.get(pending.id)
-
-    if (typeof targetIndex === "number" && targetIndex >= turnStartRef.current) {
-      resolvePendingScrollRequest(false)
-    }
+    void outcome.then(finish)
   }, [messageListRef, resolvePendingScrollRequest])
 
   React.useEffect(() => {
