@@ -1,6 +1,6 @@
 # Desktop Visual System v1
 
-Status: Proposed. Records the look-and-feel rules already implemented and the staged plan for the rest.
+Status: Implemented (all stages, 2026-10-13). Records the look-and-feel rules and how each stage landed.
 Date: 2026-10-13
 Scope: AX Coder Desktop renderer (`desktop/packages/ui`) and Electron window chrome (`desktop/packages/electron`).
 Out of scope: product surfaces such as the portfolio sidebar and exception inbox. Those need an accepted PRD first.
@@ -72,7 +72,7 @@ Each stage is a separate reviewed change. Stage order is the recommendation, not
   - Every theme line-height variable is `calc(<paired font size> * ratio)`. That keeps the default pixels and scales
     with the font setting. As lengths, these values also inherit unchanged into children of other sizes.
 
-### Stage 3: surface and elevation tokens (radius and shadow done 2026-10-13; separation open)
+### Stage 3: surface and elevation tokens (implemented 2026-10-13)
 
 - **Radius.**
   - Collapse the seven arbitrary radii and the squircle class hack into `--radius-*`.
@@ -82,18 +82,25 @@ Each stage is a separate reviewed change. Stage order is the recommendation, not
   - Done in `a3cb2860`: `--elevation-popover` with the `shadow-popover` utility.
   - Done in `2e39b654`: the squircle hack became a `.squircle` class.
 - **Separation.** The default dark border on canvas is about 1.2:1, so surfaces separate mostly by tone. Decide
-  between hairline borders and tone steps, and write the rule into the theme documentation. Upstream's rules are a
+  between hairline borders and tone steps, and write the rule into the theme documentation.
+  - Done in `253a4b52`: the dark border moved to #292929, matching the light theme's 1.36:1. The rule is documented
+    in CUSTOM_THEMES.md. Upstream's rules are a
   starting point:
   - The sidebar is darker than the canvas.
   - Elevated surfaces are lighter in dark mode.
   - The user bubble is tinted with the primary colour.
   - Code backgrounds stay within about 1.10 contrast of the canvas.
 
-### Stage 4: theme generation
+### Stage 4: theme generation (implemented 2026-10-13, `617b32b8`)
 
 - Generate a theme from three inputs: base, accent and contrast, in OKLCH (Linear's model).
 - Hand-written themes stay supported.
 - Add a contrast check over every bundled theme for text and focus indicators (WCAG 1.4.3 and 1.4.11).
+- **Outcome.**
+  - `lib/theme/oklch.ts`, `generateTheme.ts` and `themeContrast.ts` are in place. A test audits every bundled theme:
+    body and button text must reach 4.5:1.
+  - Ten light themes had pastel button text and were fixed in `b82c9742`; git ref badges now use the canvas colour.
+  - The generator is not exposed in the UI; that is a product decision for a later change.
 
 ### Stage 5: transcript polish (Activity fold done 2026-10-13)
 
@@ -106,7 +113,9 @@ Each stage is a separate reviewed change. Stage order is the recommendation, not
   - `a32619f3`: the sorted chat mode is retired.
   - `895ff4d2`: the live Activity fold ships. It shows the latest 7 rows plus "+N more" and closes into a summary;
     Activity defaults to Expanded.
-- **Open.** Upstream's follow stop and the per-fold message window.
+- **Done.**
+  - `9ca8392a` and `9a73b7dc`: the follow stop at the reader's message in collapsed mode.
+  - `b510c1ae`: the per-fold message window.
 
 ## Verification
 
