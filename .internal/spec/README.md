@@ -18,3 +18,4 @@
 | [Public Desktop Release Cutover](SPEC-2026-10-12-public-desktop-release-cutover.md) | Accepted; implementation and native execution in progress | ADR-012 |
 
 - [Browser entrypoint routing](SPEC-2026-10-13-browser-entrypoint-routing.md) - Accepted for implementation on 2026-10-13.
+- [Desktop visual system v1](SPEC-2026-10-13-desktop-visual-system-v1.md) - Proposed on 2026-10-13; records implemented chrome, focus and motion rules and stages the rest.
