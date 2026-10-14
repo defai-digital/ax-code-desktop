@@ -447,6 +447,20 @@ export const createUiPasskeys = ({
     cleanupChallengeMap(authenticationChallenges)
 
     const requestId = typeof payload?.requestId === "string" ? payload.requestId : ""
+
+    // Consume the challenge first. Looking the credential up before this point
+    // left the challenge reusable after a rejected attempt, and answering
+    // "unknown credential" while it stayed alive turned the endpoint into a
+    // credential-existence oracle.
+    const matchingRecord = requestId ? authenticationChallenges.get(requestId) : null
+    if (!matchingRecord) {
+      const error = new Error("Passkey sign-in has expired. Please try again.")
+      error.statusCode = 400
+      throw error
+    }
+
+    authenticationChallenges.delete(requestId)
+
     const response = payload?.response
     const store = loadStore()
     const passkey = store.passkeys.find((item) => item.id === response?.id)
@@ -456,15 +470,6 @@ export const createUiPasskeys = ({
       error.statusCode = 404
       throw error
     }
-
-    const matchingRecord = requestId ? authenticationChallenges.get(requestId) : null
-    if (!matchingRecord) {
-      const error = new Error("Passkey sign-in has expired. Please try again.")
-      error.statusCode = 400
-      throw error
-    }
-
-    authenticationChallenges.delete(requestId)
 
     const verification = await verifyAuthenticationResponse({
       response,

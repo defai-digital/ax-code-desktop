@@ -172,6 +172,35 @@ describe("ui passkeys", () => {
     ).rejects.toThrow("valid passkey host")
   })
 
+  it("consumes the authentication challenge even when the credential is unknown", async () => {
+    const passkeys = createUiPasskeys({ passwordBinding: "password-binding", storeFile })
+    const req = createMockRequest({ host: "localhost:3000" })
+
+    const registration = await passkeys.beginRegistration(req)
+    await passkeys.finishRegistration({ requestId: registration.requestId, response: { id: "credential-id" } })
+
+    const authentication = await passkeys.beginAuthentication(req)
+
+    // A probe with an unregistered credential id must not leave the challenge
+    // reusable (it used to 404 before consuming it), and the retry must be
+    // rejected as expired rather than reaching verification.
+    await expect(
+      passkeys.finishAuthentication({
+        requestId: authentication.requestId,
+        response: { id: "not-registered" },
+      }),
+    ).rejects.toMatchObject({ statusCode: 404 })
+
+    await expect(
+      passkeys.finishAuthentication({
+        requestId: authentication.requestId,
+        response: { id: "credential-id" },
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 })
+
+    expect(simpleWebAuthn.verifyAuthenticationResponse).not.toHaveBeenCalled()
+  })
+
   it("trims passkey ids before revoking them", async () => {
     const passkeys = createUiPasskeys({
       passwordBinding: "password-binding",

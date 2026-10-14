@@ -59,7 +59,7 @@ interface QuotaStore extends QuotaSettingsState {
 
   loadSettings: () => Promise<void>
   fetchAllQuotas: () => Promise<void>
-  fetchProviderQuota: (providerId: QuotaProviderId) => Promise<void>
+  fetchProviderQuota: (providerId: QuotaProviderId) => Promise<ProviderResult>
   setSelectedProvider: (providerId: QuotaProviderId | null) => void
   setAutoRefresh: (enabled: boolean) => void
   setRefreshInterval: (intervalMs: number) => void
@@ -170,11 +170,15 @@ export const useQuotaStore = create<QuotaStore>()(
         set({ isLoading: true, error: null })
         const providerIds = QUOTA_PROVIDERS.map((provider) => provider.id)
         try {
-          await Promise.all(providerIds.map((providerId) => get().fetchProviderQuota(providerId)))
+          const results = await Promise.all(providerIds.map((providerId) => get().fetchProviderQuota(providerId)))
           if (!isCurrentRequest()) return
+          const failed = results.filter((entry) => entry && entry.ok === false)
+          const anySucceeded = results.some((entry) => entry?.ok)
           set({
             isLoading: false,
-            lastUpdated: Date.now(),
+            // An all-failed refresh must not look as fresh as a successful one.
+            ...(anySucceeded ? { lastUpdated: Date.now() } : {}),
+            error: anySucceeded ? null : (failed[0]?.error ?? "Failed to fetch quotas"),
           })
         } catch (error) {
           if (!isCurrentRequest()) return
@@ -183,7 +187,7 @@ export const useQuotaStore = create<QuotaStore>()(
         }
       },
 
-      fetchProviderQuota: async (providerId) => {
+      fetchProviderQuota: async (providerId): Promise<ProviderResult> => {
         const requestId = nextQuotaProviderFetchRequestId(providerId)
         set((state) => ({
           isFetchingProvider: { ...state.isFetchingProvider, [providerId]: true },
@@ -205,12 +209,17 @@ export const useQuotaStore = create<QuotaStore>()(
           }
 
           const result = payload as ProviderResult
-          if (!isCurrentQuotaProviderFetch(providerId, requestId)) return
+          if (!isCurrentQuotaProviderFetch(providerId, requestId)) {
+            return result
+          }
           set((state) => {
             const next = state.results.filter((entry) => entry?.providerId !== providerId)
             next.push(result)
-            return { results: next, error: null }
+            // The global error belongs to the batch (fetchAllQuotas): clearing it
+            // here let a provider that finished later wipe another one's failure.
+            return { results: next }
           })
+          return result
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to fetch quota"
           const fallback: ProviderResult = {
@@ -222,12 +231,15 @@ export const useQuotaStore = create<QuotaStore>()(
             usage: null,
             fetchedAt: Date.now(),
           }
-          if (!isCurrentQuotaProviderFetch(providerId, requestId)) return
+          if (!isCurrentQuotaProviderFetch(providerId, requestId)) {
+            return fallback
+          }
           set((state) => {
             const next = state.results.filter((entry) => entry?.providerId !== providerId)
             next.push(fallback)
-            return { results: next, error: message }
+            return { results: next }
           })
+          return fallback
         } finally {
           if (isCurrentQuotaProviderFetch(providerId, requestId)) {
             set((state) => ({

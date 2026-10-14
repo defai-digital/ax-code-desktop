@@ -289,6 +289,10 @@ const getDesktopFilesApi = (): FilesAPI | null => {
   return null
 }
 
+// Scoped clients are keyed by directory; a long session can visit many
+// (temporary worktrees in particular), so the map needs a ceiling.
+const MAX_SCOPED_CLIENTS = 100
+
 class AxCodeService {
   private client: AxCodeClient
   private baseUrl: string
@@ -332,6 +336,15 @@ class AxCodeService {
       return existing
     }
     const scoped = createAxCodeClient({ baseUrl: this.baseUrl, directory: normalized })
+    // Bound the cache: every worktree directory the app ever touched used to keep
+    // its client for the whole process lifetime. A client is a stateless wrapper,
+    // so evicting the oldest one is safe for callers that already hold it.
+    if (this.scopedClients.size >= MAX_SCOPED_CLIENTS && !this.scopedClients.has(key)) {
+      const oldest = this.scopedClients.keys().next().value
+      if (oldest !== undefined) {
+        this.scopedClients.delete(oldest)
+      }
+    }
     this.scopedClients.set(key, scoped)
     return scoped
   }

@@ -2,6 +2,35 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createSessionRuntime } from "./session-runtime.js"
 
+describe("session runtime tracking caps", () => {
+  const runtimes = []
+
+  afterEach(() => {
+    for (const runtime of runtimes) {
+      runtime.dispose()
+    }
+    runtimes.length = 0
+  })
+
+  it("does not keep one attention entry per unknown session id forever", () => {
+    // The hourly age-based cleanup leaves a window in which a client posting
+    // /view for random session ids could grow these maps one entry per id.
+    const runtime = createSessionRuntime({
+      writeSseEvent() {},
+      getNotificationClients: () => new Set(),
+      broadcastEvent() {},
+    })
+    runtimes.push(runtime)
+
+    for (let index = 0; index < 2100; index += 1) {
+      runtime.markSessionViewed(`ses-${index}`, "client")
+    }
+
+    expect(runtime.getSessionAttentionSnapshot()["ses-2099"]).toBeTruthy()
+    expect(runtime.getSessionAttentionSnapshot()["ses-0"]).toBeFalsy()
+  })
+})
+
 describe("session runtime", () => {
   const runtimes = []
 

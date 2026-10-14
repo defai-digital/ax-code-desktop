@@ -67,8 +67,10 @@ describe("useQuotaStore quota payload validation", () => {
     expect(entry.providerId).toBe("claude")
     expect(entry.ok).toBe(false)
     expect(entry.error).toContain("Malformed quota response")
-    // The store must stay usable: a later refresh filters by providerId.
-    await expect(useQuotaStore.getState().fetchProviderQuota("claude")).resolves.toBeUndefined()
+    // The store must stay usable, and the call reports its own outcome so a
+    // batch refresh can aggregate it.
+    const second = await useQuotaStore.getState().fetchProviderQuota("claude")
+    expect(second?.ok).toBe(false)
   })
 
   test("a well-formed payload is stored", async () => {
@@ -86,6 +88,48 @@ describe("useQuotaStore quota payload validation", () => {
     await useQuotaStore.getState().fetchProviderQuota("claude")
 
     expect(useQuotaStore.getState().results).toEqual([result])
+  })
+})
+
+describe("useQuotaStore batch aggregation", () => {
+  test("does not advance lastUpdated when every provider failed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 503,
+        json: async () => ({ error: "quota unavailable" }),
+      })),
+    )
+
+    const { useQuotaStore } = await importStore()
+    useQuotaStore.setState({ lastUpdated: null })
+
+    await useQuotaStore.getState().fetchAllQuotas()
+
+    expect(useQuotaStore.getState().lastUpdated).toBeNull()
+    expect(useQuotaStore.getState().error).toContain("quota unavailable")
+  })
+
+  test("keeps lastUpdated and clears the error when at least one provider loaded", async () => {
+    const quota = createQuotaResult("Claude", 5)
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).includes("claude")) {
+          return { ok: true, json: async () => quota }
+        }
+        return { ok: false, status: 503, json: async () => ({ error: "quota unavailable" }) }
+      }),
+    )
+
+    const { useQuotaStore } = await importStore()
+
+    await useQuotaStore.getState().fetchAllQuotas()
+
+    expect(useQuotaStore.getState().lastUpdated).not.toBeNull()
+    expect(useQuotaStore.getState().error).toBeNull()
+    expect(useQuotaStore.getState().results.some((entry) => entry?.ok === false)).toBe(true)
   })
 })
 

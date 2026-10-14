@@ -197,6 +197,24 @@ describe("axCodeClient desktop file operations", () => {
   })
 })
 
+describe("scoped client cache", () => {
+  test("evicts the oldest scoped client instead of keeping one per directory forever", () => {
+    // Every worktree directory the app ever touched used to keep its client for
+    // the whole process lifetime.
+    const first = axCodeClient.getScopedApiClient("/tmp/scoped-cache-0")
+    expect(axCodeClient.getScopedApiClient("/tmp/scoped-cache-0")).toBe(first)
+
+    for (let index = 1; index <= 120; index += 1) {
+      axCodeClient.getScopedApiClient(`/tmp/scoped-cache-${index}`)
+    }
+
+    expect(axCodeClient.getScopedApiClient("/tmp/scoped-cache-0")).not.toBe(first)
+    // The most recent one is still cached.
+    const latest = axCodeClient.getScopedApiClient("/tmp/scoped-cache-120")
+    expect(axCodeClient.getScopedApiClient("/tmp/scoped-cache-120")).toBe(latest)
+  })
+})
+
 describe("withDirectory queue resilience", () => {
   test("a hung directory-scoped call does not block subsequent calls forever", async () => {
     vi.useFakeTimers()

@@ -1,9 +1,19 @@
+import { setCappedCacheEntry } from "../capped-cache.js"
+
 const SESSION_COOLDOWN_DURATION_MS = 2000
 const SESSION_STATE_MAX_AGE_MS = 24 * 60 * 60 * 1000
 const SESSION_ATTENTION_MAX_AGE_MS = 24 * 60 * 60 * 1000
 const SESSION_STATE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000
+// The age-based cleanup runs hourly, so within that window a client that keeps
+// sending unknown session ids could still grow these maps one entry per id.
+// The cap evicts the oldest entry beyond it, exactly like the other bounded
+// caches in this server.
+const MAX_TRACKED_SESSIONS = 2000
 
 const asTrimmedString = (value) => (typeof value === "string" ? value.trim() : "")
+
+const setTrackedSession = (map, sessionId, value) =>
+  setCappedCacheEntry(map, sessionId, value, MAX_TRACKED_SESSIONS)
 
 const extractSessionStatusUpdate = (payload) => {
   if (!payload || payload.type !== "session.status") {
@@ -66,7 +76,7 @@ export const createSessionRuntime = ({ writeSseEvent, getNotificationClients, br
         viewedByClients: new Set(),
         status: "idle",
       }
-      sessionAttentionStates.set(sessionId, state)
+      setTrackedSession(sessionAttentionStates, sessionId, state)
     }
     return state
   }
@@ -86,7 +96,7 @@ export const createSessionRuntime = ({ writeSseEvent, getNotificationClients, br
       sessionActivityCooldowns.delete(sessionId)
     }
 
-    sessionActivityPhases.set(sessionId, { phase, updatedAt: Date.now() })
+    setTrackedSession(sessionActivityPhases, sessionId, { phase, updatedAt: Date.now() })
 
     if (phase === "cooldown") {
       const timer = setTimeout(() => {
@@ -147,7 +157,7 @@ export const createSessionRuntime = ({ writeSseEvent, getNotificationClients, br
       return
     }
 
-    sessionStates.set(sessionId, {
+    setTrackedSession(sessionStates, sessionId, {
       status,
       lastUpdateAt: now,
       lastEventId: eventId || `server-${now}`,
