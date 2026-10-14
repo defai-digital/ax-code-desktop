@@ -42,7 +42,20 @@ const DEFAULT_BASE_URL = getConfiguredBaseUrl() || API_PATHS.base
 // queue and stalls every subsequent call — e.g. the sandbox/autonomous toggles
 // spinning forever. The hung caller still awaits its own real result; only the
 // queue's readiness for the NEXT call is bounded.
-const DIRECTORY_CONTEXT_QUEUE_TIMEOUT_MS = 15_000
+// How long a directory-scoped call waits for its predecessor before giving up
+// instead of running concurrently (see withDirectory).
+const DIRECTORY_CONTEXT_WAIT_TIMEOUT_MS = 60_000
+// Every non-streaming SDK request gets a deadline: without one a stalled
+// connection held callers (and, through withDirectory, the whole directory
+// context) until the OS gave up.
+const SDK_REQUEST_TIMEOUT_MS = 120_000
+// Streams must stay open: the SSE fallback for the event feed is a long-lived
+// request, not a call that should be abandoned.
+const STREAMING_REQUEST_PATH = /\/(?:global\/event|event|stream)(?:\?|$)/
+// A prompt send that never settles leaves the composer/queue waiting on a
+// connection that may already be dead; each attempt gets its own deadline. The
+// body carries a stable messageID, so a retry after a timeout is idempotent.
+const PROMPT_SEND_TIMEOUT_MS = 120_000
 
 /**
  * Render a non-OK prompt_async response body into a user-facing message.
@@ -293,12 +306,34 @@ const getDesktopFilesApi = (): FilesAPI | null => {
 // (temporary worktrees in particular), so the map needs a ceiling.
 const MAX_SCOPED_CLIENTS = 100
 
+/**
+ * SDK transport with a per-request deadline. The SDK ships a fetch with no
+ * timeout at all, so a stalled connection kept callers (permission replies, list
+ * refreshes, quota probes) pending forever. Streaming requests are exempt —
+ * an SSE feed is meant to stay open.
+ */
+/** True for requests that must stay open (the SSE feed), which get no deadline. */
+export const isStreamingSdkRequestUrl = (url: string): boolean => STREAMING_REQUEST_PATH.test(url)
+
+const createSdkFetch = () => (input: RequestInfo | URL, init?: RequestInit) => {
+  const url =
+    typeof input === "string" ? input : input instanceof URL ? input.href : ((input as Request)?.url ?? "")
+  if (isStreamingSdkRequestUrl(url)) {
+    return fetch(input, init)
+  }
+
+  const timeoutSignal = AbortSignal.timeout(SDK_REQUEST_TIMEOUT_MS)
+  const callerSignal = init?.signal ?? null
+  const signal = callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal
+  return fetch(input, { ...init, signal })
+}
+
 class AxCodeService {
   private client: AxCodeClient
   private baseUrl: string
   private scopedClients: Map<string, AxCodeClient> = new Map()
   private currentDirectory: string | undefined = undefined
-  private directoryContextQueue: Promise<void> = Promise.resolve()
+  private directoryContextInFlight: { promise: Promise<unknown> } | null = null
   private listDirectoryInFlight: Map<string, Promise<FilesystemEntry[]>> = new Map()
   private listDirectoryCache: Map<string, { entries: FilesystemEntry[]; expiresAt: number }> = new Map()
   private listDirectoryCacheGeneration = 0
@@ -307,7 +342,7 @@ class AxCodeService {
     const desktopBase = resolveDesktopBaseUrl()
     const requestedBaseUrl = desktopBase || baseUrl
     this.baseUrl = normalizeAxCodeSdkBaseUrl(ensureAbsoluteBaseUrl(requestedBaseUrl))
-    this.client = createAxCodeClient({ baseUrl: this.baseUrl })
+    this.client = createAxCodeClient({ baseUrl: this.baseUrl, fetch: createSdkFetch() })
   }
 
   getBaseUrl(): string {
@@ -477,21 +512,54 @@ class AxCodeService {
       }
     }
 
-    const queuedRun = this.directoryContextQueue.then(runWithContext, runWithContext)
-    // Advance the shared queue when this run settles OR after a safety timeout,
-    // so a single hung call can't block every subsequent directory-scoped
-    // request forever. The caller still awaits `queuedRun` (its real result);
-    // only the queue's readiness for the next call is time-bounded.
-    this.directoryContextQueue = new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, DIRECTORY_CONTEXT_QUEUE_TIMEOUT_MS)
-      const advance = () => {
-        clearTimeout(timer)
-        resolve()
-      }
-      queuedRun.then(advance, advance)
-    })
+    // Only one directory context may be active at a time: `fn` reads the shared
+    // `currentDirectory`, so a second run started while the first is still
+    // executing would send the first run's remaining requests to the second
+    // run's project, and the first run's `finally` would restore a stale
+    // directory. A predecessor that is still running after the wait deadline
+    // therefore fails the waiter with an explicit error instead of running
+    // beside it.
+    if (directory === undefined || directory === null) {
+      return fn()
+    }
 
-    return queuedRun
+    const previous = this.directoryContextInFlight
+    if (previous) {
+      let waitTimer: ReturnType<typeof setTimeout> | null = null
+      const timedOut = await Promise.race([
+        previous.promise.then(
+          () => false,
+          () => false,
+        ),
+        new Promise<boolean>((resolve) => {
+          waitTimer = setTimeout(() => resolve(true), DIRECTORY_CONTEXT_WAIT_TIMEOUT_MS)
+        }),
+      ])
+      if (waitTimer) {
+        clearTimeout(waitTimer)
+      }
+      if (timedOut) {
+        console.warn(
+          "[ax-code client] another directory-scoped call is still running after " +
+            `${DIRECTORY_CONTEXT_WAIT_TIMEOUT_MS}ms; refusing to run concurrently with it`,
+        )
+        throw Object.assign(new Error("Timed out waiting for another directory-scoped request to finish"), {
+          name: "DirectoryContextBusyError",
+        })
+      }
+    }
+
+    const entry: { promise: Promise<T> } = { promise: Promise.resolve(undefined as T) }
+    const run = runWithContext()
+    entry.promise = run
+    this.directoryContextInFlight = entry
+    try {
+      return await run
+    } finally {
+      if (this.directoryContextInFlight === entry) {
+        this.directoryContextInFlight = null
+      }
+    }
   }
 
   // Get the raw API client for direct access
@@ -1014,6 +1082,7 @@ class AxCodeService {
           method: HTTP_DEFAULTS.method.post,
           headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
           body: requestBodyJson,
+          signal: AbortSignal.timeout(PROMPT_SEND_TIMEOUT_MS),
         })
       } catch (error) {
         if (attempt < 2 && isRetryableFetchError(error)) {

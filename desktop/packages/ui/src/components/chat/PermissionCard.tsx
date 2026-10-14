@@ -19,6 +19,7 @@ import {
   normalizePermissionName,
 } from "@/lib/permissions/permissionPayload"
 import { getPermissionToolPresentation } from "./PermissionCardTools"
+import { withTimeout } from "@/lib/asyncTimeout"
 
 const PERMISSION_BASH_CUSTOM_STYLE: React.CSSProperties = {
   margin: 0,
@@ -72,6 +73,9 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
   // cannot protect against (setState is async, so two rapid clicks can both
   // read isResponding=false before either sets it to true). The TUI uses the
   // same pattern via a SolidJS store `submitting` flag.
+  // A reply that stalls past this leaves the card usable again with an error
+  // instead of locked forever.
+  const PERMISSION_REPLY_TIMEOUT_MS = 20_000
   const submittingRef = React.useRef(false)
   // Tracks unmount so we don't call setState on an unmounted component if
   // the API call resolves after the card is removed from the DOM.
@@ -98,7 +102,16 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
     setIsResponding(true)
 
     try {
-      await respondToPermission(permission.sessionID, permission.id, response)
+      // The reply waits for a connection and then for the runtime. Bound it so a
+      // stalled request cannot leave the card locked (`submittingRef` was never
+      // reset on a promise that never settled, so neither button worked again).
+      await withTimeout(
+        respondToPermission(permission.sessionID, permission.id, response),
+        PERMISSION_REPLY_TIMEOUT_MS,
+        () => {
+          throw new Error("Timed out sending the permission response")
+        },
+      )
       if (unmountedRef.current) return
       setHasResponded(true)
       onResponse?.(response)

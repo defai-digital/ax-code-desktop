@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 
 import type { RuntimeAPIs } from "../api/types"
-import { axCodeClient, formatPromptSendError, pruneExpiredListDirectoryEntries, resolveDesktopBaseUrl } from "./client"
+import {
+  axCodeClient,
+  formatPromptSendError,
+  isStreamingSdkRequestUrl,
+  pruneExpiredListDirectoryEntries,
+  resolveDesktopBaseUrl,
+} from "./client"
 
 afterEach(() => {
   axCodeClient.setDirectory(undefined)
@@ -197,6 +203,35 @@ describe("axCodeClient desktop file operations", () => {
   })
 })
 
+describe("sdk request deadlines", () => {
+  test("classifies only the event feed as a stream", () => {
+    expect(isStreamingSdkRequestUrl("http://127.0.0.1:4096/global/event")).toBe(true)
+    expect(isStreamingSdkRequestUrl("http://127.0.0.1:4096/api/global/event?directory=%2Frepo")).toBe(true)
+    expect(isStreamingSdkRequestUrl("http://127.0.0.1:4096/session/ses_1")).toBe(false)
+    expect(isStreamingSdkRequestUrl("http://127.0.0.1:4096/app/agents")).toBe(false)
+  })
+
+  test("hands every non-streaming SDK request an abort signal", async () => {
+    // Without a deadline a stalled connection left permission replies and list
+    // refreshes pending forever.
+    const originalFetch = globalThis.fetch
+    const signals: Array<AbortSignal | undefined> = []
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      signals.push(init?.signal ?? undefined)
+      return new Response(JSON.stringify([]), { status: 200, headers: { "content-type": "application/json" } })
+    }) as typeof fetch
+
+    try {
+      await axCodeClient.listAgents()
+
+      expect(signals).toHaveLength(1)
+      expect(signals[0]).toBeInstanceOf(AbortSignal)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})
+
 describe("scoped client cache", () => {
   test("evicts the oldest scoped client instead of keeping one per directory forever", () => {
     // Every worktree directory the app ever touched used to keep its client for
@@ -216,12 +251,21 @@ describe("scoped client cache", () => {
 })
 
 describe("withDirectory queue resilience", () => {
-  test("a hung directory-scoped call does not block subsequent calls forever", async () => {
+  test("a hung directory-scoped call fails its waiter instead of running beside it", async () => {
+    // Two contexts must never run at once: `fn` reads the shared current
+    // directory, so a second run would send the first run's remaining requests
+    // to the wrong project. The waiter fails fast instead.
     vi.useFakeTimers()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {
-      // First call never settles (simulates a stalled request that previously
-      // poisoned the shared directory-context queue).
-      const hung = axCodeClient.withDirectory("/a", () => new Promise<string>(() => {}))
+      let resolveHung = () => {}
+      const hung = axCodeClient.withDirectory(
+        "/a",
+        () =>
+          new Promise<string>((resolve) => {
+            resolveHung = () => resolve("first")
+          }),
+      )
       let secondRan = false
       const second = axCodeClient.withDirectory("/b", async () => {
         secondRan = true
@@ -232,12 +276,17 @@ describe("withDirectory queue resilience", () => {
       await Promise.resolve()
       expect(secondRan).toBe(false)
 
-      // The safety timeout (15s) releases the queue so the second call can run.
-      await vi.advanceTimersByTimeAsync(15_001)
-      await expect(second).resolves.toBe("second")
-      expect(secondRan).toBe(true)
-      void hung // intentionally left pending
+      await vi.advanceTimersByTimeAsync(60_001)
+
+      await expect(second).rejects.toThrow(/Timed out waiting for another directory-scoped request/)
+      expect(secondRan).toBe(false)
+
+      // Once the stalled call finally settles the context is free again.
+      resolveHung()
+      await hung
+      await expect(axCodeClient.withDirectory("/c", async () => "third")).resolves.toBe("third")
     } finally {
+      warn.mockRestore()
       vi.useRealTimers()
       axCodeClient.setDirectory(undefined)
     }
