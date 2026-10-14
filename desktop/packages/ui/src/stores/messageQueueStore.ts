@@ -58,6 +58,18 @@ const DISPATCH_CLAIM_PREFIX = "oc.queue.dispatch."
 // its storage event, short enough that a stale claim cannot block a real retry.
 const DISPATCH_CLAIM_TTL_MS = 60_000
 
+// One token per claim call: the claim writes its own token and only wins when
+// reading that token back. Two windows racing the same entry therefore cannot
+// both win — whoever writes last is the one that reads its own token, and the
+// loser skips the dispatch.
+const claimOwnerToken = (): string => `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
+
+const parseClaimTimestamp = (value: string | null): number | null => {
+  if (value === null) return null
+  const claimedAt = Number(value.split(":", 1)[0])
+  return Number.isFinite(claimedAt) ? claimedAt : null
+}
+
 /**
  * Cross-window claim for one queued entry. Both windows can see the same busy → idle
  * edge and each would dispatch the entry; the first to claim it sends, the other
@@ -72,16 +84,20 @@ export const claimQueuedDispatch = (messageId: string): boolean => {
     for (let index = 0; index < storage.length; index += 1) {
       const key = storage.key(index)
       if (!key || !key.startsWith(DISPATCH_CLAIM_PREFIX)) continue
-      const claimedAt = Number(storage.getItem(key))
-      if (!Number.isFinite(claimedAt) || now - claimedAt >= DISPATCH_CLAIM_TTL_MS) expired.push(key)
+      const claimedAt = parseClaimTimestamp(storage.getItem(key))
+      if (claimedAt === null || now - claimedAt >= DISPATCH_CLAIM_TTL_MS) expired.push(key)
     }
     for (const key of expired) storage.removeItem(key)
 
     const key = `${DISPATCH_CLAIM_PREFIX}${messageId}`
-    const existing = storage.getItem(key)
-    if (existing !== null && now - Number(existing) < DISPATCH_CLAIM_TTL_MS) return false
-    storage.setItem(key, String(now))
-    return true
+    const claimedAt = parseClaimTimestamp(storage.getItem(key))
+    if (claimedAt !== null && now - claimedAt < DISPATCH_CLAIM_TTL_MS) return false
+
+    const token = claimOwnerToken()
+    storage.setItem(key, `${now}:${token}`)
+    // Read back: a concurrent claim from another window overwrote our token, so
+    // this window must not send the entry as well.
+    return storage.getItem(key) === `${now}:${token}`
   } catch {
     // Storage unavailable: behave as before (single-window assumption).
     return true

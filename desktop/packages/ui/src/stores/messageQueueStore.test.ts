@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   MESSAGE_QUEUE_MAX_PER_SESSION,
   claimQueuedDispatch,
@@ -58,6 +58,30 @@ describe("messageQueueStore", () => {
     expect(claimQueuedDispatch("queued-3")).toBe(true)
     // The stale key was replaced by the fresh claim, not duplicated.
     expect(window.localStorage.getItem("oc.queue.dispatch.queued-3")).not.toBeNull()
+  })
+
+  it("loses the claim when another window overwrites the record right after the write", () => {
+    // The claim is check-then-set, so the losing interleaving is: our write lands,
+    // the other window's write lands after it. Reading the record back and
+    // requiring our own owner token is what makes the last writer win.
+    const original = window.localStorage.setItem.bind(window.localStorage)
+    const spy = vi.spyOn(window.localStorage, "setItem").mockImplementation((key, value) => {
+      original(key, value)
+      if (typeof key === "string" && key.startsWith("oc.queue.dispatch.")) {
+        original(key, `${Date.now()}:another-window`)
+      }
+    })
+
+    try {
+      expect(claimQueuedDispatch("queued-race")).toBe(false)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it("treats a claim written without a token (older build) as expired", () => {
+    window.localStorage.setItem("oc.queue.dispatch.queued-legacy", "not-a-timestamp")
+    expect(claimQueuedDispatch("queued-legacy")).toBe(true)
   })
 
   it("rehydrates from another window's storage write", () => {

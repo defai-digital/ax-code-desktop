@@ -256,6 +256,17 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         return
       }
 
+      // Mint and persist the retry id BEFORE claiming: the cross-window claim is
+      // not atomic (and storage may be unavailable), so two windows can still
+      // dispatch the same entry — sharing one persisted id makes that duplicate
+      // send idempotent on the server instead of delivering the prompt twice.
+      // Minting it here rather than at queue time keeps the id in transcript
+      // order, since the store renders messages by id.
+      const messageId = payload.messageId ?? ascendingId("msg")
+      if (!payload.messageId) {
+        useMessageQueueStore.getState().assignMessageId(sessionId, payload.queuedMessageId, messageId)
+      }
+
       // Another window may be reacting to the same busy -> idle edge with the same
       // entry in its own copy of the shared queue; only the claim owner sends it.
       // Claimed before the in-flight mark so a lost claim leaves no state behind —
@@ -265,15 +276,6 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       }
 
       inFlightSessionsRef.current.add(sessionId)
-
-      // A retry id is minted here, at the first attempt, and stored on the entry: later
-      // attempts (a restored failure, a retry after an ambiguous send) reuse it so the
-      // server deduplicates them. Minting it here rather than at queue time keeps the
-      // id in transcript order, since the store renders messages by id.
-      const messageId = payload.messageId ?? ascendingId("msg")
-      if (!payload.messageId) {
-        useMessageQueueStore.getState().assignMessageId(sessionId, payload.queuedMessageId, messageId)
-      }
 
       // Take the entry out before the send: the chip stays interactive while the
       // prompt is in flight, and sending it by hand would deliver it twice.

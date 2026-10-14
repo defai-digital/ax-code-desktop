@@ -106,7 +106,8 @@ const {
   useQueuedMessageAutoSend,
 } = await import("./useQueuedMessageAutoSend")
 const { useSyncNotificationStore } = await import("@/sync/notification-store")
-const { useMessageQueueStore, claimQueuedDispatch } = await import("@/stores/messageQueueStore")
+const { useMessageQueueStore, claimQueuedDispatch, releaseQueuedDispatchClaim } =
+  await import("@/stores/messageQueueStore")
 
 describe("shouldDispatchQueuedAutoSend", () => {
   test("dispatches only after an active session becomes idle", () => {
@@ -542,6 +543,38 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  test("pins the retry id on the entry even when the claim is lost", async () => {
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+    const [claimed] = useMessageQueueStore.getState().getQueueForSession("session-a")
+    // Another window owns the entry; this one must not send it.
+    expect(claimQueuedDispatch(claimed.id)).toBe(true)
+
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+
+    expect(sendMessageCalls).toHaveLength(0)
+    // The retry id is persisted before the claim, so if the other window (or a
+    // later retry here) dispatches the entry again it sends the SAME id and the
+    // server deduplicates instead of delivering the prompt twice.
+    const [after] = useMessageQueueStore.getState().getQueueForSession("session-a")
+    expect(after.messageId).toMatch(/^msg_/)
+
+    releaseQueuedDispatchClaim(claimed.id)
+    statusState.current = { "session-a": { type: "busy" } }
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+
+    expect(sendMessageCalls).toHaveLength(1)
+    expect(sendOptionsOf(0).messageId).toBe(after.messageId)
   })
 
   test("a lost cross-window claim does not wedge the session's auto-send", async () => {
