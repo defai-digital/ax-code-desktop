@@ -92,6 +92,16 @@ describe("ax-code plugins data layer", () => {
     expect(readJson(path.join(projectDir, ".ax-code", "ax-code.json")).plugin).toEqual(["project-plugin"])
   })
 
+  test("writes project entries into the root project config when one exists", () => {
+    const rootConfigPath = path.join(projectDir, "ax-code.json")
+    writeJson(rootConfigPath, { plugin: ["existing-plugin"] })
+
+    plugins.createPluginEntry({ spec: "project-plugin", scope: "project" }, projectDir)
+
+    expect(readJson(rootConfigPath).plugin).toEqual(["existing-plugin", "project-plugin"])
+    expect(plugins.listPluginEntries(projectDir).map((entry) => entry.spec)).toContain("project-plugin")
+  })
+
   test("re-resolves custom config env between calls", () => {
     const firstConfigPath = path.join(rootDir, "first", "ax-code.json")
     const secondConfigPath = path.join(rootDir, "second", "ax-code.json")

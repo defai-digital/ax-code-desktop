@@ -158,9 +158,10 @@ function getProjectConfigPath(workingDirectory) {
 }
 
 function ensureProjectConfigPath(workingDirectory) {
-  const configDir = path.join(workingDirectory, ".ax-code")
-  fs.mkdirSync(configDir, { recursive: true })
-  return path.join(configDir, "ax-code.json")
+  const existingPath = getProjectConfigCandidates(workingDirectory).find((candidate) => fs.existsSync(candidate))
+  const targetPath = existingPath || path.join(workingDirectory, ".ax-code", "ax-code.json")
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+  return targetPath
 }
 
 function resolveAxCodeConfigDir(customConfigFile = CUSTOM_CONFIG_FILE) {
