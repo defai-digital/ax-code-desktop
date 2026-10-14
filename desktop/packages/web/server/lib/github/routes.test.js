@@ -58,6 +58,25 @@ describe("github routes", () => {
     expect(clearGitHubAuth).not.toHaveBeenCalled()
   })
 
+  it("caps branch pagination at a bounded number of pages", async () => {
+    // An unbounded loop meant one request paid hundreds of sequential, now-timeboxed
+    // API calls for a repo with thousands of branches.
+    const listBranches = vi.fn(async () => ({
+      data: Array.from({ length: 100 }, (_, i) => ({ name: `branch-${i}` })),
+    }))
+    const { getOctokitOrNull } = await import("./index.js")
+    getOctokitOrNull.mockReturnValueOnce({ rest: { repos: { listBranches } } })
+
+    const app = createApp()
+    const response = await request(app)
+      .get("/api/github/repo/branches")
+      .query({ owner: "owner", repo: "repo" })
+      .expect(200)
+
+    expect(response.body.branches).toHaveLength(2000)
+    expect(listBranches).toHaveBeenCalledTimes(20)
+  })
+
   it("marks the cached user as stale when the live lookup fails", async () => {
     // A network or GitHub failure keeps the credentials but must not silently stand in
     // as a live account: the route now says so.
