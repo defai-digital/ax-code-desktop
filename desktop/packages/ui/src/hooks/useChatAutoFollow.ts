@@ -135,18 +135,26 @@ export const useChatAutoFollow = ({
   activityRenderModeRef.current = activityRenderMode
   const sessionIsWorkingRef = React.useRef(sessionIsWorking)
   sessionIsWorkingRef.current = sessionIsWorking
-  // Returning to the bottom re-arms following without re-stopping at this section.
-  const followedTurnStopsRef = React.useRef(new WeakSet<Element>())
+  // Keyed by turn id, not by element: React reuses the tail section node for the next
+  // turn (only `data-turn-id` changes), so an element-keyed latch stopped the follow
+  // for the first turn of a session and never again.
+  const followedTurnStopsRef = React.useRef(new Set<string>())
   // Whether a turn may stop the follow, decided when the follow first meets it:
   // only a turn whose start the reader saw (at or below the viewport top) when
   // it appeared. Opening a session onto a long finished turn never stops.
-  const followStopEligibilityRef = React.useRef(new WeakMap<Element, boolean>())
+  const followStopEligibilityRef = React.useRef(new Map<string, boolean>())
 
   const stateRef = React.useRef<AutoFollowState>("following")
   const sessionMessageCountRef = React.useRef(sessionMessageCount)
   sessionMessageCountRef.current = sessionMessageCount
   const currentSessionIdRef = React.useRef(currentSessionId)
   currentSessionIdRef.current = currentSessionId
+
+  React.useEffect(() => {
+    // Turn ids are session-scoped; dropping the latches on a switch keeps them bounded.
+    followedTurnStopsRef.current.clear()
+    followStopEligibilityRef.current.clear()
+  }, [currentSessionId])
 
   const lastSessionIdRef = React.useRef<string | null>(null)
   const programmaticWriteUntilRef = React.useRef(0)
@@ -222,31 +230,34 @@ export const useChatAutoFollow = ({
     const bottomTarget = Math.max(0, container.scrollHeight - container.clientHeight)
     let target = bottomTarget
     let stoppedAtTurn: Element | null = null
+    let stoppedAtTurnKey: string | null = null
     if (activityRenderModeRef.current === "collapsed" && sessionIsWorkingRef.current) {
       const turns = container.querySelectorAll("section[data-turn-id]")
       const lastTurn = turns.item(turns.length - 1)
-      if (lastTurn && !followedTurnStopsRef.current.has(lastTurn)) {
+      const turnKey = lastTurn?.getAttribute("data-turn-id") ?? null
+      if (lastTurn && turnKey && !followedTurnStopsRef.current.has(turnKey)) {
         // Keep the reader's message at the viewport top while activity is compact.
         const containerTop = container.getBoundingClientRect().top
         const turnTop = lastTurn.getBoundingClientRect().top - containerTop + container.scrollTop
         const eligibility = followStopEligibilityRef.current
-        if (!eligibility.has(lastTurn)) eligibility.set(lastTurn, container.scrollTop <= turnTop + 1)
-        if (eligibility.get(lastTurn) === true) {
+        if (!eligibility.has(turnKey)) eligibility.set(turnKey, container.scrollTop <= turnTop + 1)
+        if (eligibility.get(turnKey) === true) {
           target = Math.min(target, Math.max(0, turnTop))
           stoppedAtTurn = turnTop <= bottomTarget ? lastTurn : null
+          stoppedAtTurnKey = stoppedAtTurn ? turnKey : null
         }
       }
     }
     const current = container.scrollTop
     const delta = target - current
 
-    if (stoppedAtTurn && Math.abs(delta) <= SETTLE_EPSILON) {
+    if (stoppedAtTurn && stoppedAtTurnKey && Math.abs(delta) <= SETTLE_EPSILON) {
       if (current !== target) {
         markProgrammaticWrite()
         container.scrollTop = target
         lastScrollTopRef.current = target
       }
-      followedTurnStopsRef.current.add(stoppedAtTurn)
+      followedTurnStopsRef.current.add(stoppedAtTurnKey)
       releaseFromFollowStopRef.current()
       return
     }
