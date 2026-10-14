@@ -125,6 +125,7 @@ export function registerGitHubRoutes(app) {
       }
 
       let user = null
+      let staleUser = false
       try {
         user = await getGitHubUserSummary(octokit)
       } catch (error) {
@@ -135,6 +136,10 @@ export function registerGitHubRoutes(app) {
           await clearGitHubAccountScopedCaches()
           return res.json({ connected: false, accounts: getGitHubAuthAccounts() })
         }
+        // A non-auth failure (network, a GitHub 5xx, a rate limit) keeps the
+        // credentials, so the stored snapshot must be reported as stale rather than
+        // silently standing in for a live account.
+        staleUser = true
       }
 
       const fallback = auth.user
@@ -145,6 +150,7 @@ export function registerGitHubRoutes(app) {
         user: mergedUser,
         scope: auth.scope,
         accounts,
+        ...(staleUser ? { stale: true } : {}),
       })
     } catch (error) {
       console.error("Failed to get GitHub auth status:", error)

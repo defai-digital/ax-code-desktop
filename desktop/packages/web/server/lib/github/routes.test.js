@@ -58,6 +58,31 @@ describe("github routes", () => {
     expect(clearGitHubAuth).not.toHaveBeenCalled()
   })
 
+  it("marks the cached user as stale when the live lookup fails", async () => {
+    // A network or GitHub failure keeps the credentials but must not silently stand in
+    // as a live account: the route now says so.
+    const { getGitHubAuth, getOctokitOrNull, clearGitHubAuth } = await import("./index.js")
+    getGitHubAuth.mockReturnValueOnce({ accessToken: "tok", user: { login: "alice" }, scope: "repo" })
+    getOctokitOrNull.mockReturnValueOnce({
+      rest: {
+        users: {
+          getAuthenticated: vi.fn(async () => {
+            throw new Error("network unreachable")
+          }),
+          listEmailsForAuthenticatedUser: vi.fn(async () => ({ data: [] })),
+        },
+      },
+    })
+
+    const app = createApp()
+    const response = await request(app).get("/api/github/auth/status").expect(200)
+
+    expect(response.body.connected).toBe(true)
+    expect(response.body.stale).toBe(true)
+    expect(response.body.user).toEqual({ login: "alice" })
+    expect(clearGitHubAuth).not.toHaveBeenCalled()
+  })
+
   it("clears stored credentials on a 401", async () => {
     const { getGitHubAuth, getOctokitOrNull, clearGitHubAuth } = await import("./index.js")
     getGitHubAuth.mockReturnValueOnce({ accessToken: "tok", user: { login: "alice" }, scope: "repo" })
