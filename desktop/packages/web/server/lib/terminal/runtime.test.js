@@ -9,6 +9,7 @@ import {
   createTerminalRuntime,
   isTerminalOutputClientStalled,
   observeTerminalShellStartup,
+  sanitizeTerminalEnv,
 } from "./runtime.js"
 import { createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
 
@@ -339,5 +340,24 @@ describe("terminal output backpressure", () => {
     expect(isTerminalOutputClientStalled({ bufferedAmount: TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES })).toBe(false)
     // A stalled client must be disconnected instead of buffering pty output forever.
     expect(isTerminalOutputClientStalled({ bufferedAmount: TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES + 1 })).toBe(true)
+  })
+})
+
+
+describe("terminal shell env", () => {
+  it("drops secrets and the unpaired embedded-browser marker", () => {
+    const env = sanitizeTerminalEnv({
+      PATH: "/usr/bin",
+      AX_CODE_SERVER_PASSWORD: "secret",
+      AX_CODE_BROWSER_MODE: "embedded",
+      BASH_ENV: "/tmp/env",
+    })
+
+    expect(env.PATH).toBe("/usr/bin")
+    expect(env.AX_CODE_SERVER_PASSWORD).toBeUndefined()
+    // The token that pairs with the marker only exists in the runtime's own env; a
+    // child inheriting the marker alone can use neither browser path.
+    expect(env.AX_CODE_BROWSER_MODE).toBeUndefined()
+    expect(env.BASH_ENV).toBeUndefined()
   })
 })

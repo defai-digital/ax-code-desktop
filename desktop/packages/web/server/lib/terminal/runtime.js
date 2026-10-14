@@ -78,6 +78,22 @@ export const TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES = 16 * 1024 * 1024
 export const isTerminalOutputClientStalled = (socket, maxBufferedBytes = TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES) =>
   typeof socket?.bufferedAmount === "number" && socket.bufferedAmount > maxBufferedBytes
 
+/**
+ * Env for a terminal shell: drop secrets, and drop the embedded-browser marker —
+ * the token that pairs with it only exists in the runtime's own env, so a child
+ * that inherits the marker alone gets a runtime where both the project browser
+ * (403, no token) and the Chrome bridge (embedded mode blocks it) are unusable.
+ */
+export const sanitizeTerminalEnv = (env) => {
+  const next = { ...env }
+  delete next.BASH_XTRACEFD
+  delete next.BASH_ENV
+  delete next.ENV
+  delete next.AX_CODE_SERVER_PASSWORD
+  delete next.AX_CODE_BROWSER_MODE
+  return next
+}
+
 export function createTerminalRuntime({
   app,
   server,
@@ -245,15 +261,6 @@ export function createTerminalRuntime({
   const MAX_TERMINAL_SESSIONS = 20
   const TERMINAL_IDLE_TIMEOUT = 30 * 60 * 1000
   const terminalRuntimeName = "node"
-  const sanitizeTerminalEnv = (env) => {
-    const next = { ...env }
-    delete next.BASH_XTRACEFD
-    delete next.BASH_ENV
-    delete next.ENV
-    delete next.AX_CODE_SERVER_PASSWORD
-    return next
-  }
-
   const resolveAllowedCwd = async (req, cwd) => {
     if (typeof validateCwd !== "function") {
       return { ok: true, cwd }

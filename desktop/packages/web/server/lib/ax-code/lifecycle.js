@@ -490,8 +490,11 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     )
 
     // Strip AX_CODE_SERVER_PASSWORD from the env spread — the SDK sets it from
-    // auth.password, so passing it twice is confusing and redundant.
-    const { AX_CODE_SERVER_PASSWORD: _pass, ...sdkEnv } = processEnv ?? {}
+    // auth.password, so passing it twice is confusing and redundant. Also strip the
+    // embedded-browser marker: its token lives only in the supervised runtime's env,
+    // so inheriting the marker alone leaves the runtime with neither the project
+    // browser (403, no token) nor the Chrome bridge (embedded mode blocks it).
+    const { AX_CODE_SERVER_PASSWORD: _pass, AX_CODE_BROWSER_MODE: _browserMode, ...sdkEnv } = processEnv ?? {}
 
     let handle
     try {
