@@ -313,3 +313,27 @@ describe("session-ui-store attachments", () => {
     })
   })
 })
+
+describe("session abort flags lifecycle", () => {
+  beforeEach(() => {
+    useSessionUIStore.setState({ sessionAbortFlags: new Map() })
+  })
+
+  test("markSessionAborted records an unacknowledged flag that acknowledgeSessionAbort consumes", () => {
+    useSessionUIStore.getState().markSessionAborted("session-x")
+
+    const record = useSessionUIStore.getState().sessionAbortFlags.get("session-x")
+    expect(record?.acknowledged).toBe(false)
+    expect(typeof record?.timestamp).toBe("number")
+
+    useSessionUIStore.getState().acknowledgeSessionAbort("session-x")
+    expect(useSessionUIStore.getState().sessionAbortFlags.get("session-x")?.acknowledged).toBe(true)
+  })
+
+  test("markSessionAborted ignores an empty session id; acknowledging an unknown session is a no-op", () => {
+    useSessionUIStore.getState().markSessionAborted("")
+    useSessionUIStore.getState().acknowledgeSessionAbort("session-absent")
+
+    expect(useSessionUIStore.getState().sessionAbortFlags.size).toBe(0)
+  })
+})

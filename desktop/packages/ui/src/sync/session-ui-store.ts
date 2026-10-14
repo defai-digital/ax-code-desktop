@@ -342,6 +342,7 @@ type SessionUIState = {
   ) => void
   setDraftPreserveDirectoryOverride: (value: boolean) => void
   acknowledgeSessionAbort: (sessionId: string) => void
+  markSessionAborted: (sessionId: string) => void
   clearAbortPrompt: () => void
   armAbortPrompt: (durationMs?: number) => number | null
   clearError: () => void
@@ -748,6 +749,15 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       return { sessionAbortFlags: flags }
     }),
 
+  markSessionAborted: (sessionId) => {
+    if (!sessionId) return
+    set((s) => {
+      const flags = new Map(s.sessionAbortFlags)
+      flags.set(sessionId, { timestamp: Date.now(), acknowledged: false })
+      return { sessionAbortFlags: flags }
+    })
+  },
+
   clearAbortPrompt: () => set({ abortPromptSessionId: null, abortPromptExpiresAt: null }),
 
   armAbortPrompt: (durationMs = 5000) => {
@@ -914,6 +924,10 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       const map = new Map(get().pendingChangesBarDismissed)
       map.delete(sid)
       set({ pendingChangesBarDismissed: map })
+      // A new user turn supersedes the recorded abort: the status row stops
+      // showing "Aborted" and the working indicator re-arms. No-op when the
+      // session has no abort flag.
+      get().acknowledgeSessionAbort(sid)
     }
 
     const draft = get().newSessionDraft

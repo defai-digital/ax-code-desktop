@@ -9,6 +9,7 @@ const replyCalls: Array<{ method: string; params: Record<string, unknown> }> = [
 const createSessionCalls: Array<{ client: "scoped" | "global"; params: Record<string, unknown> }> = []
 const sessionCalls: Array<{ method: string; params: Record<string, unknown> }> = []
 const setCurrentSessionMock = vi.fn()
+const markSessionAbortedMock = vi.fn()
 const upsertSessionMock = vi.fn()
 const removeSessionsMock = vi.fn()
 const registeredSessionDirectories: Array<{ sessionID: string; directory: string }> = []
@@ -251,6 +252,7 @@ vi.doMock("./session-ui-store", () => ({
         return null
       },
       setCurrentSession: setCurrentSessionMock,
+      markSessionAborted: markSessionAbortedMock,
     }),
   },
 }))
@@ -1778,6 +1780,24 @@ describe("abortCurrentOperation", () => {
     expect(sessionCalls).toEqual([
       { method: "session.abort", params: { sessionID: "session-b", directory: "/other/project" } },
     ])
+    // A user-initiated abort records the flag that holds the queued-message
+    // auto-send across the abort's busy -> idle edge.
+    expect(markSessionAbortedMock).toHaveBeenCalledWith("session-b")
+  })
+
+  test("does not mark an abort flag for an empty session id", async () => {
+    const childStores = createChildStores([["/test/project", createStore({})]])
+    const { abortCurrentOperation, setActionRefs } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      childStores,
+      () => "/test/project",
+    )
+    markSessionAbortedMock.mockClear()
+
+    await abortCurrentOperation("")
+
+    expect(markSessionAbortedMock).not.toHaveBeenCalled()
   })
 })
 

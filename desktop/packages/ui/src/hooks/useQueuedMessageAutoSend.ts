@@ -206,6 +206,7 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
 
   const inFlightSessionsRef = React.useRef<Set<string>>(new Set())
   const previousStatusRef = React.useRef<Map<string, SessionStatusType>>(new Map())
+  const abortWakeupTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   React.useEffect(() => {
     if (!enabled) {
@@ -335,5 +336,48 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
     }
 
     previousStatusRef.current = nextStatusMap
+
+    // A recent-abort hold expires on a clock, not on a store transition:
+    // without a wake-up, the armed edge would wait for an unrelated status
+    // change to be spent and the queued message would sit stranded. Schedule
+    // one pass at the earliest window lapse; at fire time only sessions whose
+    // edge is still armed and whose window has lapsed are dispatched (the
+    // dispatch path re-checks every other deferral itself).
+    if (abortWakeupTimerRef.current) {
+      clearTimeout(abortWakeupTimerRef.current)
+      abortWakeupTimerRef.current = null
+    }
+    let wakeupInMs: number | null = null
+    for (const [sessionId, queue] of Object.entries(queuedMessages)) {
+      if (queue.length === 0 || sessionIdsToDispatch.includes(sessionId)) continue
+      const baseline = previousStatusRef.current.get(sessionId)
+      if (baseline !== "busy" && baseline !== "retry") continue
+      const abortRecord = useSessionUIStore.getState().sessionAbortFlags.get(sessionId)
+      if (!abortRecord) continue
+      const remaining = abortRecord.timestamp + RECENT_ABORT_WINDOW_MS - Date.now()
+      if (remaining <= 0) continue
+      wakeupInMs = wakeupInMs === null ? remaining : Math.min(wakeupInMs, remaining)
+    }
+    if (wakeupInMs !== null) {
+      abortWakeupTimerRef.current = setTimeout(() => {
+        abortWakeupTimerRef.current = null
+        const now = Date.now()
+        for (const [sessionId, queue] of Object.entries(useMessageQueueStore.getState().queuedMessages)) {
+          if (queue.length === 0) continue
+          const baseline = previousStatusRef.current.get(sessionId)
+          if (baseline !== "busy" && baseline !== "retry") continue
+          const abortRecord = useSessionUIStore.getState().sessionAbortFlags.get(sessionId)
+          if (!abortRecord || now - abortRecord.timestamp < RECENT_ABORT_WINDOW_MS) continue
+          void dispatchSessionQueue(sessionId, queue)
+        }
+      }, wakeupInMs + 25)
+    }
+
+    return () => {
+      if (abortWakeupTimerRef.current) {
+        clearTimeout(abortWakeupTimerRef.current)
+        abortWakeupTimerRef.current = null
+      }
+    }
   }, [enabled, queuedMessages, sessionStatusRecord, unseenErrorBySession])
 }

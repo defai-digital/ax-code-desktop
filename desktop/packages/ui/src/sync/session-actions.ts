@@ -922,6 +922,13 @@ export async function abortCurrentOperation(sessionId: string): Promise<void> {
   // run continues, and the runtime answers an abort for a foreign project with
   // a 409 that leaves the run going.
   const directory = getSessionDirectory(sessionId)
+  // Record the user-initiated stop before the call: the busy -> idle edge it
+  // produces must not immediately fire the queued-message auto-send, and the
+  // status row shows the aborted state until the next user message
+  // (acknowledged in sendMessage) re-arms the working indicator.
+  if (sessionId) {
+    useSessionUIStore.getState().markSessionAborted(sessionId)
+  }
   try {
     await sdk().session.abort({ sessionID: sessionId, directory })
   } catch (error) {

@@ -18,6 +18,9 @@ const _mockSUIState: { currentSessionId: string | null; worktreeMetadata: Map<st
   worktreeMetadata: new Map(),
 }
 
+// Stable map so tests can seed abort records that hasRecentAbort can read.
+const mockSessionAbortFlags = new Map<string, { timestamp: number; acknowledged: boolean }>()
+
 vi.doMock("@/stores/useConfigStore", () => ({
   useConfigStore: {
     getState: () => ({}),
@@ -47,7 +50,7 @@ vi.doMock("@/sync/session-ui-store", () => ({
         sendMessageCalls.push(args)
         return sendShouldFail ? Promise.reject(new Error("send failed")) : Promise.resolve()
       },
-      sessionAbortFlags: new Map<string, boolean>(),
+      sessionAbortFlags: mockSessionAbortFlags,
       currentSessionId: _mockSUIState.currentSessionId,
       worktreeMetadata: _mockSUIState.worktreeMetadata,
       getDirectoryForSession: (sessionId: string): string | null => {
@@ -367,6 +370,7 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     sendMessageCalls.length = 0
     sendShouldFail = false
     toastErrorMock.mockClear()
+    mockSessionAbortFlags.clear()
     statusState.current = { "session-a": { type: "busy" } }
     useMessageQueueStore.setState({ queuedMessages: {} })
     useSyncNotificationStore.setState({
@@ -509,6 +513,35 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     // instead of console-only.
     expect(toastErrorMock).toHaveBeenCalledWith("chat.queuedMessage.sendFailed", { id: "queued-auto-send-failed" })
     expect(useMessageQueueStore.getState().getQueueForSession("session-a")).toHaveLength(1)
+  })
+
+  test("a recent abort holds the queue, and the wake-up sends once the window lapses", async () => {
+    vi.useFakeTimers()
+    try {
+      useMessageQueueStore.getState().addToQueue("session-a", {
+        content: "queued message",
+        sendConfig: { providerID: "provider-1", modelID: "model-1" },
+      })
+      // The user aborted the running turn just now (Esc/Esc): the busy -> idle
+      // edge it produces must not fire the queue right away.
+      mockSessionAbortFlags.set("session-a", { timestamp: Date.now(), acknowledged: false })
+
+      render()
+      statusState.current = { "session-a": { type: "idle" } }
+      render()
+      await React.act(async () => {})
+      expect(sendMessageCalls).toHaveLength(0)
+
+      // The window lapses on a clock; the scheduled wake-up spends the armed
+      // edge instead of stranding the entry until an unrelated status change.
+      await React.act(async () => {
+        await vi.advanceTimersByTimeAsync(2100)
+      })
+      expect(sendMessageCalls).toHaveLength(1)
+      expect(sendMessageCalls[0][0]).toBe("queued message")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   test("a lost cross-window claim does not wedge the session's auto-send", async () => {
