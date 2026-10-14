@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 const { updateDesktopSettings } = vi.hoisted(() => ({
-  updateDesktopSettings: vi.fn((_changes: Record<string, unknown>) => Promise.resolve()),
+  updateDesktopSettings: vi.fn<(changes: Record<string, unknown>) => Promise<void>>(async () => {}),
 }))
 
 vi.mock("@/lib/persistence", () => ({ updateDesktopSettings }))

@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from "vitest"
 import type { AxCodeClient, PermissionRequest, QuestionRequest } from "@defai-digital/ax-code-sdk/v2/client"
 
 const { wasPromptRecentlyAcceptedMock } = vi.hoisted(() => ({
-  wasPromptRecentlyAcceptedMock: vi.fn((_sessionId: string) => false),
+  wasPromptRecentlyAcceptedMock: vi.fn<(sessionId: string) => boolean>(() => false),
 }))
 
 vi.mock("./session-actions", () => ({
