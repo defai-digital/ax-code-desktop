@@ -12,7 +12,7 @@
       "base": "#528BFF",
       "hover": "#73A0FE",
       "active": "#4879DC",
-      "foreground": "#F5F6F8",
+      "foreground": "#212631",
       "muted": "#528BFF80",
       "emphasis": "#73A0FE"
     },

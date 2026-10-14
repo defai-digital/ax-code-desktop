@@ -429,10 +429,13 @@ export const HistoryCommitRow = React.memo(
                           key={badge.label}
                           className={cn(
                             "inline-flex items-center px-1.5 py-0 typography-micro rounded font-medium",
+                            // Chart colours are not the primary colour, so the
+                            // primary foreground can be unreadable on them; the
+                            // canvas colour reads best across bundled themes.
                             badge.isHead
-                              ? "bg-[var(--chart-1)] text-[var(--primary-foreground)]"
+                              ? "bg-[var(--chart-1)] text-[var(--background)]"
                               : badge.isTag
-                                ? "bg-[var(--chart-5)] text-[var(--primary-foreground)]"
+                                ? "bg-[var(--chart-5)] text-[var(--background)]"
                                 : "bg-[var(--interactive-hover)] text-[var(--foreground)]",
                           )}
                         >
