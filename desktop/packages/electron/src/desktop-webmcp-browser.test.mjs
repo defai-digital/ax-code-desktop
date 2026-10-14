@@ -221,6 +221,26 @@ describe("native project browser integration", () => {
     await closing
   })
 
+  it("revokes agent access when the page adapter dies", async () => {
+    // A debugger detach, a renderer crash or an unusable catalog leaves the
+    // adapter unable to run any call. Keeping the provider enrolled made every
+    // later agent call time out as unconfirmed instead of failing with the
+    // "enable the project browser" reason.
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    expect((await f.controller.command(sender, { action: "status", id: status.id })).enabled).toBe(true)
+
+    f.guests.at(-1).debugger.emit("detach")
+
+    await vi.waitFor(() => {
+      expect(f.requests.some((request) => request.method === "DELETE")).toBe(true)
+    })
+    const after = await f.controller.command(sender, { action: "status", id: status.id })
+    expect(after.nativeAvailable).toBe(false)
+    expect(after.enabled).toBe(false)
+  })
+
   it("reconciles the tool catalog with the runtime when enrollment completes", async () => {
     // A change that lands while enrollment is in flight is dropped (synchronize
     // only pushes with a live connection), so enrollment reconciles once: the

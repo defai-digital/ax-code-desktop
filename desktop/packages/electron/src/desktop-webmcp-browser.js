@@ -253,6 +253,15 @@ function createDesktopWebMcpBrowser({
         syncing: Promise.resolve(),
       }
       entry.adapter = new NativeWebMcp(view.webContents, () => {
+        // A dead adapter (debugger detach, renderer crash, unusable catalog) can no
+        // longer run a single call, so agent access must be revoked: syncing an
+        // empty catalog would leave the runtime holding a live provider and turn
+        // every later call into an unconfirmed timeout. The connection check keeps
+        // disconnect's own revoke (which re-enters here) from recursing.
+        if (!entry.closed && !entry.adapter.available) {
+          if (entry.connection) void disconnect(entry)
+          return
+        }
         entry.syncing = entry.syncing.then(() => synchronize(entry))
       })
       entry.onOwnerClosed = () => {
