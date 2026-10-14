@@ -910,8 +910,13 @@ export async function optimisticSend(input: {
 // ---------------------------------------------------------------------------
 
 export async function abortCurrentOperation(sessionId: string): Promise<void> {
+  // Every other session call resolves the session's own directory; the current
+  // one belongs to another project whenever the user switched projects while a
+  // run continues, and the runtime answers an abort for a foreign project with
+  // a 409 that leaves the run going.
+  const directory = getSessionDirectory(sessionId)
   try {
-    await sdk().session.abort({ sessionID: sessionId, directory: dir() })
+    await sdk().session.abort({ sessionID: sessionId, directory })
   } catch (error) {
     console.error("[session-actions] abort failed", error)
   }

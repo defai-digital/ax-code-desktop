@@ -190,6 +190,10 @@ const mockSdk = {
       sessionCalls.push({ method: "session.update", params })
       return Promise.resolve({ data: { id: params.sessionID, directory: params.directory, metadata: params.metadata } })
     }),
+    abort: vi.fn((params: Record<string, unknown>) => {
+      sessionCalls.push({ method: "session.abort", params })
+      return Promise.resolve({ data: true })
+    }),
   },
   permission: {
     reply: vi.fn((params: Record<string, unknown>) => {
@@ -1745,5 +1749,26 @@ describe("optimisticSend: grace-window re-arm prevents false error on same-turn 
       globalThis.setTimeout = originalSetTimeout
       globalThis.clearTimeout = originalClearTimeout
     }
+  })
+})
+
+describe("abortCurrentOperation", () => {
+  test("aborts against the session's own project, not the active one", async () => {
+    const childStores = createChildStores([["/test/project", createStore({})]])
+    const { abortCurrentOperation, setActionRefs } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      childStores,
+      () => "/test/project",
+    )
+
+    // session-b lives in /other/project while the active directory is
+    // /test/project: the runtime rejects an abort for a foreign project with a
+    // 409, so the run would keep going.
+    await abortCurrentOperation("session-b")
+
+    expect(sessionCalls).toEqual([
+      { method: "session.abort", params: { sessionID: "session-b", directory: "/other/project" } },
+    ])
   })
 })
