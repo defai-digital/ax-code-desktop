@@ -10,7 +10,7 @@ const buildSessionMap = (sessions: Session[]): Map<string, Session> => {
   return map
 }
 
-const resolveLineage = (sessionID: string, sessions: Session[]): string[] => {
+export const resolveSessionLineage = (sessionID: string, sessions: Session[]): string[] => {
   const map = buildSessionMap(sessions)
   const result: string[] = []
   const seen = new Set<string>()
@@ -31,7 +31,7 @@ export const autoRespondsPermission = (input: {
   sessionID: string
 }): boolean => {
   const { autoAccept, sessions, sessionID } = input
-  const lineage = resolveLineage(sessionID, sessions)
+  const lineage = resolveSessionLineage(sessionID, sessions)
 
   for (const id of lineage) {
     if (!Object.prototype.hasOwnProperty.call(autoAccept, id)) {

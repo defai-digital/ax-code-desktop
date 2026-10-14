@@ -1,13 +1,18 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
-import { autoRespondsPermission, type PermissionAutoAcceptMap } from "./utils/permissionAutoAccept"
+import {
+  autoRespondsPermission,
+  resolveSessionLineage,
+  type PermissionAutoAcceptMap,
+} from "./utils/permissionAutoAccept"
 import { getSafeStorage } from "./utils/safeStorage"
 import { getAllSyncSessions, getSyncChildStores } from "@/sync/sync-refs"
 import { axCodeClient } from "@/lib/ax-code/client"
-import { respondToPermission } from "@/sync/session-actions"
+import { respondToPermission, waitForConnectionOrThrow } from "@/sync/session-actions"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { API_ENDPOINTS } from "@/lib/http"
+import { createAutoAcceptSync } from "./utils/autoAcceptSync"
 
 interface PermissionState {
   autoAccept: PermissionAutoAcceptMap
@@ -229,6 +234,18 @@ const autoRespondsPermissionBySession = (
 
 const getStorage = () => createJSONStorage(() => getSafeStorage())
 
+// One sync per store instance: it keeps the values the server has not confirmed
+// yet and retries them, so a dropped POST cannot leave the server suppressing
+// notifications for a session the client no longer auto-answers.
+const autoAcceptSync = createAutoAcceptSync({
+  post: (sessionId, enabled) =>
+    fetch(API_ENDPOINTS.notifications.autoAccept, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, enabled }),
+    }),
+})
+
 export const usePermissionStore = create<PermissionStore>()(
   devtools(
     persist(
@@ -278,15 +295,15 @@ export const usePermissionStore = create<PermissionStore>()(
           // Mirror inherited state to the server so it can suppress
           // permission notifications before the client auto-response
           // round-trip. Send known descendants too; server-side
-          // ancestry lookup can lag AX Code session indexing.
+          // ancestry lookup can lag AX Code session indexing. A descendant
+          // with its own explicit setting keeps it: broadcasting the parent's
+          // value to the whole scope made the server suppress notifications for a
+          // session the user had switched OFF.
           for (const scopedSessionId of sessionScope) {
-            void fetch(API_ENDPOINTS.notifications.autoAccept, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sessionId: scopedSessionId, enabled }),
-            }).catch(() => {
-              /* best-effort */
-            })
+            const live = get().autoAccept
+            const hasOwnSetting = Object.prototype.hasOwnProperty.call(live, scopedSessionId)
+            const effective = hasOwnSetting ? live[scopedSessionId] === true : enabled
+            autoAcceptSync.set(scopedSessionId, effective)
           }
 
           if (!enabled) {
@@ -350,16 +367,36 @@ export const usePermissionStore = create<PermissionStore>()(
           }
 
           // The gather above awaits network calls (pending-permission list +
-          // ancestry lookups), so the user may have switched auto-accept back
-          // off while it ran. An enable captured at call time must not keep
-          // auto-approving after that — re-check the live toggle before
-          // responding, per permission, so a mid-flight disable stops the
-          // batch instead of silently granting prompts the user just declined
-          // to auto-grant.
+          // ancestry lookups), and the reply itself waits for a connection, so
+          // the user may have switched auto-accept off in between. Decide from
+          // the live map, per permission, as late as possible: the nearest
+          // ancestor with an explicit setting wins, which is why a descendant
+          // turned OFF is not auto-approved just because its parent is ON.
+          const shouldAutoRespondToPermission = (permissionSessionID: string): boolean => {
+            const live = get().autoAccept
+            if (live[sessionId] !== true) {
+              return false
+            }
+            const lineage = resolveSessionLineage(permissionSessionID, getAllSyncSessions())
+            for (const ancestorId of lineage) {
+              if (!Object.prototype.hasOwnProperty.call(live, ancestorId)) {
+                continue
+              }
+              return live[ancestorId] === true
+            }
+            // Lineage unknown (a descendant the sync snapshot does not know yet):
+            // keep the scope decision that gathered this permission.
+            return true
+          }
+
           await Promise.all(
-            Array.from(mergedPending.values()).map((permission) => {
-              if (get().autoAccept[sessionId] !== true) {
-                return undefined
+            Array.from(mergedPending.values()).map(async (permission) => {
+              // Wait for the connection first so the check below is the last
+              // thing before the reply: respondToPermission would otherwise wait
+              // up to its grace period after the toggle was read.
+              await waitForConnectionOrThrow().catch(() => undefined)
+              if (!shouldAutoRespondToPermission(permission.sessionID)) {
+                return
               }
               return respondToPermission(permission.sessionID, permission.id, "once").catch(() => undefined)
             }),
@@ -414,20 +451,15 @@ export const usePermissionStore = create<PermissionStore>()(
         },
         onRehydrateStorage: () => (state) => {
           if (!state) return
-          // Re-broadcast auto-accept state to the server after
-          // rehydration so server-side notification suppression
-          // survives page reloads / server restarts.
+          // Re-broadcast the WHOLE effective map after a reload or a server
+          // restart — including the sessions the user switched OFF. Replaying
+          // only the enabled ones left the server suppressing notifications for a
+          // session the client no longer auto-answers, so an unattended prompt
+          // waited forever.
           for (const [sid, enabled] of Object.entries(state.autoAccept || {})) {
-            if (enabled === true) {
-              void fetch(API_ENDPOINTS.notifications.autoAccept, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sessionId: sid, enabled: true }),
-              }).catch(() => {
-                /* best-effort */
-              })
-            }
+            autoAcceptSync.set(sid, enabled === true)
           }
+          void autoAcceptSync.flushPending()
         },
       },
     ),

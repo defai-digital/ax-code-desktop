@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 
+// vi.fn with zero declared parameters records `[]`; the assertions below read the
+// recorded arguments, so name their shape once here.
+const callsOf = (mock: { mock: { calls: unknown[] } }): Array<[string, { body?: string }]> =>
+  mock.mock.calls as Array<[string, { body?: string }]>
+
 const createMemoryStorage = () => {
   const values = new Map<string, string>()
   return {
@@ -30,20 +35,22 @@ const deferred = <T>(): Deferred<T> => {
   return { promise, resolve }
 }
 
-const importStore = async (options: { pendingPermissions: Deferred<Array<{ id: string; sessionID: string }>> }) => {
+const importStore = async (options: {
+  pendingPermissions: Deferred<Array<{ id: string; sessionID: string }>>
+  sessions?: Array<{ id: string; parentID?: string }>
+  connectionWait?: Promise<void>
+}) => {
   vi.resetModules()
 
   const respondToPermissionMock = vi.fn(async () => undefined)
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => ({ ok: true })),
-  )
+  const fetchMock = vi.fn(async () => ({ ok: true }))
+  vi.stubGlobal("fetch", fetchMock)
 
   vi.doMock("./utils/safeStorage", () => ({
     getSafeStorage: () => createMemoryStorage(),
   }))
   vi.doMock("@/sync/sync-refs", () => ({
-    getAllSyncSessions: () => [{ id: "root" }],
+    getAllSyncSessions: () => options.sessions ?? [{ id: "root" }],
     getSyncChildStores: () => ({ children: new Map() }),
   }))
   vi.doMock("@/lib/ax-code/client", () => ({
@@ -54,6 +61,9 @@ const importStore = async (options: { pendingPermissions: Deferred<Array<{ id: s
   }))
   vi.doMock("@/sync/session-actions", () => ({
     respondToPermission: respondToPermissionMock,
+    waitForConnectionOrThrow: async () => {
+      await (options.connectionWait ?? Promise.resolve())
+    },
   }))
   vi.doMock("@/sync/session-ui-store", () => ({
     useSessionUIStore: {
@@ -64,7 +74,7 @@ const importStore = async (options: { pendingPermissions: Deferred<Array<{ id: s
   }))
 
   const { usePermissionStore } = await import("./permissionStore")
-  return { usePermissionStore, respondToPermissionMock }
+  return { usePermissionStore, respondToPermissionMock, fetchMock }
 }
 
 afterEach(() => {
@@ -99,6 +109,72 @@ describe("permissionStore setSessionAutoAccept", () => {
 
     expect(respondToPermissionMock).not.toHaveBeenCalled()
     expect(usePermissionStore.getState().autoAccept["root"]).toBe(false)
+  })
+
+  test("does not auto-approve a descendant that has its own auto-accept turned off", async () => {
+    // The nearest ancestor with an explicit setting wins, so enabling the parent
+    // must not grant prompts for a child the user switched off.
+    const pendingPermissions = deferred<Array<{ id: string; sessionID: string }>>()
+    const { usePermissionStore, respondToPermissionMock } = await importStore({
+      pendingPermissions,
+      sessions: [
+        { id: "root" },
+        { id: "child-off", parentID: "root" },
+        { id: "child-default", parentID: "root" },
+      ],
+    })
+    usePermissionStore.setState({ autoAccept: { "child-off": false } })
+
+    const enable = usePermissionStore.getState().setSessionAutoAccept("root", true)
+    pendingPermissions.resolve([
+      { id: "perm-off", sessionID: "child-off" },
+      { id: "perm-inherit", sessionID: "child-default" },
+    ])
+    await enable
+
+    const approvedIds = callsOf(respondToPermissionMock).map((call) => call[1])
+    expect(approvedIds).toEqual(["perm-inherit"])
+  })
+
+  test("re-checks the toggle after the connection wait, not before it", async () => {
+    // respondToPermission waits up to its grace period for a connection; the
+    // decision used to be taken before that wait, so a disable during it still
+    // granted the prompt.
+    const pendingPermissions = deferred<Array<{ id: string; sessionID: string }>>()
+    const connection = deferred<void>()
+    const { usePermissionStore, respondToPermissionMock } = await importStore({
+      pendingPermissions,
+      connectionWait: connection.promise,
+    })
+
+    const enable = usePermissionStore.getState().setSessionAutoAccept("root", true)
+    pendingPermissions.resolve([{ id: "perm-1", sessionID: "root" }])
+    for (let i = 0; i < 5; i += 1) {
+      await Promise.resolve()
+    }
+
+    // The batch is now waiting for the connection; the user switches it off.
+    await usePermissionStore.getState().setSessionAutoAccept("root", false)
+    connection.resolve()
+    await enable
+
+    expect(respondToPermissionMock).not.toHaveBeenCalled()
+  })
+
+  test("broadcasts each session's own value rather than the parent's", async () => {
+    const pendingPermissions = deferred<Array<{ id: string; sessionID: string }>>()
+    pendingPermissions.resolve([])
+    const { usePermissionStore, fetchMock } = await importStore({
+      pendingPermissions,
+      sessions: [{ id: "root" }, { id: "child-off", parentID: "root" }],
+    })
+    usePermissionStore.setState({ autoAccept: { "child-off": false } })
+
+    await usePermissionStore.getState().setSessionAutoAccept("root", true)
+
+    const posts = callsOf(fetchMock).map((call) => JSON.parse(String(call[1]?.body)))
+    expect(posts).toContainEqual({ sessionId: "root", enabled: true })
+    expect(posts).toContainEqual({ sessionId: "child-off", enabled: false })
   })
 
   test("pruneAutoAccept drops entries for deleted sessions and keeps the rest", async () => {
