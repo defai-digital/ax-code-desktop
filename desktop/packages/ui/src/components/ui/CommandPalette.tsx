@@ -536,11 +536,13 @@ export const CommandPalette: React.FC = () => {
 
   return (
     <Dialog open={isCommandPaletteOpen} onOpenChange={setCommandPaletteOpen}>
-      <DialogHeader className="sr-only">
-        <DialogTitle>{t("commandPalette.title")}</DialogTitle>
-        <DialogDescription>{t("commandPalette.description")}</DialogDescription>
-      </DialogHeader>
       <DialogContent className="overflow-hidden p-0" showCloseButton>
+        {/* Inside DialogContent: a header left outside it renders into the page even
+            while closed, leaking a screen-reader-only "Command Palette" heading. */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>{t("commandPalette.title")}</DialogTitle>
+          <DialogDescription>{t("commandPalette.description")}</DialogDescription>
+        </DialogHeader>
         {isSearchMode ? (
           <div className="flex items-center gap-2 border-b border-border/40 px-3 py-1.5">
             <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 typography-micro font-medium text-primary">
