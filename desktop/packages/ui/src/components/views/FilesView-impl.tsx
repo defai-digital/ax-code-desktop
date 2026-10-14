@@ -3376,7 +3376,9 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
                   return fileContent.replace(/<head([^>]*)>/i, `<head$1>${baseTag}`)
                 })()}
                 className="w-full h-full border-none"
-                sandbox="allow-scripts allow-same-origin allow-forms"
+                // No allow-same-origin: the previewed file is untrusted and must not
+                // run as the app (it could reach the preload-exposed runtime APIs).
+                sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"
                 title={t("filesView.editor.htmlPreviewTitle")}
               />
             </div>
