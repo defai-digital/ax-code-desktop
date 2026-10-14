@@ -196,11 +196,18 @@ export const useQuotaStore = create<QuotaStore>()(
           if (!response.ok) {
             throw new Error(payload?.error || "Failed to fetch quota")
           }
+          // A 200 with an empty or non-object body used to be stored as-is: the
+          // null entry then threw on every later refresh and crashed the header
+          // that reads results, so a malformed payload has to take the error
+          // path instead.
+          if (!payload || typeof payload !== "object" || typeof payload.providerId !== "string") {
+            throw new Error("Malformed quota response")
+          }
 
           const result = payload as ProviderResult
           if (!isCurrentQuotaProviderFetch(providerId, requestId)) return
           set((state) => {
-            const next = state.results.filter((entry) => entry.providerId !== providerId)
+            const next = state.results.filter((entry) => entry?.providerId !== providerId)
             next.push(result)
             return { results: next, error: null }
           })
@@ -217,7 +224,7 @@ export const useQuotaStore = create<QuotaStore>()(
           }
           if (!isCurrentQuotaProviderFetch(providerId, requestId)) return
           set((state) => {
-            const next = state.results.filter((entry) => entry.providerId !== providerId)
+            const next = state.results.filter((entry) => entry?.providerId !== providerId)
             next.push(fallback)
             return { results: next, error: message }
           })

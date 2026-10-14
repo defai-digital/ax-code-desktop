@@ -46,6 +46,49 @@ const importStore = async () => {
   return import("./useQuotaStore")
 }
 
+describe("useQuotaStore quota payload validation", () => {
+  test("a 200 response with an unusable body becomes an error entry, not a null result", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => {
+          throw new Error("Unexpected end of JSON input")
+        },
+      })),
+    )
+
+    const { useQuotaStore } = await importStore()
+
+    await useQuotaStore.getState().fetchProviderQuota("claude")
+
+    const [entry] = useQuotaStore.getState().results
+    expect(entry).toBeTruthy()
+    expect(entry.providerId).toBe("claude")
+    expect(entry.ok).toBe(false)
+    expect(entry.error).toContain("Malformed quota response")
+    // The store must stay usable: a later refresh filters by providerId.
+    await expect(useQuotaStore.getState().fetchProviderQuota("claude")).resolves.toBeUndefined()
+  })
+
+  test("a well-formed payload is stored", async () => {
+    const result = createQuotaResult("Claude", 7)
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => result,
+      })),
+    )
+
+    const { useQuotaStore } = await importStore()
+
+    await useQuotaStore.getState().fetchProviderQuota("claude")
+
+    expect(useQuotaStore.getState().results).toEqual([result])
+  })
+})
+
 describe("useQuotaStore", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
