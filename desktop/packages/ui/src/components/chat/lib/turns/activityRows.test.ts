@@ -37,6 +37,16 @@ describe("planActivityTrim", () => {
 })
 
 describe("countActivityRows", () => {
+  test("does not count a reasoning part that renders nothing", () => {
+    // Regression: the row count included an empty reasoning part, so the collapsed
+    // window showed six rows instead of seven and "+N more" overcounted.
+    const empty = reasoning("empty")
+    ;(empty as unknown as { text?: string }).text = ""
+
+    expect(activityRowVisibleParts([empty, text("t", "Done")], merged).map((part) => part.id)).toEqual(["t"])
+    expect(countActivityRows([empty, text("t", "Done")], merged)).toBe(1)
+  })
+
   test("counts merged reasoning as one row and keeps every reasoning part visible", () => {
     const parts = [reasoning("a"), reasoning("b"), text("t", "Done"), reasoning("c")]
     expect(activityRowVisibleParts(parts, merged).map((part) => part.id)).toEqual(["a", "b", "t", "c"])

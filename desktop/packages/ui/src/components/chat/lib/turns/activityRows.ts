@@ -1,7 +1,7 @@
 import { createContext } from "react"
 
 import type { Part } from "@defai-digital/ax-code-sdk/v2"
-import { filterVisibleParts, isEmptyTextPart } from "../../message/partUtils"
+import { extractTextContent, filterVisibleParts, isEmptyTextPart } from "../../message/partUtils"
 import { isActiveToolPart, isFinalizedToolPart } from "../../message/toolPartState"
 
 // While a turn works with Activity collapsed, only its latest rows stay in
@@ -52,6 +52,12 @@ export const planActivityTrim = (rowsPerMessage: readonly number[], visibleRows:
 export const activityRowVisibleParts = (parts: Part[], options: ActivityRowOptions): Part[] => {
   return filterVisibleParts(parts, { includeReasoning: options.showReasoningTraces }).filter((part) => {
     if (isEmptyTextPart(part)) return false
+    // ReasoningPart renders nothing without text, so counting an empty reasoning part
+    // would make the collapsed trim hide one row more than it should.
+    if (part.type === "reasoning") {
+      const text = extractTextContent(part)
+      return Boolean(text && text.trim().length > 0)
+    }
     return part.type !== "compaction"
   })
 }
