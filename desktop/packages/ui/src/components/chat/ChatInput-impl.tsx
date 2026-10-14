@@ -851,6 +851,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     useSessionUIStore.getState().sendMessage(...args),
   ).current
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
+  // The history cursor and the draft it stashes belong to one session; the composer
+  // is not remounted on a session switch, so leaving them set would let ArrowDown
+  // restore the previous session's draft into this one (and persist it as such).
+  React.useEffect(() => {
+    setHistoryIndex(-1)
+    setDraftMessage("")
+  }, [currentSessionId])
   const activeSessions = useGlobalSessionsStore((s) => s.activeSessions)
   const archivedSessions = useGlobalSessionsStore((s) => s.archivedSessions)
   const workSendDisabled = React.useMemo(() => {
