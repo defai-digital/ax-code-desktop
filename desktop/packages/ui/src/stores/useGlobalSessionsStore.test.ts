@@ -584,6 +584,56 @@ describe("applySnapshot cross-bucket freshness", () => {
   })
 })
 
+describe("restoreSession freshness", () => {
+  test("restores the snapshot when the store has no newer entry for the session", () => {
+    useGlobalSessionsStore.setState({
+      activeSessions: [],
+      archivedSessions: [],
+      sessionsByDirectory: new Map(),
+      pendingRemoval: new Map(),
+      deleteTombstones: new Map(),
+      hasLoaded: true,
+      status: "ready",
+    })
+
+    useGlobalSessionsStore.getState().restoreSession(makeSession("ses_back", { directory: "/repo" }))
+
+    expect(useGlobalSessionsStore.getState().activeSessions.map((session) => session.id)).toEqual(["ses_back"])
+  })
+
+  test("keeps a newer event entry instead of rolling it back to the snapshot", () => {
+    // A session.updated landed while the removal request was in flight: the
+    // snapshot predates it and must not roll the new title back.
+    useGlobalSessionsStore.getState().upsertSession(
+      makeSession("ses_live", { directory: "/repo", time: { created: 1, updated: 50, title: "renamed" } } as never),
+    )
+
+    useGlobalSessionsStore
+      .getState()
+      .restoreSession(makeSession("ses_live", { directory: "/repo", time: { created: 1, updated: 10 } } as never))
+
+    const entry = useGlobalSessionsStore.getState().activeSessions.find((session) => session.id === "ses_live")
+    expect((entry?.time as { updated?: number } | undefined)?.updated).toBe(50)
+  })
+
+  test("does not resurrect a session that is inside its undo window", () => {
+    const pending = makeSession("ses_pending", { directory: "/repo" })
+    useGlobalSessionsStore.setState({
+      activeSessions: [],
+      archivedSessions: [],
+      sessionsByDirectory: new Map(),
+      pendingRemoval: new Map([["ses_pending", { session: pending, kind: "delete" }]]),
+      deleteTombstones: new Map(),
+      hasLoaded: true,
+      status: "ready",
+    })
+
+    useGlobalSessionsStore.getState().restoreSession(pending)
+
+    expect(useGlobalSessionsStore.getState().activeSessions).toEqual([])
+  })
+})
+
 describe("removeSessions per-session state cleanup", () => {
   test("removeSessions fans out client-state cleanup for the removed ids", async () => {
     useGlobalSessionsStore.getState().upsertSession(makeSession("ses_doomed", { directory: "/repo" }))

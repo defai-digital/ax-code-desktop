@@ -62,6 +62,13 @@ type GlobalSessionsState = {
    */
   upsertSession: (session: Session) => void
   /**
+   * Optimistic-transition primitive (S4.5): re-adds the pre-removal snapshot
+   * after a soft-removal commit failed. Freshness-guarded like the event path,
+   * so a session.updated (new title, archive) that landed while the request was
+   * in flight is not rolled back. Not a general mutation API.
+   */
+  restoreSession: (session: Session) => void
+  /**
    * Optimistic-transition primitive (S4.5): used by `applySessionEvent` for
    * `session.deleted`, and by the hard-delete confirm flows in
    * `session-actions.ts` that bypass the `pendingRemoval` undo window.
@@ -314,6 +321,49 @@ const upsertSessionIntoList = (sessions: Session[], session: Session): Session[]
   const next = [...sessions]
   next[index] = session
   return next
+}
+
+/**
+ * The single write path behind upsertSession and restoreSession: bucket the
+ * session by its archived flag, keep untouched list references intact, and
+ * maintain the directory index.
+ */
+const applySessionUpsert = (
+  state: Pick<GlobalSessionsState, "activeSessions" | "archivedSessions" | "sessionsByDirectory">,
+  session: Session,
+) => {
+  const isArchived = Boolean(session.time?.archived)
+  const previous = state.activeSessions.find((candidate) => candidate.id === session.id)
+  const previousDirectory = previous ? resolveGlobalSessionDirectory(previous) : undefined
+  // The opposite-bucket removal goes through removeSessionFromList so a
+  // session that is not present there keeps the list reference — an
+  // unconditional filter would allocate a new array on every no-op update and
+  // re-render every subscriber for nothing.
+  const nextActiveSessions = isArchived
+    ? removeSessionFromList(state.activeSessions, session.id)
+    : upsertSessionIntoList(state.activeSessions, session)
+  const nextArchivedSessions = isArchived
+    ? upsertSessionIntoList(state.archivedSessions, session)
+    : removeSessionFromList(state.archivedSessions, session.id)
+
+  if (nextActiveSessions === state.activeSessions && nextArchivedSessions === state.archivedSessions) {
+    return state
+  }
+
+  let sessionsByDirectory = state.sessionsByDirectory
+  if (nextActiveSessions !== state.activeSessions) {
+    if (isArchived) {
+      sessionsByDirectory = removeSessionsFromDirectoryMap(state.sessionsByDirectory, new Set([session.id]))
+    } else {
+      sessionsByDirectory = upsertSessionInDirectoryMap(state.sessionsByDirectory, session, previousDirectory)
+    }
+  }
+
+  return {
+    activeSessions: nextActiveSessions,
+    archivedSessions: nextArchivedSessions,
+    sessionsByDirectory,
+  }
 }
 
 const mergeSessionLists = (existing: Session[], incoming?: Session[]): Session[] => {
@@ -586,6 +636,25 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
     return inflightLoad
   },
 
+  restoreSession: (session) => {
+    set((state) => {
+      if (state.pendingRemoval.has(session.id)) {
+        return state
+      }
+      // Freshness guard, same rule as the event path: a session.updated that
+      // landed while the removal request was in flight is newer than the
+      // pre-removal snapshot, and rolling the snapshot back over it would
+      // resurrect an old title or undo an archive the user just saw.
+      const current =
+        state.activeSessions.find((candidate) => candidate.id === session.id) ??
+        state.archivedSessions.find((candidate) => candidate.id === session.id)
+      if (current && getSessionFreshness(current) > getSessionFreshness(session)) {
+        return state
+      }
+      return applySessionUpsert(state, session)
+    })
+  },
+
   upsertSession: (session) => {
     set((state) => {
       // A session awaiting soft-removal commit must not be re-added by sync
@@ -593,38 +662,7 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
       if (state.pendingRemoval.has(session.id)) {
         return state
       }
-      const isArchived = Boolean(session.time?.archived)
-      const previous = state.activeSessions.find((candidate) => candidate.id === session.id)
-      const previousDirectory = previous ? resolveGlobalSessionDirectory(previous) : undefined
-      // The opposite-bucket removal goes through removeSessionFromList so a
-      // session that is not present there keeps the list reference — an
-      // unconditional filter would allocate a new array on every no-op
-      // update and re-render every subscriber for nothing.
-      const nextActiveSessions = isArchived
-        ? removeSessionFromList(state.activeSessions, session.id)
-        : upsertSessionIntoList(state.activeSessions, session)
-      const nextArchivedSessions = isArchived
-        ? upsertSessionIntoList(state.archivedSessions, session)
-        : removeSessionFromList(state.archivedSessions, session.id)
-
-      if (nextActiveSessions === state.activeSessions && nextArchivedSessions === state.archivedSessions) {
-        return state
-      }
-
-      let sessionsByDirectory = state.sessionsByDirectory
-      if (nextActiveSessions !== state.activeSessions) {
-        if (isArchived) {
-          sessionsByDirectory = removeSessionsFromDirectoryMap(state.sessionsByDirectory, new Set([session.id]))
-        } else {
-          sessionsByDirectory = upsertSessionInDirectoryMap(state.sessionsByDirectory, session, previousDirectory)
-        }
-      }
-
-      return {
-        activeSessions: nextActiveSessions,
-        archivedSessions: nextArchivedSessions,
-        sessionsByDirectory,
-      }
+      return applySessionUpsert(state, session)
     })
   },
 

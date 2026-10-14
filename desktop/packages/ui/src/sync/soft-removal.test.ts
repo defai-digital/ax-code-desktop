@@ -62,6 +62,7 @@ const { softDeleteSession, softArchiveSession, flushPendingRemovals, recoverPend
 const STORAGE_KEY_PREFIX = "axcode.pending-session-removals"
 
 const toastSuccessMock = vi.mocked(toast.success)
+const toastErrorMock = vi.mocked(toast.error)
 
 // jsdom's Storage is not enumerable through Object.keys; walk it explicitly.
 const storedSlots = (): string[] => {
@@ -112,6 +113,10 @@ describe("soft-removal S4.5 contract", () => {
     deleteSessionMock.mockReset()
     archiveSessionMock.mockReset()
     setCurrentSessionMock.mockClear()
+    // The failure toasts are asserted as "the rollback finished" signals, so a
+    // call left over from an earlier test must not satisfy the wait.
+    toastSuccessMock.mockClear()
+    toastErrorMock.mockClear()
   })
 
   test("delete flow: pendingRemoval hides instantly; the delete event never resurrects", async () => {
@@ -155,6 +160,44 @@ describe("soft-removal S4.5 contract", () => {
     // No event is emitted for a failed delete — the rollback re-upsert is the
     // only mechanism that brings the session back.
     expect(useGlobalSessionsStore.getState().activeSessions.map((s) => s.id)).toEqual(["ses_b"])
+  })
+
+  test("a failed commit does not roll a newer event entry back to the pre-removal snapshot", async () => {
+    const session = makeSession("ses_r", { directory: "/repo" } as Partial<Session>)
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+
+    const deleteControl: { resolve: ((value: boolean) => void) | null } = { resolve: null }
+    deleteSessionMock.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          deleteControl.resolve = resolve
+        }),
+    )
+
+    softDeleteSession(session)
+    flushPendingRemovals()
+    await vi.waitFor(() => {
+      expect(useGlobalSessionsStore.getState().pendingRemoval.size).toBe(0)
+    })
+
+    // The pending flag is released, so a newer session.updated applies while the
+    // delete request is still in flight.
+    const renamed = makeSession("ses_r", {
+      directory: "/repo",
+      title: "renamed",
+      time: { created: 1, updated: 99 },
+    } as Partial<Session>)
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.updated", renamed))
+
+    deleteControl.resolve?.(false)
+    // The failure toast is emitted after the rollback loop, so waiting for it
+    // guarantees the restore actually ran before the assertion.
+    await vi.waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalled()
+    })
+    const entry = useGlobalSessionsStore.getState().activeSessions.find((candidate) => candidate.id === "ses_r")
+    expect(entry?.title).toBe("renamed")
+    expect((entry?.time as { updated?: number } | undefined)?.updated).toBe(99)
   })
 
   test("archive commit releases the pending flag so the session.updated event fills the archived bucket", async () => {

@@ -189,8 +189,9 @@ async function commitRemovals(ids: string[]): Promise<void> {
       // Rollback restore (load-bearing): a FAILED removal emits no event, so
       // nothing else re-adds the session — without this optimistic re-upsert
       // of the pre-removal snapshot the session would stay hidden until the
-      // next full loadSessions().
-      useGlobalSessionsStore.getState().upsertSession(entry.session)
+      // next full loadSessions(). restoreSession drops the snapshot when a
+      // newer session.updated already landed for it.
+      useGlobalSessionsStore.getState().restoreSession(entry.session)
     }
     for (const kind of ["archive", "delete"] as const) {
       const count = failed.filter((entry) => entry.kind === kind).length
