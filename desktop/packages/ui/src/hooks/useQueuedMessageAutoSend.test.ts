@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import type { Agent } from "@defai-digital/ax-code-sdk/v2"
 import type { QueuedMessage } from "../stores/messageQueueStore"
 
+const RECENT_ABORT_WINDOW_MS_DELTA = 500
+
 let visibleAgents: Agent[] = []
 const sendMessageCalls: unknown[][] = []
 let sendShouldFail = false
@@ -575,6 +577,83 @@ describe("useQueuedMessageAutoSend hold lift", () => {
 
     expect(sendMessageCalls).toHaveLength(1)
     expect(sendOptionsOf(0).messageId).toBe(after.messageId)
+  })
+
+  test("a failed wake-up send waits for the next edge instead of retrying in a loop", async () => {
+    vi.useFakeTimers()
+    try {
+      useMessageQueueStore.getState().addToQueue("session-a", {
+        content: "queued message",
+        sendConfig: { providerID: "provider-1", modelID: "model-1" },
+      })
+      mockSessionAbortFlags.set("session-a", { timestamp: Date.now(), acknowledged: false })
+      sendShouldFail = true
+
+      render()
+      statusState.current = { "session-a": { type: "idle" } }
+      render()
+      await React.act(async () => {})
+
+      // The abort window lapses: the wake-up spends the armed edge and tries once.
+      await React.act(async () => {
+        await vi.advanceTimersByTimeAsync(2100)
+      })
+      expect(sendMessageCalls).toHaveLength(1)
+      // Restored for a manual retry.
+      expect(useMessageQueueStore.getState().getQueueForSession("session-a")).toHaveLength(1)
+
+      // An unrelated status update re-runs the pass. The failed attempt already
+      // consumed the busy -> idle edge, so the restored entry must wait (the
+      // timer path that dispatched directly left the baseline at "busy" and
+      // re-sent the entry here).
+      statusState.current = { "session-a": { type: "idle" } }
+      render()
+      await React.act(async () => {
+        await vi.advanceTimersByTimeAsync(1000)
+      })
+      expect(sendMessageCalls).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("still wakes a later session when an earlier wake-up dispatch returns early", async () => {
+    vi.useFakeTimers()
+    try {
+      // session-a has no resolvable provider/model, so its dispatch returns
+      // before changing any state — the pass must still reschedule session-b,
+      // whose abort window lapses later.
+      useMessageQueueStore.getState().addToQueue("session-a", { content: "queued for session-a" })
+      useMessageQueueStore.getState().addToQueue("session-b", {
+        content: "queued for session-b",
+        sendConfig: { providerID: "provider-1", modelID: "model-1" },
+      })
+      const now = Date.now()
+      // session-a's window lapses earlier than session-b's.
+      mockSessionAbortFlags.set("session-a", { timestamp: now - RECENT_ABORT_WINDOW_MS_DELTA, acknowledged: false })
+      mockSessionAbortFlags.set("session-b", { timestamp: now, acknowledged: false })
+
+      statusState.current = { "session-a": { type: "busy" }, "session-b": { type: "busy" } }
+      render()
+      statusState.current = { "session-a": { type: "idle" }, "session-b": { type: "idle" } }
+      render()
+      await React.act(async () => {})
+
+      // First wake-up: only session-a's window has lapsed, and its dispatch is a
+      // no-op (nothing is sent, no queue change).
+      await React.act(async () => {
+        await vi.advanceTimersByTimeAsync(2100 - RECENT_ABORT_WINDOW_MS_DELTA)
+      })
+      expect(sendMessageCalls).toHaveLength(0)
+
+      // session-b's own window lapses later and must still be woken.
+      await React.act(async () => {
+        await vi.advanceTimersByTimeAsync(RECENT_ABORT_WINDOW_MS_DELTA + 100)
+      })
+      expect(sendMessageCalls.map((call) => call[0])).toEqual(["queued for session-b"])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   test("a lost cross-window claim does not wedge the session's auto-send", async () => {

@@ -207,11 +207,18 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
   const inFlightSessionsRef = React.useRef<Set<string>>(new Set())
   const previousStatusRef = React.useRef<Map<string, SessionStatusType>>(new Map())
   const abortWakeupTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Re-run signal for the recent-abort wake-up timer: the timer cannot spend the
+  // armed edge itself (that path would not advance the status baseline), so it
+  // asks this effect to run the normal dispatch pass.
+  const [abortWakeupTick, bumpAbortWakeupTick] = React.useReducer((tick: number) => tick + 1, 0)
 
   React.useEffect(() => {
     if (!enabled) {
       return
     }
+    // Referenced so the wake-up tick is a legitimate dependency (it re-runs this
+    // pass without any store change).
+    void abortWakeupTick
 
     // A transient hold means the busy/retry -> idle edge must stay armed rather
     // than be consumed: if we advance the status baseline while an auto-send is
@@ -341,10 +348,11 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
 
     // A recent-abort hold expires on a clock, not on a store transition:
     // without a wake-up, the armed edge would wait for an unrelated status
-    // change to be spent and the queued message would sit stranded. Schedule
-    // one pass at the earliest window lapse; at fire time only sessions whose
-    // edge is still armed and whose window has lapsed are dispatched (the
-    // dispatch path re-checks every other deferral itself).
+    // change to be spent and the queued message would sit stranded. The timer
+    // only re-runs this effect, which then spends the edge through the normal
+    // dispatch path (so the baseline advances and a failed send waits for the
+    // next edge instead of being retried in a loop) and reschedules itself for
+    // any session whose window lapses later.
     if (abortWakeupTimerRef.current) {
       clearTimeout(abortWakeupTimerRef.current)
       abortWakeupTimerRef.current = null
@@ -363,15 +371,7 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
     if (wakeupInMs !== null) {
       abortWakeupTimerRef.current = setTimeout(() => {
         abortWakeupTimerRef.current = null
-        const now = Date.now()
-        for (const [sessionId, queue] of Object.entries(useMessageQueueStore.getState().queuedMessages)) {
-          if (queue.length === 0) continue
-          const baseline = previousStatusRef.current.get(sessionId)
-          if (baseline !== "busy" && baseline !== "retry") continue
-          const abortRecord = useSessionUIStore.getState().sessionAbortFlags.get(sessionId)
-          if (!abortRecord || now - abortRecord.timestamp < RECENT_ABORT_WINDOW_MS) continue
-          void dispatchSessionQueue(sessionId, queue)
-        }
+        bumpAbortWakeupTick()
       }, wakeupInMs + 25)
     }
 
@@ -381,5 +381,5 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         abortWakeupTimerRef.current = null
       }
     }
-  }, [enabled, queuedMessages, sessionStatusRecord, unseenErrorBySession])
+  }, [enabled, queuedMessages, sessionStatusRecord, unseenErrorBySession, abortWakeupTick])
 }
