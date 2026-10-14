@@ -55,7 +55,7 @@ These are implemented and covered by tests. Change them only by superseding this
 
 Each stage is a separate reviewed change. Stage order is the recommendation, not a commitment.
 
-### Stage 2: type scale
+### Stage 2: type scale (implemented 2026-10-13, `9719ee30`)
 
 - **Problem.** The semantic sizes are 12, 13, 13, 14, 15, 15px.
   - `--text-ui-header` equals `--text-markdown`.
@@ -66,14 +66,21 @@ Each stage is a separate reviewed change. Stage order is the recommendation, not
   - Line heights relative to font size, so the font-size setting does not cramp lines.
 - **Risks and how to judge them.** Density changes in every view, and saved font-size preferences must keep their
   meaning. Judge it with before/after screenshots of chat, settings and the diff view in both themes.
+- **Outcome.**
+  - The owner kept the 15px body.
+  - Markdown headings render 20/17/15px (h1/h2/h3) with unitless line heights.
+  - Every theme line-height variable is `calc(<paired font size> * ratio)`. That keeps the default pixels and scales
+    with the font setting. As lengths, these values also inherit unchanged into children of other sizes.
 
-### Stage 3: surface and elevation tokens
+### Stage 3: surface and elevation tokens (radius and shadow done 2026-10-13; separation open)
 
 - **Radius.**
   - Collapse the seven arbitrary radii and the squircle class hack into `--radius-*`.
   - Use `corner-shape: squircle` only through one utility.
 - **Shadows.** Move the copy-pasted six-layer shadow (toast, select, dropdown) into `--shadow-popover` light/dark
   tokens. Toasts keep the inline pin that stops Sonner's focus style from replacing them.
+  - Done in `a3cb2860`: `--elevation-popover` with the `shadow-popover` utility.
+  - Done in `2e39b654`: the squircle hack became a `.squircle` class.
 - **Separation.** The default dark border on canvas is about 1.2:1, so surfaces separate mostly by tone. Decide
   between hairline borders and tone steps, and write the rule into the theme documentation. Upstream's rules are a
   starting point:
@@ -88,13 +95,18 @@ Each stage is a separate reviewed change. Stage order is the recommendation, not
 - Hand-written themes stay supported.
 - Add a contrast check over every bundled theme for text and focus indicators (WCAG 1.4.3 and 1.4.11).
 
-### Stage 5: transcript polish
+### Stage 5: transcript polish (Activity fold done 2026-10-13)
 
 - Candidates from upstream and opencode, sized separately:
   - A live turn that shows its last steps with a "+N more" count.
   - A running-to-done verb swap on tool titles ("Reading" becomes "Read").
   - A context-usage ring.
 - Each candidate is judged against what the fork already does, so it does not duplicate existing turn behaviour.
+- **Done (2026-10-13).**
+  - `a32619f3`: the sorted chat mode is retired.
+  - `895ff4d2`: the live Activity fold ships. It shows the latest 7 rows plus "+N more" and closes into a summary;
+    Activity defaults to Expanded.
+- **Open.** Upstream's follow stop and the per-fold message window.
 
 ## Verification
 
