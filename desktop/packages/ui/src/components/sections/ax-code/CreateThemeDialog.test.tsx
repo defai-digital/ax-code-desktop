@@ -101,9 +101,13 @@ describe("CreateThemeDialog", () => {
     expect(fetchMock).toHaveBeenCalledOnce()
     const request = fetchMock.mock.calls[0]?.[1]
     const payload = JSON.parse(String(request?.body))
-    expect(payload.theme.metadata).toMatchObject({ id: "generated-ocean-blue", name: "Ocean Blue", variant: "dark" })
+    expect(payload.theme.metadata).toMatchObject({
+      id: "generated-ocean-blue-dark",
+      name: "Ocean Blue",
+      variant: "dark",
+    })
     expect(reloadCustomThemes).toHaveBeenCalledOnce()
-    expect(onThemeSaved).toHaveBeenCalledWith({ id: "generated-ocean-blue", variant: "dark" })
+    expect(onThemeSaved).toHaveBeenCalledWith({ id: "generated-ocean-blue-dark", variant: "dark" })
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(toastSuccess).toHaveBeenCalledOnce()
   })

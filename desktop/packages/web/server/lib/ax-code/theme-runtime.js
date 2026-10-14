@@ -158,7 +158,50 @@ export const createThemeRuntime = (dependencies) => {
     }
   }
 
-  const writeCustomThemeToDisk = async (theme) => {
+  const HEX_COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
+  const CSS_TIME = /^\d+(?:\.\d+)?m?s(?: [a-z-]+(?:\([0-9., ]+\))?)?$/i
+  const FONT_STACK = /^[^;{}<>\\]{1,300}$/
+
+  // Values from a generated theme reach CSS custom properties, so the write path
+  // accepts only what the generator emits: hex colours, plain font stacks and
+  // simple transitions. Hand-made theme files are not written through here.
+  const assertGeneratedThemeValues = (theme) => {
+    const visit = (value, where) => {
+      if (typeof value === "string") {
+        if (!HEX_COLOR.test(value)) throw new Error(`Theme colour ${where} must be a hex colour`)
+        return
+      }
+      if (Array.isArray(value)) {
+        value.forEach((item, index) => visit(item, `${where}[${index}]`))
+        return
+      }
+      if (value && typeof value === "object") {
+        for (const [key, child] of Object.entries(value)) visit(child, `${where}.${key}`)
+        return
+      }
+      if (value !== undefined && value !== null) throw new Error(`Theme colour ${where} must be a hex colour`)
+    }
+    visit(theme.colors, "colors")
+    const config = theme.config && typeof theme.config === "object" ? theme.config : {}
+    for (const [key, value] of Object.entries(config.fonts ?? {})) {
+      if (typeof value !== "string" || !FONT_STACK.test(value)) throw new Error(`Theme font ${key} is not allowed`)
+    }
+    for (const [key, value] of Object.entries(config.transitions ?? {})) {
+      if (typeof value !== "string" || !CSS_TIME.test(value)) throw new Error(`Theme transition ${key} is not allowed`)
+    }
+  }
+
+  // Saves run one at a time so the existing-file check and the rename cannot
+  // interleave with another save.
+  let writeQueue = Promise.resolve()
+
+  const writeCustomThemeToDisk = (theme) => {
+    const run = writeQueue.then(() => writeCustomThemeNow(theme))
+    writeQueue = run.catch(() => {})
+    return run
+  }
+
+  const writeCustomThemeNow = async (theme) => {
     const normalized = normalizeThemeJson(theme)
     if (!normalized) {
       throw new Error("Invalid theme")
@@ -168,6 +211,7 @@ export const createThemeRuntime = (dependencies) => {
     if (!/^generated-[a-z0-9][a-z0-9-]{0,60}$/.test(id)) {
       throw new Error("Theme id must be a generated theme id")
     }
+    assertGeneratedThemeValues(normalized)
 
     const serialized = JSON.stringify(normalized, null, 2)
     if (Buffer.byteLength(serialized, "utf8") > maxThemeJsonBytes) {
@@ -176,13 +220,24 @@ export const createThemeRuntime = (dependencies) => {
 
     await fsPromises.mkdir(themesDir, { recursive: true })
     const filePath = path.join(themesDir, `${id}.json`)
+    let existingText = null
     try {
-      const existing = JSON.parse(await fsPromises.readFile(filePath, "utf8"))
-      if (existing?.metadata?.id !== id) {
-        throw new Error("A theme file with a different id already exists")
-      }
+      existingText = await fsPromises.readFile(filePath, "utf8")
     } catch (error) {
       if (error?.code !== "ENOENT") throw error
+    }
+    if (existingText !== null) {
+      let existingId
+      try {
+        existingId = JSON.parse(existingText)?.metadata?.id
+      } catch {
+        // A corrupt file under a generated name can only have come from this
+        // writer; saving again replaces it.
+        existingId = id
+      }
+      if (existingId !== id) {
+        throw new Error("A theme file with a different id already exists")
+      }
     }
 
     const temporaryPath = path.join(

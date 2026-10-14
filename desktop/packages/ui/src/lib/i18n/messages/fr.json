@@ -1468,6 +1468,7 @@
   "settings.openchamber.visual.createTheme.previewButton": "Bouton principal",
   "settings.openchamber.visual.createTheme.previewBorder": "Exemple de bordure",
   "settings.openchamber.visual.createTheme.passesContrast": "Les v\u00e9rifications du contraste sont r\u00e9ussies",
+  "settings.openchamber.visual.createTheme.invalidColor": "Saisissez une couleur en hexad\u00e9cimal \u00e0 6 chiffres, par exemple #3366ff.",
   "settings.openchamber.visual.createTheme.hardFailures": "\u00c9checs critiques du contraste",
   "settings.openchamber.visual.createTheme.save": "Enregistrer le th\u00e8me",
   "settings.openchamber.visual.createTheme.saving": "Enregistrement\u2026",

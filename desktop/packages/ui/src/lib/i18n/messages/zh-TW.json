@@ -1468,6 +1468,7 @@
   "settings.openchamber.visual.createTheme.previewButton": "\u4e3b\u8981\u6309\u9215",
   "settings.openchamber.visual.createTheme.previewBorder": "\u908a\u6846\u7bc4\u4f8b",
   "settings.openchamber.visual.createTheme.passesContrast": "\u901a\u904e\u5c0d\u6bd4\u5ea6\u6aa2\u67e5",
+  "settings.openchamber.visual.createTheme.invalidColor": "\u8acb\u8f38\u5165 6 \u4f4d\u5341\u516d\u9032\u4f4d\u8272\u78bc\uff0c\u4f8b\u5982 #3366ff\u3002",
   "settings.openchamber.visual.createTheme.hardFailures": "\u56b4\u91cd\u5c0d\u6bd4\u5ea6\u554f\u984c",
   "settings.openchamber.visual.createTheme.save": "\u5132\u5b58\u4e3b\u984c",
   "settings.openchamber.visual.createTheme.saving": "\u6b63\u5728\u5132\u5b58\u2026",

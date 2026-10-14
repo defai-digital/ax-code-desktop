@@ -1468,6 +1468,7 @@
   "settings.openchamber.visual.createTheme.previewButton": "Pulsante primario",
   "settings.openchamber.visual.createTheme.previewBorder": "Esempio di bordo",
   "settings.openchamber.visual.createTheme.passesContrast": "Supera i controlli del contrasto",
+  "settings.openchamber.visual.createTheme.invalidColor": "Inserisci un colore come valore esadecimale a 6 cifre, ad esempio #3366ff.",
   "settings.openchamber.visual.createTheme.hardFailures": "Errori gravi di contrasto",
   "settings.openchamber.visual.createTheme.save": "Salva tema",
   "settings.openchamber.visual.createTheme.saving": "Salvataggio\u2026",

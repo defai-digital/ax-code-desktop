@@ -1468,6 +1468,7 @@
   "settings.openchamber.visual.createTheme.previewButton": "\u30d7\u30e9\u30a4\u30de\u30ea\u30dc\u30bf\u30f3",
   "settings.openchamber.visual.createTheme.previewBorder": "\u5883\u754c\u7dda\u306e\u30b5\u30f3\u30d7\u30eb",
   "settings.openchamber.visual.createTheme.passesContrast": "\u30b3\u30f3\u30c8\u30e9\u30b9\u30c8\u30c1\u30a7\u30c3\u30af\u306b\u5408\u683c\u3057\u307e\u3057\u305f",
+  "settings.openchamber.visual.createTheme.invalidColor": "\u8272\u306f #3366ff \u306e\u3088\u3046\u306a6\u6841\u306e16\u9032\u6570\u3067\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
   "settings.openchamber.visual.createTheme.hardFailures": "\u91cd\u5927\u306a\u30b3\u30f3\u30c8\u30e9\u30b9\u30c8\u4e0d\u9069\u5408",
   "settings.openchamber.visual.createTheme.save": "\u30c6\u30fc\u30de\u3092\u4fdd\u5b58",
   "settings.openchamber.visual.createTheme.saving": "\u4fdd\u5b58\u4e2d\u2026",

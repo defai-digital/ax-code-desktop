@@ -1468,6 +1468,7 @@
   "settings.openchamber.visual.createTheme.previewButton": "Prim\u00e4re Schaltfl\u00e4che",
   "settings.openchamber.visual.createTheme.previewBorder": "Rahmenbeispiel",
   "settings.openchamber.visual.createTheme.passesContrast": "Kontrastpr\u00fcfungen bestanden",
+  "settings.openchamber.visual.createTheme.invalidColor": "Gib eine Farbe als 6-stelligen Hex-Wert ein, z. B. #3366ff.",
   "settings.openchamber.visual.createTheme.hardFailures": "Schwerwiegende Kontrastfehler",
   "settings.openchamber.visual.createTheme.save": "Theme speichern",
   "settings.openchamber.visual.createTheme.saving": "Speichern\u2026",

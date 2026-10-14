@@ -1468,6 +1468,7 @@
   "settings.openchamber.visual.createTheme.previewButton": "Bot\u00f3n principal",
   "settings.openchamber.visual.createTheme.previewBorder": "Muestra de borde",
   "settings.openchamber.visual.createTheme.passesContrast": "Supera las comprobaciones de contraste",
+  "settings.openchamber.visual.createTheme.invalidColor": "Introduce un color como valor hexadecimal de 6 d\u00edgitos, por ejemplo #3366ff.",
   "settings.openchamber.visual.createTheme.hardFailures": "Fallos graves de contraste",
   "settings.openchamber.visual.createTheme.save": "Guardar tema",
   "settings.openchamber.visual.createTheme.saving": "Guardando\u2026",

@@ -1541,6 +1541,7 @@ export const settingsDict = {
   "settings.openchamber.visual.createTheme.previewButton": "Primary button",
   "settings.openchamber.visual.createTheme.previewBorder": "Border sample",
   "settings.openchamber.visual.createTheme.passesContrast": "Passes contrast checks",
+  "settings.openchamber.visual.createTheme.invalidColor": "Enter a colour as a 6-digit hex value, like #3366ff.",
   "settings.openchamber.visual.createTheme.hardFailures": "Hard contrast failures",
   "settings.openchamber.visual.createTheme.save": "Save theme",
   "settings.openchamber.visual.createTheme.saving": "Saving…",

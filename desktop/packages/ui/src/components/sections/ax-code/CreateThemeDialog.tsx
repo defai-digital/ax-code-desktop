@@ -91,7 +91,11 @@ export function CreateThemeDialog({ open, onOpenChange, reloadCustomThemes, onTh
   const [theme, setTheme] = React.useState<Theme | null>(null)
 
   const trimmedName = name.trim()
-  const id = `generated-${slugify(trimmedName)}`
+  // The mode is part of the id so a light and a dark theme of the same name
+  // are separate files rather than replacing each other.
+  const id = `generated-${slugify(trimmedName)}-${variant}`
+  const invalidColor = !isHexColor(base) || !isHexColor(accent)
+  const invalidMessageId = React.useId()
 
   React.useEffect(() => {
     if (!isHexColor(base) || !isHexColor(accent)) {
@@ -202,6 +206,8 @@ export function CreateThemeDialog({ open, onOpenChange, reloadCustomThemes, onTh
                     value={value}
                     onChange={(event) => setter(event.target.value)}
                     disabled={saving}
+                    aria-invalid={!isHexColor(value)}
+                    aria-describedby={isHexColor(value) ? undefined : invalidMessageId}
                   />
                 </div>
               </div>
@@ -231,7 +237,11 @@ export function CreateThemeDialog({ open, onOpenChange, reloadCustomThemes, onTh
             </h3>
             {theme ? <Preview theme={theme} name={trimmedName} /> : null}
             <div aria-live="polite" className="rounded-lg border border-border/60 p-3 typography-ui-label">
-              {!theme ? null : hardFailures.length === 0 ? (
+              {invalidColor ? (
+                <p id={invalidMessageId} className="text-status-error">
+                  {t("settings.openchamber.visual.createTheme.invalidColor")}
+                </p>
+              ) : !theme ? null : hardFailures.length === 0 ? (
                 <p>{t("settings.openchamber.visual.createTheme.passesContrast")}</p>
               ) : (
                 <div>

@@ -1468,6 +1468,7 @@
   "settings.openchamber.visual.createTheme.previewButton": "N\u00fat ch\u00ednh",
   "settings.openchamber.visual.createTheme.previewBorder": "M\u1eabu \u0111\u01b0\u1eddng vi\u1ec1n",
   "settings.openchamber.visual.createTheme.passesContrast": "\u0110\u1ea1t y\u00eau c\u1ea7u ki\u1ec3m tra \u0111\u1ed9 t\u01b0\u01a1ng ph\u1ea3n",
+  "settings.openchamber.visual.createTheme.invalidColor": "Nh\u1eadp m\u00e0u d\u01b0\u1edbi d\u1ea1ng gi\u00e1 tr\u1ecb hex 6 ch\u1eef s\u1ed1, v\u00ed d\u1ee5 #3366ff.",
   "settings.openchamber.visual.createTheme.hardFailures": "L\u1ed7i \u0111\u1ed9 t\u01b0\u01a1ng ph\u1ea3n nghi\u00eam tr\u1ecdng",
   "settings.openchamber.visual.createTheme.save": "L\u01b0u ch\u1ee7 \u0111\u1ec1",
   "settings.openchamber.visual.createTheme.saving": "\u0110ang l\u01b0u\u2026",

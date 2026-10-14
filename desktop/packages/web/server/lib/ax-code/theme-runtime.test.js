@@ -199,6 +199,81 @@ describe("theme runtime", () => {
     }
   })
 
+  it("rejects generated themes whose values could inject CSS", async () => {
+    const themesDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "ax-theme-values-"))
+    try {
+      const runtime = createRuntime({ fsPromises, path, themesDir })
+      const injected = createValidTheme({ metadata: { id: "generated-bad" } })
+      injected.colors.primary.base = "red; } body { display: none"
+      await expect(runtime.writeCustomThemeToDisk(injected)).rejects.toThrow("hex colour")
+
+      const badChart = createValidTheme({ metadata: { id: "generated-chart" } })
+      badChart.colors.charts = { series: ["#112233", "url(javascript:alert(1))"] }
+      await expect(runtime.writeCustomThemeToDisk(badChart)).rejects.toThrow("hex colour")
+
+      const badFont = {
+        ...createValidTheme({ metadata: { id: "generated-font" } }),
+        config: { fonts: { sans: "x; } *{" } },
+      }
+      await expect(runtime.writeCustomThemeToDisk(badFont)).rejects.toThrow("font")
+      expect(await fsPromises.readdir(themesDir)).toEqual([])
+    } finally {
+      await fsPromises.rm(themesDir, { recursive: true, force: true })
+    }
+  })
+
+  it("replaces a corrupt file under a generated name", async () => {
+    const themesDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "ax-theme-corrupt-"))
+    try {
+      await fsPromises.writeFile(path.join(themesDir, "generated-ocean.json"), "{ not json")
+      const runtime = createRuntime({ fsPromises, path, themesDir })
+      const normalized = await runtime.writeCustomThemeToDisk(createValidTheme({ metadata: { id: "generated-ocean" } }))
+      expect(JSON.parse(await fsPromises.readFile(path.join(themesDir, "generated-ocean.json"), "utf8"))).toEqual(
+        normalized,
+      )
+    } finally {
+      await fsPromises.rm(themesDir, { recursive: true, force: true })
+    }
+  })
+
+  it("runs concurrent saves one at a time", async () => {
+    const themesDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "ax-theme-queue-"))
+    try {
+      let active = 0
+      let maxActive = 0
+      const runtime = createRuntime({
+        fsPromises: {
+          ...fsPromises,
+          writeFile: async (...args) => {
+            active += 1
+            maxActive = Math.max(maxActive, active)
+            await new Promise((resolve) => setTimeout(resolve, 10))
+            try {
+              return await fsPromises.writeFile(...args)
+            } finally {
+              active -= 1
+            }
+          },
+        },
+        path,
+        themesDir,
+      })
+      await Promise.all([
+        runtime.writeCustomThemeToDisk(createValidTheme({ metadata: { id: "generated-a" } })),
+        runtime.writeCustomThemeToDisk(createValidTheme({ metadata: { id: "generated-b" } })),
+        runtime.writeCustomThemeToDisk(createValidTheme({ metadata: { id: "generated-c" } })),
+      ])
+      expect(maxActive).toBe(1)
+      expect((await fsPromises.readdir(themesDir)).sort()).toEqual([
+        "generated-a.json",
+        "generated-b.json",
+        "generated-c.json",
+      ])
+    } finally {
+      await fsPromises.rm(themesDir, { recursive: true, force: true })
+    }
+  })
+
   it("cleans up the temporary file when atomic rename fails", async () => {
     const themesDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "ax-theme-rename-"))
     try {

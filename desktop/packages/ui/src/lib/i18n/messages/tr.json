@@ -1468,6 +1468,7 @@
   "settings.openchamber.visual.createTheme.previewButton": "Birincil d\u00fc\u011fme",
   "settings.openchamber.visual.createTheme.previewBorder": "Kenarl\u0131k \u00f6rne\u011fi",
   "settings.openchamber.visual.createTheme.passesContrast": "Kontrast denetimlerini ge\u00e7iyor",
+  "settings.openchamber.visual.createTheme.invalidColor": "Rengi #3366ff gibi 6 haneli bir onalt\u0131l\u0131k de\u011fer olarak girin.",
   "settings.openchamber.visual.createTheme.hardFailures": "Ciddi kontrast hatalar\u0131",
   "settings.openchamber.visual.createTheme.save": "Temay\u0131 kaydet",
   "settings.openchamber.visual.createTheme.saving": "Kaydediliyor\u2026",
