@@ -3,7 +3,6 @@ import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import { getSafeStorage } from "./utils/safeStorage"
 import type { AttachedFile } from "./types/sessionTypes"
 import { updateDesktopSettings } from "@/lib/persistence"
-import { ascendingId } from "@/lib/ax-code/client"
 
 export interface QueuedMessage {
   id: string
@@ -11,10 +10,12 @@ export interface QueuedMessage {
   attachments?: AttachedFile[]
   createdAt: number
   /**
-   * Stable id for this entry's prompt. Minted when the entry is queued and reused on
-   * every send attempt, so a retry after a failed or ambiguous send is deduplicated by
-   * the server (which uses it as the real user message id) instead of delivering the
-   * same queued message twice. Entries persisted before this field exist without it.
+   * Stable id for this entry's prompt, minted at the first dispatch attempt and reused
+   * on every retry so the server (which uses it as the real user message id)
+   * deduplicates an ambiguous or repeated send instead of delivering the prompt twice.
+   * Minted at send time, not at queue time: the id is time-ordered and the message
+   * store renders by id, so an id taken while the queue waited would sort the prompt
+   * above the replies that arrived in the meantime.
    */
   messageId?: string
   /** Send config captured at queue time — used as-is when auto-sending */
@@ -33,6 +34,8 @@ interface MessageQueueState {
 
 interface MessageQueueActions {
   addToQueue: (sessionId: string, message: Omit<QueuedMessage, "id" | "createdAt">) => void
+  /** Record the retry id minted for an entry at its first dispatch attempt. */
+  assignMessageId: (sessionId: string, queuedMessageId: string, messageId: string) => void
   removeFromQueue: (sessionId: string, messageId: string) => void
   popToInput: (sessionId: string, messageId: string) => QueuedMessage | null
   clearQueue: (sessionId: string) => void
@@ -104,7 +107,6 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
           const id = `queued-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
           const queuedMessage: QueuedMessage = {
             id,
-            messageId: ascendingId("msg"),
             content: message.content,
             attachments: message.attachments,
             createdAt: Date.now(),
@@ -125,6 +127,19 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
                 [sessionId]: capped,
               },
             }
+          })
+        },
+
+        assignMessageId: (sessionId, queuedMessageId, messageId) => {
+          set((state) => {
+            const currentQueue = state.queuedMessages[sessionId] ?? []
+            const index = currentQueue.findIndex((message) => message.id === queuedMessageId)
+            if (index === -1 || currentQueue[index].messageId === messageId) {
+              return state
+            }
+            const nextQueue = currentQueue.slice()
+            nextQueue[index] = { ...nextQueue[index], messageId }
+            return { queuedMessages: { ...state.queuedMessages, [sessionId]: nextQueue } }
           })
         },
 

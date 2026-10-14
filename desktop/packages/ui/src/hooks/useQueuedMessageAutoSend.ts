@@ -5,6 +5,7 @@ import {
   useMessageQueueStore,
   type QueuedMessage,
 } from "@/stores/messageQueueStore"
+import { ascendingId } from "@/lib/ax-code/client"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSelectionStore } from "@/sync/selection-store"
 import { useConfigStore } from "@/stores/useConfigStore"
@@ -66,6 +67,7 @@ export const sendQueuedAutoSendPayload = (
   sessionId: string,
   payload: QueuedAutoSendPayload,
   resolved: ResolvedQueuedSendConfig,
+  messageId: string,
 ) => {
   return useSessionUIStore
     .getState()
@@ -79,9 +81,9 @@ export const sendQueuedAutoSendPayload = (
       undefined,
       resolved.variant,
       "normal",
-      // The entry's own id: a retry of this entry reuses it, so the server deduplicates
-      // an ambiguous send instead of delivering the prompt twice.
-      { sessionId, messageId: payload.messageId },
+      // The entry's retry id makes a repeated, ambiguous or duplicate send of this
+      // entry idempotent on the server instead of delivering the prompt twice.
+      { sessionId, messageId },
     )
 }
 
@@ -261,19 +263,35 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
 
       inFlightSessionsRef.current.add(sessionId)
 
+      // A retry id is minted here, at the first attempt, and stored on the entry: later
+      // attempts (a restored failure, a retry after an ambiguous send) reuse it so the
+      // server deduplicates them. Minting it here rather than at queue time keeps the
+      // id in transcript order, since the store renders messages by id.
+      const messageId = payload.messageId ?? ascendingId("msg")
+      if (!payload.messageId) {
+        useMessageQueueStore.getState().assignMessageId(sessionId, payload.queuedMessageId, messageId)
+      }
+
       // Take the entry out before the send: the chip stays interactive while the
-      // prompt is in flight, and sending it by hand would deliver it twice (each
-      // send mints its own message id, so nothing downstream dedupes).
-      const dispatchedEntry = queueSnapshot.find((message) => message.id === payload.queuedMessageId)
+      // prompt is in flight, and sending it by hand would deliver it twice.
+      const dispatchedEntry = useMessageQueueStore
+        .getState()
+        .getQueueForSession(sessionId)
+        .find((message) => message.id === payload.queuedMessageId)
       useMessageQueueStore.getState().removeFromQueue(sessionId, payload.queuedMessageId)
 
       try {
-        await sendQueuedAutoSendPayload(sessionId, payload, {
-          providerID: resolved.providerID,
-          modelID: resolved.modelID,
-          agent: resolved.agent,
-          variant: resolved.variant,
-        })
+        await sendQueuedAutoSendPayload(
+          sessionId,
+          payload,
+          {
+            providerID: resolved.providerID,
+            modelID: resolved.modelID,
+            agent: resolved.agent,
+            variant: resolved.variant,
+          },
+          messageId,
+        )
       } catch (error) {
         console.warn("[queue] queued auto-send failed:", error)
         // Let this or another window try again.

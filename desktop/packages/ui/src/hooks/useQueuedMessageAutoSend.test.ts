@@ -302,12 +302,17 @@ describe("buildQueuedAutoSendPayload", () => {
     ])
 
     expect(payload).not.toBeNull()
-    await sendQueuedAutoSendPayload("session-original", payload!, {
-      providerID: "provider-1",
-      modelID: "model-1",
-      agent: "agent-1",
-      variant: "variant-1",
-    })
+    await sendQueuedAutoSendPayload(
+      "session-original",
+      payload!,
+      {
+        providerID: "provider-1",
+        modelID: "model-1",
+        agent: "agent-1",
+        variant: "variant-1",
+      },
+      "msg_test_retry_id_0001",
+    )
 
     expect(sendMessageCalls.length).toBe(1)
     expect(sendMessageCalls[0]).toEqual([
@@ -320,7 +325,8 @@ describe("buildQueuedAutoSendPayload", () => {
       undefined,
       "variant-1",
       "normal",
-      { sessionId: "session-original" },
+      // The retry id travels with the send so the server can deduplicate a repeat.
+      { sessionId: "session-original", messageId: "msg_test_retry_id_0001" },
     ])
   })
 })
@@ -426,8 +432,10 @@ describe("useQueuedMessageAutoSend hold lift", () => {
       content: "queued message",
       sendConfig: { providerID: "provider-1", modelID: "model-1" },
     })
-    const [queued] = useMessageQueueStore.getState().getQueueForSession("session-a")
-    expect(queued.messageId).toMatch(/^msg_/)
+    // The retry id is minted at the first dispatch attempt, not at queue time: ids are
+    // time-ordered and the message store renders by id, so an id taken while the queue
+    // waited would sort this prompt above the replies that arrived in the meantime.
+    expect(useMessageQueueStore.getState().getQueueForSession("session-a")[0].messageId).toBeUndefined()
 
     render()
     statusState.current = { "session-a": { type: "idle" } }
@@ -435,7 +443,8 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     await React.act(async () => {})
 
     expect(sendMessageCalls).toHaveLength(1)
-    expect(sendOptionsOf(0)).toMatchObject({ sessionId: "session-a", messageId: queued.messageId })
+    expect(sendOptionsOf(0).sessionId).toBe("session-a")
+    expect(sendOptionsOf(0).messageId).toMatch(/^msg_/)
   })
 
   test("reuses the same message id when a restored entry is dispatched again", async () => {

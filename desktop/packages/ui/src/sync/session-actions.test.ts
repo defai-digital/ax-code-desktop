@@ -1793,7 +1793,7 @@ describe("optimisticSend message ids", () => {
       () => {},
     )
 
-    const send = vi.fn(async () => {})
+    const send = vi.fn<(messageId: string) => Promise<void>>(async () => {})
     await optimisticSend({
       sessionId: "session-a",
       content: "hello",
@@ -1808,7 +1808,7 @@ describe("optimisticSend message ids", () => {
     expect(send).toHaveBeenCalledWith("msg_retry_stable_0001")
 
     // An unusable id must not be forwarded; a fresh one is minted instead.
-    const fallbackSend = vi.fn(async () => {})
+    const fallbackSend = vi.fn<(messageId: string) => Promise<void>>(async () => {})
     await optimisticSend({
       sessionId: "session-a",
       content: "hello again",
