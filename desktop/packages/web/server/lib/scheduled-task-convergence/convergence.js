@@ -283,7 +283,11 @@ export const createScheduledTaskConvergence = (deps) => {
             reason: "project path is unavailable",
           })
         }
-        await projectConfigRuntime.replaceScheduledTasks(projectID, [])
+        // The path may be unresolvable only this boot (settings not loaded yet).
+        // The tasks were never handed to the runtime, so deleting them here loses
+        // them for good; keep them retryable like the runtime-unreachable case.
+        retryableRemaining += tasks.length
+        remainingByFile.set(projectID, tasks)
         continue
       }
 
