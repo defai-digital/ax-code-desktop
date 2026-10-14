@@ -211,6 +211,10 @@ describe("theme runtime", () => {
       badChart.colors.charts = { series: ["#112233", "url(javascript:alert(1))"] }
       await expect(runtime.writeCustomThemeToDisk(badChart)).rejects.toThrow("hex colour")
 
+      const badKey = createValidTheme({ metadata: { id: "generated-key" } })
+      badKey.colors.syntax.tokens = { "x}\nbody{background:red}x": "#000000" }
+      await expect(runtime.writeCustomThemeToDisk(badKey)).rejects.toThrow("key")
+
       const badFont = {
         ...createValidTheme({ metadata: { id: "generated-font" } }),
         config: { fonts: { sans: "x; } *{" } },

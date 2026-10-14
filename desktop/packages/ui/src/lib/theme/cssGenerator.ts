@@ -271,6 +271,9 @@ export class CSSVariableGenerator {
 
     const tokens = this.generateSyntaxTokens(syntax)
     for (const [key, value] of Object.entries(tokens)) {
+      // Token names come from theme files and become property names; anything
+      // but a plain identifier could close the rule and add its own.
+      if (!/^[A-Za-z][A-Za-z0-9]*$/.test(key)) continue
       vars.push(`  --syntax-${this.kebabCase(key)}: ${value};`)
     }
 

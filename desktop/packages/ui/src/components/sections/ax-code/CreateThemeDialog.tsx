@@ -34,9 +34,24 @@ const slugify = (value: string) => {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 60)
+    .slice(0, 40)
   return slug.replace(/-+$/g, "") || "theme"
 }
+
+// FNV-1a of the raw name, so names that slug alike (non-Latin scripts,
+// punctuation) still get their own file.
+const nameHash = (value: string) => {
+  let hash = 0x811c9dc5
+  for (const char of value) {
+    hash ^= char.codePointAt(0) ?? 0
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return hash.toString(36).padStart(7, "0").slice(-7)
+}
+
+// Fits the server rule /^generated-[a-z0-9][a-z0-9-]{0,60}$/: at most 40 + 1 +
+// 7 + 1 + 5 characters after the prefix.
+const themeIdFor = (name: string, variant: ThemeVariant) => `generated-${slugify(name)}-${nameHash(name)}-${variant}`
 
 const isHexColor = (value: string) => /^#[0-9a-f]{6}$/i.test(value)
 
@@ -61,13 +76,12 @@ function Preview({ theme, name }: { theme: Theme; name: string }) {
         <p className="mt-1 text-sm" style={{ color: colors.surface.mutedForeground }}>
           {t("settings.openchamber.visual.createTheme.previewBody")}
         </p>
-        <button
-          type="button"
-          className="mt-3 rounded-md px-3 py-1.5 text-sm font-medium"
+        <span
+          className="mt-3 inline-block rounded-md px-3 py-1.5 text-sm font-medium"
           style={{ backgroundColor: colors.primary.base, color: colors.primary.foreground }}
         >
           {t("settings.openchamber.visual.createTheme.previewButton")}
-        </button>
+        </span>
       </div>
       <div className="flex items-center gap-2 text-xs">
         <span>{t("settings.openchamber.visual.createTheme.previewBorder")}</span>
@@ -93,7 +107,7 @@ export function CreateThemeDialog({ open, onOpenChange, reloadCustomThemes, onTh
   const trimmedName = name.trim()
   // The mode is part of the id so a light and a dark theme of the same name
   // are separate files rather than replacing each other.
-  const id = `generated-${slugify(trimmedName)}-${variant}`
+  const id = themeIdFor(trimmedName, variant)
   const invalidColor = !isHexColor(base) || !isHexColor(accent)
   const invalidMessageId = React.useId()
 

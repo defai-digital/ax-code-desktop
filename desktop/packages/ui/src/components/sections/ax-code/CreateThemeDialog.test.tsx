@@ -102,13 +102,43 @@ describe("CreateThemeDialog", () => {
     const request = fetchMock.mock.calls[0]?.[1]
     const payload = JSON.parse(String(request?.body))
     expect(payload.theme.metadata).toMatchObject({
-      id: "generated-ocean-blue-dark",
+      id: expect.stringMatching(/^generated-ocean-blue-[0-9a-z]{7}-dark$/),
       name: "Ocean Blue",
       variant: "dark",
     })
     expect(reloadCustomThemes).toHaveBeenCalledOnce()
-    expect(onThemeSaved).toHaveBeenCalledWith({ id: "generated-ocean-blue-dark", variant: "dark" })
+    expect(onThemeSaved).toHaveBeenCalledWith({
+      id: expect.stringMatching(/^generated-ocean-blue-[0-9a-z]{7}-dark$/),
+      variant: "dark",
+    })
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(toastSuccess).toHaveBeenCalledOnce()
+  })
+
+  test("gives distinct names distinct ids that fit the server rule", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input
+      void init
+      return { ok: true, json: async () => ({}) }
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const ids: string[] = []
+    for (const name of ["海洋", "テーマ", "x".repeat(80)]) {
+      act(() => root.unmount())
+      root = createRoot(container)
+      renderDialog()
+      const nameInput = container.querySelector("input") as HTMLInputElement
+      act(() => setInputValue(nameInput, name))
+      const saveButton = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent === "Save theme",
+      )
+      await act(async () => {
+        saveButton?.click()
+      })
+      const request = fetchMock.mock.calls.at(-1)?.[1]
+      ids.push(JSON.parse(String(request?.body)).theme.metadata.id)
+    }
+    for (const id of ids) expect(id).toMatch(/^generated-[a-z0-9][a-z0-9-]{0,60}$/)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 })

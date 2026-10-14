@@ -160,6 +160,7 @@ export const createThemeRuntime = (dependencies) => {
 
   const HEX_COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
   const CSS_TIME = /^\d+(?:\.\d+)?m?s(?: [a-z-]+(?:\([0-9., ]+\))?)?$/i
+  const SAFE_KEY = /^[A-Za-z][A-Za-z0-9]*$/
   const FONT_STACK = /^[^;{}<>\\]{1,300}$/
 
   // Values from a generated theme reach CSS custom properties, so the write path
@@ -176,7 +177,11 @@ export const createThemeRuntime = (dependencies) => {
         return
       }
       if (value && typeof value === "object") {
-        for (const [key, child] of Object.entries(value)) visit(child, `${where}.${key}`)
+        for (const [key, child] of Object.entries(value)) {
+          // Some keys (syntax tokens) become CSS property names.
+          if (!SAFE_KEY.test(key)) throw new Error(`Theme colour key ${where}.${key} is not allowed`)
+          visit(child, `${where}.${key}`)
+        }
         return
       }
       if (value !== undefined && value !== null) throw new Error(`Theme colour ${where} must be a hex colour`)
