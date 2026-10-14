@@ -90,14 +90,30 @@ export const useSidebarPersistence = (args: Args) => {
   )
 
   React.useEffect(() => {
-    return () => {
-      if (typeof window !== "undefined" && persistCollapsedProjectsTimer.current !== null) {
+    // A collapse toggled within the debounce must still land: the sidebar unmounts
+    // on teardown (and the window can go away) before the 700ms timer fires, so
+    // flush what is pending instead of dropping it.
+    const flushPending = () => {
+      if (persistCollapsedProjectsTimer.current !== null) {
         window.clearTimeout(persistCollapsedProjectsTimer.current)
+        persistCollapsedProjectsTimer.current = null
       }
-      persistCollapsedProjectsTimer.current = null
+      flushCollapsedProjectsPersist()
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushPending()
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    window.addEventListener("pagehide", flushPending)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+      window.removeEventListener("pagehide", flushPending)
+      flushPending()
       pendingCollapsedProjects.current = null
     }
-  }, [])
+  }, [flushCollapsedProjectsPersist])
 
   React.useEffect(() => {
     try {

@@ -107,6 +107,26 @@ export const startAppearanceAutoSave = (): void => {
     timer = setTimeout(flush, 150)
   }
 
+  // A change made inside the debounce must still land when the window goes away.
+  // persistence.ts flushes the changes it already holds on these same events, but a
+  // payload still pending here never reached it.
+  const flushPendingNow = () => {
+    if (timer) {
+      clearTimeout(timer)
+      timer = null
+    }
+    flush()
+  }
+  if (typeof document !== "undefined") {
+    // "hidden" typically precedes termination, pagehide covers real unloads.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        flushPendingNow()
+      }
+    })
+  }
+  window.addEventListener("pagehide", flushPendingNow)
+
   useUIStore.subscribe((state) => {
     const current: AppearanceSlice = {
       showReasoningTraces: state.showReasoningTraces,
