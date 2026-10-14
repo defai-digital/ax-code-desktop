@@ -53,6 +53,14 @@ function SessionPermissionWatcher({
   React.useEffect(() => {
     const store = useNotificationStore.getState()
     const seen = mirroredNotificationIdsRef.current
+    // The center can be emptied from outside this mirror ("Clear all", or the
+    // 100-item cap). Drop ids that are no longer present, or a still-pending
+    // request would never be mirrored again.
+    for (const [requestId, notificationId] of seen) {
+      if (!store.notifications.some((notification) => notification.id === notificationId)) {
+        seen.delete(requestId)
+      }
+    }
     const { toAdd, toRemove } = diffPermissionNotifications(seen, permissions)
 
     for (const { requestId, notificationId } of toRemove) {
