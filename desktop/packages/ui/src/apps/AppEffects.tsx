@@ -50,8 +50,20 @@ const MiniChatPresenceBridge: React.FC = () => {
   return null
 }
 
-export function SyncRuntimeEffects({ embeddedBackgroundWorkEnabled }: { embeddedBackgroundWorkEnabled: boolean }) {
-  useSessionAutoCleanup(embeddedBackgroundWorkEnabled)
+export function SyncRuntimeEffects({
+  embeddedBackgroundWorkEnabled,
+  globalHousekeepingEnabled = true,
+}: {
+  embeddedBackgroundWorkEnabled: boolean
+  /**
+   * Retention cleanup archives/deletes expired sessions globally, and its
+   * "the user is looking at this session" guard only sees this window. Only the
+   * primary window runs it, so a background window can never delete a session the
+   * other window is viewing (and the work is not done twice).
+   */
+  globalHousekeepingEnabled?: boolean
+}) {
+  useSessionAutoCleanup(embeddedBackgroundWorkEnabled && globalHousekeepingEnabled)
   useQueuedMessageAutoSend(embeddedBackgroundWorkEnabled)
 
   return <SyncOptimisticBridge />
