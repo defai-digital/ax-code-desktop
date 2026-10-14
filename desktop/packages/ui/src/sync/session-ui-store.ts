@@ -122,6 +122,8 @@ export function routeMessage(params: {
   variant?: string
   inputMode?: "normal" | "shell"
   files?: RouteFileInput[]
+  /** Retry-stable id; forwarded so the server can deduplicate a repeated send. */
+  messageId?: string
   additionalParts?: Array<{
     text: string
     synthetic?: boolean
@@ -185,6 +187,7 @@ export function routeMessage(params: {
       // yet, or any slash command while the catalog load failed.
       if (cmdName && (knownCommand || catalogLoadFailed || (forcedCommand != null && !commandsLoaded))) {
         return optimisticSend({
+          messageId: params.messageId,
           sessionId: params.sessionId,
           content,
           providerID: params.providerID,
@@ -213,6 +216,7 @@ export function routeMessage(params: {
       if (forcedCommand && commandsLoaded && !knownCommand) {
         const fallback = workModeFallbackPrompt(forcedCommand.name, forcedCommand.arguments)
         return optimisticSend({
+          messageId: params.messageId,
           sessionId: params.sessionId,
           content: fallback,
           providerID: params.providerID,
@@ -238,6 +242,7 @@ export function routeMessage(params: {
 
     // Normal prompt — optimistic insert so message appears instantly
     return optimisticSend({
+      messageId: params.messageId,
       sessionId: params.sessionId,
       content: params.content,
       providerID: params.providerID,
@@ -271,6 +276,12 @@ export function routeMessage(params: {
 
 type SendMessageOptions = {
   sessionId?: string
+  /**
+   * Stable message id for a caller that may retry the same logical message. The
+   * server uses it as the real user message id, so a retry is deduplicated instead
+   * of delivering the prompt twice.
+   */
+  messageId?: string
 }
 
 function notifyMessageSent(sessionId: string): void {
@@ -1066,6 +1077,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     await routeMessage({
       sessionId: targetSessionId,
       directory: currentSessionDirectory,
+      messageId: options?.messageId,
       content,
       providerID,
       modelID,

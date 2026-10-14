@@ -229,6 +229,8 @@ vi.doMock("@/lib/ax-code/client", () => ({
     checkHealth: () => Promise.resolve(true),
   },
   ascendingId: (prefix: "msg" | "prt") => `${prefix}_${(mockIdCounter++).toString(16).padStart(12, "0")}mockrandom0001`,
+  // Mirrors the client's own validation: only a msg-branded id may be forwarded.
+  isValidMessageId: (id: unknown) => typeof id === "string" && id.startsWith("msg_"),
 }))
 
 // Mock useConfigStore
@@ -1776,5 +1778,47 @@ describe("abortCurrentOperation", () => {
     expect(sessionCalls).toEqual([
       { method: "session.abort", params: { sessionID: "session-b", directory: "/other/project" } },
     ])
+  })
+})
+
+describe("optimisticSend message ids", () => {
+  test("uses a caller-supplied message id so a retry is deduplicated", async () => {
+    const store = createStore({})
+    const childStores = createChildStores([["/test/project", store]])
+
+    const { setActionRefs, setOptimisticRefs, optimisticSend } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    setOptimisticRefs(
+      () => {},
+      () => {},
+    )
+
+    const send = vi.fn(async () => {})
+    await optimisticSend({
+      sessionId: "session-a",
+      content: "hello",
+      providerID: "provider-1",
+      modelID: "model-1",
+      messageId: "msg_retry_stable_0001",
+      send,
+    })
+
+    // The caller's id reaches the API call, which is what lets the server recognize a
+    // repeated send of the same logical message instead of delivering it twice.
+    expect(send).toHaveBeenCalledWith("msg_retry_stable_0001")
+
+    // An unusable id must not be forwarded; a fresh one is minted instead.
+    const fallbackSend = vi.fn(async () => {})
+    await optimisticSend({
+      sessionId: "session-a",
+      content: "hello again",
+      providerID: "provider-1",
+      modelID: "model-1",
+      messageId: "not-a-message-id",
+      send: fallbackSend,
+    })
+    expect(fallbackSend).toHaveBeenCalledTimes(1)
+    expect(fallbackSend.mock.calls[0][0]).toMatch(/^msg_/)
+    expect(fallbackSend.mock.calls[0][0]).not.toBe("not-a-message-id")
   })
 })

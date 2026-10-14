@@ -46,6 +46,7 @@ export const buildQueuedAutoSendPayload = (queue: QueuedMessage[]) => {
 
   return {
     queuedMessageId: queued.id,
+    messageId: queued.messageId,
     primaryText: sanitizedText,
     primaryAttachments: queued.attachments ?? [],
     agentMentionName: mention?.name,
@@ -78,7 +79,9 @@ export const sendQueuedAutoSendPayload = (
       undefined,
       resolved.variant,
       "normal",
-      { sessionId },
+      // The entry's own id: a retry of this entry reuses it, so the server deduplicates
+      // an ambiguous send instead of delivering the prompt twice.
+      { sessionId, messageId: payload.messageId },
     )
 }
 

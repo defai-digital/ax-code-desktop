@@ -3,12 +3,20 @@ import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import { getSafeStorage } from "./utils/safeStorage"
 import type { AttachedFile } from "./types/sessionTypes"
 import { updateDesktopSettings } from "@/lib/persistence"
+import { ascendingId } from "@/lib/ax-code/client"
 
 export interface QueuedMessage {
   id: string
   content: string
   attachments?: AttachedFile[]
   createdAt: number
+  /**
+   * Stable id for this entry's prompt. Minted when the entry is queued and reused on
+   * every send attempt, so a retry after a failed or ambiguous send is deduplicated by
+   * the server (which uses it as the real user message id) instead of delivering the
+   * same queued message twice. Entries persisted before this field exist without it.
+   */
+  messageId?: string
   /** Send config captured at queue time — used as-is when auto-sending */
   sendConfig?: {
     providerID: string
@@ -96,6 +104,7 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
           const id = `queued-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
           const queuedMessage: QueuedMessage = {
             id,
+            messageId: ascendingId("msg"),
             content: message.content,
             attachments: message.attachments,
             createdAt: Date.now(),

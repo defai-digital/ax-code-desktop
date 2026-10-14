@@ -16,7 +16,7 @@ import { Binary } from "./binary"
 import { useSessionUIStore } from "./session-ui-store"
 import { useInputStore } from "./input-store"
 import type { ChildStoreManager } from "./child-store"
-import { axCodeClient, ascendingId } from "@/lib/ax-code/client"
+import { axCodeClient, ascendingId, isValidMessageId } from "@/lib/ax-code/client"
 import { formatSdkError } from "@/lib/ax-code/sdkError"
 // NOTE (SPEC-2026-08-30, S4.5): the session lifecycle event stream
 // (`session.created/updated/deleted` applied via sync/global-session-events.ts)
@@ -818,6 +818,13 @@ export async function optimisticSend(input: {
   modelID: string
   agent?: string
   files?: Array<Pick<FilePartInput, "type" | "mime" | "url" | "filename" | "source">>
+  /**
+   * Reuse a caller's message id instead of minting one. The server treats it as the
+   * real user message id, so a sender that may retry the same logical message (the
+   * queued-message dispatcher) can pass a stable id and let the server deduplicate
+   * the retry instead of delivering the prompt twice.
+   */
+  messageId?: string
   /** The actual API call — receives the optimistic messageID so the server can use the same ID */
   send: (messageID: string) => Promise<void>
 }): Promise<void> {
@@ -826,7 +833,7 @@ export async function optimisticSend(input: {
   }
 
   const store = dirStore()
-  const messageID = ascendingId("msg")
+  const messageID = isValidMessageId(input.messageId ?? "") ? input.messageId! : ascendingId("msg")
   const textPartId = ascendingId("prt")
 
   const optimisticParts: Part[] = [{ id: textPartId, type: "text", text: input.content } as Part]

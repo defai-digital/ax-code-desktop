@@ -96,7 +96,7 @@ const ID_RANDOM_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrs
 const MESSAGE_ID_PREFIX = "msg"
 const PART_ID_PREFIX = "prt"
 const isValidPartId = (id: unknown): id is string => typeof id === "string" && id.startsWith(`${PART_ID_PREFIX}_`)
-const isValidMessageId = (id: unknown): id is string => typeof id === "string" && id.startsWith(MESSAGE_ID_PREFIX)
+export const isValidMessageId = (id: unknown): id is string => typeof id === "string" && id.startsWith(`${MESSAGE_ID_PREFIX}_`)
 
 let lastIdTimestamp = 0
 let idCounter = 0

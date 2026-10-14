@@ -6,6 +6,10 @@ import type { QueuedMessage } from "../stores/messageQueueStore"
 
 let visibleAgents: Agent[] = []
 const sendMessageCalls: unknown[][] = []
+let sendShouldFail = false
+
+/** Options argument of the captured sendMessage call (content is index 0). */
+const sendOptionsOf = (index: number) => sendMessageCalls[index]?.[9] as { sessionId?: string; messageId?: string }
 
 const getVisibleAgentsMock = vi.fn(() => visibleAgents)
 
@@ -41,7 +45,7 @@ vi.doMock("@/sync/session-ui-store", () => ({
     getState: () => ({
       sendMessage: (...args: unknown[]) => {
         sendMessageCalls.push(args)
-        return Promise.resolve()
+        return sendShouldFail ? Promise.reject(new Error("send failed")) : Promise.resolve()
       },
       sessionAbortFlags: new Map<string, boolean>(),
       currentSessionId: _mockSUIState.currentSessionId,
@@ -344,6 +348,7 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     root = createRoot(container)
     renderTick = 0
     sendMessageCalls.length = 0
+    sendShouldFail = false
     statusState.current = { "session-a": { type: "busy" } }
     useMessageQueueStore.setState({ queuedMessages: {} })
     useSyncNotificationStore.setState({
@@ -414,6 +419,57 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     await React.act(async () => {})
 
     expect(sendMessageCalls).toHaveLength(1)
+  })
+
+  test("sends the queued entry under its own retry-stable message id", async () => {
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+    const [queued] = useMessageQueueStore.getState().getQueueForSession("session-a")
+    expect(queued.messageId).toMatch(/^msg_/)
+
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+
+    expect(sendMessageCalls).toHaveLength(1)
+    expect(sendOptionsOf(0)).toMatchObject({ sessionId: "session-a", messageId: queued.messageId })
+  })
+
+  test("reuses the same message id when a restored entry is dispatched again", async () => {
+    // Regression: each attempt minted a fresh id, so a retry after an ambiguous or the
+    // failed send below could deliver the same queued prompt twice — the server
+    // deduplicates only by the id it is given.
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+    const [queued] = useMessageQueueStore.getState().getQueueForSession("session-a")
+
+    sendShouldFail = true
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+    expect(sendMessageCalls).toHaveLength(1)
+    // The failed entry is back at the head, ready for the next edge.
+    expect(useMessageQueueStore.getState().getQueueForSession("session-a").map((m) => m.id)).toEqual([queued.id])
+
+    // Next idle edge: the retry must carry the same id so the server can deduplicate.
+    sendShouldFail = false
+    statusState.current = { "session-a": { type: "busy" } }
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+
+    expect(sendMessageCalls).toHaveLength(2)
+    const firstId = sendOptionsOf(0).messageId
+    // A real msg-branded id, not just "both undefined".
+    expect(firstId).toMatch(/^msg_/)
+    expect(sendOptionsOf(1).messageId).toBe(firstId)
   })
 
   test("a lost cross-window claim does not wedge the session's auto-send", async () => {
