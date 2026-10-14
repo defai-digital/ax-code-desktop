@@ -5,6 +5,7 @@ import type { WorkerPoolManager } from "@pierre/diffs/worker"
 import { useOptionalThemeSystem } from "./useThemeSystem"
 import { workerFactory } from "@/lib/diff/workerFactory"
 import { getDefaultTheme } from "@/lib/theme/themes"
+import { getAppThemeRegistrationId } from "@/lib/shiki/textMateThemeFromAppTheme"
 // NOTE: keep provider lightweight; avoid main-thread diff parsing here.
 
 // Preload common languages for faster initial diff rendering
@@ -211,10 +212,10 @@ export const DiffWorkerProvider: React.FC<DiffWorkerProviderProps> = ({ children
 
   const renderTheme = useMemo(
     () => ({
-      light: lightTheme.metadata.id,
-      dark: darkTheme.metadata.id,
+      light: getAppThemeRegistrationId(lightTheme),
+      dark: getAppThemeRegistrationId(darkTheme),
     }),
-    [darkTheme.metadata.id, lightTheme.metadata.id],
+    [darkTheme, lightTheme],
   )
 
   return <WorkerPoolWarmup renderTheme={renderTheme}>{children}</WorkerPoolWarmup>

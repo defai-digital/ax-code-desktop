@@ -175,11 +175,12 @@ export function relativeLuminance(hex: string, background = "#ffffff"): number {
 }
 
 // WCAG 2.x contrast ratio in [1, 21]. The foreground's alpha composites over
-// the background; a translucent background resolves against white first.
-export function contrastRatio(foreground: string, background: string): number {
+// the background; a translucent background resolves against the provided
+// containing surface (white by default).
+export function contrastRatio(foreground: string, background: string, backdrop = "#ffffff"): number {
   let back = parseHex(background)
   if (back.a < 1) {
-    back = compositeOver(back, parseHex("#ffffff"))
+    back = compositeOver(back, parseHex(backdrop))
   }
   const front = compositeOver(parseHex(foreground), back)
 

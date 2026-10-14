@@ -58,7 +58,7 @@ import { ErrorBoundary } from "@/components/ui/ErrorBoundary"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { FileTypeIcon } from "@/components/icons/FileTypeIcon"
 import { Icon } from "@/components/icon/Icon"
-import { ensurePierreThemeRegistered } from "@/lib/shiki/appThemeRegistry"
+import { ensurePierreThemeRegistered, getAppThemeRegistrationId } from "@/lib/shiki/appThemeRegistry"
 import { getDefaultTheme } from "@/lib/theme/themes"
 import { openDesktopFileInApp, openDesktopPath } from "@/lib/desktop"
 import { useOpenInAppsStore } from "@/stores/useOpenInAppsStore"
@@ -2624,8 +2624,8 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
   ])
 
   const pierreTheme = React.useMemo(
-    () => ({ light: lightTheme.metadata.id, dark: darkTheme.metadata.id }),
-    [lightTheme.metadata.id, darkTheme.metadata.id],
+    () => ({ light: getAppThemeRegistrationId(lightTheme), dark: getAppThemeRegistrationId(darkTheme) }),
+    [lightTheme, darkTheme],
   )
 
   const imageSrc =

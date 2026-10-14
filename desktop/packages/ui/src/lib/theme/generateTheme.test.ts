@@ -1,14 +1,18 @@
 import { describe, expect, test } from "vitest"
 import type { Theme } from "@/types/theme"
 import { CSSVariableGenerator } from "@/lib/theme/cssGenerator"
-import { contrastRatio } from "./oklch"
+import { contrastRatio, oklchToHex } from "./oklch"
 import { generateTheme } from "./generateTheme"
-import { checkThemeContrast } from "./themeContrast"
+import { checkGeneratedThemeContrast, checkThemeContrast } from "./themeContrast"
 
 const seeds = [
+  { base: "#24262d", accent: "#6d75e8" },
   { base: "#14161f", accent: "#52a8ff" },
   { base: "#101014", accent: "#46a758" },
   { base: "#2b1b17", accent: "#e5484d" },
+  { base: "#173121", accent: "#eeeeee" },
+  { base: "#302044", accent: "#000000" },
+  { base: "#183b40", accent: "#00eecc" },
   { base: "#f4f2ed", accent: "#b45309" },
   { base: "#f7f7f5", accent: "#2e7d43" },
 ]
@@ -18,6 +22,23 @@ const variants: Array<"light" | "dark"> = ["light", "dark"]
 const hardFailures = (theme: Theme) => checkThemeContrast(theme).filter((failure) => failure.severity === "hard")
 
 describe("generateTheme", () => {
+  test("all generated text and button states pass across seed hues, contrast levels, and variants", () => {
+    for (const variant of variants) {
+      for (const contrast of [0, 0.5, 1]) {
+        for (const seed of seeds) {
+          for (const hue of [0, 45, 90, 135, 180, 225, 270, 315]) {
+            const accent = oklchToHex({ l: 0.65, c: 0.2, h: hue })
+            const theme = generateTheme({ id: "grid", name: "Grid", variant, ...seed, accent, contrast })
+            const failures = checkGeneratedThemeContrast(theme)
+            expect(failures, JSON.stringify({ variant, contrast, seed, accent, failures })).toEqual([])
+          }
+          const defaults = generateTheme({ id: "seed", name: "Seed", variant, ...seed, contrast })
+          expect(checkGeneratedThemeContrast(defaults)).toEqual([])
+        }
+      }
+    }
+  })
+
   test("both variants of every seed clear the hard contrast rules", () => {
     for (const variant of variants) {
       for (const seed of seeds) {

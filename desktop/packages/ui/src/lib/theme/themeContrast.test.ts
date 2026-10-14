@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest"
 import type { Theme } from "@/types/theme"
-import { checkThemeContrast } from "./themeContrast"
+import { checkGeneratedThemeContrast, checkThemeContrast } from "./themeContrast"
+import { generateTheme } from "./generateTheme"
 import { getThemeById, themes } from "./themes"
 
 // Bundled themes that miss a hard rule can be listed here, with a reason,
@@ -32,6 +33,60 @@ describe("bundled theme contrast audit", () => {
       }
     }
     expect(stale, `ids that no longer fail and should be removed: ${stale.join(", ")}`).toEqual([])
+  })
+})
+
+describe("checkGeneratedThemeContrast", () => {
+  const generated = () => generateTheme({
+    id: "audit", name: "Audit", variant: "light", base: "#24262d", accent: "#6d75e8", contrast: 0.5,
+  })
+
+  test("detects unreadable status text on canvas and its own tint", () => {
+    const theme = generated()
+    theme.colors.status.warning = "#d9ac00"
+    theme.colors.status.warningBackground = "#d9ac0026"
+    const rules = checkGeneratedThemeContrast(theme).map((failure) => failure.rule)
+    expect(rules).toContain("status.warning-on-background")
+    expect(rules).toContain("status.warning-on-tint-background")
+  })
+
+  test("audits status foregrounds on solid status fills", () => {
+    const theme = generated()
+    theme.colors.status.successForeground = theme.colors.status.success
+    expect(checkGeneratedThemeContrast(theme).map((failure) => failure.rule))
+      .toContain("status.successForeground-on-success")
+  })
+
+  test("requires 4.5 for syntax numbers, comments, extra tokens, and line numbers", () => {
+    const theme = generated()
+    theme.colors.syntax.base.number = "#c5a500"
+    theme.colors.syntax.base.comment = "#aaaaaa"
+    theme.colors.syntax.tokens!.punctuation = "#aaaaaa"
+    theme.colors.syntax.highlights!.lineNumber = "#aaaaaa"
+    const failures = checkGeneratedThemeContrast(theme)
+    for (const rule of [
+      "syntax.base.number-on-syntax", "syntax.base.comment-on-syntax",
+      "syntax.tokens.punctuation-on-syntax", "syntax.highlights.lineNumber-on-syntax",
+    ]) {
+      expect(failures.find((failure) => failure.rule === rule)).toMatchObject({ severity: "hard", required: 4.5 })
+    }
+  })
+
+  test("detects tinted button text even when the solid primary pairing passes", () => {
+    const theme = generated()
+    theme.colors.primary.base = "#707070"
+    theme.colors.primary.foreground = "#ffffff"
+    expect(checkThemeContrast(theme).filter((failure) => failure.severity === "hard")).toEqual([])
+    expect(checkGeneratedThemeContrast(theme).map((failure) => failure.rule))
+      .toContain("button.primary-active-on-background")
+  })
+
+  test("composites dark button and status tints over their containing surfaces", () => {
+    const theme = generateTheme({ id: "dark", name: "Dark", variant: "dark", base: "#24262d", accent: "#6d75e8" })
+    expect(checkGeneratedThemeContrast(theme)).toEqual([])
+    theme.colors.surface.elevated = "#eeeeee"
+    expect(checkGeneratedThemeContrast(theme).map((failure) => failure.rule))
+      .toContain("button.primary-default-on-elevated")
   })
 })
 

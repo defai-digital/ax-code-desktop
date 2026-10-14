@@ -2,7 +2,9 @@ import { registerCustomTheme } from "@pierre/diffs"
 
 import type { Theme } from "@/types/theme"
 import type { VSCodeTextMateTheme, VSCodeTokenColorRule } from "./vscodeTextMateTheme"
-import { buildTextMateThemeFromAppTheme } from "./textMateThemeFromAppTheme"
+import { buildTextMateThemeFromAppTheme, getAppThemeRegistrationId } from "./textMateThemeFromAppTheme"
+
+export { getAppThemeRegistrationId } from "./textMateThemeFromAppTheme"
 
 type ShikiThemeRegistrationResolvedLike = VSCodeTextMateTheme & {
   settings: VSCodeTokenColorRule[]
@@ -68,19 +70,20 @@ const buildTextMateTheme = (theme: Theme): VSCodeTextMateTheme => {
 }
 
 export const getResolvedShikiTheme = (theme: Theme): ShikiThemeRegistrationResolvedLike => {
-  const cached = resolvedThemeCache.get(theme.metadata.id)
+  const id = getAppThemeRegistrationId(theme)
+  const cached = resolvedThemeCache.get(id)
   if (cached) {
     return cached
   }
 
   const raw = buildTextMateTheme(theme)
-  const resolved = toResolvedTheme(raw, theme.metadata.id)
-  resolvedThemeCache.set(theme.metadata.id, resolved)
+  const resolved = toResolvedTheme(raw, id)
+  resolvedThemeCache.set(id, resolved)
   return resolved
 }
 
 export const ensurePierreThemeRegistered = (theme: Theme): void => {
-  const id = theme.metadata.id
+  const id = getAppThemeRegistrationId(theme)
   if (registeredPierreThemes.has(id)) {
     return
   }

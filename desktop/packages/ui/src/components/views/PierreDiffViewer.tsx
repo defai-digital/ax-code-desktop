@@ -21,7 +21,7 @@ import {
 import { useOptionalThemeSystem } from "@/contexts/useThemeSystem"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { useWorkerPool } from "@/contexts/DiffWorkerProvider"
-import { ensurePierreThemeRegistered, getResolvedShikiTheme } from "@/lib/shiki/appThemeRegistry"
+import { ensurePierreThemeRegistered, getAppThemeRegistrationId, getResolvedShikiTheme } from "@/lib/shiki/appThemeRegistry"
 import { getDefaultTheme } from "@/lib/theme/themes"
 
 import { useDeviceInfo } from "@/lib/device"
@@ -360,7 +360,9 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
   ensurePierreThemeRegistered(lightTheme)
   ensurePierreThemeRegistered(darkTheme)
 
-  const diffThemeKey = `${lightTheme.metadata.id}:${darkTheme.metadata.id}:${isDark ? "dark" : "light"}`
+  const lightRegistrationId = getAppThemeRegistrationId(lightTheme)
+  const darkRegistrationId = getAppThemeRegistrationId(darkTheme)
+  const diffThemeKey = `${lightRegistrationId}:${darkRegistrationId}:${isDark ? "dark" : "light"}`
 
   const diffRootRef = useRef<HTMLDivElement | null>(null)
   const diffContainerRef = useRef<HTMLDivElement | null>(null)
@@ -451,8 +453,8 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
   const options = useMemo(
     () => ({
       theme: {
-        dark: darkTheme.metadata.id,
-        light: lightTheme.metadata.id,
+        dark: darkRegistrationId,
+        light: lightRegistrationId,
       },
       themeType: isDark ? ("dark" as const) : ("light" as const),
       diffStyle: renderSideBySide ? ("split" as const) : ("unified" as const),
@@ -473,10 +475,10 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
       renderAnnotation,
     }),
     [
-      darkTheme.metadata.id,
+      darkRegistrationId,
       isDark,
       isLargeContent,
-      lightTheme.metadata.id,
+      lightRegistrationId,
       renderSideBySide,
       wrapLines,
       handleSelectionChange,

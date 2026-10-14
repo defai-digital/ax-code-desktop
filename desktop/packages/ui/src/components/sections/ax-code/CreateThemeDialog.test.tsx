@@ -2,6 +2,7 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
+import { generateTheme } from "@/lib/theme/generateTheme"
 
 type MockDialogProps = React.PropsWithChildren<{ open?: boolean; className?: string }>
 
@@ -73,6 +74,47 @@ describe("CreateThemeDialog", () => {
       (button) => button.textContent === "Save theme",
     )
     expect((saveButton as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  test("previews primary text on the actual light and dark button tints", () => {
+    renderDialog()
+    for (const variant of ["dark", "light"] as const) {
+      const modeButton = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent === (variant === "dark" ? "Dark" : "Light"),
+      )!
+      act(() => modeButton.click())
+      const preview = Array.from(container.querySelectorAll("span")).find(
+        (span) => span.textContent === "Primary button",
+      )!
+      const theme = generateTheme({ id: "preview", name: "Preview", variant, base: "#24262d", accent: "#6d75e8" })
+      const expected = document.createElement("span")
+      expected.style.color = theme.colors.primary.base
+      expected.style.backgroundColor = `color-mix(in srgb, ${theme.colors.primary.base} ${variant === "dark" ? 16 : 10}%, ${variant === "dark" ? "transparent" : theme.colors.surface.background})`
+      expect(preview.style.color).toBe(expected.style.color)
+      expect(preview.style.backgroundColor).toBe(expected.style.backgroundColor)
+      expect(preview.style.backgroundColor).toContain("color-mix")
+    }
+  })
+
+  test("re-saving a name and mode keeps its persistent id while replacing the colors", async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }))
+    vi.stubGlobal("fetch", fetchMock)
+    renderDialog()
+    act(() => setInputValue(container.querySelector("input")!, "Resaved"))
+    const slider = container.querySelector<HTMLInputElement>('input[type="range"]')!
+    const saveButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Save theme",
+    )!
+    for (const contrast of ["0", "1"]) {
+      act(() => setInputValue(slider, contrast))
+      await act(async () => saveButton.click())
+    }
+    const requests = vi.mocked(fetch).mock.calls
+    const low = JSON.parse(String(requests[0]?.[1]?.body)).theme
+    const high = JSON.parse(String(requests[1]?.[1]?.body)).theme
+    expect(high.metadata.id).toBe(low.metadata.id)
+    expect(low.colors.surface.background).toBe("#151618")
+    expect(high.colors.surface.background).toBe("#09090b")
   })
 
   test("posts the generated theme, reloads themes, and asks for it to be selected", async () => {

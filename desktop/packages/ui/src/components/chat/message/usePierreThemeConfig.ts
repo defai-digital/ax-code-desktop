@@ -1,7 +1,7 @@
 import React from "react"
 
 import { useOptionalThemeSystem } from "@/contexts/useThemeSystem"
-import { ensurePierreThemeRegistered } from "@/lib/shiki/appThemeRegistry"
+import { ensurePierreThemeRegistered, getAppThemeRegistrationId } from "@/lib/shiki/appThemeRegistry"
 import { getDefaultTheme } from "@/lib/theme/themes"
 
 export type PierreThemeConfig = {
@@ -38,7 +38,7 @@ export const usePierreThemeConfig = (): PierreThemeConfig => {
   const currentVariant = themeSystem?.currentTheme.metadata.variant ?? "light"
 
   return {
-    theme: { light: lightTheme.metadata.id, dark: darkTheme.metadata.id },
+    theme: { light: getAppThemeRegistrationId(lightTheme), dark: getAppThemeRegistrationId(darkTheme) },
     themeType: currentVariant === "dark" ? "dark" : "light",
   }
 }

@@ -480,3 +480,22 @@ export function buildTextMateThemeFromAppTheme(theme: Theme): VSCodeTextMateThem
     tokenColors: buildTokenColors(theme),
   }
 }
+
+// Persistent ids identify saved themes; renderer ids identify immutable
+// palettes so Shiki and Pierre can safely cache a re-saved theme's content.
+const registrationIds = new WeakMap<Theme, string>()
+
+export function getAppThemeRegistrationId(theme: Theme): string {
+  const cached = registrationIds.get(theme)
+  if (cached) return cached
+  const { type, colors, tokenColors } = buildTextMateThemeFromAppTheme(theme)
+  const content = JSON.stringify({ type, colors, tokenColors })
+  let hash = 0x811c9dc5
+  for (let index = 0; index < content.length; index++) {
+    hash ^= content.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  const id = `${theme.metadata.id}-${hash.toString(36)}`
+  registrationIds.set(theme, id)
+  return id
+}

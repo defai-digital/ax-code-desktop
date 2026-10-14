@@ -117,6 +117,15 @@ describe("alpha handling", () => {
     expect(contrastRatio("#ffffff", "#00000000")).toBeCloseTo(contrastRatio("#ffffff", "#ffffff"), 12)
   })
 
+  test("translucent fills resolve against the actual containing surface", () => {
+    // 20% white over black is exactly #333333, not white.
+    expect(contrastRatio("#ffffff", "#ffffff33", "#000000"))
+      .toBeCloseTo(contrastRatio("#ffffff", "#333333"), 12)
+    // Foreground alpha then composites over that resolved fill.
+    expect(contrastRatio("#ffffffcc", "#ffffff33", "#000000"))
+      .toBeCloseTo(contrastRatio("#ffffffcc", "#333333"), 12)
+  })
+
   test("relative luminance resolves a translucent background against white", () => {
     // 50% black over white is mid grey; black over that grey is still black.
     expect(relativeLuminance("#00000000", "#00000080")).toBeCloseTo(relativeLuminance("#808080"), 2)

@@ -54,15 +54,22 @@ const DEFAULT_CONFIG: Theme["config"] = {
 
 // Nudge lightness in one direction until the WCAG ratio against `background`
 // clears `target`. Deterministic and bounded so generation stays pure.
-function ensureContrast(color: Oklch, background: string, target: number, direction: 1 | -1): string {
+function ensureContrast(
+  color: Oklch,
+  background: string | ((hex: string) => string[]),
+  target: number,
+  direction: 1 | -1,
+  backdrop?: string,
+): string {
   let candidate = { ...color }
   for (let step = 0; step < 100; step++) {
     const hex = oklchToHex(candidate)
-    if (contrastRatio(hex, background) >= target) {
+    const backgrounds = typeof background === "string" ? [background] : background(hex)
+    if (backgrounds.every((bg) => contrastRatio(hex, bg, backdrop) >= target)) {
       return hex
     }
-    const next = candidate.l + direction * 0.01
-    if (next < 0 || next > 1) {
+    const next = Math.max(0, Math.min(1, candidate.l + direction * 0.01))
+    if (next === candidate.l) {
       return hex
     }
     candidate = { ...candidate, l: next }
@@ -178,15 +185,33 @@ export function generateTheme(options: GenerateThemeOptions): Theme {
     isDark ? 1 : -1,
   )
 
-  const primaryPair = readablePair(
+  // Default buttons use primary text on a tint, including a stronger active
+  // tint. Dark fills are translucent over the containing surface.
+  const primaryBase = ensureContrast(
     { l: isDark ? 0.68 : 0.55, c: Math.min(0.26, accentColor.c), h: accentColor.h },
-    variant,
+    (hex) => [background, withAlpha(hex, isDark ? 0.3 : 0.22)],
     4.6,
+    isDark ? 1 : -1,
+    isDark ? elevated : background,
   )
+  const primaryPair = readablePair(hexToOklch(primaryBase), variant, 4.6)
   const primary = buildThemeColor(primaryPair, variant)
 
+  const readableTone = (color: Oklch) =>
+    ensureContrast(
+      color,
+      (hex) => [background, muted, withAlpha(hex, 0.2)],
+      4.6,
+      isDark ? 1 : -1,
+      isDark ? elevated : muted,
+    )
+
   const buildStatus = (spec: ToneSpec) =>
-    readablePair({ l: isDark ? spec.darkLightness : spec.lightLightness, c: spec.chroma, h: spec.hue }, variant, 4.5)
+    readablePair(
+      hexToOklch(readableTone({ l: isDark ? spec.darkLightness : spec.lightLightness, c: spec.chroma, h: spec.hue })),
+      variant,
+      4.6,
+    )
 
   const error = buildStatus(STATUS_SPECS.error)
   const warning = buildStatus(STATUS_SPECS.warning)
@@ -194,7 +219,7 @@ export function generateTheme(options: GenerateThemeOptions): Theme {
   const info = buildStatus(STATUS_SPECS.info)
 
   const syntaxTone = (spec: ToneSpec) =>
-    oklchToHex({ l: isDark ? spec.darkLightness : spec.lightLightness, c: spec.chroma, h: spec.hue })
+    readableTone({ l: isDark ? spec.darkLightness : spec.lightLightness, c: spec.chroma, h: spec.hue })
 
   const keyword = syntaxTone(SYNTAX_SPECS.keyword)
   const string = syntaxTone(SYNTAX_SPECS.string)
@@ -203,7 +228,8 @@ export function generateTheme(options: GenerateThemeOptions): Theme {
   const variable = syntaxTone(SYNTAX_SPECS.variable)
   const typeColor = syntaxTone(SYNTAX_SPECS.type)
 
-  const faintLineNumber = neutral(isDark ? canvasLightness + 0.2 : canvasLightness - 0.2)
+  const syntaxComment = readableTone(hexToOklch(mutedForeground))
+  const faintLineNumber = readableTone(hexToOklch(neutral(isDark ? canvasLightness + 0.2 : canvasLightness - 0.2)))
 
   const theme: Theme = {
     metadata: {
@@ -270,7 +296,7 @@ export function generateTheme(options: GenerateThemeOptions): Theme {
         base: {
           background: muted,
           foreground,
-          comment: mutedForeground,
+          comment: syntaxComment,
           keyword,
           string,
           number,
@@ -280,7 +306,7 @@ export function generateTheme(options: GenerateThemeOptions): Theme {
           operator: keyword,
         },
         tokens: {
-          commentDoc: mutedForeground,
+          commentDoc: syntaxComment,
           stringEscape: typeColor,
           keywordImport: keyword,
           storageModifier: variable,
@@ -307,7 +333,7 @@ export function generateTheme(options: GenerateThemeOptions): Theme {
           boolean: number,
           decorator: number,
           label: keyword,
-          punctuation: mutedForeground,
+          punctuation: syntaxComment,
           macro: syntaxFunction,
           preprocessor: number,
           regex: typeColor,
@@ -368,6 +394,30 @@ export function generateTheme(options: GenerateThemeOptions): Theme {
       },
     },
     config: DEFAULT_CONFIG,
+  }
+
+  // Code tokens also appear on diff tints. Resolve alpha over the actual
+  // editor backdrop, then adjust every text token without changing its hue.
+  const syntax = theme.colors.syntax
+  const codeBackgrounds = [background, syntax.base.background]
+  const diffBackgrounds = Object.entries(syntax.highlights ?? {})
+    .filter(([key]) => key.endsWith("Background"))
+    .map(([, color]) => color)
+  for (const tokens of [syntax.base, syntax.tokens ?? {}, syntax.highlights ?? {}]) {
+    for (const [key, color] of Object.entries(tokens)) {
+      if (key === "background" || key.endsWith("Background")) continue
+      let readable = color
+      for (const backdrop of codeBackgrounds) {
+        readable = ensureContrast(
+          hexToOklch(readable),
+          () => [backdrop, ...diffBackgrounds],
+          4.6,
+          isDark ? 1 : -1,
+          backdrop,
+        )
+      }
+      Object.assign(tokens, { [key]: readable })
+    }
   }
 
   return theme

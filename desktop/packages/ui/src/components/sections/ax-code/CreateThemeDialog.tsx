@@ -14,7 +14,7 @@ import { toast } from "@/components/ui"
 import { isDesktopLocalOriginActive } from "@/lib/desktop"
 import { API_ENDPOINTS } from "@/lib/http"
 import { useI18n } from "@/lib/i18n"
-import { checkThemeContrast } from "@/lib/theme/themeContrast"
+import { checkGeneratedThemeContrast } from "@/lib/theme/themeContrast"
 import { generateTheme } from "@/lib/theme/generateTheme"
 import type { Theme } from "@/types/theme"
 
@@ -77,8 +77,12 @@ function Preview({ theme, name }: { theme: Theme; name: string }) {
           {t("settings.openchamber.visual.createTheme.previewBody")}
         </p>
         <span
-          className="mt-3 inline-block rounded-md px-3 py-1.5 text-sm font-medium"
-          style={{ backgroundColor: colors.primary.base, color: colors.primary.foreground }}
+          className="mt-3 inline-block rounded-[10px] border px-3.5 py-1.5 typography-ui-label font-medium lowercase"
+          style={{
+            backgroundColor: `color-mix(in srgb, ${colors.primary.base} ${theme.metadata.variant === "dark" ? 16 : 10}%, ${theme.metadata.variant === "dark" ? "transparent" : colors.surface.background})`,
+            color: colors.primary.base,
+            borderColor: `color-mix(in srgb, ${colors.primary.base} ${theme.metadata.variant === "dark" ? 20 : 12}%, transparent)`,
+          }}
         >
           {t("settings.openchamber.visual.createTheme.previewButton")}
         </span>
@@ -132,7 +136,7 @@ export function CreateThemeDialog({ open, onOpenChange, reloadCustomThemes, onTh
     }
   }, [accent, base, contrast, id, trimmedName, t, variant])
 
-  const hardFailures = theme ? checkThemeContrast(theme).filter((failure) => failure.severity === "hard") : []
+  const hardFailures = theme ? checkGeneratedThemeContrast(theme).filter((failure) => failure.severity === "hard") : []
 
   const saveTheme = async () => {
     if (!theme || !trimmedName || hardFailures.length > 0 || saving) return
