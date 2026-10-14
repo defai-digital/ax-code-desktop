@@ -33,6 +33,9 @@ import { Icon } from "@/components/icon/Icon"
 import { formatTimestampForDisplay } from "./timeFormat"
 import { ToolRevealOnMount } from "./parts/ToolRevealOnMount"
 import { StaticToolRow } from "./parts/StaticToolRow"
+import { ActivityRowSkipContext } from "../lib/turns/activityRows"
+import { LiveFinalActivityContext } from "../components/liveActivityContext"
+import { LiveActivityCollapse } from "../components/LiveActivityCollapse"
 import { isExpandableTool } from "./parts/toolRenderUtils"
 import { createProjectPlanFile } from "@/lib/openchamberConfig"
 import { resolveProjectForSessionDirectory } from "@/lib/projectResolution"
@@ -1140,6 +1143,8 @@ const AssistantMessageBody = React.memo(
     const [isPlanDialogOpen, setIsPlanDialogOpen] = React.useState(false)
     const [isSavingPlan, setIsSavingPlan] = React.useState(false)
     const timeFormatPreference = useUIStore((state) => state.timeFormatPreference)
+    const liveFinalActivity = React.useContext(LiveFinalActivityContext)
+    const activityRowSkip = React.useContext(ActivityRowSkipContext)
     const collapsibleThinkingBlocks = useUIStore((state) => state.collapsibleThinkingBlocks)
     const groupReasoningBlocks = useUIStore((state) => state.groupReasoningBlocks)
     const showSplitAssistantMessageActions = useUIStore((state) => state.showSplitAssistantMessageActions)
@@ -1450,9 +1455,7 @@ const AssistantMessageBody = React.memo(
     const shouldShowMessageActions = hasCopyableText
     const shouldShowTurnFooter = isLastAssistantInTurn && hasTextContent && (hasStopFinish || Boolean(errorMessage))
     const shouldShowStandaloneMessageActions =
-      showSplitAssistantMessageActions &&
-      shouldShowMessageActions &&
-      !shouldShowTurnFooter
+      showSplitAssistantMessageActions && shouldShowMessageActions && !shouldShowTurnFooter
 
     const messageActionButtons = React.useMemo(
       () => (
@@ -1490,7 +1493,56 @@ const AssistantMessageBody = React.memo(
       shouldShowStandaloneMessageActions && lastRenderableTextPartIndex < 0
 
     const renderedParts = React.useMemo(() => {
-      const rendered: React.ReactNode[] = []
+      const answerRendered: React.ReactNode[] = []
+      const activityRendered: React.ReactNode[] = []
+      // The turn's final answer under a folded Activity: its non-text parts
+      // fold with the rest of the turn's work while the answer stays in view.
+      const splitLiveActivity = liveFinalActivity?.messageId === messageId && hasStopFinish
+      // The answer is the text after the message's last tool or reasoning row;
+      // narration before a tool stays with that tool so the order is kept.
+      let answerStartIndex = 0
+      if (splitLiveActivity) {
+        for (let index = visibleParts.length - 1; index >= 0; index -= 1) {
+          const candidate = visibleParts[index]
+          if (
+            (candidate?.type === "reasoning" && extractTextContent(candidate).trim().length > 0) ||
+            (candidate?.type === "tool" && shouldShowTool(candidate as ToolPartType))
+          ) {
+            answerStartIndex = index + 1
+            break
+          }
+        }
+      }
+      let hasRenderedAnswerText = false
+      let i = 0
+      // A working turn with folded Activity shows only its latest rows; the
+      // first rows of the message the trim cuts into are left out here. Rows
+      // match countActivityRows: one per text, reasoning block and shown tool.
+      let rowsToSkip = activityRowSkip?.messageId === messageId ? activityRowSkip.rows : 0
+      const pushRow = (part: Part, node: React.ReactNode, countsAsRow = true): boolean => {
+        if (rowsToSkip > 0) {
+          if (countsAsRow) rowsToSkip -= 1
+          return false
+        }
+        if (splitLiveActivity && (part.type !== "text" || i < answerStartIndex)) {
+          activityRendered.push(node)
+          return true
+        }
+        if (splitLiveActivity && !hasRenderedAnswerText) {
+          if (activityRendered.length > 0 || liveFinalActivity?.hasEarlierActivity) {
+            answerRendered.push(
+              <div
+                key={`final-answer-divider-${messageId}`}
+                aria-hidden="true"
+                className="mt-1.5 mb-3 h-px w-full bg-muted-foreground/20"
+              />,
+            )
+          }
+          hasRenderedAnswerText = true
+        }
+        answerRendered.push(node)
+        return true
+      }
 
       // Flat rendering: iterate parts in natural order.
       // Group consecutive static tools (read, grep, glob, etc.) into compact rows.
@@ -1498,15 +1550,15 @@ const AssistantMessageBody = React.memo(
       // Text renders inline at its natural position.
       // Reasoning: all reasoning parts for this message are merged into ONE block
       // at the position of the first reasoning part (VSCode Copilot pattern).
-      const flatReasoningParts = visibleParts.filter((p) => p.type === "reasoning")
       let reasoningMergeRendered = false
+      let reasoningMergeSkipped = false
 
-      let i = 0
       while (i < visibleParts.length) {
         const part = visibleParts[i]
 
         if (part.type === "text") {
-          rendered.push(
+          pushRow(
+            part,
             <div
               key={`assistant-text-${messageId}-${i}`}
               ref={messageTextContentRef}
@@ -1521,8 +1573,9 @@ const AssistantMessageBody = React.memo(
               />
             </div>,
           )
+          // The actions stay even when a trimmed fold leaves this text out.
           if (shouldShowStandaloneMessageActions && i === lastRenderableTextPartIndex) {
-            rendered.push(
+            answerRendered.push(
               <div
                 key={`message-actions-${messageId}`}
                 className={INLINE_MESSAGE_ACTIONS_CLASS_NAME}
@@ -1542,7 +1595,8 @@ const AssistantMessageBody = React.memo(
           if (showReasoningTraces) {
             if (!collapsibleThinkingBlocks) {
               // Non-collapsible mode: render thinking blocks as plain text inline.
-              rendered.push(
+              pushRow(
+                part,
                 <AssistantTextPart
                   key={`reasoning-${messageId}-${i}`}
                   part={part}
@@ -1554,21 +1608,28 @@ const AssistantMessageBody = React.memo(
               )
             } else if (groupReasoningBlocks) {
               // Merged mode (VSCode pattern): one block for all reasoning parts.
+              // When a trimmed fold leaves the block out, the reasoning still
+              // in view merges at its own position instead.
+              // The merged block is one counted row: once a trim spent it, the
+              // retries take no further skips.
               if (!reasoningMergeRendered) {
-                reasoningMergeRendered = true
-                rendered.push(
+                reasoningMergeRendered = pushRow(
+                  part,
                   <MergedReasoningPart
                     key={`reasoning-merged-${messageId}`}
-                    parts={flatReasoningParts}
+                    parts={visibleParts.slice(i).filter((candidate) => candidate.type === "reasoning")}
                     messageId={messageId}
                     streamPhase={effectiveStreamPhase}
                     onContentChange={onContentChange}
                   />,
+                  !reasoningMergeSkipped,
                 )
+                reasoningMergeSkipped = !reasoningMergeRendered
               }
             } else {
               // Per-part mode: each reasoning block at its natural position.
-              rendered.push(
+              pushRow(
+                part,
                 <ReasoningPart
                   key={`reasoning-${messageId}-${i}`}
                   part={part}
@@ -1594,7 +1655,8 @@ const AssistantMessageBody = React.memo(
 
           // Expandable tools: bash, edit, write, task, question — individual rows
           if (isExpandableTool(toolName)) {
-            rendered.push(
+            pushRow(
+              part,
               <FadeInOnReveal key={`tool-${toolPart.id}`}>
                 <ToolRevealOnMount animate={animatedToolIdsLookup.has(toolPart.id)} wipe>
                   <ToolPart
@@ -1616,7 +1678,8 @@ const AssistantMessageBody = React.memo(
           }
 
           // Static tools: one row per tool call (no grouping)
-          rendered.push(
+          pushRow(
+            part,
             <FadeInOnReveal key={`static-tools-${toolPart.id}`}>
               <ToolRevealOnMount animate={animatedToolIdsLookup.has(toolPart.id)} wipe>
                 <StaticToolRow
@@ -1644,8 +1707,24 @@ const AssistantMessageBody = React.memo(
         i++
       }
 
-      return rendered
+      if (splitLiveActivity && liveFinalActivity) {
+        return [
+          <LiveActivityCollapse
+            key="final-message-activity"
+            expanded={liveFinalActivity.expanded}
+            id={liveFinalActivity.contentId}
+            animateOnMount={liveFinalActivity.animateCollapse}
+          >
+            {activityRendered}
+          </LiveActivityCollapse>,
+          ...answerRendered,
+        ]
+      }
+      return answerRendered
     }, [
+      activityRowSkip,
+      hasStopFinish,
+      liveFinalActivity,
       alwaysShowMessageActions,
       animatedToolIdsLookup,
       collapsibleThinkingBlocks,
@@ -1664,7 +1743,6 @@ const AssistantMessageBody = React.memo(
       effectiveStreamPhase,
       showReasoningTraces,
       syntaxTheme,
-      turnGroupingContext,
       visibleParts,
     ])
 

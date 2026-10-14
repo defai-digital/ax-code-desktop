@@ -7,9 +7,11 @@ interface TurnItemProps {
   turn: Turn
   stickyUserHeader?: boolean
   renderMessage: (message: ChatMessageEntry) => React.ReactNode
+  /** Replaces the plain assistant list, e.g. with the live Activity fold. */
+  assistantContent?: React.ReactNode
 }
 
-const TurnItem: React.FC<TurnItemProps> = ({ turn, stickyUserHeader = true, renderMessage }) => {
+const TurnItem: React.FC<TurnItemProps> = ({ turn, stickyUserHeader = true, renderMessage, assistantContent }) => {
   return (
     <section
       className="relative w-full"
@@ -29,7 +31,9 @@ const TurnItem: React.FC<TurnItemProps> = ({ turn, stickyUserHeader = true, rend
         renderMessage(turn.userMessage)
       )}
 
-      <TurnAssistantBlock assistantMessages={turn.assistantMessages} renderMessage={renderMessage} />
+      {assistantContent ?? (
+        <TurnAssistantBlock assistantMessages={turn.assistantMessages} renderMessage={renderMessage} />
+      )}
     </section>
   )
 }

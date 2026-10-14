@@ -104,9 +104,6 @@ const USER_MESSAGE_RENDERING_OPTIONS: Option<"markdown" | "plain">[] = [
   },
 ]
 
-// The Activity choice applies to the live Activity fold, which lands separately.
-const LIVE_ACTIVITY_FOLD_ENABLED = false
-
 const ACTIVITY_RENDER_MODE_OPTIONS: Option<"collapsed" | "summary">[] = [
   {
     id: "collapsed",
@@ -425,7 +422,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
   const hasBehaviorSettings =
     shouldShow("mermaidRendering") ||
     shouldShow("userMessageRendering") ||
-    (shouldShow("activityRenderMode") && LIVE_ACTIVITY_FOLD_ENABLED) ||
+    shouldShow("activityRenderMode") ||
     shouldShow("stickyUserHeader") ||
     shouldShow("wideChatLayout") ||
     shouldShow("splitAssistantMessageActions") ||
@@ -906,10 +903,10 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
         <div className="space-y-3">
           {(shouldShow("userMessageRendering") ||
             shouldShow("mermaidRendering") ||
-                            (shouldShow("activityRenderMode") && LIVE_ACTIVITY_FOLD_ENABLED) ||
+            shouldShow("activityRenderMode") ||
             shouldShow("diffLayout")) && (
             <div className="grid grid-cols-1 gap-y-2 md:grid-cols-[minmax(0,16rem)_minmax(0,16rem)] md:justify-start md:gap-x-2">
-              {shouldShow("activityRenderMode") && LIVE_ACTIVITY_FOLD_ENABLED && (
+              {shouldShow("activityRenderMode") && (
                 <section className="p-2 md:col-span-2">
                   <h4 className="typography-ui-header font-medium text-foreground">
                     {t("settings.openchamber.visual.section.activityDefault")}
