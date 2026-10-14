@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "vitest"
+import { beforeEach, describe, expect, test, vi } from "vitest"
 
 import { mergePersistedSelectionState, touchCappedMruEntry, useSelectionStore } from "./selection-store"
 
@@ -158,5 +158,37 @@ describe("selection-store MRU limits", () => {
     expect(state.sessionAgentSelections.has("session-1")).toBe(false)
     expect(state.sessionAgentModelSelections.has("session-0")).toBe(true)
     expect(state.sessionAgentModelSelections.has("session-1")).toBe(false)
+  })
+})
+
+describe("selection-store cross-window sync", () => {
+  test("a storage event from another window rehydrates this window's selections", async () => {
+    // Two windows share one localStorage; before this listener existed, a save in one
+    // window overwrote the whole snapshot and the other window's in-memory state
+    // clobbered it back on its next write.
+    useSelectionStore.setState({
+      sessionModelSelections: new Map(),
+      sessionAgentSelections: new Map(),
+      sessionAgentModelSelections: new Map(),
+      lastUsedProvider: null,
+    })
+
+    const otherWindowSnapshot = {
+      sessionModelSelections: [["ses_a", { providerId: "defai", modelId: "deepseek-flash" }]],
+      sessionAgentSelections: [],
+      sessionAgentModelSelections: [],
+      lastUsedProvider: null,
+    }
+    localStorage.setItem("selection-store", JSON.stringify({ state: otherWindowSnapshot, version: 1 }))
+
+    // Only the listener may rehydrate the store: calling persist.rehydrate myself
+    // would make this test pass even without the listener.
+    window.dispatchEvent(new StorageEvent("storage", { key: "selection-store" }))
+    await vi.waitFor(() => {
+      expect(useSelectionStore.getState().getSessionModelSelection("ses_a")).toEqual({
+        providerId: "defai",
+        modelId: "deepseek-flash",
+      })
+    })
   })
 })

@@ -312,3 +312,12 @@ if (typeof window !== "undefined") {
     markHydrated()
   }
 }
+// The persisted selection is a shared resource: a save in one window must reach the
+// other, or the other window's next save would write a snapshot without it. Storage
+// events only fire in the *other* windows, so this cannot loop.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key !== "selection-store") return
+    void useSelectionStore.persist.rehydrate()
+  })
+}
