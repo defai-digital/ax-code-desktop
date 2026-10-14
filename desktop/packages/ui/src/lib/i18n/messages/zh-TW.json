@@ -3036,6 +3036,8 @@
   "aboutDialog.actions.preparingDiagnostics": "\u6b63\u5728\u6e96\u5099\u8a3a\u65b7\u8cc7\u8a0a...",
   "aboutDialog.actions.diagnosticsCopied": "\u5df2\u8907\u88fd\u8a3a\u65b7\u8cc7\u8a0a",
   "aboutDialog.diagnosticsDescription": "\u5305\u542b AX Code \u72c0\u614b\u3001AX Code \u5065\u5eb7\u72c0\u614b\u3001\u76ee\u9304\u8207\u5c08\u6848\u3002",
+  "aboutDialog.actions.signOut": "\u767b\u51fa",
+  "aboutDialog.actions.signingOut": "\u6b63\u5728\u767b\u51fa...",
   "aboutDialog.footerNote": "\u70ba\u793e\u7fa4\u7528\u5fc3\u88fd\u4f5c",
   "aboutDialog.toast.copyFailed": "\u8907\u88fd\u5931\u6557",
   "aboutDialog.toast.diagnosticsNotReady": "\u8a3a\u65b7\u8cc7\u8a0a\u5c1a\u672a\u5c31\u7dd2\u3002\u8acb\u7a0d\u5019\u518d\u8a66\u3002",

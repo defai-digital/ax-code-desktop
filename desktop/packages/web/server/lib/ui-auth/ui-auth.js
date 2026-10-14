@@ -15,6 +15,13 @@ const RATE_LIMIT_LOCKOUT_MS = 15 * 60 * 1000
 const RATE_LIMIT_CLEANUP_MS = 60 * 60 * 1000
 const RATE_LIMIT_NO_IP_MAX_ATTEMPTS = Number(process.env.AX_CODE_DESKTOP_RATE_LIMIT_NO_IP_MAX_ATTEMPTS) || 3
 
+// Sessions are stateless JWTs, so signing out has to be recorded server-side.
+// Only the token id is kept (never the token), and the set is bounded: the
+// oldest id is dropped once the cap is reached, which at worst lets a very old
+// token stay usable until its own expiry.
+const REVOKED_SESSION_MAX = 500
+const revokedSessionIds = new Set()
+
 const loginRateLimiter = new Map()
 let rateLimitCleanupTimer = null
 
@@ -506,7 +513,13 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
       return false
     }
     try {
-      await jwtVerify(token, jwtSecret)
+      const { payload } = await jwtVerify(token, jwtSecret)
+      // Tokens issued before sign-out was recorded have no id and stay valid
+      // until they expire.
+      const tokenId = typeof payload?.jti === "string" ? payload.jti : ""
+      if (tokenId && revokedSessionIds.has(tokenId)) {
+        return false
+      }
       return true
     } catch {
       return false
@@ -517,6 +530,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
     const ttlMs = resolveSessionTtlMs(trustDevice)
     const token = await new SignJWT({ type: "ui-session" })
       .setProtectedHeader({ alg: "HS256" })
+      .setJti(crypto.randomBytes(16).toString("base64url"))
       .setIssuedAt()
       .setExpirationTime(ttlMs / 1000 + "s")
       .sign(jwtSecret)
@@ -657,6 +671,36 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
     }
   }
 
+  /**
+   * Sign out: clear the cookie and revoke the presented token so a copy of it
+   * cannot be replayed before its own expiry. Deliberately not behind
+   * requireAuth — a caller with an expired session must still be able to clear
+   * its cookie.
+   */
+  const handleSessionLogout = async (req, res) => {
+    const token = getTokenFromRequest(req)
+    if (token) {
+      try {
+        const { payload } = await jwtVerify(token, jwtSecret)
+        const tokenId = typeof payload?.jti === "string" ? payload.jti : ""
+        if (tokenId) {
+          if (revokedSessionIds.size >= REVOKED_SESSION_MAX) {
+            const oldest = revokedSessionIds.values().next().value
+            if (oldest !== undefined) {
+              revokedSessionIds.delete(oldest)
+            }
+          }
+          revokedSessionIds.add(tokenId)
+        }
+      } catch {
+        // An expired or malformed token has nothing to revoke.
+      }
+    }
+
+    clearSessionCookie(req, res)
+    res.json({ authenticated: false })
+  }
+
   const handleResetAuth = (req, res) => {
     try {
       // Refuse before destroying anything. When the JWT secret is pinned via env,
@@ -694,6 +738,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
     requireAuth,
     handleSessionStatus,
     handleSessionCreate,
+    handleSessionLogout,
     handlePasskeyStatus,
     handlePasskeyRegistrationOptions,
     handlePasskeyRegistrationVerify,

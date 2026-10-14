@@ -3042,6 +3042,8 @@
   "aboutDialog.actions.preparingDiagnostics": "\uc9c4\ub2e8 \uc815\ubcf4 \uc900\ube44 \uc911...",
   "aboutDialog.actions.diagnosticsCopied": "\uc9c4\ub2e8 \uc815\ubcf4\ub97c \ubcf5\uc0ac\ud588\uc2b5\ub2c8\ub2e4",
   "aboutDialog.diagnosticsDescription": "AX Code \uc0c1\ud0dc, AX Code \ud5ec\uc2a4, \ub514\ub809\ud130\ub9ac, \ud504\ub85c\uc81d\ud2b8\uac00 \ud3ec\ud568\ub429\ub2c8\ub2e4.",
+  "aboutDialog.actions.signOut": "\ub85c\uadf8\uc544\uc6c3",
+  "aboutDialog.actions.signingOut": "\ub85c\uadf8\uc544\uc6c3 \uc911...",
   "aboutDialog.footerNote": "\ucee4\ubba4\ub2c8\ud2f0\ub97c \uc704\ud574 \uc815\uc131\uaecf \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4",
   "aboutDialog.toast.copyFailed": "\ubcf5\uc0ac\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
   "aboutDialog.toast.diagnosticsNotReady": "\uc9c4\ub2e8 \uc815\ubcf4\uac00 \uc544\uc9c1 \uc900\ube44\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",

@@ -3042,6 +3042,8 @@
   "aboutDialog.actions.preparingDiagnostics": "\u0110ang chu\u1ea9n b\u1ecb th\u00f4ng tin ch\u1ea9n \u0111o\u00e1n...",
   "aboutDialog.actions.diagnosticsCopied": "\u0110\u00e3 sao ch\u00e9p th\u00f4ng tin ch\u1ea9n \u0111o\u00e1n",
   "aboutDialog.diagnosticsDescription": "Bao g\u1ed3m tr\u1ea1ng th\u00e1i AX Code, t\u00ecnh tr\u1ea1ng AX Code, th\u01b0 m\u1ee5c v\u00e0 d\u1ef1 \u00e1n.",
+  "aboutDialog.actions.signOut": "\u0110\u0103ng xu\u1ea5t",
+  "aboutDialog.actions.signingOut": "\u0110ang \u0111\u0103ng xu\u1ea5t...",
   "aboutDialog.footerNote": "\u0110\u01b0\u1ee3c l\u00e0m b\u1eb1ng t\u00ecnh y\u00eau d\u00e0nh cho c\u1ed9ng \u0111\u1ed3ng",
   "aboutDialog.toast.copyFailed": "Sao ch\u00e9p th\u1ea5t b\u1ea1i",
   "aboutDialog.toast.diagnosticsNotReady": "Th\u00f4ng tin ch\u1ea9n \u0111o\u00e1n ch\u01b0a s\u1eb5n s\u00e0ng. \u0110\u1ee3i m\u1ed9t l\u00e1t r\u1ed3i th\u1eed l\u1ea1i.",

@@ -3042,6 +3042,8 @@
   "aboutDialog.actions.preparingDiagnostics": "Preparazione diagnostica...",
   "aboutDialog.actions.diagnosticsCopied": "Diagnostica copiata",
   "aboutDialog.diagnosticsDescription": "Include stato di AX Code, salute di AX Code, directory e progetti.",
+  "aboutDialog.actions.signOut": "Esci",
+  "aboutDialog.actions.signingOut": "Uscita in corso...",
   "aboutDialog.footerNote": "Fatto con amore per la community",
   "aboutDialog.toast.copyFailed": "Copia non riuscita",
   "aboutDialog.toast.diagnosticsNotReady": "Diagnostica non ancora pronta. Attendi un momento e riprova.",

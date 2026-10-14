@@ -24,6 +24,22 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ open, onOpenChange }) 
   const [copiedDiagnostics, setCopiedDiagnostics] = React.useState(false)
   const [diagnosticsReport, setDiagnosticsReport] = React.useState<string | null>(null)
   const [isPreparingDiagnostics, setIsPreparingDiagnostics] = React.useState(false)
+  const [isSigningOut, setIsSigningOut] = React.useState(false)
+
+  const handleSignOut = React.useCallback(async () => {
+    if (isSigningOut) return
+    setIsSigningOut(true)
+    try {
+      // The endpoint clears the session cookie and revokes the token, so the
+      // reload lands on the lock screen instead of re-authenticating with the
+      // cookie it just deleted.
+      await fetch("/auth/logout", { method: "POST" })
+    } catch {
+      // Reloading anyway is the point: an unreachable server must not leave the
+      // user stuck in a dialog that claims to have signed out.
+    }
+    window.location.reload()
+  }, [isSigningOut])
 
   const handleCopyDiagnostics = React.useCallback(async () => {
     if (!showDiagnostics) return
@@ -175,6 +191,19 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ open, onOpenChange }) 
               <p className="typography-micro text-muted-foreground">{t("aboutDialog.diagnosticsDescription")}</p>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            disabled={isSigningOut}
+            className={cn(
+              "typography-meta text-muted-foreground hover:text-foreground",
+              "underline-offset-2 hover:underline",
+              "disabled:opacity-50 disabled:cursor-not-allowed",
+            )}
+          >
+            {isSigningOut ? t("aboutDialog.actions.signingOut") : t("aboutDialog.actions.signOut")}
+          </button>
 
           <div className="flex flex-col items-center gap-2 pt-2">
             <div className="flex items-center justify-center gap-4">

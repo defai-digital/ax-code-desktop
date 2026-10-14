@@ -3042,6 +3042,8 @@
   "aboutDialog.actions.preparingDiagnostics": "Tan\u0131lama bilgileri haz\u0131rlan\u0131yor...",
   "aboutDialog.actions.diagnosticsCopied": "Tan\u0131lama bilgileri kopyaland\u0131",
   "aboutDialog.diagnosticsDescription": "AX Code durumunu, AX Code sa\u011fl\u0131\u011f\u0131n\u0131, dizinleri ve projeleri i\u00e7erir.",
+  "aboutDialog.actions.signOut": "\u00c7\u0131k\u0131\u015f yap",
+  "aboutDialog.actions.signingOut": "\u00c7\u0131k\u0131\u015f yap\u0131l\u0131yor...",
   "aboutDialog.footerNote": "Topluluk i\u00e7in sevgiyle yap\u0131ld\u0131",
   "aboutDialog.toast.copyFailed": "Kopyalama ba\u015far\u0131s\u0131z",
   "aboutDialog.toast.diagnosticsNotReady": "Tan\u0131lama bilgileri hen\u00fcz haz\u0131r de\u011fil. Bir saniye bekleyip yeniden deneyin.",

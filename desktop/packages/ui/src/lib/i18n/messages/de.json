@@ -3042,6 +3042,8 @@
   "aboutDialog.actions.preparingDiagnostics": "Diagnosedaten werden vorbereitet \u2026",
   "aboutDialog.actions.diagnosticsCopied": "Diagnosedaten kopiert",
   "aboutDialog.diagnosticsDescription": "Enth\u00e4lt AX Code-Status, AX Code-Integrit\u00e4t, Verzeichnisse und Projekte.",
+  "aboutDialog.actions.signOut": "Abmelden",
+  "aboutDialog.actions.signingOut": "Wird abgemeldet...",
   "aboutDialog.footerNote": "Mit Liebe f\u00fcr die Community gemacht",
   "aboutDialog.toast.copyFailed": "Kopieren fehlgeschlagen",
   "aboutDialog.toast.diagnosticsNotReady": "Diagnosedaten sind noch nicht bereit. Warte einen Moment und versuche es erneut.",

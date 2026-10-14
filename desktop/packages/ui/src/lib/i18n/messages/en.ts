@@ -1398,6 +1398,8 @@ export const dict = {
   "aboutDialog.actions.preparingDiagnostics": "Preparing diagnostics...",
   "aboutDialog.actions.diagnosticsCopied": "Diagnostics copied",
   "aboutDialog.diagnosticsDescription": "Includes AX Code state, AX Code health, directories, and projects.",
+  "aboutDialog.actions.signOut": "Sign out",
+  "aboutDialog.actions.signingOut": "Signing out...",
   "aboutDialog.footerNote": "Made with love for the community",
   "aboutDialog.toast.copyFailed": "Copy failed",
   "aboutDialog.toast.diagnosticsNotReady": "Diagnostics not ready yet. Wait a second and retry.",

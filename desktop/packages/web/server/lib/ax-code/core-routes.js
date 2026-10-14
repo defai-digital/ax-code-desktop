@@ -414,6 +414,12 @@ export const registerAuthAndAccessRoutes = (app, dependencies) => {
     return uiAuthController.handleSessionCreate(req, res)
   })
 
+  // Not behind requireAuth: signing out must work with an already-expired
+  // session so the cookie still gets cleared and the token revoked.
+  app.post("/auth/logout", authRouteRateLimiter, (req, res) => {
+    return uiAuthController.handleSessionLogout(req, res)
+  })
+
   app.get("/auth/passkey/status", authRouteRateLimiter, (req, res) => {
     return uiAuthController.handlePasskeyStatus(req, res)
   })

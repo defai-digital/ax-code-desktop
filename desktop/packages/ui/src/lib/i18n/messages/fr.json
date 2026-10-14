@@ -3036,6 +3036,8 @@
   "aboutDialog.actions.preparingDiagnostics": "Pr\u00e9paration des diagnostics\u2026",
   "aboutDialog.actions.diagnosticsCopied": "Diagnostics copi\u00e9s",
   "aboutDialog.diagnosticsDescription": "Inclut l\u2019\u00e9tat AX Code, la sant\u00e9 AX Code, les r\u00e9pertoires et les projets.",
+  "aboutDialog.actions.signOut": "Se d\u00e9connecter",
+  "aboutDialog.actions.signingOut": "D\u00e9connexion...",
   "aboutDialog.footerNote": "Fait avec amour pour la communaut\u00e9",
   "aboutDialog.toast.copyFailed": "\u00c9chec de la copie",
   "aboutDialog.toast.diagnosticsNotReady": "Diagnostics pas encore pr\u00eats. Patientez une seconde et r\u00e9essayez.",

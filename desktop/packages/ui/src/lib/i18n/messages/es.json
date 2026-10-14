@@ -3036,6 +3036,8 @@
   "aboutDialog.actions.preparingDiagnostics": "Preparando diagn\u00f3sticos...",
   "aboutDialog.actions.diagnosticsCopied": "Diagn\u00f3sticos copiados",
   "aboutDialog.diagnosticsDescription": "Incluye estado de AX Code, salud de AX Code, directorios y proyectos.",
+  "aboutDialog.actions.signOut": "Cerrar sesi\u00f3n",
+  "aboutDialog.actions.signingOut": "Cerrando sesi\u00f3n...",
   "aboutDialog.footerNote": "Hecho con amor para la comunidad",
   "aboutDialog.toast.copyFailed": "No se pudo copiar",
   "aboutDialog.toast.diagnosticsNotReady": "Diagn\u00f3sticos a\u00fan no listos. Espera un segundo y reint\u00e9ntalo.",

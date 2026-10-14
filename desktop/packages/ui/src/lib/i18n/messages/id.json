@@ -3036,6 +3036,8 @@
   "aboutDialog.actions.preparingDiagnostics": "Menyiapkan diagnostik...",
   "aboutDialog.actions.diagnosticsCopied": "Diagnostik disalin",
   "aboutDialog.diagnosticsDescription": "Mencakup status AX Code, kesehatan AX Code, direktori, dan proyek.",
+  "aboutDialog.actions.signOut": "Keluar",
+  "aboutDialog.actions.signingOut": "Sedang keluar...",
   "aboutDialog.footerNote": "Dibuat dengan cinta untuk komunitas",
   "aboutDialog.toast.copyFailed": "Penyalinan gagal",
   "aboutDialog.toast.diagnosticsNotReady": "Diagnostik belum siap. Tunggu sebentar lalu coba lagi.",
