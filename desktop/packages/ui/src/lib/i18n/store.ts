@@ -111,6 +111,22 @@ function parsePreferences(value: unknown): ResolvedLanguagePreferences {
   return resolved
 }
 
+// Serializes the browser/standalone read-modify-write below. The main process path
+// is already serialized by its own controller; without this, two rapid saves (or two
+// tabs) computed the same next revision and the `revision <` guard let the older
+// write win.
+let saveChain: Promise<void> = Promise.resolve()
+
+const storedRevision = (): number => {
+  if (typeof window === "undefined") return 0
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null") as { revision?: unknown } | null
+    return typeof parsed?.revision === "number" ? parsed.revision : 0
+  } catch {
+    return 0
+  }
+}
+
 async function savePreferences(patch: Partial<Pick<LanguagePreferences, "interface" | "conversation">>): Promise<void> {
   validatePatch(patch)
   const bridge = getDesktopBridge()
@@ -119,10 +135,24 @@ async function savePreferences(patch: Partial<Pick<LanguagePreferences, "interfa
     await applyPreferences(parsePreferences(state))
     return
   }
-  const current = useI18nStore.getState()
-  const next = normalizePreferences({ ...current, ...patch, revision: current.revision + 1 })
-  if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-  await applyPreferences(resolvePreferences(next, systemLanguages()))
+
+  // Only the read-modify-write is serialized: applying a preference waits for the
+  // locale dictionary, and queueing that would deadlock two saves when a dictionary
+  // load is slow (a later save would wait for the earlier apply to finish).
+  const run = saveChain.then(() => {
+    const current = useI18nStore.getState()
+    // Take the latest stored revision into account: another tab may have saved since
+    // this one last applied.
+    const revision = Math.max(current.revision, storedRevision()) + 1
+    const next = normalizePreferences({ ...current, ...patch, revision })
+    if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    return resolvePreferences(next, systemLanguages())
+  })
+  saveChain = run.then(
+    () => {},
+    () => {},
+  )
+  return applyPreferences(await run)
 }
 
 type I18nState = ResolvedLanguagePreferences & {

@@ -52,6 +52,19 @@ describe("i18n store", () => {
       }
     }
   })
+  test("serializes the standalone save so two rapid changes both survive", async () => {
+    // Regression: both saves computed the same next revision from the same starting
+    // state, and the `revision <` guard let the first write's revision stand for the
+    // second change as well.
+    await Promise.all([
+      useI18nStore.getState().setLocale("de"),
+      useI18nStore.getState().setConversation("ja"),
+    ])
+
+    expect(useI18nStore.getState()).toMatchObject({ interface: "de", conversation: "ja" })
+    expect(useI18nStore.getState().revision).toBe(2)
+  })
+
   test("restores persisted preferences on initialization", async () => {
     await useI18nStore.getState().setLocale("zh-TW")
     await useI18nStore.getState().setConversation("vi")
