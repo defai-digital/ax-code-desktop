@@ -4,11 +4,8 @@ import * as React from "react"
 import { Toaster as Sonner } from "sonner"
 import type { ToasterProps } from "sonner"
 
-const SHADOW_DARK =
-  "inset 0 1px 0 0 rgba(255,255,255,0.12), inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 0 1px rgba(0,0,0,0.36), 0 1px 1px -0.5px rgba(0,0,0,0.22), 0 3px 3px -1.5px rgba(0,0,0,0.20), 0 6px 6px -3px rgba(0,0,0,0.16)"
-
-const SHADOW_LIGHT =
-  "inset 0 1px 0 0 rgba(255,255,255,0.8), inset 0 0 0 1px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.10), 0 1px 2px -0.5px rgba(0,0,0,0.08), 0 4px 8px -2px rgba(0,0,0,0.08), 0 12px 20px -4px rgba(0,0,0,0.08)"
+// The popover elevation token (design-system.css); it follows the theme.
+const TOAST_SHADOW = "var(--elevation-popover)"
 
 function useIsDarkTheme() {
   const getIsDark = () => typeof document !== "undefined" && document.documentElement.classList.contains("dark")
@@ -73,8 +70,7 @@ function usePinnedToastStyles(shadow: string) {
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const isDark = useIsDarkTheme()
-  const shadow = isDark ? SHADOW_DARK : SHADOW_LIGHT
-  usePinnedToastStyles(shadow)
+  usePinnedToastStyles(TOAST_SHADOW)
 
   return (
     <Sonner
