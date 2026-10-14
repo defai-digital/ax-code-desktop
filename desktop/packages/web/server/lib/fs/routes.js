@@ -271,6 +271,23 @@ export const deriveCloneDirectoryName = (remoteUrl) => {
   return name.trim()
 }
 
+/**
+ * A clone destination name is used as a single path component below the
+ * authorized parent. `deriveCloneDirectoryName` slices at the last `/` or `:`,
+ * so a remote URL can still smuggle a backslash — on Windows that is a path
+ * separator, and `repo\..\..\evil` would clone outside the authorized parent.
+ * Accept exactly one component: no separators, no drive prefix, no `.`/`..`.
+ */
+export const isSafeClonePathComponent = (name) => {
+  const value = typeof name === "string" ? name.trim() : ""
+  if (!value) return false
+  if (value === "." || value === "..") return false
+  if (value.includes("/") || value.includes("\\")) return false
+  if (/^[A-Za-z]:/.test(value)) return false
+  const segments = value.split(/[\\/]/)
+  return !segments.includes("..") && !segments.includes(".")
+}
+
 export const isPlansDirectoryPath = (value) => {
   if (!value || typeof value !== "string") return false
   let end = value.length
@@ -490,7 +507,7 @@ export const registerFsRoutes = (app, dependencies) => {
     let current = path.resolve(targetPath)
     while (true) {
       try {
-        return await fsPromises.realpath(current)
+        return { existingPath: current, canonicalPath: await fsPromises.realpath(current) }
       } catch (error) {
         const code = error && typeof error === "object" ? error.code : undefined
         if (code !== "ENOENT") {
@@ -508,13 +525,18 @@ export const registerFsRoutes = (app, dependencies) => {
 
   const rejectWritableSymlinkEscape = async ({ resolvedPath, basePath }) => {
     const canonicalBase = await resolveCanonicalBase(basePath)
+    const absoluteTarget = path.resolve(resolvedPath)
 
     try {
-      const canonicalTarget = await fsPromises.realpath(resolvedPath)
+      const canonicalTarget = await fsPromises.realpath(absoluteTarget)
       if (!isPathWithinRoot(canonicalTarget, canonicalBase, path, os)) {
         return { ok: false, statusCode: 403, error: "Access to path denied" }
       }
-      return { ok: true, path: resolvedPath, base: canonicalBase }
+      // Hand back the resolved target: the write must act on the path the check
+      // validated, not on the raw string, which can follow a component that
+      // became a symlink between the check and the write (same reasoning as the
+      // delete route).
+      return { ok: true, path: canonicalTarget, base: canonicalBase }
     } catch (error) {
       const code = error && typeof error === "object" ? error.code : undefined
       if (code !== "ENOENT") {
@@ -527,7 +549,7 @@ export const registerFsRoutes = (app, dependencies) => {
     // wherever it points — outside the workspace if that is where it points. lstat
     // sees the link itself, so a symlink here is refused.
     const targetStats = await Promise.resolve()
-      .then(() => (typeof fsPromises.lstat === "function" ? fsPromises.lstat(resolvedPath) : null))
+      .then(() => (typeof fsPromises.lstat === "function" ? fsPromises.lstat(absoluteTarget) : null))
       .catch((error) => {
         const code = error && typeof error === "object" ? error.code : undefined
         if (code === "ENOENT") return null
@@ -537,12 +559,22 @@ export const registerFsRoutes = (app, dependencies) => {
       return { ok: false, statusCode: 403, error: "Access to path denied" }
     }
 
-    const canonicalParent = await findExistingParentRealpath(path.dirname(resolvedPath))
+    const { existingPath, canonicalPath: canonicalParent } = await findExistingParentRealpath(
+      path.dirname(absoluteTarget),
+    )
     if (!isPathWithinRoot(canonicalParent, canonicalBase, path, os)) {
       return { ok: false, statusCode: 403, error: "Access to path denied" }
     }
 
-    return { ok: true, path: resolvedPath, base: canonicalBase }
+    // Keep the not-yet-existing suffix below the canonical parent so the caller
+    // creates the entry inside the validated directory (and still creates any
+    // missing intermediate directories) instead of behind a symlink.
+    const canonicalTarget = path.join(canonicalParent, path.relative(existingPath, absoluteTarget))
+    if (!isPathWithinRoot(canonicalTarget, canonicalBase, path, os)) {
+      return { ok: false, statusCode: 403, error: "Access to path denied" }
+    }
+
+    return { ok: true, path: canonicalTarget, base: canonicalBase }
   }
 
   const pruneExecJobs = () => {
@@ -789,6 +821,11 @@ export const registerFsRoutes = (app, dependencies) => {
       if (!directoryName || directoryName === "." || directoryName === "..") {
         return res.status(400).json({ error: "Destination path must include a directory name" })
       }
+      // The inferred name comes from an untrusted remote URL; refuse anything
+      // that is not a single path component.
+      if (!isSafeClonePathComponent(directoryName)) {
+        return res.status(400).json({ error: "Invalid repository directory name" })
+      }
 
       const identity = await resolveCloneGitIdentity(gitIdentityId)
       const gitArgs = ["clone", "--", remote, directoryName]
@@ -822,6 +859,11 @@ export const registerFsRoutes = (app, dependencies) => {
       }
       parentPath = writableParent.path
       resolvedDestination = path.join(parentPath, directoryName)
+      // Defence in depth beyond the component check above: the clone must land
+      // inside the parent the containment check authorized.
+      if (!isPathWithinRoot(resolvedDestination, parentPath, path, os)) {
+        return res.status(403).json({ error: "Access to path denied" })
+      }
 
       await fsPromises.mkdir(parentPath, { recursive: true })
       try {

@@ -2,7 +2,13 @@ import { EventEmitter } from "events"
 import path from "path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { deriveCloneDirectoryName, isPathWithinRoot, isPlansDirectoryPath, registerFsRoutes } from "./routes.js"
+import {
+  deriveCloneDirectoryName,
+  isPathWithinRoot,
+  isPlansDirectoryPath,
+  isSafeClonePathComponent,
+  registerFsRoutes,
+} from "./routes.js"
 import { createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
 
 // Fake child process: emits the configured stdout then closes with the given code.
@@ -101,6 +107,21 @@ describe("fs route helpers", () => {
     expect(deriveCloneDirectoryName("")).toBe("")
   })
 
+  it("accepts only a single path component as a clone directory name", () => {
+    // A Windows backslash survives deriveCloneDirectoryName (it slices at the
+    // last "/" or ":"), and path.join would then climb out of the authorized
+    // parent: path.win32.join("C:\\repo", "foo\\..\\..\\evil") === "C:\\evil".
+    expect(deriveCloneDirectoryName(String.raw`https://example.com/foo\..\..\evil`)).toBe(String.raw`foo\..\..\evil`)
+    expect(isSafeClonePathComponent(String.raw`foo\..\..\evil`)).toBe(false)
+    expect(isSafeClonePathComponent("a/b")).toBe(false)
+    expect(isSafeClonePathComponent("C:evil")).toBe(false)
+    expect(isSafeClonePathComponent("..")).toBe(false)
+    expect(isSafeClonePathComponent(".")).toBe(false)
+    expect(isSafeClonePathComponent("")).toBe(false)
+    expect(isSafeClonePathComponent("demo")).toBe(true)
+    expect(isSafeClonePathComponent("my repo.git")).toBe(true)
+  })
+
   it("detects plans directories with slash normalization", () => {
     expect(isPlansDirectoryPath(String.raw`C:\repo\.opencode\plans\\`)).toBe(true)
     expect(isPlansDirectoryPath("/repo/.opencode/plans///")).toBe(true)
@@ -141,7 +162,7 @@ const callWrite = async (handler, body) => {
   return res
 }
 
-const registerFs = (fsPromises, settings = { approvedDirectories: [] }, coreFileAdapter) => {
+const registerFs = (fsPromises, settings = { approvedDirectories: [] }, coreFileAdapter, spawn = vi.fn()) => {
   const { app, getRoute } = createRouteRegistry()
   registerFsRoutes(app, {
     os: { homedir: () => "/home/user" },
@@ -150,7 +171,7 @@ const registerFs = (fsPromises, settings = { approvedDirectories: [] }, coreFile
       realpath: async (targetPath) => targetPath,
       ...fsPromises,
     },
-    spawn: vi.fn(),
+    spawn,
     crypto: { randomUUID: () => "job-0" },
     normalizeDirectoryPath: (p) => p,
     resolveProjectDirectory: async () => ({ directory: "/repo" }),
@@ -197,6 +218,28 @@ describe("fs write", () => {
     expect(res.body).toEqual({ success: true, path: "/repo/file.txt" })
     expect(fsPromises.mkdir).toHaveBeenCalledWith("/repo", { recursive: true })
     expect(fsPromises.writeFile).toHaveBeenCalledWith("/repo/file.txt", "new", "utf8")
+  })
+
+  it("writes to the canonical target the containment check resolved, not the requested string", async () => {
+    // The check resolves through realpath; acting on the raw path afterwards
+    // would follow a component that became a symlink between the check and the
+    // write. Mirrors the delete route's contract.
+    const fsPromises = {
+      realpath: vi.fn(async (targetPath) => {
+        if (targetPath === "/repo/link/file.txt") return "/repo/real/file.txt"
+        return targetPath
+      }),
+      readFile: vi.fn(async () => "old"),
+      mkdir: vi.fn(async () => undefined),
+      writeFile: vi.fn(async () => undefined),
+    }
+    const handler = registerWrite(fsPromises)
+
+    const res = await callWrite(handler, { path: "/repo/link/file.txt", content: "new" })
+
+    expect(res.body).toEqual({ success: true, path: "/repo/real/file.txt" })
+    expect(fsPromises.mkdir).toHaveBeenCalledWith("/repo/real", { recursive: true })
+    expect(fsPromises.writeFile).toHaveBeenCalledWith("/repo/real/file.txt", "new", "utf8")
   })
 
   it("allows writes inside an approved outside-workspace directory when explicitly requested", async () => {
@@ -359,6 +402,46 @@ describe("fs outside workspace authorization", () => {
     expect(res.statusCode).toBe(400)
     expect(res.body).toEqual({ error: "Path is outside of approved directories" })
     expect(fsPromises.mkdir).not.toHaveBeenCalled()
+  })
+})
+
+describe("fs clone destination", () => {
+  it("refuses a URL-derived name that is not a single path component", async () => {
+    // On Windows the backslashes are separators, so this name would clone into
+    // C:\evil instead of below the authorized parent.
+    const fsPromises = {
+      mkdir: vi.fn(async () => undefined),
+      access: vi.fn(async () => undefined),
+    }
+    const { getRoute } = registerFs(fsPromises)
+
+    const res = await callRoute(getRoute("POST", "/api/fs/clone"), {
+      body: { remoteUrl: String.raw`https://example.com/foo\..\..\evil`, destinationPath: "/repo/sub/" },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: "Invalid repository directory name" })
+    expect(fsPromises.mkdir).not.toHaveBeenCalled()
+  })
+
+  it("clones a well-formed URL into the destination directory", async () => {
+    const { spawn, calls } = createSpawn({})
+    const fsPromises = {
+      mkdir: vi.fn(async () => undefined),
+      access: vi.fn(async () => {
+        const error = new Error("ENOENT")
+        error.code = "ENOENT"
+        throw error
+      }),
+    }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, undefined, spawn)
+
+    const res = await callRoute(getRoute("POST", "/api/fs/clone"), {
+      body: { remoteUrl: "https://example.com/acme/demo.git", destinationPath: "/repo/sub/" },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(calls[0]).toBe("git clone -- https://example.com/acme/demo.git demo")
   })
 })
 
