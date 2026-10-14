@@ -17,6 +17,11 @@ function createDesktopWebMcpBrowser({
   providerToken = DESKTOP_BROWSER_TOKEN,
 }) {
   const views = new Map()
+  // Partitions whose guest session already has the hardened handlers attached.
+  const guestSessions = new Set()
+  // window partition -> in-flight storage clear, so a new pane never loads into a
+  // half-cleared profile.
+  const pendingGuestClears = new Map()
   let factory
   async function api(directory, url, method = "GET", body, signal) {
     const origin = getRuntime()
@@ -81,6 +86,21 @@ function createDesktopWebMcpBrowser({
     entry.adapter.close()
     if (!entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(entry.view)
     if (!entry.view.webContents.isDestroyed()) entry.view.webContents.close({ waitForBeforeUnload: false })
+    // Wipe cookies, caches and storage so the reused per-window partition behaves
+    // like the fresh one this pane used to get.
+    const partition = `ax-coder-webmcp-${entry.sender.id}`
+    const clearing = (async () => {
+      try {
+        await session.fromPartition(partition).clearStorageData()
+      } catch {
+        // Best-effort: a failed clear only leaves data for the next pane.
+      }
+    })().finally(() => {
+      if (pendingGuestClears.get(partition) === clearing) {
+        pendingGuestClears.delete(partition)
+      }
+    })
+    pendingGuestClears.set(partition, clearing)
     await disconnection
   }
   const status = (entry) => {
@@ -187,11 +207,20 @@ function createDesktopWebMcpBrowser({
       const owner = BrowserWindow.fromWebContents(sender)
       if (!owner) throw new Error("The browser requires a local desktop window")
       if (views.has(sender.id)) await close(views.get(sender.id))
-      const partition = `ax-coder-webmcp-${randomUUID()}`
+      // One stable, in-memory partition per window instead of a fresh UUID per open:
+      // Electron caches a Session per partition string and offers no way to destroy
+      // one, so a UUID per open leaked a session (cookie jar, caches, network
+      // context) for every pane the user ever opened. `close()` clears the storage
+      // again, so a new pane still starts from a clean profile.
+      const partition = `ax-coder-webmcp-${sender.id}`
+      await (pendingGuestClears.get(partition) ?? Promise.resolve())
       const guestSession = session.fromPartition(partition)
-      guestSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-      guestSession.setPermissionCheckHandler(() => false)
-      guestSession.on("will-download", (event) => event.preventDefault())
+      if (!guestSessions.has(partition)) {
+        guestSessions.add(partition)
+        guestSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+        guestSession.setPermissionCheckHandler(() => false)
+        guestSession.on("will-download", (event) => event.preventDefault())
+      }
       const view = new WebContentsView({
         webPreferences: {
           partition,
