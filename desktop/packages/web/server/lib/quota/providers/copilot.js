@@ -7,6 +7,8 @@ import {
   toTimestamp,
 } from "../utils/index.js"
 
+import { fetchWithQuotaTimeout } from "../fetch.js"
+
 const buildCopilotWindows = (payload) => {
   const quota = payload?.quota_snapshots ?? {}
   const resetAt = toTimestamp(payload?.quota_reset_date)
@@ -52,7 +54,7 @@ export const fetchQuota = async () => {
   }
 
   try {
-    const response = await fetch("https://api.github.com/copilot_internal/user", {
+    const response = await fetchWithQuotaTimeout("https://api.github.com/copilot_internal/user", {
       method: "GET",
       headers: {
         Authorization: `token ${accessToken}`,
@@ -104,7 +106,7 @@ export const fetchQuotaAddon = async () => {
   }
 
   try {
-    const response = await fetch("https://api.github.com/copilot_internal/user", {
+    const response = await fetchWithQuotaTimeout("https://api.github.com/copilot_internal/user", {
       method: "GET",
       headers: {
         Authorization: `token ${accessToken}`,

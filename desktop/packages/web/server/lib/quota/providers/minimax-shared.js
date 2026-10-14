@@ -7,6 +7,8 @@ import {
   toUsageWindow,
 } from "../utils/index.js"
 
+import { fetchWithQuotaTimeout } from "../fetch.js"
+
 export const transformMinimaxWindows = (model) => {
   const intervalTotal = toNumber(model.current_interval_total_count)
   const intervalUsed = toNumber(model.current_interval_usage_count)
@@ -62,7 +64,7 @@ export const createMinimaxProvider = ({ providerId, providerName, endpoint }) =>
     }
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetchWithQuotaTimeout(endpoint, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${apiKey}`,

@@ -9,6 +9,8 @@ import {
   durationToSeconds,
 } from "../utils/index.js"
 
+import { fetchWithQuotaTimeout } from "../fetch.js"
+
 export const providerId = "kimi-for-coding"
 export const providerName = "Kimi for Coding"
 export const aliases = ["kimi-for-coding", "kimi"]
@@ -27,7 +29,7 @@ export const fetchQuota = async () => {
   }
 
   try {
-    const response = await fetch("https://api.kimi.com/coding/v1/usages", {
+    const response = await fetchWithQuotaTimeout("https://api.kimi.com/coding/v1/usages", {
       method: "GET",
       headers: {
         Authorization: `Bearer ${apiKey}`,

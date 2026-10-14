@@ -8,6 +8,8 @@ import {
   formatMoney,
 } from "../utils/index.js"
 
+import { fetchWithQuotaTimeout } from "../fetch.js"
+
 export const providerId = "codex"
 export const providerName = "Codex"
 export const aliases = ["openai", "codex", "chatgpt"]
@@ -33,7 +35,7 @@ export const fetchQuota = async () => {
       "Content-Type": "application/json",
       ...(accountId ? { "ChatGPT-Account-Id": accountId } : {}),
     }
-    const response = await fetch("https://chatgpt.com/backend-api/wham/usage", {
+    const response = await fetchWithQuotaTimeout("https://chatgpt.com/backend-api/wham/usage", {
       method: "GET",
       headers,
     })

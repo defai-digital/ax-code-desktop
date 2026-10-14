@@ -8,6 +8,8 @@ import {
   normalizeTimestamp,
 } from "../utils/index.js"
 
+import { fetchWithQuotaTimeout } from "../fetch.js"
+
 export const providerId = "zai-coding-plan"
 export const providerName = "z.ai"
 export const aliases = ["zai-coding-plan", "zai", "z.ai"]
@@ -26,7 +28,7 @@ export const fetchQuota = async () => {
   }
 
   try {
-    const response = await fetch("https://api.z.ai/api/monitor/usage/quota/limit", {
+    const response = await fetchWithQuotaTimeout("https://api.z.ai/api/monitor/usage/quota/limit", {
       method: "GET",
       headers: {
         Authorization: `Bearer ${apiKey}`,

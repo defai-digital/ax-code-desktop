@@ -7,6 +7,8 @@ import {
   formatMoney,
 } from "../utils/index.js"
 
+import { fetchWithQuotaTimeout } from "../fetch.js"
+
 export const providerId = "openrouter"
 export const providerName = "OpenRouter"
 export const aliases = ["openrouter"]
@@ -26,7 +28,7 @@ export const fetchQuota = async () => {
   }
 
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/credits", {
+    const response = await fetchWithQuotaTimeout("https://openrouter.ai/api/v1/credits", {
       method: "GET",
       headers: {
         Authorization: `Bearer ${apiKey}`,

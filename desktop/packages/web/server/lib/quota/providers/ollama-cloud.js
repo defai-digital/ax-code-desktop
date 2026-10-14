@@ -3,6 +3,8 @@ import { readFileSync } from "fs"
 import { join } from "path"
 import { buildResult, toUsageWindow, toNumber } from "../utils/index.js"
 
+import { fetchWithQuotaTimeout } from "../fetch.js"
+
 const COOKIE_PATH = join(homedir(), ".config", "ollama-quota", "cookie")
 
 export const providerId = "ollama-cloud"
@@ -71,7 +73,7 @@ export const fetchQuota = async () => {
   }
 
   try {
-    const response = await fetch("https://ollama.com/settings", {
+    const response = await fetchWithQuotaTimeout("https://ollama.com/settings", {
       method: "GET",
       headers: {
         Cookie: cookie,

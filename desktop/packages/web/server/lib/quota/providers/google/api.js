@@ -5,6 +5,8 @@
  * @module quota/providers/google/api
  */
 
+import { fetchWithQuotaTimeout } from "../../fetch.js"
+
 const GOOGLE_PRIMARY_ENDPOINT = "https://cloudcode-pa.googleapis.com"
 
 const GOOGLE_ENDPOINTS = [
@@ -20,7 +22,7 @@ const GOOGLE_HEADERS = {
 }
 
 export const refreshGoogleAccessToken = async (refreshToken, clientId, clientSecret) => {
-  const response = await fetch("https://oauth2.googleapis.com/token", {
+  const response = await fetchWithQuotaTimeout("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -43,7 +45,7 @@ export const fetchGoogleQuotaBuckets = async (accessToken, projectId) => {
   const body = projectId ? { project: projectId } : {}
 
   try {
-    const response = await fetch(`${GOOGLE_PRIMARY_ENDPOINT}/v1internal:retrieveUserQuota`, {
+    const response = await fetchWithQuotaTimeout(`${GOOGLE_PRIMARY_ENDPOINT}/v1internal:retrieveUserQuota`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -68,7 +70,7 @@ export const fetchGoogleModels = async (accessToken, projectId) => {
 
   for (const endpoint of GOOGLE_ENDPOINTS) {
     try {
-      const response = await fetch(`${endpoint}/v1internal:fetchAvailableModels`, {
+      const response = await fetchWithQuotaTimeout(`${endpoint}/v1internal:fetchAvailableModels`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,

@@ -13,6 +13,8 @@ const encodeForm = (params) => {
 
 async function postForm(url, params) {
   const response = await fetch(url, {
+    // A hung GitHub endpoint must not wedge the auth flow forever.
+    signal: AbortSignal.timeout(15_000),
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",

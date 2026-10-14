@@ -7,6 +7,8 @@ import {
   toTimestamp,
 } from "../utils/index.js"
 
+import { fetchWithQuotaTimeout } from "../fetch.js"
+
 const NANO_GPT_DAILY_WINDOW_SECONDS = 86400
 
 export const providerId = "nano-gpt"
@@ -27,7 +29,7 @@ export const fetchQuota = async () => {
   }
 
   try {
-    const response = await fetch("https://nano-gpt.com/api/subscription/v1/usage", {
+    const response = await fetchWithQuotaTimeout("https://nano-gpt.com/api/subscription/v1/usage", {
       method: "GET",
       headers: {
         Authorization: `Bearer ${apiKey}`,

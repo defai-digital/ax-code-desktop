@@ -7,6 +7,8 @@ import {
   toTimestamp,
 } from "../utils/index.js"
 
+import { fetchWithQuotaTimeout } from "../fetch.js"
+
 export const providerId = "claude"
 export const providerName = "Claude"
 export const aliases = ["anthropic", "claude"]
@@ -25,7 +27,7 @@ export const fetchQuota = async () => {
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/api/oauth/usage", {
+    const response = await fetchWithQuotaTimeout("https://api.anthropic.com/api/oauth/usage", {
       method: "GET",
       headers: {
         Authorization: `Bearer ${accessToken}`,

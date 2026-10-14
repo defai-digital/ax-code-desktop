@@ -35,6 +35,8 @@ import {
   normalizeTimestamp,
 } from "../utils/index.js"
 
+import { fetchWithQuotaTimeout } from "../fetch.js"
+
 export const providerId = "zhipuai-coding-plan"
 export const providerName = "Zhipu AI Coding Plan"
 export const aliases = ["zhipuai-coding-plan", "zhipuai", "zhipu"]
@@ -75,7 +77,7 @@ export const fetchQuota = async () => {
   }
 
   try {
-    const response = await fetch("https://open.bigmodel.cn/api/monitor/usage/quota/limit", {
+    const response = await fetchWithQuotaTimeout("https://open.bigmodel.cn/api/monitor/usage/quota/limit", {
       method: "GET",
       headers: {
         Authorization: `Bearer ${apiKey}`,
