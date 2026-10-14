@@ -12,8 +12,14 @@ import {
 import type { ChatMessageEntry, TurnRecord } from "../lib/turns/types"
 import { getLiveFinalMessage } from "../lib/turns/liveActivity"
 import { summarizeLiveActivity } from "../lib/turns/liveActivitySummary"
+import {
+  TurnMessageWindowContext,
+  isReaderAtTimelineEnd,
+  openedFoldMessageWindow,
+} from "../lib/turns/turnMessageWindow"
 import { LiveActivityCollapse } from "./LiveActivityCollapse"
 import { LiveFinalActivityContext } from "./liveActivityContext"
+import { TurnMessageWindow } from "./TurnMessageWindow"
 import { useActivityRowGlide } from "./useActivityRowGlide"
 
 interface LiveTurnActivityProps {
@@ -158,6 +164,21 @@ export function LiveTurnActivity({
       ) : null}
     </>
   )
+  const windowStore = React.useContext(TurnMessageWindowContext)
+  // Opening the fold mounts the end of it that stays on screen (see
+  // openedFoldMessageWindow), so a very long turn opens at once.
+  const handleToggle = React.useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (!expanded && windowStore) {
+        windowStore.setRange(
+          turn.turnId,
+          openedFoldMessageWindow(activityMessages.length, isReaderAtTimelineEnd(event.currentTarget)),
+        )
+      }
+      onToggle()
+    },
+    [activityMessages.length, expanded, onToggle, turn.turnId, windowStore],
+  )
   const headerClass =
     "w-full justify-start normal-case !ps-px !pe-2 text-[var(--tools-description)] hover:!bg-transparent active:!bg-transparent"
   return (
@@ -168,7 +189,7 @@ export function LiveTurnActivity({
             variant="ghost"
             size="sm"
             className={headerClass}
-            onClick={onToggle}
+            onClick={handleToggle}
             aria-expanded={isExpanded}
             aria-controls={finalMessage ? `${contentId} ${finalContentId}` : contentId}
           >
@@ -179,7 +200,13 @@ export function LiveTurnActivity({
       <LiveActivityCollapse expanded={isExpanded} id={contentId}>
         <div ref={rowsRef}>
           <ActivityRowSkipContext.Provider value={rowSkip}>
-            {shownMessages.map(renderMessage)}
+            {trimRows ? (
+              // A trimmed fold holds only its latest rows; a window range left
+              // from an earlier opening would hide them behind a spacer.
+              shownMessages.map(renderMessage)
+            ) : (
+              <TurnMessageWindow turnId={turn.turnId} messages={shownMessages} renderMessage={renderMessage} />
+            )}
           </ActivityRowSkipContext.Provider>
         </div>
       </LiveActivityCollapse>

@@ -23,6 +23,7 @@ import type { StreamPhase } from "./message/types"
 import { normalizeParts } from "./message/partUtils"
 import { omitRecoveredAssistantMessages } from "./lib/turns/recoveredAssistantMessages"
 import { getTurnsWithLaterAssistant, hasLiveActivity } from "./lib/turns/liveActivity"
+import { TurnMessageWindowContext, createTurnMessageWindowStore } from "./lib/turns/turnMessageWindow"
 import { LiveTurnActivity } from "./components/LiveTurnActivity"
 import { LiveActivityFoldContext } from "./components/liveActivityFoldContext"
 
@@ -1132,6 +1133,14 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
     const activityRenderMode = useUIStore((state) => state.activityRenderMode)
     const defaultActivityExpanded = activityRenderMode === "summary"
     const [turnUiStates, setTurnUiStates] = React.useState<Map<string, TurnUiState>>(() => new Map())
+    // The window outlives a turn row (the row remounts when a stream settles)
+    // but not the session: ranges revealed in one session must not apply to the next.
+    const [turnMessageWindow, setTurnMessageWindow] = React.useState(() => createTurnMessageWindowStore())
+    const [turnMessageWindowSessionKey, setTurnMessageWindowSessionKey] = React.useState(sessionKey)
+    if (turnMessageWindowSessionKey !== sessionKey) {
+      setTurnMessageWindowSessionKey(sessionKey)
+      setTurnMessageWindow(createTurnMessageWindowStore())
+    }
     const userAnimationRef = React.useRef<{
       sessionKey: string | undefined
       previousOrder: string[]
@@ -1752,47 +1761,49 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
           </div>
         )}
 
-        <LiveActivityFoldContext.Provider value={liveActivityFold}>
-          <FadeInDisabledProvider disabled={disableFadeIn}>
-            <div className="relative w-full">
-              <StaticHistoryList
-                entries={historyEntries}
-                shouldVirtualize={shouldVirtualizeHistory}
-                virtualRows={historyVirtualRows}
-                totalSize={historyVirtualizer.getTotalSize()}
-                measureElement={historyVirtualizer.measureElement}
-                contentRef={historyContentRef}
-                onMessageContentChange={stableHistoryContentChange}
-                getAnimationHandlers={stableGetAnimationHandlers}
-                scrollToBottom={stableScrollToBottom}
-                stickyUserHeader={stickyUserHeader}
-                defaultActivityExpanded={defaultActivityExpanded}
-                turnUiStates={turnUiStates}
-                onToggleTurnGroup={toggleTurnGroup}
-                shouldAnimateUserMessage={shouldAnimateUserMessage}
-                onUserAnimationConsumed={onUserAnimationConsumed}
-                activeStreamingPhase={activeStreamingPhase}
-              />
-              {trailingStreamingEntry ? (
-                <StreamingTailContent
-                  entry={trailingStreamingEntry}
-                  onMessageContentChange={stableTailContentChange}
+        <TurnMessageWindowContext.Provider value={turnMessageWindow}>
+          <LiveActivityFoldContext.Provider value={liveActivityFold}>
+            <FadeInDisabledProvider disabled={disableFadeIn}>
+              <div className="relative w-full">
+                <StaticHistoryList
+                  entries={historyEntries}
+                  shouldVirtualize={shouldVirtualizeHistory}
+                  virtualRows={historyVirtualRows}
+                  totalSize={historyVirtualizer.getTotalSize()}
+                  measureElement={historyVirtualizer.measureElement}
+                  contentRef={historyContentRef}
+                  onMessageContentChange={stableHistoryContentChange}
                   getAnimationHandlers={stableGetAnimationHandlers}
                   scrollToBottom={stableScrollToBottom}
                   stickyUserHeader={stickyUserHeader}
-                  sessionIsWorking={sessionIsWorking}
                   defaultActivityExpanded={defaultActivityExpanded}
                   turnUiStates={turnUiStates}
                   onToggleTurnGroup={toggleTurnGroup}
                   shouldAnimateUserMessage={shouldAnimateUserMessage}
                   onUserAnimationConsumed={onUserAnimationConsumed}
-                  activeStreamingMessageId={activeStreamingMessageId}
                   activeStreamingPhase={activeStreamingPhase}
                 />
-              ) : null}
-            </div>
-          </FadeInDisabledProvider>
-        </LiveActivityFoldContext.Provider>
+                {trailingStreamingEntry ? (
+                  <StreamingTailContent
+                    entry={trailingStreamingEntry}
+                    onMessageContentChange={stableTailContentChange}
+                    getAnimationHandlers={stableGetAnimationHandlers}
+                    scrollToBottom={stableScrollToBottom}
+                    stickyUserHeader={stickyUserHeader}
+                    sessionIsWorking={sessionIsWorking}
+                    defaultActivityExpanded={defaultActivityExpanded}
+                    turnUiStates={turnUiStates}
+                    onToggleTurnGroup={toggleTurnGroup}
+                    shouldAnimateUserMessage={shouldAnimateUserMessage}
+                    onUserAnimationConsumed={onUserAnimationConsumed}
+                    activeStreamingMessageId={activeStreamingMessageId}
+                    activeStreamingPhase={activeStreamingPhase}
+                  />
+                ) : null}
+              </div>
+            </FadeInDisabledProvider>
+          </LiveActivityFoldContext.Provider>
+        </TurnMessageWindowContext.Provider>
       </div>
     )
   },
