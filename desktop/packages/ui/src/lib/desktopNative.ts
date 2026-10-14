@@ -71,13 +71,17 @@ export const setDesktopBadgeCount = async (count: number): Promise<void> => {
   }
 }
 
-export const setDesktopWindowTheme = async (themeMode?: string, themeVariant?: string): Promise<void> => {
+export const setDesktopWindowTheme = async (
+  themeMode?: string,
+  themeVariant?: string,
+  backgroundColor?: string,
+): Promise<void> => {
   if (!isDesktopShell()) {
     return
   }
 
   try {
-    await invokeDesktopCommand("desktop_set_window_theme", { themeMode, themeVariant })
+    await invokeDesktopCommand("desktop_set_window_theme", { themeMode, themeVariant, backgroundColor })
   } catch {
     // ignore
   }

@@ -6,7 +6,7 @@ import { ContextUsageDisplay } from "@/components/ui/ContextUsageDisplay"
 import { SessionSwitcherDropdown } from "@/components/session/SessionSwitcherDropdown"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
-import { invokeDesktop, isElectronShell } from "@/lib/desktop"
+import { invokeDesktop, isDesktopShell, isElectronShell } from "@/lib/desktop"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSessionWorktreeStore } from "@/sync/session-worktree-store"
 import { useSessionMessages, useSessionParts, useSessions } from "@/sync/sync-context"
@@ -26,6 +26,7 @@ import type { SessionContextUsage } from "@/stores/types/sessionTypes"
 import { buildMiniChatMainHandoffPayload } from "./miniChatMainHandoff"
 import { compactMiniChatPath, findMiniChatProjectForDirectory, normalizeMiniChatPath } from "./miniChatPath"
 import type { MiniChatMode } from "./types"
+import { useDesktopWindowFullscreen } from "@/hooks/useDesktopWindowFullscreen"
 
 type MiniChatLayoutProps = {
   mode: MiniChatMode
@@ -64,8 +65,21 @@ const MiniChatHeader: React.FC<{ mode: MiniChatMode }> = ({ mode }) => {
   })
   const [pinned, setPinned] = React.useState(false)
   const macosMajor = typeof window !== "undefined" ? (window.__AX_CODE_DESKTOP_MACOS_MAJOR__ ?? 0) : 0
-  const hasMacTrafficLights = Number.isFinite(macosMajor) && macosMajor > 0
-  const macosHeaderSizeClass = hasMacTrafficLights ? (macosMajor >= 26 ? "h-12" : macosMajor <= 15 ? "h-14" : "") : ""
+  // The preload injects the macOS major; fall back to the user agent so the
+  // header still clears the traffic lights if it is missing.
+  const isMacDesktopWindow =
+    (Number.isFinite(macosMajor) && macosMajor > 0) ||
+    (isDesktopShell() && typeof navigator !== "undefined" && /Macintosh|Mac OS X/.test(navigator.userAgent || ""))
+  const isFullscreen = useDesktopWindowFullscreen(isMacDesktopWindow)
+  const hasMacTrafficLights = isMacDesktopWindow && !isFullscreen
+  // Pixel floors keep the bar tall enough for the traffic lights when the
+  // interface font setting shrinks rem (see Header.tsx). The height stays the
+  // same in fullscreen so the header does not jump; only the inset goes.
+  const macosHeaderSizeClass = isMacDesktopWindow
+    ? macosMajor > 0 && macosMajor <= 15
+      ? "h-14 min-h-[56px]"
+      : "h-11 min-h-[44px]"
+    : ""
 
   const session = React.useMemo(
     () => (currentSessionId ? (sessions.find((entry) => entry.id === currentSessionId) ?? null) : null),
@@ -249,7 +263,7 @@ const MiniChatHeader: React.FC<{ mode: MiniChatMode }> = ({ mode }) => {
     <header
       className={cn(
         "flex items-center gap-3 border-b border-[var(--interactive-border)] bg-sidebar pr-3",
-        hasMacTrafficLights ? "pl-[5.5rem]" : "pl-3",
+        hasMacTrafficLights ? "pl-[88px]" : "pl-3",
         macosHeaderSizeClass || "min-h-14",
       )}
       style={dragRegionStyle}

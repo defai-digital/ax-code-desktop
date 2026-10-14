@@ -76,8 +76,8 @@
     </script>
 
     <!-- Theme color -->
-    <meta name="theme-color" content="#151313" />
-    <meta name="theme-color" content="#151313" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#F7F7F7" />
+    <meta name="theme-color" content="#0A0A0A" media="(prefers-color-scheme: dark)" />
 
     <title>AX Code - AI Coding Assistant</title>
     <meta name="description" content="Web interface companion for AX Code AI coding agent" />
@@ -114,11 +114,13 @@
         unicode-range: U+E000-F8FF, U+F0000-FFFFF;
       }
 
+      /* Defaults match the AutomatosX theme canvas (and the native window colour in
+         electron/src/desktop-window-chrome.js) until the app persists its own. */
       :root {
-        --splash-background-dark: #151313;
-        --splash-stroke-dark: #cecdc3;
-        --splash-background-light: #fffcf0;
-        --splash-stroke-light: #100f0f;
+        --splash-background-dark: #0a0a0a;
+        --splash-stroke-dark: #ededed;
+        --splash-background-light: #f7f7f7;
+        --splash-stroke-light: #171717;
 
         --splash-background: var(--splash-background-dark);
         --splash-stroke: var(--splash-stroke-dark);
@@ -151,10 +153,13 @@
         position: absolute;
         width: 100%;
         z-index: 9999;
+        /* The desktop shell hides the native title bar; keep the window draggable while booting. */
+        -webkit-app-region: drag;
       }
       #initial-loading.fade-out {
         opacity: 0;
         pointer-events: none;
+        -webkit-app-region: no-drag;
       }
     </style>
   </head>

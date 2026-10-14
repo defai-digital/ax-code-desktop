@@ -64,10 +64,7 @@ import { ProjectActionsButton } from "@/components/layout/ProjectActionsButton"
 import { SessionSwitcherDropdown } from "@/components/session/SessionSwitcherDropdown"
 import { SessionIdChip } from "@/components/session/SessionIdChip"
 import { invokeDesktop, isDesktopShell, startDesktopWindowDrag } from "@/lib/desktop"
-import {
-  isDesktopWindowFullscreen as isDesktopWindowFullscreenNative,
-  onDesktopWindowResized,
-} from "@/lib/desktopNative"
+import { useDesktopWindowFullscreen } from "@/hooks/useDesktopWindowFullscreen"
 import { API_ENDPOINTS } from "@/lib/http"
 import { desktopHostsGet, locationMatchesHost, redactSensitiveUrl } from "@/lib/desktopHosts"
 import { resolveSessionDiffStats } from "@/components/session/sidebar/utils"
@@ -832,7 +829,6 @@ export const Header: React.FC = () => {
     }
     return isDesktopShell()
   })
-  const [isDesktopWindowFullscreen, setIsDesktopWindowFullscreen] = React.useState(false)
 
   const isMacPlatform = React.useMemo(() => {
     if (typeof navigator === "undefined") {
@@ -840,6 +836,7 @@ export const Header: React.FC = () => {
     }
     return /Macintosh|Mac OS X/.test(navigator.userAgent || "")
   }, [])
+  const isDesktopWindowFullscreen = useDesktopWindowFullscreen(isDesktopApp && isMacPlatform)
 
   const isWindowsElectronDesktop = React.useMemo(() => {
     if (typeof window === "undefined") {
@@ -1417,59 +1414,35 @@ export const Header: React.FC = () => {
 
   const desktopPaddingClass = React.useMemo(() => {
     if (isDesktopApp && isMacPlatform && !isDesktopWindowFullscreen) {
-      return "pl-[5.5rem]"
+      return "pl-[88px]"
     }
     return "pl-3"
   }, [isDesktopApp, isDesktopWindowFullscreen, isMacPlatform])
 
-  useEffect(() => {
-    if (!isDesktopApp || !isMacPlatform) {
-      setIsDesktopWindowFullscreen(false)
-      return
-    }
-
-    let disposed = false
-    let unlistenResize: (() => void) | null = null
-
-    const syncFullscreenState = async () => {
-      try {
-        const fullscreen = await isDesktopWindowFullscreenNative()
-        if (!disposed) {
-          setIsDesktopWindowFullscreen(fullscreen)
-        }
-      } catch {
-        if (!disposed) {
-          setIsDesktopWindowFullscreen(false)
-        }
-      }
-    }
-
-    void syncFullscreenState()
-    // Electron has no native window-resize event listener exposed to the renderer,
-    // so observe DOM resize (which fires on enter/exit fullscreen) and re-sync.
-    unlistenResize = onDesktopWindowResized(() => {
-      void syncFullscreenState()
-    })
-
-    return () => {
-      disposed = true
-      if (unlistenResize) {
-        unlistenResize()
-      }
-    }
-  }, [isDesktopApp, isMacPlatform])
 
   const macosHeaderSizeClass = React.useMemo(() => {
     if (!isDesktopApp || !isMacPlatform || macosMajorVersion === null) {
       return ""
     }
     if (macosMajorVersion >= 26) {
-      return "h-12"
+      return "h-11"
     }
     if (macosMajorVersion <= 15) {
       return "h-14"
     }
     return ""
+  }, [isDesktopApp, isMacPlatform, macosMajorVersion])
+
+  // The traffic lights keep a fixed physical size while the interface font
+  // setting scales rem, so the clearance below them is a pixel floor: macOS 26+
+  // centres the lights in 44px and older releases in 56px (see
+  // electron/src/desktop-window-chrome.js). The floor stays in fullscreen so
+  // the header keeps its height; only the left inset is dropped there.
+  const macosTitlebarStyle = React.useMemo<React.CSSProperties | undefined>(() => {
+    if (!isDesktopApp || !isMacPlatform) {
+      return undefined
+    }
+    return { minHeight: macosMajorVersion !== null && macosMajorVersion <= 15 ? "56px" : "44px" }
   }, [isDesktopApp, isMacPlatform, macosMajorVersion])
 
   const webWindowControlsOverlayStyle = React.useMemo<React.CSSProperties | undefined>(() => {
@@ -1828,7 +1801,7 @@ export const Header: React.FC = () => {
         desktopPaddingClass,
         macosHeaderSizeClass,
       )}
-      style={webWindowControlsOverlayStyle}
+      style={webWindowControlsOverlayStyle ?? macosTitlebarStyle}
       role="toolbar"
       aria-label={t("header.navigation.mainAria")}
     >

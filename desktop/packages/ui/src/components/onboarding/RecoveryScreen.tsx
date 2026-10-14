@@ -4,6 +4,7 @@ import { DesktopConnectionRecovery, type RecoveryVariant } from "./DesktopConnec
 import { resolveRecoveryNextStep } from "./desktopRecoveryRouting"
 import { desktopHostsGet, desktopHostsSet } from "@/lib/desktopHosts"
 import { API_ENDPOINTS } from "@/lib/http"
+import { DesktopTitlebarDragStrip } from "@/components/layout/DesktopTitlebarDragStrip"
 
 type RecoveryScreenProps = {
   /** Recovery variant */
@@ -72,13 +73,16 @@ export function RecoveryScreen({
   }, [variant, persistLocalChoice, onEnterLocalSetup])
 
   return (
-    <DesktopConnectionRecovery
-      variant={variant}
-      hostLabel={hostLabel}
-      hostUrl={hostUrl}
-      onRetry={handleRecoveryRetry}
-      onUseLocal={handleRecoveryUseLocal}
-      isRetrying={isRetrying}
-    />
+    <>
+      <DesktopTitlebarDragStrip />
+      <DesktopConnectionRecovery
+        variant={variant}
+        hostLabel={hostLabel}
+        hostUrl={hostUrl}
+        onRetry={handleRecoveryRetry}
+        onUseLocal={handleRecoveryUseLocal}
+        isRetrying={isRetrying}
+      />
+    </>
   )
 }

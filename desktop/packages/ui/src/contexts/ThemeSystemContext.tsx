@@ -535,9 +535,13 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
     }
 
     void (async () => {
-      await setDesktopWindowTheme(preferences.themeMode, currentTheme.metadata.variant)
+      await setDesktopWindowTheme(
+        preferences.themeMode,
+        currentTheme.metadata.variant,
+        currentTheme.colors.surface.background,
+      )
     })()
-  }, [currentTheme.metadata.variant, isDesktopShell, preferences.themeMode])
+  }, [currentTheme.colors.surface.background, currentTheme.metadata.variant, isDesktopShell, preferences.themeMode])
 
   useEffect(() => {
     if (typeof window === "undefined") {

@@ -90,6 +90,13 @@ contextBridge.exposeInMainWorld("__AX_CODE_DESKTOP__", {
   openDialog: openDesktopDialog,
 })
 
+// Main computes the macOS major from uname; the renderer header uses it to size
+// itself around the traffic lights (Chromium's user agent is frozen at 10_15_7).
+const macosMajor = Number.parseInt(process.env.AX_CODE_DESKTOP_MACOS_MAJOR ?? "", 10)
+if (Number.isFinite(macosMajor) && macosMajor > 0) {
+  contextBridge.exposeInMainWorld("__AX_CODE_DESKTOP_MACOS_MAJOR__", macosMajor)
+}
+
 // The shared UI waits for this desktop boot outcome before removing the splash
 // gate. Electron only loads the renderer after the local/remote page itself is
 // reachable, so a valid main outcome is enough to unblock the React boot flow.

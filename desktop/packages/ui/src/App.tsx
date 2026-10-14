@@ -1,5 +1,6 @@
 import React from "react"
 import { MainLayout } from "@/components/layout/MainLayout"
+import { DesktopTitlebarDragStrip } from "@/components/layout/DesktopTitlebarDragStrip"
 import { ChatView } from "@/components/views/ChatView"
 import { Toaster } from "@/components/ui/sonner"
 import { Button } from "@/components/ui/button"
@@ -87,6 +88,7 @@ const StartupInitializationRecovery: React.FC<{
 
   return (
     <div className="flex h-full items-center justify-center bg-background px-6 text-foreground">
+      <DesktopTitlebarDragStrip />
       <div className="flex max-w-md flex-col items-center gap-4 text-center">
         <div className="flex flex-col gap-2">
           <h1 className="typography-title text-foreground">{t("startup.initRecovery.title")}</h1>

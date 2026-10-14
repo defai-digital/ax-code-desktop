@@ -7,6 +7,7 @@ import { toast } from "@/components/ui"
 import { syncDesktopSettings, initializeAppearancePreferences } from "@/lib/persistence"
 import { applyPersistedDirectoryPreferences } from "@/lib/directoryPersistence"
 import { AxCodeIcon } from "@/components/ui/AxCodeIcon"
+import { DesktopTitlebarDragStrip } from "@/components/layout/DesktopTitlebarDragStrip"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import {
@@ -54,13 +55,6 @@ const submitPassword = async (password: string, trustDevice: boolean): Promise<R
 }
 
 const AuthShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const titlebarDragStyle = React.useMemo<React.CSSProperties>(() => {
-    return {
-      height: "var(--oc-wco-titlebar-height, 0px)",
-      right: "var(--oc-wco-right-inset, 0px)",
-    }
-  }, [])
-
   return (
     <div
       className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background text-foreground"
@@ -68,7 +62,7 @@ const AuthShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         fontFamily: '"Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif',
       }}
     >
-      <div className="app-region-drag fixed left-0 top-0 z-20" style={titlebarDragStyle} aria-hidden />
+      <DesktopTitlebarDragStrip />
       <div
         className="pointer-events-none absolute inset-0 opacity-55"
         style={{

@@ -38,6 +38,7 @@ import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { PROJECT_ICON_MAP, PROJECT_COLOR_MAP, getProjectIconImageUrl } from "@/lib/projectMeta"
 import type { ProjectEntry } from "@/lib/api/types"
 import { startDesktopWindowDrag } from "@/lib/desktopNative"
+import { useDesktopWindowFullscreen } from "@/hooks/useDesktopWindowFullscreen"
 import { useI18n } from "@/lib/i18n"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -202,6 +203,7 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
     if (typeof navigator === "undefined") return false
     return /Macintosh|Mac OS X/.test(navigator.userAgent || "")
   }, [])
+  const isDesktopWindowFullscreen = useDesktopWindowFullscreen(isDesktopApp && isMacPlatform)
 
   const macosMajorVersion = React.useMemo(() => {
     if (typeof window === "undefined") return null
@@ -218,17 +220,19 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
   }, [])
 
   const desktopHeaderPaddingClass = React.useMemo(() => {
-    if (isDesktopApp && isMacPlatform) {
+    if (isDesktopApp && isMacPlatform && !isDesktopWindowFullscreen) {
       // Match main app header: reserve space for macOS traffic lights.
-      return "pl-[5.5rem]"
+      return "pl-[88px]"
     }
     return "pl-3"
-  }, [isDesktopApp, isMacPlatform])
+  }, [isDesktopApp, isDesktopWindowFullscreen, isMacPlatform])
 
   const macosHeaderSizeClass = React.useMemo(() => {
     if (!isDesktopApp || !isMacPlatform || macosMajorVersion === null) return ""
-    if (macosMajorVersion >= 26) return "h-12"
-    if (macosMajorVersion <= 15) return "h-14"
+    // Pixel floors keep the bar tall enough for the traffic lights when the
+    // interface font setting shrinks rem (see Header.tsx).
+    if (macosMajorVersion >= 26) return "h-11 min-h-[44px]"
+    if (macosMajorVersion <= 15) return "h-14 min-h-[56px]"
     return ""
   }, [isDesktopApp, isMacPlatform, macosMajorVersion])
 

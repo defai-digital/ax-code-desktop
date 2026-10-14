@@ -76,6 +76,16 @@ const {
 const { normalizeDevRendererUrl } = require("./renderer-navigation-policy")
 const { createLaunchAnimationController, ANIMATION_PRIVILEGED_SCHEMES } = require("./launch-animation-controller")
 const { createQuitCoordinator } = require("./quit-coordinator")
+const {
+  DEFAULT_BACKGROUND_DARK,
+  DEFAULT_BACKGROUND_LIGHT,
+  attachTrafficLightRefresh,
+  macTrafficLightPosition,
+  macosMajorFromDarwinRelease,
+  nativeWindowChromeOptions,
+  normalizeHexColor,
+  resolveWindowBackgroundColor,
+} = require("./desktop-window-chrome")
 const launchAnimationManifest = require("../resources/launch-animations/manifest.json")
 const {
   PACKAGED_RENDERER_ORIGIN,
@@ -613,6 +623,21 @@ function safeOpenExternal(url) {
   if (normalized) shell.openExternal(normalized)
 }
 
+// The sandboxed preload reads this to expose __AX_CODE_DESKTOP_MACOS_MAJOR__;
+// the renderer header sizes itself around the traffic lights from it.
+const MACOS_MAJOR = process.platform === "darwin" ? macosMajorFromDarwinRelease(os.release()) : 0
+if (MACOS_MAJOR > 0) process.env.AX_CODE_DESKTOP_MACOS_MAJOR = String(MACOS_MAJOR)
+
+// Title bar, traffic lights and first-paint colour shared by every app window.
+const appWindowChromeOptions = () => ({
+  ...nativeWindowChromeOptions({ platform: process.platform, macosMajor: MACOS_MAJOR }),
+  backgroundColor: resolveWindowBackgroundColor(readSettingsRoot(), nativeTheme.shouldUseDarkColors),
+})
+
+const attachAppWindowChrome = (browserWindow) => {
+  if (process.platform === "darwin") attachTrafficLightRefresh(browserWindow, macTrafficLightPosition(MACOS_MAJOR))
+}
+
 function rendererWebPreferences() {
   // Do not forward --ax-code-desktop-api-origin= into Chromium argv.
   // Those look like command-line switches and stopped Vite module scripts
@@ -635,11 +660,12 @@ function createMainWindowShell() {
     minWidth: 800,
     minHeight: 600,
     title: "AX Code",
-    backgroundColor: "#151313",
+    ...appWindowChromeOptions(),
     show: false,
     webPreferences: rendererWebPreferences(),
   })
   attachDesktopBrowserWebviewPolicy(mainWindow.webContents)
+  attachAppWindowChrome(mainWindow)
 
   // Restore saved geometry before first paint, then persist future changes.
   restoreMainWindowGeometry(mainWindow)
@@ -2058,11 +2084,12 @@ const createAdditionalWindow = async (url) => {
     minWidth: 800,
     minHeight: 600,
     title: "AX Code",
-    backgroundColor: "#151313",
+    ...appWindowChromeOptions(),
     show: false,
     webPreferences: rendererWebPreferences(),
   })
   attachDesktopBrowserWebviewPolicy(win.webContents)
+  attachAppWindowChrome(win)
   win.once("ready-to-show", () => win.show())
   win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
     if (isTrustedRendererNavigation(targetUrl)) return { action: "allow" }
@@ -2480,6 +2507,18 @@ const applyWindowTheme = (browserWindow, args) => {
   else if (variant === "light") nativeTheme.themeSource = "light"
   else if (variant === "dark") nativeTheme.themeSource = "dark"
   else nativeTheme.themeSource = "system"
+  // Keep the native canvas (visible while resizing and behind the renderer)
+  // on the active theme's background; an unusable colour falls back to the
+  // default canvas for the variant rather than keeping the previous theme's.
+  if (!browserWindow || browserWindow.isDestroyed()) return
+  const backgroundColor =
+    normalizeHexColor(args?.backgroundColor) ??
+    (variant === "light"
+      ? DEFAULT_BACKGROUND_LIGHT
+      : variant === "dark"
+        ? DEFAULT_BACKGROUND_DARK
+        : null)
+  if (backgroundColor) browserWindow.setBackgroundColor(backgroundColor)
 }
 
 // ── New command handlers (origin guard defined above) ─────────────────────────
@@ -2908,11 +2947,12 @@ const createMiniChatWindow = async ({ mode, sessionId, directory, projectId }) =
     minWidth: 360,
     minHeight: 420,
     title: "AX Code",
-    backgroundColor: "#151313",
+    ...appWindowChromeOptions(),
     show: false,
     webPreferences: rendererWebPreferences(),
   })
   attachDesktopBrowserWebviewPolicy(win.webContents)
+  attachAppWindowChrome(win)
   win.once("ready-to-show", () => win.show())
   win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
     if (isTrustedRendererNavigation(targetUrl)) return { action: "allow" }
