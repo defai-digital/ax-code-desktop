@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Sign out from the About dialog, which revokes the session on the server instead of only clearing
+  it in the interface.
+- The tray follows session and approval state, and the dock badge follows unread background work.
+- Project browser: the agent can open a page itself (`action=navigate`) instead of asking the user
+  to type the address. Requires a signed runtime that carries the matching bridge change.
 - Project-first home: a single "Open a folder" action backed by the OS folder picker, with
   clone, typed-path and import one click away, and a project list that shows live session activity
   instead of a decorative status.
@@ -21,6 +26,21 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Routes and surfaces that were reachable before signing in now require the UI session: the bare
+  proxy mounts (`/global`, `/graph`, `/dre-graph`, `/run-report`), `/api/system/info`,
+  `/api/system/free-port` and the startup/crash diagnostics. `/health` stays public but unauthenticated
+  callers only get a status and timestamp.
+- A failed request now answers with a stable message instead of the exception text and stack, which
+  leaked absolute paths to signed-in callers.
+- A document served through an external preview is sandboxed without same-origin, so a proxied page
+  can no longer use the interface's session.
+- Restarting the server inside the same process left the previous shutdown flag, cleanup timer and
+  preview sweeper behind; they are reset now.
+- Auto-accept follows the most specific session setting, so turning a child session off is no longer
+  overridden by its parent, and a dropped sync is retried instead of leaving the server's suppression
+  state inconsistent.
+- Only one directory context runs at a time, SDK requests and permission replies have deadlines, and
+  the permission card no longer stays disabled when a request fails.
 - Enabling agent access in the project browser now pauses any connected Chrome-bridge MCP server
   (`webmcp`) for the project and reconnects it when access ends, so the agent uses the embedded
   browser instead of launching Chrome.
