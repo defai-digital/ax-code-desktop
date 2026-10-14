@@ -3,6 +3,7 @@ import React from "react"
 import { MessageFreshnessDetector } from "@/lib/messageFreshness"
 import { createScrollSpy } from "@/components/chat/lib/scroll/scrollSpy"
 import { retireScrollContent } from "@/components/chat/lib/scroll/retireScrollContent"
+import { useUIStore } from "@/stores/useUIStore"
 import { useViewportStore, type SessionMemoryState } from "@/sync/viewport-store"
 
 type AutoFollowState = "following" | "released"
@@ -129,6 +130,17 @@ export const useChatAutoFollow = ({
   const [showScrollButton, setShowScrollButton] = React.useState(false)
   const [isFollowingProgrammatically, setIsFollowingProgrammatically] = React.useState(false)
   const unseenBaseRef = React.useRef(sessionMessageCount)
+  const activityRenderMode = useUIStore((s) => s.activityRenderMode)
+  const activityRenderModeRef = React.useRef(activityRenderMode)
+  activityRenderModeRef.current = activityRenderMode
+  const sessionIsWorkingRef = React.useRef(sessionIsWorking)
+  sessionIsWorkingRef.current = sessionIsWorking
+  // Returning to the bottom re-arms following without re-stopping at this section.
+  const followedTurnStopsRef = React.useRef(new WeakSet<Element>())
+  // Whether a turn may stop the follow, decided when the follow first meets it:
+  // only a turn whose start the reader saw (at or below the viewport top) when
+  // it appeared. Opening a session onto a long finished turn never stops.
+  const followStopEligibilityRef = React.useRef(new WeakMap<Element, boolean>())
 
   const stateRef = React.useRef<AutoFollowState>("following")
   const sessionMessageCountRef = React.useRef(sessionMessageCount)
@@ -145,6 +157,7 @@ export const useChatAutoFollow = ({
   const pendingSaveRef = React.useRef<{ sessionId: string; anchor: number } | null>(null)
   const settleBurstRafRef = React.useRef<number | null>(null)
   const lastUserReleaseAtRef = React.useRef(0)
+  const releaseFromFollowStopRef = React.useRef<() => void>(() => {})
   // When restoreSnapshot is invoked while ChatViewport is still hydrating
   // (skeleton rendered, no scroll container yet), we record the session here
   // so a follow-up effect can replay the restore once the container mounts.
@@ -206,9 +219,37 @@ export const useChatAutoFollow = ({
       return
     }
 
-    const target = Math.max(0, container.scrollHeight - container.clientHeight)
+    const bottomTarget = Math.max(0, container.scrollHeight - container.clientHeight)
+    let target = bottomTarget
+    let stoppedAtTurn: Element | null = null
+    if (activityRenderModeRef.current === "collapsed" && sessionIsWorkingRef.current) {
+      const turns = container.querySelectorAll("section[data-turn-id]")
+      const lastTurn = turns.item(turns.length - 1)
+      if (lastTurn && !followedTurnStopsRef.current.has(lastTurn)) {
+        // Keep the reader's message at the viewport top while activity is compact.
+        const containerTop = container.getBoundingClientRect().top
+        const turnTop = lastTurn.getBoundingClientRect().top - containerTop + container.scrollTop
+        const eligibility = followStopEligibilityRef.current
+        if (!eligibility.has(lastTurn)) eligibility.set(lastTurn, container.scrollTop <= turnTop + 1)
+        if (eligibility.get(lastTurn) === true) {
+          target = Math.min(target, Math.max(0, turnTop))
+          stoppedAtTurn = turnTop <= bottomTarget ? lastTurn : null
+        }
+      }
+    }
     const current = container.scrollTop
     const delta = target - current
+
+    if (stoppedAtTurn && Math.abs(delta) <= SETTLE_EPSILON) {
+      if (current !== target) {
+        markProgrammaticWrite()
+        container.scrollTop = target
+        lastScrollTopRef.current = target
+      }
+      followedTurnStopsRef.current.add(stoppedAtTurn)
+      releaseFromFollowStopRef.current()
+      return
+    }
 
     if (Math.abs(delta) <= SETTLE_EPSILON) {
       if (current !== target) {
@@ -304,6 +345,7 @@ export const useChatAutoFollow = ({
       lastUserReleaseAtRef.current = typeof performance !== "undefined" ? performance.now() : Date.now()
     }
   }, [setStateValue, stopFollowLoop, stopSettleBurst])
+  releaseFromFollowStopRef.current = releaseFromUserIntent
 
   const goToBottom = React.useCallback(
     (mode: "instant" | "smooth" = "instant") => {
