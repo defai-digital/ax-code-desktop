@@ -35,6 +35,10 @@ const useSpacerReveal = (
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[entries.length - 1]?.isIntersecting) return
+        // Focusing the reveal button scrolls its spacer into view; revealing here would
+        // unmount the spacer and the focused button with it, so the control could never
+        // be activated and the reader lost their place. Let the button do it.
+        if (spacer.contains(document.activeElement)) return
         const view = scroller.getBoundingClientRect()
         const rect = spacer.getBoundingClientRect()
         const onScreen = rect.bottom > view.top && rect.top < view.bottom
