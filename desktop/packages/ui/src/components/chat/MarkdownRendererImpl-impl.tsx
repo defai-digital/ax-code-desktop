@@ -33,6 +33,8 @@ import { getSafeMarkdownHref } from "./markdownLinks"
 import { sanitizeMermaidSvg } from "./sanitizeSvg"
 import { useStableMarkdownBlocks } from "./useMarkdownBlocks"
 import { PreparedMarkdown } from "./PreparedMarkdown"
+import { StreamingMarkdownBlock } from "./StreamingMarkdownBlock"
+import { useEnteredBlockCount } from "./useEnteredBlockCount"
 
 const useCurrentMermaidTheme = () => {
   const themeSystem = useOptionalThemeSystem()
@@ -1793,12 +1795,21 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
         ? "markdown-content markdown-reasoning"
         : "markdown-content leading-relaxed"
 
+  const isLiveBlocks = isStreaming && !disableStreamAnimation
+  const enteredBlockCount = useEnteredBlockCount(markdownBlocks.length, isLiveBlocks)
+
   const markdownContent = (
     <div className={cn("break-words w-full min-w-0", className)} ref={containerRef}>
       <div className={markdownClassName}>
-        {markdownBlocks.map((block) => (
-          <PreparedMarkdown key={block.key} block={block} components={markdownComponents} />
-        ))}
+        {isLiveBlocks
+          ? markdownBlocks.map((block, index) => (
+              <StreamingMarkdownBlock key={index} index={index} enteredBlockCount={enteredBlockCount}>
+                <PreparedMarkdown key={block.key} block={block} components={markdownComponents} />
+              </StreamingMarkdownBlock>
+            ))
+          : markdownBlocks.map((block) => (
+              <PreparedMarkdown key={block.key} block={block} components={markdownComponents} />
+            ))}
       </div>
     </div>
   )

@@ -1,10 +1,9 @@
 import * as React from "react"
-import { motion, type MotionProps } from "motion/react"
 import { cn } from "@/lib/utils"
 
 type Variant = {
   variant: string
-  component: React.FC<React.ComponentProps<"span"> & Partial<MotionProps>>
+  component: React.FC<React.ComponentProps<"span">>
 }
 
 const variants = [
@@ -18,42 +17,17 @@ const variants = [
   },
   {
     variant: "generate-effect",
+    // One CSS fade over the whole text (`.oc-text-generate` in index.css), not
+    // a span and a JS animation per character: streaming tool rows mount these
+    // constantly, and upstream measured the per-character version at a quarter
+    // of the main thread's work in an agent run. The fade plays once on mount;
+    // text that changes afterwards updates in place without replaying it.
     component: ({ children, className, ...props }) => {
-      if (children === null || typeof children === "undefined") return null
-
-      const textContent =
-        typeof children === "string"
-          ? children
-          : typeof children === "number"
-            ? String(children)
-            : Array.isArray(children)
-              ? children
-                  .map((item) => (typeof item === "string" || typeof item === "number" ? String(item) : ""))
-                  .join("")
-              : ""
-
-      if (!textContent) return null
+      if (children === null || children === undefined || children === "") return null
 
       return (
-        <span className={cn("inline-block align-baseline", className)}>
-          {textContent.split("").map((char, index) => (
-            <motion.span
-              {...props}
-              key={char + String(index)}
-              className={cn("inline-block whitespace-pre align-baseline")}
-              initial={{ opacity: 0 }}
-              animate={{
-                opacity: 1,
-              }}
-              transition={{
-                ease: "easeOut",
-                duration: 0.14,
-                delay: Math.min(index * 0.0045, 0.14),
-              }}
-            >
-              {char}
-            </motion.span>
-          ))}
+        <span {...props} className={cn("oc-text-generate inline-block align-baseline", className)}>
+          {children}
         </span>
       )
     },
@@ -62,8 +36,7 @@ const variants = [
 
 export type TextProps = {
   variant?: (typeof variants)[number]["variant"]
-} & React.ComponentProps<"span"> &
-  Partial<MotionProps>
+} & React.ComponentProps<"span">
 
 export function Text({ variant = "static", className, ...props }: TextProps) {
   const variantComponent = variants.find((v) => v.variant === variant)?.component
