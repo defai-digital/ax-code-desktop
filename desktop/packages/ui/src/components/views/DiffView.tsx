@@ -444,6 +444,7 @@ interface InlineDiffViewerProps {
   diff: DiffData
   renderSideBySide: boolean
   wrapLines: boolean
+  staged?: boolean
 }
 
 interface TextDiffViewerProps {
@@ -452,21 +453,26 @@ interface TextDiffViewerProps {
   diff: DiffData
   renderSideBySide: boolean
   wrapLines: boolean
+  /** Staged diffs come from the index; a working-tree hunk revert cannot touch them. */
+  staged?: boolean
 }
 
-const TextDiffViewer = React.memo<TextDiffViewerProps>(({ directory, filePath, diff, renderSideBySide, wrapLines }) => {
+const TextDiffViewer = React.memo<TextDiffViewerProps>(
+  ({ directory, filePath, diff, renderSideBySide, wrapLines, staged = false }) => {
   const language = React.useMemo(() => getLanguageFromExtension(filePath) || "text", [filePath])
   const { revertingHunkIndex, handleRevertHunk } = useDiffHunkRevert({ directory, filePath, diff })
 
   return (
     <>
-      <DiffHunkReviewList
-        original={diff.original}
-        modified={diff.modified}
-        fileName={filePath}
-        onRevertHunk={handleRevertHunk}
-        revertingHunkIndex={revertingHunkIndex}
-      />
+      {staged ? null : (
+        <DiffHunkReviewList
+          original={diff.original}
+          modified={diff.modified}
+          fileName={filePath}
+          onRevertHunk={handleRevertHunk}
+          revertingHunkIndex={revertingHunkIndex}
+        />
+      )}
       <PierreDiffViewer
         original={diff.original}
         modified={diff.modified}
@@ -483,7 +489,7 @@ const TextDiffViewer = React.memo<TextDiffViewerProps>(({ directory, filePath, d
 TextDiffViewer.displayName = "TextDiffViewer"
 
 const InlineDiffViewer = React.memo<InlineDiffViewerProps>(
-  ({ directory, filePath, diff, renderSideBySide, wrapLines }) => {
+  ({ directory, filePath, diff, renderSideBySide, wrapLines, staged = false }) => {
     if (diff.isBinary) {
       return <BinaryDiffPlaceholder />
     }
@@ -500,6 +506,7 @@ const InlineDiffViewer = React.memo<InlineDiffViewerProps>(
           diff={diff}
           renderSideBySide={renderSideBySide}
           wrapLines={wrapLines}
+          staged={staged}
         />
       </div>
     )
@@ -514,10 +521,11 @@ interface SingleDiffViewerProps {
   isVisible: boolean
   renderSideBySide: boolean
   wrapLines: boolean
+  staged?: boolean
 }
 
 const SingleDiffViewer = React.memo<SingleDiffViewerProps>(
-  ({ directory, filePath, diff, isVisible, renderSideBySide, wrapLines }) => {
+  ({ directory, filePath, diff, isVisible, renderSideBySide, wrapLines, staged = false }) => {
     if (diff.isBinary) {
       return <BinaryDiffPlaceholder />
     }
@@ -549,6 +557,7 @@ const SingleDiffViewer = React.memo<SingleDiffViewerProps>(
           diff={diff}
           renderSideBySide={renderSideBySide}
           wrapLines={wrapLines}
+          staged={staged}
         />
       </ScrollableOverlay>
     )
@@ -898,6 +907,7 @@ const MultiFileDiffEntry = React.memo<MultiFileDiffEntryProps>(
                 diff={diffData}
                 renderSideBySide={renderSideBySide}
                 wrapLines={wrapLines}
+                staged={staged}
               />
             ) : null}
           </div>
@@ -1641,6 +1651,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
         isVisible={true}
         renderSideBySide={renderSideBySide}
         wrapLines={diffWrapLines}
+        staged={activeDiffStaged}
       />
     )
   }
