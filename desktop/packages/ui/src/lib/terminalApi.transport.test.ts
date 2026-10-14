@@ -287,3 +287,101 @@ describe("terminal transport multi-view subscribe", () => {
     close()
   })
 })
+
+describe("terminal transport keepalive", () => {
+  let sockets: MockSocket[] = []
+
+  beforeEach(() => {
+    disposeTerminalInputTransport()
+    sockets = []
+
+    class MockWebSocket {
+      readyState = 0
+      binaryType = "arraybuffer"
+      sent: unknown[] = []
+      onopen: ((ev?: unknown) => void) | null = null
+      onmessage: ((ev: { data: unknown }) => void) | null = null
+      onerror: ((ev?: unknown) => void) | null = null
+      onclose: ((ev?: unknown) => void) | null = null
+
+      constructor(url: string) {
+        void url
+        sockets.push(this as unknown as MockSocket)
+        queueMicrotask(() => {
+          this.readyState = WS_OPEN
+          this.onopen?.(undefined)
+        })
+      }
+
+      send(data: unknown) {
+        this.sent.push(data)
+      }
+
+      close() {
+        this.readyState = 3
+        this.onclose?.(undefined)
+      }
+    }
+
+    vi.stubGlobal("WebSocket", MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ success: true }) })),
+    )
+    applyTerminalTransportCapabilitiesForTests({
+      input: {
+        preferred: "ws",
+        transports: ["ws"],
+        ws: { path: "/api/terminal/ws", v: 2, enc: "text+json-bin-control" },
+      },
+      stream: {
+        preferred: "ws",
+        transports: ["ws"],
+        ws: { path: "/api/terminal/ws", v: 2, enc: "text+json-bin-control" },
+      },
+    })
+  })
+
+  afterEach(() => {
+    disposeTerminalInputTransport()
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  const completeHandshake = () => {
+    sockets[0].onmessage?.({ data: encodeControl({ t: "ok", v: 2 }) })
+    sockets[0].onmessage?.({ data: encodeControl({ t: "bok", s: "session-1", v: 2, runtime: "node", ptyBackend: "node-pty" }) })
+  }
+
+  test("closes a socket whose keepalive ping is never answered", async () => {
+    vi.useFakeTimers()
+    connectTerminalStream("session-1", () => {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(sockets[0]?.readyState).toBe(WS_OPEN)
+    completeHandshake()
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    const pings = sockets[0].sent.map(decodeSentControl).filter((frame) => frame?.t === "p")
+    expect(pings).toHaveLength(1)
+
+    // Half-open sockets accept send() without error; the unanswered ping is the
+    // only signal, and the dead connection must not keep eating input.
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(sockets[0].readyState).toBe(3)
+  })
+
+  test("keeps the socket when the pong arrives", async () => {
+    vi.useFakeTimers()
+    connectTerminalStream("session-1", () => {})
+    await vi.advanceTimersByTimeAsync(0)
+    completeHandshake()
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    sockets[0].onmessage?.({ data: encodeControl({ t: "po", v: 2 }) })
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    const pings = sockets[0].sent.map(decodeSentControl).filter((frame) => frame?.t === "p")
+    expect(pings).toHaveLength(2)
+    expect(sockets[0].readyState).toBe(WS_OPEN)
+  })
+})

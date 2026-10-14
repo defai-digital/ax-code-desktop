@@ -134,6 +134,8 @@ class TerminalTransportManager {
   private openPromise: Promise<WebSocket | null> | null = null
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null
   private keepaliveInterval: ReturnType<typeof setInterval> | null = null
+  /** Set while a keepalive ping is outstanding; an unanswered one means the socket is dead. */
+  private keepaliveAwaitingPong = false
   private closed = false
   private subscriptions = new Map<symbol, StreamSubscription>()
   private activeSubscriptionToken: symbol | null = null
@@ -591,16 +593,27 @@ class TerminalTransportManager {
 
   private startKeepalive(): void {
     this.stopKeepalive()
+    this.keepaliveAwaitingPong = false
     this.keepaliveInterval = setInterval(() => {
       if (this.closed) {
         return
       }
 
+      // A half-open socket (asleep laptop, dropped tunnel with no RST) accepts
+      // send() without error, so an unanswered ping is the only signal that the
+      // connection is dead — without it the terminal silently eats input.
+      if (this.keepaliveAwaitingPong) {
+        this.handleSocketFailure(new Error("Terminal websocket keepalive timed out"))
+        return
+      }
+
+      this.keepaliveAwaitingPong = true
       this.sendControl({ t: "p", v: 2 })
     }, WS_KEEPALIVE_INTERVAL_MS)
   }
 
   private stopKeepalive(): void {
+    this.keepaliveAwaitingPong = false
     if (!this.keepaliveInterval) {
       return
     }
@@ -647,6 +660,7 @@ class TerminalTransportManager {
         this.bindActiveSession()
         return
       case "po":
+        this.keepaliveAwaitingPong = false
         return
       case "d": {
         const sessionId = payload.s ?? this.boundSessionId ?? this.requestedSessionId
