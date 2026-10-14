@@ -127,6 +127,26 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     })
   }
 
+  // The status routes below are not needed before the UI session exists: the UI
+  // reads system info and free ports only from the authenticated app, and the
+  // startup-diagnostics payload is consumed by the packaged smoke/perf scripts,
+  // which run against a password-less server. Gating them keeps version, pid and
+  // startup-event detail away from an unauthenticated caller while /health stays
+  // public for readiness probes.
+  const requireSessionWhenEnabled = async (req, res, next) => {
+    if (!uiAuthController) {
+      next()
+      return
+    }
+    let authorized = false
+    await uiAuthController.requireAuth(req, res, () => {
+      authorized = true
+    })
+    if (authorized) {
+      next()
+    }
+  }
+
   const isDevShutdownAllowed = () => {
     // Dev-only escape hatch: allow terminating the whole dev process group.
     // This should never be enabled in production runtimes.
@@ -245,7 +265,7 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     })
   })
 
-  app.get("/api/desktop/diagnostics/startup", (_req, res) => {
+  app.get("/api/desktop/diagnostics/startup", requireSessionWhenEnabled, (_req, res) => {
     if (typeof getStartupDiagnosticsSnapshot !== "function") {
       return res.status(404).json({ error: "Startup diagnostics are not available" })
     }
@@ -253,7 +273,7 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     return res.json(getStartupDiagnosticsSnapshot())
   })
 
-  app.post("/api/desktop/diagnostics/crash", (_req, res) => {
+  app.post("/api/desktop/diagnostics/crash", requireSessionWhenEnabled, (_req, res) => {
     if (!isSmokeCrashAllowed()) {
       return res.status(404).json({ ok: false, error: "Smoke crash endpoint is disabled" })
     }
@@ -352,7 +372,7 @@ export const registerServerStatusRoutes = (app, dependencies) => {
     }
   })
 
-  app.get("/api/system/info", (_req, res) => {
+  app.get("/api/system/info", requireSessionWhenEnabled, (_req, res) => {
     res.json({
       openchamberVersion,
       runtime: runtimeName,
@@ -363,7 +383,7 @@ export const registerServerStatusRoutes = (app, dependencies) => {
 
   // Allocates a best-effort free TCP port hint on 127.0.0.1.
   // Another process can still claim it before the preview server binds.
-  app.get("/api/system/free-port", async (_req, res) => {
+  app.get("/api/system/free-port", requireSessionWhenEnabled, async (_req, res) => {
     try {
       const port = await allocateLoopbackPort()
       if (!Number.isFinite(port) || port <= 0) {
@@ -481,13 +501,24 @@ export const registerAuthAndAccessRoutes = (app, dependencies) => {
     }
   })
 
-  app.use("/api", authRouteRateLimiter, async (req, res, next) => {
+  const requireSession = async (req, res, next) => {
     try {
       await requireApiAuth(req, res, next)
     } catch (err) {
       next(err)
     }
-  })
+  }
+
+  app.use("/api", authRouteRateLimiter, requireSession)
+
+  // Surfaces that live OUTSIDE /api but reach the runtime with its own
+  // credential: the bare event-stream proxy (`/global/event`) and the
+  // dashboard/graph panel proxy. They are registered later (the proxy is wired
+  // after the bootstrap), so this mount covers them, and none of their
+  // first-party consumers runs before the UI session exists: the browser build's
+  // dashboard iframe is only rendered inside the authenticated app, and the
+  // packaged Electron shell routes these paths to the runtime directly.
+  app.use(["/global", "/dre-graph", "/run-report", "/graph"], authRouteRateLimiter, requireSession)
 }
 
 export const registerSettingsUtilityRoutes = (app, dependencies) => {

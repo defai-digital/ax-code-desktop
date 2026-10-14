@@ -67,10 +67,18 @@ describe("api request security middleware mounts", () => {
   it("guards /api, /auth and /health before any route handler", () => {
     const source = fs.readFileSync(path.resolve(import.meta.dirname, "../../index.js"), "utf8")
 
-    for (const mount of ['app.use("/api"', 'app.use("/auth"', 'app.use("/health"']) {
+    const mounts = [
+      'app.use("/api"',
+      'app.use("/auth"',
+      'app.use("/health"',
+      // The bare proxy surfaces also inject the runtime credential.
+      'app.use(["/global", "/dre-graph", "/run-report", "/graph"]',
+    ]
+
+    for (const mount of mounts) {
       const index = source.indexOf(mount)
       expect(index, `${mount} must be mounted`).toBeGreaterThan(-1)
-      expect(source.slice(index, index + 120)).toContain("createApiRequestSecurityMiddleware()")
+      expect(source.slice(index, index + 180)).toContain("createApiRequestSecurityMiddleware()")
     }
   })
 })

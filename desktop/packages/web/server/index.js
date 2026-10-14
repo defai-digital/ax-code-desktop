@@ -1275,6 +1275,10 @@ async function main(options = {}) {
   // carries binary paths and launch arguments.
   app.use("/auth", createApiRequestSecurityMiddleware())
   app.use("/health", createApiRequestSecurityMiddleware())
+  // The bare proxy surfaces stream the runtime event feed and proxy the
+  // dashboard panel; they inject the runtime credential, so they need the host
+  // and origin guard as well as the session gate.
+  app.use(["/global", "/dre-graph", "/run-report", "/graph"], createApiRequestSecurityMiddleware())
   expressApp = app
   server = http.createServer(app)
 
