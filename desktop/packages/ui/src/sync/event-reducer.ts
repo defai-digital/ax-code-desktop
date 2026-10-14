@@ -532,7 +532,11 @@ export function applyDirectoryEvent(
       if (info.time.archived) {
         if (result.found) sessions.splice(result.index, 1)
         cleanupSessionCaches(draft, info.id, callbacks?.onSetSessionTodo)
-        if (!info.parentID) draft.sessionTotal = Math.max(0, draft.sessionTotal - 1)
+        // Only a session this list actually held was counted, so only that one
+        // may be subtracted: a replayed/duplicate archived event for a session
+        // we never had would otherwise drive sessionTotal below reality and
+        // stop pagination early (session.created guards its +1 the same way).
+        if (result.found && !info.parentID) draft.sessionTotal = Math.max(0, draft.sessionTotal - 1)
         return true
       }
 
@@ -551,7 +555,9 @@ export function applyDirectoryEvent(
       const result = Binary.search(sessions, info.id, (s) => s.id)
       if (result.found) sessions.splice(result.index, 1)
       cleanupSessionCaches(draft, info.id, callbacks?.onSetSessionTodo)
-      if (!info.parentID) draft.sessionTotal = Math.max(0, draft.sessionTotal - 1)
+      // Symmetric with session.created: a duplicate deleted event for a session
+      // this list never held must not subtract again.
+      if (result.found && !info.parentID) draft.sessionTotal = Math.max(0, draft.sessionTotal - 1)
       return true
     }
 

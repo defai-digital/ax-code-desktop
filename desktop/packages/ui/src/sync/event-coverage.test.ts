@@ -399,3 +399,52 @@ test("the fixture slice sets match the documented fields-to-clone column per eve
     expect([...slices].sort(), `${type} fields-to-clone`).toEqual(DOCUMENTED_EVENT_TABLE[type] ?? [])
   }
 })
+
+describe("sessionTotal bookkeeping under replayed events", () => {
+  const reduce = (state: State, event: Event): State => {
+    const draft = prepareEventDraft(state, event)
+    applyDirectoryEvent(draft, event)
+    return draft
+  }
+
+  test("a replayed session.deleted event does not subtract the total twice", () => {
+    const deleted = { type: "session.deleted", properties: { info: session("ses_1") } } as unknown as Event
+    const baseline = { ...INITIAL_STATE, session: [session("ses_1"), session("ses_2")], sessionTotal: 2 }
+
+    const once = reduce(baseline, deleted)
+    expect(once.session.map((entry) => entry.id)).toEqual(["ses_2"])
+    expect(once.sessionTotal).toBe(1)
+
+    // The pipeline does not de-duplicate by event id, so a reconnect replay
+    // lands the same event again: the already-removed session must not be
+    // counted out twice (the total would drop below reality and stop
+    // pagination early).
+    const twice = reduce(once, deleted)
+    expect(twice.sessionTotal).toBe(1)
+  })
+
+  test("a deleted event for a session this list never held leaves the total alone", () => {
+    const deleted = { type: "session.deleted", properties: { info: session("ses_other") } } as unknown as Event
+    const baseline = { ...INITIAL_STATE, session: [session("ses_1")], sessionTotal: 1 }
+
+    const after = reduce(baseline, deleted)
+
+    expect(after.session.map((entry) => entry.id)).toEqual(["ses_1"])
+    expect(after.sessionTotal).toBe(1)
+  })
+
+  test("a replayed archived session.updated event does not subtract the total twice", () => {
+    const archived = {
+      type: "session.updated",
+      properties: { info: session("ses_1", 99) },
+    } as unknown as Event
+    const baseline = { ...INITIAL_STATE, session: [session("ses_1"), session("ses_2")], sessionTotal: 2 }
+
+    const once = reduce(baseline, archived)
+    expect(once.session.map((entry) => entry.id)).toEqual(["ses_2"])
+    expect(once.sessionTotal).toBe(1)
+
+    const twice = reduce(once, archived)
+    expect(twice.sessionTotal).toBe(1)
+  })
+})
