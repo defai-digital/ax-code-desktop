@@ -240,7 +240,11 @@ function createDesktopWebMcpBrowser({
         // Attach a zero-sized view so Chromium creates its renderer before native CDP setup.
         view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
         owner.contentView.addChildView(view)
-        await view.webContents.loadURL(args.url)
+        // A page that fails to load (server down, bad certificate) must not kill the
+        // pane: closing the entry would leave the renderer without an id, so the
+        // address bar and Go/Reload would stay inert and the failure would repeat on
+        // every re-entry. The user can navigate somewhere else instead.
+        await view.webContents.loadURL(args.url).catch(() => {})
         if (entry.closed) throw new Error("Browser closed during loading")
         await entry.adapter.start()
         owner.contentView.removeChildView(view)
