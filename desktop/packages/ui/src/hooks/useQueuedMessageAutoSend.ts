@@ -234,6 +234,12 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
 
       inFlightSessionsRef.current.add(sessionId)
 
+      // Take the entry out before the send: the chip stays interactive while the
+      // prompt is in flight, and sending it by hand would deliver it twice (each
+      // send mints its own message id, so nothing downstream dedupes).
+      const dispatchedEntry = queueSnapshot.find((message) => message.id === payload.queuedMessageId)
+      useMessageQueueStore.getState().removeFromQueue(sessionId, payload.queuedMessageId)
+
       try {
         await sendQueuedAutoSendPayload(sessionId, payload, {
           providerID: resolved.providerID,
@@ -241,11 +247,18 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
           agent: resolved.agent,
           variant: resolved.variant,
         })
-
-        const removeFromQueue = useMessageQueueStore.getState().removeFromQueue
-        removeFromQueue(sessionId, payload.queuedMessageId)
       } catch (error) {
         console.warn("[queue] queued auto-send failed:", error)
+        if (dispatchedEntry) {
+          // Restore the message so a failed send does not lose it.
+          useMessageQueueStore.setState((state) => {
+            const queue = state.queuedMessages[sessionId] ?? []
+            if (queue.some((message) => message.id === dispatchedEntry.id)) return state
+            return {
+              queuedMessages: { ...state.queuedMessages, [sessionId]: [dispatchedEntry, ...queue] },
+            }
+          })
+        }
       } finally {
         inFlightSessionsRef.current.delete(sessionId)
       }
