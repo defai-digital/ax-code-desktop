@@ -14,16 +14,21 @@ const DENIED_SEGMENTS = [
   ".azure",
   ".config/gh",
   ".config/gcloud",
+  ".config/git/credentials",
   ".config/google-chrome",
   ".config/chromium",
   ".config/openchamber/credentials",
+  ".local/share/keyrings",
+  ".mozilla",
+  "library/application support/firefox",
   "library/application support/google/chrome",
   "library/application support/chromium",
   "library/application support/microsoft edge",
+  "library/keychains",
   "appdata/local/google/chrome",
   "appdata/local/microsoft/edge",
 ]
-const DENIED_BASENAMES = new Set([".env", ".netrc", ".npmrc", ".pypirc"])
+const DENIED_BASENAMES = new Set([".env", ".git-credentials", ".netrc", ".npmrc", ".pypirc"])
 
 const isInsideOrSameDirectory = (rootPath, targetPath, pathTools = path) => {
   if (!rootPath || !targetPath) return false

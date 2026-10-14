@@ -53,12 +53,32 @@ describe("desktop read file policy", () => {
     for (const target of [
       "/Users/alice/.netrc",
       "/Users/alice/.npmrc",
+      "/Users/alice/.git-credentials",
+      "/Users/alice/.config/git/credentials",
       "/Users/alice/.docker/config.json",
       "/Users/alice/.kube/config",
       "/Users/alice/.config/gh/hosts.yml",
       "/Users/alice/Library/Application Support/Google/Chrome/Default/Cookies",
+      // Same class of plaintext or keychain credential store: git tokens, the
+      // macOS Keychain, Firefox profiles and the GNOME keyring.
+      "/Users/alice/Library/Keychains/login.keychain-db",
+      "/Users/alice/Library/Application Support/Firefox/Profiles/abc/logins.json",
+      "/Users/alice/.mozilla/firefox/abc/key4.db",
+      "/Users/alice/.local/share/keyrings/login.keyring",
     ]) {
       expect(() => assertDesktopReadFileAllowed(target, options)).toThrow("Access to this path is not allowed")
+    }
+  })
+
+  test("still allows ordinary files next to the denied stores", () => {
+    const options = { home: "/Users/alice", tmp: "/tmp", pathTools: path.posix }
+    for (const target of [
+      "/Users/alice/project/README.md",
+      "/Users/alice/.gitconfig",
+      "/Users/alice/.config/git/config",
+      "/Users/alice/Library/Preferences/com.apple.dock.plist",
+    ]) {
+      expect(() => assertDesktopReadFileAllowed(target, options)).not.toThrow()
     }
   })
 
