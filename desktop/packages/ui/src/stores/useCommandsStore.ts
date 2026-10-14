@@ -113,12 +113,12 @@ export const useCommandsStore = create<CommandsStore>()(
             return true
           }
 
-          const requestId = ++commandsLoadSequence
-          commandsLoadRequestIds.set(cacheKey, requestId)
-          const isCurrentLoad = () =>
-            commandsLoadSequence === requestId && commandsLoadRequestIds.get(cacheKey) === requestId
 
           return commandsLoadInFlight.run(cacheKey, async () => {
+            const requestId = ++commandsLoadSequence
+            commandsLoadRequestIds.set(cacheKey, requestId)
+            const isCurrentLoad = () =>
+              commandsLoadSequence === requestId && commandsLoadRequestIds.get(cacheKey) === requestId
             set({ isLoading: true })
             const previousCommands = get().commands
             const previousSignature = buildCommandsSignature(previousCommands)

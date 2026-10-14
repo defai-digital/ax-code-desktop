@@ -177,12 +177,12 @@ export const usePluginsStore = create<PluginsStore>()(
             pluginsLoadInFlight.clear(cacheKey)
           }
 
-          const requestId = ++pluginsLoadSequence
-          pluginsLoadRequestIds.set(cacheKey, requestId)
-          const isCurrentLoad = () =>
-            pluginsLoadSequence === requestId && pluginsLoadRequestIds.get(cacheKey) === requestId
 
           return pluginsLoadInFlight.run(cacheKey, async () => {
+            const requestId = ++pluginsLoadSequence
+            pluginsLoadRequestIds.set(cacheKey, requestId)
+            const isCurrentLoad = () =>
+              pluginsLoadSequence === requestId && pluginsLoadRequestIds.get(cacheKey) === requestId
             set({ isLoading: true })
             try {
               const response = await fetch(buildPluginsUrl(API_ENDPOINTS.config.plugin, configDirectory), {

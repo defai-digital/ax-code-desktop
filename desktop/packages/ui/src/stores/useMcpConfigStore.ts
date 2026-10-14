@@ -145,11 +145,11 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             mcpLoadInFlight.clear(cacheKey)
           }
 
-          const requestId = ++mcpLoadSequence
-          mcpLoadRequestIds.set(cacheKey, requestId)
-          const isCurrentLoad = () => mcpLoadSequence === requestId && mcpLoadRequestIds.get(cacheKey) === requestId
 
           return mcpLoadInFlight.run(cacheKey, async () => {
+            const requestId = ++mcpLoadSequence
+            mcpLoadRequestIds.set(cacheKey, requestId)
+            const isCurrentLoad = () => mcpLoadSequence === requestId && mcpLoadRequestIds.get(cacheKey) === requestId
             set({ isLoading: true })
             try {
               const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : ""

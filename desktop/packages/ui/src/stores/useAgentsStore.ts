@@ -134,12 +134,12 @@ export const useAgentsStore = create<AgentsStore>()(
             return true
           }
 
-          const requestId = ++agentsLoadSequence
-          agentsLoadRequestIds.set(cacheKey, requestId)
-          const isCurrentLoad = () =>
-            agentsLoadSequence === requestId && agentsLoadRequestIds.get(cacheKey) === requestId
 
           return agentsLoadInFlight.run(cacheKey, async () => {
+            const requestId = ++agentsLoadSequence
+            agentsLoadRequestIds.set(cacheKey, requestId)
+            const isCurrentLoad = () =>
+              agentsLoadSequence === requestId && agentsLoadRequestIds.get(cacheKey) === requestId
             set({ isLoading: true })
             const previousAgents = get().agents
             const previousSignature = buildAgentsSignature(previousAgents)

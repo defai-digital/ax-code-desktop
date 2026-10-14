@@ -160,12 +160,12 @@ export const useSkillsStore = create<SkillsStore>()(
             return true
           }
 
-          const requestId = ++skillsLoadSequence
-          skillsLoadRequestIds.set(cacheKey, requestId)
-          const isCurrentLoad = () =>
-            skillsLoadSequence === requestId && skillsLoadRequestIds.get(cacheKey) === requestId
 
           return skillsLoadInFlight.run(cacheKey, async () => {
+            const requestId = ++skillsLoadSequence
+            skillsLoadRequestIds.set(cacheKey, requestId)
+            const isCurrentLoad = () =>
+              skillsLoadSequence === requestId && skillsLoadRequestIds.get(cacheKey) === requestId
             set({ isLoading: true })
             const previousSkills = get().skills
             let lastError: unknown = null
@@ -392,7 +392,7 @@ export const useSkillsStore = create<SkillsStore>()(
         readSupportingFile: async (skillName: string, filePath: string) => {
           try {
             const currentDirectory = getAxCodeCurrentDirectory()
-            const queryParams = currentDirectory ? `&directory=${encodeURIComponent(currentDirectory)}` : ""
+            const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : ""
 
             const response = await fetch(
               `${replacePathParams(API_ENDPOINTS.config.skill, { name: skillName })}/files/${encodeURIComponent(filePath)}${queryParams}`,

@@ -160,4 +160,26 @@ describe("useAgentsStore", () => {
     ])
     expect(useAgentsStore.getState().isLoading).toBe(false)
   })
+
+  test("a load that was joined by a second caller still commits its result", async () => {
+    // Regression: allocating the request id before the single-flight run let the
+    // joiner bump the sequence, so the owning load dropped its own result and left
+    // isLoading true forever.
+    const deferred = createDeferred<unknown[]>()
+    agentLists.push(deferred)
+
+    const first = useAgentsStore.getState().loadAgents()
+    const second = useAgentsStore.getState().loadAgents()
+    deferred.resolve([{ name: "solo-agent" }])
+    await Promise.all([first, second])
+
+    expect(useAgentsStore.getState().agents).toEqual([
+      {
+        name: "solo-agent",
+        scope: "project",
+        group: undefined,
+      },
+    ])
+    expect(useAgentsStore.getState().isLoading).toBe(false)
+  })
 })
