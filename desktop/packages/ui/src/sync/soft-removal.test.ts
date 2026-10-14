@@ -63,6 +63,16 @@ const STORAGE_KEY_PREFIX = "axcode.pending-session-removals"
 
 const toastSuccessMock = vi.mocked(toast.success)
 
+// jsdom's Storage is not enumerable through Object.keys; walk it explicitly.
+const storedSlots = (): string[] => {
+  const keys: string[] = []
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index)
+    if (key && key.startsWith(`${STORAGE_KEY_PREFIX}.`)) keys.push(key)
+  }
+  return keys
+}
+
 const makeSession = (id: string, overrides: Partial<Session> = {}): Session =>
   ({
     id,
@@ -189,6 +199,53 @@ describe("soft-removal S4.5 contract", () => {
     expect(window.localStorage.getItem(otherKey)).not.toBeNull()
     // This window's own slot is gone (its undo cleared it).
     expect(useGlobalSessionsStore.getState().activeSessions.map((s) => s.id)).toEqual(["ses_mine"])
+  })
+
+  test("keeps removals the runtime did not confirm so the next launch retries them", async () => {
+    const sdkDelete = vi.fn(async () => ({ error: { message: "connect ECONNREFUSED" } }))
+    const sdkUpdate = vi.fn(async () => ({ error: { message: "connect ECONNREFUSED" } }))
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({
+      session: { delete: sdkDelete, update: sdkUpdate },
+    } as never)
+
+    window.localStorage.setItem(
+      `${STORAGE_KEY_PREFIX}.window-a`,
+      JSON.stringify([
+        { id: "ses_a1", kind: "delete", directory: "/repo" },
+        { id: "ses_a2", kind: "archive", directory: null },
+      ]),
+    )
+
+    await recoverPendingRemovals()
+
+    // Both slots were taken over, but nothing was confirmed — the entries must
+    // survive under this window's slot for the next start.
+    expect(sdkDelete).toHaveBeenCalledTimes(1)
+    expect(sdkUpdate).toHaveBeenCalledTimes(1)
+    expect(window.localStorage.getItem(`${STORAGE_KEY_PREFIX}.window-a`)).toBeNull()
+    const retryKeys = storedSlots()
+    expect(retryKeys).toHaveLength(1)
+    const retried = JSON.parse(window.localStorage.getItem(retryKeys[0]) as string)
+    expect(retried).toEqual([
+      { id: "ses_a1", kind: "delete", directory: "/repo" },
+      { id: "ses_a2", kind: "archive", directory: null },
+    ])
+  })
+
+  test("drops a removal the runtime reports as already gone", async () => {
+    const sdkDelete = vi.fn(async () => ({ error: { message: "Session not found" } }))
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({
+      session: { delete: sdkDelete, update: vi.fn() },
+    } as never)
+
+    window.localStorage.setItem(
+      `${STORAGE_KEY_PREFIX}.window-a`,
+      JSON.stringify([{ id: "ses_gone", kind: "delete", directory: null }]),
+    )
+
+    await recoverPendingRemovals()
+
+    expect(storedSlots()).toHaveLength(0)
   })
 
   test("recoverPendingRemovals commits and clears every window slot plus the legacy shared key", async () => {

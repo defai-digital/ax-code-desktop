@@ -1,5 +1,6 @@
 import { toast } from "@/components/ui"
 import { axCodeClient } from "@/lib/ax-code/client"
+import { formatSdkError } from "@/lib/ax-code/sdkError"
 import {
   useGlobalSessionsStore,
   resolveGlobalSessionDirectory,
@@ -45,28 +46,33 @@ function clearTimers(ids: string[]): void {
   }
 }
 
+function writeOwnSlot(entries: PersistedRemoval[]): void {
+  if (typeof window === "undefined") return
+  try {
+    if (entries.length === 0) {
+      window.localStorage.removeItem(OWN_STORAGE_KEY)
+      return
+    }
+    window.localStorage.setItem(OWN_STORAGE_KEY, JSON.stringify(entries))
+  } catch {
+    // Storage unavailable — quit-recovery degrades to best-effort flush.
+  }
+}
+
 /**
  * Mirror the store's pending-removal map to this window's localStorage slot
  * so removals the user did not undo are still committed if the app quits
  * during the undo window (see recoverPendingRemovals).
  */
 function persistPending(): void {
-  if (typeof window === "undefined") return
-  try {
-    const entries = Array.from(useGlobalSessionsStore.getState().pendingRemoval.values())
-    if (entries.length === 0) {
-      window.localStorage.removeItem(OWN_STORAGE_KEY)
-      return
-    }
-    const payload: PersistedRemoval[] = entries.map((entry) => ({
+  const entries = Array.from(useGlobalSessionsStore.getState().pendingRemoval.values())
+  writeOwnSlot(
+    entries.map((entry) => ({
       id: entry.session.id,
       kind: entry.kind,
       directory: resolveGlobalSessionDirectory(entry.session),
-    }))
-    window.localStorage.setItem(OWN_STORAGE_KEY, JSON.stringify(payload))
-  } catch {
-    // Storage unavailable — quit-recovery degrades to best-effort flush.
-  }
+    })),
+  )
 }
 
 function listPersistedKeys(): string[] {
@@ -107,6 +113,21 @@ function readPersisted(): PersistedRemoval[] {
     }
   }
   return entries
+}
+
+/**
+ * A session that is already gone is a completed removal, not a failure: the
+ * runtime answers 404 for a delete/archive of a missing session, and retrying
+ * it forever would keep a dead entry in storage.
+ */
+function isAlreadyGoneError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false
+  const status = (error as { status?: unknown }).status
+  if (status === 404) return true
+  const responseStatus = (error as { response?: { status?: unknown } }).response?.status
+  if (responseStatus === 404) return true
+  const message = error instanceof Error ? error.message : (error as { message?: unknown }).message
+  return typeof message === "string" && /not found/i.test(message)
 }
 
 function successMessage(kind: PendingRemovalKind, count: number): string {
@@ -244,12 +265,17 @@ export function flushPendingRemovals(): void {
 
 /**
  * Commit removals left over from a previous app session (quit during the
- * undo window). Safe to repeat: re-archiving is a timestamp update and
- * deleting an already-deleted session fails quietly.
+ * undo window). Safe to repeat: re-archiving is a timestamp update and a
+ * session that is already gone counts as done. An entry is only dropped once
+ * the runtime confirmed it; anything that failed for another reason (offline,
+ * 5xx) is written back so the next launch retries it instead of silently
+ * resurrecting the session.
  */
 export async function recoverPendingRemovals(): Promise<void> {
   const persisted = readPersisted()
   if (persisted.length === 0) return
+  // Take over every slot up front so a crash mid-recovery cannot double-apply
+  // an entry; the failures are written back at the end.
   try {
     for (const key of listPersistedKeys()) {
       window.localStorage.removeItem(key)
@@ -259,21 +285,28 @@ export async function recoverPendingRemovals(): Promise<void> {
   }
 
   const sdkClient = axCodeClient.getSdkClient()
+  const failed: PersistedRemoval[] = []
   await Promise.all(
-    persisted.map(async ({ id, kind, directory }) => {
+    persisted.map(async (entry) => {
+      const { id, kind, directory } = entry
       try {
-        if (kind === "delete") {
-          await sdkClient.session.delete({ sessionID: id, directory: directory ?? undefined })
-        } else {
-          await sdkClient.session.update({
-            sessionID: id,
-            directory: directory ?? undefined,
-            time: { archived: Date.now() },
-          })
+        const result =
+          kind === "delete"
+            ? await sdkClient.session.delete({ sessionID: id, directory: directory ?? undefined })
+            : await sdkClient.session.update({
+                sessionID: id,
+                directory: directory ?? undefined,
+                time: { archived: Date.now() },
+              })
+        // The generated SDK resolves with `{ error }` instead of throwing.
+        if (result?.error && !isAlreadyGoneError(result.error)) {
+          throw new Error(formatSdkError(result.error))
         }
       } catch (error) {
         console.warn("[soft-removal] failed to recover pending removal", { id, kind }, error)
+        failed.push(entry)
       }
     }),
   )
+  writeOwnSlot(failed)
 }
