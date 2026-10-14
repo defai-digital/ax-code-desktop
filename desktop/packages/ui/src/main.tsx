@@ -1,5 +1,6 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
+import { MotionConfig } from "motion/react"
 import "./styles/fonts"
 import "./index.css"
 import App from "./App.tsx"
@@ -85,9 +86,12 @@ void localeReady.then(() =>
       <I18nProvider>
         <ThemeSystemProvider>
           <ThemeProvider>
-            <SessionAuthGate>
-              <App apis={runtimeAPIs} />
-            </SessionAuthGate>
+            {/* Honour the OS "reduce motion" setting in motion/react animations. */}
+            <MotionConfig reducedMotion="user">
+              <SessionAuthGate>
+                <App apis={runtimeAPIs} />
+              </SessionAuthGate>
+            </MotionConfig>
           </ThemeProvider>
         </ThemeSystemProvider>
       </I18nProvider>

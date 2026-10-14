@@ -24,6 +24,15 @@
     font-size: var(--text-micro);
   }
 
+  /* Standalone screen titles (startup recovery, empty screens). One step above
+     the UI header so a title reads as a title, scaled with the font setting. */
+  .typography-title {
+    font-size: calc(var(--text-ui-header) * 1.333);
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+  }
+
   .chat-column {
     width: min(100%, 48rem);
     margin-inline: auto;

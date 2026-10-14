@@ -44,7 +44,7 @@
     --destructive-foreground: #ffffff;
     --border: #d6d6d6;
     --input: #d6d6d6;
-    --ring: #2e7d4340;
+    --ring: #2e7d43;
     --radius: 0.625rem;
     --chart-1: #0070f3;
     --chart-2: #2e7d43;
@@ -58,44 +58,46 @@
     --sidebar-accent: #ebebeb;
     --sidebar-accent-foreground: #171717;
     --sidebar-border: #d6d6d6;
-    --sidebar-ring: #2e7d4340;
+    --sidebar-ring: #2e7d43;
     --sidebar-stuck-bg: var(--sidebar);
   }
 
   .dark {
-    /* Default Dark Theme - using OKLCH color space */
-    --background: oklch(0.16 0.01 30); /* #151313 */
-    --foreground: oklch(0.85 0.02 90); /* #cdccc3 */
-    --card: oklch(0.19 0.01 40); /* #1C1B1A */
-    --card-foreground: oklch(0.85 0.02 90); /* #cdccc3 */
-    --popover: oklch(0.24 0.01 40); /* #282726 */
-    --popover-foreground: oklch(0.85 0.02 90); /* #cdccc3 */
-    --primary: oklch(0.77 0.17 85); /* #edb449 - golden sand */
-    --primary-foreground: oklch(0.16 0.01 30); /* #151313 */
-    --secondary: oklch(0.29 0.01 40); /* #343331 */
-    --secondary-foreground: oklch(0.85 0.02 90); /* #cdccc3 */
-    --muted: oklch(0.33 0.01 40); /* #403E3C */
-    --muted-foreground: oklch(0.75 0.02 80); /* #b6b4ab */
-    --accent: oklch(0.29 0.01 40); /* #343331 */
-    --accent-foreground: oklch(0.85 0.02 90); /* #cdccc3 */
-    --destructive: oklch(0.65 0.15 30); /* #d98678 */
-    --destructive-foreground: oklch(0.9 0.02 80); /* #e1dcd0 */
-    --border: oklch(0.31 0.01 35); /* #393836 */
-    --input: oklch(0.33 0.01 40); /* #403E3C */
-    --ring: oklch(0.77 0.17 85); /* #edb449 */
-    --chart-1: oklch(0.68 0.12 230); /* #5aa9d9 - blue */
-    --chart-2: oklch(0.68 0.12 145); /* #81af6c - green */
-    --chart-3: oklch(0.7 0.13 95); /* #c2974d - yellow */
-    --chart-4: oklch(0.65 0.14 45); /* #d8886d - coral */
-    --chart-5: oklch(0.68 0.12 55); /* #d29470 - orange */
-    --sidebar: oklch(0.16 0.01 30); /* #151313 */
-    --sidebar-foreground: oklch(0.85 0.02 90); /* #cdccc3 */
-    --sidebar-primary: oklch(0.77 0.17 85); /* #edb449 */
-    --sidebar-primary-foreground: oklch(0.16 0.01 30); /* #151313 */
-    --sidebar-accent: oklch(0.24 0.01 40); /* #282726 */
-    --sidebar-accent-foreground: oklch(0.85 0.02 90); /* #cdccc3 */
-    --sidebar-border: oklch(0.31 0.01 35); /* #393836 */
-    --sidebar-ring: oklch(0.77 0.17 85); /* #edb449 */
+    /* Default dark fallbacks — match AutomatosX dark (near-black neutrals + green).
+       The theme runtime (lib/theme/cssGenerator.ts) overrides these once a theme
+       loads; they only paint before that and if theme loading fails. */
+    --background: #0a0a0a;
+    --foreground: #ededed;
+    --card: #1a1a1a;
+    --card-foreground: #ededed;
+    --popover: #1a1a1a;
+    --popover-foreground: #ededed;
+    --primary: #46a758;
+    --primary-foreground: #06120a;
+    --secondary: #141414;
+    --secondary-foreground: #878787;
+    --muted: #141414;
+    --muted-foreground: #878787;
+    --accent: #1f1f1f;
+    --accent-foreground: #ededed;
+    --destructive: #e5484d;
+    --destructive-foreground: #0a0a0a;
+    --border: #1f1f1f;
+    --input: #1f1f1f;
+    --ring: #46a758;
+    --chart-1: #52a8ff;
+    --chart-2: #46a758;
+    --chart-3: #ffb224;
+    --chart-4: #f75590;
+    --chart-5: #bf7af0;
+    --sidebar: #141414;
+    --sidebar-foreground: #ededed;
+    --sidebar-primary: #46a758;
+    --sidebar-primary-foreground: #06120a;
+    --sidebar-accent: #1f1f1f;
+    --sidebar-accent-foreground: #ededed;
+    --sidebar-border: #1f1f1f;
+    --sidebar-ring: #46a758;
     --sidebar-stuck-bg: var(--sidebar); /* Desktop sidebar sticky header background (match sidebar) */
   }
 
@@ -172,8 +174,25 @@
     outline: none;
   }
 
-  *:focus-visible {
-    outline: none;
+  /* Keyboard focus fallback for controls that style no focus state of their own.
+     Anything carrying a `focus:` or `focus-visible:` utility owns its indicator
+     and is skipped, so existing rings are never doubled. Text fields are left
+     out (the caret marks them) and so are menu/list items, which highlight. */
+  :where(
+      button,
+      a[href],
+      summary,
+      select,
+      input:is([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
+      input:is([type="button"], [type="submit"], [type="reset"]),
+      [role="button"],
+      [role="tab"],
+      [role="switch"],
+      [role="checkbox"],
+      [role="radio"]
+    ):focus-visible:not([class*="focus:"]):not([class*="focus-visible:"]) {
+    outline: 2px solid var(--interactive-focus-ring, var(--ring));
+    outline-offset: 2px;
   }
 }
 

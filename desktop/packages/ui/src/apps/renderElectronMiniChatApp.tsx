@@ -1,5 +1,6 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
+import { MotionConfig } from "motion/react"
 import "@/styles/fonts"
 import "@/index.css"
 import "@/lib/debug"
@@ -48,9 +49,12 @@ export function renderElectronMiniChatApp(apis: RuntimeAPIs) {
         <I18nProvider>
           <ThemeSystemProvider>
             <ThemeProvider>
-              <SessionAuthGate>
-                <ElectronMiniChatApp apis={apis} />
-              </SessionAuthGate>
+              {/* Honour the OS "reduce motion" setting in motion/react animations. */}
+              <MotionConfig reducedMotion="user">
+                <SessionAuthGate>
+                  <ElectronMiniChatApp apis={apis} />
+                </SessionAuthGate>
+              </MotionConfig>
             </ThemeProvider>
           </ThemeSystemProvider>
         </I18nProvider>

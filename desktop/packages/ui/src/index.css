@@ -585,7 +585,7 @@ html:not(.dark) .chat-scroll {
 }
 
 .dark * {
-  scrollbar-color: oklch(0.6 0.02 80 / 0.3) transparent;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 30%, transparent) transparent;
 }
 
 /* Overlay scrollbar styling (custom thumb) */

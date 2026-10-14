@@ -61,20 +61,20 @@ export function LanguageSettings() {
               ))}
             </SelectContent>
           </Select>
-          <p className="typography-ui-meta text-muted-foreground">{t(`settings.language.${field}Hint`)}</p>
+          <p className="typography-meta text-muted-foreground">{t(`settings.language.${field}Hint`)}</p>
         </div>
       ))}
-      <p className="typography-ui-meta text-muted-foreground">
+      <p className="typography-meta text-muted-foreground">
         {t("settings.language.format")}: {formatLocale}
         {interfaceLanguage === "system" && <>. {t("settings.language.formatHint")}</>}
       </p>
       {(saveError || loadingError) && (
-        <p role="alert" className="typography-ui-meta text-destructive">
+        <p role="alert" className="typography-meta text-destructive">
           {t(saveError ? "settings.language.saveFailed" : "settings.language.loadFailed")}
         </p>
       )}
       {loadingLocale && (
-        <p role="status" className="typography-ui-meta text-muted-foreground">
+        <p role="status" className="typography-meta text-muted-foreground">
           {t("settings.language.loading")}
         </p>
       )}
