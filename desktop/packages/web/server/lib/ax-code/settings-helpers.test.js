@@ -23,6 +23,20 @@ describe("settings helpers", () => {
     expect(helpers.sanitizeSettingsUpdate({ messageStreamTransport: "sse" })).toEqual({})
   })
 
+  it("reads a retired sorted chat mode as collapsed Activity", () => {
+    const helpers = createTestHelpers()
+
+    // A stored "sorted" wins over a stored Activity mode until the user picks
+    // one, which writes chatRenderMode "live" alongside it.
+    expect(helpers.sanitizeSettingsUpdate({ chatRenderMode: "sorted", activityRenderMode: "summary" })).toEqual({
+      activityRenderMode: "collapsed",
+    })
+    expect(helpers.sanitizeSettingsUpdate({ chatRenderMode: "live", activityRenderMode: "summary" })).toEqual({
+      activityRenderMode: "summary",
+      chatRenderMode: "live",
+    })
+  })
+
   it("rejects removed LAN access and UI password settings", () => {
     const helpers = createTestHelpers()
 

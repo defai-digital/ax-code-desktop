@@ -114,7 +114,8 @@ export type DesktopSettings = {
   showTurnChangedFiles?: boolean
   timeFormatPreference?: "auto" | "12h" | "24h"
   weekStartPreference?: "auto" | "sunday" | "monday"
-  chatRenderMode?: "sorted" | "live"
+  /** Retired mode switch: only "live" is written; a stored "sorted" reads as collapsed Activity. */
+  chatRenderMode?: "live"
   activityRenderMode?: "collapsed" | "summary"
   mermaidRenderingMode?: "svg" | "ascii"
   userMessageRenderingMode?: "markdown" | "plain"

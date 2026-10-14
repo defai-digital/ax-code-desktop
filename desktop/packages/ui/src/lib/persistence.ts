@@ -396,14 +396,6 @@ const applyDesktopUiPreferences = (settings: DesktopSettings) => {
     }
   }
   if (
-    typeof settings.chatRenderMode === "string" &&
-    (settings.chatRenderMode === "sorted" || settings.chatRenderMode === "live")
-  ) {
-    if (settings.chatRenderMode !== store.chatRenderMode) {
-      store.setChatRenderMode(settings.chatRenderMode)
-    }
-  }
-  if (
     typeof settings.activityRenderMode === "string" &&
     (settings.activityRenderMode === "collapsed" || settings.activityRenderMode === "summary")
   ) {
@@ -851,16 +843,17 @@ const sanitizeWebSettings = (payload: unknown): DesktopSettings | null => {
     result.weekStartPreference = candidate.weekStartPreference
   }
   if (
-    typeof candidate.chatRenderMode === "string" &&
-    (candidate.chatRenderMode === "sorted" || candidate.chatRenderMode === "live")
-  ) {
-    result.chatRenderMode = candidate.chatRenderMode
-  }
-  if (
     typeof candidate.activityRenderMode === "string" &&
     (candidate.activityRenderMode === "collapsed" || candidate.activityRenderMode === "summary")
   ) {
     result.activityRenderMode = candidate.activityRenderMode
+  }
+  // The sorted chat mode is retired: a stored "sorted" reads as collapsed
+  // Activity until the user picks one (the pick writes chatRenderMode "live").
+  if (candidate.chatRenderMode === "sorted") {
+    result.activityRenderMode = "collapsed"
+  } else if (candidate.chatRenderMode === "live") {
+    result.chatRenderMode = "live"
   }
   if (
     typeof candidate.mermaidRenderingMode === "string" &&

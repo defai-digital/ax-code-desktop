@@ -29,7 +29,6 @@ export const isContextPanelMode = (mode: unknown): mode is ContextPanelMode => {
 
 type MermaidRenderingMode = "svg" | "ascii"
 type UserMessageRenderingMode = "markdown" | "plain"
-type ChatRenderMode = "sorted" | "live"
 type ActivityRenderMode = "collapsed" | "summary"
 type SessionRetentionAction = "archive" | "delete"
 
@@ -575,7 +574,6 @@ interface UIStore {
   showReasoningTraces: boolean
   collapsibleThinkingBlocks: boolean
   groupReasoningBlocks: boolean
-  chatRenderMode: ChatRenderMode
   activityRenderMode: ActivityRenderMode
   showDeletionDialog: boolean
   autoDeleteEnabled: boolean
@@ -717,7 +715,6 @@ interface UIStore {
   setSettingsProjectsSelectedId: (projectId: string | null) => void
   setShowReasoningTraces: (value: boolean) => void
   setCollapsibleThinkingBlocks: (value: boolean) => void
-  setChatRenderMode: (value: ChatRenderMode) => void
   setActivityRenderMode: (value: ActivityRenderMode) => void
   setShowDeletionDialog: (value: boolean) => void
   setAutoDeleteEnabled: (value: boolean) => void
@@ -852,7 +849,6 @@ export const useUIStore = create<UIStore>()(
         showReasoningTraces: true,
         collapsibleThinkingBlocks: true,
         groupReasoningBlocks: true,
-        chatRenderMode: "live",
         activityRenderMode: "summary",
         showDeletionDialog: true,
         autoDeleteEnabled: false,
@@ -1620,9 +1616,6 @@ export const useUIStore = create<UIStore>()(
           set({ collapsibleThinkingBlocks: value })
         },
 
-        setChatRenderMode: (value) => {
-          set({ chatRenderMode: value })
-        },
 
         setActivityRenderMode: (value) => {
           set({ activityRenderMode: value })
@@ -2154,7 +2147,7 @@ export const useUIStore = create<UIStore>()(
       {
         name: "ui-store",
         storage: createJSONStorage(() => getSafeStorage()),
-        version: 13,
+        version: 14,
         migrate: (persistedState, version) => {
           if (!persistedState || typeof persistedState !== "object") {
             return persistedState
@@ -2293,6 +2286,16 @@ export const useUIStore = create<UIStore>()(
             delete state.settingsRemoteInstancesSelectedId
           }
 
+          // v13 -> v14: the sorted chat mode is retired and Live is the only
+          // mode. Sorted readers kept their activity out of the way, so they
+          // continue with collapsed Activity.
+          if (version < 14) {
+            if (state.chatRenderMode === "sorted") {
+              state.activityRenderMode = "collapsed"
+            }
+            delete state.chatRenderMode
+          }
+
           state.browserPanel = normalizeBrowserPanelState(state.browserPanel)
 
           return state
@@ -2327,7 +2330,6 @@ export const useUIStore = create<UIStore>()(
           // Note: isSettingsDialogOpen intentionally NOT persisted
           showReasoningTraces: state.showReasoningTraces,
           collapsibleThinkingBlocks: state.collapsibleThinkingBlocks,
-          chatRenderMode: state.chatRenderMode,
           activityRenderMode: state.activityRenderMode,
           showDeletionDialog: state.showDeletionDialog,
           autoDeleteEnabled: state.autoDeleteEnabled,

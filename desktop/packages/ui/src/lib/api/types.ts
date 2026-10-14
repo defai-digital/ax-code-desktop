@@ -687,7 +687,8 @@ export interface SettingsPayload {
   showToolFileIcons?: boolean
   showExpandedBashTools?: boolean
   showExpandedEditTools?: boolean
-  chatRenderMode?: "sorted" | "live"
+  /** Retired mode switch: only "live" is written; a stored "sorted" reads as collapsed Activity. */
+  chatRenderMode?: "live"
   activityRenderMode?: "collapsed" | "summary"
   mermaidRenderingMode?: "svg" | "ascii"
   showSplitAssistantMessageActions?: boolean

@@ -546,7 +546,6 @@ interface TurnBlockProps {
   defaultActivityExpanded: boolean
   turnUiStates: Map<string, TurnUiState>
   onToggleTurnGroup: (turnId: string) => void
-  chatRenderMode: "sorted" | "live"
   onMessageContentChange: (reason?: ContentChangeReason) => void
   getAnimationHandlers: (messageId: string) => AnimationHandlers
   scrollToBottom?: () => void
@@ -565,7 +564,6 @@ const TurnBlock = React.memo(
     defaultActivityExpanded,
     turnUiStates,
     onToggleTurnGroup,
-    chatRenderMode,
     onMessageContentChange,
     getAnimationHandlers,
     scrollToBottom,
@@ -607,38 +605,10 @@ const TurnBlock = React.memo(
       return null
     }, [activeStreamingMessageId, turn.assistantMessages])
 
-    const visibleAssistantMessages = React.useMemo(() => {
-      const assistantMessages = omitRecoveredAssistantMessages(turn.assistantMessages)
-      if (chatRenderMode === "live") {
-        return assistantMessages
-      }
-
-      const completed = assistantMessages.filter(isAssistantMessageCompleted)
-      if (completed.length === assistantMessages.length) {
-        return assistantMessages
-      }
-
-      if (streamingAssistantMessageId) {
-        const completedIds = new Set(completed.map((assistant) => assistant.info.id))
-        return assistantMessages.filter(
-          (assistant) => completedIds.has(assistant.info.id) || assistant.info.id === streamingAssistantMessageId,
-        )
-      }
-
-      if (completed.length > 0) {
-        return completed
-      }
-      const firstAssistant = assistantMessages[0]
-      return firstAssistant ? [firstAssistant] : []
-    }, [chatRenderMode, streamingAssistantMessageId, turn.assistantMessages])
-
-    const completedAssistantMessages = React.useMemo(() => {
-      const assistantMessages = omitRecoveredAssistantMessages(turn.assistantMessages)
-      if (chatRenderMode !== "sorted") {
-        return assistantMessages
-      }
-      return assistantMessages.filter(isAssistantMessageCompleted)
-    }, [chatRenderMode, turn.assistantMessages])
+    const visibleAssistantMessages = React.useMemo(
+      () => omitRecoveredAssistantMessages(turn.assistantMessages),
+      [turn.assistantMessages],
+    )
 
     const visibleAssistantIds = React.useMemo(() => {
       const ids = new Map<string, number>()
@@ -647,18 +617,6 @@ const TurnBlock = React.memo(
       })
       return ids
     }, [visibleAssistantMessages])
-
-    const completedAssistantIdSet = React.useMemo(() => {
-      return new Set(completedAssistantMessages.map((assistant) => assistant.info.id))
-    }, [completedAssistantMessages])
-
-    const visibleActivityMessageIdSet = React.useMemo(() => {
-      const ids = new Set(completedAssistantIdSet)
-      if (streamingAssistantMessageId) {
-        ids.add(streamingAssistantMessageId)
-      }
-      return ids
-    }, [completedAssistantIdSet, streamingAssistantMessageId])
 
     const turnIsInActiveStream = React.useMemo(() => {
       return turnContainsMessageId(turn, streamingAssistantMessageId)
@@ -671,43 +629,8 @@ const TurnBlock = React.memo(
       return visibleAssistantMessages[0]?.info.id
     }, [streamingAssistantMessageId, turnIsInActiveStream, visibleAssistantMessages])
 
-    const visibleActivityParts = React.useMemo(() => {
-      if (chatRenderMode !== "sorted") {
-        return turn.activityParts
-      }
-      if (visibleActivityMessageIdSet.size === turn.assistantMessages.length) {
-        return turn.activityParts
-      }
-      return turn.activityParts.filter((activity) => visibleActivityMessageIdSet.has(activity.messageId))
-    }, [chatRenderMode, visibleActivityMessageIdSet, turn.activityParts, turn.assistantMessages.length])
-
-    const visibleActivitySegments = React.useMemo(() => {
-      if (chatRenderMode !== "sorted") {
-        return turn.activitySegments
-      }
-      if (visibleActivityMessageIdSet.size === turn.assistantMessages.length) {
-        return turn.activitySegments
-      }
-      return turn.activitySegments
-        .map((segment) => {
-          const parts = segment.parts.filter((activity) => visibleActivityMessageIdSet.has(activity.messageId))
-          if (parts.length === 0) {
-            return null
-          }
-          const anchorMessageId = visibleActivityMessageIdSet.has(segment.anchorMessageId)
-            ? segment.anchorMessageId
-            : parts[0]?.messageId
-          if (!anchorMessageId) {
-            return null
-          }
-          return {
-            ...segment,
-            anchorMessageId,
-            parts,
-          }
-        })
-        .filter((segment): segment is NonNullable<typeof segment> => segment !== null)
-    }, [chatRenderMode, visibleActivityMessageIdSet, turn.activitySegments, turn.assistantMessages.length])
+    const visibleActivityParts = turn.activityParts
+    const visibleActivitySegments = turn.activitySegments
 
     const turnGroupingContextBase = React.useMemo(() => {
       const userCreatedAt = (turn.userMessage.info.time as { created?: number } | undefined)?.created
@@ -750,11 +673,7 @@ const TurnBlock = React.memo(
         const isFirstAssistant = assistantIndex === 0
         const isLastAssistant = assistantIndex === visibleAssistantMessages.length - 1
         const isActivityOwner = Boolean(activityOwnerMessageId) && message.info.id === activityOwnerMessageId
-        const hasAnchoredActivitySegment = visibleActivitySegments.some(
-          (segment) => segment.anchorMessageId === message.info.id,
-        )
-        const shouldAttachFullTurnContext =
-          chatRenderMode === "sorted" ? isAssistantMessage : isActivityOwner || isFirstAssistant || isLastAssistant
+        const shouldAttachFullTurnContext = isActivityOwner || isFirstAssistant || isLastAssistant
         const assistantHeaderMessageId = visibleAssistantMessages[0]?.info.id ?? turn.headerMessageId
 
         const previousMessage = isUserMessage
@@ -774,12 +693,7 @@ const TurnBlock = React.memo(
               activityOwnerMessageId,
               isFirstAssistantInTurn: isFirstAssistant,
               isLastAssistantInTurn: isLastAssistant,
-              isWorking:
-                isLastTurn &&
-                sessionIsWorking &&
-                (chatRenderMode === "sorted"
-                  ? hasAnchoredActivitySegment
-                  : message.info.id === streamingAssistantMessageId),
+              isWorking: isLastTurn && sessionIsWorking && message.info.id === streamingAssistantMessageId,
               hasTools: turn.hasTools,
               hasReasoning: turn.hasReasoning,
               ...(shouldAttachFullTurnContext
@@ -824,7 +738,6 @@ const TurnBlock = React.memo(
         onMessageContentChange,
         scrollToBottom,
         sessionIsWorking,
-        chatRenderMode,
         turn.headerMessageId,
         turn.hasReasoning,
         turn.hasTools,
@@ -836,7 +749,6 @@ const TurnBlock = React.memo(
         activeStreamingPhase,
         visibleAssistantMessages,
         visibleAssistantIds,
-        visibleActivitySegments,
         activityOwnerMessageId,
         shouldAnimateUserMessage,
         onUserAnimationConsumed,
@@ -915,7 +827,6 @@ interface MessageListEntryProps {
   defaultActivityExpanded: boolean
   turnUiStates: Map<string, TurnUiState>
   onToggleTurnGroup: (turnId: string) => void
-  chatRenderMode: "sorted" | "live"
   shouldAnimateUserMessage: (message: ChatMessageEntry) => boolean
   onUserAnimationConsumed: (messageId: string) => void
   activeStreamingMessageId?: string | null
@@ -945,7 +856,6 @@ const MessageListEntry = React.memo(
     defaultActivityExpanded,
     turnUiStates,
     onToggleTurnGroup,
-    chatRenderMode,
     shouldAnimateUserMessage,
     onUserAnimationConsumed,
     activeStreamingMessageId,
@@ -976,7 +886,6 @@ const MessageListEntry = React.memo(
         defaultActivityExpanded={defaultActivityExpanded}
         turnUiStates={turnUiStates}
         onToggleTurnGroup={onToggleTurnGroup}
-        chatRenderMode={chatRenderMode}
         shouldAnimateUserMessage={shouldAnimateUserMessage}
         onUserAnimationConsumed={onUserAnimationConsumed}
         activeStreamingMessageId={activeStreamingMessageId}
@@ -1007,7 +916,6 @@ type StaticHistoryListProps = {
   defaultActivityExpanded: boolean
   turnUiStates: Map<string, TurnUiState>
   onToggleTurnGroup: (turnId: string) => void
-  chatRenderMode: "sorted" | "live"
   shouldAnimateUserMessage: (message: ChatMessageEntry) => boolean
   onUserAnimationConsumed: (messageId: string) => void
   activeStreamingPhase?: StreamPhase | null
@@ -1028,7 +936,6 @@ const StaticHistoryList = React.memo(
     defaultActivityExpanded,
     turnUiStates,
     onToggleTurnGroup,
-    chatRenderMode,
     shouldAnimateUserMessage,
     onUserAnimationConsumed,
     activeStreamingPhase,
@@ -1047,7 +954,6 @@ const StaticHistoryList = React.memo(
             defaultActivityExpanded={defaultActivityExpanded}
             turnUiStates={turnUiStates}
             onToggleTurnGroup={onToggleTurnGroup}
-            chatRenderMode={chatRenderMode}
             shouldAnimateUserMessage={shouldAnimateUserMessage}
             onUserAnimationConsumed={onUserAnimationConsumed}
             activeStreamingMessageId={null}
@@ -1057,7 +963,6 @@ const StaticHistoryList = React.memo(
       },
       [
         activeStreamingPhase,
-        chatRenderMode,
         defaultActivityExpanded,
         getAnimationHandlers,
         onMessageContentChange,
@@ -1133,7 +1038,6 @@ const StreamingTailContent: React.FC<{
   defaultActivityExpanded: boolean
   turnUiStates: Map<string, TurnUiState>
   onToggleTurnGroup: (turnId: string) => void
-  chatRenderMode: "sorted" | "live"
   shouldAnimateUserMessage: (message: ChatMessageEntry) => boolean
   onUserAnimationConsumed: (messageId: string) => void
   activeStreamingMessageId?: string | null
@@ -1148,7 +1052,6 @@ const StreamingTailContent: React.FC<{
   defaultActivityExpanded,
   turnUiStates,
   onToggleTurnGroup,
-  chatRenderMode,
   shouldAnimateUserMessage,
   onUserAnimationConsumed,
   activeStreamingMessageId,
@@ -1165,7 +1068,6 @@ const StreamingTailContent: React.FC<{
       defaultActivityExpanded={defaultActivityExpanded}
       turnUiStates={turnUiStates}
       onToggleTurnGroup={onToggleTurnGroup}
-      chatRenderMode={chatRenderMode}
       shouldAnimateUserMessage={shouldAnimateUserMessage}
       onUserAnimationConsumed={onUserAnimationConsumed}
       activeStreamingMessageId={activeStreamingMessageId}
@@ -1202,7 +1104,6 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
     streamPerfCount("ui.message_list.render")
     const { t } = useI18n()
     const stickyUserHeader = useUIStore((state) => state.stickyUserHeader)
-    const chatRenderMode = useUIStore((state) => state.chatRenderMode)
     const activityRenderMode = useUIStore((state) => state.activityRenderMode)
     const defaultActivityExpanded = activityRenderMode === "summary"
     const [turnUiStates, setTurnUiStates] = React.useState<Map<string, TurnUiState>>(() => new Map())
@@ -1312,7 +1213,7 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
 
     const { projection, staticTurns, streamingTurn } = useTurnRecords(displayMessages, {
       sessionKey,
-      showTextJustificationActivity: chatRenderMode === "sorted",
+      showTextJustificationActivity: false,
     })
     const hasUngroupedStaticEntries = projection.ungroupedMessageIds.size > 0
     const staticEntryMessages = hasUngroupedStaticEntries ? displayMessages : EMPTY_STATIC_ENTRY_MESSAGES
@@ -1827,7 +1728,6 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
               defaultActivityExpanded={defaultActivityExpanded}
               turnUiStates={turnUiStates}
               onToggleTurnGroup={toggleTurnGroup}
-              chatRenderMode={chatRenderMode}
               shouldAnimateUserMessage={shouldAnimateUserMessage}
               onUserAnimationConsumed={onUserAnimationConsumed}
               activeStreamingPhase={activeStreamingPhase}
@@ -1843,7 +1743,6 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
                 defaultActivityExpanded={defaultActivityExpanded}
                 turnUiStates={turnUiStates}
                 onToggleTurnGroup={toggleTurnGroup}
-                chatRenderMode={chatRenderMode}
                 shouldAnimateUserMessage={shouldAnimateUserMessage}
                 onUserAnimationConsumed={onUserAnimationConsumed}
                 activeStreamingMessageId={activeStreamingMessageId}

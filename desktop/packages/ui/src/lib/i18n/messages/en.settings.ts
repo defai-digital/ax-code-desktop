@@ -1506,8 +1506,6 @@ export const settingsDict = {
   "settings.openchamber.visual.section.localization": "Localization",
   "settings.openchamber.visual.section.spacingAndLayout": "Spacing & Layout",
   "settings.openchamber.visual.section.navigation": "Navigation",
-  "settings.openchamber.visual.section.chatRenderMode": "Chat Render Mode",
-  "settings.openchamber.visual.section.chatRenderModeAria": "Chat render mode",
   "settings.openchamber.visual.section.activityDefault": "Activity Default",
   "settings.openchamber.visual.section.activityDefaultAria": "Activity default mode",
   "settings.openchamber.visual.section.showToolsOpenedByDefault": "Show tools opened by default:",
@@ -1613,12 +1611,6 @@ export const settingsDict = {
   "settings.openchamber.visual.option.userMessageRendering.plain.label": "Plain text",
   "settings.openchamber.visual.option.userMessageRendering.plain.description":
     "Render user text with preserved whitespace and links.",
-  "settings.openchamber.visual.option.chatRenderMode.sorted.label": "Sorted",
-  "settings.openchamber.visual.option.chatRenderMode.sorted.description":
-    "Render completed assistant messages without live streaming.",
-  "settings.openchamber.visual.option.chatRenderMode.live.label": "Live",
-  "settings.openchamber.visual.option.chatRenderMode.live.description":
-    "Stream assistant text and tools as they arrive.",
   "settings.openchamber.visual.option.activityRenderMode.collapsed.label": "Collapsed",
   "settings.openchamber.visual.option.activityRenderMode.collapsed.description": "Keep Activity collapsed by default.",
   "settings.openchamber.visual.option.activityRenderMode.summary.label": "Expanded",

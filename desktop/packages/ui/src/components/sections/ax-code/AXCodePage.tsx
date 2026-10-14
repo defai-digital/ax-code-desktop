@@ -79,7 +79,6 @@ const ChatSectionContent: React.FC = () => {
   return (
     <AXCodeVisualSettings
       visibleSettings={[
-        "chatRenderMode",
         "activityRenderMode",
         "userMessageRendering",
         "mermaidRendering",

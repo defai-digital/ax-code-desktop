@@ -160,12 +160,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   }
 
   const providers = useConfigStore((s) => s.providers)
-  const { showReasoningTraces, stickyUserHeader, chatRenderMode, showExpandedBashTools, showExpandedEditTools } =
+  const { showReasoningTraces, stickyUserHeader, showExpandedBashTools, showExpandedEditTools } =
     useUIStore(
       useShallow((state) => ({
         showReasoningTraces: state.showReasoningTraces,
         stickyUserHeader: state.stickyUserHeader,
-        chatRenderMode: state.chatRenderMode,
         showExpandedBashTools: state.showExpandedBashTools,
         showExpandedEditTools: state.showExpandedEditTools,
       })),
@@ -426,12 +425,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
       return visibleParts
     }
 
-    if (!isMessageCompleted && chatRenderMode === "sorted") {
-      return []
-    }
-
     return visibleParts
-  }, [chatRenderMode, isMessageCompleted, isUser, visibleParts])
+  }, [isUser, visibleParts])
 
   const assistantTextParts = React.useMemo(() => {
     if (isUser) {

@@ -104,18 +104,8 @@ const USER_MESSAGE_RENDERING_OPTIONS: Option<"markdown" | "plain">[] = [
   },
 ]
 
-const CHAT_RENDER_MODE_OPTIONS: Option<"sorted" | "live">[] = [
-  {
-    id: "sorted",
-    labelKey: "settings.openchamber.visual.option.chatRenderMode.sorted.label",
-    descriptionKey: "settings.openchamber.visual.option.chatRenderMode.sorted.description",
-  },
-  {
-    id: "live",
-    labelKey: "settings.openchamber.visual.option.chatRenderMode.live.label",
-    descriptionKey: "settings.openchamber.visual.option.chatRenderMode.live.description",
-  },
-]
+// The Activity choice applies to the live Activity fold, which lands separately.
+const LIVE_ACTIVITY_FOLD_ENABLED = false
 
 const ACTIVITY_RENDER_MODE_OPTIONS: Option<"collapsed" | "summary">[] = [
   {
@@ -178,7 +168,6 @@ type VisibleSetting =
   | "inputBarOffset"
   | "mermaidRendering"
   | "userMessageRendering"
-  | "chatRenderMode"
   | "activityRenderMode"
   | "stickyUserHeader"
   | "wideChatLayout"
@@ -217,8 +206,6 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
   const setStickyUserHeader = useUIStore((state) => state.setStickyUserHeader)
   const wideChatLayoutEnabled = useUIStore((state) => state.wideChatLayoutEnabled)
   const setWideChatLayoutEnabled = useUIStore((state) => state.setWideChatLayoutEnabled)
-  const chatRenderMode = useUIStore((state) => state.chatRenderMode)
-  const setChatRenderMode = useUIStore((state) => state.setChatRenderMode)
   const activityRenderMode = useUIStore((state) => state.activityRenderMode)
   const setActivityRenderMode = useUIStore((state) => state.setActivityRenderMode)
   const fontSize = useUIStore((state) => state.fontSize)
@@ -259,7 +246,6 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
   const setWeekStartPreference = useUIStore((state) => state.setWeekStartPreference)
   const showSplitAssistantMessageActions = useUIStore((state) => state.showSplitAssistantMessageActions)
   const setShowSplitAssistantMessageActions = useUIStore((state) => state.setShowSplitAssistantMessageActions)
-  const isSettingsDialogOpen = useUIStore((state) => state.isSettingsDialogOpen)
   const {
     themeMode,
     setThemeMode,
@@ -273,52 +259,6 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
   } = useThemeSystem()
 
   const [themesReloading, setThemesReloading] = React.useState(false)
-  const [chatRenderPreviewTick, setChatRenderPreviewTick] = React.useState(0)
-  const shouldAnimateChatPreview =
-    isSettingsDialogOpen && (visibleSettings ? visibleSettings.includes("chatRenderMode") : true)
-
-  React.useEffect(() => {
-    if (!shouldAnimateChatPreview) {
-      return
-    }
-
-    // Use requestAnimationFrame for smoother animation without setInterval overhead
-    let rafId: number | null = null
-    let lastTime = Date.now()
-
-    const tick = () => {
-      const now = Date.now()
-      // Update every ~420ms
-      if (now - lastTime >= 420) {
-        setChatRenderPreviewTick((prev) => (prev + 1) % 24)
-        lastTime = now
-      }
-      rafId = requestAnimationFrame(tick)
-    }
-
-    // Only run when visible
-    if (typeof document === "undefined" || document.visibilityState === "visible") {
-      rafId = requestAnimationFrame(tick)
-    }
-
-    const onVisibility = () => {
-      if (document.visibilityState === "visible" && rafId === null) {
-        rafId = requestAnimationFrame(tick)
-      } else if (document.visibilityState !== "visible" && rafId !== null) {
-        cancelAnimationFrame(rafId)
-        rafId = null
-      }
-    }
-
-    document.addEventListener("visibilitychange", onVisibility)
-
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility)
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId)
-      }
-    }
-  }, [shouldAnimateChatPreview])
 
   const handleUserMessageRenderingModeChange = React.useCallback(
     (mode: "markdown" | "plain") => {
@@ -367,18 +307,12 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
     [setInputSpellcheckEnabled],
   )
 
-  const handleChatRenderModeChange = React.useCallback(
-    (mode: "sorted" | "live") => {
-      setChatRenderMode(mode)
-      void updateDesktopSettings({ chatRenderMode: mode })
-    },
-    [setChatRenderMode],
-  )
-
   const handleActivityRenderModeChange = React.useCallback(
     (mode: "collapsed" | "summary") => {
       setActivityRenderMode(mode)
-      void updateDesktopSettings({ activityRenderMode: mode })
+      // Writing "live" retires a stored "sorted", which otherwise keeps reading
+      // as collapsed Activity.
+      void updateDesktopSettings({ activityRenderMode: mode, chatRenderMode: "live" })
     },
     [setActivityRenderMode],
   )
@@ -491,8 +425,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
   const hasBehaviorSettings =
     shouldShow("mermaidRendering") ||
     shouldShow("userMessageRendering") ||
-    shouldShow("chatRenderMode") ||
-    (shouldShow("activityRenderMode") && chatRenderMode === "sorted") ||
+    (shouldShow("activityRenderMode") && LIVE_ACTIVITY_FOLD_ENABLED) ||
     shouldShow("stickyUserHeader") ||
     shouldShow("wideChatLayout") ||
     shouldShow("splitAssistantMessageActions") ||
@@ -973,104 +906,10 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
         <div className="space-y-3">
           {(shouldShow("userMessageRendering") ||
             shouldShow("mermaidRendering") ||
-            shouldShow("chatRenderMode") ||
-                    (shouldShow("activityRenderMode") && chatRenderMode === "sorted") ||
+                            (shouldShow("activityRenderMode") && LIVE_ACTIVITY_FOLD_ENABLED) ||
             shouldShow("diffLayout")) && (
             <div className="grid grid-cols-1 gap-y-2 md:grid-cols-[minmax(0,16rem)_minmax(0,16rem)] md:justify-start md:gap-x-2">
-              {shouldShow("chatRenderMode") && (
-                <section className="p-2 md:col-span-2">
-                  <h4 className="typography-ui-header font-medium text-foreground">
-                    {t("settings.openchamber.visual.section.chatRenderMode")}
-                  </h4>
-                  <div
-                    role="radiogroup"
-                    aria-label={t("settings.openchamber.visual.section.chatRenderModeAria")}
-                    className="mt-1 grid w-full max-w-[26rem] grid-cols-1 gap-3 sm:grid-cols-2"
-                  >
-                    {CHAT_RENDER_MODE_OPTIONS.map((option) => {
-                      const selected = chatRenderMode === option.id
-                      const previewPhase = chatRenderPreviewTick % 12
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() => handleChatRenderModeChange(option.id)}
-                          aria-pressed={selected}
-                          className={cn(
-                            "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
-                            selected
-                              ? "border-primary bg-primary/5"
-                              : "border-border hover:border-border/80 hover:bg-muted/50",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "typography-ui-label",
-                              selected ? "text-foreground" : "text-muted-foreground",
-                            )}
-                          >
-                            {tUnsafe(option.labelKey)}
-                          </span>
-                          <div className="mt-2 w-full rounded-md border border-border/60 bg-muted/30 p-2">
-                            {option.id === "live" ? (
-                              <div className="space-y-1.5">
-                                {[0, 1, 2].map((index) => {
-                                  const rowStart = index * 3 + 1
-                                  const rowProgressPhase = previewPhase - rowStart + 1
-                                  const rowProgress =
-                                    rowProgressPhase <= 0
-                                      ? 0
-                                      : rowProgressPhase === 1
-                                        ? 42
-                                        : rowProgressPhase === 2
-                                          ? 68
-                                          : 92
-                                  const visible = rowProgress > 0
-                                  return (
-                                    <div
-                                      key={index}
-                                      className={cn(
-                                        "flex items-center gap-1.5 transition-all duration-300 motion-reduce:transition-none",
-                                        visible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
-                                      )}
-                                    >
-                                      <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/55" />
-                                      <span
-                                        className="h-1.5 rounded bg-muted-foreground/30 transition-all duration-300 motion-reduce:transition-none"
-                                        style={{ width: `${rowProgress}%` }}
-                                      />
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            ) : (
-                              <div className="space-y-1.5">
-                                {[0, 1, 2].map((index) => {
-                                  const visible = previewPhase >= (index + 1) * 3
-                                  return (
-                                    <div
-                                      key={index}
-                                      className={cn(
-                                        "flex items-center gap-1.5 transition-all duration-300 motion-reduce:transition-none",
-                                        visible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
-                                      )}
-                                    >
-                                      <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/55" />
-                                      <span className="h-1.5 rounded bg-muted-foreground/30" style={{ width: "92%" }} />
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </section>
-              )}
-
-              {shouldShow("activityRenderMode") && chatRenderMode === "sorted" && (
+              {shouldShow("activityRenderMode") && LIVE_ACTIVITY_FOLD_ENABLED && (
                 <section className="p-2 md:col-span-2">
                   <h4 className="typography-ui-header font-medium text-foreground">
                     {t("settings.openchamber.visual.section.activityDefault")}

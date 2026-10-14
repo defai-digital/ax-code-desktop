@@ -319,16 +319,21 @@ export const createSettingsHelpers = (dependencies) => {
         result.weekStartPreference = mode
       }
     }
-    if (typeof candidate.chatRenderMode === "string") {
-      const mode = candidate.chatRenderMode.trim()
-      if (mode === "sorted" || mode === "live") {
-        result.chatRenderMode = mode
-      }
-    }
     if (typeof candidate.activityRenderMode === "string") {
       const mode = candidate.activityRenderMode.trim()
       if (mode === "collapsed" || mode === "summary") {
         result.activityRenderMode = mode
+      }
+    }
+    // The sorted chat mode is retired; Live is the only mode. A stored "sorted"
+    // reads as collapsed Activity, winning over a stored Activity mode until the
+    // user picks one: that pick writes chatRenderMode "live" alongside it.
+    if (typeof candidate.chatRenderMode === "string") {
+      const mode = candidate.chatRenderMode.trim()
+      if (mode === "sorted") {
+        result.activityRenderMode = "collapsed"
+      } else if (mode === "live") {
+        result.chatRenderMode = mode
       }
     }
     if (typeof candidate.mermaidRenderingMode === "string") {

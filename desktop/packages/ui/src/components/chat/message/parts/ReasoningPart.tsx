@@ -7,7 +7,6 @@ import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { Icon } from "@/components/icon/Icon"
 import { BusyDots } from "./BusyDots"
 import { useI18n } from "@/lib/i18n"
-import { useUIStore } from "@/stores/useUIStore"
 import { MarkdownRenderer } from "../../MarkdownRenderer"
 import { useStreamingTextThrottle } from "../../hooks/useStreamingTextThrottle"
 import type { StreamPhase } from "../types"
@@ -420,13 +419,12 @@ type ReasoningPartProps = {
 }
 
 const ReasoningPart = React.memo(({ part, onContentChange, messageId, streamPhase }: ReasoningPartProps) => {
-  const chatRenderMode = useUIStore((state) => state.chatRenderMode)
   const partWithText = part as TimedTextContentPart
   const rawText = extractTextOrContent(part)
   const textContent = React.useMemo(() => cleanReasoningText(rawText), [rawText])
   const time = partWithText.time
   const canBeStreaming = streamPhase === undefined || streamPhase !== "completed"
-  const isStreaming = chatRenderMode === "live" && canBeStreaming && typeof time?.end !== "number"
+  const isStreaming = canBeStreaming && typeof time?.end !== "number"
   const throttledText = useStreamingTextThrottle({
     text: textContent,
     isStreaming,
@@ -465,7 +463,6 @@ type MergedReasoningPartProps = {
  */
 export const MergedReasoningPart = React.memo(
   ({ parts, onContentChange, messageId, streamPhase }: MergedReasoningPartProps) => {
-    const chatRenderMode = useUIStore((state) => state.chatRenderMode)
 
     const mergedText = React.useMemo(() => {
       return parts
@@ -499,7 +496,6 @@ export const MergedReasoningPart = React.memo(
 
     const canBeStreaming = streamPhase === undefined || streamPhase !== "completed"
     const isStreaming =
-      chatRenderMode === "live" &&
       canBeStreaming &&
       parts.some((part) => typeof (part as TimedTextContentPart).time?.end !== "number")
 
