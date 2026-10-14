@@ -186,4 +186,47 @@ describe("useSessionRollbackStore", () => {
     )
     expect(result.summary.files).toBe(1)
   })
+
+  test("clearSessions prunes points across directories and blocks late in-flight writes", async () => {
+    const { rollbackRequests, useSessionRollbackStore } = await importStore()
+    const refreshA = useSessionRollbackStore.getState().refreshPoints("ses_1", { directory: "/repo" })
+    const refreshB = useSessionRollbackStore.getState().refreshPoints("ses_1", { directory: "/other" })
+    const refreshKeep = useSessionRollbackStore.getState().refreshPoints("ses_2", { directory: "/repo" })
+    await Promise.resolve()
+
+    rollbackRequests[0].resolve({ data: [point(1, "edit")] })
+    rollbackRequests[1].resolve({ data: [point(2, "bash")] })
+    rollbackRequests[2].resolve({ data: [point(3, "write")] })
+    await Promise.all([refreshA, refreshB, refreshKeep])
+
+    // A second refresh of ses_1 stays in flight until after the clear.
+    const lateRefresh = useSessionRollbackStore.getState().refreshPoints("ses_1", { directory: "/repo" })
+    await Promise.resolve()
+
+    useSessionRollbackStore.getState().clearSessions(["ses_1", "ses_unknown"])
+
+    expect(useSessionRollbackStore.getState().getPoints("ses_1", { directory: "/repo" })).toEqual([])
+    expect(useSessionRollbackStore.getState().getPoints("ses_1", { directory: "/other" })).toEqual([])
+    expect(useSessionRollbackStore.getState().getPoints("ses_2", { directory: "/repo" })).toEqual([point(3, "write")])
+    expect(Object.keys(useSessionRollbackStore.getState().loadingKeys)).toEqual([])
+    expect(Object.keys(useSessionRollbackStore.getState().errorKeys)).toEqual([])
+
+    // The invalidated in-flight refresh must not repopulate cleared points.
+    rollbackRequests[3].resolve({ data: [point(9, "edit")] })
+    await lateRefresh
+    expect(useSessionRollbackStore.getState().getPoints("ses_1", { directory: "/repo" })).toEqual([])
+  })
+
+  test("clearSessions without matching entries keeps state references stable", async () => {
+    const { useSessionRollbackStore } = await importStore()
+
+    const before = useSessionRollbackStore.getState()
+    useSessionRollbackStore.getState().clearSessions([])
+    useSessionRollbackStore.getState().clearSessions(["ses_absent"])
+    const after = useSessionRollbackStore.getState()
+
+    expect(after.pointsByDirectory).toBe(before.pointsByDirectory)
+    expect(after.loadingKeys).toBe(before.loadingKeys)
+    expect(after.errorKeys).toBe(before.errorKeys)
+  })
 })

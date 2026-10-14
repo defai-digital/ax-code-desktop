@@ -50,6 +50,7 @@ interface SessionRollbackStore {
     options?: Pick<RefreshRollbackOptions, "directory">,
   ) => Promise<SessionRollbackPreview>
   clearSession: (sessionId: string, directory?: string | null) => void
+  clearSessions: (sessionIds: Iterable<string>) => void
 }
 
 const rollbackRefreshRequestIds = new Map<string, number>()
@@ -201,6 +202,59 @@ export const useSessionRollbackStore = create<SessionRollbackStore>()(
           loadingKeys,
           errorKeys,
         }
+      })
+    },
+
+    clearSessions: (sessionIds) => {
+      const idSet = sessionIds instanceof Set ? sessionIds : new Set(sessionIds)
+      if (idSet.size === 0) return
+      // Key formats: points entries are `${sessionId}\u0000${tool}` and
+      // loading/error entries are `${dirKey}:${sessionId}\u0000${tool}`. The
+      // NUL terminator makes the session segment exact, so a
+      // delimiter-anchored substring check cannot confuse id prefixes.
+      const belongsToRemoved = (key: string): boolean => {
+        for (const id of idSet) {
+          if (key.includes(`${id}\u0000`)) return true
+        }
+        return false
+      }
+      // Invalidate in-flight refreshes first so a late response cannot
+      // repopulate points for a session that was just deleted.
+      for (const key of [...rollbackRefreshRequestIds.keys()]) {
+        if (belongsToRemoved(key)) rollbackRefreshRequestIds.delete(key)
+      }
+      set((state) => {
+        let changed = false
+        const pointsByDirectory: typeof state.pointsByDirectory = {}
+        for (const [dirKey, dirPoints] of Object.entries(state.pointsByDirectory)) {
+          const nextDirPoints: typeof dirPoints = {}
+          for (const [key, points] of Object.entries(dirPoints)) {
+            if (belongsToRemoved(key)) {
+              changed = true
+              continue
+            }
+            nextDirPoints[key] = points
+          }
+          pointsByDirectory[dirKey] = nextDirPoints
+        }
+        const loadingKeys: Record<string, boolean> = {}
+        for (const [key, value] of Object.entries(state.loadingKeys)) {
+          if (belongsToRemoved(key)) {
+            changed = true
+            continue
+          }
+          loadingKeys[key] = value
+        }
+        const errorKeys: Record<string, string | null> = {}
+        for (const [key, value] of Object.entries(state.errorKeys)) {
+          if (belongsToRemoved(key)) {
+            changed = true
+            continue
+          }
+          errorKeys[key] = value
+        }
+        if (!changed) return state
+        return { pointsByDirectory, loadingKeys, errorKeys }
       })
     },
   })),

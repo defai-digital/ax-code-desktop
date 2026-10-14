@@ -7,8 +7,16 @@ const { listGlobalSessionPagesMock } = vi.hoisted(() => ({
   listGlobalSessionPagesMock: vi.fn(async () => [] as never[]),
 }))
 
+const { cleanupRemovedSessionsMock } = vi.hoisted(() => ({
+  cleanupRemovedSessionsMock: vi.fn(),
+}))
+
 vi.mock("@/stores/globalSessions", () => ({
   listGlobalSessionPages: listGlobalSessionPagesMock,
+}))
+
+vi.mock("@/lib/sessionRemovalCleanup", () => ({
+  cleanupRemovedSessions: cleanupRemovedSessionsMock,
 }))
 
 import { resolveGlobalSessionDirectory, useGlobalSessionsStore } from "./useGlobalSessionsStore"
@@ -547,5 +555,37 @@ describe("applySnapshot cross-bucket freshness", () => {
 
     expect(useGlobalSessionsStore.getState().activeSessions).toEqual([])
     expect(useGlobalSessionsStore.getState().archivedSessions).toEqual([newArchivedX])
+  })
+})
+
+describe("removeSessions per-session state cleanup", () => {
+  test("removeSessions fans out client-state cleanup for the removed ids", async () => {
+    useGlobalSessionsStore.getState().upsertSession(makeSession("ses_doomed", { directory: "/repo" }))
+    cleanupRemovedSessionsMock.mockClear()
+
+    useGlobalSessionsStore.getState().removeSessions(["ses_doomed"])
+
+    expect(useGlobalSessionsStore.getState().activeSessions).toEqual([])
+    await vi.waitFor(() => {
+      expect(cleanupRemovedSessionsMock).toHaveBeenCalledTimes(1)
+    })
+    expect(cleanupRemovedSessionsMock.mock.calls[0]?.[0]).toEqual(new Set(["ses_doomed"]))
+  })
+
+  test("removeSessions for an unknown id keeps lists stable and cleanup is an idempotent no-op", async () => {
+    const keeper = makeSession("ses_keep", { directory: "/repo" })
+    useGlobalSessionsStore.getState().upsertSession(keeper)
+    cleanupRemovedSessionsMock.mockClear()
+    const before = useGlobalSessionsStore.getState()
+
+    useGlobalSessionsStore.getState().removeSessions(["ses_absent"])
+
+    const after = useGlobalSessionsStore.getState()
+    expect(after.activeSessions).toBe(before.activeSessions)
+    expect(after.archivedSessions).toBe(before.archivedSessions)
+    await vi.waitFor(() => {
+      expect(cleanupRemovedSessionsMock).toHaveBeenCalledTimes(1)
+    })
+    expect(cleanupRemovedSessionsMock.mock.calls[0]?.[0]).toEqual(new Set(["ses_absent"]))
   })
 })
