@@ -46,7 +46,12 @@ const getRepoMetadata = async (octokit, repo) => {
     setRepoMetadataCache(repoKey, data)
     return data
   } catch (error) {
-    if (error?.status === 403 || error?.status === 404) {
+    if (error?.status === 403) {
+      // A rate limit is transient: caching "no metadata" for it would report the repo
+      // as not a fork for the whole TTL.
+      throw error
+    }
+    if (error?.status === 404) {
       setRepoMetadataCache(repoKey, null)
       return null
     }

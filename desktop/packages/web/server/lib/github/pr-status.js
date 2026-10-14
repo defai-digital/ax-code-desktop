@@ -222,7 +222,12 @@ const getRepoMetadata = async (octokit, repo) => {
     })
     return data
   } catch (error) {
-    if (error?.status === 403 || error?.status === 404) {
+    if (error?.status === 403) {
+      // A rate limit is transient: caching "no repo" would keep the wrong answer for
+      // the whole TTL. Let it propagate to the route's non-cached degraded response.
+      throw error
+    }
+    if (error?.status === 404) {
       setCappedCacheEntry(repoMetadataCache, repoKey, {
         data: null,
         fetchedAt: Date.now(),
@@ -310,7 +315,12 @@ const safeListPulls = async (octokit, options) => {
     const response = await octokit.rest.pulls.list(options)
     return Array.isArray(response?.data) ? response.data : []
   } catch (error) {
-    if (error?.status === 404 || error?.status === 403) {
+    if (error?.status === 403) {
+      // A rate limit is transient: swallowing it as "no PRs" would let the route cache
+      // the wrong answer for the whole TTL.
+      throw error
+    }
+    if (error?.status === 404) {
       return []
     }
     throw error
