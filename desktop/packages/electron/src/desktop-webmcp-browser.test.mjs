@@ -221,6 +221,25 @@ describe("native project browser integration", () => {
     await closing
   })
 
+  it("reconciles the tool catalog with the runtime when enrollment completes", async () => {
+    // A change that lands while enrollment is in flight is dropped (synchronize
+    // only pushes with a live connection), so enrollment reconciles once: the
+    // runtime must not keep the catalog the POST carried while the adapter has
+    // already moved on.
+    const f = fixture()
+    const { sender, status } = await f.create()
+
+    await f.controller.command(sender, { action: "enable", id: status.id })
+
+    const enrollmentPost = f.requests.findIndex(
+      (request) => request.method === "POST" && request.url.endsWith("/provider"),
+    )
+    expect(enrollmentPost).toBeGreaterThanOrEqual(0)
+    const statePuts = f.requests.filter((request) => request.method === "PUT" && request.url.endsWith("/state"))
+    expect(statePuts).toHaveLength(1)
+    expect(f.requests.indexOf(statePuts[0])).toBeGreaterThan(enrollmentPost)
+  })
+
   it("fails a first load that never settles instead of leaving the pane without an id", async () => {
     // A server that accepts TCP and never answers used to hang the pane in
     // "starting": the renderer never received an id, so every control it offers

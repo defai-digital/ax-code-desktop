@@ -328,6 +328,12 @@ function createDesktopWebMcpBrowser({
       entry.connection = connection
       entry.controller = new AbortController()
       void run(entry, connection, entry.controller.signal)
+      // Reconcile once: a tool or navigation change that landed between the
+      // enrollment POST and the connection being recorded was dropped by
+      // synchronize, which only pushes state while a connection exists. Without
+      // this the runtime keeps the catalog from the POST while the adapter has
+      // moved on, and every call fails until the page changes again.
+      await synchronize(entry)
       return status(entry)
     }
     if (args.action === "navigate") {
