@@ -1796,7 +1796,11 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
         : "markdown-content leading-relaxed"
 
   const isLiveBlocks = isStreaming && !disableStreamAnimation
-  const enteredBlockCount = useEnteredBlockCount(markdownBlocks.length, isLiveBlocks)
+  const enteredBlockCount = useEnteredBlockCount(
+    markdownBlocks.length,
+    isLiveBlocks,
+    markdownBlocks.length === 1 && markdownBlocks[0]?.plain === true,
+  )
 
   const markdownContent = (
     <div className={cn("break-words w-full min-w-0", className)} ref={containerRef}>
