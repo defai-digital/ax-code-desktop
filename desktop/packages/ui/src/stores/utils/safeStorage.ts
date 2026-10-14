@@ -69,12 +69,8 @@ const createSafeStorage = (kind: "localStorage" | "sessionStorage"): Storage => 
         return
       } catch {
         disableStorage()
-        // Prevent stale previous value from surviving when writes fail (e.g. quota).
-        try {
-          baseStorage.removeItem(key)
-        } catch {
-          // noop
-        }
+        // Keep the previous base value: after a failed write (e.g. quota), the
+        // last good snapshot is still the best thing to boot from next launch.
       }
     }
     fallback.setItem(key, value)
