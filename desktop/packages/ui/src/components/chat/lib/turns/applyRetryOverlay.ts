@@ -77,6 +77,9 @@ export const applyRetryOverlay = (messages: ChatMessageEntry[], input: RetryOver
       id: syntheticId,
       sessionID: input.sessionId,
       role: "assistant",
+      // Without a parent the notice joins no turn, and assistant messages are excluded
+      // from the ungrouped rows, so nothing ever rendered it.
+      parentID: (messages[lastUserIndex]?.info as { id?: string } | undefined)?.id,
       time: { created: eventTime, completed: eventTime },
       finish: "stop",
       error: retryError,
