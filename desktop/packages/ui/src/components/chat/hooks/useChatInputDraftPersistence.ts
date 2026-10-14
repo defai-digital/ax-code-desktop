@@ -56,7 +56,10 @@ export const useChatInputDraftPersistence = ({
     (sessionId: string | null, draft: string) => {
       const key = getDraftKey(sessionId)
       const lastPersisted = lastPersistedDraftRef.current.get(key)
-      if (lastPersisted === draft) {
+      // The dedupe cache must agree with what is actually stored: the send path clears
+      // the stored draft directly (saveStoredDraft(sessionId, "")), so trusting the
+      // cache alone would skip persisting the same text typed again afterwards.
+      if (lastPersisted === draft && getStoredDraft(sessionId) === draft) {
         return
       }
 
