@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2"
-import { buildTurnWindowModel, updateTurnWindowModelIncremental } from "./windowTurns"
+import { buildTurnWindowModel, updateTurnWindowModelIncremental, windowMessagesByTurn } from "./windowTurns"
 import type { ChatMessageEntry } from "./types"
 
 function message({
@@ -24,6 +24,24 @@ function message({
 }
 
 describe("windowTurns", () => {
+  test("keeps a reply that is ordered before its prompt inside the turn window", () => {
+    // Legacy id wrap could order a reply before its prompt; the single forward pass
+    // never resolved such a parent, and the window slice started at the prompt's
+    // index - so the reply was dropped from the window entirely.
+    const u1 = message({ id: "u1", role: "user" })
+    const a1 = message({ id: "a1", role: "assistant", parentID: "u1" })
+    const a2 = message({ id: "a2", role: "assistant", parentID: "u2" })
+    const u2 = message({ id: "u2", role: "user" })
+
+    const model = buildTurnWindowModel([u1, a1, a2, u2])
+
+    expect(model.messageToTurnId.get("a2")).toBe("u2")
+    expect(model.messageToTurnIndex.get("a2")).toBe(1)
+    // Turn 1 (u2) starts at a2, so windowing keeps the reply with its prompt.
+    expect(model.turnMessageStartIndexes[1]).toBe(2)
+    expect(windowMessagesByTurn([u1, a1, a2, u2], model, 1).map((entry) => entry.info.id)).toEqual(["a2", "u2"])
+  })
+
   test("does not map assistant messages without a parent to the current turn", () => {
     const user = message({ id: "u1", role: "user" })
     const assistant = message({ id: "a1", role: "assistant" })

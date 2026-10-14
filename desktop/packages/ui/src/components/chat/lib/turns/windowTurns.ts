@@ -173,15 +173,22 @@ export const buildTurnWindowModel = (messages: ChatMessageEntry[]): TurnWindowMo
       return
     }
 
+    // Assistants are resolved in the second pass, once every user message is known:
+    // an id-ordered store can place a reply before its prompt (legacy id wrap), and a
+    // single forward pass would never map it.
+  })
+
+  messages.forEach((message, index) => {
+    if (resolveMessageRole(message) !== "assistant") {
+      return
+    }
+    const messageId = message.info.id
     const parentId = resolveParentMessageId(message)
     if (!parentId) {
       return
     }
     const targetTurnIndex = userMessageToTurnIndex.get(parentId)
-    if (typeof targetTurnIndex !== "number") {
-      return
-    }
-    if (targetTurnIndex < 0) {
+    if (typeof targetTurnIndex !== "number" || targetTurnIndex < 0) {
       return
     }
 
@@ -192,6 +199,12 @@ export const buildTurnWindowModel = (messages: ChatMessageEntry[]): TurnWindowMo
 
     messageToTurnId.set(messageId, turnId)
     messageToTurnIndex.set(messageId, targetTurnIndex)
+
+    // A reply ordered before its prompt must still be inside the turn's slice.
+    const startIndex = turnMessageStartIndexes[targetTurnIndex]
+    if (typeof startIndex === "number" && index < startIndex) {
+      turnMessageStartIndexes[targetTurnIndex] = index
+    }
   })
 
   return {
