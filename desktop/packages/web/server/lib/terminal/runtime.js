@@ -865,16 +865,6 @@ export function createTerminalRuntime({
       return res.status(400).json({ error: terminalSize.error })
     }
 
-    const existingSession = terminalSessions.get(sessionId)
-    if (existingSession) {
-      try {
-        killTerminalProcess(existingSession.ptyProcess, "term")
-      } catch (error) {
-        console.warn("Failed to kill existing terminal session before restart:", error)
-      }
-      terminalSessions.delete(sessionId)
-    }
-
     try {
       try {
         const allowed = await resolveAllowedCwd(req, cwd)
@@ -888,6 +878,18 @@ export function createTerminalRuntime({
         }
       } catch (error) {
         return res.status(400).json({ error: "Invalid working directory: not accessible" })
+      }
+
+      // Kill the existing session only after the new cwd validates — a rejected
+      // restart must not leave the client holding a dead session id.
+      const existingSession = terminalSessions.get(sessionId)
+      if (existingSession) {
+        try {
+          killTerminalProcess(existingSession.ptyProcess, "term")
+        } catch (error) {
+          console.warn("Failed to kill existing terminal session before restart:", error)
+        }
+        terminalSessions.delete(sessionId)
       }
 
       const newSessionId = crypto.randomBytes(24).toString("hex")

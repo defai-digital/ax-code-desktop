@@ -275,3 +275,53 @@ describe("terminal runtime error visibility", () => {
     }
   })
 })
+
+describe("terminal restart", () => {
+  it("keeps the existing session alive when the restart's new cwd fails validation", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const writes = []
+    const kills = []
+    const makeFakePty = () => ({
+      onData: () => ({ dispose() {} }),
+      onExit: () => ({ dispose() {} }),
+      write: (data) => writes.push(data),
+      kill: () => kills.push(1),
+      resize: () => {},
+    })
+    const runtime = createRuntime(server, {
+      app,
+      getPtyProvider: async () => ({ backend: "mock", spawn: () => makeFakePty() }),
+      isExecutable: () => true,
+      validateCwd: async (_req, cwd) =>
+        cwd === "/gone" ? { ok: false, error: "Path is outside of approved directories" } : { ok: true, cwd },
+      uiAuthController: { enabled: false },
+      buildAugmentedPath: () => "",
+      TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: 1000,
+      TERMINAL_INPUT_WS_REBIND_WINDOW_MS: 1000,
+    })
+
+    try {
+      const createRoute = getRoute("POST", "/api/terminal/create")
+      const createRes = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, createRes)
+      const sessionId = createRes.body?.sessionId
+      expect(sessionId).toBeTruthy()
+
+      const restartRoute = getRoute("POST", "/api/terminal/:sessionId/restart")
+      const restartRes = createMockResponse()
+      await restartRoute({ params: { sessionId }, body: { cwd: "/gone", cols: 80, rows: 24 } }, restartRes)
+      expect(restartRes.statusCode).toBe(403)
+
+      // The old session must survive a rejected restart: input still routes to it.
+      const inputRoute = getRoute("POST", "/api/terminal/:sessionId/input")
+      const inputRes = createMockResponse()
+      await inputRoute({ params: { sessionId }, body: "ls\n" }, inputRes)
+      expect(inputRes.body).toEqual({ success: true })
+      expect(writes).toContain("ls\n")
+      expect(kills).toHaveLength(0)
+    } finally {
+      await runtime.shutdown()
+    }
+  })
+})
