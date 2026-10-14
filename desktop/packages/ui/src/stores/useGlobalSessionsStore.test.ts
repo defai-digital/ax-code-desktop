@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
+const { listGlobalSessionPagesMock } = vi.hoisted(() => ({
+  listGlobalSessionPagesMock: vi.fn(async () => [] as never[]),
+}))
+
+vi.mock("@/stores/globalSessions", () => ({
+  listGlobalSessionPages: listGlobalSessionPagesMock,
+}))
+
 import { resolveGlobalSessionDirectory, useGlobalSessionsStore } from "./useGlobalSessionsStore"
 
 type SessionOverrides = Partial<Session> & {
@@ -433,5 +441,29 @@ describe("useGlobalSessionsStore", () => {
       expect(after.activeSessions).toBe(before.activeSessions)
       expect(after.archivedSessions).toBe(before.archivedSessions)
     })
+  })
+})
+
+describe("loadSessions keeps the snapshot on a server error", () => {
+  test("a rejected load keeps the sessions the store already holds", async () => {
+    const existing = makeSession("ses_keep", {})
+    useGlobalSessionsStore.setState({
+      activeSessions: [existing],
+      archivedSessions: [],
+      sessionsByDirectory: new Map(),
+      pendingRemoval: new Map(),
+      deleteTombstones: new Map(),
+      hasLoaded: true,
+      status: "ready",
+    })
+    // The server answering with an error (a restarting runtime) used to resolve to an
+    // empty list, which the snapshot applied wholesale: the sidebar emptied until the
+    // next successful load.
+    listGlobalSessionPagesMock.mockRejectedValueOnce(new Error("session.list failed (503): unavailable"))
+
+    await useGlobalSessionsStore.getState().loadSessions()
+
+    expect(useGlobalSessionsStore.getState().activeSessions).toEqual([existing])
+    expect(useGlobalSessionsStore.getState().status).toBe("ready")
   })
 })

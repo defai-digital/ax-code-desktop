@@ -50,17 +50,35 @@ export async function listGlobalSessionPages(
   let cursor: number | undefined
 
   while (true) {
+    // The SDK resolves with `{ error }` (no throw) on non-2xx, so a 503 while the
+    // runtime restarts would otherwise end this loop with an empty list, and the
+    // caller would replace the session index with nothing. Rejecting inside the
+    // retried call lets the retry loop run and keeps the caller's live snapshot.
     const response = await retry(
       () =>
-        apiClient.experimental.session.list({
-          archived: options.archived,
-          limit: options.pageSize,
-          ...(cursor !== undefined ? { cursor } : {}),
-        }),
+        apiClient.experimental.session
+          .list({
+            archived: options.archived,
+            limit: options.pageSize,
+            ...(cursor !== undefined ? { cursor } : {}),
+          })
+          .then((result) => {
+            if (Array.isArray(result.data)) {
+              return result
+            }
+            const status = result.response?.status
+            const message =
+              result.error && typeof result.error === "object" && "message" in result.error
+                ? String((result.error as { message?: unknown }).message)
+                : "the server returned no session list"
+            const error = new Error(`session.list failed${status !== undefined ? ` (${status})` : ""}: ${message}`)
+            ;(error as Error & { status?: number }).status = status
+            throw error
+          }),
       { attempts: 3, delay: 500, retryIf: () => true },
     )
 
-    const payload = Array.isArray(response.data) ? (response.data as GlobalSessionRecord[]) : []
+    const payload = response.data as GlobalSessionRecord[]
     if (payload.length === 0) break
 
     let appended = 0
