@@ -44,6 +44,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       resolveOptionalProjectDirectory,
       validateDirectoryPath,
       readCustomThemesFromDisk,
+      writeCustomThemeToDisk,
       refreshAxCodeAfterConfigChange,
       getAxCodeResolutionSnapshot,
       getAxCodeBinarySource,
@@ -78,6 +79,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
 
     registerSettingsUtilityRoutes(app, {
       readCustomThemesFromDisk,
+      writeCustomThemeToDisk,
       refreshAxCodeAfterConfigChange,
       clientReloadDelayMs,
       backgroundAxCodeReloader,

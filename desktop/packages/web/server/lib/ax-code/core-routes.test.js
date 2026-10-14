@@ -128,6 +128,67 @@ describe("core-routes", () => {
     expect(response.body).toEqual({ body: { content: "Snippet body" } })
   })
 
+  it("should parse JSON bodies for the custom theme route", async () => {
+    const app = express()
+    registerCommonRequestMiddleware(app, { express })
+    app.post("/api/config/themes", (req, res) => {
+      res.json({ body: req.body })
+    })
+
+    // Without a parser for this path the theme save answered "Theme is required" for every body.
+    const response = await request(app)
+      .post("/api/config/themes")
+      .send({ theme: { metadata: { id: "generated-a" } } })
+      .expect(200)
+
+    expect(response.body).toEqual({ body: { theme: { metadata: { id: "generated-a" } } } })
+  })
+
+  it("saves generated themes through the config route", async () => {
+    const handlers = new Map()
+    const app = {
+      get: vi.fn((route, handler) => handlers.set(`GET ${route}`, handler)),
+      post: vi.fn((route, handler) => handlers.set(`POST ${route}`, handler)),
+    }
+    const theme = { metadata: { id: "generated-ocean", name: "Ocean", variant: "dark" } }
+    const writeCustomThemeToDisk = vi.fn(async (incoming) => ({ ...incoming, normalized: true }))
+    registerSettingsUtilityRoutes(app, {
+      readCustomThemesFromDisk: vi.fn(async () => []),
+      writeCustomThemeToDisk,
+      refreshAxCodeAfterConfigChange: vi.fn(),
+    })
+    const response = { json: vi.fn(), status: vi.fn() }
+    response.status.mockImplementation(() => response)
+
+    await handlers.get("POST /api/config/themes")({ body: { theme } }, response)
+
+    expect(writeCustomThemeToDisk).toHaveBeenCalledWith(theme)
+    expect(response.json).toHaveBeenCalledWith({ theme: { ...theme, normalized: true } })
+    expect(response.status).not.toHaveBeenCalled()
+  })
+
+  it("returns a client error when a generated theme cannot be saved", async () => {
+    const handlers = new Map()
+    const app = {
+      get: vi.fn((route, handler) => handlers.set(`GET ${route}`, handler)),
+      post: vi.fn((route, handler) => handlers.set(`POST ${route}`, handler)),
+    }
+    registerSettingsUtilityRoutes(app, {
+      readCustomThemesFromDisk: vi.fn(async () => []),
+      writeCustomThemeToDisk: vi.fn(async () => {
+        throw new Error("Theme id must be a generated theme id")
+      }),
+      refreshAxCodeAfterConfigChange: vi.fn(),
+    })
+    const response = { json: vi.fn(), status: vi.fn() }
+    response.status.mockImplementation(() => response)
+
+    await handlers.get("POST /api/config/themes")({ body: { theme: {} } }, response)
+
+    expect(response.status).toHaveBeenCalledWith(400)
+    expect(response.json).toHaveBeenCalledWith({ error: "Theme id must be a generated theme id" })
+  })
+
   it("should parse JSON bodies for MCP auth pending routes", async () => {
     const app = express()
     registerCommonRequestMiddleware(app, { express })

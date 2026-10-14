@@ -25,6 +25,7 @@ import {
 import { useI18n } from "@/lib/i18n"
 import { setDirectoryShowHidden, useDirectoryShowHidden } from "@/lib/directoryShowHidden"
 import { toast } from "@/components/ui"
+import { CreateThemeDialog } from "./CreateThemeDialog"
 
 interface Option<T extends string> {
   id: T
@@ -256,6 +257,20 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
   } = useThemeSystem()
 
   const [themesReloading, setThemesReloading] = React.useState(false)
+  const [createThemeOpen, setCreateThemeOpen] = React.useState(false)
+  // A saved theme is selected once the reloaded list holds it: right after the
+  // reload, the preference setters still see the previous list and ignore it.
+  const [pendingThemeSelection, setPendingThemeSelection] = React.useState<{
+    id: string
+    variant: "light" | "dark"
+  } | null>(null)
+  React.useEffect(() => {
+    if (!pendingThemeSelection) return
+    if (!availableThemes.some((theme) => theme.metadata.id === pendingThemeSelection.id)) return
+    if (pendingThemeSelection.variant === "light") setLightThemePreference(pendingThemeSelection.id)
+    else setDarkThemePreference(pendingThemeSelection.id)
+    setPendingThemeSelection(null)
+  }, [availableThemes, pendingThemeSelection, setDarkThemePreference, setLightThemePreference])
 
   const handleUserMessageRenderingModeChange = React.useCallback(
     (mode: "markdown" | "plain") => {
@@ -541,6 +556,13 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                     ? t("settings.openchamber.visual.actions.reloadingThemes")
                     : t("settings.openchamber.visual.actions.reloadThemes")}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateThemeOpen(true)}
+                  className="inline-flex items-center typography-ui-label font-normal text-foreground underline decoration-[1px] underline-offset-2 hover:text-foreground/80"
+                >
+                  {t("settings.openchamber.visual.createTheme.action")}
+                </button>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -556,6 +578,13 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                   </TooltipContent>
                 </Tooltip>
               </div>
+
+              <CreateThemeDialog
+                open={createThemeOpen}
+                onOpenChange={setCreateThemeOpen}
+                reloadCustomThemes={reloadCustomThemes}
+                onThemeSaved={setPendingThemeSelection}
+              />
             </section>
           )}
 

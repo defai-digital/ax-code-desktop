@@ -480,8 +480,13 @@ export const registerAuthAndAccessRoutes = (app, dependencies) => {
 }
 
 export const registerSettingsUtilityRoutes = (app, dependencies) => {
-  const { readCustomThemesFromDisk, refreshAxCodeAfterConfigChange, clientReloadDelayMs, backgroundAxCodeReloader } =
-    dependencies
+  const {
+    readCustomThemesFromDisk,
+    writeCustomThemeToDisk,
+    refreshAxCodeAfterConfigChange,
+    clientReloadDelayMs,
+    backgroundAxCodeReloader,
+  } = dependencies
   const axCodeReloader =
     backgroundAxCodeReloader ??
     createBackgroundAxCodeReloader({
@@ -496,6 +501,18 @@ export const registerSettingsUtilityRoutes = (app, dependencies) => {
     } catch (error) {
       console.error("Failed to load custom themes:", error)
       res.status(500).json({ error: error instanceof Error ? error.message : "Failed to load custom themes" })
+    }
+  })
+
+  app.post("/api/config/themes", async (req, res) => {
+    try {
+      if (!req.body?.theme) {
+        return res.status(400).json({ error: "Theme is required" })
+      }
+      const theme = await writeCustomThemeToDisk(req.body.theme)
+      return res.json({ theme })
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "Failed to save theme" })
     }
   })
 
@@ -537,7 +554,10 @@ export const registerCommonRequestMiddleware = (app, dependencies) => {
   const parseJsonLarge = jsonBodyParser("50mb")
 
   app.use((req, res, next) => {
-    if (req.path.startsWith("/api/behavior")) {
+    // Generated themes are capped at 512 KB on write, so the small parser is enough.
+    if (req.path === "/api/config/themes") {
+      parseJsonSmall(req, res, next)
+    } else if (req.path.startsWith("/api/behavior")) {
       const contentLength = parseInt(req.headers["content-length"] || "0", 10)
       if (contentLength > 1024 * 1024) {
         return res.status(413).json({ error: "Content exceeds maximum size of 1048576 bytes" })

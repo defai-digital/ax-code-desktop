@@ -158,8 +158,54 @@ export const createThemeRuntime = (dependencies) => {
     }
   }
 
+  const writeCustomThemeToDisk = async (theme) => {
+    const normalized = normalizeThemeJson(theme)
+    if (!normalized) {
+      throw new Error("Invalid theme")
+    }
+
+    const { id } = normalized.metadata
+    if (!/^generated-[a-z0-9][a-z0-9-]{0,60}$/.test(id)) {
+      throw new Error("Theme id must be a generated theme id")
+    }
+
+    const serialized = JSON.stringify(normalized, null, 2)
+    if (Buffer.byteLength(serialized, "utf8") > maxThemeJsonBytes) {
+      throw new Error("Theme JSON exceeds the size limit")
+    }
+
+    await fsPromises.mkdir(themesDir, { recursive: true })
+    const filePath = path.join(themesDir, `${id}.json`)
+    try {
+      const existing = JSON.parse(await fsPromises.readFile(filePath, "utf8"))
+      if (existing?.metadata?.id !== id) {
+        throw new Error("A theme file with a different id already exists")
+      }
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error
+    }
+
+    const temporaryPath = path.join(
+      themesDir,
+      `.${id}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`,
+    )
+    try {
+      await fsPromises.writeFile(temporaryPath, serialized, { encoding: "utf8", flag: "wx" })
+      await fsPromises.rename(temporaryPath, filePath)
+    } finally {
+      try {
+        await fsPromises.unlink(temporaryPath)
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error
+      }
+    }
+
+    return normalized
+  }
+
   return {
     normalizeThemeJson,
     readCustomThemesFromDisk,
+    writeCustomThemeToDisk,
   }
 }

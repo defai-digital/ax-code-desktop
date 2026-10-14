@@ -1354,6 +1354,7 @@ async function main(options = {}) {
     resolveOptionalProjectDirectory,
     validateDirectoryPath,
     readCustomThemesFromDisk,
+    writeCustomThemeToDisk: (...args) => themeRuntime.writeCustomThemeToDisk(...args),
     refreshAxCodeAfterConfigChange,
     getAxCodeResolutionSnapshot,
     getAxCodeBinarySource: () => resolvedAxCodeBinarySource || null,

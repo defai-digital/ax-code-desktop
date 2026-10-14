@@ -1,16 +1,20 @@
 import { describe, expect, it, vi } from "vitest"
+import fsPromises from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 
 import { createThemeRuntime } from "./theme-runtime.js"
 
-const createRuntime = () =>
+const createRuntime = (overrides = {}) =>
   createThemeRuntime({
     fsPromises: {},
     path: {},
     themesDir: "/themes",
-    maxThemeJsonBytes: 1024,
+    maxThemeJsonBytes: 20 * 1024,
     logger: {
       warn: vi.fn(),
     },
+    ...overrides,
   })
 
 const createValidTheme = (overrides = {}) => ({
@@ -134,5 +138,86 @@ describe("theme runtime", () => {
         }),
       ),
     ).toBeNull()
+  })
+
+  it("writes a normalized generated theme atomically", async () => {
+    const themesDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "ax-theme-write-"))
+    try {
+      const runtime = createRuntime({ fsPromises, path, themesDir })
+      const theme = createValidTheme({ metadata: { id: "generated-ocean" } })
+
+      const normalized = await runtime.writeCustomThemeToDisk(theme)
+
+      expect(normalized.metadata.id).toBe("generated-ocean")
+      expect(JSON.parse(await fsPromises.readFile(path.join(themesDir, "generated-ocean.json"), "utf8"))).toEqual(
+        normalized,
+      )
+      expect(await fsPromises.readdir(themesDir)).toEqual(["generated-ocean.json"])
+    } finally {
+      await fsPromises.rm(themesDir, { recursive: true, force: true })
+    }
+  })
+
+  it("only writes ids matching the generated theme rule", async () => {
+    const themesDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "ax-theme-id-"))
+    try {
+      const runtime = createRuntime({ fsPromises, path, themesDir })
+      await expect(runtime.writeCustomThemeToDisk(createValidTheme())).rejects.toThrow("generated theme id")
+      expect(await fsPromises.readdir(themesDir)).toEqual([])
+    } finally {
+      await fsPromises.rm(themesDir, { recursive: true, force: true })
+    }
+  })
+
+  it("rejects serialized themes larger than the configured byte limit", async () => {
+    const themesDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "ax-theme-size-"))
+    try {
+      const runtime = createRuntime({ fsPromises, path, themesDir, maxThemeJsonBytes: 20 })
+      await expect(
+        runtime.writeCustomThemeToDisk(createValidTheme({ metadata: { id: "generated-large" } })),
+      ).rejects.toThrow("size limit")
+      expect(await fsPromises.readdir(themesDir)).toEqual([])
+    } finally {
+      await fsPromises.rm(themesDir, { recursive: true, force: true })
+    }
+  })
+
+  it("refuses to overwrite a file whose theme id differs", async () => {
+    const themesDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "ax-theme-collision-"))
+    try {
+      await fsPromises.writeFile(
+        path.join(themesDir, "generated-ocean.json"),
+        JSON.stringify({ metadata: { id: "other" } }),
+      )
+      const runtime = createRuntime({ fsPromises, path, themesDir })
+      await expect(
+        runtime.writeCustomThemeToDisk(createValidTheme({ metadata: { id: "generated-ocean" } })),
+      ).rejects.toThrow("different id")
+      expect(await fsPromises.readdir(themesDir)).toEqual(["generated-ocean.json"])
+    } finally {
+      await fsPromises.rm(themesDir, { recursive: true, force: true })
+    }
+  })
+
+  it("cleans up the temporary file when atomic rename fails", async () => {
+    const themesDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "ax-theme-rename-"))
+    try {
+      const runtime = createRuntime({
+        fsPromises: {
+          ...fsPromises,
+          rename: vi.fn(async () => {
+            throw new Error("rename failed")
+          }),
+        },
+        path,
+        themesDir,
+      })
+      await expect(
+        runtime.writeCustomThemeToDisk(createValidTheme({ metadata: { id: "generated-ocean" } })),
+      ).rejects.toThrow("rename failed")
+      expect(await fsPromises.readdir(themesDir)).toEqual([])
+    } finally {
+      await fsPromises.rm(themesDir, { recursive: true, force: true })
+    }
   })
 })
