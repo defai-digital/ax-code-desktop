@@ -500,7 +500,7 @@ export const registerSettingsUtilityRoutes = (app, dependencies) => {
       res.json({ themes: customThemes })
     } catch (error) {
       console.error("Failed to load custom themes:", error)
-      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to load custom themes" })
+      res.status(500).json({ error: "Failed to load custom themes" })
     }
   })
 
@@ -512,7 +512,12 @@ export const registerSettingsUtilityRoutes = (app, dependencies) => {
       const theme = await writeCustomThemeToDisk(req.body.theme)
       return res.json({ theme })
     } catch (error) {
-      return res.status(400).json({ error: error instanceof Error ? error.message : "Failed to save theme" })
+      // Filesystem errors carry a code and an absolute path; only validation messages go back to the client.
+      if (!(error instanceof Error) || error.code) {
+        console.error("Failed to save theme:", error)
+        return res.status(500).json({ error: "Failed to save theme" })
+      }
+      return res.status(400).json({ error: error.message })
     }
   })
 

@@ -189,6 +189,37 @@ describe("core-routes", () => {
     expect(response.json).toHaveBeenCalledWith({ error: "Theme id must be a generated theme id" })
   })
 
+  it("does not return filesystem paths when saving a theme fails", async () => {
+    const handlers = new Map()
+    const app = {
+      get: vi.fn((route, handler) => handlers.set(`GET ${route}`, handler)),
+      post: vi.fn((route, handler) => handlers.set(`POST ${route}`, handler)),
+    }
+    registerSettingsUtilityRoutes(app, {
+      readCustomThemesFromDisk: vi.fn(async () => {
+        throw Object.assign(new Error("EACCES: permission denied, scandir '/Users/someone/.config/themes'"), {
+          code: "EACCES",
+        })
+      }),
+      writeCustomThemeToDisk: vi.fn(async () => {
+        throw Object.assign(new Error("ENOSPC: no space left on device, open '/Users/someone/.config/themes/x.json'"), {
+          code: "ENOSPC",
+        })
+      }),
+      refreshAxCodeAfterConfigChange: vi.fn(),
+    })
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const response = { json: vi.fn(), status: vi.fn() }
+    response.status.mockImplementation(() => response)
+
+    await handlers.get("POST /api/config/themes")({ body: { theme: {} } }, response)
+    await handlers.get("GET /api/config/themes")({}, response)
+
+    expect(response.status).toHaveBeenNthCalledWith(1, 500)
+    expect(response.json).toHaveBeenNthCalledWith(1, { error: "Failed to save theme" })
+    expect(response.json).toHaveBeenNthCalledWith(2, { error: "Failed to load custom themes" })
+  })
+
   it("should parse JSON bodies for MCP auth pending routes", async () => {
     const app = express()
     registerCommonRequestMiddleware(app, { express })

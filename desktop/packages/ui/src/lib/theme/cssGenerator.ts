@@ -32,6 +32,12 @@ const hexToRgb = (value: string | undefined | null): string | null => {
   return `${r} ${g} ${b}`
 }
 
+const SAFE_DECLARATION = /^\s*--[A-Za-z0-9_-]+:(?:(?!\/\*)[^;{}<>\\\n])*;$/
+const GENERATOR_COMMENT = /^\s*\/\*[^*;{}<>\\\n]*\*\/$/
+
+// Hand-written theme files are read without value validation, so a value that could close the rule is dropped.
+export const isSafeCssLine = (line: string): boolean => SAFE_DECLARATION.test(line) || GENERATOR_COMMENT.test(line)
+
 export class CSSVariableGenerator {
   private inheritanceMap: Map<string, string> = new Map()
 
@@ -40,6 +46,10 @@ export class CSSVariableGenerator {
   }
 
   generate(theme: Theme): string {
+    return this.generateLines(theme).filter(isSafeCssLine).join("\n")
+  }
+
+  generateLines(theme: Theme): string[] {
     const cssVars: string[] = []
 
     cssVars.push(...this.generateTailwindVariables(theme))
@@ -60,7 +70,7 @@ export class CSSVariableGenerator {
       cssVars.push(...this.generateConfigVariables(theme.config))
     }
 
-    return cssVars.join("\n")
+    return cssVars
   }
 
   private generateTailwindVariables(theme: Theme): string[] {
