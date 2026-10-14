@@ -2,6 +2,7 @@
 
 const path = require("path")
 const os = require("os")
+const fs = require("fs")
 
 const DENIED_SEGMENTS = [
   ".ssh",
@@ -33,10 +34,19 @@ const isInsideOrSameDirectory = (rootPath, targetPath, pathTools = path) => {
 const toPosixRelativePath = (relativePath, pathTools = path) =>
   relativePath.split(pathTools.sep).filter(Boolean).join("/")
 
+const resolveRoot = (value) => {
+  if (!value) return value
+  try {
+    return fs.realpathSync(value)
+  } catch {
+    return value
+  }
+}
+
 const assertDesktopReadFileAllowed = (realPath, options = {}) => {
   const pathTools = options.pathTools || path
-  const home = typeof options.home === "string" ? options.home : os.homedir() || ""
-  const tmp = typeof options.tmp === "string" ? options.tmp : os.tmpdir() || ""
+  const home = typeof options.home === "string" ? options.home : resolveRoot(os.homedir() || "")
+  const tmp = typeof options.tmp === "string" ? options.tmp : resolveRoot(os.tmpdir() || "")
 
   const underHome = isInsideOrSameDirectory(home, realPath, pathTools)
   const underTmp = isInsideOrSameDirectory(tmp, realPath, pathTools)

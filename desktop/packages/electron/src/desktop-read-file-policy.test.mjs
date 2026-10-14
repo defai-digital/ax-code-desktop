@@ -1,3 +1,5 @@
+import fs from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { createRequire } from "node:module"
 import { describe, expect, test } from "vitest"
@@ -68,6 +70,17 @@ describe("desktop read file policy", () => {
         pathTools: path.posix,
       }),
     ).not.toThrow()
+  })
+
+  test("allows a realpath-resolved file under the default temp directory", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-read-policy-"))
+    const file = path.join(dir, "screenshot.png")
+    fs.writeFileSync(file, "data")
+    try {
+      expect(() => assertDesktopReadFileAllowed(fs.realpathSync(file))).not.toThrow()
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   test("treats a sibling prefix as outside", () => {
