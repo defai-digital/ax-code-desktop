@@ -18,15 +18,25 @@ const STORAGE_KEY_PREFIX = "axcode.pending-session-removals"
 // Each window persists to its own slot so concurrently open windows (or
 // browser tabs on the web build) never overwrite each other's pending
 // removals: with a single shared key, one window's undo/empty persist
-// wiped every other window's quit-recovery entries. Recovery reads and
-// clears every slot, including the legacy un-suffixed key written by
-// older versions.
+// wiped every other window's quit-recovery entries.
 const WINDOW_STORAGE_ID =
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 
-const OWN_STORAGE_KEY = `${STORAGE_KEY_PREFIX}.${WINDOW_STORAGE_ID}`
+// `<prefix>.pending.<window>` holds one window's un-committed removals,
+// `<prefix>.alive.<window>` is its heartbeat, and the bare `<prefix>` key is the
+// legacy shared slot written by older versions.
+const PENDING_KEY_PREFIX = `${STORAGE_KEY_PREFIX}.pending.`
+const ALIVE_KEY_PREFIX = `${STORAGE_KEY_PREFIX}.alive.`
+const OWN_STORAGE_KEY = `${PENDING_KEY_PREFIX}${WINDOW_STORAGE_ID}`
+const OWN_ALIVE_KEY = `${ALIVE_KEY_PREFIX}${WINDOW_STORAGE_ID}`
+
+const OWNER_HEARTBEAT_MS = 2_000
+// How long a heartbeat may go unheard before its window counts as gone. Long
+// enough to survive a busy main thread (the heartbeat runs on a timer), short
+// enough that a crashed window's removals are recovered on the next launch.
+const OWNER_STALE_MS = 10_000
 
 type PersistedRemoval = {
   id: string
@@ -75,27 +85,46 @@ function persistPending(): void {
   )
 }
 
-function listPersistedKeys(): string[] {
+/**
+ * Every pending slot, with its owning window id (null for the legacy shared
+ * key). Heartbeat keys are deliberately not returned: they are not removals.
+ */
+function listPendingSlots(): { key: string; ownerId: string | null }[] {
   if (typeof window === "undefined") return []
   try {
     const storage = window.localStorage
-    const keys: string[] = []
+    const slots: { key: string; ownerId: string | null }[] = []
     for (let index = 0; index < storage.length; index += 1) {
       const key = storage.key(index)
-      if (key === STORAGE_KEY_PREFIX || (key !== null && key.startsWith(`${STORAGE_KEY_PREFIX}.`))) {
-        keys.push(key)
+      if (key === null) continue
+      if (key === STORAGE_KEY_PREFIX) {
+        slots.push({ key, ownerId: null })
+        continue
+      }
+      if (key.startsWith(PENDING_KEY_PREFIX)) {
+        slots.push({ key, ownerId: key.slice(PENDING_KEY_PREFIX.length) || null })
       }
     }
-    return keys
+    return slots
   } catch {
     return []
   }
 }
 
-function readPersisted(): PersistedRemoval[] {
+function isOwnerAlive(ownerId: string, now: number): boolean {
+  if (!ownerId) return false
+  try {
+    const beat = Number(window.localStorage.getItem(`${ALIVE_KEY_PREFIX}${ownerId}`))
+    return Number.isFinite(beat) && now - beat < OWNER_STALE_MS
+  } catch {
+    return false
+  }
+}
+
+function readPersisted(keys: string[]): PersistedRemoval[] {
   if (typeof window === "undefined") return []
   const entries: PersistedRemoval[] = []
-  for (const key of listPersistedKeys()) {
+  for (const key of keys) {
     try {
       const raw = window.localStorage.getItem(key)
       if (!raw) continue
@@ -129,6 +158,36 @@ function isAlreadyGoneError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : (error as { message?: unknown }).message
   return typeof message === "string" && /not found/i.test(message)
 }
+
+/**
+ * Announce this window so another window's recovery pass can tell that its
+ * pending slot belongs to a live window (and must be left alone) rather than to
+ * one that quit mid-undo-window. `pagehide` removes the heartbeat: quitting or
+ * reloading makes this window's slot recoverable on the next launch, which is
+ * the whole point of persisting it.
+ */
+function startOwnerHeartbeat(): void {
+  if (typeof window === "undefined") return
+  const beat = () => {
+    try {
+      window.localStorage.setItem(OWN_ALIVE_KEY, String(Date.now()))
+    } catch {
+      // Storage unavailable — recovery then treats this window as gone, which
+      // is the pre-heartbeat behaviour.
+    }
+  }
+  beat()
+  window.setInterval(beat, OWNER_HEARTBEAT_MS)
+  window.addEventListener("pagehide", () => {
+    try {
+      window.localStorage.removeItem(OWN_ALIVE_KEY)
+    } catch {
+      // ignore
+    }
+  })
+}
+
+startOwnerHeartbeat()
 
 function successMessage(kind: PendingRemovalKind, count: number): string {
   if (count === 1) {
@@ -265,20 +324,38 @@ export function flushPendingRemovals(): void {
 }
 
 /**
- * Commit removals left over from a previous app session (quit during the
- * undo window). Safe to repeat: re-archiving is a timestamp update and a
- * session that is already gone counts as done. An entry is only dropped once
- * the runtime confirmed it; anything that failed for another reason (offline,
- * 5xx) is written back so the next launch retries it instead of silently
- * resurrecting the session.
+ * Commit removals left over from a previous app session (a window that quit or
+ * reloaded during the undo window). Safe to repeat: re-archiving is a timestamp
+ * update and a session that is already gone counts as done. An entry is only
+ * dropped once the runtime confirmed it; anything that failed for another
+ * reason (offline, 5xx) is written back so the next launch retries it instead
+ * of silently resurrecting the session.
+ *
+ * Only slots whose window is gone are taken over: another live window's slot is
+ * still inside its own undo window, and committing it here would delete the
+ * session server-side while that window's Undo still promises to bring it back.
  */
 export async function recoverPendingRemovals(): Promise<void> {
-  const persisted = readPersisted()
-  if (persisted.length === 0) return
-  // Take over every slot up front so a crash mid-recovery cannot double-apply
-  // an entry; the failures are written back at the end.
+  const now = Date.now()
+  const ownedSlots = listPendingSlots().filter(
+    ({ ownerId }) => ownerId === null || !isOwnerAlive(ownerId, now),
+  )
+  if (ownedSlots.length === 0) return
+  const persisted = readPersisted(ownedSlots.map(({ key }) => key))
+  if (persisted.length === 0) {
+    // Nothing readable in the orphaned slots: drop them so they stop being
+    // rescanned, but leave live windows' slots untouched.
+    try {
+      for (const { key } of ownedSlots) window.localStorage.removeItem(key)
+    } catch {
+      // ignore
+    }
+    return
+  }
+  // Take over the orphaned slots up front so a crash mid-recovery cannot
+  // double-apply an entry; the failures are written back at the end.
   try {
-    for (const key of listPersistedKeys()) {
+    for (const { key } of ownedSlots) {
       window.localStorage.removeItem(key)
     }
   } catch {

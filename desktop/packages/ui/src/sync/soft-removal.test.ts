@@ -60,6 +60,8 @@ const { softDeleteSession, softArchiveSession, flushPendingRemovals, recoverPend
 )
 
 const STORAGE_KEY_PREFIX = "axcode.pending-session-removals"
+const pendingKey = (owner: string) => `${STORAGE_KEY_PREFIX}.pending.${owner}`
+const aliveKey = (owner: string) => `${STORAGE_KEY_PREFIX}.alive.${owner}`
 
 const toastSuccessMock = vi.mocked(toast.success)
 const toastErrorMock = vi.mocked(toast.error)
@@ -69,7 +71,7 @@ const storedSlots = (): string[] => {
   const keys: string[] = []
   for (let index = 0; index < window.localStorage.length; index += 1) {
     const key = window.localStorage.key(index)
-    if (key && key.startsWith(`${STORAGE_KEY_PREFIX}.`)) keys.push(key)
+    if (key && key.startsWith(`${STORAGE_KEY_PREFIX}.pending.`)) keys.push(key)
   }
   return keys
 }
@@ -228,7 +230,7 @@ describe("soft-removal S4.5 contract", () => {
     softDeleteSession(session)
 
     // A second, concurrently open window has its own pending removal persisted.
-    const otherKey = `${STORAGE_KEY_PREFIX}.other-window`
+    const otherKey = pendingKey("other-window")
     window.localStorage.setItem(otherKey, JSON.stringify([{ id: "ses_other", kind: "delete", directory: null }]))
 
     // Undo via the toast action empties this window's map, which used to
@@ -252,7 +254,7 @@ describe("soft-removal S4.5 contract", () => {
     } as never)
 
     window.localStorage.setItem(
-      `${STORAGE_KEY_PREFIX}.window-a`,
+      pendingKey("window-a"),
       JSON.stringify([
         { id: "ses_a1", kind: "delete", directory: "/repo" },
         { id: "ses_a2", kind: "archive", directory: null },
@@ -265,7 +267,7 @@ describe("soft-removal S4.5 contract", () => {
     // survive under this window's slot for the next start.
     expect(sdkDelete).toHaveBeenCalledTimes(1)
     expect(sdkUpdate).toHaveBeenCalledTimes(1)
-    expect(window.localStorage.getItem(`${STORAGE_KEY_PREFIX}.window-a`)).toBeNull()
+    expect(window.localStorage.getItem(pendingKey("window-a"))).toBeNull()
     const retryKeys = storedSlots()
     expect(retryKeys).toHaveLength(1)
     const retried = JSON.parse(window.localStorage.getItem(retryKeys[0]) as string)
@@ -282,13 +284,62 @@ describe("soft-removal S4.5 contract", () => {
     } as never)
 
     window.localStorage.setItem(
-      `${STORAGE_KEY_PREFIX}.window-a`,
+      pendingKey("window-a"),
       JSON.stringify([{ id: "ses_gone", kind: "delete", directory: null }]),
     )
 
     await recoverPendingRemovals()
 
     expect(storedSlots()).toHaveLength(0)
+  })
+
+  test("leaves the pending slot of another live window alone", async () => {
+    // Window B is still open with S inside its undo window: committing S here
+    // would delete it server-side while B's Undo still promises to restore it.
+    const sdkDelete = vi.fn(async () => ({}))
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({
+      session: { delete: sdkDelete, update: vi.fn() },
+    } as never)
+
+    window.localStorage.setItem(pendingKey("window-b"), JSON.stringify([{ id: "ses_b1", kind: "delete", directory: null }]))
+    window.localStorage.setItem(aliveKey("window-b"), String(Date.now()))
+
+    await recoverPendingRemovals()
+
+    expect(sdkDelete).not.toHaveBeenCalled()
+    expect(window.localStorage.getItem(pendingKey("window-b"))).not.toBeNull()
+  })
+
+  test("takes over a slot whose window stopped heartbeating", async () => {
+    const sdkDelete = vi.fn(async () => ({}))
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({
+      session: { delete: sdkDelete, update: vi.fn() },
+    } as never)
+
+    window.localStorage.setItem(pendingKey("window-crashed"), JSON.stringify([{ id: "ses_c1", kind: "delete", directory: null }]))
+    window.localStorage.setItem(aliveKey("window-crashed"), String(Date.now() - 60_000))
+
+    await recoverPendingRemovals()
+
+    expect(sdkDelete).toHaveBeenCalledWith({ sessionID: "ses_c1", directory: undefined })
+    expect(window.localStorage.getItem(pendingKey("window-crashed"))).toBeNull()
+  })
+
+  test("drops an unreadable orphaned slot without touching a live window's slot", async () => {
+    const sdkDelete = vi.fn(async () => ({}))
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({
+      session: { delete: sdkDelete, update: vi.fn() },
+    } as never)
+
+    window.localStorage.setItem(pendingKey("window-dead"), "not json")
+    window.localStorage.setItem(pendingKey("window-live"), JSON.stringify([{ id: "ses_live", kind: "delete", directory: null }]))
+    window.localStorage.setItem(aliveKey("window-live"), String(Date.now()))
+
+    await recoverPendingRemovals()
+
+    expect(sdkDelete).not.toHaveBeenCalled()
+    expect(window.localStorage.getItem(pendingKey("window-dead"))).toBeNull()
+    expect(window.localStorage.getItem(pendingKey("window-live"))).not.toBeNull()
   })
 
   test("recoverPendingRemovals commits and clears every window slot plus the legacy shared key", async () => {
@@ -299,11 +350,11 @@ describe("soft-removal S4.5 contract", () => {
     } as never)
 
     window.localStorage.setItem(
-      `${STORAGE_KEY_PREFIX}.window-a`,
+      pendingKey("window-a"),
       JSON.stringify([{ id: "ses_a1", kind: "delete", directory: "/repo" }]),
     )
     window.localStorage.setItem(
-      `${STORAGE_KEY_PREFIX}.window-b`,
+      pendingKey("window-b"),
       JSON.stringify([{ id: "ses_b1", kind: "archive", directory: null }]),
     )
     // Legacy single-key layout written by older versions.
@@ -321,8 +372,8 @@ describe("soft-removal S4.5 contract", () => {
       directory: undefined,
       time: { archived: expect.any(Number) },
     })
-    expect(window.localStorage.getItem(`${STORAGE_KEY_PREFIX}.window-a`)).toBeNull()
-    expect(window.localStorage.getItem(`${STORAGE_KEY_PREFIX}.window-b`)).toBeNull()
+    expect(window.localStorage.getItem(pendingKey("window-a"))).toBeNull()
+    expect(window.localStorage.getItem(pendingKey("window-b"))).toBeNull()
     expect(window.localStorage.getItem(STORAGE_KEY_PREFIX)).toBeNull()
   })
 })
