@@ -4,7 +4,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Icon } from "@/components/icon/Icon"
@@ -14,7 +13,6 @@ import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useExecutionModeStore } from "@/stores/useExecutionModeStore"
 import { normalizeDirectoryKey } from "@/stores/utils/directoryKey"
 import { OVERFLOW_SEND_CONTROLS } from "@/lib/composerControls"
-import { WebMcpComposerChip } from "./WebMcpComposerChip"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface ComposerOverflowMenuProps {
@@ -23,7 +21,7 @@ interface ComposerOverflowMenuProps {
 }
 
 /**
- * Long-run and WebMCP stay reachable here, off the primary send row.
+ * Long-run stays reachable here, off the primary send row. WebMCP lives in the header.
  */
 export const ComposerOverflowMenu: React.FC<ComposerOverflowMenuProps> = ({
   className,
@@ -58,7 +56,8 @@ export const ComposerOverflowMenu: React.FC<ComposerOverflowMenuProps> = ({
                 "hover:bg-interactive-hover hover:text-foreground",
                 "focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]",
                 "data-[state=open]:bg-interactive-selection data-[state=open]:text-foreground",
-                longRunActive && "text-foreground",
+                longRunActive &&
+                  "bg-interactive-selection text-[var(--status-info)] hover:text-[var(--status-info)] data-[state=open]:text-[var(--status-info)]",
                 className,
               )}
             >
@@ -88,10 +87,6 @@ export const ComposerOverflowMenu: React.FC<ComposerOverflowMenuProps> = ({
           </span>
           {longRunActive ? <Icon name="check" className="ml-auto h-3.5 w-3.5" /> : null}
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <div className="px-1 py-1">
-          <WebMcpComposerChip iconSizeClass={iconSizeClass} />
-        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )

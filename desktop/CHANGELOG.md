@@ -52,6 +52,12 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The composer no longer repeats the WebMCP control and the context-window percentage, since the
+  window header already shows both. Surfaces without that header, such as the embedded session
+  chat, still show context usage in the composer.
+- The work mode chip shows the active mode in its color again (Agent green, Council blue, Arena
+  purple), and the execution mode button turns blue on a selected background while Auto or
+  long-run is on. A gray control read as "off".
 - The interface icons now come from Phosphor Icons (bold weight) instead of Remix Icon. Every icon
   name maps to a glyph in one table, the sprite generator fails when a name has no glyph, and a test
   fails when the committed sprite drifts from the table.

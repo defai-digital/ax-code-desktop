@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 import { useI18n, type I18nKey } from "@/lib/i18n"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useExecutionModeStore, type ExecutionMode } from "@/stores/useExecutionModeStore"
-import { isPrimaryExecutionMode } from "@/lib/composerControls"
+import { isPrimaryExecutionMode, isUnattendedExecutionMode } from "@/lib/composerControls"
 import { normalizeDirectoryKey } from "@/stores/utils/directoryKey"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -71,6 +71,7 @@ export const ExecutionModeSelector: React.FC<ExecutionModeSelectorProps> = ({
   }, [currentDirectory, loadMode])
 
   const activeMeta = MODES.find((m) => m.value === mode)
+  const unattended = isUnattendedExecutionMode(mode)
   const title = t("chat.chatInput.executionMode.title")
   const activeLabel = activeMeta ? t(activeMeta.labelKey) : title
   const tooltipLabel = activeMeta ? `${title}: ${activeLabel}` : title
@@ -84,11 +85,14 @@ export const ExecutionModeSelector: React.FC<ExecutionModeSelectorProps> = ({
               type="button"
               aria-label={tooltipLabel}
               title={tooltipLabel}
+              data-active={unattended ? "true" : undefined}
               className={cn(
                 "flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none transition-colors",
                 "hover:bg-interactive-hover hover:text-foreground",
                 "focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]",
                 "data-[state=open]:bg-interactive-selection data-[state=open]:text-foreground",
+                unattended &&
+                  "bg-interactive-selection text-[var(--status-info)] hover:text-[var(--status-info)] data-[state=open]:text-[var(--status-info)]",
                 className,
               )}
             >

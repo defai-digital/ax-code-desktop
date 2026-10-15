@@ -3,8 +3,14 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSession } from "@/sync/sync-context"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { ContextUsageDisplay } from "@/components/ui/ContextUsageDisplay"
+import { useChatSurfaceMode } from "./useChatSurfaceMode"
 
+/**
+ * Context usage in the composer. Surfaces with their own header show it there (the main window
+ * header and the mini chat title bar), so the composer only shows it where no header exists.
+ */
 export const UsageIndicator: React.FC = React.memo(() => {
+  const surfaceMode = useChatSurfaceMode()
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
   const getContextUsage = useSessionUIStore((s) => s.getContextUsage)
   const getCurrentModel = useConfigStore((s) => s.getCurrentModel)
@@ -23,7 +29,7 @@ export const UsageIndicator: React.FC = React.memo(() => {
 
   const usage = currentSessionId && session ? getContextUsage(contextLimit, outputLimit) : null
 
-  if (!usage || !currentSessionId || contextLimit <= 0) return null
+  if (surfaceMode !== "default" || !usage || !currentSessionId || contextLimit <= 0) return null
 
   return (
     <ContextUsageDisplay

@@ -2,6 +2,7 @@ import React from "react"
 import { MainLayout } from "@/components/layout/MainLayout"
 import { DesktopTitlebarDragStrip } from "@/components/layout/DesktopTitlebarDragStrip"
 import { ChatView } from "@/components/views/ChatView"
+import { ChatSurfaceProvider } from "@/components/chat/ChatSurfaceContext"
 import { Toaster } from "@/components/ui/sonner"
 import { Button } from "@/components/ui/button"
 import { MemoryDebugPanel } from "@/components/ui/MemoryDebugPanel"
@@ -973,7 +974,9 @@ function App({ apis }: AppProps) {
               <SyncAppEffects embeddedBackgroundWorkEnabled={embeddedBackgroundWorkEnabled} />
               <PermissionNotifications />
               <AxCodeUpdateToast />
-              <MainLayout />
+              <ChatSurfaceProvider mode="main-window">
+                <MainLayout />
+              </ChatSurfaceProvider>
               <Toaster />
               {!isBootShell && (
                 <>

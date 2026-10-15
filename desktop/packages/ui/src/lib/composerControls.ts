@@ -31,7 +31,21 @@ export function selectLabeledWorkMode(choice: WorkModeId): WorkModeId {
 
 export const PRIMARY_EXECUTION_MODES = ["manual", "autonomous"] as const
 
-export const OVERFLOW_SEND_CONTROLS = ["long-run", "webmcp"] as const
+export const OVERFLOW_SEND_CONTROLS = ["long-run"] as const
+
+/**
+ * Status the main window header owns. The composer does not repeat it, so the input row stays
+ * about writing and sending.
+ */
+export const HEADER_OWNED_SESSION_STATUS = ["context-usage", "webmcp"] as const
+
+/**
+ * Modes where the agent proceeds without asking. Their controls show an "on" state (status color
+ * on a selected background) so a glance at the composer tells the user it is active.
+ */
+export function isUnattendedExecutionMode(mode: string | undefined): boolean {
+  return mode === "autonomous" || mode === "long-run"
+}
 
 export function isPrimaryExecutionMode(mode: string): boolean {
   return (PRIMARY_EXECUTION_MODES as readonly string[]).includes(mode)

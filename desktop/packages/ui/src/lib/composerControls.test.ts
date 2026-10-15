@@ -10,10 +10,12 @@ import { useWorkModeStore } from "@/stores/useWorkModeStore"
 import { initialWorkModeForNewChat } from "@/lib/workMode"
 import { resolveAvailableSettingsSlug, resolveSettingsSlug, SETTINGS_PAGE_METADATA } from "@/lib/settings/metadata"
 import {
+  HEADER_OWNED_SESSION_STATUS,
   OVERFLOW_SEND_CONTROLS,
   PRIMARY_EXECUTION_MODES,
   WORK_MODE_CHOICES,
   isPrimaryExecutionMode,
+  isUnattendedExecutionMode,
   selectLabeledWorkMode,
   sessionMenuGroup,
   sessionMenuLayout,
@@ -41,16 +43,59 @@ describe("composer and navigation controls", () => {
     expect(selector).not.toContain("cycleWorkMode")
   })
 
-  test("long-run and WebMCP stay off the primary send row", () => {
+  test("long-run stays off the primary send row", () => {
     expect(PRIMARY_EXECUTION_MODES).toEqual(["manual", "autonomous"])
     expect(isPrimaryExecutionMode("long-run")).toBe(false)
-    expect(OVERFLOW_SEND_CONTROLS).toEqual(["long-run", "webmcp"])
+    expect(OVERFLOW_SEND_CONTROLS).toEqual(["long-run"])
 
     const chatInput = readFileSync(sourcePath("../components/chat/ChatInput-impl.tsx"), "utf8")
     const execution = readFileSync(sourcePath("../components/chat/ExecutionModeSelector.tsx"), "utf8")
-    expect(chatInput).not.toContain("WebMcpComposerChip")
     expect(chatInput).toContain("ComposerOverflowMenu")
     expect(execution).toContain("isPrimaryExecutionMode")
+  })
+
+  test("the work mode chip always shows the active mode in its color", () => {
+    const selector = readFileSync(sourcePath("../components/chat/WorkModeSelector.tsx"), "utf8")
+    expect(selector).toContain("WORK_MODE_TONES[active.id]")
+    expect(selector).toMatch(/agent:\s*"bg-emerald-500\/15 text-emerald-700/)
+    expect(selector).toMatch(/council:\s*"bg-blue-500\/15 text-blue-700/)
+    expect(selector).toMatch(/arena:\s*"bg-purple-500\/15 text-purple-700/)
+    expect(selector).not.toContain("text-muted-foreground transition-colors")
+  })
+
+  test("Auto and long-run show an on state in the composer", () => {
+    expect(isUnattendedExecutionMode("autonomous")).toBe(true)
+    expect(isUnattendedExecutionMode("long-run")).toBe(true)
+    expect(isUnattendedExecutionMode("manual")).toBe(false)
+    expect(isUnattendedExecutionMode(undefined)).toBe(false)
+
+    const execution = readFileSync(sourcePath("../components/chat/ExecutionModeSelector.tsx"), "utf8")
+    expect(execution).toContain("isUnattendedExecutionMode(mode)")
+    expect(execution).toMatch(/unattended &&\s*"bg-interactive-selection text-\[var\(--status-info\)\]/)
+    const overflow = readFileSync(sourcePath("../components/chat/ComposerOverflowMenu.tsx"), "utf8")
+    expect(overflow).toMatch(/longRunActive &&\s*"bg-interactive-selection text-\[var\(--status-info\)\]/)
+  })
+
+  test("the composer does not repeat status the main window header shows", () => {
+    expect(HEADER_OWNED_SESSION_STATUS).toEqual(["context-usage", "webmcp"])
+
+    const chatInput = readFileSync(sourcePath("../components/chat/ChatInput-impl.tsx"), "utf8")
+    const overflow = readFileSync(sourcePath("../components/chat/ComposerOverflowMenu.tsx"), "utf8")
+    expect(chatInput).not.toMatch(/WebMcp/)
+    expect(overflow).not.toMatch(/WebMcp/)
+
+    const header = readFileSync(sourcePath("../components/layout/Header.tsx"), "utf8")
+    expect(header).toContain("<WebMcpHeaderButton />")
+    expect(header).toContain("<ContextUsageDisplay")
+
+    // The composer's context usage only renders where no header shows it.
+    const usage = readFileSync(sourcePath("../components/chat/UsageIndicator.tsx"), "utf8")
+    expect(usage).toContain('surfaceMode !== "default"')
+    const app = readFileSync(sourcePath("../App.tsx"), "utf8")
+    expect(app).toMatch(/<ChatSurfaceProvider mode="main-window">\s*<MainLayout \/>/)
+    const miniChat = readFileSync(sourcePath("../components/mini-chat/MiniChatLayout.tsx"), "utf8")
+    expect(miniChat).toContain('<ChatSurfaceProvider mode="mini-chat">')
+    expect(miniChat).toContain("<ContextUsageDisplay")
   })
 
   test("rare session actions sit under More and rename, pin, and archive stay on top", () => {

@@ -23,6 +23,19 @@ const MODE_ICONS: Record<WorkModeId, IconName> = {
   arena: "sparkling",
 }
 
+/**
+ * The chip always shows the active mode in its color, matching the TUI (Agent green, Council blue,
+ * Arena purple). A gray chip read as "off", so the color is the on state.
+ */
+const WORK_MODE_TONES: Record<WorkModeId, string> = {
+  agent:
+    "bg-emerald-500/15 text-emerald-700 border border-emerald-500/35 hover:bg-emerald-500/25 hover:text-emerald-700 dark:text-emerald-300 dark:border-emerald-400/40 dark:hover:text-emerald-300",
+  council:
+    "bg-blue-500/15 text-blue-700 border border-blue-500/35 hover:bg-blue-500/25 hover:text-blue-700 dark:text-blue-300 dark:border-blue-400/40 dark:hover:text-blue-300",
+  arena:
+    "bg-purple-500/15 text-purple-700 border border-purple-500/35 hover:bg-purple-500/25 hover:text-purple-700 dark:text-purple-300 dark:border-purple-400/40 dark:hover:text-purple-300",
+}
+
 interface WorkModeSelectorProps {
   className?: string
   iconSizeClass?: string
@@ -53,10 +66,9 @@ export const WorkModeSelector: React.FC<WorkModeSelectorProps> = ({
               aria-label={tooltipLabel}
               title={tooltipLabel}
               className={cn(
-                "inline-flex h-7 flex-shrink-0 items-center gap-1 rounded-md px-1.5 typography-micro font-semibold text-muted-foreground transition-colors",
-                "hover:bg-interactive-hover hover:text-foreground",
+                "inline-flex h-7 flex-shrink-0 items-center gap-1 rounded-md px-1.5 typography-micro font-semibold transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]",
-                "data-[state=open]:bg-interactive-selection data-[state=open]:text-foreground",
+                WORK_MODE_TONES[active.id],
                 className,
               )}
             >
