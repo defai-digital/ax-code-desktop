@@ -1,7 +1,7 @@
 import React from "react"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { useSessionFoldersStore } from "@/stores/useSessionFoldersStore"
-import { normalizePath } from "../utils"
+import { normalizePath, resolveOwningProjectRoot } from "../utils"
 import type { WorktreeMeta } from "../types"
 
 type NormalizedProject = {
@@ -19,7 +19,8 @@ type Args = {
 }
 
 export const useSessionFolderCleanup = (args: Args): void => {
-  const { isSessionsLoading, sessions, archivedSessions, cleanupSessions } = args
+  const { isSessionsLoading, sessions, archivedSessions, normalizedProjects, availableWorktreesByProject, cleanupSessions } =
+    args
 
   React.useEffect(() => {
     if (isSessionsLoading) {
@@ -45,25 +46,37 @@ export const useSessionFolderCleanup = (args: Args): void => {
     // existing here. Pruning them removed a session from its folder on archive
     // (and undoing the archive never put it back), the same trap the pin-prune
     // whitelist avoids by counting archived sessions.
-    const idsByDirectory = new Map<string, Set<string>>()
-    for (const session of [...sessions, ...archivedSessions]) {
-      const directory = normalizePath((session as Session & { directory?: string | null }).directory ?? null)
-      if (!directory) {
-        continue
+    //
+    // The membership set has to use the same scopes the sidebar files sessions
+    // under. A session in a nested, unregistered directory (`~/code/other-repo`
+    // under the `~/code` project) is listed in that project's root group, whose
+    // folders are keyed by the project root — keying by the raw session
+    // directory missed it and silently pruned it from its folder. Counting both
+    // scopes only ever keeps an entry the folder row filters out when rendering.
+    const projectRoots = normalizedProjects.map((project) => project.normalizedPath)
+    const idsByScope = new Map<string, Set<string>>()
+    const addToScope = (scopeKey: string | null, sessionId: string) => {
+      const scope = normalizePath(scopeKey)
+      if (!scope) {
+        return
       }
-      const existing = idsByDirectory.get(directory)
+      const existing = idsByScope.get(scope)
       if (existing) {
-        existing.add(session.id)
-        continue
+        existing.add(sessionId)
+        return
       }
-      idsByDirectory.set(directory, new Set([session.id]))
+      idsByScope.set(scope, new Set([sessionId]))
+    }
+    for (const session of [...sessions, ...archivedSessions]) {
+      addToScope(normalizePath((session as Session & { directory?: string | null }).directory ?? null), session.id)
+      addToScope(resolveOwningProjectRoot(session, projectRoots, availableWorktreesByProject), session.id)
     }
 
     Object.keys(store.foldersMap).forEach((scopeKey) => {
       if (scopeKey.startsWith("__archived__:")) {
         return
       }
-      cleanupSessions(scopeKey, idsByDirectory.get(scopeKey) ?? new Set<string>())
+      cleanupSessions(scopeKey, idsByScope.get(scopeKey) ?? new Set<string>())
     })
-  }, [archivedSessions, cleanupSessions, isSessionsLoading, sessions])
+  }, [archivedSessions, availableWorktreesByProject, cleanupSessions, isSessionsLoading, normalizedProjects, sessions])
 }

@@ -15,11 +15,12 @@ const renderCleanup = (args: {
   isSessionsLoading: boolean
   sessions: Session[]
   archivedSessions: Session[]
+  normalizedProjects?: Array<{ id: string; normalizedPath: string }>
 }): void => {
   const Probe = () => {
     useSessionFolderCleanup({
       ...args,
-      normalizedProjects: [],
+      normalizedProjects: args.normalizedProjects ?? [],
       availableWorktreesByProject: new Map(),
       cleanupSessions: useSessionFoldersStore.getState().cleanupSessions,
     })
@@ -50,6 +51,29 @@ describe("session folder cleanup", () => {
     renderCleanup({ isSessionsLoading: false, sessions: [], archivedSessions: [session(SESSION_ID)] })
 
     expect(useSessionFoldersStore.getState().getSessionFolderId(SCOPE, SESSION_ID)).not.toBeNull()
+  })
+
+  test("keeps a nested-directory session filed under its project root group", () => {
+    // The sidebar lists a session in a nested, unregistered directory inside the
+    // project root group, whose folders are keyed by the project root — so the
+    // membership set has to count that scope too, not just the raw directory.
+    const nestedSession: Session = {
+      id: "nested-1",
+      directory: `${SCOPE}/other-repo`,
+      title: "nested",
+      time: { created: 1, updated: 1 },
+    } as unknown as Session
+    const folder = useSessionFoldersStore.getState().createFolder(SCOPE, "Repo work")
+    useSessionFoldersStore.getState().addSessionToFolder(SCOPE, folder.id, nestedSession.id)
+
+    renderCleanup({
+      isSessionsLoading: false,
+      sessions: [nestedSession],
+      archivedSessions: [],
+      normalizedProjects: [{ id: "p1", normalizedPath: SCOPE }],
+    })
+
+    expect(useSessionFoldersStore.getState().getSessionFolderId(SCOPE, nestedSession.id)).toBe(folder.id)
   })
 
   test("still drops the folder entry of a session that is gone", () => {
