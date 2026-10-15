@@ -571,7 +571,6 @@ interface UIStore {
   isAxCodeStatusDialogOpen: boolean
   axCodeStatusText: string
   isSessionCreateDialogOpen: boolean
-  isScheduledTasksDialogOpen: boolean
   isSettingsDialogOpen: boolean
   isModelSelectorOpen: boolean
 
@@ -717,7 +716,6 @@ interface UIStore {
   setAxCodeStatusDialogOpen: (open: boolean) => void
   setAxCodeStatusText: (text: string) => void
   setSessionCreateDialogOpen: (open: boolean) => void
-  setScheduledTasksDialogOpen: (open: boolean) => void
   setSettingsDialogOpen: (open: boolean) => void
   setModelSelectorOpen: (open: boolean) => void
   applyTheme: () => void
@@ -851,7 +849,6 @@ export const useUIStore = create<UIStore>()(
         isAxCodeStatusDialogOpen: false,
         axCodeStatusText: "",
         isSessionCreateDialogOpen: false,
-        isScheduledTasksDialogOpen: false,
         isSettingsDialogOpen: false,
         isModelSelectorOpen: false,
         settingsPage: "home",
@@ -1596,9 +1593,6 @@ export const useUIStore = create<UIStore>()(
           set({ isSessionCreateDialogOpen: open })
         },
 
-        setScheduledTasksDialogOpen: (open) => {
-          set({ isScheduledTasksDialogOpen: open })
-        },
 
         setSettingsDialogOpen: (open) => {
           set((state) => {

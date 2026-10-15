@@ -65,6 +65,8 @@ export const ICON_MAP = {
   "menu-search": "list-magnifying-glass",
   "send-plane": "paper-plane-right",
   "send-plane-2": "paper-plane-tilt",
+  pause: "pause",
+  "play-circle": "play-circle",
   play: "play",
   stop: "stop",
   "stop-circle": "stop-circle",

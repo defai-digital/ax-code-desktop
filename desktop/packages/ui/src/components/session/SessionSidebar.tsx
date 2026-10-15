@@ -15,7 +15,7 @@ import { useUIStore } from "@/stores/useUIStore"
 import { getSafeStorage } from "@/stores/utils/safeStorage"
 import { useGitStore, useGitAllBranches, useGitRepoStatusMap } from "@/stores/useGitStore"
 import { NewWorktreeDialog } from "./NewWorktreeDialog"
-import { ScheduledTasksDialog } from "./ScheduledTasksDialog"
+import { SidebarScheduledTasks } from "./sidebar/SidebarScheduledTasks"
 import { useSessionFoldersStore } from "@/stores/useSessionFoldersStore"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useSessionSidebarSections } from "./sidebar/hooks/useSessionSidebarSections"
@@ -262,7 +262,19 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   const setSettingsDialogOpen = useUIStore((state) => state.setSettingsDialogOpen)
   const toggleHelpDialog = useUIStore((state) => state.toggleHelpDialog)
   const setAboutDialogOpen = useUIStore((state) => state.setAboutDialogOpen)
-  const setScheduledTasksDialogOpen = useUIStore((state) => state.setScheduledTasksDialogOpen)
+  const revealScheduledSection = useSessionDisplayStore((state) => state.revealScheduledSection)
+  const setScheduledSectionCollapsed = useSessionDisplayStore((state) => state.setScheduledSectionCollapsed)
+  const scheduledSectionExpanded = useSessionDisplayStore(
+    (state) => state.showScheduledSection && !state.scheduledSectionCollapsed,
+  )
+  // The calendar button collapses an expanded section, otherwise reveals it.
+  const toggleScheduledTasks = React.useCallback(() => {
+    if (scheduledSectionExpanded) {
+      setScheduledSectionCollapsed(true)
+    } else {
+      revealScheduledSection()
+    }
+  }, [revealScheduledSection, scheduledSectionExpanded, setScheduledSectionCollapsed])
   const openMultiRunLauncher = useUIStore((state) => state.openMultiRunLauncher)
   const notifyOnSubtasks = useUIStore((state) => state.notifyOnSubtasks)
   const showDeletionDialog = useUIStore((state) => state.showDeletionDialog)
@@ -1593,10 +1605,13 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         searchMatchCount={searchMatchCount}
         collapseAllProjects={collapseAllProjects}
         expandAllProjects={expandAllProjects}
-        openScheduledTasksDialog={() => setScheduledTasksDialogOpen(true)}
+        openScheduledTasks={toggleScheduledTasks}
+        scheduledTasksExpanded={scheduledSectionExpanded && projects.length > 0}
         selectionModeEnabled={selectionModeEnabled}
         onToggleSelectionMode={handleToggleSelectionMode}
       />
+
+      <SidebarScheduledTasks searchActive={hasSessionSearchQuery} />
 
       <SidebarProjectsList
         topContent={topContent}
@@ -1699,8 +1714,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
           openNewSessionDraft({ directoryOverride: worktreePath })
         }}
       />
-
-      <ScheduledTasksDialog />
 
       <SessionDeleteConfirmDialog
         value={deleteSessionConfirm}

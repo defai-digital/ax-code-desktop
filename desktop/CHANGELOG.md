@@ -6,8 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Scheduled tasks: an "All projects" view lists every project's tasks in one place, grouped by project,
-  with a summary of active, running and failing tasks and a "New task" button per project.
+- Scheduled tasks live in a "Scheduled" section of the session sidebar instead of a dialog: every
+  project's tasks in one queue, running and failing first, then by next run, with the project, schedule
+  and time to the next run on each row. Run now and pause are one click away, edit and delete are in the
+  row menu, and "+" creates a task in a chosen project. Collapsed, the section still shows how many tasks
+  are running or failing and when the next one fires; the display menu hides it.
 - Scheduled tasks with several times or weekdays are shown and managed as one task: one row with all its
   times, and pause, delete and edit apply to every part. Editing keeps the parts in step instead of
   changing only the one that was opened.

@@ -694,10 +694,12 @@ export function ScheduledTaskEditorDialog(props: {
   task: ScheduledTask | null
   /** The whole family when editing. `family.members` includes `task`. */
   family?: ScheduledTaskFamily
+  /** Display name of the project the task belongs to, shown under the title. */
+  projectLabel?: string
   onOpenChange: (open: boolean) => void
   onSave: (submit: ScheduledTaskEditorSubmit) => Promise<void>
 }) {
-  const { open, task, family, onOpenChange, onSave } = props
+  const { open, task, family, projectLabel, onOpenChange, onSave } = props
   const { t, formatLocale } = useI18n()
   const loadProviders = useConfigStore((state) => state.loadProviders)
   const loadAgents = useConfigStore((state) => state.loadAgents)
@@ -1173,6 +1175,12 @@ export function ScheduledTaskEditorDialog(props: {
 
   const title = task ? t("sessions.scheduledTasks.editor.title.edit") : t("sessions.scheduledTasks.editor.title.new")
   const description = t("sessions.scheduledTasks.editor.description")
+  const projectLine = projectLabel ? (
+    <p className="typography-micro mt-0.5 inline-flex min-w-0 items-center gap-1 text-muted-foreground">
+      <Icon name="folder" className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">{t("sessions.scheduledTasks.editor.projectLabel", { project: projectLabel })}</span>
+    </p>
+  ) : null
   const irregularScheduleNote =
     family && !describeFamilySchedule(family).compact
       ? t("sessions.scheduledTasks.editor.schedule.irregularNote", {
@@ -1642,6 +1650,7 @@ export function ScheduledTaskEditorDialog(props: {
               {closeButton}
             </div>
             <p className="typography-micro text-muted-foreground">{description}</p>
+            {projectLine}
           </div>
         )}
         footer={footerRow}
@@ -1673,6 +1682,7 @@ export function ScheduledTaskEditorDialog(props: {
           <div className="mx-auto w-full max-w-2xl">
             <DialogTitle className="typography-ui-label font-medium text-foreground">{title}</DialogTitle>
             <p className="typography-meta mt-0.5 text-muted-foreground">{description}</p>
+            {projectLine}
           </div>
         </header>
 

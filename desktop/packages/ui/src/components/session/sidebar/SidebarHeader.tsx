@@ -33,7 +33,8 @@ type Props = {
   searchMatchCount: number
   collapseAllProjects: () => void
   expandAllProjects: () => void
-  openScheduledTasksDialog: () => void
+  openScheduledTasks: () => void
+  scheduledTasksExpanded: boolean
   selectionModeEnabled: boolean
   onToggleSelectionMode: () => void
 }
@@ -58,7 +59,8 @@ export function SidebarHeader(props: Props): React.ReactNode {
     searchMatchCount,
     collapseAllProjects,
     expandAllProjects,
-    openScheduledTasksDialog,
+    openScheduledTasks,
+    scheduledTasksExpanded,
     selectionModeEnabled,
     onToggleSelectionMode,
   } = props
@@ -67,6 +69,8 @@ export function SidebarHeader(props: Props): React.ReactNode {
   const showRecentSection = useSessionDisplayStore((state) => state.showRecentSection)
   const setDisplayMode = useSessionDisplayStore((state) => state.setDisplayMode)
   const toggleRecentSection = useSessionDisplayStore((state) => state.toggleRecentSection)
+  const showScheduledSection = useSessionDisplayStore((state) => state.showScheduledSection)
+  const toggleScheduledSection = useSessionDisplayStore((state) => state.toggleScheduledSection)
   const shortcutOverrides = useUIStore((state) => state.shortcutOverrides)
   const newSessionShortcut = React.useMemo(
     () => formatShortcutForDisplay(getEffectiveShortcutCombo("new_chat", shortcutOverrides)),
@@ -138,9 +142,10 @@ export function SidebarHeader(props: Props): React.ReactNode {
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  onClick={openScheduledTasksDialog}
-                  className={headerActionButtonClass}
+                  onClick={openScheduledTasks}
+                  className={cn(headerActionButtonClass, scheduledTasksExpanded && "text-primary")}
                   aria-label={t("sessions.sidebar.header.actions.scheduledTasks")}
+                  aria-expanded={scheduledTasksExpanded}
                 >
                   <Icon name="calendar-schedule" className={headerActionIconClass} />
                 </button>
@@ -235,6 +240,10 @@ export function SidebarHeader(props: Props): React.ReactNode {
                     </DropdownMenuItem>
                   </>
                 ) : null}
+                <DropdownMenuItem onClick={toggleScheduledSection} className="flex items-center justify-between">
+                  <span>{t("sessions.sidebar.header.displayMode.showScheduled")}</span>
+                  {showScheduledSection ? <Icon name="check" className="h-4 w-4 text-primary" /> : null}
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={collapseAllProjects} className="flex items-center gap-2">
                   <Icon name="contract-up-down" className="h-4 w-4" />

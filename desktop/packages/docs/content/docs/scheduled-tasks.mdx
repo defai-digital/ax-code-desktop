@@ -5,14 +5,25 @@ description: Run a prompt automatically on a schedule.
 
 # Scheduled Tasks
 
-A scheduled task runs a prompt for you on a schedule — for example, a daily "summarize yesterday's changes" or a weekly cleanup. When it runs, AX Code starts a new session and sends the prompt on its own. Open the scheduler from the button at the top of the session sidebar.
+A scheduled task runs a prompt for you on a schedule — for example, a daily "summarize yesterday's changes" or a weekly cleanup. When it runs, AX Code starts a new session and sends the prompt on its own.
 
-Each project has its own tasks, and tasks in different projects run independently, so you can schedule one task in one project and several in others at the same time. Choose **All projects** in the dialog to see every project's tasks together, grouped by project, with a summary of what is active, running or failing. Use the **New task** button inside a project's group to add a task to that project.
+Each project has its own tasks, and tasks in different projects run independently, so you can schedule one task in one project and several in others at the same time.
+
+## The Scheduled section
+
+Scheduled tasks are listed in the **Scheduled** section near the top of the session sidebar, above your projects. It shows every project's tasks in one queue: tasks that are running come first, then tasks whose last run failed, then the rest in the order they will fire, and paused tasks last. Each row shows the task name, its project, its schedule and how long until it next runs.
+
+- Click a task to edit it.
+- Hover a task (or move focus to it) for **run now** and **pause** / **resume**. The **⋯** menu has the same actions plus **edit** and **delete**, and shows the next run time and the last error.
+- Click the section title to collapse it. Collapsed, it still shows how many tasks are running or failing and when the next one fires.
+- The calendar button at the top of the sidebar opens the section and moves focus to it.
+- To hide the section, turn off **Show scheduled tasks** in the sidebar's display menu. While it is hidden, Desktop does not load task lists; the tasks keep running.
+- While you search sessions, the list folds away so it does not mix with the search results.
 
 ## Create a task
 
-1. Open the scheduled tasks dialog from the session sidebar.
-2. Add a task and give it a name.
+1. Click **+** in the Scheduled section. With several projects, choose the project the task belongs to.
+2. Give the task a name.
 3. Choose when it runs:
    - **daily** — at one or more times each day
    - **weekly** — on chosen weekdays and times
@@ -20,9 +31,9 @@ Each project has its own tasks, and tasks in different projects run independentl
 4. Set what it does: the prompt to send, and the provider, model, and agent to use.
 5. Save, and make sure the task is enabled.
 
-Tasks are stored and run by the AX Code runtime (its `/scheduled-task` API), so they also fire when the runtime is up but the Desktop window is closed. A task with several times or weekdays is saved as one runtime task per time/weekday, named like "Cleanup (2/3)"; the dialog shows those parts as a single task with all of its times, and pausing, deleting or editing it applies to every part. If a part is removed elsewhere (for example from the terminal), the remaining parts are listed separately under their full names.
+Tasks are stored and run by the AX Code runtime (its `/scheduled-task` API), so they also fire when the runtime is up but the Desktop window is closed. A task with several times or weekdays is saved as one runtime task per time/weekday, named like "Cleanup (2/3)"; the sidebar shows those parts as a single task with all of its times, and pausing, deleting or editing it applies to every part. If a part is removed elsewhere (for example from the terminal), the remaining parts are listed separately under their full names.
 
-You can run any task immediately with **run now** to check it does what you expect.
+You can run any task immediately with **run now** to check it does what you expect. The list refreshes when the runtime reports a run, shortly after a task's run time passes, and every few minutes while the window is visible.
 
 ## What success looks like
 
