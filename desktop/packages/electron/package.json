@@ -16,7 +16,8 @@
     "build": "pnpm run build:web-assets && pnpm run bundle:main && pnpm run rebuild:native",
     "type-check": "node ../../scripts/check-electron-runtime.mjs",
     "lint": "eslint \"./src/**/*.{js,mjs}\" \"./scripts/**/*.{js,mjs}\" --config ../../eslint.config.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:shell": "node scripts/copy-web-assets.mjs && pnpm run bundle:main && pnpm run rebuild:native"
   },
   "dependencies": {
     "electron-updater": "^6.3.9",

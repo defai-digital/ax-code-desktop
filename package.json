@@ -14,7 +14,7 @@
     "preinstall": "node script/require-pnpm.cjs",
     "postinstall": "node desktop/scripts/fix-node-pty-permissions.mjs",
     "dev": "turbo run dev --filter=@ax-code/electron",
-    "build": "turbo run build --filter=@ax-code/electron",
+    "build": "turbo run build:shell --filter=@ax-code/electron",
     "typecheck": "pnpm --filter \"./desktop/packages/*\" --if-present run type-check",
     "lint": "pnpm --filter \"./desktop/packages/*\" --if-present run lint",
     "test": "pnpm run test:scripts && pnpm --filter \"./desktop/packages/*\" --if-present run test",

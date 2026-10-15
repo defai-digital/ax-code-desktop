@@ -1,5 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
+import { execFileSync } from "node:child_process"
+import { createRequire } from "node:module"
 import { describe, expect, it } from "vitest"
 
 const repositoryRoot = path.resolve(import.meta.dirname, "..")
@@ -28,6 +30,53 @@ describe("Desktop workflow contracts", () => {
     expect(codeql).toContain("languages: javascript-typescript,actions")
     expect(codeql).not.toContain("languages: rust")
     expect(codeql).toContain("security-events: write")
+    expect(codeql).not.toContain("continue-on-error: true")
+    expect(codeql).not.toContain("upload: never")
+  })
+
+  it("keeps weekly and manual complete checks and gates expensive jobs using the Git diff", () => {
+    const triggers = triggerBlock(ci)
+    expect(triggers).toContain("schedule:")
+    expect(triggers).toContain("workflow_dispatch:")
+    expect(triggers).not.toContain("paths:")
+    expect(ci).toContain("github.event.pull_request.base.sha || github.event.before")
+    for (const [job, output] of [
+      ["verify", "verify"],
+      ["electron-native-compatibility", "native"],
+      ["packaged-macos-smoke", "packaged"],
+    ]) {
+      expect(ci).toContain(`  ${job}:\n    needs: changes\n    if: needs.changes.outputs.${output} == 'true'`)
+    }
+  })
+
+  it("builds Web once before copying assets and rebuilding Electron native modules", () => {
+    const require = createRequire(import.meta.url)
+    const graph = JSON.parse(
+      execFileSync(
+        process.execPath,
+        [require.resolve("turbo/bin/turbo"), "run", "build:shell", "--filter=@ax-code/electron", "--dry=json"],
+        {
+          cwd: repositoryRoot,
+          encoding: "utf8",
+          timeout: 30_000,
+          maxBuffer: 16 * 1024 * 1024,
+        },
+      ),
+    )
+    const web = graph.tasks.find((task) => task.taskId === "ax-code-desktop#build")
+    const shell = graph.tasks.find((task) => task.taskId === "@ax-code/electron#build:shell")
+    expect(graph.tasks.filter((task) => task.command === "vite build")).toHaveLength(1)
+    for (const input of ["../../postcss.config.js", "../../vite-theme-plugin.ts", "../../shared/dev-ports.json"]) {
+      expect(Object.keys(web.inputs)).toContain(input)
+    }
+    expect(shell.dependencies).toContain(web.taskId)
+    expect(shell.command).toContain("copy-web-assets.mjs")
+    expect(shell.command).toContain("bundle:main")
+    expect(shell.command).toContain("rebuild:native")
+    expect(shell.command).not.toContain("build:web-assets")
+    const turbo = JSON.parse(read("turbo.json"))
+    expect(turbo.tasks["@ax-code/electron#build:shell"].cache).toBe(false)
+    expect(JSON.parse(read("package.json")).scripts.build).toBe("turbo run build:shell --filter=@ax-code/electron")
   })
 
   it("allows only manually acknowledged shadow runs", () => {

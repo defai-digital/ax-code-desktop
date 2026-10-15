@@ -9,20 +9,14 @@
     "@openchamber/ui#build": {},
     "ax-code-desktop#build": {
       "dependsOn": ["@openchamber/ui#build"],
-      "inputs": ["$TURBO_DEFAULT$", "../ui/src/**"],
-      "outputs": ["dist/**"]
-    },
-    "@ax-code/electron#build": {
-      "dependsOn": ["ax-code-desktop#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
-        "../web/src/**",
-        "../web/server/**",
-        "../web/bin/**",
-        "../web/package.json",
-        "../ui/src/**"
+        "../ui/src/**",
+        "../../postcss.config.js",
+        "../../vite-theme-plugin.ts",
+        "../../shared/**"
       ],
-      "outputs": ["dist/**", "out/**"]
+      "outputs": ["dist/**"]
     },
     "@ax-code/electron#dev": {
       "cache": false,
@@ -35,6 +29,12 @@
         "AX_CODE_DESKTOP_ELECTRON_SERVER_PORT",
         "AX_CODE_DESKTOP_ANIMATIONS"
       ]
+    },
+    "@ax-code/electron#build:shell": {
+      "cache": false,
+      "dependsOn": ["ax-code-desktop#build"],
+      "inputs": ["$TURBO_DEFAULT$", "../web/**", "../ui/src/**"],
+      "outputs": ["dist/**", "out/**", "resources/web-dist/**"]
     }
   }
 }

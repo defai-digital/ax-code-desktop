@@ -12,6 +12,8 @@ on:
       - "pnpm-workspace.yaml"
       - "script/**"
       - "turbo.json"
+      - "tools/**"
+      - ".internal/deploy/**"
   push:
     branches:
       - main
@@ -25,6 +27,8 @@ on:
       - "pnpm-workspace.yaml"
       - "script/**"
       - "turbo.json"
+      - "tools/**"
+      - ".internal/deploy/**"
   schedule:
     - cron: "23 8 * * 1"
   workflow_dispatch:
@@ -42,6 +46,7 @@ jobs:
   javascript-typescript-actions:
     name: JavaScript, TypeScript, and Actions
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -49,24 +54,10 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript,actions
-          queries: +security-extended,security-and-quality
+          queries: +security-and-quality
           config-file: ./.github/codeql/codeql-config.yml
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript-typescript-actions"
-          upload: never
-          output: ${{ runner.temp }}/codeql-sarif
-
-      - name: Upload SARIF
-        id: upload
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: ${{ runner.temp }}/codeql-sarif
-          category: "/language:javascript-typescript-actions"
-
-      - name: Note unavailable code scanning upload
-        if: steps.upload.outcome == 'failure'
-        run: echo "::warning::CodeQL analysis passed, but this repository does not currently accept SARIF uploads."

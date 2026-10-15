@@ -175,6 +175,7 @@ jobs:
       - name: Upload staged web artifact
         uses: actions/upload-artifact@v7
         with:
+          compression-level: 0
           name: shadow-stage-web
           path: shadow-artifacts/web
           if-no-files-found: error
@@ -375,6 +376,7 @@ jobs:
       - name: Upload staged macOS artifacts
         uses: actions/upload-artifact@v7
         with:
+          compression-level: 0
           name: shadow-stage-darwin-arm64
           path: shadow-artifacts/darwin-arm64
           if-no-files-found: error
@@ -519,6 +521,7 @@ jobs:
       - name: Upload staged Windows artifacts
         uses: actions/upload-artifact@v7
         with:
+          compression-level: 0
           name: shadow-stage-${{ matrix.target }}
           path: shadow-artifacts/${{ matrix.target }}
           if-no-files-found: error
@@ -612,6 +615,7 @@ jobs:
       - name: Upload staged Linux artifacts
         uses: actions/upload-artifact@v7
         with:
+          compression-level: 0
           name: shadow-stage-${{ matrix.target }}
           path: shadow-artifacts/${{ matrix.target }}
           if-no-files-found: error
@@ -710,6 +714,7 @@ jobs:
       - name: Upload non-public shadow candidate
         uses: actions/upload-artifact@v7
         with:
+          compression-level: 0
           name: ax-coder-shadow-${{ needs.preflight.outputs.version }}-${{ github.run_id }}
           path: |
             shadow-stage

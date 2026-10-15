@@ -2,39 +2,16 @@ name: Desktop CI
 
 on:
   pull_request:
-    paths:
-      - ".github/actions/setup-ax-coder-toolchain/**"
-      - ".github/workflows/desktop-ci.yml"
-      - "config/**"
-      - "desktop/**"
-      - "package.json"
-      - "patches/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "script/**"
-      - "turbo.json"
-      - ".gitattributes"
-      - ".internal/deploy/**"
   push:
     branches:
       - main
-    paths:
-      - ".github/actions/setup-ax-coder-toolchain/**"
-      - ".github/workflows/desktop-ci.yml"
-      - "config/**"
-      - "desktop/**"
-      - "package.json"
-      - "patches/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "script/**"
-      - "turbo.json"
-      - ".gitattributes"
-      - ".internal/deploy/**"
+  schedule:
+    - cron: "41 7 * * 1"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Keep weekly full validation independent of lightweight pushes.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -45,7 +22,31 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      verify: ${{ steps.scope.outputs.verify }}
+      build: ${{ steps.scope.outputs.build }}
+      native: ${{ steps.scope.outputs.native }}
+      packaged: ${{ steps.scope.outputs.packaged }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Select checks from the complete Git diff
+        id: scope
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node script/ci-scope.mjs
+
   verify:
+    needs: changes
+    if: needs.changes.outputs.verify == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -73,9 +74,12 @@ jobs:
         run: pnpm run test
 
       - name: Build Desktop
+        if: needs.changes.outputs.build == 'true'
         run: pnpm run build
 
   electron-native-compatibility:
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     name: Electron native smoke (${{ matrix.runner }})
     strategy:
       fail-fast: false
@@ -148,6 +152,8 @@ jobs:
           retention-days: 3
 
   packaged-macos-smoke:
+    needs: changes
+    if: needs.changes.outputs.packaged == 'true'
     runs-on: macos-15
     timeout-minutes: 60
     steps:
