@@ -48,6 +48,13 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- A streaming reply in the chat you were watching kept flipping to "finished" whenever another project's
+  store ticked: the streaming derivation only ever sees the active project's state, and concluded "idle"
+  about a session it had simply never heard of. Silence about a session now means "another project's",
+  not "finished".
+- On Windows, a failed "open in app" launch (the program disappearing between the lookup and the spawn)
+  surfaced as an unhandled error event, reached the process-level handler and quit the whole application.
+  Detached launches now record the failure instead.
 - After the local server crashed and was restarted on a new port, the reloaded window kept talking to the
   dead port: the renderer's API origin is read from the process environment and was only written when a
   window was created. Recovery now refreshes it before reloading, and one helper owns that write.
