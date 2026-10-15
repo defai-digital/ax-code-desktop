@@ -16,7 +16,6 @@ export const createFinalErrorHandler = ({ logger = console } = {}) => (err, req,
         ? err.statusCode
         : 500
   const safeStatus = status >= 400 && status < 600 ? status : 500
-  const detail = err instanceof Error ? err.message : String(err ?? "unknown error")
   const route = typeof req?.originalUrl === "string" ? req.originalUrl : (req?.url ?? "")
 
   logger.error(`[server] ${req?.method ?? "?"} ${route} failed (${safeStatus}):`, err)

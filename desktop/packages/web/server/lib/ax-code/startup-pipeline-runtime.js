@@ -1,5 +1,6 @@
 export const createStartupPipelineRuntime = (dependencies) => {
-  const { createTerminalRuntime, createMessageStreamWsRuntime, createServerStartupRuntime } = dependencies
+  const { createTerminalRuntime, createMessageStreamWsRuntime, createServerStartupRuntime, createFinalErrorHandler } =
+    dependencies
 
   const run = async (options) => {
     const {
@@ -76,6 +77,11 @@ export const createStartupPipelineRuntime = (dependencies) => {
     void bootstrapAxCodeAtStartup()
 
     staticRoutesRuntime.registerStaticRoutes(app)
+
+    // Terminal error handler: the static routes are the last ones mounted, so this
+    // is the only position where every route above it is covered, and it still
+    // precedes the listening socket.
+    app.use(createFinalErrorHandler())
 
     const serverStartupRuntime = createServerStartupRuntime({
       process,

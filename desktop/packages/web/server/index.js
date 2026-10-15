@@ -830,6 +830,7 @@ const startupPipelineRuntime = createStartupPipelineRuntime({
   createTerminalRuntime,
   createMessageStreamWsRuntime,
   createServerStartupRuntime,
+  createFinalErrorHandler,
 })
 
 const axCodeLifecycleState = {}
@@ -1299,9 +1300,6 @@ async function main(options = {}) {
   // dashboard panel; they inject the runtime credential, so they need the host
   // and origin guard as well as the session gate.
   app.use(["/global", "/dre-graph", "/run-report", "/graph"], createApiRequestSecurityMiddleware())
-  // Terminal error handler: must be registered after every route (the startup
-  // pipeline mounts the last of them) and before the server starts listening.
-  registerFinalErrorHandler?.(app)
   expressApp = app
   server = http.createServer(app)
 
