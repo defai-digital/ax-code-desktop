@@ -413,9 +413,11 @@ describe("desktop WebMCP page interaction requests", () => {
     const { sender, status } = await f.create()
     const live = await f.controller.command(sender, { action: "enable", id: status.id })
     const guest = f.guests.at(-1)
-    guest.executeJavaScriptInIsolatedWorld = async () => [
-      { title: "Flights", text: "Toronto to Tokyo", outline: [{ ref: "e1", kind: "button", name: "Search" }] },
-    ]
+    guest.executeJavaScriptInIsolatedWorld = async () => ({
+      title: "Flights",
+      text: "Toronto to Tokyo",
+      outline: [{ ref: "e1", kind: "button", name: "Search" }],
+    })
     f.pushStreamRequest(boundRequest(live, { requestID: "req-read", operation: "read" }))
 
     await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
@@ -434,7 +436,7 @@ describe("desktop WebMCP page interaction requests", () => {
     let navigate = false
     guest.executeJavaScriptInIsolatedWorld = async () => {
       if (navigate) guest.debugger.emit("message", {}, "Page.frameNavigated", { frame: { id: "top" } })
-      return [navigate ? { ok: true } : { title: "", text: "", outline: [{ ref: "e1" }] }]
+      return navigate ? { ok: true } : { title: "", text: "", outline: [{ ref: "e1" }] }
     }
     f.pushStreamRequest(boundRequest(live, { requestID: "req-read", operation: "read" }))
     await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
@@ -462,7 +464,7 @@ describe("desktop WebMCP page interaction requests", () => {
     const f = fixture()
     const { sender, status } = await f.create()
     const live = await f.controller.command(sender, { action: "enable", id: status.id })
-    f.guests.at(-1).executeJavaScriptInIsolatedWorld = async () => [{ ok: true }]
+    f.guests.at(-1).executeJavaScriptInIsolatedWorld = async () => ({ ok: true })
     f.pushStreamRequest(
       boundRequest(live, {
         requestID: "req-act",

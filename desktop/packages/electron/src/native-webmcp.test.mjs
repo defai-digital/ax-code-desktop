@@ -144,7 +144,7 @@ describe("pageKind", () => {
         scripts.push({ world, code })
         const next = outputs.shift()
         if (typeof next === "function") next()
-        return [typeof next === "function" ? { ok: true } : next]
+        return typeof next === "function" ? { ok: true } : next
       }
       const ask = (operation, extra = {}) => ({
         requestID: randomUUID(),

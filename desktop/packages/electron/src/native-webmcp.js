@@ -254,7 +254,8 @@ class NativeWebMcp {
     this.interacting = true
     try {
       const run = async (payload) => {
-        const [result] = await this.contents.executeJavaScriptInIsolatedWorld(page.WORLD_ID, [
+        // Electron resolves with the script's own value, not a list of results.
+        const result = await this.contents.executeJavaScriptInIsolatedWorld(page.WORLD_ID, [
           { code: page.program(payload) },
         ])
         if (this.closed || Date.now() >= request.deadline) throw new Error("The browser request lifetime changed")
