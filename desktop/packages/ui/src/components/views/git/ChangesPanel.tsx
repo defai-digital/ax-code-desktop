@@ -101,10 +101,17 @@ export const ChangesPanel: React.FC<ChangesPanelProps> = ({
     return keys
   }, [trees, visibleGroups])
 
+  // Keys already auto-expanded once. Without this memory the effect below would
+  // re-add every top-level directory on each status update, undoing a collapse
+  // the user made.
+  const seededTopLevelKeysRef = React.useRef<Set<string>>(new Set())
+
   React.useEffect(() => {
     if (!isTreeView) {
       return
     }
+    const unseededKeys = topLevelDirectoryKeys.filter((key) => !seededTopLevelKeysRef.current.has(key))
+    unseededKeys.forEach((key) => seededTopLevelKeysRef.current.add(key))
     setExpandedDirectories((previous) => {
       const next = new Set<string>()
       const topLevel = new Set(topLevelDirectoryKeys)
@@ -114,7 +121,7 @@ export const ChangesPanel: React.FC<ChangesPanelProps> = ({
           next.add(key)
         }
       })
-      topLevelDirectoryKeys.forEach((key) => next.add(key))
+      unseededKeys.forEach((key) => next.add(key))
       return next
     })
   }, [isTreeView, topLevelDirectoryKeys])

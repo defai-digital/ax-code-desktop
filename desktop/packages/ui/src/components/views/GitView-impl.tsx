@@ -646,6 +646,7 @@ export const GitView: React.FC = () => {
   const [expandedCommitHashes, setExpandedCommitHashes] = React.useState<Set<string>>(new Set())
   const [commitFilesMap, setCommitFilesMap] = React.useState<Map<string, CommitFileEntry[]>>(new Map())
   const [loadingCommitHashes, setLoadingCommitHashes] = React.useState<Set<string>>(new Set())
+  const [failedCommitHashes, setFailedCommitHashes] = React.useState<Set<string>>(new Set())
   const [historyBranchDivider, setHistoryBranchDivider] = React.useState<HistoryBranchDivider>(null)
   const [remoteUrl, setRemoteUrl] = React.useState<string | null>(null)
   const [gitmojiEmojis, setGitmojiEmojis] = React.useState<GitmojiEntry[]>([])
@@ -740,14 +741,23 @@ export const GitView: React.FC = () => {
       }
       return next
     })
+    // A collapse clears the failure marker, so re-expanding a commit whose
+    // file fetch failed retries the fetch instead of staying stuck.
+    setFailedCommitHashes((prev) => {
+      if (!prev.has(hash)) return prev
+      const next = new Set(prev)
+      next.delete(hash)
+      return next
+    })
   }, [])
 
   React.useEffect(() => {
     if (!currentDirectory || !git) return
 
-    // Find hashes that are expanded but not yet loaded or loading
+    // Find hashes that are expanded but not yet loaded, loading, or failed
+    // (a failed fetch waits for a collapse + re-expand to retry).
     const hashesToLoad = Array.from(expandedCommitHashes).filter(
-      (hash) => !commitFilesMap.has(hash) && !loadingCommitHashes.has(hash),
+      (hash) => !commitFilesMap.has(hash) && !loadingCommitHashes.has(hash) && !failedCommitHashes.has(hash),
     )
 
     if (hashesToLoad.length === 0) return
@@ -767,8 +777,11 @@ export const GitView: React.FC = () => {
           setCommitFilesMap((prev) => new Map(prev).set(hash, response.files))
         })
         .catch((error) => {
+          // Do not cache the failure as an empty file list — that permanently
+          // rendered as "no files". Mark it failed so the loader skips it
+          // until the user collapses and re-expands the commit.
           console.error("Failed to fetch commit files:", error)
-          setCommitFilesMap((prev) => new Map(prev).set(hash, []))
+          setFailedCommitHashes((prev) => new Set(prev).add(hash))
         })
         .finally(() => {
           setLoadingCommitHashes((prev) => {
@@ -778,7 +791,7 @@ export const GitView: React.FC = () => {
           })
         })
     }
-  }, [expandedCommitHashes, currentDirectory, git, commitFilesMap, loadingCommitHashes])
+  }, [expandedCommitHashes, currentDirectory, git, commitFilesMap, loadingCommitHashes, failedCommitHashes])
 
   React.useEffect(() => {
     if (!currentDirectory) return

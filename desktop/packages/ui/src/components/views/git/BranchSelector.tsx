@@ -101,6 +101,10 @@ export const BranchSelector: React.FC<GitBranchSelectorProps> = ({
       setNewBranchName("")
       setShowCreate(false)
       setIsOpen(false)
+    } catch {
+      // The parent already surfaced the failure (toast); keep the form open so
+      // the user can fix the name. Swallowing also avoids an unhandled
+      // rejection from the click handler.
     } finally {
       setIsCreating(false)
     }

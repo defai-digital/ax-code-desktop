@@ -142,6 +142,9 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
   const runtimeApisRef = React.useRef(runtimeApis)
   const tRef = React.useRef(t)
   const saveQueueRef = React.useRef<PlanSaveQueue | null>(null)
+  // Latest edit waiting on the 350ms debounce. The loader effect and the
+  // unmount cleanup flush it so leaving the view never discards typed text.
+  const pendingSaveRef = React.useRef<PlanSaveQueueEntry | null>(null)
 
   resolvedPathRef.current = resolvedPath
   contentRef.current = content
@@ -179,6 +182,16 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
       },
     })
   }
+
+  // Persist the debounced edit immediately instead of letting a timer cleanup
+  // drop it. enqueue() starts writing synchronously, so the edit survives even
+  // though the component is about to reload or unmount.
+  const flushPendingSave = React.useCallback(() => {
+    const pending = pendingSaveRef.current
+    if (!pending) return
+    pendingSaveRef.current = null
+    void saveQueueRef.current?.enqueue(pending)
+  }, [])
 
   const [lineSelection, setLineSelection] = React.useState<LineRange | null>(null)
   const editorViewRef = React.useRef<EditorView | null>(null)
@@ -307,6 +320,9 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
   }, [currentTheme, resolvedPath])
 
   React.useEffect(() => {
+    // A new plan source replaces resolvedPath/content below; save whatever was
+    // typed into the previous plan first or the edit is silently lost.
+    flushPendingSave()
     // Saved project plans opened via context panel should work even when session plan mode is off.
     if (!planModeEnabled && !targetPath) {
       setResolvedPath(null)
@@ -424,6 +440,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
       cancelled = true
     }
   }, [
+    flushPendingSave,
     homeDirectory,
     planModeEnabled,
     runtimeApis.files,
@@ -439,9 +456,13 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
       return
     }
 
-    const controller = window.setTimeout(async () => {
+    pendingSaveRef.current = { path: resolvedPath, content }
+    const controller = window.setTimeout(() => {
+      const pending = pendingSaveRef.current
+      pendingSaveRef.current = null
+      if (!pending) return
       setSaveError(null)
-      void saveQueueRef.current?.enqueue({ path: resolvedPath, content })
+      void saveQueueRef.current?.enqueue(pending)
     }, 350)
 
     return () => {
@@ -452,11 +473,12 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
   React.useEffect(() => {
     return () => {
       mountedRef.current = false
+      flushPendingSave()
       if (copiedContentTimeoutRef.current !== null) {
         window.clearTimeout(copiedContentTimeoutRef.current)
       }
     }
-  }, [])
+  }, [flushPendingSave])
 
   const routeToChat = React.useCallback(() => {
     setActiveMainTab("chat")

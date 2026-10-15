@@ -621,14 +621,25 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
   useEffect(() => {
     const container = diffContainerRef.current
     if (!container) return
+    // Without the pool nothing renders into the container, so waiting for the
+    // shadow root would spin rAF until unmount (forever, when pool creation
+    // failed and ensureWorkerPool resolved undefined).
+    if (!workerPool) return
 
     let rafId: number | null = null
     let cleanup = () => {}
+    // The shadow root appears within a few frames once the render effect above
+    // draws into the container; the cap is a backstop for a render that never
+    // lands, not the normal path.
+    let attempts = 0
+    const maxAttempts = 600
 
     const setup = () => {
       const host = container.querySelector("diffs-container")
       const shadowRoot = host?.shadowRoot
       if (!shadowRoot) {
+        if (attempts >= maxAttempts) return
+        attempts += 1
         rafId = requestAnimationFrame(setup)
         return
       }
@@ -670,7 +681,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
       }
       cleanup()
     }
-  }, [diffThemeKey, fileName, handleSelectionChange, resolveClickedSide])
+  }, [diffThemeKey, fileName, handleSelectionChange, resolveClickedSide, workerPool])
 
   // MutationObserver to trigger re-renders when annotation DOM nodes are added/removed
   useEffect(() => {

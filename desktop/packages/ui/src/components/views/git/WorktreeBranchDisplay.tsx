@@ -55,6 +55,9 @@ export const WorktreeBranchDisplay: React.FC<WorktreeBranchDisplayProps> = ({
       await onRename(currentBranch, sanitizedName)
       setIsEditing(false)
       setEditBranchName("")
+    } catch {
+      // The parent already surfaced the failure (toast); stay in edit mode.
+      // Swallowing also avoids an unhandled rejection from the key/click path.
     } finally {
       setIsRenaming(false)
     }
