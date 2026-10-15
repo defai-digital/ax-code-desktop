@@ -96,6 +96,14 @@ export function useInlineCommentController<TRange extends LineRange>(
     setEditingDraftId(null)
   }, [])
 
+  // Selection and edit state belong to one comment scope (session or draft
+  // project). Without this reset, switching sessions in the same project kept
+  // `editingDraftId` set while the draft list emptied, leaving the comment
+  // input permanently suppressed.
+  React.useEffect(() => {
+    reset()
+  }, [sessionKey, reset])
+
   const cancel = React.useCallback(() => {
     reset()
   }, [reset])
