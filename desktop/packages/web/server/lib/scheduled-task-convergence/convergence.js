@@ -29,6 +29,11 @@ const DEFAULT_MAX_ATTEMPTS = 5
 const DEFAULT_WAKE_CONCURRENCY = 4
 const DEFAULT_READY_TIMEOUT_MS = 60_000
 const DEFAULT_READY_INTERVAL_MS = 500
+const DEFAULT_WAKE_CHECK_MS = 15_000
+const DEFAULT_WAKE_REFRESH_MS = 5 * 60_000
+const DEFAULT_WAKE_PROJECTS_CHECK_MS = 60_000
+const DEFAULT_WAKE_FOLLOW_UP_MS = 60_000
+const DEFAULT_WAKE_REQUEST_TIMEOUT_MS = 30_000
 
 const asNonEmptyString = (value) => {
   if (typeof value !== "string") {
@@ -65,10 +70,11 @@ export const createScheduledTaskConvergence = (deps) => {
     wakeConcurrency = DEFAULT_WAKE_CONCURRENCY,
     readyTimeoutMs = DEFAULT_READY_TIMEOUT_MS,
     readyIntervalMs = DEFAULT_READY_INTERVAL_MS,
+    wakeRequestTimeoutMs = DEFAULT_WAKE_REQUEST_TIMEOUT_MS,
   } = deps
 
   // --- runtime HTTP helpers ---------------------------------------------
-  const runtimeRequest = async ({ method, route, directory, body }) => {
+  const runtimeRequest = async ({ method, route, directory, body, timeoutMs }) => {
     const base = buildAxCodeUrl("/", "").replace(/\/+$/, "")
     const url = new URL(`${base}${route}`)
     url.searchParams.set("directory", directory)
@@ -80,6 +86,7 @@ export const createScheduledTaskConvergence = (deps) => {
         ...(body !== undefined ? { "content-type": "application/json" } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     })
     if (!response.ok) {
       const text = await response.text().catch(() => "")
@@ -91,8 +98,13 @@ export const createScheduledTaskConvergence = (deps) => {
     return parsed
   }
 
-  const listRuntimeTasks = async (directory) => {
-    const result = await runtimeRequest({ method: "GET", route: "/scheduled-task", directory })
+  const listRuntimeTasks = async (directory, options = {}) => {
+    const result = await runtimeRequest({
+      method: "GET",
+      route: "/scheduled-task",
+      directory,
+      timeoutMs: options.timeoutMs,
+    })
     return Array.isArray(result) ? result : []
   }
 
@@ -367,11 +379,7 @@ export const createScheduledTaskConvergence = (deps) => {
     return { migrated: false, reason: "retry-pending", attempts, retryableRemaining }
   }
 
-  // Wake each registered project directory's runtime instance so its
-  // scheduler loop starts even before the user opens that project. A plain
-  // GET /scheduled-task?directory=<path> is enough — the runtime bootstraps
-  // the instance (and starts the scheduler) on the first scoped request.
-  const wakeUp = async () => {
+  const listProjectDirectories = async () => {
     let projects = []
     try {
       projects = await listProjects()
@@ -379,28 +387,38 @@ export const createScheduledTaskConvergence = (deps) => {
       logger.warn("[ScheduledTaskMigration] project list unavailable for scheduler wake-up", {
         error: error?.message || String(error),
       })
-      return
+      return null
     }
     const directories = []
     const seen = new Set()
-    for (const project of projects) {
+    for (const project of Array.isArray(projects) ? projects : []) {
       const projectPath = asNonEmptyString(project?.path)
       if (projectPath && !seen.has(projectPath)) {
         seen.add(projectPath)
         directories.push(projectPath)
       }
     }
+    return directories
+  }
 
+  // Wake the given directories with bounded concurrency. Resolves to the
+  // directories whose wake request succeeded so callers can retry the rest.
+  const wakeDirectories = async (directories) => {
+    const woken = []
     let index = 0
     const worker = async () => {
       while (index < directories.length) {
         const directory = directories[index]
         index += 1
         try {
-          await listRuntimeTasks(directory)
+          // Bounded: a runtime that accepts the connection but never answers
+          // (e.g. a process in its shutdown grace period) must not wedge the
+          // wake pass. The instance keeps booting server-side either way.
+          await listRuntimeTasks(directory, { timeoutMs: wakeRequestTimeoutMs })
+          woken.push(directory)
         } catch (error) {
           // Non-fatal: the scheduler also starts when the user opens the
-          // project, and wake-up is retried on the next boot.
+          // project, and the wake watch retries on its next check.
           logger.warn("[ScheduledTaskMigration] scheduler wake-up failed for directory", {
             directory,
             error: error?.message || String(error),
@@ -413,6 +431,129 @@ export const createScheduledTaskConvergence = (deps) => {
       workers.push(worker())
     }
     await Promise.all(workers)
+    return woken
+  }
+
+  // Wake each registered project directory's runtime instance so its
+  // scheduler loop starts even before the user opens that project. A plain
+  // GET /scheduled-task?directory=<path> is enough — the runtime bootstraps
+  // the instance (and starts the scheduler) on the first scoped request.
+  const wakeUp = async () => {
+    const directories = await listProjectDirectories()
+    if (!directories) return []
+    return wakeDirectories(directories)
+  }
+
+  // The boot-time wake-up is not enough on its own: a runtime restart
+  // (settings change, health-check recovery, external server restart) drops
+  // every instance, and instances only come back on their next scoped
+  // request, so projects the user has not opened would stop firing. The watch
+  // re-wakes every directory when the runtime identity changes, wakes newly
+  // registered projects, and re-wakes everything on a slow refresh to cover
+  // restarts it cannot observe (an external runtime on the same origin).
+  // Identity checks are in memory; the project list (a settings read) is only
+  // consulted on a full wake or every `projectsCheckMs`. An occurrence missed
+  // in the gap follows the task's catch-up policy (`run_once` coalesces it
+  // into one run, `skip` drops it).
+  let activeWatch = null
+
+  const stopWakeWatch = () => {
+    if (!activeWatch) return
+    activeWatch.stop()
+    activeWatch = null
+  }
+
+  const startWakeWatch = ({
+    getRuntimeIdentity,
+    isActive = () => true,
+    initialDirectories = [],
+    // Identity the initial directories were woken against; null forces a
+    // full wake on the first check that sees a ready runtime.
+    initialIdentity,
+    checkMs = DEFAULT_WAKE_CHECK_MS,
+    refreshMs = DEFAULT_WAKE_REFRESH_MS,
+    projectsCheckMs = DEFAULT_WAKE_PROJECTS_CHECK_MS,
+    followUpMs = DEFAULT_WAKE_FOLLOW_UP_MS,
+    now = Date.now,
+  } = {}) => {
+    stopWakeWatch()
+    if (typeof getRuntimeIdentity !== "function") {
+      throw new Error("startWakeWatch requires getRuntimeIdentity")
+    }
+    const woken = new Set(initialDirectories)
+    let lastIdentity = initialIdentity === undefined ? getRuntimeIdentity() : initialIdentity
+    let lastFullWakeAt = now()
+    let lastProjectsCheckAt = now()
+    let followUpAt = null
+    let inFlight = null
+    let stopped = false
+
+    const check = async () => {
+      if (stopped || inFlight || !isActive()) return
+      const identity = getRuntimeIdentity()
+      // null/undefined means the runtime is not ready (or Desktop could not
+      // confirm it). Only the slow refresh probes it then: a failed external
+      // re-probe can leave readiness false while the runtime is actually up.
+      const identityKnown = identity !== null && identity !== undefined
+      const identityChanged = identityKnown && identity !== lastIdentity
+      const refreshDue = now() - lastFullWakeAt >= refreshMs
+      const followUpDue = followUpAt !== null && now() >= followUpAt
+      const fullWake = identityChanged || refreshDue || (identityKnown && followUpDue)
+      if (!identityKnown && !refreshDue) return
+      if (!fullWake && now() - lastProjectsCheckAt < projectsCheckMs) return
+      inFlight = (async () => {
+        lastProjectsCheckAt = now()
+        const directories = await listProjectDirectories()
+        if (!directories || stopped) return
+        const registered = new Set(directories)
+        for (const directory of woken) {
+          if (!registered.has(directory)) woken.delete(directory)
+        }
+        const targets = fullWake ? directories : directories.filter((directory) => !woken.has(directory))
+        if (targets.length === 0 && !fullWake) return
+        if (fullWake) woken.clear()
+        const succeeded = await wakeDirectories(targets)
+        for (const directory of succeeded) woken.add(directory)
+        if (!fullWake) return
+        lastFullWakeAt = now()
+        // Adopt the identity only if it held for the whole pass; a restart
+        // that finished mid-pass leaves it stale so the next check re-wakes.
+        if (identityKnown && getRuntimeIdentity() === identity) {
+          lastIdentity = identity
+        }
+        // After a restart, wake once more shortly afterwards: the first pass
+        // can reach a process that is about to be replaced on the same origin.
+        if (identityChanged) {
+          followUpAt = now() + followUpMs
+        } else if (followUpDue) {
+          followUpAt = null
+        }
+      })()
+      try {
+        await inFlight
+      } catch (error) {
+        logger.warn("[ScheduledTaskMigration] scheduler wake watch check failed", {
+          error: error?.message || String(error),
+        })
+      } finally {
+        inFlight = null
+      }
+    }
+
+    const timer = setInterval(() => {
+      void check()
+    }, checkMs)
+    timer.unref?.()
+
+    const watch = {
+      check,
+      stop: () => {
+        stopped = true
+        clearInterval(timer)
+      },
+    }
+    activeWatch = watch
+    return watch
   }
 
   const start = async () => {
@@ -421,10 +562,10 @@ export const createScheduledTaskConvergence = (deps) => {
     } catch (error) {
       // Non-fatal and deliberately not counted as a migration attempt: the
       // marker is untouched, so the next boot retries everything.
-      logger.warn("[ScheduledTaskMigration] runtime not ready; migration and wake-up deferred to next boot", {
+      logger.warn("[ScheduledTaskMigration] runtime not ready; migration deferred to next boot", {
         error: error?.message || String(error),
       })
-      return
+      return []
     }
 
     try {
@@ -442,12 +583,14 @@ export const createScheduledTaskConvergence = (deps) => {
       })
     }
 
-    await wakeUp()
+    return wakeUp()
   }
 
   return {
     start,
     migrate,
     wakeUp,
+    startWakeWatch,
+    stopWakeWatch,
   }
 }

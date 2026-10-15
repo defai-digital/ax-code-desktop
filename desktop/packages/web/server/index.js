@@ -372,6 +372,7 @@ let server = null
 let expressApp = null
 let currentRestartPromise = null
 let isRestartingAxCode = false
+let scheduledTaskRuntimeGeneration = 0
 let axCodeApiPrefix = ""
 let axCodeApiPrefixDetected = true
 let axCodeApiDetectionTimer = null
@@ -872,6 +873,10 @@ Object.defineProperties(axCodeLifecycleState, {
   isRestartingAxCode: {
     get: () => isRestartingAxCode,
     set: (value) => {
+      // Every restart (managed respawn or external re-probe) bumps the runtime
+      // generation so the scheduled-task wake watch re-wakes all projects even
+      // when the process handle and origin are unchanged.
+      if (value && !isRestartingAxCode) scheduledTaskRuntimeGeneration += 1
       isRestartingAxCode = value
     },
   },
@@ -1087,6 +1092,25 @@ const scheduledTaskConvergence = createScheduledTaskConvergence({
   logger: console,
 })
 
+// Identity of the runtime the scheduler wake watch last woke. It changes on
+// every restart, process respawn, or origin move, and is null while the
+// runtime is not ready.
+const scheduledTaskRuntimeProcessTokens = new WeakMap()
+let nextScheduledTaskRuntimeProcessToken = 1
+const getScheduledTaskRuntimeIdentity = () => {
+  if (!isAxCodeReady || isRestartingAxCode) return null
+  let processToken = 0
+  if (axCodeProcess && typeof axCodeProcess === "object") {
+    processToken = scheduledTaskRuntimeProcessTokens.get(axCodeProcess)
+    if (!processToken) {
+      processToken = nextScheduledTaskRuntimeProcessToken
+      nextScheduledTaskRuntimeProcessToken += 1
+      scheduledTaskRuntimeProcessTokens.set(axCodeProcess, processToken)
+    }
+  }
+  return `${scheduledTaskRuntimeGeneration}|${processToken}|${axCodeBaseUrl || ""}|${axCodePort || ""}`
+}
+
 const ensureGlobalWatcherStarted = async () => {
   if (globalWatcherStartPromise) {
     return globalWatcherStartPromise
@@ -1149,7 +1173,10 @@ const gracefulShutdownRuntime = createGracefulShutdownRuntime({
   setUiAuthController: (value) => {
     uiAuthController = value
   },
-  stopAxCodeLifecycle: () => axCodeLifecycleRuntime.shutdown(),
+  stopAxCodeLifecycle: () => {
+    scheduledTaskConvergence.stopWakeWatch()
+    return axCodeLifecycleRuntime.shutdown()
+  },
   destroyAllClientConnections: () => {
     // Stop the shared global event hub first: nothing else ever calls
     // stop() on it, so without this its upstream reader keeps reconnecting
@@ -1487,11 +1514,23 @@ async function main(options = {}) {
     { source: "web-server" },
   )
 
+  let wokenScheduledTaskDirectories = []
+  const identityBeforeBootWake = getScheduledTaskRuntimeIdentity()
   try {
-    await scheduledTaskConvergence.start()
+    wokenScheduledTaskDirectories = await scheduledTaskConvergence.start()
   } catch (error) {
     console.warn("[ScheduledTasks] Failed to run scheduled task convergence:", error?.message || error)
   }
+  // Trust the boot wake only if no restart happened while it ran; otherwise
+  // the watch's first check re-wakes every project.
+  const identityAfterBootWake = getScheduledTaskRuntimeIdentity()
+  const bootWakeHeld = identityAfterBootWake !== null && identityAfterBootWake === identityBeforeBootWake
+  scheduledTaskConvergence.startWakeWatch({
+    getRuntimeIdentity: getScheduledTaskRuntimeIdentity,
+    isActive: () => !isShuttingDown,
+    initialDirectories: bootWakeHeld ? wokenScheduledTaskDirectories : [],
+    initialIdentity: bootWakeHeld ? identityAfterBootWake : null,
+  })
 
   return {
     expressApp: app,

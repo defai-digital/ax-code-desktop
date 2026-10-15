@@ -258,3 +258,279 @@ describe("scheduled task convergence migration", () => {
     expect(gets[0].url).toContain("directory=%2Fwork%2Falpha")
   })
 })
+
+describe("scheduled task convergence wake watch", () => {
+  const createWatchHarness = ({ projects, failDirectories = new Set(), hangDirectories = new Set() }) => {
+    const woken = []
+    const state = { projects }
+    const convergence = createScheduledTaskConvergence({
+      fsPromises: {},
+      path,
+      projectsDirPath: "/unused",
+      markerPath: "/unused/marker.json",
+      projectConfigRuntime: {},
+      listProjects: async () => state.projects,
+      buildAxCodeUrl: () => "http://127.0.0.1:4096/",
+      getAxCodeAuthHeaders: () => ({}),
+      waitForAxCodeReady: async () => {},
+      expandSnippets: (prompt) => prompt,
+      logger: silentLogger,
+      wakeRequestTimeoutMs: 20,
+      fetchImpl: async (url, init = {}) => {
+        const directory = new URL(url).searchParams.get("directory")
+        if (hangDirectories.has(directory)) {
+          return new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => reject(init.signal.reason))
+          })
+        }
+        if (failDirectories.has(directory)) {
+          return new Response("down", { status: 503 })
+        }
+        woken.push(directory)
+        return new Response("[]", { status: 200 })
+      },
+    })
+    return { convergence, woken, state }
+  }
+
+  let watch
+  afterEach(() => {
+    watch?.stop()
+    watch = undefined
+  })
+
+  it("reads the project list only when a check is due", async () => {
+    const { convergence, woken, state } = createWatchHarness({ projects: [{ path: "/p1" }] })
+    let clock = 0
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => "rt-1",
+      initialDirectories: ["/p1"],
+      checkMs: 60_000,
+      projectsCheckMs: 30_000,
+      now: () => clock,
+    })
+    state.projects = [{ path: "/p1" }, { path: "/p2" }]
+    clock = 10_000
+    await watch.check()
+    expect(woken).toEqual([])
+    clock = 31_000
+    await watch.check()
+    expect(woken).toEqual(["/p2"])
+  })
+
+  it("does nothing while the runtime identity and project set are unchanged", async () => {
+    const { convergence, woken } = createWatchHarness({ projects: [{ path: "/p1" }, { path: "/p2" }] })
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => "rt-1",
+      initialDirectories: ["/p1", "/p2"],
+      checkMs: 60_000,
+    })
+    await watch.check()
+    expect(woken).toEqual([])
+  })
+
+  it("re-wakes every project after the runtime restarts", async () => {
+    const { convergence, woken } = createWatchHarness({
+      projects: [{ path: "/p1" }, { path: "/p2" }, { path: "/p3" }],
+    })
+    let identity = "rt-1"
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => identity,
+      initialDirectories: ["/p1", "/p2", "/p3"],
+      checkMs: 60_000,
+    })
+    identity = null
+    await watch.check()
+    expect(woken).toEqual([])
+    identity = "rt-2"
+    await watch.check()
+    expect([...woken].sort()).toEqual(["/p1", "/p2", "/p3"])
+    await watch.check()
+    expect(woken).toHaveLength(3)
+  })
+
+  it("wakes newly registered projects only", async () => {
+    const { convergence, woken, state } = createWatchHarness({ projects: [{ path: "/p1" }] })
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => "rt-1",
+      initialDirectories: ["/p1"],
+      checkMs: 60_000,
+      projectsCheckMs: 0,
+    })
+    state.projects = [{ path: "/p1" }, { path: "/p2" }]
+    await watch.check()
+    expect(woken).toEqual(["/p2"])
+  })
+
+  it("retries directories whose wake request failed", async () => {
+    const failDirectories = new Set(["/p2"])
+    const { convergence, woken } = createWatchHarness({
+      projects: [{ path: "/p1" }, { path: "/p2" }],
+      failDirectories,
+    })
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => "rt-1",
+      initialDirectories: ["/p1"],
+      checkMs: 60_000,
+      projectsCheckMs: 0,
+    })
+    await watch.check()
+    expect(woken).toEqual([])
+    failDirectories.clear()
+    await watch.check()
+    expect(woken).toEqual(["/p2"])
+  })
+
+  it("re-wakes everything when the refresh interval elapses", async () => {
+    const { convergence, woken } = createWatchHarness({ projects: [{ path: "/p1" }, { path: "/p2" }] })
+    let clock = 1_000
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => "rt-1",
+      initialDirectories: ["/p1", "/p2"],
+      checkMs: 60_000,
+      refreshMs: 10_000,
+      now: () => clock,
+    })
+    clock += 5_000
+    await watch.check()
+    expect(woken).toEqual([])
+    clock += 6_000
+    await watch.check()
+    expect([...woken].sort()).toEqual(["/p1", "/p2"])
+  })
+
+  it("skips checks while inactive and after stop", async () => {
+    const { convergence, woken } = createWatchHarness({ projects: [{ path: "/p1" }] })
+    let active = false
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => "rt-1",
+      isActive: () => active,
+      checkMs: 60_000,
+    })
+    await watch.check()
+    expect(woken).toEqual([])
+    active = true
+    watch.stop()
+    await watch.check()
+    expect(woken).toEqual([])
+  })
+
+  it("replaces a previous watch when started again", async () => {
+    const { convergence, woken } = createWatchHarness({ projects: [{ path: "/p1" }] })
+    const first = convergence.startWakeWatch({ getRuntimeIdentity: () => "rt-1", checkMs: 60_000 })
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => "rt-1",
+      initialDirectories: ["/p1"],
+      checkMs: 60_000,
+    })
+    await first.check()
+    await watch.check()
+    expect(woken).toEqual([])
+  })
+
+  it("runs the slow refresh even while the runtime identity is unknown", async () => {
+    const { convergence, woken } = createWatchHarness({ projects: [{ path: "/p1" }] })
+    let clock = 0
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => null,
+      initialDirectories: ["/p1"],
+      checkMs: 60_000,
+      refreshMs: 10_000,
+      now: () => clock,
+    })
+    clock = 5_000
+    await watch.check()
+    expect(woken).toEqual([])
+    clock = 11_000
+    await watch.check()
+    expect(woken).toEqual(["/p1"])
+  })
+
+  it("wakes again shortly after a restart in case the first pass hit the old process", async () => {
+    const { convergence, woken } = createWatchHarness({ projects: [{ path: "/p1" }] })
+    let clock = 0
+    let identity = "rt-1"
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => identity,
+      initialDirectories: ["/p1"],
+      checkMs: 60_000,
+      followUpMs: 20_000,
+      now: () => clock,
+    })
+    identity = "rt-2"
+    clock = 1_000
+    await watch.check()
+    expect(woken).toEqual(["/p1"])
+    clock = 10_000
+    await watch.check()
+    expect(woken).toEqual(["/p1"])
+    clock = 22_000
+    await watch.check()
+    expect(woken).toEqual(["/p1", "/p1"])
+    clock = 50_000
+    await watch.check()
+    expect(woken).toEqual(["/p1", "/p1"])
+  })
+
+  it("does not adopt an identity that changed during the wake pass", async () => {
+    const { convergence, woken } = createWatchHarness({ projects: [{ path: "/p1" }] })
+    let identity = "rt-1"
+    let reads = 0
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => {
+        reads += 1
+        // The restart finishes while the first full wake is in flight.
+        if (identity === "rt-2" && reads === 3) identity = "rt-3"
+        return identity
+      },
+      initialDirectories: ["/p1"],
+      checkMs: 60_000,
+    })
+    identity = "rt-2"
+    await watch.check()
+    expect(woken).toEqual(["/p1"])
+    await watch.check()
+    expect(woken).toEqual(["/p1", "/p1"])
+  })
+
+  it("forces a full wake when started with a null initial identity", async () => {
+    const { convergence, woken } = createWatchHarness({ projects: [{ path: "/p1" }] })
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => "rt-1",
+      initialDirectories: [],
+      initialIdentity: null,
+      checkMs: 60_000,
+    })
+    await watch.check()
+    expect(woken).toEqual(["/p1"])
+  })
+
+  it("times out a wake request that never answers and keeps checking", async () => {
+    const hangDirectories = new Set(["/p2"])
+    const { convergence, woken } = createWatchHarness({
+      projects: [{ path: "/p1" }, { path: "/p2" }],
+      hangDirectories,
+    })
+    let identity = "rt-1"
+    watch = convergence.startWakeWatch({
+      getRuntimeIdentity: () => identity,
+      initialDirectories: ["/p1", "/p2"],
+      checkMs: 60_000,
+      projectsCheckMs: 0,
+    })
+    identity = "rt-2"
+    await watch.check()
+    expect(woken).toEqual(["/p1"])
+    hangDirectories.clear()
+    await watch.check()
+    expect(woken).toEqual(["/p1", "/p2"])
+  })
+
+  it("stopWakeWatch stops the active watch", async () => {
+    const { convergence, woken } = createWatchHarness({ projects: [{ path: "/p1" }] })
+    const active = convergence.startWakeWatch({ getRuntimeIdentity: () => "rt-1", checkMs: 60_000 })
+    convergence.stopWakeWatch()
+    await active.check()
+    expect(woken).toEqual([])
+  })
+})

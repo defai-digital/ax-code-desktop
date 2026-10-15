@@ -43,6 +43,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Scheduled tasks keep firing in projects you have not opened after the AX Code runtime restarts
+  (settings change or health-check recovery). Desktop now re-wakes every project's scheduler after a
+  restart and wakes newly added projects, instead of only once at launch.
 - Deleting a custom skill could delete any folder on the machine. The delete API accepted a name
   containing path segments (`../`), so a crafted request reached outside the skills directories and
   removed whatever it pointed at. Every skill route now validates the name the same way agent and

@@ -28,6 +28,18 @@ desktop scheduled-tasks engine and converges on the ax-code runtime's
     then wakes every registered project directory with one
     `GET /scheduled-task?directory=<path>` (the runtime starts an instance's
     scheduler loop on the first directory-scoped request).
+  - `startWakeWatch({ getRuntimeIdentity, isActive, initialDirectories })`
+    keeps schedulers awake after boot: it re-wakes every directory when the
+    runtime identity changes (restart generation, respawned process, or new
+    origin; `index.js` builds it), wakes newly registered projects (project
+    list read at most every 60 s), retries failed wakes, and re-wakes all
+    directories every 5 min to cover external runtime restarts it cannot
+    observe (the refresh also runs while readiness is unknown). After an
+    identity change it wakes once more a minute later, and it adopts an
+    identity only if it held for the whole pass. `index.js` passes the boot
+    wake's directories as `initialDirectories` only when no restart happened
+    during it. Starting a new watch stops the previous one; graceful shutdown
+    calls `stopWakeWatch()`.
   - Migration is idempotent (title-match against existing runtime tasks) and
     writes `scheduled-tasks-migrated.json` next to the projects dir with the
     skip/warning report. Only confirmed tasks are removed from the project
