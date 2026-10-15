@@ -86,9 +86,12 @@ function fnv1a32(input: string): string {
 }
 
 function makeContentCacheKey(contents: string): string {
-  // Avoid hashing full file; sample head+tail.
-  const sample = contents.length > 400 ? `${contents.slice(0, 200)}${contents.slice(-200)}` : contents
-  return `${contents.length}:${fnv1a32(sample)}`
+  // The library returns a cached highlighted result for a repeated cacheKey,
+  // so the key must change whenever the contents do. Hash the whole string:
+  // the previous head+tail sample kept a same-length edit in the middle of the
+  // file on the old key, and the diff view then showed stale lines. fnv1a32
+  // over the full text is still trivial next to the diff render it keys.
+  return `${contents.length}:${fnv1a32(contents)}`
 }
 
 const extractSelectedCode = (original: string, modified: string, range: SelectedLineRange): string => {
