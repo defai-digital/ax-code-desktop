@@ -40,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, isMobile, children, cl
     defaultWidth: SIDEBAR_CONTENT_WIDTH,
     minWidth: SIDEBAR_MIN_WIDTH,
     maxWidth: SIDEBAR_MAX_WIDTH,
-    cssVariable: "--oc-left-sidebar-width",
+    cssVariable: "--ax-left-sidebar-width",
   })
 
   if (isMobile) {
@@ -60,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, isMobile, children, cl
         width: `${currentWidth}px`,
         minWidth: `${currentWidth}px`,
         maxWidth: `${currentWidth}px`,
-        ["--oc-left-sidebar-width" as string]: `${isResizing ? currentWidth : openWidth}px`,
+        ["--ax-left-sidebar-width" as string]: `${isResizing ? currentWidth : openWidth}px`,
         overflowX: "clip",
         transitionProperty: isResizing ? "none" : "width, min-width, max-width",
         transitionDuration: "200ms",
@@ -95,7 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, isMobile, children, cl
           isResizing && "pointer-events-none",
           !isOpen && "pointer-events-none select-none opacity-0",
         )}
-        style={{ width: "var(--oc-left-sidebar-width)", overflowX: "hidden" }}
+        style={{ width: "var(--ax-left-sidebar-width)", overflowX: "hidden" }}
         aria-hidden={!isOpen}
         inert={!isOpen || undefined}
       >

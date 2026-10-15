@@ -37,7 +37,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, children, cl
     defaultWidth: RIGHT_SIDEBAR_CONTENT_WIDTH,
     minWidth: RIGHT_SIDEBAR_MIN_WIDTH,
     maxWidth: RIGHT_SIDEBAR_MAX_WIDTH,
-    cssVariable: "--oc-right-sidebar-width",
+    cssVariable: "--ax-right-sidebar-width",
   })
 
   return (
@@ -53,7 +53,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, children, cl
         width: `${currentWidth}px`,
         minWidth: `${currentWidth}px`,
         maxWidth: `${currentWidth}px`,
-        ["--oc-right-sidebar-width" as string]: `${isResizing ? currentWidth : openWidth}px`,
+        ["--ax-right-sidebar-width" as string]: `${isResizing ? currentWidth : openWidth}px`,
         overflowX: "clip",
         transitionProperty: isResizing ? "none" : "width, min-width, max-width",
         transitionDuration: "200ms",
@@ -88,7 +88,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, children, cl
           isResizing && "pointer-events-none",
           !isOpen && "pointer-events-none select-none opacity-0",
         )}
-        style={{ width: "var(--oc-right-sidebar-width)" }}
+        style={{ width: "var(--ax-right-sidebar-width)" }}
         aria-hidden={!isOpen}
       >
         {isOpen ? children : null}

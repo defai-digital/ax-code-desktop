@@ -86,16 +86,16 @@ const buildSelectorList = (rawKey: string): string[] => {
     .filter(Boolean)
     .flatMap((selector) => {
       if (selector.startsWith(".token")) {
-        return [`.oc-virtualized-prism ${selector}`]
+        return [`.ax-virtualized-prism ${selector}`]
       }
       if (selector.startsWith("token.")) {
-        return [`.oc-virtualized-prism .${selector}`]
+        return [`.ax-virtualized-prism .${selector}`]
       }
       if (/^[a-z0-9_-]+$/i.test(selector)) {
-        return [`.oc-virtualized-prism .token.${selector}`]
+        return [`.ax-virtualized-prism .token.${selector}`]
       }
       if (selector.includes("token")) {
-        return [`.oc-virtualized-prism ${selector}`]
+        return [`.ax-virtualized-prism ${selector}`]
       }
       return []
     })
@@ -178,7 +178,7 @@ export const VirtualizedCodeBlock: React.FC<VirtualizedCodeBlockProps> = React.m
   if (!shouldVirtualize) {
     return (
       <div
-        className="typography-code font-mono w-full min-w-0 oc-virtualized-prism"
+        className="typography-code font-mono w-full min-w-0 ax-virtualized-prism"
         style={{ maxHeight, overflow: "auto" }}
       >
         {prismThemeCss ? <style>{prismThemeCss}</style> : null}
@@ -228,7 +228,7 @@ const VirtualizedRows: React.FC<VirtualizedRowsProps> = React.memo(
     return (
       <div
         ref={parentRef}
-        className="typography-code font-mono w-full min-w-0 oc-virtualized-prism"
+        className="typography-code font-mono w-full min-w-0 ax-virtualized-prism"
         style={{ maxHeight, overflow: "auto" }}
       >
         {prismThemeCss ? <style>{prismThemeCss}</style> : null}

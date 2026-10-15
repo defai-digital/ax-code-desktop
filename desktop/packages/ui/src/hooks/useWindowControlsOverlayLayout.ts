@@ -26,9 +26,9 @@ const clampPx = (value: number): string => {
 }
 
 const applyOverlayInsets = (root: HTMLElement, leftInsetPx: number, rightInsetPx: number, titlebarHeightPx: number) => {
-  root.style.setProperty("--oc-wco-left-inset", clampPx(leftInsetPx))
-  root.style.setProperty("--oc-wco-right-inset", clampPx(rightInsetPx))
-  root.style.setProperty("--oc-wco-titlebar-height", clampPx(titlebarHeightPx))
+  root.style.setProperty("--ax-wco-left-inset", clampPx(leftInsetPx))
+  root.style.setProperty("--ax-wco-right-inset", clampPx(rightInsetPx))
+  root.style.setProperty("--ax-wco-titlebar-height", clampPx(titlebarHeightPx))
 }
 
 export const useWindowControlsOverlayLayout = () => {

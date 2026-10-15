@@ -1451,10 +1451,10 @@ export const Header: React.FC = () => {
     }
 
     return {
-      paddingLeft: "calc(0.75rem + var(--oc-wco-left-inset, 0px))",
-      paddingRight: "calc(0.75rem + var(--oc-wco-right-inset, 0px))",
-      minHeight: "max(3rem, var(--oc-wco-titlebar-height, 0px))",
-      height: "max(3rem, var(--oc-wco-titlebar-height, 0px))",
+      paddingLeft: "calc(0.75rem + var(--ax-wco-left-inset, 0px))",
+      paddingRight: "calc(0.75rem + var(--ax-wco-right-inset, 0px))",
+      minHeight: "max(3rem, var(--ax-wco-titlebar-height, 0px))",
+      height: "max(3rem, var(--ax-wco-titlebar-height, 0px))",
     }
   }, [isDesktopApp, isWindowsElectronDesktop])
 
@@ -1465,7 +1465,7 @@ export const Header: React.FC = () => {
 
     const height = headerRef.current?.getBoundingClientRect().height
     if (height) {
-      document.documentElement.style.setProperty("--oc-header-height", `${height}px`)
+      document.documentElement.style.setProperty("--ax-header-height", `${height}px`)
     }
   }, [])
 

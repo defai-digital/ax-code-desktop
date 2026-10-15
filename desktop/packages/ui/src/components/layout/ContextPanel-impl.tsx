@@ -2210,7 +2210,7 @@ export const ContextPanel: React.FC = () => {
       return
     }
 
-    panel.style.setProperty("--oc-context-panel-width", `${clampWidthToAvailableSpace(nextWidth, panel)}px`)
+    panel.style.setProperty("--ax-context-panel-width", `${clampWidthToAvailableSpace(nextWidth, panel)}px`)
   }, [])
 
   const handleResizeStart = React.useCallback(
@@ -2553,7 +2553,7 @@ export const ContextPanel: React.FC = () => {
 
   const panelStyle: React.CSSProperties = !isOpen
     ? {
-        ["--oc-context-panel-width" as string]: `${isResizing ? (resizingWidthRef.current ?? width) : width}px`,
+        ["--ax-context-panel-width" as string]: `${isResizing ? (resizingWidthRef.current ?? width) : width}px`,
         width: 0,
         minWidth: 0,
         maxWidth: 0,
@@ -2563,7 +2563,7 @@ export const ContextPanel: React.FC = () => {
       }
     : isExpanded
       ? {
-          ["--oc-context-panel-width" as string]: "100%",
+          ["--ax-context-panel-width" as string]: "100%",
           width: "100%",
           minWidth: "100%",
           maxWidth: "100%",
@@ -2571,10 +2571,10 @@ export const ContextPanel: React.FC = () => {
       : {
           // calc() reserves CHAT_MIN_WIDTH for the primary chat region so the
           // persisted panel width can't squeeze it to zero on narrow windows.
-          width: `min(var(--oc-context-panel-width), calc(100% - ${CHAT_MIN_WIDTH}px))`,
+          width: `min(var(--ax-context-panel-width), calc(100% - ${CHAT_MIN_WIDTH}px))`,
           minWidth: `min(${CONTEXT_PANEL_MIN_WIDTH}px, calc(100% - ${CHAT_MIN_WIDTH}px))`,
           maxWidth: `calc(100% - ${CHAT_MIN_WIDTH}px)`,
-          ["--oc-context-panel-width" as string]: `${isResizing ? (resizingWidthRef.current ?? width) : width}px`,
+          ["--ax-context-panel-width" as string]: `${isResizing ? (resizingWidthRef.current ?? width) : width}px`,
         }
 
   return (

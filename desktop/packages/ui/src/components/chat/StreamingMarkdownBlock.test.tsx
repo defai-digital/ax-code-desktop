@@ -40,34 +40,34 @@ describe("StreamingMarkdownBlock", () => {
 
   test("does not animate blocks already present when the message mounts", () => {
     render(["one", "two", "three"])
-    expect(wrappers().some((el) => el.classList.contains("oc-md-block-enter"))).toBe(false)
+    expect(wrappers().some((el) => el.classList.contains("ax-md-block-enter"))).toBe(false)
   })
 
   test("animates a newly committed block once, while the tail keeps streaming", () => {
     render(["one"])
     render(["one", "tw"])
     const second = wrappers()[1]
-    expect(second?.classList.contains("oc-md-block-enter")).toBe(true)
+    expect(second?.classList.contains("ax-md-block-enter")).toBe(true)
 
     render(["one", "two words"])
     expect(wrappers()[1]).toBe(second)
-    expect(second?.classList.contains("oc-md-block-enter")).toBe(true)
+    expect(second?.classList.contains("ax-md-block-enter")).toBe(true)
   })
 
   test("cascades blocks committed in the same pass", () => {
     render(["one"])
     render(["one", "two", "three", "four"])
-    const delays = wrappers().map((el) => el.style.getPropertyValue("--oc-md-enter-delay"))
+    const delays = wrappers().map((el) => el.style.getPropertyValue("--ax-md-enter-delay"))
     expect(delays).toEqual(["", "", "55ms", "110ms"])
-    expect(wrappers()[0]?.classList.contains("oc-md-block-enter")).toBe(false)
+    expect(wrappers()[0]?.classList.contains("ax-md-block-enter")).toBe(false)
   })
 
   test("does not animate the worker's split of a large reply's placeholder", () => {
     render(["whole reply"], true)
     render(["whole", "reply", "split"])
-    expect(wrappers().some((el) => el.classList.contains("oc-md-block-enter"))).toBe(false)
+    expect(wrappers().some((el) => el.classList.contains("ax-md-block-enter"))).toBe(false)
 
     render(["whole", "reply", "split", "more"])
-    expect(wrappers()[3]?.classList.contains("oc-md-block-enter")).toBe(true)
+    expect(wrappers()[3]?.classList.contains("ax-md-block-enter")).toBe(true)
   })
 })

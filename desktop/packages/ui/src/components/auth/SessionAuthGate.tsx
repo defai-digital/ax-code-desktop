@@ -504,7 +504,7 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
                   }}
                   className="pl-10"
                   aria-invalid={Boolean(errorMessage) || undefined}
-                  aria-describedby={errorMessage ? "oc-ui-auth-error" : undefined}
+                  aria-describedby={errorMessage ? "ax-ui-auth-error" : undefined}
                   disabled={isSubmitting}
                 />
               </div>
@@ -561,7 +561,7 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
               </label>
             )}
             {errorMessage && (
-              <p id="oc-ui-auth-error" className="typography-meta text-destructive">
+              <p id="ax-ui-auth-error" className="typography-meta text-destructive">
                 {errorMessage}
               </p>
             )}

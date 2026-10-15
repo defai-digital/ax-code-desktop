@@ -274,7 +274,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
       if (
         target.closest('[data-comment-card="true"]') ||
         target.closest('[data-comment-input="true"]') ||
-        target.closest(".oc-block-widget")
+        target.closest(".ax-block-widget")
       ) {
         return
       }

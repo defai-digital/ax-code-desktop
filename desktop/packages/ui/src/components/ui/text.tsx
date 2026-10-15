@@ -17,7 +17,7 @@ const variants = [
   },
   {
     variant: "generate-effect",
-    // One CSS fade over the whole text (`.oc-text-generate` in index.css), not
+    // One CSS fade over the whole text (`.ax-text-generate` in index.css), not
     // a span and a JS animation per character: streaming tool rows mount these
     // constantly, and upstream measured the per-character version at a quarter
     // of the main thread's work in an agent run. The fade plays once on mount;
@@ -26,7 +26,7 @@ const variants = [
       if (children === null || children === undefined || children === "") return null
 
       return (
-        <span {...props} className={cn("oc-text-generate inline-block align-baseline", className)}>
+        <span {...props} className={cn("ax-text-generate inline-block align-baseline", className)}>
           {children}
         </span>
       )

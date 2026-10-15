@@ -15,8 +15,8 @@ export const StreamingMarkdownBlock: React.FC<{ index: number; enteredBlockCount
   return (
     <div
       data-md-block=""
-      className="oc-md-block-enter"
-      style={enterDelayMs > 0 ? ({ "--oc-md-enter-delay": `${enterDelayMs}ms` } as React.CSSProperties) : undefined}
+      className="ax-md-block-enter"
+      style={enterDelayMs > 0 ? ({ "--ax-md-enter-delay": `${enterDelayMs}ms` } as React.CSSProperties) : undefined}
     >
       {children}
     </div>

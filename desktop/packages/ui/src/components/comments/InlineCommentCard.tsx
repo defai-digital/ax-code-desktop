@@ -30,7 +30,7 @@ export function InlineCommentCard({ draft, onEdit, onDelete, className, maxWidth
   return (
     <div
       className={cn(
-        "rounded-lg border shadow-none w-full max-w-[min(100%,calc(var(--oc-context-panel-width,100vw)-var(--oc-editor-gutter-width,0px)))] overflow-hidden transition-all duration-200",
+        "rounded-lg border shadow-none w-full max-w-[min(100%,calc(var(--ax-context-panel-width,100vw)-var(--ax-editor-gutter-width,0px)))] overflow-hidden transition-all duration-200",
         className,
       )}
       style={{

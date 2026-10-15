@@ -16,9 +16,9 @@ export const DesktopTitlebarDragStrip: React.FC = () => {
       className="app-region-drag fixed left-0 top-0 z-20"
       style={{
         height: isMacDesktop
-          ? "max(44px, var(--oc-wco-titlebar-height, 0px))"
-          : "var(--oc-wco-titlebar-height, 0px)",
-        right: "var(--oc-wco-right-inset, 0px)",
+          ? "max(44px, var(--ax-wco-titlebar-height, 0px))"
+          : "var(--ax-wco-titlebar-height, 0px)",
+        right: "var(--ax-wco-right-inset, 0px)",
       }}
       aria-hidden
     />

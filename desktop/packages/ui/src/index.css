@@ -32,9 +32,9 @@ button,
   -webkit-user-select: none !important;
 }
 
-:root.oc-theme-switching *,
-:root.oc-theme-switching *::before,
-:root.oc-theme-switching *::after {
+:root.ax-theme-switching *,
+:root.ax-theme-switching *::before,
+:root.ax-theme-switching *::after {
   transition: none !important;
   animation: none !important;
 }
@@ -70,7 +70,7 @@ textarea[data-chat-input="true"]:focus-visible {
   color: var(--surface-foreground);
 }
 
-.oc-cm-selected-line {
+.ax-cm-selected-line {
   background: color-mix(in srgb, var(--primary-base) 22%, transparent);
 }
 
@@ -260,7 +260,7 @@ textarea[data-chat-input="true"]:focus-visible {
   }
 }
 
-@keyframes oc-migrate-up {
+@keyframes ax-migrate-up {
   0% {
     opacity: 1;
     transform: translateY(0);
@@ -292,7 +292,7 @@ textarea[data-chat-input="true"]:focus-visible {
   }
 }
 
-@keyframes oc-file-mention-marquee {
+@keyframes ax-file-mention-marquee {
   0% {
     transform: translateX(0%);
   }
@@ -304,7 +304,7 @@ textarea[data-chat-input="true"]:focus-visible {
 /* Indeterminate progress bar — used where an exact percentage is unavailable
    (e.g. AX Engine local-model downloads, which stream no progress). A segment
    sweeps across the track to signal ongoing work. */
-@keyframes oc-indeterminate-progress {
+@keyframes ax-indeterminate-progress {
   0% {
     transform: translateX(-100%);
   }
@@ -313,13 +313,13 @@ textarea[data-chat-input="true"]:focus-visible {
   }
 }
 
-.oc-indeterminate-progress-bar {
-  animation: oc-indeterminate-progress 1.4s ease-in-out infinite;
+.ax-indeterminate-progress-bar {
+  animation: ax-indeterminate-progress 1.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .oc-indeterminate-progress-bar {
-    animation: oc-busy-pulse 1.2s ease-in-out infinite;
+  .ax-indeterminate-progress-bar {
+    animation: ax-busy-pulse 1.2s ease-in-out infinite;
     transform: none;
   }
 }
@@ -342,7 +342,7 @@ textarea[data-chat-input="true"]:focus-visible {
 }
 
 .file-mention-marquee {
-  animation: oc-file-mention-marquee var(--file-mention-marquee-duration, 4s) linear 0.2s 1 both;
+  animation: ax-file-mention-marquee var(--file-mention-marquee-duration, 4s) linear 0.2s 1 both;
   will-change: transform;
 }
 
@@ -459,14 +459,14 @@ svg.animate-spin {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: var(--oc-scrollbar-thumb);
+  background: var(--ax-scrollbar-thumb);
   border-radius: 6px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: var(--oc-scrollbar-thumb-hover);
+  background: var(--ax-scrollbar-thumb-hover);
   background-clip: padding-box;
 }
 
@@ -478,8 +478,8 @@ svg.animate-spin {
    light and dark — --primary is set per active theme on :root, so all
    scrollbars (global + chat) follow it. */
 :root {
-  --oc-scrollbar-thumb: color-mix(in srgb, var(--primary) 50%, transparent);
-  --oc-scrollbar-thumb-hover: color-mix(in srgb, var(--primary) 80%, transparent);
+  --ax-scrollbar-thumb: color-mix(in srgb, var(--primary) 50%, transparent);
+  --ax-scrollbar-thumb-hover: color-mix(in srgb, var(--primary) 80%, transparent);
 }
 
 [data-scrollbar="chat"]::-webkit-scrollbar-thumb {
@@ -523,7 +523,7 @@ html:not(.dark) .chat-scroll {
 }
 
 [data-scrollbar="chat"]::-webkit-scrollbar-thumb {
-  background: var(--oc-scrollbar-thumb) !important;
+  background: var(--ax-scrollbar-thumb) !important;
   border-radius: 6px;
   border: 2px solid transparent;
   background-clip: padding-box;
@@ -531,20 +531,20 @@ html:not(.dark) .chat-scroll {
 
 [data-scrollbar="chat"].chat-scroll::-webkit-scrollbar-thumb,
 .chat-scroll::-webkit-scrollbar-thumb {
-  background: var(--oc-scrollbar-thumb) !important;
+  background: var(--ax-scrollbar-thumb) !important;
   border-radius: 6px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 [data-scrollbar="chat"]::-webkit-scrollbar-thumb:hover {
-  background: var(--oc-scrollbar-thumb-hover) !important;
+  background: var(--ax-scrollbar-thumb-hover) !important;
   background-clip: padding-box;
 }
 
 [data-scrollbar="chat"].chat-scroll::-webkit-scrollbar-thumb:hover,
 .chat-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--oc-scrollbar-thumb-hover) !important;
+  background: var(--ax-scrollbar-thumb-hover) !important;
   background-clip: padding-box;
 }
 
@@ -572,7 +572,7 @@ html:not(.dark) .chat-scroll {
 /* Firefox scrollbar support */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--oc-scrollbar-thumb) transparent;
+  scrollbar-color: var(--ax-scrollbar-thumb) transparent;
 }
 
 .scrollbar-hidden {
@@ -608,7 +608,7 @@ html:not(.dark) .chat-scroll {
   pointer-events: auto;
   position: absolute;
   width: 6px;
-  background: var(--oc-scrollbar-thumb);
+  background: var(--ax-scrollbar-thumb);
   border-radius: 9999px;
   opacity: 0.8;
   transition:
@@ -619,7 +619,7 @@ html:not(.dark) .chat-scroll {
 
 .overlay-scrollbar__thumb:hover,
 .overlay-scrollbar__thumb:active {
-  background: var(--oc-scrollbar-thumb-hover);
+  background: var(--ax-scrollbar-thumb-hover);
   opacity: 1;
 }
 
@@ -1329,7 +1329,7 @@ input[aria-label="Terminal input"] {
     "Liberation Mono", "Courier New", monospace;
 }
 
-@keyframes oc-busy-pulse {
+@keyframes ax-busy-pulse {
   0%,
   100% {
     opacity: 0.2;
@@ -1340,7 +1340,7 @@ input[aria-label="Terminal input"] {
 }
 
 .animate-busy-pulse {
-  animation: oc-busy-pulse 1.2s ease-in-out infinite;
+  animation: ax-busy-pulse 1.2s ease-in-out infinite;
 }
 
 @keyframes navrail-dot-wave {
@@ -1495,8 +1495,8 @@ input[aria-label="Terminal input"] {
    its neighbours until the animation ends and then snap the row height. During
    a long stream the follow scroll hides the entrance anyway, so the effect
    mostly shows on short replies and must stay cheap. Blocks committed together
-   cascade via --oc-md-enter-delay, set by StreamingMarkdownBlock. */
-@keyframes oc-md-block-enter {
+   cascade via --ax-md-enter-delay, set by StreamingMarkdownBlock. */
+@keyframes ax-md-block-enter {
   from {
     opacity: 0;
   }
@@ -1505,16 +1505,16 @@ input[aria-label="Terminal input"] {
   }
 }
 
-.oc-md-block-enter {
-  animation: oc-md-block-enter 280ms ease-out both;
-  animation-delay: var(--oc-md-enter-delay, 0ms);
+.ax-md-block-enter {
+  animation: ax-md-block-enter 280ms ease-out both;
+  animation-delay: var(--ax-md-enter-delay, 0ms);
 }
 
 /* Tool titles fade in as one animation per title instead of one per
    character. Opacity only, so it stays on the compositor; upstream's mask sweep
    is not used because CSS masks are a known Electron rendering risk here (see
    components/ui/__tests__/scroll-shadow-css.test.ts). */
-@keyframes oc-text-generate {
+@keyframes ax-text-generate {
   from {
     opacity: 0;
   }
@@ -1523,13 +1523,13 @@ input[aria-label="Terminal input"] {
   }
 }
 
-.oc-text-generate {
-  animation: oc-text-generate 220ms ease-out;
+.ax-text-generate {
+  animation: ax-text-generate 220ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .oc-md-block-enter,
-  .oc-text-generate {
+  .ax-md-block-enter,
+  .ax-text-generate {
     animation: none;
   }
 }

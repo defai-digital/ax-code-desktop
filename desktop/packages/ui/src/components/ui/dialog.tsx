@@ -34,11 +34,11 @@ const DialogOverlay = React.forwardRef<HTMLDivElement, React.ComponentPropsWitho
   ({ className, ...props }, ref) => {
     React.useEffect(() => {
       openDialogCount += 1
-      document.documentElement.classList.add("oc-dialog-open")
+      document.documentElement.classList.add("ax-dialog-open")
       return () => {
         openDialogCount = Math.max(0, openDialogCount - 1)
         if (openDialogCount === 0) {
-          document.documentElement.classList.remove("oc-dialog-open")
+          document.documentElement.classList.remove("ax-dialog-open")
         }
       }
     }, [])

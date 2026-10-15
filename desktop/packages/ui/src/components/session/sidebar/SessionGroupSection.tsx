@@ -711,14 +711,14 @@ export function SessionGroupSection(props: Props): React.ReactNode {
 
   if (hideGroupLabel) {
     return (
-      <div className="oc-group">
-        <div className={cn("oc-group-body", groupBodyPaddingClass)}>{body}</div>
+      <div className="ax-group">
+        <div className={cn("ax-group-body", groupBodyPaddingClass)}>{body}</div>
       </div>
     )
   }
 
   return (
-    <div className="oc-group">
+    <div className="ax-group">
       <div
         className={cn(
           "group/gh relative flex items-start justify-between gap-1 py-1 min-w-0 rounded-md",
@@ -1044,7 +1044,7 @@ export function SessionGroupSection(props: Props): React.ReactNode {
           </div>
         ) : null}
       </div>
-      {!isCollapsed ? <div className={cn("oc-group-body", groupBodyPaddingClass)}>{body}</div> : null}
+      {!isCollapsed ? <div className={cn("ax-group-body", groupBodyPaddingClass)}>{body}</div> : null}
     </div>
   )
 }

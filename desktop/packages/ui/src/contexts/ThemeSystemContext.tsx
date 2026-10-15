@@ -49,17 +49,17 @@ const suppressTransitionsForThemeSwitch = () => {
   }
 
   const root = document.documentElement
-  root.classList.add("oc-theme-switching")
+  root.classList.add("ax-theme-switching")
 
   const frame = window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => {
-      root.classList.remove("oc-theme-switching")
+      root.classList.remove("ax-theme-switching")
     })
   })
 
   return () => {
     window.cancelAnimationFrame(frame)
-    root.classList.remove("oc-theme-switching")
+    root.classList.remove("ax-theme-switching")
   }
 }
 

@@ -149,7 +149,7 @@ const SessionFolderItemBase = <TSessionNode,>({
   const isSubFolder = depth > 0
 
   return (
-    <div className={cn("oc-folder", isSubFolder && "ml-3")}>
+    <div className={cn("ax-folder", isSubFolder && "ml-3")}>
       {/* Folder header – also acts as a drop zone when droppableRef is provided */}
       <div
         ref={droppableRef}

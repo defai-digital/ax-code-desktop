@@ -1747,7 +1747,7 @@ export const ProvidersPage: React.FC = () => {
                                   style={{ width: `${downloadPercent}%` }}
                                 />
                               ) : (
-                                <div className="oc-indeterminate-progress-bar absolute inset-y-0 left-0 w-1/4 rounded-full bg-primary" />
+                                <div className="ax-indeterminate-progress-bar absolute inset-y-0 left-0 w-1/4 rounded-full bg-primary" />
                               )}
                             </div>
                           )}
