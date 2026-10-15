@@ -230,6 +230,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The bundled AX Code runtime pin moves to the signed v7.26.0 and the JSR SDK pin to 2.6.22. Artifact
+  sizes and SHA-256 digests were recomputed from the downloaded release assets after their minisign
+  signatures verified against the committed public key; the digests also match the release's trusted
+  comments.
 - The bundled AX Code runtime pin moves to the signed v7.25.8, the first release that carries the
   `desktop_webmcp` `navigate` action.
 - Reloading a session's messages uses the directory recorded on the session, which stops the server

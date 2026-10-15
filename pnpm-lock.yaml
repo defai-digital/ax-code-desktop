@@ -110,8 +110,8 @@ importers:
   desktop/packages/electron:
     dependencies:
       '@defai-digital/ax-code-sdk':
-        specifier: jsr:@defai-digital/ax-code-sdk@2.6.17
-        version: '@jsr/defai-digital__ax-code-sdk@2.6.17'
+        specifier: jsr:@defai-digital/ax-code-sdk@2.6.22
+        version: '@jsr/defai-digital__ax-code-sdk@2.6.22'
       electron-updater:
         specifier: ^6.3.9
         version: 6.8.9
@@ -207,8 +207,8 @@ importers:
         specifier: 6.39.13
         version: 6.39.13
       '@defai-digital/ax-code-sdk':
-        specifier: jsr:@defai-digital/ax-code-sdk@2.6.17
-        version: '@jsr/defai-digital__ax-code-sdk@2.6.17'
+        specifier: jsr:@defai-digital/ax-code-sdk@2.6.22
+        version: '@jsr/defai-digital__ax-code-sdk@2.6.22'
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -433,8 +433,8 @@ importers:
         specifier: ^1.1.0
         version: 1.7.0
       '@defai-digital/ax-code-sdk':
-        specifier: jsr:@defai-digital/ax-code-sdk@2.6.17
-        version: '@jsr/defai-digital__ax-code-sdk@2.6.17'
+        specifier: jsr:@defai-digital/ax-code-sdk@2.6.22
+        version: '@jsr/defai-digital__ax-code-sdk@2.6.22'
       '@octokit/rest':
         specifier: ^22.0.1
         version: 22.0.1
@@ -1280,8 +1280,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@jsr/defai-digital__ax-code-sdk@2.6.17':
-    resolution: {integrity: sha512-GNnpSK5WGqB2bRtSdWWBgLy7MQmnxIjspOk7OxpFOHWpZyr/6RlULN0qWu4rAPuw1gr/ekGiekl9MQTnUmKb1g==, tarball: https://npm.jsr.io/~/11/@jsr/defai-digital__ax-code-sdk/2.6.17.tgz}
+  '@jsr/defai-digital__ax-code-sdk@2.6.22':
+    resolution: {integrity: sha512-imrm3v+iNHjVeIWAivek2tEjn/yn/NMZP8uVglciqdQERTwsuvr8h7bo5hnp5dC40hqHv4++ltpUwrouzJSmiA==, tarball: https://npm.jsr.io/~/11/@jsr/defai-digital__ax-code-sdk/2.6.22.tgz}
 
   '@kwsites/file-exists@1.1.1':
     resolution: {integrity: sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==}
@@ -5984,7 +5984,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@jsr/defai-digital__ax-code-sdk@2.6.17':
+  '@jsr/defai-digital__ax-code-sdk@2.6.22':
     dependencies:
       '@msgpack/msgpack': 3.1.3
       zod: 4.6.5
