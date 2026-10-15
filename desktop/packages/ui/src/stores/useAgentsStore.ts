@@ -35,7 +35,7 @@ let agentsLoadSequence = 0
 
 const buildAgentsSignature = (agents: Agent[]): string =>
   buildRecordSignature(agents, (agent) => {
-    const extended = agent as AgentWithExtras
+    const extended = agent as AgentWithExtras & { permission?: PermissionConfig | null; disable?: boolean }
     return [
       agent.name,
       extended.scope,
@@ -50,6 +50,11 @@ const buildAgentsSignature = (agents: Agent[]): string =>
       extended.temperature,
       extended.topP,
       extended.prompt,
+      // The permission ruleset and the disable flag are edited from these stored
+      // records too (the rules panel and Duplicate both read them), so a reload
+      // that only changed one of them must not be dropped either.
+      extended.permission ? JSON.stringify(extended.permission) : "",
+      extended.disable === true,
     ]
   })
 

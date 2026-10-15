@@ -161,6 +161,34 @@ describe("useAgentsStore", () => {
     expect(useAgentsStore.getState().isLoading).toBe(false)
   })
 
+  test("a reload whose only change is a permission or disable edit still reaches the store", async () => {
+    // Regression: the reload gate's signature only listed mode/model/prompt, so a
+    // PATCH that changed just the permission ruleset (or the disable flag) was
+    // dropped and the editor kept showing — and re-saving — the stale rules.
+    const denied = createDeferred<unknown[]>()
+    agentLists.push(denied)
+
+    // Directories no other test in this file uses: the load cache is module-level
+    // and keyed by directory, so a reused path would short-circuit the reload.
+    const firstLoad = useAgentsStore.getState().loadAgents({ directory: "/workspace/permission-before" })
+    await Promise.resolve()
+    denied.resolve([{ name: "guarded-agent", permission: { bash: "deny" }, disable: false }])
+    await firstLoad
+
+    expect(useAgentsStore.getState().agents).toMatchObject([{ permission: { bash: "deny" } }])
+
+    const allowed = createDeferred<unknown[]>()
+    agentLists.push(allowed)
+
+    const secondLoad = useAgentsStore.getState().loadAgents({ directory: "/workspace/permission-after" })
+    await Promise.resolve()
+    allowed.resolve([{ name: "guarded-agent", permission: { bash: "allow" }, disable: false }])
+    await secondLoad
+
+    expect(withDirectories).toEqual(["/workspace/permission-before", "/workspace/permission-after"])
+    expect(useAgentsStore.getState().agents).toMatchObject([{ permission: { bash: "allow" } }])
+  })
+
   test("a load that was joined by a second caller still commits its result", async () => {
     // Regression: allocating the request id before the single-flight run let the
     // joiner bump the sequence, so the owning load dropped its own result and left
