@@ -45,6 +45,7 @@ import { useI18n } from "@/lib/i18n"
 import { useAxCodeReadiness } from "@/hooks/useAxCodeReadiness"
 import { eventMatchesShortcut, getEffectiveShortcutCombo, normalizeCombo } from "@/lib/shortcuts"
 import type { PermissionAction, PermissionRule } from "@/stores/utils/permissionUtils"
+import { truncateToCodeUnits } from "@/lib/textTruncate"
 
 type ModelControlIconName = IconName
 
@@ -1121,10 +1122,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
 
   const getModelDisplayName = (model: ModelControlProviderModel | undefined) => {
     const name = typeof model?.name === "string" ? model.name : typeof model?.id === "string" ? model.id : ""
-    if (name.length > 40) {
-      return name.substring(0, 37) + "..."
-    }
-    return name
+    return truncateToCodeUnits(name, 40, "...")
   }
 
   const getProviderDisplayName = () => {

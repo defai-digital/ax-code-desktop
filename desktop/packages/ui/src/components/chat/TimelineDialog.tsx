@@ -10,6 +10,7 @@ import type { Part, SessionRollbackPoint, SessionRollbackPreview } from "@defai-
 import { useI18n } from "@/lib/i18n"
 import { useDeviceInfo } from "@/lib/device"
 import { cn } from "@/lib/utils"
+import { truncateToCodeUnits } from "@/lib/textTruncate"
 import { useSessionRollbackStore } from "@/stores/useSessionRollbackStore"
 import { formatRollbackPointMeta } from "./TimelineDialog.helpers"
 
@@ -640,7 +641,7 @@ function getFullText(parts: Part[]): string {
 function getMessagePreview(parts: Part[]): string {
   const full = getFullText(parts)
   const singleLine = full.replace(/\n/g, " ")
-  return singleLine.length > 80 ? singleLine.slice(0, 80) : singleLine
+  return truncateToCodeUnits(singleLine, 80, "")
 }
 
 function getSearchSnippet(text: string, query: string, contextChars: number = 30): string | null {

@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n"
 import { useSessionHasError } from "@/sync/notification-store"
 import { Icon } from "@/components/icon/Icon"
 import { Button } from "@/components/ui/button"
+import { truncateToCodeUnits } from "@/lib/textTruncate"
 
 interface QueuedMessageChipProps {
   message: QueuedMessage
@@ -21,12 +22,9 @@ const QueuedMessageChip = memo(({ message, sessionId, held, onEdit, onSend }: Qu
 
   const firstLine = React.useMemo(() => {
     const lines = message.content.split("\n")
-    const first = lines[0] || ""
-    const maxLength = 100
-    if (first.length > maxLength) {
-      return first.substring(0, maxLength) + "..."
-    }
-    return first + (lines.length > 1 ? "..." : "")
+    const first = truncateToCodeUnits(lines[0] || "", 100, "")
+    const truncated = first.length < (lines[0] || "").length
+    return truncated || lines.length > 1 ? `${first}...` : first
   }, [message.content])
 
   const attachmentCount = message.attachments?.length ?? 0

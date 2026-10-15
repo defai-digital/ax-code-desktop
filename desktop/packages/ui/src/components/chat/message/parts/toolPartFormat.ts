@@ -1,4 +1,5 @@
 import { detectToolOutputLanguage } from "@/lib/toolHelpers"
+import { truncateToCodeUnits } from "@/lib/textTruncate"
 import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from "@defai-digital/ax-code-sdk/v2"
 import { formatEditOutput } from "../toolRenderers"
 import { getPatchText, isRecord } from "./toolDiffUtils"
@@ -408,11 +409,11 @@ export const getToolDescription = (part: ToolPartType, state: ToolStateUnion, cu
 
   if (part.tool === "bash" && input?.command && typeof input.command === "string") {
     const firstLine = input.command.split("\n")[0]
-    return firstLine.substring(0, 100)
+    return truncateToCodeUnits(firstLine, 100, "")
   }
 
   if (part.tool === "task" && input?.description && typeof input.description === "string") {
-    return input.description.substring(0, 80)
+    return truncateToCodeUnits(input.description, 80, "")
   }
 
   const desc = input?.description || metadata?.description || ("title" in state && state.title) || ""

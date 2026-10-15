@@ -15,6 +15,7 @@ import { getExternalFaviconUrl, openExternalUrl } from "@/lib/url"
 import { getSafeToolFetchHref } from "./toolFetchLinks"
 import { areRenderRelevantPartsEqual } from "../renderCompare"
 import { getToolRelativePath, normalizeToolDisplayPath } from "./toolPathDisplay"
+import { truncateToCodeUnits } from "@/lib/textTruncate"
 
 const TOOL_ROW_TEXT_CLASS = "!text-[length:var(--text-meta)] !leading-4 sm:!leading-6 tracking-normal"
 const TOOL_ROW_TITLE_CLASS = cn("typography-meta font-medium", TOOL_ROW_TEXT_CLASS)
@@ -321,7 +322,7 @@ const getToolShortDescription = (activity: TurnActivityPart): string | null => {
   if (toolName === "grep" || toolName === "search" || toolName === "find" || toolName === "ripgrep") {
     const pattern = input?.pattern
     if (typeof pattern === "string" && pattern.trim().length > 0) {
-      return pattern.length > 40 ? pattern.slice(0, 40) + "..." : pattern
+      return truncateToCodeUnits(pattern, 40, "...")
     }
   }
 
@@ -329,7 +330,7 @@ const getToolShortDescription = (activity: TurnActivityPart): string | null => {
   if (toolName === "glob") {
     const pattern = input?.pattern
     if (typeof pattern === "string" && pattern.trim().length > 0) {
-      return pattern.length > 40 ? pattern.slice(0, 40) + "..." : pattern
+      return truncateToCodeUnits(pattern, 40, "...")
     }
   }
 
@@ -343,7 +344,7 @@ const getToolShortDescription = (activity: TurnActivityPart): string | null => {
   ) {
     const query = input?.query
     if (typeof query === "string" && query.trim().length > 0) {
-      return query.length > 50 ? query.slice(0, 50) + "..." : query
+      return truncateToCodeUnits(query, 50, "...")
     }
   }
 

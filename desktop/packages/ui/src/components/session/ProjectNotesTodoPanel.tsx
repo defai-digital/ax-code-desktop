@@ -39,6 +39,7 @@ import {
   projectScopedEventMatchesProject,
 } from "@/lib/projectScopedEvents"
 import { TodoSendDialog, type TodoSendExecution } from "./TodoSendDialog"
+import { truncateToCodeUnits } from "@/lib/textTruncate"
 
 const TODO_PANEL_MIN_ITEMS = 5
 const TODO_PANEL_MAX_ITEMS = 15
@@ -351,7 +352,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
 
     const nextTodos = insertTodoBeforeCompleted(todos, {
       id: createTodoId(),
-      text: trimmed.slice(0, AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH),
+      text: truncateToCodeUnits(trimmed, AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH, ""),
       completed: false,
       createdAt: Date.now(),
     })
@@ -427,7 +428,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
 
   const todoSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  const todoInputValue = newTodoText.slice(0, AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH)
+  const todoInputValue = truncateToCodeUnits(newTodoText, AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH, "")
   const completedTodoCount = todos.reduce((count, todo) => count + (todo.completed ? 1 : 0), 0)
 
   const routeToChat = React.useCallback(() => {
@@ -732,7 +733,9 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
         </div>
         <Textarea
           value={notes}
-          onChange={(event) => setNotes(event.target.value.slice(0, AX_CODE_DESKTOP_PROJECT_NOTES_MAX_LENGTH))}
+          onChange={(event) =>
+            setNotes(truncateToCodeUnits(event.target.value, AX_CODE_DESKTOP_PROJECT_NOTES_MAX_LENGTH, ""))
+          }
           onBlur={handleNotesBlur}
           placeholder={t("rightSidebar.contextNotesTodo.notes.placeholder")}
           resizedHeight={notesPanelHeight}
@@ -772,7 +775,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
           <Input
             value={todoInputValue}
             onChange={(event) =>
-              setNewTodoText(event.target.value.slice(0, AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH))
+              setNewTodoText(truncateToCodeUnits(event.target.value, AX_CODE_DESKTOP_PROJECT_TODO_TEXT_MAX_LENGTH, ""))
             }
             onKeyDown={(event) => {
               if (event.key === "Enter") {

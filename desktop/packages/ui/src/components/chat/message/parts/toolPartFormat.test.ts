@@ -314,3 +314,23 @@ describe("tool output text and language", () => {
     expect(getToolOutputLanguage("raw output", part, undefined, undefined)).toBe("bash")
   })
 })
+
+describe("getToolDescription truncation", () => {
+  test("caps a bash command without splitting a character at the cut", () => {
+    // The label renders in every tool row; cutting between the halves of an
+    // emoji left a lone surrogate (a replacement character) at the end.
+    const command = `${"x".repeat(99)}🎉 tail`
+    const part = toolPart("bash", { input: { command } })
+    const description = getToolDescription(part, part.state, "/repo")
+
+    expect(description).toBe("x".repeat(99))
+    expect(description).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+  })
+
+  test("caps a task description the same way", () => {
+    const part = toolPart("task", { input: { description: `${"y".repeat(79)}🚀 tail` } })
+    const description = getToolDescription(part, part.state, "/repo")
+
+    expect(description).toBe("y".repeat(79))
+  })
+})

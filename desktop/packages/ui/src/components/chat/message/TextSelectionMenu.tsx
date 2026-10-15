@@ -18,6 +18,7 @@ import { resolveProjectForSessionDirectory } from "@/lib/projectResolution"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { useI18n } from "@/lib/i18n"
 import { dispatchProjectNotesUpdated } from "@/lib/projectScopedEvents"
+import { truncateToCodeUnits } from "@/lib/textTruncate"
 
 interface TextSelectionMenuProps {
   containerRef: React.RefObject<HTMLElement | null>
@@ -36,10 +37,13 @@ interface SelectionPayload {
 }
 
 const appendDistilledInsightToNotes = (existingNotes: string, insight: string): string => {
-  const trimmedInsight = insight
-    .trim()
-    .replace(/^[-*+]\s+/, "")
-    .slice(0, AX_CODE_DESKTOP_PROJECT_NOTES_MAX_LENGTH)
+  const trimmedInsight = truncateToCodeUnits(
+    insight
+      .trim()
+      .replace(/^[-*+]\s+/, ""),
+    AX_CODE_DESKTOP_PROJECT_NOTES_MAX_LENGTH,
+    "",
+  )
   if (!trimmedInsight) {
     return existingNotes
   }

@@ -3,6 +3,7 @@ import { clearRecentPrompts, listRecentPrompts } from "@/lib/recentPrompts"
 import { useI18n } from "@/lib/i18n"
 import { Icon } from "@/components/icon/Icon"
 import { cn } from "@/lib/utils"
+import { truncateToCodeUnits } from "@/lib/textTruncate"
 
 type RecentPromptChipsProps = {
   /** Only show when the composer is empty / draft-friendly. */
@@ -26,7 +27,7 @@ export const RecentPromptChips: React.FC<RecentPromptChipsProps> = ({ visible = 
     <div className={cn("flex min-w-0 flex-wrap items-center gap-1.5 px-0.5", className)}>
       <span className="typography-micro text-muted-foreground shrink-0">{t("chat.recentPrompts.title")}</span>
       {prompts.slice(0, 5).map((prompt) => {
-        const label = prompt.length > 48 ? `${prompt.slice(0, 48)}…` : prompt
+        const label = truncateToCodeUnits(prompt, 48)
         return (
           <button
             key={prompt}
