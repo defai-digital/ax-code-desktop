@@ -52,6 +52,15 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Layout: the sidebar leads with a labeled New session button that shows the effective shortcut;
+  the sidebar footer is a brand row (the `</>` mark and the product name open About, with theme,
+  shortcuts and settings on the right); the header's terminal, split, WebMCP and right sidebar
+  toggles share one frame; the composer frames its run controls (work mode, execution mode,
+  sandbox) and sends with a filled brand-teal button. The composer uses a new `--radius-2xl`
+  token that follows the corner radius setting.
+- Header toggles show "on" as the brand color on a selected background. The WebMCP toggle now
+  reflects whether the browser panel is open and closes it on a second click; its dot still
+  shows agent access.
 - AX glyphs replace generic icons for product concepts: the Agent work mode, Auto execution, the
   WebMCP browser tools, the `</>` mark, and one pull request family where open, draft and closed
   differ only in the right branch. They are drawn on Phosphor's grid at its bold stroke width.

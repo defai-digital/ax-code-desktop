@@ -8,6 +8,8 @@ type CornerRadiusTokens = {
   md: number
   lg: number
   xl: number
+  /** Large surfaces such as the composer. */
+  xxl: number
 }
 
 export const normalizeCornerRadius = (value: number): number => {
@@ -26,6 +28,7 @@ export const resolveCornerRadiusTokens = (value: number): CornerRadiusTokens => 
     md: scaled(8),
     lg: scaled(10),
     xl: scaled(12),
+    xxl: scaled(16),
   }
 }
 
@@ -36,4 +39,5 @@ export const applyCornerRadius = (value: number, root: HTMLElement = document.do
   root.style.setProperty("--radius-md", `${tokens.md}px`)
   root.style.setProperty("--radius-lg", `${tokens.lg}px`)
   root.style.setProperty("--radius-xl", `${tokens.xl}px`)
+  root.style.setProperty("--radius-2xl", `${tokens.xxl}px`)
 }

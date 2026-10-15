@@ -16,6 +16,7 @@ describe("corner radius preferences", () => {
       md: 8,
       lg: 10,
       xl: 12,
+      xxl: 16,
     })
   })
 
@@ -34,5 +35,6 @@ describe("corner radius preferences", () => {
     expect(root.style.getPropertyValue("--radius-md")).toBe("0px")
     expect(root.style.getPropertyValue("--radius-lg")).toBe("0px")
     expect(root.style.getPropertyValue("--radius-xl")).toBe("0px")
+    expect(root.style.getPropertyValue("--radius-2xl")).toBe("0px")
   })
 })

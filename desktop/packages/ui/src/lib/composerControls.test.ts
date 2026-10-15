@@ -85,7 +85,7 @@ describe("composer and navigation controls", () => {
     expect(overflow).not.toMatch(/WebMcp/)
 
     const header = readFileSync(sourcePath("../components/layout/Header.tsx"), "utf8")
-    expect(header).toContain("<WebMcpHeaderButton />")
+    expect(header).toContain("<WebMcpHeaderButton")
     expect(header).toContain("<ContextUsageDisplay")
 
     // The composer's context usage only renders where no header shows it.

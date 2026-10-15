@@ -7,20 +7,24 @@ import { isElectronShell } from "@/lib/desktop"
 import { useOpenProjectBrowser, useWebMcpSummary } from "@/hooks/useWebMcpBrowser"
 import { WebMcpStatusDot } from "@/components/mcp/WebMcpBrowserTools"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
+import { useUIStore } from "@/stores/useUIStore"
 
 // The header is a window drag region; without the no-drag marker a click would move the window.
 const HEADER_BUTTON_CLASS =
   "app-region-no-drag relative inline-flex h-8 items-center gap-1.5 rounded-md px-2 typography-meta text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
 
 /**
- * The one header control that says "WebMCP" out loud. It opens the project browser in agent mode
- * and shows the live agent-access state, so the feature is findable without knowing that it lives
- * inside the browser panel. Only the desktop app has the native browser, so the web build hides it.
+ * The one header control that says "WebMCP" out loud. It toggles the project browser like the other
+ * panel toggles beside it: pressed and filled while the browser panel is open. The status dot is a
+ * separate signal for agent access. Only the desktop app has the native browser, so the web build
+ * hides it.
  */
-export const WebMcpHeaderButton: React.FC = () => {
+export const WebMcpHeaderButton: React.FC<{ className?: string }> = ({ className }) => {
   const { t } = useI18n()
   const summary = useWebMcpSummary()
   const enabled = useWebMcpBrowserStore((state) => state.enabled)
+  const panelOpen = useUIStore((state) => state.browserPanel.isOpen)
+  const closeContextBrowser = useUIStore((state) => state.closeContextBrowser)
   const openProjectBrowser = useOpenProjectBrowser()
   if (!isElectronShell()) return null
   return (
@@ -28,12 +32,17 @@ export const WebMcpHeaderButton: React.FC = () => {
       <TooltipTrigger asChild>
         <button
           type="button"
-          onClick={() => openProjectBrowser()}
+          onClick={() => (panelOpen ? closeContextBrowser() : openProjectBrowser())}
           aria-label={t("webmcp.header.aria", { state: summary.stateLabel })}
-          aria-pressed={enabled}
-          className={cn(HEADER_BUTTON_CLASS, enabled && "text-foreground")}
+          aria-pressed={panelOpen}
+          data-panel-open={panelOpen ? "true" : undefined}
+          className={cn(
+            HEADER_BUTTON_CLASS,
+            panelOpen && "bg-interactive-selection text-primary hover:text-primary",
+            className,
+          )}
         >
-          <Icon name="global" className="h-[18px] w-[18px]" />
+          <Icon name="ax-browser" className="h-[18px] w-[18px]" />
           <span className="font-medium">WebMCP</span>
           <WebMcpStatusDot tone={summary.tone} className={cn(enabled && "status-dot-running")} />
         </button>

@@ -700,13 +700,18 @@ const ComposerActionButtons = React.memo(
           event.preventDefault()
           onPrimaryAction()
         }}
+        data-composer-send
         className={cn(
           footerIconButtonClass,
-          canSend && (currentSessionId || newSessionDraftOpen) ? "text-primary hover:text-primary" : "opacity-30",
+          // A filled brand-teal disc; the arrow uses the primary foreground for contrast on teal.
+          "rounded-full",
+          canSend && (currentSessionId || newSessionDraftOpen)
+            ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+            : "bg-[var(--surface-muted)] text-muted-foreground opacity-60",
         )}
         aria-label={t("chat.chatInput.actions.sendMessageAria")}
       >
-        <Icon name="send-plane-2" className={cn(sendIconSizeClass)} />
+        <Icon name="arrow-up" className={cn(sendIconSizeClass)} />
       </button>
     )
 
@@ -987,7 +992,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   )
 
   const isDesktopExpanded = isExpandedInput && !isMobile
-  const chatInputRadius = "var(--radius-xl)"
+  const chatInputRadius = "var(--radius-2xl)"
   const useCompactChatPlaceholder = isMobile || isNarrowComposer
 
   React.useEffect(() => {
@@ -4278,10 +4283,16 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                       handlePermissionAutoAcceptToggle={handlePermissionAutoAcceptToggle}
                       withTooltip
                     />
-                    <div className="mx-0.5 h-3.5 w-px flex-shrink-0 bg-border/40" aria-hidden />
-                    <WorkModeSelector iconSizeClass={iconSizeClass} />
-                    <ExecutionModeSelector iconSizeClass={iconSizeClass} />
-                    <SandboxToggle iconSizeClass={iconSizeClass} />
+                    {/* How the agent runs: work mode, execution mode and sandbox share one frame. */}
+                    <div
+                      role="group"
+                      data-composer-run-group
+                      className="ml-0.5 flex flex-shrink-0 items-center gap-0.5 rounded-lg border border-[var(--interactive-border)] p-px"
+                    >
+                      <WorkModeSelector iconSizeClass={iconSizeClass} />
+                      <ExecutionModeSelector iconSizeClass={iconSizeClass} />
+                      <SandboxToggle iconSizeClass={iconSizeClass} />
+                    </div>
                     <ComposerOverflowMenu iconSizeClass={iconSizeClass} />
                   </div>
                   <div className={cn("flex items-center flex-1 justify-end", footerGapClass, "md:gap-x-3")}>

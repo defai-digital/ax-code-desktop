@@ -12,6 +12,8 @@ import { ArrowsMerge } from "@/components/icons/ArrowsMerge"
 import { Icon } from "@/components/icon/Icon"
 import { useSessionDisplayStore } from "@/stores/useSessionDisplayStore"
 import { useI18n } from "@/lib/i18n"
+import { useUIStore } from "@/stores/useUIStore"
+import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
 
 type Props = {
   hideDirectoryControls: boolean
@@ -65,6 +67,11 @@ export function SidebarHeader(props: Props): React.ReactNode {
   const showRecentSection = useSessionDisplayStore((state) => state.showRecentSection)
   const setDisplayMode = useSessionDisplayStore((state) => state.setDisplayMode)
   const toggleRecentSection = useSessionDisplayStore((state) => state.toggleRecentSection)
+  const shortcutOverrides = useUIStore((state) => state.shortcutOverrides)
+  const newSessionShortcut = React.useMemo(
+    () => formatShortcutForDisplay(getEffectiveShortcutCombo("new_chat", shortcutOverrides)),
+    [shortcutOverrides],
+  )
 
   if (hideDirectoryControls) {
     return null
@@ -73,25 +80,27 @@ export function SidebarHeader(props: Props): React.ReactNode {
   return (
     <div className="select-none flex-shrink-0 px-2.5 py-1">
       <div className="flex h-auto min-h-8 flex-col gap-1">
+        {/* New session is the primary action: a labeled, full-width button above the tool row. */}
+        <button
+          type="button"
+          onClick={openNewSessionDraft}
+          data-sidebar-new-session
+          aria-keyshortcuts={newSessionShortcut || undefined}
+          className={cn(
+            "group flex h-8 w-full min-w-0 items-center gap-2 rounded-lg border border-[var(--interactive-border)] bg-[var(--surface-elevated)] px-2.5",
+            "typography-ui-label font-medium text-foreground transition-colors",
+            "hover:border-primary/50 hover:bg-[var(--interactive-hover)]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]",
+          )}
+        >
+          <Icon name="chat-new" className="h-4 w-4 flex-shrink-0 text-primary" />
+          <span className="min-w-0 flex-1 truncate text-left">{t("sessions.sidebar.header.actions.newSession")}</span>
+          {newSessionShortcut ? (
+            <kbd className="flex-shrink-0 font-sans typography-micro text-muted-foreground">{newSessionShortcut}</kbd>
+          ) : null}
+        </button>
         <div className="flex h-8 items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
-            {/* New session is the primary action — keep it leftmost on the bar. */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={openNewSessionDraft}
-                  className={headerActionButtonClass}
-                  aria-label={t("sessions.sidebar.header.actions.newSession")}
-                >
-                  <Icon name="chat-new" className={headerActionIconClass} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <p>{t("sessions.sidebar.header.actions.newSession")}</p>
-              </TooltipContent>
-            </Tooltip>
-
             <Tooltip>
               <TooltipTrigger asChild>
                 <button

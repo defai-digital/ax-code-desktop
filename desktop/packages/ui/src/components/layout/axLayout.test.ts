@@ -1,0 +1,63 @@
+import { readFileSync } from "node:fs"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+import { describe, expect, test } from "vitest"
+import { iconSpriteData } from "@/components/icon/sprite"
+
+const source = (relativePath: string) =>
+  readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", relativePath), "utf8")
+
+describe("AX Code layout", () => {
+  test("the sidebar leads with a labeled New session button that shows the effective shortcut", () => {
+    const header = source("session/sidebar/SidebarHeader.tsx")
+    expect(header).toContain("data-sidebar-new-session")
+    expect(header).toContain('getEffectiveShortcutCombo("new_chat", shortcutOverrides)')
+    // The icon-only duplicate is gone from the tool row.
+    expect(header.match(/onClick=\{openNewSessionDraft\}/g)).toHaveLength(1)
+  })
+
+  test("the sidebar footer is a brand row whose mark opens About", () => {
+    const footer = source("session/sidebar/SidebarFooter.tsx")
+    expect(footer).toContain("data-sidebar-brand")
+    expect(footer).toMatch(/onClick=\{onOpenAbout\}[\s\S]*?name="ax-mark"[\s\S]*?PRODUCT_DISPLAY_NAME/)
+  })
+
+  test("header panel toggles are one framed group of independent pressed toggles", () => {
+    const header = source("layout/Header.tsx")
+    const group = header.slice(
+      header.indexOf("data-header-panels"),
+      header.indexOf("</div>", header.indexOf("data-header-panels")),
+    )
+    expect(group).toContain("pressed={isBottomTerminalOpen}")
+    expect(group).toContain("pressed={splitPaneEnabled}")
+    expect(group).toContain("<WebMcpHeaderButton")
+    expect(group).toContain("pressed={isRightSidebarOpen}")
+  })
+
+  test("the composer frames its run controls and sends with a filled brand disc", () => {
+    const input = source("chat/ChatInput-impl.tsx")
+    expect(input).toMatch(
+      /data-composer-run-group[\s\S]*?<WorkModeSelector[\s\S]*?<ExecutionModeSelector[\s\S]*?<SandboxToggle/,
+    )
+    expect(input).toContain("data-composer-send")
+    expect(input).toContain('"bg-primary text-primary-foreground')
+  })
+
+  test("AX concepts render AX glyphs", () => {
+    for (const name of ["ax-agent", "ax-auto", "ax-browser", "ax-mark"] as const) {
+      expect(iconSpriteData[name]).toBeTruthy()
+    }
+    expect(source("chat/WorkModeSelector.tsx")).toContain('agent: "ax-agent"')
+    expect(source("chat/ExecutionModeSelector.tsx")).toContain('icon: "ax-auto"')
+    expect(source("mcp/WebMcpHeaderButton.tsx")).toContain('name="ax-browser"')
+  })
+
+  test("the WebMCP header toggle shows the browser panel's open state, separate from agent access", () => {
+    const button = source("mcp/WebMcpHeaderButton.tsx")
+    expect(button).toContain("aria-pressed={panelOpen}")
+    expect(button).toContain('panelOpen && "bg-interactive-selection text-primary')
+    expect(button).toContain("panelOpen ? closeContextBrowser() : openProjectBrowser()")
+    // The dot still reports agent access.
+    expect(button).toMatch(/<WebMcpStatusDot tone=\{summary\.tone\}/)
+  })
+})

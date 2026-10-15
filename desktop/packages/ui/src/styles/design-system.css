@@ -211,6 +211,7 @@
   --radius-md: 0.5rem;
   --radius-lg: 0.625rem;
   --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
   --radius-full: 9999px;
 
   /* Override Tailwind spacing scale with custom properties that respect --padding-scale */

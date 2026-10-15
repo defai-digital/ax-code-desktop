@@ -83,6 +83,12 @@ const DESKTOP_HEADER_ICON_BUTTON_CLASS =
 
 const HEADER_ACTION_SEPARATOR_CLASS = "mx-0.5 h-4 w-px flex-shrink-0 bg-border/50"
 
+// Panel toggles sit in one framed group. They are independent toggles (several can be on), so each
+// keeps its own aria-pressed rather than acting like tabs.
+const HEADER_PANEL_GROUP_CLASS =
+  "app-region-no-drag flex flex-shrink-0 items-center gap-0.5 rounded-lg border border-[var(--interactive-border)] bg-[var(--surface-muted)] p-0.5"
+const HEADER_PANEL_BUTTON_CLASS = DESKTOP_HEADER_ICON_BUTTON_CLASS.replace("h-8 w-8", "h-7 w-7")
+
 type HeaderIconActionButtonProps = {
   visible?: boolean
   title: string
@@ -118,8 +124,8 @@ const HeaderIconActionButton = React.memo(function HeaderIconActionButton({
           aria-pressed={pressed}
           className={cn(
             className ?? DESKTOP_HEADER_ICON_BUTTON_CLASS,
-            pressed &&
-              "bg-interactive-selection text-interactive-selection-foreground hover:text-interactive-selection-foreground",
+            // "On" reads as the brand color on a selected background, like the composer's mode toggles.
+            pressed && "bg-interactive-selection text-primary hover:text-primary",
           )}
         >
           <Icon name={iconName} className={iconClassName ?? "h-[18px] w-[18px]"} />
@@ -764,6 +770,8 @@ export const Header: React.FC = () => {
   const { t } = useI18n()
   const toggleSidebar = useUIStore((state) => state.toggleSidebar)
   const toggleBottomTerminal = useUIStore((state) => state.toggleBottomTerminal)
+  const isBottomTerminalOpen = useUIStore((state) => state.isBottomTerminalOpen)
+  const isRightSidebarOpen = useUIStore((state) => state.isRightSidebarOpen)
   const toggleSplitPane = useUIStore((state) => state.toggleSplitPane)
   const splitPaneEnabled = useUIStore((state) => state.splitPaneEnabled)
   const toggleRightSidebar = useUIStore((state) => state.toggleRightSidebar)
@@ -1761,26 +1769,33 @@ export const Header: React.FC = () => {
       </span>
       <NotificationCenter />
       <div className={HEADER_ACTION_SEPARATOR_CLASS} aria-hidden />
-      <HeaderIconActionButton
-        title={t("header.actions.terminalPanelWithShortcut", { shortcut: shortcutLabel("toggle_terminal") })}
-        ariaLabel={t("header.actions.toggleTerminalPanelAria")}
-        onClick={toggleBottomTerminal}
-        Icon={"terminal-box"}
-      />
-      <HeaderIconActionButton
-        title={t("splitPane.toggle.title")}
-        ariaLabel={t("splitPane.toggle.title")}
-        onClick={toggleSplitPane}
-        pressed={splitPaneEnabled}
-        Icon={"layout-column"}
-      />
-      <WebMcpHeaderButton />
-      <HeaderIconActionButton
-        title={t("header.actions.rightSidebarWithShortcut", { shortcut: shortcutLabel("toggle_right_sidebar") })}
-        ariaLabel={t("header.actions.toggleRightSidebarAria")}
-        onClick={toggleRightSidebar}
-        Icon={"layout-right"}
-      />
+      <div role="group" data-header-panels className={HEADER_PANEL_GROUP_CLASS}>
+        <HeaderIconActionButton
+          title={t("header.actions.terminalPanelWithShortcut", { shortcut: shortcutLabel("toggle_terminal") })}
+          ariaLabel={t("header.actions.toggleTerminalPanelAria")}
+          onClick={toggleBottomTerminal}
+          pressed={isBottomTerminalOpen}
+          className={HEADER_PANEL_BUTTON_CLASS}
+          Icon={"terminal-box"}
+        />
+        <HeaderIconActionButton
+          title={t("splitPane.toggle.title")}
+          ariaLabel={t("splitPane.toggle.title")}
+          onClick={toggleSplitPane}
+          pressed={splitPaneEnabled}
+          className={HEADER_PANEL_BUTTON_CLASS}
+          Icon={"layout-column"}
+        />
+        <WebMcpHeaderButton className="h-7" />
+        <HeaderIconActionButton
+          title={t("header.actions.rightSidebarWithShortcut", { shortcut: shortcutLabel("toggle_right_sidebar") })}
+          ariaLabel={t("header.actions.toggleRightSidebarAria")}
+          onClick={toggleRightSidebar}
+          pressed={isRightSidebarOpen}
+          className={HEADER_PANEL_BUTTON_CLASS}
+          Icon={"layout-right"}
+        />
+      </div>
       <div className={HEADER_ACTION_SEPARATOR_CLASS} aria-hidden />
       <DesktopGitHubControl
         githubAuthStatus={githubAuthStatus}
