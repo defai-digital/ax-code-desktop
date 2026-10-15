@@ -43,6 +43,22 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Deleting a custom skill could delete any folder on the machine. The delete API accepted a name
+  containing path segments (`../`), so a crafted request reached outside the skills directories and
+  removed whatever it pointed at. Every skill route now validates the name the same way agent and
+  command names are validated.
+- Answering one permission request no longer silences the notifications for other requests that were
+  waiting in the same window.
+- WebSocket upgrades to unknown paths are answered and closed instead of being left open forever.
+- Unsaved edits on an MCP server are no longer wiped when the server list reloads in the background
+  (deleting another server, opening the header Services menu, or saving).
+- Renaming a custom command keeps its scope instead of turning a project command into a global one.
+- Inline comments keep working after switching to another session of the same project; a pending
+  comment box or selection no longer blocks new comment input.
+- The Edit menu's Select All label is translated from its own key, so English reads "Select All" again
+  and other languages no longer borrow the wording of the skills catalog.
+- The file-type icon sprite shipped stale: the Cloudflare folder glyphs were missing from the sprite
+  and its id list. Both are regenerated, and the generator now has a `--check` mode guarded by a test.
 - The packaged app's terminal could not start at all: its Content Security Policy blocked
   WebAssembly compilation, so the ghostty-vt renderer failed with a CSP error. The packaged
   policy now permits WebAssembly only (`wasm-unsafe-eval`, not script `eval`).
