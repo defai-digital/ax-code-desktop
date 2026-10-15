@@ -15,6 +15,30 @@ describe("JSON tree construction", () => {
     expect(getAllExpandableIds(tree)).toContain("root.empty")
   })
 
+  test("gives every node a unique id even when a key contains the path separators", () => {
+    // A key like "cfg.mode" used to produce the same id as a nested cfg → mode, so
+    // one collapse toggled both rows.
+    const tree = buildJsonTree({ "cfg.mode": { deep: 1 }, cfg: { mode: { deep: 2 } } })!
+    const ids = flattenTree(tree, new Set()).map(({ node }) => node.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toEqual([
+      "root",
+      "root.cfg\\.mode",
+      "root.cfg\\.mode.deep",
+      "root.cfg",
+      "root.cfg.mode",
+      "root.cfg.mode.deep",
+    ])
+
+    // Collapsing the escaped key leaves the nested node's children visible.
+    const collapsed = flattenTree(tree, new Set(["root.cfg\\.mode"])).map(({ node }) => node.id)
+    expect(collapsed).toContain("root.cfg.mode.deep")
+
+    const arrayLike = buildJsonTree({ "a[1]": "keyed", a: [10, 20] })!
+    const arrayIds = flattenTree(arrayLike, new Set()).map(({ node }) => node.id)
+    expect(new Set(arrayIds).size).toBe(arrayIds.length)
+  })
+
   test("does not read array entries beyond the node budget", () => {
     let reads = 0
     const data = new Proxy(Array.from({ length: 1000 }, (_, index) => index), {

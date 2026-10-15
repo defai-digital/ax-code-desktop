@@ -44,6 +44,13 @@ function getType(value: unknown): JsonTreeNodeType {
   return "null"
 }
 
+// The id doubles as the path the viewer copies, so it stays readable — but it is
+// also the key for the collapsed set and the React list, so it has to be unique
+// per node. A key that contains the separators would otherwise produce the same
+// id as a nested node ("a.b" and a/b), and collapsing one would collapse both.
+const escapePathSegment = (segment: string): string =>
+  segment.replace(/\\/g, "\\\\").replace(/\./g, "\\.").replace(/\[/g, "\\[")
+
 function getNodePath(pathSegments: string[]): string {
   if (pathSegments.length === 0) return "root"
   let result = "root"
@@ -51,7 +58,7 @@ function getNodePath(pathSegments: string[]): string {
     if (/^\d+$/.test(segment)) {
       result += `[${segment}]`
     } else {
-      result += `.${segment}`
+      result += `.${escapePathSegment(segment)}`
     }
   }
   return result
