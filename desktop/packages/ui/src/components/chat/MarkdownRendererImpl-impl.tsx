@@ -10,7 +10,7 @@ import { toast } from "@/components/ui"
 import { Icon } from "@/components/icon/Icon"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { useI18n } from "@/lib/i18n"
-import { API_ENDPOINTS } from "@/lib/http"
+import { fileReferenceExists, normalizePath } from "./markdownFileReferences"
 
 import {
   getExternalFaviconUrl,
@@ -1115,14 +1115,7 @@ interface MarkdownRendererProps {
 
 const MERMAID_BLOCK_SELECTOR = '[data-markdown="mermaid-block"]'
 const FILE_LINK_SELECTOR = '[data-openchamber-file-link="true"]'
-const FILE_REFERENCE_STAT_CONCURRENCY = 4
-const FILE_REFERENCE_STAT_CACHE_MAX = 1000
 const FILE_REFERENCE_LINK_LIMIT = 200
-const FILE_REFERENCE_STAT_CACHE = new Map<string, Promise<boolean>>()
-let activeFileReferenceStatCount = 0
-const pendingFileReferenceStats: Array<() => void> = []
-
-const getFileReferenceStatCacheMax = (): number => FILE_REFERENCE_STAT_CACHE_MAX
 
 const getFileReferenceLinkLimit = (): number => FILE_REFERENCE_LINK_LIMIT
 
@@ -1139,28 +1132,6 @@ const KNOWN_BASENAME_PATTERN = Array.from(KNOWN_FILE_BASENAMES)
   .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
   .join("|")
 
-const normalizePath = (value: string): string => {
-  const source = (value || "").trim()
-  if (!source) {
-    return ""
-  }
-
-  const withSlashes = source.replace(/\\/g, "/")
-  const hadUncPrefix = withSlashes.startsWith("//")
-
-  let normalized = withSlashes.replace(/\/+/g, "/")
-  if (hadUncPrefix && !normalized.startsWith("//")) {
-    normalized = `/${normalized}`
-  }
-
-  const isUnixRoot = normalized === "/"
-  const isWindowsDriveRoot = /^[A-Za-z]:\/$/.test(normalized)
-  if (!isUnixRoot && !isWindowsDriveRoot) {
-    normalized = normalized.replace(/\/+$/, "")
-  }
-
-  return normalized
-}
 
 const isAbsolutePath = (value: string): boolean => {
   return (
@@ -1391,53 +1362,6 @@ const getResolvedReference = (
   }
 }
 
-const fileReferenceExists = (resolvedPath: string): Promise<boolean> => {
-  const normalizedPath = normalizePath(resolvedPath)
-  if (!normalizedPath) {
-    return Promise.resolve(false)
-  }
-
-  const cached = FILE_REFERENCE_STAT_CACHE.get(normalizedPath)
-  if (cached) {
-    FILE_REFERENCE_STAT_CACHE.delete(normalizedPath)
-    FILE_REFERENCE_STAT_CACHE.set(normalizedPath, cached)
-    return cached
-  }
-
-  const request = new Promise<boolean>((resolve) => {
-    const run = () => {
-      activeFileReferenceStatCount += 1
-      void fetch(`${API_ENDPOINTS.fs.stat}?path=${encodeURIComponent(normalizedPath)}`, {
-        method: "GET",
-        cache: "no-store",
-      })
-        .then((response) => resolve(response.ok))
-        .catch(() => resolve(false))
-        .finally(() => {
-          activeFileReferenceStatCount = Math.max(0, activeFileReferenceStatCount - 1)
-          pendingFileReferenceStats.shift()?.()
-        })
-    }
-
-    if (activeFileReferenceStatCount < FILE_REFERENCE_STAT_CONCURRENCY) {
-      run()
-      return
-    }
-
-    pendingFileReferenceStats.push(run)
-  })
-
-  const maxCacheEntries = getFileReferenceStatCacheMax()
-  while (FILE_REFERENCE_STAT_CACHE.size >= maxCacheEntries) {
-    const oldest = FILE_REFERENCE_STAT_CACHE.keys().next().value
-    if (typeof oldest !== "string") {
-      break
-    }
-    FILE_REFERENCE_STAT_CACHE.delete(oldest)
-  }
-  FILE_REFERENCE_STAT_CACHE.set(normalizedPath, request)
-  return request
-}
 
 const getContextDirectory = (effectiveDirectory: string, resolvedPath: string): string => {
   const normalizedDirectory = normalizePath(effectiveDirectory)
