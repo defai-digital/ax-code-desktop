@@ -3312,6 +3312,8 @@
   "chat.draftStarters.sectionCommands": "Perintah",
   "chat.draftStarters.sectionSkills": "Skill",
   "chat.draftStarters.remove": "Hapus",
+  "chat.draftStarters.reorderHint": "Untuk mengubah urutan, tahan Alt (Option di Mac) dan tekan tombol panah, atau seret dengan mouse.",
+  "chat.draftStarters.moved": "{name} dipindahkan ke posisi {position} dari {total}",
   "chat.scrollToBottom.aria": "Gulir ke bawah",
   "chat.scrollToBottom.newMessages": "{count} baru",
   "chat.emptyState.tagline": "Ruang kerja coding AI Anda",

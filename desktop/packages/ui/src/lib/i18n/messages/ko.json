@@ -3318,6 +3318,8 @@
   "chat.draftStarters.sectionCommands": "\uba85\ub839",
   "chat.draftStarters.sectionSkills": "\uc2a4\ud0ac",
   "chat.draftStarters.remove": "\uc81c\uac70",
+  "chat.draftStarters.reorderHint": "순서를 바꾸려면 Alt(Mac에서는 Option)를 누른 채 화살표 키를 누르거나 마우스로 끌어 놓으세요.",
+  "chat.draftStarters.moved": "{name}을(를) {total}개 중 {position}번째로 옮겼습니다",
   "chat.scrollToBottom.aria": "\ub9e8 \uc544\ub798\ub85c \uc2a4\ud06c\ub864",
   "chat.scrollToBottom.newMessages": "\uc0c8 \ud56d\ubaa9 {count}\uac1c",
   "chat.emptyState.tagline": "AI \ucf54\ub529 \uc6cc\ud06c\uc2a4\ud398\uc774\uc2a4",

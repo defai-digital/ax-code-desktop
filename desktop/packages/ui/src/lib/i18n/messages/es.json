@@ -3312,6 +3312,8 @@
   "chat.draftStarters.sectionCommands": "Comandos",
   "chat.draftStarters.sectionSkills": "Habilidades",
   "chat.draftStarters.remove": "Eliminar",
+  "chat.draftStarters.reorderHint": "Para reordenar, mantén pulsada Alt (Opción en Mac) y usa las flechas, o arrastra con el ratón.",
+  "chat.draftStarters.moved": "{name} movido a la posición {position} de {total}",
   "chat.scrollToBottom.aria": "Desplazar al final",
   "chat.scrollToBottom.newMessages": "{count} nuevos",
   "chat.emptyState.tagline": "Tu espacio de programaci\u00f3n con IA",

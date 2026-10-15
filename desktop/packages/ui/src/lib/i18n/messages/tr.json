@@ -3318,6 +3318,8 @@
   "chat.draftStarters.sectionCommands": "Komutlar",
   "chat.draftStarters.sectionSkills": "Beceriler",
   "chat.draftStarters.remove": "Kald\u0131r",
+  "chat.draftStarters.reorderHint": "Sıralamak için Alt (Mac'te Option) tuşunu basılı tutup ok tuşlarına basın veya fareyle sürükleyin.",
+  "chat.draftStarters.moved": "{name}, {total} öğe içinde {position}. sıraya taşındı",
   "chat.scrollToBottom.aria": "En alta kayd\u0131r",
   "chat.scrollToBottom.newMessages": "{count} yeni",
   "chat.emptyState.tagline": "Yapay zeka kodlama \u00e7al\u0131\u015fma alan\u0131n\u0131z",

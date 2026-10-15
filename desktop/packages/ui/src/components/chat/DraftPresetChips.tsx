@@ -16,6 +16,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from 
 import { useI18n } from "@/lib/i18n"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { cn } from "@/lib/utils"
+import { keyboardReorderTarget } from "@/lib/starterReorder"
 import {
   useDraftStarters,
   type ResolvedStarter,
@@ -55,7 +56,8 @@ const SortableChip: React.FC<{
   layout: StarterLayout
   onSubmit: (text: string) => void
   onRemove: () => void
-}> = ({ item, layout, onSubmit, onRemove }) => {
+  onKeyboardMove: (event: React.KeyboardEvent<HTMLButtonElement>) => void
+}> = ({ item, layout, onSubmit, onRemove, onKeyboardMove }) => {
   const { t } = useI18n()
   const { currentTheme } = useThemeSystem()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
@@ -77,6 +79,8 @@ const SortableChip: React.FC<{
         {...attributes}
         {...listeners}
         onClick={() => onSubmit(item.submitText)}
+        onKeyDown={onKeyboardMove}
+        aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
         data-starter-layout={layout}
         title={layout === "grid" ? item.label : undefined}
         className={cn(
@@ -122,7 +126,23 @@ const StarterGroupRow: React.FC<{
   onSubmit: (text: string) => void
   onRemove: (group: StarterGroup, ref: ResolvedStarter["ref"]) => void
   onReorder: (group: StarterGroup, fromId: string, toId: string) => void
-}> = ({ group, layout, items, onSubmit, onRemove, onReorder }) => {
+  onAnnounce: (message: string) => void
+}> = ({ group, layout, items, onSubmit, onRemove, onReorder, onAnnounce }) => {
+  const { t } = useI18n()
+  const orderedIds = items.map((item) => item.id)
+  const handleKeyboardMove = (item: ResolvedStarter, event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const target = keyboardReorderTarget(orderedIds, item.id, event)
+    if (!target) return
+    event.preventDefault()
+    onReorder(group, item.id, target)
+    onAnnounce(
+      t("chat.draftStarters.moved", {
+        name: item.label,
+        position: String(orderedIds.indexOf(target) + 1),
+        total: String(orderedIds.length),
+      }),
+    )
+  }
   const sensors = useSensors(
     // Desktop: start dragging after a small move so a click still submits.
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -136,7 +156,13 @@ const StarterGroupRow: React.FC<{
     }
   }
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+      // The default instructions describe Space-to-lift, which this list does not use.
+      accessibility={{ screenReaderInstructions: { draggable: t("chat.draftStarters.reorderHint") } }}
+    >
       <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
         {items.map((item) => (
           <SortableChip
@@ -145,6 +171,7 @@ const StarterGroupRow: React.FC<{
             layout={layout}
             onSubmit={onSubmit}
             onRemove={() => onRemove(group, item.ref)}
+            onKeyboardMove={(event) => handleKeyboardMove(item, event)}
           />
         ))}
       </SortableContext>
@@ -251,6 +278,12 @@ export const DraftPresetChips: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
   const { t } = useI18n()
   const { global, project, pinnable, ensureLoaded, addStarter, removeStarter, reorder } = useDraftStarters()
   const hasChips = global.length > 0 || project.length > 0
+  const [announcement, setAnnouncement] = React.useState("")
+  const liveRegion = (
+    <span className="sr-only" aria-live="polite" data-starter-announcement>
+      {announcement}
+    </span>
+  )
 
   const globalRow =
     global.length > 0 ? (
@@ -261,6 +294,7 @@ export const DraftPresetChips: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
         onSubmit={onSubmit}
         onRemove={removeStarter}
         onReorder={reorder}
+        onAnnounce={setAnnouncement}
       />
     ) : null
   const projectRow =
@@ -272,6 +306,7 @@ export const DraftPresetChips: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
         onSubmit={onSubmit}
         onRemove={removeStarter}
         onReorder={reorder}
+        onAnnounce={setAnnouncement}
       />
     ) : null
   const pinHint = !hasChips ? (
@@ -287,6 +322,7 @@ export const DraftPresetChips: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
     const gridClass = "grid grid-cols-1 gap-1.5 @md:grid-cols-2"
     return (
       <div data-starter-grid className={cn("@container flex flex-col gap-1.5", className)}>
+        {liveRegion}
         {globalRow ? (
           <div data-starter-group="global" className={gridClass}>
             {globalRow}
@@ -310,6 +346,7 @@ export const DraftPresetChips: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
 
   return (
     <div className={cn("flex flex-wrap items-center justify-center gap-2", className)}>
+      {liveRegion}
       {globalRow}
       {projectRow}
       {pinHint}

@@ -3318,6 +3318,8 @@
   "chat.draftStarters.sectionCommands": "Comandi",
   "chat.draftStarters.sectionSkills": "Skill",
   "chat.draftStarters.remove": "Rimuovi",
+  "chat.draftStarters.reorderHint": "Per riordinare, tieni premuto Alt (Opzione su Mac) e usa le frecce, oppure trascina con il mouse.",
+  "chat.draftStarters.moved": "{name} spostato in posizione {position} di {total}",
   "chat.scrollToBottom.aria": "Scorri in fondo",
   "chat.scrollToBottom.newMessages": "{count} nuovi",
   "chat.emptyState.tagline": "Il tuo spazio di lavoro per programmare con l\u2019IA",

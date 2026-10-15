@@ -1679,6 +1679,8 @@ export const dict = {
   "chat.draftStarters.sectionCommands": "Commands",
   "chat.draftStarters.sectionSkills": "Skills",
   "chat.draftStarters.remove": "Remove",
+  "chat.draftStarters.reorderHint": "To reorder, hold Alt (Option on Mac) and press the arrow keys, or drag with the mouse.",
+  "chat.draftStarters.moved": "{name} moved to position {position} of {total}",
   "chat.scrollToBottom.aria": "Scroll to bottom",
   "chat.scrollToBottom.newMessages": "{count} new",
   "chat.emptyState.tagline": "Your AI coding workspace",

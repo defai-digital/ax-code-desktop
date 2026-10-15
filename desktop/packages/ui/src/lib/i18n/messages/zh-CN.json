@@ -3318,6 +3318,8 @@
   "chat.draftStarters.sectionCommands": "\u547d\u4ee4",
   "chat.draftStarters.sectionSkills": "\u6280\u80fd",
   "chat.draftStarters.remove": "\u79fb\u9664",
+  "chat.draftStarters.reorderHint": "要调整顺序，请按住 Alt（Mac 上为 Option）并按方向键，或用鼠标拖动。",
+  "chat.draftStarters.moved": "已将 {name} 移到第 {position} 个（共 {total} 个）",
   "chat.scrollToBottom.aria": "\u6eda\u52a8\u5230\u5e95\u90e8",
   "chat.scrollToBottom.newMessages": "{count} \u6761\u65b0\u6d88\u606f",
   "chat.emptyState.tagline": "\u4f60\u7684 AI \u7f16\u7a0b\u5de5\u4f5c\u533a",

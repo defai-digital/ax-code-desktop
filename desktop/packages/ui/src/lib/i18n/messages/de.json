@@ -3318,6 +3318,8 @@
   "chat.draftStarters.sectionCommands": "Befehle",
   "chat.draftStarters.sectionSkills": "Skills",
   "chat.draftStarters.remove": "Entfernen",
+  "chat.draftStarters.reorderHint": "Zum Umsortieren Alt (auf dem Mac Wahltaste) gedrückt halten und die Pfeiltasten drücken oder mit der Maus ziehen.",
+  "chat.draftStarters.moved": "{name} an Position {position} von {total} verschoben",
   "chat.scrollToBottom.aria": "Nach unten scrollen",
   "chat.scrollToBottom.newMessages": "{count} neu",
   "chat.emptyState.tagline": "Dein KI-Coding-Workspace",

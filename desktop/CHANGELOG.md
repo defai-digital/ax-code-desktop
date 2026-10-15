@@ -58,6 +58,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Draft starters can be reordered from the keyboard: Alt (Option on macOS) with the arrow keys
+  moves the focused starter within its group, and the new position is announced. Enter and Space
+  still run the starter. Screen readers get these instructions instead of the drag library's
+  Space-to-lift text, which this list never supported.
 - The add-project browser recognizes Git repositories. Repository folders show a repository icon;
   a parent folder holding several repositories offers "Add all"; a folder inside a repository
   offers to add that repository instead. Dismissed hints are remembered, and the "Add all" hint

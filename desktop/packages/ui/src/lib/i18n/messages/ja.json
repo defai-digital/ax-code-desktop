@@ -3312,6 +3312,8 @@
   "chat.draftStarters.sectionCommands": "\u30b3\u30de\u30f3\u30c9",
   "chat.draftStarters.sectionSkills": "\u30b9\u30ad\u30eb",
   "chat.draftStarters.remove": "\u524a\u9664",
+  "chat.draftStarters.reorderHint": "並べ替えるには、Alt（Mac では Option）を押しながら矢印キーを押すか、マウスでドラッグします。",
+  "chat.draftStarters.moved": "{name} を {total} 件中 {position} 番目に移動しました",
   "chat.scrollToBottom.aria": "\u4e00\u756a\u4e0b\u3078\u30b9\u30af\u30ed\u30fc\u30eb",
   "chat.scrollToBottom.newMessages": "{count} \u4ef6\u306e\u65b0\u7740",
   "chat.emptyState.tagline": "AI \u30b3\u30fc\u30c7\u30a3\u30f3\u30b0\u30ef\u30fc\u30af\u30b9\u30da\u30fc\u30b9",

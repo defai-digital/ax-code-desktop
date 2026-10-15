@@ -3318,6 +3318,8 @@
   "chat.draftStarters.sectionCommands": "L\u1ec7nh",
   "chat.draftStarters.sectionSkills": "K\u1ef9 n\u0103ng",
   "chat.draftStarters.remove": "X\u00f3a",
+  "chat.draftStarters.reorderHint": "Để sắp xếp lại, giữ Alt (Option trên Mac) và nhấn phím mũi tên, hoặc kéo bằng chuột.",
+  "chat.draftStarters.moved": "Đã chuyển {name} đến vị trí {position}/{total}",
   "chat.scrollToBottom.aria": "Cu\u1ed9n xu\u1ed1ng cu\u1ed1i",
   "chat.scrollToBottom.newMessages": "{count} m\u1edbi",
   "chat.emptyState.tagline": "Kh\u00f4ng gian l\u1eadp tr\u00ecnh AI c\u1ee7a b\u1ea1n",

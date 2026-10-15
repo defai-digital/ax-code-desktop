@@ -3318,6 +3318,8 @@
   "chat.draftStarters.sectionCommands": "\u041a\u043e\u043c\u0430\u043d\u0434\u044b",
   "chat.draftStarters.sectionSkills": "\u041d\u0430\u0432\u044b\u043a\u0438",
   "chat.draftStarters.remove": "\u0423\u0434\u0430\u043b\u0438\u0442\u044c",
+  "chat.draftStarters.reorderHint": "Чтобы изменить порядок, удерживайте Alt (Option на Mac) и нажимайте стрелки или перетащите мышью.",
+  "chat.draftStarters.moved": "{name} перемещено на позицию {position} из {total}",
   "chat.scrollToBottom.aria": "\u041f\u0440\u043e\u043a\u0440\u0443\u0442\u0438\u0442\u044c \u0432\u043d\u0438\u0437",
   "chat.scrollToBottom.newMessages": "{count} \u043d\u043e\u0432\u044b\u0445",
   "chat.emptyState.tagline": "\u0412\u0430\u0448\u0435 \u0440\u0430\u0431\u043e\u0447\u0435\u0435 \u043f\u0440\u043e\u0441\u0442\u0440\u0430\u043d\u0441\u0442\u0432\u043e \u0434\u043b\u044f \u043f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f \u0441 \u0418\u0418",
