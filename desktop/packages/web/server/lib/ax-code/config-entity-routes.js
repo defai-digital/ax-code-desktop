@@ -236,7 +236,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("[API:POST /api/config/mcp/:name] Failed:", error)
-      res.status(500).json({ error: error.message || "Failed to create MCP server" })
+      return respondEntityError(res, error, "Failed to create MCP server")
     }
   })
 
@@ -255,10 +255,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("[API:PATCH /api/config/mcp/:name] Failed:", error)
-      if (error?.message === `MCP server "${req.params.name}" not found`) {
-        return res.status(404).json({ error: error.message })
-      }
-      res.status(500).json({ error: error.message || "Failed to update MCP server" })
+      return respondEntityError(res, error, "Failed to update MCP server")
     }
   })
 
@@ -276,7 +273,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("[API:DELETE /api/config/mcp/:name] Failed:", error)
-      res.status(500).json({ error: error.message || "Failed to delete MCP server" })
+      return respondEntityError(res, error, "Failed to delete MCP server")
     }
   })
 
