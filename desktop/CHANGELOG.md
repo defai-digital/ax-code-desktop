@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Project browser: the agent can read a page's text and controls, click, type, select and wait on the
+  page it was granted, for sites that register no WebMCP tools. Every action asks first and passwords are
+  never typed. Requires a signed runtime that carries ax-code ADR-198.
 - Sign out from the About dialog, which revokes the session on the server instead of only clearing
   it in the interface.
 - The tray follows session and approval state, and the dock badge follows unread background work.
