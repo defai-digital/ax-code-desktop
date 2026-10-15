@@ -29,6 +29,50 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- The macOS tray menu never updated after launch: the preload bridge rejected the
+  `desktop_tray_update` channel, so the tray kept stale session and approval state.
+- The project browser no longer leaks an invisible orphan view when two panes open in the
+  same window at once, and quitting no longer stalls for up to 20 seconds when the runtime
+  is slow to acknowledge a browser disconnect. Agent-driven navigation now follows the
+  runtime's own URL rule (https anywhere, http only on loopback) instead of the wider
+  user-navigation gate, matching the upstream bridge contract.
+- Restarting the managed runtime during startup could leave the server tracking a dead
+  process while the live replacement was orphaned; the process handle is now published as
+  part of the start itself.
+- Queued messages that auto-send for a session in a project other than the active one put
+  their optimistic bubble and busy state into the wrong project's store; they now target
+  the session's own store.
+- Loading older chat history while a reply is streaming no longer makes the viewport jump:
+  the scroll snapshot is consumed only by the commit that actually prepends history.
+- Resending a failed message that mentions files with `@path` attached the mentioned files
+  twice, because the rollback restored both the mention text and the derived attachments.
+- Creating or updating agents and commands from the UI dropped fields the runtime supports
+  (agent mode/model/temperature/topP/system prompt, command template), so edits silently
+  reverted them.
+- Worktree detection and the OpenChamber config import failed against the desktop web
+  server: both called `/api/api/...` (double prefix), so every worktree lookup answered 404.
+- Terminal sessions hit an "already at capacity" error after restarting a stale session at
+  the cap, because the restart path bypassed the session limit.
+- The repository scanner treated top-level folders whose name starts with `..` (for example
+  `..data`) as outside the project and skipped them.
+- Failed message loads were treated as empty pages, leaving a session stuck as a skeleton;
+  SDK error responses now surface as errors so warmup 5xx responses retry.
+- Updating a skill could write outside the known skill directories; the target must now be
+  a skill discoverable from the project.
+- Agent, command and skill create/update/delete endpoints returned 500 for client
+  mistakes; they now answer 400/404/409 as appropriate.
+- Connecting or disconnecting a provider could be overwritten by an older in-flight
+  provider load, bringing back the pre-auth empty list; stale loads are discarded now.
+- Exporting a session revoked its download URL before the browser started the download, so
+  the file could arrive empty.
+- The terminal viewport redrew garbled content after its scrollback was trimmed, pinned
+  archived sessions lost their pin, new terminal tabs could reuse a number already in use,
+  and the issue/PR pickers could leave their spinner running after a failed load.
+- Git remotes stopped being detected after a remote was added or removed, because the
+  existence cache never expired; it is now invalidated on mutation and bounded in size.
+- Chat no longer treats the browser's own scroll clamping as a user scrolling up, which
+  used to detach the auto-follow while a reply streamed.
+
 - The sidebar lists a session under the most specific project that contains its directory, the
   same owner the projects home, the needs-you queue and the session switcher use. It used to match
   only the exact project folder, so a session started in a subfolder (for example a repository
