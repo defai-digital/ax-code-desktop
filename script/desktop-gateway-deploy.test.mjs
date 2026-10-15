@@ -37,7 +37,7 @@ it("blocks public cutover before credential or network access without release qu
     .spyOn(releasePolicy, "assertPublicReleaseAuthorized")
     .mockImplementation(() => original({ stage: "shadow-only", publicRelease: { enabled: false } }))
   try {
-    await expect(cutover("/missing", "/missing")).rejects.toThrow("public Desktop release is disabled")
+    await expect(cutover("/missing", "/missing")).rejects.toThrow("public release is disabled")
   } finally {
     guard.mockRestore()
   }

@@ -4,7 +4,7 @@ import path from "node:path"
 import { describe, expect, test } from "vitest"
 import { generateManifests, parseArgs } from "./generate-manifests"
 
-describe("AX Coder winget manifest generator", () => {
+describe("AX Code Desktop winget manifest generator", () => {
   test("normalizes Desktop versions and rejects unrelated options", () => {
     expect(parseArgs(["--version", "desktop-v7.10.2"]).version).toBe("7.10.2")
     expect(() => parseArgs(["--version", "7.10.2", "--package", "cli"])).toThrow("unknown argument")

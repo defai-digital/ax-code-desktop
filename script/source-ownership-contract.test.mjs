@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { assertSourceOwnership, repositoryRoot, sourceOwnershipViolations } from "./source-ownership-contract.mjs"
 
-describe("AX Coder source ownership contract", () => {
+describe("AX Code Desktop source ownership contract", () => {
   it("owns the tracked Desktop source independently of approved release stage", () => {
     const result = sourceOwnershipViolations(repositoryRoot)
     expect(result.violations).toEqual([])

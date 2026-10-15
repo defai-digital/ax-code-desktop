@@ -55,7 +55,7 @@ export function sourceOwnershipViolations(root = repositoryRoot) {
   }
 
   const desktopFiles = [...tracked].filter((file) => file.startsWith("desktop/"))
-  if (desktopFiles.length === 0) violations.push("AX Coder must track the Desktop source tree")
+  if (desktopFiles.length === 0) violations.push("AX Code Desktop must track the Desktop source tree")
 
   return { desktopFileCount: desktopFiles.length, violations }
 }
@@ -63,7 +63,7 @@ export function sourceOwnershipViolations(root = repositoryRoot) {
 export function assertSourceOwnership(root = repositoryRoot) {
   const result = sourceOwnershipViolations(root)
   if (result.violations.length > 0) {
-    throw new Error(`AX Coder source ownership contract failed:\n- ${result.violations.join("\n- ")}`)
+    throw new Error(`AX Code Desktop source ownership contract failed:\n- ${result.violations.join("\n- ")}`)
   }
   return result
 }
@@ -72,7 +72,7 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   try {
     const result = assertSourceOwnership()
-    console.log(`AX Coder source ownership contract passed (${result.desktopFileCount} Desktop files).`)
+    console.log(`AX Code Desktop source ownership contract passed (${result.desktopFileCount} Desktop files).`)
   } catch (error) {
     console.error(error instanceof Error ? error.message : error)
     process.exitCode = 1

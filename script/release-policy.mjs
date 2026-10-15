@@ -72,7 +72,7 @@ export function assertPackagePublishingMode(args, policy = readReleasePolicy()) 
   const values = publishValues(args)
   if (values.length !== 1 || values[0] !== "never") {
     throw new Error(
-      "AX Coder is shadow-only: packaging requires exactly one --publish=never argument until the paired release cutover is approved",
+      "AX Code Desktop is shadow-only: packaging requires exactly one --publish=never argument until the paired release cutover is approved",
     )
   }
   return policy
@@ -81,7 +81,7 @@ export function assertPackagePublishingMode(args, policy = readReleasePolicy()) 
 export function assertPublicReleaseAuthorized(policy = readReleasePolicy()) {
   if (policy.stage !== "cutover-approved" || policy.publicRelease.enabled !== true) {
     throw new Error(
-      `AX Coder public Desktop release is disabled by ${RELEASE_POLICY_PATH}; use the non-public desktop-shadow workflow`,
+      `AX Code Desktop public release is disabled by ${RELEASE_POLICY_PATH}; use the non-public desktop-shadow workflow`,
     )
   }
   return policy

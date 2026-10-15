@@ -1,5 +1,5 @@
-name: Setup AX Coder JS toolchain
-description: Configure the pinned Node.js and pnpm toolchain for AX Coder workflows
+name: Setup AX Code Desktop JS toolchain
+description: Configure the pinned Node.js and pnpm toolchain for AX Code Desktop workflows
 
 inputs:
   node-version:

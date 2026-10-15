@@ -73,7 +73,7 @@ jobs:
           test "$missing" = 0
           node script/apple-notary-credentials.mjs
 
-      - name: Setup AX Coder toolchain
+      - name: Setup AX Code Desktop toolchain
         uses: ./.github/actions/setup-ax-coder-toolchain
 
       - name: Install dependencies
@@ -134,7 +134,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup AX Coder toolchain
+      - name: Setup AX Code Desktop toolchain
         uses: ./.github/actions/setup-ax-coder-toolchain
 
       - name: Install dependencies
@@ -193,7 +193,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup AX Coder toolchain
+      - name: Setup AX Code Desktop toolchain
         uses: ./.github/actions/setup-ax-coder-toolchain
 
       - name: Install dependencies
@@ -402,7 +402,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup AX Coder toolchain
+      - name: Setup AX Code Desktop toolchain
         uses: ./.github/actions/setup-ax-coder-toolchain
 
       - name: Install dependencies
@@ -549,7 +549,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup AX Coder toolchain
+      - name: Setup AX Code Desktop toolchain
         uses: ./.github/actions/setup-ax-coder-toolchain
 
       - name: Install dependencies
@@ -628,7 +628,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup AX Coder toolchain
+      - name: Setup AX Code Desktop toolchain
         uses: ./.github/actions/setup-ax-coder-toolchain
 
       - name: Install dependencies

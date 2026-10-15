@@ -1,6 +1,6 @@
 # Desktop winget manifests
 
-AX Coder owns the `DEFAI.AXCode.Desktop` Windows Package Manager manifest generator. It reads the compatibility release
+AX Code Desktop owns the `DEFAI.AXCode.Desktop` Windows Package Manager manifest generator. It reads the compatibility release
 repository and tag prefix from `config/desktop-release-policy.json` so source ownership does not silently change the
 installed application's update channel.
 

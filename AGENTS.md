@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for coding agents operating in the AX Coder repository.
+Guidance for coding agents operating in the AX Code Desktop repository.
 
 ## Language
 
@@ -10,18 +10,21 @@ Guidance for coding agents operating in the AX Coder repository.
 
 ## Product
 
-AX Coder is the planned persistent desktop experience for supervising multiple coding projects. It owns the
+The product is AX Code and this desktop app is AX Code Desktop (ADR-015). Do not write "AX Coder" in new text;
+older records use that name for this repository.
+
+AX Code Desktop is the planned persistent desktop experience for supervising multiple coding projects. It owns the
 portfolio UI, human-added project registry, desired-state controls, exception inbox, and project-management
 experience. It does not own a second coding runtime.
 
 Canonical boundaries:
 
-- AX Code owns coding tools, repository intelligence, coding UX, goal contracts, verification, worktree
+- The AX Code runtime owns coding tools, repository intelligence, coding UX, goal contracts, verification, worktree
   execution, and the worker-facing runtime contract.
 - AX Agent owns domain-neutral durable agent runs, tool lifecycle, workflows, approvals, leases, and recovery
   after those capabilities are ready for consumption.
 - AX Trust owns enterprise policy, credentials, approvals, grants, and immutable audit.
-- AX Telemetry owns the platform observability product. AX Coder may display bounded local health projections.
+- AX Telemetry owns the platform observability product. AX Code Desktop may display bounded local health projections.
 
 ## Current phase
 
@@ -29,11 +32,11 @@ Phases 1 and 2 are complete, and Phase 3 external release evidence is in progres
 its filtered history live under `desktop/`, and the independent workspace consumes the published JSR SDK with a
 frozen lockfile and a pinned signed AX Code runtime. Independent CI, CodeQL, and a manual private-repository shadow
 workflow are implemented. The local source-ownership cutover is complete under ADR-008: AX Code removed its Desktop
-tree at `6a2e03d90411ddd7141047baa59d4a754f1c4107`, and AX Coder is the sole current GUI source owner.
+tree at `6a2e03d90411ddd7141047baa59d4a754f1c4107`, and AX Code Desktop is the sole current GUI source owner.
 
 The repository has an active public remote at `defai-digital/ax-code-desktop`. Independent CI and native smoke
 checks have run. Signed cross-platform shadow, upgrade, and rollback evidence remains pending. ADR-009 prepares
-the independent release target without enabling publication or changing the active updater. Public release and independent updater cutover are authorized under ADR-012. Live Cloudflare activation still requires verified signed native installation, upgrade, rollback and profile/configuration continuity receipts. Do not rebrand or restore GUI source to AX Code.
+the independent release target without enabling publication or changing the active updater. Public release and independent updater cutover are authorized under ADR-012. Live Cloudflare activation still requires verified signed native installation, upgrade, rollback and profile/configuration continuity receipts. Do not change the compatibility identity or move GUI source back into the AX Code runtime repository.
 
 ## Environment and commands
 
@@ -75,7 +78,7 @@ Product-boundary or source-ownership work requires, in order:
 - Never fork or duplicate the AX Code or AX Agent canonical runtime.
 - Consume the public AX Code SDK as an exact `@defai-digital/ax-code-sdk` JSR version and the worker as a pinned signed
   runtime artifact. Local workspace links are development-only and must not enter CI or release manifests.
-- Keep AX Coder's portfolio desired state separate from AX Code execution state and AX Agent run history.
+- Keep AX Code Desktop's portfolio desired state separate from AX Code execution state and AX Agent run history.
 - Never store raw credentials in project records, prompts, events, logs, metrics, or artifacts.
 - Never mutate an accepted PRD, ADR, or technical spec silently. Create a versioned proposal; accepted ADRs are
   superseded, not rewritten as though the prior decision never existed.

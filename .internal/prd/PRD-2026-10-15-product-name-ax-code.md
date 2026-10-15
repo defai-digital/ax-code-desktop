@@ -1,6 +1,6 @@
 # Product Name: AX Code, Not AX Coder
 
-Status: Proposed. Awaiting user approval; nothing below is implemented yet.
+Status: Accepted and implemented; user approved on 2026-10-15. Decision record: ADR-015.
 
 Date: 2026-10-15
 

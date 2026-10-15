@@ -78,7 +78,7 @@ describe("Desktop distribution preparation and mirror", () => {
       .spyOn(releasePolicy, "assertPublicReleaseAuthorized")
       .mockImplementation(() => original({ stage: "shadow-only", publicRelease: { enabled: false } }))
     try {
-      await expect(upload("/missing", "/missing")).rejects.toThrow("public Desktop release is disabled")
+      await expect(upload("/missing", "/missing")).rejects.toThrow("public release is disabled")
     } finally {
       guard.mockRestore()
     }
@@ -240,7 +240,7 @@ describe("First public cutover staging", () => {
       .spyOn(releasePolicy, "assertPublicReleaseAuthorized")
       .mockImplementation(() => original({ stage: "shadow-only", publicRelease: { enabled: false } }))
     try {
-      await expect(stage("/missing", "/missing")).rejects.toThrow("public Desktop release is disabled")
+      await expect(stage("/missing", "/missing")).rejects.toThrow("public release is disabled")
     } finally {
       guard.mockRestore()
     }

@@ -33,7 +33,7 @@ describe("Desktop release policy", () => {
         stage: "shadow-only",
         publicRelease: { enabled: false },
       }),
-    ).toThrow("AX Coder public Desktop release is disabled")
+    ).toThrow("AX Code Desktop public release is disabled")
   })
 
   it("keeps the package wrapper and legacy publisher behind policy checks", () => {

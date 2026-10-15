@@ -1,6 +1,6 @@
-# AX Coder internal records
+# AX Code Desktop internal records
 
-This directory contains private product-development records for AX Coder.
+This directory contains private product-development records for AX Code Desktop.
 
 - `prd/`: live, deferred, completed, and archived product requirements
 - `adr/`: architecture decisions

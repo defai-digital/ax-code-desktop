@@ -1,9 +1,9 @@
-# AX Coder ADR index
+# AX Code Desktop ADR index
 
 | ADR                                                              | Title                                                          | Status   | Implementation                         | Date       |
 | ---------------------------------------------------------------- | -------------------------------------------------------------- | -------- | -------------------------------------- | ---------- |
 | [ADR-001](ADR-001-ax-code-jsr-sdk-consumption.md)                | Consume the AX Code SDK from JSR                               | Accepted | Implemented and verified               | 2026-09-02 |
-| [ADR-002](ADR-002-product-and-source-boundary.md)                | Establish the AX Coder product and source boundary             | Accepted | Phases 1-2 complete; Phase 3 active    | 2026-09-02 |
+| [ADR-002](ADR-002-product-and-source-boundary.md)                | Establish the AX Code Desktop product and source boundary             | Accepted | Phases 1-2 complete; Phase 3 active    | 2026-09-02 |
 | [ADR-003](ADR-003-history-preserving-desktop-extraction.md)      | Extract Desktop with filtered Git history                      | Accepted | Complete                               | 2026-09-02 |
 | [ADR-004](ADR-004-sdk-runtime-and-release-order.md)              | Pin SDK and runtime with producer-first releases               | Accepted | Initial pair implemented and verified  | 2026-09-02 |
 | [ADR-005](ADR-005-persistent-portfolio-service.md)               | Use a separate local portfolio service                         | Accepted | Deferred to read-only portfolio slice  | 2026-09-02 |
@@ -16,3 +16,4 @@
 ADRs must identify the decision owner, contracts, superseded records, rollout, and rollback.
 
 | [ADR-013](ADR-013-browser-entrypoint-routing.md) | Browser Entrypoint Routing | Accepted | Source validated; signed producer rollout pending | 2026-10-13 |
+| [ADR-015](ADR-015-product-name-ax-code.md) | Product name is AX Code | Accepted | Implemented | 2026-10-15 |

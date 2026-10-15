@@ -52,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup AX Coder toolchain
+      - name: Setup AX Code Desktop toolchain
         uses: ./.github/actions/setup-ax-coder-toolchain
 
       - name: Install dependencies
@@ -90,7 +90,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup AX Coder toolchain
+      - name: Setup AX Code Desktop toolchain
         uses: ./.github/actions/setup-ax-coder-toolchain
 
       - name: Install Linux display and Electron libraries
@@ -159,7 +159,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup AX Coder toolchain
+      - name: Setup AX Code Desktop toolchain
         uses: ./.github/actions/setup-ax-coder-toolchain
 
       - name: Install dependencies

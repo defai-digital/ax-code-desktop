@@ -26,7 +26,7 @@ describe("Desktop workflow contracts", () => {
     expect(ci).toContain('AX_CODE_STAGE_REQUIRED: "true"')
   })
 
-  it("scans only AX Coder languages and Actions", () => {
+  it("scans only AX Code Desktop languages and Actions", () => {
     expect(codeql).toContain("languages: javascript-typescript,actions")
     expect(codeql).not.toContain("languages: rust")
     expect(codeql).toContain("security-events: write")

@@ -1,6 +1,6 @@
 # Reference Projects
 
-Shallow clones of open-source projects consulted while designing AX Coder.
+Shallow clones of open-source projects consulted while designing AX Code Desktop.
 Read-only references; do not import, vendor, or depend on any of these.
 
 | Directory | Repo | GUI surface | What to learn from it |
@@ -22,7 +22,7 @@ Read-only references; do not import, vendor, or depend on any of these.
 
 ## Selection rationale
 
-Filtered to projects that overlap AX Coder on at least one of:
+Filtered to projects that overlap AX Code Desktop on at least one of:
 1. **AI coding desktop UX** (openchamber, goose, opencode desktop, openhands)
 2. **Multi-agent / portfolio orchestration** (openhands)
 3. **Agent loop and tool-calling patterns** (cline, aider, opencode)
@@ -40,7 +40,7 @@ Filtered to projects that overlap AX Coder on at least one of:
 | openhands | — | — | — | — | Electron + Python |
 | aider | CLI only | — | — | — | — |
 
-So 3 of 7 are native desktop (Electron) — openchamber, goose, openhands — and AX Coder/AX Code Desktop sits in that same camp. The other 4 are split between extensions, web apps, and terminal CLIs.
+So 3 of 7 are native desktop (Electron) — openchamber, goose, openhands — and AX Code Desktop sits in that same camp. The other 4 are split between extensions, web apps, and terminal CLIs.
 
 Notable adjacent projects intentionally NOT cloned (would need a different angle to be useful):
 - Cursor / Windsurf (closed source)
