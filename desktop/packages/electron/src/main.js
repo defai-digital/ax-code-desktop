@@ -920,7 +920,13 @@ autoUpdater.on("update-not-available", () => {
 // crashes the main process. The IPC handlers already report failures to the
 // renderer, so logging here is enough.
 autoUpdater.on("error", (err) => {
-  updateInstallGate.onNotInstallable()
+  // A failed check (an offline moment during the renderer's periodic poll,
+  // a GitHub hiccup) says nothing about an update that already finished
+  // downloading: clearing the gate here made "Quit and install" refuse a
+  // verified download until the user re-downloaded it.
+  if (!updateInstallGate.canInstall()) {
+    updateInstallGate.onNotInstallable()
+  }
   console.warn("[updater] error:", err instanceof Error ? err.message : err)
 })
 
