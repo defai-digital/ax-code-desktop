@@ -705,6 +705,10 @@ export const McpPage: React.FC = () => {
     timeout: string
     enabled: boolean
   } | null>(null)
+  // Tracks which server's config is currently loaded into the form so a
+  // background reload of `mcpServers` (deleting another server, opening the
+  // header Services menu, saving) doesn't re-populate over unsaved edits.
+  const loadedMcpNameRef = React.useRef<string | null>(null)
 
   const resetTransientAuthState = React.useCallback(() => {
     setAuthUrl(null)
@@ -802,6 +806,7 @@ export const McpPage: React.FC = () => {
   // Populate form when selection changes
   React.useEffect(() => {
     if (isNewServer && mcpDraft) {
+      loadedMcpNameRef.current = null
       setDraftName(mcpDraft.name)
       setDraftScope(mcpDraft.scope || "user")
       setMcpType(mcpDraft.type)
@@ -834,6 +839,14 @@ export const McpPage: React.FC = () => {
       return
     }
     if (selectedServer) {
+      if (loadedMcpNameRef.current === selectedMcpNameKey) {
+        // This server's config is already loaded into the form. A background
+        // reload of the list re-runs this effect via the `selectedServer`
+        // identity change, but re-populating here would silently overwrite
+        // whatever the user is currently typing. Saving updates the baseline
+        // directly, so skipping loses nothing.
+        return
+      }
       setDraftScope(selectedServer.scope === "project" ? "project" : "user")
       const envArr = envRecordToArray(selectedServer.environment)
       const remoteServer =
@@ -889,8 +902,9 @@ export const McpPage: React.FC = () => {
         timeout: nextTimeout,
         enabled: selectedServer.enabled,
       }
+      loadedMcpNameRef.current = selectedMcpNameKey
     }
-  }, [selectedServer, isNewServer, mcpDraft])
+  }, [selectedServer, isNewServer, mcpDraft, selectedMcpNameKey])
 
   const isDirty = React.useMemo(() => {
     const init = initialRef.current
@@ -968,6 +982,23 @@ export const McpPage: React.FC = () => {
         if (isNewServer) {
           setMcpDraft(null)
           setSelectedMcp(name)
+        } else {
+          // The post-save list reload no longer re-populates the form (see the
+          // loaded-name guard above), so the dirty-check baseline must move here.
+          initialRef.current = {
+            mcpType,
+            command,
+            url,
+            envEntries,
+            headerEntries,
+            oauthEnabled,
+            oauthClientId,
+            oauthClientSecret,
+            oauthScope,
+            oauthRedirectUri,
+            timeout,
+            enabled,
+          }
         }
         await refreshStatus({ directory: currentDirectory, silent: true })
         if (result.reloadFailed) {
