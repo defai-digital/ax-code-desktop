@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Add detached Minisign signatures before staged AX Coder artifacts are uploaded.
+# Add detached Minisign signatures before staged AX Code Desktop artifacts are uploaded.
 # Platform signatures are audited in each native build job. The finalizer repeats
 # detached signing and verification before recording the complete candidate set.
 

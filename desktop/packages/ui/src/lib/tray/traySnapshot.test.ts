@@ -93,7 +93,7 @@ describe("buildTraySnapshot", () => {
 
     expect(snapshot.sessions).toHaveLength(1)
     expect(snapshot.approvals).toHaveLength(1)
-    expect(snapshot.instanceName).toBe("AX Coder")
+    expect(snapshot.instanceName).toBe("AX Code")
     // No usage groups → the tray omits the submenu entirely.
     expect(snapshot.usage.groups).toEqual([])
   })

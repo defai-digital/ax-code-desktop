@@ -32,7 +32,7 @@ export function repositoryRootFromElectronDir(electronDir = defaultElectronDir) 
 
 export const RELEASE_REPO = "defai-digital/ax-code"
 
-/** The bundled runtime version comes from AX Coder's reviewed runtime manifest. */
+/** The bundled runtime version comes from the desktop's reviewed runtime manifest. */
 export function readPinnedAxCodeVersion(electronDir = defaultElectronDir, fsp = fs) {
   return readRuntimePin(repositoryRootFromElectronDir(electronDir), fsp).version
 }

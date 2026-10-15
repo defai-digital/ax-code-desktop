@@ -2381,7 +2381,7 @@ export const dict = {
   "webmcp.state.unavailable": "Unavailable",
   "webmcp.state.waitingForPage": "Waiting for a page",
   "webmcp.state.pageUnsupported": "Page not usable by the agent",
-  "webmcp.detail.desktopOnly": "Available in the AX Coder desktop app.",
+  "webmcp.detail.desktopOnly": "Available in the AX Code desktop app.",
   "webmcp.detail.runtimeIncompatible": "Update the bundled AX Code runtime to let the agent use page tools.",
   "webmcp.detail.closed": "Open the project browser to let the agent use tools from the page you are viewing.",
   "webmcp.detail.starting": "Starting the project browser…",

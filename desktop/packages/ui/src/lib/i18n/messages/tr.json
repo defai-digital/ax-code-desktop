@@ -4402,7 +4402,7 @@
   "webmcp.state.unavailable": "Kullan\u0131lam\u0131yor",
   "webmcp.state.waitingForPage": "Sayfa bekleniyor",
   "webmcp.state.pageUnsupported": "Sayfa ajan taraf\u0131ndan kullan\u0131lam\u0131yor",
-  "webmcp.detail.desktopOnly": "AX Coder masa\u00fcst\u00fc uygulamas\u0131nda kullan\u0131labilir.",
+  "webmcp.detail.desktopOnly": "AX Code masa\u00fcst\u00fc uygulamas\u0131nda kullan\u0131labilir.",
   "webmcp.detail.runtimeIncompatible": "Ajan\u0131n sayfa ara\u00e7lar\u0131n\u0131 kullanabilmesi i\u00e7in paketlenmi\u015f AX Code \u00e7al\u0131\u015fma zaman\u0131n\u0131 g\u00fcncelleyin.",
   "webmcp.detail.closed": "Ajan\u0131n g\u00f6r\u00fcnt\u00fcledi\u011finiz sayfadaki ara\u00e7lar\u0131 kullanabilmesi i\u00e7in proje taray\u0131c\u0131s\u0131n\u0131 a\u00e7\u0131n.",
   "webmcp.detail.starting": "Proje taray\u0131c\u0131s\u0131 ba\u015flat\u0131l\u0131yor\u2026",

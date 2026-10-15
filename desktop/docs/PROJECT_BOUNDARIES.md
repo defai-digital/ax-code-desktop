@@ -25,7 +25,7 @@ be fixed.
   and the server-side AX Code lifecycle adapter. Do not import SDK `dist/`
   internals.
 
-The authoritative checker for these rules runs from the AX Coder root with
+The authoritative checker for these rules runs from the AX Code Desktop root with
 `pnpm run check:desktop-boundaries` and fails on violations. The historical
 `desktop/scripts/check-boundary-imports.mjs` entrypoint delegates to that same
 checker, so local and CI policy cannot drift. When a new cross-package

@@ -4402,7 +4402,7 @@
   "webmcp.state.unavailable": "Indisponible",
   "webmcp.state.waitingForPage": "En attente d'une page",
   "webmcp.state.pageUnsupported": "Page inutilisable par l'agent",
-  "webmcp.detail.desktopOnly": "Disponible dans l'application de bureau AX Coder.",
+  "webmcp.detail.desktopOnly": "Disponible dans l'application de bureau AX Code.",
   "webmcp.detail.runtimeIncompatible": "Mettez \u00e0 jour le runtime AX Code int\u00e9gr\u00e9 pour que l'agent puisse utiliser les outils de la page.",
   "webmcp.detail.closed": "Ouvrez le navigateur de projet pour que l'agent utilise les outils de la page affich\u00e9e.",
   "webmcp.detail.starting": "D\u00e9marrage du navigateur de projet\u2026",

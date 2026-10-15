@@ -1,7 +1,7 @@
 # AX Code Published SDK Contract Checklist
 
 The desktop app consumes an exact `@defai-digital/ax-code-sdk` version from JSR. Producer and consumer changes
-cannot land atomically, so publish additive SDK contracts before updating AX Coder. A few SDK internals are still
+cannot land atomically, so publish additive SDK contracts before updating AX Code Desktop. A few SDK internals are still
 mirrored or patched in Desktop code. Re-verify those assumptions whenever a Desktop change depends on new SDK
 behavior.
 
@@ -45,7 +45,7 @@ contracts change:
    missing route into a bare "Provider request failed (404)" instead of the
    incompatible-runtime warning.
 
-6. **Run the full gate from the AX Coder root.** `pnpm run check:boundaries && pnpm run test && pnpm run
+6. **Run the full gate from the AX Code Desktop root.** `pnpm run check:boundaries && pnpm run test && pnpm run
 typecheck && pnpm run build`.
 
 Upstream integration context (transport choice, pending upstream feature

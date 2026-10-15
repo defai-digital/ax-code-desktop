@@ -1,11 +1,11 @@
 # GitHub release publishing
 
-Public release ownership has not moved to AX Coder. Do not create or push a Desktop release tag from this
+Public release ownership has not moved to AX Code Desktop. Do not create or push a Desktop release tag from this
 repository during Phase 2. The current AX Code-owned release remains the rollback source while independent CI,
 signing, updater, upgrade, and rollback gates are built and verified.
 
 The commands below describe the guarded release flow that must be ported and tested in shadow mode before
-cutover. They are not currently enabled AX Coder release commands.
+cutover. They are not currently enabled AX Code Desktop release commands.
 
 From the release-owning repository, the legacy guarded entry was:
 

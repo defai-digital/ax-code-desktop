@@ -1,6 +1,6 @@
 # Icon System
 
-AX Coder renders icons from a single SVG sprite. The glyphs come from
+AX Code Desktop renders icons from a single SVG sprite. The glyphs come from
 [Phosphor Icons](https://phosphoricons.com) (MIT License, via `@phosphor-icons/core`). The sprite is injected
 into the DOM once, and each icon references a symbol with `<use href="#ax-icon-name"/>`.
 

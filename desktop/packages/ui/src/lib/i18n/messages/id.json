@@ -4402,7 +4402,7 @@
   "webmcp.state.unavailable": "Tidak tersedia",
   "webmcp.state.waitingForPage": "Menunggu halaman",
   "webmcp.state.pageUnsupported": "Halaman tidak dapat digunakan oleh agen",
-  "webmcp.detail.desktopOnly": "Tersedia di aplikasi desktop AX Coder.",
+  "webmcp.detail.desktopOnly": "Tersedia di aplikasi desktop AX Code.",
   "webmcp.detail.runtimeIncompatible": "Perbarui runtime AX Code bawaan agar agen dapat menggunakan alat halaman.",
   "webmcp.detail.closed": "Buka peramban proyek agar agen dapat menggunakan alat dari halaman yang sedang Anda lihat.",
   "webmcp.detail.starting": "Memulai peramban proyek\u2026",

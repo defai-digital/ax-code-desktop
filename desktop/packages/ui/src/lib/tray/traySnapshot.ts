@@ -161,7 +161,7 @@ export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot =
   return {
     sessions,
     approvals,
-    instanceName: (input.instanceName ?? "").trim() || "AX Coder",
+    instanceName: (input.instanceName ?? "").trim() || "AX Code",
     usage: input.usage ?? { mode: "usage", groups: [] },
     dockBadgeCount,
   }
