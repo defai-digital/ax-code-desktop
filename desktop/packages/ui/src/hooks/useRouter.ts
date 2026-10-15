@@ -22,6 +22,7 @@ export function useRouter(): void {
   // Track initialization to avoid duplicate applies
   const initializedRef = React.useRef(false)
   const isApplyingRouteRef = React.useRef(false)
+  const pendingRouteRef = React.useRef<RouteState | null>(null)
 
   // Get store actions (stable references)
   const setCurrentSession = useSessionUIStore((state) => state.setCurrentSession)
@@ -66,42 +67,31 @@ export function useRouter(): void {
    */
   const applyRoute = React.useCallback(
     async (route: RouteState) => {
-      if (isApplyingRouteRef.current) {
-        return
-      }
-
+      // Keep the newest navigation while a session selection is in flight.
+      pendingRouteRef.current = route
+      if (isApplyingRouteRef.current) return
       isApplyingRouteRef.current = true
 
       try {
-        // 1. Apply session first (may trigger async operations)
-        if (route.sessionId) {
-          const currentSessionId = useSessionUIStore.getState().currentSessionId
-          if (route.sessionId !== currentSessionId) {
-            await setCurrentSession(route.sessionId)
+        while (pendingRouteRef.current) {
+          const nextRoute = pendingRouteRef.current
+          pendingRouteRef.current = null
+          if (nextRoute.sessionId && nextRoute.sessionId !== useSessionUIStore.getState().currentSessionId) {
+            await setCurrentSession(nextRoute.sessionId)
           }
-        }
+          // A newer history entry supersedes the old route's tab/settings.
+          if (pendingRouteRef.current) continue
 
-        // 2. Handle settings (takes precedence over tabs - it's a full-screen overlay)
-        if (route.settingsPath) {
-          setSettingsPage(resolveSettingsSlug(route.settingsPath))
-          setSettingsDialogOpen(true)
-          // Don't process tab when settings is open
-          return
-        }
-
-        // Close settings if URL has no settings section
-        if (useUIStore.getState().isSettingsDialogOpen) {
-          setSettingsDialogOpen(false)
-        }
-
-        // 3. Apply tab
-        if (route.tab) {
-          setActiveMainTab(route.tab)
-        }
-
-        // 4. Apply diff file (only if going to diff tab)
-        if (route.diffFile && (route.tab === "diff" || !route.tab)) {
-          navigateToDiff(route.diffFile)
+          if (nextRoute.settingsPath) {
+            setSettingsPage(resolveSettingsSlug(nextRoute.settingsPath))
+            setSettingsDialogOpen(true)
+            continue
+          }
+          if (useUIStore.getState().isSettingsDialogOpen) setSettingsDialogOpen(false)
+          if (nextRoute.tab) setActiveMainTab(nextRoute.tab)
+          if (nextRoute.diffFile && (nextRoute.tab === "diff" || !nextRoute.tab)) {
+            navigateToDiff(nextRoute.diffFile)
+          }
         }
       } finally {
         isApplyingRouteRef.current = false
@@ -199,24 +189,12 @@ export function useRouter(): void {
     }
 
     const handlePopState = () => {
-      // Parse the new URL and apply it
-      const route = parseRoute()
-
-      // Check if this is a route with any params, or if we should restore defaults
-      if (hasRouteParams()) {
-        void applyRoute(route)
-      } else {
-        // URL has no route params - this might be a "back to home" navigation
-        // Close settings if open, keep current session
-        const uiState = useUIStore.getState()
-        if (uiState.isSettingsDialogOpen) {
-          setSettingsDialogOpen(false)
-        }
-        // Reset to chat tab if not already there
-        if (uiState.activeMainTab !== "chat") {
-          setActiveMainTab("chat")
-        }
-      }
+      // Parameter-free history entries also participate in the queue, so an
+      // older pending settings route cannot reopen the overlay afterward.
+      const route = hasRouteParams()
+        ? parseRoute()
+        : { sessionId: null, tab: "chat" as const, settingsPath: null, diffFile: null }
+      void applyRoute(route)
     }
 
     window.addEventListener("popstate", handlePopState)
@@ -224,5 +202,5 @@ export function useRouter(): void {
     return () => {
       window.removeEventListener("popstate", handlePopState)
     }
-  }, [applyRoute, setActiveMainTab, setSettingsDialogOpen])
+  }, [applyRoute])
 }

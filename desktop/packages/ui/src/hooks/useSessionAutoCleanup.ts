@@ -158,7 +158,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
 
         const candidateIds = buildAutoDeleteCandidates({
           sessions,
-          currentSessionId,
+          currentSessionId: useSessionUIStore.getState().currentSessionId,
           cutoffDays: autoDeleteAfterDays,
           now,
         })
@@ -168,42 +168,42 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
           return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "no-candidates" }
         }
 
-        try {
-          const sessionMap = new Map(sessions.map((session) => [session.id, session]))
-          const completedIds: string[] = []
-          const failedIds: string[] = []
+        const sessionMap = new Map(sessions.map((session) => [session.id, session]))
+        const completedIds: string[] = []
+        const failedIds: string[] = []
 
-          for (const id of candidateIds) {
-            const session = sessionMap.get(id)
-            const directory = session ? resolveGlobalSessionDirectory(session) : null
-            if (!directory) {
-              failedIds.push(id)
-              continue
-            }
-
-            const scopedSdk = axCodeClient.getScopedSdkClient(directory)
-
-            try {
-              const completed = await applySessionRetentionAction(scopedSdk, id, directory, sessionRetentionAction)
-              if (completed) {
-                completedIds.push(id)
-              } else {
-                failedIds.push(id)
-              }
-            } catch {
-              failedIds.push(id)
-            }
+        for (const id of candidateIds) {
+          // Selection can change while loading or awaiting a prior action.
+          if (id === useSessionUIStore.getState().currentSessionId) continue
+          const session = sessionMap.get(id)
+          const directory = session ? resolveGlobalSessionDirectory(session) : null
+          if (!directory) {
+            failedIds.push(id)
+            continue
           }
 
-          // No manual global-store writes (S4.5): each successful SDK call above
-          // emits session.updated(time.archived) / session.deleted, and the
-          // event stream is the sole writer of record for the global index.
-          // (The delete event also funnels through removeSessions, so the
-          // per-session client-state cleanup there still runs.)
-          return { completedIds, failedIds, action: sessionRetentionAction }
-        } finally {
-          setAutoDeleteLastRunAt(Date.now())
+          const scopedSdk = axCodeClient.getScopedSdkClient(directory)
+
+          try {
+            const completed = await applySessionRetentionAction(scopedSdk, id, directory, sessionRetentionAction)
+            if (completed) {
+              completedIds.push(id)
+            } else {
+              failedIds.push(id)
+            }
+          } catch {
+            failedIds.push(id)
+          }
         }
+
+        // No manual global-store writes (S4.5): each successful SDK call above
+        // emits session.updated(time.archived) / session.deleted, and the
+        // event stream is the sole writer of record for the global index.
+        // (The delete event also funnels through removeSessions, so the
+        // per-session client-state cleanup there still runs.)
+        // Failed work must remain eligible for the next non-forced retry.
+        if (failedIds.length === 0) setAutoDeleteLastRunAt(Date.now())
+        return { completedIds, failedIds, action: sessionRetentionAction }
       } finally {
         runningRef.current = false
         setIsRunning(false)
@@ -213,7 +213,6 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
       autoDeleteAfterDays,
       autoDeleteEnabled,
       autoDeleteLastRunAt,
-      currentSessionId,
       isLoading,
       sessionRetentionAction,
       setAutoDeleteLastRunAt,

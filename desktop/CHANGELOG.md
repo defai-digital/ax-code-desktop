@@ -43,6 +43,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Plan autosave no longer strands the last edit when it arrives as the previous save drain finishes.
+- Successive history navigations retain the newest route, including a return from settings to chat.
+- Session retention rechecks the current selection after loading and between actions, protecting a
+  session opened while cleanup is running.
+- Failed retention batches remain eligible for retry instead of recording a successful daily cooldown.
+
 - Attaching a screenshot to a preview annotation could hang forever when the window was covered or an
   image, font or asset inside the page stalled; every step now times out and the annotation is sent
   without the screenshot instead.
