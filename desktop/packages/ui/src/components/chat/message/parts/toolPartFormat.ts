@@ -49,6 +49,7 @@ export const parseDiffStats = (metadata?: Record<string, unknown>): { added: num
   let added = 0
   let removed = 0
   let lineStart = 0
+  let inHunk = false
 
   for (let index = 0; index <= diffText.length; index += 1) {
     if (index < diffText.length && diffText.charCodeAt(index) !== 10) {
@@ -56,8 +57,18 @@ export const parseDiffStats = (metadata?: Record<string, unknown>): { added: num
     }
 
     const line = diffText.slice(lineStart, index)
-    if (line.startsWith("+") && !line.startsWith("+++")) added++
-    if (line.startsWith("-") && !line.startsWith("---")) removed++
+    if (line.startsWith("@@")) {
+      inHunk = true
+    } else if (inHunk) {
+      // Inside a hunk every +/- line is content: added text that itself
+      // starts with "++" shows up as "+++" and was silently dropped by the
+      // header exclusion, undercounting (or hiding) the diff stats.
+      if (line.startsWith("+")) added++
+      else if (line.startsWith("-")) removed++
+    } else {
+      if (line.startsWith("+") && !line.startsWith("+++")) added++
+      if (line.startsWith("-") && !line.startsWith("---")) removed++
+    }
     lineStart = index + 1
   }
 

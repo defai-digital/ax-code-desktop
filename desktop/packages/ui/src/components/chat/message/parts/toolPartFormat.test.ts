@@ -80,6 +80,12 @@ describe("parseDiffStats", () => {
     expect(parseDiffStats({ patch })).toEqual({ added: 1, removed: 1 })
   })
 
+  test("counts added content that itself starts with ++ or -- inside a hunk", () => {
+    const patch = ["--- a/Makefile", "+++ b/Makefile", "@@ -1,1 +1,2 @@", " base", "+++ hello", "--- gone"].join("\n")
+
+    expect(parseDiffStats({ patch })).toEqual({ added: 1, removed: 1 })
+  })
+
   test("falls back to metadata.diff and object-shaped patches", () => {
     expect(parseDiffStats({ diff: "+x\n-y" })).toEqual({ added: 1, removed: 1 })
     expect(parseDiffStats({ patch: { patch: "+only" } })).toEqual({ added: 1, removed: 0 })
