@@ -7,6 +7,8 @@ description: Run a prompt automatically on a schedule.
 
 A scheduled task runs a prompt for you on a schedule — for example, a daily "summarize yesterday's changes" or a weekly cleanup. When it runs, AX Code starts a new session and sends the prompt on its own. Open the scheduler from the button at the top of the session sidebar.
 
+Each project has its own tasks, and tasks in different projects run independently, so you can schedule one task in one project and several in others at the same time. Choose **All projects** in the dialog to see every project's tasks together, grouped by project, with a summary of what is active, running or failing. Use the **New task** button inside a project's group to add a task to that project.
+
 ## Create a task
 
 1. Open the scheduled tasks dialog from the session sidebar.
@@ -28,7 +30,7 @@ After a run, the task shows when it last ran and whether it succeeded; if a run 
 
 ## Keep in mind
 
-Tasks only fire while the AX Code runtime is running. If it is down, missed times are coalesced into one catch-up run after restart rather than replaying every missed interval.
+Tasks only fire while the AX Code runtime is running. Desktop wakes every registered project's scheduler at launch, again after the runtime restarts, and when you add a project, so tasks also fire in projects you have not opened. If it is down, missed times are coalesced into one catch-up run after restart rather than replaying every missed interval.
 
 Tasks created by older Desktop versions are migrated automatically on first launch after the upgrade. Prompts that were slash commands (like `/review`) and cron expressions outside the runtime's supported subset are not migrated; they are recorded in the migration report (`scheduled-tasks-migrated.json` next to the per-project config directory) so you can re-create them by hand.
 

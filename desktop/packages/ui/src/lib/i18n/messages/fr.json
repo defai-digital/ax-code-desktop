@@ -4636,5 +4636,16 @@
   "wiki.graph.refreshFailed": "L'actualisation du wiki n'a pas pu d\u00e9marrer.",
   "wiki.graph.noSummary": "Aucun r\u00e9sum\u00e9 enregistr\u00e9",
   "supervision.dispatch.createdFailed": "La session {title} a \u00e9t\u00e9 cr\u00e9\u00e9e, mais l'envoi n'a pas abouti.",
-  "supervision.dispatch.openCreated": "Ouvrir"
+  "supervision.dispatch.openCreated": "Ouvrir",
+  "sessions.scheduledTasks.dialog.project.allProjects": "Tous les projets",
+  "sessions.scheduledTasks.dialog.group.loadFailed": "Impossible de charger les t\u00e2ches de ce projet.",
+  "sessions.scheduledTasks.dialog.summary.activeTotal": "Actives : {active} \u00b7 T\u00e2ches : {total} \u00b7 Projets : {projects}",
+  "sessions.scheduledTasks.dialog.summary.running": "En cours : {running}",
+  "sessions.scheduledTasks.dialog.summary.failing": "En \u00e9chec : {failing}",
+  "sessions.scheduledTasks.dialog.summary.unavailable": "Indisponibles : {count}",
+  "sessions.scheduledTasks.dialog.actions.retry": "R\u00e9essayer",
+  "sessions.scheduledTasks.dialog.group.sectionAria": "T\u00e2ches planifi\u00e9es dans {project}",
+  "sessions.scheduledTasks.dialog.group.newTaskAria": "Nouvelle t\u00e2che dans {project}",
+  "sessions.scheduledTasks.dialog.group.retryAria": "R\u00e9essayer de charger les t\u00e2ches de {project}",
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "Ex\u00e9cuter {taskName} maintenant"
 }

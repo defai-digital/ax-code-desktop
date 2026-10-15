@@ -4636,5 +4636,16 @@
   "wiki.graph.refreshFailed": "No se pudo iniciar la actualizaci\u00f3n del wiki.",
   "wiki.graph.noSummary": "No hay resumen registrado",
   "supervision.dispatch.createdFailed": "Se cre\u00f3 la sesi\u00f3n {title}, pero el env\u00edo no pudo completarse.",
-  "supervision.dispatch.openCreated": "Abrir"
+  "supervision.dispatch.openCreated": "Abrir",
+  "sessions.scheduledTasks.dialog.project.allProjects": "Todos los proyectos",
+  "sessions.scheduledTasks.dialog.group.loadFailed": "No se pudieron cargar las tareas de este proyecto.",
+  "sessions.scheduledTasks.dialog.summary.activeTotal": "Activas: {active} \u00b7 Tareas: {total} \u00b7 Proyectos: {projects}",
+  "sessions.scheduledTasks.dialog.summary.running": "En ejecuci\u00f3n: {running}",
+  "sessions.scheduledTasks.dialog.summary.failing": "Con fallos: {failing}",
+  "sessions.scheduledTasks.dialog.summary.unavailable": "No disponibles: {count}",
+  "sessions.scheduledTasks.dialog.actions.retry": "Reintentar",
+  "sessions.scheduledTasks.dialog.group.sectionAria": "Tareas programadas en {project}",
+  "sessions.scheduledTasks.dialog.group.newTaskAria": "Nueva tarea en {project}",
+  "sessions.scheduledTasks.dialog.group.retryAria": "Reintentar cargar las tareas de {project}",
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "Ejecutar {taskName} ahora"
 }

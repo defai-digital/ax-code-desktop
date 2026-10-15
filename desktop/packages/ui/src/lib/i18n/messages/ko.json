@@ -4636,5 +4636,16 @@
   "wiki.graph.refreshFailed": "\uc704\ud0a4 \uc0c8\ub85c\uace0\uce68\uc744 \uc2dc\uc791\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
   "wiki.graph.noSummary": "\uae30\ub85d\ub41c \uc694\uc57d\uc774 \uc5c6\uc2b5\ub2c8\ub2e4",
   "supervision.dispatch.createdFailed": "{title} \uc138\uc158\uc740 \ub9cc\ub4e4\uc5b4\uc84c\uc73c\ub098, \uc791\uc5c5 \ubcf4\ub0b4\uae30\uac00 \ub05d\uae4c\uc9c0 \uc774\uc5b4\uc9c0\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
-  "supervision.dispatch.openCreated": "\uc5f4\uae30"
+  "supervision.dispatch.openCreated": "\uc5f4\uae30",
+  "sessions.scheduledTasks.dialog.project.allProjects": "\ubaa8\ub4e0 \ud504\ub85c\uc81d\ud2b8",
+  "sessions.scheduledTasks.dialog.group.loadFailed": "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \uc791\uc5c5\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
+  "sessions.scheduledTasks.dialog.summary.activeTotal": "\ud65c\uc131: {active} \u00b7 \uc791\uc5c5: {total} \u00b7 \ud504\ub85c\uc81d\ud2b8: {projects}",
+  "sessions.scheduledTasks.dialog.summary.running": "\uc2e4\ud589 \uc911: {running}",
+  "sessions.scheduledTasks.dialog.summary.failing": "\uc2e4\ud328: {failing}",
+  "sessions.scheduledTasks.dialog.summary.unavailable": "\uc0ac\uc6a9 \ubd88\uac00: {count}",
+  "sessions.scheduledTasks.dialog.actions.retry": "\ub2e4\uc2dc \uc2dc\ub3c4",
+  "sessions.scheduledTasks.dialog.group.sectionAria": "{project}\uc758 \uc608\uc57d \uc791\uc5c5",
+  "sessions.scheduledTasks.dialog.group.newTaskAria": "{project}\uc5d0 \uc0c8 \uc791\uc5c5",
+  "sessions.scheduledTasks.dialog.group.retryAria": "{project}\uc758 \uc791\uc5c5 \ub2e4\uc2dc \ubd88\ub7ec\uc624\uae30",
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "{taskName} \uc9c0\uae08 \uc2e4\ud589"
 }

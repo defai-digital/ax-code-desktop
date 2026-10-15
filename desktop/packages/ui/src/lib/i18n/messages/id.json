@@ -4636,5 +4636,16 @@
   "wiki.graph.refreshFailed": "Penyegaran wiki tidak dapat dimulai.",
   "wiki.graph.noSummary": "Tidak ada ringkasan tercatat",
   "supervision.dispatch.createdFailed": "Sesi {title} berhasil dibuat, tetapi pengiriman tugas tidak tuntas.",
-  "supervision.dispatch.openCreated": "Buka"
+  "supervision.dispatch.openCreated": "Buka",
+  "sessions.scheduledTasks.dialog.project.allProjects": "Semua proyek",
+  "sessions.scheduledTasks.dialog.group.loadFailed": "Gagal memuat tugas untuk proyek ini.",
+  "sessions.scheduledTasks.dialog.summary.activeTotal": "Aktif: {active} \u00b7 Tugas: {total} \u00b7 Proyek: {projects}",
+  "sessions.scheduledTasks.dialog.summary.running": "Berjalan: {running}",
+  "sessions.scheduledTasks.dialog.summary.failing": "Gagal: {failing}",
+  "sessions.scheduledTasks.dialog.summary.unavailable": "Tidak tersedia: {count}",
+  "sessions.scheduledTasks.dialog.actions.retry": "Coba lagi",
+  "sessions.scheduledTasks.dialog.group.sectionAria": "Tugas terjadwal di {project}",
+  "sessions.scheduledTasks.dialog.group.newTaskAria": "Tugas baru di {project}",
+  "sessions.scheduledTasks.dialog.group.retryAria": "Coba lagi memuat tugas untuk {project}",
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "Jalankan {taskName} sekarang"
 }

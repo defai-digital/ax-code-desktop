@@ -4636,5 +4636,16 @@
   "wiki.graph.refreshFailed": "Kh\u00f4ng th\u1ec3 b\u1eaft \u0111\u1ea7u l\u00e0m m\u1edbi wiki.",
   "wiki.graph.noSummary": "Ch\u01b0a ghi t\u00f3m t\u1eaft",
   "supervision.dispatch.createdFailed": "\u0110\u00e3 t\u1ea1o phi\u00ean {title}, nh\u01b0ng l\u1ec7nh giao vi\u1ec7c ch\u01b0a \u0111i \u0111\u1ebfn c\u00f9ng.",
-  "supervision.dispatch.openCreated": "M\u1edf"
+  "supervision.dispatch.openCreated": "M\u1edf",
+  "sessions.scheduledTasks.dialog.project.allProjects": "T\u1ea5t c\u1ea3 d\u1ef1 \u00e1n",
+  "sessions.scheduledTasks.dialog.group.loadFailed": "Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c t\u00e1c v\u1ee5 cho d\u1ef1 \u00e1n n\u00e0y.",
+  "sessions.scheduledTasks.dialog.summary.activeTotal": "\u0110ang ho\u1ea1t \u0111\u1ed9ng: {active} \u00b7 T\u00e1c v\u1ee5: {total} \u00b7 D\u1ef1 \u00e1n: {projects}",
+  "sessions.scheduledTasks.dialog.summary.running": "\u0110ang ch\u1ea1y: {running}",
+  "sessions.scheduledTasks.dialog.summary.failing": "Th\u1ea5t b\u1ea1i: {failing}",
+  "sessions.scheduledTasks.dialog.summary.unavailable": "Kh\u00f4ng kh\u1ea3 d\u1ee5ng: {count}",
+  "sessions.scheduledTasks.dialog.actions.retry": "Th\u1eed l\u1ea1i",
+  "sessions.scheduledTasks.dialog.group.sectionAria": "T\u00e1c v\u1ee5 \u0111\u00e3 l\u00ean l\u1ecbch trong {project}",
+  "sessions.scheduledTasks.dialog.group.newTaskAria": "T\u00e1c v\u1ee5 m\u1edbi trong {project}",
+  "sessions.scheduledTasks.dialog.group.retryAria": "Th\u1eed t\u1ea3i l\u1ea1i t\u00e1c v\u1ee5 c\u1ee7a {project}",
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "Ch\u1ea1y {taskName} ngay"
 }

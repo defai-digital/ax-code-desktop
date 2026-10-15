@@ -4636,5 +4636,16 @@
   "wiki.graph.refreshFailed": "Viki yenileme ba\u015flat\u0131lamad\u0131.",
   "wiki.graph.noSummary": "Kay\u0131tl\u0131 \u00f6zet yok",
   "supervision.dispatch.createdFailed": "{title} oturumu olu\u015fturuldu, ancak h\u0131zl\u0131 g\u00f6rev sonuna kadar gidemedi.",
-  "supervision.dispatch.openCreated": "A\u00e7"
+  "supervision.dispatch.openCreated": "A\u00e7",
+  "sessions.scheduledTasks.dialog.project.allProjects": "T\u00fcm projeler",
+  "sessions.scheduledTasks.dialog.group.loadFailed": "Bu projenin g\u00f6revleri y\u00fcklenemedi.",
+  "sessions.scheduledTasks.dialog.summary.activeTotal": "Aktif: {active} \u00b7 G\u00f6revler: {total} \u00b7 Projeler: {projects}",
+  "sessions.scheduledTasks.dialog.summary.running": "\u00c7al\u0131\u015f\u0131yor: {running}",
+  "sessions.scheduledTasks.dialog.summary.failing": "Ba\u015far\u0131s\u0131z: {failing}",
+  "sessions.scheduledTasks.dialog.summary.unavailable": "Kullan\u0131lam\u0131yor: {count}",
+  "sessions.scheduledTasks.dialog.actions.retry": "Yeniden dene",
+  "sessions.scheduledTasks.dialog.group.sectionAria": "{project} i\u00e7indeki zamanlanm\u0131\u015f g\u00f6revler",
+  "sessions.scheduledTasks.dialog.group.newTaskAria": "{project} i\u00e7inde yeni g\u00f6rev",
+  "sessions.scheduledTasks.dialog.group.retryAria": "{project} g\u00f6revlerini yeniden y\u00fcklemeyi dene",
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "{taskName} g\u00f6revini \u015fimdi \u00e7al\u0131\u015ft\u0131r"
 }

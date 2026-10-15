@@ -4636,5 +4636,16 @@
   "wiki.graph.refreshFailed": "\u7121\u6cd5\u958b\u59cb\u91cd\u65b0\u6574\u7406\u77e5\u8b58\u5eab\u3002",
   "wiki.graph.noSummary": "\u6c92\u6709\u8a18\u9304\u6458\u8981",
   "supervision.dispatch.createdFailed": "\u5df2\u5efa\u597d\u5de5\u4f5c\u968e\u6bb5 {title}\uff0c\u4f46\u9019\u56de\u5206\u6d3e\u6c92\u6709\u505a\u5b8c\u3002",
-  "supervision.dispatch.openCreated": "\u958b\u555f"
+  "supervision.dispatch.openCreated": "\u958b\u555f",
+  "sessions.scheduledTasks.dialog.project.allProjects": "\u6240\u6709\u5c08\u6848",
+  "sessions.scheduledTasks.dialog.group.loadFailed": "\u7121\u6cd5\u8f09\u5165\u6b64\u5c08\u6848\u7684\u4efb\u52d9\u3002",
+  "sessions.scheduledTasks.dialog.summary.activeTotal": "\u9032\u884c\u4e2d\uff1a{active} \u00b7 \u4efb\u52d9\uff1a{total} \u00b7 \u5c08\u6848\uff1a{projects}",
+  "sessions.scheduledTasks.dialog.summary.running": "\u57f7\u884c\u4e2d\uff1a{running}",
+  "sessions.scheduledTasks.dialog.summary.failing": "\u5931\u6557\uff1a{failing}",
+  "sessions.scheduledTasks.dialog.summary.unavailable": "\u7121\u6cd5\u4f7f\u7528\uff1a{count}",
+  "sessions.scheduledTasks.dialog.actions.retry": "\u91cd\u8a66",
+  "sessions.scheduledTasks.dialog.group.sectionAria": "{project} \u4e2d\u7684\u6392\u7a0b\u4efb\u52d9",
+  "sessions.scheduledTasks.dialog.group.newTaskAria": "\u5728 {project} \u4e2d\u65b0\u589e\u4efb\u52d9",
+  "sessions.scheduledTasks.dialog.group.retryAria": "\u91cd\u8a66\u8f09\u5165 {project} \u7684\u4efb\u52d9",
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "\u7acb\u5373\u57f7\u884c {taskName}"
 }

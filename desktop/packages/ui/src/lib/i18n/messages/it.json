@@ -4636,5 +4636,16 @@
   "wiki.graph.refreshFailed": "L'aggiornamento del wiki non \u00e8 stato avviato.",
   "wiki.graph.noSummary": "Nessun riepilogo registrato",
   "supervision.dispatch.createdFailed": "La sessione {title} \u00e8 stata creata, ma l'invio non \u00e8 arrivato in fondo.",
-  "supervision.dispatch.openCreated": "Apri"
+  "supervision.dispatch.openCreated": "Apri",
+  "sessions.scheduledTasks.dialog.project.allProjects": "Tutti i progetti",
+  "sessions.scheduledTasks.dialog.group.loadFailed": "Impossibile caricare le attivit\u00e0 per questo progetto.",
+  "sessions.scheduledTasks.dialog.summary.activeTotal": "Attive: {active} \u00b7 Attivit\u00e0: {total} \u00b7 Progetti: {projects}",
+  "sessions.scheduledTasks.dialog.summary.running": "In esecuzione: {running}",
+  "sessions.scheduledTasks.dialog.summary.failing": "Non riuscite: {failing}",
+  "sessions.scheduledTasks.dialog.summary.unavailable": "Non disponibili: {count}",
+  "sessions.scheduledTasks.dialog.actions.retry": "Riprova",
+  "sessions.scheduledTasks.dialog.group.sectionAria": "Attivit\u00e0 pianificate in {project}",
+  "sessions.scheduledTasks.dialog.group.newTaskAria": "Nuova attivit\u00e0 in {project}",
+  "sessions.scheduledTasks.dialog.group.retryAria": "Riprova a caricare le attivit\u00e0 di {project}",
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "Esegui {taskName} ora"
 }

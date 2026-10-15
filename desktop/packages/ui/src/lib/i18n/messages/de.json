@@ -4636,5 +4636,16 @@
   "wiki.graph.refreshFailed": "Die Wiki-Aktualisierung konnte nicht gestartet werden.",
   "wiki.graph.noSummary": "Keine Zusammenfassung erfasst",
   "supervision.dispatch.createdFailed": "Die Sitzung {title} wurde angelegt, der Auftrag lie\u00df sich aber nicht abschlie\u00dfen.",
-  "supervision.dispatch.openCreated": "\u00d6ffnen"
+  "supervision.dispatch.openCreated": "\u00d6ffnen",
+  "sessions.scheduledTasks.dialog.project.allProjects": "Alle Projekte",
+  "sessions.scheduledTasks.dialog.group.loadFailed": "Aufgaben f\u00fcr dieses Projekt konnten nicht geladen werden.",
+  "sessions.scheduledTasks.dialog.summary.activeTotal": "Aktiv: {active} \u00b7 Aufgaben: {total} \u00b7 Projekte: {projects}",
+  "sessions.scheduledTasks.dialog.summary.running": "L\u00e4uft: {running}",
+  "sessions.scheduledTasks.dialog.summary.failing": "Fehlgeschlagen: {failing}",
+  "sessions.scheduledTasks.dialog.summary.unavailable": "Nicht verf\u00fcgbar: {count}",
+  "sessions.scheduledTasks.dialog.actions.retry": "Erneut versuchen",
+  "sessions.scheduledTasks.dialog.group.sectionAria": "Geplante Aufgaben in {project}",
+  "sessions.scheduledTasks.dialog.group.newTaskAria": "Neue Aufgabe in {project}",
+  "sessions.scheduledTasks.dialog.group.retryAria": "Aufgaben f\u00fcr {project} erneut laden",
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "{taskName} jetzt ausf\u00fchren"
 }

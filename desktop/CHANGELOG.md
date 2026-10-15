@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Scheduled tasks: an "All projects" view lists every project's tasks in one place, grouped by project,
+  with a summary of active, running and failing tasks and a "New task" button per project.
 - Mission Control (Cmd+Shift+H): one board of live sessions across projects with their state, diff size
   and age, a peek that answers requests without opening the session, saved working sets and a soft hint
   when more than four sessions need close attention.
