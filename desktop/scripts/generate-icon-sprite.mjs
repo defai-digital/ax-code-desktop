@@ -7,7 +7,8 @@
  * --check writes nothing and exits non-zero when sprite.ts differs from what
  * the map would generate.
  *
- * Resolves every name in scripts/icon-sprite-map.mjs to its Phosphor SVG and
+ * Resolves every name in scripts/icon-sprite-map.mjs to its Phosphor SVG (or an
+ * AX glyph from scripts/icon-custom-glyphs.mjs) and
  * writes packages/ui/src/components/icon/sprite.ts. It also scans
  * packages/ui/src for the names in use and reports mapped names it did not see.
  *
@@ -20,6 +21,7 @@ import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from "
 import { createRequire } from "node:module"
 import { resolve, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
+import { CUSTOM_GLYPHS } from "./icon-custom-glyphs.mjs"
 import { DEFAULT_WEIGHT, ICON_MAP, PHOSPHOR_WEIGHTS } from "./icon-sprite-map.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -243,6 +245,9 @@ console.log(`Found ${usedIcons.size} sprite icon names used in source`)
 const resolveSpec = (name) => {
   const raw = ICON_MAP[name]
   const spec = typeof raw === "string" ? { icon: raw } : raw
+  if (spec.custom) {
+    return { custom: spec.custom, flip: spec.flip === true }
+  }
   const weight = spec.weight ?? DEFAULT_WEIGHT
   if (!PHOSPHOR_WEIGHTS.includes(weight)) {
     errors.push(`${name}: unknown Phosphor weight "${weight}"`)
@@ -269,10 +274,20 @@ const iconEntries = []
 // silently narrow the IconName type.
 for (const name of Object.keys(ICON_MAP).sort()) {
   const spec = resolveSpec(name)
-  const body = readPhosphorBody(spec)
-  if (body === null) {
-    errors.push(`${name}: no usable Phosphor asset for ${spec.icon} (${spec.weight})`)
-    continue
+  let body
+  if (spec.custom) {
+    const pathData = CUSTOM_GLYPHS[spec.custom]
+    if (typeof pathData !== "string" || pathData.length === 0) {
+      errors.push(`${name}: no custom glyph named ${spec.custom} in icon-custom-glyphs.mjs`)
+      continue
+    }
+    body = `<path d="${pathData}"/>`
+  } else {
+    body = readPhosphorBody(spec)
+    if (body === null) {
+      errors.push(`${name}: no usable Phosphor asset for ${spec.icon} (${spec.weight})`)
+      continue
+    }
   }
   const transform = spec.flip ? ' transform="matrix(-1 0 0 1 256 0)"' : ""
   iconEntries.push({ name, content: `<g fill="currentColor"${transform}>${body}</g>` })

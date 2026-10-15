@@ -228,7 +228,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
           <div className="flex items-center gap-2">
             <WebMcpStatusDot tone={webMcpSummary.tone} />
             <span className="typography-ui-label font-normal truncate text-foreground">{t("webmcp.title")}</span>
-            <Icon name="global" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+            <Icon name="ax-browser" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
           </div>
           <div className="typography-micro text-muted-foreground truncate leading-tight pl-4">
             {webMcpSummary.detail}

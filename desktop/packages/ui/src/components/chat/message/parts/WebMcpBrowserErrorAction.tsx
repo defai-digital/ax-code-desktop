@@ -36,7 +36,7 @@ export const WebMcpBrowserErrorAction: React.FC = () => {
       disabled={busy}
       onClick={() => openProjectBrowser({ enable: !enabled })}
     >
-      <Icon name="global" className="h-3.5 w-3.5" />
+      <Icon name="ax-browser" className="h-3.5 w-3.5" />
       {enabled ? t("webmcp.actions.open") : t("webmcp.actions.enable")}
     </Button>
   )

@@ -6,9 +6,10 @@
  * predate the Phosphor set, so this table is the single place that decides
  * which glyph each name renders.
  *
- * A value is either a Phosphor icon name (rendered with DEFAULT_WEIGHT) or an
- * object `{ icon, weight?, flip? }`. `flip: true` mirrors the glyph
- * horizontally for directions Phosphor only ships one way.
+ * A value is either a Phosphor icon name (rendered with DEFAULT_WEIGHT), an
+ * object `{ icon, weight?, flip? }`, or `{ custom }` naming an AX glyph from
+ * icon-custom-glyphs.mjs. `flip: true` mirrors the glyph horizontally for
+ * directions Phosphor only ships one way.
  *
  * Phosphor Icons (https://phosphoricons.com) are MIT licensed; see NOTICE.
  */
@@ -22,8 +23,15 @@ export const PHOSPHOR_WEIGHTS = ["thin", "light", "regular", "bold", "fill", "du
 
 const fill = (icon) => ({ icon, weight: "fill" })
 const duotone = (icon) => ({ icon, weight: "duotone" })
+const ax = (custom) => ({ custom })
 
 export const ICON_MAP = {
+  // AX glyphs (icon-custom-glyphs.mjs): concepts that identify the product.
+  "ax-agent": ax("ax-agent"),
+  "ax-auto": ax("ax-auto"),
+  "ax-browser": ax("ax-browser"),
+  "ax-mark": ax("ax-mark"),
+
   // Actions
   add: "plus",
   "add-circle": "plus-circle",
@@ -118,8 +126,8 @@ export const ICON_MAP = {
   "emotion-happy": "smiley",
 
   // Agents, AI and chat
-  "ai-agent": "head-circuit",
-  "ai-agent-fill": fill("head-circuit"),
+  "ai-agent": ax("ax-agent"),
+  "ai-agent-fill": ax("ax-agent"),
   "ai-generate-2": "magic-wand",
   "brain-ai-3": "brain",
   brain: "brain",
@@ -147,10 +155,10 @@ export const ICON_MAP = {
   "git-branch": "git-branch",
   "git-commit": "git-commit",
   "git-merge": "git-merge",
-  "git-pull-request": "git-pull-request",
-  "git-pr-draft": "git-pull-request",
-  // Phosphor has no closed or draft PR glyph; the PR status color and label carry the state.
-  "git-close-pull-request": "git-pull-request",
+  "git-pull-request": ax("pr-open"),
+  "git-pr-draft": ax("pr-draft"),
+  // One PR family: open, draft and closed differ only in the right branch.
+  "git-close-pull-request": ax("pr-closed"),
   "git-repository": "book-bookmark",
   "node-tree": "tree-structure",
   "list-check-2": "list-checks",

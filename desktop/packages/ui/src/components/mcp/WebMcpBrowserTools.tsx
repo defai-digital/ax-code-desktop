@@ -53,7 +53,7 @@ export const WebMcpToolsRow: React.FC<{ onOpen?: () => void; className?: string 
       </div>
       {summary.canOpen ? (
         <Button type="button" size="xs" variant="outline" className="shrink-0 gap-1" onClick={handleOpen}>
-          <Icon name="global" className="h-3.5 w-3.5" />
+          <Icon name="ax-browser" className="h-3.5 w-3.5" />
           {t("webmcp.actions.open")}
         </Button>
       ) : null}
@@ -77,7 +77,7 @@ export const WebMcpToolsCard: React.FC = () => {
   return (
     <div className="mx-auto w-full max-w-3xl p-3 sm:p-6 sm:pt-8">
       <div className="mb-4 flex items-center gap-2">
-        <Icon name="global" className="h-5 w-5 text-muted-foreground" />
+        <Icon name="ax-browser" className="h-5 w-5 text-muted-foreground" />
         <h2 className="typography-ui-header font-medium text-foreground">{t("webmcp.title")}</h2>
       </div>
       <p className="typography-meta mb-5 max-w-prose text-muted-foreground">{t("webmcp.settings.description")}</p>
@@ -93,7 +93,7 @@ export const WebMcpToolsCard: React.FC = () => {
           </div>
           {summary.canOpen ? (
             <Button type="button" size="sm" className="shrink-0 gap-1.5" onClick={handleOpen}>
-              <Icon name="global" className="h-3.5 w-3.5" />
+              <Icon name="ax-browser" className="h-3.5 w-3.5" />
               {t("webmcp.actions.open")}
             </Button>
           ) : null}

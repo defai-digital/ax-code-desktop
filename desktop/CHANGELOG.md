@@ -52,6 +52,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- AX glyphs replace generic icons for product concepts: the Agent work mode, Auto execution, the
+  WebMCP browser tools, the `</>` mark, and one pull request family where open, draft and closed
+  differ only in the right branch. They are drawn on Phosphor's grid at its bold stroke width.
 - The default theme's primary color is the brand teal from the app icon instead of Radix green,
   so actions and focus no longer share a color with success states. Syntax colors that were
   already teal (types, classes) move to coral to keep code from looking selected.

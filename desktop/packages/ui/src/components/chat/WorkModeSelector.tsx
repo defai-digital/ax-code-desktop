@@ -18,7 +18,7 @@ import { selectLabeledWorkMode, WORK_MODE_CHOICES } from "@/lib/composerControls
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 const MODE_ICONS: Record<WorkModeId, IconName> = {
-  agent: "robot",
+  agent: "ax-agent",
   council: "scales-3",
   arena: "sparkling",
 }

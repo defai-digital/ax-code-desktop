@@ -345,7 +345,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       <div ref={host} className="relative min-h-0 flex-1 bg-background">
         {!browserId ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-            <Icon name="global" className="h-8 w-8 text-muted-foreground/60" />
+            <Icon name="ax-browser" className="h-8 w-8 text-muted-foreground/60" />
             <p className="typography-meta text-muted-foreground">
               {phase === "starting"
                 ? t("webmcp.detail.starting")
@@ -355,7 +355,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
             </p>
             {!sessionID && phase !== "starting" ? (
               <Button type="button" size="sm" className="gap-1.5" onClick={() => openProjectBrowser({ enable: true })}>
-                <Icon name="global" className="h-3.5 w-3.5" />
+                <Icon name="ax-browser" className="h-3.5 w-3.5" />
                 {t("webmcp.actions.startSession")}
               </Button>
             ) : null}

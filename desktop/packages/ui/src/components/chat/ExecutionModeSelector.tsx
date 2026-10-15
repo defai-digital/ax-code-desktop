@@ -33,7 +33,7 @@ const MODES: ModeMeta[] = [
   },
   {
     value: "autonomous",
-    icon: "brain-ai-3",
+    icon: "ax-auto",
     labelKey: "chat.chatInput.executionMode.autonomous",
     hintKey: "chat.chatInput.executionMode.autonomousHint",
   },
