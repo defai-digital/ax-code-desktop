@@ -863,7 +863,7 @@ function applyRendererApiOrigin(port = serverPort) {
   }
 }
 
-async function createWindow() {
+async function createWindowOnce() {
   if (!mainWindow || mainWindow.isDestroyed()) createMainWindowShell()
   applyRendererApiOrigin()
   const rendererUrl =
@@ -885,6 +885,22 @@ async function createWindow() {
     mainWindow = null
     throw error
   }
+}
+
+// Two callers can race a slow first load (dock activate, quick dispatch, tray
+// reveal while the renderer is still loading): the second saw the shell exist,
+// skipped creating one and called loadURL again on the same window, which
+// cancels the first load. Both rejections then hit the catch above and destroy
+// the half-loaded window, leaving the app with no window at all. Serialize
+// instead: a concurrent caller awaits the in-flight creation.
+let createWindowInFlight = null
+function createWindow() {
+  if (!createWindowInFlight) {
+    createWindowInFlight = createWindowOnce().finally(() => {
+      createWindowInFlight = null
+    })
+  }
+  return createWindowInFlight
 }
 
 // ── Auto-update ───────────────────────────────────────────────────────────
