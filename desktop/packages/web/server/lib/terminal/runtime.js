@@ -134,6 +134,14 @@ export function createTerminalRuntime({
       }
     })()
 
+    // A transient import failure (native binding mid-swap during an update, a
+    // short EPERM/EBUSY) must not disable terminals for the rest of the process
+    // lifetime: the current caller still sees the rejection, the next one
+    // retries the import.
+    ptyProviderPromise.catch(() => {
+      ptyProviderPromise = null
+    })
+
     return ptyProviderPromise
   }
 
@@ -645,7 +653,7 @@ export function createTerminalRuntime({
       return res.status(429).json({ error: "Maximum terminal sessions reached" })
     }
     try {
-      let { cwd } = req.body
+      let { cwd } = req.body ?? {}
       if (!cwd) {
         return res.status(400).json({ error: "cwd is required" })
       }
@@ -905,7 +913,7 @@ export function createTerminalRuntime({
 
   app.post("/api/terminal/:sessionId/restart", async (req, res) => {
     const { sessionId } = req.params
-    let { cwd } = req.body
+    let { cwd } = req.body ?? {}
 
     if (!cwd) {
       return res.status(400).json({ error: "cwd is required" })
@@ -934,14 +942,6 @@ export function createTerminalRuntime({
       // Kill the existing session only after the new cwd validates — a rejected
       // restart must not leave the client holding a dead session id.
       const existingSession = terminalSessions.get(sessionId)
-      // A restart of a stale id (already reaped by onExit/idle sweep) creates a
-      // brand-new session, so it must respect the same cap as create — reserving
-      // its slot before the spawn awaits, not just reading the size once. A live
-      // session swaps in place after freeing its own slot, so it needs none.
-      const releaseTerminalSlot = existingSession ? null : reserveTerminalSlot()
-      if (!existingSession && !releaseTerminalSlot) {
-        return res.status(429).json({ error: "Maximum terminal sessions reached" })
-      }
       if (existingSession) {
         try {
           killTerminalProcess(existingSession.ptyProcess, "term")
@@ -949,6 +949,15 @@ export function createTerminalRuntime({
           console.warn("Failed to kill existing terminal session before restart:", error)
         }
         terminalSessions.delete(sessionId)
+      }
+      // Reserve after the old session freed its slot and before the first
+      // await: during the spawn window the freed slot counts as pending, so a
+      // concurrent create cannot take it and leave the replacement registering
+      // past the cap. (Reserving before the delete would 429 a restart that
+      // reuses its own slot; not reserving at all let the create through.)
+      const releaseTerminalSlot = reserveTerminalSlot()
+      if (!releaseTerminalSlot) {
+        return res.status(429).json({ error: "Maximum terminal sessions reached" })
       }
 
       try {
@@ -989,7 +998,7 @@ export function createTerminalRuntime({
           capabilities: terminalTransportCapabilities,
         })
       } finally {
-        releaseTerminalSlot?.()
+        releaseTerminalSlot()
       }
     } catch (error) {
       console.error("Failed to restart terminal session:", error)
@@ -998,7 +1007,7 @@ export function createTerminalRuntime({
   })
 
   app.post("/api/terminal/force-kill", (req, res) => {
-    const { sessionId, cwd } = req.body
+    const { sessionId, cwd } = req.body ?? {}
     let killedCount = 0
 
     if (sessionId) {

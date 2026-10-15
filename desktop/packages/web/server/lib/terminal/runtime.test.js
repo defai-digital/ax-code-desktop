@@ -496,3 +496,97 @@ describe("terminal shell env", () => {
     expect(env.BASH_ENV).toBeUndefined()
   })
 })
+
+describe("terminal restart slot reservation", () => {
+  const makeFakePty = () => ({
+    onData: () => ({ dispose() {} }),
+    onExit: () => ({ dispose() {} }),
+    write: () => {},
+    kill: () => {},
+    resize: () => {},
+  })
+
+  const createCapOneRuntime = (app, server) =>
+    createRuntime(server, {
+      app,
+      getPtyProvider: async () => ({ backend: "mock", spawn: () => makeFakePty() }),
+      isExecutable: () => true,
+      validateCwd: async (_req, cwd) => ({ ok: true, cwd }),
+      uiAuthController: { enabled: false },
+      buildAugmentedPath: () => "",
+      TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: 1000,
+      TERMINAL_INPUT_WS_REBIND_WINDOW_MS: 1000,
+      MAX_TERMINAL_SESSIONS: 1,
+    })
+
+  it("holds the freed slot while a live restart's replacement is spawning", async () => {
+    // Regression: the restart deleted the old session before spawning the
+    // replacement, and a create arriving inside the spawn window took the freed
+    // slot, so the replacement registered past the cap.
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const runtime = createCapOneRuntime(app, server)
+
+    try {
+      const createRoute = getRoute("POST", "/api/terminal/create")
+      const restartRoute = getRoute("POST", "/api/terminal/:sessionId/restart")
+
+      const first = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, first)
+      expect(first.statusCode).toBe(200)
+
+      const restartRes = createMockResponse()
+      const restartPromise = restartRoute(
+        { params: { sessionId: first.body.sessionId }, body: { cwd: "/tmp", cols: 80, rows: 24 } },
+        restartRes,
+      )
+      // Wait past the restart's cwd/stat awaits so it has freed the old slot and
+      // is inside its spawn (startup grace) window.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      const concurrentCreate = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, concurrentCreate)
+      expect(concurrentCreate.statusCode).toBe(429)
+
+      await restartPromise
+      expect(restartRes.statusCode).toBe(200)
+      expect(restartRes.body?.sessionId).toBeTruthy()
+    } finally {
+      await runtime.shutdown()
+    }
+  })
+})
+
+describe("terminal body parsing tolerance", () => {
+  it("answers a create without a parsed body with 400 instead of a thrown TypeError", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const runtime = createRuntime(server, { app })
+
+    try {
+      const createRoute = getRoute("POST", "/api/terminal/create")
+      const res = createMockResponse()
+      await createRoute({ body: undefined }, res)
+      expect(res.statusCode).toBe(400)
+      expect(res.body).toEqual({ error: "cwd is required" })
+    } finally {
+      await runtime.shutdown()
+    }
+  })
+
+  it("answers a force-kill without a parsed body without throwing", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const runtime = createRuntime(server, { app })
+
+    try {
+      const forceKillRoute = getRoute("POST", "/api/terminal/force-kill")
+      const res = createMockResponse()
+      await forceKillRoute({ body: undefined }, res)
+      expect(res.statusCode).toBe(200)
+      expect(res.body).toEqual({ success: true, killedCount: 0 })
+    } finally {
+      await runtime.shutdown()
+    }
+  })
+})
