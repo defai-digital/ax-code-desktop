@@ -5,6 +5,7 @@
  */
 
 import type { FilesAPI, RuntimeAPIs } from "./api/types"
+import { buildAxCodeApiUrl } from "./ax-code/baseUrl"
 import { getDesktopHomeDirectory } from "./desktop"
 import { createProjectIdFromPath } from "./projectId"
 import { sanitizeStarterRefs, type DraftStarterRef } from "./draftStarters"
@@ -126,7 +127,7 @@ const getBaseUrl = (): string => {
 
 const makeFsUrl = (template: string, query?: URLSearchParams): string => {
   const queryString = query?.toString() ?? ""
-  return `${getBaseUrl()}${template}${queryString ? `?${queryString}` : ""}`
+  return `${buildAxCodeApiUrl(getBaseUrl(), template)}${queryString ? `?${queryString}` : ""}`
 }
 
 const postJson = async <T>(url: string, body: unknown): Promise<{ ok: boolean; data: T | null }> => {

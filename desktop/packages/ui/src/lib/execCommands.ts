@@ -1,4 +1,5 @@
 import type { CommandExecResult, FilesAPI, RuntimeAPIs } from "@/lib/api/types"
+import { buildAxCodeApiUrl } from "./ax-code/baseUrl"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
 
 type ExecCommandsResult = { success: boolean; results: CommandExecResult[] }
@@ -28,7 +29,7 @@ async function execCommands(commands: string[], cwd: string): Promise<ExecComman
     return runtimeFiles.execCommands(commands, cwd)
   }
 
-  const response = await fetch(`${getBaseUrl()}${API_ENDPOINTS.fs.exec}`, {
+  const response = await fetch(buildAxCodeApiUrl(getBaseUrl(), API_ENDPOINTS.fs.exec), {
     method: HTTP_DEFAULTS.method.post,
     headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ commands, cwd, background: false }),

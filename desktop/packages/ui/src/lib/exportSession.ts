@@ -116,7 +116,9 @@ export function downloadAsMarkdown(content: string, filename: string): void {
   document.body.appendChild(anchor)
   anchor.click()
   document.body.removeChild(anchor)
-  URL.revokeObjectURL(url)
+  // The download reads the blob asynchronously; revoking the object URL in the
+  // same task cancels it in browsers that resolve the URL after the click.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
 export async function saveAsMarkdownDesktop(content: string, filename: string): Promise<string | null> {

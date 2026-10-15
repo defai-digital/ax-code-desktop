@@ -251,6 +251,48 @@ describe("scoped client cache", () => {
 })
 
 describe("withDirectory queue resilience", () => {
+  test("serializes three concurrent callers instead of letting two waiters run side by side", async () => {
+    // A, B and C overlap: B and C both wait on A's entry. The slot must chain
+    // (C queues behind B), otherwise B and C resume together, overwrite each
+    // other's directory, and restore stale values.
+    const executionOrder: string[] = []
+    let concurrent = 0
+    let maxConcurrent = 0
+    const run = (name: string, directory: string, gate?: Promise<void>) =>
+      axCodeClient.withDirectory(directory, async () => {
+        concurrent += 1
+        maxConcurrent = Math.max(maxConcurrent, concurrent)
+        try {
+          expect(axCodeClient.getDirectory()).toBe(directory)
+          if (gate) await gate
+          await new Promise((resolve) => setTimeout(resolve, 0))
+          expect(axCodeClient.getDirectory()).toBe(directory)
+          executionOrder.push(name)
+          return name
+        } finally {
+          concurrent -= 1
+        }
+      })
+
+    let releaseA = () => {}
+    const gateA = new Promise<void>((resolve) => {
+      releaseA = () => resolve()
+    })
+    try {
+      const a = run("a", "/proj-a", gateA)
+      const b = run("b", "/proj-b")
+      const c = run("c", "/proj-c")
+      releaseA()
+
+      await expect(Promise.all([a, b, c])).resolves.toEqual(["a", "b", "c"])
+      expect(executionOrder).toEqual(["a", "b", "c"])
+      expect(maxConcurrent).toBe(1)
+    } finally {
+      releaseA()
+      axCodeClient.setDirectory(undefined)
+    }
+  })
+
   test("a hung directory-scoped call fails its waiter instead of running beside it", async () => {
     // Two contexts must never run at once: `fn` reads the shared current
     // directory, so a second run would send the first run's remaining requests

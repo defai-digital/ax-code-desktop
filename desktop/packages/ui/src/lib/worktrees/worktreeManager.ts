@@ -175,7 +175,10 @@ export async function listProjectWorktrees(project: ProjectRef): Promise<Worktre
     const metadataProjectDirectory = await resolveProjectRoot(projectDirectory).catch(() => projectDirectory)
     const normalizedProjectDirectory = normalizeWorktreePath(projectDirectory)
 
-    const worktrees = await git.worktree.list(projectDirectory).catch(() => [])
+    // A failed listing must surface as an error, not be cached as "no
+    // worktrees": callers cannot tell the two apart and would stop retrying
+    // for the whole TTL.
+    const worktrees = await git.worktree.list(projectDirectory)
     const results: WorktreeMetadata[] = worktrees
       .filter((entry) => typeof entry.path === "string" && entry.path.trim().length > 0)
       .map((entry) => {

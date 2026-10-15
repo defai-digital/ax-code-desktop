@@ -148,6 +148,16 @@ export function useSync() {
   const evict = useCallback(
     (dir: string, sessionIDs: string[]) => {
       if (sessionIDs.length === 0) return
+
+      // Module-level caches must be cleared even when the directory's child
+      // store is already gone (child-store eviction races the seen-LRU);
+      // otherwise stale meta/prefetch entries survive and report old limits.
+      for (const id of sessionIDs) {
+        optimisticByKey.delete(`${dir}\n${id}`)
+        meta.current.delete(`${dir}\n${id}`)
+      }
+      clearSessionPrefetch(dir, sessionIDs)
+
       const dirStore = childStores.getChild(dir)
       if (!dirStore) return
 
@@ -164,13 +174,6 @@ export function useSync() {
       dropSessionCaches(draft, sessionIDs)
       dropCachedSessionMessageRecordsSnapshots(dirStore, sessionIDs)
       dirStore.setState(draft)
-
-      // Clear meta + optimistic + prefetch cache for evicted sessions
-      for (const id of sessionIDs) {
-        optimisticByKey.delete(`${dir}\n${id}`)
-        meta.current.delete(`${dir}\n${id}`)
-      }
-      clearSessionPrefetch(dir, sessionIDs)
     },
     [childStores],
   )
@@ -227,8 +230,8 @@ export function useSync() {
   )
 
   const setOptimistic = useCallback(
-    (sessionID: string, item: OptimisticItem) => {
-      const key = `${directory}\n${sessionID}`
+    (sessionID: string, item: OptimisticItem, targetDirectory?: string) => {
+      const key = `${targetDirectory ?? directory}\n${sessionID}`
       const list = optimisticByKey.get(key)
       const sorted: OptimisticItem = { message: item.message, parts: sortPartsById(item.parts) }
       if (list) {
@@ -241,8 +244,8 @@ export function useSync() {
   )
 
   const clearOptimistic = useCallback(
-    (sessionID: string, messageID?: string) => {
-      const key = `${directory}\n${sessionID}`
+    (sessionID: string, messageID?: string, targetDirectory?: string) => {
+      const key = `${targetDirectory ?? directory}\n${sessionID}`
       if (!messageID) {
         optimisticByKey.delete(key)
         return
@@ -258,7 +261,19 @@ export function useSync() {
   // Fetch messages from API
   const fetchMessages = useCallback(
     async (sessionID: string, limit: number, before?: string) => {
-      const result = await retry(() => sdk.session.messages({ sessionID, directory, limit, before }))
+      // The SDK resolves with `{ data, error }` on non-2xx instead of throwing;
+      // surface it as an Error inside retry() so warmup 5xx responses retry and
+      // permanent failures become `error: true` instead of a phantom empty page.
+      const result = await retry(async () => {
+        const response = await sdk.session.messages({ sessionID, directory, limit, before })
+        if (response.error || response.data === undefined) {
+          const status = response.response?.status
+          const error = new Error(`session.messages failed${status ? ` (${status})` : ""}`)
+          if (status !== undefined) (error as Error & { status?: number }).status = status
+          throw error
+        }
+        return response
+      })
       const items = (result.data ?? []).filter((x: { info?: { id?: string } }) => !!x?.info?.id)
       const session = items
         .map((x: { info: Message }) => stripMessageDiffSnapshots(x.info))
@@ -361,7 +376,16 @@ export function useSync() {
           shouldFetchSession
             ? (async () => {
                 try {
-                  const result = await retry(() => sdk.session.get({ sessionID, directory }))
+                  const result = await retry(async () => {
+                    const response = await sdk.session.get({ sessionID, directory })
+                    if (response.error || response.data === undefined) {
+                      const status = response.response?.status
+                      const error = new Error(`session.get failed${status ? ` (${status})` : ""}`)
+                      if (status !== undefined) (error as Error & { status?: number }).status = status
+                      throw error
+                    }
+                    return response
+                  })
                   if (result.data) {
                     // Use functional setState to atomically read-modify-write,
                     // preventing lost-update races when multiple syncSession calls
@@ -420,9 +444,13 @@ export function useSync() {
 
   // Optimistic add (for prompt submission)
   const optimisticAdd = useCallback(
-    (input: { sessionID: string; message: Message; parts: Part[] }) => {
-      setOptimistic(input.sessionID, { message: input.message, parts: input.parts })
-      const current = store.getState()
+    (input: { sessionID: string; message: Message; parts: Part[]; directory?: string }) => {
+      // A send can target a session outside this instance's directory (queued
+      // auto-send for another project, multi-run fusion): route the bubble to
+      // the session's own store and shadow key, not the current directory's.
+      const targetStore = input.directory && input.directory !== directory ? childStores.ensureChild(input.directory) : store
+      setOptimistic(input.sessionID, { message: input.message, parts: input.parts }, input.directory)
+      const current = targetStore.getState()
       const message = { ...current.message }
       const part = { ...current.part }
 
@@ -435,16 +463,17 @@ export function useSync() {
       // Insert parts
       part[input.message.id] = sortPartsById(input.parts)
 
-      store.setState({ message, part })
+      targetStore.setState({ message, part })
     },
-    [store, setOptimistic],
+    [store, childStores, directory, setOptimistic],
   )
 
   // Optimistic remove (for rollback on error)
   const optimisticRemove = useCallback(
-    (input: { sessionID: string; messageID: string }) => {
-      clearOptimistic(input.sessionID, input.messageID)
-      const current = store.getState()
+    (input: { sessionID: string; messageID: string; directory?: string }) => {
+      const targetStore = input.directory && input.directory !== directory ? childStores.ensureChild(input.directory) : store
+      clearOptimistic(input.sessionID, input.messageID, input.directory)
+      const current = targetStore.getState()
       const message = { ...current.message }
       const part = { ...current.part }
 
@@ -459,9 +488,9 @@ export function useSync() {
       }
       delete part[input.messageID]
 
-      store.setState({ message, part })
+      targetStore.setState({ message, part })
     },
-    [store, clearOptimistic],
+    [store, childStores, directory, clearOptimistic],
   )
 
   return useMemo(

@@ -34,6 +34,7 @@ import { isSyntheticPart } from "@/lib/messages/synthetic"
 import { materializeSessionSnapshots } from "./materialization"
 import { stripMessageDiffSnapshots } from "./sanitize"
 import { sessionEvents } from "@/lib/sessionEvents"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import { toast } from "@/components/ui"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 
@@ -54,8 +55,9 @@ const PROMPT_ACCEPTED_BUSY_GRACE_MS = 60_000
 let _sdk: AxCodeClient | null = null
 let _childStores: ChildStoreManager | null = null
 let _getDirectory: () => string = () => ""
-let _optimisticAdd: ((input: { sessionID: string; message: Message; parts: Part[] }) => void) | null = null
-let _optimisticRemove: ((input: { sessionID: string; messageID: string }) => void) | null = null
+let _optimisticAdd: ((input: { sessionID: string; message: Message; parts: Part[]; directory?: string }) => void) | null =
+  null
+let _optimisticRemove: ((input: { sessionID: string; messageID: string; directory?: string }) => void) | null = null
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -101,8 +103,8 @@ export function setActionRefs(sdk: AxCodeClient, childStores: ChildStoreManager,
 }
 
 export function setOptimisticRefs(
-  add: (input: { sessionID: string; message: Message; parts: Part[] }) => void,
-  remove: (input: { sessionID: string; messageID: string }) => void,
+  add: (input: { sessionID: string; message: Message; parts: Part[]; directory?: string }) => void,
+  remove: (input: { sessionID: string; messageID: string; directory?: string }) => void,
 ) {
   _optimisticAdd = add
   _optimisticRemove = remove
@@ -111,13 +113,6 @@ export function setOptimisticRefs(
 function sdk() {
   if (!_sdk) throw new Error("SDK not initialized — is SyncProvider mounted?")
   return _sdk
-}
-
-function dirStore() {
-  if (!_childStores) throw new Error("Child stores not initialized")
-  const d = _getDirectory()
-  if (!d) throw new Error("No current directory")
-  return _childStores.ensureChild(d)
 }
 
 function dir() {
@@ -856,6 +851,13 @@ export async function optimisticSend(input: {
   agent?: string
   files?: Array<Pick<FilePartInput, "type" | "mime" | "url" | "filename" | "source">>
   /**
+   * The session's own directory when the caller already resolved it. Sends can
+   * target a session outside the active project (queued auto-send, multi-run
+   * fusion); without it the optimistic bubble and busy status would land in the
+   * current directory's store, where the session's timeline never reads them.
+   */
+  directory?: string | null
+  /**
    * Reuse a caller's message id instead of minting one. The server treats it as the
    * real user message id, so a sender that may retry the same logical message (the
    * queued-message dispatcher) can pass a stable id and let the server deduplicate
@@ -869,7 +871,9 @@ export async function optimisticSend(input: {
     throw new Error("Optimistic refs not set — is useSync() mounted?")
   }
 
-  const store = dirStore()
+  const sessionDirectory =
+    normalizeProjectPath(input.directory) ?? normalizeProjectPath(getSessionDirectory(input.sessionId)) ?? undefined
+  const store = getDirectoryStore(sessionDirectory)
   const messageID = isValidMessageId(input.messageId ?? "") ? input.messageId! : ascendingId("msg")
   const textPartId = ascendingId("prt")
 
@@ -906,6 +910,7 @@ export async function optimisticSend(input: {
     sessionID: input.sessionId,
     message: optimisticMessage,
     parts: optimisticParts,
+    directory: sessionDirectory,
   })
 
   // Set busy status and mark the prompt accepted atomically (both synchronous)
@@ -930,6 +935,7 @@ export async function optimisticSend(input: {
     _optimisticRemove({
       sessionID: input.sessionId,
       messageID,
+      directory: sessionDirectory,
     })
     const s = store.getState()
     // Restore the status snapshot taken before the optimistic busy write instead

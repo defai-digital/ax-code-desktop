@@ -168,6 +168,9 @@ export const ascendingId = (prefix: "msg" | "prt"): string => {
 
 const isRetryableFetchError = (error: unknown): boolean => {
   if (error instanceof DOMException && error.name === "AbortError") return true
+  // AbortSignal.timeout() rejects with a DOMException named "TimeoutError", not
+  // "AbortError" — without this the prompt-send deadline is never retried.
+  if (error instanceof DOMException && error.name === "TimeoutError") return true
   if (error instanceof TypeError) return true
   return false
 }
@@ -370,7 +373,7 @@ class AxCodeService {
     if (existing) {
       return existing
     }
-    const scoped = createAxCodeClient({ baseUrl: this.baseUrl, directory: normalized })
+    const scoped = createAxCodeClient({ baseUrl: this.baseUrl, directory: normalized, fetch: createSdkFetch() })
     // Bound the cache: every worktree directory the app ever touched used to keep
     // its client for the whole process lifetime. A client is a stateless wrapper,
     // so evicting the oldest one is safe for callers that already hold it.
@@ -516,43 +519,48 @@ class AxCodeService {
     // `currentDirectory`, so a second run started while the first is still
     // executing would send the first run's remaining requests to the second
     // run's project, and the first run's `finally` would restore a stale
-    // directory. A predecessor that is still running after the wait deadline
-    // therefore fails the waiter with an explicit error instead of running
-    // beside it.
+    // directory. The slot is therefore claimed synchronously, before any await:
+    // each caller chains onto the entry that was current when it was called, so
+    // two waiters of the same predecessor can never resume side by side. A
+    // predecessor that is still running after the wait deadline fails the waiter
+    // with an explicit error instead of running beside it.
     if (directory === undefined || directory === null) {
       return fn()
     }
 
     const previous = this.directoryContextInFlight
-    if (previous) {
-      let waitTimer: ReturnType<typeof setTimeout> | null = null
-      const timedOut = await Promise.race([
-        previous.promise.then(
-          () => false,
-          () => false,
-        ),
-        new Promise<boolean>((resolve) => {
-          waitTimer = setTimeout(() => resolve(true), DIRECTORY_CONTEXT_WAIT_TIMEOUT_MS)
-        }),
-      ])
-      if (waitTimer) {
-        clearTimeout(waitTimer)
-      }
-      if (timedOut) {
-        console.warn(
-          "[ax-code client] another directory-scoped call is still running after " +
-            `${DIRECTORY_CONTEXT_WAIT_TIMEOUT_MS}ms; refusing to run concurrently with it`,
-        )
-        throw Object.assign(new Error("Timed out waiting for another directory-scoped request to finish"), {
-          name: "DirectoryContextBusyError",
-        })
-      }
-    }
-
-    const entry: { promise: Promise<T> } = { promise: Promise.resolve(undefined as T) }
-    const run = runWithContext()
-    entry.promise = run
+    const entry: { promise: Promise<unknown> } = { promise: Promise.resolve() }
     this.directoryContextInFlight = entry
+
+    const run = (async (): Promise<T> => {
+      if (previous) {
+        let waitTimer: ReturnType<typeof setTimeout> | null = null
+        const timedOut = await Promise.race([
+          previous.promise.then(
+            () => false,
+            () => false,
+          ),
+          new Promise<boolean>((resolve) => {
+            waitTimer = setTimeout(() => resolve(true), DIRECTORY_CONTEXT_WAIT_TIMEOUT_MS)
+          }),
+        ])
+        if (waitTimer) {
+          clearTimeout(waitTimer)
+        }
+        if (timedOut) {
+          console.warn(
+            "[ax-code client] another directory-scoped call is still running after " +
+              `${DIRECTORY_CONTEXT_WAIT_TIMEOUT_MS}ms; refusing to run concurrently with it`,
+          )
+          throw Object.assign(new Error("Timed out waiting for another directory-scoped request to finish"), {
+            name: "DirectoryContextBusyError",
+          })
+        }
+      }
+      return runWithContext()
+    })()
+    entry.promise = run
+
     try {
       return await run
     } finally {

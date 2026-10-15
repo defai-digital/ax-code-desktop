@@ -508,8 +508,11 @@ export const restartToApplyUpdate = async (): Promise<boolean> => {
   // so a plain restart is enough there.
   if (isElectronShell()) {
     try {
-      await invokeDesktop("desktop_quit_and_install")
-      return true
+      // Main resolves with { installed: false } when the downloaded update is no
+      // longer installable (e.g. an updater error cleared the gate after the
+      // renderer marked it downloaded); that is a failure, not a success.
+      const result = (await invokeDesktop("desktop_quit_and_install")) as { installed?: boolean } | undefined
+      return result?.installed !== false
     } catch (error) {
       console.warn("Failed to apply update (electron)", error)
       return false

@@ -189,6 +189,7 @@ export function routeMessage(params: {
         return optimisticSend({
           messageId: params.messageId,
           sessionId: params.sessionId,
+          directory: params.directory,
           content,
           providerID: params.providerID,
           modelID: params.modelID,
@@ -218,6 +219,7 @@ export function routeMessage(params: {
         return optimisticSend({
           messageId: params.messageId,
           sessionId: params.sessionId,
+          directory: params.directory,
           content: fallback,
           providerID: params.providerID,
           modelID: params.modelID,
@@ -244,6 +246,7 @@ export function routeMessage(params: {
     return optimisticSend({
       messageId: params.messageId,
       sessionId: params.sessionId,
+      directory: params.directory,
       content: params.content,
       providerID: params.providerID,
       modelID: params.modelID,
