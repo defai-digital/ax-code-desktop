@@ -716,15 +716,25 @@ function createMainWindowShell() {
     onBlocked: safeOpenExternal,
   })
 
-  mainWindow.webContents.on("console-message", (event, level, message, line, sourceId) => {
-    const details = {
-      level: typeof event?.level === "number" ? event.level : level,
-      message: typeof event?.message === "string" ? event.message : String(message || ""),
-      line: event?.lineNumber ?? line,
-      source: event?.sourceId ?? sourceId,
-    }
-    if (details.level >= 2 && details.message) {
-      recordStartupEvent("renderer.console", details, { once: false })
+  mainWindow.webContents.on("console-message", (_event, details) => {
+    // Electron 32+ passes one MessageDetails object with a numeric level
+    // (0 verbose, 1 info, 2 warning, 3 error). The old positional
+    // (level, message, line, sourceId) shape is gone, and the previous
+    // dual-signature read fell back to the details object itself, so
+    // `level >= 2` never matched and renderer console errors went unlogged.
+    const level = typeof details?.level === "number" ? details.level : -1
+    const message = typeof details?.message === "string" ? details.message : ""
+    if (level >= 2 && message) {
+      recordStartupEvent(
+        "renderer.console",
+        {
+          level,
+          message,
+          line: details?.lineNumber,
+          source: details?.sourceUrl,
+        },
+        { once: false },
+      )
     }
   })
 
