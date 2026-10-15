@@ -164,3 +164,39 @@ describe("notification trigger runtime", () => {
       vi.useRealTimers()
     }
   })
+
+it("drops only the replied permission ask and still notifies the pending ones", async () => {
+  // A reply used to clear the whole session debounce entry, so every other ask
+  // waiting in the same window lost its notification.
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({
+      ok: true,
+      json: async () => [],
+      body: { cancel: async () => {} },
+    })),
+  )
+  vi.useFakeTimers()
+  try {
+    const { runtime, emitted } = createRuntime()
+    const ask = (id) => ({
+      type: "permission.asked",
+      properties: { id, permission: "bash", sessionTitle: "My session", sessionID: "ses_r" },
+    })
+
+    await runtime.maybeDispatchNotificationForTrigger(ask("req_a"))
+    await runtime.maybeDispatchNotificationForTrigger(ask("req_b"))
+    await runtime.maybeDispatchNotificationForTrigger({
+      type: "permission.replied",
+      properties: { requestID: "req_a", sessionID: "ses_r" },
+    })
+
+    await vi.advanceTimersByTimeAsync(600)
+
+    const tags = emitted.map((entry) => entry.tag)
+    expect(tags).not.toContain("permission-ses_r:req_a")
+    expect(tags).toContain("permission-ses_r:req_b")
+  } finally {
+    vi.useRealTimers()
+  }
+})

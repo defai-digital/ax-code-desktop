@@ -442,7 +442,16 @@ export const createNotificationTriggerRuntime = (deps) => {
       // Some runtimes may omit requestID on permission.replied.
       // When request ID is missing, clear session debounce to avoid
       // showing stale permission notifications for auto-approved prompts.
-      if (!requestKey || !pendingNotification.requestKey || pendingNotification.requestKey === requestKey) {
+      if (!requestKey) {
+        clearTimeout(pendingNotification.timer)
+        permissionNotificationDebounceTimers.delete(sessionId)
+        return
+      }
+
+      // Drop only the replied ask: the debounce entry holds every ask from the
+      // current window, and the unreplied ones still need their notification.
+      pendingNotification.pending.delete(requestKey)
+      if (pendingNotification.pending.size === 0) {
         clearTimeout(pendingNotification.timer)
         permissionNotificationDebounceTimers.delete(sessionId)
       }
