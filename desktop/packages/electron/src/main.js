@@ -744,6 +744,15 @@ function createMainWindowShell() {
     )
   })
 
+  // Any reload of the main window — the "Reload Webview" menu item, the
+  // View→Reload role, crash recovery, or the post-server-restart reload —
+  // unmounts the renderer's IPC listeners. Reset the hand-off readiness flag
+  // for every load start so reload paths main did not initiate cannot leave it
+  // stale; the fresh renderer re-arms it via 'ax-code:renderer-app-ready'.
+  mainWindow.webContents.on("did-start-loading", () => {
+    rendererReadyForOpenProject = false
+  })
+
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
     if (isQuitting || details.reason === "clean-exit" || mainWindow.isDestroyed()) return
     recordStartupEvent(
@@ -3118,7 +3127,13 @@ handleCommand("desktop_focus_main_window", async (args) => {
 
   const hadWindow = Boolean(mainWindow && !mainWindow.isDestroyed())
   if (!hadWindow) {
-    await createWindow()
+    try {
+      await createWindow()
+    } catch {
+      // Fall through with no window: the UNAVAILABLE branch below reports
+      // { focused: false } so the caller keeps its own window instead of
+      // crashing on an unhandled IPC rejection.
+    }
   }
   const action = resolveFocusMainWindowAction({
     hasUsableWindow: Boolean(mainWindow && !mainWindow.isDestroyed()),

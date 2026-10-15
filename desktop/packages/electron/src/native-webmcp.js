@@ -180,7 +180,8 @@ class NativeWebMcp {
     if (request.operation === "list")
       return { requestID: request.requestID, generation: request.generation, status: "Completed", snapshot }
     if (["read", "act", "wait"].includes(request.operation)) return this.interact(request)
-    if (request.operation !== "invoke" || this.pending.size !== 0) throw new Error("Native operation is unavailable")
+    if (request.operation !== "invoke" || this.pending.size !== 0 || this.interacting)
+      throw new Error("Native operation is unavailable")
     const tool = this.tools.get(request.toolName)
     if (!tool || definitionDigest(tool) !== request.digest) throw new Error("The native tool definition changed")
     if (

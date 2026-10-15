@@ -122,6 +122,28 @@ describe("native WebMCP adapter", () => {
     expect(f.commands.filter((call) => call.method === "WebMCP.invokeTool")).toHaveLength(1)
     f.adapter.close()
   })
+  test("rejects a native invoke while a page operation is in flight", async () => {
+    let releaseRead
+    const f = await fixture()
+    f.contents.executeJavaScriptInIsolatedWorld = () =>
+      new Promise((resolve) => {
+        releaseRead = resolve
+      })
+    const readInFlight = f.adapter.execute({
+      requestID: randomUUID(),
+      generation: f.adapter.generation,
+      origin: "https://example.com",
+      frameId: "top",
+      operation: "read",
+      deadline: Date.now() + 5000,
+    })
+    await Promise.resolve()
+    await expect(f.adapter.execute(f.request())).rejects.toThrow("Native operation is unavailable")
+    expect(f.commands.some((call) => call.method === "WebMCP.invokeTool")).toBe(false)
+    releaseRead({ title: "", text: "", outline: [] })
+    await readInFlight
+    f.adapter.close()
+  })
 })
 
 describe("pageKind", () => {
