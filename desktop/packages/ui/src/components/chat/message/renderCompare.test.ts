@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest"
-import type { Part } from "@defai-digital/ax-code-sdk/v2"
-import { areRenderRelevantPartsEqual } from "./renderCompare"
+import type { Message, Part } from "@defai-digital/ax-code-sdk/v2"
+import { areRenderRelevantMessagesEqual, areRenderRelevantPartsEqual } from "./renderCompare"
+
+const messageRecord = (info: Partial<Message>): { info: Message; parts: Part[] } => ({
+  info: { id: "msg_1", role: "assistant", sessionID: "ses_1", ...info } as Message,
+  parts: [],
+})
 
 const shellPart = (output: string, status: string): Part =>
   ({
@@ -34,5 +39,25 @@ describe("areRenderRelevantPartsEqual", () => {
 
   test("still treats an unchanged bridge block as equal", () => {
     expect(areRenderRelevantPartsEqual([shellPart("DONE", "completed")], [shellPart("DONE", "completed")])).toBe(true)
+  })
+})
+
+describe("areRenderRelevantMessagesEqual", () => {
+  test("notices a feedback change on an otherwise identical message", () => {
+    // Regression: setMessageFeedback replaces the record with only `feedback`
+    // differing; the memo comparator used to skip the re-render, so the pressed
+    // state never appeared.
+    expect(
+      areRenderRelevantMessagesEqual(messageRecord({}), messageRecord({ feedback: "up" as never })),
+    ).toBe(false)
+  })
+
+  test("notices an error landing on a finished message", () => {
+    expect(
+      areRenderRelevantMessagesEqual(
+        messageRecord({ finish: "error" as never }),
+        messageRecord({ finish: "error" as never, error: { message: "rate limit" } as never }),
+      ),
+    ).toBe(false)
   })
 })

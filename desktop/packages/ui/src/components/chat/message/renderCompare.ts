@@ -147,6 +147,11 @@ const areRenderRelevantMessageInfoEqual = (left: Message, right: Message): boole
     (left as { clientRole?: unknown }).clientRole === (right as { clientRole?: unknown }).clientRole &&
     (left as { userMessageMarker?: unknown }).userMessageMarker ===
       (right as { userMessageMarker?: unknown }).userMessageMarker &&
+    // The assistant error presentation and the feedback buttons render from
+    // these; skipping them froze the row after setMessageFeedback replaced the
+    // record or an error landed on a finished message.
+    (left as { error?: unknown }).error === (right as { error?: unknown }).error &&
+    (left as { feedback?: unknown }).feedback === (right as { feedback?: unknown }).feedback &&
     ((left as { time?: { created?: unknown; completed?: unknown } }).time?.created ?? null) ===
       ((right as { time?: { created?: unknown; completed?: unknown } }).time?.created ?? null) &&
     ((left as { time?: { created?: unknown; completed?: unknown } }).time?.completed ?? null) ===
