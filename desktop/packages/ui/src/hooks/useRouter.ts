@@ -31,6 +31,37 @@ export function useRouter(): void {
   const navigateToDiff = useUIStore((state) => state.navigateToDiff)
 
   /**
+   * Get current app state for URL serialization.
+   */
+  const getCurrentAppState = React.useCallback((): AppRouteState => {
+    const sessionState = useSessionUIStore.getState()
+    const uiState = useUIStore.getState()
+
+    return {
+      sessionId: sessionState.currentSessionId,
+      tab: uiState.activeMainTab,
+      isSettingsOpen: uiState.isSettingsDialogOpen,
+      settingsPath: uiState.settingsPage,
+      diffFile: uiState.pendingDiffFile,
+    }
+  }, [])
+
+  /**
+   * Sync current app state to URL.
+   */
+  const syncURLFromState = React.useCallback(
+    (options: { replace?: boolean } = {}) => {
+      if (isApplyingRouteRef.current) {
+        return
+      }
+
+      const state = getCurrentAppState()
+      updateBrowserURL(state, options)
+    },
+    [getCurrentAppState],
+  )
+
+  /**
    * Apply a parsed route state to the application stores.
    */
   const applyRoute = React.useCallback(
@@ -74,40 +105,14 @@ export function useRouter(): void {
         }
       } finally {
         isApplyingRouteRef.current = false
+        // Store changes made while this route was being applied updated the
+        // subscription baselines below but skipped their URL write; without
+        // this re-sync the address bar would keep pointing at the applied
+        // route while the app shows something else. No-op when they match.
+        syncURLFromState({ replace: true })
       }
     },
-    [setCurrentSession, setActiveMainTab, setSettingsDialogOpen, setSettingsPage, navigateToDiff],
-  )
-
-  /**
-   * Get current app state for URL serialization.
-   */
-  const getCurrentAppState = React.useCallback((): AppRouteState => {
-    const sessionState = useSessionUIStore.getState()
-    const uiState = useUIStore.getState()
-
-    return {
-      sessionId: sessionState.currentSessionId,
-      tab: uiState.activeMainTab,
-      isSettingsOpen: uiState.isSettingsDialogOpen,
-      settingsPath: uiState.settingsPage,
-      diffFile: uiState.pendingDiffFile,
-    }
-  }, [])
-
-  /**
-   * Sync current app state to URL.
-   */
-  const syncURLFromState = React.useCallback(
-    (options: { replace?: boolean } = {}) => {
-      if (isApplyingRouteRef.current) {
-        return
-      }
-
-      const state = getCurrentAppState()
-      updateBrowserURL(state, options)
-    },
-    [getCurrentAppState],
+    [setCurrentSession, setActiveMainTab, setSettingsDialogOpen, setSettingsPage, navigateToDiff, syncURLFromState],
   )
 
   // Initialize: parse URL and apply route on mount
@@ -125,16 +130,10 @@ export function useRouter(): void {
 
     const route = parseRoute()
 
-    // Apply the initial route
-    const initializeRoute = async () => {
-      await applyRoute(route)
-
-      // After applying, update URL to normalized form (use replaceState)
-      syncURLFromState({ replace: true })
-    }
-
-    void initializeRoute()
-  }, [applyRoute, syncURLFromState])
+    // Apply the initial route. applyRoute re-syncs the URL to the normalized
+    // form in its finally block once applying finishes.
+    void applyRoute(route)
+  }, [applyRoute])
 
   // Subscribe to session changes
   React.useEffect(() => {

@@ -11,10 +11,12 @@ vi.doMock("@/lib/desktop", () => ({
   isDesktopShell: isDesktopShellMock,
 }))
 
+const syncSessions: Array<Record<string, unknown>> = [
+  { id: "root-1", title: "Tray session", time: { created: 1, updated: 2 } },
+]
+
 vi.doMock("@/sync/sync-refs", () => ({
-  getAllSyncSessions: () => [
-    { id: "root-1", title: "Tray session", time: { created: 1, updated: 2 } },
-  ],
+  getAllSyncSessions: () => syncSessions,
   getSyncChildStores: () => ({
     children: new Map([
       [
@@ -32,6 +34,7 @@ vi.doMock("@/sync/sync-refs", () => ({
 }))
 
 const { useTraySync } = await import("./useTraySync")
+const { useGitStore } = await import("@/stores/useGitStore")
 const { useGlobalSessionsStore } = await import("@/stores/useGlobalSessionsStore")
 const { useSyncNotificationStore } = await import("@/sync/notification-store")
 
@@ -50,6 +53,8 @@ describe("useTraySync", () => {
     root = createRoot(container)
     invokeDesktopMock.mockClear()
     isDesktopShellMock.mockReturnValue(true)
+    syncSessions.length = 0
+    syncSessions.push({ id: "root-1", title: "Tray session", time: { created: 1, updated: 2 } })
     useGlobalSessionsStore.setState({
       activeSessions: [],
       archivedSessions: [],
@@ -59,6 +64,7 @@ describe("useTraySync", () => {
       hasLoaded: true,
       status: "ready",
     })
+    useGitStore.setState({ directories: new Map() })
   })
 
   afterEach(() => {
@@ -131,5 +137,22 @@ describe("useTraySync", () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  test("shows the current git branch in the session subtitle when the git store knows it", async () => {
+    syncSessions.push({ id: "root-2", title: "Branched session", directory: "/repo", time: { created: 3, updated: 4 } })
+    useGlobalSessionsStore.setState({ sessionsByDirectory: new Map([["/repo", []]]) })
+    useGitStore.setState({
+      directories: new Map([
+        ["/repo", { branches: { all: ["main"], current: "main", branches: {} } } as never],
+      ]),
+    })
+
+    await render()
+
+    const trayCall = invokeCalls().find((call) => call[0] === "desktop_tray_update")
+    const snapshot = trayCall?.[1] as { sessions: Array<{ id: string; branch: string; subtitle: string }> }
+    const branched = snapshot.sessions.find((session) => session.id === "root-2")
+    expect(branched).toMatchObject({ branch: "main", subtitle: "repo · main" })
   })
 })

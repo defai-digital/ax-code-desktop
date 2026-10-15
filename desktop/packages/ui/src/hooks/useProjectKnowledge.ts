@@ -57,7 +57,12 @@ export function useProjectKnowledge(directory: string | null | undefined): Proje
         claudeMd,
         isLoading: false,
       }
-      cache.set(directory, next)
+      // Only cache a positive probe. A cached miss would permanently hide the
+      // knowledge file the "create" chip then adds — the next mount must
+      // re-probe instead.
+      if (next.exists) {
+        cache.set(directory, next)
+      }
       setState(next)
     })
 

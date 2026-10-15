@@ -2,6 +2,7 @@ import React from "react"
 import { invokeDesktop, isDesktopShell } from "@/lib/desktop"
 import { formatQuotaValueLabel, formatWindowLabel, QUOTA_PROVIDERS } from "@/lib/quota"
 import { buildTraySnapshot, type TraySnapshot, type TrayUsage } from "@/lib/tray/traySnapshot"
+import { useGitStore } from "@/stores/useGitStore"
 import { useGlobalSessionsStore, resolveGlobalSessionDirectory } from "@/stores/useGlobalSessionsStore"
 import { useQuotaStore } from "@/stores/useQuotaStore"
 import { useSyncNotificationStore } from "@/sync/notification-store"
@@ -56,10 +57,11 @@ const buildUsage = (): TrayUsage => {
 const buildBranchMap = (): Map<string, string> => {
   const branches = new Map<string, string>()
   const branchByDirectory = useGlobalSessionsStore.getState().sessionsByDirectory
+  const gitDirectories = useGitStore.getState().directories
   for (const directory of branchByDirectory.keys()) {
-    // Branch data is not part of the session index; the subtitle falls back to the
-    // project name alone when nothing is known.
-    branches.set(directory, branches.get(directory) ?? "")
+    // Branch data lives in the per-directory git store, not the session index;
+    // the subtitle falls back to the project name alone when nothing is known.
+    branches.set(directory, gitDirectories.get(directory)?.branches?.current ?? "")
   }
   return branches
 }
@@ -198,6 +200,7 @@ export function useTraySync(enabled = true): void {
       useGlobalSessionsStore.subscribe(schedule),
       useSyncNotificationStore.subscribe(schedule),
       useQuotaStore.subscribe(schedule),
+      useGitStore.subscribe(schedule),
     ]
     const pollTimer = setInterval(schedule, POLL_INTERVAL_MS)
 
