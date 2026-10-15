@@ -48,6 +48,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Opening a session that had only been seen through live events (created or run elsewhere in the same
+  project) rendered just the fragment those events had built, with no older history and no way to load it:
+  the sync treated the event-built tail as a cached conversation. The store now tracks whether a session's
+  messages were ever fetched and loads it on first open.
 - The changes tree's auto-expand memory was shared across repositories: the panel is reused when the
   active directory switches, so a top-level folder collapsed in one repo kept the same-named folder (and
   its nested state) collapsed in the next. The memory and the expansion state are now scoped to the
