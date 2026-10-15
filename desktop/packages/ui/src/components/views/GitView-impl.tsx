@@ -1174,6 +1174,7 @@ export const GitView: React.FC = () => {
     }
 
     setCommitAction("commit")
+    const commitDirectory = currentDirectory
 
     try {
       await git.createGitCommit(currentDirectory, commitMessage.trim(), {
@@ -1182,8 +1183,13 @@ export const GitView: React.FC = () => {
       })
       bumpIndexRevision(currentDirectory)
       toast.success(t("gitView.toast.commitCreated"))
-      setCommitMessage("")
-      clearGeneratedHighlights()
+      // The commit went to the directory it was started in; only clear the
+      // draft that is still on screen when the user has not switched away to
+      // another repository meanwhile.
+      if (currentDirectoryRef.current === commitDirectory) {
+        setCommitMessage("")
+        clearGeneratedHighlights()
+      }
 
       await refreshStatusAndBranches()
 
@@ -1214,8 +1220,15 @@ export const GitView: React.FC = () => {
     })
 
     setIsGeneratingMessage(true)
+    const generateDirectory = currentDirectory
     try {
       const { message } = await generateSessionCommitMessage(currentDirectory, selectedFilePaths)
+      // The generation ran for the directory it was started in; applying it
+      // after the user switched repositories would replace the other repo's
+      // draft and be committed there.
+      if (currentDirectoryRef.current !== generateDirectory) {
+        return
+      }
       const subject = message.subject?.trim() ?? ""
       const highlights = Array.isArray(message.highlights) ? message.highlights : []
 
