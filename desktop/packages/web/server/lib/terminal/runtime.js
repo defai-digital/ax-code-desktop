@@ -264,6 +264,26 @@ export function createTerminalRuntime({
     Number.isInteger(MAX_TERMINAL_SESSIONS_OVERRIDE) && MAX_TERMINAL_SESSIONS_OVERRIDE > 0
       ? MAX_TERMINAL_SESSIONS_OVERRIDE
       : 20
+  // A spawned session only enters terminalSessions at the end of the request
+  // (cwd validation, the node-pty import and the shell startup grace window all
+  // await first), so counting just the registered sessions lets concurrent
+  // creates read the same size and all pass the cap. Reserve the slot up front
+  // and count the in-flight spawns alongside the sessions; a null return means
+  // the cap is full. Callers must release the reservation once the session is
+  // registered (or the attempt failed).
+  let pendingTerminalSpawns = 0
+  const reserveTerminalSlot = () => {
+    if (terminalSessions.size + pendingTerminalSpawns >= MAX_TERMINAL_SESSIONS) {
+      return null
+    }
+    pendingTerminalSpawns += 1
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      pendingTerminalSpawns -= 1
+    }
+  }
   const TERMINAL_IDLE_TIMEOUT = 30 * 60 * 1000
   const terminalRuntimeName = "node"
   const resolveAllowedCwd = async (req, cwd) => {
@@ -620,11 +640,11 @@ export function createTerminalRuntime({
   if (typeof idleSweepInterval.unref === "function") idleSweepInterval.unref()
 
   app.post("/api/terminal/create", async (req, res) => {
+    const releaseTerminalSlot = reserveTerminalSlot()
+    if (!releaseTerminalSlot) {
+      return res.status(429).json({ error: "Maximum terminal sessions reached" })
+    }
     try {
-      if (terminalSessions.size >= MAX_TERMINAL_SESSIONS) {
-        return res.status(429).json({ error: "Maximum terminal sessions reached" })
-      }
-
       let { cwd } = req.body
       if (!cwd) {
         return res.status(400).json({ error: "cwd is required" })
@@ -690,6 +710,8 @@ export function createTerminalRuntime({
     } catch (error) {
       console.error("Failed to create terminal session:", error)
       res.status(500).json({ error: error.message || "Failed to create terminal session" })
+    } finally {
+      releaseTerminalSlot()
     }
   })
 
@@ -913,8 +935,11 @@ export function createTerminalRuntime({
       // restart must not leave the client holding a dead session id.
       const existingSession = terminalSessions.get(sessionId)
       // A restart of a stale id (already reaped by onExit/idle sweep) creates a
-      // brand-new session, so it must respect the same cap as create.
-      if (!existingSession && terminalSessions.size >= MAX_TERMINAL_SESSIONS) {
+      // brand-new session, so it must respect the same cap as create — reserving
+      // its slot before the spawn awaits, not just reading the size once. A live
+      // session swaps in place after freeing its own slot, so it needs none.
+      const releaseTerminalSlot = existingSession ? null : reserveTerminalSlot()
+      if (!existingSession && !releaseTerminalSlot) {
         return res.status(429).json({ error: "Maximum terminal sessions reached" })
       }
       if (existingSession) {
@@ -926,42 +951,46 @@ export function createTerminalRuntime({
         terminalSessions.delete(sessionId)
       }
 
-      const newSessionId = crypto.randomBytes(24).toString("hex")
+      try {
+        const newSessionId = crypto.randomBytes(24).toString("hex")
 
-      const envPath = buildAugmentedPath()
-      const resolvedEnv = sanitizeTerminalEnv({ ...process.env, PATH: envPath })
+        const envPath = buildAugmentedPath()
+        const resolvedEnv = sanitizeTerminalEnv({ ...process.env, PATH: envPath })
 
-      const pty = await getPtyProvider()
-      const { ptyProcess, shell, releaseStartupObserver } = await spawnTerminalPtyWithFallback(pty, {
-        cols: terminalSize.cols,
-        rows: terminalSize.rows,
-        cwd,
-        env: resolvedEnv,
-      })
+        const pty = await getPtyProvider()
+        const { ptyProcess, shell, releaseStartupObserver } = await spawnTerminalPtyWithFallback(pty, {
+          cols: terminalSize.cols,
+          rows: terminalSize.rows,
+          cwd,
+          env: resolvedEnv,
+        })
 
-      const session = {
-        ptyProcess,
-        ptyBackend: pty.backend,
-        cwd,
-        lastActivity: Date.now(),
-        clients: new Set(),
-        outputReplayBuffer: createTerminalOutputReplayBuffer(),
+        const session = {
+          ptyProcess,
+          ptyBackend: pty.backend,
+          cwd,
+          lastActivity: Date.now(),
+          clients: new Set(),
+          outputReplayBuffer: createTerminalOutputReplayBuffer(),
+        }
+
+        terminalSessions.set(newSessionId, session)
+        const startupOutput = releaseStartupObserver()
+        if (startupOutput) {
+          appendTerminalOutputReplayChunk(session.outputReplayBuffer, startupOutput, TERMINAL_OUTPUT_REPLAY_MAX_BYTES)
+        }
+        wireTerminalSession(newSessionId, session)
+
+        console.log(`Restarted terminal session: ${sessionId} -> ${newSessionId} in ${cwd} using shell ${shell}`)
+        res.json({
+          sessionId: newSessionId,
+          cols: terminalSize.cols,
+          rows: terminalSize.rows,
+          capabilities: terminalTransportCapabilities,
+        })
+      } finally {
+        releaseTerminalSlot?.()
       }
-
-      terminalSessions.set(newSessionId, session)
-      const startupOutput = releaseStartupObserver()
-      if (startupOutput) {
-        appendTerminalOutputReplayChunk(session.outputReplayBuffer, startupOutput, TERMINAL_OUTPUT_REPLAY_MAX_BYTES)
-      }
-      wireTerminalSession(newSessionId, session)
-
-      console.log(`Restarted terminal session: ${sessionId} -> ${newSessionId} in ${cwd} using shell ${shell}`)
-      res.json({
-        sessionId: newSessionId,
-        cols: terminalSize.cols,
-        rows: terminalSize.rows,
-        capabilities: terminalTransportCapabilities,
-      })
     } catch (error) {
       console.error("Failed to restart terminal session:", error)
       res.status(500).json({ error: error.message || "Failed to restart terminal session" })

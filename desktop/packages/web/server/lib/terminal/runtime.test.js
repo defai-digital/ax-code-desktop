@@ -389,6 +389,85 @@ describe("terminal restart", () => {
   })
 })
 
+describe("terminal session cap", () => {
+  const makeFakePty = () => ({
+    onData: () => ({ dispose() {} }),
+    onExit: () => ({ dispose() {} }),
+    write: () => {},
+    kill: () => {},
+    resize: () => {},
+  })
+
+  const createCappedRuntime = (app, server, maxSessions) =>
+    createRuntime(server, {
+      app,
+      getPtyProvider: async () => ({ backend: "mock", spawn: () => makeFakePty() }),
+      isExecutable: () => true,
+      validateCwd: async (_req, cwd) => ({ ok: true, cwd }),
+      uiAuthController: { enabled: false },
+      buildAugmentedPath: () => "",
+      TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: 1000,
+      TERMINAL_INPUT_WS_REBIND_WINDOW_MS: 1000,
+      MAX_TERMINAL_SESSIONS: maxSessions,
+    })
+
+  it("counts spawns that are still in flight against the session cap", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const runtime = createCappedRuntime(app, server, 2)
+
+    try {
+      const createRoute = getRoute("POST", "/api/terminal/create")
+      const responses = [createMockResponse(), createMockResponse(), createMockResponse()]
+      // The session is only registered at the end of the request (cwd check,
+      // node-pty import and the shell startup grace window all await first), so
+      // fire the creates together: only as many as the cap allows may succeed.
+      await Promise.all(
+        responses.map((res) => createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, res)),
+      )
+
+      expect(responses.map((res) => res.statusCode).sort()).toEqual([200, 200, 429])
+      expect(responses.filter((res) => res.statusCode === 200).map((res) => res.body?.sessionId)).toEqual([
+        expect.any(String),
+        expect.any(String),
+      ])
+    } finally {
+      await runtime.shutdown()
+    }
+  })
+
+  it("releases the slot it reserved once a create finishes", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const runtime = createCappedRuntime(app, server, 1)
+
+    try {
+      const createRoute = getRoute("POST", "/api/terminal/create")
+      const closeRoute = getRoute("DELETE", "/api/terminal/:sessionId")
+
+      const first = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, first)
+      expect(first.statusCode).toBe(200)
+
+      // The live session holds the only slot; a leaked reservation would show up
+      // as a 429 that survives closing it.
+      const blocked = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, blocked)
+      expect(blocked.statusCode).toBe(429)
+
+      const closeRes = createMockResponse()
+      await closeRoute({ params: { sessionId: first.body.sessionId } }, closeRes)
+      expect(closeRes.statusCode).toBe(200)
+
+      const reopened = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, reopened)
+      expect(reopened.statusCode).toBe(200)
+    } finally {
+      await runtime.shutdown()
+    }
+  })
+})
+
 describe("terminal output backpressure", () => {
   it("treats a socket with a modest buffer as healthy and a far-behind one as stalled", () => {
     expect(isTerminalOutputClientStalled({ bufferedAmount: 0 })).toBe(false)
