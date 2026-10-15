@@ -59,15 +59,22 @@ export const ImportProjectsDialog: React.FC<ImportProjectsDialogProps> = ({ open
   const [selected, setSelected] = React.useState<Set<string>>(new Set())
   const [sourceSummary, setSourceSummary] = React.useState<string>("")
 
+  const activeRequest = React.useRef<AbortController | null>(null)
+
   const load = React.useCallback(async () => {
+    activeRequest.current?.abort()
+    const controller = new AbortController()
+    activeRequest.current = controller
     setLoading(true)
     setError(null)
     try {
       const response = await fetch(API_ENDPOINTS.projects.discoverExternal, {
         method: "GET",
+        signal: controller.signal,
         headers: { Accept: "application/json" },
       })
       const payload = (await response.json().catch(() => null)) as DiscoverResponse | null
+      if (controller.signal.aborted) return
       if (!response.ok) {
         throw new Error(payload?.error || t("projects.import.error.loadFailed"))
       }
@@ -89,12 +96,13 @@ export const ImportProjectsDialog: React.FC<ImportProjectsDialogProps> = ({ open
       const importable = list.filter((entry) => entry.exists && !entry.alreadyImported)
       setSelected(new Set(importable.map((entry) => entry.root)))
     } catch (err) {
+      if (controller.signal.aborted) return
       const message = err instanceof Error ? err.message : t("projects.import.error.loadFailed")
       setError(message)
       setCandidates([])
       setSelected(new Set())
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) setLoading(false)
     }
   }, [t])
 
@@ -103,6 +111,7 @@ export const ImportProjectsDialog: React.FC<ImportProjectsDialogProps> = ({ open
       return
     }
     void load()
+    return () => activeRequest.current?.abort()
   }, [open, load])
 
   const importableCandidates = React.useMemo(

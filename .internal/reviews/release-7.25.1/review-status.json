@@ -1,0 +1,14 @@
+{
+  "scope": "Project and worktree ownership; external project import request lifecycle",
+  "muse": "completed",
+  "grok": "completed",
+  "confirmed": [
+    "Nested registered projects hidden by worktree ownership",
+    "Exact worktree map owner hidden by ancestor fallback",
+    "Stale external discovery responses overwrite new dialog state"
+  ],
+  "deferred": [
+    "Drive-relative Windows paths are outside the absolute project path contract",
+    "Mapping linked worktree relative paths into separate canonical nested project registrations requires product semantics clarification"
+  ]
+}

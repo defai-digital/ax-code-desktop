@@ -72,12 +72,17 @@ const resolveProjectFromWorktreeDirectory = (
     }
   }
   if (!matchedWorktree) return null
+  // A registered folder inside the worktree is more specific than its owner.
+  const direct = resolveProjectForDirectory(projects, nd)
+  if (direct && (normalizeProjectPath(direct.path)?.length ?? 0) >= bestLen) return direct
   const candidates = [normalizeProjectPath(matchedWorktree.projectDirectory), matchedProjectPath].filter(
     (v): v is string => Boolean(v),
   )
   for (const c of candidates) {
     const exact = findProjectByPath(projects, c)
     if (exact) return exact
+  }
+  for (const c of candidates) {
     const nested = resolveProjectForDirectory(projects, c)
     if (nested) return nested
   }

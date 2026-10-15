@@ -49,3 +49,30 @@ describe("resolveProjectForSessionDirectory", () => {
     ).toBe("app")
   })
 })
+
+describe("worktree ownership precedence", () => {
+  test("keeps a nested registered project inside the main checkout", () => {
+    const projects = [project("parent", "/repo"), project("nested", "/repo/packages/ui")]
+    const worktrees = new Map([["/repo", [worktree("/repo", "/repo")]]])
+    expect(resolveProjectForSessionDirectory(projects, worktrees, "/repo/packages/ui/src")?.id).toBe("nested")
+  })
+
+  test("keeps an explicitly registered project inside a linked worktree", () => {
+    const projects = [project("parent", "/repo"), project("nested", "/wt/packages/ui")]
+    const worktrees = new Map([["/repo", [worktree("/wt", "/repo")]]])
+    expect(resolveProjectForSessionDirectory(projects, worktrees, "/wt/packages/ui/src")?.id).toBe("nested")
+    expect(resolveProjectForSessionDirectory(projects, worktrees, "/wt/src")?.id).toBe("parent")
+  })
+
+  test("prefers the exact map owner over an ancestor of stale metadata", () => {
+    const projects = [project("broad", "/work"), project("owner", "/projects/app")]
+    const worktrees = new Map([["/projects/app", [worktree("/tmp/wt", "/work/legacy/app")]]])
+    expect(resolveProjectForSessionDirectory(projects, worktrees, "/tmp/wt")?.id).toBe("owner")
+  })
+
+  test("retains a linked worktree owner when its path is inside a broad project", () => {
+    const projects = [project("broad", "/tmp"), project("owner", "/projects/app")]
+    const worktrees = new Map([["/projects/app", [worktree("/tmp/wt", "/projects/app")]]])
+    expect(resolveProjectForSessionDirectory(projects, worktrees, "/tmp/wt/src")?.id).toBe("owner")
+  })
+})

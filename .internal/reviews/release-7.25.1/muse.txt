@@ -1,0 +1,22 @@
+muse: workspace root: /tmp/ax-desktop-7.25.1-review (explicit)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+## 1. Worktree 命中會遮蔽更精確的巢狀專案
+
+- **檔案：** [projectResolution.ts](/tmp/ax-desktop-7.25.1-review/desktop/packages/ui/src/lib/projectResolution.ts)
+- **觸發：** 專案包含 `/repo` 與 `/wt/packages/app`；`/repo` 的 worktree 路徑為 `/wt`；工作階段目錄為 `/wt/packages/app/src`。
+- **影響：** `resolveProjectFromWorktreeDirectory` 先依 worktree 找到 `/repo` 並立即回傳，`resolveProjectForSessionDirectory` 因而不會執行 `resolveProjectForDirectory` 的最長前綴比對。工作階段會被錯誤歸屬父專案，而不是實際所在的 `/wt/packages/app`。
+- **建議回歸測試：** 建立上述專案、worktree 與目錄資料，斷言解析結果為 `/wt/packages/app`；同時保留 `/wt/src` 應解析為 `/repo` 的測試。
+
+## 2. Windows 磁碟相對路徑未套用大小寫不敏感比對
+
+- **檔案：** [projectResolution.ts](/tmp/ax-desktop-7.25.1-review/desktop/packages/ui/src/lib/projectResolution.ts)
+- **觸發：** 專案路徑為 `C:Repo`，工作階段目錄為 `c:repo\src`。
+- **影響：** 正規化後分別成為 `C:Repo` 與 `C:repo/src`；但 `toComparableProjectPath` 只對符合 `^[A-Z]:\/` 的路徑轉小寫，因冒號後沒有斜線而進行大小寫敏感比對，最終無法命中 Windows 上應視為相同的路徑。
+- **建議回歸測試：** 斷言 `resolveProjectForDirectory([{ path: "C:Repo" }], "c:repo\\src")` 回傳該專案，並覆蓋 `C:REPO`、`c:repo/src` 等大小寫與斜線組合。
+
+## 3. 外部專案探索請求缺少取消或序號保護，舊回應可覆寫新結果
+
+- **檔案：** [ImportProjectsDialog.tsx](/tmp/ax-desktop-7.25.1-review/desktop/packages/ui/src/components/projects/ImportProjectsDialog.tsx)
+- **觸發：** 開啟對話框後，在第一次 `discoverExternal` 尚未完成時關閉並重新開啟；讓第二次請求先成功、第一次請求後成功或失敗。
+- **影響：** `load` 未使用 `AbortController` 或請求序號。較舊回應可透過 `setCandidates`、`setSelected` 覆寫最新候選清單與選取狀態；舊請求失敗時還會清除新結果並顯示錯誤，使用者可能匯入過期路徑。
+- **建議回歸測試：** 以可手動控制完成順序的 deferred `fetch` mock 連續觸發兩次載入，先完成第二次、再完成第一次，斷言畫面仍保留第二次的候選清單、選取狀態，且不被舊錯誤覆寫。
