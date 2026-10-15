@@ -102,7 +102,19 @@ export const IntegrateCommitsSection: React.FC<{
     }
   }, [currentSessionId, repoRoot])
 
+  // An in-flight integrate owns the panel: re-planning when the target branch
+  // (or the eligibility inputs) change would replace the conflict or running
+  // view with a fresh plan, so Move became clickable again while the temp
+  // worktree still held the half-finished cherry-pick — a second integrate
+  // then leaked the first worktree. Read through a ref so the effect's
+  // dependencies stay the plan inputs.
+  const uiKindRef = React.useRef(ui.kind)
+  uiKindRef.current = ui.kind
+
   React.useEffect(() => {
+    if (uiKindRef.current === "conflict" || uiKindRef.current === "running") {
+      return
+    }
     if (!isEligible) {
       setUi({ kind: "idle" })
       return
