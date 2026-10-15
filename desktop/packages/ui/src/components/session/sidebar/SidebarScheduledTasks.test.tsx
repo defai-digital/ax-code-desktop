@@ -4,16 +4,20 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import type { ScheduledTask } from "@/lib/scheduledTasksApi"
 
-const { fetchScheduledTasks } = vi.hoisted(() => ({ fetchScheduledTasks: vi.fn() }))
+const { fetchScheduledTasks, setScheduledTasksEnabled, deleteScheduledTasks } = vi.hoisted(() => ({
+  fetchScheduledTasks: vi.fn(),
+  setScheduledTasksEnabled: vi.fn(),
+  deleteScheduledTasks: vi.fn(),
+}))
 
 vi.mock("@/lib/scheduledTasksApi", () => ({
   fetchScheduledTasks,
   createScheduledTasks: vi.fn(),
-  deleteScheduledTasks: vi.fn(),
+  deleteScheduledTasks,
   expandPromptSnippets: vi.fn(async (_directory: string, prompt: string) => prompt),
   reconcileScheduledTaskFamily: vi.fn(),
   runScheduledTaskNow: vi.fn(),
-  setScheduledTasksEnabled: vi.fn(),
+  setScheduledTasksEnabled,
 }))
 
 // The editor pulls in the provider/agent config stores; the list only needs to open it.
@@ -87,6 +91,8 @@ describe("SidebarScheduledTasks", () => {
     root = createRoot(container)
     resetScheduledTasksStoreForTests()
     fetchScheduledTasks.mockReset()
+    setScheduledTasksEnabled.mockReset()
+    deleteScheduledTasks.mockReset()
     editorProps.current = null
     useSessionDisplayStore.setState({ showScheduledSection: true, scheduledSectionCollapsed: false })
     useProjectsStore.setState({
@@ -185,4 +191,71 @@ describe("SidebarScheduledTasks", () => {
     const header = container.querySelector<HTMLButtonElement>("button[aria-expanded]")
     expect(header?.getAttribute("aria-controls")).toBeNull()
   })
+
+  const rowText = (title: string) =>
+    Array.from(container.querySelectorAll<HTMLElement>("[data-scheduled-task-row]")).find((row) =>
+      row.textContent?.startsWith(title),
+    )?.textContent ?? ""
+
+  test("rolls a failed pause back even when the reload fails too", async () => {
+    fetchScheduledTasks.mockImplementation(async (directory: string) =>
+      directory === "/work/alpha"
+        ? [task({ id: "a1", directory, title: "Nightly", nextRunAt: Date.now() + HOUR })]
+        : [],
+    )
+    await render()
+    setScheduledTasksEnabled.mockRejectedValueOnce(new Error("runtime down"))
+    fetchScheduledTasks.mockRejectedValue(new Error("runtime down"))
+    const pause = container.querySelector<HTMLButtonElement>('button[aria-label="Pause Nightly"]')
+    await act(async () => pause?.click())
+    await flush()
+    expect(setScheduledTasksEnabled).toHaveBeenCalledWith("/work/alpha", ["a1"], false)
+    expect(rowText("Nightly")).not.toContain("Paused")
+    expect(container.querySelector('button[aria-label="Pause Nightly"]')).not.toBeNull()
+  })
+
+  test("pauses every part the store has now, not the row's snapshot", async () => {
+    const part = (index: number, time: string) =>
+      task({
+        id: `p${index}`,
+        directory: "/work/alpha",
+        title: `Digest (${index}/2)`,
+        schedule: { type: "daily", time, timezone: "UTC" },
+      })
+    fetchScheduledTasks.mockImplementation(async (directory: string) =>
+      directory === "/work/alpha" ? [part(1, "09:00"), part(2, "18:00")] : [],
+    )
+    await render()
+    setScheduledTasksEnabled.mockResolvedValue(undefined)
+    const pause = container.querySelector<HTMLButtonElement>('button[aria-label="Pause Digest"]')
+    await act(async () => pause?.click())
+    await flush()
+    expect(setScheduledTasksEnabled).toHaveBeenCalledWith("/work/alpha", ["p1", "p2"], false)
+  })
+
+  test("keeps a loading row for a project that has not answered yet", async () => {
+    fetchScheduledTasks.mockImplementation((directory: string) =>
+      directory === "/work/alpha"
+        ? Promise.resolve([task({ id: "a1", directory, title: "Nightly" })])
+        : new Promise<ScheduledTask[]>(() => {}),
+    )
+    await render()
+    expect(rowTitles()).toEqual(["Nightly"])
+    expect(container.querySelector('[data-sidebar-scheduled] [aria-busy="true"]')).not.toBeNull()
+  })
+
+  test("shows a retry row when a refresh fails after a good load", async () => {
+    const { useScheduledTasksStore } = await import("@/stores/useScheduledTasksStore")
+    fetchScheduledTasks.mockImplementation(async (directory: string) => [
+      task({ id: `${directory}-t`, directory, title: "Kept" }),
+    ])
+    await render()
+    fetchScheduledTasks.mockRejectedValue(new Error("runtime down"))
+    await act(async () => {
+      await useScheduledTasksStore.getState().loadGroup("/work/beta")
+    })
+    expect(container.textContent).toContain("Couldn't load Beta")
+    expect(rowTitles()).toEqual(["Kept", "Kept"])
+  })
 })
+

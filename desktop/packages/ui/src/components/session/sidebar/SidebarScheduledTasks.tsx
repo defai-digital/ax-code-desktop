@@ -20,6 +20,7 @@ import { useI18n } from "@/lib/i18n"
 import { cn, formatDirectoryName } from "@/lib/utils"
 import type { ProjectEntry } from "@/lib/api/types"
 import { buildProjectGroups } from "../scheduledTaskGroups"
+import { formatProjectLabel } from "./utils"
 import { formatFamilySchedule, formatRelativeTime, formatRunMoment } from "../scheduledTaskFormat"
 import {
   buildPendingEntries,
@@ -96,11 +97,15 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
         directory,
         project,
         tasks: [],
-        label: project.label?.trim() || formatDirectoryName(project.path, homeDirectory || undefined),
+        // Same name as the project's header in the list below.
+        label: formatProjectLabel(
+          project.label?.trim() || formatDirectoryName(project.path, homeDirectory || undefined) || directory,
+        ),
       })),
     [projects, homeDirectory],
   )
 
+  const localTimezone = React.useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
   const enabled = showSection && projectGroups.length > 0
   const now = useScheduledTasksSync(projectGroups, enabled)
 
@@ -116,20 +121,17 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
     () => new Map(projectGroups.map((group) => [group.directory, group.label])),
     [projectGroups],
   )
-  // A project that has never loaded shows a retry row. A failed background
-  // refresh keeps the last good list quietly; the next refresh retries.
-  const failedGroups = projectGroups.filter((group) => {
-    const state = groupStates[group.directory]
-    return Boolean(state?.error) && !state?.hasLoaded
+  // A project whose latest load failed shows a retry row, also when an older
+  // list is still shown, so a stale row is never presented as current.
+  const failedGroups = projectGroups.filter((group) => Boolean(groupStates[group.directory]?.error))
+  // Projects still waiting for their first response (loads run a few at a
+  // time) keep a loading row until they answer, even next to loaded ones.
+  const pendingGroups = projectGroups.filter((group) => {
+    const state = groupStates[group.directory] ?? EMPTY_SCHEDULED_TASK_GROUP
+    return !state.hasLoaded && !state.error
   })
   const showProjectLabels = projectGroups.length > 1
-  const initialLoading =
-    entries.length === 0 &&
-    projectGroups.some((group) => {
-      const state = groupStates[group.directory] ?? EMPTY_SCHEDULED_TASK_GROUP
-      return !state.hasLoaded && !state.error
-    })
-  const hasBody = initialLoading || entries.length > 0 || failedGroups.length > 0
+  const hasBody = pendingGroups.length > 0 || entries.length > 0 || failedGroups.length > 0
   const expanded = !collapsed
 
   // The sidebar's calendar button reveals the section: move focus to it.
@@ -232,7 +234,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
           ? formatRelativeTime(family.nextRunAt, t, now)
           : "—"
     const whenTitle = !running && !paused && family.nextRunAt ? formatRunMoment(family.nextRunAt, now) : undefined
-    const schedule = formatFamilySchedule(family, t)
+    const schedule = formatFamilySchedule(family, t, { localTimezone })
     const showActions = isMobile || menuOpenKey === entry.key
 
     return (
@@ -299,7 +301,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
             className={cn(
               "typography-micro tabular-nums whitespace-nowrap",
               running ? "text-status-warning" : "text-muted-foreground",
-              !isMobile && "group-hover/row:hidden group-focus-within/row:hidden",
+              !isMobile && "group-hover/row:hidden group-focus-within/row:hidden [@media(hover:none)]:hidden",
               showActions && !isMobile && "hidden",
             )}
             title={whenTitle}
@@ -309,7 +311,10 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
           <span
             className={cn(
               "items-center gap-0.5",
-              showActions ? "flex" : "hidden group-hover/row:flex group-focus-within/row:flex",
+              // Without hover (touch screens), the actions are always shown.
+              showActions
+                ? "flex"
+                : "hidden group-hover/row:flex group-focus-within/row:flex [@media(hover:none)]:flex",
             )}
           >
             {!isMobile ? (
@@ -417,31 +422,43 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
           onClick={() => setCollapsed(expanded)}
           aria-expanded={expanded}
           aria-controls={hasBody && expanded && !searchActive ? listId : undefined}
-          className="group flex min-w-0 flex-1 items-center gap-1 rounded-md px-0.5 py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+          className="group flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-md px-0.5 py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           <span className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground">
             <Icon name={expanded ? "arrow-down-s" : "arrow-right-s"} className="h-3.5 w-3.5" />
           </span>
-          <span id={headingId} className="typography-ui-label text-foreground/95">
+          <span id={headingId} className="shrink-0 typography-ui-label text-foreground/95">
             {t("sessions.sidebar.scheduled.title")}
           </span>
           {summary.total > 0 ? (
-            <span className="typography-micro tabular-nums text-muted-foreground">{summary.total}</span>
+            <span className="shrink-0 typography-micro tabular-nums text-muted-foreground">{summary.total}</span>
           ) : null}
           {summary.running > 0 ? (
-            <span className="inline-flex items-center gap-0.5 typography-micro text-status-warning">
+            <span
+              className="inline-flex shrink-0 items-center gap-0.5 typography-micro tabular-nums text-status-warning"
+              title={t("sessions.sidebar.scheduled.runningCount", { count: summary.running })}
+            >
               <Icon name="loader-4" className="h-3 w-3 animate-spin" aria-hidden="true" />
-              {t("sessions.sidebar.scheduled.runningCount", { count: summary.running })}
+              <span aria-hidden="true">{summary.running}</span>
+              <span className="sr-only">
+                {t("sessions.sidebar.scheduled.runningCount", { count: summary.running })}
+              </span>
             </span>
           ) : null}
           {summary.failing > 0 ? (
-            <span className="inline-flex items-center gap-0.5 typography-micro text-status-error">
+            <span
+              className="inline-flex shrink-0 items-center gap-0.5 typography-micro tabular-nums text-status-error"
+              title={t("sessions.sidebar.scheduled.failingCount", { count: summary.failing })}
+            >
               <Icon name="error-warning" className="h-3 w-3" aria-hidden="true" />
-              {t("sessions.sidebar.scheduled.failingCount", { count: summary.failing })}
+              <span aria-hidden="true">{summary.failing}</span>
+              <span className="sr-only">
+                {t("sessions.sidebar.scheduled.failingCount", { count: summary.failing })}
+              </span>
             </span>
           ) : null}
           {(!expanded || searchActive) && summary.nextRunAt ? (
-            <span className="ml-auto truncate pl-1 typography-micro text-muted-foreground">
+            <span className="ml-auto min-w-0 truncate pl-1 typography-micro text-muted-foreground">
               {t("sessions.sidebar.scheduled.nextRun", { when: formatRelativeTime(summary.nextRunAt, t, now) })}
             </span>
           ) : null}
@@ -451,13 +468,6 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
 
       {expanded && !searchActive && hasBody ? (
         <div id={listId} className="max-h-[min(36vh,320px)] overflow-y-auto overscroll-contain">
-          {initialLoading ? (
-            <div className="space-y-1.5 px-1.5 py-1" aria-busy="true">
-              <span className="sr-only">{t("sessions.scheduledTasks.dialog.loading")}</span>
-              <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
-              <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
-            </div>
-          ) : null}
           {failedGroups.map((group) => (
             <div
               key={`error:${group.directory}`}
@@ -479,6 +489,13 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
             </div>
           ))}
           {entries.length > 0 ? <ul className="space-y-0.5">{entries.map(renderRow)}</ul> : null}
+          {pendingGroups.length > 0 ? (
+            <div className="space-y-1.5 px-1.5 py-1" aria-busy="true">
+              <span className="sr-only">{t("sessions.scheduledTasks.dialog.loading")}</span>
+              <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+              {entries.length === 0 ? <div className="h-3 w-1/2 animate-pulse rounded bg-muted" /> : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

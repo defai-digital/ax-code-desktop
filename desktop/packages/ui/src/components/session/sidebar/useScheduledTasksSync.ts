@@ -14,14 +14,13 @@ const DUE_MIN_INTERVAL_MS = 60_000
 /** Slow fallback refresh for events this window never received. */
 const FALLBACK_REFRESH_MS = 5 * 60_000
 
-const directoryForTaskID = (taskID: string): string | null => {
+// Task ids are only guaranteed unique per project, so every loaded project
+// that lists the id is a candidate owner.
+const directoriesForTaskID = (taskID: string): string[] => {
   const { groups } = useScheduledTasksStore.getState()
-  for (const [directory, group] of Object.entries(groups)) {
-    if (group.tasks.some((task) => task.id === taskID)) {
-      return directory
-    }
-  }
-  return null
+  return Object.entries(groups)
+    .filter(([, group]) => group.tasks.some((task) => task.id === taskID))
+    .map(([directory]) => directory)
 }
 
 const isDocumentHidden = (): boolean => typeof document !== "undefined" && document.visibilityState === "hidden"
@@ -79,11 +78,15 @@ export function useScheduledTasksSync(groups: readonly PendingScheduleGroupInput
     const unsubscribe = subscribeScheduledTaskEvents((event) => {
       const known = groupsRef.current.map((group) => group.directory)
       if (!event.directory || !event.directory.trim()) {
-        // Deleted events carry only the task id: reload the project that
-        // lists it, or every project when no loaded list has it.
-        const owner = event.taskId ? directoryForTaskID(event.taskId) : null
-        if (owner) {
-          schedule(owner, () => void loadGroup(owner))
+        // Deleted events carry only the task id: reload every project that
+        // lists it. An id no loaded list has is usually a delete already
+        // reflected here; leave it to the fallback refresh instead of
+        // reloading every project. Only an event with neither a directory
+        // nor a task id reloads them all.
+        if (event.taskId) {
+          for (const owner of directoriesForTaskID(event.taskId)) {
+            schedule(owner, () => void loadGroup(owner))
+          }
           return
         }
         schedule(ALL, () => void loadGroups(groupsRef.current.map((group) => group.directory)))

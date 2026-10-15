@@ -49,6 +49,14 @@ describe("formatSchedule", () => {
     expect(formatSchedule({ schedule: { type: "once", runAt } }, t)).toBe("once(date=2026-10-15,time=07:05)")
   })
 
+  it("omits the viewer's own timezone", () => {
+    const schedule = { type: "daily", time: "09:00", timezone: "UTC" } as const
+    expect(formatSchedule({ schedule }, t, { localTimezone: "UTC" })).toBe("daily(time=09:00)")
+    expect(formatSchedule({ schedule }, t, { localTimezone: "Asia/Taipei" })).toBe(
+      "dailyWithTimezone(time=09:00,timezone=UTC)",
+    )
+  })
+
   it("falls back for an unknown weekday", () => {
     expect(formatWeekday(9, t)).toBe("unknown")
   })
@@ -61,6 +69,7 @@ describe("formatFamilySchedule", () => {
       task({ id: "2", title: "Digest (2/2)", schedule: { type: "daily", time: "18:00", timezone: "UTC" } }),
     ])
     expect(formatFamilySchedule(family, t)).toBe("dailyWithTimezone(time=09:00, 18:00,timezone=UTC)")
+    expect(formatFamilySchedule(family, t, { localTimezone: "UTC" })).toBe("daily(time=09:00, 18:00)")
   })
 
   it("lists each part when the parts are not a weekday x time grid", () => {

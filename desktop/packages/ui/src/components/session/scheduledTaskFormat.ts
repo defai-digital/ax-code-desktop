@@ -26,9 +26,21 @@ const WEEKDAY_KEYS: readonly I18nKey[] = [
 export const formatWeekday = (value: number, t: ScheduledTaskTranslate): string =>
   t(WEEKDAY_KEYS[value] ?? "sessions.scheduledTasks.dialog.schedule.weekdayShort.unknown")
 
-export const formatSchedule = (task: Pick<ScheduledTask, "schedule">, t: ScheduledTaskTranslate): string => {
+export type ScheduleFormatOptions = {
+  /** Omit the timezone when it is this one (the viewer's own), to keep the line short. */
+  localTimezone?: string
+}
+
+const shownTimezone = (timezone: string | undefined, options?: ScheduleFormatOptions): string | undefined =>
+  timezone && timezone !== options?.localTimezone ? timezone : undefined
+
+export const formatSchedule = (
+  task: Pick<ScheduledTask, "schedule">,
+  t: ScheduledTaskTranslate,
+  options?: ScheduleFormatOptions,
+): string => {
   const schedule = task.schedule as RuntimeSchedule
-  const timezone = "timezone" in schedule ? schedule.timezone : undefined
+  const timezone = shownTimezone("timezone" in schedule ? schedule.timezone : undefined, options)
   if (schedule.type === "daily") {
     if (timezone) {
       return t("sessions.scheduledTasks.dialog.schedule.dailyWithTimezone", { time: schedule.time, timezone })
@@ -55,31 +67,36 @@ export const formatSchedule = (task: Pick<ScheduledTask, "schedule">, t: Schedul
 }
 
 /** One line for a family: the shared times/weekdays when they form a grid, otherwise every part's schedule. */
-export const formatFamilySchedule = (family: ScheduledTaskFamily, t: ScheduledTaskTranslate): string => {
+export const formatFamilySchedule = (
+  family: ScheduledTaskFamily,
+  t: ScheduledTaskTranslate,
+  options?: ScheduleFormatOptions,
+): string => {
   const description = describeFamilySchedule(family)
   if (!description.compact) {
-    return family.members.map((member) => formatSchedule(member, t)).join(" · ")
+    return family.members.map((member) => formatSchedule(member, t, options)).join(" · ")
   }
+  const timezone = shownTimezone(description.timezone, options)
   if (description.type === "daily") {
     const time = description.times.join(", ")
-    if (description.timezone) {
-      return t("sessions.scheduledTasks.dialog.schedule.dailyWithTimezone", { time, timezone: description.timezone })
+    if (timezone) {
+      return t("sessions.scheduledTasks.dialog.schedule.dailyWithTimezone", { time, timezone })
     }
     return t("sessions.scheduledTasks.dialog.schedule.daily", { time })
   }
   if (description.type === "weekly") {
     const days = description.weekdays.map((day) => formatWeekday(day, t)).join(", ")
     const time = description.times.join(", ")
-    if (description.timezone) {
+    if (timezone) {
       return t("sessions.scheduledTasks.dialog.schedule.weeklyWithTimezone", {
         days,
         time,
-        timezone: description.timezone,
+        timezone,
       })
     }
     return t("sessions.scheduledTasks.dialog.schedule.weekly", { days, time })
   }
-  return formatSchedule(family.primary, t)
+  return formatSchedule(family.primary, t, options)
 }
 
 /** Local wall-clock time, with the date when it is not today. */

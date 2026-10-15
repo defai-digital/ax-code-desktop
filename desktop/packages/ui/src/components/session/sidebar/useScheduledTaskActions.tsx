@@ -180,46 +180,83 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
     [editorTarget, loadGroup, t],
   )
 
-  const toggleEnabled = React.useCallback(
-    async (family: ScheduledTaskFamily, directory: string, enabled: boolean) => {
-      const key = pendingEntryKey(directory, family.key)
-      const memberIDs = familyMemberIDs(family)
-      const memberSet = new Set(memberIDs)
-      markBusy(key, true)
-      patchGroupTasks(directory, (tasks) =>
-        tasks.map((item) => (memberSet.has(item.id) ? { ...item, status: enabled ? "active" : "paused" } : item)),
+  // Row actions act on the family as the store has it now, not on the row's
+  // render-time snapshot: a part added or removed elsewhere must not be left
+  // running (pause) or orphaned (delete). A family that is gone reloads the
+  // project and reports the change instead of acting on stale ids.
+  const resolveCurrentFamily = React.useCallback(
+    async (family: ScheduledTaskFamily, directory: string): Promise<ScheduledTaskFamily | null> => {
+      const current = groupScheduledTaskFamilies(getScheduledTaskGroup(directory).tasks).find(
+        (candidate) => candidate.key === family.key,
       )
+      if (current) {
+        return current
+      }
+      await loadGroup(directory)
+      toast.error(t("sessions.scheduledTasks.dialog.error.taskChanged"))
+      return null
+    },
+    [loadGroup, t],
+  )
+
+  const toggleEnabled = React.useCallback(
+    async (rowFamily: ScheduledTaskFamily, directory: string, enabled: boolean) => {
+      const key = pendingEntryKey(directory, rowFamily.key)
+      markBusy(key, true)
       try {
-        await setScheduledTasksEnabled(directory, memberIDs, enabled)
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("sessions.scheduledTasks.dialog.toast.updateFailed"))
-      } finally {
-        // Reload either way: success brings the runtime's next run times,
-        // failure undoes the optimistic status.
+        const family = await resolveCurrentFamily(rowFamily, directory)
+        if (!family) {
+          return
+        }
+        const memberIDs = familyMemberIDs(family)
+        const previous = new Map(family.members.map((member) => [member.id, member.status]))
+        patchGroupTasks(directory, (tasks) =>
+          tasks.map((item) => (previous.has(item.id) ? { ...item, status: enabled ? "active" : "paused" } : item)),
+        )
+        try {
+          await setScheduledTasksEnabled(directory, memberIDs, enabled)
+        } catch (error) {
+          // Undo the optimistic status first, so a reload that also fails
+          // cannot leave the row claiming a state the runtime does not have.
+          patchGroupTasks(directory, (tasks) =>
+            tasks.map((item) => {
+              const status = previous.get(item.id)
+              return status ? { ...item, status } : item
+            }),
+          )
+          toast.error(error instanceof Error ? error.message : t("sessions.scheduledTasks.dialog.toast.updateFailed"))
+        }
+        // Brings the runtime's next run times (and the true state after a
+        // partial failure).
         await loadGroup(directory)
+      } finally {
         markBusy(key, false)
       }
     },
-    [loadGroup, markBusy, patchGroupTasks, t],
+    [loadGroup, markBusy, patchGroupTasks, resolveCurrentFamily, t],
   )
 
   const deleteTask = React.useCallback(
-    async (family: ScheduledTaskFamily, directory: string) => {
+    async (rowFamily: ScheduledTaskFamily, directory: string) => {
       const confirmed = await requestConfirm(
-        family.members.length > 1
+        rowFamily.members.length > 1
           ? t("sessions.scheduledTasks.dialog.confirm.deleteFamily", {
-              taskName: family.title,
-              count: family.members.length,
+              taskName: rowFamily.title,
+              count: rowFamily.members.length,
             })
-          : t("sessions.scheduledTasks.dialog.confirm.deleteTask", { taskName: family.title }),
+          : t("sessions.scheduledTasks.dialog.confirm.deleteTask", { taskName: rowFamily.title }),
         { destructive: true },
       )
       if (!confirmed) {
         return
       }
-      const key = pendingEntryKey(directory, family.key)
+      const key = pendingEntryKey(directory, rowFamily.key)
       markBusy(key, true)
       try {
+        const family = await resolveCurrentFamily(rowFamily, directory)
+        if (!family) {
+          return
+        }
         await deleteScheduledTasks(directory, familyMemberIDs(family))
         toast.success(t("sessions.scheduledTasks.dialog.toast.deleted"))
       } catch (error) {
@@ -229,14 +266,18 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
         markBusy(key, false)
       }
     },
-    [loadGroup, markBusy, requestConfirm, t],
+    [loadGroup, markBusy, requestConfirm, resolveCurrentFamily, t],
   )
 
   const runNow = React.useCallback(
-    async (family: ScheduledTaskFamily, directory: string) => {
-      const key = pendingEntryKey(directory, family.key)
+    async (rowFamily: ScheduledTaskFamily, directory: string) => {
+      const key = pendingEntryKey(directory, rowFamily.key)
       markBusy(key, true)
       try {
+        const family = await resolveCurrentFamily(rowFamily, directory)
+        if (!family) {
+          return
+        }
         await runScheduledTaskNow(directory, family.primary.id)
         await Promise.all([loadGroup(directory), refreshGlobalSessions()])
         toast.success(t("sessions.scheduledTasks.dialog.toast.started"))
@@ -246,7 +287,7 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
         markBusy(key, false)
       }
     },
-    [loadGroup, markBusy, t],
+    [loadGroup, markBusy, resolveCurrentFamily, t],
   )
 
   const dialogs = (
