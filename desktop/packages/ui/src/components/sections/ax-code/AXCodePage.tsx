@@ -12,6 +12,7 @@ import { GitSettings } from "./GitSettings"
 import { NotificationSettings } from "./NotificationSettings"
 import { GitHubSettings } from "./GitHubSettings"
 import { AxCodeCliSettings } from "./AxCodeCliSettings"
+import { AxCodeCliInstallSection } from "./AxCodeCliInstallSection"
 import { KeyboardShortcutsSettings } from "./KeyboardShortcutsSettings"
 import { CornerRadiusSettings } from "./CornerRadiusSettings"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
@@ -146,6 +147,9 @@ const SessionsSectionContent: React.FC = () => {
       <DefaultsSettings />
       <div className="border-t border-border/40 pt-6">
         <AxCodeCliSettings />
+      </div>
+      <div className="border-t border-border/40 pt-6">
+        <AxCodeCliInstallSection />
       </div>
       <div className="border-t border-border/40 pt-6">
         <SessionRetentionSettings />

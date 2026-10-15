@@ -14,6 +14,7 @@ import { registerPluginRoutes } from "./plugin-routes.js"
 import { getNpmInfo } from "./npm-registry.js"
 import { parseNpmSpec, parsePathSpec, isExactSemver } from "./plugin-spec.js"
 import { registerAxCodeRoutes } from "./routes.js"
+import { createAxCodeCliInstallRuntime, registerAxCodeCliInstallRoutes } from "./cli-install.js"
 import { createBackgroundAxCodeReloader } from "./background-reload.js"
 
 export const createFeatureRoutesRuntime = (dependencies) => {
@@ -48,6 +49,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       refreshAxCodeAfterConfigChange,
       getAxCodeResolutionSnapshot,
       getAxCodeBinarySource,
+      getAxCodeBinary,
       formatSettingsResponse,
       readSettingsFromDisk,
       readSettingsFromDiskMigrated,
@@ -103,6 +105,23 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       backgroundAxCodeReloader,
       buildAxCodeUrl,
       getAxCodeAuthHeaders,
+    })
+
+    registerAxCodeCliInstallRoutes(app, {
+      runtime: createAxCodeCliInstallRuntime({
+        buildAugmentedPath,
+        // The resolution snapshot is what the runtime actually launches; the
+        // cached resolver state can still be empty right after startup.
+        getRuntimeBinary: async () => {
+          try {
+            const snapshot = await getAxCodeResolutionSnapshot(await readSettingsFromDiskMigrated())
+            return { path: snapshot?.viaWsl ? null : snapshot?.resolved || null, source: snapshot?.source || null }
+          } catch {
+            return { path: typeof getAxCodeBinary === "function" ? getAxCodeBinary() : null, source: null }
+          }
+        },
+        onRuntimeBinaryUpgraded: () => refreshAxCodeAfterConfigChange("ax-code CLI upgrade"),
+      }),
     })
 
     registerProjectIconRoutes(app, {

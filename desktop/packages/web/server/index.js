@@ -1423,6 +1423,7 @@ async function main(options = {}) {
     refreshAxCodeAfterConfigChange,
     getAxCodeResolutionSnapshot,
     getAxCodeBinarySource: () => resolvedAxCodeBinarySource || null,
+    getAxCodeBinary: () => resolvedAxCodeBinary || null,
     formatSettingsResponse,
     readSettingsFromDisk,
     readSettingsFromDiskMigrated,

@@ -26,9 +26,32 @@ For Windows or manual installs, download the latest installer, ZIP, or DMG from 
 
 ## The AX Code server
 
-AX Code Desktop and AX Code update separately. When a new AX Code version is available, AX Code Desktop offers to update it and restarts the server afterward. See [AX Code Server](/ax-code-server/) for how that server is managed.
+The packaged app runs its own built-in copy of AX Code, pinned to the app version. It updates only when
+AX Code Desktop updates. If you point AX Code Desktop at another `ax-code` binary instead, see
+[AX Code Server](/ax-code-server/) for how that server is managed.
+
+## The ax-code command in your terminal
+
+The `ax-code` CLI and TUI you run in a terminal is a separate install, and app updates never touch it.
+**Settings → Sessions → Command-line app (CLI/TUI)** shows:
+
+- the path your shell runs, its version and the latest release
+- other `ax-code` installs found on your PATH
+- which `ax-code` AX Code Desktop itself runs
+
+**Update** asks that CLI to upgrade itself with the installer it came from (the install script or
+Homebrew), then checks the version again. If another `ax-code` earlier on your PATH would still run in
+the terminal, AX Code Desktop tells you which one. A notification offers the same update when a new
+version appears; the **Show AX Code update notifications** setting controls it.
+
+AX Code Desktop shows the command to run yourself instead when:
+
+- the CLI is older than 7.19.5, which cannot report its install method
+- the install method is unknown, for example a package manager other than Homebrew
+- AX Code Desktop itself runs a Homebrew install. `brew upgrade` removes the running version, so quit
+  AX Code Desktop first and run `brew upgrade ax-code`.
 
 ## Related
 
 - [Install](/install/) — how each app is installed in the first place
-- [AX Code Server](/ax-code-server/) — updating the underlying server
+- [AX Code Server](/ax-code-server/) — the server AX Code Desktop runs

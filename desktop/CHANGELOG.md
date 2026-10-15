@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Settings → Sessions shows the `ax-code` CLI/TUI your terminal runs, which app updates never touch, beside
+  the runtime AX Code Desktop runs itself. It reports the installed and latest version and any other
+  installs on PATH, and "Update" asks that CLI to upgrade itself through the installer it came from
+  (curl or Homebrew), then confirms the new version. A notification offers the same update. CLIs older
+  than 7.19.5, unknown install methods and a Homebrew CLI that Desktop is running get the command to run
+  in a terminal instead.
 - Scheduled tasks live in a "Scheduled" section of the session sidebar instead of a dialog: every
   project's tasks in one queue, running and failing first, then by next run, with the project, schedule
   and time to the next run on each row. Run now and pause are one click away, edit and delete are in the

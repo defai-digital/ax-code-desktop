@@ -189,6 +189,9 @@ export const API_ENDPOINTS = {
   axCode: {
     upgrade: `${API_PATHS.base}/ax-code/upgrade`,
     upgradeStatus: `${API_PATHS.base}/ax-code/upgrade-status`,
+    cliStatus: `${API_PATHS.base}/ax-code/cli/status`,
+    cliCheck: `${API_PATHS.base}/ax-code/cli/check`,
+    cliUpgrade: `${API_PATHS.base}/ax-code/cli/upgrade`,
   },
 } as const
 

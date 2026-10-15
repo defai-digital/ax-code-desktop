@@ -13,6 +13,13 @@ import {
   shouldShowAxCodeUpdateToast,
   type AxCodeUpgradeStatusLike,
 } from "./axCodeUpdateDedup"
+import {
+  fetchAxCodeCliStatus,
+  resolveAxCodeCliUpdateVersion,
+  startAxCodeCliUpgrade,
+  waitForAxCodeCliUpgrade,
+  type AxCodeCliStatus,
+} from "./axCodeCliStatus"
 
 const UPDATE_TOAST_ID = "ax-code-update-available"
 const UPGRADE_TOAST_ID = "ax-code-upgrade-progress"
@@ -20,6 +27,11 @@ const INCOMPATIBLE_TOAST_ID = "ax-code-incompatible-version"
 const INITIAL_CHECK_DELAY_MS = 5_000
 const CHECK_RETRY_DELAYS_MS = [10_000, 60_000]
 const UPDATE_TOAST_DISMISSED_VERSION_KEY = "ax-code-update-toast-dismissed-version"
+const CLI_UPDATE_TOAST_ID = "ax-code-cli-update-available"
+const CLI_UPGRADE_TOAST_ID = "ax-code-cli-upgrade-progress"
+const CLI_UPDATE_TOAST_DISMISSED_VERSION_KEY = "ax-code-cli-update-toast-dismissed-version"
+const CLI_INITIAL_CHECK_DELAY_MS = 8_000
+const CLI_RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 
 export const AxCodeUpdateToast: React.FC = () => {
   const { t } = useI18n()
@@ -27,10 +39,14 @@ export const AxCodeUpdateToast: React.FC = () => {
   const seenVersionsRef = React.useRef(new Set<string>())
   const upgradingRef = React.useRef(false)
   const warnedIncompatibleVersionRef = React.useRef<string | null>(null)
+  const cliSeenVersionsRef = React.useRef(new Set<string>())
+  const cliUpgradingRef = React.useRef(false)
+  const cliStatusRef = React.useRef<AxCodeCliStatus | null>(null)
 
   React.useEffect(() => {
     if (!showAxCodeUpdateNotifications) {
       toast.dismiss(UPDATE_TOAST_ID)
+      toast.dismiss(CLI_UPDATE_TOAST_ID)
     }
   }, [showAxCodeUpdateNotifications])
 
@@ -42,6 +58,83 @@ export const AxCodeUpdateToast: React.FC = () => {
       scopes: ["all"],
     })
   }, [t])
+
+  // The standalone `ax-code` CLI/TUI in the user's terminal: a separate
+  // install that app updates never touch.
+  const runCliUpgrade = React.useCallback(async () => {
+    if (cliUpgradingRef.current) return
+    cliUpgradingRef.current = true
+    toast.dismiss(CLI_UPDATE_TOAST_ID)
+    toast.message(t("axCodeUpdate.cli.toast.upgrading.title"), {
+      id: CLI_UPGRADE_TOAST_ID,
+      description: t("axCodeUpdate.cli.toast.upgrading.description"),
+      duration: Infinity,
+      icon: <Icon name="refresh" className="h-4 w-4 animate-spin text-muted-foreground" />,
+    })
+    const fail = (command: string | null | undefined) =>
+      toast.error(t("axCodeUpdate.cli.toast.failed.title"), {
+        id: CLI_UPGRADE_TOAST_ID,
+        description: command
+          ? t("axCodeUpdate.cli.toast.failed.description", { command })
+          : t("axCodeUpdate.cli.toast.failed.descriptionNoCommand"),
+        duration: Infinity,
+      })
+    try {
+      const started = await startAxCodeCliUpgrade()
+      if (!started.accepted && started.reason !== "already-running") {
+        if (started.reason === "up-to-date") {
+          toast.dismiss(CLI_UPGRADE_TOAST_ID)
+          return
+        }
+        fail(started.cli?.manualCommand ?? cliStatusRef.current?.manualCommand)
+        return
+      }
+      const settled = await waitForAxCodeCliUpgrade()
+      const job = settled?.upgrade
+      if (settled) cliStatusRef.current = settled
+      // The job vanished (the server restarted) but the CLI is now current.
+      if (!job && settled?.updateAvailable === false) {
+        toast.success(t("axCodeUpdate.cli.toast.updated.title"), {
+          id: CLI_UPGRADE_TOAST_ID,
+          description: t("axCodeUpdate.cli.toast.updated.description", { version: settled.currentVersion ?? "" }),
+          duration: 8_000,
+          icon: <Icon name="check" className="h-4 w-4 text-[var(--status-success)]" />,
+        })
+        return
+      }
+      if (job?.state === "succeeded" && job.runtimeRestartFailed) {
+        toast.warning(t("axCodeUpdate.cli.toast.updated.title"), {
+          id: CLI_UPGRADE_TOAST_ID,
+          description: t("axCodeUpdate.cli.toast.updated.restartFailed", { version: job.version ?? "" }),
+          duration: Infinity,
+          action: {
+            label: t("axCodeUpdate.toast.actions.reload"),
+            onClick: reloadAxCode,
+          },
+        })
+        return
+      }
+      if (job?.state === "succeeded") {
+        toast.success(t("axCodeUpdate.cli.toast.updated.title"), {
+          id: CLI_UPGRADE_TOAST_ID,
+          description: job.shadowedBy?.path
+            ? t("axCodeUpdate.cli.toast.updated.shadowed", {
+                version: job.version ?? "",
+                path: job.shadowedBy.path,
+              })
+            : t("axCodeUpdate.cli.toast.updated.description", { version: job.version ?? "" }),
+          duration: job.shadowedBy?.path ? Infinity : 8_000,
+          icon: <Icon name="check" className="h-4 w-4 text-[var(--status-success)]" />,
+        })
+        return
+      }
+      fail(settled?.manualCommand ?? cliStatusRef.current?.manualCommand)
+    } catch {
+      fail(cliStatusRef.current?.manualCommand)
+    } finally {
+      cliUpgradingRef.current = false
+    }
+  }, [reloadAxCode, t])
 
   const runUpgrade = React.useCallback(async () => {
     if (upgradingRef.current) return
@@ -106,6 +199,9 @@ export const AxCodeUpdateToast: React.FC = () => {
         toast.dismiss(UPDATE_TOAST_ID)
         return
       }
+      // When Desktop's runtime is the user's own CLI, the CLI toast offers
+      // the update for that binary; two toasts would start two upgrades.
+      if (cliStatusRef.current?.isRuntimeBinary) return
       const decision = shouldShowAxCodeUpdateToast({
         version,
         dismissedVersion: getSafeStorage().getItem(UPDATE_TOAST_DISMISSED_VERSION_KEY),
@@ -208,6 +304,74 @@ export const AxCodeUpdateToast: React.FC = () => {
       window.removeEventListener("openchamber:ax-code-update-available", onUpdateAvailable)
     }
   }, [runUpgrade, showAxCodeUpdateNotifications, t])
+
+  React.useEffect(() => {
+    if (!showAxCodeUpdateNotifications) return
+    let cancelled = false
+    const timeoutIds: Array<ReturnType<typeof setTimeout>> = []
+
+    const showCliToast = (status: AxCodeCliStatus) => {
+      const version = resolveAxCodeCliUpdateVersion(status)
+      if (!version || !useUIStore.getState().showAxCodeUpdateNotifications) return
+      const decision = shouldShowAxCodeUpdateToast({
+        version,
+        dismissedVersion: getSafeStorage().getItem(CLI_UPDATE_TOAST_DISMISSED_VERSION_KEY),
+        seenVersions: cliSeenVersionsRef.current,
+      })
+      if (!decision) return
+      cliSeenVersionsRef.current.add(version)
+      if (status.isRuntimeBinary) toast.dismiss(UPDATE_TOAST_ID)
+      const description = status.canUpgrade
+        ? t("axCodeUpdate.cli.toast.available.description", { version, path: status.path ?? "ax-code" })
+        : status.manualCommand
+          ? t("axCodeUpdate.cli.toast.available.manual", { version, command: status.manualCommand })
+          : t("axCodeUpdate.cli.toast.available.descriptionNoAction", { version })
+      toast.info(t("axCodeUpdate.cli.toast.available.title"), {
+        id: CLI_UPDATE_TOAST_ID,
+        description,
+        duration: Infinity,
+        action: status.canUpgrade
+          ? {
+              label: t("axCodeUpdate.toast.actions.update"),
+              onClick: () => void runCliUpgrade(),
+            }
+          : undefined,
+        cancel: {
+          label: t("axCodeUpdate.toast.actions.dismiss"),
+          onClick: () => {
+            getSafeStorage().setItem(CLI_UPDATE_TOAST_DISMISSED_VERSION_KEY, version)
+            toast.dismiss(CLI_UPDATE_TOAST_ID)
+          },
+        },
+      })
+    }
+
+    const checkCli = async (attempt: number) => {
+      // Re-checks wait for a visible window; the server caches results.
+      if (attempt > 0 && typeof document !== "undefined" && document.visibilityState === "hidden") {
+        timeoutIds.push(setTimeout(() => void checkCli(attempt), 60_000))
+        return
+      }
+      try {
+        const status = await fetchAxCodeCliStatus()
+        if (cancelled) return
+        cliStatusRef.current = status
+        showCliToast(status)
+        timeoutIds.push(setTimeout(() => void checkCli(1), CLI_RECHECK_INTERVAL_MS))
+      } catch {
+        const delay = CHECK_RETRY_DELAYS_MS[attempt]
+        if (!cancelled) {
+          timeoutIds.push(setTimeout(() => void checkCli(attempt + 1), delay ?? CLI_RECHECK_INTERVAL_MS))
+        }
+      }
+    }
+
+    timeoutIds.push(setTimeout(() => void checkCli(0), CLI_INITIAL_CHECK_DELAY_MS))
+    return () => {
+      cancelled = true
+      for (const timeoutId of timeoutIds) clearTimeout(timeoutId)
+    }
+  }, [runCliUpgrade, showAxCodeUpdateNotifications, t])
 
   return null
 }

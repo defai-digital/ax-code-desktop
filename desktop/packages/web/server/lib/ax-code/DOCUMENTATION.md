@@ -91,6 +91,19 @@ This module provides ax-code server integration utilities for the web server run
 - Owns lazy auth library loading for provider auth checks/removal.
 - Keeps route behavior independent from composition root; `index.js` now supplies dependencies only.
 
+## Public exports (cli-install.js)
+
+- `createAxCodeCliInstallRuntime(dependencies)`: finds the user's own `ax-code` CLI/TUI (PATH order, then the
+  installers' default folders; never the bundled launcher), checks it with `ax-code upgrade check --json`
+  (only from 7.19.5, where that subcommand exists), and upgrades it with `ax-code upgrade --method <method>`
+  as a background job. Spawns use argv only, closed stdin, a scrubbed env and a process-group kill on timeout.
+- `registerAxCodeCliInstallRoutes(app, { runtime })`:
+  - `GET /api/ax-code/cli/status` (the last check, or `{ checked: false }`; never spawns anything, since any page
+    can send a GET to the loopback port)
+  - `POST /api/ax-code/cli/check` (body `{ refresh: false }` returns the cache or runs the first check; otherwise
+    forces a re-check, at most every 5 seconds)
+  - `POST /api/ax-code/cli/upgrade` (202 and runs in the background; poll the status `upgrade` field)
+
 ## Public exports (session-runtime.js)
 
 - `createSessionRuntime({ writeSseEvent, getNotificationClients, broadcastEvent?, onActivityChange? })`: creates runtime-owned state machine and APIs for session status. Optional `onActivityChange` (S2.5c) fires on every session-activity phase transition (including the cooldown-timer driven cooldown→idle one); the web server uses it to drive `runtime-busy-reporter.js`.
