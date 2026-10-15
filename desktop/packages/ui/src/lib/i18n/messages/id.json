@@ -2666,6 +2666,7 @@
   "sidebarFilesTree.toast.filenameRequired": "Nama berkas wajib diisi",
   "sidebarFilesTree.toast.writeNotSupported": "Penulisan tidak didukung",
   "sidebarFilesTree.toast.fileCreated": "Berkas dibuat",
+  "sidebarFilesTree.toast.fileAlreadyExists": "File dengan nama ini sudah ada",
   "sidebarFilesTree.toast.operationFailed": "Operasi gagal",
   "sidebarFilesTree.toast.folderNameRequired": "Nama folder wajib diisi",
   "sidebarFilesTree.toast.folderCreated": "Folder dibuat",

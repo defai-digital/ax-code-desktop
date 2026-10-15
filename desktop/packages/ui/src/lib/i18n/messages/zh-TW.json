@@ -2666,6 +2666,7 @@
   "sidebarFilesTree.toast.filenameRequired": "\u5fc5\u9808\u63d0\u4f9b\u6a94\u6848\u540d\u7a31",
   "sidebarFilesTree.toast.writeNotSupported": "\u4e0d\u652f\u63f4\u5beb\u5165",
   "sidebarFilesTree.toast.fileCreated": "\u5df2\u5efa\u7acb\u6a94\u6848",
+  "sidebarFilesTree.toast.fileAlreadyExists": "\u540c\u540d\u6a94\u6848\u5df2\u5b58\u5728",
   "sidebarFilesTree.toast.operationFailed": "\u64cd\u4f5c\u5931\u6557",
   "sidebarFilesTree.toast.folderNameRequired": "\u5fc5\u9808\u63d0\u4f9b\u8cc7\u6599\u593e\u540d\u7a31",
   "sidebarFilesTree.toast.folderCreated": "\u5df2\u5efa\u7acb\u8cc7\u6599\u593e",

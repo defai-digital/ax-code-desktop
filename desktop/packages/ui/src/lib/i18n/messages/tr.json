@@ -2672,6 +2672,7 @@
   "sidebarFilesTree.toast.filenameRequired": "Dosya ad\u0131 gerekli",
   "sidebarFilesTree.toast.writeNotSupported": "Yazma desteklenmiyor",
   "sidebarFilesTree.toast.fileCreated": "Dosya olu\u015fturuldu",
+  "sidebarFilesTree.toast.fileAlreadyExists": "Bu adda bir dosya zaten var",
   "sidebarFilesTree.toast.operationFailed": "\u0130\u015flem ba\u015far\u0131s\u0131z",
   "sidebarFilesTree.toast.folderNameRequired": "Klas\u00f6r ad\u0131 gerekli",
   "sidebarFilesTree.toast.folderCreated": "Klas\u00f6r olu\u015fturuldu",

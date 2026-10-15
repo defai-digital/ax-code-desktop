@@ -2672,6 +2672,7 @@
   "sidebarFilesTree.toast.filenameRequired": "\u6587\u4ef6\u540d\u4e0d\u80fd\u4e3a\u7a7a",
   "sidebarFilesTree.toast.writeNotSupported": "\u4e0d\u652f\u6301\u5199\u5165",
   "sidebarFilesTree.toast.fileCreated": "\u5df2\u521b\u5efa\u6587\u4ef6",
+  "sidebarFilesTree.toast.fileAlreadyExists": "\u540c\u540d\u6587\u4ef6\u5df2\u5b58\u5728",
   "sidebarFilesTree.toast.operationFailed": "\u64cd\u4f5c\u5931\u8d25",
   "sidebarFilesTree.toast.folderNameRequired": "\u6587\u4ef6\u5939\u540d\u79f0\u4e0d\u80fd\u4e3a\u7a7a",
   "sidebarFilesTree.toast.folderCreated": "\u5df2\u521b\u5efa\u6587\u4ef6\u5939",

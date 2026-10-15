@@ -2666,6 +2666,7 @@
   "sidebarFilesTree.toast.filenameRequired": "Le nom de fichier est requis",
   "sidebarFilesTree.toast.writeNotSupported": "\u00c9criture non prise en charge",
   "sidebarFilesTree.toast.fileCreated": "Fichier cr\u00e9\u00e9",
+  "sidebarFilesTree.toast.fileAlreadyExists": "Un fichier portant ce nom existe d\u00e9j\u00e0",
   "sidebarFilesTree.toast.operationFailed": "\u00c9chec de l\u2019op\u00e9ration",
   "sidebarFilesTree.toast.folderNameRequired": "Le nom de dossier est requis",
   "sidebarFilesTree.toast.folderCreated": "Dossier cr\u00e9\u00e9",

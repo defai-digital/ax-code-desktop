@@ -707,7 +707,14 @@ export const SidebarFilesTree: React.FC = () => {
         const parentPath = dialogData.path
         const prefix = parentPath ? `${parentPath}/` : ""
         const newPath = normalizePath(`${prefix}${dialogInputValue.trim()}`)
-
+        // writeFile replaces an existing file, so "New File" on a name that is
+        // already taken would silently truncate it to zero bytes.
+        const existing = await files.statFile?.(newPath).catch(() => null)
+        if (existing) {
+          toast.error(t("sidebarFilesTree.toast.fileAlreadyExists"))
+          done()
+          return
+        }
         await files
           .writeFile(newPath, "")
           .then(async (result) => {

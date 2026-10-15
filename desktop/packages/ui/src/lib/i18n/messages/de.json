@@ -2672,6 +2672,7 @@
   "sidebarFilesTree.toast.filenameRequired": "Dateiname ist erforderlich",
   "sidebarFilesTree.toast.writeNotSupported": "Schreiben nicht unterst\u00fctzt",
   "sidebarFilesTree.toast.fileCreated": "Datei erstellt",
+  "sidebarFilesTree.toast.fileAlreadyExists": "Eine Datei mit diesem Namen existiert bereits",
   "sidebarFilesTree.toast.operationFailed": "Vorgang fehlgeschlagen",
   "sidebarFilesTree.toast.folderNameRequired": "Ordnername ist erforderlich",
   "sidebarFilesTree.toast.folderCreated": "Ordner erstellt",
