@@ -19,7 +19,7 @@ type Args = {
 }
 
 export const useSessionFolderCleanup = (args: Args): void => {
-  const { isSessionsLoading, sessions, cleanupSessions } = args
+  const { isSessionsLoading, sessions, archivedSessions, cleanupSessions } = args
 
   React.useEffect(() => {
     if (isSessionsLoading) {
@@ -41,19 +41,23 @@ export const useSessionFolderCleanup = (args: Args): void => {
     })
 
     // Maintain manual (directory-scoped) folders: drop sessions that no longer exist.
+    // Archived sessions still exist — archiving is reversible — so they count as
+    // existing here. Pruning them removed a session from its folder on archive
+    // (and undoing the archive never put it back), the same trap the pin-prune
+    // whitelist avoids by counting archived sessions.
     const idsByDirectory = new Map<string, Set<string>>()
-    sessions.forEach((session) => {
+    for (const session of [...sessions, ...archivedSessions]) {
       const directory = normalizePath((session as Session & { directory?: string | null }).directory ?? null)
       if (!directory) {
-        return
+        continue
       }
       const existing = idsByDirectory.get(directory)
       if (existing) {
         existing.add(session.id)
-        return
+        continue
       }
       idsByDirectory.set(directory, new Set([session.id]))
-    })
+    }
 
     Object.keys(store.foldersMap).forEach((scopeKey) => {
       if (scopeKey.startsWith("__archived__:")) {
@@ -61,5 +65,5 @@ export const useSessionFolderCleanup = (args: Args): void => {
       }
       cleanupSessions(scopeKey, idsByDirectory.get(scopeKey) ?? new Set<string>())
     })
-  }, [cleanupSessions, isSessionsLoading, sessions])
+  }, [archivedSessions, cleanupSessions, isSessionsLoading, sessions])
 }
