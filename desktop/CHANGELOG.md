@@ -26,6 +26,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- The add-project folder browser no longer disables a folder that is already a project, so its
+  subfolders can be reached and added (for example repositories under an added `~/code`).
 - Routes and surfaces that were reachable before signing in now require the UI session: the bare
   proxy mounts (`/global`, `/graph`, `/dre-graph`, `/run-report`), `/api/system/info`,
   `/api/system/free-port` and the startup/crash diagnostics. `/health` stays public but unauthenticated

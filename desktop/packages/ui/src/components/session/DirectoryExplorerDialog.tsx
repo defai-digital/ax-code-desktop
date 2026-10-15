@@ -39,8 +39,10 @@ type BrowseEntry = {
 }
 
 type BrowseRow =
-  | { type: "up"; value: "browse:up"; name: string; path: string | null; disabled?: false }
-  | { type: "directory"; value: string; name: string; path: string; disabled: boolean }
+  | { type: "up"; value: "browse:up"; name: string; path: string | null; added?: false }
+  // `added` only means "already a project": the folder stays browsable, because projects are often
+  // nested (a ~/code project with repositories under it) and a subfolder is a valid project too.
+  | { type: "directory"; value: string; name: string; path: string; added: boolean }
 
 const isRootPath = (value: string): boolean => value === "/"
 
@@ -304,7 +306,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
         value: `browse:${entry.path}`,
         name: entry.name,
         path: entry.path,
-        disabled: Boolean(normalized && addedProjectPaths.has(normalized)),
+        added: Boolean(normalized && addedProjectPaths.has(normalized)),
       })
     }
     return nextRows
@@ -333,10 +335,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
   const canAddProject = !isConfirming && !isOpeningFinder && !isAlreadyAdded && Boolean(targetPath)
   const canSubmitClone = canAddProject && cloneRemoteUrl.trim().length > 0
   const highlightedRow = rows[highlightedIndex] ?? null
-  const hasHighlightedBrowseItem = Boolean(
-    highlightedRow &&
-      (highlightedRow.type === "up" || (highlightedRow.type === "directory" && !highlightedRow.disabled)),
-  )
+  const hasHighlightedBrowseItem = Boolean(highlightedRow)
   const submitModifierLabel =
     typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl"
   const submitActionLabel = isAlreadyAdded
@@ -474,7 +473,6 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
         if (row.path) browseToDisplayPath(row.path)
         return
       }
-      if (row.disabled) return
       browseToEntry(row)
     },
     [browseToDisplayPath, browseToEntry],
@@ -656,7 +654,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
                     }
                   }}
                   type="button"
-                  disabled={row.type === "directory" && row.disabled}
+                  data-added={row.type === "directory" && row.added ? "true" : undefined}
                   onMouseEnter={() => setHighlightedIndex(index)}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => executeRow(row)}
@@ -664,7 +662,6 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
                     "flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
                     isActive && "bg-interactive-selection text-interactive-selection-foreground",
                     !isActive && "hover:bg-interactive-hover/50",
-                    row.type === "directory" && row.disabled && "cursor-not-allowed opacity-45 hover:bg-transparent",
                   )}
                 >
                   {row.type === "up" ? (
@@ -673,9 +670,16 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
                     <Icon name="folder-6" className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                   )}
                   <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                    <span className="truncate typography-ui-label text-foreground">{row.name}</span>
+                    <span
+                      className={cn(
+                        "truncate typography-ui-label",
+                        row.type === "directory" && row.added ? "text-muted-foreground" : "text-foreground",
+                      )}
+                    >
+                      {row.name}
+                    </span>
                   </span>
-                  {row.type === "directory" && row.disabled ? (
+                  {row.type === "directory" && row.added ? (
                     <span className="rounded-full border border-border/60 px-2 py-0.5 typography-meta text-muted-foreground">
                       {t("directoryExplorerDialog.browse.addedBadge")}
                     </span>
