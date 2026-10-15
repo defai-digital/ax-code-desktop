@@ -176,51 +176,58 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
       template.push({ label: translate("Needs your attention"), enabled: false })
       const approvalItem = (approval) => {
         if (approval.kind === "permission") {
+          const submenu = [
+            {
+              label: translate("Allow once"),
+              click: () =>
+                onAction({
+                  type: "respond-permission",
+                  sessionId: approval.sessionId,
+                  id: approval.id,
+                  response: "once",
+                }),
+            },
+          ]
+          // "Always" only makes sense when the runtime can remember the answer;
+          // the UI marks requests with no persistable pattern as canSave: false.
+          if (approval.canSave === true) {
+            submenu.push({
+              label: translate("Allow always"),
+              click: () =>
+                onAction({
+                  type: "respond-permission",
+                  sessionId: approval.sessionId,
+                  id: approval.id,
+                  response: "always",
+                }),
+            })
+          }
+          submenu.push(
+            { type: "separator" },
+            {
+              label: translate("Deny"),
+              click: () =>
+                onAction({
+                  type: "respond-permission",
+                  sessionId: approval.sessionId,
+                  id: approval.id,
+                  response: "reject",
+                }),
+            },
+            { type: "separator" },
+            {
+              label: translate("Open in app"),
+              click: () =>
+                onAction({
+                  type: "focus-session",
+                  sessionId: approval.sessionId,
+                  directory: approval.directory || "",
+                }),
+            },
+          )
           return {
             label: approvalLabel(approval, translate),
-            submenu: [
-              {
-                label: translate("Allow once"),
-                click: () =>
-                  onAction({
-                    type: "respond-permission",
-                    sessionId: approval.sessionId,
-                    id: approval.id,
-                    response: "once",
-                  }),
-              },
-              {
-                label: translate("Allow always"),
-                click: () =>
-                  onAction({
-                    type: "respond-permission",
-                    sessionId: approval.sessionId,
-                    id: approval.id,
-                    response: "always",
-                  }),
-              },
-              { type: "separator" },
-              {
-                label: translate("Deny"),
-                click: () =>
-                  onAction({
-                    type: "respond-permission",
-                    sessionId: approval.sessionId,
-                    id: approval.id,
-                    response: "reject",
-                  }),
-              },
-              { type: "separator" },
-              {
-                label: translate("Open in app"),
-                click: () =>
-                  onAction({
-                    type: "focus-session",
-                    sessionId: approval.sessionId,
-                    directory: approval.directory || "",
-                  }),
-              },
-            ],
+            submenu,
           }
         }
         return {

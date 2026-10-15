@@ -58,7 +58,9 @@ function pageProgram(args) {
       if (!visible(el)) continue
       const ref = `e${outline.length + 1}`
       state.refs.set(ref, el)
-      const kind = kindOf(el)
+      // The runtime schema caps kind at 32 chars; an exotic input type attribute
+      // must not fail the whole read.
+      const kind = clip(kindOf(el), 32)
       const entry = { ref, kind, name: nameOf(el) }
       if (submitLike(el)) entry.submit = true
       if (el.disabled) entry.disabled = true

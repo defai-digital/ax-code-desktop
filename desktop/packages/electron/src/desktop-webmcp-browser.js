@@ -2,7 +2,7 @@
 
 const { randomBytes, randomUUID } = require("node:crypto")
 const path = require("node:path")
-const { NativeWebMcp, CAPABILITY, allowedUrl, pageKind } = require("./native-webmcp")
+const { NativeWebMcp, CAPABILITY, agentOrigin, allowedUrl, pageKind } = require("./native-webmcp")
 const { loadUrlWithTimeout, DEFAULT_LOAD_URL_TIMEOUT_MS } = require("./load-url-timeout")
 
 // This secret goes only to the supervised runtime child, never to a renderer or project config.
@@ -24,6 +24,11 @@ function createDesktopWebMcpBrowser({
   // window partition -> in-flight storage clear, so a new pane never loads into a
   // half-cleared profile.
   const pendingGuestClears = new Map()
+  // sender id -> in-flight create. Two concurrent creates for the same sender
+  // would both pass the `views.has` check before either reaches `views.set`,
+  // and the loser's WebContentsView would stay attached but untracked until the
+  // window closes. Serialize them instead.
+  const pendingCreates = new Map()
   let factory
   async function api(directory, url, method = "GET", body, signal) {
     const origin = getRuntime()
@@ -73,7 +78,11 @@ function createDesktopWebMcpBrowser({
     entry.controller?.abort()
     entry.controller = null
     entry.adapter.revoke()
-    if (connection) await api(entry.directory, `/provider/${connection.providerID}`, "DELETE").catch(() => {})
+    // Teardown must not wait on a wedged runtime: quit and pane close both block
+    // on this DELETE, and the default 20s timeout reads as a hang. The runtime
+    // sweeps orphaned providers on its own, so a short bound is enough.
+    if (connection)
+      await api(entry.directory, `/provider/${connection.providerID}`, "DELETE", undefined, AbortSignal.timeout(2000)).catch(() => {})
   }
   async function close(entry) {
     if (entry.closed) return
@@ -141,7 +150,10 @@ function createDesktopWebMcpBrowser({
       await api(entry.directory, `/provider/${connection.providerID}/reply`, "POST", payload, signal)
     }
     try {
-      if (typeof request.url !== "string" || !allowedUrl(request.url))
+      // Agent-initiated navigation follows the runtime's own rule (https anywhere,
+      // http only on loopback, no credentials); user-driven pane navigation keeps
+      // the wider allowedUrl gate.
+      if (typeof request.url !== "string" || !agentOrigin(request.url))
         throw new Error("Only ordinary web page URLs can be opened")
       const before = entry.adapter.generation
       await loadUrlWithTimeout(entry.view.webContents, request.url, { timeoutMs: loadTimeoutMs })
@@ -218,6 +230,96 @@ function createDesktopWebMcpBrowser({
       if (entry.connection === connection) await disconnect(entry)
     }
   }
+  async function createView(args, sender, owner) {
+    if (views.has(sender.id)) await close(views.get(sender.id))
+    // One stable, in-memory partition per window instead of a fresh UUID per open:
+    // Electron caches a Session per partition string and offers no way to destroy
+    // one, so a UUID per open leaked a session (cookie jar, caches, network
+    // context) for every pane the user ever opened. `close()` clears the storage
+    // again, so a new pane still starts from a clean profile.
+    const partition = `ax-coder-webmcp-${sender.id}`
+    await (pendingGuestClears.get(partition) ?? Promise.resolve())
+    const guestSession = session.fromPartition(partition)
+    if (!guestSessions.has(partition)) {
+      guestSessions.add(partition)
+      guestSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+      guestSession.setPermissionCheckHandler(() => false)
+      guestSession.on("will-download", (event) => event.preventDefault())
+    }
+    const view = new WebContentsView({
+      webPreferences: {
+        partition,
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        webSecurity: true,
+        allowRunningInsecureContent: false,
+      },
+    })
+    view.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
+    view.webContents.on("will-navigate", (event, url) => {
+      if (!allowedUrl(url)) event.preventDefault()
+    })
+    view.webContents.on("will-redirect", (event, url) => {
+      if (!allowedUrl(url)) event.preventDefault()
+    })
+    const entry = {
+      id: randomUUID(),
+      sender,
+      owner,
+      view,
+      directory: args.directory,
+      sessionID: args.sessionID,
+      connection: null,
+      controller: null,
+      attached: false,
+      syncing: Promise.resolve(),
+    }
+    entry.adapter = new NativeWebMcp(view.webContents, () => {
+      // A dead adapter (debugger detach, renderer crash, unusable catalog) can no
+      // longer run a single call, so agent access must be revoked: syncing an
+      // empty catalog would leave the runtime holding a live provider and turn
+      // every later call into an unconfirmed timeout. The connection check keeps
+      // disconnect's own revoke (which re-enters here) from recursing.
+      if (!entry.closed && !entry.adapter.available) {
+        if (entry.connection) void disconnect(entry)
+        return
+      }
+      entry.syncing = entry.syncing.then(() => synchronize(entry))
+    })
+    entry.onOwnerClosed = () => {
+      void close(entry)
+    }
+    entry.onOwnerHidden = () => {
+      void disconnect(entry)
+    }
+    views.set(sender.id, entry)
+    owner.on("closed", entry.onOwnerClosed)
+    owner.on("hide", entry.onOwnerHidden)
+    owner.on("minimize", entry.onOwnerHidden)
+    sender.on("destroyed", entry.onOwnerClosed)
+    sender.on("render-process-gone", entry.onOwnerClosed)
+    try {
+      // Attach a zero-sized view so Chromium creates its renderer before native CDP setup.
+      view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+      owner.contentView.addChildView(view)
+      // A page that fails to load (server down, bad certificate) must not kill the
+      // pane: closing the entry would leave the renderer without an id, so the
+      // address bar and Go/Reload would stay inert and the failure would repeat on
+      // every re-entry. The user can navigate somewhere else instead. A load that
+      // never settles is treated the same way instead of hanging the pane's start
+      // forever: without the deadline the renderer never receives an id and no
+      // command it offers can be used.
+      await loadUrlWithTimeout(view.webContents, args.url, { timeoutMs: loadTimeoutMs }).catch(() => {})
+      if (entry.closed) throw new Error("Browser closed during loading")
+      await entry.adapter.start()
+      owner.contentView.removeChildView(view)
+    } catch {
+      await close(entry)
+      throw new Error("The native browser could not load this page")
+    }
+    return status(entry)
+  }
   async function command(sender, args) {
     if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("Invalid browser command")
     if (args.action === "capability") {
@@ -258,94 +360,15 @@ function createDesktopWebMcpBrowser({
       }
       const owner = BrowserWindow.fromWebContents(sender)
       if (!owner) throw new Error("The browser requires a local desktop window")
-      if (views.has(sender.id)) await close(views.get(sender.id))
-      // One stable, in-memory partition per window instead of a fresh UUID per open:
-      // Electron caches a Session per partition string and offers no way to destroy
-      // one, so a UUID per open leaked a session (cookie jar, caches, network
-      // context) for every pane the user ever opened. `close()` clears the storage
-      // again, so a new pane still starts from a clean profile.
-      const partition = `ax-coder-webmcp-${sender.id}`
-      await (pendingGuestClears.get(partition) ?? Promise.resolve())
-      const guestSession = session.fromPartition(partition)
-      if (!guestSessions.has(partition)) {
-        guestSessions.add(partition)
-        guestSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-        guestSession.setPermissionCheckHandler(() => false)
-        guestSession.on("will-download", (event) => event.preventDefault())
-      }
-      const view = new WebContentsView({
-        webPreferences: {
-          partition,
-          sandbox: true,
-          contextIsolation: true,
-          nodeIntegration: false,
-          webSecurity: true,
-          allowRunningInsecureContent: false,
-        },
-      })
-      view.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
-      view.webContents.on("will-navigate", (event, url) => {
-        if (!allowedUrl(url)) event.preventDefault()
-      })
-      view.webContents.on("will-redirect", (event, url) => {
-        if (!allowedUrl(url)) event.preventDefault()
-      })
-      const entry = {
-        id: randomUUID(),
-        sender,
-        owner,
-        view,
-        directory: args.directory,
-        sessionID: args.sessionID,
-        connection: null,
-        controller: null,
-        attached: false,
-        syncing: Promise.resolve(),
-      }
-      entry.adapter = new NativeWebMcp(view.webContents, () => {
-        // A dead adapter (debugger detach, renderer crash, unusable catalog) can no
-        // longer run a single call, so agent access must be revoked: syncing an
-        // empty catalog would leave the runtime holding a live provider and turn
-        // every later call into an unconfirmed timeout. The connection check keeps
-        // disconnect's own revoke (which re-enters here) from recursing.
-        if (!entry.closed && !entry.adapter.available) {
-          if (entry.connection) void disconnect(entry)
-          return
-        }
-        entry.syncing = entry.syncing.then(() => synchronize(entry))
-      })
-      entry.onOwnerClosed = () => {
-        void close(entry)
-      }
-      entry.onOwnerHidden = () => {
-        void disconnect(entry)
-      }
-      views.set(sender.id, entry)
-      owner.on("closed", entry.onOwnerClosed)
-      owner.on("hide", entry.onOwnerHidden)
-      owner.on("minimize", entry.onOwnerHidden)
-      sender.on("destroyed", entry.onOwnerClosed)
-      sender.on("render-process-gone", entry.onOwnerClosed)
+      const run = (pendingCreates.get(sender.id) ?? Promise.resolve())
+        .catch(() => {})
+        .then(() => createView(args, sender, owner))
+      pendingCreates.set(sender.id, run)
       try {
-        // Attach a zero-sized view so Chromium creates its renderer before native CDP setup.
-        view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
-        owner.contentView.addChildView(view)
-        // A page that fails to load (server down, bad certificate) must not kill the
-        // pane: closing the entry would leave the renderer without an id, so the
-        // address bar and Go/Reload would stay inert and the failure would repeat on
-        // every re-entry. The user can navigate somewhere else instead. A load that
-        // never settles is treated the same way instead of hanging the pane's start
-        // forever: without the deadline the renderer never receives an id and no
-        // command it offers can be used.
-        await loadUrlWithTimeout(view.webContents, args.url, { timeoutMs: loadTimeoutMs }).catch(() => {})
-        if (entry.closed) throw new Error("Browser closed during loading")
-        await entry.adapter.start()
-        owner.contentView.removeChildView(view)
-      } catch {
-        await close(entry)
-        throw new Error("The native browser could not load this page")
+        return await run
+      } finally {
+        if (pendingCreates.get(sender.id) === run) pendingCreates.delete(sender.id)
       }
-      return status(entry)
     }
     const entry = lookup(sender, args.id)
     if (args.action === "status") return status(entry)

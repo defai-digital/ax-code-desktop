@@ -59,6 +59,7 @@ const DESKTOP_INVOKE_COMMANDS = new Set([
   "desktop_ssh_logs_clear",
   "desktop_ssh_status",
   "desktop_toggle_current_window_maximized",
+  "desktop_tray_update",
 ])
 
 const isAllowedDesktopInvokeCommand = (command) => {

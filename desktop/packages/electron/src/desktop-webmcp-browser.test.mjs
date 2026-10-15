@@ -194,6 +194,31 @@ describe("desktop WebMCP navigation requests", () => {
     expect(reply).toMatchObject({ requestID: "req-navigate", status: "Error" })
     expect(f.guests.at(-1).loadedUrls).not.toContain("file:///etc/passwd")
   })
+
+  it("mirrors the runtime's navigation rule: loopback http opens, other http does not", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+
+    f.pushStreamRequest(navigateRequest({ requestID: "req-loopback", url: "http://localhost:3000/app" }))
+    await vi.waitFor(() => {
+      expect(f.requests.some((request) => request.url.endsWith("/reply"))).toBe(true)
+    })
+    const loopbackReply = f.requests.find((request) => request.url.endsWith("/reply")).body
+    expect(loopbackReply).toMatchObject({ requestID: "req-loopback", status: "Completed" })
+
+    f.pushStreamRequest(navigateRequest({ requestID: "req-lan", url: "http://192.168.1.10:3000/app" }))
+    await vi.waitFor(() => {
+      expect(
+        f.requests.some((request) => request.url.endsWith("/reply") && request.body.requestID === "req-lan"),
+      ).toBe(true)
+    })
+    const lanReply = f.requests.find(
+      (request) => request.url.endsWith("/reply") && request.body.requestID === "req-lan",
+    ).body
+    expect(lanReply).toMatchObject({ requestID: "req-lan", status: "Error" })
+    expect(f.guests.at(-1).loadedUrls).not.toContain("http://192.168.1.10:3000/app")
+  })
 })
 
 describe("desktop WebMCP capability probe", () => {
@@ -306,6 +331,41 @@ describe("native project browser integration", () => {
     expect(f.revocations).toHaveLength(2)
     f.revocations.forEach((resolve) => resolve({}))
     await closing
+  })
+
+  it("serializes concurrent creates for one window so the loser cannot orphan its view", async () => {
+    // Two creates racing before either reached the view registry both passed the
+    // "replace the existing pane" check; the loser's WebContentsView stayed
+    // attached but untracked until the window closed.
+    const f = fixture()
+    const sender = Object.assign(new EventEmitter(), { id: 1, getZoomFactor: () => 1 })
+    const owner = Object.assign(new EventEmitter(), {
+      isDestroyed: () => false,
+      isVisible: () => true,
+      isMinimized: () => false,
+      getContentBounds: () => ({ width: 800, height: 600 }),
+      contentView: { addChildView() {}, removeChildView() {} },
+    })
+    f.owners.set(sender, owner)
+    const createArgs = (url) => ({
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_fixture",
+      url,
+    })
+
+    const [first, second] = await Promise.all([
+      f.controller.command(sender, createArgs("https://example.com/")),
+      f.controller.command(sender, createArgs("https://example.org/")),
+    ])
+
+    expect(first.id).not.toBe(second.id)
+    // The first pane was replaced and closed by the second; nothing is left attached.
+    expect(f.guests).toHaveLength(2)
+    expect(f.guests.filter((contents) => !contents.destroyed)).toHaveLength(1)
+    await expect(f.controller.command(sender, { action: "status", id: second.id })).resolves.toMatchObject({
+      id: second.id,
+    })
   })
 
   it("revokes agent access when the page adapter dies", async () => {

@@ -2,12 +2,19 @@ import { createRequire } from "node:module"
 import { describe, expect, test } from "vitest"
 
 const require = createRequire(import.meta.url)
-const { isAllowedDesktopInvokeCommand } = require("./preload-ipc-policy.js")
+const { DESKTOP_INVOKE_COMMANDS, isAllowedDesktopInvokeCommand } = require("./preload-ipc-policy.js")
+const contract = require("./desktop-ipc-contract.json")
 
 describe("preload IPC policy", () => {
   test("allows the desktop command namespace used by the renderer bridge", () => {
     expect(isAllowedDesktopInvokeCommand("desktop_get_app_version")).toBe(true)
     expect(isAllowedDesktopInvokeCommand("desktop_open_session_mini_chat_window")).toBe(true)
+  })
+
+  test("allows every command declared in the desktop IPC contract", () => {
+    for (const entry of contract.commands) {
+      expect(DESKTOP_INVOKE_COMMANDS.has(entry.command), entry.command).toBe(true)
+    }
   })
 
   test("blocks non-desktop IPC channels from the Tauri-compatible invoke bridge", () => {

@@ -42,6 +42,12 @@ describe("agent page program", () => {
     expect(byName.Cabin.options).toEqual(["Economy", "Business"])
     expect(byName.Pass.kind).toBe("password")
   })
+  test("caps an exotic input kind so the runtime schema still accepts the read", () => {
+    const { run } = load(`<body><input type="${"x".repeat(80)}" aria-label="Weird"></body>`)
+    const { result } = read(run)
+    const weird = result.outline.find((entry) => entry.name === "Weird")
+    expect(weird.kind).toBe("x".repeat(32))
+  })
   test("clicks, types and selects only through references from the latest read", () => {
     const { window, run } = load(
       `<body><button id="b">Hit</button><input id="i" aria-label="City"><select id="s" aria-label="Cabin"><option value="e">Economy</option><option value="b">Business</option></select></body>`,
