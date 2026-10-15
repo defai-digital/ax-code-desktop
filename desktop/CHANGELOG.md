@@ -48,6 +48,18 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Bootstrapping a project's store asked the runtime about *its own* working directory instead of the
+  project: five snapshot calls (path, session status, LSP, VCS, current project) omitted the directory, so
+  with several projects open one project's store could inherit another's session states — flipping a
+  running session to idle, which let a queued message auto-send while the previous turn was still running.
+- A session dragged into a folder of its project's root group but living in a nested, unregistered
+  directory was silently pruned from that folder on the next list update: the cleanup keyed membership by
+  the session's own directory instead of the group scope the sidebar files it under.
+- The git branch dropdown rendered a stray `0` under every branch that was in sync with its upstream (the
+  `||` guard evaluated to the number 0, and React renders numbers).
+- More labels cut at a fixed length could end with half an emoji — tool rows, queued-message and
+  recent-prompt chips, the model picker, the timeline, and the persisted project notes, todos and distilled
+  insights. They now share the surrogate-safe cut.
 - A streaming reply in the chat you were watching kept flipping to "finished" whenever another project's
   store ticked: the streaming derivation only ever sees the active project's state, and concluded "idle"
   about a session it had simply never heard of. Silence about a session now means "another project's",
