@@ -541,6 +541,9 @@ interface ConfigStore {
 
 // In-flight dedup: prevent concurrent duplicate loadProviders/loadAgents calls for the same directory
 const _inFlightProviders = new Map<string, Promise<void>>()
+// Bumped by invalidateAllProviderCaches. A provider load that started before the
+// bump must never apply its (pre-auth) result over a post-invalidation load.
+let _providerEpoch = 0
 // While the engine is still starting, provider reads fail transiently. Instead
 // of surfacing a terminal "Unable to load providers" error, keep the loading
 // state and re-poll until this per-directory deadline, then give up.
@@ -673,6 +676,7 @@ export const useConfigStore = create<ConfigStore>()(
           // Provider credentials are global. After connect/disconnect, every
           // project snapshot would otherwise keep a pre-auth empty list until
           // the user "reconnects" in that project.
+          _providerEpoch++
           for (const timer of _providerPollTimer.values()) clearTimeout(timer)
           _providerPollTimer.clear()
           _providerStartupPollUntil.clear()
@@ -764,7 +768,8 @@ export const useConfigStore = create<ConfigStore>()(
           // fan out a second chain; the pending poll will perform the load.
           if (_providerPollTimer.has(directoryKey)) return
 
-          const promise = (async () => {
+          const epoch = _providerEpoch
+          const request = (async () => {
             set((state) =>
               state.activeDirectoryKey === directoryKey ? { providersLoading: true, providersError: null } : {},
             )
@@ -793,6 +798,10 @@ export const useConfigStore = create<ConfigStore>()(
                 )
                 const providers = Array.isArray(apiResult?.providers) ? apiResult.providers : []
                 const defaults = apiResult?.default || {}
+
+                // A cache invalidation (provider connect/disconnect) superseded
+                // this load while it was in flight; never apply its stale list.
+                if (epoch !== _providerEpoch) return
 
                 const processedProviders: ProviderWithModelList[] = providers.map((provider) => ({
                   ...provider,
@@ -885,6 +894,7 @@ export const useConfigStore = create<ConfigStore>()(
             // 503 {restarting:true} until it is up). Keep the loading
             // state and re-poll until the deadline instead of showing a
             // terminal error that usually clears itself within seconds.
+            if (epoch !== _providerEpoch) return
             {
               const now = Date.now()
               let pollUntil = _providerStartupPollUntil.get(directoryKey)
@@ -985,7 +995,13 @@ export const useConfigStore = create<ConfigStore>()(
 
               return nextState
             })
-          })().finally(() => _inFlightProviders.delete(directoryKey))
+          })()
+
+          // Only the latest registration may clear itself: an invalidated load
+          // must not delete the replacement load's in-flight entry.
+          const promise = request.finally(() => {
+            if (_inFlightProviders.get(directoryKey) === promise) _inFlightProviders.delete(directoryKey)
+          })
 
           _inFlightProviders.set(directoryKey, promise)
           return promise

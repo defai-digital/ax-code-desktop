@@ -54,7 +54,14 @@ const writeEntry = (
   entries: Record<string, PrStatusEntry>,
   key: string,
   entry: PrStatusEntry,
-): Record<string, PrStatusEntry> => boundPrStatusEntries({ ...entries, [key]: entry }, key)
+): Record<string, PrStatusEntry> => {
+  const next = { ...entries }
+  // Re-insert so a write moves the key to the end: object key order drives
+  // eviction, and a refresh must count as a touch for the LRU to hold.
+  delete next[key]
+  next[key] = entry
+  return boundPrStatusEntries(next, key)
+}
 
 export const getGitHubPrStatusKey = (directory: string, branch: string, remoteName?: string | null): string => {
   const remote = typeof remoteName === "string" ? remoteName.trim() : ""

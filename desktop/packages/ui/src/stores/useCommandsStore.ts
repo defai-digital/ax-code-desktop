@@ -57,6 +57,9 @@ const buildCommandsSignature = (commands: Command[]): string =>
     command.description,
     command.agent,
     command.model,
+    // The template is the command's editable body; a reload that only changed it
+    // must not be dropped as "unchanged" (the editor and Duplicate both read it).
+    command.template,
     command.isBuiltIn === true,
   ])
 

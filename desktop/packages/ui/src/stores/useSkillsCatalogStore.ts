@@ -76,6 +76,9 @@ export const FALLBACK_SOURCES: SkillsCatalogSource[] = [
 const SKILLS_CATALOG_LOAD_CACHE_TTL_MS = 5000
 const skillsCatalogLastLoadedAt = new Map<string, number>()
 const skillsCatalogLoadInFlight = createSingleFlight<boolean>()
+// Latest loadSource call wins: an older in-flight response must not clear the
+// loading flag (or raise an error) for a newer request.
+let skillsCatalogLoadSourceSeq = 0
 
 interface SkillsCatalogState {
   sources: SkillsCatalogSource[]
@@ -234,6 +237,8 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
           return false
         }
 
+        const requestId = ++skillsCatalogLoadSourceSeq
+        const isCurrentRequest = () => skillsCatalogLoadSourceSeq === requestId
         set({ isLoadingSource: true, lastCatalogError: null })
 
         try {
@@ -291,12 +296,16 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
 
           return true
         } catch (error) {
-          set({
-            lastCatalogError: { kind: "unknown", message: error instanceof Error ? error.message : String(error) },
-          })
+          if (isCurrentRequest()) {
+            set({
+              lastCatalogError: { kind: "unknown", message: error instanceof Error ? error.message : String(error) },
+            })
+          }
           return false
         } finally {
-          set({ isLoadingSource: false })
+          if (isCurrentRequest()) {
+            set({ isLoadingSource: false })
+          }
         }
       },
 

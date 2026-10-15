@@ -244,10 +244,24 @@ export const useDirectoryStore = create<DirectoryNavigationStore>()(
         invalidateFileSearchCache()
 
         set((state) => {
-          const newHistory = [...state.directoryHistory.slice(0, state.historyIndex + 1), resolvedPath]
-
           safeStorage.setItem("lastDirectory", resolvedPath)
           void updateDesktopSettings({ lastDirectory: resolvedPath })
+
+          if (
+            resolvedPath === state.currentDirectory &&
+            state.directoryHistory[state.historyIndex] === resolvedPath
+          ) {
+            // Re-selecting the current directory must not push a duplicate
+            // history entry: Back would first "navigate" to the same path.
+            return {
+              currentDirectory: resolvedPath,
+              hasPersistedDirectory: true,
+              isHomeReady: true,
+              isSwitchingDirectory: false,
+            }
+          }
+
+          const newHistory = [...state.directoryHistory.slice(0, state.historyIndex + 1), resolvedPath]
 
           return {
             currentDirectory: resolvedPath,

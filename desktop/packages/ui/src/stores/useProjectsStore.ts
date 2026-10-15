@@ -414,13 +414,17 @@ export const useProjectsStore = create<ProjectsStore>()(
         }
 
         const activateFirst = options?.activateFirst !== false
+        const previousActiveId = get().activeProjectId
         const nextActiveId =
-          activateFirst && !get().activeProjectId ? (added[0]?.id ?? get().activeProjectId) : get().activeProjectId
+          activateFirst && !previousActiveId ? (added[0]?.id ?? previousActiveId) : previousActiveId
 
         set({ projects: nextProjects, activeProjectId: nextActiveId })
         persistProjects(nextProjects, nextActiveId)
 
-        if (activateFirst && nextActiveId) {
+        // Only adopt the project's directory when the import actually changed
+        // the active project; otherwise the user's current directory is yanked
+        // back to a project they never switched to.
+        if (activateFirst && nextActiveId && nextActiveId !== previousActiveId) {
           const active = nextProjects.find((project) => project.id === nextActiveId)
           if (active) {
             axCodeClient.setDirectory(active.path)

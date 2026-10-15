@@ -43,6 +43,13 @@ const buildAgentsSignature = (agents: Agent[]): string =>
       extended.description,
       extended.hidden === true,
       extended.native === true,
+      // Editable fields the UI reads straight off the stored record: without them a
+      // reload that only changed mode/model/prompt is dropped as "unchanged".
+      extended.mode,
+      extended.model ? `${extended.model.providerID}/${extended.model.modelID}` : "",
+      extended.temperature,
+      extended.topP,
+      extended.prompt,
     ]
   })
 

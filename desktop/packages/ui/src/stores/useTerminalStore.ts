@@ -190,8 +190,13 @@ export const useTerminalStore = create<TerminalStore>()(
             const existing = newSessions.get(key)
 
             const nextTabId = state.nextTabId + 1
-            const labelIndex = (existing?.tabs.length ?? 0) + 1
-            const label = `Terminal ${labelIndex}`
+            // Number after the highest existing "Terminal N" label so closing a
+            // tab never makes a new tab reuse a sibling's name.
+            const maxLabelIndex = (existing?.tabs ?? []).reduce((max, tab) => {
+              const match = /^Terminal (\d+)$/.exec(tab.label)
+              return match ? Math.max(max, Number(match[1])) : max
+            }, 0)
+            const label = `Terminal ${maxLabelIndex + 1}`
             const tab = createEmptyTab(tabId, label)
 
             if (!existing) {
