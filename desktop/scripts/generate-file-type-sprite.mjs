@@ -118,16 +118,36 @@ lines.push("  </defs>")
 lines.push("</svg>")
 lines.push("")
 
-fs.writeFileSync(SPRITE_FILE, lines.join("\n"))
+const spriteContent = lines.join("\n")
 
 const idLines = [
   "export const FILE_TYPE_ICON_IDS = new Set<string>([",
-  ...symbols.map((symbol) => `  '${symbol.id}',`),
-  "]);",
+  // Prettier style (semi: false, double quotes) so --check compares equal
+  // against the committed, formatter-clean file.
+  ...symbols.map((symbol) => `  "${symbol.id}",`),
+  "])",
   "",
 ]
+const idsContent = idLines.join("\n")
 
-fs.writeFileSync(IDS_FILE, idLines.join("\n"))
+// --check writes nothing and exits non-zero when either generated file differs
+// from what the source icons would produce (same contract as
+// generate-icon-sprite.mjs --check).
+if (process.argv.includes("--check")) {
+  const currentSprite = fs.existsSync(SPRITE_FILE) ? fs.readFileSync(SPRITE_FILE, "utf8") : ""
+  const currentIds = fs.existsSync(IDS_FILE) ? fs.readFileSync(IDS_FILE, "utf8") : ""
+  if (currentSprite !== spriteContent || currentIds !== idsContent) {
+    console.error(
+      "file-type sprite is out of date with the source icons. Run node scripts/generate-file-type-sprite.mjs and commit the result.",
+    )
+    process.exit(1)
+  }
+  console.log("file-type sprite matches the source icons")
+  process.exit(0)
+}
+
+fs.writeFileSync(SPRITE_FILE, spriteContent)
+fs.writeFileSync(IDS_FILE, idsContent)
 console.log(
   `Generated ${path.relative(ROOT, SPRITE_FILE)} with ${symbols.length} symbols (${files.length} source SVG files)`,
 )
