@@ -26,9 +26,9 @@ The runtime prefers `http://localhost:3100` by default. If that port is busy, it
 ## Operator CLI Usage
 
 The web runtime CLI name is `ax-code-desktop`. Use it for development,
-diagnostics, or local workstation use only. Normal macOS and Windows
-users should install and update the desktop app through the release assets,
-Homebrew cask on macOS, or the in-app desktop updater.
+diagnostics, or local workstation use only. For a normal install, follow the
+[repository README](../../../README.md) and update with **AX Code → Check for
+Updates** or by running that installer again.
 
 ```bash
 ax-code-desktop

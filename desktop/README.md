@@ -1,185 +1,45 @@
 # AX Code Desktop
 
-AX Code Desktop is the desktop UI for [AX Code](https://github.com/defai-digital/ax-code). It gives AX Code users a full workspace interface for chat sessions, file review, diffs, Git operations, terminals, project notes, and multi-agent workflows.
+AX Code Desktop is the desktop UI for [AX Code](https://github.com/defai-digital/ax-code). It gives AX Code users a workspace for chat sessions, file review, diffs, Git operations, terminals, project notes, and multi-agent workflows.
 
-## Repository and Release Policy
-
-AX Code Desktop source history has been extracted into the AX Coder repository. AX Code remains the public
-Desktop release owner during the migration safety window; no AX Coder-owned public release is enabled yet.
-
-Desktop releases use `desktop-v*` tags and publish artifacts to the main
-[`defai-digital/ax-code` Releases page](https://github.com/defai-digital/ax-code/releases).
-The Homebrew cask is published in the shared
-[`defai-digital/homebrew-tap`](https://github.com/defai-digital/homebrew-tap)
-distribution repository alongside the CLI formula and other DefAI Digital packages.
-
-## Install On macOS
-
-The recommended way to install on macOS is via Homebrew:
+Install, update, and platform support for the signed app are in the repository [README](../README.md).
 
 ```bash
-brew install defai-digital/tap/ax-code                  # CLI/runtime
-brew install --cask defai-digital/tap/ax-code-desktop   # Desktop app
+curl -fsSL https://download.automatosx.com/ax-code-desktop/install | bash
 ```
-
-The Desktop cask token is `ax-code-desktop`. It must differ from the `ax-code` CLI formula name: Homebrew
-refuses to link a formula while an installed cask shares its token, so the short-lived `ax-code` cask token
-left the CLI missing from PATH after formula upgrades. Installs of the old token are migrated to
-`ax-code-desktop` automatically on their next `brew upgrade`.
-
-To update:
-
-```bash
-brew upgrade ax-code
-brew upgrade --cask ax-code-desktop
-```
-
-### Manual DMG (alternative)
-
-If you prefer not to use Homebrew, download the latest DMG from the [Releases page](https://github.com/defai-digital/ax-code/releases):
-
-1. Open the `.dmg` file.
-2. Drag **AX Code** into **Applications**.
-3. Launch **AX Code** from Applications.
-
-If macOS says the app is damaged, run this in Terminal after installing:
-
-```bash
-xattr -cr "/Applications/AX Code.app"
-```
-
-## Install On Linux (Ubuntu Desktop 24.04+)
-
-Install the CLI first (Desktop still uses the local AX Code runtime for sessions):
-
-```bash
-curl -fsSL -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/defai-digital/ax-code/contents/install?ref=main" | bash
-```
-
-Then download a Desktop package from the [Releases page](https://github.com/defai-digital/ax-code/releases) under a `desktop-v*` tag:
-
-| Arch  | Recommended (`.deb`)                | Portable (AppImage)                       |
-| ----- | ----------------------------------- | ----------------------------------------- |
-| amd64 | `AX-Code-<version>-linux-amd64.deb` | `AX-Code-<version>-linux-x86_64.AppImage` |
-| arm64 | `AX-Code-<version>-linux-arm64.deb` | `AX-Code-<version>-linux-arm64.AppImage`  |
-
-**Debian package (Ubuntu):**
-
-```bash
-sudo apt install ./AX-Code-<version>-linux-amd64.deb
-# then launch from the app menu, or:
-ax-code-desktop
-```
-
-**AppImage (portable, auto-update channel):**
-
-```bash
-chmod +x AX-Code-<version>-linux-x86_64.AppImage
-./AX-Code-<version>-linux-x86_64.AppImage
-```
-
-Ubuntu Desktop often lacks FUSE2, which many AppImages need. If launch fails with a FUSE-related error:
-
-```bash
-sudo apt install libfuse2t64   # Ubuntu 24.04+ package name; older releases may use libfuse2
-# or extract without FUSE:
-APPIMAGE_EXTRACT_AND_RUN=1 ./AX-Code-<version>-linux-x86_64.AppImage
-```
-
-Prefer `.deb` for Ubuntu desktop installs when possible. Verify the detached minisign signature when policy requires supply-chain checks (see Security Notes below). Musl-based distros (for example Alpine) are not a supported Desktop target.
-
-## Install On Windows
-
-### Installer (recommended)
-
-1. Download the appropriate `.exe` installer from the [Releases page](https://github.com/defai-digital/ax-code/releases):
-   - Intel/AMD Windows: `AX-Code-<version>-win-x64.exe`
-   - Windows on Arm: `AX-Code-<version>-win-arm64.exe`
-2. Confirm Windows identifies the publisher as **DEFAI Private Limited**.
-3. Run the installer.
-4. Start **AX Code** from the Start Menu or Desktop shortcut.
-
-Silent / unattended install (NSIS):
 
 ```powershell
-.\AX-Code-<version>-win-x64.exe /S
-# Optional install directory:
-.\AX-Code-<version>-win-x64.exe /S /D=C:\Program Files\AX Code
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://download.automatosx.com/ax-code-desktop/install.ps1 | iex"
 ```
 
-`/D=` must be the last argument when used. Uninstall from **Settings → Apps** or the Start Menu uninstall entry.
+The macOS and Ubuntu command is the same. Windows uses the PowerShell command and supports x64 only.
+The signed app includes the pinned AX Code runtime. Close **AX Code** before installing. User data
+and credentials are kept.
 
-For an additional signature check, run the following from PowerShell in the download directory, replacing the example filename with the file you downloaded:
+Releases are published from this repository as `v*` tags:
+[defai-digital/ax-code-desktop](https://github.com/defai-digital/ax-code-desktop/releases).
 
-```powershell
-$signature = Get-AuthenticodeSignature -LiteralPath ".\AX-Code-<version>-win-x64.exe"
-$signature.Status
-$signature.SignerCertificate.Subject
-```
+## First run
 
-The status must be `Valid`, and the subject must contain `CN=DEFAI Private Limited`. Do not run the installer if the signature is missing, invalid, or belongs to another publisher.
-
-### Portable ZIP
-
-1. Download the latest Windows `.zip` from Releases.
-2. Extract the entire ZIP folder.
-3. Run `AX Code.exe` from the extracted folder.
-
-Do not run the executable directly from inside the ZIP viewer — extract first so the app can find its bundled resources.
-
-SmartScreen may still show **Windows protected your PC** for a correctly signed new release while that specific build develops download reputation. Select **More info → Run anyway** only after confirming the download came from the official Releases page and Windows shows **DEFAI Private Limited** as the publisher. If Windows reports **Unknown publisher**, do not run the file.
-
-## Before You Start
-
-AX Code Desktop needs the local AX Code CLI/runtime for coding sessions. The root
-README shows the paired install commands for the CLI and Desktop app. Before
-starting a session, verify the CLI is available:
-
-```bash
-ax-code --version
-```
-
-If `ax-code` is not found, install the AX Code CLI from the root README. The
-desktop app manages the local UI runtime, but coding sessions still use the AX
-Code CLI/server integration.
-
-## Platform Capabilities
-
-AX Code Desktop targets macOS, Windows, and Linux (Ubuntu 24.04+), but local model acceleration is intentionally platform-specific:
-
-| Capability                     | macOS Apple Silicon                      | Windows x64 / ARM64 | Linux x64 / arm64 (Ubuntu 24.04+) |
-| ------------------------------ | ---------------------------------------- | ------------------- | --------------------------------- |
-| Desktop app                    | Supported                                | Supported           | Supported                         |
-| AX Code CLI/server integration | Supported                                | Supported           | Supported                         |
-| Hosted providers               | Supported                                | Supported           | Supported                         |
-| AX Engine local provider       | Supported on eligible Apple Silicon Macs | Not supported       | Not supported                     |
-
-AX Engine uses the local MLX/Apple Silicon path. It can be enabled on supported macOS hosts through AX Code provider setup. Windows and Linux Desktop users should use hosted providers or OpenAI-compatible provider gateways; remote AX Code servers are intentionally unsupported.
-
-## First Run
-
-On first launch:
-
-1. Confirm AX Code CLI is detected.
+1. Open **AX Code**.
 2. Add a project folder.
 3. Start or select a chat session.
 4. Use the Git, Files, Diff, Terminal, and Plan views as needed.
 
-The app runs AX Code sessions on the current machine and can open focused mini-chat windows for active sessions.
+The app runs sessions on the current machine and can open a mini-chat window for an active session.
+Install the AX Code CLI only when you also want the terminal UI.
 
 ## Updates
 
-**macOS (Homebrew):**
+**AX Code → Check for Updates** on macOS, or **AX Code → Check for Updates** in the application menu
+on Windows and Linux. The check uses the newest stable `v*` release and waits for you to download
+and install.
 
-```bash
-brew upgrade --cask ax-code-desktop
-```
+You can also run the install command again. Close the app first.
 
-**Windows / Linux / manual installs:** Download the latest installer or archive from the [Releases page](https://github.com/defai-digital/ax-code/releases). When auto-update metadata is available, the app can also check GitHub releases for updates automatically (AppImage on Linux).
+## What you can do
 
-## What You Can Do
-
-### Chat and Sessions
+### Chat and sessions
 
 - Run AX Code chat sessions in a full workspace UI.
 - Branch, fork, undo, and redo conversation turns.
@@ -195,7 +55,7 @@ brew upgrade --cask ax-code-desktop
 - Create pull requests with generated descriptions.
 - Recover from merge/rebase conflicts with guided UI state.
 
-### Files and Terminal
+### Files and terminal
 
 - Browse and edit workspace files.
 - Inspect large diffs without loading the whole workspace at once.
@@ -204,42 +64,50 @@ brew upgrade --cask ax-code-desktop
 
 ### Desktop
 
-- Native desktop shell for macOS Apple Silicon, Windows x64 / ARM64, and Linux x64 / arm64 (Ubuntu 24.04+).
+- Native desktop shell for macOS Apple Silicon, Windows x64, and Ubuntu Desktop 24.04+ amd64/arm64.
 - Multi-window workflows.
 - Deep links and desktop menu actions.
 - Local runtime management for the web UI.
 
-## Platform Support
+## Platform support
 
-| Platform               | Support       | Install                                                            |
-| ---------------------- | ------------- | ------------------------------------------------------------------ |
-| macOS Apple Silicon    | Supported     | Homebrew (recommended) or DMG                                      |
-| macOS Intel/x64        | Not supported | No artifact is built                                               |
-| Windows x64            | Supported     | Installer or portable ZIP; AX Engine local provider is unavailable |
-| Windows ARM64          | Supported     | Installer or portable ZIP; AX Engine local provider is unavailable |
-| Linux x64              | Supported     | `.deb` or AppImage (Ubuntu 24.04+ glibc); AX Engine unavailable    |
-| Linux arm64            | Supported     | `.deb` or AppImage (Ubuntu 24.04+ glibc); AX Engine unavailable    |
-| Mobile/tablet browsers | Not supported | Blocked to reduce data-leakage risk                                |
+| Platform               | Support       | Install                                                         |
+| ---------------------- | ------------- | --------------------------------------------------------------- |
+| macOS Apple Silicon    | Supported     | Release installer or DMG                                        |
+| macOS Intel/x64        | Not supported | No current installer                                            |
+| Windows x64            | Supported     | Release installer, EXE, or portable ZIP                         |
+| Windows ARM64          | Not supported | No current installer                                            |
+| Ubuntu 24.04+ amd64    | Supported     | Release installer, `.deb`, or AppImage                          |
+| Ubuntu 24.04+ arm64    | Supported     | Release installer, `.deb`, or AppImage                          |
+| Mobile/tablet browsers | Not supported | Blocked to reduce data-leakage risk                            |
 
-## Security Notes
+AX Engine local models run on eligible Apple Silicon Macs through the bundled runtime. Windows and
+Ubuntu sessions use hosted providers or an OpenAI-compatible endpoint.
 
-macOS users installing via Homebrew bypass Gatekeeper automatically — no extra steps needed.
+## Security notes
 
-For manual downloads, only use the official [Releases page](https://github.com/defai-digital/ax-code/releases). Release assets include detached `.minisig` signatures that can be verified with this pinned public key:
+Install from the repository [README](../README.md) or the official
+[Releases page](https://github.com/defai-digital/ax-code-desktop/releases). Release assets include
+detached `.minisig` signatures that can be verified with this pinned public key:
 
 ```text
 RWSlDu++afxCz01OqhYWhfo8+L8pVbSYXJBEb2zoWBuK0WACIzbGVZRO
 ```
 
-Windows Desktop releases are Authenticode-signed by **DEFAI Private Limited**, and release CI fails if signing or timestamp verification does not succeed. SmartScreen can still warn for a newly released, low-reputation file; a signed warning should identify the expected publisher, while **Unknown publisher** is a reason to stop. Release notes should state the expected first-run SmartScreen behavior. Detached minisign signatures verify release asset integrity, but they do not replace Windows SmartScreen reputation, Windows Authenticode signing, or macOS Gatekeeper/notarization trust.
+Windows installers are Authenticode-signed by **DEFAI Private Limited**. macOS releases are signed
+by Developer ID Application: DEFAI PRIVATE LIMITED (team `N5ZUZDUJS6`) and notarized. A missing,
+invalid, or unexpected publisher is a reason to stop.
 
-AX Code Desktop is intended for trusted office workstations and offline environments. Its UI, managed server, SDK HTTP helpers, and native bridge servers are restricted to loopback addresses. SSH instance access, remote host switching, LAN binding, mDNS discovery, reverse-proxy deployment, and Cloudflare or other public tunnels are unsupported and disabled at runtime.
+The UI, managed server, SDK HTTP helpers, and native bridge servers are restricted to loopback
+addresses. SSH instance access, remote host switching, LAN binding, mDNS discovery, reverse-proxy
+deployment, and public tunnels are unsupported and disabled at runtime.
 
-## Development Web UI
+## Development web UI
 
-The web package is the local UI substrate used by development and desktop packaging. It is not a supported end-user distribution mode.
+The web package is the local UI substrate used by development and desktop packaging. It is not a
+supported end-user distribution mode.
 
-From a development checkout:
+From a development checkout, at the repository root:
 
 ```bash
 pnpm install
@@ -247,19 +115,13 @@ pnpm run build
 pnpm --filter ax-code-desktop run start -- --ui-password your-password
 ```
 
-The web UI prefers `http://localhost:3100` by default. If that port is busy, AX Code Desktop scans upward and uses the next safe free port.
+The web UI prefers `http://localhost:3100` by default. If that port is busy, it scans upward and
+uses the next safe free port.
 
 ## Development
 
-Run development commands from the AX Coder repository root.
-
-Requirements:
-
-- Node.js 24 or newer (`>=24`)
-- pnpm 10.33.4 (`corepack enable`)
-- AX Code CLI
-
-Useful commands:
+Run development commands from the repository root. Requirements, the development port range, and
+launch-animation switches are in the repository [README](../README.md).
 
 ```bash
 pnpm install
@@ -268,7 +130,7 @@ pnpm run lint
 pnpm run test
 pnpm run check:boundaries
 pnpm run build
-node desktop/packages/electron/scripts/package.mjs --mac zip --publish=never
+pnpm run dev
 ```
 
 Package layout:
@@ -279,40 +141,28 @@ Package layout:
 | `packages/web`      | Local web runtime used by development and desktop packaging |
 | `packages/electron` | Desktop shell (Electron)                                    |
 
-In `pnpm run dev`, the Electron main process spawns and supervises
-the ax-code runtime by default (S2.5; `AX_CODE_DESKTOP_SUPERVISE_RUNTIME=0`
-restores web-supervised mode), and the Vite dev server routes renderer API
-calls with the same longest-prefix table as the packaged `app://` handler
-(S2.4): runtime-shaped paths go directly to the ax-code runtime,
-desktop-owned paths to the web server, with an automatic web-server fallback
-whenever the runtime origin is unknown. See
-[CONTRIBUTING.md](./CONTRIBUTING.md#desktop-electron) for the full dev
-proxying model.
+In `pnpm run dev`, the Electron main process spawns and supervises the ax-code runtime by default
+(`AX_CODE_DESKTOP_SUPERVISE_RUNTIME=0` restores web-supervised mode). The Vite dev server routes
+renderer API calls with the same longest-prefix table as the packaged `app://` handler:
+runtime-shaped paths go to the ax-code runtime, and desktop-owned paths go to the web server.
+See [CONTRIBUTING.md](./CONTRIBUTING.md#desktop-electron).
 
-## Legacy Compatibility Notes
+## Legacy compatibility notes
 
-AX Code Desktop is the user-facing product name. Some internal package names,
-storage keys, environment variables, endpoint paths, and config directories
-still use `openchamber` so existing installs and migrated data continue to work.
+AX Code Desktop is the user-facing product name. The installed application name is **AX Code**.
+Some internal package names, storage keys, environment variables, endpoint paths, and config
+directories still use `openchamber` so existing installs and migrated data continue to work.
 
-Treat those names as legacy compatibility details, not as the public product
-identity for new docs, releases, or UI copy.
+Treat those names as legacy compatibility details, not as the public product identity for new
+docs, releases, or UI copy.
 
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
-New Desktop source changes should be made in AX Coder. AX Code changes must remain additive and contract-driven
-until the paired release and source-removal cutover is approved.
 
 ## License
 
 [Apache License 2.0](./LICENSE). AX Code Desktop is maintained by DEFAI Private Limited.
 
-This project includes software derived from OpenChamber; those portions remain
-under the [MIT License](./LICENSE-MIT). Upstream attribution is kept in
-[NOTICE](./NOTICE) for provenance and license compliance; public product
-branding should use AX Code Desktop.
-
-GitHub may display upstream OpenChamber contributors in repository contributor
-widgets. Those accounts are credited for upstream work and are not necessarily
-maintainers of, or direct contributors to, AX Code Desktop.
+This project includes software derived from OpenChamber; those portions remain under the
+[MIT License](./LICENSE-MIT). Upstream attribution is kept in [NOTICE](./NOTICE).
