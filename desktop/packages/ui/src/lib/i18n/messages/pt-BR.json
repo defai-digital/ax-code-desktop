@@ -4360,6 +4360,7 @@
   "desktop.native.role.cut": "Recortar",
   "desktop.native.role.paste": "Colar",
   "desktop.native.role.pasteAndMatchStyle": "Colar e combinar estilo",
+  "desktop.native.role.selectAll": "Selecionar tudo",
   "desktop.native.role.minimize": "Minimizar",
   "desktop.native.role.zoom": "Zoom",
   "desktop.native.role.front": "Trazer tudo para a frente",

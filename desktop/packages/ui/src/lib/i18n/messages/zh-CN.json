@@ -4360,6 +4360,7 @@
   "desktop.native.role.cut": "\u526a\u5207",
   "desktop.native.role.paste": "\u7c98\u8d34",
   "desktop.native.role.pasteAndMatchStyle": "\u7c98\u8d34\u5e76\u5339\u914d\u6837\u5f0f",
+  "desktop.native.role.selectAll": "\u5168\u9009",
   "desktop.native.role.minimize": "\u6700\u5c0f\u5316",
   "desktop.native.role.zoom": "\u7f29\u653e",
   "desktop.native.role.front": "\u5168\u90e8\u7f6e\u4e8e\u6700\u524d",

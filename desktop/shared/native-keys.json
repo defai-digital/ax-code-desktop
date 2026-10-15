@@ -76,7 +76,7 @@
   "Paste": "desktop.native.role.paste",
   "Paste and Match Style": "desktop.native.role.pasteAndMatchStyle",
   "Delete": "settings.common.actions.delete",
-  "Select All": "settings.skills.catalog.installFromRepo.actions.selectAll",
+  "Select All": "desktop.native.role.selectAll",
   "Minimize": "desktop.native.role.minimize",
   "Zoom": "desktop.native.role.zoom",
   "Bring All to Front": "desktop.native.role.front",

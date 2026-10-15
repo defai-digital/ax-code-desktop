@@ -17,6 +17,15 @@ describe("native localization", () => {
       }
     }
   })
+  test("every native source round-trips through its English catalog entry", () => {
+    // A mapping pointed at an unrelated catalog key ("Select All" once resolved
+    // through the skills catalog's "Select all") silently mislabels the menu and
+    // breaks if that key is ever edited or removed.
+    const english = require("../../../shared/native.en.json")
+    for (const [source, key] of Object.entries(mapping)) {
+      expect(english[key], `${source} -> ${key}`).toBe(source)
+    }
+  })
   const translate = createNativeLocalizer(() => "zh-TW", {
     "zh-TW": {
       [mapping.Settings]: "\u8a2d\u5b9a",
