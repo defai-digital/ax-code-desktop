@@ -1,6 +1,7 @@
 "use strict"
 
 const { createHash, randomUUID } = require("node:crypto")
+const page = require("./webmcp-page")
 
 const CAPABILITY = "desktop.webmcp.v1"
 const MAX_RESULT_BYTES = 65536
@@ -61,6 +62,9 @@ class NativeWebMcp {
     this.pending = new Map()
     this.closed = false
     this.available = false
+    // The read whose element references the page may still act on; cleared with every document.
+    this.readId = null
+    this.interacting = false
     this.message = (_event, method, params) => this.onMessage(method, params)
     this.navigation = (_event, _url, _inPlace, mainFrame) => {
       if (mainFrame) this.invalidate()
@@ -98,6 +102,7 @@ class NativeWebMcp {
   }
   revoke() {
     this.generation = randomUUID()
+    this.readId = null
     for (const id of [...this.pending.keys()]) this.cancel(id)
     this.changed()
   }
@@ -174,6 +179,7 @@ class NativeWebMcp {
     }
     if (request.operation === "list")
       return { requestID: request.requestID, generation: request.generation, status: "Completed", snapshot }
+    if (["read", "act", "wait"].includes(request.operation)) return this.interact(request)
     if (request.operation !== "invoke" || this.pending.size !== 0) throw new Error("Native operation is unavailable")
     const tool = this.tools.get(request.toolName)
     if (!tool || definitionDigest(tool) !== request.digest) throw new Error("The native tool definition changed")
@@ -236,6 +242,51 @@ class NativeWebMcp {
         })
         .catch(() => entry.reject())
     })
+  }
+  /**
+   * Read the enrolled page or act on an element from the last read. The program is fixed and runs in an
+   * isolated world; only validated values reach it. A click may legitimately change the document, so an
+   * action replies with whatever generation the page ended on.
+   */
+  async interact(request) {
+    if (this.interacting || this.pending.size !== 0) throw new Error("Another browser operation is in progress")
+    const args = page.validate(request)
+    this.interacting = true
+    try {
+      const run = async (payload) => {
+        const [result] = await this.contents.executeJavaScriptInIsolatedWorld(page.WORLD_ID, [
+          { code: page.program(payload) },
+        ])
+        if (this.closed || Date.now() >= request.deadline) throw new Error("The browser request lifetime changed")
+        return result
+      }
+      const done = (output) => ({
+        requestID: request.requestID,
+        generation: this.generation,
+        status: "Completed",
+        output,
+      })
+      if (request.operation === "read") {
+        const readId = randomUUID()
+        const result = await run({ op: "read", readId, maxText: page.MAX_TEXT, maxElements: page.MAX_ELEMENTS })
+        if (request.generation !== this.generation) throw new Error("The browser document changed")
+        this.readId = readId
+        return done(page.fit({ readId, ...result }))
+      }
+      if (request.operation === "wait") {
+        const result = await run({ op: "wait", ...args })
+        if (request.generation !== this.generation) throw new Error("The browser document changed")
+        return done(result)
+      }
+      if (args.readId !== this.readId) throw new Error("Element references are stale; read the page again")
+      const result = await run({ op: "act", ...args })
+      if (result?.error) throw new Error(`The page refused the action: ${result.error}`)
+      // Let a navigation the action started surface, so the reply carries the document it landed on.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      return done({ done: true, how: args.how, navigated: this.generation !== request.generation })
+    } finally {
+      this.interacting = false
+    }
   }
   cancel(requestID) {
     const pending = this.pending.get(requestID)

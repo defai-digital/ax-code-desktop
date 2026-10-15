@@ -393,3 +393,86 @@ describe("native project browser integration", () => {
     ).rejects.toThrow("failed to load within")
   })
 })
+
+describe("desktop WebMCP page interaction requests", () => {
+  const boundRequest = (status, overrides) => ({
+    providerID: "provider-1",
+    epoch: "boot",
+    projectID: "project",
+    sessionID: "ses_fixture",
+    generation: status.generation,
+    origin: "https://example.com",
+    frameId: "top",
+    deadline: Date.now() + 30000,
+    ...overrides,
+  })
+  const replies = (f) => f.requests.filter((request) => request.url.endsWith("/reply"))
+
+  it("reads the page and replies with its text and outline", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const live = await f.controller.command(sender, { action: "enable", id: status.id })
+    const guest = f.guests.at(-1)
+    guest.executeJavaScriptInIsolatedWorld = async () => [
+      { title: "Flights", text: "Toronto to Tokyo", outline: [{ ref: "e1", kind: "button", name: "Search" }] },
+    ]
+    f.pushStreamRequest(boundRequest(live, { requestID: "req-read", operation: "read" }))
+
+    await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
+    expect(replies(f)[0].body).toMatchObject({
+      requestID: "req-read",
+      status: "Completed",
+      output: { title: "Flights", text: "Toronto to Tokyo" },
+    })
+  })
+
+  it("pushes the new document before replying to an action that navigated", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const live = await f.controller.command(sender, { action: "enable", id: status.id })
+    const guest = f.guests.at(-1)
+    let navigate = false
+    guest.executeJavaScriptInIsolatedWorld = async () => {
+      if (navigate) guest.debugger.emit("message", {}, "Page.frameNavigated", { frame: { id: "top" } })
+      return [navigate ? { ok: true } : { title: "", text: "", outline: [{ ref: "e1" }] }]
+    }
+    f.pushStreamRequest(boundRequest(live, { requestID: "req-read", operation: "read" }))
+    await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
+    navigate = true
+    f.pushStreamRequest(
+      boundRequest(live, {
+        requestID: "req-act",
+        operation: "act",
+        readId: replies(f)[0].body.output.readId,
+        ref: "e1",
+        how: "click",
+      }),
+    )
+
+    await vi.waitFor(() => expect(replies(f)).toHaveLength(2))
+    const reply = replies(f)[1]
+    expect(reply.body).toMatchObject({ requestID: "req-act", status: "Completed", output: { navigated: true } })
+    expect(reply.body.generation).not.toBe(live.generation)
+    const lastState = f.requests.findLastIndex((request) => request.method === "PUT" && request.url.endsWith("/state"))
+    expect(lastState).toBeGreaterThan(-1)
+    expect(lastState).toBeLessThan(f.requests.indexOf(reply))
+  })
+
+  it("answers an action on stale references with an error status", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const live = await f.controller.command(sender, { action: "enable", id: status.id })
+    f.guests.at(-1).executeJavaScriptInIsolatedWorld = async () => [{ ok: true }]
+    f.pushStreamRequest(
+      boundRequest(live, {
+        requestID: "req-act",
+        operation: "act",
+        readId: "00000000-0000-4000-8000-000000000000",
+        ref: "e1",
+        how: "click",
+      }),
+    )
+    await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
+    expect(replies(f)[0].body).toMatchObject({ requestID: "req-act", status: "Error" })
+  })
+})

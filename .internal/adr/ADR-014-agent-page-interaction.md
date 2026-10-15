@@ -1,6 +1,6 @@
 # ADR-014: Agent Page Interaction in the Embedded Project Browser
 
-Status: Proposed.
+Status: Accepted for implementation; user approved on 2026-10-15.
 Date: 2026-10-15.
 Related: PRD-2026-10-15-agent-page-interaction; ADR-009; ADR-013; AX Code ADR-184 (paired producer
 record required before acceptance).

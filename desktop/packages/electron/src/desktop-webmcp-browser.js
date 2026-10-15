@@ -204,8 +204,10 @@ function createDesktopWebMcpBrowser({
         void entry.adapter
           .execute(request)
           .catch(() => ({ requestID: request.requestID, generation: request.generation, status: "Error" }))
-          .then((reply) => {
+          .then(async (reply) => {
             if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
+            // An action can change the document; the runtime must hold that snapshot before the reply.
+            if (request.operation === "act" && reply.generation !== request.generation) await synchronize(entry)
             return api(entry.directory, `/provider/${connection.providerID}/reply`, "POST", reply, signal)
           })
           .catch(() => {

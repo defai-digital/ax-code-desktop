@@ -1,7 +1,6 @@
 # Agent Page Interaction in the Embedded Project Browser
 
-Status: Proposed. Not accepted; no implementation is authorized until the user accepts this PRD and
-ADR-014.
+Status: Accepted for implementation; user approved on 2026-10-15.
 
 Date: 2026-10-15
 

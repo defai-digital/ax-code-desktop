@@ -136,4 +136,66 @@ describe("pageKind", () => {
     expect(kind("http://trip.com/")).toBe("unsupported")
     expect(kind("chrome-error://chromewebdata/")).toBe("unsupported")
   })
+  describe("page interaction", () => {
+    const interactive = async (outputs) => {
+      const f = await fixture()
+      const scripts = []
+      f.contents.executeJavaScriptInIsolatedWorld = async (world, [{ code }]) => {
+        scripts.push({ world, code })
+        const next = outputs.shift()
+        if (typeof next === "function") next()
+        return [typeof next === "function" ? { ok: true } : next]
+      }
+      const ask = (operation, extra = {}) => ({
+        requestID: randomUUID(),
+        generation: f.adapter.generation,
+        origin: "https://example.com",
+        frameId: "top",
+        operation,
+        deadline: Date.now() + 5000,
+        ...extra,
+      })
+      return { ...f, scripts, ask }
+    }
+    test("reads the page and then acts only on that read", async () => {
+      const f = await interactive([{ title: "T", text: "hello", outline: [{ ref: "e1", kind: "button", name: "Go" }] }, { ok: true }])
+      const read = await f.adapter.execute(f.ask("read"))
+      expect(read.output).toMatchObject({ title: "T", text: "hello" })
+      expect(f.scripts[0].world).toBe(1998)
+      const acted = await f.adapter.execute(f.ask("act", { readId: read.output.readId, ref: "e1", how: "click" }))
+      expect(acted.output).toEqual({ done: true, how: "click", navigated: false })
+      await expect(
+        f.adapter.execute(f.ask("act", { readId: randomUUID(), ref: "e1", how: "click" })),
+      ).rejects.toThrow("stale")
+      f.adapter.close()
+    })
+    test("a navigation retires the read and an action reports the new document", async () => {
+      const f = await interactive([{ title: "", text: "", outline: [] }])
+      const read = await f.adapter.execute(f.ask("read"))
+      f.adapter.invalidate()
+      await expect(
+        f.adapter.execute(f.ask("act", { readId: read.output.readId, ref: "e1", how: "click", generation: f.adapter.generation })),
+      ).rejects.toThrow("stale")
+      f.adapter.close()
+    })
+    test("a click that changes the document replies with the new generation", async () => {
+      let f
+      f = await interactive([{ title: "", text: "", outline: [{ ref: "e1" }] }, () => f.adapter.invalidate()])
+      const read = await f.adapter.execute(f.ask("read"))
+      const request = f.ask("act", { readId: read.output.readId, ref: "e1", how: "click" })
+      const reply = await f.adapter.execute(request)
+      expect(reply.generation).not.toBe(request.generation)
+      expect(reply.output.navigated).toBe(true)
+      f.adapter.close()
+    })
+    test("rejects a request for another document and surfaces a page refusal", async () => {
+      const f = await interactive([{ error: "not-typable" }])
+      await expect(f.adapter.execute({ ...f.ask("read"), generation: randomUUID() })).rejects.toThrow()
+      f.adapter.readId = randomUUID()
+      await expect(
+        f.adapter.execute(f.ask("act", { readId: f.adapter.readId, ref: "e1", how: "type", text: "x" })),
+      ).rejects.toThrow("not-typable")
+      f.adapter.close()
+    })
+  })
 })
