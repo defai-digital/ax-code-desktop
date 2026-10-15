@@ -566,7 +566,11 @@ export const useChatAutoFollow = ({
       return
     }
 
-    if (currentTop < previousTop && stateRef.current === "following") {
+    // A scroll-up while already near the bottom is the browser clamping
+    // scrollTop after content above shrank (a collapsing activity block), not
+    // a user gesture — real gestures have their own handlers below. Only a
+    // scroll that actually leaves the bottom releases the follow state.
+    if (currentTop < previousTop && stateRef.current === "following" && !isNearBottom(container, isMobile)) {
       stopFollowLoop()
       stopSettleBurst()
       lastUserReleaseAtRef.current = typeof performance !== "undefined" ? performance.now() : Date.now()
@@ -735,6 +739,13 @@ export const useChatAutoFollow = ({
         onReasoningBlock: () => {},
       }
       animationHandlersRef.current.set(messageId, handlers)
+      // Bound the cache: handlers are interchangeable closures, so evicting the
+      // oldest id is free and keeps long sessions from growing the map forever.
+      const MAX_ANIMATION_HANDLER_ENTRIES = 500
+      if (animationHandlersRef.current.size > MAX_ANIMATION_HANDLER_ENTRIES) {
+        const oldest = animationHandlersRef.current.keys().next().value
+        if (oldest !== undefined) animationHandlersRef.current.delete(oldest)
+      }
       return handlers
     },
     [startFollowLoop, updateOverflowAndButton],

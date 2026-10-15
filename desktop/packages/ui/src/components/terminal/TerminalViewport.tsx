@@ -1268,7 +1268,17 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
         pending = chunks
       } else {
         const lastProcessedIndex = chunks.findIndex((chunk) => chunk.id === lastProcessedId)
-        pending = lastProcessedIndex >= 0 ? chunks.slice(lastProcessedIndex + 1) : chunks
+        if (lastProcessedIndex >= 0) {
+          pending = chunks.slice(lastProcessedIndex + 1)
+        } else {
+          // The store trimmed the buffer past our cursor (1MB cap): the retained
+          // chunks no longer continue what is on screen, so repaint from the
+          // buffer instead of appending it a second time.
+          terminal.reset()
+          resetWriteState()
+          fitTerminal()
+          pending = chunks
+        }
       }
 
       if (pending.length > 0) {

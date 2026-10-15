@@ -350,7 +350,7 @@ export const extractInlineFileMentions = (
 
 const INLINE_SERVER_ATTACHMENT_ID_PREFIX = "inline-server-"
 
-const isInlineServerAttachment = (attachment: AttachedFile): boolean =>
+export const isInlineServerAttachment = (attachment: AttachedFile): boolean =>
   attachment.source === "server" &&
   typeof attachment.serverPath === "string" &&
   attachment.id.startsWith(INLINE_SERVER_ATTACHMENT_ID_PREFIX)

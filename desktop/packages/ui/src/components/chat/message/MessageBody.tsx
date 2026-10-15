@@ -1592,6 +1592,14 @@ const AssistantMessageBody = React.memo(
         }
 
         if (part.type === "reasoning") {
+          // ReasoningPart renders nothing without text and countActivityRows
+          // excludes empty reasoning parts, so they must not consume trim
+          // budget here either.
+          const reasoningText = extractTextContent(part)
+          if (!reasoningText || reasoningText.trim().length === 0) {
+            i++
+            continue
+          }
           if (showReasoningTraces) {
             if (!collapsibleThinkingBlocks) {
               // Non-collapsible mode: render thinking blocks as plain text inline.

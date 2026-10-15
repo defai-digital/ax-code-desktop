@@ -584,10 +584,11 @@ export function NewWorktreeDialog({ open, onOpenChange, onWorktreeCreated }: New
                   : branches.all?.[0] || ""
 
         if (defaultSourceBranch) {
-          setNewBranchState((prev) => ({
-            ...prev,
-            sourceBranch: defaultSourceBranch,
-          }))
+          // The branch list may resolve after the user already picked a source:
+          // never overwrite an explicit selection with the async default.
+          setNewBranchState((prev) =>
+            prev.sourceBranch ? prev : { ...prev, sourceBranch: defaultSourceBranch },
+          )
         }
       } catch {
         // ignore

@@ -345,10 +345,16 @@ export const useChatTimelineController = ({
   // fetchOlderHistory and revealBufferedTurns store a snapshot here
   // before triggering the state change. useLayoutEffect consumes it
   // after React commits new DOM — before the browser paints.
+  // "fetch" snapshots are captured before the network request finishes, so
+  // unrelated streaming commits land first; they are consumed only by the
+  // commit that actually prepends older messages, and discarded otherwise.
   const prePrependScrollRef = React.useRef<{
     height: number
     top: number
     anchor: TimelineViewportAnchor | null
+    kind: "reveal" | "fetch"
+    sessionId: string | null
+    oldestMessageId: string | null
   } | null>(null)
 
   const captureViewportAnchor = React.useCallback((): TimelineViewportAnchor | null => {
@@ -366,6 +372,14 @@ export const useChatTimelineController = ({
     const snap = prePrependScrollRef.current
     const container = scrollRef.current
     if (!snap || !container) return
+
+    if (snap.kind === "fetch") {
+      // The snapshot predates the history fetch; skip commits that are not the
+      // prepend (streaming updates, session switches) and keep waiting.
+      if (sessionIdRef.current !== snap.sessionId) return
+      const currentOldestMessageId = messagesRef.current[0]?.info?.id ?? null
+      if (currentOldestMessageId === snap.oldestMessageId) return
+    }
     prePrependScrollRef.current = null
 
     // When a viewport anchor is available, delegate to MessageList
@@ -395,6 +409,9 @@ export const useChatTimelineController = ({
         height: container.scrollHeight,
         top: container.scrollTop,
         anchor: captureViewportAnchor(),
+        kind: "reveal",
+        sessionId: targetSessionId,
+        oldestMessageId: null,
       }
     }
 
@@ -433,12 +450,17 @@ export const useChatTimelineController = ({
 
       // Store scroll snapshot BEFORE the fetch so useLayoutEffect can
       // compensate synchronously when React commits the new messages.
+      let capturedSnap: (typeof prePrependScrollRef)["current"] = null
       if (input.preserveViewport && container) {
-        prePrependScrollRef.current = {
+        capturedSnap = {
           height: container.scrollHeight,
           top: container.scrollTop,
           anchor: captureViewportAnchor(),
+          kind: "fetch",
+          sessionId: sessionIdRef.current,
+          oldestMessageId: beforeOldestMessageId,
         }
+        prePrependScrollRef.current = capturedSnap
       }
 
       beginHistoryInteraction()
@@ -493,6 +515,12 @@ export const useChatTimelineController = ({
           loadedLimit = afterLimit
         }
       } finally {
+        // If the fetch produced no prepend (no growth, session switch, error),
+        // the snapshot was never consumed — drop it so a later unrelated
+        // prepend does not restore a stale viewport.
+        if (capturedSnap && prePrependScrollRef.current === capturedSnap) {
+          prePrependScrollRef.current = null
+        }
         setIsLoadingOlder(false)
         settleHistoryInteraction()
       }

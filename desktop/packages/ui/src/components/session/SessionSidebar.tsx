@@ -341,6 +341,13 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     return merged.filter((session) => isKnownActiveSessionDirectory(session, knownSessionDirectories))
   }, [globalActiveSessions, knownSessionDirectories, liveSessions])
 
+  // The pin-prune whitelist must count archived sessions too: archiving a pinned
+  // session removes it from `sessions`, and pruning then silently deletes the pin.
+  const pinnableSessions = React.useMemo(
+    () => [...sessions, ...archivedSessions],
+    [sessions, archivedSessions],
+  )
+
   const syncSessionStructureSignature = React.useMemo(
     () =>
       liveSessions
@@ -463,7 +470,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       projectActiveSession: PROJECT_ACTIVE_SESSION_STORAGE_KEY,
       groupCollapse: GROUP_COLLAPSE_STORAGE_KEY,
     },
-    sessions,
+    sessions: pinnableSessions,
     pinnedSessionIds,
     setPinnedSessionIds,
     groupOrderByProject,

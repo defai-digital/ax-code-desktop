@@ -112,10 +112,17 @@ export function GitHubPrPickerDialog({
 
     setIsLoading(true)
     setError(null)
-    const loaded = await loadCurrent({
-      load: () => github.prsList(projectDirectory, { page: 1 }),
-      isCurrent: () => listRequestRef.current === requestId,
-    })
+    let loaded
+    try {
+      loaded = await loadCurrent({
+        load: () => github.prsList(projectDirectory, { page: 1 }),
+        isCurrent: () => listRequestRef.current === requestId,
+      })
+    } finally {
+      // The flag is owned by this callback: a newer request supersedes the
+      // *result*, but must not strand the spinner.
+      setIsLoading(false)
+    }
     if (loaded.status === "loaded") {
       const next = loaded.result
       setResult(next)
@@ -127,9 +134,6 @@ export function GitHubPrPickerDialog({
       }
     } else if (loaded.status === "failed") {
       setError(loaded.error instanceof Error ? loaded.error.message : String(loaded.error))
-    }
-    if (listRequestRef.current === requestId) {
-      setIsLoading(false)
     }
   }, [github, githubAuthChecked, githubAuthStatus, projectDirectory, t])
 
@@ -143,10 +147,15 @@ export function GitHubPrPickerDialog({
     listRequestRef.current = requestId
     setIsLoadingMore(true)
     const nextPage = page + 1
-    const loaded = await loadCurrent({
-      load: () => github.prsList(projectDirectory, { page: nextPage }),
-      isCurrent: () => listRequestRef.current === requestId,
-    })
+    let loaded
+    try {
+      loaded = await loadCurrent({
+        load: () => github.prsList(projectDirectory, { page: nextPage }),
+        isCurrent: () => listRequestRef.current === requestId,
+      })
+    } finally {
+      setIsLoadingMore(false)
+    }
     if (loaded.status === "loaded") {
       const next = loaded.result
       setResult(next)
@@ -156,9 +165,6 @@ export function GitHubPrPickerDialog({
     } else if (loaded.status === "failed") {
       const message = loaded.error instanceof Error ? loaded.error.message : String(loaded.error)
       toast.error(t("session.githubPrPicker.toast.loadMoreFailed"), { description: message })
-    }
-    if (listRequestRef.current === requestId) {
-      setIsLoadingMore(false)
     }
   }, [github, hasMore, isLoading, isLoadingMore, page, projectDirectory, t])
 

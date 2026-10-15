@@ -14,6 +14,8 @@ interface SessionFolderItemProps<TSessionNode> {
   onToggle: () => void
   onRename: (name: string) => void
   onDelete: () => void
+  /** Stable React key for a node; without it the session list reconciles by index. */
+  getNodeKey: (node: TSessionNode) => string
   renderSessionNode: (
     node: TSessionNode,
     depth?: number,
@@ -55,6 +57,7 @@ const SessionFolderItemBase = <TSessionNode,>({
   onToggle,
   onRename,
   onDelete,
+  getNodeKey,
   renderSessionNode,
   groupDirectory,
   projectId,
@@ -356,9 +359,11 @@ const SessionFolderItemBase = <TSessionNode,>({
           {subFolderItems}
           {/* Then sessions */}
           {sessions.length > 0 ? (
-            sessions.map((node) =>
-              renderSessionNode(node, 0, groupDirectory ?? null, projectId ?? null, archivedBucket),
-            )
+            sessions.map((node) => (
+              <React.Fragment key={getNodeKey(node)}>
+                {renderSessionNode(node, 0, groupDirectory ?? null, projectId ?? null, archivedBucket)}
+              </React.Fragment>
+            ))
           ) : !subFolderItems ? (
             <div className="py-1 pl-1.5 text-left typography-micro text-muted-foreground">
               {t("sessions.sidebar.folderItem.emptyFolder")}

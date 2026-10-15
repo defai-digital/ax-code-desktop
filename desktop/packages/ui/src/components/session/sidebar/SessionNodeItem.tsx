@@ -1304,17 +1304,19 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
         </div>
       </DraggableSessionRow>
       {hasChildren && isExpanded
-        ? node.children.map((child) =>
-            renderSessionNode(
-              child,
-              depth + 1,
-              sessionDirectory ?? groupDirectory,
-              projectId,
-              archivedBucket,
-              undefined,
-              renderContext,
-            ),
-          )
+        ? node.children.map((child) => (
+            <React.Fragment key={child.session.id}>
+              {renderSessionNode(
+                child,
+                depth + 1,
+                sessionDirectory ?? groupDirectory,
+                projectId,
+                archivedBucket,
+                undefined,
+                renderContext,
+              )}
+            </React.Fragment>
+          ))
         : null}
       <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
         <DialogContent showCloseButton={false} className="max-w-sm gap-5">

@@ -536,6 +536,7 @@ export function SessionGroupSection(props: Props): React.ReactNode {
             folder={folder}
             sessions={nodes}
             subFolderItems={subFolderItems}
+            getNodeKey={(node) => node.session.id}
             descendantSessionIds={descendantSessionIds}
             isCollapsed={hasSessionSearchQuery ? false : collapsedFolderIds.has(folder.id)}
             onToggle={() => toggleFolderCollapse(folder.id)}

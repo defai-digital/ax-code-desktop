@@ -112,6 +112,7 @@ import {
   filterMissingInlineAttachments,
   insertMentionAtCursor,
   insertTriggerAtCursor,
+  isInlineServerAttachment,
   loadConfirmedMentions,
   resolveFileMentionDeletion,
   resolveFileMentionPath,
@@ -1838,10 +1839,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       }
     }
 
-    // Preserve the user's original text so a failed send can restore it
-    // (snippet expansion below may rewrite primaryText).
-    const originalPrimaryText = primaryText
-
     try {
       const expandText = useSnippetsStore.getState().expandText
       primaryText = await expandText(primaryText)
@@ -1866,8 +1863,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       }
     }
 
-    // Collect all attachments for error recovery
+    // Collect all attachments for error recovery. Mention-derived inline
+    // attachments are excluded from the restore set: the restored text still
+    // carries the `@path` mentions, so resending re-derives them — restoring
+    // them here too would attach the same file twice.
     const allAttachments = [...primaryAttachments, ...additionalParts.flatMap((p) => p.attachments ?? [])]
+    const restorableAttachments = allAttachments.filter((attachment) => !isInlineServerAttachment(attachment))
 
     const sendPromise = sendMessage(
       primaryText,
@@ -1926,11 +1927,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         // draft, but only write it into the live composer (`setMessage`) if the
         // user is still viewing that same session — otherwise the failed send
         // from session A would overwrite whatever session B currently has typed.
-        if (consumedQueueSnapshot.length === 0 && originalPrimaryText && messageRef.current.trim().length === 0) {
+        if (consumedInputSnapshot && messageRef.current.trim().length === 0) {
           if (useSessionUIStore.getState().currentSessionId === currentSessionId) {
-            setMessage(originalPrimaryText)
+            setMessage(consumedInputSnapshot)
           }
-          saveStoredDraft(currentSessionId, originalPrimaryText)
+          saveStoredDraft(currentSessionId, consumedInputSnapshot)
         }
 
         // A failed send must not consume the queue or the composer text: put the taken
@@ -1947,12 +1948,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
               queuedMessages: { ...queueState.queuedMessages, [currentSessionId]: [...restored, ...queue] },
             }
           })
-        }
-        if (consumedInputSnapshot && messageRef.current.trim().length === 0) {
-          if (useSessionUIStore.getState().currentSessionId === currentSessionId) {
-            setMessage(consumedInputSnapshot)
-          }
-          saveStoredDraft(currentSessionId, consumedInputSnapshot)
         }
 
         const isSoftNetworkError =
@@ -1972,22 +1967,22 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           normalized.includes("entity too large")
         ) {
           toast.error(t("chat.chatInput.toast.attachmentsTooLarge"))
-          if (allAttachments.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
-            useInputStore.getState().setAttachedFiles(allAttachments)
+          if (restorableAttachments.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
+            useInputStore.getState().setAttachedFiles(restorableAttachments)
           }
           return
         }
 
         if (isSoftNetworkError) {
-          if (allAttachments.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
-            useInputStore.getState().setAttachedFiles(allAttachments)
+          if (restorableAttachments.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
+            useInputStore.getState().setAttachedFiles(restorableAttachments)
             toast.error(t("chat.chatInput.toast.sendAttachmentsFailed"))
           }
           return
         }
 
-        if (allAttachments.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
-          useInputStore.getState().setAttachedFiles(allAttachments)
+        if (restorableAttachments.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
+          useInputStore.getState().setAttachedFiles(restorableAttachments)
         }
         toast.error(rawMessage || t("chat.chatInput.toast.messageSendFailed"))
       })
