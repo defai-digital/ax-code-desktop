@@ -43,6 +43,33 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Attaching a screenshot to a preview annotation could hang forever when the window was covered or an
+  image, font or asset inside the page stalled; every step now times out and the annotation is sent
+  without the screenshot instead.
+- The update progress bar no longer jumps backwards when the updater silently restarts a failed
+  differential download as a full download.
+- Reloading the main window from the menu (Reload Webview or View → Reload) no longer drops work
+  handed off mid-reload: "Open in main app" from a mini-chat, folders opened from Finder, and tray
+  session shortcuts are queued until the reloaded window is listening again.
+- A native browser (WebMCP) tool call can no longer run while a page read, click or wait is still in
+  flight; it is rejected like every other concurrent operation.
+- Handing a session back to the main window no longer throws when the window cannot be recreated; the
+  mini-chat keeps its draft instead.
+- Plan edits are no longer lost when the plan view closes or switches to another plan within a blink
+  of the last keystroke; the pending autosave is flushed first.
+- Collapsing a top-level folder in the Changes tree view now sticks instead of popping back open on
+  the next status update.
+- The diff viewer no longer spins a per-frame retry loop while its renderer is unavailable.
+- A commit whose files failed to load no longer claims to have no files for the rest of the session;
+  collapsing and re-expanding it retries.
+- Creating or renaming a branch no longer logs an unhandled error after the failure toast.
+- Session auto-cleanup can no longer run twice at the same time and double-delete sessions.
+- The AGENTS.md indicator now notices when the file is created after the first check, instead of
+  remembering a stale "missing" forever.
+- The tray subtitle shows the current git branch again, and branch switches update it immediately.
+- Navigating away while the app is still applying a browser back/forward no longer desynchronizes the
+  address bar from the open session.
+
 - The macOS tray menu never updated after launch: the preload bridge rejected the
   `desktop_tray_update` channel, so the tray kept stale session and approval state.
 - The project browser no longer leaks an invisible orphan view when two panes open in the
