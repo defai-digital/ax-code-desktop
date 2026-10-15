@@ -4647,5 +4647,9 @@
   "sessions.scheduledTasks.dialog.group.sectionAria": "T\u00e2ches planifi\u00e9es dans {project}",
   "sessions.scheduledTasks.dialog.group.newTaskAria": "Nouvelle t\u00e2che dans {project}",
   "sessions.scheduledTasks.dialog.group.retryAria": "R\u00e9essayer de charger les t\u00e2ches de {project}",
-  "sessions.scheduledTasks.dialog.actions.runNowAria": "Ex\u00e9cuter {taskName} maintenant"
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "Ex\u00e9cuter {taskName} maintenant",
+  "sessions.scheduledTasks.dialog.family.memberCount": "{count} planifications",
+  "sessions.scheduledTasks.dialog.confirm.deleteFamily": "Supprimer la t\u00e2che planifi\u00e9e \"{taskName}\" et ses {count} planifications ?",
+  "sessions.scheduledTasks.editor.schedule.irregularNote": "Cette t\u00e2che s'ex\u00e9cute actuellement \u00e0 {schedules}. Si vous modifiez la planification ci-dessous, elle est remplac\u00e9e par chaque jour de semaine s\u00e9lectionn\u00e9 \u00e0 chaque heure s\u00e9lectionn\u00e9e ; si vous la laissez inchang\u00e9e, les planifications actuelles sont conserv\u00e9es.",
+  "sessions.scheduledTasks.dialog.error.taskChanged": "Cette tâche a été modifiée pendant que vous l'éditiez. La liste a été actualisée ; veuillez réessayer."
 }

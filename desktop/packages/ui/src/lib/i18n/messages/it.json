@@ -4647,5 +4647,9 @@
   "sessions.scheduledTasks.dialog.group.sectionAria": "Attivit\u00e0 pianificate in {project}",
   "sessions.scheduledTasks.dialog.group.newTaskAria": "Nuova attivit\u00e0 in {project}",
   "sessions.scheduledTasks.dialog.group.retryAria": "Riprova a caricare le attivit\u00e0 di {project}",
-  "sessions.scheduledTasks.dialog.actions.runNowAria": "Esegui {taskName} ora"
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "Esegui {taskName} ora",
+  "sessions.scheduledTasks.dialog.family.memberCount": "{count} pianificazioni",
+  "sessions.scheduledTasks.dialog.confirm.deleteFamily": "Eliminare l'attivit\u00e0 pianificata \"{taskName}\" e tutte le sue {count} pianificazioni?",
+  "sessions.scheduledTasks.editor.schedule.irregularNote": "Questa attivit\u00e0 viene attualmente eseguita in {schedules}. Se modifichi la pianificazione qui sotto, viene sostituita da ogni giorno della settimana selezionato a ogni orario selezionato; se la lasci invariata, le pianificazioni attuali restano.",
+  "sessions.scheduledTasks.dialog.error.taskChanged": "Questa attività è cambiata mentre la modificavi. L'elenco è stato aggiornato; riprova."
 }

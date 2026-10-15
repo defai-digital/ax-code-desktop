@@ -26,6 +26,7 @@ import { useUIStore } from "@/stores/useUIStore"
 import type { ScheduledTask } from "@/lib/scheduledTasksApi"
 import { stripFanOutSuffix, type ScheduledTaskDraftInput } from "@/lib/scheduledTaskTransform"
 import { useI18n } from "@/lib/i18n"
+import { describeFamilySchedule, type ScheduledTaskFamily } from "./scheduledTaskFamilies"
 import { normalizeScheduledTaskTimes } from "./scheduledTaskTime"
 
 const WEEKDAY_INDEXES = [0, 1, 2, 3, 4, 5, 6] as const
@@ -492,6 +493,48 @@ type ScheduledTaskDraft = {
 
 const pad2 = (value: number): string => String(value).padStart(2, "0")
 
+type Translate = ReturnType<typeof useI18n>["t"]
+
+const weekdayShort = (value: number, t: Translate): string => {
+  if (value === 0) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.sun")
+  if (value === 1) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.mon")
+  if (value === 2) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.tue")
+  if (value === 3) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.wed")
+  if (value === 4) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.thu")
+  if (value === 5) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.fri")
+  if (value === 6) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.sat")
+  return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.unknown")
+}
+
+// Slot list for the irregular-family note. Daily and weekly stay as the bare
+// slot ("09:00", "Mon 09:00"); once and cron use the dialog's schedule copy.
+const formatMemberSchedule = (member: ScheduledTask, t: Translate): string => {
+  const schedule = member.schedule
+  if (schedule.type === "daily") {
+    return schedule.time
+  }
+  if (schedule.type === "weekly") {
+    return `${weekdayShort(schedule.day, t)} ${schedule.time}`
+  }
+  if (schedule.type === "once") {
+    const runAt = new Date(schedule.runAt)
+    if (Number.isNaN(runAt.getTime())) {
+      return t("sessions.scheduledTasks.dialog.schedule.unknownDate")
+    }
+    const date = `${runAt.getFullYear()}-${pad2(runAt.getMonth() + 1)}-${pad2(runAt.getDate())}`
+    const time = `${pad2(runAt.getHours())}:${pad2(runAt.getMinutes())}`
+    return t("sessions.scheduledTasks.dialog.schedule.once", { date, time })
+  }
+  const timezone = schedule.timezone
+  if (timezone) {
+    return t("sessions.scheduledTasks.dialog.schedule.cronWithTimezone", {
+      cron: schedule.expression,
+      timezone,
+    })
+  }
+  return t("sessions.scheduledTasks.dialog.schedule.cron", { cron: schedule.expression })
+}
+
 const normalizeDraftTimes = (task: ScheduledTask | null): string[] => {
   if (!task) {
     return ["09:00"]
@@ -506,6 +549,33 @@ const normalizeDraftTimes = (task: ScheduledTask | null): string[] => {
   return unique.length > 0 ? unique : ["09:00"]
 }
 
+const unionMemberTimes = (members: readonly ScheduledTask[]): string[] => {
+  const times = normalizeScheduledTaskTimes(
+    members.flatMap((member) => {
+      const schedule = member.schedule
+      return schedule.type === "daily" || schedule.type === "weekly" ? [schedule.time] : []
+    }),
+  )
+  return times.length > 0 ? times : ["09:00"]
+}
+
+const unionMemberWeekdays = (members: readonly ScheduledTask[]): number[] => {
+  const days = Array.from(
+    new Set(members.flatMap((member) => (member.schedule.type === "weekly" ? [member.schedule.day] : []))),
+  ).sort((a, b) => a - b)
+  return days.length > 0 ? days : [1]
+}
+
+const scheduleSectionKey = (schedule: ScheduledTaskDraft["schedule"]): string =>
+  JSON.stringify({
+    kind: schedule.kind,
+    times: normalizeScheduledTaskTimes(schedule.times),
+    weekdays: Array.from(new Set(schedule.weekdays)).sort((a, b) => a - b),
+    onceDate: schedule.onceDate,
+    onceTime: schedule.onceTime,
+    timezone: schedule.timezone.trim(),
+  })
+
 const toDraft = (
   task: ScheduledTask | null,
   defaults: {
@@ -513,9 +583,11 @@ const toDraft = (
     modelID: string
     agent: string
   },
+  family?: ScheduledTaskFamily,
 ): ScheduledTaskDraft => {
   const timezoneFallback = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-  if (!task) {
+  const source = family?.primary ?? task
+  if (!source) {
     return {
       name: "",
       enabled: true,
@@ -537,31 +609,32 @@ const toDraft = (
     }
   }
 
-  const schedule = task.schedule
+  const schedule = source.schedule
   const scheduleTimezone = "timezone" in schedule && schedule.timezone ? schedule.timezone : timezoneFallback
   const onceRunAt = schedule.type === "once" ? new Date(schedule.runAt) : null
+  const weekly = schedule.type === "weekly"
   return {
-    id: task.id,
-    // Editing one fan-out part shows the base name again so re-saving does
-    // not stack " (i/N)" suffixes.
-    name: stripFanOutSuffix(task.title),
-    enabled: task.status === "active",
-    catchUpPolicy: task.catchUpPolicy === "skip" ? "skip" : "run_once",
+    id: source.id,
+    // Editing a fan-out shows the base name again so re-saving does not stack
+    // " (i/N)" suffixes. A family uses its primary part's base title.
+    name: stripFanOutSuffix(source.title),
+    enabled: family ? family.anyActive : source.status === "active",
+    catchUpPolicy: source.catchUpPolicy === "skip" ? "skip" : "run_once",
     schedule: {
-      kind: schedule.type === "once" ? "once" : schedule.type === "weekly" ? "weekly" : "daily",
-      times: normalizeDraftTimes(task),
+      kind: schedule.type === "once" ? "once" : weekly ? "weekly" : "daily",
+      times: family ? unionMemberTimes(family.members) : normalizeDraftTimes(source),
       onceDate: onceRunAt
         ? `${onceRunAt.getFullYear()}-${pad2(onceRunAt.getMonth() + 1)}-${pad2(onceRunAt.getDate())}`
         : getLocalDateISO(),
       onceTime: onceRunAt ? `${pad2(onceRunAt.getHours())}:${pad2(onceRunAt.getMinutes())}` : "09:00",
-      weekdays: schedule.type === "weekly" ? [schedule.day] : [1],
+      weekdays: family && weekly ? unionMemberWeekdays(family.members) : weekly ? [schedule.day] : [1],
       timezone: scheduleTimezone,
     },
     execution: {
-      prompt: task.prompt,
-      providerID: task.model?.providerID || defaults.providerID,
-      modelID: task.model?.modelID || defaults.modelID,
-      agent: task.agent || "",
+      prompt: source.prompt,
+      providerID: source.model?.providerID || defaults.providerID,
+      modelID: source.model?.modelID || defaults.modelID,
+      agent: source.agent || "",
     },
   }
 }
@@ -602,13 +675,29 @@ const validateDraft = (draft: ScheduledTaskDraft, t: ReturnType<typeof useI18n>[
   return null
 }
 
+export type ScheduledTaskEditorSubmit = {
+  /** Primary member id when editing. */
+  id?: string
+  /** Ids of every member the editor was opened with. Editing only. */
+  memberIDs?: string[]
+  enabled: boolean
+  /** The enabled switch differs from when the editor opened. True for a new task. */
+  enabledChanged: boolean
+  /** The schedule section differs from when the editor opened. True for a new task. */
+  scheduleChanged: boolean
+  input: ScheduledTaskDraftInput
+}
+
 export function ScheduledTaskEditorDialog(props: {
   open: boolean
+  /** The family's primary member when editing; null for a new task. */
   task: ScheduledTask | null
+  /** The whole family when editing. `family.members` includes `task`. */
+  family?: ScheduledTaskFamily
   onOpenChange: (open: boolean) => void
-  onSave: (submit: { id?: string; enabled: boolean; input: ScheduledTaskDraftInput }) => Promise<void>
+  onSave: (submit: ScheduledTaskEditorSubmit) => Promise<void>
 }) {
-  const { open, task, onOpenChange, onSave } = props
+  const { open, task, family, onOpenChange, onSave } = props
   const { t, formatLocale } = useI18n()
   const loadProviders = useConfigStore((state) => state.loadProviders)
   const loadAgents = useConfigStore((state) => state.loadAgents)
@@ -620,12 +709,20 @@ export function ScheduledTaskEditorDialog(props: {
   const isMobile = useUIStore((state) => state.isMobile)
 
   const [draft, setDraft] = React.useState<ScheduledTaskDraft>(() =>
-    toDraft(task, {
-      providerID: currentProviderID,
-      modelID: currentModelID,
-      agent: currentAgentName,
-    }),
+    toDraft(
+      task,
+      {
+        providerID: currentProviderID,
+        modelID: currentModelID,
+        agent: currentAgentName,
+      },
+      family,
+    ),
   )
+  const openedRef = React.useRef<{ baseline: ScheduledTaskDraft; memberIDs?: string[] }>({
+    baseline: draft,
+    ...(task && family ? { memberIDs: family.members.map((member) => member.id) } : {}),
+  })
   const [saving, setSaving] = React.useState(false)
   const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false)
   const [showFileMention, setShowFileMention] = React.useState(false)
@@ -635,9 +732,10 @@ export function ScheduledTaskEditorDialog(props: {
   const [showSnippetAutocomplete, setShowSnippetAutocomplete] = React.useState(false)
   const [snippetQuery, setSnippetQuery] = React.useState("")
   const [calendarMonth, setCalendarMonth] = React.useState<Date>(() => {
+    const source = family?.primary ?? task
     const initialDate =
-      (task?.schedule.type === "once"
-        ? parseISODateToLocal(formatLocalDateISO(new Date(task.schedule.runAt)))
+      (source?.schedule.type === "once"
+        ? parseISODateToLocal(formatLocalDateISO(new Date(source.schedule.runAt)))
         : null) || new Date()
     return new Date(initialDate.getFullYear(), initialDate.getMonth(), 1)
   })
@@ -686,21 +784,29 @@ export function ScheduledTaskEditorDialog(props: {
     if (!open) {
       return
     }
-    setDraft(
-      toDraft(task, {
+    const next = toDraft(
+      task,
+      {
         providerID: currentProviderID,
         modelID: currentModelID,
         agent: currentAgentName,
-      }),
+      },
+      family,
     )
-    const sourceDate = (task?.schedule.type === "once" ? new Date(task.schedule.runAt) : null) || new Date()
+    setDraft(next)
+    openedRef.current = {
+      baseline: next,
+      ...(task && family ? { memberIDs: family.members.map((member) => member.id) } : {}),
+    }
+    const source = family?.primary ?? task
+    const sourceDate = (source?.schedule.type === "once" ? new Date(source.schedule.runAt) : null) || new Date()
     setCalendarMonth(new Date(sourceDate.getFullYear(), sourceDate.getMonth(), 1))
     setIsDatePickerOpen(false)
     setShowCommandAutocomplete(false)
     setShowFileMention(false)
     setCommandQuery("")
     setMentionQuery("")
-  }, [open, task, currentProviderID, currentModelID, currentAgentName])
+  }, [open, task, family, currentProviderID, currentModelID, currentAgentName])
 
   React.useEffect(() => {
     if (!isDatePickerOpen) {
@@ -1038,11 +1144,17 @@ export function ScheduledTaskEditorDialog(props: {
               },
     }
 
+    const isNewTask = task === null
+    const opened = openedRef.current
     setSaving(true)
     try {
       await onSave({
         ...(draft.id ? { id: draft.id } : {}),
+        ...(opened.memberIDs && !isNewTask ? { memberIDs: opened.memberIDs } : {}),
         enabled: draft.enabled,
+        enabledChanged: isNewTask || draft.enabled !== opened.baseline.enabled,
+        scheduleChanged:
+          isNewTask || scheduleSectionKey(draft.schedule) !== scheduleSectionKey(opened.baseline.schedule),
         input,
       })
       onOpenChange(false)
@@ -1051,7 +1163,7 @@ export function ScheduledTaskEditorDialog(props: {
     } finally {
       setSaving(false)
     }
-  }, [draft, onOpenChange, onSave, t])
+  }, [draft, onOpenChange, onSave, t, task])
 
   const descriptionId = React.useId()
   const hasOpenFloatingMenu = React.useCallback(() => {
@@ -1061,6 +1173,12 @@ export function ScheduledTaskEditorDialog(props: {
 
   const title = task ? t("sessions.scheduledTasks.editor.title.edit") : t("sessions.scheduledTasks.editor.title.new")
   const description = t("sessions.scheduledTasks.editor.description")
+  const irregularScheduleNote =
+    family && !describeFamilySchedule(family).compact
+      ? t("sessions.scheduledTasks.editor.schedule.irregularNote", {
+          schedules: family.members.map((member) => formatMemberSchedule(member, t)).join(", "),
+        })
+      : null
 
   const formBody = (
     <div className="flex flex-col gap-5">
@@ -1109,6 +1227,13 @@ export function ScheduledTaskEditorDialog(props: {
           </Select>
         </div>
       </div>
+
+      {irregularScheduleNote ? (
+        <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 typography-micro text-muted-foreground">
+          <Icon name="information" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <p>{irregularScheduleNote}</p>
+        </div>
+      ) : null}
 
       {draft.schedule.kind === "once" ? (
         <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">

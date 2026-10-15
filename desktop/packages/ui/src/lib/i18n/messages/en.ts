@@ -90,6 +90,11 @@ export const dict = {
   "sessions.scheduledTasks.dialog.actions.newTask": "New task",
   "sessions.scheduledTasks.dialog.actions.runNow": "Run now",
   "sessions.scheduledTasks.dialog.actions.runNowAria": "Run {taskName} now",
+  "sessions.scheduledTasks.dialog.family.memberCount": "{count} schedules",
+  "sessions.scheduledTasks.dialog.confirm.deleteFamily":
+    'Delete scheduled task "{taskName}" and all {count} of its schedules?',
+  "sessions.scheduledTasks.dialog.error.taskChanged":
+    "This task changed while you were editing it. The list has been refreshed; please try again.",
   "sessions.scheduledTasks.dialog.actions.edit": "Edit",
   "sessions.scheduledTasks.dialog.actions.editAria": "Edit {taskName}",
   "sessions.scheduledTasks.dialog.actions.deleteAria": "Delete {taskName}",
@@ -188,6 +193,8 @@ export const dict = {
   "sessions.scheduledTasks.editor.validation.atLeastOneTime": "Add at least one valid time",
   "sessions.scheduledTasks.editor.validation.atLeastOneWeekday": "Select at least one weekday",
   "sessions.scheduledTasks.editor.validation.timezoneRequired": "Timezone is required",
+  "sessions.scheduledTasks.editor.schedule.irregularNote":
+    "This task currently runs on {schedules}. Changing the schedule below replaces it with every selected weekday at every selected time; leaving it unchanged keeps the current schedules.",
   "multirun.launcher.title": "New Multi-Run",
   "multirun.launcher.actions.closeEsc": "Close (Esc)",
   "multirun.launcher.actions.cancel": "Cancel",

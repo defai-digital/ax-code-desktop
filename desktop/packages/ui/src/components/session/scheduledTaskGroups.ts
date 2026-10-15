@@ -1,5 +1,5 @@
 import type { ProjectEntry } from "@/lib/api/types"
-import type { ScheduledTask } from "@/lib/scheduledTasksApi"
+import type { ScheduledTask, ScheduledTaskRunDisplayStatus } from "@/lib/scheduledTasksApi"
 
 export const ALL_PROJECTS_VALUE = "__all"
 
@@ -71,9 +71,17 @@ export function sortScheduledTasks(tasks: readonly ScheduledTask[]): ScheduledTa
   })
 }
 
+/** Minimal item shape the summary counts: a single task or a task family. */
+export type ScheduledTaskSummaryItem = {
+  status: string
+  lastRunStatus: ScheduledTaskRunDisplayStatus
+  /** Families set this when any member is active; single tasks leave it unset. */
+  anyActive?: boolean
+}
+
 export type ScheduledTaskGroupSnapshot = {
   directory?: string
-  tasks: readonly ScheduledTask[]
+  tasks: readonly ScheduledTaskSummaryItem[]
   error?: string | null
   /** Whether the group has ever loaded successfully. Defaults to `!error`. */
   hasLoaded?: boolean
@@ -106,7 +114,7 @@ export function computeSummary(groups: readonly ScheduledTaskGroupSnapshot[]): S
     projects += 1
     for (const task of group.tasks) {
       total += 1
-      if (task.status === "active") {
+      if (task.anyActive ?? task.status === "active") {
         active += 1
       }
       if (task.lastRunStatus === "running") {

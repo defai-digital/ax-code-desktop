@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 
 - Scheduled tasks: an "All projects" view lists every project's tasks in one place, grouped by project,
   with a summary of active, running and failing tasks and a "New task" button per project.
+- Scheduled tasks with several times or weekdays are shown and managed as one task: one row with all its
+  times, and pause, delete and edit apply to every part. Editing keeps the parts in step instead of
+  changing only the one that was opened.
 - Mission Control (Cmd+Shift+H): one board of live sessions across projects with their state, diff size
   and age, a peek that answers requests without opening the session, saved working sets and a soft hint
   when more than four sessions need close attention.

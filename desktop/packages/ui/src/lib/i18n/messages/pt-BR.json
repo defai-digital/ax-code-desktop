@@ -4647,5 +4647,9 @@
   "sessions.scheduledTasks.dialog.group.sectionAria": "Tarefas agendadas em {project}",
   "sessions.scheduledTasks.dialog.group.newTaskAria": "Nova tarefa em {project}",
   "sessions.scheduledTasks.dialog.group.retryAria": "Tentar carregar novamente as tarefas de {project}",
-  "sessions.scheduledTasks.dialog.actions.runNowAria": "Executar {taskName} agora"
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "Executar {taskName} agora",
+  "sessions.scheduledTasks.dialog.family.memberCount": "{count} agendamentos",
+  "sessions.scheduledTasks.dialog.confirm.deleteFamily": "Excluir a tarefa agendada \"{taskName}\" e todos os seus {count} agendamentos?",
+  "sessions.scheduledTasks.editor.schedule.irregularNote": "Esta tarefa \u00e9 executada atualmente em {schedules}. Se voc\u00ea alterar a programa\u00e7\u00e3o abaixo, ela ser\u00e1 substitu\u00edda por cada dia da semana selecionado em cada hor\u00e1rio selecionado; se voc\u00ea n\u00e3o a alterar, as programa\u00e7\u00f5es atuais s\u00e3o mantidas.",
+  "sessions.scheduledTasks.dialog.error.taskChanged": "Esta tarefa mudou enquanto você a editava. A lista foi atualizada; tente novamente."
 }

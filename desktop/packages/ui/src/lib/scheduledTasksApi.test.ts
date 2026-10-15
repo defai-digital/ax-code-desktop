@@ -21,12 +21,16 @@ vi.mock("@/lib/ax-code/client", () => ({
 import {
   createScheduledTasks,
   deleteScheduledTask,
+  deleteScheduledTasks,
   expandPromptSnippets,
   fetchScheduledTasks,
+  reconcileScheduledTaskFamily,
   runScheduledTaskNow,
   setScheduledTaskEnabled,
+  setScheduledTasksEnabled,
   updateScheduledTask,
 } from "./scheduledTasksApi"
+import type { RuntimeTaskPayload } from "./scheduledTaskTransform"
 
 const runtimeTask = (overrides: Record<string, unknown> = {}) => ({
   id: "st_1",
@@ -163,5 +167,221 @@ describe("scheduledTasksApi", () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+
+  const payload = (title: string, time: string, extra: Partial<RuntimeTaskPayload> = {}): RuntimeTaskPayload => ({
+    title,
+    prompt: "Summarize",
+    schedule: { type: "daily", time, timezone: "UTC" },
+    catchUpPolicy: "run_once",
+    ...extra,
+  })
+
+  test("reconcileScheduledTaskFamily updates, then creates paused parts, then deletes", async () => {
+    const order: string[] = []
+    scheduledTask.update.mockImplementation(async (args: { scheduledTaskID: string }) => {
+      order.push(`update:${args.scheduledTaskID}`)
+      return { data: runtimeTask() }
+    })
+    scheduledTask.create.mockImplementation(async (body: { title: string }) => {
+      const id = order.some((entry) => entry.startsWith("create:")) ? "st_new_b" : "st_new_a"
+      order.push(`create:${body.title}`)
+      return { data: runtimeTask({ id }) }
+    })
+    scheduledTask.pause.mockImplementation(async (args: { scheduledTaskID: string }) => {
+      order.push(`pause:${args.scheduledTaskID}`)
+      return { data: runtimeTask({ status: "paused" }) }
+    })
+    scheduledTask.delete.mockImplementation(async (args: { scheduledTaskID: string }) => {
+      order.push(`delete:${args.scheduledTaskID}`)
+      return { data: true }
+    })
+
+    await reconcileScheduledTaskFamily("/work/alpha", {
+      updates: [
+        {
+          id: "st_1",
+          payload: payload("Digest (1/3)", "09:00", {
+            agent: "build",
+            model: { providerID: "openai", modelID: "gpt-5" },
+          }),
+          status: "paused",
+        },
+        {
+          id: "st_2",
+          payload: payload("Digest (2/3)", "18:00"),
+        },
+        {
+          id: "st_3",
+          payload: payload("Digest (3/3)", "12:00"),
+          clearModel: true,
+        },
+      ],
+      creates: [payload("Digest (4/4)", "07:00"), payload("Digest (5/5)", "21:00", { agent: "review" })],
+      createStatus: "paused",
+      deletes: ["st_old", "st_older"],
+    })
+
+    expect(getScopedApiClient).toHaveBeenCalledWith("/work/alpha")
+    expect(scheduledTask.update).toHaveBeenNthCalledWith(1, {
+      scheduledTaskID: "st_1",
+      title: "Digest (1/3)",
+      prompt: "Summarize",
+      schedule: { type: "daily", time: "09:00", timezone: "UTC" },
+      agent: "build",
+      model: { providerID: "openai", modelID: "gpt-5" },
+      catchUpPolicy: "run_once",
+      status: "paused",
+    })
+    expect(scheduledTask.update).toHaveBeenNthCalledWith(2, {
+      scheduledTaskID: "st_2",
+      title: "Digest (2/3)",
+      prompt: "Summarize",
+      schedule: { type: "daily", time: "18:00", timezone: "UTC" },
+      catchUpPolicy: "run_once",
+    })
+    expect(scheduledTask.update).toHaveBeenNthCalledWith(3, {
+      scheduledTaskID: "st_3",
+      title: "Digest (3/3)",
+      prompt: "Summarize",
+      schedule: { type: "daily", time: "12:00", timezone: "UTC" },
+      model: null,
+      catchUpPolicy: "run_once",
+    })
+    expect(scheduledTask.create).toHaveBeenNthCalledWith(1, payload("Digest (4/4)", "07:00"))
+    expect(scheduledTask.pause).toHaveBeenNthCalledWith(1, { scheduledTaskID: "st_new_a" })
+    expect(scheduledTask.create).toHaveBeenNthCalledWith(2, payload("Digest (5/5)", "21:00", { agent: "review" }))
+    expect(scheduledTask.pause).toHaveBeenNthCalledWith(2, { scheduledTaskID: "st_new_b" })
+    expect(scheduledTask.delete).toHaveBeenNthCalledWith(1, { scheduledTaskID: "st_old" })
+    expect(scheduledTask.delete).toHaveBeenNthCalledWith(2, { scheduledTaskID: "st_older" })
+    expect(order).toEqual([
+      "update:st_1",
+      "update:st_2",
+      "update:st_3",
+      "create:Digest (4/4)",
+      "pause:st_new_a",
+      "create:Digest (5/5)",
+      "pause:st_new_b",
+      "delete:st_old",
+      "delete:st_older",
+    ])
+  })
+
+  test("reconcileScheduledTaskFamily leaves new parts active when createStatus is not paused", async () => {
+    scheduledTask.update.mockResolvedValue({ data: runtimeTask() })
+    scheduledTask.create.mockResolvedValue({ data: runtimeTask({ id: "st_new" }) })
+    scheduledTask.delete.mockResolvedValue({ data: true })
+
+    await reconcileScheduledTaskFamily("/work/alpha", {
+      updates: [{ id: "st_1", payload: payload("Digest", "09:00"), status: "active" }],
+      creates: [payload("Digest (2/2)", "18:00")],
+      createStatus: "active",
+      deletes: ["st_old"],
+    })
+
+    expect(scheduledTask.update).toHaveBeenCalledWith(
+      expect.objectContaining({ scheduledTaskID: "st_1", status: "active" }),
+    )
+    expect(scheduledTask.pause).not.toHaveBeenCalled()
+    expect(scheduledTask.create.mock.invocationCallOrder[0]).toBeLessThan(
+      scheduledTask.delete.mock.invocationCallOrder[0],
+    )
+    expect(scheduledTask.update.mock.invocationCallOrder[0]).toBeLessThan(
+      scheduledTask.create.mock.invocationCallOrder[0],
+    )
+  })
+
+  test("reconcileScheduledTaskFamily aborts on the first update error and throws the SDK message", async () => {
+    scheduledTask.update
+      .mockResolvedValueOnce({ data: runtimeTask() })
+      .mockResolvedValueOnce({ error: { message: "schedule rejected" } })
+    scheduledTask.create.mockResolvedValue({ data: runtimeTask({ id: "st_new" }) })
+    scheduledTask.delete.mockResolvedValue({ data: true })
+
+    await expect(
+      reconcileScheduledTaskFamily("/work/alpha", {
+        updates: [
+          { id: "st_1", payload: payload("Digest (1/2)", "09:00") },
+          { id: "st_2", payload: payload("Digest (2/2)", "18:00") },
+        ],
+        creates: [payload("Digest (3/3)", "12:00")],
+        createStatus: "paused",
+        deletes: ["st_old"],
+      }),
+    ).rejects.toThrow("schedule rejected")
+
+    expect(scheduledTask.update).toHaveBeenCalledTimes(2)
+    expect(scheduledTask.create).not.toHaveBeenCalled()
+    expect(scheduledTask.pause).not.toHaveBeenCalled()
+    expect(scheduledTask.delete).not.toHaveBeenCalled()
+  })
+
+  test("reconcileScheduledTaskFamily aborts when creating a part fails and does not delete", async () => {
+    scheduledTask.update.mockResolvedValue({ data: runtimeTask() })
+    scheduledTask.create.mockResolvedValue({ error: { message: "create failed" } })
+    scheduledTask.delete.mockResolvedValue({ data: true })
+
+    await expect(
+      reconcileScheduledTaskFamily("/work/alpha", {
+        updates: [{ id: "st_1", payload: payload("Digest", "09:00") }],
+        creates: [payload("Digest (2/2)", "18:00"), payload("Digest (3/3)", "21:00")],
+        createStatus: "active",
+        deletes: ["st_old"],
+      }),
+    ).rejects.toThrow("create failed")
+
+    expect(scheduledTask.create).toHaveBeenCalledTimes(1)
+    expect(scheduledTask.delete).not.toHaveBeenCalled()
+  })
+
+  test("reconcileScheduledTaskFamily aborts when a delete fails", async () => {
+    scheduledTask.update.mockResolvedValue({ data: runtimeTask() })
+    scheduledTask.create.mockResolvedValue({ data: runtimeTask({ id: "st_new" }) })
+    scheduledTask.delete
+      .mockResolvedValueOnce({ error: { message: "not found" } })
+      .mockResolvedValueOnce({ data: true })
+
+    await expect(
+      reconcileScheduledTaskFamily("/work/alpha", {
+        updates: [],
+        creates: [payload("Digest (2/2)", "18:00")],
+        createStatus: "active",
+        deletes: ["st_old", "st_older"],
+      }),
+    ).rejects.toThrow("not found")
+
+    expect(scheduledTask.delete).toHaveBeenCalledTimes(1)
+    expect(scheduledTask.delete).toHaveBeenCalledWith({ scheduledTaskID: "st_old" })
+  })
+
+  test("setScheduledTasksEnabled resumes or pauses each id in order and stops on the first error", async () => {
+    scheduledTask.resume.mockResolvedValue({ data: runtimeTask() })
+    await setScheduledTasksEnabled("/work/alpha", ["st_1", "st_2"], true)
+    expect(scheduledTask.resume).toHaveBeenNthCalledWith(1, { scheduledTaskID: "st_1" })
+    expect(scheduledTask.resume).toHaveBeenNthCalledWith(2, { scheduledTaskID: "st_2" })
+    expect(scheduledTask.resume.mock.invocationCallOrder[0]).toBeLessThan(
+      scheduledTask.resume.mock.invocationCallOrder[1],
+    )
+
+    scheduledTask.pause.mockResolvedValueOnce({ error: { message: "pause denied" } })
+    await expect(setScheduledTasksEnabled("/work/alpha", ["st_a", "st_b"], false)).rejects.toThrow("pause denied")
+    expect(scheduledTask.pause).toHaveBeenCalledTimes(1)
+    expect(scheduledTask.pause).toHaveBeenCalledWith({ scheduledTaskID: "st_a" })
+  })
+
+  test("deleteScheduledTasks deletes each id in order and stops on the first error", async () => {
+    scheduledTask.delete.mockResolvedValue({ data: true })
+    await deleteScheduledTasks("/work/alpha", ["st_1", "st_2"])
+    expect(scheduledTask.delete).toHaveBeenNthCalledWith(1, { scheduledTaskID: "st_1" })
+    expect(scheduledTask.delete).toHaveBeenNthCalledWith(2, { scheduledTaskID: "st_2" })
+    expect(scheduledTask.delete.mock.invocationCallOrder[0]).toBeLessThan(
+      scheduledTask.delete.mock.invocationCallOrder[1],
+    )
+
+    scheduledTask.delete.mockReset()
+    scheduledTask.delete.mockResolvedValueOnce({ error: { message: "still running" } })
+    await expect(deleteScheduledTasks("/work/alpha", ["st_a", "st_b"])).rejects.toThrow("still running")
+    expect(scheduledTask.delete).toHaveBeenCalledTimes(1)
+    expect(scheduledTask.delete).toHaveBeenCalledWith({ scheduledTaskID: "st_a" })
   })
 })

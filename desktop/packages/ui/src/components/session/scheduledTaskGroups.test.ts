@@ -109,6 +109,19 @@ describe("computeSummary", () => {
   it("returns zeros for no groups", () => {
     expect(computeSummary([])).toEqual({ active: 0, total: 0, projects: 0, running: 0, failing: 0, unavailable: 0 })
   })
+
+  it("counts family-shaped items once, active when any member is active", () => {
+    const summary = computeSummary([
+      {
+        directory: "/repo/a",
+        tasks: [
+          { status: "mixed", lastRunStatus: "running", anyActive: true },
+          { status: "paused", lastRunStatus: "error", anyActive: false },
+        ],
+      },
+    ])
+    expect(summary).toEqual({ active: 1, total: 2, projects: 1, running: 1, failing: 1, unavailable: 0 })
+  })
 })
 
 describe("resolveEventTargetDirectories", () => {

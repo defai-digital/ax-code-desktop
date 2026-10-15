@@ -4647,5 +4647,9 @@
   "sessions.scheduledTasks.dialog.group.sectionAria": "{project} \u306e\u30b9\u30b1\u30b8\u30e5\u30fc\u30eb\u30bf\u30b9\u30af",
   "sessions.scheduledTasks.dialog.group.newTaskAria": "{project} \u306b\u65b0\u3057\u3044\u30bf\u30b9\u30af",
   "sessions.scheduledTasks.dialog.group.retryAria": "{project} \u306e\u30bf\u30b9\u30af\u3092\u518d\u8aad\u307f\u8fbc\u307f",
-  "sessions.scheduledTasks.dialog.actions.runNowAria": "{taskName} \u3092\u4eca\u3059\u3050\u5b9f\u884c"
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "{taskName} \u3092\u4eca\u3059\u3050\u5b9f\u884c",
+  "sessions.scheduledTasks.dialog.family.memberCount": "{count} \u4ef6\u306e\u30b9\u30b1\u30b8\u30e5\u30fc\u30eb",
+  "sessions.scheduledTasks.dialog.confirm.deleteFamily": "\u30b9\u30b1\u30b8\u30e5\u30fc\u30eb\u6e08\u307f\u30bf\u30b9\u30af \"{taskName}\" \u3068\u305d\u306e {count} \u4ef6\u306e\u30b9\u30b1\u30b8\u30e5\u30fc\u30eb\u3092\u3059\u3079\u3066\u524a\u9664\u3057\u307e\u3059\u304b\uff1f",
+  "sessions.scheduledTasks.editor.schedule.irregularNote": "\u3053\u306e\u30bf\u30b9\u30af\u306e\u73fe\u5728\u306e\u5b9f\u884c\u4e88\u5b9a\u306f {schedules} \u3067\u3059\u3002\u4e0b\u306e\u30b9\u30b1\u30b8\u30e5\u30fc\u30eb\u3092\u5909\u66f4\u3059\u308b\u3068\u3001\u9078\u629e\u3057\u305f\u3059\u3079\u3066\u306e\u66dc\u65e5\u3068\u3059\u3079\u3066\u306e\u6642\u523b\u306e\u7d44\u307f\u5408\u308f\u305b\u306b\u7f6e\u304d\u63db\u308f\u308a\u307e\u3059\u3002\u5909\u66f4\u3057\u306a\u3051\u308c\u3070\u3001\u73fe\u5728\u306e\u30b9\u30b1\u30b8\u30e5\u30fc\u30eb\u304c\u7dad\u6301\u3055\u308c\u307e\u3059\u3002",
+  "sessions.scheduledTasks.dialog.error.taskChanged": "編集中にこのタスクが変更されました。一覧を更新しました。もう一度お試しください。"
 }

@@ -4647,5 +4647,9 @@
   "sessions.scheduledTasks.dialog.group.sectionAria": "{project} \u4e2d\u7684\u6392\u7a0b\u4efb\u52d9",
   "sessions.scheduledTasks.dialog.group.newTaskAria": "\u5728 {project} \u4e2d\u65b0\u589e\u4efb\u52d9",
   "sessions.scheduledTasks.dialog.group.retryAria": "\u91cd\u8a66\u8f09\u5165 {project} \u7684\u4efb\u52d9",
-  "sessions.scheduledTasks.dialog.actions.runNowAria": "\u7acb\u5373\u57f7\u884c {taskName}"
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "\u7acb\u5373\u57f7\u884c {taskName}",
+  "sessions.scheduledTasks.dialog.family.memberCount": "{count} \u500b\u6392\u7a0b",
+  "sessions.scheduledTasks.dialog.confirm.deleteFamily": "\u522a\u9664\u6392\u7a0b\u4efb\u52d9 \"{taskName}\" \u53ca\u5176\u5168\u90e8 {count} \u500b\u6392\u7a0b\uff1f",
+  "sessions.scheduledTasks.editor.schedule.irregularNote": "\u6b64\u4efb\u52d9\u76ee\u524d\u5728 {schedules} \u57f7\u884c\u3002\u8b8a\u66f4\u4e0b\u65b9\u7684\u6392\u7a0b\u6703\u5c07\u5176\u66ff\u63db\u70ba\u6bcf\u500b\u6240\u9078\u661f\u671f\u8207\u6bcf\u500b\u6240\u9078\u6642\u9593\u7684\u5168\u90e8\u7d44\u5408\uff1b\u82e5\u4e0d\u8b8a\u66f4\uff0c\u5247\u6703\u4fdd\u7559\u76ee\u524d\u7684\u6392\u7a0b\u3002",
+  "sessions.scheduledTasks.dialog.error.taskChanged": "你編輯期間此任務已被變更。清單已重新整理，請再試一次。"
 }

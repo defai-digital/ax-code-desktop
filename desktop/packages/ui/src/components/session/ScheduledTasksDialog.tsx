@@ -21,51 +21,59 @@ import { useI18n } from "@/lib/i18n"
 import type { ProjectEntry } from "@/lib/api/types"
 import {
   createScheduledTasks,
-  deleteScheduledTask,
+  deleteScheduledTasks,
   expandPromptSnippets,
   fetchScheduledTasks,
+  reconcileScheduledTaskFamily,
   runScheduledTaskNow,
-  setScheduledTaskEnabled,
-  updateScheduledTask,
+  setScheduledTasksEnabled,
   type ScheduledTask,
   type ScheduledTaskRunDisplayStatus,
 } from "@/lib/scheduledTasksApi"
 import {
   buildRuntimeScheduledTaskPayloads,
+  stripFanOutSuffix,
   type RuntimeSchedule,
-  type ScheduledTaskDraftInput,
 } from "@/lib/scheduledTaskTransform"
-import { ScheduledTaskEditorDialog } from "./ScheduledTaskEditorDialog"
+import { ScheduledTaskEditorDialog, type ScheduledTaskEditorSubmit } from "./ScheduledTaskEditorDialog"
 import { loadCurrent } from "@/lib/currentLoad"
 import { relativeTimeParts } from "./scheduledTaskRelativeTime"
 import {
   ALL_PROJECTS_VALUE,
   buildProjectGroups,
-  buildTaskRowKey,
   computeSummary,
-  directoryForTask,
-  groupDirectoryForTask,
   mapWithConcurrencyLimit,
   normalizeDirectory,
   resolveEventTargetDirectories,
   sortScheduledTasks,
 } from "./scheduledTaskGroups"
+import {
+  describeFamilySchedule,
+  familyMemberIDs,
+  groupScheduledTaskFamilies,
+  planFamilyFieldUpdate,
+  planFamilyReconciliation,
+  resolveFamilyMembers,
+  sortScheduledTaskFamilies,
+  type ScheduledTaskFamily,
+} from "./scheduledTaskFamilies"
 
 const pad2 = (value: number): string => String(value).padStart(2, "0")
+
+const formatWeekday = (value: number, t: ReturnType<typeof useI18n>["t"]): string => {
+  if (value === 0) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.sun")
+  if (value === 1) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.mon")
+  if (value === 2) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.tue")
+  if (value === 3) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.wed")
+  if (value === 4) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.thu")
+  if (value === 5) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.fri")
+  if (value === 6) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.sat")
+  return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.unknown")
+}
 
 const formatSchedule = (task: ScheduledTask, t: ReturnType<typeof useI18n>["t"]): string => {
   const schedule = task.schedule as RuntimeSchedule
   const timezone = "timezone" in schedule ? schedule.timezone : undefined
-  const formatWeekday = (value: number) => {
-    if (value === 0) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.sun")
-    if (value === 1) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.mon")
-    if (value === 2) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.tue")
-    if (value === 3) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.wed")
-    if (value === 4) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.thu")
-    if (value === 5) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.fri")
-    if (value === 6) return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.sat")
-    return t("sessions.scheduledTasks.dialog.schedule.weekdayShort.unknown")
-  }
   if (schedule.type === "daily") {
     if (timezone) {
       return t("sessions.scheduledTasks.dialog.schedule.dailyWithTimezone", {
@@ -76,7 +84,7 @@ const formatSchedule = (task: ScheduledTask, t: ReturnType<typeof useI18n>["t"])
     return t("sessions.scheduledTasks.dialog.schedule.daily", { time: schedule.time })
   }
   if (schedule.type === "weekly") {
-    const days = formatWeekday(schedule.day)
+    const days = formatWeekday(schedule.day, t)
     if (timezone) {
       return t("sessions.scheduledTasks.dialog.schedule.weeklyWithTimezone", {
         days,
@@ -99,6 +107,33 @@ const formatSchedule = (task: ScheduledTask, t: ReturnType<typeof useI18n>["t"])
     })
   }
   return t("sessions.scheduledTasks.dialog.schedule.cron", { cron: schedule.expression })
+}
+
+const formatFamilySchedule = (family: ScheduledTaskFamily, t: ReturnType<typeof useI18n>["t"]): string => {
+  const description = describeFamilySchedule(family)
+  if (!description.compact) {
+    return family.members.map((member) => formatSchedule(member, t)).join(" · ")
+  }
+  if (description.type === "daily") {
+    const time = description.times.join(", ")
+    if (description.timezone) {
+      return t("sessions.scheduledTasks.dialog.schedule.dailyWithTimezone", { time, timezone: description.timezone })
+    }
+    return t("sessions.scheduledTasks.dialog.schedule.daily", { time })
+  }
+  if (description.type === "weekly") {
+    const days = description.weekdays.map((day) => formatWeekday(day, t)).join(", ")
+    const time = description.times.join(", ")
+    if (description.timezone) {
+      return t("sessions.scheduledTasks.dialog.schedule.weeklyWithTimezone", {
+        days,
+        time,
+        timezone: description.timezone,
+      })
+    }
+    return t("sessions.scheduledTasks.dialog.schedule.weekly", { days, time })
+  }
+  return formatSchedule(family.primary, t)
 }
 
 const formatClockTime = (value?: number): string => {
@@ -178,6 +213,7 @@ export function ScheduledTasksDialog() {
   const [groupStateByDirectory, setGroupStateByDirectory] = React.useState<Map<string, GroupLoadState>>(() => new Map())
   const [editorOpen, setEditorOpen] = React.useState(false)
   const [editorTask, setEditorTask] = React.useState<ScheduledTask | null>(null)
+  const [editorFamily, setEditorFamily] = React.useState<ScheduledTaskFamily | null>(null)
   const [editorDirectory, setEditorDirectory] = React.useState<string>("")
   const [mutatingRowKeys, setMutatingRowKeys] = React.useState<ReadonlySet<string>>(() => new Set())
   const { requestConfirm, confirmDialog } = useConfirmDialog()
@@ -193,9 +229,15 @@ export function ScheduledTasksDialog() {
   const attemptedDirectoriesRef = React.useRef<Set<string>>(new Set())
   const queuedDirectoriesRef = React.useRef<Set<string>>(new Set())
 
+  const groupStateByDirectoryRef = React.useRef<Map<string, GroupLoadState>>(new Map())
+
   React.useEffect(() => {
     projectsRef.current = projects
   }, [projects])
+
+  React.useEffect(() => {
+    groupStateByDirectoryRef.current = groupStateByDirectory
+  }, [groupStateByDirectory])
 
   const clearEventTimers = React.useCallback(() => {
     for (const timer of eventTimersRef.current.values()) {
@@ -219,6 +261,7 @@ export function ScheduledTasksDialog() {
       setGroupStateByDirectory(new Map())
       setMutatingRowKeys(new Set())
       setEditorDirectory("")
+      setEditorFamily(null)
     } else {
       openGenerationRef.current += 1
       selectionInitializedRef.current = false
@@ -549,34 +592,61 @@ export function ScheduledTasksDialog() {
   }, [open, selectedProjectID, loadGroup, directoryForProject, clearEventTimers])
 
   const handleSaveTask = React.useCallback(
-    async (submit: { id?: string; enabled: boolean; input: ScheduledTaskDraftInput }) => {
+    async (submit: ScheduledTaskEditorSubmit) => {
       const directory = normalizeDirectory(editorDirectory)
       if (!directory) {
         throw new Error(t("sessions.scheduledTasks.dialog.error.chooseProjectFirst"))
       }
       // Client-side fan-out: a multi-time/multi-weekday draft becomes N
-      // runtime tasks (same naming as the S2.6 migration). When editing, the
-      // first slot updates the edited task and any extra slots become new
-      // sibling tasks. Snippet references are pre-expanded — the runtime
-      // executes the stored prompt verbatim.
+      // runtime tasks (same naming as the S2.6 migration). Snippet references
+      // are pre-expanded — the runtime executes the stored prompt verbatim.
       const prompt = await expandPromptSnippets(directory, submit.input.prompt)
       const payloads = buildRuntimeScheduledTaskPayloads({ ...submit.input, prompt })
       if (!payloads || payloads.length === 0) {
         throw new Error(t("sessions.scheduledTasks.dialog.toast.updateFailed"))
       }
-      if (submit.id) {
-        const [first, ...rest] = payloads
-        await updateScheduledTask(directory, submit.id, {
-          title: first.title,
-          prompt: first.prompt,
-          schedule: first.schedule,
-          ...(first.agent ? { agent: first.agent } : {}),
-          ...(first.model ? { model: first.model } : {}),
-          catchUpPolicy: first.catchUpPolicy,
-          status: submit.enabled ? "active" : "paused",
+      if (submit.memberIDs) {
+        const groupTasks = groupStateByDirectoryRef.current.get(directory)?.tasks ?? []
+        const orderedIDs = editorFamily ? familyMemberIDs(editorFamily) : submit.memberIDs
+        const baseTitle = stripFanOutSuffix(submit.input.name.trim())
+        const { members, missing } = resolveFamilyMembers(groupTasks, orderedIDs, {
+          baseTitles: [editorFamily?.title ?? "", baseTitle],
+          schedules: payloads.map((payload) => payload.schedule),
         })
-        if (rest.length > 0) {
-          await createScheduledTasks(directory, rest, { pause: !submit.enabled })
+        // Fail closed when the family changed underneath the editor (a part
+        // deleted or re-created elsewhere): a plan built from a partial set
+        // would create duplicates next to parts that still run.
+        if (missing.length > 0) {
+          await loadGroup(directory)
+          throw new Error(t("sessions.scheduledTasks.dialog.error.taskChanged"))
+        }
+        const status = submit.enabledChanged ? (submit.enabled ? "active" : "paused") : null
+        // Judge the schedule shape from the members as they are now, not from
+        // the snapshot taken when the editor opened.
+        const current = groupScheduledTaskFamilies(members)
+        const irregular = current.length !== 1 || !describeFamilySchedule(current[0]).compact
+        const plan =
+          irregular && !submit.scheduleChanged
+            ? planFamilyFieldUpdate(
+                members,
+                {
+                  title: baseTitle,
+                  prompt: payloads[0].prompt,
+                  agent: payloads[0].agent,
+                  model: payloads[0].model,
+                  catchUpPolicy: payloads[0].catchUpPolicy,
+                },
+                status,
+              )
+            : planFamilyReconciliation(members, payloads, status)
+        try {
+          await reconcileScheduledTaskFamily(directory, plan)
+        } catch (error) {
+          // Show what the runtime actually has (parts created before the
+          // failure included) so a retry from the still-open editor adopts
+          // them instead of creating duplicates.
+          await loadGroup(directory)
+          throw error
         }
       } else {
         await createScheduledTasks(directory, payloads, { pause: !submit.enabled })
@@ -584,7 +654,7 @@ export function ScheduledTasksDialog() {
       await loadGroup(directory)
       toast.success(t("sessions.scheduledTasks.dialog.toast.saved"))
     },
-    [editorDirectory, loadGroup, t],
+    [editorDirectory, editorFamily, loadGroup, t],
   )
 
   const markRowBusy = React.useCallback((rowKey: string, busy: boolean) => {
@@ -602,86 +672,81 @@ export function ScheduledTasksDialog() {
     })
   }, [])
 
-  const directoryForTaskRow = React.useCallback((task: ScheduledTask): string => {
-    const known = buildProjectGroups(projectsRef.current).map((group) => group.directory)
-    return groupDirectoryForTask(task, known)
-  }, [])
-
   const handleToggleEnabled = React.useCallback(
-    async (task: ScheduledTask, enabled: boolean) => {
-      const directory = directoryForTaskRow(task)
+    async (family: ScheduledTaskFamily, directory: string, enabled: boolean) => {
       if (!directory) {
         return
       }
-      const rowKey = buildTaskRowKey(directory, task.id)
-      markRowBusy(rowKey, true)
+      const memberIDs = new Set(familyMemberIDs(family))
+      markRowBusy(family.key, true)
       updateGroupState(directory, (prev) => ({
         ...prev,
         tasks: prev.tasks.map((item) =>
-          item.id === task.id ? { ...item, status: enabled ? "active" : "paused" } : item,
+          memberIDs.has(item.id) ? { ...item, status: enabled ? "active" : "paused" } : item,
         ),
       }))
       try {
-        await setScheduledTaskEnabled(directory, task.id, enabled)
+        await setScheduledTasksEnabled(directory, familyMemberIDs(family), enabled)
         await loadGroup(directory, { silent: true })
       } catch (error) {
         toast.error(error instanceof Error ? error.message : t("sessions.scheduledTasks.dialog.toast.updateFailed"))
         await loadGroup(directory, { silent: true })
       } finally {
-        markRowBusy(rowKey, false)
+        markRowBusy(family.key, false)
       }
     },
-    [directoryForTaskRow, loadGroup, markRowBusy, updateGroupState, t],
+    [loadGroup, markRowBusy, updateGroupState, t],
   )
 
   const handleDeleteTask = React.useCallback(
-    async (task: ScheduledTask) => {
-      const directory = directoryForTaskRow(task)
+    async (family: ScheduledTaskFamily, directory: string) => {
       if (!directory) {
         return
       }
       const confirmed = await requestConfirm(
-        t("sessions.scheduledTasks.dialog.confirm.deleteTask", { taskName: task.title }),
+        family.members.length > 1
+          ? t("sessions.scheduledTasks.dialog.confirm.deleteFamily", {
+              taskName: family.title,
+              count: family.members.length,
+            })
+          : t("sessions.scheduledTasks.dialog.confirm.deleteTask", { taskName: family.title }),
         { destructive: true },
       )
       if (!confirmed) {
         return
       }
 
-      const rowKey = buildTaskRowKey(directory, task.id)
-      markRowBusy(rowKey, true)
+      markRowBusy(family.key, true)
       try {
-        await deleteScheduledTask(directory, task.id)
+        await deleteScheduledTasks(directory, familyMemberIDs(family))
         await loadGroup(directory, { silent: true })
         toast.success(t("sessions.scheduledTasks.dialog.toast.deleted"))
       } catch (error) {
         toast.error(error instanceof Error ? error.message : t("sessions.scheduledTasks.dialog.toast.deleteFailed"))
       } finally {
-        markRowBusy(rowKey, false)
+        markRowBusy(family.key, false)
       }
     },
-    [directoryForTaskRow, loadGroup, markRowBusy, t, requestConfirm],
+    [loadGroup, markRowBusy, t, requestConfirm],
   )
 
   const handleRunNow = React.useCallback(
-    async (task: ScheduledTask) => {
-      const directory = directoryForTaskRow(task)
+    async (family: ScheduledTaskFamily, directory: string) => {
       if (!directory) {
         return
       }
-      const rowKey = buildTaskRowKey(directory, task.id)
-      markRowBusy(rowKey, true)
+      markRowBusy(family.key, true)
       try {
-        await runScheduledTaskNow(directory, task.id)
+        await runScheduledTaskNow(directory, family.primary.id)
         await Promise.all([loadGroup(directory, { silent: true }), refreshGlobalSessions()])
         toast.success(t("sessions.scheduledTasks.dialog.toast.started"))
       } catch (error) {
         toast.error(error instanceof Error ? error.message : t("sessions.scheduledTasks.dialog.toast.runFailed"))
       } finally {
-        markRowBusy(rowKey, false)
+        markRowBusy(family.key, false)
       }
     },
-    [directoryForTaskRow, loadGroup, markRowBusy, t],
+    [loadGroup, markRowBusy, t],
   )
 
   const projectSelector = (
@@ -728,20 +793,21 @@ export function ScheduledTasksDialog() {
   const openNewTaskEditor = (directory: string) => {
     setEditorDirectory(normalizeDirectory(directory))
     setEditorTask(null)
+    setEditorFamily(null)
     setEditorOpen(true)
   }
 
-  const openEditTaskEditor = (task: ScheduledTask) => {
-    setEditorDirectory(directoryForTaskRow(task))
-    setEditorTask(task)
+  const openEditTaskEditor = (family: ScheduledTaskFamily, directory: string) => {
+    setEditorDirectory(normalizeDirectory(directory))
+    setEditorTask(family.primary)
+    setEditorFamily(family)
     setEditorOpen(true)
   }
 
-  const renderTaskRow = (task: ScheduledTask) => {
-    const rowKey = buildTaskRowKey(directoryForTask(task), task.id)
-    const isBusy = mutatingRowKeys.has(rowKey)
-    const isActive = task.status === "active"
-    const status = task.lastRunStatus
+  const renderTaskRow = (family: ScheduledTaskFamily, directory: string) => {
+    const isBusy = mutatingRowKeys.has(family.key)
+    const isActive = family.anyActive
+    const status = family.lastRunStatus
     const meta = STATUS_META[status]
     const statusLabel =
       status === "success"
@@ -751,17 +817,24 @@ export function ScheduledTasksDialog() {
           : status === "running"
             ? t("sessions.scheduledTasks.dialog.status.running")
             : t("sessions.scheduledTasks.dialog.status.idle")
-    const nextAt = task.nextRunAt
-    const lastAt = task.lastRunAt
+    const nextAt = family.nextRunAt
+    const lastAt = family.lastRunAt
 
     return (
       <div
-        key={rowKey}
+        key={family.key}
         className={cn("rounded-lg border border-border p-4 transition-opacity", !isActive && "opacity-60")}
       >
         <div className="min-w-0">
-          <div className="typography-ui-header truncate font-semibold text-foreground">{task.title}</div>
-          <div className="typography-micro truncate text-muted-foreground">{formatSchedule(task, t)}</div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className="typography-ui-header truncate font-semibold text-foreground">{family.title}</div>
+            {family.members.length > 1 ? (
+              <span className="rounded-full border border-border px-1.5 py-0.5 typography-micro text-muted-foreground">
+                {t("sessions.scheduledTasks.dialog.family.memberCount", { count: family.members.length })}
+              </span>
+            ) : null}
+          </div>
+          <div className="typography-micro truncate text-muted-foreground">{formatFamilySchedule(family, t)}</div>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 typography-micro text-muted-foreground">
@@ -803,13 +876,13 @@ export function ScheduledTasksDialog() {
           </span>
         </div>
 
-        {task.lastError ? (
+        {family.lastError ? (
           <div
             className="mt-3 flex items-start gap-2 rounded-md border p-2 typography-micro"
             style={toneStyle("error")}
           >
             <Icon name="error-warning" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0 break-words">{task.lastError}</span>
+            <span className="min-w-0 break-words">{family.lastError}</span>
           </div>
         ) : null}
 
@@ -823,11 +896,11 @@ export function ScheduledTasksDialog() {
           >
             <Checkbox
               checked={isActive}
-              onChange={(enabled) => void handleToggleEnabled(task, enabled)}
+              onChange={(enabled) => void handleToggleEnabled(family, directory, enabled)}
               ariaLabel={
                 isActive
-                  ? t("sessions.scheduledTasks.dialog.taskToggle.pauseAria", { taskName: task.title })
-                  : t("sessions.scheduledTasks.dialog.taskToggle.enableAria", { taskName: task.title })
+                  ? t("sessions.scheduledTasks.dialog.taskToggle.pauseAria", { taskName: family.title })
+                  : t("sessions.scheduledTasks.dialog.taskToggle.enableAria", { taskName: family.title })
               }
               disabled={isBusy}
             />
@@ -840,27 +913,27 @@ export function ScheduledTasksDialog() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void handleRunNow(task)}
+              onClick={() => void handleRunNow(family, directory)}
               disabled={isBusy}
-              aria-label={t("sessions.scheduledTasks.dialog.actions.runNowAria", { taskName: task.title })}
+              aria-label={t("sessions.scheduledTasks.dialog.actions.runNowAria", { taskName: family.title })}
             >
               <Icon name="play" className="h-4 w-4" /> {t("sessions.scheduledTasks.dialog.actions.runNow")}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => openEditTaskEditor(task)}
+              onClick={() => openEditTaskEditor(family, directory)}
               disabled={isBusy}
-              aria-label={t("sessions.scheduledTasks.dialog.actions.editAria", { taskName: task.title })}
+              aria-label={t("sessions.scheduledTasks.dialog.actions.editAria", { taskName: family.title })}
             >
               <Icon name="edit-2" className="h-4 w-4" /> {t("sessions.scheduledTasks.dialog.actions.edit")}
             </Button>
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => void handleDeleteTask(task)}
+              onClick={() => void handleDeleteTask(family, directory)}
               disabled={isBusy}
-              aria-label={t("sessions.scheduledTasks.dialog.actions.deleteAria", { taskName: task.title })}
+              aria-label={t("sessions.scheduledTasks.dialog.actions.deleteAria", { taskName: family.title })}
             >
               <Icon name="delete-bin" className="h-4 w-4" />
             </Button>
@@ -873,7 +946,7 @@ export function ScheduledTasksDialog() {
   const summary = computeSummary(
     groupViews.map((group) => ({
       directory: group.directory,
-      tasks: group.state.tasks,
+      tasks: groupScheduledTaskFamilies(group.state.tasks),
       error: group.state.error,
       hasLoaded: group.state.hasLoaded,
     })),
@@ -902,7 +975,9 @@ export function ScheduledTasksDialog() {
     !isAllMode && selectedProject
       ? groupViews.find((group) => group.directory === normalizeDirectory(selectedProject.path))
       : undefined
-  const singleTasks = singleGroup?.state.tasks ?? []
+  const singleFamilies = singleGroup
+    ? sortScheduledTaskFamilies(groupScheduledTaskFamilies(singleGroup.state.tasks))
+    : []
   // Until the selected project's first response arrives (or fails), show the
   // skeleton rather than flashing the empty state.
   const singleLoading = Boolean(
@@ -913,6 +988,7 @@ export function ScheduledTasksDialog() {
 
   const renderGroupTasks = (group: (typeof groupViews)[number]) => {
     const { state } = group
+    const families = sortScheduledTaskFamilies(groupScheduledTaskFamilies(state.tasks))
     if (state.loading && !state.hasLoaded) {
       return <ViewLoadingSkeleton rows={2} label={t("sessions.scheduledTasks.dialog.loading")} />
     }
@@ -939,8 +1015,8 @@ export function ScheduledTasksDialog() {
             </Button>
           </div>
         ) : null}
-        {state.tasks.length > 0 ? (
-          <div className="space-y-2.5">{state.tasks.map((task) => renderTaskRow(task))}</div>
+        {families.length > 0 ? (
+          <div className="space-y-2.5">{families.map((family) => renderTaskRow(family, group.directory))}</div>
         ) : !state.error ? (
           <div className="rounded-lg border border-dashed border-border p-4 typography-meta text-muted-foreground">
             {t("sessions.scheduledTasks.dialog.empty.noTasks")}
@@ -989,7 +1065,7 @@ export function ScheduledTasksDialog() {
                       {renderProjectLabel(group.project)}
                       {group.state.hasLoaded ? (
                         <span className="typography-micro tabular-nums text-muted-foreground">
-                          {plural("common.itemCount", group.state.tasks.length)}
+                          {plural("common.itemCount", groupScheduledTaskFamilies(group.state.tasks).length)}
                         </span>
                       ) : null}
                     </div>
@@ -1015,12 +1091,14 @@ export function ScheduledTasksDialog() {
           <div className="rounded-lg border border-dashed border-border p-4 typography-meta text-muted-foreground">
             {t("sessions.scheduledTasks.dialog.empty.selectProject")}
           </div>
-        ) : singleTasks.length === 0 ? (
+        ) : singleFamilies.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border p-4 typography-meta text-muted-foreground">
             {t("sessions.scheduledTasks.dialog.empty.noTasks")}
           </div>
         ) : (
-          <div className="space-y-2.5">{singleTasks.map((task) => renderTaskRow(task))}</div>
+          <div className="space-y-2.5">
+            {singleFamilies.map((family) => renderTaskRow(family, singleGroup?.directory ?? family.directory))}
+          </div>
         )}
       </div>
     </div>
@@ -1076,6 +1154,7 @@ export function ScheduledTasksDialog() {
       <ScheduledTaskEditorDialog
         open={editorOpen}
         task={editorTask}
+        family={editorFamily ?? undefined}
         onOpenChange={setEditorOpen}
         onSave={handleSaveTask}
       />

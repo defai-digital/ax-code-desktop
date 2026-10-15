@@ -20,7 +20,7 @@ Each project has its own tasks, and tasks in different projects run independentl
 4. Set what it does: the prompt to send, and the provider, model, and agent to use.
 5. Save, and make sure the task is enabled.
 
-Tasks are stored and run by the AX Code runtime (its `/scheduled-task` API), so they also fire when the runtime is up but the Desktop window is closed. A task with several times or weekdays is saved as one runtime task per time/weekday, named like "Cleanup (2/3)".
+Tasks are stored and run by the AX Code runtime (its `/scheduled-task` API), so they also fire when the runtime is up but the Desktop window is closed. A task with several times or weekdays is saved as one runtime task per time/weekday, named like "Cleanup (2/3)"; the dialog shows those parts as a single task with all of its times, and pausing, deleting or editing it applies to every part. If a part is removed elsewhere (for example from the terminal), the remaining parts are listed separately under their full names.
 
 You can run any task immediately with **run now** to check it does what you expect.
 

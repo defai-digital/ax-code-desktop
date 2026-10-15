@@ -4647,5 +4647,9 @@
   "sessions.scheduledTasks.dialog.group.sectionAria": "Tugas terjadwal di {project}",
   "sessions.scheduledTasks.dialog.group.newTaskAria": "Tugas baru di {project}",
   "sessions.scheduledTasks.dialog.group.retryAria": "Coba lagi memuat tugas untuk {project}",
-  "sessions.scheduledTasks.dialog.actions.runNowAria": "Jalankan {taskName} sekarang"
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "Jalankan {taskName} sekarang",
+  "sessions.scheduledTasks.dialog.family.memberCount": "{count} jadwal",
+  "sessions.scheduledTasks.dialog.confirm.deleteFamily": "Hapus tugas terjadwal \"{taskName}\" dan semua {count} jadwalnya?",
+  "sessions.scheduledTasks.editor.schedule.irregularNote": "Tugas ini saat ini berjalan pada {schedules}. Mengubah jadwal di bawah akan menggantinya dengan setiap hari dalam minggu yang dipilih pada setiap waktu yang dipilih; membiarkannya tidak berubah mempertahankan jadwal saat ini.",
+  "sessions.scheduledTasks.dialog.error.taskChanged": "Tugas ini berubah saat Anda mengeditnya. Daftar telah diperbarui; silakan coba lagi."
 }

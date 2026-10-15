@@ -59,6 +59,24 @@ type RuntimeRunInfo = {
   time: { created: number }
 }
 
+/**
+ * What re-saving a fanned-out task (see components/session/scheduledTaskFamilies)
+ * has to do to the runtime: in-place updates for kept parts, new parts for
+ * extra slots, and the surplus parts to delete afterwards.
+ */
+export type ScheduledTaskFamilyReconciliation = {
+  /**
+   * Kept parts to rewrite; `status` is present only when it has to change and
+   * `clearModel` when the part had a model the draft no longer sets.
+   */
+  updates: Array<{ id: string; payload: RuntimeTaskPayload; status?: RuntimeTaskStatus; clearModel?: boolean }>
+  creates: RuntimeTaskPayload[]
+  /** Status every created part ends up in (the runtime creates them active). */
+  createStatus: RuntimeTaskStatus
+  /** Surplus parts, deleted after updates and creates succeeded. */
+  deletes: string[]
+}
+
 const RUN_FETCH_CONCURRENCY = 6
 
 const formatSdkError = (error: unknown, fallback: string): string => {
@@ -240,6 +258,61 @@ export const updateScheduledTask = async (
   const response = await client.scheduledTask.update({ scheduledTaskID: taskID, ...patch })
   if (response.error) {
     throw new Error(formatSdkError(response.error, "Failed to save scheduled task"))
+  }
+}
+
+/**
+ * Apply a family re-save: kept parts first, then new parts, then the surplus
+ * parts, so a failure part-way never removes a schedule before its
+ * replacement exists. The first error aborts and is thrown; callers reload
+ * the directory so the list shows the runtime's actual state. The runtime
+ * update route cannot clear an agent (it only accepts a string), so a part
+ * keeps its agent when the draft drops it; a dropped model is sent as null.
+ */
+export const reconcileScheduledTaskFamily = async (
+  directory: string,
+  plan: ScheduledTaskFamilyReconciliation,
+): Promise<void> => {
+  const client = clientFor(directory)
+  for (const update of plan.updates) {
+    const { payload } = update
+    const response = await client.scheduledTask.update({
+      scheduledTaskID: update.id,
+      title: payload.title,
+      prompt: payload.prompt,
+      schedule: payload.schedule,
+      ...(payload.agent ? { agent: payload.agent } : {}),
+      ...(payload.model ? { model: payload.model } : update.clearModel ? { model: null } : {}),
+      catchUpPolicy: payload.catchUpPolicy,
+      ...(update.status ? { status: update.status } : {}),
+    })
+    if (response.error) {
+      throw new Error(formatSdkError(response.error, "Failed to save scheduled task"))
+    }
+  }
+  if (plan.creates.length > 0) {
+    await createScheduledTasks(directory, plan.creates, { pause: plan.createStatus === "paused" })
+  }
+  for (const taskID of plan.deletes) {
+    await deleteScheduledTask(directory, taskID)
+  }
+}
+
+/** Pause or resume every part of a family in order; the first error aborts and is thrown. */
+export const setScheduledTasksEnabled = async (
+  directory: string,
+  taskIDs: readonly string[],
+  enabled: boolean,
+): Promise<void> => {
+  for (const taskID of taskIDs) {
+    await setScheduledTaskEnabled(directory, taskID, enabled)
+  }
+}
+
+/** Delete every part of a family in order; the first error aborts and is thrown. */
+export const deleteScheduledTasks = async (directory: string, taskIDs: readonly string[]): Promise<void> => {
+  for (const taskID of taskIDs) {
+    await deleteScheduledTask(directory, taskID)
   }
 }
 

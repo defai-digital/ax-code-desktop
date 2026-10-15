@@ -4647,5 +4647,9 @@
   "sessions.scheduledTasks.dialog.group.sectionAria": "Tareas programadas en {project}",
   "sessions.scheduledTasks.dialog.group.newTaskAria": "Nueva tarea en {project}",
   "sessions.scheduledTasks.dialog.group.retryAria": "Reintentar cargar las tareas de {project}",
-  "sessions.scheduledTasks.dialog.actions.runNowAria": "Ejecutar {taskName} ahora"
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "Ejecutar {taskName} ahora",
+  "sessions.scheduledTasks.dialog.family.memberCount": "{count} horarios",
+  "sessions.scheduledTasks.dialog.confirm.deleteFamily": "\u00bfEliminar la tarea programada \"{taskName}\" y todos sus {count} horarios?",
+  "sessions.scheduledTasks.editor.schedule.irregularNote": "Esta tarea se ejecuta actualmente en {schedules}. Si cambias la programaci\u00f3n de abajo, se sustituye por cada d\u00eda de la semana seleccionado a cada hora seleccionada; si la dejas sin cambios, se conservan las programaciones actuales.",
+  "sessions.scheduledTasks.dialog.error.taskChanged": "Esta tarea cambió mientras la editabas. La lista se ha actualizado; inténtalo de nuevo."
 }

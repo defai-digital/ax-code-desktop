@@ -4647,5 +4647,9 @@
   "sessions.scheduledTasks.dialog.group.sectionAria": "Geplante Aufgaben in {project}",
   "sessions.scheduledTasks.dialog.group.newTaskAria": "Neue Aufgabe in {project}",
   "sessions.scheduledTasks.dialog.group.retryAria": "Aufgaben f\u00fcr {project} erneut laden",
-  "sessions.scheduledTasks.dialog.actions.runNowAria": "{taskName} jetzt ausf\u00fchren"
+  "sessions.scheduledTasks.dialog.actions.runNowAria": "{taskName} jetzt ausf\u00fchren",
+  "sessions.scheduledTasks.dialog.family.memberCount": "{count} Zeitpl\u00e4ne",
+  "sessions.scheduledTasks.dialog.confirm.deleteFamily": "Geplante Aufgabe \"{taskName}\" und alle {count} ihrer Zeitpl\u00e4ne l\u00f6schen?",
+  "sessions.scheduledTasks.editor.schedule.irregularNote": "Diese Aufgabe l\u00e4uft derzeit an {schedules}. Wenn du den Zeitplan unten \u00e4nderst, wird er durch jeden ausgew\u00e4hlten Wochentag zu jeder ausgew\u00e4hlten Uhrzeit ersetzt; l\u00e4sst du ihn unver\u00e4ndert, bleiben die aktuellen Zeitpl\u00e4ne erhalten.",
+  "sessions.scheduledTasks.dialog.error.taskChanged": "Diese Aufgabe wurde während der Bearbeitung geändert. Die Liste wurde aktualisiert; bitte versuchen Sie es erneut."
 }
