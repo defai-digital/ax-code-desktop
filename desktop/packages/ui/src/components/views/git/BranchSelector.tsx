@@ -212,21 +212,27 @@ export const BranchSelector: React.FC<GitBranchSelectorProps> = ({
             <CommandSeparator />
 
             <CommandGroup heading={t("gitView.branch.localBranches")}>
-              {filteredLocal.map((branch) => (
-                <CommandItem key={`local-${branch}`} onSelect={() => handleCheckout(branch)}>
-                  <span className="flex flex-1 flex-col">
-                    <span className="typography-ui-label text-foreground">{branch}</span>
-                    {(branchInfo?.[branch]?.ahead || branchInfo?.[branch]?.behind) && (
-                      <span className="typography-micro text-muted-foreground">
-                        {branchInfo[branch].ahead || 0} ahead · {branchInfo[branch].behind || 0} behind
-                      </span>
+              {filteredLocal.map((branch) => {
+                const ahead = branchInfo?.[branch]?.ahead
+                const behind = branchInfo?.[branch]?.behind
+                return (
+                  <CommandItem key={`local-${branch}`} onSelect={() => handleCheckout(branch)}>
+                    <span className="flex flex-1 flex-col">
+                      <span className="typography-ui-label text-foreground">{branch}</span>
+                      {/* A plain `||` chain here evaluates to the number 0 when the
+                          branch is in sync, and React renders numbers verbatim. */}
+                      {Boolean(ahead || behind) && (
+                        <span className="typography-micro text-muted-foreground">
+                          {ahead || 0} ahead · {behind || 0} behind
+                        </span>
+                      )}
+                    </span>
+                    {currentBranch === branch && (
+                      <span className="typography-micro text-primary">{t("gitView.branch.currentBadge")}</span>
                     )}
-                  </span>
-                  {currentBranch === branch && (
-                    <span className="typography-micro text-primary">{t("gitView.branch.currentBadge")}</span>
-                  )}
-                </CommandItem>
-              ))}
+                  </CommandItem>
+                )
+              })}
               {filteredLocal.length === 0 && (
                 <CommandItem disabled className="justify-center">
                   <span className="typography-meta text-muted-foreground">{t("gitView.branch.noLocalBranches")}</span>
