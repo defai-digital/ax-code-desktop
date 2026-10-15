@@ -675,7 +675,15 @@ export function applyDirectoryEvent(
       if (result.found) {
         const previous = next[result.index]
         if (shouldPreserveExistingPart(previous, part)) {
-          return false
+          // Preserving the local part says nothing about the owning message:
+          // still request the missing snapshot like the sibling paths, or a
+          // replayed out-of-order update leaves the part orphaned for good.
+          return missingOwningMessage
+            ? {
+                changed: false,
+                materialization: { type: "incomplete-session-snapshot", sessionID, messageID, partID: part.id },
+              }
+            : false
         }
         const dedupeFields = getUpdatedDeltaFields(previous, part)
         next[result.index] =
