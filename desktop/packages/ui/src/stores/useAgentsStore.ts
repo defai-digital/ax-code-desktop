@@ -29,6 +29,8 @@ import { streamDebugEnabled } from "@/stores/utils/streamDebug"
 
 const AGENTS_LOAD_CACHE_TTL_MS = 5000
 const agentsLastLoadedAt = new Map<string, number>()
+/** The cache key the agents currently in the store were loaded for. */
+let agentsLoadedCacheKey: string | null = null
 const agentsLoadInFlight = createSingleFlight<boolean>()
 const agentsLoadRequestIds = new Map<string, number>()
 let agentsLoadSequence = 0
@@ -140,7 +142,11 @@ export const useAgentsStore = create<AgentsStore>()(
           const cacheKey = getDirectoryCacheKey(configDirectory)
           const now = Date.now()
           const loadedAt = agentsLastLoadedAt.get(cacheKey) ?? 0
-          const hasCachedAgents = get().agents.length > 0
+          // The agents in the store must be the ones loaded for THIS directory:
+          // after a switch to another project and back within the TTL, the
+          // array still held the other project's agents and the skip below
+          // kept showing them here.
+          const hasCachedAgents = get().agents.length > 0 && agentsLoadedCacheKey === cacheKey
 
           if (hasCachedAgents && now - loadedAt < AGENTS_LOAD_CACHE_TTL_MS) {
             return true
@@ -221,6 +227,7 @@ export const useAgentsStore = create<AgentsStore>()(
                   set({ isLoading: false })
                 }
                 agentsLastLoadedAt.set(cacheKey, Date.now())
+                agentsLoadedCacheKey = cacheKey
                 return true
               } catch {
                 // ignore error
