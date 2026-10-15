@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Mission Control (Cmd+Shift+H): one board of live sessions across projects with their state, diff size
+  and age, a peek that answers requests without opening the session, saved working sets and a soft hint
+  when more than four sessions need close attention.
+- Needs you: a titlebar counter and popover to allow, deny or answer requests from any project, a sidebar
+  Live section, and Cmd+Alt+J to jump to the next session that needs you. Requests are pinned above the
+  composer instead of scrolling away.
+- Changes, files, git, plan, context and the wiki graph open beside the chat from a right-hand rail, so the
+  chat stays visible; a "since you left" strip, Cmd+Alt+Left/Right through recent sessions, Cmd+K
+  supervision commands, quick dispatch (Cmd+Alt+K, or an opt-in Alt+Space global shortcut), a compare view
+  for multi-run lanes and notifications when a run finishes or fails.
+- WebMCP allowlist: review, add and remove the sites a project lets a browser-bridge MCP server use, and
+  "always allow on this site" on WebMCP approval prompts.
+- Wiki graph: the repository wiki's pages, sources and symbols as an interactive graph with freshness,
+  search and an explicit build action.
 - Project browser: the agent can read a page's text and controls, click, type, select and wait on the
   page it was granted, for sites that register no WebMCP tools. Every action asks first and passwords are
   never typed. Requires a signed runtime that carries ax-code ADR-198.
