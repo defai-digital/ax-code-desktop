@@ -178,19 +178,23 @@ const resolveIconName = (filePath: string, extension?: string): string => {
     return "settings"
   }
 
-  const language = getLanguageFromExtension(filePath)
-  if (language && languageIconMap[language]) {
-    return languageIconMap[language]
-  }
-
   const normalizedExtension = isNonEmptyString(extension)
     ? extension.toLowerCase()
     : fileName.includes(".")
       ? fileName.split(".").pop()?.toLowerCase() || ""
       : ""
 
+  // The extension map answers more precisely for the extensions it lists. It has
+  // to come before the language map: `.svg`, `.mdx` and `.env` also have a
+  // language, and their language icons (xml, markdown, bash) are not what the
+  // file is — which left those three entries unreachable.
   if (normalizedExtension && extensionIconMap[normalizedExtension]) {
     return extensionIconMap[normalizedExtension]
+  }
+
+  const language = getLanguageFromExtension(filePath)
+  if (language && languageIconMap[language]) {
+    return languageIconMap[language]
   }
 
   if (normalizedExtension && FILE_TYPE_ICON_IDS.has(normalizedExtension)) {
