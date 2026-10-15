@@ -173,3 +173,33 @@ describe("bootstrapDirectory — session status snapshot", () => {
     expect(harness.getState().session_status.ses_a).toEqual({ type: "idle" })
   })
 })
+
+describe("bootstrapDirectory — per-directory scoping", () => {
+  test("asks the runtime about the bootstrapped directory, not its own cwd", async () => {
+    const harness = makeHarness()
+    const sdk = makeBaseSdk({
+      project: { current: vi.fn(async () => ({ data: { id: "proj_b" } })) },
+    })
+
+    // The managed runtime serves several directories from one process and picks
+    // the instance per request from the query/header, falling back to its own
+    // cwd. Without the directory these snapshots describe whatever instance that
+    // fallback selected, and the answer was merged into this store as if it
+    // belonged here.
+    await bootstrapDirectory({
+      directory: "/work/project-b",
+      sdk,
+      getState: harness.getState,
+      set: harness.set,
+      global: { projects: [] },
+      loadSessions: () => undefined,
+    })
+    await flush()
+
+    expect(sdk.project.current).toHaveBeenCalledWith({ directory: "/work/project-b" })
+    expect(sdk.path.get).toHaveBeenCalledWith({ directory: "/work/project-b" })
+    expect(sdk.session.status).toHaveBeenCalledWith({ directory: "/work/project-b" })
+    expect(sdk.lsp.status).toHaveBeenCalledWith({ directory: "/work/project-b" })
+    expect(sdk.vcs.get).toHaveBeenCalledWith({ directory: "/work/project-b" })
+  })
+})

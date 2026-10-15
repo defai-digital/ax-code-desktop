@@ -144,9 +144,13 @@ export async function bootstrapDirectory(input: {
   const phase1Results = await Promise.allSettled([
     seededProject
       ? Promise.resolve()
-      : retry(() => sdk.project.current().then((x) => set({ project: unwrap(x, "project.current").id }))),
+      : retry(() =>
+          sdk.project
+            .current(directory ? { directory } : undefined)
+            .then((x) => set({ project: unwrap(x, "project.current").id })),
+        ),
     retry(() =>
-      sdk.path.get().then((x) => {
+      sdk.path.get(directory ? { directory } : undefined).then((x) => {
         const data = unwrap(x, "path.get")
         set({ path: data })
         const next = projectID(data?.directory ?? directory, g.projects)
@@ -154,7 +158,7 @@ export async function bootstrapDirectory(input: {
       }),
     ),
     retry(() =>
-      sdk.session.status().then((x) => {
+      sdk.session.status(directory ? { directory } : undefined).then((x) => {
         const snapshot = unwrap(x, "session.status") as unknown as Record<string, SessionStatus>
         // The snapshot lists only the sessions the server currently considers active,
         // so taking it wholesale flipped a just-sent turn's optimistic busy back to
@@ -199,9 +203,9 @@ export async function bootstrapDirectory(input: {
   // These enrich the UI but aren't required for basic functionality.
   // ---------------------------------------------------------------------------
   void Promise.allSettled([
-    retry(() => sdk.lsp.status().then((x) => set({ lsp: unwrap(x, "lsp.status") }))),
+    retry(() => sdk.lsp.status(directory ? { directory } : undefined).then((x) => set({ lsp: unwrap(x, "lsp.status") }))),
     retry(() =>
-      sdk.vcs.get().then((x) => {
+      sdk.vcs.get(directory ? { directory } : undefined).then((x) => {
         const current = getState()
         if (x.error) {
           throw new Error(`vcs.get failed: ${String(x.error)}`)
