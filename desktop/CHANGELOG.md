@@ -58,6 +58,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The add-project browser recognizes Git repositories. Repository folders show a repository icon;
+  a parent folder holding several repositories offers "Add all"; a folder inside a repository
+  offers to add that repository instead. Dismissed hints are remembered, and the "Add all" hint
+  returns only when a new repository appears.
 - The desktop new-session home is top-anchored instead of a centered hero: a short "New session"
   title with the AGENTS.md status on the same row, the composer, then sessions that need a person
   (ranked: blocked on a permission or question, then errors, then uncommitted work; three rows

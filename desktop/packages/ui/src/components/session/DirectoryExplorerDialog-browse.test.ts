@@ -24,4 +24,18 @@ describe("add project directory browser", () => {
   test("an added folder shows the Added badge instead of quick add", () => {
     expect(dialog).toMatch(/row\.type === "directory" && row\.added \? \([\s\S]*?browse\.addedBadge/)
   })
+
+  test("a parent folder of several repositories offers to add them, and a subfolder offers its repository", () => {
+    expect(dialog).toContain("inspectGitRepositories(browseDirectoryAbsolutePath)")
+    // Children hint: only for a folder that is not itself a repository, with 2+ repositories not yet added.
+    expect(dialog).toMatch(
+      /const showChildrenHint =[\s\S]*?!browsedFolderIsRepository[\s\S]*?repositoryNames\.size >= 2[\s\S]*?repositoriesToAdd\.length > 0/,
+    )
+    // Parent hint: the folder sits inside a repository that is not a project yet.
+    expect(dialog).toMatch(/const showParentHint = Boolean\([\s\S]*?!addedProjectPaths\.has\(parentRepositoryKey\)/)
+    // Dismissals are remembered and only new repositories bring the hint back.
+    expect(dialog).toContain("isChildHintDismissed(dismissedChildren, hintFolderKey, Array.from(repositoryNames))")
+    // Repository rows are marked so a single one can be picked with quick add.
+    expect(dialog).toContain('repositoryNames.has(row.name) ? "git-repository" : "folder-6"')
+  })
 })

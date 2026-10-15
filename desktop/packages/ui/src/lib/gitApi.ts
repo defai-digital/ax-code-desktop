@@ -92,6 +92,13 @@ const extractAssistantText = (response: unknown): string => {
     .trim()
 }
 
+export type { GitRepositoryHints } from "./gitApiHttp"
+
+/** Repository hints for the add-project browser; served by the desktop git adapter. */
+export async function inspectGitRepositories(directory: string): Promise<gitHttp.GitRepositoryHints> {
+  return gitHttp.inspectGitRepositories(directory)
+}
+
 export async function checkIsGitRepository(directory: string): Promise<boolean> {
   const runtime = getRuntimeGit()
   if (runtime) return runtime.checkIsGitRepository(directory)

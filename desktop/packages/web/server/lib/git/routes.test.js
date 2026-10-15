@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import fsPromises from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
 
 const gitLibraries = {
@@ -199,5 +202,35 @@ describe("git routes index mutations", () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.body).toMatchObject({ isGitRepository: false, current: "", isClean: true, files: [] })
+  })
+})
+
+describe("git repository hints route", () => {
+  const call = async (directory) => {
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+    await getRoute("GET", "/api/git/repositories")({ query: { directory } }, response)
+    return response
+  }
+
+  it("requires an absolute directory", async () => {
+    expect((await call("")).statusCode).toBe(400)
+    expect((await call("relative/path")).statusCode).toBe(400)
+  })
+
+  it("answers 404 for a missing folder", async () => {
+    expect((await call(path.join(os.tmpdir(), "ax-missing-" + Date.now()))).statusCode).toBe(404)
+  })
+
+  it("lists child repositories and stays inside a folder outside the home folder", async () => {
+    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "ax-git-route-"))
+    await fsPromises.mkdir(path.join(root, "app", ".git"), { recursive: true })
+    await fsPromises.mkdir(path.join(root, "lib", ".git"), { recursive: true })
+    const response = await call(root)
+    expect(response.statusCode).toBe(200)
+    expect(response.body.childRepositories.map((repo) => repo.name)).toEqual(["app", "lib"])
+    // The temp folder is outside the home folder, so the search does not walk upward.
+    expect(response.body.gitRoot).toBeNull()
   })
 })

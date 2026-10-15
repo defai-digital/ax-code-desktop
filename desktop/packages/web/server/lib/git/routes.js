@@ -1,3 +1,8 @@
+import fsPromises from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { inspectGitRepositories } from "./repository-scan.js"
+
 // Revisions reach git as bare argv entries, and git parses a leading "-" as an option rather than a
 // revision — `to=--output=<path>` makes `git log` overwrite that file and report an empty history.
 // Git refs never start with "-", so the option form is rejected at the boundary.
@@ -101,6 +106,39 @@ export function registerGitRoutes(app) {
     } catch (error) {
       console.error("Failed to discover git credentials:", error)
       res.status(500).json({ error: "Failed to discover git credentials" })
+    }
+  })
+
+  // Repository hints for the add-project browser: the repository a folder belongs to and the
+  // repositories directly inside it. It only checks for `.git` entries. The upward search stays
+  // inside the home folder; outside it only the folder itself is considered.
+  app.get("/api/git/repositories", async (req, res) => {
+    const directory = typeof req.query.directory === "string" ? req.query.directory.trim() : ""
+    if (!directory || !path.isAbsolute(directory)) {
+      return res.status(400).json({ error: "absolute directory parameter is required" })
+    }
+    try {
+      const resolved = path.resolve(directory)
+      const home = os.homedir()
+      const relativeToHome = path.relative(home, resolved)
+      const insideHome = relativeToHome === "" || (!relativeToHome.startsWith("..") && !path.isAbsolute(relativeToHome))
+      const stats = await fsPromises.stat(resolved)
+      if (!stats.isDirectory()) {
+        return res.status(400).json({ error: "directory is not a folder" })
+      }
+      const result = await inspectGitRepositories({
+        directory: resolved,
+        ceiling: insideHome ? home : resolved,
+        fsPromises,
+        path,
+      })
+      return res.json(result)
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? error.code : undefined
+      if (code === "ENOENT") return res.status(404).json({ error: "Directory not found" })
+      if (code === "EACCES") return res.status(403).json({ error: "Access to directory denied" })
+      console.error("Failed to inspect git repositories:", error)
+      return res.status(500).json({ error: "Failed to inspect git repositories" })
     }
   })
 

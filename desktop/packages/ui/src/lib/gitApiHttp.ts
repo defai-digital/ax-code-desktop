@@ -90,6 +90,33 @@ function buildUrl(
   return url.toString()
 }
 
+export type GitRepositoryHints = {
+  directory: string
+  /** The repository the folder belongs to (the folder itself when it is a repository root). */
+  gitRoot: string | null
+  /** Repositories directly inside the folder. */
+  childRepositories: Array<{ name: string; path: string }>
+}
+
+/** Repository hints for the add-project browser. Not cached: the browser asks once per folder. */
+export async function inspectGitRepositories(directory: string): Promise<GitRepositoryHints> {
+  const response = await fetch(buildUrl(`${API_BASE}/repositories`, directory))
+  if (!response.ok) {
+    throw new Error(`Failed to inspect git repositories: ${response.statusText}`)
+  }
+  const data = (await response.json()) as Partial<GitRepositoryHints>
+  return {
+    directory: typeof data.directory === "string" ? data.directory : directory,
+    gitRoot: typeof data.gitRoot === "string" ? data.gitRoot : null,
+    childRepositories: Array.isArray(data.childRepositories)
+      ? data.childRepositories.filter(
+          (entry): entry is { name: string; path: string } =>
+            Boolean(entry) && typeof entry.name === "string" && typeof entry.path === "string",
+        )
+      : [],
+  }
+}
+
 export async function checkIsGitRepository(directory: string): Promise<boolean> {
   const key = normalizeDirectoryKey(directory)
   const now = Date.now()

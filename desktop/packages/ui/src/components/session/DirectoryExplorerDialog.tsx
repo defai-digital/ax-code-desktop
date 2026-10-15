@@ -25,6 +25,8 @@ import { API_ENDPOINTS } from "@/lib/http"
 import { setDirectoryShowHidden, useDirectoryShowHidden } from "@/lib/directoryShowHidden"
 import { useI18n } from "@/lib/i18n"
 import { normalizeDirectoryExplorerProjectPathKey as normalizeDirectoryPath } from "./DirectoryExplorerDialog-paths"
+import { inspectGitRepositories, type GitRepositoryHints } from "@/lib/gitApi"
+import { isChildHintDismissed, useRepositoryHintStore } from "@/stores/useRepositoryHintStore"
 
 interface DirectoryExplorerDialogProps {
   open: boolean
@@ -294,6 +296,62 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
     )
   }, [browseFilterQuery, entries, showHidden])
 
+  // Repository hints for the folder being browsed: which subfolders are repositories, and which
+  // repository this folder sits inside. Failures only hide the hints.
+  const [repoHints, setRepoHints] = React.useState<GitRepositoryHints | null>(null)
+  React.useEffect(() => {
+    setRepoHints(null)
+    if (!open || isCloneMode || !browseDirectoryAbsolutePath) return
+    let cancelled = false
+    inspectGitRepositories(browseDirectoryAbsolutePath)
+      .then((hints) => {
+        if (!cancelled) setRepoHints(hints)
+      })
+      .catch(() => {
+        if (!cancelled) setRepoHints(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [browseDirectoryAbsolutePath, isCloneMode, open])
+  const repositoryNames = React.useMemo(
+    () => new Set((repoHints?.childRepositories ?? []).map((repo) => repo.name)),
+    [repoHints],
+  )
+  const dismissedChildren = useRepositoryHintStore((state) => state.dismissedChildren)
+  const dismissedParent = useRepositoryHintStore((state) => state.dismissedParent)
+  const dismissChildrenHint = useRepositoryHintStore((state) => state.dismissChildren)
+  const dismissParentHint = useRepositoryHintStore((state) => state.dismissParent)
+  const hintFolderKey = normalizeDirectoryPath(browseDirectoryAbsolutePath) ?? browseDirectoryAbsolutePath
+  // Subfolder repositories by the browsed entry path, so "Add all" adds the same paths quick add would.
+  const repositoriesToAdd = React.useMemo(() => {
+    if (!repoHints) return []
+    return entries
+      .filter((entry) => repositoryNames.has(entry.name))
+      .map((entry) => entry.path)
+      .filter((entryPath) => {
+        const normalized = normalizeDirectoryPath(entryPath)
+        return !(normalized && addedProjectPaths.has(normalized))
+      })
+  }, [addedProjectPaths, entries, repoHints, repositoryNames])
+  const browsedFolderIsRepository = Boolean(
+    repoHints?.gitRoot && normalizeDirectoryPath(repoHints.gitRoot) === normalizeDirectoryPath(repoHints.directory),
+  )
+  const showChildrenHint =
+    Boolean(repoHints) &&
+    !browsedFolderIsRepository &&
+    repositoryNames.size >= 2 &&
+    repositoriesToAdd.length > 0 &&
+    !isChildHintDismissed(dismissedChildren, hintFolderKey, Array.from(repositoryNames))
+  const parentRepository = repoHints?.gitRoot && !browsedFolderIsRepository ? repoHints.gitRoot : null
+  const parentRepositoryKey = parentRepository ? normalizeDirectoryPath(parentRepository) : null
+  const showParentHint = Boolean(
+    parentRepository &&
+      parentRepositoryKey &&
+      !addedProjectPaths.has(parentRepositoryKey) &&
+      dismissedParent[hintFolderKey] !== parentRepository,
+  )
+
   const rows = React.useMemo<BrowseRow[]>(() => {
     const nextRows: BrowseRow[] = []
     if (canNavigateUp(query)) {
@@ -398,6 +456,23 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
     },
     [addProject, addedProjectPaths, t],
   )
+
+  const handleAddRepositories = React.useCallback(() => {
+    let added = 0
+    for (const repositoryPath of repositoriesToAdd) {
+      if (addProject(repositoryPath)) added += 1
+    }
+    if (added > 0) {
+      toast.success(t("directoryExplorerDialog.repoHint.addedChildren", { count: String(added) }))
+    }
+  }, [addProject, repositoriesToAdd, t])
+
+  const handleAddParentRepository = React.useCallback(() => {
+    if (!parentRepository) return
+    if (!addProject(parentRepository)) {
+      toast.error(t("directoryExplorerDialog.toast.failedToAddProject"))
+    }
+  }, [addProject, parentRepository, t])
 
   const finalizeSelection = React.useCallback(
     async (target: string) => {
@@ -625,6 +700,54 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
     </div>
   )
 
+  const repoHintSection =
+    showChildrenHint || showParentHint ? (
+      <div data-repository-hints className="mx-2.5 mb-1.5 flex flex-col gap-1">
+        {showChildrenHint ? (
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--interactive-border)] bg-[var(--surface-elevated)] px-2.5 py-1.5">
+            <Icon name="git-repository" className="h-4 w-4 flex-shrink-0 text-primary" />
+            <span className="min-w-0 flex-1 truncate typography-meta text-foreground">
+              {t("directoryExplorerDialog.repoHint.children", { count: String(repositoryNames.size) })}
+            </span>
+            <Button type="button" size="xs" onClick={handleAddRepositories} className="flex-shrink-0">
+              {t("directoryExplorerDialog.repoHint.addChildren", { count: String(repositoriesToAdd.length) })}
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="flex-shrink-0 text-muted-foreground"
+              onClick={() => dismissChildrenHint(hintFolderKey, Array.from(repositoryNames))}
+            >
+              {t("directoryExplorerDialog.repoHint.dismiss")}
+            </Button>
+          </div>
+        ) : null}
+        {showParentHint && parentRepository ? (
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--interactive-border)] bg-[var(--surface-elevated)] px-2.5 py-1.5">
+            <Icon name="git-repository" className="h-4 w-4 flex-shrink-0 text-primary" />
+            <span className="min-w-0 flex-1 truncate typography-meta text-foreground">
+              {t("directoryExplorerDialog.repoHint.parent", {
+                name: parentRepository.split(/[\\/]/).filter(Boolean).pop() ?? parentRepository,
+              })}
+            </span>
+            <Button type="button" size="xs" onClick={handleAddParentRepository} className="flex-shrink-0">
+              {t("directoryExplorerDialog.repoHint.addParent")}
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="flex-shrink-0 text-muted-foreground"
+              onClick={() => dismissParentHint(hintFolderKey, parentRepository)}
+            >
+              {t("directoryExplorerDialog.repoHint.dismiss")}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    ) : null
+
   const resultsSection = (
     <div className="surface-inset relative min-h-0 flex-1 overflow-hidden">
       <div className="max-h-[min(28rem,58vh)] overflow-y-auto p-2">
@@ -667,7 +790,16 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
                   {row.type === "up" ? (
                     <Icon name="arrow-left-s" className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                   ) : (
-                    <Icon name="folder-6" className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                    <Icon
+                      name={repositoryNames.has(row.name) ? "git-repository" : "folder-6"}
+                      aria-label={
+                        repositoryNames.has(row.name) ? t("directoryExplorerDialog.browse.repository") : undefined
+                      }
+                      className={cn(
+                        "h-4 w-4 flex-shrink-0",
+                        repositoryNames.has(row.name) ? "text-primary" : "text-muted-foreground",
+                      )}
+                    />
                   )}
                   <span className="flex min-w-0 flex-1 items-center gap-1.5">
                     <span
@@ -706,6 +838,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
   const content = (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {inputSection}
+      {repoHintSection}
       {resultsSection}
     </div>
   )
