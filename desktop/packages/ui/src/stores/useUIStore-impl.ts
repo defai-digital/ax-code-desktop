@@ -13,9 +13,10 @@ import {
   type UiFontOption,
 } from "@/lib/fontOptions"
 import { normalizeProjectPath } from "@/lib/projectResolution"
+import { isPersistedSplitPaneRightTab } from "@/lib/wiki/splitTab"
 import type { TimeFormatPreference } from "@/lib/timeFormat"
 
-export type MainTab = "chat" | "plan" | "git" | "diff" | "terminal" | "files" | "context"
+export type MainTab = "chat" | "plan" | "git" | "diff" | "terminal" | "files" | "context" | "wiki"
 type RightSidebarTab = "git" | "files" | "context"
 export type ContextPanelMode = "diff" | "file" | "context" | "plan" | "chat" | "preview" | "browser" | "dashboard"
 
@@ -621,6 +622,8 @@ interface UIStore {
   notifyOnError: boolean
   notifyOnQuestion: boolean
   notifyOnPermission: boolean
+  /** Opt-in Alt+Space shortcut that opens quick dispatch. Off unless the user enables it. */
+  quickDispatchGlobalShortcut: boolean
 
   // Per-event notification templates
   notificationTemplates: {
@@ -773,6 +776,7 @@ interface UIStore {
   setNotifyOnError: (value: boolean) => void
   setNotifyOnQuestion: (value: boolean) => void
   setNotifyOnPermission: (value: boolean) => void
+  setQuickDispatchGlobalShortcut: (value: boolean) => void
   setNotificationTemplates: (templates: UIStore["notificationTemplates"]) => void
   setSummarizeLastMessage: (value: boolean) => void
   setSummaryThreshold: (value: number) => void
@@ -893,6 +897,7 @@ export const useUIStore = create<UIStore>()(
         notifyOnError: true,
         notifyOnQuestion: true,
         notifyOnPermission: true,
+        quickDispatchGlobalShortcut: false,
         notificationTemplates: {
           completion: { ...EMPTY_NOTIFICATION_TEMPLATES.completion },
           error: { ...EMPTY_NOTIFICATION_TEMPLATES.error },
@@ -1488,6 +1493,10 @@ export const useUIStore = create<UIStore>()(
         },
 
         setActiveMainTab: (tab) => {
+          // Staying on the current tab navigates nowhere, so it must not ask a guard to discard anything.
+          if (get().activeMainTab === tab) {
+            return
+          }
           const guard = get().mainTabGuard
           if (guard && !guard(tab)) {
             return
@@ -1622,7 +1631,6 @@ export const useUIStore = create<UIStore>()(
         setCollapsibleThinkingBlocks: (value) => {
           set({ collapsibleThinkingBlocks: value })
         },
-
 
         setActivityRenderMode: (value) => {
           set({ activityRenderMode: value })
@@ -2051,6 +2059,9 @@ export const useUIStore = create<UIStore>()(
         setNotifyOnPermission: (value: boolean) => {
           set({ notifyOnPermission: value })
         },
+        setQuickDispatchGlobalShortcut: (value: boolean) => {
+          set({ quickDispatchGlobalShortcut: value })
+        },
         setNotificationTemplates: (templates) => {
           set({ notificationTemplates: templates })
         },
@@ -2381,6 +2392,7 @@ export const useUIStore = create<UIStore>()(
           notifyOnError: state.notifyOnError,
           notifyOnQuestion: state.notifyOnQuestion,
           notifyOnPermission: state.notifyOnPermission,
+          quickDispatchGlobalShortcut: state.quickDispatchGlobalShortcut,
           notificationTemplates: state.notificationTemplates,
           summarizeLastMessage: state.summarizeLastMessage,
           summaryThreshold: state.summaryThreshold,
@@ -2405,6 +2417,20 @@ export const useUIStore = create<UIStore>()(
           splitPaneRatio: state.splitPaneRatio,
           splitPaneRightTab: state.splitPaneRightTab,
         }),
+        // Version stays at 15 so an older files/git/diff/terminal/plan/context value is not
+        // rewritten by migrate. Unknown values (and a future tab we do not know) fall back
+        // to the in-memory default without discarding the rest of the persisted UI state.
+        merge: (persistedState, currentState) => {
+          if (!persistedState || typeof persistedState !== "object") return currentState
+          const merged: UIStore = {
+            ...currentState,
+            ...(persistedState as Partial<UIStore>),
+          }
+          if (!isPersistedSplitPaneRightTab(merged.splitPaneRightTab)) {
+            merged.splitPaneRightTab = currentState.splitPaneRightTab
+          }
+          return merged
+        },
       },
     ),
     {

@@ -5,6 +5,7 @@ import { getSyncSessions } from "@/sync/sync-refs"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useUIStore } from "@/stores/useUIStore"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUpdateStore } from "@/stores/useUpdateStore"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { openProjectFolder } from "@/lib/projectOpen"
@@ -65,6 +66,8 @@ type MenuAction =
   | "settings"
   | "command-palette"
   | "quick-open"
+  | "quick-dispatch"
+  | "mission-control"
   | "new-session"
   | "new-worktree-session"
   | "change-workspace"
@@ -195,6 +198,14 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
 
         case "quick-open":
           setCommandPaletteOpen(true)
+          break
+
+        case "quick-dispatch":
+          useSupervisionStore.getState().setQuickDispatchOpen(true)
+          break
+
+        case "mission-control":
+          useSupervisionStore.getState().setMissionControlOpen(true)
           break
 
         case "new-session":

@@ -75,6 +75,8 @@ import { SyncStatusIndicator } from "@/components/ui/SyncStatusIndicator"
 import { ReconnectBanner } from "@/components/ui/ReconnectBanner"
 import { NotificationCenter } from "@/components/notifications/NotificationCenter"
 import { useNotificationStore } from "@/stores/useNotificationStore"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { NeedsYouButton } from "@/components/supervision/NeedsYouButton"
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import type { IconName } from "@/components/icon/icons"
 
@@ -785,6 +787,7 @@ export const Header: React.FC = () => {
   const unreadNotificationCount = useNotificationStore((s) =>
     s.notifications.reduce((count, item) => (item.read ? count : count + 1), 0),
   )
+  const missionControlOpen = useSupervisionStore((state) => state.missionControlOpen)
 
   const getCurrentModel = useConfigStore((state) => state.getCurrentModel)
   const runtimeApis = useRuntimeAPIs()
@@ -1427,7 +1430,6 @@ export const Header: React.FC = () => {
     return "pl-3"
   }, [isDesktopApp, isDesktopWindowFullscreen, isMacPlatform])
 
-
   const macosHeaderSizeClass = React.useMemo(() => {
     if (!isDesktopApp || !isMacPlatform || macosMajorVersion === null) {
       return ""
@@ -1751,6 +1753,16 @@ export const Header: React.FC = () => {
         onDevShutdown={handleDevShutdown}
       />
       <SyncStatusIndicator />
+      <NeedsYouButton />
+      <HeaderIconActionButton
+        title={t("supervision.missionControl.toggleWithShortcut", {
+          shortcut: shortcutLabel("open_mission_control"),
+        })}
+        ariaLabel={t("supervision.missionControl.toggleAria")}
+        onClick={() => useSupervisionStore.getState().toggleMissionControl()}
+        pressed={missionControlOpen}
+        Icon={"equalizer-2"}
+      />
       <span className="relative inline-flex">
         <HeaderIconActionButton
           title={t("notificationCenter.title")}

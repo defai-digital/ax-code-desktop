@@ -9,6 +9,12 @@ export interface PermissionRequest {
    * Set by the runtime when this ask will auto-reply "once" at that time (unattended autonomous
    * runs with the sandbox off). Clients only render the countdown; the runtime timer is authoritative.
    */
+  /** Present only on bridge WebMCP requests that may be saved to the allowlist. */
+  webmcpAllowlist?: {
+    server: string
+    project: string
+    scope: { capability: "list_pages" } | { capability: "navigate" | "read" | "close"; origin: string }
+  }
   autoOnceAt?: number
   tool?: {
     messageID: string

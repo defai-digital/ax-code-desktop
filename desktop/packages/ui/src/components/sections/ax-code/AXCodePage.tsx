@@ -1,4 +1,8 @@
 import React from "react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { useI18n } from "@/lib/i18n"
+import { updateDesktopSettings } from "@/lib/persistence"
+import { useUIStore } from "@/stores/useUIStore"
 import { AXCodeVisualSettings } from "./AXCodeVisualSettings"
 import { LanguageSettings } from "./LanguageSettings"
 import { SessionRetentionSettings } from "./SessionRetentionSettings"
@@ -99,6 +103,42 @@ const ChatSectionContent: React.FC = () => {
   )
 }
 
+const QuickDispatchShortcutSettings: React.FC = () => {
+  const { t } = useI18n()
+  const enabled = useUIStore((state) => state.quickDispatchGlobalShortcut)
+  const setEnabled = useUIStore((state) => state.setQuickDispatchGlobalShortcut)
+  const persist = (next: boolean) => {
+    setEnabled(next)
+    void updateDesktopSettings({ quickDispatchGlobalShortcut: next }).catch((error) => {
+      console.warn("Failed to persist quick dispatch shortcut setting:", error)
+    })
+  }
+
+  return (
+    <div
+      className="group flex cursor-pointer items-start gap-2 py-1.5"
+      role="button"
+      tabIndex={0}
+      aria-pressed={enabled}
+      onClick={() => persist(!enabled)}
+      onKeyDown={(event) => {
+        if (event.key === " " || event.key === "Enter") {
+          event.preventDefault()
+          persist(!enabled)
+        }
+      }}
+    >
+      <Checkbox checked={enabled} onChange={persist} ariaLabel={t("supervision.settings.quickDispatch.label")} />
+      <span className="flex min-w-0 flex-col">
+        <span className="typography-ui-label text-foreground">{t("supervision.settings.quickDispatch.label")}</span>
+        <span className="typography-micro text-muted-foreground">
+          {t("supervision.settings.quickDispatch.description")}
+        </span>
+      </span>
+    </div>
+  )
+}
+
 // Sessions section: Default model & agent, Session retention
 const SessionsSectionContent: React.FC = () => {
   return (
@@ -109,6 +149,9 @@ const SessionsSectionContent: React.FC = () => {
       </div>
       <div className="border-t border-border/40 pt-6">
         <SessionRetentionSettings />
+      </div>
+      <div className="border-t border-border/40 pt-6">
+        <QuickDispatchShortcutSettings />
       </div>
       <div className="border-t border-border/40 pt-6">
         <PasskeySettings />

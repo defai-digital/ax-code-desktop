@@ -406,6 +406,48 @@ const SHORTCUT_ACTIONS: ReadonlyArray<ShortcutAction> = [
     description: "Switch the main view back to chat",
     customizable: true,
   },
+  {
+    id: "open_mission_control",
+    defaultCombo: "mod+shift+h",
+    label: "Mission Control",
+    description: "Show or hide the board of live sessions across projects",
+    customizable: true,
+  },
+  {
+    id: "next_needs_you",
+    defaultCombo: "mod+alt+j",
+    label: "Next session that needs you",
+    description: "Open the next session waiting on an approval, an answer, an error or a review",
+    customizable: true,
+  },
+  {
+    id: "session_back",
+    defaultCombo: "mod+alt+arrowleft",
+    label: "Previous recent session",
+    description: "Go back to the previously viewed session",
+    customizable: true,
+  },
+  {
+    id: "session_forward",
+    defaultCombo: "mod+alt+arrowright",
+    label: "Next recent session",
+    description: "Go forward through recently viewed sessions",
+    customizable: true,
+  },
+  {
+    id: "open_quick_dispatch",
+    defaultCombo: "mod+alt+k",
+    label: "Quick dispatch",
+    description: "Start a task in any project without leaving the current view",
+    customizable: true,
+  },
+  {
+    id: "open_command_palette_alt",
+    defaultCombo: "mod+k",
+    label: "Open command palette (alternate)",
+    description: "Open the command palette with supervision commands",
+    customizable: true,
+  },
 ] as const
 
 export function normalizeCombo(combo: ShortcutCombo): ShortcutCombo {

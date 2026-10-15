@@ -5,7 +5,12 @@ import { Sidebar, SIDEBAR_CONTENT_WIDTH } from "./Sidebar"
 import { RightSidebar, RIGHT_SIDEBAR_CONTENT_WIDTH } from "./RightSidebar"
 import { ProjectContextPanel, RightSidebarTabs } from "./RightSidebarTabs"
 import { ContextPanel } from "./ContextPanel"
+import { SupervisionMainOverlay } from "@/components/supervision/SupervisionOverlays"
+import { QuickDispatchDialog } from "@/components/supervision/QuickDispatchDialog"
+import { InspectorRail } from "./InspectorRail"
 import { SplitPaneLayout } from "./SplitPaneLayout"
+import { resolveBesideChatRedirect } from "@/lib/supervision/besideChat"
+import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { ErrorBoundary } from "../ui/ErrorBoundary"
 import { CommandPalette } from "../ui/CommandPalette"
 import { HelpDialog } from "../ui/HelpDialog"
@@ -43,6 +48,9 @@ const FilesView = lazyWithChunkRecovery(() =>
 const GitView = lazyWithChunkRecovery(() => import("@/components/views/GitView").then((m) => ({ default: m.GitView })))
 const PlanView = lazyWithChunkRecovery(() =>
   import("@/components/views/PlanView").then((m) => ({ default: m.PlanView })),
+)
+const WikiGraphView = lazyWithChunkRecovery(() =>
+  import("@/components/views/WikiGraphView").then((m) => ({ default: m.WikiGraphView })),
 )
 
 const DESKTOP_SIDEBAR_MIN_WIDTH = 280
@@ -132,6 +140,15 @@ export const MainLayout: React.FC = () => {
       setIsMobile(isMobile)
     }
   }, [isMobile, setIsMobile])
+
+  // Desktop never covers the chat: a non-chat main tab is a request to open that
+  // view beside it. openBesideChat resets the tab to "chat" first, so this cannot
+  // loop, and it asks the Files editor's unsaved-changes guard before replacing it.
+  React.useEffect(() => {
+    const view = resolveBesideChatRedirect(activeMainTab, isMobile)
+    if (!view) return
+    openBesideChat(view)
+  }, [activeMainTab, isMobile])
 
   React.useEffect(() => {
     if (typeof window === "undefined") {
@@ -308,6 +325,12 @@ export const MainLayout: React.FC = () => {
             <ProjectContextPanel />
           </React.Suspense>
         )
+      case "wiki":
+        return (
+          <React.Suspense fallback={null}>
+            <WikiGraphView />
+          </React.Suspense>
+        )
       default:
         return null
     }
@@ -351,12 +374,18 @@ export const MainLayout: React.FC = () => {
             <ProjectContextPanel />
           </React.Suspense>
         )
+      case "wiki":
+        return (
+          <React.Suspense fallback={null}>
+            <WikiGraphView />
+          </React.Suspense>
+        )
       default:
         return null
     }
   }, [activeMainTab])
 
-  const isChatActive = activeMainTab === "chat"
+  const isChatActive = !isMobile || activeMainTab === "chat"
   const visibleSidebarWidth = React.useMemo(() => {
     const rawWidth = sidebarWidth || SIDEBAR_CONTENT_WIDTH
     return Math.min(DESKTOP_SIDEBAR_MAX_WIDTH, Math.max(DESKTOP_SIDEBAR_MIN_WIDTH, rawWidth))
@@ -373,6 +402,7 @@ export const MainLayout: React.FC = () => {
         <HelpDialog />
         <AxCodeStatusDialog />
         <SessionDialogs />
+        <QuickDispatchDialog />
 
         {/* Desktop: full-width Header above [Sidebar | chat-frame | RightSidebar] row */}
         <div className="flex flex-1 flex-col overflow-hidden">
@@ -427,7 +457,7 @@ export const MainLayout: React.FC = () => {
             </Sidebar>
             <div
               className={cn(
-                "relative flex flex-1 min-w-0 flex-col overflow-hidden",
+                "relative flex flex-1 min-w-0 flex-row overflow-hidden",
                 "bg-background",
                 "border border-border/50 rounded-[10px]",
                 !isSidebarOpen && "border-l-transparent",
@@ -435,47 +465,51 @@ export const MainLayout: React.FC = () => {
               )}
               data-page-scroll-lock="true"
             >
-              <SplitPaneLayout rightContent={splitRightContent}>
-                <div className="flex flex-1 min-h-0 overflow-hidden" data-page-scroll-lock="true">
-                  <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden" data-page-scroll-lock="true">
-                    <main className="flex-1 overflow-hidden bg-background relative" data-page-scroll-lock="true">
-                      <div className={cn("absolute inset-0", !isChatActive && "invisible")}>
-                        <ErrorBoundary>
-                          <ChatView />
-                        </ErrorBoundary>
-                      </div>
-                      {secondaryView && (
-                        <div className="absolute inset-0 flex flex-col">
-                          <div className="flex h-8 flex-shrink-0 items-center border-b border-border/40 bg-sidebar px-2">
-                            <button
-                              type="button"
-                              onClick={() => setActiveMainTab("chat")}
-                              aria-label={t("layout.backToChat")}
-                              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 typography-meta text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
-                            >
-                              <Icon name="arrow-left" className="h-3.5 w-3.5" aria-hidden="true" />
-                              {t("layout.backToChat")}
-                            </button>
-                          </div>
-                          <div className="relative min-h-0 flex-1">
-                            <ErrorBoundary>{secondaryView}</ErrorBoundary>
-                          </div>
+              <SupervisionMainOverlay />
+              <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
+                <SplitPaneLayout rightContent={splitRightContent}>
+                  <div className="flex flex-1 min-h-0 overflow-hidden" data-page-scroll-lock="true">
+                    <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden" data-page-scroll-lock="true">
+                      <main className="flex-1 overflow-hidden bg-background relative" data-page-scroll-lock="true">
+                        <div className={cn("absolute inset-0", !isChatActive && "invisible")}>
+                          <ErrorBoundary>
+                            <ChatView />
+                          </ErrorBoundary>
                         </div>
-                      )}
-                    </main>
-                    <ContextPanel />
+                        {isMobile && secondaryView && (
+                          <div className="absolute inset-0 flex flex-col">
+                            <div className="flex h-8 flex-shrink-0 items-center border-b border-border/40 bg-sidebar px-2">
+                              <button
+                                type="button"
+                                onClick={() => setActiveMainTab("chat")}
+                                aria-label={t("layout.backToChat")}
+                                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 typography-meta text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
+                              >
+                                <Icon name="arrow-left" className="h-3.5 w-3.5" aria-hidden="true" />
+                                {t("layout.backToChat")}
+                              </button>
+                            </div>
+                            <div className="relative min-h-0 flex-1">
+                              <ErrorBoundary>{secondaryView}</ErrorBoundary>
+                            </div>
+                          </div>
+                        )}
+                      </main>
+                      <ContextPanel />
+                    </div>
                   </div>
-                </div>
-              </SplitPaneLayout>
-              <BottomTerminalDock isOpen={isBottomTerminalOpen} isMobile={isMobile}>
-                {isBottomTerminalOpen ? (
-                  <ErrorBoundary>
-                    <React.Suspense fallback={null}>
-                      <TerminalView />
-                    </React.Suspense>
-                  </ErrorBoundary>
-                ) : null}
-              </BottomTerminalDock>
+                </SplitPaneLayout>
+                <BottomTerminalDock isOpen={isBottomTerminalOpen} isMobile={isMobile}>
+                  {isBottomTerminalOpen ? (
+                    <ErrorBoundary>
+                      <React.Suspense fallback={null}>
+                        <TerminalView />
+                      </React.Suspense>
+                    </ErrorBoundary>
+                  ) : null}
+                </BottomTerminalDock>
+              </div>
+              <InspectorRail />
             </div>
             <RightSidebar isOpen={isRightSidebarOpen} className="border-0">
               <ErrorBoundary>

@@ -5,6 +5,7 @@ const {
   BrowserWindow,
   WebContentsView,
   dialog,
+  globalShortcut,
   ipcMain,
   shell,
   session,
@@ -77,6 +78,11 @@ const {
 const { normalizeDevRendererUrl } = require("./renderer-navigation-policy")
 const { createLaunchAnimationController, ANIMATION_PRIVILEGED_SCHEMES } = require("./launch-animation-controller")
 const { createQuitCoordinator } = require("./quit-coordinator")
+const {
+  QUICK_DISPATCH_ACCELERATOR,
+  readQuickDispatchShortcutEnabled,
+  syncQuickDispatchShortcut,
+} = require("./quick-dispatch-shortcut")
 const {
   DEFAULT_BACKGROUND_DARK,
   DEFAULT_BACKGROUND_LIGHT,
@@ -1016,8 +1022,15 @@ const quitCoordinator = createQuitCoordinator({
   quit: () => app.quit(),
 })
 
+// Assigned after dispatchMenuAction exists. Settings writes and shutdown call these.
+// app.exit() skips will-quit, so shutdownForExit releases the shortcut too.
+let quickDispatchShortcutRegistered = false
+let syncQuickDispatchGlobalShortcutFromSettings = (_settings) => {}
+let releaseQuickDispatchGlobalShortcut = () => {}
+
 async function shutdownForExit() {
   isQuitting = true
+  releaseQuickDispatchGlobalShortcut()
   launchAnimations?.dispose()
   await stopBackgroundServices()
 }
@@ -1358,6 +1371,8 @@ const mutateSettingsRoot = (mutator) => {
     const result = await mutator(current)
     const nextRoot = result ?? current
     await writeJsonFile(settingsFilePath(), nextRoot)
+    // Same settings.json write the renderer already uses. No extra IPC channel.
+    syncQuickDispatchGlobalShortcutFromSettings(nextRoot)
   })
   settingsMutationChain = next.catch((err) => {
     console.error("[electron] settings mutation failed:", err)
@@ -2150,6 +2165,44 @@ const createAdditionalWindow = async (url) => {
 const dispatchMenuAction = (action) => {
   const target = getMenuTargetWindow()
   if (target && !target.isDestroyed()) target.webContents.send("openchamber:menu-action", action)
+}
+
+const revealMainWindowForQuickDispatch = () => {
+  if (!app.isReady() || serverPort <= 0) return
+  const reveal = async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      await createWindow()
+    }
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    if (!mainWindow.isVisible()) mainWindow.show()
+    mainWindow.focus()
+    dispatchMenuAction("quick-dispatch")
+  }
+  void reveal().catch((error) => {
+    console.error("[electron] quick dispatch shortcut failed:", error)
+  })
+}
+
+syncQuickDispatchGlobalShortcutFromSettings = (settings) => {
+  quickDispatchShortcutRegistered = syncQuickDispatchShortcut({
+    enabled: readQuickDispatchShortcutEnabled(settings),
+    registered: quickDispatchShortcutRegistered,
+    register: () => {
+      const registered = globalShortcut.register(QUICK_DISPATCH_ACCELERATOR, revealMainWindowForQuickDispatch)
+      if (!registered) {
+        console.warn("[electron] Alt+Space could not be registered for quick dispatch")
+      }
+      return registered
+    },
+    unregister: () => {
+      globalShortcut.unregister(QUICK_DISPATCH_ACCELERATOR)
+    },
+  })
+}
+
+releaseQuickDispatchGlobalShortcut = () => {
+  syncQuickDispatchGlobalShortcutFromSettings({ quickDispatchGlobalShortcut: false })
 }
 
 const dispatchCheckForUpdates = () => {
@@ -3366,6 +3419,7 @@ app.whenReady().then(async () => {
       return
     }
     await createWindow()
+    syncQuickDispatchGlobalShortcutFromSettings(readSettingsRoot())
     desktopStartupComplete = true
     // Best-effort update check — failures must not crash the app. With
     // autoDownload disabled, the in-app dialog (driven by the renderer's
@@ -3416,6 +3470,10 @@ app.on("activate", () => {
   if (!isQuitting && !mainWindow && serverPort > 0) {
     createWindow().catch(console.error)
   }
+})
+
+app.on("will-quit", () => {
+  releaseQuickDispatchGlobalShortcut()
 })
 
 app.on("before-quit", (event) => {

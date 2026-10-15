@@ -42,6 +42,7 @@ import type { Extension } from "@codemirror/state"
 import { readDesktopFileAsDataUrl } from "@/lib/desktopNative"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { useUIStore } from "@/stores/useUIStore"
+import { continueAfterFilesGuard } from "@/lib/supervision/openBesideChat"
 import { useFilesViewTabsStore } from "@/stores/useFilesViewTabsStore"
 import { useGitStatus } from "@/stores/useGitStore"
 import { useConfigStore } from "@/stores/useConfigStore"
@@ -1955,7 +1956,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
 
     if (nextTab) {
       setMainTabGuard(null)
-      useUIStore.getState().setActiveMainTab(nextTab)
+      continueAfterFilesGuard(nextTab)
     }
   }, [
     displayedContent,
@@ -2018,7 +2019,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
 
     if (nextTab) {
       setMainTabGuard(null)
-      useUIStore.getState().setActiveMainTab(nextTab)
+      continueAfterFilesGuard(nextTab)
     }
   }, [
     handleSelectFile,

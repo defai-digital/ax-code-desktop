@@ -5,6 +5,7 @@ import { Icon } from "@/components/icon/Icon"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
+import { formatRelativeAge } from "@/lib/supervision/relativeAge"
 
 const NotificationEntry: React.FC<{
   item: NotificationItem
@@ -21,13 +22,7 @@ const NotificationEntry: React.FC<{
         : "text-muted-foreground"
 
   const timeLabel = React.useMemo(() => {
-    const diff = Date.now() - item.timestamp
-    const minutes = Math.floor(diff / 60000)
-    if (minutes < 1) return t("notificationCenter.time.justNow")
-    if (minutes < 60) return t("notificationCenter.time.minutesAgo", { count: minutes })
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return t("notificationCenter.time.hoursAgo", { count: hours })
-    return t("notificationCenter.time.daysAgo", { count: Math.floor(hours / 24) })
+    return formatRelativeAge(Date.now() - item.timestamp, t)
   }, [item.timestamp, t])
 
   return (

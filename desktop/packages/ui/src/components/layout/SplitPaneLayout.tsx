@@ -1,6 +1,7 @@
 import React from "react"
 import { cn } from "@/lib/utils"
 import { useSplitPane, type SplitPaneRightTab } from "@/hooks/useSplitPane"
+import { selectSplitPaneTab } from "@/lib/supervision/openBesideChat"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { useUIStore } from "@/stores/useUIStore"
@@ -13,6 +14,7 @@ const SPLIT_TAB_OPTIONS: { value: SplitPaneRightTab; icon: IconName; labelKey: s
   { value: "terminal", icon: "terminal-box", labelKey: "splitPane.tab.terminal" },
   { value: "plan", icon: "list-check-2", labelKey: "splitPane.tab.plan" },
   { value: "context", icon: "layout-column", labelKey: "splitPane.tab.context" },
+  { value: "wiki", icon: "node-tree", labelKey: "wiki.graph.title" },
 ]
 
 const HANDLE_WIDTH = 4
@@ -24,7 +26,7 @@ interface SplitPaneLayoutProps {
 
 export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, rightContent }) => {
   const { t } = useI18n()
-  const { splitEnabled, splitRatio, splitRightTab, setSplitRatio, setSplitRightTab } = useSplitPane()
+  const { splitEnabled, splitRatio, splitRightTab, setSplitRatio } = useSplitPane()
   const [isDragging, setIsDragging] = React.useState(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
   const startXRef = React.useRef(0)
@@ -132,14 +134,14 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
       {/* Right pane */}
       <div className="relative h-full min-w-0 overflow-hidden" style={{ width: rightPercent }}>
         {/* Tab bar for right pane */}
-        <div className="flex h-8 items-center gap-0.5 border-b border-border/40 bg-[var(--surface-background)] px-1">
+        <div className="flex h-8 items-center gap-0.5 overflow-x-auto border-b border-border/40 bg-[var(--surface-background)] px-1">
           {SPLIT_TAB_OPTIONS.map((tab) => (
             <button
               key={tab.value}
               type="button"
-              onClick={() => setSplitRightTab(tab.value)}
+              onClick={() => selectSplitPaneTab(tab.value)}
               className={cn(
-                "inline-flex h-6 items-center gap-1 rounded px-2 typography-micro transition-colors",
+                "inline-flex h-6 shrink-0 items-center gap-1 rounded px-2 typography-micro transition-colors",
                 splitRightTab === tab.value
                   ? "bg-[var(--interactive-hover)] text-foreground font-medium"
                   : "text-muted-foreground hover:text-foreground hover:bg-[var(--interactive-hover)]/50",

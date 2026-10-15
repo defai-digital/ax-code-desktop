@@ -1,8 +1,6 @@
 import React from "react"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
-import { useUIStore } from "@/stores/useUIStore"
-import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useI18n } from "@/lib/i18n"
 import { Icon } from "@/components/icon/Icon"
 import type { IconName } from "@/components/icon/icons"
@@ -16,6 +14,11 @@ import {
 } from "@/lib/needsYou"
 import { needsYouReasonLabel } from "@/lib/needsYouLabels"
 import { useEnsureDirectoriesGitStatus, useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
+import { requestsForSessionTree } from "@/lib/supervision/requests"
+import { openSupervisedSession } from "@/lib/supervision/openSession"
+import { supervisionRequestContext } from "@/lib/supervision/needsYouSurface"
+import { useAllPendingRequests } from "@/sync/sync-context"
+import { RequestActionCard } from "@/components/supervision/RequestActionCard"
 
 const REASON_ICON: Record<NeedsYouReason, IconName> = {
   permission: "shield-warning",
@@ -30,17 +33,16 @@ type NeedsYouQueueProps = {
 
 /**
  * Sessions across the portfolio that are waiting on a person: a permission or a question, an error,
- * or finished work that is not committed. Most urgent first, each row names its project, and the
- * list stays bounded. Renders nothing when no session needs anyone.
+ * or finished work that is not committed. A permission or a question can be answered here; other
+ * reasons open the session. Most urgent first, each row names its project, and the list stays bounded.
+ * Renders nothing when no session needs anyone.
  */
 export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
   const { t } = useI18n()
   const projects = useProjectsStore((state) => state.projects)
-  const setActiveProject = useProjectsStore((state) => state.setActiveProject)
   const homeDirectory = useDirectoryStore((state) => state.homeDirectory)
-  const setActiveMainTab = useUIStore((state) => state.setActiveMainTab)
-  const setCurrentSession = useSessionUIStore((state) => state.setCurrentSession)
   const inputs = useNeedsYouSessionInputs()
+  const pendingRequests = useAllPendingRequests()
   const [expanded, setExpanded] = React.useState(false)
 
   // "Finished with uncommitted changes" comes from git status, so warm it for every session directory.
@@ -68,11 +70,13 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
     (sessionId: string) => {
       const selectedId = selectNeedsYouSession(sessionId)
       const session = inputs.find((item) => item.id === selectedId)
-      if (session?.projectId) setActiveProject(session.projectId)
-      setActiveMainTab("chat")
-      setCurrentSession(selectedId, session?.directory ?? null)
+      openSupervisedSession({
+        sessionId: selectedId,
+        projectId: session?.projectId,
+        directory: session?.directory ?? null,
+      })
     },
-    [inputs, setActiveMainTab, setActiveProject, setCurrentSession],
+    [inputs],
   )
 
   if (queue.length === 0) return null
@@ -93,6 +97,25 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
       <div className="surface-inset flex flex-col gap-0.5 p-1">
         {visible.map((entry) => {
           const project = projectLabel(entry.projectId, entry.directory)
+          const requests =
+            entry.reason === "permission" || entry.reason === "question"
+              ? requestsForSessionTree(pendingRequests, new Set([entry.sessionId]))
+              : []
+          if (requests.length > 0) {
+            return (
+              <div key={entry.sessionId} data-needs-you-reason={entry.reason} className="flex flex-col gap-1">
+                {requests.map((request) => (
+                  <RequestActionCard
+                    key={`${request.kind}:${request.request.id}`}
+                    entry={request}
+                    density="compact"
+                    context={supervisionRequestContext(entry.title, project)}
+                    onOpen={() => open(entry.sessionId)}
+                  />
+                ))}
+              </div>
+            )
+          }
           return (
             <button
               key={entry.sessionId}

@@ -15,9 +15,11 @@ type ActivityItem = {
 }
 
 type ActivitySection = {
-  key: "active-now"
+  key: "active-now" | "live"
   title: string
   items: ActivityItem[]
+  /** Rows shown before "Show N more". Live uses 12; Active now keeps the recent cap. */
+  visibleLimit?: number
 }
 
 type Props = {
@@ -74,7 +76,8 @@ export function SidebarActivitySections({ sections, renderSessionNode }: Props):
       {visibleSections.map((section) => {
         const isCollapsed = collapsed.has(section.key)
         const isExpanded = expandedSections.has(section.key)
-        const visibleItems = isExpanded ? section.items : section.items.slice(0, MAX_VISIBLE_RECENT_SESSIONS)
+        const visibleLimit = section.visibleLimit ?? MAX_VISIBLE_RECENT_SESSIONS
+        const visibleItems = isExpanded ? section.items : section.items.slice(0, visibleLimit)
         const remainingCount = section.items.length - visibleItems.length
         return (
           <div key={section.key} className="space-y-1">
@@ -119,7 +122,7 @@ export function SidebarActivitySections({ sections, renderSessionNode }: Props):
                       : t("sessions.sidebar.group.showMorePlural", { count: remainingCount })}
                   </button>
                 ) : null}
-                {isExpanded && section.items.length > MAX_VISIBLE_RECENT_SESSIONS ? (
+                {isExpanded && section.items.length > visibleLimit ? (
                   <button
                     type="button"
                     onClick={() => toggleSectionLimit(section.key)}

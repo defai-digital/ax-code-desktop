@@ -71,6 +71,19 @@ describe("settings helpers", () => {
     })
   })
 
+  it("accepts the opt-in quick dispatch global shortcut", () => {
+    const helpers = createTestHelpers()
+
+    expect(helpers.sanitizeSettingsUpdate({ quickDispatchGlobalShortcut: true })).toEqual({
+      quickDispatchGlobalShortcut: true,
+    })
+    expect(helpers.sanitizeSettingsUpdate({ quickDispatchGlobalShortcut: false })).toEqual({
+      quickDispatchGlobalShortcut: false,
+    })
+    expect(helpers.sanitizeSettingsUpdate({ quickDispatchGlobalShortcut: "true" })).toEqual({})
+    expect(helpers.sanitizeSettingsUpdate({ quickDispatchGlobalShortcut: 1 })).toEqual({})
+  })
+
   it("rejects non-boolean collapsibleThinkingBlocks values", () => {
     const helpers = createTestHelpers()
 

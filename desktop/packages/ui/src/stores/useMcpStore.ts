@@ -20,7 +20,7 @@ const normalizeDirectory = (directory: string | null | undefined): string | null
 
 const toKey = (directory: string | null | undefined): string => normalizeDirectory(directory) ?? "__global__"
 
-const getMcpApiClient = (directory: string | null | undefined) => {
+export const getMcpApiClient = (directory: string | null | undefined) => {
   const normalized = normalizeDirectory(directory)
   if (!normalized) {
     return axCodeClient.getApiClient()

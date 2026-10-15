@@ -168,9 +168,7 @@ function hasFinishedAssistantReply(messages: Message[], userMessageID: string): 
 }
 
 function hasNewerUnansweredUserMessage(messages: Message[], messageID: string): boolean {
-  return messages.some(
-    (m) => m.role === "user" && m.id > messageID && !hasFinishedAssistantReply(messages, m.id),
-  )
+  return messages.some((m) => m.role === "user" && m.id > messageID && !hasFinishedAssistantReply(messages, m.id))
 }
 
 // Pull the authoritative message list from the server into the session's store.
@@ -1003,6 +1001,19 @@ export async function respondToPermission(
   })
   if (!result.data) {
     throw new Error("Permission reply failed")
+  }
+}
+
+export async function saveWebMcpApproval(sessionId: string, requestId: string): Promise<void> {
+  await waitForConnectionOrThrow()
+  const directory =
+    resolveDirectoryForBlockingRequest("permission", sessionId, requestId) || getSessionDirectory(sessionId) || dir()
+  const result = await getRequestReplyClient("permission", sessionId, requestId).permission.saveWebMcpApproval({
+    requestID: requestId,
+    ...(directory ? { directory } : {}),
+  })
+  if (result.error) {
+    throw new Error("WebMCP allowlist save failed")
   }
 }
 

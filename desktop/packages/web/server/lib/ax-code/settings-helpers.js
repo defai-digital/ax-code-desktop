@@ -204,6 +204,9 @@ export const createSettingsHelpers = (dependencies) => {
     if (typeof candidate.notifyOnPermission === "boolean") {
       result.notifyOnPermission = candidate.notifyOnPermission
     }
+    if (typeof candidate.quickDispatchGlobalShortcut === "boolean") {
+      result.quickDispatchGlobalShortcut = candidate.quickDispatchGlobalShortcut
+    }
     if (candidate.notificationTemplates && typeof candidate.notificationTemplates === "object") {
       result.notificationTemplates = candidate.notificationTemplates
     }

@@ -57,7 +57,15 @@ import { BulkActionBar } from "./sidebar/BulkActionBar"
 import { useSessionMultiSelectStore } from "@/stores/useSessionMultiSelectStore"
 import { useSessionDisplayStore } from "@/stores/useSessionDisplayStore"
 import { type SessionGroup, type SessionNode } from "./sidebar/types"
-import { deriveActiveNowSessions, deriveLiveActiveNowSessions } from "./sidebar/activitySections"
+import {
+  LIVE_SECTION_VISIBLE_LIMIT,
+  chooseSidebarActivityMode,
+  deriveActiveNowSessions,
+  deriveLiveActiveNowSessions,
+  planLiveSidebarItems,
+  selectLiveSidebarRows,
+} from "./sidebar/activitySections"
+import { useSupervisionRows } from "@/hooks/useSupervisionRows"
 import { useActiveNowStore } from "@/stores/useActiveNowStore"
 import { useSessionPinnedStore } from "@/stores/useSessionPinnedStore"
 import { compareSessionsByPinnedAndTime, formatProjectLabel, normalizePath } from "./sidebar/utils"
@@ -922,6 +930,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   }, [projectSections, homeDirectory])
 
   const showRecentSection = useSessionDisplayStore((state) => state.showRecentSection)
+  const supervisionRows = useSupervisionRows()
 
   const activeNowSessions = React.useMemo(() => {
     if (!showRecentSection) {
@@ -965,11 +974,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   // Prefetch is wired below, after recentSessionIds is computed.
 
   const activitySections = React.useMemo(() => {
-    if (!showRecentSection) {
-      return []
-    }
-
-    const toItem = (session: Session) => {
+    const toActiveNowItem = (session: Session) => {
       const existing = sessionSidebarMetaById.get(session.id)
       const sessionDirectory = normalizePath((session as Session & { directory?: string | null }).directory ?? null)
       return {
@@ -980,18 +985,67 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       }
     }
 
-    return [
-      {
-        key: "active-now" as const,
-        title: t("sessions.sidebar.activity.recentTitle"),
-        items: activeNowSessions.map(toItem),
-      },
-    ]
-  }, [activeNowSessions, sessionSidebarMetaById, showRecentSection, t])
+    const sessionsById = new Map(sessions.map((session) => [session.id, session]))
+    for (const session of liveSessions) {
+      if (!sessionsById.has(session.id)) sessionsById.set(session.id, session)
+    }
+
+    const liveItems = planLiveSidebarItems(supervisionRows, (row) => {
+      const existing = sessionSidebarMetaById.get(row.sessionId)
+      const session = existing?.node.session ?? sessionsById.get(row.sessionId)
+      if (!session) return null
+      return {
+        session,
+        node: existing?.node,
+        projectId: existing?.projectId,
+        groupDirectory: existing?.groupDirectory ?? normalizePath(row.directory),
+        branchLabel: existing?.secondaryMeta?.branchLabel,
+      }
+    })
+
+    const mode = chooseSidebarActivityMode({
+      showRecent: showRecentSection,
+      renderedLiveCount: liveItems.length,
+      liveRowCount: selectLiveSidebarRows(supervisionRows).length,
+      activeNowCount: activeNowSessions.length,
+    })
+
+    if (mode === "live") {
+      return [
+        {
+          key: "live" as const,
+          title: t("supervision.live.title"),
+          visibleLimit: LIVE_SECTION_VISIBLE_LIMIT,
+          items: liveItems.map((item) => ({
+            node: item.node ?? { session: item.session, children: [], worktree: null },
+            projectId: item.projectId,
+            groupDirectory: item.groupDirectory,
+            secondaryMeta: item.secondaryMeta,
+          })),
+        },
+      ]
+    }
+
+    if (mode === "active-now") {
+      return [
+        {
+          key: "active-now" as const,
+          title: t("sessions.sidebar.activity.recentTitle"),
+          items: activeNowSessions.map(toActiveNowItem),
+        },
+      ]
+    }
+
+    return []
+  }, [activeNowSessions, liveSessions, sessionSidebarMetaById, sessions, showRecentSection, supervisionRows, t])
 
   const recentSessionIds = React.useMemo(() => {
-    return new Set(activeNowSessions.map((session) => session.id))
-  }, [activeNowSessions])
+    const ids = new Set<string>()
+    for (const section of activitySections) {
+      for (const item of section.items) ids.add(item.node.session.id)
+    }
+    return ids
+  }, [activitySections])
 
   const recentSessionIdsList = React.useMemo(() => [...recentSessionIds], [recentSessionIds])
 

@@ -61,6 +61,8 @@ export type DesktopSettings = {
   notifyOnError?: boolean
   notifyOnQuestion?: boolean
   notifyOnPermission?: boolean
+  /** Opt-in. When true, the desktop shell registers Alt+Space for quick dispatch. */
+  quickDispatchGlobalShortcut?: boolean
 
   // Per-event notification templates
   notificationTemplates?: {

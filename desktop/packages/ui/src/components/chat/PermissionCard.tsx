@@ -156,6 +156,38 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
     return null
   }
 
+  const canSaveWebMcpApproval =
+    normalizePermissionName(permission.permission) === "webmcp" &&
+    Boolean(permission.webmcpAllowlist) &&
+    permission.metadata.requireInteractive !== true
+
+  const handleSaveWebMcpApproval = async () => {
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setIsResponding(true)
+    try {
+      await withTimeout(
+        sessionActions.saveWebMcpApproval(permission.sessionID, permission.id),
+        PERMISSION_REPLY_TIMEOUT_MS,
+        () => {
+          throw new Error("Timed out saving the WebMCP approval")
+        },
+      )
+      if (unmountedRef.current) return
+      setHasResponded(true)
+      onResponse?.("always")
+    } catch (error) {
+      console.error("[PermissionCard] Failed to save WebMCP approval:", error)
+      if (!unmountedRef.current) {
+        toast.error(t("chat.permissionCard.responseFailed.title"), {
+          description: error instanceof Error ? error.message : t("chat.permissionCard.responseFailed.retry"),
+        })
+        submittingRef.current = false
+        setIsResponding(false)
+      }
+    }
+  }
+
   const toolName = normalizePermissionName(permission.permission)
   const tool = toolName.toLowerCase()
   const patterns = getPermissionPatterns(permission)
@@ -463,6 +495,30 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
                 ? t("chat.permissionCard.actions.allowOnce")
                 : t("chat.permissionCard.actions.allowOnceCountdown", { seconds: autoOnceSeconds })}
             </button>
+
+            {canSaveWebMcpApproval && (
+              <button
+                onClick={() => void handleSaveWebMcpApproval()}
+                disabled={isResponding}
+                className={cn(
+                  "flex items-center gap-1.5 sm:gap-1 px-3 sm:px-2 py-1.5 sm:py-1 typography-meta font-medium rounded transition-all min-h-[32px] sm:min-h-0 w-full sm:w-auto",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                )}
+                style={{
+                  backgroundColor: "rgb(var(--muted) / 0.5)",
+                  color: "var(--muted-foreground)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgb(var(--muted) / 0.7)"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgb(var(--muted) / 0.5)"
+                }}
+              >
+                <Icon name="time" className="h-3.5 w-3.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                {t("webmcp.allowlist.alwaysAllowOnSite")}
+              </button>
+            )}
 
             {alwaysPatterns.length > 0 ? (
               <button

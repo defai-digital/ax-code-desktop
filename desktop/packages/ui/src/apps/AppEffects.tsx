@@ -1,6 +1,9 @@
 import React from "react"
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
+import { useSessionVisitTracking, useSupervisionShortcuts } from "@/hooks/useSupervisionShortcuts"
 import { useQueuedMessageAutoSend } from "@/hooks/useQueuedMessageAutoSend"
+import { useRunTransitionNotifications } from "@/hooks/useRunTransitionNotifications"
+import { useSupervisionRowsPublisher } from "@/hooks/useSupervisionRows"
 import { useTraySync } from "@/hooks/useTraySync"
 import { useSessionAutoCleanup } from "@/hooks/useSessionAutoCleanup"
 import { useWindowControlsOverlayLayout } from "@/hooks/useWindowControlsOverlayLayout"
@@ -69,6 +72,8 @@ export function SyncRuntimeEffects({
   // Streams the session/approval snapshot to the Electron tray and keeps the dock
   // badge in step. No-op outside the desktop shell.
   useTraySync(embeddedBackgroundWorkEnabled)
+  useSupervisionRowsPublisher()
+  useRunTransitionNotifications(embeddedBackgroundWorkEnabled)
 
   return <SyncOptimisticBridge />
 }
@@ -76,6 +81,8 @@ export function SyncRuntimeEffects({
 export function SyncAppEffects({ embeddedBackgroundWorkEnabled }: { embeddedBackgroundWorkEnabled: boolean }) {
   useWindowControlsOverlayLayout()
   useKeyboardShortcuts()
+  useSupervisionShortcuts()
+  useSessionVisitTracking()
 
   return (
     <>

@@ -330,6 +330,12 @@ const applyDesktopUiPreferences = (settings: DesktopSettings) => {
   if (typeof settings.notifyOnPermission === "boolean" && settings.notifyOnPermission !== store.notifyOnPermission) {
     store.setNotifyOnPermission(settings.notifyOnPermission)
   }
+  if (
+    typeof settings.quickDispatchGlobalShortcut === "boolean" &&
+    settings.quickDispatchGlobalShortcut !== store.quickDispatchGlobalShortcut
+  ) {
+    store.setQuickDispatchGlobalShortcut(settings.quickDispatchGlobalShortcut)
+  }
   if (settings.notificationTemplates && typeof settings.notificationTemplates === "object") {
     store.setNotificationTemplates(settings.notificationTemplates)
   }
@@ -694,6 +700,9 @@ const sanitizeWebSettings = (payload: unknown): DesktopSettings | null => {
   }
   if (typeof candidate.notifyOnPermission === "boolean") {
     result.notifyOnPermission = candidate.notifyOnPermission
+  }
+  if (typeof candidate.quickDispatchGlobalShortcut === "boolean") {
+    result.quickDispatchGlobalShortcut = candidate.quickDispatchGlobalShortcut
   }
   if (candidate.notificationTemplates && typeof candidate.notificationTemplates === "object") {
     const templates = candidate.notificationTemplates as Record<string, unknown>

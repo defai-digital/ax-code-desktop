@@ -209,6 +209,51 @@ export function usePendingQuestionSessionIds(): ReadonlySet<string> {
   )
 }
 
+export type PendingRequestEntry =
+  | { kind: "permission"; sessionId: string; request: PermissionRequest }
+  | { kind: "question"; sessionId: string; request: QuestionRequest }
+
+const EMPTY_PENDING_REQUESTS: readonly PendingRequestEntry[] = []
+
+const arePendingRequestListsEquivalent = (
+  left: readonly PendingRequestEntry[],
+  right: readonly PendingRequestEntry[],
+): boolean => {
+  if (left === right) return true
+  if (left.length !== right.length) return false
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index].request !== right[index].request) return false
+  }
+  return true
+}
+
+const getPendingRequestSliceDeps = (states: readonly State[]): readonly unknown[] => [
+  ...getPermissionSliceDeps(states),
+  ...getQuestionSliceDeps(states),
+]
+
+/** Every pending permission and question across all directories, permissions first. */
+export function useAllPendingRequests(): readonly PendingRequestEntry[] {
+  return useLiveSyncSelector(
+    useCallback((states) => {
+      let result: PendingRequestEntry[] | null = null
+      for (const state of states) {
+        for (const [sessionId, requests] of Object.entries(state.permission ?? {})) {
+          for (const request of requests ?? []) (result ??= []).push({ kind: "permission", sessionId, request })
+        }
+      }
+      for (const state of states) {
+        for (const [sessionId, requests] of Object.entries(state.question ?? {})) {
+          for (const request of requests ?? []) (result ??= []).push({ kind: "question", sessionId, request })
+        }
+      }
+      return result ?? EMPTY_PENDING_REQUESTS
+    }, []),
+    arePendingRequestListsEquivalent,
+    getPendingRequestSliceDeps,
+  )
+}
+
 // Boot debounce — suppresses redundant refresh/re-bootstrap events during startup.
 let bootingRoot = false
 let bootedAt = 0

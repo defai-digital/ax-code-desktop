@@ -1,9 +1,8 @@
 import React from "react"
 import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2"
-import type { PermissionRequest } from "@/types/permission"
-import type { QuestionRequest } from "@/types/question"
 
 import { ChatInput } from "./ChatInput"
+import { SinceYouLeftStrip } from "@/components/supervision/SinceYouLeftStrip"
 import { shouldAutoOpenChatDraft } from "./chatDraftState"
 import { DraftPresetChips } from "./DraftPresetChips"
 import { ActivityBreadcrumb } from "./ActivityBreadcrumb"
@@ -15,8 +14,7 @@ import { ProjectsHome } from "@/components/projects/ProjectsHome"
 import { NeedsYouQueue } from "@/components/projects/NeedsYouQueue"
 import { useGlobalSyncStore } from "@/sync/global-sync-store"
 import MessageList, { type MessageListHandle } from "./MessageList"
-import { PermissionCard } from "./PermissionCard"
-import { QuestionCard } from "./QuestionCard"
+import { PinnedRequestDock } from "./PinnedRequestDock"
 import { StatusRowContainer } from "./StatusRowContainer"
 import ScrollToBottomButton from "./components/ScrollToBottomButton"
 import { ScrollShadow } from "@/components/ui/ScrollShadow"
@@ -165,8 +163,6 @@ type ChatViewportProps = {
   handleLoadOlder: () => void
   handleHistoryScroll: () => void
   scrollToBottom: () => void
-  sessionQuestions: QuestionRequest[]
-  sessionPermissions: PermissionRequest[]
   isProgrammaticFollowActive: boolean
 }
 
@@ -192,8 +188,6 @@ const ChatViewport = React.memo(
     handleLoadOlder,
     handleHistoryScroll,
     scrollToBottom,
-    sessionQuestions,
-    sessionPermissions,
     isProgrammaticFollowActive,
   }: ChatViewportProps) => {
     const focusScrollContainer = React.useCallback(
@@ -256,16 +250,6 @@ const ChatViewport = React.memo(
                 scrollToBottom={scrollToBottom}
                 scrollRef={scrollRef}
               />
-              {(sessionQuestions.length > 0 || sessionPermissions.length > 0) && (
-                <div>
-                  {sessionQuestions.map((question) => (
-                    <QuestionCard key={question.id} question={question} />
-                  ))}
-                  {sessionPermissions.map((permission) => (
-                    <PermissionCard key={permission.id} permission={permission} />
-                  ))}
-                </div>
-              )}
 
               <div className="mb-3">
                 <StatusRowContainer />
@@ -306,8 +290,6 @@ const ChatViewport = React.memo(
       prev.handleLoadOlder === next.handleLoadOlder &&
       prev.handleHistoryScroll === next.handleHistoryScroll &&
       prev.scrollToBottom === next.scrollToBottom &&
-      prev.sessionQuestions === next.sessionQuestions &&
-      prev.sessionPermissions === next.sessionPermissions &&
       prev.isProgrammaticFollowActive === next.isProgrammaticFollowActive
     )
   },
@@ -996,7 +978,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
             </div>
           </div>
         </div>
-        <div className={cn("relative z-10", isDesktopExpandedInput ? "flex-1 min-h-0 bg-background" : "bg-background")}>
+        <div
+          className={cn(
+            "relative z-10",
+            isDesktopExpandedInput ? "flex flex-1 min-h-0 flex-col bg-background" : "bg-background",
+          )}
+        >
+          <PinnedRequestDock sessionQuestions={sessionQuestions} sessionPermissions={sessionPermissions} />
           {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
         </div>
       </div>
@@ -1020,7 +1008,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
             </div>
           ) : null}
         </div>
-        <div className={cn("relative z-10", isDesktopExpandedInput ? "flex-1 min-h-0 bg-background" : "bg-background")}>
+        <div
+          className={cn(
+            "relative z-10",
+            isDesktopExpandedInput ? "flex flex-1 min-h-0 flex-col bg-background" : "bg-background",
+          )}
+        >
+          <PinnedRequestDock sessionQuestions={sessionQuestions} sessionPermissions={sessionPermissions} />
           {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
         </div>
       </div>
@@ -1030,6 +1024,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
   return (
     <div className="relative flex flex-col h-full bg-background">
       {returnToParentButton}
+      {currentSessionId ? <SinceYouLeftStrip sessionId={currentSessionId} /> : null}
       <ChatViewport
         key={currentSessionId}
         currentSessionId={currentSessionId}
@@ -1052,12 +1047,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
         handleLoadOlder={handleLoadOlder}
         handleHistoryScroll={timelineController.handleHistoryScroll}
         scrollToBottom={resumeToLatestInstant}
-        sessionQuestions={sessionQuestions}
-        sessionPermissions={sessionPermissions}
         isProgrammaticFollowActive={isFollowingProgrammatically}
       />
 
-      <div className={cn("relative z-10", isDesktopExpandedInput ? "flex-1 min-h-0 bg-background" : "bg-background")}>
+      <div
+        className={cn(
+          "relative z-10",
+          isDesktopExpandedInput ? "flex flex-1 min-h-0 flex-col bg-background" : "bg-background",
+        )}
+      >
+        {/* Pinned above the composer (including the expanded composer), inside this column so the scroll-to-bottom chevron stays over the transcript. */}
+        <PinnedRequestDock sessionQuestions={sessionQuestions} sessionPermissions={sessionPermissions} />
         {!isDesktopExpandedInput && sessionMessages.length > 0 && (
           <ScrollToBottomButton
             visible={timelineController.showScrollToBottom}

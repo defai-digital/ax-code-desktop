@@ -38,6 +38,11 @@ import { useOpenProjectBrowser } from "@/hooks/useWebMcpBrowser"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import type { ThemeMode } from "@/types/theme"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { useSupervisionRows } from "@/hooks/useSupervisionRows"
+import { nextNeedsHumanSession } from "@/lib/supervision/sessionState"
+import { openSupervisedSession } from "@/lib/supervision/openSession"
+import { openBesideChat } from "@/lib/supervision/openBesideChat"
 
 type CommandEntry = {
   id: string
@@ -85,6 +90,15 @@ export const CommandPalette: React.FC = () => {
 
   const openNewSessionDraft = useSessionUIStore((s) => s.openNewSessionDraft)
   const setCurrentSession = useSessionUIStore((s) => s.setCurrentSession)
+  const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
+  const supervisionRows = useSupervisionRows()
+  const projects = useProjectsStore((s) => s.projects)
+  const setActiveProject = useProjectsStore((s) => s.setActiveProject)
+  const toggleMissionControl = useSupervisionStore((s) => s.toggleMissionControl)
+  const setQuickDispatchOpen = useSupervisionStore((s) => s.setQuickDispatchOpen)
+  const setMissionControlOpen = useSupervisionStore((s) => s.setMissionControlOpen)
+  const workingSets = useSupervisionStore((s) => s.workingSets)
+  const setActiveWorkingSet = useSupervisionStore((s) => s.setActiveWorkingSet)
 
   const activeSessions = useGlobalSessionsStore((s) => s.activeSessions)
   const currentDirectory = useDirectoryStore((s) => s.currentDirectory)
@@ -142,6 +156,92 @@ export const CommandPalette: React.FC = () => {
     },
     [close],
   )
+
+  // ---------------------------------------------------------------------------
+  // Supervision commands
+  // ---------------------------------------------------------------------------
+  const supervisionCommands = React.useMemo<CommandEntry[]>(() => {
+    const list: CommandEntry[] = [
+      {
+        id: "supervision:mission-control",
+        title: t("supervision.commandPalette.missionControl"),
+        icon: <Icon name="compass-3" className="mr-2 h-4 w-4" />,
+        shortcutId: "open_mission_control",
+        searchText: `${t("supervision.commandPalette.missionControl")} supervision mission control board`,
+        onSelect: run(() => toggleMissionControl()),
+      },
+      {
+        id: "supervision:next-needs-you",
+        title: t("supervision.commandPalette.nextNeedsYou"),
+        icon: <Icon name="arrow-right" className="mr-2 h-4 w-4" />,
+        shortcutId: "next_needs_you",
+        searchText: `${t("supervision.commandPalette.nextNeedsYou")} supervision next needs you`,
+        onSelect: run(() => {
+          const sessionId = nextNeedsHumanSession(supervisionRows, currentSessionId)
+          if (!sessionId) return
+          const row = supervisionRows.find((item) => item.sessionId === sessionId)
+          openSupervisedSession({ sessionId, projectId: row?.projectId ?? null, directory: row?.directory ?? null })
+        }),
+      },
+      {
+        id: "supervision:quick-dispatch",
+        title: t("supervision.commandPalette.quickDispatch"),
+        icon: <Icon name="send-plane" className="mr-2 h-4 w-4" />,
+        shortcutId: "open_quick_dispatch",
+        searchText: `${t("supervision.commandPalette.quickDispatch")} supervision quick dispatch`,
+        onSelect: run(() => setQuickDispatchOpen(true)),
+      },
+      {
+        id: "supervision:review-changes",
+        title: t("supervision.commandPalette.reviewChanges"),
+        icon: <Icon name="git-commit" className="mr-2 h-4 w-4" />,
+        searchText: `${t("supervision.commandPalette.reviewChanges")} supervision review changes diff`,
+        onSelect: run(() => {
+          openBesideChat("diff")
+        }),
+      },
+    ]
+    for (const project of projects) {
+      const label = project.label?.trim() || project.path
+      const title = t("supervision.commandPalette.goToProject", { label })
+      list.push({
+        id: `supervision:project:${project.id}`,
+        title,
+        icon: <Icon name="folder-3" className="mr-2 h-4 w-4" />,
+        searchText: `${title} supervision project ${project.path}`,
+        onSelect: run(() => {
+          setActiveProject(project.id)
+          setMissionControlOpen(false)
+        }),
+      })
+    }
+    for (const workingSet of workingSets) {
+      const title = t("supervision.commandPalette.showWorkingSet", { name: workingSet.name })
+      list.push({
+        id: `supervision:working-set:${workingSet.id}`,
+        title,
+        icon: <Icon name="checkbox-multiple" className="mr-2 h-4 w-4" />,
+        searchText: `${title} supervision working set`,
+        onSelect: run(() => {
+          setActiveWorkingSet(workingSet.id)
+          setMissionControlOpen(true)
+        }),
+      })
+    }
+    return list
+  }, [
+    t,
+    run,
+    toggleMissionControl,
+    supervisionRows,
+    currentSessionId,
+    setQuickDispatchOpen,
+    projects,
+    setActiveProject,
+    setMissionControlOpen,
+    workingSets,
+    setActiveWorkingSet,
+  ])
 
   // ---------------------------------------------------------------------------
   // Commands
@@ -455,6 +555,14 @@ export const CommandPalette: React.FC = () => {
   // ---------------------------------------------------------------------------
   const hasQuery = liveTrimmed.length > 0
 
+  const scoredSupervision = React.useMemo(() => {
+    if (!hasQuery) return supervisionCommands.map((item) => ({ item, score: 0 }))
+    return scoreByFuzzyQuery(supervisionCommands, liveTrimmed, (c) => c.searchText, {
+      limit: 7,
+      noFuzzy: true,
+    })
+  }, [supervisionCommands, liveTrimmed, hasQuery])
+
   const scoredCommands = React.useMemo(() => {
     if (!hasQuery) return commands.map((item) => ({ item, score: 0 }))
     return scoreByFuzzyQuery(commands, liveTrimmed, (c) => c.searchText, {
@@ -489,13 +597,14 @@ export const CommandPalette: React.FC = () => {
     })
   }, [fileResults, liveTrimmed, hasQuery])
 
+  const visibleSupervision = scoredSupervision.map((x) => x.item)
   const visibleCommands = scoredCommands.map((x) => x.item)
   const visibleSettings = scoredSettings.map((x) => x.item)
   const visibleSessions = scoredSessions.map((x) => x.item)
   const visibleFiles = hasQuery ? scoredFiles.map((x) => x.item) : []
 
-  const groupOrder = React.useMemo<("commands" | "settings" | "sessions" | "files")[]>(() => {
-    if (!hasQuery) return ["commands", "sessions"]
+  const groupOrder = React.useMemo<("supervision" | "commands" | "settings" | "sessions" | "files")[]>(() => {
+    if (!hasQuery) return ["supervision", "commands", "sessions"]
     const best = (arr: { score: number }[]): number => (arr.length ? arr[0].score : Infinity)
     const groups: { key: "commands" | "settings" | "sessions" | "files"; score: number }[] = [
       { key: "commands", score: best(scoredCommands) },
@@ -504,7 +613,7 @@ export const CommandPalette: React.FC = () => {
       { key: "files", score: best(scoredFiles) },
     ]
     groups.sort((a, b) => a.score - b.score)
-    return groups.map((g) => g.key)
+    return ["supervision", ...groups.map((g) => g.key)]
   }, [hasQuery, scoredCommands, scoredSettings, scoredSessions, scoredFiles])
 
   const handleOpenSession = React.useCallback(
@@ -566,6 +675,19 @@ export const CommandPalette: React.FC = () => {
             <CommandEmpty>{t("commandPalette.empty.noResults")}</CommandEmpty>
 
             {groupOrder.map((groupKey) => {
+              if (groupKey === "supervision" && visibleSupervision.length > 0) {
+                return (
+                  <CommandGroup key="supervision" heading={t("supervision.commandPalette.group")}>
+                    {visibleSupervision.map((cmd) => (
+                      <CommandItem key={cmd.id} value={cmd.id} onSelect={cmd.onSelect}>
+                        {cmd.icon}
+                        <span>{cmd.title}</span>
+                        {cmd.shortcutId ? <CommandShortcut>{shortcut(cmd.shortcutId)}</CommandShortcut> : null}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                )
+              }
               if (groupKey === "commands" && visibleCommands.length > 0) {
                 return (
                   <CommandGroup key="commands" heading={t("commandPalette.group.commands")}>

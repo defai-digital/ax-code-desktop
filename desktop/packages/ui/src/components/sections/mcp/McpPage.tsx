@@ -21,6 +21,7 @@ import {
   parseMcpOAuthCallbackStateKey,
 } from "@/components/sections/mcp/mcpOAuth"
 import { McpResourceBrowser } from "@/components/sections/mcp/McpResourceBrowser"
+import { WebMcpAllowlistSection } from "@/components/sections/mcp/WebMcpAllowlistSection"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { API_ENDPOINTS } from "@/lib/http"
 import {
@@ -1669,6 +1670,12 @@ export const McpPage: React.FC = () => {
             connected={enabled && isConnected}
           />
         )}
+
+        {!isNewServer &&
+          selectedServer !== undefined &&
+          (selectedServer as unknown as Record<string, unknown>).webmcp !== undefined && (
+            <WebMcpAllowlistSection serverName={selectedMcpNameKey} directory={currentDirectory ?? null} />
+          )}
 
         {/* Server Identity */}
         <div className="mb-6">
