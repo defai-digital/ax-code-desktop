@@ -14,25 +14,6 @@ type Args = {
 export const useProjectSessionLists = (args: Args) => {
   const { sessions, archivedSessions, availableWorktreesByProject, allProjectRoots } = args
 
-  const sessionsByDirectory = React.useMemo(() => {
-    const next = new Map<string, Session[]>()
-    sessions.forEach((session) => {
-      const directory =
-        normalizePath((session as Session & { directory?: string | null }).directory ?? null) ??
-        normalizePath(
-          (session as Session & { project?: { worktree?: string | null } | null }).project?.worktree ?? null,
-        )
-      if (!directory) {
-        return
-      }
-
-      const collection = next.get(directory) ?? []
-      collection.push(session)
-      next.set(directory, collection)
-    })
-    return next
-  }, [sessions])
-
   // Archived sections are built once per project. Resolve ownership once for
   // each session instead of scanning every project root for every section.
   const ownerProjectRootBySessionId = React.useMemo(() => {
@@ -43,33 +24,25 @@ export const useProjectSessionLists = (args: Args) => {
     return owners
   }, [allProjectRoots, archivedSessions, availableWorktreesByProject, sessions])
 
+  // Live sessions use the same ownership as archived ones and the rest of the app: a session belongs
+  // to the most specific project (or project worktree) containing its directory. Matching only the
+  // exact project folder hid sessions started in a subfolder, such as a repository under ~/code.
+  const liveSessionsByOwnerRoot = React.useMemo(() => {
+    const next = new Map<string, Session[]>()
+    for (const session of sessions) {
+      const owner = ownerProjectRootBySessionId.get(session.id)
+      if (!owner) continue
+      const bucket = next.get(owner)
+      if (bucket) bucket.push(session)
+      else next.set(owner, [session])
+    }
+    return next
+  }, [ownerProjectRootBySessionId, sessions])
+
   const getSessionsForProject = React.useCallback(
-    (project: { normalizedPath: string }) => {
-      const worktreesForProject = availableWorktreesByProject.get(project.normalizedPath) ?? []
-      const directories = [
-        project.normalizedPath,
-        ...worktreesForProject
-          .map((meta) => normalizePath(meta.path) ?? meta.path)
-          .filter((value): value is string => Boolean(value)),
-      ]
-
-      const seen = new Set<string>()
-      const collected: Session[] = []
-
-      directories.forEach((directory) => {
-        const sessionsForDirectory = sessionsByDirectory.get(directory) ?? []
-        sessionsForDirectory.forEach((session) => {
-          if (seen.has(session.id)) {
-            return
-          }
-          seen.add(session.id)
-          collected.push(session)
-        })
-      })
-
-      return collected
-    },
-    [availableWorktreesByProject, sessionsByDirectory],
+    (project: { normalizedPath: string }) =>
+      dedupeSessionsById(liveSessionsByOwnerRoot.get(project.normalizedPath) ?? []),
+    [liveSessionsByOwnerRoot],
   )
 
   const getArchivedSessionsForProject = React.useCallback(

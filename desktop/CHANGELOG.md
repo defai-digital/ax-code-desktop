@@ -26,6 +26,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- The sidebar lists a session under the most specific project that contains its directory, the
+  same owner the projects home, the needs-you queue and the session switcher use. It used to match
+  only the exact project folder, so a session started in a subfolder (for example a repository
+  under an added `~/code`) was counted on the home but missing from the sidebar.
 - The add-project folder browser no longer disables a folder that is already a project, so its
   subfolders can be reached and added (for example repositories under an added `~/code`).
 - Routes and surfaces that were reachable before signing in now require the UI session: the bare
