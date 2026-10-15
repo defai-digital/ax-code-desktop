@@ -17,7 +17,7 @@ describe("Desktop release contract", () => {
       version: "2.6.17",
       producerCommit: "acc03b6f8558041a4a2b80c921819875933acfe5",
     })
-    expect(contract.runtime).toMatchObject({ version: "7.25.7", releaseTag: "v7.25.7" })
+    expect(contract.runtime).toMatchObject({ version: "7.25.8", releaseTag: "v7.25.8" })
     expect(contract.lockfile.sha256).toMatch(/^[a-f0-9]{64}$/)
   })
 
@@ -76,7 +76,7 @@ describe("Desktop release contract", () => {
     )
     const contract = verifyDesktopReleaseContract(repositoryRoot, withOverrides(overrides))
     expect(contract.manifests.root.version).toBe("7.24.99")
-    expect(contract.runtime.version).toBe("7.25.7")
+    expect(contract.runtime.version).toBe("7.25.8")
   })
 
   it("rejects mismatched Desktop package versions", () => {

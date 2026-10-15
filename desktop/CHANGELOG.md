@@ -58,6 +58,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The bundled AX Code runtime pin moves to the signed v7.25.8, the first release that carries the
+  `desktop_webmcp` `navigate` action.
+- Reloading a session's messages uses the directory recorded on the session, which stops the server
+  answering 409 for sessions listed under another directory.
 - Draft starters can be reordered from the keyboard: Alt (Option on macOS) with the arrow keys
   moves the focused starter within its group, and the new position is announced. Enter and Space
   still run the starter. Screen readers get these instructions instead of the drag library's
