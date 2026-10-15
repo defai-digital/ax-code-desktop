@@ -1,0 +1,33 @@
+Two data-loss bugs. The queue patch fixes its bug. The cleanup patch fixes the stale current session, then leaves that session stuck behind the cooldown watermark.
+
+### 1. `PlanSaveQueue` drops an enqueue that lands after `drain` returns
+
+`drain` returns as soon as `queuedByPath` is empty. `activeByPath` is cleared only in a later `.finally` microtask. An `enqueue` in that gap sees the old active promise, stores the new entry, and returns a promise that is already finishing. `finally` then deletes the active slot and does not look at the queue. The latest content sits in `queuedByPath` until some later enqueue starts another drain. `onLatestSaved` and `onLatestError` never run for it, and `hasPending` stays true.
+
+**Trigger:** the save of `"1"` resolves, and a microtask queued in that same turn (after the save’s reactions, before `finally`) enqueues `"2"` for the same path. `drain` has already observed an empty queue.
+
+**Test:** `save` is called with `"2"` with no further enqueue; the promise returned for `"2"` settles only after that call; `hasPending(path)` is then false.
+
+**Patch:** fixed, without a regression on the in-flight path. `finally` drops the active slot and, if a pending entry exists, `return this.enqueue(pending)`. A promise returned from `finally` is settled before waiters of the completed drain resume, and the new drain is what `activeByPath` stores. Enqueues that arrive while `save` is still awaiting stay in the map and the existing loop writes the latest entry.
+
+### 2. Cleanup can archive or delete the session the user just opened
+
+`currentSessionId` is the callback closure. The guard is set, then the function awaits `ensureGlobalSessionsLoaded` and later awaits each `applySessionRetentionAction`. The in-flight call keeps the old id, so candidate selection will not exclude a session opened during the load, and the loop will not notice a switch onto a later candidate.
+
+**Trigger:** start cleanup while the current id is A. During `ensureGlobalSessionsLoaded`, set the current id to B, with B older than `autoDeleteAfterDays`. B is passed to `applySessionRetentionAction`. Loop variant: candidates `[B, C]`, current is A; while B’s action is in flight, set the current id to C. C is still submitted.
+
+**Test:** if the store’s current id is B before candidates are built, the retention call is not made for B. If it changes to C after B’s action resolves, the call is not made for C. Other still-due ids are still processed.
+
+**Patch:** those two windows are fixed. Candidates are built with `useSessionUIStore.getState().currentSessionId`, and each id is checked again before the SDK call. Dropping `currentSessionId` from the dependency list matches that live read.
+
+**Regression:** a skipped current id is not added to `failedIds` or `completedIds`, and the new stamp runs whenever `failedIds.length === 0`:
+
+```javascript
+if (failedIds.length === 0) setAutoDeleteLastRunAt(Date.now())
+```
+
+**Trigger:** the only candidate is B; before its turn, the current id becomes B; the loop `continue`s; `failedIds` is empty; the watermark is set. Leave B and call cleanup again without `force`.
+
+**Test:** that second call should still attempt B. It hits `skippedReason: "cooldown"` and does not, until `AUTO_DELETE_INTERVAL_MS` elapses.
+
+Removing the inner `finally` that stamped the watermark even when every retention call failed is a separate improvement: failures stay eligible for a non-forced retry, and the early exits (disabled, loading, cooldown, empty list, zero candidates) are unchanged.

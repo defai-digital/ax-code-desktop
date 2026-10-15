@@ -26,6 +26,10 @@ export class PlanSaveQueue {
 
     const drainPromise = this.drain(entry.path).finally(() => {
       this.activeByPath.delete(entry.path)
+      // An enqueue can land after drain returns but before this cleanup runs.
+      // Restart it and keep callers joined to the completed drain waiting.
+      const pending = this.queuedByPath.get(entry.path)
+      if (pending) return this.enqueue(pending)
     })
     this.activeByPath.set(entry.path, drainPromise)
     return drainPromise

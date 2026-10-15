@@ -96,4 +96,18 @@ describe("PlanSaveQueue", () => {
     expect(errors).toHaveLength(1)
     expect(errors[0]).toBeInstanceOf(Error)
   })
+  test("drains an edit arriving between drain completion and active cleanup", async () => {
+    const save = vi.fn<(path: string, content: string) => Promise<void>>(async () => {})
+    const queue = new PlanSaveQueue({ save, isLatestEntry: () => true, onLatestError: vi.fn() })
+    const first = queue.enqueue({ path: "/repo/plan.md", content: "first" })
+    // The drain finishes in the next microtask, before its finally cleanup runs.
+    await Promise.resolve()
+    const second = queue.enqueue({ path: "/repo/plan.md", content: "last edit" })
+    await Promise.all([first, second])
+    expect(save.mock.calls).toEqual([
+      ["/repo/plan.md", "first"],
+      ["/repo/plan.md", "last edit"],
+    ])
+    expect(queue.hasPending("/repo/plan.md")).toBe(false)
+  })
 })

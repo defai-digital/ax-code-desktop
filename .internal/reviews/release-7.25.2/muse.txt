@@ -1,0 +1,37 @@
+muse: workspace root: /tmp/ax-desktop-7.25.2-review (explicit)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+## High-confidence bugs
+
+### 1. Plan saves can be permanently stranded when enqueued as the previous drain finishes
+
+**Location:** [planAutosave.ts](/tmp/ax-desktop-7.25.2-review/desktop/packages/ui/src/components/views/planAutosave.ts), `PlanSaveQueue.enqueue()` and the `drainPromise.finally()` cleanup
+
+**Trigger:** Enqueue entry A with a deferred `save()`. Register a continuation on that same save promise that enqueues entry B, then resolve A’s save. The drain continuation runs first, sees an empty queue, and returns; the B-enqueue continuation then runs before the `.finally()` cleanup, so `enqueue(B)` finds the old `activeByPath` entry and returns it without starting a new drain. The `.finally()` then deletes `activeByPath`, leaving B only in `queuedByPath`.
+
+**Impact:** B is never written unless another entry for the same path is later enqueued. `hasPending(path)` remains `true` forever. If B came from the unmount/loader flush in `PlanView`, the user’s final edit can be silently lost despite the flush.
+
+**Regression test:** Use a deferred first save; call `enqueue(A)`, attach `savePromise.then(() => queue.enqueue(B))`, resolve, and flush microtasks. Assert `save` was called with B and `hasPending(path) === false`. On the current code, `save` is called only with A while `hasPending(path)` stays `true`.
+
+### 2. Failed retention actions still record a successful daily run and suppress retries for 24 hours
+
+**Location:** [useSessionAutoCleanup.ts](/tmp/ax-desktop-7.25.2-review/desktop/packages/ui/src/hooks/useSessionAutoCleanup.ts), the inner `try { ... } finally { setAutoDeleteLastRunAt(Date.now()) }` around the candidate loop in `runCleanup()`
+
+**Trigger:** Have one or more eligible candidates whose scoped SDK calls all fail, either by resolving with `{ error }` or by throwing. Each ID is correctly collected in `failedIds`, but the inner `finally` unconditionally calls `setAutoDeleteLastRunAt(Date.now())`.
+
+**Impact:** The next non-forced cleanup returns `skippedReason: "cooldown"` for `AUTO_DELETE_INTERVAL_MS` (24 hours), even though nothing was archived or deleted. This recreates the exact failure mode described in the `applySessionRetentionAction` comment: a rejected cleanup is now reported in `failedIds`, but it still records a “last run” that defers the next attempt by a day.
+
+**Regression test:** Render the hook with one old, deletable candidate and a scoped SDK whose `session.delete` resolves `{ error: new Error("denied") }`. Call `runCleanup()`, assert the result has `failedIds: [id]`, and assert `setAutoDeleteLastRunAt` was not called (or that an immediate second non-forced call retries instead of returning `"cooldown"`). Current code sets the timestamp.
+
+### 3. A second route application during a slow session switch is dropped, then the first route rewrites the URL
+
+**Location:** [useRouter.ts](/tmp/ax-desktop-7.25.2-review/desktop/packages/ui/src/hooks/useRouter.ts), `applyRoute()` `isApplyingRouteRef` guard and its `finally { syncURLFromState({ replace: true }) }`
+
+**Trigger:** Start applying route S1 while `setCurrentSession(S1)` is still pending. Before it resolves, trigger a second navigation to S2 (for example, a rapid second back/forward `popstate`). The second `applyRoute(S2)` returns immediately because `isApplyingRouteRef.current` is `true`; there is no latest-route queue.
+
+**Impact:** S2 is never applied. When S1 finishes, the `finally` block calls `syncURLFromState({ replace: true })`, rewriting the current history entry’s URL back to S1 even though the browser had already navigated to S2. The address bar, app state, and browser history position diverge, and that back/forward step becomes unreachable.
+
+**Regression test:** Mock `setCurrentSession` with a deferred promise for S1; dispatch/apply route S1, then route S2 before resolving; resolve S1 and flush. Assert the final session and URL reflect S2 (latest navigation wins). Current code ends on S1 and replaces the URL with S1.
+
+## Not counted as bugs (product policy, absent a product decision)
+
+The `AUTO_DELETE_KEEP_RECENT = 5` protection, exempting shared sessions, the current session, and sessions with no activity timestamp, and `force` bypassing the disabled/cooldown checks in `runCleanup()` are policy choices rather than demonstrable correctness defects. Likewise, `PlanSaveQueue` overwriting a still-queued entry for the same path with a newer entry is intended latest-wins coalescing; the defect in finding 1 is the stranded entry, not the coalescing itself.
