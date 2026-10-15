@@ -2436,6 +2436,7 @@ export const GitView: React.FC = () => {
                       <div className="min-h-0 flex-1 overflow-hidden">
                         <ChangesPanel
                           groups={changeGroups}
+                          scopeKey={normalizedCurrentDirectory}
                           diffStats={status?.diffStats}
                           revertingPaths={revertingPaths}
                           isRevertingAll={isRevertingAll}

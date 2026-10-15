@@ -46,6 +46,8 @@ export interface ChangesGroupConfig {
 
 interface ChangesPanelProps {
   groups: ChangesGroupConfig[]
+  /** Normalized directory whose changes are shown; the auto-expand memory below is scoped to it. */
+  scopeKey?: string
   diffStats: Record<string, { insertions: number; deletions: number }> | undefined
   revertingPaths: Set<string>
   isRevertingAll?: boolean
@@ -70,6 +72,7 @@ const expandedKey = (groupId: string, path: string): string => `${groupId} ${pat
 
 export const ChangesPanel: React.FC<ChangesPanelProps> = ({
   groups,
+  scopeKey,
   diffStats,
   revertingPaths,
   isRevertingAll = false,
@@ -105,6 +108,15 @@ export const ChangesPanel: React.FC<ChangesPanelProps> = ({
   // re-add every top-level directory on each status update, undoing a collapse
   // the user made.
   const seededTopLevelKeysRef = React.useRef<Set<string>>(new Set())
+
+  // `GitView` is reused across directory switches, so this memory — and the
+  // expansions it suppressed — belong to the repository they were made in.
+  // Declared before the seeding effect so a scope switch clears first and every
+  // top-level directory of the new repository auto-expands again.
+  React.useEffect(() => {
+    seededTopLevelKeysRef.current = new Set()
+    setExpandedDirectories(new Set())
+  }, [scopeKey])
 
   React.useEffect(() => {
     if (!isTreeView) {

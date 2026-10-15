@@ -48,6 +48,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- The changes tree's auto-expand memory was shared across repositories: the panel is reused when the
+  active directory switches, so a top-level folder collapsed in one repo kept the same-named folder (and
+  its nested state) collapsed in the next. The memory and the expansion state are now scoped to the
+  repository.
 - Bootstrapping a project's store asked the runtime about *its own* working directory instead of the
   project: five snapshot calls (path, session status, LSP, VCS, current project) omitted the directory, so
   with several projects open one project's store could inherit another's session states — flipping a
