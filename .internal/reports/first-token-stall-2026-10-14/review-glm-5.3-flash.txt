@@ -1,0 +1,52 @@
+
+> Perf · glm-5.3-flash · ses_-e5ec2bf295fffe9kSjFbPIylg
+
+## 1. Ranked root causes + the one discriminating measurement each
+
+**#1 Gateway/upstream queueing or instability (~60%).** Your signature argument is strong: TTFT is decoupled from request size (329 new + 231,936 *cached* → 40 s), and identical ~210k context gives 1.8 s vs 40 s. The provider error on turn 4 correlates with the pattern.
+*Discriminator:* during a live stall, fire a minimal probe (~10 tokens, `stream:true`, separate process, same gateway/key). Probe also stalls → provider. Probe instant while the session stalls → client.
+
+**#2 Upstream prefill cost, scaled by cache-hit luck (~20%) — an amplifier, not the primary cause.** Turn 1: ~63.7k effective prefill tokens / 160 s ≈ 400 tok/s. Turn 5: 24.7k new / 57 s ≈ 430 tok/s. But cache-read throughput itself varies ~17x upstream (65,408 cached → 3.4 s vs 63,872 cached → 57 s). So even warm turns are at the mercy of upstream variance.
+*Discriminator:* correlate per-turn TTFT with `prompt_cache_read_tokens` and your logged messages/prefix provenance hashes — slow turns should show near-zero cache reads or a changed prefix hash (e.g., tool-result insertion reordering the message prefix and silently defeating upstream caching).
+
+**#3 Client-side episodic event-loop stall (~15%) — mechanically possible, currently unevidenced.** The only credible candidate is SQLite work on the 10 GB DB (WAL checkpoint, or synchronous reads triggered by the polling loop). Against it: interleaved fast turns (2–4.5 s TTFT, tools at 0.0–0.3 s) prove the loop is usually healthy, so the blocker would have to coincide exactly with slow turns.
+*Discriminator:* `perf_hooks.monitorEventLoopDelay` histogram per turn + fetch-dispatch timestamp. Bonus in-process tell: during a stall, history fetches/tool calls in the *same process* also blow up (client) vs stay at 0.3 s (provider).
+
+**#4 Silent upstream rerouting by the gateway (~5%).** Under pressure the gateway may serve from a different/heavier upstream, making TTFT jump independent of request shape.
+*Discriminator:* compare the response `model` field and routing/`x-request-id` headers between a fast and a slow turn.
+
+**Excluded:** the `claude-code/*` CLI cold start — every measured turn is `deepseek-flash` over openai-compatible; the CLI attempt was aborted at 4.2 s before contributing.
+
+**Challenge to your conclusion:** it is *probably* right, but it isn't yet *proven* — see Q2/Q3. Also refine "provider stalling" to "upstream latency variance, with prefill volume as a secondary scaling factor": turns 1 and 5 both carry large new-token counts and sit at ~400 tok/s effective prefill.
+
+## 2. Could the client add 40–160 s before the first token?
+
+- **Provenance hashing: no.** 335 KB of SHA-256 is ~1 ms.
+- **Polling load: not directly.** ~1 req/s of loopback with hundreds-of-KB bodies is ms-scale parse cost. The risk is *indirect*: if each poll performs synchronous or unindexed reads against the 10 GB DB, latency compounds. The 84× 409-retry loop is pure waste (fix it regardless) but not a TTFT mechanism.
+- **SQLite/WAL checkpoint on the 10 GB DB: the one credible client-side candidate.** Episodic checkpoints can block for tens of seconds; but it would need to align exactly with the slow turns given the healthy fast turns.
+- **GC/swap: no** for 160 s (that implies thrashing; check RSS + major faults if suspicious).
+
+**Telling client from provider with only `setupMs`/`firstContentMs`/`streamMs`: you can't, conclusively.** `setupMs` covers setup only; the gap between setup-end and fetch-dispatch is unlogged, and `firstContentMs` is in-process (Q3). Heuristics only: uniform, size-dependent slowdown → client; bursty, error-correlated, size-independent stalls → provider. `firstContentMs ≈ latencyMs ≈ streamMs` (turn 1) merely says all time was pre-first-chunk — it does not say when the bytes left the process.
+
+## 3. Can `firstContentMs` hide a client-side stall?
+
+**Yes, in both directions:**
+- **Clock start:** if the timer begins after setup, any pre-dispatch delay (awaiting message-assembly DB reads, queued loop work) is invisible. `setupMs = 6.8 ms` certifies setup, not dispatch.
+- **Clock stop:** it stops when the adapter's handler *sees* the first chunk, not when the socket received it. If the event loop is blocked at arrival, measured TTFT > true wire TTFB — a provider-fast response can be misattributed as slow, and a pre-dispatch client stall is silently absorbed into "waiting for provider."
+
+**Instrumentation that settles it:**
+1. `diagnostics_channel` undici hooks: timestamp `request:create` → `request:headers` (sent) → response headers → first body chunk. This splits the stall into pre-dispatch (client) / sent→headers (network + gateway queue) / headers→first-chunk (upstream compute).
+2. `monitorEventLoopDelay` histogram logged per turn (loop-lag spikes coinciding with stalls ⇒ client).
+3. Out-of-process 1 Hz probe TTFT series as the control.
+
+## 4. Highest-value next experiment
+
+**Replay the exact logged request payload outside the runtime.** A ~50-line standalone Node script POSTs the identical JSON (`stream:true`, same key) to the gateway 10–20 times and records time-to-first-chunk per attempt. Decisive both ways:
+
+- **Variance reproduces on byte-identical requests** → provider-side confirmed; then capture the `model`/routing headers (and one mitmproxy trace for wire truth) and take it to the gateway owner. Done.
+- **Always fast in isolation** → client-side; instrument the runtime per Q3 and interrogate WAL checkpoint timing and the polling/409 loop.
+
+Cost: minutes; requires only one already-logged payload. **Zero-code complement:** while a Desktop session visibly stalls, run a tiny curl probe to the same gateway from a second terminal — probe fast + session slow ⇒ client; both slow ⇒ provider.
+
+Regardless of outcome: stop the GUI's 409 retry loop (84 wasted fetches / 286 s) — hygiene, not the cause.
+exit=0 [ax-glm]

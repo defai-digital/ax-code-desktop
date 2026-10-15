@@ -1,0 +1,28 @@
+muse: workspace root: /tmp/rootcause-review (explicit)
+muse: workspace trust: trusted source=run-flag
+1. **Ranked causes, with discriminating test**
+
+   1. **Gateway/upstream queueing or stalling** — your strongest hypothesis. TTFT varies 1.8 s → 40 s at near-identical context, and spikes occur with warm cache/tiny new input (329 + 231,936 tokens → 40 s). But "cached" only proves token accounting, not that prefill/queueing was cheap. *Discriminator:* replay the identical request directly to the gateway (bypassing the runtime) with server request-ID/timing headers — if TTFB spikes persist outside the client, it's provider-side.
+   2. **Hidden retry/backoff inside the provider SDK** — the turn-4 `AI_APICallError: upstream request failed` + retry proves failures occur in this window; a silent retry before any chunk would inflate `firstContentMs` invisibly and masquerade as a stall. *Discriminator:* adapter log line per attempt (attempt #, per-attempt start/first-byte), or SDK retry-count telemetry per turn.
+   3. **Large-context/provider prefill cost, amplified by the 179 KB / 63-tool definitions** — 335 KB per request with 60–230k-token contexts gives the gateway real work per turn even when "cached"; tool-schema translation/validation on an OpenAI-compatible gateway is a plausible per-request cost. *Discriminator:* controlled TTFT vs. total-context curve (same prompt at 10k/60k/200k tokens, tools stripped vs. intact) sent directly to the gateway.
+   4. **Desktop-induced runtime contention** — ~1 req/s polling, 19 large history fetches, and a 3 s 409-retry loop are Desktop-only, matching "TUI feels fine." Light in request count, but each hit may trigger expensive work over a 10 GB DB. *Discriminator:* event-loop lag histogram in the runtime correlated against turn timestamps (see 2).
+   5. **Local DB/disk stalls (WAL checkpoint, synchronous SQLite, GC/memory pressure)** — plausible seconds, unlikely alone to explain 160 s, but could compound #4. *Discriminator:* duration log of SQLite calls/checkpoints >100 ms overlaid on slow turns.
+
+   Your conclusion is the best current bet, but not proven: the same evidence (variance at fixed context) is also produced by intermittent client event-loop blocking, and the Desktop/TUI asymmetry is unexplained by a pure provider story — though "TUI feels fine" is anecdote, not measurement.
+
+2. **Could the client add 40–160 s pre-first-token?**
+
+   Mostly no for the mechanisms as sized: hashing/serializing 335 KB is milliseconds; 282 requests/286 s is trivial HTTP load. The credible client mechanism is **event-loop blocking in the Node runtime** — synchronous SQLite operations on a 10 GB DB, WAL checkpoints, or repeated expensive session-list/history queries from the polling GUI — which can stall processing of an already-arrived stream. 40–160 s from this alone would require severe repeated blocking, so it's a contributor suspect, not the leading one.
+
+   With only your four signals: `setupMs` = 6.8 ms rules out pre-dispatch client work (request building, hashing) almost completely — the stall lives after dispatch. A provider stall shows high `firstContentMs` with normal streaming thereafter (`streamMs − firstContentMs` proportional to output); client read-blocking shows the same aggregate, plus bursty catch-up delivery — but aggregates can't separate them. The provider error stream is your one asymmetric signal: client blocking never generates `AI_APICallError: upstream request failed`, so genuine upstream failures are confirmed; they corroborate, but don't prove, that the silent stalls are also upstream.
+
+3. **Yes, `firstContentMs` can hide a client stall.**
+
+   If it's timestamped when the adapter's chunk callback *runs* on the Node event loop, bytes sitting in the kernel socket buffer during a loop block (SQLite, GC, a polling handler) are recorded as provider latency. It also hides retries, connection setup, and gateway queueing indiscriminately — it's a wall-clock between two client-side points, not a wire measurement.
+
+   Settling instrumentation: monotonic timestamps at four layers — request dispatched, first byte on the socket (undici/TCP-level instrumentation or a packet capture), first chunk parsed by the adapter, first token rendered — plus `perf_hooks.monitorEventLoopDelay()` and per-attempt SDK logging. If socket-first-byte ≈ adapter-first-chunk on slow turns, the client is exonerated; a gap between them is the client stall, sized exactly.
+
+4. **Highest-value next experiment**
+
+   A 20-minute bypass A/B on this machine: script ~15 identical small streaming requests (same model, minimal context, no tools) straight to the gateway via `curl -w` TTFB timing, interleaved with the same prompt through the runtime, while an event-loop-lag monitor runs in the runtime process. Three outcomes, each decisive: direct calls spike too → provider, case closed; direct calls are uniformly fast and runtime `firstContentMs` spikes align with loop-lag spikes → client/Desktop contention; direct calls fast, no loop lag, runtime still spikes → SDK/retry/connection layer, and per-attempt logging (item 1.2) becomes the next step.
+exit=0 [muse]

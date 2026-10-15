@@ -1,0 +1,29 @@
+
+> Debugger · xiaomi/mimo-v2.6-pro · ses_-e5ec2ba11dbffedAomo75s731
+
+## Root-cause review, round 2
+
+**1. Settled? Strongest surviving alternative + the measurement that kills it**
+
+- A closes round 1’s loophole for these processes: 56 handlers, mean 0.7 ms, gaps ~5 s, all inside the 160 s window means the event loop was scheduling, parsing, and answering the whole time — it was not a main thread that “cannot read an already-arrived chunk.”
+- B makes independent client bugs implausible: three processes, two models, one wall-clock window, one gateway.
+- Verdict: settled as *a shared bottleneck on the path to/through `defai-01-ax-trust-com`* (high confidence). Not settled: remote gateway/upstream vs. a shared local intermediary.
+
+**Strongest alternative A+B do not rule out:** a shared *local* delivery/persist stall — a localhost/sidecar proxy, shared TLS/connection-pool agent, or the shared 10 GB session SQLite (or its volume) if first-chunk delivery is gated on a write/fsync step. That fits A (handlers that don’t touch the stalled resource stay at 0.7 ms) and B (all three share the machine, file, and gateway path) without any remote TTFT stall.
+
+**Measurement that rules it out:** during a stall, a simultaneous independent first-byte probe from the same host — raw `curl -w '%{time_starttransfer}'` (or tcpdump time of the first payload byte) to the same endpoint. Wire slow → gateway/upstream confirmed. Wire fast while `firstContentMs` is ~160 s → local delivery/persist path.
+
+**2. Cheapest artefact for the gateway owner**
+
+One three-line table: per client — wall-clock send time, first-byte time, model, and the gateway-visible id (request id / `traceparent` / connection id), plus hostname and the exact window. The *correlated multi-tenant timeline* is what only they can act on (queue depth, upstream pool, auth refresh, retry storm at that timestamp). A timing breakdown without ids can’t be grepped in their logs; a raw curl alone loses the concurrency signal. Fallback if the client logged no gateway ids: one raw `curl -w` recipe that reproduces >100 s `time_starttransfer` outside our stack.
+
+**3. Any remaining client-side path that could stall several independent processes at once?**
+
+- Not in-process: hashing, main-thread SQLite, event-loop blocking are per-process and B requires cross-process synchronization.
+- The one that can: **the shared 10 GB session SQLite (or the disk/volume behind it), if stream delivery is gated on a persist step** — a writer lock, WAL checkpoint, or fsync hang would hit every process’s stream-append path at once while leaving read-only poll handlers fast (fits A). Same shape if that file sits on a flaky external volume.
+- Otherwise, a shared local proxy/sidecar on the machine (client-side of the gateway) is the only other candidate. Nothing in ordinary per-process client code explains two models and three processes.
+
+**4. One thing still measured before calling this closed**
+
+The concurrent independent first-byte comparison above (raw curl or packet-level TTFB on the same host, during the same stall window as `firstContentMs`). It splits the last fork — remote gateway/upstream vs. local delivery/persist — and we can run it ourselves. Gateway-side logs for those request ids would corroborate, but this is the single measurement that decides where the fix belongs.
+exit=0 [ax-mimo]

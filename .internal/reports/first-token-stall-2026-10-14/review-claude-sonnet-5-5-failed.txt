@@ -1,0 +1,2 @@
+Error: Model "anthropic/claude-sonnet-5" not found for provider "defai-01-ax-trust-com". Run `ax-code models` for usable IDs.
+exit=1 [ax-claude]

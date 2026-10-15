@@ -1,0 +1,42 @@
+# Answers
+
+## 1. Ranked candidate root causes
+
+**#1 — Provider/gateway-side stall or queueing on `defai-01-ax-trust-com`.**
+Strongest discriminator: *within the same session*, an essentially identical ~210k-token context produced TTFT of 1840 ms on one turn and 40018 ms on another. Local state (DB size, polling load, hash cost) doesn't change that fast between adjacent turns of one session — a 20x swing on the same input shape is the signature of a shared, contended, or queued upstream resource, not local compute. The independent `AI_APICallError: upstream request failed` + retry on turn 4 corroborates that the upstream is genuinely unstable in this session, not just slow.
+
+**#2 — Prompt-cache retrieval/reload cost that scales with total cached context, not with "new" tokens.**
+Strongest discriminator: 329 new + 231,936 cached tokens → 40,018 ms TTFT. Almost nothing new to process, yet still tens of seconds. That rules out "it's just prefill of new tokens" and points at a cache tier that has to be paged/reconstituted (e.g. KV cache evicted from fast storage) before generation can start, with cost driven by total context size. This is a specific mechanism under #1, not a separate system.
+
+**#3 — Cache-prefix churn forcing partial reprocessing (client-influenced, provider-executed).**
+Strongest discriminator: cache-read tokens *drop* between adjacent turns in this very session (70144→63872 at turn 4→5, which is also the 57 s-TTFT turn; 93056→63360 at turn 7→8). A stable system/tools/message prefix should make cache-read tokens monotonically climb; a drop implies something in the ~257 KB static block (likely among the 63 tool defs, 179 KB) changed and invalidated part of the cache, forcing the provider to reprocess. You already log provenance hashes per request — this is checkable from existing logs with no new instrumentation.
+
+**#4 — Desktop GUI polling/409-retry load contending for the Node event loop, inflating the measured `firstContentMs` without the provider actually being slow.**
+Weaker: 282 reqs/286s (~1/s) plus a 409-retry storm every ~3 s is light CPU load, unlikely by itself to produce 40–160 s stalls. But it's the best candidate for *why Desktop feels slow and TUI doesn't* on the same provider/config, since TUI doesn't carry this traffic. Likely an amplifier of jitter, not the primary cause.
+
+**#5 — Local SQLite WAL checkpoint / 10 GB DB blocking the event loop.**
+Weakest, given the data here: `setupMs` was 6.8 ms even on the 160 s turn, and all 27 tool calls (which also hit the DB) completed in 0.0–0.3 s throughout the session. If multi-minute event-loop blocking were occurring, tool-call latency should show it too. Not ruled out entirely, but not favored.
+
+## 2. Could client-side mechanisms add 40–160 s before first token?
+
+Mechanically, yes — event-loop blocking, GC pauses, or OS-level memory pressure (swap) can delay *any* JS callback arbitrarily, including the one that stamps `firstContentMs`. But this session's own numbers argue against that being the primary cause here:
+- `setupMs` (6.8 ms) shows request assembly/hashing isn't the bottleneck.
+- Tool calls stayed fast (0.0–0.3 s) throughout the session, bounding how badly the event loop was actually stalled during this window.
+- The 20x TTFT swing on an identical-sized context within one session isn't explained by steadily-sized local overhead (DB, hashing, polling) — those should be roughly constant turn to turn.
+
+**How to tell them apart using only `setupMs`/`firstContentMs`/`streamMs`/error stream:** `setupMs` large → client-side (request assembly stalled). `setupMs` small but `firstContentMs` large *and* an upstream error/retry appears on that turn or an adjacent one → provider-side. `firstContentMs` small but `streamMs` large (exactly turn 7: 2089 ms content, 25325 ms total with a big output+reasoning token count) → that's generation/output throughput, not TTFT at all — a different bucket entirely, and shouldn't be lumped into the TTFT story. The ambiguous case is "`setupMs` small, `firstContentMs` large, no error" — that's where these three timers alone *can't* distinguish a server hold from a client queue delay; you need lower-level timestamps (next answer).
+
+## 3. Can `firstContentMs` hide a client-side stall?
+
+Yes. If it's stamped in JS when the chunk-received callback runs, it measures "when our event loop got around to it," not "when the byte left the server's socket." A GC pause, a synchronous `JSON.stringify`/parse of a large payload, a synchronous SQLite write to the event log, or scheduler delay between the OS delivering the byte and the JS callback firing would all inflate it with zero provider slowness.
+
+**Instrumentation to settle it:** add a raw, pre-application timestamp at the transport layer — e.g. the underlying socket's/HTTP client's `response` (headers) event and first `data` event, captured via `process.hrtime()` *before* any JSON parsing, hashing, or DB writes touch it — and diff that against the already-recorded `firstContentMs`. In parallel, run a cheap event-loop-lag probe (sample a `setInterval` drift every ~50 ms) for the duration of the session and log it alongside. If raw socket timestamps match `firstContentMs` closely and lag stays flat, it's provider-side. If there's a meaningful gap, or lag spikes coincide with the slow turns, it's client-side.
+
+## 4. Highest-value next experiment
+
+Two things, in order of cost:
+
+1. **(Cheapest, use data you already have)** Diff the provenance hashes for the system/messages/tool-definitions blocks across turns 1–8 of this session. If the tool-definitions or system hash changes between turns (especially right before turn 5, the 57 s-TTFT turn), that confirms cache-busting as a concrete, fixable cause and explains the cache-read dips you can already see in the numbers (70144→63872, 93056→63360). Zero new instrumentation, just log analysis.
+
+2. **(Decisive)** Take the exact logged request JSON for the slow turns (especially the 329-new/231936-cached and the 210k-context pair with 1840 ms vs 40018 ms) and replay it directly against the gateway with `curl`/HTTPie from the terminal, completely outside the AX runtime — no Desktop, no polling, no SQLite. If the bare replay reproduces the same multi-second-to-minute TTFT, that's conclusive proof it's provider/gateway-side and fully exonerates the client. If the replay is fast, the client is implicated and you pivot to the transport-level timestamp instrumentation in Q3.
+exit=0 [claude]

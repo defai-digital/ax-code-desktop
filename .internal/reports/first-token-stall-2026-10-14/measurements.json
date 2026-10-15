@@ -1,0 +1,58 @@
+{
+  "schema": "ax-coder.first-token-stall-evidence.v1",
+  "date": "2026-10-14",
+  "subjectSession": "ses_-e5ec2d6b645ffejUHk38AZnrx",
+  "source": "~/.local/share/ax-code/ax-code.db (event_log) and ~/.local/share/ax-code/log/*.json.log",
+  "turns": [
+    { "t": 1, "latencyMs": 161454, "firstContentMs": 160445, "streamMs": 161283, "inputTokens": 58282, "cacheRead": 5376, "outputTokens": 157, "reasoningTokens": 115, "attempt": 1 },
+    { "t": 2, "latencyMs": 4661, "firstContentMs": 3740, "streamMs": 4565, "inputTokens": 60003, "cacheRead": 5248, "outputTokens": 210, "reasoningTokens": 34, "attempt": 1 },
+    { "t": 3, "latencyMs": 4404, "firstContentMs": 3402, "streamMs": 4314, "inputTokens": 4517, "cacheRead": 65408, "outputTokens": 191, "reasoningTokens": 103, "attempt": 1 },
+    { "t": 4, "latencyMs": 5460, "firstContentMs": 4516, "streamMs": 5370, "inputTokens": 11549, "cacheRead": 70144, "outputTokens": 225, "reasoningTokens": 75, "attempt": 1, "note": "follows one logged provider error and retry, stepIndex 1" },
+    { "t": 5, "latencyMs": 58197, "firstContentMs": 57208, "streamMs": 58103, "inputTokens": 24737, "cacheRead": 63872, "outputTokens": 303, "reasoningTokens": 45, "attempt": 1 },
+    { "t": 6, "latencyMs": 3546, "firstContentMs": 2352, "streamMs": 3455, "inputTokens": 10942, "cacheRead": 81920, "outputTokens": 226, "reasoningTokens": 87, "attempt": 1 },
+    { "t": 7, "latencyMs": 25325, "firstContentMs": 2089, "streamMs": 24862, "inputTokens": 1990, "cacheRead": 93056, "outputTokens": 2649, "reasoningTokens": 3173, "attempt": 1 },
+    { "t": 8, "latencyMs": 4334, "firstContentMs": 3226, "streamMs": 4173, "inputTokens": 37664, "cacheRead": 63360, "outputTokens": 189, "reasoningTokens": 89, "attempt": 1 }
+  ],
+  "setupMsRange": [5.6, 7.7],
+  "toolCalls": { "count": 27, "maxSeconds": 0.3 },
+  "requestShape": { "systemBytes": 78114, "messageBytes": 78771, "toolDefinitionBytes": 178686, "toolCount": 63, "encoding": "canonical-json-utf8" },
+  "prefixHashesStableAfterFirstTurn": {
+    "systemHash": "55ab6522e419802a3625bc1a88c670cade1e6373b5345b2b82aaf027ee01f88f",
+    "toolDefinitionsHash": "c2623de9efbb7143196db19bdb37e7de3c19b8e58245c56d56e2c61aa1d4aee2",
+    "optionsHash": "9ffc9d17db0dde606961893839eb6749af4505f3666724b9bb7cff63e8974bbe",
+    "note": "messagesHash changes every turn as expected; the static prefix does not"
+  },
+  "loopbackResponsivenessDuringStall": {
+    "windowMs": 158700,
+    "completedRequests": 56,
+    "maxHandlerMs": 3,
+    "meanHandlerMs": 0.7,
+    "longestGapMs": 9995
+  },
+  "concurrentStallsAcrossProcesses": [
+    { "process": "2026-10-15T011455-839-main-9c6885b2", "model": "deepseek-flash", "ttftMs": 108957, "gapSeconds": 110 },
+    { "process": "2026-10-15T011455-841-main-d318fd44", "model": "glm-5.3", "events": "stream at +8.9s, stream error at +69.1s, then +99.1, +115.4, +133.9, +188.2s" },
+    { "process": "2026-10-15T012310-427-main-b124a6e3", "model": "deepseek-flash", "ttftMs": 160445, "gapSeconds": 161, "note": "desktop-supervised runtime serving the subject session" }
+  ],
+  "maxTtftAcrossRecentSessions": [
+    { "dir": "/Users/akiralam/code/srfax", "maxTtftMs": 160444, "newTokens": 58282, "cacheRead": 5376 },
+    { "dir": "/Users/akiralam/code/ax-code", "maxTtftMs": 108957, "newTokens": 20998, "cacheRead": 180096 },
+    { "dir": "/Users/akiralam/code/ax-code", "maxTtftMs": 40018, "newTokens": 329, "cacheRead": 231936 },
+    { "dir": "/Users/akiralam/code/ax-code", "maxTtftMs": 42619, "newTokens": 32612, "cacheRead": 61120 },
+    { "dir": "/Users/akiralam/code/ax-office", "maxTtftMs": 124414, "newTokens": 27244, "cacheRead": 0 },
+    { "dir": "/private/tmp/claude-501", "maxTtftMs": 107728, "newTokens": 76326, "cacheRead": 1280 }
+  ],
+  "desktopOnlyTrafficInSameWindow": {
+    "totalRuntimeRequests": 282,
+    "byPath": { "/experimental/session": 62, "/session/status": 58, "/global/health": 20 },
+    "foreignProjectSessionFetchesRejected409": 84,
+    "retryIntervalSeconds": 3
+  },
+  "providerRouting": {
+    "activeProvider": "defai-01-ax-trust-com",
+    "baseURL": "https://defai-01.ax-trust.com/v1",
+    "proxyEnvVars": "none",
+    "alternateLocalBaseURL": "http://127.0.0.1:38080/v1",
+    "alternateLocalListener": "none"
+  }
+}

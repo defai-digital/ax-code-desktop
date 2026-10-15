@@ -1,0 +1,10 @@
+muse: workspace root: /tmp/rootcause-review (explicit)
+muse: workspace trust: trusted source=run-flag
+1. **Mostly settled: shared upstream, not per-process blocking.** A rules out a frozen event loop in process 3, and B rules out single-process/single-model causes. Strongest unruled alternative: a shared on-machine egress path (VPN/NAT/local proxy/TLS intercept) buffered inbound bytes for all three processes simultaneously — loopback tests in A bypass that path entirely. Ruled out by: on the next stall, compare `tcpdump` wire-arrival time of the first upstream byte against JS `firstContentMs`, plus a concurrent identical request from a second machine/network to the same gateway.
+
+2. **One correlation table for the gateway owner.** A single CSV/page listing, for each of the three stalled requests: UTC start/end of the hole, model, endpoint, session/process ID, and the gateway's `x-request-id`/trace ID (capture these if not already logged). Request IDs plus a tight UTC window are what make gateway logs searchable; without them the report is anecdotal.
+
+3. **Only shared-state client paths remain plausible.** Per-process code cannot synchronize three processes. The candidates are the shared 10 GB SQLite file (WAL writer lock, checkpoint, or `fsync` stall gating chunk delivery in all three, while the loopback handlers in A may not touch SQLite) and any shared file lock such as token-refresh. Both are possible but unlikely to produce clean 110–161 s network-shaped holes across two models; they are also testable by checking whether the loopback handlers hit SQLite.
+
+4. **Gateway-side per-request timeline for those three request IDs:** gateway ingress time → upstream dispatch time → upstream first-byte time → gateway first-byte egress time. That one breakdown locates the stall inside the gateway, upstream of it, or downstream of it, and closes the case.
+exit=0 [ax-muse]
