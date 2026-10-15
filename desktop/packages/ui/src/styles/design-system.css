@@ -25,14 +25,14 @@
     --text-meta: 0.8125rem;
     --text-micro: 0.75rem;
 
-    /* Default light fallbacks — match AutomatosX light (cool neutrals + green) */
+    /* Default light fallbacks — match AutomatosX light (cool neutrals + brand teal) */
     --background: #f7f7f7;
     --foreground: #171717;
     --card: #ffffff;
     --card-foreground: #171717;
     --popover: #ffffff;
     --popover-foreground: #171717;
-    --primary: #2e7d43;
+    --primary: #0e7c6d;
     --primary-foreground: #ffffff;
     --secondary: #f0f0f0;
     --secondary-foreground: #171717;
@@ -44,7 +44,7 @@
     --destructive-foreground: #ffffff;
     --border: #d6d6d6;
     --input: #d6d6d6;
-    --ring: #2e7d43;
+    --ring: #0e7c6d;
     --radius: 0.625rem;
     --chart-1: #0070f3;
     --chart-2: #2e7d43;
@@ -53,12 +53,12 @@
     --chart-5: #8e4ec6;
     --sidebar: #f0f0f0;
     --sidebar-foreground: #171717;
-    --sidebar-primary: #2e7d43;
+    --sidebar-primary: #0e7c6d;
     --sidebar-primary-foreground: #ffffff;
     --sidebar-accent: #ebebeb;
     --sidebar-accent-foreground: #171717;
     --sidebar-border: #d6d6d6;
-    --sidebar-ring: #2e7d43;
+    --sidebar-ring: #0e7c6d;
     --sidebar-stuck-bg: var(--sidebar);
     /* Raised surfaces over content: menus, selects, popovers, toasts. */
     --elevation-popover:
@@ -67,7 +67,7 @@
   }
 
   .dark {
-    /* Default dark fallbacks — match AutomatosX dark (near-black neutrals + green).
+    /* Default dark fallbacks — match AutomatosX dark (near-black neutrals + brand teal).
        The theme runtime (lib/theme/cssGenerator.ts) overrides these once a theme
        loads; they only paint before that and if theme loading fails. */
     --background: #0a0a0a;
@@ -76,8 +76,8 @@
     --card-foreground: #ededed;
     --popover: #1a1a1a;
     --popover-foreground: #ededed;
-    --primary: #46a758;
-    --primary-foreground: #06120a;
+    --primary: #23ac98;
+    --primary-foreground: #04130f;
     --secondary: #141414;
     --secondary-foreground: #878787;
     --muted: #141414;
@@ -88,7 +88,7 @@
     --destructive-foreground: #0a0a0a;
     --border: #292929;
     --input: #292929;
-    --ring: #46a758;
+    --ring: #23ac98;
     --chart-1: #52a8ff;
     --chart-2: #46a758;
     --chart-3: #ffb224;
@@ -96,12 +96,12 @@
     --chart-5: #bf7af0;
     --sidebar: #141414;
     --sidebar-foreground: #ededed;
-    --sidebar-primary: #46a758;
-    --sidebar-primary-foreground: #06120a;
+    --sidebar-primary: #23ac98;
+    --sidebar-primary-foreground: #04130f;
     --sidebar-accent: #1f1f1f;
     --sidebar-accent-foreground: #ededed;
     --sidebar-border: #292929;
-    --sidebar-ring: #46a758;
+    --sidebar-ring: #23ac98;
     --sidebar-stuck-bg: var(--sidebar); /* Desktop sidebar sticky header background (match sidebar) */
     --elevation-popover:
       inset 0 1px 0 0 rgba(255, 255, 255, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.08),
@@ -328,9 +328,9 @@
   --markdown-heading6-size: var(--text-markdown);
   /* Product defaults: UI sans + code mono (matches DEFAULT_UI_FONT / DEFAULT_MONO_FONT).
      User Appearance settings override these via useAppFontEffects. */
-  --font-sans: "IBM Plex Sans", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
   --font-heading: var(--font-sans);
-  --font-mono: "IBM Plex Mono", "SFMono-Regular", "Menlo", "Cascadia Mono", ui-monospace, monospace;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", "Menlo", "Cascadia Mono", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", ui-monospace, monospace;
   --font-family-sans: var(--font-sans);
   --font-family-mono: var(--font-mono);
 }

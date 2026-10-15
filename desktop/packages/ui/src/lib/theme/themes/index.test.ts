@@ -22,13 +22,23 @@ describe("theme registry", () => {
     expect(light?.colors.surface.subtle).not.toBe(light?.colors.surface.elevated)
   })
 
-  test("default product themes document Plex Sans for UI, not mono-as-sans", () => {
+  test("default product themes document the product fonts, not mono-as-sans", () => {
     for (const id of [DEFAULT_LIGHT_THEME_ID, DEFAULT_DARK_THEME_ID]) {
       const theme = getThemeById(id)
-      expect(theme?.config?.fonts?.sans).toMatch(/IBM Plex Sans/)
-      expect(theme?.config?.fonts?.heading).toMatch(/IBM Plex Sans/)
-      expect(theme?.config?.fonts?.mono).toMatch(/IBM Plex Mono/)
+      expect(theme?.config?.fonts?.sans).toMatch(/^"Inter"/)
+      expect(theme?.config?.fonts?.heading).toMatch(/^"Inter"/)
+      expect(theme?.config?.fonts?.mono).toMatch(/^"JetBrains Mono"/)
     }
+  })
+
+  test("default product themes use the brand teal from the app icon as primary", () => {
+    const dark = getThemeById(DEFAULT_DARK_THEME_ID)
+    const light = getThemeById(DEFAULT_LIGHT_THEME_ID)
+    expect(dark?.colors.primary.base).toBe("#23AC98")
+    expect(light?.colors.primary.base).toBe("#0E7C6D")
+    // Success keeps green, so "primary action" and "succeeded" stay distinct.
+    expect(dark?.colors.status.success).not.toBe(dark?.colors.primary.base)
+    expect(light?.colors.status.success).not.toBe(light?.colors.primary.base)
   })
 
   test("theme CSS generation does not override UI/code font variables", () => {

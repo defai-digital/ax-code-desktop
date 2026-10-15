@@ -25,6 +25,11 @@ The interface icons are generated from Phosphor Icons
 (https://github.com/phosphor-icons/core), Copyright (c) 2023 Phosphor Icons,
 licensed under the MIT License.
 
+The bundled interface fonts are Inter (Copyright 2016 The Inter Project
+Authors), JetBrains Mono (Copyright 2020 The JetBrains Mono Project Authors)
+and IBM Plex (Copyright IBM Corp.), each licensed under the SIL Open Font
+License, Version 1.1, and distributed through Fontsource.
+
 GitHub may display upstream OpenChamber contributors in repository contributor
 widgets because this project includes derived code. Those accounts are credited
 for upstream work and are not necessarily maintainers of, or direct contributors

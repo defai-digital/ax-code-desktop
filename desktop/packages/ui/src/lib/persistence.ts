@@ -1,7 +1,7 @@
 import type { DesktopSettings } from "@/lib/desktop"
 import { createProjectIdFromPath } from "@/lib/projectId"
 import { useUIStore } from "@/stores/useUIStore"
-import { isMonoFontOption, isUiFontOption } from "@/lib/fontOptions"
+import { isMonoFontOption, isUiFontOption, resolveStoredMonoFont, resolveStoredUiFont } from "@/lib/fontOptions"
 import { useMessageQueueStore } from "@/stores/messageQueueStore"
 import { setDirectoryShowHidden } from "@/lib/directoryShowHidden"
 import { setFilesViewShowGitignored } from "@/lib/filesViewShowGitignored"
@@ -454,11 +454,17 @@ const applyDesktopUiPreferences = (settings: DesktopSettings) => {
   ) {
     store.setTerminalFontSize(settings.terminalFontSize)
   }
-  if (isUiFontOption(settings.uiFont) && settings.uiFont !== store.uiFont) {
-    store.setUiFont(settings.uiFont)
+  if (isUiFontOption(settings.uiFont)) {
+    const uiFont = resolveStoredUiFont(settings.uiFont, settings.fontDefaultsRevision)
+    if (uiFont !== store.uiFont) {
+      store.setUiFont(uiFont)
+    }
   }
-  if (isMonoFontOption(settings.monoFont) && settings.monoFont !== store.monoFont) {
-    store.setMonoFont(settings.monoFont)
+  if (isMonoFontOption(settings.monoFont)) {
+    const monoFont = resolveStoredMonoFont(settings.monoFont, settings.fontDefaultsRevision)
+    if (monoFont !== store.monoFont) {
+      store.setMonoFont(monoFont)
+    }
   }
   if (typeof settings.padding === "number" && Number.isFinite(settings.padding) && settings.padding !== store.padding) {
     store.setPadding(settings.padding)
@@ -887,6 +893,9 @@ const sanitizeWebSettings = (payload: unknown): DesktopSettings | null => {
   }
   if (isMonoFontOption(candidate.monoFont)) {
     result.monoFont = candidate.monoFont
+  }
+  if (typeof candidate.fontDefaultsRevision === "number" && Number.isFinite(candidate.fontDefaultsRevision)) {
+    result.fontDefaultsRevision = candidate.fontDefaultsRevision
   }
   if (typeof candidate.padding === "number" && Number.isFinite(candidate.padding)) {
     result.padding = candidate.padding

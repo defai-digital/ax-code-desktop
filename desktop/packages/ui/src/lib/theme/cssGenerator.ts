@@ -517,7 +517,7 @@ export class CSSVariableGenerator {
     if (!config) return vars
 
     // Typography is product/user controlled (Appearance → UI/code font + design-system
-    // defaults: IBM Plex Sans / IBM Plex Mono). Theme JSON may still list fonts for
+    // defaults: Inter / JetBrains Mono). Theme JSON may still list fonts for
     // docs/export, but we intentionally do not emit them — color themes used to force
     // mono for all UI chrome.
 

@@ -43,20 +43,20 @@ export const UI_FONT_OPTIONS: FontOptionDefinition<UiFontOption>[] = [
     id: "ibm-plex-sans",
     label: "IBM Plex Sans",
     description: "Humanist sans-serif for optimal readability in the interface.",
-    stack: '"IBM Plex Sans", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    stack: '"IBM Plex Sans", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
   },
   {
     id: "inter",
     label: "Inter",
-    description: "Modern UI sans with excellent readability at small sizes.",
-    stack: '"Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    source: { family: "Inter", packageName: "@fontsource/inter", filePrefix: "inter", weights: [400, 500, 600] },
+    description: "Default. Modern UI sans with excellent readability at small sizes.",
+    stack: '"Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
+    notes: "Bundled with the app.",
   },
   {
     id: "geist-sans",
     label: "Geist Sans",
     description: "Crisp sans-serif with a technical interface feel.",
-    stack: '"Geist Sans", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    stack: '"Geist Sans", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
     source: {
       family: "Geist Sans",
       packageName: "@fontsource/geist-sans",
@@ -68,7 +68,7 @@ export const UI_FONT_OPTIONS: FontOptionDefinition<UiFontOption>[] = [
     id: "atkinson-hyperlegible",
     label: "Atkinson Hyperlegible",
     description: "Accessibility-focused sans-serif optimized for character distinction.",
-    stack: '"Atkinson Hyperlegible", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    stack: '"Atkinson Hyperlegible", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
     source: {
       family: "Atkinson Hyperlegible",
       packageName: "@fontsource/atkinson-hyperlegible",
@@ -80,7 +80,7 @@ export const UI_FONT_OPTIONS: FontOptionDefinition<UiFontOption>[] = [
     id: "source-sans-3",
     label: "Source Sans 3",
     description: "Adobe sans-serif tuned for clean, readable interfaces.",
-    stack: '"Source Sans 3", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    stack: '"Source Sans 3", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
     source: {
       family: "Source Sans 3",
       packageName: "@fontsource/source-sans-3",
@@ -92,14 +92,14 @@ export const UI_FONT_OPTIONS: FontOptionDefinition<UiFontOption>[] = [
     id: "roboto",
     label: "Roboto",
     description: "Familiar Material-style sans-serif with broad UI usage.",
-    stack: '"Roboto", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    stack: '"Roboto", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
     source: { family: "Roboto", packageName: "@fontsource/roboto", filePrefix: "roboto", weights: [400, 500, 600] },
   },
   {
     id: "noto-sans",
     label: "Noto Sans",
     description: "Readable sans-serif with strong international coverage.",
-    stack: '"Noto Sans", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    stack: '"Noto Sans", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
     source: {
       family: "Noto Sans",
       packageName: "@fontsource/noto-sans",
@@ -111,21 +111,21 @@ export const UI_FONT_OPTIONS: FontOptionDefinition<UiFontOption>[] = [
     id: "dm-sans",
     label: "DM Sans",
     description: "Modern product UI sans-serif with friendly proportions.",
-    stack: '"DM Sans", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    stack: '"DM Sans", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
     source: { family: "DM Sans", packageName: "@fontsource/dm-sans", filePrefix: "dm-sans", weights: [400, 500, 600] },
   },
   {
     id: "manrope",
     label: "Manrope",
     description: "Polished geometric sans-serif for modern app interfaces.",
-    stack: '"Manrope", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    stack: '"Manrope", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
     source: { family: "Manrope", packageName: "@fontsource/manrope", filePrefix: "manrope", weights: [400, 500, 600] },
   },
   {
     id: "system",
     label: "System",
     description: "Native operating system interface font.",
-    stack: '"SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+    stack: '"SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
   },
 ]
 
@@ -134,25 +134,20 @@ export const CODE_FONT_OPTIONS: FontOptionDefinition<MonoFontOption>[] = [
     id: "ibm-plex-mono",
     label: "IBM Plex Mono",
     description: "Balanced monospace for code blocks and technical content.",
-    stack: '"IBM Plex Mono", "SFMono-Regular", "Menlo", monospace',
+    stack: '"IBM Plex Mono", "SFMono-Regular", "Menlo", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", monospace',
   },
   {
     id: "jetbrains-mono",
     label: "JetBrains Mono",
-    description: "Developer-focused monospace with strong punctuation clarity.",
-    stack: '"JetBrains Mono", "SFMono-Regular", "Menlo", monospace',
-    source: {
-      family: "JetBrains Mono",
-      packageName: "@fontsource/jetbrains-mono",
-      filePrefix: "jetbrains-mono",
-      weights: [400, 500, 600],
-    },
+    description: "Default. Developer-focused monospace with strong punctuation clarity.",
+    stack: '"JetBrains Mono", "SFMono-Regular", "Menlo", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", monospace',
+    notes: "Bundled with the app.",
   },
   {
     id: "fira-code",
     label: "Fira Code",
     description: "Readable coding font with ligature support.",
-    stack: '"Fira Code", "SFMono-Regular", "Menlo", monospace',
+    stack: '"Fira Code", "SFMono-Regular", "Menlo", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", monospace',
     source: {
       family: "Fira Code",
       packageName: "@fontsource/fira-code",
@@ -164,7 +159,7 @@ export const CODE_FONT_OPTIONS: FontOptionDefinition<MonoFontOption>[] = [
     id: "geist-mono",
     label: "Geist Mono",
     description: "Sharp monospace pair for Geist Sans.",
-    stack: '"Geist Mono", "SFMono-Regular", "Menlo", monospace',
+    stack: '"Geist Mono", "SFMono-Regular", "Menlo", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", monospace',
     source: {
       family: "Geist Mono",
       packageName: "@fontsource/geist-mono",
@@ -176,7 +171,7 @@ export const CODE_FONT_OPTIONS: FontOptionDefinition<MonoFontOption>[] = [
     id: "commit-mono",
     label: "Commit Mono",
     description: "Code-oriented monospace with polished editor ergonomics.",
-    stack: '"Commit Mono", "SFMono-Regular", "Menlo", monospace',
+    stack: '"Commit Mono", "SFMono-Regular", "Menlo", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", monospace',
     source: {
       family: "Commit Mono",
       packageName: "@fontsource/commit-mono",
@@ -188,7 +183,7 @@ export const CODE_FONT_OPTIONS: FontOptionDefinition<MonoFontOption>[] = [
     id: "source-code-pro",
     label: "Source Code Pro",
     description: "Adobe monospace designed for source code readability.",
-    stack: '"Source Code Pro", "SFMono-Regular", "Menlo", monospace',
+    stack: '"Source Code Pro", "SFMono-Regular", "Menlo", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", monospace',
     source: {
       family: "Source Code Pro",
       packageName: "@fontsource/source-code-pro",
@@ -200,7 +195,7 @@ export const CODE_FONT_OPTIONS: FontOptionDefinition<MonoFontOption>[] = [
     id: "cascadia-code",
     label: "Cascadia Code",
     description: "Microsoft coding font popular in terminals and editors.",
-    stack: '"Cascadia Code", "SFMono-Regular", "Menlo", monospace',
+    stack: '"Cascadia Code", "SFMono-Regular", "Menlo", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", monospace',
     source: {
       family: "Cascadia Code",
       packageName: "@fontsource/cascadia-code",
@@ -212,7 +207,7 @@ export const CODE_FONT_OPTIONS: FontOptionDefinition<MonoFontOption>[] = [
     id: "roboto-mono",
     label: "Roboto Mono",
     description: "Neutral monospace companion to Roboto.",
-    stack: '"Roboto Mono", "SFMono-Regular", "Menlo", monospace',
+    stack: '"Roboto Mono", "SFMono-Regular", "Menlo", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", monospace',
     source: {
       family: "Roboto Mono",
       packageName: "@fontsource/roboto-mono",
@@ -224,14 +219,14 @@ export const CODE_FONT_OPTIONS: FontOptionDefinition<MonoFontOption>[] = [
     id: "iosevka",
     label: "Iosevka",
     description: "Compact monospace for dense code and terminal layouts.",
-    stack: '"Iosevka", "SFMono-Regular", "Menlo", monospace',
+    stack: '"Iosevka", "SFMono-Regular", "Menlo", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", monospace',
     source: { family: "Iosevka", packageName: "@fontsource/iosevka", filePrefix: "iosevka", weights: [400, 500, 600] },
   },
   {
     id: "system-mono",
     label: "System Mono",
     description: "Native operating system monospace font.",
-    stack: 'ui-monospace, "SFMono-Regular", "Menlo", "Cascadia Mono", "Segoe UI Mono", monospace',
+    stack: 'ui-monospace, "SFMono-Regular", "Menlo", "Cascadia Mono", "Segoe UI Mono", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", monospace',
   },
 ]
 
@@ -241,8 +236,27 @@ const buildFontMap = <T extends string>(options: FontOptionDefinition<T>[]) =>
 export const UI_FONT_OPTION_MAP = buildFontMap(UI_FONT_OPTIONS)
 export const CODE_FONT_OPTION_MAP = buildFontMap(CODE_FONT_OPTIONS)
 
-export const DEFAULT_UI_FONT: UiFontOption = "ibm-plex-sans"
-export const DEFAULT_MONO_FONT: MonoFontOption = "ibm-plex-mono"
+export const DEFAULT_UI_FONT: UiFontOption = "inter"
+export const DEFAULT_MONO_FONT: MonoFontOption = "jetbrains-mono"
+
+/**
+ * IBM Plex was the default before revision 2. A stored Plex value written before
+ * that revision cannot be told apart from an explicit choice, so it is read as
+ * "still on the old default" and moves to the new default once. Writes carry
+ * FONT_DEFAULTS_REVISION, so a Plex choice made afterwards is kept.
+ */
+export const FONT_DEFAULTS_REVISION = 2
+const LEGACY_DEFAULT_UI_FONT: UiFontOption = "ibm-plex-sans"
+const LEGACY_DEFAULT_MONO_FONT: MonoFontOption = "ibm-plex-mono"
+
+const isCurrentRevision = (revision: unknown) =>
+  typeof revision === "number" && revision >= FONT_DEFAULTS_REVISION
+
+export const resolveStoredUiFont = (font: UiFontOption, revision: unknown): UiFontOption =>
+  !isCurrentRevision(revision) && font === LEGACY_DEFAULT_UI_FONT ? DEFAULT_UI_FONT : font
+
+export const resolveStoredMonoFont = (font: MonoFontOption, revision: unknown): MonoFontOption =>
+  !isCurrentRevision(revision) && font === LEGACY_DEFAULT_MONO_FONT ? DEFAULT_MONO_FONT : font
 
 export const isUiFontOption = (value: unknown): value is UiFontOption =>
   typeof value === "string" && value in UI_FONT_OPTION_MAP

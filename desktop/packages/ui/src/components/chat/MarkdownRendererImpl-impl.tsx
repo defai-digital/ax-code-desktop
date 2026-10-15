@@ -414,7 +414,7 @@ const MermaidBlock: React.FC<{ source: string; mode: "svg" | "ascii"; deferRende
           surface: currentTheme.colors.surface.muted,
           border: currentTheme.colors.interactive.border,
           transparent: true,
-          font: "IBM Plex Sans, sans-serif",
+          font: "Inter, sans-serif",
         }),
       )
     } catch {

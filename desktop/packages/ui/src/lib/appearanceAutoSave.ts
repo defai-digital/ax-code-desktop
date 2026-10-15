@@ -1,7 +1,7 @@
 import { useUIStore } from "@/stores/useUIStore"
 import { updateDesktopSettings } from "@/lib/persistence"
 import type { DesktopSettings } from "@/lib/desktop"
-import type { MonoFontOption, UiFontOption } from "@/lib/fontOptions"
+import { FONT_DEFAULTS_REVISION, type MonoFontOption, type UiFontOption } from "@/lib/fontOptions"
 import { toast } from "@/components/ui"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 
@@ -225,6 +225,12 @@ export const startAppearanceAutoSave = (): void => {
     }
     if (current.monoFont !== previous.monoFont) {
       diff.monoFont = current.monoFont
+    }
+    if (diff.uiFont !== undefined || diff.monoFont !== undefined) {
+      // Marks the saved fonts as written under the current defaults, so a Plex choice stays a choice.
+      diff.uiFont = current.uiFont
+      diff.monoFont = current.monoFont
+      diff.fontDefaultsRevision = FONT_DEFAULTS_REVISION
     }
     if (current.padding !== previous.padding) {
       diff.padding = current.padding

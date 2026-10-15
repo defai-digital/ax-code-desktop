@@ -2,19 +2,19 @@
   "metadata": {
     "id": "automatosx-dark",
     "name": "AutomatosX",
-    "description": "AutomatosX brand tone — near-black surfaces, green primary, purple accent",
+    "description": "AutomatosX brand tone — near-black surfaces, brand teal primary, purple accent",
     "version": "1.0.0",
     "variant": "dark",
-    "tags": ["dark", "brand", "green", "vercel"]
+    "tags": ["dark", "brand", "teal", "vercel"]
   },
   "colors": {
     "primary": {
-      "base": "#46A758",
-      "hover": "#4FB562",
-      "active": "#63C46D",
-      "foreground": "#06120A",
-      "muted": "#46A75880",
-      "emphasis": "#63C46D"
+      "base": "#23AC98",
+      "hover": "#2BBFA9",
+      "active": "#3FD0BA",
+      "foreground": "#04130F",
+      "muted": "#23AC9880",
+      "emphasis": "#3FD0BA"
     },
     "surface": {
       "background": "#0A0A0A",
@@ -29,11 +29,11 @@
     "interactive": {
       "border": "#292929",
       "borderHover": "#343434",
-      "borderFocus": "#46A758",
-      "selection": "#46A7582e",
+      "borderFocus": "#23AC98",
+      "selection": "#23AC982e",
       "selectionForeground": "#EDEDED",
-      "focus": "#46A758",
-      "focusRing": "#46A758",
+      "focus": "#23AC98",
+      "focusRing": "#23AC98",
       "cursor": "#EDEDED",
       "hover": "#ffffff14",
       "active": "#ffffff1f"
@@ -73,12 +73,12 @@
         "number": "#F2A700",
         "function": "#BF7AF0",
         "variable": "#52A8FF",
-        "type": "#0AC7AC",
+        "type": "#FF8F66",
         "operator": "#F75590"
       },
       "tokens": {
         "commentDoc": "#6E6E6E",
-        "stringEscape": "#0AC7AC",
+        "stringEscape": "#FF8F66",
         "keywordImport": "#F75590",
         "storageModifier": "#52A8FF",
         "functionCall": "#BF7AF0",
@@ -89,13 +89,13 @@
         "variableLocal": "#EDEDED",
         "parameter": "#EDEDED",
         "constant": "#F2A700",
-        "class": "#0AC7AC",
-        "className": "#0AC7AC",
-        "interface": "#0AC7AC",
-        "struct": "#0AC7AC",
-        "enum": "#0AC7AC",
-        "typeParameter": "#0AC7AC",
-        "namespace": "#0AC7AC",
+        "class": "#FF8F66",
+        "className": "#FF8F66",
+        "interface": "#FF8F66",
+        "struct": "#FF8F66",
+        "enum": "#FF8F66",
+        "typeParameter": "#FF8F66",
+        "namespace": "#FF8F66",
         "module": "#F75590",
         "tag": "#52A8FF",
         "jsxTag": "#52A8FF",
@@ -107,7 +107,7 @@
         "punctuation": "#878787",
         "macro": "#BF7AF0",
         "preprocessor": "#FFB224",
-        "regex": "#0AC7AC",
+        "regex": "#FF8F66",
         "url": "#52A8FF",
         "key": "#52A8FF",
         "exception": "#FF6166"
@@ -124,7 +124,7 @@
       }
     },
     "markdown": {
-      "heading1": "#63C46D",
+      "heading1": "#3FD0BA",
       "heading2": "#EDEDED",
       "heading3": "#CFCFCF",
       "heading4": "#CFCFCF",
@@ -162,9 +162,9 @@
   },
   "config": {
     "fonts": {
-      "sans": "\"IBM Plex Sans\", \"SF Pro Text\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
-      "mono": "\"IBM Plex Mono\", \"SFMono-Regular\", \"Menlo\", monospace",
-      "heading": "\"IBM Plex Sans\", \"SF Pro Text\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+      "sans": "\"Inter\", \"SF Pro Text\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang TC\", \"Microsoft JhengHei\", \"Noto Sans TC\", sans-serif",
+      "mono": "\"JetBrains Mono\", \"SFMono-Regular\", \"Menlo\", \"Cascadia Mono\", \"PingFang TC\", \"Microsoft JhengHei\", \"Noto Sans Mono CJK TC\", ui-monospace, monospace",
+      "heading": "\"Inter\", \"SF Pro Text\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang TC\", \"Microsoft JhengHei\", \"Noto Sans TC\", sans-serif"
     },
     "transitions": {
       "fast": "150ms ease",

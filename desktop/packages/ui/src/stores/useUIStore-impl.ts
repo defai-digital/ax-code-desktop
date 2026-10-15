@@ -4,7 +4,14 @@ import { getSafeStorage } from "./utils/safeStorage"
 import { SEMANTIC_TYPOGRAPHY, getTypographyVariable, type SemanticTypographyKey } from "@/lib/typography"
 import type { ShortcutCombo } from "@/lib/shortcuts"
 import type { DraftStarterRef } from "@/lib/draftStarters"
-import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, type MonoFontOption, type UiFontOption } from "@/lib/fontOptions"
+import {
+  DEFAULT_MONO_FONT,
+  DEFAULT_UI_FONT,
+  resolveStoredMonoFont,
+  resolveStoredUiFont,
+  type MonoFontOption,
+  type UiFontOption,
+} from "@/lib/fontOptions"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import type { TimeFormatPreference } from "@/lib/timeFormat"
 
@@ -2147,7 +2154,7 @@ export const useUIStore = create<UIStore>()(
       {
         name: "ui-store",
         storage: createJSONStorage(() => getSafeStorage()),
-        version: 14,
+        version: 15,
         migrate: (persistedState, version) => {
           if (!persistedState || typeof persistedState !== "object") {
             return persistedState
@@ -2294,6 +2301,17 @@ export const useUIStore = create<UIStore>()(
               state.activityRenderMode = "collapsed"
             }
             delete state.chatRenderMode
+          }
+
+          // v14 -> v15: the default fonts moved from IBM Plex to Inter / JetBrains Mono.
+          // A stored Plex value from before this version is the old default, not a choice.
+          if (version < 15) {
+            if (typeof state.uiFont === "string") {
+              state.uiFont = resolveStoredUiFont(state.uiFont as UiFontOption, undefined)
+            }
+            if (typeof state.monoFont === "string") {
+              state.monoFont = resolveStoredMonoFont(state.monoFont as MonoFontOption, undefined)
+            }
           }
 
           state.browserPanel = normalizeBrowserPanelState(state.browserPanel)

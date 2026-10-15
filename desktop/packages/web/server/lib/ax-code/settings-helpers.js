@@ -150,6 +150,9 @@ export const createSettingsHelpers = (dependencies) => {
     if (typeof candidate.monoFont === "string" && candidate.monoFont.length > 0) {
       result.monoFont = candidate.monoFont
     }
+    if (typeof candidate.fontDefaultsRevision === "number" && Number.isFinite(candidate.fontDefaultsRevision)) {
+      result.fontDefaultsRevision = candidate.fontDefaultsRevision
+    }
     if (typeof candidate.markdownDisplayMode === "string" && candidate.markdownDisplayMode.length > 0) {
       result.markdownDisplayMode = candidate.markdownDisplayMode
     }

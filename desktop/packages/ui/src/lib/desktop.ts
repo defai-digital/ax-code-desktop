@@ -126,6 +126,7 @@ export type DesktopSettings = {
   terminalFontSize?: number
   uiFont?: string
   monoFont?: string
+  fontDefaultsRevision?: number
   padding?: number
   cornerRadius?: number
   inputBarOffset?: number

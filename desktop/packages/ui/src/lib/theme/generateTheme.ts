@@ -41,9 +41,9 @@ const SYNTAX_SPECS: Record<"keyword" | "string" | "number" | "function" | "varia
 // Product-standard typography/transition config shared by the bundled themes.
 const DEFAULT_CONFIG: Theme["config"] = {
   fonts: {
-    sans: '"IBM Plex Sans", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    mono: '"IBM Plex Mono", "SFMono-Regular", "Menlo", monospace',
-    heading: '"IBM Plex Sans", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    sans: '"Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
+    mono: '"JetBrains Mono", "SFMono-Regular", "Menlo", "Cascadia Mono", "PingFang TC", "Microsoft JhengHei", "Noto Sans Mono CJK TC", ui-monospace, monospace',
+    heading: '"Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif',
   },
   transitions: {
     fast: "150ms ease",

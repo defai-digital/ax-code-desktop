@@ -52,6 +52,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The default theme's primary color is the brand teal from the app icon instead of Radix green,
+  so actions and focus no longer share a color with success states. Syntax colors that were
+  already teal (types, classes) move to coral to keep code from looking selected.
+- The default fonts are Inter and JetBrains Mono, bundled with the app and with Traditional
+  Chinese fallbacks. A stored IBM Plex value from before this change is read as the old default
+  and moves once; IBM Plex stays selectable and bundled, and choosing it again is kept.
+- CSS identifiers that carried the `oc-` prefix now use `ax-`.
 - The composer no longer repeats the WebMCP control and the context-window percentage, since the
   window header already shows both. Surfaces without that header, such as the embedded session
   chat, still show context usage in the composer.
