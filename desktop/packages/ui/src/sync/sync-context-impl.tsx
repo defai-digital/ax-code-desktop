@@ -271,7 +271,11 @@ function enqueueSessionMaterialization(directory: string, sessionID: string, chi
 }
 
 async function materializeSessionFromServer(directory: string, sessionID: string, store: StoreApi<DirectoryStore>) {
-  const scopedClient = axCodeClient.getScopedSdkClient(directory)
+  // The server answers 409 when the request directory is not the session's own project, and a
+  // session can be listed under a parent or sibling directory's store. The session record carries
+  // the directory it was created in, so prefer it over the caller's guess.
+  const ownDirectory = store.getState().session.find((s) => s.id === sessionID)?.directory
+  const scopedClient = axCodeClient.getScopedSdkClient(ownDirectory || directory)
   const result = await retry(() =>
     scopedClient.session.messages({ sessionID, limit: SESSION_MATERIALIZATION_MESSAGE_LIMIT }),
   )
