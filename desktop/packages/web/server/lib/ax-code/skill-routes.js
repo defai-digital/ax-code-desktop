@@ -1,5 +1,5 @@
 import { createAxCodeClient } from "@defai-digital/ax-code-sdk/v2"
-import { readSkillFilePathParam } from "./skills.js"
+import { readSkillFilePathParam, readSkillNameParam } from "./skills.js"
 
 // Skill mutations answer with real statuses: a missing record, a name conflict,
 // or a rejected target is a client error, not a 500.
@@ -539,7 +539,10 @@ export const registerSkillRoutes = (app, dependencies) => {
 
   app.get("/api/config/skills/:name", async (req, res) => {
     try {
-      const skillName = req.params.name
+      const skillName = readSkillNameParam(req.params.name)
+      if (skillName === null) {
+        return res.status(400).json({ error: "Invalid skill name" })
+      }
       const { directory, error } = await resolveOptionalProjectDirectory(req)
       if (error) {
         return res.status(400).json({ error })
@@ -563,7 +566,10 @@ export const registerSkillRoutes = (app, dependencies) => {
 
   app.get("/api/config/skills/:name/files/*filePath", async (req, res) => {
     try {
-      const skillName = req.params.name
+      const skillName = readSkillNameParam(req.params.name)
+      if (skillName === null) {
+        return res.status(400).json({ error: "Invalid skill name" })
+      }
       const filePath = readSkillFilePathParam(req.params.filePath)
       if (filePath === null || isUnsafeSkillRelativePath(filePath)) {
         return res.status(400).json({ error: "Invalid file path" })
@@ -597,7 +603,10 @@ export const registerSkillRoutes = (app, dependencies) => {
 
   app.post("/api/config/skills/:name", async (req, res) => {
     try {
-      const skillName = req.params.name
+      const skillName = readSkillNameParam(req.params.name)
+      if (skillName === null) {
+        return res.status(400).json({ error: "Invalid skill name" })
+      }
       const { scope, source: skillSource, ...config } = req.body
       const { directory, error } =
         scope === SKILL_SCOPE.PROJECT ? await resolveProjectDirectory(req) : await resolveOptionalProjectDirectory(req)
@@ -624,7 +633,10 @@ export const registerSkillRoutes = (app, dependencies) => {
 
   app.patch("/api/config/skills/:name", async (req, res) => {
     try {
-      const skillName = req.params.name
+      const skillName = readSkillNameParam(req.params.name)
+      if (skillName === null) {
+        return res.status(400).json({ error: "Invalid skill name" })
+      }
       const updates = req.body
       const { directory, error } = await resolveOptionalProjectDirectory(req)
       if (error) {
@@ -650,7 +662,10 @@ export const registerSkillRoutes = (app, dependencies) => {
 
   app.put("/api/config/skills/:name/files/*filePath", async (req, res) => {
     try {
-      const skillName = req.params.name
+      const skillName = readSkillNameParam(req.params.name)
+      if (skillName === null) {
+        return res.status(400).json({ error: "Invalid skill name" })
+      }
       const filePath = readSkillFilePathParam(req.params.filePath)
       if (filePath === null || isUnsafeSkillRelativePath(filePath)) {
         return res.status(400).json({ error: "Invalid file path" })
@@ -685,7 +700,10 @@ export const registerSkillRoutes = (app, dependencies) => {
 
   app.delete("/api/config/skills/:name/files/*filePath", async (req, res) => {
     try {
-      const skillName = req.params.name
+      const skillName = readSkillNameParam(req.params.name)
+      if (skillName === null) {
+        return res.status(400).json({ error: "Invalid skill name" })
+      }
       const filePath = readSkillFilePathParam(req.params.filePath)
       if (filePath === null || isUnsafeSkillRelativePath(filePath)) {
         return res.status(400).json({ error: "Invalid file path" })
@@ -719,7 +737,10 @@ export const registerSkillRoutes = (app, dependencies) => {
 
   app.delete("/api/config/skills/:name", async (req, res) => {
     try {
-      const skillName = req.params.name
+      const skillName = readSkillNameParam(req.params.name)
+      if (skillName === null) {
+        return res.status(400).json({ error: "Invalid skill name" })
+      }
       const { directory, error } = await resolveOptionalProjectDirectory(req)
       if (error) {
         return res.status(400).json({ error })

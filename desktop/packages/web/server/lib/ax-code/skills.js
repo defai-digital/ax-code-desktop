@@ -19,6 +19,7 @@ import {
   deleteSkillSupportingFile,
   getAncestors,
   findWorktreeRoot,
+  assertSafeResourceName,
 } from "./shared.js"
 
 const BUILT_IN_SKILL_LOCATION = "<built-in>"
@@ -39,6 +40,17 @@ const readSkillFilePathParam = (value) => {
   const raw = Array.isArray(value) ? value.join("/") : typeof value === "string" ? value : ""
   try {
     return decodeURIComponent(raw)
+  } catch {
+    return null
+  }
+}
+
+// Express decodes %2F inside a matched `:name` param, so an unvalidated skill
+// name like "..%2F..%2F..%2F.ssh" reaches path.join as "../../.ssh" and escapes
+// the skills directories. Routes reject such names before any filesystem work.
+const readSkillNameParam = (value) => {
+  try {
+    return assertSafeResourceName(value, "Skill")
   } catch {
     return null
   }
@@ -578,6 +590,7 @@ function updateSkill(skillName, updates, workingDirectory, targetPath = null) {
 }
 
 function deleteSkill(skillName, workingDirectory) {
+  assertSafeResourceName(skillName, "Skill")
   let deleted = false
 
   if (workingDirectory) {
@@ -639,4 +652,5 @@ export {
   updateSkill,
   deleteSkill,
   readSkillFilePathParam,
+  readSkillNameParam,
 }

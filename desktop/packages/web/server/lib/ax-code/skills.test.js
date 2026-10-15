@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest"
 import fsPromises from "fs/promises"
 import os from "os"
 import path from "path"
-import { getSkillScope, getSkillSources, mergeDiscoveredSkills, readSkillFilePathParam, updateSkill } from "./skills.js"
+import {
+  deleteSkill,
+  getSkillScope,
+  getSkillSources,
+  mergeDiscoveredSkills,
+  readSkillFilePathParam,
+  readSkillNameParam,
+  updateSkill,
+} from "./skills.js"
 
 describe("skills", () => {
   it("refuses a client-supplied targetPath outside the discovered skills", async () => {
@@ -195,5 +203,56 @@ describe("skills", () => {
     } finally {
       await fsPromises.rm(tempRoot, { recursive: true, force: true })
     }
+  })
+})
+
+describe("skill name safety", () => {
+  it("rejects traversal names without touching anything on disk", async () => {
+    const projectRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-project-"))
+    try {
+      const skillDir = path.join(projectRoot, ".ax-code", "skills", "safe-skill")
+      await fsPromises.mkdir(skillDir, { recursive: true })
+      const markerPath = path.join(projectRoot, "do-not-delete.txt")
+      await fsPromises.writeFile(markerPath, "keep", "utf8")
+
+      // Express decodes %2F before the route sees the param, so
+      // `DELETE /api/config/skills/..%2F..%2F.ax-code` arrives as "../../.ax-code".
+      for (const badName of ["../../.ax-code", "..", "../..", "..\\..", "a/b", ""]) {
+        expect(() => deleteSkill(badName, projectRoot)).toThrow(/Invalid Skill name|name is required/)
+      }
+
+      expect(await fsPromises.readFile(markerPath, "utf8")).toBe("keep")
+      expect(await fsPromises.stat(skillDir)).toBeTruthy()
+    } finally {
+      await fsPromises.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it("deletes only the named skill directories", async () => {
+    const projectRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-project-"))
+    try {
+      const targetDir = path.join(projectRoot, ".ax-code", "skills", "oc-test-target-skill-9f8e7d")
+      const siblingDir = path.join(projectRoot, ".ax-code", "skills", "oc-test-sibling-skill-9f8e7d")
+      await fsPromises.mkdir(targetDir, { recursive: true })
+      await fsPromises.mkdir(siblingDir, { recursive: true })
+
+      deleteSkill("oc-test-target-skill-9f8e7d", projectRoot)
+
+      await expect(fsPromises.stat(targetDir)).rejects.toThrow()
+      expect(await fsPromises.stat(siblingDir)).toBeTruthy()
+    } finally {
+      await fsPromises.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it("validates route skill names the same way as agent and command names", () => {
+    expect(readSkillNameParam("safe-skill")).toBe("safe-skill")
+    expect(readSkillNameParam("my.skill_2")).toBe("my.skill_2")
+    expect(readSkillNameParam("..")).toBeNull()
+    expect(readSkillNameParam("../../.ssh")).toBeNull()
+    expect(readSkillNameParam("a/b")).toBeNull()
+    expect(readSkillNameParam("a\\b")).toBeNull()
+    expect(readSkillNameParam("")).toBeNull()
+    expect(readSkillNameParam(undefined)).toBeNull()
   })
 })
