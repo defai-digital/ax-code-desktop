@@ -61,6 +61,15 @@ describe("slotTitle", () => {
   it("clamps to the runtime title limit", () => {
     expect(slotTitle("x".repeat(300), 0, 1)).toHaveLength(200)
   })
+
+  it("does not cut inside a surrogate pair at the title cap", () => {
+    // The emoji occupies UTF-16 units 199-200, so a raw slice at 200 would keep
+    // its high surrogate alone and store a corrupted title in the runtime.
+    const name = `${"x".repeat(199)}🚀${"y".repeat(50)}`
+    const title = slotTitle(name, 0, 1)
+    expect(title).toBe("x".repeat(199))
+    expect(title).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+  })
 })
 
 describe("transformDesktopScheduledTask", () => {

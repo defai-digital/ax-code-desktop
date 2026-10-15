@@ -189,8 +189,22 @@ const resolveScheduleSlots = (task, now) => {
 // prompts, so these migrate as skips for support to re-create by hand.
 export const isSlashCommandPrompt = (prompt) => typeof prompt === "string" && prompt.trim().startsWith("/")
 
-const clampTitle = (value) =>
-  value.length > MAX_RUNTIME_TITLE_LENGTH ? value.slice(0, MAX_RUNTIME_TITLE_LENGTH) : value
+// Cut at the runtime title cap without splitting a surrogate pair: the value
+// is persisted as the runtime task title, and half a pair renders as a
+// replacement character. Mirrors truncateToCodeUnits in the UI fan-out helper
+// (desktop/packages/ui/src/lib/scheduledTaskTransform.ts), which must stay in
+// sync with this file.
+const clampTitle = (value) => {
+  if (value.length <= MAX_RUNTIME_TITLE_LENGTH) {
+    return value
+  }
+  let end = MAX_RUNTIME_TITLE_LENGTH
+  const boundary = value.charCodeAt(end - 1)
+  if (boundary >= 0xd800 && boundary <= 0xdbff) {
+    end -= 1
+  }
+  return value.slice(0, end)
+}
 
 // Fan-out suffix: a desktop task with N schedule slots becomes N runtime
 // tasks named "<name> (i/N)" (the runtime only supports a single
