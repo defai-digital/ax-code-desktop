@@ -460,10 +460,17 @@ export const useGitStore = create<GitStore>()(
               return false
             }
 
-            if (hasStatusChanged(dirState.status, newStatus)) {
+            // Compare against the status the store holds NOW, not the one
+            // captured before the awaits: another writer can update the same
+            // directory while this fetch is in flight, and the stale capture
+            // would then report "no change" and skip dropping the diff-cache
+            // entries for paths the live state says changed.
+            const liveDirectories = new Map(get().directories)
+            const liveDirState = liveDirectories.get(directory) ?? dirState
+            if (hasStatusChanged(liveDirState.status, newStatus)) {
               statusChanged = true
-              const newDirectories = new Map(get().directories)
-              const currentDirState = newDirectories.get(directory) ?? createEmptyDirectoryState()
+              const newDirectories = liveDirectories
+              const currentDirState = liveDirState
 
               const changedPaths = getChangedFilePaths(currentDirState.status, newStatus)
               const indexStatusChanged = hasIndexStatusChanged(currentDirState.status, newStatus)
