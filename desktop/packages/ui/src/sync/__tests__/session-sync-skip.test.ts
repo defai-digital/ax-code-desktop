@@ -4,15 +4,32 @@ import { shouldSkipSessionSync } from "../use-sync"
 const PREFETCH_PAGE_SIZE = 150
 
 describe("shouldSkipSessionSync", () => {
-  test("skips when the session record and its messages are both cached", () => {
+  test("skips when the session record and its fetched messages are both cached", () => {
     expect(
       shouldSkipSessionSync({
         force: false,
         hasSession: true,
         hasCachedMessages: true,
+        wasFetched: true,
         pageSize: PREFETCH_PAGE_SIZE,
       }),
     ).toBe(true)
+  })
+
+  test("does not skip a session whose messages only arrived as live events", () => {
+    // A session created and run elsewhere in the same project still grows
+    // messages and parts in this store through events. That tail is not the
+    // conversation's history: skipping the sync here opened the session on its
+    // event-built fragment with no way to load the rest.
+    expect(
+      shouldSkipSessionSync({
+        force: false,
+        hasSession: true,
+        hasCachedMessages: true,
+        wasFetched: false,
+        pageSize: PREFETCH_PAGE_SIZE,
+      }),
+    ).toBe(false)
   })
 
   test("never skips a forced sync", () => {
@@ -21,6 +38,7 @@ describe("shouldSkipSessionSync", () => {
         force: true,
         hasSession: true,
         hasCachedMessages: true,
+        wasFetched: true,
         pageSize: PREFETCH_PAGE_SIZE,
       }),
     ).toBe(false)
@@ -35,6 +53,7 @@ describe("shouldSkipSessionSync", () => {
         force: false,
         hasSession: false,
         hasCachedMessages: true,
+        wasFetched: false,
         prefetchInfo: { limit: PREFETCH_PAGE_SIZE, complete: true, at: Date.now() },
         pageSize: PREFETCH_PAGE_SIZE,
       }),
@@ -47,6 +66,7 @@ describe("shouldSkipSessionSync", () => {
         force: false,
         hasSession: true,
         hasCachedMessages: false,
+        wasFetched: true,
         pageSize: PREFETCH_PAGE_SIZE,
       }),
     ).toBe(false)
@@ -62,6 +82,7 @@ describe("shouldSkipSessionSync", () => {
         force: false,
         hasSession: true,
         hasCachedMessages: false,
+        wasFetched: true,
         prefetchInfo,
         pageSize: PREFETCH_PAGE_SIZE,
         now,

@@ -40,17 +40,25 @@ export const shouldSkipSessionSync = (input: {
   force: boolean
   hasSession: boolean
   hasCachedMessages: boolean
+  /**
+   * The messages came from a fetch (direct or prefetch), not only from live
+   * events: a session nobody opened here still grows messages in the store, and
+   * that event-built tail is not the conversation's cached history.
+   */
+  wasFetched: boolean
   prefetchInfo?: ReturnType<typeof getSessionPrefetch>
   pageSize: number
   now?: number
 }): boolean => {
   if (input.force) return false
-  if (input.hasSession && input.hasCachedMessages) return true
   if (!input.hasSession) return false
+  // Messages that only arrived as events for a session nobody opened here are not
+  // a cached history — fetch before deciding, whatever the caches say.
+  if (!input.wasFetched) return false
+  if (!input.hasCachedMessages) return false
   // The prefetch TTL must not suppress a load when no messages are cached: archive
   // drops the message/part caches while the prefetch entry survives, and an empty
   // store plus a fresh entry would otherwise open the session as a stuck skeleton.
-  if (!input.hasCachedMessages) return false
   return shouldSkipSessionPrefetch({
     hasMessages: input.hasCachedMessages,
     info: input.prefetchInfo,
@@ -78,6 +86,12 @@ type SyncMeta = {
   cursor: string | undefined
   complete: boolean
   loading: boolean
+  /**
+   * Whether this session's messages were ever actually fetched. Events alone can
+   * build messages and parts in the store for a session nobody opened here; that
+   * tail is not the conversation's history, so it must not count as "cached".
+   */
+  fetched: boolean
   error?: boolean
 }
 
@@ -86,16 +100,20 @@ const getDefaultMeta = (): SyncMeta => ({
   cursor: undefined,
   complete: false,
   loading: false,
+  fetched: false,
 })
 
 function getPrefetchMeta(directory: string, sessionID: string): SyncMeta | undefined {
   const info = getSessionPrefetch(directory, sessionID)
   if (!info) return undefined
+  // A prefetch entry is only written after a real server fetch, so it counts as
+  // a fetched history page.
   return {
     limit: info.limit,
     cursor: info.cursor,
     complete: info.complete,
     loading: false,
+    fetched: true,
   }
 }
 
@@ -131,6 +149,7 @@ export function useSync() {
         cursor: string | undefined
         complete: boolean
         loading: boolean
+        fetched: boolean
         error: boolean
       }>,
     ) => {
@@ -322,6 +341,7 @@ export function useSync() {
           cursor: merged.cursor,
           complete: merged.complete,
           loading: false,
+          fetched: true,
           error: false,
         })
         store.setState({ message: materialized.message, part: materialized.part })
@@ -353,7 +373,11 @@ export function useSync() {
       const current = store.getState()
       const m = getMetaFor(sessionID)
       const materialization = getSessionMaterializationStatus(current, sessionID)
-      const cached = materialization.hasMessages && materialization.renderable && m.limit > 0 && !m.error
+      // Messages that only arrived as events for a session nobody opened here are
+      // not a cached history: without the fetched flag the skip below opened such
+      // sessions on their event-built tail, with no way to load the rest.
+      const cached =
+        materialization.hasMessages && materialization.renderable && m.fetched && m.limit > 0 && !m.error
       const prefetchInfo = !force ? getSessionPrefetch(directory, sessionID) : undefined
       const cachedReady = cached
       const hasSession = Binary.has(current.session, sessionID, (s) => s.id)
@@ -362,6 +386,7 @@ export function useSync() {
           force: Boolean(force),
           hasSession,
           hasCachedMessages: cachedReady,
+          wasFetched: m.fetched,
           prefetchInfo,
           pageSize: INITIAL_MESSAGE_PAGE_SIZE,
         })
