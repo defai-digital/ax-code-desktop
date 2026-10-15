@@ -392,18 +392,39 @@ export const planFamilyReconciliation = (
 
 export const familyMemberIDs = (family: ScheduledTaskFamily): string[] => family.members.map((member) => member.id)
 
+// A stray part is adopted only when it also carries the draft's shared fields.
+// The base title and a matching schedule slot alone cannot tell a leftover of
+// this draft from a sibling family that grouping itself keeps separate because
+// its prompt, model, agent or catch-up policy differs; adopting that sibling
+// made a re-save delete or overwrite half of the unrelated family. A leftover
+// whose fields no longer match (the draft was edited after the failed save) is
+// left as its own family row instead — the module's fail-toward-splitting rule.
+const matchesDraftSharedFields = (
+  task: ScheduledTask,
+  fields: Pick<FamilySharedFields, "prompt" | "agent" | "model" | "catchUpPolicy">,
+): boolean =>
+  task.prompt === fields.prompt &&
+  (task.agent ?? "") === (fields.agent ?? "") &&
+  sameModel(task.model, fields.model) &&
+  task.catchUpPolicy === fields.catchUpPolicy
+
 /**
  * Resolve the parts a re-save applies to: the members the editor opened with
- * (in that order) plus any stray part that a previous, partly failed save
- * already created — same base title and the schedule slot of one of the new
- * payloads — so saving again updates it instead of creating a duplicate.
- * `missing` lists opened members that no longer exist; callers fail closed
- * on it because planning from a partial set would duplicate live parts.
+ * (in that order) plus any stray part that a previous, partly failed save of
+ * this same draft already created — same base title, the schedule slot of one
+ * of the new payloads, and the draft's shared fields — so saving again updates
+ * it instead of creating a duplicate. `missing` lists opened members that no
+ * longer exist; callers fail closed on it because planning from a partial set
+ * would duplicate live parts.
  */
 export const resolveFamilyMembers = (
   tasks: readonly ScheduledTask[],
   memberIDs: readonly string[],
-  options: { baseTitles: readonly string[]; schedules: readonly RuntimeSchedule[] },
+  options: {
+    baseTitles: readonly string[]
+    schedules: readonly RuntimeSchedule[]
+    shared: Pick<FamilySharedFields, "prompt" | "agent" | "model" | "catchUpPolicy">
+  },
 ): { members: ScheduledTask[]; missing: string[] } => {
   const byID = new Map(tasks.map((task) => [task.id, task]))
   const members: ScheduledTask[] = []
@@ -425,6 +446,7 @@ export const resolveFamilyMembers = (
     const base = parseFanOutTitle(task.title)?.base ?? task.title
     if (!bases.has(base)) continue
     if (!options.schedules.some((schedule) => sameSchedule(schedule, task.schedule))) continue
+    if (!matchesDraftSharedFields(task, options.shared)) continue
     seen.add(task.id)
     members.push(task)
   }

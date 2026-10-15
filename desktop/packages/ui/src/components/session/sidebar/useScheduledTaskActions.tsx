@@ -138,6 +138,12 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
         const { members, missing } = resolveFamilyMembers(groupTasks, orderedIDs, {
           baseTitles: [editorFamily?.title ?? "", baseTitle],
           schedules: payloads.map((payload) => payload.schedule),
+          shared: {
+            prompt: payloads[0].prompt,
+            agent: payloads[0].agent,
+            model: payloads[0].model,
+            catchUpPolicy: payloads[0].catchUpPolicy,
+          },
         })
         // Fail closed when the family changed underneath the editor: a plan
         // built from a partial set would create duplicates next to parts

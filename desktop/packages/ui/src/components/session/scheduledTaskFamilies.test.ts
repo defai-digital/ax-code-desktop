@@ -343,6 +343,7 @@ describe("planFamilyFieldUpdate", () => {
 
 describe("resolveFamilyMembers", () => {
   const schedules = [payload(1, 3, "09:00"), payload(2, 3, "10:00"), payload(3, 3, "12:00")].map((p) => p.schedule)
+  const shared = { prompt: "Summarize", catchUpPolicy: "run_once" as const }
 
   it("returns the opened members in order and adopts a stray part at a new slot", () => {
     const stray = task({
@@ -353,6 +354,7 @@ describe("resolveFamilyMembers", () => {
     const { members, missing } = resolveFamilyMembers([stray, part(2, 2), part(1, 2)], ["st_1", "st_2"], {
       baseTitles: ["Digest"],
       schedules,
+      shared,
     })
     expect(members.map((member) => member.id)).toEqual(["st_1", "st_2", "stray"])
     expect(missing).toEqual([])
@@ -368,6 +370,25 @@ describe("resolveFamilyMembers", () => {
     const { members } = resolveFamilyMembers([part(1, 2), other, unrelated], ["st_1"], {
       baseTitles: ["Digest"],
       schedules,
+      shared,
+    })
+    expect(members.map((member) => member.id)).toEqual(["st_1"])
+  })
+
+  it("does not adopt a same-name, same-slot part whose shared fields belong to another family", () => {
+    // Regression: a sibling family the grouping keeps separate because its
+    // prompt differs shared the base title and a schedule slot with the draft,
+    // so a re-save adopted it and deleted or overwrote the unrelated family.
+    const sibling = task({
+      id: "sibling",
+      title: "Digest (2/2)",
+      prompt: "Other",
+      schedule: { type: "daily", time: "10:00", timezone: "UTC" },
+    })
+    const { members } = resolveFamilyMembers([part(1, 2), sibling], ["st_1"], {
+      baseTitles: ["Digest"],
+      schedules,
+      shared,
     })
     expect(members.map((member) => member.id)).toEqual(["st_1"])
   })
@@ -376,6 +397,7 @@ describe("resolveFamilyMembers", () => {
     const { members, missing } = resolveFamilyMembers([part(1, 2)], ["st_1", "st_2"], {
       baseTitles: ["Digest"],
       schedules,
+      shared,
     })
     expect(members.map((member) => member.id)).toEqual(["st_1"])
     expect(missing).toEqual(["st_2"])
