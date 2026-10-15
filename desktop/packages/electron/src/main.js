@@ -1972,15 +1972,23 @@ const resolveWindowsLaunchProgram = (program) => {
   return runWhere(program)
 }
 
+// A detached launch has nobody waiting on it, so a spawn failure (the program
+// disappearing between the lookup above and here, say) surfaces as an unhandled
+// 'error' event, reaches the process-level uncaughtException handler and quits
+// the whole app over a failed "open in editor". Record it instead; the caller's
+// chain still moves on when a candidate fails synchronously.
+const launchDetachedWindowsProcess = (program, args, options) => {
+  const child = spawn(program, args, { detached: true, stdio: "ignore", windowsHide: false, ...options })
+  child.once("error", (error) => console.warn(`[electron] Failed to launch ${program}:`, error))
+  child.unref()
+  return child
+}
+
 const launchWindowsCommandScript = (spec, program) => {
   const commandLine = ["call", quoteWindowsCommandArg(program), ...spec.args.map(quoteWindowsCommandArg)].join(" ")
-  const child = spawn(resolveWindowsCommandProcessor() || "cmd.exe", ["/d", "/s", "/c", commandLine], {
-    detached: true,
-    stdio: "ignore",
-    windowsHide: false,
+  launchDetachedWindowsProcess(resolveWindowsCommandProcessor() || "cmd.exe", ["/d", "/s", "/c", commandLine], {
     windowsVerbatimArguments: true,
   })
-  child.unref()
 }
 
 const launchWindowsSpec = (spec) => {
@@ -1990,21 +1998,16 @@ const launchWindowsSpec = (spec) => {
     const commandLine = ["start", '""', quoteWindowsCommandArg(program), ...spec.args.map(quoteWindowsCommandArg)].join(
       " ",
     )
-    const child = spawn(resolveWindowsCommandProcessor() || "cmd.exe", ["/d", "/s", "/c", commandLine], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: false,
+    launchDetachedWindowsProcess(resolveWindowsCommandProcessor() || "cmd.exe", ["/d", "/s", "/c", commandLine], {
       windowsVerbatimArguments: true,
     })
-    child.unref()
     return
   }
   if (/\.(cmd|bat)$/i.test(program)) {
     launchWindowsCommandScript(spec, program)
     return
   }
-  const child = spawn(program, spec.args, { detached: true, stdio: "ignore", windowsHide: false })
-  child.unref()
+  launchDetachedWindowsProcess(program, spec.args, {})
 }
 
 const runSpecChain = async (specs, appName) => {
