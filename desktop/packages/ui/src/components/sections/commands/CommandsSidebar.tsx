@@ -196,6 +196,7 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
     // Create new command with new name and all existing config
     const success = await createCommand({
       name: sanitizedName,
+      scope: renameDialogCommand.scope || "user",
       description: renameDialogCommand.description,
       template: renameDialogCommand.template,
       agent: renameDialogCommand.agent,
