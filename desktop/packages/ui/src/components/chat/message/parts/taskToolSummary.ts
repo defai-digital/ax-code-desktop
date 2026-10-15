@@ -93,25 +93,24 @@ export const buildTaskSessionMessagesSignature = (messages: SessionMessageWithPa
         ? lastMessage.info.time.created
         : 0
   const lastParts = Array.isArray(lastMessage?.parts) ? lastMessage.parts : []
-  const lastPart = lastParts[lastParts.length - 1] as Record<string, unknown> | undefined
-  const tailType = typeof lastPart?.type === "string" ? lastPart.type : ""
-  const tailId = typeof lastPart?.id === "string" ? lastPart.id : ""
-  const tailTextLength = (() => {
-    const textCandidate = lastPart?.text
-    if (typeof textCandidate === "string") {
-      return textCandidate.length
-    }
-    const stateCandidate = lastPart?.state
-    if (stateCandidate && typeof stateCandidate === "object") {
-      const stateStatus = (stateCandidate as Record<string, unknown>).status
-      if (typeof stateStatus === "string") {
-        return stateStatus.length
-      }
-    }
-    return 0
-  })()
+  // Fold every part of the last message, not just the tail: a non-tail tool
+  // flipping running→completed or gaining its title changed nothing the old
+  // tail-only signature measured (same counts, same tail id, same status
+  // length), so the poll skipped the child-store write and the summary stayed
+  // stale until the tail itself moved.
+  const lastPartsSignature = lastParts
+    .map((part) => {
+      const candidate = part as Record<string, unknown>
+      const state = candidate?.state as Record<string, unknown> | undefined
+      const textCandidate = candidate?.text
+      const textLength = typeof textCandidate === "string" ? textCandidate.length : -1
+      const status = typeof state?.status === "string" ? state.status : ""
+      const title = typeof state?.title === "string" ? state.title : ""
+      return `${typeof candidate?.type === "string" ? candidate.type : ""}:${typeof candidate?.id === "string" ? candidate.id : ""}:${status}:${title}:${textLength}`
+    })
+    .join("|")
 
-  return `${messages.length}:${lastMessageId}:${lastMessageUpdated}:${lastParts.length}:${tailType}:${tailId}:${tailTextLength}`
+  return `${messages.length}:${lastMessageId}:${lastMessageUpdated}:${lastPartsSignature}`
 }
 
 export const getTaskSummaryLabel = (entry: TaskToolSummaryEntry): string => {

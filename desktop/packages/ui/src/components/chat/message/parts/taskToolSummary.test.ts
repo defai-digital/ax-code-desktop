@@ -200,29 +200,44 @@ describe("buildTaskSessionMessagesSignature", () => {
     expect(buildTaskSessionMessagesSignature([])).toBe("0")
   })
 
-  test("prefers the completed timestamp and describes the tail part", () => {
+  test("prefers the completed timestamp and describes every part", () => {
     const messages = [
       messageRecord({ id: "m1", role: "assistant", time: { created: 5, completed: 9 } }, [
         { id: "p1", type: "text", text: "hello" },
       ]),
     ]
 
-    expect(buildTaskSessionMessagesSignature(messages)).toBe("1:m1:9:1:text:p1:5")
+    expect(buildTaskSessionMessagesSignature(messages)).toBe("1:m1:9:text:p1:::5")
   })
 
-  test("falls back to created timestamps and tool status length", () => {
+  test("falls back to created timestamps and includes tool status and title", () => {
     const messages = [
       messageRecord({ id: "m1", role: "assistant", time: { created: 5 } }, [
-        { id: "p2", type: "tool", state: { status: "running" } },
+        { id: "p2", type: "tool", state: { status: "running", title: "ls" } },
       ]),
     ]
 
-    expect(buildTaskSessionMessagesSignature(messages)).toBe("1:m1:5:1:tool:p2:7")
+    expect(buildTaskSessionMessagesSignature(messages)).toBe("1:m1:5:tool:p2:running:ls:-1")
   })
 
   test("handles messages without parts or timestamps", () => {
     const messages = [messageRecord({ id: "m1", role: "assistant" }, [])]
 
-    expect(buildTaskSessionMessagesSignature(messages)).toBe("1:m1:0:0:::0")
+    expect(buildTaskSessionMessagesSignature(messages)).toBe("1:m1:0:")
+  })
+
+  test("notices a non-tail part flipping status while the tail is unchanged", () => {
+    // Regression: the old tail-only signature kept the poll from writing the
+    // refreshed subagent messages, leaving a completed tool shown as running.
+    const before = messageRecord({ id: "m1", role: "assistant", time: { created: 5 } }, [
+      { id: "p1", type: "tool", state: { status: "running" } },
+      { id: "p2", type: "tool", state: { status: "running" } },
+    ])
+    const after = messageRecord({ id: "m1", role: "assistant", time: { created: 5 } }, [
+      { id: "p1", type: "tool", state: { status: "completed" } },
+      { id: "p2", type: "tool", state: { status: "running" } },
+    ])
+
+    expect(buildTaskSessionMessagesSignature([after])).not.toBe(buildTaskSessionMessagesSignature([before]))
   })
 })
