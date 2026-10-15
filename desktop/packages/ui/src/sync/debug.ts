@@ -74,6 +74,13 @@ export const syncDebug = {
     partDeltaNotFound: (messageID: string, partID: string) =>
       log("reducer", `message.part.delta part not found: message=${messageID} part=${partID}`),
 
+    /** message.part.delta continued at an offset beyond the local text — dropped until a snapshot heals the gap. */
+    partDeltaGap: (messageID: string, partID: string, offset: number, localLength: number) =>
+      log(
+        "reducer",
+        `message.part.delta gap: message=${messageID} part=${partID} offset=${offset} local=${localLength}`,
+      ),
+
     /** SKIP_PARTS filtered out a part. */
     partSkipped: (messageID: string, partID: string, partType: string) =>
       log("reducer", `message.part.updated skipped: message=${messageID} part=${partID} type=${partType}`),

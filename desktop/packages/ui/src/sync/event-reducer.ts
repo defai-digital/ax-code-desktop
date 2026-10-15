@@ -729,6 +729,8 @@ export function applyDirectoryEvent(
         partID: string
         field: string
         delta: string
+        /** Length of the text this delta continues; the runtime's replay contract. */
+        offset?: number
       }
       const parts = draft.part[props.messageID]
       if (!parts) {
@@ -757,16 +759,34 @@ export function applyDirectoryEvent(
       }
       const existing = parts[partIndex] as Record<string, unknown>
       const existingValue = existing[props.field] as string | undefined
-      const dedupeFields = (existing as DedupeMetadata).__dedupeNextDeltaFields ?? []
-      const shouldDedupe = dedupeFields.includes(props.field)
+      const current = existingValue ?? ""
       // Create new Part object + new array so React detects the change
+      let nextValue: string
+      if (typeof props.offset === "number" && props.offset >= 0) {
+        // The offset names the length of the text this delta continues, so it can be
+        // reconciled against a local text that a parts refetch or a progress snapshot
+        // has already advanced (the runtime's own projection consumers do the same).
+        // Blindly appending replayed a delta a second time as duplicated text, and
+        // dropped one that arrived into a gap in the wrong place.
+        if (props.offset > current.length) {
+          // Gap: the snapshot channel will deliver the missing text; appending this
+          // delta at the wrong place would corrupt it.
+          syncDebug.reducer.partDeltaGap(props.messageID, props.partID, props.offset, current.length)
+          return false
+        }
+        nextValue = current + props.delta.slice(current.length - props.offset)
+      } else {
+        const dedupeFields = (existing as DedupeMetadata).__dedupeNextDeltaFields ?? []
+        const shouldDedupe = dedupeFields.includes(props.field)
+        nextValue = shouldDedupe ? appendNonOverlappingDelta(existingValue, props.delta) : current + props.delta
+      }
       const next = [...parts]
       next[partIndex] = {
         ...existing,
-        [props.field]: shouldDedupe
-          ? appendNonOverlappingDelta(existingValue, props.delta)
-          : (existingValue ?? "") + props.delta,
-        __dedupeNextDeltaFields: dedupeFields.filter((field) => field !== props.field),
+        [props.field]: nextValue,
+        __dedupeNextDeltaFields: (((existing as DedupeMetadata).__dedupeNextDeltaFields ?? []) as string[]).filter(
+          (field) => field !== props.field,
+        ),
       } as unknown as Part
       draft.part[props.messageID] = next
       return true

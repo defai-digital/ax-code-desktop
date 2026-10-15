@@ -1300,3 +1300,45 @@ describe("delta batch delivery", () => {
     }
   })
 })
+
+describe("message.part.delta coalescing offsets", () => {
+  const deltaEvent = (offset: number | undefined, delta: string) => ({
+    directory: "dir-a",
+    payload: {
+      type: "message.part.delta",
+      properties: {
+        messageID: "msg-1",
+        partID: "part-1",
+        field: "text",
+        ...(offset === undefined ? {} : { offset }),
+        delta,
+      },
+    },
+  })
+
+  it("keeps the first delta's offset when merging a contiguous run", async () => {
+    const received = await runPipelineWithEvents([
+      deltaEvent(0, "hello "),
+      deltaEvent(6, "world"),
+    ])
+
+    expect(received).toHaveLength(1)
+    expect(received[0].payload.properties.delta).toBe("hello world")
+    // The merged text continues from where the first delta started; keeping the
+    // later offset made the reducer cut the front of the merged text.
+    expect(received[0].payload.properties.offset).toBe(0)
+  })
+
+  it("does not merge deltas that do not continue one another", async () => {
+    // A replay after a parts refetch repeats text the local side already has: the
+    // two deltas need their own offsets so the reducer can reconcile each.
+    const received = await runPipelineWithEvents([
+      deltaEvent(0, "hello"),
+      deltaEvent(0, "hello"),
+    ])
+
+    expect(received).toHaveLength(2)
+    expect(received[0].payload.properties.offset).toBe(0)
+    expect(received[1].payload.properties.offset).toBe(0)
+  })
+})

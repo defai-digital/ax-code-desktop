@@ -669,3 +669,42 @@ describe("applyDirectoryEvent", () => {
     expect(draft.session.map((s) => s.id)).toEqual(["ses_2", "ses_3"])
   })
 })
+
+describe("message.part.delta offset reconciliation", () => {
+  const textPart = (text: string): Part =>
+    ({ id: "prt_1", messageID: "msg_1", sessionID: "ses_1", type: "text", text }) as unknown as Part
+
+  const applyDelta = (draft: State, offset: number, delta: string) =>
+    applyDirectoryEvent(draft, {
+      type: "message.part.delta",
+      properties: { messageID: "msg_1", partID: "prt_1", field: "text", offset, delta },
+    } as Event)
+
+  const textOf = (draft: State) => (draft.part.msg_1?.[0] as Extract<Part, { type: "text" }> | undefined)?.text
+
+  test("appends the whole delta when the offset matches the local text", () => {
+    const draft = state({ part: { msg_1: [textPart("hello")] } })
+    applyDelta(draft, 5, " world")
+    expect(textOf(draft)).toBe("hello world")
+  })
+
+  test("does not re-apply a replayed delta whose text is already present", () => {
+    // Replay after a parts refetch: the local text already contains the delta, and
+    // blind appending pasted it a second time as duplicated output.
+    const draft = state({ part: { msg_1: [textPart("hello world")] } })
+    applyDelta(draft, 6, "world")
+    expect(textOf(draft)).toBe("hello world")
+  })
+
+  test("appends only the missing tail when the local text ends inside the delta", () => {
+    const draft = state({ part: { msg_1: [textPart("hello wor")] } })
+    applyDelta(draft, 6, "world")
+    expect(textOf(draft)).toBe("hello world")
+  })
+
+  test("drops a delta that continues beyond the local text until a snapshot heals the gap", () => {
+    const draft = state({ part: { msg_1: [textPart("hel")] } })
+    applyDelta(draft, 10, "lo world")
+    expect(textOf(draft)).toBe("hel")
+  })
+})

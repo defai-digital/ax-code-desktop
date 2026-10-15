@@ -592,13 +592,30 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
       if (i !== undefined) {
         if (d.measurement) d.measurement.coalescedEvents++
         if (normalizedPayload.type === "message.part.delta") {
-          const prev = d.queue[i] as unknown as { properties: { delta: string } }
-          const inc = normalizedPayload.properties as { delta: string }
+          const prev = d.queue[i] as unknown as { properties: { delta: string; offset?: number } }
+          const inc = normalizedPayload.properties as { delta: string; offset?: number }
+          // The concatenated text continues from the first delta's offset. Keeping
+          // the incoming (later) offset instead named the text before the second
+          // delta only, and the reducer's offset reconciliation would then cut the
+          // front of the merged text. Two deltas that do not actually continue one
+          // another (replay after a refetch) must not be merged at all: each needs
+          // its own offset so the reducer can reconcile it.
+          const contiguous =
+            prev.properties.offset === undefined ||
+            inc.offset === undefined ||
+            inc.offset === prev.properties.offset + prev.properties.delta.length
+          if (!contiguous) {
+            d.coalesced.set(k, d.queue.length)
+            d.queue.push(normalizedPayload)
+            scheduleDir(routedDirectory)
+            return
+          }
           d.queue[i] = {
             ...normalizedPayload,
             properties: {
               ...(normalizedPayload.properties as object),
               delta: prev.properties.delta + inc.delta,
+              offset: prev.properties.offset ?? inc.offset,
             },
           } as unknown as Event
         } else {
