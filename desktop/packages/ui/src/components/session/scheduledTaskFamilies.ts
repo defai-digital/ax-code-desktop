@@ -4,6 +4,7 @@ import type {
   ScheduledTaskRunDisplayStatus,
 } from "@/lib/scheduledTasksApi"
 import type { RuntimeSchedule, RuntimeTaskPayload, RuntimeTaskStatus } from "@/lib/scheduledTaskTransform"
+import { truncateToCodeUnits } from "@/lib/textTruncate"
 import { buildTaskRowKey, normalizeDirectory } from "./scheduledTaskGroups"
 
 /**
@@ -304,7 +305,7 @@ const MAX_RUNTIME_TITLE_LENGTH = 200
 const retitleMember = (currentTitle: string, base: string): string => {
   const parsed = parseFanOutTitle(currentTitle)
   const next = parsed ? `${base} (${parsed.index}/${parsed.total})` : base
-  return next.length > MAX_RUNTIME_TITLE_LENGTH ? next.slice(0, MAX_RUNTIME_TITLE_LENGTH) : next
+  return truncateToCodeUnits(next, MAX_RUNTIME_TITLE_LENGTH, "")
 }
 
 /**

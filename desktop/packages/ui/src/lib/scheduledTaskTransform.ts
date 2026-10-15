@@ -9,6 +9,8 @@
  * fan-out order, name suffixes, or schedule mapping must land in both places.
  */
 
+import { truncateToCodeUnits } from "@/lib/textTruncate"
+
 export type RuntimeSchedule =
   | { type: "once"; runAt: number }
   | { type: "daily"; time: string; timezone?: string }
@@ -140,7 +142,9 @@ export const stripFanOutSuffix = (name: string): string => name.replace(FAN_OUT_
 
 const slotTitle = (name: string, index: number, total: number): string => {
   const base = total > 1 ? `${name} (${index + 1}/${total})` : name
-  return base.length > MAX_RUNTIME_TITLE_LENGTH ? base.slice(0, MAX_RUNTIME_TITLE_LENGTH) : base
+  // The runtime caps the title, and this value is persisted as the task title:
+  // cutting it by code unit could store a lone surrogate at the boundary.
+  return truncateToCodeUnits(base, MAX_RUNTIME_TITLE_LENGTH, "")
 }
 
 /**

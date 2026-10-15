@@ -4,6 +4,8 @@
  * controller expects can be pinned by tests without a window.
  */
 
+import { truncateToCodeUnits } from "@/lib/textTruncate"
+
 export type TraySessionStatus = "idle" | "busy" | "retry"
 
 export type TraySession = {
@@ -86,9 +88,6 @@ const basenameOf = (value: string): string => {
   return index >= 0 ? normalized.slice(index + 1) : normalized
 }
 
-const truncate = (value: string, max: number): string =>
-  value.length <= max ? value : `${value.slice(0, Math.max(0, max - 1))}…`
-
 const toStatus = (value: string | undefined): TraySessionStatus => {
   if (value === "busy" || value === "retry") return value
   return "idle"
@@ -116,7 +115,7 @@ export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot =
     const branch = directory ? (branchByDirectory.get(directory) ?? "") : ""
     return {
       id: session.id,
-      title: truncate(sessionTitleById.get(session.id) ?? "Untitled Session", 40),
+      title: truncateToCodeUnits(sessionTitleById.get(session.id) ?? "Untitled Session", 40),
       status: toStatus(input.statusBySession[session.id]),
       branch,
       unseen: input.unseenCountBySession[session.id] ?? 0,
@@ -141,8 +140,8 @@ export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot =
         kind: approval.kind,
         id: approval.id,
         sessionId: approval.sessionId,
-        sessionTitle: truncate(sessionTitleById.get(approval.sessionId) ?? approval.sessionId, 24),
-        label: truncate(resource ? `${head}: ${resource}` : head, 34),
+        sessionTitle: truncateToCodeUnits(sessionTitleById.get(approval.sessionId) ?? approval.sessionId, 24),
+        label: truncateToCodeUnits(resource ? `${head}: ${resource}` : head, 34),
         // Fall back to the session's directory: the tray's "Open in app" action
         // needs one, and the request itself may not carry it.
         directory:

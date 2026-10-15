@@ -3,6 +3,8 @@
  * session that already existed when the attempt opened its draft. The first unknown current
  * session is the one this attempt created.
  */
+import { truncateToCodeUnits } from "@/lib/textTruncate"
+
 export type DispatchToken = {
   createdSessionId: string | null
   /** The user selected a different session while this attempt was still running. */
@@ -98,5 +100,5 @@ export function quickDispatchSessionLabel(input: {
     .map((line) => line.trim())
     .find(Boolean)
   if (!firstLine) return input.sessionId
-  return firstLine.length > 80 ? `${firstLine.slice(0, 79)}…` : firstLine
+  return truncateToCodeUnits(firstLine, 80)
 }

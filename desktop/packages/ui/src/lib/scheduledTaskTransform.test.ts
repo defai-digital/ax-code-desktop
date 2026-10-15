@@ -117,6 +117,19 @@ describe("buildRuntimeScheduledTaskPayloads", () => {
     expect(without?.[0]).not.toHaveProperty("agent")
   })
 
+  test("caps the runtime title without splitting a character at the cut", () => {
+    // The title is persisted as the runtime task's title, so a code-unit cut that
+    // lands inside the emoji would store a lone surrogate.
+    const name = `${"z".repeat(199)}🚀tail`
+    const payloads = buildRuntimeScheduledTaskPayloads(
+      baseDraft({ name, schedule: { kind: "daily", times: ["09:00", "10:00"], timezone: "UTC" } }),
+    )
+
+    const title = payloads?.[0]?.title ?? ""
+    expect(title).toBe("z".repeat(199))
+    expect(title).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+  })
+
   test("returns null for invalid drafts", () => {
     expect(buildRuntimeScheduledTaskPayloads(baseDraft({ name: "  " }))).toBeNull()
     expect(buildRuntimeScheduledTaskPayloads(baseDraft({ prompt: " " }))).toBeNull()
