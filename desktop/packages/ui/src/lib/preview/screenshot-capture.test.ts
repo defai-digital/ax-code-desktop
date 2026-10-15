@@ -1,8 +1,9 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 
 import {
   formatPreviewAnnotationMarkdown,
   isPreviewElementMetadata,
+  renderPreviewScreenshot,
   type PreviewElementMetadata,
 } from "./screenshot-capture"
 
@@ -71,5 +72,29 @@ describe("preview screenshot metadata", () => {
         ancestry: [{ tag: "button" }],
       }),
     ).toBe(false)
+  })
+})
+
+describe("renderPreviewScreenshot", () => {
+  test("returns null instead of hanging when the desktop capture IPC stalls", async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    ;(window as unknown as { __TAURI__?: unknown }).__TAURI__ = {
+      core: { invoke: () => new Promise(() => {}) },
+    }
+    const iframe = {
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
+    } as unknown as HTMLIFrameElement
+
+    try {
+      const pending = renderPreviewScreenshot(iframe, createMetadata())
+      const assertion = expect(pending).resolves.toBeNull()
+      await vi.advanceTimersByTimeAsync(10_000)
+      await assertion
+    } finally {
+      warn.mockRestore()
+      delete (window as unknown as { __TAURI__?: unknown }).__TAURI__
+      vi.useRealTimers()
+    }
   })
 })

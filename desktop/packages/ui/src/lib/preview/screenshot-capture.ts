@@ -1,5 +1,14 @@
 import { getTauriGlobal } from "@/lib/tauriGlobal"
+import { withTimeout } from "../asyncTimeout"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "../http"
+
+// Every unbounded await in the capture pipeline gets a timeout: a single
+// stalled IPC, font, image, or asset fetch would otherwise hang "attach
+// screenshot" forever with no feedback.
+const DESKTOP_CAPTURE_TIMEOUT_MS = 10_000
+const FRAME_RESOURCE_FETCH_TIMEOUT_MS = 10_000
+const IMAGE_LOAD_WAIT_TIMEOUT_MS = 10_000
+const FONT_READY_TIMEOUT_MS = 5_000
 
 export type PreviewElementMetadata = {
   frame: "top"
@@ -114,13 +123,22 @@ export const renderPreviewScreenshot = async (
   if (typeof tauri?.core?.invoke === "function") {
     try {
       const rect = iframe.getBoundingClientRect()
-      const capture = await tauri.core.invoke<{ mime: string; base64: string; width: number; height: number }>(
-        "desktop_capture_page_rect",
-        {
-          x: rect.left,
-          y: rect.top,
-          width: rect.width,
-          height: rect.height,
+      // Electron's capturePage can stay pending forever while the window is
+      // occluded; bound the IPC so a stalled capture resolves to "no
+      // screenshot" (the catch below) instead of hanging the annotation flow.
+      const capture = await withTimeout(
+        tauri.core.invoke<{ mime: string; base64: string; width: number; height: number }>(
+          "desktop_capture_page_rect",
+          {
+            x: rect.left,
+            y: rect.top,
+            width: rect.width,
+            height: rect.height,
+          },
+        ),
+        DESKTOP_CAPTURE_TIMEOUT_MS,
+        (): never => {
+          throw new Error("desktop_capture_page_rect timed out")
         },
       )
       const image = new Image()
@@ -539,7 +557,7 @@ const snapdomNestedScrollPlugin = {
 
 const fetchUrlAsDataUrl = async (url: string, credentials: RequestCredentials): Promise<string | null> => {
   try {
-    const response = await fetch(url, { credentials })
+    const response = await fetch(url, { credentials, signal: AbortSignal.timeout(FRAME_RESOURCE_FETCH_TIMEOUT_MS) })
     if (!response.ok) return null
     return await blobToDataUrl(await response.blob())
   } catch {
@@ -635,10 +653,16 @@ const inlineCssImageUrls = async (value: string, document: Document): Promise<st
 
 const waitForImage = (image: HTMLImageElement): Promise<void> => {
   if (image.complete) return Promise.resolve()
-  return new Promise((resolve) => {
-    image.addEventListener("load", () => resolve(), { once: true })
-    image.addEventListener("error", () => resolve(), { once: true })
-  })
+  // A stalled image load must not block the capture pipeline; proceed without
+  // it after a bounded wait.
+  return withTimeout(
+    new Promise<void>((resolve) => {
+      image.addEventListener("load", () => resolve(), { once: true })
+      image.addEventListener("error", () => resolve(), { once: true })
+    }),
+    IMAGE_LOAD_WAIT_TIMEOUT_MS,
+    () => undefined,
+  )
 }
 
 const getElementStyleRestore = (element: HTMLElement): (() => void) => {
@@ -960,7 +984,11 @@ async function captureIframeSnapdomScreenshot(
       /* no-op until fixed elements are tagged */
     }
     try {
-      await document.fonts?.ready.catch(() => undefined)
+      await withTimeout(
+        document.fonts?.ready.catch(() => undefined) ?? Promise.resolve(),
+        FONT_READY_TIMEOUT_MS,
+        () => undefined,
+      )
       restoreAssets = await inlineIframeCaptureAssets(document, viewportWidth, viewportHeight, {
         applyLayoutWorkarounds: false,
       })
@@ -1078,7 +1106,11 @@ async function captureIframeDomScreenshot(
       /* no-op until capture preparation mutates DOM */
     }
     try {
-      await document.fonts?.ready.catch(() => undefined)
+      await withTimeout(
+        document.fonts?.ready.catch(() => undefined) ?? Promise.resolve(),
+        FONT_READY_TIMEOUT_MS,
+        () => undefined,
+      )
       restoreAssets = await inlineIframeCaptureAssets(document, viewportWidth, viewportHeight, {
         applyLayoutWorkarounds: true,
       })

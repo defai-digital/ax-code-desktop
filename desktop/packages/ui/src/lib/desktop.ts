@@ -446,6 +446,19 @@ export const downloadDesktopUpdate = async (onProgress?: (progress: UpdateProgre
   let unlisten: null | (() => void | Promise<void>) = null
   let downloaded = 0
   let total: number | undefined
+  // electron-updater silently restarts a failed differential download as a
+  // full download, resetting `downloaded` (and changing `total`) mid-stream.
+  // Clamp emitted progress so the bar never visibly regresses within one
+  // download session.
+  let maxPercent = 0
+  const emitProgress = (emit: (progress: UpdateProgress) => void) => {
+    if (typeof total === "number" && total > 0) {
+      maxPercent = Math.max(maxPercent, (downloaded / total) * 100)
+      emit({ downloaded: Math.max(downloaded, Math.round((maxPercent / 100) * total)), total })
+    } else {
+      emit({ downloaded, total })
+    }
+  }
 
   try {
     if (typeof onProgress === "function" && typeof bridge?.listen === "function") {
@@ -459,7 +472,8 @@ export const downloadDesktopUpdate = async (onProgress?: (progress: UpdateProgre
         if (eventName === "Started") {
           downloaded = 0
           total = typeof eventData?.contentLength === "number" ? (eventData.contentLength as number) : undefined
-          onProgress({ downloaded, total })
+          maxPercent = 0
+          emitProgress(onProgress)
           return
         }
 
@@ -468,12 +482,12 @@ export const downloadDesktopUpdate = async (onProgress?: (progress: UpdateProgre
           const t = eventData?.total
           if (typeof d === "number") downloaded = d
           if (typeof t === "number") total = t
-          onProgress({ downloaded, total })
+          emitProgress(onProgress)
           return
         }
 
         if (eventName === "Finished") {
-          onProgress({ downloaded, total })
+          emitProgress(onProgress)
         }
       })
     }

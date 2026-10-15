@@ -223,6 +223,37 @@ describe("desktop updater IPC", () => {
     restoreWindow()
   })
 
+  test("keeps download progress monotonic when the updater restarts with a new total", async () => {
+    mockDesktopWindow({
+      invoke: async () => null,
+      listen: async (event, handler) => {
+        expect(event).toBe("openchamber:update-progress")
+        handler({ payload: { event: "Started", data: { contentLength: 10 } } })
+        handler({ payload: { event: "Progress", data: { downloaded: 8, total: 10 } } })
+        // The differential download failed and electron-updater silently
+        // restarted as a full download: transferred resets, total changes.
+        handler({ payload: { event: "Progress", data: { downloaded: 2, total: 20 } } })
+        handler({ payload: { event: "Progress", data: { downloaded: 19, total: 20 } } })
+        handler({ payload: { event: "Finished", data: {} } })
+        return () => {}
+      },
+    })
+    const progress: Array<{ downloaded: number; total?: number }> = []
+
+    const result = await downloadDesktopUpdate((next) => progress.push(next))
+
+    expect(result).toBe(true)
+    expect(progress).toEqual([
+      { downloaded: 0, total: 10 },
+      { downloaded: 8, total: 10 },
+      // Clamped to the previous 80% instead of visibly regressing to 10%.
+      { downloaded: 16, total: 20 },
+      { downloaded: 19, total: 20 },
+      { downloaded: 19, total: 20 },
+    ])
+    restoreWindow()
+  })
+
   test("applies Electron updates through quit-and-install", async () => {
     const commands: string[] = []
     mockDesktopWindow({
