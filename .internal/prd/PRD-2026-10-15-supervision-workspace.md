@@ -6,7 +6,7 @@ Date: 2026-10-15
 
 ## Problem
 
-AX Coder exists to supervise many coding sessions across many projects, but the current layout is
+AX Code Desktop exists to supervise many coding sessions across many projects, but the current layout is
 built around one chat at a time:
 
 - The portfolio surfaces (Projects home, Needs You queue) render only on the empty or draft chat
@@ -91,8 +91,8 @@ runtime does not project, and changes to the AX Code runtime.
 ## Ownership
 
 AX Code owns session execution state, permission and question semantics, diffs, worktrees and the
-reply operations; AX Coder sends intents only through the existing SDK calls. AX Trust owns standing
-grants; cross-session surfaces never create "always" rules. AX Coder owns the portfolio projection,
+reply operations; the desktop sends intents only through the existing SDK calls. AX Trust owns standing
+grants; cross-session surfaces never create "always" rules. The desktop owns the portfolio projection,
 ranking, presentation, navigation, working sets and notification routing. Portfolio surfaces show
 bounded, redacted snippets only.
 
@@ -104,3 +104,8 @@ bounded, redacted snippets only.
 - Mission Control lists live sessions across projects and opens, peeks and reviews them by keyboard.
 - Opening changes, files, git or plan keeps the chat visible.
 - Typecheck, lint, unit tests, locale and boundary checks pass.
+
+## Revisions
+
+- 2026-10-15: terminology only. The product is AX Code; the desktop app is AX Code Desktop. The name
+  "AX Coder" is not used. No requirement changed.

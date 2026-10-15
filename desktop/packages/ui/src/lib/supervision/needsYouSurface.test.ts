@@ -74,9 +74,9 @@ describe("supervisionStatusRows", () => {
 
 describe("supervision request presentation", () => {
   test("joins the session title and the project label", () => {
-    expect(supervisionRequestContext("Fix the dock", "AX Coder")).toBe("Fix the dock · AX Coder")
+    expect(supervisionRequestContext("Fix the dock", "AX Code")).toBe("Fix the dock · AX Code")
     expect(supervisionRequestContext("Fix the dock", "  ")).toBe("Fix the dock")
-    expect(supervisionRequestContext("  ", "AX Coder")).toBe("AX Coder")
+    expect(supervisionRequestContext("  ", "AX Code")).toBe("AX Code")
   })
 
   test("formats the diff and the file count with a minus sign", () => {
