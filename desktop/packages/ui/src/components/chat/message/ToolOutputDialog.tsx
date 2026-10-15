@@ -656,10 +656,17 @@ const MermaidPreviewDialog: React.FC<{
     }
 
     const decodeLoose = (value: string): string => {
-      return value.replace(/%([0-9A-Fa-f]{2})/g, (_match, hex: string) => {
-        const codePoint = Number.parseInt(hex, 16)
-        return Number.isFinite(codePoint) ? String.fromCharCode(codePoint) : `%${hex}`
-      })
+      // Percent-encoded URL paths are UTF-8 sequences: decoding each %XX as a
+      // single code unit mojibakes every non-ASCII filename. Fall back to the
+      // per-byte decode only for malformed input decodeURIComponent rejects.
+      try {
+        return decodeURIComponent(value)
+      } catch {
+        return value.replace(/%([0-9A-Fa-f]{2})/g, (_match, hex: string) => {
+          const codePoint = Number.parseInt(hex, 16)
+          return Number.isFinite(codePoint) ? String.fromCharCode(codePoint) : `%${hex}`
+        })
+      }
     }
 
     const canParse = typeof URL.canParse === "function" ? URL.canParse(input) : false

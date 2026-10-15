@@ -11,7 +11,11 @@ export const decodeMermaidDataUrl = (value: string): string => {
 
   try {
     if (metadata.includes(";base64")) {
-      return atob(payload)
+      // atob returns Latin-1 code units; the payload is UTF-8 bytes, so
+      // non-ASCII diagram text comes back mojibake unless the bytes are
+      // decoded as UTF-8.
+      const bytes = Uint8Array.from(atob(payload), (char) => char.charCodeAt(0))
+      return new TextDecoder().decode(bytes)
     }
     return decodeURIComponent(payload)
   } catch {

@@ -21,3 +21,12 @@ describe("Mermaid data URL source loading", () => {
     await expect(sourcePromise).rejects.toThrow("Malformed data URL")
   })
 })
+
+describe("Mermaid data URL UTF-8 handling", () => {
+  test("decodes base64 payloads as UTF-8 bytes", () => {
+    // "graph TD;A[流程]-->B" encoded as UTF-8 then base64.
+    expect(decodeMermaidDataUrl("data:text/plain;base64,Z3JhcGggVEQ7QVvmtYHnqItdLS0+Qg==")).toBe(
+      "graph TD;A[流程]-->B",
+    )
+  })
+})
