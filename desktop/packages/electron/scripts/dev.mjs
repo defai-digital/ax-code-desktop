@@ -12,6 +12,17 @@ import { waitForDevRenderer } from "./wait-for-dev-renderer.mjs"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 
+// Chromium keeps the key that encrypts the app's own cookies in the macOS
+// Keychain ("AX Code Safe Storage"), and macOS asks for the login password
+// whenever the binary asking is not the one that created the item. Development
+// runs the stock Electron binary, which is ad-hoc signed and changes on every
+// Electron upgrade, so that prompt can never be answered once and for all — and
+// answering it means typing the login password into a dialog, which is exactly
+// the habit we do not want to teach. The mock keychain keeps the prompt out of
+// development; packaged builds stay on the real Keychain, where the signed app
+// asks at most once per signing identity.
+const devKeychainArgs = process.platform === "darwin" ? ["--use-mock-keychain"] : []
+
 // Resolve the Electron the renderer should run on. Prefer the locally
 // installed, pinned binary so it matches the version `rebuild:native` built
 // node-pty against. Missing postinstall output is a broken workspace install;
@@ -19,7 +30,7 @@ const require = createRequire(import.meta.url)
 const resolveElectron = () => {
   try {
     const bin = require("electron")
-    if (typeof bin === "string" && fs.existsSync(bin)) return { command: bin, args: [] }
+    if (typeof bin === "string" && fs.existsSync(bin)) return { command: bin, args: devKeychainArgs }
   } catch {
     // electron package present but binary not installed — fall through
   }
