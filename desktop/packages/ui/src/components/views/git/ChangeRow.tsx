@@ -44,6 +44,12 @@ export const ChangeRow = React.memo<ChangeRowProps>(function ChangeRow({
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
+      // Inner buttons (stage, revert) own their keys: handling a bubbled keydown
+      // here would preventDefault the button's own activation and run the row
+      // action instead of the focused one.
+      if (event.target !== event.currentTarget) {
+        return
+      }
       if (event.key === " ") {
         event.preventDefault()
         onAction()
