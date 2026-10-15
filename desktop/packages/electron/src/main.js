@@ -564,6 +564,11 @@ function handleServerSupervisionEvent(event) {
 async function reloadRenderersAfterServerRecovery(info) {
   const newPort = Number.isInteger(info?.port) ? info.port : serverPort
   const oldPort = portBeforeServerCrash
+  // The replacement server binds a fresh port. Point the renderers at it before
+  // loading them: the reloaded page re-reads the env through the preload, and
+  // the old port is dead, so without this the app reloads into a renderer whose
+  // API and event connections go nowhere (and a manual reload cannot fix it).
+  applyRendererApiOrigin(newPort)
   const willReloadMainWindow = Boolean(
     mainWindow &&
       !mainWindow.isDestroyed() &&
@@ -835,11 +840,19 @@ function createMainWindowShell() {
   })
 }
 
+// Points the renderer's API origin at `port`. The sandboxed preload reads this
+// env value on every document load, so it has to be refreshed before any window
+// (re)loads — a reload after a crash-restart lands on a new port while this
+// value still names the dead one.
+function applyRendererApiOrigin(port = serverPort) {
+  if (Number.isInteger(port) && port > 0) {
+    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(port, getDevRendererUrl())
+  }
+}
+
 async function createWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) createMainWindowShell()
-  if (serverPort > 0) {
-    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(serverPort, getDevRendererUrl())
-  }
+  applyRendererApiOrigin()
   const rendererUrl =
     getDevRendererUrl() || (app.isPackaged ? `${PACKAGED_RENDERER_ORIGIN}/` : `http://127.0.0.1:${serverPort}`)
   recordStartupEvent("renderer.load-url.start", {
@@ -2135,9 +2148,7 @@ const applyMacVibrancy = (browserWindow) => {
 // (or, when a non-local default host is configured, that host's URL). We do not
 // inject runtime-config the way upstream's packaged-UI protocol did.
 const createAdditionalWindow = async (url) => {
-  if (serverPort > 0) {
-    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(serverPort, getDevRendererUrl())
-  }
+  applyRendererApiOrigin()
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -3040,9 +3051,7 @@ const senderWindow = (event) => (event ? BrowserWindow.fromWebContents(event.sen
 // entry; the renderer (ElectronMiniChatApp) reads mode/sessionId/directory/
 // projectId from the URL query string.
 const createMiniChatWindow = async ({ mode, sessionId, directory, projectId }) => {
-  if (serverPort > 0) {
-    process.env.AX_CODE_DESKTOP_RENDERER_API_ORIGIN = buildRendererApiOrigin(serverPort, getDevRendererUrl())
-  }
+  applyRendererApiOrigin()
   const win = new BrowserWindow({
     width: 420,
     height: 640,
