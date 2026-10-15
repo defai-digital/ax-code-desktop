@@ -85,9 +85,20 @@ export const createGitIndexMutationQueue = ({
       queuedMutations.push(mutation)
     },
     flush,
-    clear: () => {
-      queuedMutations.length = 0
-    },
+  /** Abandon queued mutations without running them: each is rolled back and its paths released. */
+  clear: () => {
+    // A discarded mutation never runs, so what enqueue applied optimistically
+    // must be unwound: without this, a queue dropped while mutations were
+    // still waiting (a directory switch recreates it) left the paths in the
+    // caller's pending set forever, keeping Commit disabled, and kept the
+    // optimistic staged/unstaged status.
+    while (queuedMutations.length > 0) {
+      const mutation = queuedMutations.shift()
+      if (!mutation) break
+      mutation.rollback?.()
+      onPathsComplete(Array.from(mutation.paths))
+    }
+  },
     size: () => queuedMutations.length,
     isRunning: () => running,
   }

@@ -142,3 +142,54 @@ describe("createGitIndexMutationQueue", () => {
     expect(rollbackCalled).toBe(true)
   })
 })
+
+describe("clear", () => {
+  test("rolls back queued mutations and releases their paths without running them", async () => {
+    const completedPaths: string[][] = []
+    const rolledBack: string[] = []
+    const runCalls: string[] = []
+    let block: Deferred<void> | null = createDeferred()
+    const queue = createGitIndexMutationQueue({
+      runMutation: async ({ paths }) => {
+        runCalls.push(paths.join(","))
+        await block?.promise
+      },
+      onMutationComplete: () => {},
+      onMutationError: () => {},
+      onPathsComplete: (paths) => completedPaths.push(paths),
+      scheduleFlush: () => queue.flush(),
+    })
+
+    queue.enqueue({
+      directory: "/repo",
+      direction: "stage",
+      paths: new Set(["first.ts"]),
+    })
+    queue.flush()
+    queue.enqueue({
+      directory: "/repo",
+      direction: "unstage",
+      paths: new Set(["queued-a.ts"]),
+      rollback: () => rolledBack.push("queued-a.ts"),
+    })
+    queue.enqueue({
+      directory: "/other",
+      direction: "stage",
+      paths: new Set(["queued-b.ts"]),
+      rollback: () => rolledBack.push("queued-b.ts"),
+    })
+
+    // The running mutation keeps its own completion; the queued ones are
+    // abandoned and unwound (a directory switch recreates the queue here).
+    queue.clear()
+    block?.resolve()
+    block = null
+    await waitMicrotask()
+
+    expect(runCalls).toEqual(["first.ts"])
+    expect(rolledBack.sort()).toEqual(["queued-a.ts", "queued-b.ts"])
+    expect(completedPaths.some((paths) => paths.includes("queued-a.ts"))).toBe(true)
+    expect(completedPaths.some((paths) => paths.includes("queued-b.ts"))).toBe(true)
+    expect(queue.size()).toBe(0)
+  })
+})
