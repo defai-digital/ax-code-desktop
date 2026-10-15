@@ -180,10 +180,13 @@ let externalOpenPathDrainRunning = false
 let externalOpenPathHandlerReady = false
 const pendingExternalOpenRequests = []
 const pendingOpenProjectPaths = []
-// A session/draft hand-off requested while the main window was being created.
+// Session/draft hand-offs requested while the main window was being created.
 // Flushed on 'ax-code:renderer-app-ready' (same mechanism as open-project),
-// because loadURL resolves before React mounts the IPC listeners.
-let pendingFocusOpen = null
+// because loadURL resolves before React mounts the IPC listeners. A real
+// queue, not a single slot: each mini-chat closes itself when this command
+// reports success, so a second hand-off overwriting a queued first one would
+// strand the session whose window already closed.
+const pendingFocusOpens = []
 const startupDiagnostics = createStartupDiagnostics({
   logPath:
     process.platform === "darwin"
@@ -1219,16 +1222,16 @@ function flushPendingOpenProjectPaths() {
 
 function flushPendingFocusOpen() {
   if (!rendererReadyForOpenProject || !mainWindow || mainWindow.isDestroyed()) return
-  const pending = pendingFocusOpen
-  if (!pending) return
-  pendingFocusOpen = null
-  if (pending.sessionId) {
-    emitToWindow(mainWindow, "openchamber:open-session", { sessionId: pending.sessionId, directory: pending.directory })
-  } else if (pending.mode === "draft") {
-    emitToWindow(mainWindow, "openchamber:open-draft-session", {
-      directory: pending.directory,
-      projectId: pending.projectId,
-    })
+  while (pendingFocusOpens.length > 0) {
+    const pending = pendingFocusOpens.shift()
+    if (pending.sessionId) {
+      emitToWindow(mainWindow, "openchamber:open-session", { sessionId: pending.sessionId, directory: pending.directory })
+    } else if (pending.mode === "draft") {
+      emitToWindow(mainWindow, "openchamber:open-draft-session", {
+        directory: pending.directory,
+        projectId: pending.projectId,
+      })
+    }
   }
 }
 
@@ -3187,7 +3190,7 @@ handleCommand("desktop_focus_main_window", async (args) => {
     // 'did-finish-load', so a listener attached here would never run). Queue the
     // hand-off and let that signal flush it, the same path external open-project
     // requests take.
-    pendingFocusOpen = { sessionId, directory, mode, projectId }
+    pendingFocusOpens.push({ sessionId, directory, mode, projectId })
     flushPendingFocusOpen()
   }
   return { focused: true }
