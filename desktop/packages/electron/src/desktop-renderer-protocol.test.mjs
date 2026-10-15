@@ -41,6 +41,15 @@ describe("packaged renderer protocol policy", () => {
     expect(imgSrc).toContain("https://models.dev")
   })
 
+  test("CSP script-src permits WebAssembly without allowing JavaScript eval", () => {
+    // The ghostty-vt terminal renderer compiles a WASM module at startup; the
+    // packaged app:// policy must not block it (the http server policy already
+    // allows eval), and must not widen to full 'unsafe-eval'.
+    const scriptSrc = parseCspDirective(buildPackagedRendererCsp(), "script-src")
+    expect(scriptSrc).toContain("'wasm-unsafe-eval'")
+    expect(scriptSrc).not.toContain("'unsafe-eval'")
+  })
+
   test("asset path resolver blocks escape from web-dist", () => {
     const root = path.resolve("/app/web-dist")
     expect(resolvePackagedRendererAssetPath(root, "/../secret.txt").ok).toBe(false)

@@ -43,6 +43,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- The packaged app's terminal could not start at all: its Content Security Policy blocked
+  WebAssembly compilation, so the ghostty-vt renderer failed with a CSP error. The packaged
+  policy now permits WebAssembly only (`wasm-unsafe-eval`, not script `eval`).
 - Attaching a screenshot to a preview annotation could hang forever when the window was covered or an
   image, font or asset inside the page stalled; every step now times out and the annotation is sent
   without the screenshot instead.

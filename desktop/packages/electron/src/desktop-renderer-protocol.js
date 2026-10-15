@@ -102,7 +102,10 @@ const buildPackagedRendererCsp = () => {
   const connectSrc = LOOPBACK_CONNECT_SRC.join(" ")
   return [
     `default-src 'self' ${PACKAGED_RENDERER_ORIGIN}`,
-    "script-src 'self' 'unsafe-inline'",
+    // 'wasm-unsafe-eval' (deliberately not 'unsafe-eval') permits WebAssembly
+    // compilation only — the ghostty-vt terminal renderer compiles a WASM
+    // module at startup, and workers inherit this policy.
+    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
     // Provider logos fall back to https://models.dev/logos/<id>.svg when no
     // SVG is bundled (see packages/ui/src/hooks/useProviderLogo.ts).
