@@ -4451,6 +4451,8 @@
   "projects.home.needsYou.question": "Menunggu jawaban",
   "projects.home.needsYou.uncommitted": "Perubahan belum di-commit",
   "projects.home.needsYou.error": "Kesalahan sesi",
+  "projects.home.needsYou.showAll": "Tampilkan semua ({count})",
+  "projects.home.needsYou.showFewer": "Tampilkan lebih sedikit",
   "sessions.sidebar.session.menu.more": "Lainnya",
   "chat.commandAutocomplete.badge.snippet": "Cuplikan",
   "chat.commandAutocomplete.badge.magicPrompt": "Prompt ajaib"

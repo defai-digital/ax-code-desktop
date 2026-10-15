@@ -4451,6 +4451,8 @@
   "projects.home.needsYou.question": "Đang chờ câu trả lời",
   "projects.home.needsYou.uncommitted": "Thay đổi chưa commit",
   "projects.home.needsYou.error": "Lỗi phiên",
+  "projects.home.needsYou.showAll": "Hiện tất cả ({count})",
+  "projects.home.needsYou.showFewer": "Ẩn bớt",
   "sessions.sidebar.session.menu.more": "Thêm",
   "chat.commandAutocomplete.badge.snippet": "Đoạn mã",
   "chat.commandAutocomplete.badge.magicPrompt": "Lời nhắc phép thuật"

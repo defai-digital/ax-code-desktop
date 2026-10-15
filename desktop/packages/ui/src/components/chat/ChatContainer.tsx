@@ -12,6 +12,7 @@ import { useUIStore } from "@/stores/useUIStore"
 import { Skeleton } from "@/components/ui/skeleton"
 import ChatEmptyState from "./ChatEmptyState"
 import { ProjectsHome } from "@/components/projects/ProjectsHome"
+import { NeedsYouQueue } from "@/components/projects/NeedsYouQueue"
 import { useGlobalSyncStore } from "@/sync/global-sync-store"
 import MessageList, { type MessageListHandle } from "./MessageList"
 import { PermissionCard } from "./PermissionCard"
@@ -563,7 +564,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
   const initError = useGlobalSyncStore((s) => s.error)
   const isDesktopExpandedInput = isExpandedInput && !isMobile
   const useCompactDraftLayout = isMobile || chatSurfaceMode === "mini-chat"
-  const showDraftProjects = !useCompactDraftLayout && !isDesktopExpandedInput && draftProjectCount > 0
+  // Desktop draft home: top-anchored, one scroll container, composer first.
+  const showDraftHome = !useCompactDraftLayout && !isDesktopExpandedInput
+  const showDraftProjects = showDraftHome && draftProjectCount > 0
   const setNewSessionDraftTarget = useSessionUIStore((state) => state.setNewSessionDraftTarget)
   // Picking a project row retargets the open draft instead of leaving the composer.
   const switchDraftToProject = React.useCallback(
@@ -912,20 +915,29 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
               ? "flex-1 bg-background"
               : useCompactDraftLayout
                 ? "bg-background px-0"
-                : "flex-1 items-center justify-center bg-background px-0 pb-[6vh]",
+                : "flex-1 overflow-y-auto bg-background px-0 pb-10 pt-[8vh]",
           )}
         >
-          {showDraftProjects ? (
-            <div className="flex min-h-0 w-full flex-col items-center">
+          {showDraftHome ? (
+            // Order is the reading and Tab order: composer, sessions that need a person, starters,
+            // then the portfolio. The queue sits below the composer so arriving requests never move it.
+            <div data-draft-home className="flex w-full flex-col items-center">
               {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
-              {/* The portfolio lives under the composer: every project with its live activity. */}
-              <div className="chat-input-column mt-6 max-h-[32vh] overflow-y-auto">
-                <ProjectsHome
-                  variant="draft"
-                  onOpenProject={switchDraftToProject}
-                  onNewSession={switchDraftToProject}
-                />
-              </div>
+              <NeedsYouQueue className="chat-input-column mt-1" />
+              <DraftPresetChips
+                layout="grid"
+                onSubmit={(text) => useInputStore.getState().requestPresetSubmit(text)}
+                className="chat-input-column mt-5"
+              />
+              {showDraftProjects ? (
+                <div className="chat-input-column mt-8">
+                  <ProjectsHome
+                    variant="draft"
+                    onOpenProject={switchDraftToProject}
+                    onNewSession={switchDraftToProject}
+                  />
+                </div>
+              ) : null}
             </div>
           ) : promptReadOnly ? (
             <ReadOnlyPromptBanner />

@@ -4451,6 +4451,8 @@
   "projects.home.needsYou.question": "En attente d'une réponse",
   "projects.home.needsYou.uncommitted": "Modifications non validées",
   "projects.home.needsYou.error": "Erreur de session",
+  "projects.home.needsYou.showAll": "Tout afficher ({count})",
+  "projects.home.needsYou.showFewer": "Afficher moins",
   "sessions.sidebar.session.menu.more": "Plus d'actions",
   "chat.commandAutocomplete.badge.snippet": "Extrait",
   "chat.commandAutocomplete.badge.magicPrompt": "Invite magique"

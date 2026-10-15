@@ -4,6 +4,9 @@
  * deriveProjectActivity only marks pending approvals as attention.
  */
 
+/** Rows a needs-you list shows before "Show all": enough to act on, not enough to bury the page. */
+export const NEEDS_YOU_VISIBLE_ROWS = 3
+
 export type NeedsYouReason = "permission" | "question" | "uncommitted" | "error"
 
 export interface NeedsYouSessionInput {
@@ -50,6 +53,27 @@ export function listNeedsYouSessions(sessions: readonly NeedsYouSessionInput[]):
     })
   }
   return entries
+}
+
+const NEEDS_YOU_URGENCY: Record<NeedsYouReason, number> = {
+  permission: 0,
+  question: 0,
+  error: 1,
+  uncommitted: 2,
+}
+
+/**
+ * Most urgent first: a session blocked on a permission or a question, then an error, then finished
+ * work that is not committed. Order inside each tier is preserved.
+ */
+export function rankNeedsYouEntries(entries: readonly NeedsYouEntry[]): NeedsYouEntry[] {
+  return entries
+    .map((entry, index) => ({ entry, index }))
+    .sort(
+      (left, right) =>
+        NEEDS_YOU_URGENCY[left.entry.reason] - NEEDS_YOU_URGENCY[right.entry.reason] || left.index - right.index,
+    )
+    .map(({ entry }) => entry)
 }
 
 /** Choosing a needs-you row selects that session. */

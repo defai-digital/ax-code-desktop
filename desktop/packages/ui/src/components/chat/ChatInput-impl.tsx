@@ -70,7 +70,6 @@ import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { GitHubIssuePickerDialog } from "@/components/session/GitHubIssuePickerDialog"
 import { GitHubPrPickerDialog } from "@/components/session/GitHubPrPickerDialog"
 import { Icon } from "@/components/icon/Icon"
-import { DraftPresetChips } from "./DraftPresetChips"
 import { useProjectKnowledge, projectKnowledgeFileLabel } from "@/hooks/useProjectKnowledge"
 import { isLegacyWorkSession, WORK_SESSION_SEND_DISABLED } from "@/lib/workSession"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
@@ -229,20 +228,6 @@ const getProjectDisplayLabel = (project: { label?: string; path: string }): stri
     return label
   }
   return formatDirectoryName(project.path)
-}
-
-const renderDraftTitle = (title: string, projectLabel: string | null): React.ReactNode => {
-  if (!projectLabel) return title
-  const projectIndex = title.indexOf(projectLabel)
-  if (projectIndex === -1) return title
-
-  return (
-    <>
-      {title.slice(0, projectIndex)}
-      <span className="font-medium">{projectLabel}</span>
-      {title.slice(projectIndex + projectLabel.length)}
-    </>
-  )
 }
 
 const getProjectIconColor = (projectColor?: string | null): string | undefined => {
@@ -3234,7 +3219,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     () => normalizePath(selectedDraftProject?.path ?? null),
     [selectedDraftProject?.path],
   )
-  const draftProjectLabel = selectedDraftProject ? getProjectDisplayLabel(selectedDraftProject) : null
 
   const selectedDraftProjectBranches = useGitBranches(selectedDraftProjectPath)
   const selectedDraftProjectIsGitRepo = useIsGitRepo(selectedDraftProjectPath)
@@ -3663,17 +3647,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           </div>
         ) : null}
         {newSessionDraftOpen && !isDesktopExpanded && !isMobile && !isMiniChatSurface ? (
-          <div className="chat-input-column mb-7 text-center">
-            <h1 className="text-balance text-2xl font-normal tracking-tight text-foreground md:text-3xl">
-              {renderDraftTitle(
-                draftProjectLabel
-                  ? t("chat.emptyState.draftTitleWithProject", { project: draftProjectLabel })
-                  : t("chat.emptyState.draftTitle"),
-                draftProjectLabel,
-              )}
+          // Left-aligned header row: the question on the left, project knowledge on the right.
+          <div data-draft-header className="chat-input-column mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <h1 className="min-w-0 text-balance text-xl font-medium tracking-tight text-foreground">
+              {/* The project is named by the picker right above the composer, so the title stays short. */}
+              {t("sessions.sidebar.header.actions.newSession")}
             </h1>
             {!projectKnowledge.isLoading && (
-              <div className="mt-3 flex items-center justify-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 {projectKnowledge.exists ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 typography-micro text-emerald-600 dark:text-emerald-400">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -4321,9 +4302,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             </div>
           </div>
         </div>
-        {newSessionDraftOpen && !isDesktopExpanded && !isMobile && !isMiniChatSurface ? (
-          <DraftPresetChips onSubmit={submitPresetPrompt} className="chat-input-column mt-4" />
-        ) : null}
       </form>
 
       {/* Issue Picker Dialog */}

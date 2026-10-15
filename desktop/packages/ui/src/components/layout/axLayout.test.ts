@@ -60,4 +60,28 @@ describe("AX Code layout", () => {
     // The dot still reports agent access.
     expect(button).toMatch(/<WebMcpStatusDot tone=\{summary\.tone\}/)
   })
+
+  test("the desktop draft home is top-anchored: composer, needs-you, starters, then projects", () => {
+    const container = source("chat/ChatContainer.tsx")
+    expect(container).toContain('"flex-1 overflow-y-auto bg-background px-0 pb-10 pt-[8vh]"')
+    expect(container).not.toContain("pb-[6vh]")
+    expect(container).toMatch(
+      /data-draft-home[\s\S]*?<ChatInput[\s\S]*?<NeedsYouQueue[\s\S]*?<DraftPresetChips\s+layout="grid"[\s\S]*?<ProjectsHome/,
+    )
+    // One scroll container: the project list no longer scrolls on its own.
+    expect(container).not.toContain("max-h-[32vh] overflow-y-auto")
+
+    const input = source("chat/ChatInput-impl.tsx")
+    expect(input).toMatch(/data-draft-header[\s\S]*?t\("sessions\.sidebar\.header\.actions\.newSession"\)/)
+    expect(input).not.toContain("<DraftPresetChips")
+  })
+
+  test("the needs-you queue is its own bounded, ranked section", () => {
+    const queue = source("projects/NeedsYouQueue.tsx")
+    expect(queue).toContain("rankNeedsYouEntries(listNeedsYouSessions(inputs))")
+    expect(queue).toContain("queue.slice(0, NEEDS_YOU_VISIBLE_ROWS)")
+    expect(queue).toContain("useEnsureDirectoriesGitStatus(directories)")
+    const home = source("projects/ProjectsHome.tsx")
+    expect(home.indexOf("<NeedsYouQueue")).toBeLessThan(home.indexOf('t("projects.home.title")'))
+  })
 })

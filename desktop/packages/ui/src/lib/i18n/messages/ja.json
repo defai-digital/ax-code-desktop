@@ -4451,6 +4451,8 @@
   "projects.home.needsYou.question": "回答待ち",
   "projects.home.needsYou.uncommitted": "未コミットの変更",
   "projects.home.needsYou.error": "セッションエラー",
+  "projects.home.needsYou.showAll": "すべて表示 ({count})",
+  "projects.home.needsYou.showFewer": "表示を減らす",
   "sessions.sidebar.session.menu.more": "その他",
   "chat.commandAutocomplete.badge.snippet": "スニペット",
   "chat.commandAutocomplete.badge.magicPrompt": "マジックプロンプト"

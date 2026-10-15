@@ -4451,6 +4451,8 @@
   "projects.home.needsYou.question": "Ожидает ответа",
   "projects.home.needsYou.uncommitted": "Незафиксированные изменения",
   "projects.home.needsYou.error": "Ошибка сессии",
+  "projects.home.needsYou.showAll": "Показать все ({count})",
+  "projects.home.needsYou.showFewer": "Показать меньше",
   "sessions.sidebar.session.menu.more": "Ещё",
   "chat.commandAutocomplete.badge.snippet": "Фрагмент",
   "chat.commandAutocomplete.badge.magicPrompt": "Волшебный запрос"

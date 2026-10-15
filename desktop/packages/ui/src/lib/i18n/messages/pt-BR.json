@@ -4451,6 +4451,8 @@
   "projects.home.needsYou.question": "Aguardando uma resposta",
   "projects.home.needsYou.uncommitted": "Alterações não commitadas",
   "projects.home.needsYou.error": "Erro da sessão",
+  "projects.home.needsYou.showAll": "Mostrar tudo ({count})",
+  "projects.home.needsYou.showFewer": "Mostrar menos",
   "sessions.sidebar.session.menu.more": "Mais",
   "chat.commandAutocomplete.badge.snippet": "Trecho",
   "chat.commandAutocomplete.badge.magicPrompt": "Prompt mágico"

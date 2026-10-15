@@ -52,6 +52,11 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The desktop new-session home is top-anchored instead of a centered hero: a short "New session"
+  title with the AGENTS.md status on the same row, the composer, then sessions that need a person
+  (ranked: blocked on a permission or question, then errors, then uncommitted work; three rows
+  with "Show all"), starters as a two-column grid that follows the column width, and the project
+  list, all in one scroll container. The projects home shows the same queue as its own section.
 - Long-run is the third choice in the execution mode menu, after Manual and Auto and a separator,
   instead of the only item in a "More" menu; the "More" button is gone. Manual uses a raised hand
   and pending permissions a warning shield, so neither shares a glyph.

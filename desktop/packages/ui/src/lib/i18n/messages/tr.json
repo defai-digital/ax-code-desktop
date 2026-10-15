@@ -4451,6 +4451,8 @@
   "projects.home.needsYou.question": "Yanıt bekliyor",
   "projects.home.needsYou.uncommitted": "İşlenmemiş değişiklikler",
   "projects.home.needsYou.error": "Oturum hatası",
+  "projects.home.needsYou.showAll": "Tümünü göster ({count})",
+  "projects.home.needsYou.showFewer": "Daha az göster",
   "sessions.sidebar.session.menu.more": "Daha fazla",
   "chat.commandAutocomplete.badge.snippet": "Parça",
   "chat.commandAutocomplete.badge.magicPrompt": "Sihirli istem"

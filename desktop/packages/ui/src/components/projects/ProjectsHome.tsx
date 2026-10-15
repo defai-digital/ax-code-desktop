@@ -4,7 +4,6 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useI18n } from "@/lib/i18n"
-import type { I18nContextValue } from "@/lib/i18n/react-context"
 import { Icon } from "@/components/icon/Icon"
 import { Button } from "@/components/ui/button"
 import { cn, formatPathForDisplay } from "@/lib/utils"
@@ -12,12 +11,8 @@ import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/l
 import { sortProjectsForDisplay } from "@/lib/projectOrdering"
 import { formatProjectLastUsed } from "@/lib/projectLastUsed"
 import { deriveProjectActivity, type ProjectActivity } from "@/lib/projectStatus"
-import {
-  attentionSessionForProject,
-  listNeedsYouSessions,
-  selectNeedsYouSession,
-  type NeedsYouReason,
-} from "@/lib/needsYou"
+import { attentionSessionForProject } from "@/lib/needsYou"
+import { NeedsYouQueue } from "@/components/projects/NeedsYouQueue"
 import { useEnsureDirectoriesGitStatus, useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
 import { openProjectFolder } from "@/lib/projectOpen"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
@@ -42,19 +37,6 @@ type ProjectsHomeProps = {
 }
 
 const IDLE: ProjectActivity = { tone: "idle", activeSessions: 0, busySessions: 0, pendingApprovals: 0 }
-
-function needsYouReasonLabel(reason: NeedsYouReason, t: I18nContextValue["t"]): string {
-  switch (reason) {
-    case "permission":
-      return t("projects.home.needsYou.permission")
-    case "question":
-      return t("projects.home.needsYou.question")
-    case "uncommitted":
-      return t("projects.home.needsYou.uncommitted")
-    case "error":
-      return t("projects.home.needsYou.error")
-  }
-}
 
 /** Live per-project activity, derived from the sessions the runtime reports. */
 function useProjectActivity(projects: ProjectEntry[]): Map<string, ProjectActivity> {
@@ -129,7 +111,6 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
   const setActiveMainTab = useUIStore((state) => state.setActiveMainTab)
   const setCurrentSession = useSessionUIStore((state) => state.setCurrentSession)
   const needsYouInputs = useNeedsYouSessionInputs()
-  const needsYouQueue = variant === "home" ? listNeedsYouSessions(needsYouInputs) : []
   const gitStatusDirectories = React.useMemo(() => {
     if (variant !== "home") return []
     const directories = new Set<string>()
@@ -143,15 +124,13 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
 
   const openNeedsYouSession = React.useCallback(
     (sessionId: string) => {
-      const selectedId = selectNeedsYouSession(sessionId)
-      const session = needsYouInputs.find((item) => item.id === selectedId)
+      const session = needsYouInputs.find((item) => item.id === sessionId)
       if (session?.projectId) setActiveProject(session.projectId)
       setActiveMainTab("chat")
-      setCurrentSession(selectedId, session?.directory ?? null)
+      setCurrentSession(sessionId, session?.directory ?? null)
     },
     [needsYouInputs, setActiveMainTab, setActiveProject, setCurrentSession],
   )
-
   const handleOpenFolder = React.useCallback(() => {
     void openProjectFolder({ t })
   }, [t])
@@ -270,6 +249,8 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
 
   return (
     <div className={cn("flex w-full flex-col", compact ? "gap-2" : "gap-3", className)}>
+      {/* Sessions waiting on a person lead the home, as their own section above Projects. */}
+      {variant === "home" && !compact ? <NeedsYouQueue className="mb-2" /> : null}
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <h2 className={cn("font-medium text-foreground", compact ? "typography-ui-label" : "typography-ui-header")}>
@@ -319,27 +300,6 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
           {openFolderButton("sm")}
         </div>
       </div>
-
-      {needsYouQueue.length > 0 ? (
-        <div className={cn("flex w-full flex-col", compact ? "gap-1" : "mb-2 gap-0.5")} data-needs-you-list>
-          <div className="px-2 py-1 typography-micro font-medium text-muted-foreground">
-            {t("projects.home.needsYou.title")}
-          </div>
-          {needsYouQueue.map((entry) => (
-            <button
-              key={entry.sessionId}
-              type="button"
-              className="surface-inset-row flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-interactive-hover"
-              onClick={() => openNeedsYouSession(entry.sessionId)}
-            >
-              <span className="min-w-0 flex-1 truncate typography-ui-label">{entry.title}</span>
-              <span className="shrink-0 typography-micro text-[var(--status-warning)]">
-                {needsYouReasonLabel(entry.reason, t)}
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : null}
 
       <div
         ref={listRef}

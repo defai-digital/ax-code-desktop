@@ -4451,6 +4451,8 @@
   "projects.home.needsYou.question": "Wartet auf eine Antwort",
   "projects.home.needsYou.uncommitted": "Nicht übernommene Änderungen",
   "projects.home.needsYou.error": "Sitzungsfehler",
+  "projects.home.needsYou.showAll": "Alle anzeigen ({count})",
+  "projects.home.needsYou.showFewer": "Weniger anzeigen",
   "sessions.sidebar.session.menu.more": "Mehr",
   "chat.commandAutocomplete.badge.snippet": "Textbaustein",
   "chat.commandAutocomplete.badge.magicPrompt": "Magische Eingabe"

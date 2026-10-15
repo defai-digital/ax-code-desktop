@@ -8,6 +8,7 @@ const sourcePath = (relativePath: string) =>
 
 import {
   attentionSessionForProject,
+  rankNeedsYouEntries,
   listNeedsYouSessions,
   orderSwitcherSessionIds,
   selectNeedsYouSession,
@@ -65,10 +66,31 @@ describe("needs-you queue", () => {
 
   test("projects home and the switcher call the shipped ordering", () => {
     const home = readFileSync(sourcePath("../components/projects/ProjectsHome.tsx"), "utf8")
+    const queue = readFileSync(sourcePath("../components/projects/NeedsYouQueue.tsx"), "utf8")
     const switcher = readFileSync(sourcePath("../components/session/sidebar/hooks/useSwitcherItems.ts"), "utf8")
-    expect(home).toContain("listNeedsYouSessions")
-    expect(home).toContain("selectNeedsYouSession")
+    expect(home).toContain("<NeedsYouQueue")
+    expect(queue).toContain("listNeedsYouSessions")
+    expect(queue).toContain("rankNeedsYouEntries")
+    expect(queue).toContain("selectNeedsYouSession")
     expect(home).toContain("attentionSessionForProject")
     expect(switcher).toContain("orderSwitcherSessionIds")
+  })
+
+  test("ranks blocked sessions before errors before uncommitted work, keeping order within a tier", () => {
+    const entry = (sessionId: string, reason: "permission" | "question" | "uncommitted" | "error") => ({
+      sessionId,
+      projectId: null,
+      reason,
+      directory: null,
+      title: sessionId,
+    })
+    const ranked = rankNeedsYouEntries([
+      entry("a", "uncommitted"),
+      entry("b", "error"),
+      entry("c", "question"),
+      entry("d", "uncommitted"),
+      entry("e", "permission"),
+    ])
+    expect(ranked.map((item) => item.sessionId)).toEqual(["c", "e", "b", "a", "d"])
   })
 })

@@ -29,7 +29,14 @@ type DraftPresetChipsProps = {
   onSubmit: (text: string) => void
   /** Extra classes for the wrapper (e.g. width/spacing per surface). */
   className?: string
+  /**
+   * "pills" wraps centered chips (compact surfaces); "grid" lays starters out as left-aligned rows in
+   * two columns, the desktop home layout.
+   */
+  layout?: StarterLayout
 }
+
+type StarterLayout = "pills" | "grid"
 
 const PICKER_SECTIONS: {
   key: PinnableSection
@@ -45,9 +52,10 @@ const PICKER_SECTIONS: {
 
 const SortableChip: React.FC<{
   item: ResolvedStarter
+  layout: StarterLayout
   onSubmit: (text: string) => void
   onRemove: () => void
-}> = ({ item, onSubmit, onRemove }) => {
+}> = ({ item, layout, onSubmit, onRemove }) => {
   const { t } = useI18n()
   const { currentTheme } = useThemeSystem()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
@@ -62,18 +70,33 @@ const SortableChip: React.FC<{
       // Translate only (no scaleX/scaleY) so the lifted chip keeps its own
       // width instead of stretching to the target slot.
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn("group/chip relative", isDragging && "z-10 opacity-60")}
+      className={cn("group/chip relative", layout === "grid" && "min-w-0", isDragging && "z-10 opacity-60")}
     >
       <button
         type="button"
         {...attributes}
         {...listeners}
         onClick={() => onSubmit(item.submitText)}
-        className="group inline-flex touch-none select-none items-center gap-1.5 rounded-full border px-3 py-1.5 typography-ui-label text-muted-foreground transition-colors hover:bg-[var(--interactive-hover)] hover:text-foreground"
+        data-starter-layout={layout}
+        title={layout === "grid" ? item.label : undefined}
+        className={cn(
+          "group touch-none select-none items-center border typography-ui-label text-muted-foreground transition-colors hover:bg-[var(--interactive-hover)] hover:text-foreground",
+          layout === "grid"
+            ? "flex w-full min-w-0 gap-2 rounded-lg px-3 py-2 text-left"
+            : "inline-flex gap-1.5 rounded-full px-3 py-1.5",
+        )}
         style={chipStyle}
       >
-        <Icon name={item.icon} className="h-3.5 w-3.5 shrink-0 opacity-70 transition-opacity group-hover:opacity-100" />
-        <span className="whitespace-nowrap">{item.label}</span>
+        <Icon
+          name={item.icon}
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 transition-opacity group-hover:opacity-100",
+            layout === "grid" ? "text-primary opacity-90" : "opacity-70",
+          )}
+        />
+        <span className={layout === "grid" ? "min-w-0 line-clamp-2 break-words" : "whitespace-nowrap"}>
+          {item.label}
+        </span>
       </button>
       <button
         type="button"
@@ -83,7 +106,7 @@ const SortableChip: React.FC<{
         }}
         aria-label={t("chat.draftStarters.remove")}
         title={t("chat.draftStarters.remove")}
-        className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 items-center justify-center rounded-full border text-muted-foreground shadow-sm hover:text-foreground group-hover/chip:flex"
+        className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 items-center justify-center rounded-full border text-muted-foreground shadow-sm hover:text-foreground group-hover/chip:flex group-focus-within/chip:flex"
         style={chipStyle}
       >
         <Icon name="close" className="h-2.5 w-2.5" />
@@ -94,11 +117,12 @@ const SortableChip: React.FC<{
 
 const StarterGroupRow: React.FC<{
   group: StarterGroup
+  layout: StarterLayout
   items: ResolvedStarter[]
   onSubmit: (text: string) => void
   onRemove: (group: StarterGroup, ref: ResolvedStarter["ref"]) => void
   onReorder: (group: StarterGroup, fromId: string, toId: string) => void
-}> = ({ group, items, onSubmit, onRemove, onReorder }) => {
+}> = ({ group, layout, items, onSubmit, onRemove, onReorder }) => {
   const sensors = useSensors(
     // Desktop: start dragging after a small move so a click still submits.
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -115,7 +139,13 @@ const StarterGroupRow: React.FC<{
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
         {items.map((item) => (
-          <SortableChip key={item.id} item={item} onSubmit={onSubmit} onRemove={() => onRemove(group, item.ref)} />
+          <SortableChip
+            key={item.id}
+            item={item}
+            layout={layout}
+            onSubmit={onSubmit}
+            onRemove={() => onRemove(group, item.ref)}
+          />
         ))}
       </SortableContext>
     </DndContext>
@@ -157,10 +187,11 @@ const StarterPickerList: React.FC<{
 }
 
 const AddStarterPicker: React.FC<{
+  layout: StarterLayout
   pinnable: PinnableItem[]
   onOpen: () => void
   onAdd: (item: PinnableItem) => void
-}> = ({ pinnable, onOpen, onAdd }) => {
+}> = ({ layout, pinnable, onOpen, onAdd }) => {
   const { t } = useI18n()
   const { currentTheme } = useThemeSystem()
   const [open, setOpen] = React.useState(false)
@@ -178,13 +209,19 @@ const AddStarterPicker: React.FC<{
           type="button"
           aria-label={t("chat.draftStarters.add")}
           title={t("chat.draftStarters.add")}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-[var(--interactive-hover)] hover:text-foreground"
+          className={cn(
+            "items-center border text-muted-foreground transition-colors hover:bg-[var(--interactive-hover)] hover:text-foreground",
+            layout === "grid"
+              ? "flex w-full gap-2 rounded-lg border-dashed px-3 py-2 text-left typography-ui-label"
+              : "inline-flex h-7 w-7 justify-center rounded-full",
+          )}
           style={{
-            backgroundColor: currentTheme?.colors?.surface?.elevated,
+            backgroundColor: layout === "grid" ? undefined : currentTheme?.colors?.surface?.elevated,
             borderColor: currentTheme?.colors?.interactive?.border,
           }}
         >
-          <Icon name="add" className="h-4 w-4" />
+          <Icon name="add" className={layout === "grid" ? "h-3.5 w-3.5 shrink-0" : "h-4 w-4"} />
+          {layout === "grid" ? <span className="truncate">{t("chat.draftStarters.add")}</span> : null}
         </button>
       </DialogTrigger>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-sm">
@@ -210,35 +247,73 @@ const AddStarterPicker: React.FC<{
  * "+" picker to pin existing commands/skills. The surface owns how a chip click
  * is submitted via `onSubmit`.
  */
-export const DraftPresetChips: React.FC<DraftPresetChipsProps> = ({ onSubmit, className }) => {
+export const DraftPresetChips: React.FC<DraftPresetChipsProps> = ({ onSubmit, className, layout = "pills" }) => {
   const { t } = useI18n()
   const { global, project, pinnable, ensureLoaded, addStarter, removeStarter, reorder } = useDraftStarters()
   const hasChips = global.length > 0 || project.length > 0
 
+  const globalRow =
+    global.length > 0 ? (
+      <StarterGroupRow
+        group="global"
+        layout={layout}
+        items={global}
+        onSubmit={onSubmit}
+        onRemove={removeStarter}
+        onReorder={reorder}
+      />
+    ) : null
+  const projectRow =
+    project.length > 0 ? (
+      <StarterGroupRow
+        group="project"
+        layout={layout}
+        items={project}
+        onSubmit={onSubmit}
+        onRemove={removeStarter}
+        onReorder={reorder}
+      />
+    ) : null
+  const pinHint = !hasChips ? (
+    <span className={cn("typography-micro text-muted-foreground select-none", layout === "grid" && "self-center px-1")}>
+      {t("chat.draftStarters.pinHint")}
+    </span>
+  ) : null
+  const addPicker = <AddStarterPicker layout={layout} pinnable={pinnable} onOpen={ensureLoaded} onAdd={addStarter} />
+
+  if (layout === "grid") {
+    // Global and project starters reorder only within their own group, so each group is its own
+    // grid. Columns follow the width of this column, not the window, so side panels collapse it.
+    const gridClass = "grid grid-cols-1 gap-1.5 @md:grid-cols-2"
+    return (
+      <div data-starter-grid className={cn("@container flex flex-col gap-1.5", className)}>
+        {globalRow ? (
+          <div data-starter-group="global" className={gridClass}>
+            {globalRow}
+          </div>
+        ) : null}
+        {projectRow ? (
+          <div
+            data-starter-group="project"
+            className={cn(gridClass, globalRow && "border-t border-[var(--interactive-border)] pt-1.5")}
+          >
+            {projectRow}
+          </div>
+        ) : null}
+        <div className={gridClass}>
+          {addPicker}
+          {pinHint}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={cn("flex flex-wrap items-center justify-center gap-2", className)}>
-      {global.length > 0 ? (
-        <StarterGroupRow
-          group="global"
-          items={global}
-          onSubmit={onSubmit}
-          onRemove={removeStarter}
-          onReorder={reorder}
-        />
-      ) : null}
-      {project.length > 0 ? (
-        <StarterGroupRow
-          group="project"
-          items={project}
-          onSubmit={onSubmit}
-          onRemove={removeStarter}
-          onReorder={reorder}
-        />
-      ) : null}
-      {!hasChips && (
-        <span className="typography-micro text-muted-foreground select-none">{t("chat.draftStarters.pinHint")}</span>
-      )}
-      <AddStarterPicker pinnable={pinnable} onOpen={ensureLoaded} onAdd={addStarter} />
+      {globalRow}
+      {projectRow}
+      {pinHint}
+      {addPicker}
     </div>
   )
 }

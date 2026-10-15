@@ -4451,6 +4451,8 @@
   "projects.home.needsYou.question": "等待回答",
   "projects.home.needsYou.uncommitted": "尚未提交的变更",
   "projects.home.needsYou.error": "会话错误",
+  "projects.home.needsYou.showAll": "显示全部（{count}）",
+  "projects.home.needsYou.showFewer": "收起",
   "sessions.sidebar.session.menu.more": "更多",
   "chat.commandAutocomplete.badge.snippet": "片段",
   "chat.commandAutocomplete.badge.magicPrompt": "魔法提示"
