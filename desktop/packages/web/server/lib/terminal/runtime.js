@@ -111,6 +111,7 @@ export function createTerminalRuntime({
   TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS,
   TERMINAL_INPUT_WS_REBIND_WINDOW_MS,
   TERMINAL_INPUT_WS_MAX_REBINDS_PER_WINDOW,
+  MAX_TERMINAL_SESSIONS: MAX_TERMINAL_SESSIONS_OVERRIDE,
 }) {
   let ptyProviderPromise = null
   const getPtyProvider = async () => {
@@ -258,7 +259,10 @@ export function createTerminalRuntime({
 
   const terminalSessions = new Map()
   const terminalWsConnections = new Set()
-  const MAX_TERMINAL_SESSIONS = 20
+  const MAX_TERMINAL_SESSIONS =
+    Number.isInteger(MAX_TERMINAL_SESSIONS_OVERRIDE) && MAX_TERMINAL_SESSIONS_OVERRIDE > 0
+      ? MAX_TERMINAL_SESSIONS_OVERRIDE
+      : 20
   const TERMINAL_IDLE_TIMEOUT = 30 * 60 * 1000
   const terminalRuntimeName = "node"
   const resolveAllowedCwd = async (req, cwd) => {
@@ -906,6 +910,11 @@ export function createTerminalRuntime({
       // Kill the existing session only after the new cwd validates — a rejected
       // restart must not leave the client holding a dead session id.
       const existingSession = terminalSessions.get(sessionId)
+      // A restart of a stale id (already reaped by onExit/idle sweep) creates a
+      // brand-new session, so it must respect the same cap as create.
+      if (!existingSession && terminalSessions.size >= MAX_TERMINAL_SESSIONS) {
+        return res.status(429).json({ error: "Maximum terminal sessions reached" })
+      }
       if (existingSession) {
         try {
           killTerminalProcess(existingSession.ptyProcess, "term")

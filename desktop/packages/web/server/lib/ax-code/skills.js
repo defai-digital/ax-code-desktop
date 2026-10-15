@@ -509,10 +509,21 @@ function updateSkill(skillName, updates, workingDirectory, targetPath = null) {
   ensureDirs()
 
   const requestedPath = typeof targetPath === "string" && targetPath.trim() ? path.resolve(targetPath.trim()) : null
-  const existing =
-    requestedPath && fs.existsSync(requestedPath)
-      ? { scope: null, path: requestedPath, source: null }
-      : getSkillScope(skillName, workingDirectory)
+  let existing
+  if (requestedPath && fs.existsSync(requestedPath)) {
+    // The client-supplied path only disambiguates between skills the server
+    // itself discovered for this directory (including .claude/.agents mirrors);
+    // anything else would let this route rewrite an arbitrary SKILL.md on disk.
+    const discovered = discoverSkills(workingDirectory).find(
+      (skill) => skill.name === skillName && skill.path && path.resolve(skill.path) === requestedPath,
+    )
+    if (!discovered) {
+      throw new Error(`Skill "${skillName}" target path is outside the known skill directories`)
+    }
+    existing = { scope: discovered.scope || null, path: requestedPath, source: discovered.source || null }
+  } else {
+    existing = getSkillScope(skillName, workingDirectory)
+  }
   if (!existing.path) {
     throw new Error(`Skill "${skillName}" not found`)
   }

@@ -1,6 +1,28 @@
 import { createAxCodeClient } from "@defai-digital/ax-code-sdk/v2"
 import { readSkillFilePathParam } from "./skills.js"
 
+// Skill mutations answer with real statuses: a missing record, a name conflict,
+// or a rejected target is a client error, not a 500.
+const respondSkillError = (res, error, fallback) => {
+  const message = error?.message || fallback
+  if (message.includes("not found")) {
+    return res.status(404).json({ error: message })
+  }
+  if (message.includes("already exists")) {
+    return res.status(409).json({ error: message })
+  }
+  if (
+    message.includes("is required") ||
+    message.startsWith("Invalid ") ||
+    message.includes("must be") ||
+    message.includes("does not match") ||
+    message.includes("outside the known skill directories")
+  ) {
+    return res.status(400).json({ error: message })
+  }
+  return res.status(500).json({ error: message })
+}
+
 export const registerSkillRoutes = (app, dependencies) => {
   const {
     fs,
@@ -596,7 +618,7 @@ export const registerSkillRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("Failed to create skill:", error)
-      res.status(500).json({ error: error.message || "Failed to create skill" })
+      return respondSkillError(res, error, "Failed to create skill")
     }
   })
 
@@ -622,7 +644,7 @@ export const registerSkillRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("[Server] Failed to update skill:", error)
-      res.status(500).json({ error: error.message || "Failed to update skill" })
+      return respondSkillError(res, error, "Failed to update skill")
     }
   })
 
@@ -714,7 +736,7 @@ export const registerSkillRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("Failed to delete skill:", error)
-      res.status(500).json({ error: error.message || "Failed to delete skill" })
+      return respondSkillError(res, error, "Failed to delete skill")
     }
   })
 }

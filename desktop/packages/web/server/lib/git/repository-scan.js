@@ -21,7 +21,9 @@ const hasGitEntry = async (fsPromises, path, directory) => {
 
 const isWithin = (path, candidate, ceiling) => {
   const relative = path.relative(ceiling, candidate)
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))
+  // Only ".." itself or a leading "../" leaves the ceiling: a path component
+  // whose *name* starts with ".." ("..data/repo") is still inside it.
+  return !(relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))
 }
 
 export async function findGitRoot({ directory, ceiling, fsPromises, path }) {

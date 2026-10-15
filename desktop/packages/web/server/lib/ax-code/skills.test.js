@@ -2,9 +2,38 @@ import { describe, expect, it } from "vitest"
 import fsPromises from "fs/promises"
 import os from "os"
 import path from "path"
-import { getSkillScope, getSkillSources, mergeDiscoveredSkills, readSkillFilePathParam } from "./skills.js"
+import { getSkillScope, getSkillSources, mergeDiscoveredSkills, readSkillFilePathParam, updateSkill } from "./skills.js"
 
 describe("skills", () => {
+  it("refuses a client-supplied targetPath outside the discovered skills", async () => {
+    const projectRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-project-"))
+    const outsideRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-outside-"))
+    const skillName = "ax-coder-confinement-test-skill"
+    const body = (text) => ["---", `name: ${skillName}`, "---", "", text, ""].join("\n")
+
+    try {
+      const insidePath = path.join(projectRoot, ".ax-code", "skills", skillName, "SKILL.md")
+      const outsidePath = path.join(outsideRoot, "skills", skillName, "SKILL.md")
+      for (const target of [insidePath, outsidePath]) {
+        await fsPromises.mkdir(path.dirname(target), { recursive: true })
+        await fsPromises.writeFile(target, body("Original."), "utf8")
+      }
+
+      // A path the server never discovered is rejected and left untouched.
+      expect(() => updateSkill(skillName, { instructions: "Tampered." }, projectRoot, outsidePath)).toThrow(
+        /outside the known skill directories/,
+      )
+      expect(await fsPromises.readFile(outsidePath, "utf8")).toContain("Original.")
+
+      // The discovered in-project path remains editable through targetPath.
+      updateSkill(skillName, { instructions: "Updated." }, projectRoot, insidePath)
+      expect(await fsPromises.readFile(insidePath, "utf8")).toContain("Updated.")
+    } finally {
+      await fsPromises.rm(projectRoot, { recursive: true, force: true })
+      await fsPromises.rm(outsideRoot, { recursive: true, force: true })
+    }
+  })
+
   it("rebuilds a supporting-file path from the Express wildcard segments", () => {
     expect(readSkillFilePathParam(["references", "guide.md"])).toBe("references/guide.md")
     expect(readSkillFilePathParam(["references/guide.md"])).toBe("references/guide.md")

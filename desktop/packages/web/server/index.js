@@ -1192,8 +1192,11 @@ async function main(options = {}) {
   // gracefulShutdown a no-op and blocked every runtime start, the watcher
   // promise stayed settled so the notification stream never resumed, the
   // session runtime's cleanup timer was gone, and the previous preview proxy
-  // kept its sweep interval alive.
+  // kept its sweep interval alive. The reset must reach the HMR state too:
+  // gracefulShutdown published `true` there, and the lifecycle bootstrap's
+  // syncFromHmrState() would otherwise copy it straight back.
   isShuttingDown = false
+  hmrState.isShuttingDown = false
   globalWatcherStartPromise = null
   sessionRuntime.resume()
   if (previewProxyRuntime) {

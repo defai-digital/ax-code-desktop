@@ -26,6 +26,27 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
     expandSnippets,
   } = dependencies
 
+  // Entity mutations answer with real statuses like the snippet routes do:
+  // a missing record, a name conflict, or a bad name is a client error, not a 500.
+  const respondEntityError = (res, error, fallback) => {
+    const message = error?.message || fallback
+    if (message.includes("not found")) {
+      return res.status(404).json({ error: message })
+    }
+    if (message.includes("already exists")) {
+      return res.status(409).json({ error: message })
+    }
+    if (
+      message.includes("is required") ||
+      message.startsWith("Invalid ") ||
+      message.includes("must be") ||
+      message.includes("does not match")
+    ) {
+      return res.status(400).json({ error: message })
+    }
+    return res.status(500).json({ error: message })
+  }
+
   const completeMcpMutation = async (res, action, name, applyChange) => {
     applyChange()
 
@@ -112,7 +133,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("Failed to create agent:", error)
-      res.status(500).json({ error: error.message || "Failed to create agent" })
+      return respondEntityError(res, error, "Failed to create agent")
     }
   })
 
@@ -141,7 +162,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
     } catch (error) {
       console.error("[Server] Failed to update agent:", error)
       console.error("[Server] Error stack:", error.stack)
-      res.status(500).json({ error: error.message || "Failed to update agent" })
+      return respondEntityError(res, error, "Failed to update agent")
     }
   })
 
@@ -164,7 +185,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("Failed to delete agent:", error)
-      res.status(500).json({ error: error.message || "Failed to delete agent" })
+      return respondEntityError(res, error, "Failed to delete agent")
     }
   })
 
@@ -306,7 +327,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("Failed to create command:", error)
-      res.status(500).json({ error: error.message || "Failed to create command" })
+      return respondEntityError(res, error, "Failed to create command")
     }
   })
 
@@ -335,7 +356,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
     } catch (error) {
       console.error("[Server] Failed to update command:", error)
       console.error("[Server] Error stack:", error.stack)
-      res.status(500).json({ error: error.message || "Failed to update command" })
+      return respondEntityError(res, error, "Failed to update command")
     }
   })
 
@@ -358,7 +379,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("Failed to delete command:", error)
-      res.status(500).json({ error: error.message || "Failed to delete command" })
+      return respondEntityError(res, error, "Failed to delete command")
     }
   })
 

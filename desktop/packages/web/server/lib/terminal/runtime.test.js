@@ -331,6 +331,61 @@ describe("terminal restart", () => {
       await runtime.shutdown()
     }
   })
+
+  it("enforces the session cap when restarting a stale session id", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const makeFakePty = () => ({
+      onData: () => ({ dispose() {} }),
+      onExit: () => ({ dispose() {} }),
+      write: () => {},
+      kill: () => {},
+      resize: () => {},
+    })
+    const runtime = createRuntime(server, {
+      app,
+      getPtyProvider: async () => ({ backend: "mock", spawn: () => makeFakePty() }),
+      isExecutable: () => true,
+      validateCwd: async (_req, cwd) => ({ ok: true, cwd }),
+      uiAuthController: { enabled: false },
+      buildAugmentedPath: () => "",
+      TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: 1000,
+      TERMINAL_INPUT_WS_REBIND_WINDOW_MS: 1000,
+      MAX_TERMINAL_SESSIONS: 2,
+    })
+
+    try {
+      const createRoute = getRoute("POST", "/api/terminal/create")
+      const restartRoute = getRoute("POST", "/api/terminal/:sessionId/restart")
+
+      let liveSessionId = null
+      for (let index = 0; index < 2; index += 1) {
+        const createRes = createMockResponse()
+        await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, createRes)
+        expect(createRes.statusCode).toBe(200)
+        liveSessionId = createRes.body?.sessionId
+      }
+
+      // The cap is full: restarting an id nobody holds must not spawn a new session.
+      const staleRes = createMockResponse()
+      await restartRoute(
+        { params: { sessionId: "0".repeat(48) }, body: { cwd: "/tmp", cols: 80, rows: 24 } },
+        staleRes,
+      )
+      expect(staleRes.statusCode).toBe(429)
+
+      // Restarting a live session swaps it in place and stays under the cap.
+      const liveRes = createMockResponse()
+      await restartRoute(
+        { params: { sessionId: liveSessionId }, body: { cwd: "/tmp", cols: 80, rows: 24 } },
+        liveRes,
+      )
+      expect(liveRes.statusCode).toBe(200)
+      expect(liveRes.body?.sessionId).toBeTruthy()
+    } finally {
+      await runtime.shutdown()
+    }
+  })
 })
 
 describe("terminal output backpressure", () => {

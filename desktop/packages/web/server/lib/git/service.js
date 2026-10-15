@@ -854,6 +854,18 @@ const getRemoteExistenceCacheKey = (directory, remoteName) => {
   return `${path.resolve(normalizedDirectory)}\0${remoteName}`
 }
 
+const REMOTE_EXISTENCE_CACHE_MAX_ENTRIES = 500
+
+const writeRemoteExistenceCache = (key, exists) => {
+  // One entry per (directory, remote): bounded so long-lived servers do not
+  // accumulate an entry for every directory they ever probed.
+  if (remoteExistenceCache.size >= REMOTE_EXISTENCE_CACHE_MAX_ENTRIES && !remoteExistenceCache.has(key)) {
+    const oldestKey = remoteExistenceCache.keys().next().value
+    if (oldestKey !== undefined) remoteExistenceCache.delete(oldestKey)
+  }
+  remoteExistenceCache.set(key, { exists, checkedAt: Date.now() })
+}
+
 const hasRemote = async (git, directory, remoteName) => {
   const remote = String(remoteName || "").trim()
   if (!remote) {
@@ -871,7 +883,7 @@ const hasRemote = async (git, directory, remoteName) => {
     .then((value) => String(value || "").trim().length > 0)
     .catch(() => false)
 
-  remoteExistenceCache.set(key, { exists, checkedAt: Date.now() })
+  writeRemoteExistenceCache(key, exists)
   return exists
 }
 
@@ -1380,6 +1392,9 @@ const ensureRemoteWithUrl = async (primaryWorktree, remoteName, remoteUrl) => {
   }
 
   await runGitCommandOrThrow(primaryWorktree, ["remote", "add", name, url], "Failed to add git remote")
+  // The remote did not exist a moment ago: a cached negative answer from that
+  // window must not survive the add.
+  remoteExistenceCache.delete(getRemoteExistenceCacheKey(primaryWorktree, name))
 }
 
 const fetchRemoteBranchRef = async (primaryWorktree, remoteName, branchName) => {
@@ -4014,6 +4029,7 @@ export async function removeRemote(directory, options = {}) {
 
   try {
     await git.removeRemote(remoteName)
+    remoteExistenceCache.delete(getRemoteExistenceCacheKey(directory, remoteName))
     return { success: true }
   } catch (error) {
     console.error("Failed to remove remote:", error)

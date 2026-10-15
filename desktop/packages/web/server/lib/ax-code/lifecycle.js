@@ -823,7 +823,15 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     activeStartSlot = startSlot
     state.currentStartPromise = startPromise
     try {
-      return await startPromise
+      const process = await startPromise
+      // Publish the handle inside the start's own continuation: a restart that
+      // awaited currentStartPromise resumes after this point and must already
+      // see the process — otherwise it releases the new child's port and the
+      // late `state.axCodeProcess = await startAxCode()` in the caller would
+      // overwrite the replacement with the dead handle.
+      state.axCodeProcess = process
+      syncToHmrState()
+      return process
     } finally {
       if (activeStartSlot === startSlot) {
         activeStartSlot = null
@@ -951,7 +959,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       }
 
       state.lastAxCodeError = null
-      state.axCodeProcess = await startAxCode()
+      await startAxCode()
       syncToHmrState()
 
       if (state.expressApp) {
@@ -1295,7 +1303,9 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         }
 
         state.lastAxCodeError = null
-        state.axCodeProcess = await startAxCode()
+        // startAxCode publishes state.axCodeProcess itself; assigning here would
+        // let a late bootstrap resolution clobber a handle a restart replaced.
+        await startAxCode()
         syncToHmrState()
       }
       await waitForAxCodePort()

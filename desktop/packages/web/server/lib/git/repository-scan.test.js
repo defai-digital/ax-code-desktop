@@ -47,4 +47,12 @@ describe("git repository detection", () => {
       await findGitRoot({ directory: path.join(root, "code"), ceiling: path.join(root, "code"), fsPromises, path }),
     ).toBeNull()
   })
+
+  it("treats a folder whose name starts with '..' as inside the ceiling", async () => {
+    const { root } = await makeTree()
+    const dotted = path.join(root, "..data", "repo")
+    await fsPromises.mkdir(path.join(dotted, ".git"), { recursive: true })
+    const gitRoot = await findGitRoot({ directory: dotted, ceiling: root, fsPromises, path })
+    expect(gitRoot).toBe(dotted)
+  })
 })

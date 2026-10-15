@@ -277,10 +277,14 @@ export const createScheduledTaskConvergence = (deps) => {
         asNonEmptyString(config.projectPath) || asNonEmptyString(config.path) || settingsPathByID.get(projectID) || null
       if (!projectPath) {
         for (const task of tasks) {
-          skipped.push({
+          // Not a permanent skip: the task stays in the project JSON and retries
+          // next boot, so recording it in the marker's `skipped` list would
+          // report as dropped a task that later migrated fine. Warn instead,
+          // matching the runtime-unreachable branch below.
+          warnings.push({
             project: projectID,
             task: asNonEmptyString(task?.name) || asNonEmptyString(task?.id) || "unnamed",
-            reason: "project path is unavailable",
+            warning: "project path is unavailable; left for next boot",
           })
         }
         // The path may be unresolvable only this boot (settings not loaded yet).
