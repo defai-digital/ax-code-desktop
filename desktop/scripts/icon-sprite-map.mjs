@@ -259,6 +259,9 @@ export const ICON_MAP = {
   "shield-check": "shield-check",
   "shield-keyhole": "lock-key",
   "shield-user": "identification-badge",
+  "shield-warning": "shield-warning",
+  // Manual execution: "you approve" as a raised hand.
+  hand: "hand-palm",
   lock: "lock",
   "lock-2": "lock-simple",
   "lock-unlock": "lock-open",

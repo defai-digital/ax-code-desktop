@@ -3512,6 +3512,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "Activar autoaceptaci\u00f3n de permisos",
   "chat.chatInput.permissionAutoAccept.on": "Autoaceptaci\u00f3n de permisos: activada",
   "chat.chatInput.permissionAutoAccept.off": "Autoaceptaci\u00f3n de permisos: desactivada",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "Solo se aplica a esta sesión y aprueba todas las solicitudes de permiso sin preguntar. Automático solo aprueba herramientas seguras.",
   "chat.chatInput.executionMode.title": "Modo de ejecuci\u00f3n",
   "chat.chatInput.executionMode.manual": "Manual",
   "chat.chatInput.executionMode.autonomous": "Autom\u00e1tico",
@@ -4452,6 +4453,5 @@
   "projects.home.needsYou.error": "Error de sesión",
   "sessions.sidebar.session.menu.more": "Más",
   "chat.commandAutocomplete.badge.snippet": "Fragmento",
-  "chat.commandAutocomplete.badge.magicPrompt": "Indicación mágica",
-  "chat.chatInput.overflow.more": "Más"
+  "chat.commandAutocomplete.badge.magicPrompt": "Indicación mágica"
 }

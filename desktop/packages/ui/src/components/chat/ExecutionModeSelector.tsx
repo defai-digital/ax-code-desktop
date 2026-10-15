@@ -5,6 +5,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Icon } from "@/components/icon/Icon"
@@ -27,7 +28,7 @@ type ModeMeta = {
 const MODES: ModeMeta[] = [
   {
     value: "manual",
-    icon: "shield-user",
+    icon: "hand",
     labelKey: "chat.chatInput.executionMode.manual",
     hintKey: "chat.chatInput.executionMode.manualHint",
   },
@@ -76,6 +77,22 @@ export const ExecutionModeSelector: React.FC<ExecutionModeSelectorProps> = ({
   const activeLabel = activeMeta ? t(activeMeta.labelKey) : title
   const tooltipLabel = activeMeta ? `${title}: ${activeLabel}` : title
 
+  const renderModeItem = (option: ModeMeta) => (
+    <DropdownMenuRadioItem
+      key={option.value}
+      value={option.value}
+      disabled={pending}
+      data-execution-mode={option.value}
+      className="items-start gap-2"
+    >
+      <Icon name={option.icon} className="mt-0.5 h-4 w-4 flex-shrink-0" />
+      <span className="flex min-w-0 flex-col">
+        <span className="typography-meta text-foreground">{t(option.labelKey)}</span>
+        <span className="typography-micro text-muted-foreground">{t(option.hintKey)}</span>
+      </span>
+    </DropdownMenuRadioItem>
+  )
+
   return (
     <DropdownMenu>
       <Tooltip delayDuration={400}>
@@ -97,7 +114,7 @@ export const ExecutionModeSelector: React.FC<ExecutionModeSelectorProps> = ({
               )}
             >
               <Icon
-                name={pending ? "loader-4" : (activeMeta?.icon ?? "shield-user")}
+                name={pending ? "loader-4" : (activeMeta?.icon ?? "hand")}
                 className={cn(iconSizeClass, "flex-shrink-0", pending && "animate-spin")}
               />
             </button>
@@ -116,20 +133,11 @@ export const ExecutionModeSelector: React.FC<ExecutionModeSelectorProps> = ({
             void setMode(currentDirectory, value as ExecutionMode)
           }}
         >
-          {MODES.filter((option) => isPrimaryExecutionMode(option.value)).map((option) => (
-            <DropdownMenuRadioItem
-              key={option.value}
-              value={option.value}
-              disabled={pending}
-              className="items-start gap-2"
-            >
-              <Icon name={option.icon} className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span className="flex min-w-0 flex-col">
-                <span className="typography-meta text-foreground">{t(option.labelKey)}</span>
-                <span className="typography-micro text-muted-foreground">{t(option.hintKey)}</span>
-              </span>
-            </DropdownMenuRadioItem>
-          ))}
+          {MODES.filter((option) => isPrimaryExecutionMode(option.value)).map(renderModeItem)}
+          {/* Long-run is the same choice as Manual and Auto, so it lives in this radio group,
+              set apart because it keeps working for up to 72 hours. */}
+          <DropdownMenuSeparator />
+          {MODES.filter((option) => !isPrimaryExecutionMode(option.value)).map(renderModeItem)}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>

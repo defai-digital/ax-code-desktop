@@ -3518,6 +3518,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "\uad8c\ud55c \uc790\ub3d9 \uc218\ub77d \ucf1c\uae30",
   "chat.chatInput.permissionAutoAccept.on": "\uad8c\ud55c \uc790\ub3d9 \uc218\ub77d: \ucf1c\uc9d0",
   "chat.chatInput.permissionAutoAccept.off": "\uad8c\ud55c \uc790\ub3d9 \uc218\ub77d: \uaebc\uc9d0",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "이 세션에만 적용되며 모든 권한 요청을 묻지 않고 승인합니다. 자동은 안전한 도구만 승인합니다.",
   "chat.chatInput.executionMode.title": "\uc2e4\ud589 \ubaa8\ub4dc",
   "chat.chatInput.executionMode.manual": "\uc218\ub3d9",
   "chat.chatInput.executionMode.autonomous": "\uc790\ub3d9",
@@ -4452,6 +4453,5 @@
   "projects.home.needsYou.error": "세션 오류",
   "sessions.sidebar.session.menu.more": "더보기",
   "chat.commandAutocomplete.badge.snippet": "스니펫",
-  "chat.commandAutocomplete.badge.magicPrompt": "매직 프롬프트",
-  "chat.chatInput.overflow.more": "더보기"
+  "chat.commandAutocomplete.badge.magicPrompt": "매직 프롬프트"
 }

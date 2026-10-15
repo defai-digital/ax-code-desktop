@@ -3518,6 +3518,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "\u0412\u043a\u043b\u044e\u0447\u0438\u0442\u044c \u0430\u0432\u0442\u043e\u043f\u0440\u0438\u043d\u044f\u0442\u0438\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043d\u0438\u0439",
   "chat.chatInput.permissionAutoAccept.on": "\u0410\u0432\u0442\u043e\u043f\u0440\u0438\u043d\u044f\u0442\u0438\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043d\u0438\u0439: \u0432\u043a\u043b.",
   "chat.chatInput.permissionAutoAccept.off": "\u0410\u0432\u0442\u043e\u043f\u0440\u0438\u043d\u044f\u0442\u0438\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043d\u0438\u0439: \u0432\u044b\u043a\u043b.",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "Действует только для этой сессии и одобряет каждый запрос разрешения без вопросов. Режим «Авто» одобряет только безопасные инструменты.",
   "chat.chatInput.executionMode.title": "\u0420\u0435\u0436\u0438\u043c \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f",
   "chat.chatInput.executionMode.manual": "\u0412\u0440\u0443\u0447\u043d\u0443\u044e",
   "chat.chatInput.executionMode.autonomous": "\u0410\u0432\u0442\u043e",
@@ -4452,6 +4453,5 @@
   "projects.home.needsYou.error": "Ошибка сессии",
   "sessions.sidebar.session.menu.more": "Ещё",
   "chat.commandAutocomplete.badge.snippet": "Фрагмент",
-  "chat.commandAutocomplete.badge.magicPrompt": "Волшебный запрос",
-  "chat.chatInput.overflow.more": "Ещё"
+  "chat.commandAutocomplete.badge.magicPrompt": "Волшебный запрос"
 }

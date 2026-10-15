@@ -1887,6 +1887,8 @@ export const dict = {
   "chat.chatInput.permissionAutoAccept.enable": "Enable permission auto-accept",
   "chat.chatInput.permissionAutoAccept.on": "Permission auto-accept: on",
   "chat.chatInput.permissionAutoAccept.off": "Permission auto-accept: off",
+  "chat.chatInput.permissionAutoAccept.scopeHint":
+    "Applies to this session only and approves every permission request without asking. Auto approves only safe tools.",
   "chat.chatInput.executionMode.title": "Execution mode",
   "chat.chatInput.executionMode.manual": "Manual",
   "chat.chatInput.executionMode.autonomous": "Auto",
@@ -1894,7 +1896,6 @@ export const dict = {
   "chat.chatInput.executionMode.manualHint": "You approve risky steps",
   "chat.chatInput.executionMode.autonomousHint": "Auto-approves safe tools; continues multi-step runs",
   "chat.chatInput.executionMode.longRunHint": "Auto, up to 72h with pacing",
-  "chat.chatInput.overflow.more": "More",
   "chat.chatInput.executionMode.updateFailed": "Could not update execution mode",
   "chat.chatInput.sandbox.title": "Sandbox",
   "chat.chatInput.sandbox.on": "Sandbox: on",

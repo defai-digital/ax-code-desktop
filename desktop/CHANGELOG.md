@@ -52,6 +52,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Long-run is the third choice in the execution mode menu, after Manual and Auto and a separator,
+  instead of the only item in a "More" menu; the "More" button is gone. Manual uses a raised hand
+  and pending permissions a warning shield, so neither shares a glyph.
+- Permission auto-accept moved into the composer's run controls. Off is a plain shield at full
+  strength (it no longer looks disabled without a session); on is a checked shield in the warning
+  color on a warning background. Its tooltip says it applies to this session and approves every
+  request, while Auto approves only safe tools.
 - Layout: the sidebar leads with a labeled New session button that shows the effective shortcut;
   the sidebar footer is a brand row (the `</>` mark and the product name open About, with theme,
   shortcuts and settings on the right); the header's terminal, split, WebMCP and right sidebar

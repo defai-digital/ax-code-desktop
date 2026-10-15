@@ -3518,6 +3518,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "\u0130zin otomatik kabul\u00fcn\u00fc a\u00e7",
   "chat.chatInput.permissionAutoAccept.on": "\u0130zin otomatik kabul\u00fc: a\u00e7\u0131k",
   "chat.chatInput.permissionAutoAccept.off": "\u0130zin otomatik kabul\u00fc: kapal\u0131",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "Yalnızca bu oturum için geçerlidir ve her izin isteğini sormadan onaylar. Otomatik yalnızca güvenli araçları onaylar.",
   "chat.chatInput.executionMode.title": "Y\u00fcr\u00fctme modu",
   "chat.chatInput.executionMode.manual": "El ile",
   "chat.chatInput.executionMode.autonomous": "Otomatik",
@@ -4452,6 +4453,5 @@
   "projects.home.needsYou.error": "Oturum hatası",
   "sessions.sidebar.session.menu.more": "Daha fazla",
   "chat.commandAutocomplete.badge.snippet": "Parça",
-  "chat.commandAutocomplete.badge.magicPrompt": "Sihirli istem",
-  "chat.chatInput.overflow.more": "Daha fazla"
+  "chat.commandAutocomplete.badge.magicPrompt": "Sihirli istem"
 }

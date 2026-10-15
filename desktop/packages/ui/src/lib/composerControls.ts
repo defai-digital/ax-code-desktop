@@ -29,9 +29,12 @@ export function selectLabeledWorkMode(choice: WorkModeId): WorkModeId {
   return parseWorkMode(choice)
 }
 
+/**
+ * Manual, Auto and Long-run are one radio choice in the execution mode menu. The primary modes come
+ * first; Long-run sits after a separator because it keeps working for up to 72 hours. There is no
+ * separate overflow menu: a one-item "More" menu hid it and split the choice in two.
+ */
 export const PRIMARY_EXECUTION_MODES = ["manual", "autonomous"] as const
-
-export const OVERFLOW_SEND_CONTROLS = ["long-run"] as const
 
 /**
  * Status the main window header owns. The composer does not repeat it, so the input row stays

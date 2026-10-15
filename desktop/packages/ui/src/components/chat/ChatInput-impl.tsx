@@ -34,7 +34,6 @@ import { ModelControls } from "./ModelControls"
 import { ExecutionModeSelector } from "./ExecutionModeSelector"
 import { WorkModeSelector } from "./WorkModeSelector"
 import { SandboxToggle } from "./SandboxToggle"
-import { ComposerOverflowMenu } from "./ComposerOverflowMenu"
 import { parseAgentMentions } from "@/lib/messages/agentMentions"
 import { appendQueuedContentToDraft } from "@/lib/messages/queuedMessageDraft"
 import { StatusRow } from "./StatusRow"
@@ -573,10 +572,15 @@ const PermissionAutoAcceptButton = React.memo(function PermissionAutoAcceptButto
     <button
       type="button"
       onClick={handlePermissionAutoAcceptToggle}
+      data-permission-auto-accept={permissionAutoAcceptEnabled ? "on" : "off"}
       className={cn(
         footerIconButtonClass,
-        "rounded-md hover:bg-transparent",
-        !permissionScopeSessionId && "opacity-30",
+        "rounded-md",
+        // On approves every permission request in the session, so it reads as a warning, not a
+        // quiet icon. Off stays at full strength: "off" must not look like "unavailable".
+        permissionAutoAcceptEnabled
+          ? "bg-[var(--status-warning-background)] text-[var(--status-warning)] hover:text-[var(--status-warning)]"
+          : "text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
       )}
       aria-disabled={!permissionScopeSessionId}
       onMouseDown={(event) => {
@@ -592,11 +596,7 @@ const PermissionAutoAcceptButton = React.memo(function PermissionAutoAcceptButto
       aria-label={ariaLabel}
       title={ariaLabel}
     >
-      {permissionAutoAcceptEnabled ? (
-        <Icon name="shield-check" className={cn(iconSizeClass)} style={{ color: "var(--status-info)" }} />
-      ) : (
-        <Icon name="shield-user" className={cn(iconSizeClass)} />
-      )}
+      <Icon name={permissionAutoAcceptEnabled ? "shield-check" : "shield"} className={cn(iconSizeClass)} />
     </button>
   )
 
@@ -607,8 +607,12 @@ const PermissionAutoAcceptButton = React.memo(function PermissionAutoAcceptButto
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent side="top" sideOffset={8}>
-        {tooltipLabel}
+      <TooltipContent side="top" sideOffset={8} className="max-w-[18rem]">
+        <p className="font-medium">{tooltipLabel}</p>
+        <p className="typography-micro text-muted-foreground">{t("chat.chatInput.permissionAutoAccept.scopeHint")}</p>
+        {!permissionScopeSessionId ? (
+          <p className="typography-micro text-muted-foreground">{t("chat.chatInput.toast.openSessionFirst")}</p>
+        ) : null}
       </TooltipContent>
     </Tooltip>
   )
@@ -4275,15 +4279,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                       isExpandedInput={isExpandedInput}
                       onToggle={handleToggleExpandedInput}
                     />
-                    <PermissionAutoAcceptButton
-                      footerIconButtonClass={footerIconButtonClass}
-                      iconSizeClass={iconSizeClass}
-                      permissionScopeSessionId={permissionScopeSessionId}
-                      permissionAutoAcceptEnabled={permissionAutoAcceptEnabled}
-                      handlePermissionAutoAcceptToggle={handlePermissionAutoAcceptToggle}
-                      withTooltip
-                    />
-                    {/* How the agent runs: work mode, execution mode and sandbox share one frame. */}
+                    {/* How the agent runs: work mode, execution mode, sandbox and permission
+                        auto-accept share one frame. */}
                     <div
                       role="group"
                       data-composer-run-group
@@ -4292,8 +4289,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                       <WorkModeSelector iconSizeClass={iconSizeClass} />
                       <ExecutionModeSelector iconSizeClass={iconSizeClass} />
                       <SandboxToggle iconSizeClass={iconSizeClass} />
+                      <PermissionAutoAcceptButton
+                        footerIconButtonClass={footerIconButtonClass}
+                        iconSizeClass={iconSizeClass}
+                        permissionScopeSessionId={permissionScopeSessionId}
+                        permissionAutoAcceptEnabled={permissionAutoAcceptEnabled}
+                        handlePermissionAutoAcceptToggle={handlePermissionAutoAcceptToggle}
+                        withTooltip
+                      />
                     </div>
-                    <ComposerOverflowMenu iconSizeClass={iconSizeClass} />
                   </div>
                   <div className={cn("flex items-center flex-1 justify-end", footerGapClass, "md:gap-x-3")}>
                     <MemoModelControls className={cn("flex-1 min-w-0 justify-end")} />

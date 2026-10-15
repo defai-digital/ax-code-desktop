@@ -3518,6 +3518,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "Automatisches Akzeptieren von Berechtigungen aktivieren",
   "chat.chatInput.permissionAutoAccept.on": "Berechtigungen automatisch akzeptieren: ein",
   "chat.chatInput.permissionAutoAccept.off": "Berechtigungen automatisch akzeptieren: aus",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "Gilt nur für diese Sitzung und genehmigt jede Berechtigungsanfrage ohne Rückfrage. Auto genehmigt nur sichere Tools.",
   "chat.chatInput.executionMode.title": "Ausf\u00fchrungsmodus",
   "chat.chatInput.executionMode.manual": "Manuell",
   "chat.chatInput.executionMode.autonomous": "Auto",
@@ -4452,6 +4453,5 @@
   "projects.home.needsYou.error": "Sitzungsfehler",
   "sessions.sidebar.session.menu.more": "Mehr",
   "chat.commandAutocomplete.badge.snippet": "Textbaustein",
-  "chat.commandAutocomplete.badge.magicPrompt": "Magische Eingabe",
-  "chat.chatInput.overflow.more": "Mehr"
+  "chat.commandAutocomplete.badge.magicPrompt": "Magische Eingabe"
 }

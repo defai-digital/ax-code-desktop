@@ -11,7 +11,6 @@ import { initialWorkModeForNewChat } from "@/lib/workMode"
 import { resolveAvailableSettingsSlug, resolveSettingsSlug, SETTINGS_PAGE_METADATA } from "@/lib/settings/metadata"
 import {
   HEADER_OWNED_SESSION_STATUS,
-  OVERFLOW_SEND_CONTROLS,
   PRIMARY_EXECUTION_MODES,
   WORK_MODE_CHOICES,
   isPrimaryExecutionMode,
@@ -43,15 +42,29 @@ describe("composer and navigation controls", () => {
     expect(selector).not.toContain("cycleWorkMode")
   })
 
-  test("long-run stays off the primary send row", () => {
+  test("long-run is the third execution mode in the same menu, after a separator", () => {
     expect(PRIMARY_EXECUTION_MODES).toEqual(["manual", "autonomous"])
     expect(isPrimaryExecutionMode("long-run")).toBe(false)
-    expect(OVERFLOW_SEND_CONTROLS).toEqual(["long-run"])
 
     const chatInput = readFileSync(sourcePath("../components/chat/ChatInput-impl.tsx"), "utf8")
     const execution = readFileSync(sourcePath("../components/chat/ExecutionModeSelector.tsx"), "utf8")
-    expect(chatInput).toContain("ComposerOverflowMenu")
-    expect(execution).toContain("isPrimaryExecutionMode")
+    // No one-item overflow menu on the send row.
+    expect(chatInput).not.toContain("ComposerOverflowMenu")
+    expect(execution).toMatch(
+      /<DropdownMenuRadioGroup[\s\S]*?isPrimaryExecutionMode\(option\.value\)\)\.map\(renderModeItem\)[\s\S]*?<DropdownMenuSeparator \/>[\s\S]*?!isPrimaryExecutionMode\(option\.value\)\)\.map\(renderModeItem\)[\s\S]*?<\/DropdownMenuRadioGroup>/,
+    )
+    // Manual no longer shares the pending-permission glyph.
+    expect(execution).toContain('icon: "hand"')
+  })
+
+  test("permission auto-accept is a run control with a warning on-state", () => {
+    const chatInput = readFileSync(sourcePath("../components/chat/ChatInput-impl.tsx"), "utf8")
+    expect(chatInput).toMatch(/data-composer-run-group[\s\S]*?<SandboxToggle[\s\S]*?<PermissionAutoAcceptButton/)
+    expect(chatInput).toContain('name={permissionAutoAcceptEnabled ? "shield-check" : "shield"}')
+    expect(chatInput).toContain('"bg-[var(--status-warning-background)] text-[var(--status-warning)]')
+    // Off must not look disabled.
+    expect(chatInput).not.toContain('!permissionScopeSessionId && "opacity-30"')
+    expect(chatInput).toContain('t("chat.chatInput.permissionAutoAccept.scopeHint")')
   })
 
   test("the work mode chip always shows the active mode in its color", () => {
@@ -72,17 +85,13 @@ describe("composer and navigation controls", () => {
     const execution = readFileSync(sourcePath("../components/chat/ExecutionModeSelector.tsx"), "utf8")
     expect(execution).toContain("isUnattendedExecutionMode(mode)")
     expect(execution).toMatch(/unattended &&\s*"bg-interactive-selection text-\[var\(--status-info\)\]/)
-    const overflow = readFileSync(sourcePath("../components/chat/ComposerOverflowMenu.tsx"), "utf8")
-    expect(overflow).toMatch(/longRunActive &&\s*"bg-interactive-selection text-\[var\(--status-info\)\]/)
   })
 
   test("the composer does not repeat status the main window header shows", () => {
     expect(HEADER_OWNED_SESSION_STATUS).toEqual(["context-usage", "webmcp"])
 
     const chatInput = readFileSync(sourcePath("../components/chat/ChatInput-impl.tsx"), "utf8")
-    const overflow = readFileSync(sourcePath("../components/chat/ComposerOverflowMenu.tsx"), "utf8")
     expect(chatInput).not.toMatch(/WebMcp/)
-    expect(overflow).not.toMatch(/WebMcp/)
 
     const header = readFileSync(sourcePath("../components/layout/Header.tsx"), "utf8")
     expect(header).toContain("<WebMcpHeaderButton")

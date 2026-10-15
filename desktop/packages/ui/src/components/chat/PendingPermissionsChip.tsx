@@ -37,7 +37,7 @@ export const PendingPermissionsChip = memo(() => {
   return (
     <div className="pb-1.5 w-full px-1">
       <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border/60 bg-[var(--surface-elevated)] text-[var(--surface-elevated-foreground)] shadow-sm">
-        <Icon name="shield-user" className="h-4 w-4 text-[var(--status-warning)] flex-shrink-0" aria-hidden="true" />
+        <Icon name="shield-warning" className="h-4 w-4 text-[var(--status-warning)] flex-shrink-0" aria-hidden="true" />
         <span className="typography-ui-label font-medium text-foreground">
           {t("chat.permissionCard.pendingSummary.title", { count: permissionCount })}
         </span>
