@@ -122,10 +122,13 @@ export const normalizeUserDisplayParts = (parts: Part[], options?: { planModeEna
           if (attachmentPart) {
             return attachmentPart
           }
-        }
 
-        if (text.startsWith("The following tool was executed by the user")) {
-          return { type: "text", text: "/shell" } as Part
+          // Only the runtime's synthetic shell context collapses to "/shell";
+          // a user message that merely starts with the same phrase must
+          // survive verbatim.
+          if (text.startsWith("The following tool was executed by the user")) {
+            return { type: "text", text: "/shell" } as Part
+          }
         }
       }
       return part
