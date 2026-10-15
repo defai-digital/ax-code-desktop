@@ -1,0 +1,20 @@
+Muse CLI review completed. English translation of the captured review follows.
+Original output is retained locally at /tmp/ax-desktop-7.25.1-review/muse.txt.
+
+1. Worktree matches hide more specific nested projects (projectResolution.ts).
+Trigger: projects /repo and /wt/packages/app, with /repo owning worktree /wt,
+and session /wt/packages/app/src. Worktree resolution returns /repo before
+longest-prefix directory resolution can select /wt/packages/app.
+Regression: expect the nested project for that session, and /repo for /wt/src.
+
+2. Windows drive-relative paths are not compared case-insensitively
+(projectResolution.ts). C:Repo and c:repo\src normalize to C:Repo and
+C:repo/src; only drive-absolute paths are lowercased. Regression: compare
+mixed-case drive-relative paths. Disposition: deferred because project records
+require absolute paths; do not broaden accepted path semantics for this fix.
+
+3. External project discovery lacks cancellation or request generation protection
+(ImportProjectsDialog.tsx). Close and reopen before the first request completes;
+let the second request finish first. The first response or failure overwrites
+the newer candidate list, selection and error state. Regression: deferred fetch
+mocks finishing in reverse order, including stale failure after newer success.

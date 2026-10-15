@@ -1,0 +1,78 @@
+Three correctness bugs are supported by this source. Ordinary Windows drive, slash, UNC, and drive-root normalization in `normalizeProjectPath` holds, and `ProjectsSidebar.tsx` has no supported correctness bug. There is no `.git` walk here; git detection is the worktree resolver below.
+
+### 1. Worktree hit hides a more specific nested project
+
+**File:** `desktop/packages/ui/src/lib/projectResolution.ts` (`resolveProjectFromWorktreeDirectory`, `resolveProjectForSessionDirectory`)
+
+**Trigger:** The session directory sits under a worktree path, and a registered project is more specific than the worktree’s project. Two cases:
+
+- Main checkout is listed as a worktree at `/repo`, and the session is `/repo/packages/ui`, which is also a registered project. `projectPathMatchesRoot` accepts `/repo`, then `findProjectByPath` returns that parent. `??` never runs `resolveProjectForDirectory` on the session path, which would have kept `/repo/packages/ui` (longer prefix).
+- Linked worktree path `/tmp/ui-wt` with `projectDirectory` `/repo`, session `/tmp/ui-wt/packages/ui`. The relative suffix `packages/ui` is discarded, so the nested project `/repo/packages/ui` is never reconstructed.
+
+**Impact:** A nested project session is bound to the ancestor project, so it gets the parent’s identity, settings, and session grouping.
+
+**Regression test:**
+
+```ts
+const projects = [
+  { id: "parent", path: "/repo" },
+  { id: "nested", path: "/repo/packages/ui" },
+]
+const main = new Map([["/repo", [{ path: "/repo", projectDirectory: "/repo" }]]])
+expect(resolveProjectForSessionDirectory(projects, main, "/repo/packages/ui")?.id).toBe("nested")
+
+const linked = new Map([["/repo", [{ path: "/tmp/ui-wt", projectDirectory: "/repo" }]]])
+expect(resolveProjectForSessionDirectory(projects, linked, "/tmp/ui-wt/packages/ui")?.id).toBe("nested")
+expect(resolveProjectForSessionDirectory(projects, linked, "/tmp/ui-wt/src")?.id).toBe("parent")
+```
+
+### 2. Ancestor fallback on `projectDirectory` skips an exact worktree key
+
+**File:** `desktop/packages/ui/src/lib/projectResolution.ts` (`resolveProjectFromWorktreeDirectory`)
+
+**Trigger:** Candidates are `[projectDirectory, map key]`, and the loop returns on the first success. `projectDirectory` is `/work/legacy/app` (not a registered project). `resolveProjectForDirectory` still matches registered ancestor `/work`. The map key `/projects/app` is an exact project and is never checked.
+
+**Impact:** The session attaches to the broad ancestor of `projectDirectory`. The project that owns the worktree entry is ignored. Any registered parent folder of `projectDirectory` (for example `/work`, or a drive root) steals these worktrees.
+
+**Regression test:**
+
+```ts
+const projects = [
+  { id: "broad", path: "/work" },
+  { id: "owner", path: "/projects/app" },
+]
+const worktrees = new Map([
+  ["/projects/app", [{ path: "/tmp/wt", projectDirectory: "/work/legacy/app" }]],
+])
+expect(resolveProjectForSessionDirectory(projects, worktrees, "/tmp/wt")?.id).toBe("owner")
+```
+
+Check every candidate for an exact `findProjectByPath` hit before any ancestor fallback.
+
+### 3. Overlapping discover requests commit stale results
+
+**File:** `desktop/packages/ui/src/components/projects/ImportProjectsDialog.tsx` (`load`, the `open` effect)
+
+**Trigger:** `load` has no request generation or `AbortController`. Opening, closing and reopening, or Retry starts another `fetch` while the previous one is in flight. Completion order is unrestricted: each call applies `setCandidates`, `setSelected`, `setError`, and `setLoading(false)`.
+
+**Impact:** An older response can replace a newer list, wipe a successful load with `setCandidates([])` and an error, or clear `loading` while a newer request is still running. The user can import the stale selection.
+
+**Regression test:**
+
+```ts
+let resolveFirst: (r: Response) => void
+let resolveSecond: (r: Response) => void
+fetch
+  .mockImplementationOnce(() => new Promise((res) => { resolveFirst = res }))
+  .mockImplementationOnce(() => new Promise((res) => { resolveSecond = res }))
+
+openDialog()          // request A
+clickRetry()          // request B
+resolveSecond(jsonOk([{ root: "/new", exists: true, alreadyImported: false, name: "new" }]))
+resolveFirst(jsonOk([{ root: "/old", exists: true, alreadyImported: false, name: "old" }]))
+
+expect(screen.getByText("/new")).toBeInTheDocument()
+expect(screen.queryByText("/old")).not.toBeInTheDocument()
+```
+
+Same assertion when A fails after B succeeds: the error state must not clear B’s candidates. A matching test for close-during-flight should ignore A after `open` becomes false.
