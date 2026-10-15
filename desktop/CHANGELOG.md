@@ -48,6 +48,28 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- After the local server crashed and was restarted on a new port, the reloaded window kept talking to the
+  dead port: the renderer's API origin is read from the process environment and was only written when a
+  window was created. Recovery now refreshes it before reloading, and one helper owns that write.
+- Creating terminal sessions concurrently could exceed the terminal session cap: the cap was checked
+  before the long awaits (cwd validation, node-pty import, shell startup grace) but only counted once the
+  session was registered, so a burst all passed. A slot is now reserved before the first await, on create
+  and on a stale-id restart, and released when the attempt ends.
+- An MCP server create, update or delete that failed for a client-side reason reported 500 instead of
+  404, 409 or 400, so the client could not tell "already exists" or "not found" from a server fault.
+  The MCP routes now use the same error mapping as agents, commands and snippets.
+- Editing only an agent's permission rules or its disable flag was discarded on the next reload: the
+  reload gate's change signature did not include those fields, so the editor kept showing — and
+  re-saving — the stale ruleset.
+- Archiving a session dropped it from its manual folder. Archive is reversible, so the folder cleanup now
+  counts archived sessions as existing (the pin prune already did), and undoing an archive restores the
+  session with its folder.
+- `.svg`, `.mdx` and `.env` files showed the icon of their language (xml, markdown, bash) instead of their
+  own file type: the language check ran before the extension map and made those entries unreachable.
+- A title truncated at its length cap could end with half an emoji, which the tray showed as a garbage
+  character and a scheduled task stored as corrupted text. Truncation now never cuts a surrogate pair.
+- The JSON viewer gave two different nodes the same id when a key contained a path separator (`"a.b"` or
+  `"a[1]"`), so collapsing one row also collapsed the other. Separators inside keys are now escaped.
 - Scheduled tasks keep firing in projects you have not opened after the AX Code runtime restarts
   (settings change or health-check recovery). Desktop now re-wakes every project's scheduler after a
   restart and wakes newly added projects, instead of only once at launch.
