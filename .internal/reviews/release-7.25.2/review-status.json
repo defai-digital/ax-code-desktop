@@ -1,0 +1,28 @@
+{
+  "schema": "ax-code-desktop.review-status.v1",
+  "version": "7.25.2",
+  "commit": "e2af797b3a9e9aeb3070d4f492db91463f499e4a",
+  "muse": "completed",
+  "grok": "completed",
+  "grokFirstAttempt": "Stopped after a bounded wait without a terminal response; not counted as review",
+  "grokCompletedAttempt": {
+    "sessionId": "01a13eda-1cfd-7612-b013-bbf3dbfbd5ae",
+    "terminalSubtype": "success",
+    "isError": false,
+    "numTurns": 1,
+    "toolCalls": 0
+  },
+  "confirmed": [
+    "Stranded plan save in the drain/finally microtask gap",
+    "Dropped route applications including synchronous same-turn selections",
+    "Current selection changes during retention candidate loading and earlier actions",
+    "Failed retention batches incorrectly imposing the success cooldown"
+  ],
+  "policyDisposition": {
+    "grokProtectedSelectionCooldown": "No change: existing retention protects the current session and starts its daily cooldown even on a successful zero-candidate scan. Immediate reprocessing of formerly protected sessions would change that policy, not fix a runtime failure."
+  },
+  "receipts": {
+    "muse-review.txt": "f2608485c2a679ea2f5ea322e21b7693b97b23e5ae0e2798d506ce4303900ce4",
+    "grok-review.txt": "cd7802410cf199c5a23bdeca026c7be7be5a2dfeac4ae6af5f8a1834f02b7a09"
+  }
+}
