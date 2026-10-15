@@ -52,6 +52,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The interface icons now come from Phosphor Icons (bold weight) instead of Remix Icon. Every icon
+  name maps to a glyph in one table, the sprite generator fails when a name has no glyph, and a test
+  fails when the committed sprite drifts from the table.
 - The bundled AX Code runtime pin moves to the signed v7.25.7 and the SDK pin to 2.6.17, the newest
   published producer versions.
 - The bundled AX Code runtime pin moves to the signed v7.25.1, the first release that accepts the

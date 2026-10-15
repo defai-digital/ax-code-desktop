@@ -347,9 +347,9 @@ textarea[data-chat-input="true"]:focus-visible {
 }
 
 /* Safari/WebKit fixes for buttons and SVG icons */
-/* Remixicon puts fill="currentColor" on root SVG which WebKit renders as background */
-button svg.remixicon,
-[role="button"] svg.remixicon,
+/* Keep the root SVG unfilled so WebKit does not paint it as a background */
+button svg.ax-icon,
+[role="button"] svg.ax-icon,
 button svg,
 [role="button"] svg {
   background: none !important;
@@ -376,10 +376,10 @@ button svg circle,
 }
 
 /* Ensure SVG paths/shapes inherit color properly */
-button svg.remixicon path,
-button svg.remixicon circle[fill],
-[role="button"] svg.remixicon path,
-[role="button"] svg.remixicon circle[fill],
+button svg.ax-icon path,
+button svg.ax-icon circle[fill],
+[role="button"] svg.ax-icon path,
+[role="button"] svg.ax-icon circle[fill],
 button svg path,
 [role="button"] svg path {
   fill: currentColor !important;

@@ -16,7 +16,8 @@
     "build": "tsc --noEmit",
     "type-check": "tsc --noEmit",
     "lint": "eslint \"./src/**/*.{ts,tsx}\" --config ../../eslint.config.js",
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.mjs",
+    "icons:sprite": "node ../../scripts/generate-icon-sprite.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
@@ -90,7 +91,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
-    "@remixicon/react": "^4.7.0",
+    "@phosphor-icons/core": "2.1.1",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/mdast": "4.0.4",
     "@types/node": "^24.3.1",

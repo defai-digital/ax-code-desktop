@@ -1,131 +1,47 @@
 /**
- * Generates the SVG icon sprite file from @remixicon/react bundle.
+ * Generates the SVG icon sprite from Phosphor Icons (@phosphor-icons/core).
  *
- * Usage: node scripts/generate-icon-sprite.mjs
+ * Usage: node scripts/generate-icon-sprite.mjs [--check]
+ *        (or `pnpm --filter @openchamber/ui icons:sprite`)
  *
- * Reads the minified @remixicon/react bundle, extracts SVG path data
- * for all Ri* icons used in packages/ui/src, and writes
- * packages/ui/src/components/icon/sprite.ts.
+ * --check writes nothing and exits non-zero when sprite.ts differs from what
+ * the map would generate.
+ *
+ * Resolves every name in scripts/icon-sprite-map.mjs to its Phosphor SVG and
+ * writes packages/ui/src/components/icon/sprite.ts. It also scans
+ * packages/ui/src for the names in use and reports mapped names it did not see.
+ *
+ * The run fails when a name rendered with `<Icon name="..." />` has no mapping
+ * or a mapping points at a Phosphor asset that does not exist, so a new icon
+ * cannot silently render as an empty box.
  */
 
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs"
+import { createRequire } from "node:module"
 import { resolve, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
+import { DEFAULT_WEIGHT, ICON_MAP, PHOSPHOR_WEIGHTS } from "./icon-sprite-map.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(__dirname, "..")
-const remixCandidates = [
-  resolve(repoRoot, "node_modules/@remixicon/react/index.mjs"),
-  resolve(repoRoot, "packages/ui/node_modules/@remixicon/react/index.mjs"),
-  resolve(repoRoot, "../node_modules/@remixicon/react/index.mjs"),
-]
-const remixPath = remixCandidates.find(existsSync) ?? remixCandidates[0]
 const outPath = resolve(repoRoot, "packages/ui/src/components/icon/sprite.ts")
 
-const source = readFileSync(remixPath, "utf-8")
+const requireFromUi = createRequire(resolve(repoRoot, "packages/ui/package.json"))
+// The package exports only its SVG assets and bundle, so locate the package
+// root from a known asset rather than from package.json.
+const phosphorRoot = resolve(dirname(requireFromUi.resolve("@phosphor-icons/core/assets/regular/house.svg")), "../..")
+const phosphorVersion = JSON.parse(readFileSync(resolve(phosphorRoot, "package.json"), "utf-8")).version
 
-// --- Step 1: extract variable → path mapping ---
-// Pattern: const VARNAME=({color:...})=>...createElement("path",{d:"PATH_DATA"})...,
-// Each icon is defined as `const X=...` where X is 1-4 chars.
-const varPathMap = new Map()
-const varRegex = /(?:[,;]const |\),)([A-Za-z0-9_$]{1,4})=\([{]color:/g
-// Find all variable definitions and their boundaries
-const varPositions = []
-let m
-while ((m = varRegex.exec(source)) !== null) {
-  varPositions.push({
-    varName: m[1],
-    start: m.index + m[0].length - 1, // first `{` after `=({color:`
-  })
+const errors = []
+const usedIcons = new Set()
+const addKebabIcon = (kebab) => {
+  if (!Object.hasOwn(ICON_MAP, kebab)) return false
+  usedIcons.add(kebab)
+  return true
 }
 
-for (let i = 0; i < varPositions.length; i++) {
-  const current = varPositions[i]
-  const next = varPositions[i + 1]
-  // End at the )), just before the next variable definition
-  const end = next ? source.indexOf("))," + next.varName + "=(", current.start) : source.length
-  if (end < 0 || end < current.start) continue
-  const segment = source.slice(current.start, end)
-  const pathRegex = /\w+\.createElement\("path",[{]d:"([^"]*)"/g
-  let pm
-  const paths = []
-  while ((pm = pathRegex.exec(segment)) !== null) {
-    paths.push(pm[1])
-  }
-  if (paths.length > 0) {
-    varPathMap.set(current.varName, paths)
-  }
-}
-
-// --- Step 2: extract export mapping ---
-// The export map is near the end of the file:
-// export{V1 as Ri...Z2 as RiLast};
-const exportRegex = /export[{]([^}]+)[}]/
-const exportMatch = exportRegex.exec(source)
-if (!exportMatch) {
-  console.error("Could not find export mapping in remixicon bundle")
-  process.exit(1)
-}
-
-const nameToVar = new Map()
-const entries = exportMatch[1].split(",")
-for (const entry of entries) {
-  // Pattern: VAR as RiIconName
-  const parts = entry.trim().split(" as ")
-  if (parts.length === 2) {
-    nameToVar.set(parts[1].trim(), parts[0].trim())
-  }
-}
-
-const remixToSpriteName = (name) => {
-  // RiArrowDownSLine → arrow-down-s
-  // RiGithubFill → github-fill (keep Fill for fill variants)
-  return name
-    .replace(/^Ri/, "")
-    .replace(/Line$/, "")
-    .replace(/([a-z])([A-Z0-9])/g, "$1-$2")
-    .replace(/([0-9])([A-Z])/g, "$1-$2")
-    .toLowerCase()
-}
-
-const spriteNameToRi = new Map()
-const hasRemixVariantSuffix = (name) => name.endsWith("Line") || name.endsWith("Fill")
-const shouldPreferSpriteCandidate = (current, candidate) => {
-  if (!current) return true
-  if (!hasRemixVariantSuffix(candidate) && hasRemixVariantSuffix(current)) return true
-  if (!hasRemixVariantSuffix(current)) return false
-  if (candidate.endsWith("Line") && !current.endsWith("Line")) return true
-  return false
-}
-
-for (const iconName of nameToVar.keys()) {
-  const spriteName = remixToSpriteName(iconName)
-  const current = spriteNameToRi.get(spriteName)
-  if (shouldPreferSpriteCandidate(current, iconName)) {
-    spriteNameToRi.set(spriteName, iconName)
-  }
-}
-
-// --- Step 3: find which icons we actually use ---
 const srcDir = resolve(repoRoot, "packages/ui/src")
 
-// Helper: convert kebab-case name back to RiName
-function nameToRi(kebab) {
-  // "arrow-down-sline" → RiArrowDownSline
-  const parts = kebab.split("-")
-  let result = "Ri"
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i]
-    if (i > 0 && /^\d/.test(part)) {
-      result += part[0].toUpperCase() + part.slice(1)
-    } else {
-      result += part.charAt(0).toUpperCase() + part.slice(1)
-    }
-  }
-  return result
-}
-
-// Finish step 3 synchronously with simpler approach
 function findAllSourceFiles(dir) {
   const results = []
   for (const entry of readdirSync(dir)) {
@@ -146,30 +62,6 @@ function findAllSourceFiles(dir) {
 }
 
 const allSrcFiles = findAllSourceFiles(srcDir)
-const usedIcons = new Set()
-const addKebabIcon = (kebab) => {
-  const exactRiName = spriteNameToRi.get(kebab)
-  if (exactRiName && !hasRemixVariantSuffix(exactRiName)) {
-    usedIcons.add(exactRiName)
-    return true
-  }
-
-  for (const suffix of ["Line", "Fill", ""]) {
-    const riName = nameToRi(kebab) + suffix
-    if (nameToVar.has(riName)) {
-      usedIcons.add(riName)
-      return true
-    }
-  }
-
-  if (exactRiName) {
-    usedIcons.add(exactRiName)
-    return true
-  }
-
-  return false
-}
-
 const addIconLiterals = (content) => {
   const iconLiteralRegex = /["']([a-z][a-z0-9-]*)["']/g
   let literal
@@ -298,20 +190,14 @@ const addIconNameVariableAssignments = (content) => {
 
 for (const file of allSrcFiles) {
   const content = readFileSync(file, "utf-8")
-  // Match RiIcons from @remixicon/react imports
-  const iconRegex = /Ri[A-Z][A-Za-z0-9]+/g
-  let im
-  while ((im = iconRegex.exec(content)) !== null) {
-    if (nameToVar.has(im[0])) {
-      usedIcons.add(im[0])
-    }
-  }
-
   // Also scan for <Icon name="..." /> patterns (already-migrated icons)
   const iconNameRegex = /<Icon\b[^>]*\bname=(?:["']([^"']+)["']|{\s*["']([^"']+)["']\s*})/g
   let nm
   while ((nm = iconNameRegex.exec(content)) !== null) {
-    addKebabIcon(nm[1] || nm[2])
+    const name = nm[1] || nm[2]
+    if (!addKebabIcon(name)) {
+      errors.push(`${file.slice(repoRoot.length + 1)}: <Icon name="${name}"> has no entry in icon-sprite-map.mjs`)
+    }
   }
 
   // Also scan for icon: 'kebab-name' / Icon: 'kebab-name' in object literals.
@@ -351,41 +237,82 @@ for (const icon of [
   addKebabIcon(icon)
 }
 
-console.log(`Found ${usedIcons.size} unique remixicon names used in source`)
+console.log(`Found ${usedIcons.size} sprite icon names used in source`)
 
-// --- Step 4: build sprite data ---
-const iconEntries = []
-for (const iconName of [...usedIcons].sort()) {
-  const varName = nameToVar.get(iconName)
-  if (!varName) {
-    console.warn(`  ⚠ Unknown icon: ${iconName}`)
-    continue
+// --- Resolve each name to Phosphor SVG content ---
+const resolveSpec = (name) => {
+  const raw = ICON_MAP[name]
+  const spec = typeof raw === "string" ? { icon: raw } : raw
+  const weight = spec.weight ?? DEFAULT_WEIGHT
+  if (!PHOSPHOR_WEIGHTS.includes(weight)) {
+    errors.push(`${name}: unknown Phosphor weight "${weight}"`)
   }
-  const paths = varPathMap.get(varName)
-  if (!paths || paths.length === 0) {
-    console.warn(`  ⚠ No path data for: ${iconName} (var: ${varName})`)
-    continue
-  }
-
-  // Build SVG content from paths
-  const svgContent = paths.map((d) => `<path d="${d}" fill="currentColor"/>`).join("")
-
-  iconEntries.push({ name: iconName, content: svgContent })
+  return { icon: spec.icon, weight, flip: spec.flip === true }
 }
 
-// --- Step 5: write sprite.ts ---
-const spriteLines = iconEntries.map(({ name, content }) => {
-  const spriteName = remixToSpriteName(name)
-  return `  "${spriteName}": \`${content}\`,`
-})
+const readPhosphorBody = ({ icon, weight }) => {
+  const file = resolve(phosphorRoot, "assets", weight, weight === "regular" ? `${icon}.svg` : `${icon}-${weight}.svg`)
+  if (!existsSync(file)) return null
+  const svg = readFileSync(file, "utf-8").trim()
+  const match = /^<svg\b[^>]*viewBox="0 0 256 256"[^>]*>([\s\S]*)<\/svg>$/.exec(svg)
+  if (!match) return null
+  const body = match[1].trim()
+  // The button CSS in index.css forces `fill: none` on rect/circle; Phosphor
+  // ships path-only glyphs, and anything else would disappear inside buttons.
+  if (/<(?!\/?path\b)[a-z]/i.test(body)) return null
+  return body
+}
+
+const iconEntries = []
+// Emit every mapped name, not only the ones the scan found: names can also
+// arrive from configuration and other packages, and dropping one would
+// silently narrow the IconName type.
+for (const name of Object.keys(ICON_MAP).sort()) {
+  const spec = resolveSpec(name)
+  const body = readPhosphorBody(spec)
+  if (body === null) {
+    errors.push(`${name}: no usable Phosphor asset for ${spec.icon} (${spec.weight})`)
+    continue
+  }
+  const transform = spec.flip ? ' transform="matrix(-1 0 0 1 256 0)"' : ""
+  iconEntries.push({ name, content: `<g fill="currentColor"${transform}>${body}</g>` })
+}
+
+if (errors.length > 0) {
+  for (const error of errors) console.error(`  ✗ ${error}`)
+  process.exit(1)
+}
+
+const unused = Object.keys(ICON_MAP).filter((name) => !usedIcons.has(name))
+if (unused.length > 0) {
+  console.log(`  Mapped but not found by the source scan: ${unused.join(", ")}`)
+}
+
+// --- Write sprite.ts ---
+// Quote only keys that need it, matching Prettier, so the output is stable under formatting.
+const spriteKey = (name) => (/^[A-Za-z_$][\w$]*$/.test(name) ? name : `"${name}"`)
+const spriteLines = iconEntries.map(({ name, content }) => `  ${spriteKey(name)}: \`${content}\`,`)
 
 const spriteContent = `// This file is auto-generated by scripts/generate-icon-sprite.mjs
-// Do not edit manually. Run the script to update.
+// Do not edit manually. Edit scripts/icon-sprite-map.mjs and run the script.
+// Glyphs: Phosphor Icons ${phosphorVersion} (https://phosphoricons.com), MIT License.
+
+export const ICON_VIEWBOX = "0 0 256 256"
 
 export const iconSpriteData = {
 ${spriteLines.join("\n")}
-} as const satisfies Record<string, string>;
+} as const satisfies Record<string, string>
 `
+
+if (process.argv.includes("--check")) {
+  const current = existsSync(outPath) ? readFileSync(outPath, "utf-8") : ""
+  if (current !== spriteContent) {
+    console.error("sprite.ts is out of date with icon-sprite-map.mjs. Run the generator and commit the result.")
+    process.exit(1)
+  }
+  console.log("sprite.ts matches icon-sprite-map.mjs")
+  process.exit(0)
+}
 
 writeFileSync(outPath, spriteContent, "utf-8")
 console.log(`\n✅ Generated sprite data for ${iconEntries.length} icons → ${outPath}`)

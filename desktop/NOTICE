@@ -21,6 +21,10 @@ tray controller, and the native desktop command handlers) is derived from the
 OpenChamber Electron runtime at tag v1.12.4, adapted to the AX Code Desktop
 branding, settings paths, and single-utilityProcess server model.
 
+The interface icons are generated from Phosphor Icons
+(https://github.com/phosphor-icons/core), Copyright (c) 2023 Phosphor Icons,
+licensed under the MIT License.
+
 GitHub may display upstream OpenChamber contributors in repository contributor
 widgets because this project includes derived code. Those accounts are credited
 for upstream work and are not necessarily maintainers of, or direct contributors
