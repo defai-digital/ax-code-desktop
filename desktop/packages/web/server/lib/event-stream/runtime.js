@@ -48,6 +48,7 @@ export function createMessageStreamWsRuntime({
   uiAuthController,
   isRequestOriginAllowed,
   rejectWebSocketUpgrade,
+  markWebSocketUpgradeClaimed,
   buildAxCodeUrl,
   getAxCodeAuthHeaders,
   processForwardedEventPayload,
@@ -119,6 +120,7 @@ export function createMessageStreamWsRuntime({
     if (pathname !== MESSAGE_STREAM_GLOBAL_WS_PATH && pathname !== MESSAGE_STREAM_DIRECTORY_WS_PATH) {
       return
     }
+    markWebSocketUpgradeClaimed(socket)
 
     const handleUpgrade = async () => {
       try {

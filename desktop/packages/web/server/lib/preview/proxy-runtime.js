@@ -1248,7 +1248,10 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     res.setHeader("content-security-policy", merged)
   }
 
-  const attach = (app, { server, express, uiAuthController, isRequestOriginAllowed, rejectWebSocketUpgrade }) => {
+  const attach = (
+    app,
+    { server, express, uiAuthController, isRequestOriginAllowed, rejectWebSocketUpgrade, markWebSocketUpgradeClaimed },
+  ) => {
     ensureSweeper()
 
     const injectPreviewBridge = (bodyText, targetOrigin) => {
@@ -1523,6 +1526,7 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       if (!(req.originalUrl || req.url || "").startsWith("/api/preview/proxy/")) {
         return
       }
+      markWebSocketUpgradeClaimed(socket)
 
       const resolved = resolveTargetFromRequest(req)
       if (!resolved.ok) {

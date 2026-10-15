@@ -15,6 +15,8 @@ export const createStartupPipelineRuntime = (dependencies) => {
       isExecutable,
       isRequestOriginAllowed,
       rejectWebSocketUpgrade,
+      markWebSocketUpgradeClaimed,
+      rejectUnclaimedWebSocketUpgrade,
       buildAxCodeUrl,
       getAxCodeAuthHeaders,
       globalEventHub,
@@ -52,6 +54,7 @@ export const createStartupPipelineRuntime = (dependencies) => {
       isExecutable,
       isRequestOriginAllowed,
       rejectWebSocketUpgrade,
+      markWebSocketUpgradeClaimed,
       validateCwd: validateTerminalCwd,
       TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: terminalHeartbeatIntervalMs,
       TERMINAL_INPUT_WS_REBIND_WINDOW_MS: terminalRebindWindowMs,
@@ -63,6 +66,7 @@ export const createStartupPipelineRuntime = (dependencies) => {
       uiAuthController,
       isRequestOriginAllowed,
       rejectWebSocketUpgrade,
+      markWebSocketUpgradeClaimed,
       buildAxCodeUrl,
       getAxCodeAuthHeaders,
       globalEventHub,
@@ -82,6 +86,14 @@ export const createStartupPipelineRuntime = (dependencies) => {
     // is the only position where every route above it is covered, and it still
     // precedes the listening socket.
     app.use(createFinalErrorHandler())
+
+    // The WebSocket feature runtimes (preview proxy, terminal, event stream)
+    // mark every upgrade request they claim. This listener is registered last,
+    // so anything still unclaimed targets a path nobody serves — answer and
+    // close it instead of letting the socket hang forever.
+    server.on("upgrade", (req, socket) => {
+      rejectUnclaimedWebSocketUpgrade(socket)
+    })
 
     const serverStartupRuntime = createServerStartupRuntime({
       process,

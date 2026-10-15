@@ -106,6 +106,7 @@ export function createTerminalRuntime({
   isExecutable,
   isRequestOriginAllowed,
   rejectWebSocketUpgrade,
+  markWebSocketUpgradeClaimed,
   validateCwd,
   getPtyProvider: getPtyProviderOverride,
   TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS,
@@ -513,6 +514,7 @@ export function createTerminalRuntime({
     if (pathname !== TERMINAL_INPUT_WS_PATH) {
       return
     }
+    markWebSocketUpgradeClaimed(socket)
 
     const handleUpgrade = async () => {
       try {

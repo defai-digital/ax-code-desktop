@@ -453,6 +453,7 @@ describe("preview proxy upstream request hygiene", () => {
     })
 
     const rejectWebSocketUpgrade = vi.fn()
+    const markWebSocketUpgradeClaimed = vi.fn()
     runtime.attach(app, {
       server: {
         on: (event, handler) => {
@@ -463,6 +464,7 @@ describe("preview proxy upstream request hygiene", () => {
       uiAuthController: null,
       isRequestOriginAllowed: vi.fn(async () => true),
       rejectWebSocketUpgrade,
+      markWebSocketUpgradeClaimed,
     })
 
     // `ws: true` makes http-proxy-middleware subscribe its own upgrade listener as soon as an HTTP
@@ -471,12 +473,20 @@ describe("preview proxy upstream request hygiene", () => {
     expect(proxyOptions.ws).toBe(false)
 
     // Non-preview upgrades belong to the terminal, event-stream and renderer handlers.
-    upgradeHandler({ url: "/api/terminal/ws", headers: {} }, {}, Buffer.alloc(0))
+    const foreignSocket = {}
+    upgradeHandler({ url: "/api/terminal/ws", headers: {} }, foreignSocket, Buffer.alloc(0))
     expect(rejectWebSocketUpgrade).not.toHaveBeenCalled()
+    expect(markWebSocketUpgradeClaimed).not.toHaveBeenCalled()
     expect(upgradeMiddleware).not.toHaveBeenCalled()
 
     // A preview path that resolves to no target is answered instead of left hanging.
-    upgradeHandler({ url: "/api/preview/proxy/f4af70b4261d77706743959516f9cecc/ws", headers: {} }, {}, Buffer.alloc(0))
+    const previewSocket = {}
+    upgradeHandler(
+      { url: "/api/preview/proxy/f4af70b4261d77706743959516f9cecc/ws", headers: {} },
+      previewSocket,
+      Buffer.alloc(0),
+    )
+    expect(markWebSocketUpgradeClaimed).toHaveBeenCalledWith(previewSocket)
     expect(rejectWebSocketUpgrade).toHaveBeenCalledWith(expect.anything(), 404, "Preview target expired")
     expect(upgradeMiddleware).not.toHaveBeenCalled()
 

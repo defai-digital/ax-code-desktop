@@ -576,6 +576,7 @@ describe("message stream websocket runtime", () => {
       rejectWebSocketUpgrade(_socket, statusCode, reason) {
         rejections.push({ statusCode, reason })
       },
+      markWebSocketUpgradeClaimed() {},
       buildAxCodeUrl: (path) => `http://127.0.0.1:4096${path}`,
       getAxCodeAuthHeaders: () => ({}),
       processForwardedEventPayload() {},
@@ -608,6 +609,7 @@ describe("message stream websocket runtime", () => {
       rejectWebSocketUpgrade(_socket, statusCode, reason) {
         rejections.push({ statusCode, reason })
       },
+      markWebSocketUpgradeClaimed() {},
       buildAxCodeUrl: (path) => `http://127.0.0.1:4096${path}`,
       getAxCodeAuthHeaders: () => ({}),
       processForwardedEventPayload() {},

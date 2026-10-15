@@ -1,5 +1,5 @@
 import express from "express"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import request from "supertest"
 
 import { createFinalErrorHandler } from "../final-error-handler.js"
@@ -34,10 +34,10 @@ const createHarness = () => {
   return { app, pipeline, staticRoutesRuntime }
 }
 
-const runPipeline = async ({ app, pipeline, staticRoutesRuntime }) => {
+const runPipeline = async ({ app, pipeline, staticRoutesRuntime, server, extraOptions }) => {
   await pipeline.run({
     app,
-    server: {},
+    server: server ?? { on: () => {} },
     express,
     setupProxy: (expressApp) => expressApp.use((req, res, next) => next()),
     scheduleAxCodeApiDetection: () => {},
@@ -51,6 +51,7 @@ const runPipeline = async ({ app, pipeline, staticRoutesRuntime }) => {
     host: "127.0.0.1",
     port: 0,
     attachSignals: false,
+    ...extraOptions,
   })
 }
 
@@ -74,5 +75,23 @@ describe("startup pipeline error handling", () => {
 
     expect(response.status).toBe(200)
     expect(response.body).toEqual({ ok: true })
+  })
+
+  it("registers a catch-all that closes upgrades no feature runtime claimed", async () => {
+    const harness = createHarness()
+    const listeners = {}
+    const server = {
+      on: (event, handler) => {
+        listeners[event] = handler
+      },
+    }
+    const rejectUnclaimedWebSocketUpgrade = vi.fn()
+
+    await runPipeline({ ...harness, server, extraOptions: { rejectUnclaimedWebSocketUpgrade } })
+
+    expect(typeof listeners.upgrade).toBe("function")
+    const socket = { destroyed: false }
+    listeners.upgrade({ url: "/api/no-such-ws" }, socket)
+    expect(rejectUnclaimedWebSocketUpgrade).toHaveBeenCalledWith(socket)
   })
 })

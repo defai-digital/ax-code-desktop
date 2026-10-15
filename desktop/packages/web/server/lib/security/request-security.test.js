@@ -138,3 +138,44 @@ describe("request security origin checks", () => {
     ).resolves.toBe(true)
   })
 })
+
+describe("unclaimed WebSocket upgrades", () => {
+  const createSocket = () => {
+    const writes = []
+    return {
+      writes,
+      destroyed: false,
+      write(chunk) {
+        writes.push(chunk)
+      },
+      destroy() {
+        this.destroyed = true
+      },
+    }
+  }
+
+  it("answers upgrades no feature runtime claimed with a 404 close", () => {
+    const runtime = createRuntime()
+    const socket = createSocket()
+
+    runtime.rejectUnclaimedWebSocketUpgrade(socket)
+
+    expect(socket.writes.join("")).toContain("HTTP/1.1 404 Not Found")
+    expect(socket.destroyed).toBe(true)
+  })
+
+  it("leaves claimed or already-closed sockets to their owners", () => {
+    const runtime = createRuntime()
+    const claimed = createSocket()
+    const closed = createSocket()
+
+    runtime.markWebSocketUpgradeClaimed(claimed)
+    runtime.rejectUnclaimedWebSocketUpgrade(claimed)
+    closed.destroy()
+    runtime.rejectUnclaimedWebSocketUpgrade(closed)
+
+    expect(claimed.writes).toEqual([])
+    expect(claimed.destroyed).toBe(false)
+    expect(closed.writes).toEqual([])
+  })
+})

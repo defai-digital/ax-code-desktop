@@ -287,6 +287,10 @@ const TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS = 15 * 1000
 
 const rejectWebSocketUpgrade = (...args) => requestSecurityRuntime.rejectWebSocketUpgrade(...args)
 
+const markWebSocketUpgradeClaimed = (...args) => requestSecurityRuntime.markWebSocketUpgradeClaimed(...args)
+
+const rejectUnclaimedWebSocketUpgrade = (...args) => requestSecurityRuntime.rejectUnclaimedWebSocketUpgrade(...args)
+
 const isRequestOriginAllowed = (...args) => requestSecurityRuntime.isRequestOriginAllowed(...args)
 
 const notificationEmitterRuntime = createNotificationEmitterRuntime({
@@ -1418,6 +1422,7 @@ async function main(options = {}) {
     uiAuthController,
     isRequestOriginAllowed,
     rejectWebSocketUpgrade,
+    markWebSocketUpgradeClaimed,
   })
 
   const startupPipelineResult = await startupPipelineRuntime.run({
@@ -1432,6 +1437,8 @@ async function main(options = {}) {
     isExecutable,
     isRequestOriginAllowed,
     rejectWebSocketUpgrade,
+    markWebSocketUpgradeClaimed,
+    rejectUnclaimedWebSocketUpgrade,
     buildAxCodeUrl,
     getAxCodeAuthHeaders,
     globalEventHub: globalMessageStreamHub,

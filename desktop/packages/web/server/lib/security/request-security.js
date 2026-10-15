@@ -76,9 +76,31 @@ export const createRequestSecurityRuntime = () => {
     return normalizeLoopbackHttpOrigin(originHeader) !== null
   }
 
+  // Several feature runtimes multiplex their WebSocket paths over one HTTP
+  // server: every "upgrade" listener sees every request and ignores the paths
+  // it does not own. A listener that does claim the path marks the socket so a
+  // final catch-all can answer anything left over instead of leaving the
+  // socket open forever.
+  const WS_UPGRADE_CLAIMED_KEY = Symbol.for("ax-code-desktop.wsUpgradeClaimed")
+
+  const markWebSocketUpgradeClaimed = (socket) => {
+    if (socket) {
+      socket[WS_UPGRADE_CLAIMED_KEY] = true
+    }
+  }
+
+  const rejectUnclaimedWebSocketUpgrade = (socket) => {
+    if (!socket || socket.destroyed || socket[WS_UPGRADE_CLAIMED_KEY]) {
+      return
+    }
+    rejectWebSocketUpgrade(socket, 404, "Not Found")
+  }
+
   return {
     getUiSessionTokenFromRequest,
     rejectWebSocketUpgrade,
+    markWebSocketUpgradeClaimed,
+    rejectUnclaimedWebSocketUpgrade,
     isRequestOriginAllowed,
   }
 }

@@ -32,6 +32,7 @@ function createRuntime(server, overrides = {}) {
     isExecutable: () => false,
     isRequestOriginAllowed: async () => true,
     rejectWebSocketUpgrade() {},
+    markWebSocketUpgradeClaimed() {},
     TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: 30_000,
     TERMINAL_INPUT_WS_REBIND_WINDOW_MS: 1_000,
     TERMINAL_INPUT_WS_MAX_REBINDS_PER_WINDOW: 3,
