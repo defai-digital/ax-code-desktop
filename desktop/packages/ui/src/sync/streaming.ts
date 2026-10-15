@@ -152,11 +152,17 @@ export function updateStreamingState(state: State) {
     }
   }
 
-  // Mark completed any previously streaming sessions that are now idle or gone
+  // Mark completed any previously streaming session that this state now reports
+  // as idle. A session this state says nothing about belongs to another
+  // directory's store: this function only ever sees the active directory's
+  // state, and concluding "idle" from silence completed a session that was still
+  // streaming in another project — including one streaming in the chat the user
+  // is watching, every time an unrelated project's store ticked.
+  const statusBySession = state.session_status ?? {}
   for (const [sessionID, msgId] of currentStreamingIds) {
     if (!msgId) continue
-    const isStillBusy = busySessionIds.has(sessionID)
-    if (isStillBusy) continue
+    if (!(sessionID in statusBySession)) continue
+    if ((statusBySession[sessionID] as SessionStatus).type === "busy") continue
 
     completeStreamingMessage(sessionID, msgId)
   }

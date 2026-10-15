@@ -88,6 +88,25 @@ describe("updateStreamingState", () => {
     expect(useStreamingStore.getState().messageStreamStates.get("msg_assistant_1")?.phase).toBe("completed")
   })
 
+  test("keeps a session streaming when a tick says nothing about it", () => {
+    // The derivation only ever sees the active directory's store, so silence
+    // about a session means "another project's", not "idle". Without this guard,
+    // every tick of an unrelated project's store completed the session that was
+    // streaming in the chat the user was watching.
+    updateStreamingState(stateWithMessages([message("msg_user_1", "user"), message("msg_assistant_1", "assistant")]))
+    expect(useStreamingStore.getState().streamingMessageIds.get("ses_1")).toBe("msg_assistant_1")
+
+    const otherProject: State = {
+      ...INITIAL_STATE,
+      session_status: { ses_9: { type: "busy" } as SessionStatus },
+      message: { ses_9: [message("msg_user_9", "user")] },
+    }
+    updateStreamingState(otherProject)
+
+    expect(useStreamingStore.getState().streamingMessageIds.get("ses_1")).toBe("msg_assistant_1")
+    expect(useStreamingStore.getState().messageStreamStates.get("msg_assistant_1")?.phase).toBe("streaming")
+  })
+
   test("keeps a still-prefilling session across a tick that writes the store for another reason", () => {
     // Tick 1: busy session with no messages → prefill.
     updateStreamingState(stateWithMessages([]))
