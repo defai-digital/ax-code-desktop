@@ -1321,6 +1321,10 @@ the Claude CLI).
 
 ### Fixed from the ax-code review
 
+- **`e1a2f9e9`** — the session-state and notification routes answered without a UI session (see the
+  corrected recording in the fourteenth round below): `requireUiSession` is the gate the stream route in the
+  same file already applied, mounted for `/api/sessions*` and `/api/session-activity` and attached to
+  `/api/notifications/auto-accept`, which decides whether permission prompts are announced at all.
 - **`5643d632`** — four findings: the `/api` session gate and the rate limiters were mounted after the body
   parsers, and the status and system routes before the limiters, so an unauthenticated request had its body
   buffered (50 MB) before the 401 (a malformed one answered the parser's 400) and
@@ -1421,12 +1425,12 @@ upstream comparison produced). The audit found five things in that work; all fiv
   (`notifications/routes.js:83-149`, `:192-203`), while the stream route in the same file does
   (`:30-41`), as do the runtime-backed routes (`ax-code/core-routes.js:267`) and the diagnostics ones
   (`requireSessionWhenEnabled`). In password mode the session titles, statuses and attention flags they
-  read (and the auto-accept they write) are therefore reachable without a session. The one production
-  caller is the renderer's own client (`ui/src/lib/http.ts:167`), and the gate would have to hold for the
-  *packaged* renderer too: its requests arrive through `desktop-renderer-protocol.js`, which forwards no
-  `Cookie` header at all (no occurrence of one in the file), so whether the app's own polling would 401
-  cannot be established here. Recorded rather than changed — a security gate that locks the app out of its
-  own session list is worse than the asymmetry it closes.
+  read (and the auto-accept they write) were therefore reachable without a session. This was first recorded
+  as blocked on the packaged renderer's credential path — a wrong reading: the record said its
+  `desktop-renderer-protocol.js` forwards no `Cookie` header because the file holds no occurrence of the
+  word, while `copyProxiedRequestHeaders` (`:199-217`) copies every request header except
+  `host`/`connection`/`content-length`, so the session cookie reaches the server and the gate cannot lock
+  the app out. Fixed in **`e1a2f9e9`** on that correction.
 - **`session-folders` GET echoes whatever the file holds** (`session-folders/routes.js:21-23`): a file
   containing `[]`, `"x"` or `{"foldersMap":42}` is answered 200 with that JSON. Checked against the reader
   and it is not a defect: the client guards every shape the reviewer named (`useSessionFoldersStore.ts:540-556`

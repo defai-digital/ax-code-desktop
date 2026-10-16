@@ -16,6 +16,26 @@ export const registerNotificationRoutes = (app, dependencies) => {
     setAutoAcceptSession,
   } = dependencies
 
+  /**
+   * The session gate the stream route above applies, for the routes that read and write the same state.
+   *
+   * They answered without one: in password mode any caller that could reach the port could read session
+   * titles, statuses and attention flags, and write the auto-accept mirror. `ensureSessionToken` returns null
+   * for the password-configured controller when the request carries no valid session cookie (and a token
+   * otherwise, so a server without a UI password stays open), which is exactly what the stream route checks.
+   */
+  const requireUiSession = async (req, res, next) => {
+    const uiToken = uiAuthController?.ensureSessionToken
+      ? await uiAuthController.ensureSessionToken(req, res)
+      : getUiSessionTokenFromRequest(req)
+    if (!uiToken) {
+      return res.status(401).json({ error: "UI authentication required" })
+    }
+    next()
+  }
+
+  app.use(["/api/sessions", "/api/session-activity"], requireUiSession)
+
   const ensureSessionWatcher = async () => {
     if (typeof ensureGlobalWatcherStarted !== "function") {
       return
@@ -188,8 +208,9 @@ export const registerNotificationRoutes = (app, dependencies) => {
 
   // Mirror client-side Permission Auto-Accept state to the server so it can
   // suppress permission notifications at the source (the 500ms debounce race
-  // otherwise leaks notifications for auto-accepted permissions).
-  app.post("/api/notifications/auto-accept", (req, res) => {
+  // otherwise leaks notifications for auto-accepted permissions). Gated like the
+  // session state routes: it decides whether permission prompts are announced.
+  app.post("/api/notifications/auto-accept", requireUiSession, (req, res) => {
     const body = req.body && typeof req.body === "object" ? req.body : {}
     const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : ""
     const enabled = body.enabled === true
