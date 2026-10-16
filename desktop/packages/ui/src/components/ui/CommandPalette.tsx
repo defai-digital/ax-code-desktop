@@ -335,6 +335,13 @@ export const CommandPalette: React.FC = () => {
         onSelect: run(() => setActiveMainTab("terminal")),
       },
       {
+        id: "open-board-view",
+        title: t("commandPalette.item.openBoard"),
+        icon: <Icon name="git-pull-request" className="mr-2 h-4 w-4" />,
+        searchText: `${t("commandPalette.item.openBoard")} issues pull requests github board`,
+        onSelect: run(() => setActiveMainTab("board")),
+      },
+      {
         id: "toggle-sidebar",
         title: isMobile ? t("commandPalette.item.showSessionSwitcher") : t("commandPalette.item.toggleSidebar"),
         icon: <Icon name="layout-left" className="mr-2 h-4 w-4" />,

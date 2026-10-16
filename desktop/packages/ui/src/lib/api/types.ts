@@ -882,6 +882,9 @@ export type GitHubPullRequestSummary = GitHubPullRequest & {
   body?: string
   createdAt?: string
   updatedAt?: string
+  labels?: GitHubIssueLabel[]
+  /** Present when the list payload already included reviewers. Check runs are not fetched per row. */
+  review?: { requested: number }
   headLabel?: string
   headRepo?: GitHubPullRequestHeadRepo | null
   sourceRepo?: (GitHubRepoSelector & { source: string }) | null
@@ -999,6 +1002,7 @@ export type GitHubIssueSummary = {
   title: string
   url: string
   state: "open" | "closed"
+  updatedAt?: string
   author?: GitHubUserSummary | null
   labels?: GitHubIssueLabel[]
   sourceRepo?: (GitHubRepoSelector & { source: string }) | null
@@ -1053,6 +1057,31 @@ export type GitHubIssueCommentsResult = {
   comments?: GitHubIssueComment[]
 }
 
+export type GitHubIssueListOptions = {
+  page?: number
+  state?: "open" | "closed"
+  label?: string
+  q?: string
+}
+
+export type GitHubPullListOptions = {
+  page?: number
+  state?: "open" | "closed" | "merged"
+  q?: string
+}
+
+export type GitHubIssueCommentCreateResult = {
+  connected: boolean
+  repo?: GitHubRepoRef | null
+  comment?: GitHubIssueComment | null
+}
+
+export type GitHubIssueStateResult = {
+  connected: boolean
+  repo?: GitHubRepoRef | null
+  issue?: Pick<GitHubIssue, "number" | "title" | "url" | "state"> | null
+}
+
 export type GitHubAuthStatus = {
   connected: boolean
   user?: GitHubUserSummary | null
@@ -1100,14 +1129,14 @@ export interface GitHubAPI {
   prMerge(payload: GitHubPullRequestMergeInput): Promise<GitHubPullRequestMergeResult>
   prReady(payload: GitHubPullRequestReadyInput): Promise<GitHubPullRequestReadyResult>
 
-  prsList(directory: string, options?: { page?: number }): Promise<GitHubPullRequestsListResult>
+  prsList(directory: string, options?: GitHubPullListOptions): Promise<GitHubPullRequestsListResult>
   prContext(
     directory: string,
     number: number,
     options?: { includeDiff?: boolean; includeCheckDetails?: boolean; sourceRepo?: GitHubRepoSelector | null },
   ): Promise<GitHubPullRequestContextResult>
 
-  issuesList(directory: string, options?: { page?: number }): Promise<GitHubIssuesListResult>
+  issuesList(directory: string, options?: GitHubIssueListOptions): Promise<GitHubIssuesListResult>
   issueGet(
     directory: string,
     number: number,
@@ -1118,6 +1147,18 @@ export interface GitHubAPI {
     number: number,
     options?: { sourceRepo?: GitHubRepoSelector | null },
   ): Promise<GitHubIssueCommentsResult>
+  issueComment(input: {
+    directory: string
+    number: number
+    body: string
+    sourceRepo?: GitHubRepoSelector | null
+  }): Promise<GitHubIssueCommentCreateResult>
+  issueSetState(input: {
+    directory: string
+    number: number
+    state: "open" | "closed"
+    sourceRepo?: GitHubRepoSelector | null
+  }): Promise<GitHubIssueStateResult>
   repoUpstream(directory: string): Promise<GitHubRepoUpstreamResult>
   repoBranches(owner: string, repo: string): Promise<string[]>
 }

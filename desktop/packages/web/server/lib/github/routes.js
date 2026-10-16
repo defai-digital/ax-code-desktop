@@ -1,4 +1,19 @@
+import {
+  buildIssueSearchQuery,
+  buildPullSearchQuery,
+  mapIssueComment,
+  mapIssueListItem,
+  mapIssueState,
+  mapPullListItem,
+  normalizeIssueListState,
+  normalizePullListState,
+  sanitizeGitHubLabel,
+  sanitizeGitHubSearchText,
+} from "./board-query.js"
+
 const PR_STATUS_CACHE_TTL_MS = 90_000
+const GITHUB_LIST_PAGE_SIZE = 50
+const GITHUB_COMMENT_MAX_LENGTH = 65_536
 const PR_STATUS_CACHE_MAX_ENTRIES = 200
 const prStatusCache = new Map()
 
@@ -26,6 +41,17 @@ function getRequestedRepo(req) {
   const owner = typeof req.query?.owner === "string" ? req.query.owner.trim() : ""
   const repo = typeof req.query?.repo === "string" ? req.query.repo.trim() : ""
   return owner && repo ? { owner, repo } : null
+}
+
+function readPositiveInteger(value) {
+  const number = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN
+  if (!Number.isInteger(number) || number <= 0) return null
+  return number
+}
+
+function readLinkHasMore(headers) {
+  const link = typeof headers?.link === "string" ? headers.link : ""
+  return /rel="next"/.test(link)
 }
 
 async function resolveRepoForRequest(octokit, directory, requestedRepo) {
@@ -1087,39 +1113,52 @@ export function registerGitHubRoutes(app) {
       }
 
       const effectivePage = Number.isFinite(page) && page > 0 ? page : 1
+      const state = normalizeIssueListState(typeof req.query?.state === "string" ? req.query.state : "")
+      const label = sanitizeGitHubLabel(typeof req.query?.label === "string" ? req.query.label : "")
+      const text = sanitizeGitHubSearchText(typeof req.query?.q === "string" ? req.query.q : "")
+      // listForRepo accepts one label. A comma is its separator, and free text
+      // is only available on the search API, so either one takes that path.
+      const useSearch = text.length > 0 || label.includes(",")
       const reposToQuery = repoNetwork || [{ ...repo, source: "origin" }]
 
       const queryRepo = async (repoRef) => {
         try {
-          const list = await octokit.rest.issues.listForRepo({
-            owner: repoRef.owner,
-            repo: repoRef.repo,
-            state: "open",
-            per_page: 50,
-            page: effectivePage,
-          })
-          const link = typeof list?.headers?.link === "string" ? list.headers.link : ""
-          const hasMore = /rel="next"/.test(link)
-          const issues = (Array.isArray(list?.data) ? list.data : [])
-            .filter((item) => !item?.pull_request)
-            .map((item) => ({
-              number: item.number,
-              title: item.title,
-              url: item.html_url,
-              state: item.state === "closed" ? "closed" : "open",
-              author: item.user ? { login: item.user.login, id: item.user.id, avatarUrl: item.user.avatar_url } : null,
-              labels: Array.isArray(item.labels)
-                ? item.labels
-                    .map((label) => {
-                      if (typeof label === "string") return null
-                      const name = typeof label?.name === "string" ? label.name : ""
-                      if (!name) return null
-                      return { name, color: typeof label?.color === "string" ? label.color : undefined }
-                    })
-                    .filter(Boolean)
-                : [],
-              sourceRepo: { owner: repoRef.owner, repo: repoRef.repo, source: repoRef.source },
-            }))
+          let list
+          if (useSearch) {
+            const q = buildIssueSearchQuery({
+              owner: repoRef.owner,
+              repo: repoRef.repo,
+              state,
+              label,
+              text,
+            })
+            if (!q) return { issues: [], hasMore: false }
+            list = await octokit.rest.search.issuesAndPullRequests({
+              q,
+              per_page: GITHUB_LIST_PAGE_SIZE,
+              page: effectivePage,
+              sort: "updated",
+              order: "desc",
+            })
+          } else {
+            list = await octokit.rest.issues.listForRepo({
+              owner: repoRef.owner,
+              repo: repoRef.repo,
+              state,
+              ...(label ? { labels: label } : {}),
+              per_page: GITHUB_LIST_PAGE_SIZE,
+              page: effectivePage,
+            })
+          }
+          const hasMore = readLinkHasMore(list?.headers)
+          const rawItems = useSearch
+            ? Array.isArray(list?.data?.items)
+              ? list.data.items
+              : []
+            : Array.isArray(list?.data)
+              ? list.data
+              : []
+          const issues = rawItems.map((item) => mapIssueListItem(item, repoRef)).filter(Boolean)
           return { issues, hasMore }
         } catch (error) {
           // A revoked or expired token fails every repo the same way, and it has to reach the route's
@@ -1270,6 +1309,102 @@ export function registerGitHubRoutes(app) {
     }
   })
 
+  // Issues and pull requests share GitHub's issue comment and state APIs.
+  // Closing here does not merge; merge stays on the pull-request route.
+
+  app.post("/api/github/issues/comments", async (req, res) => {
+    try {
+      const directory = typeof req.body?.directory === "string" ? req.body.directory.trim() : ""
+      const number = readPositiveInteger(req.body?.number)
+      const body = typeof req.body?.body === "string" ? req.body.body.trim() : ""
+      if (!directory || !number) {
+        return res.status(400).json({ error: "directory and number are required" })
+      }
+      if (!body) {
+        return res.status(400).json({ error: "body is required" })
+      }
+      if (body.length > GITHUB_COMMENT_MAX_LENGTH) {
+        return res.status(400).json({ error: "comment is too long" })
+      }
+
+      const { getOctokitOrNull } = await getGitHubLibraries()
+      const octokit = getOctokitOrNull()
+      if (!octokit) {
+        return res.json({ connected: false })
+      }
+
+      const repo = await resolveRepoForRequest(octokit, directory, getRequestedRepo(req))
+      if (!repo) {
+        return res.status(400).json({ error: "Unable to resolve the repository" })
+      }
+
+      const result = await octokit.rest.issues.createComment({
+        owner: repo.owner,
+        repo: repo.repo,
+        issue_number: number,
+        body,
+      })
+      return res.json({ connected: true, repo, comment: mapIssueComment(result?.data) })
+    } catch (error) {
+      if (error?.status === 401) {
+        const { clearGitHubAuth } = await getGitHubLibraries()
+        clearGitHubAuth()
+        await clearGitHubAccountScopedCaches()
+        return res.json({ connected: false })
+      }
+      if (error?.status === 403 || error?.status === 404 || error?.status === 422) {
+        return res.status(error.status).json({ error: gitHubRefusalMessage(error) })
+      }
+      console.error("Failed to comment on GitHub issue:", error)
+      return res.status(500).json({ error: error.message || "Failed to comment on GitHub issue" })
+    }
+  })
+
+  app.post("/api/github/issues/state", async (req, res) => {
+    try {
+      const directory = typeof req.body?.directory === "string" ? req.body.directory.trim() : ""
+      const number = readPositiveInteger(req.body?.number)
+      const state = req.body?.state === "open" || req.body?.state === "closed" ? req.body.state : ""
+      if (!directory || !number) {
+        return res.status(400).json({ error: "directory and number are required" })
+      }
+      if (!state) {
+        return res.status(400).json({ error: "state must be open or closed" })
+      }
+
+      const { getOctokitOrNull } = await getGitHubLibraries()
+      const octokit = getOctokitOrNull()
+      if (!octokit) {
+        return res.json({ connected: false })
+      }
+
+      const repo = await resolveRepoForRequest(octokit, directory, getRequestedRepo(req))
+      if (!repo) {
+        return res.status(400).json({ error: "Unable to resolve the repository" })
+      }
+
+      const result = await octokit.rest.issues.update({
+        owner: repo.owner,
+        repo: repo.repo,
+        issue_number: number,
+        state,
+      })
+      return res.json({ connected: true, repo, issue: mapIssueState(result?.data) })
+    } catch (error) {
+      if (error?.status === 401) {
+        const { clearGitHubAuth } = await getGitHubLibraries()
+        clearGitHubAuth()
+        await clearGitHubAccountScopedCaches()
+        return res.json({ connected: false })
+      }
+      if (error?.status === 403 || error?.status === 404 || error?.status === 422) {
+        return res.status(error.status).json({ error: gitHubRefusalMessage(error) })
+      }
+      console.error("Failed to update GitHub issue state:", error)
+      return res.status(500).json({ error: error.message || "Failed to update GitHub issue state" })
+    }
+  })
+
   // ================= GitHub Pull Request Context APIs =================
 
   app.get("/api/github/pulls/list", async (req, res) => {
@@ -1296,49 +1431,66 @@ export function registerGitHubRoutes(app) {
       }
 
       const effectivePage = Number.isFinite(page) && page > 0 ? page : 1
+      const pullState = normalizePullListState(typeof req.query?.state === "string" ? req.query.state : "")
+      const text = sanitizeGitHubSearchText(typeof req.query?.q === "string" ? req.query.q : "")
+      // The pulls listing cannot tell merged from closed, so those states (and
+      // free text) go through search, where is:merged / is:unmerged page exactly.
+      const useSearch = text.length > 0 || pullState !== "open"
       const reposToQuery = repoNetwork || [{ ...repo, source: "origin" }]
 
       const queryRepo = async (repoRef) => {
         try {
+          if (useSearch) {
+            const q = buildPullSearchQuery({
+              owner: repoRef.owner,
+              repo: repoRef.repo,
+              state: pullState,
+              text,
+            })
+            if (!q) return { prs: [], hasMore: false }
+            const list = await octokit.rest.search.issuesAndPullRequests({
+              q,
+              per_page: GITHUB_LIST_PAGE_SIZE,
+              page: effectivePage,
+              sort: "updated",
+              order: "desc",
+            })
+            const items = Array.isArray(list?.data?.items) ? list.data.items : []
+            const prs = items
+              .map((item) =>
+                mapPullListItem(
+                  {
+                    ...item,
+                    // Search rows are issues: the query already fixed the state, and
+                    // merged_at sits under pull_request. Draft is kept when present.
+                    state: pullState === "open" ? "open" : "closed",
+                    merged_at:
+                      pullState === "merged" ? item.pull_request?.merged_at || item.closed_at || "merged" : null,
+                  },
+                  repoRef,
+                ),
+              )
+              .filter(Boolean)
+            return { prs, hasMore: readLinkHasMore(list?.headers) }
+          }
+
           const list = await octokit.rest.pulls.list({
             owner: repoRef.owner,
             repo: repoRef.repo,
             state: "open",
-            per_page: 50,
+            per_page: GITHUB_LIST_PAGE_SIZE,
             page: effectivePage,
           })
-          const link = typeof list?.headers?.link === "string" ? list.headers.link : ""
-          const hasMore = /rel="next"/.test(link)
-          const prs = (Array.isArray(list?.data) ? list.data : []).map((pr) => {
-            const mergedState = pr.merged_at ? "merged" : pr.state === "closed" ? "closed" : "open"
-            const headRepo = pr.head?.repo
-              ? {
-                  owner: pr.head.repo.owner?.login,
-                  repo: pr.head.repo.name,
-                  url: pr.head.repo.html_url,
-                  cloneUrl: pr.head.repo.clone_url,
-                  sshUrl: pr.head.repo.ssh_url,
-                }
-              : null
-            return {
-              number: pr.number,
-              title: pr.title,
-              url: pr.html_url,
-              state: mergedState,
-              draft: Boolean(pr.draft),
-              base: pr.base?.ref,
-              head: pr.head?.ref,
-              headSha: pr.head?.sha,
-              mergeable: pr.mergeable,
-              mergeableState: pr.mergeable_state,
-              author: pr.user ? { login: pr.user.login, id: pr.user.id, avatarUrl: pr.user.avatar_url } : null,
-              headLabel: pr.head?.label,
-              headRepo: headRepo && headRepo.owner && headRepo.repo && headRepo.url ? headRepo : null,
-              sourceRepo: { owner: repoRef.owner, repo: repoRef.repo, source: repoRef.source },
-            }
-          })
-          return { prs, hasMore }
+          const prs = (Array.isArray(list?.data) ? list.data : [])
+            .map((pr) => mapPullListItem(pr, repoRef))
+            .filter(Boolean)
+          return { prs, hasMore: readLinkHasMore(list?.headers) }
         } catch (error) {
+          // Same as the issue list: a revoked token has to clear the account instead of
+          // looking like a repository with no pull requests.
+          if (error?.status === 401) {
+            throw error
+          }
           console.warn(`Failed to list PRs for ${repoRef.owner}/${repoRef.repo}:`, error?.message || error)
           return { prs: [], hasMore: false }
         }

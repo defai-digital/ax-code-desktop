@@ -13,6 +13,7 @@ export const PERSISTED_SPLIT_PANE_RIGHT_TABS = {
   files: true,
   context: true,
   wiki: true,
+  board: true,
 } as const satisfies Record<Exclude<MainTab, "chat">, true>
 
 export function isPersistedSplitPaneRightTab(value: unknown): value is Exclude<MainTab, "chat"> {

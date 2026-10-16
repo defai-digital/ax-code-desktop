@@ -22,6 +22,7 @@ type RailEntry = {
     | "splitPane.tab.context"
     | "wiki.graph.title"
     | "splitPane.tab.terminal"
+    | "splitPane.tab.board"
   shortcutId?: string
 }
 
@@ -29,6 +30,7 @@ const ENTRIES: RailEntry[] = [
   { view: "diff", icon: "git-commit", labelKey: "supervision.inspector.changes" },
   { view: "files", icon: "folder-3", labelKey: "splitPane.tab.files" },
   { view: "git", icon: "git-branch", labelKey: "splitPane.tab.git" },
+  { view: "board", icon: "git-pull-request", labelKey: "splitPane.tab.board" },
   { view: "plan", icon: "list-check-2", labelKey: "splitPane.tab.plan" },
   { view: "context", icon: "layout-column", labelKey: "splitPane.tab.context" },
   { view: "wiki", icon: "node-tree", labelKey: "wiki.graph.title" },

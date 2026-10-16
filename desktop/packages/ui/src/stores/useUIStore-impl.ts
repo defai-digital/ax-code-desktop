@@ -16,7 +16,7 @@ import { normalizeProjectPath } from "@/lib/projectResolution"
 import { isPersistedSplitPaneRightTab } from "@/lib/wiki/splitTab"
 import type { TimeFormatPreference } from "@/lib/timeFormat"
 
-export type MainTab = "chat" | "plan" | "git" | "diff" | "terminal" | "files" | "context" | "wiki"
+export type MainTab = "chat" | "plan" | "git" | "diff" | "terminal" | "files" | "context" | "wiki" | "board"
 type RightSidebarTab = "git" | "files" | "context"
 export type ContextPanelMode = "diff" | "file" | "context" | "plan" | "chat" | "preview" | "browser" | "dashboard"
 

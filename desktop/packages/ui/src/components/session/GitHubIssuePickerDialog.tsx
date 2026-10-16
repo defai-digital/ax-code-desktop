@@ -10,42 +10,15 @@ import { cn } from "@/lib/utils"
 import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
-import { useSelectionStore } from "@/sync/selection-store"
-import * as sessionActions from "@/sync/session-actions"
-import { useConfigStore } from "@/stores/useConfigStore"
-import { useAgentsStore } from "@/stores/useAgentsStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useGitHubAuthStore } from "@/stores/useGitHubAuthStore"
-import { axCodeClient } from "@/lib/ax-code/client"
-import { renderMagicPrompt } from "@/lib/magicPrompts"
-import { parseModelIdentifier } from "@/lib/modelIdentifier"
 import { useDeviceInfo } from "@/lib/device"
-import { createWorktreeSessionForNewBranch } from "@/lib/worktreeSessionCreator"
-import { generateBranchSlug } from "@/lib/git/branchNameGenerator"
 import { getSafeExternalUrl, openExternalUrl } from "@/lib/url"
-import type {
-  GitHubIssue,
-  GitHubIssueComment,
-  GitHubIssuesListResult,
-  GitHubIssueSummary,
-  GitHubRepoSelector,
-} from "@/lib/api/types"
+import type { GitHubIssuesListResult, GitHubIssueSummary, GitHubRepoSelector } from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n"
 import { loadCurrent } from "@/lib/currentLoad"
 import { filterGitHubItemsByQuery, parseGitHubNumber } from "./githubPickerQuery"
-
-const buildIssueContextText = (args: {
-  repo: GitHubIssuesListResult["repo"] | undefined
-  issue: GitHubIssue
-  comments: GitHubIssueComment[]
-}) => {
-  const payload = {
-    repo: args.repo ?? null,
-    issue: args.issue,
-    comments: args.comments,
-  }
-  return `GitHub issue context (JSON)\n${JSON.stringify(payload, null, 2)}`
-}
+import { buildIssueWorkContext, startGitHubWorkSession } from "./githubWorkSession"
 
 export function GitHubIssuePickerDialog({
   open,
@@ -235,62 +208,6 @@ export function GitHubIssuePickerDialog({
 
   const directNumber = React.useMemo(() => parseGitHubNumber(query, "issues"), [query])
 
-  const resolveDefaultAgentName = React.useCallback((): string | undefined => {
-    const configState = useConfigStore.getState()
-    const visibleAgents = useAgentsStore.getState().getVisibleAgents()
-
-    if (configState.settingsDefaultAgent) {
-      const settingsAgent = visibleAgents.find((a) => a.name === configState.settingsDefaultAgent)
-      if (settingsAgent) {
-        return settingsAgent.name
-      }
-    }
-
-    return visibleAgents.find((agent) => agent.name === "build")?.name || visibleAgents[0]?.name
-  }, [])
-
-  const resolveDefaultModelSelection = React.useCallback((): { providerID: string; modelID: string } | null => {
-    const configState = useConfigStore.getState()
-    const settingsDefaultModel = configState.settingsDefaultModel
-    if (!settingsDefaultModel) {
-      return null
-    }
-
-    const parsed = parseModelIdentifier(settingsDefaultModel)
-    if (!parsed) {
-      return null
-    }
-    const { providerId: providerID, modelId: modelID } = parsed
-
-    const modelMetadata = configState.getModelMetadata(providerID, modelID)
-    if (!modelMetadata) {
-      return null
-    }
-
-    return { providerID, modelID }
-  }, [])
-
-  const resolveDefaultVariant = React.useCallback((providerID: string, modelID: string): string | undefined => {
-    const configState = useConfigStore.getState()
-    const settingsDefaultVariant = configState.settingsDefaultVariant
-    if (!settingsDefaultVariant) {
-      return undefined
-    }
-
-    const provider = configState.providers.find((p) => p.id === providerID)
-    const model = provider?.models.find((m: Record<string, unknown>) => (m as { id?: string }).id === modelID) as
-      | { variants?: Record<string, unknown> }
-      | undefined
-    const variants = model?.variants
-    if (!variants) {
-      return undefined
-    }
-    if (!Object.prototype.hasOwnProperty.call(variants, settingsDefaultVariant)) {
-      return undefined
-    }
-    return settingsDefaultVariant
-  }, [])
-
   const startSession = React.useCallback(
     async (issueNumber: number, sourceRepo?: GitHubRepoSelector | null) => {
       if (!projectDirectory) {
@@ -372,7 +289,7 @@ export function GitHubIssuePickerDialog({
       }
       const comments = commentsRes?.comments ?? []
 
-      const contextText = buildIssueContextText({ repo: issueRes.repo, issue, comments })
+      const contextText = buildIssueWorkContext({ repo: issueRes.repo, issue, comments })
 
       if (mode === "select") {
         if (onSelect) {
@@ -399,110 +316,30 @@ export function GitHubIssuePickerDialog({
       }
 
       try {
-        const sessionTitle = `#${issue.number} ${issue.title}`.trim()
-
-        const sessionId = await (async () => {
-          if (createInWorktree) {
-            const preferred = `issue-${issue.number}-${generateBranchSlug()}`
-            const created = await createWorktreeSessionForNewBranch(requestedDirectory, preferred)
-            if (!created?.id) {
-              throw new Error("Failed to create worktree session")
-            }
-            return created.id
-          }
-
-          const session = await sessionActions.createSession(sessionTitle, requestedDirectory, null)
-          if (!session?.id) {
-            throw new Error("Failed to create session")
-          }
-          return session.id
-        })()
-
-        // Ensure worktree-based sessions also get the issue title.
-        void sessionActions.updateSessionTitle(sessionId, sessionTitle).catch(() => undefined)
-
-        // Close modal immediately after session exists (don't wait for message send).
-        onOpenChange(false)
-
-        const configState = useConfigStore.getState()
-        const lastUsedProvider = useSelectionStore.getState().lastUsedProvider
-
-        const defaultModel = resolveDefaultModelSelection()
-        const providerID = defaultModel?.providerID || configState.currentProviderId || lastUsedProvider?.providerID
-        const modelID = defaultModel?.modelID || configState.currentModelId || lastUsedProvider?.modelID
-        const agentName = resolveDefaultAgentName() || configState.currentAgentName || undefined
-        if (!providerID || !modelID) {
-          toast.error(t("session.githubIssuePicker.error.noModelSelected"))
-          return
-        }
-
-        const variant = resolveDefaultVariant(providerID, modelID)
-
-        try {
-          useSelectionStore.getState().saveSessionModelSelection(sessionId, providerID, modelID)
-        } catch {
-          // ignore
-        }
-
-        if (agentName) {
-          try {
-            configState.setAgent(agentName)
-          } catch {
-            // ignore
-          }
-
-          try {
-            useSelectionStore.getState().saveSessionAgentSelection(sessionId, agentName)
-          } catch {
-            // ignore
-          }
-
-          try {
-            useSelectionStore.getState().saveAgentModelForSession(sessionId, agentName, providerID, modelID)
-          } catch {
-            // ignore
-          }
-
-          if (variant !== undefined) {
-            try {
-              configState.setCurrentVariant(variant)
-            } catch {
-              // ignore
-            }
-            try {
-              useSelectionStore
-                .getState()
-                .saveAgentModelVariantForSession(sessionId, agentName, providerID, modelID, variant)
-            } catch {
-              // ignore
-            }
-          }
-        }
-
-        const visiblePromptText = await renderMagicPrompt("github.issue.review.visible", {
-          issue_number: String(issue.number),
-        })
-        const instructionsText = await renderMagicPrompt("github.issue.review.instructions")
-
-        void axCodeClient
-          .sendMessage({
-            id: sessionId,
-            providerID,
-            modelID,
-            agent: agentName,
-            variant,
-            text: visiblePromptText,
-            additionalParts: [
-              { text: instructionsText, synthetic: true },
-              { text: contextText, synthetic: true },
-            ],
-          })
-          .catch((e) => {
+        const { delivered } = await startGitHubWorkSession({
+          directory: requestedDirectory,
+          title: `#${issue.number} ${issue.title}`.trim(),
+          prompt: {
+            visible: "github.issue.review.visible",
+            instructions: "github.issue.review.instructions",
+            vars: { issue_number: String(issue.number) },
+          },
+          contextText,
+          createInWorktree,
+          worktreeBranchPrefix: `issue-${issue.number}`,
+          // Close the modal as soon as the session exists; the message is sent after.
+          onSessionCreated: () => onOpenChange(false),
+          onDeliveryError: (e) => {
             const message = e instanceof Error ? e.message : String(e)
             toast.error(t("session.githubIssuePicker.toast.sendContextFailed"), {
               description: message,
             })
-          })
+          },
+        })
+        if (!delivered) {
+          toast.error(t("session.githubIssuePicker.error.noModelSelected"))
+          return
+        }
 
         toast.success(t("session.githubIssuePicker.toast.sessionCreated"))
       } catch (e) {
@@ -512,19 +349,7 @@ export function GitHubIssuePickerDialog({
         clearCurrentIssueLoading()
       }
     },
-    [
-      createInWorktree,
-      github,
-      mode,
-      onOpenChange,
-      onSelect,
-      projectDirectory,
-      resolveDefaultAgentName,
-      resolveDefaultModelSelection,
-      resolveDefaultVariant,
-      startingIssueNumber,
-      t,
-    ],
+    [createInWorktree, github, mode, onOpenChange, onSelect, projectDirectory, startingIssueNumber, t],
   )
 
   const title =

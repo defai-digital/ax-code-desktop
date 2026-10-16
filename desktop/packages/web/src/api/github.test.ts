@@ -46,3 +46,56 @@ describe("web github API pull-request repo targeting", () => {
     expect(url).not.toContain("repo=")
   })
 })
+
+describe("web github API issue board requests", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    fetchMock.mockClear()
+  })
+
+  it("sends state, label and search text on the issue list", async () => {
+    vi.stubGlobal("fetch", fetchMock)
+    const api = createWebGitHubAPI()
+
+    await api.issuesList("/repo", { page: 2, state: "closed", label: "bug", q: "login crash" })
+
+    const [url] = requestedUrls()
+    expect(url).toContain("/api/github/issues/list?")
+    expect(url).toContain("directory=%2Frepo")
+    expect(url).toContain("page=2")
+    expect(url).toContain("state=closed")
+    expect(url).toContain("label=bug")
+    expect(url).toContain("q=login+crash")
+  })
+
+  it("posts a comment and a state change against the named repo", async () => {
+    vi.stubGlobal("fetch", fetchMock)
+    const api = createWebGitHubAPI()
+    const sourceRepo = { owner: "org", repo: "upstream" }
+
+    await api.issueComment({ directory: "/repo", number: 4, body: "Looks good", sourceRepo })
+    await api.issueSetState({ directory: "/repo", number: 4, state: "closed", sourceRepo })
+
+    const calls = fetchMock.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit?]>
+    expect(String(calls[0]?.[0])).toContain("/api/github/issues/comments?")
+    expect(String(calls[0]?.[0])).toContain("owner=org")
+    expect(String(calls[0]?.[0])).toContain("repo=upstream")
+    expect(calls[0]?.[1]?.method).toBe("POST")
+    expect(JSON.parse(String(calls[0]?.[1]?.body))).toEqual({ directory: "/repo", number: 4, body: "Looks good" })
+
+    expect(String(calls[1]?.[0])).toContain("/api/github/issues/state?")
+    expect(calls[1]?.[1]?.method).toBe("POST")
+    expect(JSON.parse(String(calls[1]?.[1]?.body))).toEqual({ directory: "/repo", number: 4, state: "closed" })
+  })
+
+  it("omits owner and repo when the comment names no source repo", async () => {
+    vi.stubGlobal("fetch", fetchMock)
+    const api = createWebGitHubAPI()
+
+    await api.issueComment({ directory: "/repo", number: 4, body: "Looks good" })
+
+    const [url] = requestedUrls()
+    expect(url).toBe("/api/github/issues/comments")
+    expect(url).not.toContain("owner=")
+  })
+})

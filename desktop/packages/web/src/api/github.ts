@@ -1,9 +1,13 @@
 import type {
   GitHubAPI,
   GitHubAuthStatus,
+  GitHubIssueCommentCreateResult,
   GitHubIssueCommentsResult,
   GitHubIssueGetResult,
+  GitHubIssueListOptions,
+  GitHubIssueStateResult,
   GitHubIssuesListResult,
+  GitHubPullListOptions,
   GitHubPullRequestContextResult,
   GitHubPullRequestsListResult,
   GitHubPullRequest,
@@ -33,6 +37,18 @@ const repoQueryParams = (sourceRepo?: { owner: string; repo: string } | null): U
     return undefined
   }
   return new URLSearchParams({ owner: sourceRepo.owner, repo: sourceRepo.repo })
+}
+
+const appendBoardListFilters = (
+  params: URLSearchParams,
+  options?: { page?: number; state?: string; label?: string; q?: string },
+) => {
+  params.set("page", String(options?.page ?? 1))
+  if (options?.state) params.set("state", options.state)
+  const label = options?.label?.trim()
+  if (label) params.set("label", label)
+  const query = options?.q?.trim()
+  if (query) params.set("q", query)
 }
 
 export const createWebGitHubAPI = (): GitHubAPI => ({
@@ -223,18 +239,14 @@ export const createWebGitHubAPI = (): GitHubAPI => ({
     return body.branches ?? []
   },
 
-  async prsList(directory: string, options?: { page?: number }): Promise<GitHubPullRequestsListResult> {
-    const page = options?.page ?? 1
-    const response = await fetch(
-      buildQueryUrl(
-        API_ENDPOINTS.github.pullsList,
-        `directory=${encodeURIComponent(directory)}&page=${encodeURIComponent(String(page))}`,
-      ),
-      {
-        method: HTTP_DEFAULTS.method.get,
-        headers: HTTP_DEFAULTS.headers.acceptJson,
-      },
-    )
+  async prsList(directory: string, options?: GitHubPullListOptions): Promise<GitHubPullRequestsListResult> {
+    const params = new URLSearchParams()
+    params.set("directory", directory)
+    appendBoardListFilters(params, options)
+    const response = await fetch(buildQueryUrl(API_ENDPOINTS.github.pullsList, params), {
+      method: HTTP_DEFAULTS.method.get,
+      headers: HTTP_DEFAULTS.headers.acceptJson,
+    })
     const body = await jsonOrNull<GitHubPullRequestsListResult & { error?: string }>(response)
     if (!response.ok || !body) {
       throw new Error(body?.error || response.statusText || "Failed to load pull requests")
@@ -275,18 +287,14 @@ export const createWebGitHubAPI = (): GitHubAPI => ({
     return body
   },
 
-  async issuesList(directory: string, options?: { page?: number }): Promise<GitHubIssuesListResult> {
-    const page = options?.page ?? 1
-    const response = await fetch(
-      buildQueryUrl(
-        API_ENDPOINTS.github.issuesList,
-        `directory=${encodeURIComponent(directory)}&page=${encodeURIComponent(String(page))}`,
-      ),
-      {
-        method: HTTP_DEFAULTS.method.get,
-        headers: HTTP_DEFAULTS.headers.acceptJson,
-      },
-    )
+  async issuesList(directory: string, options?: GitHubIssueListOptions): Promise<GitHubIssuesListResult> {
+    const params = new URLSearchParams()
+    params.set("directory", directory)
+    appendBoardListFilters(params, options)
+    const response = await fetch(buildQueryUrl(API_ENDPOINTS.github.issuesList, params), {
+      method: HTTP_DEFAULTS.method.get,
+      headers: HTTP_DEFAULTS.headers.acceptJson,
+    })
     const payload = await jsonOrNull<GitHubIssuesListResult & { error?: string }>(response)
     if (!response.ok || !payload) {
       throw new Error(payload?.error || response.statusText || "Failed to load issues")
@@ -336,6 +344,45 @@ export const createWebGitHubAPI = (): GitHubAPI => ({
     const payload = await jsonOrNull<GitHubIssueCommentsResult & { error?: string }>(response)
     if (!response.ok || !payload) {
       throw new Error(payload?.error || response.statusText || "Failed to load issue comments")
+    }
+    return payload
+  },
+
+  async issueComment(input: {
+    directory: string
+    number: number
+    body: string
+    sourceRepo?: { owner: string; repo: string } | null
+  }): Promise<GitHubIssueCommentCreateResult> {
+    const response = await fetch(
+      buildQueryUrl(API_ENDPOINTS.github.issuesComments, repoQueryParams(input.sourceRepo)),
+      {
+        method: HTTP_DEFAULTS.method.post,
+        headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
+        body: JSON.stringify({ directory: input.directory, number: input.number, body: input.body }),
+      },
+    )
+    const payload = await jsonOrNull<GitHubIssueCommentCreateResult & { error?: string }>(response)
+    if (!response.ok || !payload) {
+      throw new Error(payload?.error || response.statusText || "Failed to comment")
+    }
+    return payload
+  },
+
+  async issueSetState(input: {
+    directory: string
+    number: number
+    state: "open" | "closed"
+    sourceRepo?: { owner: string; repo: string } | null
+  }): Promise<GitHubIssueStateResult> {
+    const response = await fetch(buildQueryUrl(API_ENDPOINTS.github.issuesState, repoQueryParams(input.sourceRepo)), {
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
+      body: JSON.stringify({ directory: input.directory, number: input.number, state: input.state }),
+    })
+    const payload = await jsonOrNull<GitHubIssueStateResult & { error?: string }>(response)
+    if (!response.ok || !payload) {
+      throw new Error(payload?.error || response.statusText || "Failed to update issue state")
     }
     return payload
   },

@@ -23,7 +23,17 @@ export interface RouteState {
  * shorter list meant `?tab=wiki`, `?tab=plan` and `?tab=context` were written to the URL and then
  * rejected on the way back in, so a reload or a history entry could not restore those tabs.
  */
-export const VALID_TABS: readonly MainTab[] = ["chat", "plan", "git", "diff", "terminal", "files", "context", "wiki"] as const
+export const VALID_TABS: readonly MainTab[] = [
+  "chat",
+  "plan",
+  "git",
+  "diff",
+  "terminal",
+  "files",
+  "context",
+  "wiki",
+  "board",
+] as const
 
 /**
  * Valid settings section values for URL routing.

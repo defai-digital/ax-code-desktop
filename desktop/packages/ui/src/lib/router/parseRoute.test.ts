@@ -7,7 +7,7 @@ describe("parseRoute tab handling", () => {
     // The serializer writes any non-default tab, so a shorter list here read the URL's own output back as
     // invalid: `?tab=wiki`, `?tab=plan` and `?tab=context` opened on the default tab instead, and the
     // route was rewritten without the parameter.
-    for (const tab of ["chat", "plan", "git", "diff", "terminal", "files", "context", "wiki"]) {
+    for (const tab of ["chat", "plan", "git", "diff", "terminal", "files", "context", "wiki", "board"]) {
       expect(parseRoute(new URLSearchParams(`tab=${tab}`)).tab, tab).toBe(tab)
     }
   })

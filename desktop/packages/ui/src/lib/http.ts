@@ -144,6 +144,7 @@ export const API_ENDPOINTS = {
     issuesList: `${API_PATHS.base}/github/issues/list`,
     issuesGet: `${API_PATHS.base}/github/issues/get`,
     issuesComments: `${API_PATHS.base}/github/issues/comments`,
+    issuesState: `${API_PATHS.base}/github/issues/state`,
   },
   notifications: {
     autoAccept: `${API_PATHS.base}/notifications/auto-accept`,

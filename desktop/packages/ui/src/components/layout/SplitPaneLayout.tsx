@@ -11,6 +11,7 @@ const SPLIT_TAB_OPTIONS: { value: SplitPaneRightTab; icon: IconName; labelKey: s
   { value: "files", icon: "folder-3", labelKey: "splitPane.tab.files" },
   { value: "diff", icon: "git-commit", labelKey: "splitPane.tab.diff" },
   { value: "git", icon: "git-branch", labelKey: "splitPane.tab.git" },
+  { value: "board", icon: "git-pull-request", labelKey: "splitPane.tab.board" },
   { value: "terminal", icon: "terminal-box", labelKey: "splitPane.tab.terminal" },
   { value: "plan", icon: "list-check-2", labelKey: "splitPane.tab.plan" },
   { value: "context", icon: "layout-column", labelKey: "splitPane.tab.context" },

@@ -1,6 +1,7 @@
 import express from "express"
 import request from "supertest"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { clearForkDetectionCache } from "./repo/fork-detection.js"
 
 const activateGitHubAuth = vi.fn()
 const getGitHubAuthAccounts = vi.fn()
@@ -39,6 +40,7 @@ describe("github routes", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getGitHubAuthAccounts.mockReturnValue([{ id: "known-account" }])
+    clearForkDetectionCache()
   })
 
   it("does not clear stored credentials on a 403 rate limit", async () => {
@@ -270,5 +272,246 @@ describe("github routes", () => {
       .expect(200)
 
     expect(merge).toHaveBeenCalledWith({ owner: "me", repo: "fork", pull_number: 7, merge_method: "merge" })
+  })
+
+  const connectRepo = async (rest) => {
+    const { getOctokitOrNull, resolveGitHubRepoFromDirectory } = await import("./index.js")
+    resolveGitHubRepoFromDirectory.mockResolvedValue({ repo: { owner: "owner", repo: "repo" } })
+    getOctokitOrNull.mockReturnValue({
+      rest: {
+        repos: {
+          get: vi.fn(async () => ({ data: { fork: false, owner: { login: "owner" }, name: "repo" } })),
+        },
+        ...rest,
+      },
+    })
+  }
+
+  it("lists closed issues for one label without using search", async () => {
+    const listForRepo = vi.fn(async () => ({
+      data: [
+        {
+          number: 4,
+          title: "Bug",
+          html_url: "https://github.com/owner/repo/issues/4",
+          state: "closed",
+          updated_at: "2026-01-02T00:00:00Z",
+          user: { login: "ada", id: 1 },
+          labels: [{ name: "bug", color: "d73a4a" }],
+        },
+        { number: 5, title: "Hidden PR", pull_request: { url: "https://api.github.com/pulls/5" } },
+      ],
+      headers: { link: '<https://api.github.com/issues?page=2>; rel="next"' },
+    }))
+    await connectRepo({ issues: { listForRepo } })
+
+    const app = createApp()
+    const response = await request(app)
+      .get("/api/github/issues/list")
+      .query({ directory: "/repo", state: "closed", label: "bug" })
+      .expect(200)
+
+    expect(listForRepo).toHaveBeenCalledWith({
+      owner: "owner",
+      repo: "repo",
+      state: "closed",
+      labels: "bug",
+      per_page: 50,
+      page: 1,
+    })
+    expect(response.body.issues).toEqual([
+      expect.objectContaining({ number: 4, state: "closed", updatedAt: "2026-01-02T00:00:00Z" }),
+    ])
+    expect(response.body.hasMore).toBe(true)
+  })
+
+  it("searches issues when the board sends text, and quotes that text", async () => {
+    const issuesAndPullRequests = vi.fn(async () => ({
+      data: {
+        items: [
+          {
+            number: 8,
+            title: "Login",
+            html_url: "https://github.com/owner/repo/issues/8",
+            state: "open",
+            user: { login: "ada", id: 1 },
+            labels: [],
+          },
+        ],
+      },
+      headers: {},
+    }))
+    const listForRepo = vi.fn()
+    await connectRepo({ issues: { listForRepo }, search: { issuesAndPullRequests } })
+
+    const app = createApp()
+    const response = await request(app)
+      .get("/api/github/issues/list")
+      .query({ directory: "/repo", q: 'repo:evil "quoted"' })
+      .expect(200)
+
+    expect(listForRepo).not.toHaveBeenCalled()
+    expect(issuesAndPullRequests).toHaveBeenCalledWith(
+      expect.objectContaining({ q: 'repo:owner/repo is:issue is:open "repo:evil quoted"' }),
+    )
+    expect(response.body.issues.map((issue) => issue.number)).toEqual([8])
+  })
+
+  it("lists open pulls directly and pages merged and closed pulls through search", async () => {
+    const list = vi.fn(async () => ({
+      data: [
+        {
+          number: 3,
+          title: "Open",
+          html_url: "https://github.com/owner/repo/pull/3",
+          state: "open",
+          draft: true,
+          updated_at: "2026-03-01T00:00:00Z",
+          user: { login: "ada", id: 1 },
+          labels: [{ name: "ui", color: "ededed" }],
+          requested_reviewers: [{ login: "bea" }],
+          base: { ref: "main" },
+          head: { ref: "board", sha: "abc" },
+        },
+      ],
+      headers: {},
+    }))
+    const issuesAndPullRequests = vi.fn(async ({ q }) => ({
+      data: {
+        items: q.includes("is:merged")
+          ? [
+              {
+                number: 1,
+                title: "Merged",
+                html_url: "https://github.com/owner/repo/pull/1",
+                state: "closed",
+                closed_at: "2026-01-01T00:00:00Z",
+                pull_request: { merged_at: "2026-01-01T00:00:00Z" },
+                user: { login: "ada", id: 1 },
+              },
+            ]
+          : [
+              {
+                number: 2,
+                title: "Closed",
+                html_url: "https://github.com/owner/repo/pull/2",
+                state: "closed",
+                closed_at: "2026-01-02T00:00:00Z",
+                pull_request: { merged_at: null },
+                user: { login: "bea", id: 2 },
+              },
+            ],
+      },
+      headers: { link: '<https://api.github.com/search/issues?page=3>; rel="next"' },
+    }))
+    await connectRepo({ pulls: { list }, search: { issuesAndPullRequests } })
+
+    const app = createApp()
+    const open = await request(app).get("/api/github/pulls/list").query({ directory: "/repo" }).expect(200)
+    expect(open.body.prs[0]).toMatchObject({ number: 3, draft: true, review: { requested: 1 } })
+    expect(list).toHaveBeenCalledWith(expect.objectContaining({ state: "open", per_page: 50 }))
+    expect(issuesAndPullRequests).not.toHaveBeenCalled()
+
+    const merged = await request(app)
+      .get("/api/github/pulls/list")
+      .query({ directory: "/repo", state: "merged", page: 2 })
+      .expect(200)
+    expect(issuesAndPullRequests).toHaveBeenLastCalledWith(
+      expect.objectContaining({ q: "repo:owner/repo is:pr is:merged", page: 2, per_page: 50 }),
+    )
+    expect(merged.body.prs.map((pr) => [pr.number, pr.state])).toEqual([[1, "merged"]])
+    expect(merged.body.hasMore).toBe(true)
+
+    const closed = await request(app)
+      .get("/api/github/pulls/list")
+      .query({ directory: "/repo", state: "closed" })
+      .expect(200)
+    expect(issuesAndPullRequests).toHaveBeenLastCalledWith(
+      expect.objectContaining({ q: "repo:owner/repo is:pr is:closed is:unmerged" }),
+    )
+    expect(closed.body.prs.map((pr) => [pr.number, pr.state])).toEqual([[2, "closed"]])
+    expect(list).toHaveBeenCalledTimes(1)
+  })
+
+  it("adds a comment on the named repository and rejects an empty body", async () => {
+    const createComment = vi.fn(async () => ({
+      data: {
+        id: 99,
+        html_url: "https://github.com/owner/repo/issues/4#issuecomment-99",
+        body: "Looks good",
+        created_at: "2026-04-01T00:00:00Z",
+        updated_at: "2026-04-01T00:00:00Z",
+        user: { login: "ada", id: 1 },
+      },
+    }))
+    await connectRepo({ issues: { createComment } })
+    const app = createApp()
+
+    const missing = await request(app)
+      .post("/api/github/issues/comments")
+      .send({ directory: "/repo", number: 4, body: "  " })
+    expect(missing.status).toBe(400)
+    expect(createComment).not.toHaveBeenCalled()
+
+    const created = await request(app)
+      .post("/api/github/issues/comments")
+      .query({ owner: "owner", repo: "repo" })
+      .send({ directory: "/repo", number: 4, body: "Looks good" })
+      .expect(200)
+
+    expect(createComment).toHaveBeenCalledWith({
+      owner: "owner",
+      repo: "repo",
+      issue_number: 4,
+      body: "Looks good",
+    })
+    expect(created.body.comment).toMatchObject({ id: 99, body: "Looks good", author: { login: "ada" } })
+  })
+
+  it("closes an issue and refuses a repository outside the fork network", async () => {
+    const update = vi.fn(async () => ({
+      data: { number: 4, title: "Bug", html_url: "https://github.com/owner/repo/issues/4", state: "closed" },
+    }))
+    await connectRepo({ issues: { update } })
+    const app = createApp()
+
+    const closed = await request(app)
+      .post("/api/github/issues/state")
+      .send({ directory: "/repo", number: 4, state: "closed" })
+      .expect(200)
+    expect(update).toHaveBeenCalledWith({ owner: "owner", repo: "repo", issue_number: 4, state: "closed" })
+    expect(closed.body.issue).toMatchObject({ number: 4, state: "closed" })
+
+    const invalid = await request(app)
+      .post("/api/github/issues/state")
+      .send({ directory: "/repo", number: 4, state: "merged" })
+    expect(invalid.status).toBe(400)
+
+    const outside = await request(app)
+      .post("/api/github/issues/state")
+      .query({ owner: "org", repo: "elsewhere" })
+      .send({ directory: "/repo", number: 4, state: "open" })
+    expect(outside.status).toBe(400)
+    expect(update).toHaveBeenCalledTimes(1)
+  })
+
+  it("clears a revoked token when commenting fails with 401", async () => {
+    const { clearGitHubAuth } = await import("./index.js")
+    await connectRepo({
+      issues: {
+        createComment: vi.fn(async () => {
+          throw Object.assign(new Error("bad credentials"), { status: 401 })
+        }),
+      },
+    })
+
+    const app = createApp()
+    const response = await request(app)
+      .post("/api/github/issues/comments")
+      .send({ directory: "/repo", number: 4, body: "hello" })
+      .expect(200)
+
+    expect(response.body.connected).toBe(false)
+    expect(clearGitHubAuth).toHaveBeenCalled()
   })
 })

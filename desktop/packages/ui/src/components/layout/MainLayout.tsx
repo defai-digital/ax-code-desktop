@@ -53,6 +53,9 @@ const PlanView = lazyWithChunkRecovery(() =>
 const WikiGraphView = lazyWithChunkRecovery(() =>
   import("@/components/views/WikiGraphView").then((m) => ({ default: m.WikiGraphView })),
 )
+const GitHubBoardView = lazyWithChunkRecovery(() =>
+  import("@/components/views/GitHubBoardView").then((m) => ({ default: m.GitHubBoardView })),
+)
 
 const DESKTOP_SIDEBAR_MIN_WIDTH = 280
 const DESKTOP_SIDEBAR_MAX_WIDTH = 500
@@ -332,6 +335,12 @@ export const MainLayout: React.FC = () => {
             <WikiGraphView />
           </React.Suspense>
         )
+      case "board":
+        return (
+          <React.Suspense fallback={null}>
+            <GitHubBoardView />
+          </React.Suspense>
+        )
       default:
         return null
     }
@@ -379,6 +388,12 @@ export const MainLayout: React.FC = () => {
         return (
           <React.Suspense fallback={null}>
             <WikiGraphView />
+          </React.Suspense>
+        )
+      case "board":
+        return (
+          <React.Suspense fallback={null}>
+            <GitHubBoardView />
           </React.Suspense>
         )
       default:

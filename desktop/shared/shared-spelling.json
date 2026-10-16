@@ -214,7 +214,8 @@
     "splitPane.tab.plan",
     "splitPane.tab.terminal",
     "terminalView.stream.processExitedWithSignal",
-    "chat.fileMentionAutocomplete.context.commit"
+    "chat.fileMentionAutocomplete.context.commit",
+    "githubBoard.tab.pulls"
   ],
   "de": [
     "aboutDialog.versionLabel",
@@ -316,7 +317,9 @@
     "splitPane.tab.plan",
     "splitPane.tab.terminal",
     "chat.fileMentionAutocomplete.context.commit",
-    "chat.fileMentionAutocomplete.context.commitLabel"
+    "chat.fileMentionAutocomplete.context.commitLabel",
+    "githubBoard.tab.issues",
+    "githubBoard.filter.labelPlaceholder"
   ],
   "id": [
     "agentManager.detail.header.modelCountSingle",
@@ -407,7 +410,8 @@
     "splitPane.tab.diff",
     "splitPane.tab.terminal",
     "chat.fileMentionAutocomplete.context.commit",
-    "chat.fileMentionAutocomplete.context.commitLabel"
+    "chat.fileMentionAutocomplete.context.commitLabel",
+    "githubBoard.filter.labelPlaceholder"
   ],
   "pt-BR": [
     "agentManager.empty.prompt.label",
@@ -484,7 +488,9 @@
     "splitPane.tab.diff",
     "splitPane.tab.terminal",
     "chat.fileMentionAutocomplete.context.commit",
-    "chat.fileMentionAutocomplete.context.commitLabel"
+    "chat.fileMentionAutocomplete.context.commitLabel",
+    "githubBoard.tab.issues",
+    "githubBoard.tab.pulls"
   ],
   "it": [
     "agentManager.empty.prompt.label",
@@ -720,6 +726,7 @@
     "splitPane.tab.plan",
     "splitPane.tab.terminal",
     "chat.fileMentionAutocomplete.context.commit",
-    "chat.fileMentionAutocomplete.context.commitLabel"
+    "chat.fileMentionAutocomplete.context.commitLabel",
+    "githubBoard.tab.pulls"
   ]
 }

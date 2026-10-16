@@ -4,7 +4,7 @@ import { isPersistedSplitPaneRightTab } from "./splitTab"
 
 describe("isPersistedSplitPaneRightTab", () => {
   test("keeps historical split tabs and the wiki tab", () => {
-    for (const tab of ["plan", "git", "diff", "terminal", "files", "context", "wiki"]) {
+    for (const tab of ["plan", "git", "diff", "terminal", "files", "context", "wiki", "board"]) {
       expect(isPersistedSplitPaneRightTab(tab)).toBe(true)
     }
   })
