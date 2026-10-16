@@ -3546,6 +3546,8 @@
   "snippets.source.global": "Global",
   "snippets.source.project": "Projekt",
   "chat.chatInput.toast.compactFailed": "Sitzung konnte nicht komprimiert werden",
+  "chat.chatInput.toast.undoFailed": "R\u00fcckg\u00e4ngig machen fehlgeschlagen",
+  "chat.chatInput.toast.redoFailed": "Wiederholen fehlgeschlagen",
   "chat.chatInput.toast.noModelSelected": "Vor dem Senden ein Modell ausw\u00e4hlen",
   "chat.chatInput.toast.noModelSelectedAction": "Modell ausw\u00e4hlen",
   "chat.chatInput.toast.summaryFailed": "Zusammenfassung konnte nicht erstellt werden",

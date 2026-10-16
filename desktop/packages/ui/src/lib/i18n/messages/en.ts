@@ -2045,6 +2045,8 @@ export const dict = {
   "snippets.source.global": "global",
   "snippets.source.project": "project",
   "chat.chatInput.toast.compactFailed": "Failed to compact session",
+  "chat.chatInput.toast.undoFailed": "Failed to undo the last step",
+  "chat.chatInput.toast.redoFailed": "Failed to redo the last step",
   "chat.chatInput.toast.noModelSelected": "Select a model before sending",
   "chat.chatInput.toast.noModelSelectedAction": "Select model",
   "chat.chatInput.toast.summaryFailed": "Failed to generate summary",

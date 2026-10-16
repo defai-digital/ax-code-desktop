@@ -3546,6 +3546,8 @@
   "snippets.source.global": "genel",
   "snippets.source.project": "proje",
   "chat.chatInput.toast.compactFailed": "Oturum s\u0131k\u0131\u015ft\u0131r\u0131lamad\u0131",
+  "chat.chatInput.toast.undoFailed": "Son ad\u0131m geri al\u0131namad\u0131",
+  "chat.chatInput.toast.redoFailed": "Son ad\u0131m yinelenemedi",
   "chat.chatInput.toast.noModelSelected": "G\u00f6ndermeden \u00f6nce bir model se\u00e7in",
   "chat.chatInput.toast.noModelSelectedAction": "Model se\u00e7",
   "chat.chatInput.toast.summaryFailed": "\u00d6zet olu\u015fturulamad\u0131",

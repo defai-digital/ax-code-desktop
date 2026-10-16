@@ -3540,6 +3540,8 @@
   "snippets.source.global": "global",
   "snippets.source.project": "proyek",
   "chat.chatInput.toast.compactFailed": "Gagal memadatkan sesi",
+  "chat.chatInput.toast.undoFailed": "Gagal membatalkan langkah terakhir",
+  "chat.chatInput.toast.redoFailed": "Gagal mengulangi langkah terakhir",
   "chat.chatInput.toast.noModelSelected": "Pilih model sebelum mengirim",
   "chat.chatInput.toast.noModelSelectedAction": "Pilih model",
   "chat.chatInput.toast.summaryFailed": "Gagal membuat ringkasan",

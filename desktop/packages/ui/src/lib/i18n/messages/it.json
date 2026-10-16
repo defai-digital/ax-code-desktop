@@ -3546,6 +3546,8 @@
   "snippets.source.global": "globale",
   "snippets.source.project": "progetto",
   "chat.chatInput.toast.compactFailed": "Impossibile compattare la sessione",
+  "chat.chatInput.toast.undoFailed": "Impossibile annullare l\u2019ultimo passaggio",
+  "chat.chatInput.toast.redoFailed": "Impossibile ripristinare l\u2019ultimo passaggio",
   "chat.chatInput.toast.noModelSelected": "Seleziona un modello prima di inviare",
   "chat.chatInput.toast.noModelSelectedAction": "Seleziona modello",
   "chat.chatInput.toast.summaryFailed": "Impossibile generare il riepilogo",

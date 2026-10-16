@@ -16,4 +16,12 @@ describe("useKeyboardShortcuts abort priming", () => {
     expect(source).toContain("primedForSession === (sessionId ?? null)")
     expect(source).toContain("abortPrimedSessionRef.current = sessionId ?? null")
   })
+
+  test("ignores keys that belong to an input method", async () => {
+    const source = await readSource()
+
+    // Escape dismisses CJK IME candidates, and the first press of the double-Escape abort armed the second:
+    // pressing Escape twice to cancel composition aborted the running agent.
+    expect(source).toContain("e.isComposing || e.keyCode === 229")
+  })
 })

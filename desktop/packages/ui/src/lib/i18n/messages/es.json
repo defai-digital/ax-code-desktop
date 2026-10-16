@@ -3540,6 +3540,8 @@
   "snippets.source.global": "global",
   "snippets.source.project": "proyecto",
   "chat.chatInput.toast.compactFailed": "No se pudo compactar la sesi\u00f3n",
+  "chat.chatInput.toast.undoFailed": "No se pudo deshacer el \u00faltimo paso",
+  "chat.chatInput.toast.redoFailed": "No se pudo rehacer el \u00faltimo paso",
   "chat.chatInput.toast.noModelSelected": "Selecciona un modelo antes de enviar",
   "chat.chatInput.toast.noModelSelectedAction": "Seleccionar modelo",
   "chat.chatInput.toast.summaryFailed": "No se pudo generar el resumen",

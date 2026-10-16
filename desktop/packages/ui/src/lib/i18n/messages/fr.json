@@ -3540,6 +3540,8 @@
   "snippets.source.global": "global",
   "snippets.source.project": "projet",
   "chat.chatInput.toast.compactFailed": "\u00c9chec de la compression de la session",
+  "chat.chatInput.toast.undoFailed": "Impossible d\u2019annuler la derni\u00e8re \u00e9tape",
+  "chat.chatInput.toast.redoFailed": "Impossible de r\u00e9tablir la derni\u00e8re \u00e9tape",
   "chat.chatInput.toast.noModelSelected": "S\u00e9lectionnez un mod\u00e8le avant d\u2019envoyer",
   "chat.chatInput.toast.noModelSelectedAction": "S\u00e9lectionner le mod\u00e8le",
   "chat.chatInput.toast.summaryFailed": "\u00c9chec de la g\u00e9n\u00e9ration du r\u00e9sum\u00e9",

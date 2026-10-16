@@ -3546,6 +3546,8 @@
   "snippets.source.global": "to\u00e0n c\u1ee5c",
   "snippets.source.project": "d\u1ef1 \u00e1n",
   "chat.chatInput.toast.compactFailed": "Kh\u00f4ng n\u00e9n \u0111\u01b0\u1ee3c phi\u00ean",
+  "chat.chatInput.toast.undoFailed": "Kh\u00f4ng th\u1ec3 ho\u00e0n t\u00e1c b\u01b0\u1edbc cu\u1ed1i",
+  "chat.chatInput.toast.redoFailed": "Kh\u00f4ng th\u1ec3 l\u00e0m l\u1ea1i b\u01b0\u1edbc cu\u1ed1i",
   "chat.chatInput.toast.noModelSelected": "H\u00e3y ch\u1ecdn m\u00f4 h\u00ecnh tr\u01b0\u1edbc khi g\u1eedi",
   "chat.chatInput.toast.noModelSelectedAction": "Ch\u1ecdn m\u00f4 h\u00ecnh",
   "chat.chatInput.toast.summaryFailed": "Kh\u00f4ng t\u1ea1o \u0111\u01b0\u1ee3c b\u1ea3n t\u00f3m t\u1eaft",

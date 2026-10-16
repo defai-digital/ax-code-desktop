@@ -878,6 +878,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     setHistoryIndex(-1)
     setDraftMessage("")
     setActiveAttachmentDraft(currentSessionId ?? "")
+    // The linked issue and PR belong to one session too: left set, the next session's prompt carried their
+    // context as synthetic parts and the chip stayed on screen for a thread that never linked them.
+    setLinkedIssue(null)
+    setLinkedPr(null)
   }, [currentSessionId, setActiveAttachmentDraft])
   const activeSessions = useGlobalSessionsStore((s) => s.activeSessions)
   const archivedSessions = useGlobalSessionsStore((s) => s.archivedSessions)
@@ -1688,12 +1692,22 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       const commandName = slashCommand.name
 
       if (commandName === "undo" && currentSessionId) {
-        await useSessionUIStore.getState().handleSlashUndo(currentSessionId)
-        scrollToBottom?.()
+        // Every other slash branch reports its failure. These two let the rejection out of `handleSubmit`, which
+        // clears the composer and drops the promise: a failed revert showed nothing at all.
+        try {
+          await useSessionUIStore.getState().handleSlashUndo(currentSessionId)
+          scrollToBottom?.()
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.undoFailed"))
+        }
         return
       } else if (commandName === "redo" && currentSessionId) {
-        await useSessionUIStore.getState().handleSlashRedo(currentSessionId)
-        scrollToBottom?.()
+        try {
+          await useSessionUIStore.getState().handleSlashRedo(currentSessionId)
+          scrollToBottom?.()
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.redoFailed"))
+        }
         return
       } else if (commandName === "timeline" && currentSessionId) {
         setTimelineDialogOpen(true)

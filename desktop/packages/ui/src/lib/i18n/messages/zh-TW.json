@@ -3540,6 +3540,8 @@
   "snippets.source.global": "\u5168\u57df",
   "snippets.source.project": "\u5c08\u6848",
   "chat.chatInput.toast.compactFailed": "\u58d3\u7e2e\u5de5\u4f5c\u968e\u6bb5\u5931\u6557",
+  "chat.chatInput.toast.undoFailed": "\u7121\u6cd5\u5fa9\u539f\u4e0a\u4e00\u6b65",
+  "chat.chatInput.toast.redoFailed": "\u7121\u6cd5\u91cd\u505a\u4e0a\u4e00\u6b65",
   "chat.chatInput.toast.noModelSelected": "\u50b3\u9001\u524d\u8acb\u5148\u9078\u53d6\u6a21\u578b",
   "chat.chatInput.toast.noModelSelectedAction": "\u9078\u53d6\u6a21\u578b",
   "chat.chatInput.toast.summaryFailed": "\u7522\u751f\u6458\u8981\u5931\u6557",

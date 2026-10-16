@@ -113,6 +113,13 @@ export const useKeyboardShortcuts = () => {
         return
       }
 
+      // A CJK input method consumes Escape to dismiss its candidates: the double-Escape abort armed on the first
+      // press and aborted the running agent on the second. `ChatContainer`'s own handler ignores composition the
+      // same way, and the chat input's handler returns without `preventDefault`, so nothing else stops this.
+      if (e.isComposing || e.keyCode === 229) {
+        return
+      }
+
       const isChatInputTarget = (target: EventTarget | null) => {
         return target instanceof HTMLTextAreaElement && target.getAttribute("data-chat-input") === "true"
       }
