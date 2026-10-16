@@ -126,6 +126,36 @@ describe("loadAgents and a manual project selection", () => {
     expect(state.currentModelId).toBe("claude-sonnet")
     expect(state.directoryScoped[PROJECT_DIRECTORY].selectionSource).toBe("auto")
   })
+
+  test("a run against an empty provider list does not hand the pick to the defaults", async () => {
+    // Auth connect/disconnect empties every provider snapshot while AX Code restarts, and the
+    // agents list can be empty on a run of its own, which clears the project's agent name. Neither
+    // is proof that the user's pick is gone: nothing resolves against an empty list, so the pick
+    // must stay marked as the user's, or the next refresh applies the settings default over it.
+    seedProject("manual")
+    useConfigStore.setState((state) => ({
+      providers: [],
+      currentAgentName: undefined,
+      directoryScoped: {
+        [PROJECT_DIRECTORY]: {
+          ...state.directoryScoped[PROJECT_DIRECTORY],
+          providers: [],
+          currentAgentName: undefined,
+        },
+      },
+    }))
+
+    await useConfigStore.getState().loadAgents()
+    expect(useConfigStore.getState().directoryScoped[PROJECT_DIRECTORY].selectionSource).toBe("manual")
+
+    // The list is back: the pick still wins over the settings default.
+    useConfigStore.setState({ providers })
+    await useConfigStore.getState().loadAgents()
+
+    const state = useConfigStore.getState()
+    expect(state.currentProviderId).toBe("defai")
+    expect(state.currentModelId).toBe("deepseek-flash")
+  })
 })
 
 describe("selection source tracking", () => {

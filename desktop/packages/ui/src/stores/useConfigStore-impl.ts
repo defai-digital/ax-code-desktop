@@ -1499,6 +1499,11 @@ export const useConfigStore = create<ConfigStore>()(
                   // which is what made the selection jump on its own.
                   const manualSource = baseSnapshot.selectionSource === "manual"
                   const keepSnapshotAgent = manualSource && !!baseSnapshot.currentAgentName
+                  // An empty provider list is the discovery window, not proof that the pick is gone:
+                  // nothing resolves against it, so the snapshot keeps its values and must keep the
+                  // source it was marked with. Calling it "auto" let the next refresh — the one that
+                  // runs once the list is back — apply the settings default over a manual pick.
+                  const selectionIsUnjudgeable = providers.length === 0
                   const keepSnapshotSelection =
                     keepSnapshotAgent ||
                     keepsManualSelection(
@@ -1525,7 +1530,8 @@ export const useConfigStore = create<ConfigStore>()(
                       ? baseSnapshot.currentModelId
                       : (resolvedModelId ?? baseSnapshot.currentModelId),
                     currentVariant: keepSnapshotSelection ? baseSnapshot.currentVariant : resolvedVariant,
-                    selectionSource: keepSnapshotSelection ? baseSnapshot.selectionSource : "auto",
+                    selectionSource:
+                      keepSnapshotSelection || selectionIsUnjudgeable ? baseSnapshot.selectionSource : "auto",
                   }
 
                   const nextState: Partial<ConfigStore> = {
