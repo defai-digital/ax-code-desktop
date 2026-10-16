@@ -82,6 +82,16 @@ const fetchPendingAuthContext = async (
   }
 }
 
+/**
+ * The codes this page has exchanged, so one is exchanged once. An OAuth authorization code is
+ * single-use: a second exchange fails at the provider, and the failure would replace the success
+ * the page had just shown. That second run is not hypothetical — React's development StrictMode
+ * invokes the effect twice, and the page can remount. A reload starts a new module instance and
+ * does retry; the provider then answers that the code was already used, which is what the page
+ * reports.
+ */
+const exchangedCodes = new Map<string, "running" | "done">()
+
 export const McpOAuthCallbackPage: React.FC = () => {
   const completeAuth = useMcpStore((state) => state.completeAuth)
   const [status, setStatus] = React.useState<"working" | "success" | "error">("working")
@@ -122,15 +132,30 @@ export const McpOAuthCallbackPage: React.FC = () => {
       return
     }
 
+    const exchangeState = exchangedCodes.get(code)
+    if (exchangeState === "done") {
+      setStatus("success")
+      setMessage("Authorization completed. You can close this tab and return to AX Code.")
+      return
+    }
+    if (exchangeState === "running") {
+      // Already being exchanged by this session; leave the outcome to that run.
+      return
+    }
+    exchangedCodes.set(code, "running")
+
     void (async () => {
       try {
         const pendingContext = await fetchPendingAuthContext(pendingAuthContextRef)
 
         await completeAuth(pendingContext.name, code, pendingContext.directory)
         await clearPendingAuthContext(pendingAuthContextRef)
+        exchangedCodes.set(code, "done")
         setStatus("success")
         setMessage("Authorization completed. You can close this tab and return to AX Code.")
       } catch (authError) {
+        // A failed exchange released nothing, so the code may still work: let a retry try again.
+        exchangedCodes.delete(code)
         await clearPendingAuthContext(pendingAuthContextRef)
         setStatus("error")
         setMessage(normalizeMcpAuthErrorMessage(authError, "Failed to complete MCP authorization."))

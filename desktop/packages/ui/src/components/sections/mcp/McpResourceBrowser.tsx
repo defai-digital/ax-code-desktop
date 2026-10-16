@@ -29,7 +29,10 @@ export const McpResourceBrowser: React.FC<McpResourceBrowserProps> = ({ serverNa
   const [previewError, setPreviewError] = React.useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = React.useState(false)
   const [isReading, setIsReading] = React.useState(false)
-  const selectedUriRef = React.useRef<string | null>(null)
+  // Identifies the read the preview is waiting for. A URI alone is not enough: the same resource
+  // can be read under another project, and the previous project's answer would then arrive as the
+  // new one's preview (and clear its loading state while it is still reading).
+  const readTokenRef = React.useRef(0)
 
   const serverResources = React.useMemo(() => resourcesForServer(resources, serverName), [resources, serverName])
   const selectedResource = React.useMemo(
@@ -38,6 +41,8 @@ export const McpResourceBrowser: React.FC<McpResourceBrowserProps> = ({ serverNa
   )
 
   React.useEffect(() => {
+    // Whatever was being read belongs to the previous target.
+    readTokenRef.current += 1
     setSelectedUri(null)
     setPreview(null)
     setPreviewError(null)
@@ -60,21 +65,21 @@ export const McpResourceBrowser: React.FC<McpResourceBrowserProps> = ({ serverNa
 
   const handleSelectResource = React.useCallback(
     async (resource: McpResource) => {
+      const token = ++readTokenRef.current
       setSelectedUri(resource.uri)
-      selectedUriRef.current = resource.uri
       setPreview(null)
       setPreviewError(null)
       setIsReading(true)
       try {
         const result = await readResource(resource.client, resource.uri, directory)
-        if (selectedUriRef.current !== resource.uri) return
+        if (readTokenRef.current !== token) return
         setPreview(resourcePreview(result, (mime) => t("settings.mcp.page.resources.preview.binary", { mime })))
       } catch (error) {
-        if (selectedUriRef.current !== resource.uri) return
+        if (readTokenRef.current !== token) return
         const message = error instanceof Error ? error.message : t("settings.mcp.page.resources.preview.readFailed")
         setPreviewError(message)
       } finally {
-        if (selectedUriRef.current === resource.uri) setIsReading(false)
+        if (readTokenRef.current === token) setIsReading(false)
       }
     },
     [directory, readResource, t],
