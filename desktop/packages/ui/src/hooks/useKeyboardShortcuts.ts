@@ -49,6 +49,9 @@ export const useKeyboardShortcuts = () => {
   const { themeMode, setThemeMode } = useThemeSystem()
   const { working } = useAssistantStatus()
   const abortPrimedUntilRef = React.useRef<number | null>(null)
+  // Which session the priming belongs to: pressing the first Escape in one session and switching within the
+  // window armed the second Escape for whichever session was on screen, and it was aborted without a banner.
+  const abortPrimedSessionRef = React.useRef<string | null>(null)
   const abortPrimedTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const themeModeRef = React.useRef(themeMode)
 
@@ -62,6 +65,7 @@ export const useKeyboardShortcuts = () => {
       abortPrimedTimeoutRef.current = null
     }
     abortPrimedUntilRef.current = null
+    abortPrimedSessionRef.current = null
     clearAbortPrompt()
   }, [clearAbortPrompt])
 
@@ -551,8 +555,9 @@ export const useKeyboardShortcuts = () => {
 
         const now = Date.now()
         const primedUntil = abortPrimedUntilRef.current
+        const primedForSession = abortPrimedSessionRef.current
 
-        if (primedUntil && now < primedUntil) {
+        if (primedUntil && now < primedUntil && primedForSession === (sessionId ?? null)) {
           e.preventDefault()
           resetAbortPriming()
           void abortCurrentOperation(sessionId ?? "")
@@ -562,6 +567,7 @@ export const useKeyboardShortcuts = () => {
         e.preventDefault()
         const expiresAt = armAbortPrompt(3000) ?? now + 3000
         abortPrimedUntilRef.current = expiresAt
+        abortPrimedSessionRef.current = sessionId ?? null
 
         if (abortPrimedTimeoutRef.current) {
           clearTimeout(abortPrimedTimeoutRef.current)
