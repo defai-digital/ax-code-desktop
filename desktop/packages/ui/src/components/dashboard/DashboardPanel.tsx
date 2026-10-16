@@ -46,6 +46,10 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({ directory }) => 
       try {
         const response = await fetch(API_ENDPOINTS.axCode.upgradeStatus, {
           headers: { Accept: "application/json" },
+          // Without a deadline a runtime that accepts the connection and stops answering left the
+          // version undefined for good, and with it the dashboard URL: the pane stayed blank and
+          // the Open button opened an empty tab.
+          signal: AbortSignal.timeout(10_000),
         })
         if (!response.ok) {
           if (!cancelled) setRuntimeVersion(null)
@@ -123,7 +127,14 @@ export const DashboardPanel: React.FC<DashboardPanelProps> = ({ directory }) => 
           size="xs"
           variant="outline"
           className="gap-1"
-          onClick={() => window.open(dashboardUrl, "_blank", "noopener,noreferrer")}
+          // The URL is empty until the runtime version arrives (the upgrade-status fetch has no
+          // deadline), and the iframe is hidden in that state — but this button stayed enabled and
+          // `window.open("")` opened a blank tab.
+          disabled={!dashboardUrl}
+          onClick={() => {
+            if (!dashboardUrl) return
+            window.open(dashboardUrl, "_blank", "noopener,noreferrer")
+          }}
         >
           <Icon name="external-link" className="h-3.5 w-3.5" />
           Open
