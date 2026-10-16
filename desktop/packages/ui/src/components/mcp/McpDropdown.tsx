@@ -8,6 +8,7 @@ import { useMcpConfigStore } from "@/stores/useMcpConfigStore"
 import { useMcpStore } from "@/stores/useMcpStore"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
+import { toast } from "@/components/ui"
 import { WebMcpToolsRow } from "@/components/mcp/WebMcpBrowserTools"
 
 const statusTooltip = (
@@ -187,6 +188,16 @@ export const McpDropdownContent: React.FC<McpDropdownContentProps> = ({ active, 
                     } else {
                       await disconnect(serverName, directory)
                     }
+                  } catch (error) {
+                    // Both calls reject on failure — `connect` re-throws and `disconnect` asks for
+                    // errors — and nothing here reads the diagnostics the store records for them (the
+                    // settings page does). Without this the switch snapped back with no sign of why and
+                    // the rejection escaped the handler.
+                    toast.error(
+                      t("mcpDropdown.status.failed", {
+                        error: error instanceof Error ? error.message : t("mcpDropdown.status.unknownError"),
+                      }),
+                    )
                   } finally {
                     setBusyName(null)
                   }
