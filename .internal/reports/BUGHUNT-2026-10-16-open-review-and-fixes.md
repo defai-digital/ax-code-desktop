@@ -1349,6 +1349,49 @@ follow-ups above. Fixed from it:
   but parts are inserted by sorted id and the server echoes a prompt's parts one at a time: an earlier
   echo sorting in front of them skipped the scan and the user's prompt rendered twice.
 
+## Eleventh round
+
+Two batches: four reviewers over combinations the earlier rounds had not used together
+(`components/{terminal,files,layout,icons}` via Claude Code CLI, server
+`{ax-code,terminal,event-stream,notifications}` via Grok CLI, `apps/**`, `contexts/**` and
+`lib/event-stream/**` via deepseek-flash, server `{projects,skills-catalog,ui-auth,preview,fs,text,quota}` via
+MiniMax-M3) and two auditors over the tenth round's commits. Fixed from it:
+
+- **`6892a76b`** — the diff viewer's shadow-root attachments (the gutter-click capture listener and the
+  annotation MutationObserver) did not list the inputs that make the render effect rebuild the
+  container, so after a hunk revert or an agent edit they stayed attached to the detached shadow root:
+  gutter clicks stopped resolving a side and annotation changes stopped triggering a re-render.
+
+### Reported as confirmed, verified and rejected
+
+- **"DiffWorkerProvider caches a failed pool creation as a success"** (`contexts/DiffWorkerProvider.tsx:91-103`).
+  The `.catch` clears the cached promise *after* the current tick: `createWorkerPool` is `async`, so the
+  `??=` assignment and the `return` both happen while it is pending, and a later call finds the field
+  cleared and retries — the invariant the comment states does hold. (A concurrent call during the
+  failure window joins the pending promise, which is the intended dedupe.)
+- **"The worker-pool render theme is only ever applied on first creation"** (same file, `:133-146`).
+  `syncPoolRenderTheme` — the only writer — imports `appThemeRegistry`, calls
+  `ensurePierreThemeRegistered` for both themes and only then applies, which is exactly the guard the
+  report said was absent; the registry call is synchronous (`registerCustomTheme` stores the loader), so
+  the pool has the id before `setRenderOptions`.
+- **"`suppressTransitionsForThemeSwitch` leaves `.ax-theme-switching` on `<html>`"**
+  (`contexts/ThemeSystemContext.tsx:46-64`). The returned cleanup removes the class unconditionally, and
+  the uncancellable inner frame only removes it as well, so the class cannot outlive the effect. What is
+  real is the inverse and cosmetic: a superseded pass's inner frame can remove the class *during* a newer
+  switch, letting transitions animate for that frame.
+- **"Mini-chat presence posts `viewed:false` with the wrong session"** (`apps/ElectronMiniChatApp.tsx:196-222`).
+  The cleanup's closure carries the session the effect was viewing, which is the session the message is
+  about; a consumer that treats it as "stop viewing A" is being told the truth. The reviewer's own note
+  is that the window is one render wide and self-correcting.
+- **"A late `heartbeat.reset()` permanently disarms the silence watchdog"** (`lib/event-stream/heartbeat.ts`,
+  `client.ts:99-103`). `activity()` has no attempt-identity check, but the frame has to arrive in the
+  window between the attempt settling and the driver nulling its own handler on settle
+  (`adapters/websocket.ts:51`), and both outcomes are bounded: the stale timer fires into
+  `attempt?.abort()` (a no-op between attempts, an extra reconnect if a fresh attempt is live), while a
+  live attempt re-arms on its own next frame. Recorded rather than changed, because the interleaving the
+  report needs could not be produced and the module's contract is that the watchdog only follows
+  *observed* activity.
+
 Suspected, recorded rather than changed:
 
 - **`useExecutionModeStore.setMode` reports a generic "update failed"** when `applyMode` fails part way
