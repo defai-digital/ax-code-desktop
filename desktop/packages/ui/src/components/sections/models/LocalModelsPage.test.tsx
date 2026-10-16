@@ -42,6 +42,8 @@ let modelsBody: unknown
 // Bodies served before falling back to modelsBody, one per models request.
 let modelsQueue: unknown[]
 let calls: string[]
+// The models request URLs, so a test can see which directory was actually loaded.
+let modelsCalls: string[]
 let installResponse: () => Promise<Response>
 
 const json = (body: unknown, status = 200) =>
@@ -53,7 +55,13 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => 
   // Only AX Engine calls; other stores may save settings in the background.
   if (method !== "GET" && url.includes("/provider/ax-engine/"))
     calls.push(`${method} ${new URL(url, "http://x").pathname}`)
-  if (url.includes("/provider/ax-engine/models")) return json(modelsQueue.length ? modelsQueue.shift() : modelsBody)
+  if (url.includes("/provider/ax-engine/models")) {
+    modelsCalls.push(url)
+    // A queued entry may be a promise, so a test can hold one directory's answer until after another
+    // directory's load has run.
+    const queued = modelsQueue.length ? modelsQueue.shift() : modelsBody
+    return queued instanceof Promise ? queued : json(queued)
+  }
   if (url.includes("/provider/ax-engine/connection"))
     return json({
       mode: "managed",
@@ -101,6 +109,7 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   calls = []
+  modelsCalls = []
   modelsQueue = []
   installResponse = async () => json({ installed: true, alreadyPresent: false, version: "7.7.0", binaryPath: "/x" })
   fetchMock.mockClear()
@@ -234,6 +243,58 @@ describe("LocalModelsPage AX Engine status", () => {
     await render()
     expect(button("Update to 7.7.0")).toBeNull()
     expect(text()).toContain("Update it the same way you installed it.")
+  })
+
+  test("drops a load that finishes after the directory changed", async () => {
+    // The page's load guard only knew "something is in flight": a switch to another project was
+    // swallowed by it, the previous project's answer became the final state, and every action then
+    // ran against a directory the page did not show.
+    const { axCodeClient } = await import("@/lib/ax-code/client")
+    const { useProjectsStore } = await import("@/stores/useProjectsStore")
+    const previousDirectory = axCodeClient.getDirectory()
+    const previousProjectId = useProjectsStore.getState().activeProjectId
+
+    const otherDirectoryWarning = "AX_ENGINE_VERSION_UNSUPPORTED: managed ax-engine 7.6.0 is older"
+    modelsBody = models({
+      available: false,
+      mode: "missing",
+      installable: false,
+      pinnedVersion: "7.7.0",
+      blockers: [],
+      warnings: ["AX_ENGINE_BINARY_MISSING: ax-engine was not found."],
+    })
+
+    let releaseOther: (() => void) | undefined
+    modelsQueue = [
+      new Promise<Response>((resolve) => {
+        releaseOther = () => resolve(json(models(staleManaged)))
+      }),
+    ]
+
+    try {
+      axCodeClient.setDirectory("/project-a")
+      useProjectsStore.setState({ activeProjectId: "project-a" })
+      await render()
+
+      axCodeClient.setDirectory("/project-b")
+      await act(async () => {
+        useProjectsStore.setState({ activeProjectId: "project-b" })
+      })
+      await flush()
+
+      await act(async () => {
+        releaseOther?.()
+        await Promise.resolve()
+      })
+      await flush()
+
+      expect(text()).not.toContain(otherDirectoryWarning)
+      // And the new directory was actually loaded: the in-flight guard used to swallow that request.
+      expect(modelsCalls.some((url) => url.includes("project-b"))).toBe(true)
+    } finally {
+      axCodeClient.setDirectory(previousDirectory ?? undefined)
+      useProjectsStore.setState({ activeProjectId: previousProjectId })
+    }
   })
 
   test("cancels an install in progress", async () => {

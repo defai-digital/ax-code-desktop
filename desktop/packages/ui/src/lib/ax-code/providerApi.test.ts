@@ -26,6 +26,7 @@ import {
   normalizeAuthType,
   saveProviderAuth,
   upsertCustomApiProvider,
+  oauthMethodsWithSourceIndex,
 } from "./providerApi"
 
 const setWindowStub = (stub: unknown): void => {
@@ -535,5 +536,27 @@ describe("normalizeAuthType", () => {
 
   test("returns empty string for methods with no type info", () => {
     expect(normalizeAuthType({})).toBe("")
+  })
+})
+
+describe("oauthMethodsWithSourceIndex", () => {
+  test("keeps each OAuth method's position in the full method list", () => {
+    // The server indexes that list, so a filtered position named the wrong method: with
+    // `[api, oauth]` the OAuth entry is at index 1, not 0.
+    const methods = [
+      { type: "api", name: "API key" },
+      { type: "oauth", name: "Sign in" },
+      { type: "api", name: "Token" },
+      { type: "oauth", name: "Sign in with SSO" },
+    ]
+
+    expect(oauthMethodsWithSourceIndex(methods)).toEqual([
+      { method: methods[1], methodIndex: 1 },
+      { method: methods[3], methodIndex: 3 },
+    ])
+  })
+
+  test("answers nothing for a provider without OAuth methods", () => {
+    expect(oauthMethodsWithSourceIndex([{ type: "api", name: "API key" }])).toEqual([])
   })
 })

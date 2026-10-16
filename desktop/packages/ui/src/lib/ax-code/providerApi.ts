@@ -493,3 +493,15 @@ export const disconnectProviderAuth = async (providerId: string, directory: stri
     headers: { "Content-Type": "application/json" },
   })
 }
+
+/**
+ * The provider's OAuth methods, each with its position in the full method list.
+ *
+ * The server indexes that list, so the index it is given for a flow has to be the method's position
+ * there; a filtered position names a different method when the provider offers API and OAuth
+ * methods together (with `[api, oauth]` the filtered index 0 named the API method).
+ */
+export const oauthMethodsWithSourceIndex = (methods: readonly AuthMethod[]) =>
+  methods
+    .map((method, methodIndex) => ({ method, methodIndex }))
+    .filter((entry) => normalizeAuthType(entry.method) === "oauth")

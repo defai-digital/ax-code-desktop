@@ -83,23 +83,29 @@ export const LocalModelsPage: React.FC = () => {
   // advances smoothly between the 2s catalog polls.
   const [now, setNow] = React.useState(() => Date.now())
   const mountedRef = React.useRef(true)
-  // The fetch retries internally for up to ~18s while the CLI restarts; without
-  // this guard the 2s poll stacks concurrent requests and an older response can
-  // resolve after a newer one, clobbering fresher job state.
-  const inFlightRef = React.useRef(false)
+  // The directory the request in flight belongs to. The fetch retries internally for up to ~18s
+  // while the CLI restarts, so without a guard the 2s poll stacks concurrent requests and an older
+  // response can clobber fresher job state. A request for *another* directory must not be skipped
+  // with it: the previous directory's answer is dropped when it lands, and this directory still has
+  // to be loaded.
+  const inFlightDirectoryRef = React.useRef<string | null>(null)
+  const currentDirectoryRef = React.useRef(directory)
+  currentDirectoryRef.current = directory
   const connectionInitializedRef = React.useRef(false)
   const installAbortRef = React.useRef<AbortController | null>(null)
 
   const load = React.useCallback(async () => {
-    if (inFlightRef.current) return
-    inFlightRef.current = true
+    if (inFlightDirectoryRef.current === directory) return
+    inFlightDirectoryRef.current = directory
     try {
       const [next, nextConnection, nextRuntime] = await Promise.all([
         fetchAxEngineModels(directory),
         fetchAxEngineConnection(directory),
         fetchDesktopAxCodeRuntimeIdentity(),
       ])
-      if (!mountedRef.current) return
+      // A response for a directory the app has left is not this page's state: setting it showed the
+      // previous project's models and connection while every action used the current directory.
+      if (!mountedRef.current || currentDirectoryRef.current !== directory) return
       setError(null)
       setData(next)
       setConnection(nextConnection)
@@ -110,12 +116,14 @@ export const LocalModelsPage: React.FC = () => {
         setShowAttachForm(nextConnection.mode === "attach")
       }
     } catch (err) {
-      if (!mountedRef.current) return
+      if (!mountedRef.current || currentDirectoryRef.current !== directory) return
       const message = err instanceof Error ? err.message : "Failed to load local models"
       setError(message)
     } finally {
-      inFlightRef.current = false
-      if (mountedRef.current) setLoading(false)
+      if (inFlightDirectoryRef.current === directory) {
+        inFlightDirectoryRef.current = null
+        if (mountedRef.current) setLoading(false)
+      }
     }
   }, [directory])
 

@@ -32,7 +32,7 @@ import {
   providerConnectCategory,
   providersInConnectCategory,
   type ProviderConnectCategory,
-  normalizeAuthType,
+  oauthMethodsWithSourceIndex,
   parseAuthMethodsPayload,
   parseAvailableProvidersPayload,
   PROVIDER_RESTART_POLL_MS,
@@ -1116,9 +1116,12 @@ export const ProvidersPage: React.FC = () => {
 
                   {(() => {
                     const candidateAuthMethods = authMethodsByProvider[candidateProviderId] ?? []
-                    const candidateOAuthMethods = candidateAuthMethods.filter(
-                      (method) => normalizeAuthType(method) === "oauth",
-                    )
+                    // The server indexes the provider's whole method list, so the index it is given has
+                    // to be the method's position there, not its position among the OAuth entries:
+                    // with methods `[api, oauth]` the filtered index 0 named the API method and the
+                    // flow failed or started the wrong one. The position among the OAuth entries is
+                    // kept only for the label's numbering.
+                    const candidateOAuthMethods = oauthMethodsWithSourceIndex(candidateAuthMethods)
 
                     if (candidateOAuthMethods.length === 0) {
                       return null
@@ -1126,14 +1129,15 @@ export const ProvidersPage: React.FC = () => {
 
                     return (
                       <div className="space-y-4 border-t border-[var(--surface-subtle)] pt-2">
-                        {candidateOAuthMethods.map((method, index) => {
+                        {candidateOAuthMethods.map(({ method, methodIndex }, index) => {
                           const methodLabel =
                             method.label ||
                             method.name ||
                             t("settings.providers.page.auth.oauthMethodFallback", { index: String(index + 1) })
-                          const codeKey = `${candidateProviderId}:${index}`
+                          const codeKey = `${candidateProviderId}:${methodIndex}`
                           const isPending =
-                            pendingOAuth?.providerId === candidateProviderId && pendingOAuth?.methodIndex === index
+                            pendingOAuth?.providerId === candidateProviderId &&
+                            pendingOAuth?.methodIndex === methodIndex
 
                           return (
                             <div key={`${candidateProviderId}-${methodLabel}`} className="space-y-3">
@@ -1150,8 +1154,8 @@ export const ProvidersPage: React.FC = () => {
                                   variant="outline"
                                   size="xs"
                                   className="!font-normal"
-                                  onClick={() => handleOAuthStart(candidateProviderId, index)}
-                                  disabled={authBusyKey === `oauth:${candidateProviderId}:${index}`}
+                                  onClick={() => handleOAuthStart(candidateProviderId, methodIndex)}
+                                  disabled={authBusyKey === `oauth:${candidateProviderId}:${methodIndex}`}
                                 >
                                   {t("settings.providers.page.actions.connect")}
                                 </Button>
@@ -1225,8 +1229,8 @@ export const ProvidersPage: React.FC = () => {
                                   <Button
                                     size="xs"
                                     className="!font-normal"
-                                    onClick={() => handleOAuthComplete(candidateProviderId, index)}
-                                    disabled={authBusyKey === `oauth-complete:${candidateProviderId}:${index}`}
+                                    onClick={() => handleOAuthComplete(candidateProviderId, methodIndex)}
+                                    disabled={authBusyKey === `oauth-complete:${candidateProviderId}:${methodIndex}`}
                                   >
                                     {authBusyKey === `oauth-complete:${candidateProviderId}:${index}`
                                       ? t("settings.providers.page.actions.saving")
@@ -1266,7 +1270,8 @@ export const ProvidersPage: React.FC = () => {
   const providerModels = Array.isArray(selectedProvider.models) ? selectedProvider.models : []
   const selectedCustomApiProvider = customApiProviders.find((provider) => provider.providerID === selectedProvider.id)
   const providerAuthMethods = authMethodsByProvider[selectedProvider.id] ?? []
-  const oauthAuthMethods = providerAuthMethods.filter((method) => normalizeAuthType(method) === "oauth")
+  // Same as the candidate list above: the server indexes the provider's whole method list.
+  const oauthAuthMethods = oauthMethodsWithSourceIndex(providerAuthMethods)
   const selectedConnectAction = selectProviderConnectAction(selectedProvider.id)
 
   const filteredModels = providerModels.filter((model) => {
@@ -1421,14 +1426,14 @@ export const ProvidersPage: React.FC = () => {
 
                 {oauthAuthMethods.length > 0 && (
                   <div className="space-y-4 border-t border-[var(--surface-subtle)] pt-2">
-                    {oauthAuthMethods.map((method, index) => {
+                    {oauthAuthMethods.map(({ method, methodIndex }, index) => {
                       const methodLabel =
                         method.label ||
                         method.name ||
                         t("settings.providers.page.auth.oauthMethodFallback", { index: String(index + 1) })
-                      const codeKey = `${selectedProvider.id}:${index}`
+                      const codeKey = `${selectedProvider.id}:${methodIndex}`
                       const isPending =
-                        pendingOAuth?.providerId === selectedProvider.id && pendingOAuth?.methodIndex === index
+                        pendingOAuth?.providerId === selectedProvider.id && pendingOAuth?.methodIndex === methodIndex
 
                       return (
                         <div key={`${selectedProvider.id}-${methodLabel}`} className="space-y-3">
@@ -1445,8 +1450,8 @@ export const ProvidersPage: React.FC = () => {
                               variant="outline"
                               size="xs"
                               className="!font-normal"
-                              onClick={() => handleOAuthStart(selectedProvider.id, index)}
-                              disabled={authBusyKey === `oauth:${selectedProvider.id}:${index}`}
+                              onClick={() => handleOAuthStart(selectedProvider.id, methodIndex)}
+                              disabled={authBusyKey === `oauth:${selectedProvider.id}:${methodIndex}`}
                             >
                               {t("settings.providers.page.actions.connect")}
                             </Button>
@@ -1520,10 +1525,10 @@ export const ProvidersPage: React.FC = () => {
                               <Button
                                 size="xs"
                                 className="!font-normal"
-                                onClick={() => handleOAuthComplete(selectedProvider.id, index)}
-                                disabled={authBusyKey === `oauth-complete:${selectedProvider.id}:${index}`}
+                                onClick={() => handleOAuthComplete(selectedProvider.id, methodIndex)}
+                                disabled={authBusyKey === `oauth-complete:${selectedProvider.id}:${methodIndex}`}
                               >
-                                {authBusyKey === `oauth-complete:${selectedProvider.id}:${index}`
+                                {authBusyKey === `oauth-complete:${selectedProvider.id}:${methodIndex}`
                                   ? t("settings.providers.page.actions.saving")
                                   : t("settings.providers.page.actions.complete")}
                               </Button>
