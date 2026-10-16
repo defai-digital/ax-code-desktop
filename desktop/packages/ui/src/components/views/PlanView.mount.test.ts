@@ -34,6 +34,9 @@ describe("PlanView mount contract", () => {
     // …unless a newer write is already queued: that content is not what the disk will hold, and recording it made
     // a revert to it look like "nothing to save" while the newer write went out anyway.
     expect(source).toContain("if (saveQueueRef.current?.hasQueued(entry.path))")
+    // …and only for the file that is on screen: a write for the plan that was open before this one must not
+    // become this one's baseline.
+    expect(source).toContain("if (resolvedPathRef.current !== entry.path)")
   })
 
   test("drops the queued edit when the content matches the disk again", async () => {

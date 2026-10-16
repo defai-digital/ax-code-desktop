@@ -101,6 +101,21 @@ describe("git skill installation", () => {
     )
   })
 
+  test("releases the skill name when the first directory cannot be installed", async () => {
+    // The name was claimed before the copy, and a failed copy did not release it: a second directory with the same
+    // basename — installable, in this case — was skipped as a duplicate and neither landed.
+    const broken = await writeSkill(cloneDir, "skills/review", "Review Code", "from skills")
+    await fsPromises.symlink(path.join(broken, "SKILL.md"), path.join(broken, "link.md"))
+    await writeSkill(cloneDir, "extras/review", "Review Code", "from extras")
+
+    const result = await install(["skills/review", "extras/review"])
+
+    expect(result.installed.map((entry) => entry.skillName)).toEqual(["review"])
+    await expect(fsPromises.readFile(path.join(userSkillDir, "review", "SKILL.md"), "utf8")).resolves.toContain(
+      "from extras",
+    )
+  })
+
   test("keeps the installed skill when the replacement cannot be copied", async () => {
     // A source with a symlink fails `copyDirectoryNoSymlinks`. The overwrite deleted the installed copy first, so
     // the user was left with neither the old skill nor a new one, and the result only said "skipped".

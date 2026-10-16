@@ -308,6 +308,12 @@ export async function installSkillsFromRepository({
         } else {
           await safeRm(targetDir)
         }
+        // The name is released when nothing ended up in the target: this directory did not install, and holding
+        // the name made a later directory with the same basename — which may be perfectly installable — read as a
+        // duplicate. When the old copy was restored the name is still taken by what is on disk.
+        if (!restoredIntoPlace) {
+          claimedSkillNames.delete(plan.skillName)
+        }
         skipped.push({
           skillName: plan.skillName,
           reason: error instanceof Error ? error.message : "Failed to copy skill files",

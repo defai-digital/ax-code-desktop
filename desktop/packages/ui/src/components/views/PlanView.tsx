@@ -187,6 +187,12 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
         if (saveQueueRef.current?.hasQueued(entry.path)) {
           return
         }
+        // The record is about the file on screen: a write for the plan that was open before this one would
+        // otherwise become the baseline for the plan that is open now, and a save of that one would be judged
+        // against another file's text.
+        if (resolvedPathRef.current !== entry.path) {
+          return
+        }
         loadedContentRef.current = entry.content
       },
       onLatestSaved: (entry) => {
