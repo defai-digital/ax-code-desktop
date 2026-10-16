@@ -118,4 +118,28 @@ describe("locationMatchesHost", () => {
     expect(locationMatchesHost("https://lab.example/axle", "https://lab.example/ax")).toBe(false)
     expect(locationMatchesHost("https://other.example/ax", "https://lab.example/ax")).toBe(false)
   })
+  test("still resolves the hosts when the local origin global is read-only", async () => {
+    // Electron's preload can expose __AX_CODE_DESKTOP_LOCAL_ORIGIN__ as a read-only contextBridge property, where
+    // assignment throws — persistence.ts already guards the equivalent write. Unguarded, the throw rejected the
+    // whole read and the caller lost the hosts config the invoke had just returned.
+    mockDesktopWindow({
+      invoke: async () => ({
+        hosts: [{ id: "remote-a", url: "https://remote.example.com", label: "Remote" }],
+        defaultHostId: "remote-a",
+        localOrigin: "http://127.0.0.1:5173",
+      }),
+    })
+    Object.defineProperty((globalThis as Record<string, unknown>).window, "__AX_CODE_DESKTOP_LOCAL_ORIGIN__", {
+      configurable: true,
+      get: () => "",
+      set: () => {
+        throw new TypeError("Cannot assign to read only property")
+      },
+    })
+
+    const config = await desktopHostsGet()
+
+    expect(config?.hosts).toHaveLength(1)
+    expect(config?.defaultHostId).toBe("remote-a")
+  })
 })

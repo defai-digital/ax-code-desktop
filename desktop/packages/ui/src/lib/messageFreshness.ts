@@ -55,18 +55,25 @@ export class MessageFreshnessDetector {
     }
 
     const sessionStartTime = this.sessionStartTimes.get(sessionId)
-
-    if (!sessionStartTime) {
-      this.trackMessage(message.id, message.time.created)
+    // A replayed or persisted record can arrive without `time`, and every producer of these payloads is treated
+    // defensively elsewhere in this directory (crossSessionSearch, assistantTokens, exportSession). Without the
+    // guard the render path that asks this question threw instead of skipping the animation.
+    const createdTime = typeof message.time?.created === "number" ? message.time.created : null
+    if (createdTime === null) {
       return false
     }
 
-    const isFresh = message.time.created > sessionStartTime - 5000
+    if (!sessionStartTime) {
+      this.trackMessage(message.id, createdTime)
+      return false
+    }
+
+    const isFresh = createdTime > sessionStartTime - 5000
 
     // Record fresh messages too so each animates at most once: the detector is a
     // module singleton that outlives ChatViewport remounts, so an unrecorded id is
     // re-evaluated against the stale session start time and replays the animation.
-    this.trackMessage(message.id, message.time.created)
+    this.trackMessage(message.id, createdTime)
 
     return isFresh
   }

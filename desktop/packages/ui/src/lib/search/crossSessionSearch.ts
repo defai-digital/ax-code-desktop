@@ -67,6 +67,23 @@ type SessionMessageRecord = { info: Message; parts: Part[] }
 /** Collapse runs of whitespace so matches and snippets stay on one line. */
 export const normalizeSearchText = (text: string): string => text.replace(/\s+/g, " ").trim()
 
+/**
+ * Index of `needle` (already lowercased) in `text`, or -1. Compared through the same
+ * lowercasing the caller uses, so the returned index addresses `text` itself.
+ */
+const findCaseInsensitiveIndex = (text: string, needle: string): number => {
+  if (!needle || needle.length > text.length) {
+    return -1
+  }
+  const last = text.length - needle.length
+  for (let index = 0; index <= last; index += 1) {
+    if (text.slice(index, index + needle.length).toLowerCase() === needle) {
+      return index
+    }
+  }
+  return -1
+}
+
 const sessionUpdatedAt = (session: Session): number =>
   (typeof session.time?.updated === "number" ? session.time.updated : 0) ||
   (typeof session.time?.created === "number" ? session.time.created : 0)
@@ -156,7 +173,10 @@ export const findSessionHits = (
   if (!normalizedQuery) return []
   const hits: CrossSessionSearchHit[] = []
   for (const message of messages) {
-    const matchIndex = message.text.toLowerCase().indexOf(normalizedQuery)
+    // Index into the text as it will be sliced: lowercasing can change a string's length (`İ` becomes two code
+    // units), and the index used to come from the lowercased copy while the snippet sliced the original — the
+    // highlight and its ellipses landed a few characters off.
+    const matchIndex = findCaseInsensitiveIndex(message.text, normalizedQuery)
     if (matchIndex === -1) continue
     hits.push({
       sessionId: session.id,

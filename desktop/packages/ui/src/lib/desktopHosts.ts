@@ -191,7 +191,14 @@ export const desktopHostsGet = async (): Promise<DesktopHostsConfig> => {
 
   const localOrigin = readString(raw, "localOrigin") || readString(raw, "local_origin")
   if (typeof window !== "undefined" && localOrigin) {
-    window.__AX_CODE_DESKTOP_LOCAL_ORIGIN__ = localOrigin
+    // Electron's preload may expose this as a read-only contextBridge property, where assignment throws — the
+    // same guard `persistence.ts` applies to `__AX_CODE_DESKTOP_HOME__`. Unguarded, the throw rejected this
+    // whole read and the caller lost the hosts config the invoke had just returned.
+    try {
+      window.__AX_CODE_DESKTOP_LOCAL_ORIGIN__ = localOrigin
+    } catch {
+      /* read-only contextBridge property — the preload value stands */
+    }
   }
 
   return { hosts, defaultHostId, initialHostChoiceCompleted, localOrigin }

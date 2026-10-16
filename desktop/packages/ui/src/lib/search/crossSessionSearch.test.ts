@@ -233,4 +233,16 @@ describe("scanSessionsForQuery", () => {
 
     expect(peak).toBe(3)
   })
+  test("highlights the query when a code point before it lowercases to a longer string", () => {
+    // The index came from `text.toLowerCase()` while the snippet sliced `text`: `İ` (U+0130) lowercases to two
+    // code units, so every offset after it was shifted and the highlighted text was not the query.
+    const hits = findSessionHits(
+      session(),
+      [{ messageId: "msg_1", role: "user", created: 1000, text: "İİ needle" }],
+      "needle",
+    )
+
+    expect(hits).toHaveLength(1)
+    expect(hits[0].snippet.match).toBe("needle")
+  })
 })

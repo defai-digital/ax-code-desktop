@@ -66,4 +66,14 @@ describe("MessageFreshnessDetector", () => {
     expect(seenMessageIds.has("msg_0")).toBe(true)
     expect(seenMessageIds.has("msg_1")).toBe(true)
   })
+  test("skips a message that carries no timestamp instead of throwing", () => {
+    // A replayed or persisted record can arrive without `time`; every other reader of these payloads in this
+    // directory normalizes the field, and this one dereferenced it while deciding whether to animate — which
+    // threw inside the render path.
+    detector.recordSessionStart("ses_1")
+
+    expect(detector.shouldAnimateMessage({ id: "msg_no_time", sessionID: "ses_1", role: "assistant" } as Message, "ses_1")).toBe(
+      false,
+    )
+  })
 })
