@@ -996,8 +996,17 @@ export const rewritePreviewBody = ({ bodyText, proxyBasePath, targetOrigin, kind
     }
     return value
   }
+  // Root-relative `url(...)` references, from a stylesheet or from inline CSS in a
+  // `style` attribute or a `<style>` block: this proxy is same-origin, so the
+  // browser would otherwise resolve them against the Desktop server instead of the
+  // previewed one.
+  const rewriteCssUrlReferences = (text) =>
+    text.replace(/url\((['"]?)([^)'"]*)\1\)/gi, (_match, quote, value) => {
+      const q = quote || ""
+      return `url(${q}${rewriteResourceUrl(value)}${q})`
+    })
   const rewriteHtml = (text) =>
-    text
+    rewriteCssUrlReferences(text)
       .replace(/\b(src|href|action)=(['"])([^'"]*)\2/gi, (_match, attr, quote, value) => {
         return `${attr}=${quote}${rewriteResourceUrl(value)}${quote}`
       })
@@ -1016,14 +1025,9 @@ export const rewritePreviewBody = ({ bodyText, proxyBasePath, targetOrigin, kind
         return `srcset=${quote}${rewritten}${quote}`
       })
   const rewriteCss = (text) =>
-    text
-      .replace(/url\((['"]?)([^)'"]*)\1\)/gi, (_match, quote, value) => {
-        const q = quote || ""
-        return `url(${q}${rewriteResourceUrl(value)}${q})`
-      })
-      .replace(/@import\s+(['"])\/(?!\/)([^'"]*)\1/gi, (_match, quote, path) => {
-        return `@import ${quote}${rewriteResourceUrl(`/${path}`)}${quote}`
-      })
+    rewriteCssUrlReferences(text).replace(/@import\s+(['"])\/(?!\/)([^'"]*)\1/gi, (_match, quote, path) => {
+      return `@import ${quote}${rewriteResourceUrl(`/${path}`)}${quote}`
+    })
   const rewriteJavaScript = (text) =>
     text
       .replace(/\bfrom\s+(['"])\/(?!\/)([^'"]*)\1/gi, (_match, quote, path) => {

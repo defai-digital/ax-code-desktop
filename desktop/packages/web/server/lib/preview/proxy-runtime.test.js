@@ -117,6 +117,25 @@ describe("preview body URL rewriting", () => {
     expect(output).toContain('const url = "/api/data";')
   })
 
+  it("rewrites root-relative url() references written inline in HTML", () => {
+    // A <style> block or a style attribute resolves url(/…) against the Desktop
+    // origin, where this proxy lives, so it has to be mapped like an attribute.
+    const input =
+      '<style>.hero{background:url(/img/hero.png)}</style><div style="background-image:url(\'/img/inline.png\')"></div><img src="/logo.png">'
+    const output = rewrite(input, "html")
+
+    expect(output).toContain("url(/api/preview/proxy/abc123/img/hero.png)")
+    expect(output).toContain("url('/api/preview/proxy/abc123/img/inline.png')")
+    expect(output).toContain('src="/api/preview/proxy/abc123/logo.png"')
+  })
+
+  it("leaves absolute and non-http url() values inline in HTML alone", () => {
+    const input =
+      '<style>.a{background:url(https://cdn.example.com/x.png)}.b{background:url("data:image/png;base64,AA")}.c{background:url(#gradient)}</style>'
+
+    expect(rewrite(input, "html")).toBe(input)
+  })
+
   it("rewrites only CSS imports and url references in CSS responses", () => {
     const input = '@import "/theme.css"; .hero { background: url(/hero.png); } .copy::after { content: "/not-a-url"; }'
     const output = rewrite(input, "css")
