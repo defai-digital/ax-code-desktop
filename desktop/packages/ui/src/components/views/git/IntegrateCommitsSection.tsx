@@ -120,17 +120,22 @@ export const IntegrateCommitsSection: React.FC<{
       return
     }
     let cancelled = false
-    // The restore effect above can hand the panel to a persisted conflict while
-    // `computeIntegratePlan` is in flight. Re-read the kind afterwards: a plan that
-    // lands late must not replace the conflict view, or Move becomes clickable again
-    // over a worktree that still holds the half-finished cherry-pick.
-    const panelIsFree = () => uiKindRef.current !== "conflict" && uiKindRef.current !== "running"
+    // State is set conditionally at apply time, not by re-reading a ref after the await: the
+    // restore effect above can queue `conflict` in the same batch, and a ref only moves on render,
+    // so a ref read cannot see a queued update. The updater sees the state it is applied to, which
+    // makes the order of the two updates irrelevant — a plan that lands late must not replace the
+    // conflict view, or Move becomes clickable again over a worktree that still holds the
+    // half-finished cherry-pick.
+    const keepPanelOwner = (state: IntegrateUiState): boolean =>
+      state.kind === "conflict" || state.kind === "running"
     setUi({ kind: "loading" })
     void (async () => {
       try {
         const plan = await computeIntegratePlan({ repoRoot, sourceBranch, targetBranch })
-        if (cancelled || !panelIsFree()) return
-        setUi({ kind: "ready", plan })
+        if (cancelled) return
+        // The preview summaries below are only rendered by the ready view, so writing them when
+        // the panel belongs to a conflict is inert.
+        setUi((state) => (keepPanelOwner(state) ? state : { kind: "ready", plan }))
 
         // Preload commit subjects for preview.
         if (plan.commits.length > 0) {
@@ -159,8 +164,9 @@ export const IntegrateCommitsSection: React.FC<{
       } catch (error) {
         // A failed plan check must not read as "nothing to move": surface the
         // refusal (e.g. an exec endpoint that will not run git commands).
-        if (!cancelled && panelIsFree()) {
-          setUi({ kind: "error", message: error instanceof Error ? error.message : String(error) })
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : String(error)
+          setUi((state) => (keepPanelOwner(state) ? state : { kind: "error", message }))
         }
       }
     })()

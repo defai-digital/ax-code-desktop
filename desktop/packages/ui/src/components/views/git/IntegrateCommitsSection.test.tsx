@@ -145,4 +145,39 @@ describe("IntegrateCommitsSection plan failure", () => {
 
     expect(container.textContent).toContain("conflict.txt")
   })
+
+  test("keeps the restored conflict when the plan resolves without an intervening render", async () => {
+    // Both chains settle in the same batch, so the restore's `setUi({ kind: "conflict" })` is
+    // queued but not rendered when the plan lands. A ref cannot see a queued update — the earlier
+    // fix read one, and the queued `ready` still replaced the conflict view.
+    computeIntegratePlanMock.mockResolvedValue({
+      repoRoot: "/repo",
+      sourceBranch: "feat",
+      targetBranch: "main",
+      commits: [],
+    })
+    readIntegrateConflictStateMock.mockReturnValue({
+      repoRoot: "/repo",
+      sourceBranch: "feat",
+      targetBranch: "main",
+      tempWorktreePath: "/tmp/integrate-1",
+      currentCommit: "abcdef1234567890",
+      remainingCommits: [],
+    })
+    isCherryPickInProgressMock.mockResolvedValue(true)
+    getIntegrateConflictDetailsMock.mockResolvedValue({ unmergedFiles: ["conflict.txt"] })
+
+    await React.act(async () => {
+      root.render(
+        React.createElement(
+          I18nProvider,
+          null,
+          React.createElement(IntegrateCommitsSection, baseProps),
+        ),
+      )
+    })
+    await React.act(async () => {})
+
+    expect(container.textContent).toContain("conflict.txt")
+  })
 })
