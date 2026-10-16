@@ -10,6 +10,7 @@ import type {
   Todo,
 } from "@defai-digital/ax-code-sdk/v2/client"
 import { noteServerSessionStatus } from "./session-status-events"
+import { noteBlockingRequestEvent } from "./blocking-request-events"
 import { Binary } from "./binary"
 import type { FileDiff, GlobalState, State } from "./types"
 import { dropSessionCaches, getProtectedSessionCacheIds } from "./session-cache"
@@ -266,11 +267,6 @@ function areTokenUsageEqual(
     left.cache?.read === right.cache?.read &&
     left.cache?.write === right.cache?.write
   )
-}
-
-/** The directory revision a snapshot fetched over HTTP is compared against (see `State`). */
-function noteBlockingRequestEvent(draft: State) {
-  draft.blockingRequestRevision = (draft.blockingRequestRevision ?? 0) + 1
 }
 
 function areMessageErrorsEqual(
@@ -824,9 +820,9 @@ export function applyDirectoryEvent(
 
     case "permission.asked": {
       const permission = event.properties as PermissionRequest
-      // Counted before the dedupe: the resync paths compare this counter around their snapshot request,
-      // and an event that leaves the list looking the same still makes an older answer stale.
-      noteBlockingRequestEvent(draft)
+      // Stamped before the dedupe, in module state: the resync paths compare this around their snapshot
+      // request, and an event that leaves the list looking the same still makes an older answer stale.
+      noteBlockingRequestEvent(permission.sessionID)
       const permissions = draft.permission[permission.sessionID] ?? []
       const next = [...permissions]
       const result = Binary.search(next, permission.id, (p) => p.id)
@@ -841,7 +837,7 @@ export function applyDirectoryEvent(
 
     case "permission.replied": {
       const props = event.properties as { sessionID: string; requestID: string }
-      noteBlockingRequestEvent(draft)
+      noteBlockingRequestEvent(props.sessionID)
       const permissions = draft.permission[props.sessionID]
       if (!permissions) return false
       const result = Binary.search(permissions, props.requestID, (p) => p.id)
@@ -856,7 +852,7 @@ export function applyDirectoryEvent(
 
     case "question.asked": {
       const question = event.properties as QuestionRequest
-      noteBlockingRequestEvent(draft)
+      noteBlockingRequestEvent(question.sessionID)
       const questions = draft.question[question.sessionID] ?? []
       const next = [...questions]
       const result = Binary.search(next, question.id, (q) => q.id)
@@ -872,7 +868,7 @@ export function applyDirectoryEvent(
     case "question.replied":
     case "question.rejected": {
       const props = event.properties as { sessionID: string; requestID: string }
-      noteBlockingRequestEvent(draft)
+      noteBlockingRequestEvent(props.sessionID)
       const questions = draft.question[props.sessionID]
       if (!questions) return false
       const result = Binary.search(questions, props.requestID, (q) => q.id)

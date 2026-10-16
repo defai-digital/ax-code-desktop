@@ -6,6 +6,7 @@ import type { StoreApi } from "zustand"
 import { useStore } from "zustand"
 import type { AxCodeClient } from "@defai-digital/ax-code-sdk/v2/client"
 import { Binary } from "./binary"
+import { blockingRequestStamp } from "./blocking-request-events"
 import { createEventPipeline } from "./event-pipeline"
 import { applyPartDeltaBatch } from "./part-delta-batch"
 import { subscribeSessionMessageRecords } from "./session-message-subscription"
@@ -558,9 +559,6 @@ export async function resyncBlockingRequestsForDirectory(
   candidateSessionIds?: string[],
 ) {
   const before = store.getState()
-  // A question asked and answered while the request is in flight leaves the id list looking unchanged,
-  // which the signature comparison cannot see; the directory's blocking-request revision can.
-  const beforeBlockingRevision = before.blockingRequestRevision ?? 0
   const knownSessionIds = new Set<string>([
     ...before.session.map((session) => session.id),
     ...Object.keys(before.message ?? {}),
@@ -569,6 +567,9 @@ export async function resyncBlockingRequestsForDirectory(
     ...Object.keys(before.permission ?? {}),
   ])
   const candidates = candidateSessionIds ?? Array.from(knownSessionIds)
+  // A question asked and answered while the request is in flight leaves the id list looking unchanged,
+  // which the signature comparison cannot see; the event stamp can.
+  const beforeStamps = new Map(candidates.map((sessionId) => [sessionId, blockingRequestStamp(sessionId)]))
   if (candidates.length === 0) return
 
   // Re-fetch pending questions that may have been asked during an SSE gap,
@@ -624,14 +625,16 @@ export async function resyncBlockingRequestsForDirectory(
         // event-driven state.
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.question[sessionId])
-        if (currentSignature !== beforeSignature || state.blockingRequestRevision !== beforeBlockingRevision) continue
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) !== (beforeStamps.get(sessionId) ?? 0))
+          continue
         merged[sessionId] = questions
       }
       for (const sessionId of candidates) {
         if (grouped[sessionId]) continue
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.question[sessionId])
-        if (currentSignature !== beforeSignature || state.blockingRequestRevision !== beforeBlockingRevision) continue
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) !== (beforeStamps.get(sessionId) ?? 0))
+          continue
         delete merged[sessionId]
       }
       return { question: merged }
@@ -724,14 +727,16 @@ export async function resyncBlockingRequestsForDirectory(
         // snapshot computed before a concurrent live change overwrite it.
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.permission[sessionId])
-        if (currentSignature !== beforeSignature || state.blockingRequestRevision !== beforeBlockingRevision) continue
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) !== (beforeStamps.get(sessionId) ?? 0))
+          continue
         merged[sessionId] = permissions
       }
       for (const sessionId of candidates) {
         if (grouped[sessionId]) continue
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.permission[sessionId])
-        if (currentSignature !== beforeSignature || state.blockingRequestRevision !== beforeBlockingRevision) continue
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) !== (beforeStamps.get(sessionId) ?? 0))
+          continue
         delete merged[sessionId]
       }
       return { permission: merged }

@@ -46,13 +46,6 @@ export type State = {
   todo: Record<string, Todo[]>
   permission: Record<string, PermissionRequest[]>
   question: Record<string, QuestionRequest[]>
-  /**
-   * Bumped by every `question.*` and `permission.*` event this directory has seen. A snapshot fetched
-   * over HTTP is computed before it travels, so the resync paths compare this counter around the
-   * request: a question asked and answered inside that window leaves the id list looking unchanged,
-   * and without the counter the answer — computed before both — put the answered question back.
-   */
-  blockingRequestRevision: number
   lsp: LspStatus[]
   vcs: VcsInfo | undefined
   limit: number
@@ -113,7 +106,6 @@ export const INITIAL_STATE: State = {
   todo: {},
   permission: {},
   question: {},
-  blockingRequestRevision: 0,
   lsp: [],
   vcs: undefined,
   limit: 5,

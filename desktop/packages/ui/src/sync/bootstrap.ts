@@ -9,6 +9,7 @@ import { retry } from "./retry"
 import type { GlobalState, State } from "./types"
 import { hasCompletedAssistantReply, resolveResyncedSessionStatus } from "./reconnect-recovery"
 import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
+import { blockingRequestStamp } from "./blocking-request-events"
 import { wasPromptRecentlyAccepted } from "./session-actions"
 import { API_ENDPOINTS } from "@/lib/http"
 
@@ -226,9 +227,10 @@ export async function bootstrapDirectory(input: {
     retry(async () => {
       const before = getState()
       // A question asked and answered while the request is in flight leaves the id list looking
-      // unchanged, which the signature comparison cannot see; the directory's blocking-request revision
-      // can.
-      const beforeBlockingRevision = before.blockingRequestRevision ?? 0
+      // unchanged, which the signature comparison cannot see; the event stamp can.
+      const beforeStamps = new Map(
+        Object.keys(before.question ?? {}).map((sessionID) => [sessionID, blockingRequestStamp(sessionID)]),
+      )
       const beforeSignatures = new Map(
         Object.entries(before.question ?? {}).map(([sessionID, questions]) => [sessionID, requestSignature(questions)]),
       )
@@ -249,7 +251,7 @@ export async function bootstrapDirectory(input: {
         // would silently overwrite the fresher event-driven state.
         const beforeSignature = beforeSignatures.get(sessionID) ?? ""
         const currentSignature = requestSignature(getState().question[sessionID])
-        if (currentSignature !== beforeSignature || getState().blockingRequestRevision !== beforeBlockingRevision)
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionID) !== (beforeStamps.get(sessionID) ?? 0))
           continue
         merged[sessionID] = questions.filter((q) => !!q?.id).sort((a, b) => cmp(a.id, b.id))
       }
@@ -257,7 +259,7 @@ export async function bootstrapDirectory(input: {
         if (grouped[sessionID]) continue
         const beforeSignature = beforeSignatures.get(sessionID) ?? ""
         const currentSignature = requestSignature(getState().question[sessionID])
-        if (currentSignature !== beforeSignature || getState().blockingRequestRevision !== beforeBlockingRevision)
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionID) !== (beforeStamps.get(sessionID) ?? 0))
           continue
         delete merged[sessionID]
       }
@@ -265,7 +267,9 @@ export async function bootstrapDirectory(input: {
     }),
     retry(async () => {
       const before = getState()
-      const beforeBlockingRevision = before.blockingRequestRevision ?? 0
+      const beforeStamps = new Map(
+        Object.keys(before.permission ?? {}).map((sessionID) => [sessionID, blockingRequestStamp(sessionID)]),
+      )
       const beforeSignatures = new Map(
         Object.entries(before.permission ?? {}).map(([sessionID, permissions]) => [
           sessionID,
@@ -288,7 +292,7 @@ export async function bootstrapDirectory(input: {
         // snapshot computed before a concurrent live change overwrite it.
         const beforeSignature = beforeSignatures.get(sessionID) ?? ""
         const currentSignature = requestSignature(getState().permission[sessionID])
-        if (currentSignature !== beforeSignature || getState().blockingRequestRevision !== beforeBlockingRevision)
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionID) !== (beforeStamps.get(sessionID) ?? 0))
           continue
         merged[sessionID] = perms.filter((p) => !!p?.id).sort((a, b) => cmp(a.id, b.id))
       }
@@ -296,7 +300,7 @@ export async function bootstrapDirectory(input: {
         if (grouped[sessionID]) continue
         const beforeSignature = beforeSignatures.get(sessionID) ?? ""
         const currentSignature = requestSignature(getState().permission[sessionID])
-        if (currentSignature !== beforeSignature || getState().blockingRequestRevision !== beforeBlockingRevision)
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionID) !== (beforeStamps.get(sessionID) ?? 0))
           continue
         delete merged[sessionID]
       }

@@ -161,6 +161,25 @@ describe("resyncBlockingRequestsForDirectory", () => {
     expect(store.getState().permission["ses_a"] ?? []).toEqual([])
   })
 
+  test("does not restore a question the client never saw asked", async () => {
+    // After a reconnect gap the store never held the question, so its answer reports no change to the
+    // store at all. The stamp has to be module state: a counter carried on the reducer's draft is dropped
+    // with the draft, and the snapshot the request was already computing puts the question back.
+    const store = createDirectoryStore({ question: {}, permission: {} })
+    const stale = buildQuestion()
+    pendingQuestionsResponse = [stale]
+    onPendingQuestionsRequest = () => {
+      applyDirectoryEvent(store.getState(), {
+        type: "question.replied",
+        properties: { sessionID: "ses_a", requestID: stale.id },
+      } as never)
+    }
+
+    await resyncBlockingRequestsForDirectory("/repo", store)
+
+    expect(store.getState().question["ses_a"] ?? []).toEqual([])
+  })
+
   test("merges newly fetched questions/permissions into the directory store", async () => {
     const store = createDirectoryStore({})
     pendingQuestionsResponse = [buildQuestion()]

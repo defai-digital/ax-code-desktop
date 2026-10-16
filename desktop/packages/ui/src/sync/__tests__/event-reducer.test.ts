@@ -9,6 +9,7 @@ import type {
   SessionStatus,
 } from "@defai-digital/ax-code-sdk/v2/client"
 import { serverSessionStatusStamp } from "../session-status-events"
+import { blockingRequestStamp } from "../blocking-request-events"
 import { applyDirectoryEvent, reduceGlobalEvent } from "../event-reducer"
 import { INITIAL_STATE, type State } from "../types"
 import { PartMap } from "../part-map"
@@ -239,12 +240,14 @@ describe("applyDirectoryEvent", () => {
     expect(draft.session_status.ses_counted).toBe(status)
   })
 
-  test("bumps the directory's blocking-request revision on every question and permission event", () => {
-    // The resync paths compare this counter around their snapshot request: a question asked and answered
+  test("stamps every question and permission event, including one it does not store", () => {
+    // The resync paths compare this stamp around their snapshot request: a question asked and answered
     // inside that window leaves the id list back where it started, so the signature comparison alone
-    // cannot tell that the answer they are about to apply is older than the store.
+    // cannot tell that the answer they are about to apply is older than the store. The stamp lives in
+    // module state because the reducer's draft is discarded whenever it reports no change — which is
+    // exactly what a reply for a question this client never saw does.
     const draft = state()
-    const beforeQuestions = draft.blockingRequestRevision
+    const beforeQuestions = blockingRequestStamp("ses_1")
 
     applyDirectoryEvent(draft, {
       type: "question.asked",
@@ -255,9 +258,9 @@ describe("applyDirectoryEvent", () => {
       properties: { sessionID: "ses_1", requestID: "que_1" },
     } as Event)
 
-    expect(draft.blockingRequestRevision).toBeGreaterThanOrEqual(beforeQuestions + 2)
+    expect(blockingRequestStamp("ses_1")).toBeGreaterThanOrEqual(beforeQuestions + 2)
 
-    const beforePermissions = draft.blockingRequestRevision
+    const beforePermissions = blockingRequestStamp("ses_1")
     applyDirectoryEvent(draft, {
       type: "permission.asked",
       properties: { id: "perm_1", sessionID: "ses_1", permission: "bash" },
@@ -267,7 +270,17 @@ describe("applyDirectoryEvent", () => {
       properties: { sessionID: "ses_1", requestID: "perm_1" },
     } as Event)
 
-    expect(draft.blockingRequestRevision).toBeGreaterThanOrEqual(beforePermissions + 2)
+    expect(blockingRequestStamp("ses_1")).toBeGreaterThanOrEqual(beforePermissions + 2)
+
+    // A reply for a session whose question list this client never held reports no change to the store and
+    // is still stamped: the draft it would have carried the count on is dropped.
+    const unknownBefore = blockingRequestStamp("ses_unknown")
+    const changed = applyDirectoryEvent(draft, {
+      type: "question.replied",
+      properties: { sessionID: "ses_unknown", requestID: "que_unknown" },
+    } as Event)
+    expect(changed).toBe(false)
+    expect(blockingRequestStamp("ses_unknown")).toBeGreaterThan(unknownBefore)
   })
 
   test("replaces an optimistic part the server echo did not land in front of", () => {
