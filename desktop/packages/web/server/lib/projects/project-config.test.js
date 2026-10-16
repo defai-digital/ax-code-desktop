@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import os from "os"
 import path from "path"
-import { mkdtemp, rm, readFile, writeFile } from "fs/promises"
+import { mkdtemp, readdir, readFile, rm, writeFile } from "fs/promises"
 import {
   MAX_LAST_ERROR_LENGTH,
   MAX_TASK_NAME_LENGTH,
@@ -300,6 +300,82 @@ describe("project-config runtime", () => {
       expect(result.task.schedule.timezone).toBe("Europe/Kyiv")
     } finally {
       await cleanup()
+    }
+  })
+})
+
+describe("project config file names", () => {
+  it("keeps a long project id's config under a name the filesystem accepts", async () => {
+    // A project id is `path_` + base64url of the whole project path, so a long path pushed the config
+    // file name past the filesystem's 255-byte limit: the project's config could be neither written nor
+    // read (ENAMETOOLONG), and the start command and scheduled tasks were lost with it.
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-long-project-id-"))
+    const runtime = createProjectConfigRuntime({
+      fsPromises: await import("fs/promises"),
+      path,
+      projectsDirPath: tempRoot,
+      createTaskID: () => "task-fixed-id",
+    })
+    try {
+      const longPath = `/${["deep-segment".repeat(4)].join("/").repeat(6)}`
+      const projectID = `path_${Buffer.from(longPath, "utf8").toString("base64url")}`
+      expect(projectID.length).toBeGreaterThan(255)
+
+      await runtime.upsertScheduledTask(projectID, {
+        name: "Nightly digest",
+        enabled: true,
+        schedule: { kind: "daily", time: "09:30", timezone: "UTC" },
+        execution: { prompt: "Summarize repository changes", providerID: "openai", modelID: "gpt-4.1" },
+      })
+
+      const reloaded = await runtime.listScheduledTasks(projectID)
+      expect(reloaded).toHaveLength(1)
+      expect(reloaded[0].name).toBe("Nightly digest")
+
+      const entries = await readdir(tempRoot)
+      expect(entries).toHaveLength(1)
+      expect(Buffer.byteLength(entries[0], "utf8")).toBeLessThan(255)
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it("still reads a config an earlier version wrote under the full id", async () => {
+    // An id longer than the bound but still short enough for the filesystem: the bounded name is used for
+    // new writes, and the file the earlier version wrote under the full id is still read.
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-legacy-project-id-"))
+    const runtime = createProjectConfigRuntime({
+      fsPromises: await import("fs/promises"),
+      path,
+      projectsDirPath: tempRoot,
+      createTaskID: () => "task-fixed-id",
+    })
+    try {
+      const longID = `path_${"b".repeat(180)}`
+      const legacyPath = path.join(tempRoot, `${longID}.json`)
+      await writeFile(
+        legacyPath,
+        JSON.stringify({
+          version: 1,
+          scheduledTasks: [
+            {
+              id: "task-legacy",
+              name: "Legacy task",
+              enabled: true,
+              schedule: { kind: "daily", time: "09:30", timezone: "UTC" },
+              execution: { prompt: "Summarize repository changes", providerID: "openai", modelID: "gpt-4.1" },
+            },
+          ],
+        }),
+        "utf8",
+      )
+
+      const tasks = await runtime.listScheduledTasks(longID)
+
+      expect(tasks).toHaveLength(1)
+      expect(tasks[0].name).toBe("Legacy task")
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true })
     }
   })
 })

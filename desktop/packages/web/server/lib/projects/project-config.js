@@ -1,8 +1,21 @@
+import { createHash } from "node:crypto"
 import { DateTime, IANAZone } from "luxon"
 import parser from "cron-parser"
 import { normalizeScheduledTaskTime, resolveScheduledTaskTimes } from "./scheduled-task-time.js"
 
 const PROJECT_CONFIG_VERSION = 1
+// A project id is `path_` + base64url of the whole project path (project-id.js), so a long path pushes
+// the config file name past the filesystem's 255-byte limit and the file can be neither written nor
+// read. Ids that fit keep their name; longer ones keep a readable prefix and a digest of the rest.
+const MAX_PROJECT_CONFIG_STEM_LENGTH = 96
+
+const projectConfigFileStemOf = (projectID) =>
+  projectID.length <= MAX_PROJECT_CONFIG_STEM_LENGTH
+    ? projectID
+    : `${projectID.slice(0, MAX_PROJECT_CONFIG_STEM_LENGTH)}-${createHash("sha256")
+        .update(projectID)
+        .digest("hex")
+        .slice(0, 24)}`
 const MAX_TASK_NAME_LENGTH = 80
 const MAX_TASK_PROMPT_LENGTH = 20_000
 const MAX_CRON_LENGTH = 200
@@ -312,21 +325,43 @@ export const createProjectConfigRuntime = (deps) => {
 
   const resolveProjectConfigPath = (projectID) => {
     const safeProjectID = sanitizeProjectID(projectID)
-    return path.join(projectsDirPath, `${safeProjectID}.json`)
+    return path.join(projectsDirPath, `${projectConfigFileStemOf(safeProjectID)}.json`)
+  }
+
+  // The path to read from, in order: the bounded name above, then the full-id name an earlier version
+  // wrote. The second only exists when the first differs — for an id whose file name was too long for
+  // the filesystem, which is what made the project's config unreadable and unwritable.
+  const projectConfigReadPaths = (projectID) => {
+    const safeProjectID = sanitizeProjectID(projectID)
+    const paths = [resolveProjectConfigPath(safeProjectID)]
+    if (projectConfigFileStemOf(safeProjectID) !== safeProjectID) {
+      paths.push(path.join(projectsDirPath, `${safeProjectID}.json`))
+    }
+    return paths
   }
 
   const readRawProjectConfigFromDisk = async (projectID) => {
-    const filePath = resolveProjectConfigPath(projectID)
-    try {
-      const raw = await fsPromises.readFile(filePath, "utf8")
-      const parsed = JSON.parse(raw)
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}
-    } catch (error) {
-      if (error && typeof error === "object" && error.code === "ENOENT") {
-        return {}
+    const paths = projectConfigReadPaths(projectID)
+    for (const [index, filePath] of paths.entries()) {
+      try {
+        const raw = await fsPromises.readFile(filePath, "utf8")
+        const parsed = JSON.parse(raw)
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}
+      } catch (error) {
+        if (index < paths.length - 1 && (error?.code === "ENOENT" || error?.code === "ENAMETOOLONG")) {
+          continue
+        }
+        if (error && typeof error === "object" && error.code === "ENOENT") {
+          return {}
+        }
+        if (error && typeof error === "object" && error.code === "ENAMETOOLONG") {
+          // Nothing readable under either name: an empty config, not a failed read.
+          return {}
+        }
+        throw error
       }
-      throw error
     }
+    return {}
   }
 
   const readProjectConfigFromDisk = async (projectID) => {
