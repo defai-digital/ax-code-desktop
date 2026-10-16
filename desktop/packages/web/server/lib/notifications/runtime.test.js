@@ -165,6 +165,37 @@ describe("notification trigger runtime", () => {
     }
   })
 
+it("notifies every unkeyed permission ask in a burst, not only the last", async () => {
+  // A runtime that omits the ask's id (the reply handler documents that this happens) sent every ask in
+  // the window to one constant key, so the map that exists to keep a burst intact held a single entry and
+  // the earlier prompt was never announced.
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({
+      ok: true,
+      json: async () => [],
+      body: { cancel: async () => {} },
+    })),
+  )
+  vi.useFakeTimers()
+  try {
+    const { runtime, emitted } = createRuntime()
+    const ask = () => ({
+      type: "permission.asked",
+      properties: { permission: "bash", sessionTitle: "My session", sessionID: "ses_a" },
+    })
+
+    await runtime.maybeDispatchNotificationForTrigger(ask())
+    await runtime.maybeDispatchNotificationForTrigger(ask())
+
+    await vi.advanceTimersByTimeAsync(600)
+
+    expect(emitted.filter((entry) => String(entry.tag).startsWith("permission-"))).toHaveLength(2)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
 it("does not notify for an ask the user answered while the flush was running", async () => {
   // The flush deletes its debounce entry before it starts awaiting, so a reply that lands in that
   // window found nothing to cancel: the prompt was announced after the user had answered it.

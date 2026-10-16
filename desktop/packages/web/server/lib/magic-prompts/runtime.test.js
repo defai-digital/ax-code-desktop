@@ -27,6 +27,19 @@ describe("magic prompt runtime", () => {
 
   const stateFile = () => path.join(tempDir, "magic-prompts.json")
 
+  it("refuses to write over a state file it cannot parse", async () => {
+    // A truncated file used to read as "no overrides": the client was handed that empty snapshot as
+    // authoritative, and the next edit wrote the file back with only that one override, losing every
+    // other stored one.
+    const runtime = createRuntime()
+    const unfinished = '{ "overrides": { "a.visible": "keep me" '
+    await fs.writeFile(stateFile(), unfinished, "utf8")
+
+    await expect(runtime.setOverride("assistant.visible", "x")).rejects.toThrow(/corrupted/i)
+
+    expect(await fs.readFile(stateFile(), "utf8")).toBe(unfinished)
+  })
+
   it("normalizes prompt ids consistently when setting and resetting overrides", async () => {
     const runtime = createRuntime()
 

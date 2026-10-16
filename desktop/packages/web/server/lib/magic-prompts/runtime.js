@@ -38,20 +38,27 @@ export const createMagicPromptRuntime = (dependencies) => {
   let writeLock = Promise.resolve()
 
   const readMutablePromptState = async () => {
+    let raw
     try {
-      const raw = await fsPromises.readFile(filePath, "utf8")
-      const parsed = JSON.parse(raw)
-      const overrides = overridesToMap(parsed?.overrides)
-      return {
-        version: FILE_VERSION,
-        overrides,
-      }
+      raw = await fsPromises.readFile(filePath, "utf8")
     } catch (error) {
       if (error && typeof error === "object" && error.code === "ENOENT") {
         return { version: FILE_VERSION, overrides: new Map() }
       }
-      console.warn("Failed to read magic prompts file:", error)
-      return { version: FILE_VERSION, overrides: new Map() }
+      throw error
+    }
+
+    try {
+      const parsed = JSON.parse(raw)
+      return {
+        version: FILE_VERSION,
+        overrides: overridesToMap(parsed?.overrides),
+      }
+    } catch (error) {
+      // A file that cannot be parsed is not "no overrides": the client treats the empty snapshot as
+      // authoritative, and the next write would replace every stored override with the one being edited
+      // (session-folders refuses for the same reason). Failing here is what keeps the bytes on disk.
+      throw new Error(`Magic prompts data is corrupted: ${error instanceof Error ? error.message : error}`)
     }
   }
 

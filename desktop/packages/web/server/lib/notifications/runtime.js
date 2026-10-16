@@ -27,6 +27,8 @@ export const createNotificationTriggerRuntime = (deps) => {
   const PERMISSION_NOTIFICATION_DEBOUNCE_MS = 500
   const questionNotificationDebounceTimers = new Map()
   const permissionNotificationDebounceTimers = new Map()
+// Distinguishes the asks a runtime sends without an id, which share no other key.
+let unkeyedPermissionAskSequence = 0
   const notifiedPermissionRequests = new Set()
   // Requests the user has already answered. The flush below deletes its debounce entry before it
   // starts awaiting, so a reply that lands mid-flush finds nothing to cancel and the ask would still
@@ -509,7 +511,10 @@ export const createNotificationTriggerRuntime = (deps) => {
       // entry used to drop the earlier ask's notification, so only the last one in a
       // burst ever reached the user.
       const pending = existing?.pending ?? new Map()
-      pending.set(requestKey ?? `unkeyed:${sessionId}`, payload)
+      // An ask without an id cannot be matched to its reply, but it must not collapse onto the same key as
+      // another one either: the map is here so a burst reaches the user in full, and a constant fallback
+      // key held one entry for the whole session.
+      pending.set(requestKey ?? `unkeyed:${sessionId}:${(unkeyedPermissionAskSequence += 1)}`, payload)
 
       const timer = setTimeout(() => {
         // Same reason as the question ask above: `flushPermissionAsk` awaits the settings
