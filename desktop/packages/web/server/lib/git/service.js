@@ -2825,6 +2825,11 @@ const HUNK_HEADER_PATTERN = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/
  * The body is consumed by the line counts its `@@ ` header declares (a `\ No newline` marker is not among them, so
  * it is skipped), and only pairs outside every body are sections. Counting `diff --git` lines is not enough on
  * its own: a patch can start another file's section straight at a `--- `/`+++ ` pair.
+ *
+ * The two counts are tracked separately because a context line belongs to both: draining them together would
+ * consume `oldCount + newCount` lines for a body of `max(oldCount, newCount)` and read the lines that follow the
+ * hunk as body. That both hid a second file section — the guard counts sections, so it saw only one — and read a
+ * later hunk's own `--- x`/`+++ y` body lines as a second section.
  */
 const declaredFileSections = (lines) => {
   const sections = []
@@ -2832,13 +2837,20 @@ const declaredFileSections = (lines) => {
   while (index < lines.length) {
     const hunk = HUNK_HEADER_PATTERN.exec(lines[index])
     if (hunk) {
-      const oldCount = hunk[1] === undefined ? 1 : Number(hunk[1])
-      const newCount = hunk[2] === undefined ? 1 : Number(hunk[2])
-      let remaining = oldCount + newCount
+      let oldRemaining = hunk[1] === undefined ? 1 : Number(hunk[1])
+      let newRemaining = hunk[2] === undefined ? 1 : Number(hunk[2])
       index += 1
-      while (remaining > 0 && index < lines.length) {
-        if (!lines[index].startsWith("\\ ")) {
-          remaining -= 1
+      while ((oldRemaining > 0 || newRemaining > 0) && index < lines.length) {
+        const line = lines[index]
+        if (line.startsWith("\\ ")) {
+          index += 1
+          continue
+        }
+        if (!line.startsWith("+")) {
+          oldRemaining -= 1
+        }
+        if (!line.startsWith("-")) {
+          newRemaining -= 1
         }
         index += 1
       }

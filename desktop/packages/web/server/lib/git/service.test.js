@@ -1543,6 +1543,90 @@ describe("stageHunk and unstageHunk", () => {
     await expect(stageHunk(repo, "file.txt", patch)).rejects.toThrow("Patch does not target file.txt")
   })
 
+  it("rejects a second file section behind a hunk whose body is mostly context", async () => {
+    // The hunk's two counts are not a single total to drain: its 6 context lines are in both counts, so draining
+    // old+new ran 6 lines past the body, swallowed the `--- a/other.txt` / `+++ b/other.txt` pair below and left
+    // the guard counting one section — `git apply` then staged a hunk of other.txt as well.
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    const lines = Array.from({ length: 10 }, (_, index) => `line${index + 1}`)
+    fs.writeFileSync(path.join(repo, "file.txt"), `${lines.join("\n")}\n`)
+    fs.writeFileSync(path.join(repo, "other.txt"), "x\n")
+    runGit(repo, ["add", "file.txt", "other.txt"])
+    runGit(repo, ["commit", "-m", "base"])
+
+    const patch = [
+      "diff --git a/file.txt b/file.txt",
+      "--- a/file.txt",
+      "+++ b/file.txt",
+      "@@ -1,7 +1,7 @@",
+      " line1",
+      "-line2",
+      "+line2-edited",
+      " line3",
+      " line4",
+      " line5",
+      " line6",
+      " line7",
+      "--- a/other.txt",
+      "+++ b/other.txt",
+      "@@ -1,1 +1,1 @@",
+      "-x",
+      "+y",
+      "",
+    ].join("\n")
+
+    await expect(stageHunk(repo, "file.txt", patch)).rejects.toThrow("Patch does not target file.txt")
+    expect(runGit(repo, ["diff", "--cached", "--", "other.txt"])).toBe("")
+  })
+
+  it("stages a later hunk whose body lines look like a file header", async () => {
+    // The same over-drain read this second hunk's `--- a` / `+++ b` body lines as a second file section, so a
+    // patch that targets nothing but file.txt was rejected with "Patch does not target file.txt".
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    const fileLines = [
+      ...Array.from({ length: 24 }, (_, index) => `line${index + 1}`),
+      "-- a",
+      "line26",
+    ]
+    expect(fileLines).toHaveLength(26)
+    fs.writeFileSync(path.join(repo, "file.txt"), `${fileLines.join("\n")}\n`)
+    runGit(repo, ["add", "file.txt"])
+    runGit(repo, ["commit", "-m", "base"])
+
+    const patch = [
+      "diff --git a/file.txt b/file.txt",
+      "--- a/file.txt",
+      "+++ b/file.txt",
+      "@@ -1,7 +1,7 @@",
+      " line1",
+      "-line2",
+      "+line2-edited",
+      " line3",
+      " line4",
+      " line5",
+      " line6",
+      " line7",
+      "@@ -20,7 +20,7 @@",
+      " line20",
+      " line21",
+      " line22",
+      " line23",
+      " line24",
+      "--- a",
+      "+++ b",
+      " line26",
+      "",
+    ].join("\n")
+
+    await stageHunk(repo, "file.txt", patch)
+
+    const staged = runGit(repo, ["diff", "--cached", "--unified=0", "--", "file.txt"])
+    expect(staged).toContain("+line2-edited")
+    expect(staged).toContain("+++ b")
+  })
+
   it("rejects an empty patch payload", async () => {
     if (!canRunGit()) return
     const repo = createHunkTestRepo()
