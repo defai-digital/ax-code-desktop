@@ -428,7 +428,9 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
     }
 
     // `ax-code upgrade` exits 0 even when the install fails, so the outcome
-    // is what a fresh check reports afterwards.
+    // is what a fresh check reports afterwards. A killed installer remains a
+    // timeout failure even if the binary changed: later install steps may not
+    // have completed.
     const after = await refreshStatus()
     const upgradedBinary = after.path === before.path ? after : await checkCli({ path: before.path, onPath: before.onPath }, [], await readRuntime())
     const advanced =
@@ -497,6 +499,8 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
     if (!before.installed) return refuse({ accepted: false, status: 404, reason: "not-installed", cli: before })
     if (!before.canUpgrade) return refuse({ accepted: false, status: 409, reason: "manual-upgrade-required", cli: before })
     if (before.updateAvailable === false) return refuse({ accepted: false, status: 409, reason: "up-to-date", cli: before })
+
+    if (before.updateAvailable !== true) return refuse({ accepted: false, status: 503, reason: "check-failed", cli: before })
 
     Object.assign(job, { path: before.path, fromVersion: before.currentVersion, targetVersion: before.latestVersion })
     const settle = (outcome) => {

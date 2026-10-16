@@ -26,7 +26,7 @@ const createFs = (executables) => ({
 })
 
 // Fake CLI: answers `upgrade check --json`, `--version` and `upgrade`.
-const createCli = ({ versions = ["7.25.0"], latest = "7.26.0", method = "curl", check = true, upgradeCode = 0, hang = false, hangCheck = false } = {}) => {
+const createCli = ({ versions = ["7.25.0"], latest = "7.26.0", method = "curl", check = true, upgradeCode = 0, hang = false, hangCheck = false, checkError = null } = {}) => {
   let index = 0
   const calls = []
   const killers = new Map()
@@ -54,7 +54,7 @@ const createCli = ({ versions = ["7.25.0"], latest = "7.26.0", method = "curl", 
       else {
         const latestNow = typeof latest === "function" ? latest() : latest
         const upToDate = current === latestNow
-        reply(upToDate ? 0 : 1, JSON.stringify({ current, latest: latestNow, upToDate, method }))
+        reply(upToDate ? 0 : 1, JSON.stringify({ current, latest: checkError ? null : latestNow, upToDate: checkError ? null : upToDate, method, error: checkError }))
       }
     } else if (args[0] === "--version") {
       reply(0, `${current}\n`)
@@ -313,6 +313,16 @@ describe("createAxCodeCliInstallRuntime", () => {
     expect((await runtime.getStatus()).upgrade?.state).toBe("succeeded")
     advance(6_000)
     expect((await runtime.getStatus({ refresh: true })).upgrade).toBeNull()
+  })
+
+  it("does not install when the authoritative pre-check fails", async () => {
+    const cli = createCli({ checkError: "Network unavailable" })
+    const { runtime } = createRuntime({ cli })
+    const result = await runtime.startUpgrade()
+    await runtime.whenIdle()
+    expect(result).toMatchObject({ accepted: false, reason: "check-failed" })
+    expect(cli.calls.some((call) => call[2] === "--method")).toBe(false)
+    expect(runtime.peekStatus().upgrade).toBeNull()
   })
 
   it("refuses when already current", async () => {

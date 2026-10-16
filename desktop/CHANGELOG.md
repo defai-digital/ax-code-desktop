@@ -57,6 +57,11 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Scheduled CLI update checks and reopened settings apply the server cache expiry instead of reading
+  an old result indefinitely. Upgrade progress polling remains read-only.
+- CLI upgrade progress resumes after a temporary connection outage, and a failed pre-upgrade check
+  no longer starts an installer without confirming that an update is available.
+
 - Opening a session that had only been seen through live events (created or run elsewhere in the same
   project) rendered just the fragment those events had built, with no older history and no way to load it:
   the sync treated the event-built tail as a cached conversation. The store now tracks whether a session's

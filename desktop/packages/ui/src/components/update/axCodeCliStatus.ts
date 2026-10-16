@@ -61,7 +61,8 @@ const parseJob = (value: unknown): AxCodeCliUpgradeJob | null => {
   const raw = value as Record<string, unknown>
   const state = raw.state
   if (state !== "running" && state !== "succeeded" && state !== "failed") return null
-  const shadow = raw.shadowedBy && typeof raw.shadowedBy === "object" ? (raw.shadowedBy as Record<string, unknown>) : null
+  const shadow =
+    raw.shadowedBy && typeof raw.shadowedBy === "object" ? (raw.shadowedBy as Record<string, unknown>) : null
   return {
     state,
     path: asString(raw.path),
@@ -88,7 +89,9 @@ export const parseAxCodeCliStatus = (value: unknown): AxCodeCliStatus | null => 
     installed: raw.installed,
     path: asString(raw.path),
     onPath: raw.onPath === true,
-    otherPaths: Array.isArray(raw.otherPaths) ? raw.otherPaths.filter((entry): entry is string => typeof entry === "string") : [],
+    otherPaths: Array.isArray(raw.otherPaths)
+      ? raw.otherPaths.filter((entry): entry is string => typeof entry === "string")
+      : [],
     isRuntimeBinary: raw.isRuntimeBinary === true,
     runtimeSource: asString(raw.runtimeSource),
     currentVersion: asString(raw.currentVersion),
@@ -115,12 +118,16 @@ const postCheck = (refresh: boolean) =>
 
 /**
  * Reads the status. The GET only serves the server's last check, so before
- * the first check this asks for one (a POST); `refresh` forces a new check.
+ * the first check this asks for one (a POST). `check` applies the server cache
+ * policy; `refresh` forces a new check. Polling omits both to preserve the job.
  */
-export const fetchAxCodeCliStatus = async (options: { refresh?: boolean } = {}): Promise<AxCodeCliStatus> => {
-  let response = options.refresh
-    ? await postCheck(true)
-    : await fetch(API_ENDPOINTS.axCode.cliStatus, { headers: { Accept: "application/json" } })
+export const fetchAxCodeCliStatus = async (
+  options: { refresh?: boolean; check?: boolean } = {},
+): Promise<AxCodeCliStatus> => {
+  let response =
+    options.refresh || options.check
+      ? await postCheck(options.refresh === true)
+      : await fetch(API_ENDPOINTS.axCode.cliStatus, { headers: { Accept: "application/json" } })
   let payload = await response.json().catch(() => null)
   if (!options.refresh && response.ok && payload && (payload as { checked?: unknown }).checked === false) {
     response = await postCheck(false)
