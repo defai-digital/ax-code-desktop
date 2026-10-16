@@ -95,9 +95,11 @@ export type AxEngineModelsResponse = {
     available: boolean
     mode?: string
     binaryPath?: string
+    version?: string
     managedVersion?: string
     installable?: boolean
     blockers: string[]
+    warnings?: string[]
   }
   server: {
     running: boolean
@@ -246,11 +248,17 @@ type AxEngineInstallResult = {
   binaryPath: string
 }
 
-export const installAxEngine = async (directory: string | null): Promise<AxEngineInstallResult> => {
+// The runtime downloads and verifies the binary; aborting the request cancels
+// that install (the route passes the request signal to the installer).
+export const installAxEngine = async (
+  directory: string | null,
+  signal?: AbortSignal,
+): Promise<AxEngineInstallResult> => {
   return fetchProviderJsonWithRetry(buildDirectoryUrl(API_ENDPOINTS.provider.axEngineInstall, directory), {
     method: "POST",
     headers: jsonHeaders,
     body: JSON.stringify({}),
+    signal,
   }) as Promise<AxEngineInstallResult>
 }
 

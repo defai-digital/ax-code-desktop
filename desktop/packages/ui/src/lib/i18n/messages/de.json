@@ -4325,6 +4325,7 @@
   "localModels.toast.downloadCancelled": "Download abgebrochen",
   "localModels.toast.actionFailed": "Modellaktion fehlgeschlagen",
   "localModels.toast.engineInstalled": "AX Engine installiert",
+  "localModels.toast.engineInstallCancelled": "Installation von AX Engine abgebrochen",
   "localModels.toast.engineStopped": "AX Engine gestoppt",
   "localModels.toast.engineStarted": "AX Engine gestartet",
   "localModels.toast.noRunnableModel": "Lade ein ausf\u00fchrbares Modell herunter, bevor du AX Engine startest",

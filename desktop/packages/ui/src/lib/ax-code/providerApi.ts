@@ -197,7 +197,7 @@ export const fetchProviderJsonWithRetry = async (
     } catch (error) {
       lastError = error
       lastRestarting = isRecord(error) && error.restarting === true
-      if (isRecord(error) && error.noRetry === true) {
+      if ((isRecord(error) && error.noRetry === true) || init.signal?.aborted) {
         break
       }
       const retryDelayMs = retryDelaysMs[attempt]

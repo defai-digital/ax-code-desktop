@@ -1,8 +1,5 @@
 import { spawn, spawnSync } from "node:child_process"
-import fs from "node:fs"
 import net from "node:net"
-import os from "node:os"
-import path from "node:path"
 import { startHeadlessBackend, isLoopbackHostname as isSdkLoopbackHostname } from "@defai-digital/ax-code-sdk/headless"
 import { createManagedAxCodeRuntimeAdapter } from "./managed-ax-code-runtime.js"
 import { evaluateAxCodeCompatibility } from "./version-compat.js"
@@ -704,15 +701,6 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     const shellEnv =
       typeof getManagedAxCodeShellEnvSnapshot === "function" ? getManagedAxCodeShellEnvSnapshot() || {} : {}
 
-    // ax-engine downloads need huggingface_hub in the Python the CLI spawns.
-    // Honor an explicit AX_ENGINE_PYTHON; otherwise prefer the conventional
-    // ~/.ax-engine/venv created for local model downloads.
-    const defaultAxEnginePython = path.join(os.homedir(), ".ax-engine", "venv", "bin", "python")
-    const axEnginePython =
-      (typeof process.env.AX_ENGINE_PYTHON === "string" && process.env.AX_ENGINE_PYTHON.trim()) ||
-      (typeof shellEnv.AX_ENGINE_PYTHON === "string" && shellEnv.AX_ENGINE_PYTHON.trim()) ||
-      (fs.existsSync(defaultAxEnginePython) ? defaultAxEnginePython : undefined)
-
     try {
       const serverInstance = await managedAxCodeRuntime.launchServerProcess({
         hostname: env.ENV_CONFIGURED_AX_CODE_HOSTNAME,
@@ -726,7 +714,9 @@ export const createAxCodeLifecycleRuntime = (deps) => {
           ...process.env,
           PATH: envPath,
           AX_CODE_SERVER_PASSWORD: axCodePassword,
-          ...(axEnginePython ? { AX_ENGINE_PYTHON: axEnginePython } : {}),
+          // AX_ENGINE_PYTHON passes through only when the user set it (shell or
+          // process env above). The runtime owns the fallback order for the
+          // ax-engine download Python (download-env before ~/.ax-engine/venv).
         },
       })
 

@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
   (curl or Homebrew), then confirms the new version. A notification offers the same update. CLIs older
   than 7.19.5, unknown install methods and a Homebrew CLI that Desktop is running get the command to run
   in a terminal instead.
+- Settings → Models shows which AX Engine AX Code uses: its version and whether it came from a custom
+  path, your PATH, AX Code's own install or a legacy bundle, with the runtime's warnings, such as a PATH
+  copy older than the version AX Code pins. Desktop does not update a PATH or custom copy and says where
+  to update it. The existing Install, still offered only when no engine is found, can now be cancelled.
 - Scheduled tasks live in a "Scheduled" section of the session sidebar instead of a dialog: every
   project's tasks in one queue, running and failing first, then by next run, with the project, schedule
   and time to the next run on each row. Run now and pause are one click away, edit and delete are in the
@@ -57,6 +61,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- AX Code Desktop no longer sets `AX_ENGINE_PYTHON` to `~/.ax-engine/venv` on its own, which hid the
+  runtime's download environment at `~/.local/share/ax-engine/download-env`. A value you set still
+  passes through, and the runtime picks the fallback.
 - Opening a session that had only been seen through live events (created or run elsewhere in the same
   project) rendered just the fragment those events had built, with no older history and no way to load it:
   the sync treated the event-built tail as a cached conversation. The store now tracks whether a session's

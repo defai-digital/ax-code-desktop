@@ -26,6 +26,11 @@ import {
   type AxEngineModelsResponse,
   type DesktopAxCodeRuntimeIdentity,
 } from "@/lib/ax-code/axEngineModelsApi"
+import {
+  axEngineMissingDetails,
+  canOfferAxEngineInstall,
+  describeAxEngineDependency,
+} from "@/lib/ax-code/axEngineDependency"
 import { downloadToastTracker } from "@/lib/ax-code/axEngineDownloadToasts"
 import { getCurrentDirectory } from "@/lib/ax-code/providerApi"
 import { formatLocalModelBytes } from "./localModelFormat"
@@ -81,6 +86,7 @@ export const LocalModelsPage: React.FC = () => {
   // resolve after a newer one, clobbering fresher job state.
   const inFlightRef = React.useRef(false)
   const connectionInitializedRef = React.useRef(false)
+  const installAbortRef = React.useRef<AbortController | null>(null)
 
   const load = React.useCallback(async () => {
     if (inFlightRef.current) return
@@ -123,6 +129,7 @@ export const LocalModelsPage: React.FC = () => {
       mountedRef.current = false
     }
   }, [load])
+
 
   const hasActiveJob = data?.jobs.some((job) => job.status === "queued" || job.status === "running") ?? false
   React.useEffect(() => {
@@ -206,12 +213,27 @@ export const LocalModelsPage: React.FC = () => {
     : "Checking"
   const startCandidate = data?.models.find((model) => model.fit.runnable)
   const serverBusy = busyKey === "ax-engine-server"
-  const canInstallEngine = Boolean(
-    data && !data.dependency.available && data.dependency.installable && data.eligibility.supported,
-  )
+  const engineView = describeAxEngineDependency(data?.dependency)
+  const engineMissingDetails = connection?.mode === "attach" ? [] : axEngineMissingDetails(data?.dependency)
   const installBusy = busyKey === "ax-engine-install"
-  const handleInstallEngine = () =>
-    void runAction("ax-engine-install", () => installAxEngine(directory), t("localModels.toast.engineInstalled"))
+  const canInstallEngine = installBusy || canOfferAxEngineInstall(data, connection?.mode)
+  const handleInstallEngine = async () => {
+    const controller = new AbortController()
+    installAbortRef.current = controller
+    setBusyKey("ax-engine-install")
+    try {
+      await installAxEngine(directory, controller.signal)
+      toast.success(t("localModels.toast.engineInstalled"))
+    } catch (err) {
+      if (controller.signal.aborted) toast.success(t("localModels.toast.engineInstallCancelled"))
+      else toast.error(err instanceof Error ? err.message : t("localModels.toast.actionFailed"))
+    } finally {
+      if (installAbortRef.current === controller) installAbortRef.current = null
+      if (mountedRef.current) setBusyKey(null)
+    }
+    if (mountedRef.current) await load()
+  }
+  const handleCancelInstall = () => installAbortRef.current?.abort()
   const canStartServer = Boolean(startCandidate) && !hasActiveJob && !loading
   const axCodeCliSummary = runtimeIdentity?.binaryPath
     ? `${runtimeIdentity.binaryPath}${runtimeIdentity.version ? ` · v${runtimeIdentity.version}` : ""}`
@@ -432,21 +454,22 @@ export const LocalModelsPage: React.FC = () => {
             />
             <StatusBox
               title="AX Engine"
-              value={
-                data?.dependency.available
-                  ? (data.dependency.binaryPath ?? "Available")
-                  : (data?.dependency.blockers[0] ?? "Checking")
-              }
-              blocked={data ? !data.dependency.available : false}
+              value={engineView.summary}
+              tooltip={engineView.path ? `${engineView.summary}\n${engineView.path}` : undefined}
+              blocked={data ? !data.dependency.available || engineView.warnings.length > 0 : false}
               action={
                 canInstallEngine ? (
-                  <Button size="sm" onClick={handleInstallEngine} disabled={installBusy}>
-                    <Icon
-                      name={installBusy ? "loader" : "download"}
-                      className={cn("h-4 w-4", installBusy && "animate-spin")}
-                    />
-                    {installBusy ? "Installing…" : "Install"}
-                  </Button>
+                  installBusy ? (
+                    <Button size="sm" variant="outline" onClick={handleCancelInstall}>
+                      <Icon name="loader" className="h-4 w-4 animate-spin" />
+                      Cancel
+                    </Button>
+                  ) : (
+                    <Button size="sm" onClick={() => void handleInstallEngine()} disabled={Boolean(busyKey)}>
+                      <Icon name="download" className="h-4 w-4" />
+                      Install
+                    </Button>
+                  )
                 ) : undefined
               }
             />
@@ -475,6 +498,26 @@ export const LocalModelsPage: React.FC = () => {
               blocked={Boolean(data?.diskRoot.blockers.length)}
             />
           </div>
+
+          {installBusy && (
+            <div className="typography-micro text-muted-foreground" aria-live="polite">
+              Installing AX Engine… AX Code downloads its pinned, signed release and verifies it before use.
+            </div>
+          )}
+
+          {(engineView.warnings.length > 0 || engineView.updateHint || engineMissingDetails.length > 0) && (
+            <div className="space-y-1 rounded-md border border-[var(--status-warning)]/35 bg-[var(--status-warning)]/5 px-3 py-2 typography-micro text-foreground">
+              {engineView.warnings.map((warning) => (
+                <div key={warning}>{warning}</div>
+              ))}
+              {engineView.updateHint && <div className="text-muted-foreground">{engineView.updateHint}</div>}
+              {engineMissingDetails.map((line) => (
+                <div key={line} className="select-text text-muted-foreground">
+                  {line}
+                </div>
+              ))}
+            </div>
+          )}
 
           {error && (
             <div className="rounded-md border border-[var(--status-error)]/30 bg-[var(--status-error)]/5 px-3 py-2 typography-ui-label text-[var(--status-error)]">
@@ -524,12 +567,13 @@ export const LocalModelsPage: React.FC = () => {
   )
 }
 
-const StatusBox: React.FC<{ title: string; value: string; blocked?: boolean; action?: React.ReactNode }> = ({
-  title,
-  value,
-  blocked,
-  action,
-}) => (
+const StatusBox: React.FC<{
+  title: string
+  value: string
+  tooltip?: string
+  blocked?: boolean
+  action?: React.ReactNode
+}> = ({ title, value, tooltip, blocked, action }) => (
   <div
     className={cn(
       "min-w-0 rounded-md border px-3 py-2",
@@ -538,7 +582,7 @@ const StatusBox: React.FC<{ title: string; value: string; blocked?: boolean; act
   >
     <div className="typography-micro leading-4 text-muted-foreground">{title}</div>
     <div className="flex items-center justify-between gap-2">
-      <div className="truncate typography-micro leading-5 text-foreground" title={value}>
+      <div className="truncate typography-micro leading-5 text-foreground" title={tooltip ?? value}>
         {value}
       </div>
       {action}

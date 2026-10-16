@@ -4319,6 +4319,7 @@
   "localModels.toast.downloadCancelled": "Unduhan dibatalkan",
   "localModels.toast.actionFailed": "Tindakan model gagal",
   "localModels.toast.engineInstalled": "AX Engine terpasang",
+  "localModels.toast.engineInstallCancelled": "Pemasangan AX Engine dibatalkan",
   "localModels.toast.engineStopped": "AX Engine dihentikan",
   "localModels.toast.engineStarted": "AX Engine dijalankan",
   "localModels.toast.noRunnableModel": "Unduh model yang dapat dijalankan sebelum menjalankan AX Engine",

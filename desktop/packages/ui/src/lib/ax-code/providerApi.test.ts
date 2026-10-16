@@ -352,6 +352,32 @@ describe("provider requests", () => {
 })
 
 describe("fetchProviderJsonWithRetry", () => {
+  test("does not retry a request the caller aborted", async () => {
+    const originalFetch = globalThis.fetch
+    let calls = 0
+    const controller = new AbortController()
+    setFetchStub((async () => {
+      calls += 1
+      controller.abort()
+      throw new DOMException("The operation was aborted.", "AbortError")
+    }) as typeof fetch)
+
+    const sleeps: number[] = []
+    try {
+      await expect(
+        fetchProviderJsonWithRetry(
+          "/api/test",
+          { method: "POST", signal: controller.signal },
+          { retryDelaysMs: [5, 5], sleep: async (ms) => void sleeps.push(ms) },
+        ),
+      ).rejects.toThrow("aborted")
+      expect(calls).toBe(1)
+      expect(sleeps).toEqual([])
+    } finally {
+      setFetchStub(originalFetch)
+    }
+  })
+
   test("throws with restarting:true when all 503 restarting retries are exhausted", async () => {
     const originalFetch = globalThis.fetch
     setFetchStub((async () => {

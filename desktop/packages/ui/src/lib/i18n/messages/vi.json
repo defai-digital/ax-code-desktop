@@ -4325,6 +4325,7 @@
   "localModels.toast.downloadCancelled": "\u0110\u00e3 h\u1ee7y t\u1ea3i xu\u1ed1ng",
   "localModels.toast.actionFailed": "Thao t\u00e1c m\u00f4 h\u00ecnh th\u1ea5t b\u1ea1i",
   "localModels.toast.engineInstalled": "\u0110\u00e3 c\u00e0i AX Engine",
+  "localModels.toast.engineInstallCancelled": "Đã hủy cài đặt AX Engine",
   "localModels.toast.engineStopped": "\u0110\u00e3 d\u1eebng AX Engine",
   "localModels.toast.engineStarted": "\u0110\u00e3 kh\u1edfi \u0111\u1ed9ng AX Engine",
   "localModels.toast.noRunnableModel": "H\u00e3y t\u1ea3i m\u1ed9t m\u00f4 h\u00ecnh c\u00f3 th\u1ec3 ch\u1ea1y tr\u01b0\u1edbc khi kh\u1edfi \u0111\u1ed9ng AX Engine",

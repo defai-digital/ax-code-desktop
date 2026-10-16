@@ -124,15 +124,8 @@ if (devAxCodeBinary) {
   console.log(`[electron-dev] AX_CODE_BINARY=${devAxCodeBinary}`)
 }
 
-// ax-engine model downloads need huggingface_hub in the Python the CLI spawns.
-// Prefer an explicit env; otherwise use the conventional ~/.ax-engine/venv if present.
-const defaultAxEnginePython = path.join(os.homedir(), ".ax-engine", "venv", "bin", "python")
-const devAxEnginePython =
-  (typeof process.env.AX_ENGINE_PYTHON === "string" && process.env.AX_ENGINE_PYTHON.trim()) ||
-  (fs.existsSync(defaultAxEnginePython) ? defaultAxEnginePython : "")
-if (devAxEnginePython) {
-  console.log(`[electron-dev] AX_ENGINE_PYTHON=${devAxEnginePython}`)
-}
+// AX_ENGINE_PYTHON is not guessed here: an explicit value passes through
+// process.env, and the runtime owns the fallback order for the download Python.
 
 const sharedEnv = {
   ...process.env,
@@ -149,7 +142,6 @@ const sharedEnv = {
   // the web server port so concurrent dev stacks never share a file.
   AX_CODE_DESKTOP_DEV_UPSTREAM_FILE: devUpstreamFilePath,
   ...(devAxCodeBinary ? { AX_CODE_BINARY: devAxCodeBinary } : {}),
-  ...(devAxEnginePython ? { AX_ENGINE_PYTHON: devAxEnginePython } : {}),
 }
 
 const vite = spawnManaged(children, process.execPath, [path.join(webDir, "scripts", "dev-vite.mjs")], {

@@ -4325,6 +4325,7 @@
   "localModels.toast.downloadCancelled": "\u0130ndirme iptal edildi",
   "localModels.toast.actionFailed": "Model i\u015flemi ba\u015far\u0131s\u0131z",
   "localModels.toast.engineInstalled": "AX Engine y\u00fcklendi",
+  "localModels.toast.engineInstallCancelled": "AX Engine kurulumu iptal edildi",
   "localModels.toast.engineStopped": "AX Engine durduruldu",
   "localModels.toast.engineStarted": "AX Engine ba\u015flat\u0131ld\u0131",
   "localModels.toast.noRunnableModel": "AX Engine'i ba\u015flatmadan \u00f6nce \u00e7al\u0131\u015ft\u0131r\u0131labilir bir model indirin",
