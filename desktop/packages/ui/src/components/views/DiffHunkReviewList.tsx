@@ -43,7 +43,7 @@ export const DiffHunkReviewList: React.FC<DiffHunkReviewListProps> = React.memo(
                   <button
                     type="button"
                     onClick={() => onRevertHunk(index)}
-                    disabled={isReverting}
+                    disabled={revertingHunkIndex !== null}
                     className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label={t("diffView.hunk.revertAria", { hunk: header })}
                   >

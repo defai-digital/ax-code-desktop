@@ -23,14 +23,22 @@ export function useDiffHunkRevert({ directory, filePath, diff }: UseDiffHunkReve
   const { files } = useRuntimeAPIs()
   const setDiff = useGitStore((state) => state.setDiff)
   const [revertingHunkIndex, setRevertingHunkIndex] = React.useState<number | null>(null)
+  // Each revert rebuilds the whole file from `diff.modified`, so two reverts that
+  // overlap would both start from the same text and the later write would drop the
+  // earlier one. One revert at a time; the ref closes the gap before the state lands.
+  const inFlightRef = React.useRef(false)
 
   const handleRevertHunk = React.useCallback(
     async (hunkIndex: number) => {
+      if (inFlightRef.current) {
+        return
+      }
       if (!directory || !diff || !files.writeFile) {
         toast.error(t("diffView.hunk.revertUnsupported"))
         return
       }
 
+      inFlightRef.current = true
       setRevertingHunkIndex(hunkIndex)
       try {
         const reconstructed = revertHunk(diff.original, diff.modified, hunkIndex, filePath)
@@ -46,6 +54,7 @@ export function useDiffHunkRevert({ directory, filePath, diff }: UseDiffHunkReve
       } catch (error) {
         toast.error(error instanceof Error ? error.message : t("diffView.hunk.revertFailed"))
       } finally {
+        inFlightRef.current = false
         setRevertingHunkIndex(null)
       }
     },
