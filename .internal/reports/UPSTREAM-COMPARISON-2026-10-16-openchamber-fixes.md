@@ -22,7 +22,7 @@ have, and the same defects can be found by comparing rather than by reading.
    not have (mobile, spaces, guests, VS Code/JetBrains, relay/tunnel), and cases
    where our code already handles it a different way.
 
-That produced 29 confirmed defects in our tree. The fifteen entries below are fixed; the 14
+That produced 29 confirmed defects in our tree. The nineteen entries below are fixed; the 10
 that remain are listed with the shape of their fix so they can be picked up.
 
 ## Fixed
@@ -69,6 +69,16 @@ that remain are listed with the shape of their fix so they can be picked up.
 - `265c6e73` **An image viewer measurement stays with its image.** The reset effect
   raced a cached image's load and wiped the size, leaving a frame whose margins
   swallowed the click that closes it.
+- `878451f6` **The UI session cookie is keyed by the port the request arrived on.**
+  Browsers key cookies by host, so two instances on one machine shared one cookie:
+  the last login overwrote the other's token and the first tab was logged out.
+- `c886a5cb` **A PR field's label no longer opens the branch select.** The wrapper
+  was a `<label>` around a trigger that is a button, so clicking the caption or the
+  whitespace beside it opened the list.
+- `6896be7e` **Agent pickers show the runtime's display name**, instead of the
+  capitalized id, so searching by the name the user knows finds the agent.
+- `12015b00` **Revert All fans out at two**, instead of one request per path, which
+  filled the connection pool and made the panel look hung on a large changeset.
 
 ## Confirmed in our tree, not yet fixed
 
@@ -79,48 +89,34 @@ Ordered by severity. Line numbers are where the defect lives today.
    deleted paths accumulate until the runtime restarts, and a re-created worktree at
    the same path is served by stale state. Fix: best-effort `POST /instance/dispose`
    before `git worktree remove`, warn-and-continue on failure.
-2. **The two UI session cookies are shared across ports** (`web/server/lib/ui-auth/ui-auth.js:8`,
-   `security/request-security.js:16`). Browsers key cookies by host, not port, so two
-   instances on one host overwrite each other's `oc_ui_session` and log each other
-   out. Fix: derive the cookie name from the request's host, appending the port.
-3. **Recent files are offered without checking they still exist**
+2. **Recent files are offered without checking they still exist**
    (`ui/src/components/chat/FileMentionAutocomplete.tsx:127`): deleting or renaming a
    file that is still open in a Files tab leaves it in the @ list, and choosing it
    inserts a path that is gone.
-4. **"Revert All" and "Generate" fan out without a bound**
-   (`ui/src/components/views/GitView-impl.tsx:1742`): one POST per changed path at
-   once saturates the connection pool and the panel appears hung. Upstream bounds it
-   at two.
-5. **The editor's Find panel covers the first lines of the document**
+3. **The editor's Find panel covers the first lines of the document**
    (`ui/src/components/ui/CodeMirrorEditor.tsx:426`): the theme positions the panel
    out of flow and nothing reserves its height.
-6. **The editor reconfigures all six compartments on every render**
+4. **The editor reconfigures all six compartments on every render**
     (`ui/src/components/ui/CodeMirrorEditor.tsx:461`): a config object built inline
     upstream re-runs the effect and re-parses the document. Upstream diffs each
     compartment against the last applied one.
-7. **An agent's `displayName` is ignored** (`ui/src/components/chat/ModelControls.tsx:1154`,
-    `sections/commands/AgentSelector.tsx:93`): pickers and search show the
-    capitalized id instead of the name the runtime supplies.
-8. **A collapsed user message has no keyboard-accessible expand control**
+5. **A collapsed user message has no keyboard-accessible expand control**
     (`ui/src/components/chat/message/parts/UserTextPart.tsx:243`): the only way to
     read a long message is to click the clipped text.
-9. **The PR base-branch field opens when its wrapper is clicked**
-    (`ui/src/components/views/git/PullRequestSection.tsx:1913`): the block is a
-    `<label>`, so clicking its whitespace activates the select inside it.
-10. **The context meter shows the compaction request's fill**
+6. **The context meter shows the compaction request's fill**
     (`ui/src/lib/messages/assistantTokens.ts:25`): after `/compact` the newest
     token-bearing assistant message is the summarising request itself.
-11. **Staged and unstaged line counts are merged into one number**
+7. **Staged and unstaged line counts are merged into one number**
     (`web/server/lib/git/service.js:1642`): a half-staged file shows the same total
     on both its Staged and Changes rows.
-12. **The worktree start command is read from a legacy file the runtime does not
+8. **The worktree start command is read from a legacy file the runtime does not
     write** (`web/server/lib/git/service.js:1221`), so a new worktree runs no project
     start command at all.
-13. **The Zhipu coding-plan provider matches only `TOKENS_LIMIT`**
+9. **The Zhipu coding-plan provider matches only `TOKENS_LIMIT`**
     (`web/server/lib/quota/providers/zhipuai-coding-plan.js:99`) and ignores the
     envelope's in-body errors, so its card shows no windows and a rejected key reads
     as a successful empty card. The neighbouring `zai.js` shares the one-type match.
-14. **The worktree branch rename field silently renames to a different name**
+10. **The worktree branch rename field silently renames to a different name**
     (`ui/src/components/views/git/WorktreeBranchDisplay.tsx`): covered by the branch
     name fix above for the character set; what remains is that a sanitized name equal
     to the current one closes the editor without saying so.
