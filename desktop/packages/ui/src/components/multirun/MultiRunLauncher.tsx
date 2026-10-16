@@ -305,7 +305,14 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
   }, [initialPrompt])
 
   React.useEffect(() => {
-    if (!projectRef) return
+    // The previous project's commands must not survive the switch: they were submitted with the new
+    // project's worktrees (the load below is asynchronous, and `isValid` did not wait for it), which
+    // ran shell commands from one project inside another's worktrees.
+    setSetupCommands([])
+    if (!projectRef) {
+      setIsLoadingSetupCommands(false)
+      return
+    }
     let cancelled = false
     setIsLoadingSetupCommands(true)
     ;(async () => {
@@ -458,6 +465,7 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
       runGroups.some((g) => g.prompt.trim() && g.models.length >= 1) &&
       plannedRunCount >= 1 &&
       selectedProjectDirectory &&
+      !isLoadingSetupCommands &&
       !isLoadingWorktreeBaseBranches &&
       (isGitRepository === false || !effectiveIsolateRuns || worktreeBaseBranch),
   )
