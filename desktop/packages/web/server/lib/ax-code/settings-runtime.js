@@ -32,6 +32,25 @@ const removeDisabledRemoteAccessSettings = (settings) => {
   return { settings: changed ? next : settings, changed }
 }
 
+/**
+ * The same keys the write path drops, with their values hidden. `persistSettings`
+ * logged the raw request body before stripping them, so `desktopUiPassword` and
+ * `desktopLocalClientToken` were printed verbatim to the server's stdout, which
+ * Electron main captures. Kept here so the log still names what the request carried.
+ */
+const redactDisabledRemoteAccessSettings = (settings) => {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+    return settings
+  }
+  const next = { ...settings }
+  for (const key of DISABLED_REMOTE_SETTINGS_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(next, key)) {
+      next[key] = "[redacted]"
+    }
+  }
+  return next
+}
+
 const ensureNotificationTemplateShape = (templates) => {
   const input = templates && typeof templates === "object" ? templates : {}
   let changed = false
@@ -833,7 +852,10 @@ export const createSettingsRuntime = (deps) => {
       // inherit the rejection and skip its callback.
       .catch(() => undefined)
       .then(async () => {
-        console.log("[persistSettings] Called with changes:", JSON.stringify(changes, null, 2))
+        console.log(
+          "[persistSettings] Called with changes:",
+          JSON.stringify(redactDisabledRemoteAccessSettings(changes), null, 2),
+        )
         const current = await readSettingsFromDisk()
         console.log(
           "[persistSettings] Current projects count:",

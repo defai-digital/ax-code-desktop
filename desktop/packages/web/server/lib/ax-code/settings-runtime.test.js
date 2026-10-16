@@ -268,4 +268,33 @@ describe("settings runtime", () => {
       await cleanup()
     }
   })
+
+  it("does not write the credential-bearing keys to the log it strips before persisting", async () => {
+    // persistSettings logged the raw request body first and stripped `desktopUiPassword`,
+    // `desktopLocalClientToken` and the remote-access entries afterwards, so the password
+    // landed verbatim in server stdout — which Electron main captures.
+    const { runtime, cleanup } = await createRuntime()
+    const logged = []
+    const originalLog = console.log
+    console.log = (...args) => {
+      logged.push(args.map((value) => String(value)).join(" "))
+    }
+
+    try {
+      await runtime.persistSettings({
+        themeId: "ax-dark",
+        desktopUiPassword: "hunter2-password",
+        desktopLocalClientToken: "local-client-token-value",
+      })
+    } finally {
+      console.log = originalLog
+      await cleanup()
+    }
+
+    const output = logged.join("\n")
+    expect(output).not.toContain("hunter2-password")
+    expect(output).not.toContain("local-client-token-value")
+    // The key still appears, so the log keeps saying what the request carried.
+    expect(output).toContain("desktopUiPassword")
+  })
 })
