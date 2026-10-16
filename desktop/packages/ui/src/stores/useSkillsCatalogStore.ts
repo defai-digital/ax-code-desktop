@@ -102,6 +102,9 @@ interface SkillsCatalogState {
 
   setSelectedSource: (id: string | null) => void
 
+  /** Reports a catalog operation that failed outside a load, e.g. removing one from settings. */
+  reportCatalogError: (message: string) => void
+
   loadCatalog: (options?: { refresh?: boolean }) => Promise<boolean>
   loadSource: (sourceId: string, options?: { refresh?: boolean }) => Promise<boolean>
   loadMoreClawdHub: () => Promise<boolean>
@@ -135,6 +138,9 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
       scanResults: null,
 
       setSelectedSource: (id) => set({ selectedSourceId: id }),
+
+      reportCatalogError: (message) =>
+        set({ lastCatalogError: { kind: "unknown", message: message || "Catalog operation failed" } }),
 
       loadCatalog: async (options) => {
         const currentDirectory = getAxCodeCurrentDirectory()

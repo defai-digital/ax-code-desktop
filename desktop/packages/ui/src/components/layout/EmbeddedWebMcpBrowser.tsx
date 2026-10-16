@@ -116,6 +116,10 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
     return () => {
       disposed = true
       if (id) void invoke({ action: "close", id }).catch(() => {})
+      // Retire this lifecycle so a command that is still in flight cannot write the closed browser
+      // back into the store after the reset below: `command` compares lifecycles, and without this
+      // its late reply passed that check and restored `phase: "ready"` with a dead `browserId`.
+      lifecycleRef.current += 1
       resetSnapshot()
     }
   }, [applyStatus, directory, resetSnapshot, sessionID, updateSnapshot])

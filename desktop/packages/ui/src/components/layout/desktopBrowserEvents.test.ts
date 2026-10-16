@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest"
 
 import {
   handleDesktopBrowserNewWindowEvent,
+  readDesktopBrowserInPageNavigation,
   readDesktopBrowserLoadFailure,
   readDesktopBrowserNewWindowNavigation,
 } from "./desktopBrowserEvents"
@@ -112,5 +113,34 @@ describe("readDesktopBrowserLoadFailure", () => {
         }),
       ),
     ).toBeNull()
+  })
+})
+
+describe("readDesktopBrowserInPageNavigation", () => {
+  const webviewInPageEvent = (url?: string): Event => {
+    const event = new Event("did-navigate-in-page") as Event & { url?: string }
+    event.url = url
+    return event
+  }
+
+  test("reads the URL Electron puts on the event itself", () => {
+    // An in-page navigation produces no load stop, so the `getURL()` resync never runs for it:
+    // reading only the detail left the address bar on the URL the page was loaded with.
+    expect(readDesktopBrowserInPageNavigation(webviewInPageEvent("https://example.com/docs#section"))).toEqual({
+      url: "https://example.com/docs#section",
+    })
+  })
+
+  test("keeps compatibility with CustomEvent detail payloads", () => {
+    expect(
+      readDesktopBrowserInPageNavigation(
+        new CustomEvent("did-navigate-in-page", { detail: { url: "https://example.com/docs#other" } }),
+      ),
+    ).toEqual({ url: "https://example.com/docs#other" })
+  })
+
+  test("ignores an event that carries no URL", () => {
+    expect(readDesktopBrowserInPageNavigation(webviewInPageEvent(undefined))).toBeNull()
+    expect(readDesktopBrowserInPageNavigation(webviewInPageEvent(""))).toBeNull()
   })
 })

@@ -34,7 +34,11 @@ import {
   type PreviewConsoleEvent,
   type PreviewConsoleFilter,
 } from "./contextPanelPreview"
-import { handleDesktopBrowserNewWindowEvent, readDesktopBrowserLoadFailure } from "./desktopBrowserEvents"
+import {
+  handleDesktopBrowserNewWindowEvent,
+  readDesktopBrowserInPageNavigation,
+  readDesktopBrowserLoadFailure,
+} from "./desktopBrowserEvents"
 import { toast } from "@/components/ui"
 import { Icon } from "@/components/icon/Icon"
 import { AxCodeIcon } from "@/components/ui/AxCodeIcon"
@@ -70,6 +74,10 @@ const CONTEXT_PANEL_MAX_WIDTH = 1400
 const CONTEXT_PANEL_DEFAULT_WIDTH = 600
 // The primary chat region must never be squeezed below this width by the panel.
 const CHAT_MIN_WIDTH = 320
+
+// Set by the preview proxy on a response it refuses itself (see PREVIEW_REFUSAL_HEADER in
+// web/server/lib/preview/proxy-runtime.js; the two packages cannot import each other).
+const PREVIEW_PROXY_REFUSAL_HEADER = "x-openchamber-preview-refusal"
 
 const clampWidth = (width: number): number => {
   if (!Number.isFinite(width)) {
@@ -771,6 +779,14 @@ const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
       }
 
       if (response.status === 403 || response.status === 404) {
+        // The proxy answers these itself when the target is gone or its cookie is missing, and
+        // re-registering is the fix. The previewed application answers them too (its own 404
+        // page), and re-registering on that re-registered forever without ever mounting the
+        // frame. Only the proxy's own refusal carries this header.
+        if (!response.headers.get(PREVIEW_PROXY_REFUSAL_HEADER)) {
+          setUpstreamState("reachable")
+          return
+        }
         previewProxyTargetCache.delete(targetKey)
         setProxyState({ status: "loading" })
         bumpProxyRegistration()
@@ -1549,6 +1565,16 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
     }
   }, [applyUrl, getUpstreamUrlFromLocalFrameUrl, isInspecting, postInspectMode, proxySrc])
 
+  // Safety timeout for the loading overlay, which takes the clicks while it is up. The iframe's
+  // `load` waits for every subresource, so a page with one that never finishes kept the overlay
+  // over a page that was already usable, with nothing else able to clear it. The desktop pane
+  // caps the same wait at 30s.
+  React.useEffect(() => {
+    if (!isLoading || !currentUrl) return
+    const safety = window.setTimeout(() => setIsLoading(false), 30_000)
+    return () => window.clearTimeout(safety)
+  }, [currentUrl, isLoading])
+
   return (
     <div className="absolute inset-0 flex flex-col bg-background">
       <div className="flex items-center gap-1 border-b border-border/40 bg-[var(--surface-background)] px-2 py-1">
@@ -1770,12 +1796,13 @@ const DesktopBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dir
     }
 
     const onNavigate = (event: Event) => {
-      const detail = (event as CustomEvent<{ url: string }>).detail
-      if (typeof detail?.url === "string" && detail.url) {
-        setCurrentUrl(detail.url)
-        setUrlInput(detail.url)
-        persistUrl(detail.url)
+      const navigation = readDesktopBrowserInPageNavigation(event)
+      if (!navigation) {
+        return
       }
+      setCurrentUrl(navigation.url)
+      setUrlInput(navigation.url)
+      persistUrl(navigation.url)
     }
 
     const onStartLoading = () => {

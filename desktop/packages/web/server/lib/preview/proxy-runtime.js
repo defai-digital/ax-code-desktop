@@ -52,6 +52,11 @@ export const mergeExternalPreviewSandboxCsp = (existingHeaderValue, sandboxCsp) 
   return upstream.length > 0 ? `${upstream}; ${sandboxCsp}` : sandboxCsp
 }
 
+// Set on a response the proxy refuses itself, so a client can tell it apart from a 403/404 the
+// previewed application sent (the preview probe treated both as "re-register the target" and
+// re-registered forever over an upstream's own 404 page).
+export const PREVIEW_REFUSAL_HEADER = "x-openchamber-preview-refusal"
+
 const PREVIEW_BRIDGE_SCRIPT_ID = "openchamber-preview-bridge"
 
 const parsePreviewResourcePath = (url) => {
@@ -1609,6 +1614,7 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       (req, res, next) => {
         const resolved = resolveTargetFromRequest(req)
         if (!resolved.ok) {
+          res.setHeader(PREVIEW_REFUSAL_HEADER, "1")
           return res.status(resolved.status).json({ error: resolved.error })
         }
         next()

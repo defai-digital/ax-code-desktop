@@ -49,6 +49,11 @@ describe("agent browser enable request", () => {
       ),
     )
 
+  const openPreviewMode = () =>
+    act(() => {
+      container.querySelector<HTMLButtonElement>("#webmcp-mode-tab-preview")?.click()
+    })
+
   const openAgentMode = () =>
     act(() => {
       container.querySelector<HTMLButtonElement>("#webmcp-mode-tab-agent")?.click()
@@ -116,6 +121,37 @@ describe("agent browser enable request", () => {
     })
 
     expect(callsFor("enable")).toHaveLength(1)
+  })
+
+  test("ignores a command reply that lands after the pane unmounted", async () => {
+    // The cleanup closes the native view and resets the store, and the lifecycle it retired has to
+    // keep a late reply from writing `phase: "ready"` and the closed browser id back.
+    render()
+    openAgentMode()
+    await flush()
+
+    let resolveNavigate: ((value: unknown) => void) | undefined
+    invoke.mockImplementationOnce(async () => new Promise((resolve) => {
+      resolveNavigate = resolve
+    }))
+    act(() => {
+      const form = container.querySelector("form")
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    })
+    await flush()
+
+    // Switching back to the preview tab unmounts the agent pane: it closes the native view and
+    // resets the snapshot.
+    openPreviewMode()
+    expect(useWebMcpBrowserStore.getState().browserId).toBeNull()
+
+    await act(async () => {
+      resolveNavigate?.(browserStatus(true))
+      await Promise.resolve()
+    })
+
+    expect(useWebMcpBrowserStore.getState().phase).toBe("idle")
+    expect(useWebMcpBrowserStore.getState().browserId ?? null).toBeNull()
   })
 
   test("still enables after a dependency changes inside the delay", async () => {

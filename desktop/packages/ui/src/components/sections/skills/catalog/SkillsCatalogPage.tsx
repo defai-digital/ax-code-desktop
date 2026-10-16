@@ -77,6 +77,7 @@ export const SkillsCatalogPage: React.FC<SkillsCatalogPageProps> = ({ mode, onMo
     loadedSourceIds,
     clawdhubHasMoreBySource,
     lastCatalogError,
+    reportCatalogError,
   } = useSkillsCatalogStore(
     useShallow((s) => ({
       sources: s.sources,
@@ -92,6 +93,7 @@ export const SkillsCatalogPage: React.FC<SkillsCatalogPageProps> = ({ mode, onMo
       loadedSourceIds: s.loadedSourceIds,
       clawdhubHasMoreBySource: s.clawdhubHasMoreBySource,
       lastCatalogError: s.lastCatalogError,
+      reportCatalogError: s.reportCatalogError,
     })),
   )
 
@@ -156,6 +158,10 @@ export const SkillsCatalogPage: React.FC<SkillsCatalogPageProps> = ({ mode, onMo
       await updateDesktopSettings({ skillCatalogs: updated })
       await loadCatalog({ refresh: true })
       setIsRemoveCatalogDialogOpen(false)
+    } catch (error) {
+      // A refused settings write used to escape as an unhandled rejection: the dialog stayed open
+      // and nothing said the catalog was still there. The page already shows this error.
+      reportCatalogError(error instanceof Error ? error.message : String(error))
     } finally {
       setIsRemovingCatalog(false)
     }

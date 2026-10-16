@@ -39,6 +39,7 @@ import { useI18n } from "@/lib/i18n"
 import { startSingleFlightInterval } from "@/lib/singleFlightInterval"
 import { runSettingsDeleteMutation } from "../settingsDeleteMutation"
 import { normalizeMcpServerName } from "./mcpServerName"
+import { revealedRowsAfterRemoval } from "./envRowReveal"
 
 // ─────────────────────────────────────────────────────────────
 // CommandTextarea  — one arg per line, paste-friendly
@@ -281,11 +282,9 @@ const EnvEditor: React.FC<EnvEditorProps> = ({
 
   const removeRow = (idx: number) => {
     onChange(value.filter((_, i) => i !== idx))
-    setRevealedKeys((prev) => {
-      const next = new Set(prev)
-      next.delete(idx)
-      return next
-    })
+    // The rows below move up, so their reveal positions move with them. Carrying the positions over
+    // unchanged printed the next row's secret in plain text.
+    setRevealedKeys((prev) => revealedRowsAfterRemoval(prev, idx))
   }
 
   const updateRow = (idx: number, field: "key" | "value", val: string) => {

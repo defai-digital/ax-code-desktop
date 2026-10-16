@@ -57,7 +57,35 @@ export const SnippetsPage: React.FC = () => {
     content: string
   } | null>(null)
 
+  const isDirty = React.useMemo(() => {
+    const initial = initialStateRef.current
+    if (!initial) return false
+    if (isNew && draftName !== initial.draftName) return true
+    if (isNew && draftScope !== initial.draftScope) return true
+    return description !== initial.description || aliases !== initial.aliases || content !== initial.content
+  }, [aliases, content, description, draftName, draftScope, isNew])
+
+  // Tracks which snippet is loaded into the form, so a background reload of the list (deleting
+  // another snippet re-fetches it) is not mistaken for a selection change.
+  const loadedSnippetKeyRef = React.useRef<string | null>(null)
+
+  // Populates the form for the selected snippet or draft.
   React.useEffect(() => {
+    const targetKey = isNew && snippetDraft ? `draft:${snippetDraft.name}` : selectedSnippet ? `snippet:${selectedSnippet.name}` : null
+    if (!targetKey) {
+      loadedSnippetKeyRef.current = null
+      return
+    }
+
+    const sameTarget = loadedSnippetKeyRef.current === targetKey
+    loadedSnippetKeyRef.current = targetKey
+    if (sameTarget && isDirty) {
+      // The selection did not change, so this run is a background reload: every snippet object is
+      // new, and re-populating here overwrote what the user was typing and reset the baseline, so
+      // the editor looked saved.
+      return
+    }
+
     if (isNew && snippetDraft) {
       const next = {
         draftName: snippetDraft.name || "",
@@ -72,7 +100,10 @@ export const SnippetsPage: React.FC = () => {
       setAliases(next.aliases)
       setContent(next.content)
       initialStateRef.current = next
-    } else if (selectedSnippet) {
+      return
+    }
+
+    if (selectedSnippet) {
       const next = {
         draftName: "",
         draftScope: "global" as SnippetScope,
@@ -85,15 +116,7 @@ export const SnippetsPage: React.FC = () => {
       setContent(next.content)
       initialStateRef.current = next
     }
-  }, [selectedSnippet, isNew, selectedSnippetName, snippetDraft])
-
-  const isDirty = React.useMemo(() => {
-    const initial = initialStateRef.current
-    if (!initial) return false
-    if (isNew && draftName !== initial.draftName) return true
-    if (isNew && draftScope !== initial.draftScope) return true
-    return description !== initial.description || aliases !== initial.aliases || content !== initial.content
-  }, [aliases, content, description, draftName, draftScope, isNew])
+  }, [isDirty, isNew, selectedSnippet, selectedSnippetName, snippetDraft])
 
   const handleSave = async () => {
     setIsSaving(true)

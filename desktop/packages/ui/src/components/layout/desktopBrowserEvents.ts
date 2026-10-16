@@ -14,6 +14,10 @@ type DesktopBrowserNewWindowNavigation = {
 
 type DesktopBrowserLoadUrl = (url: string) => void
 
+type DesktopBrowserNavigation = {
+  url: string
+}
+
 type DesktopBrowserLoadFailureFields = {
   errorCode?: unknown
   errorDescription?: unknown
@@ -73,6 +77,24 @@ export const readDesktopBrowserNewWindowNavigation = (event: Event): DesktopBrow
     return null
   }
 
+  const url = typeof fields.url === "string" ? fields.url : typeof detail?.url === "string" ? detail.url : ""
+  return url ? { url } : null
+}
+
+type DesktopBrowserInPageNavigationFields = {
+  url?: unknown
+  detail?: unknown
+}
+
+/**
+ * The URL an in-page navigation landed on, or null when the event carries none. Electron's webview
+ * reports it on the event itself (`event.url`, like `did-fail-load` above); `detail` is the
+ * compatibility path. Reading only `detail` left the address bar on the previous URL for an anchor
+ * jump or a `pushState`, and pressing Enter then loaded that old URL back.
+ */
+export const readDesktopBrowserInPageNavigation = (event: Event): DesktopBrowserNavigation | null => {
+  const fields = event as Event & DesktopBrowserInPageNavigationFields
+  const detail = isRecord(fields.detail) ? fields.detail : null
   const url = typeof fields.url === "string" ? fields.url : typeof detail?.url === "string" ? detail.url : ""
   return url ? { url } : null
 }
