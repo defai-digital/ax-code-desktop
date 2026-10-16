@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { registerNotificationRoutes } from "./lib/notifications/routes.js"
 import { createMockRequest, createMockResponse, createRouteRegistry } from "./test-helpers/route-harness.js"
@@ -36,6 +36,51 @@ describe("local SSE routes", () => {
 
     req.emit("close")
     expect(clients.has(res)).toBe(false)
+  })
+
+  it("keeps a client that disconnected during the watcher start out of the set", async () => {
+    // Both awaits before the client is added can take seconds on the first call, and `req.on("close")` is attached
+    // after them: a client that disconnected in that window had already fired "close", so its response stayed in
+    // the client set with a live heartbeat interval and every later broadcast wrote to a dead socket.
+    const { app, getRoute } = createRouteRegistry()
+    const clients = new Set()
+    let releaseWatcher = () => {}
+
+    registerNotificationRoutes(app, {
+      uiAuthController: {
+        ensureSessionToken: async () => "ui-token",
+      },
+      getUiSessionTokenFromRequest: () => "ui-token",
+      getUiNotificationClients: () => clients,
+      writeSseEvent(res, payload) {
+        res.write(`data: ${JSON.stringify(payload)}\n\n`)
+      },
+      ensureGlobalWatcherStarted: () =>
+        new Promise((resolve) => {
+          releaseWatcher = () => resolve()
+        }),
+    })
+
+    const handler = getRoute("GET", "/api/notifications/stream")
+    const req = createMockRequest()
+    const res = createMockResponse()
+
+    vi.useFakeTimers()
+    try {
+      const pending = handler(req, res)
+      // The client is gone while the watcher start is still in flight, and its "close" fired before the handler
+      // reached the point where it listens for one.
+      req.emit("close")
+      req.destroyed = true
+      releaseWatcher()
+      await pending
+
+      expect(clients.has(res)).toBe(false)
+      expect(res.body ?? "").not.toContain("notification-stream-ready")
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("answers an unauthenticated stream request instead of leaving the socket open", async () => {

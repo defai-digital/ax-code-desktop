@@ -47,6 +47,25 @@ describe("notification emitter", () => {
     expect(res.ended).toBe(true)
   })
 
+  it("drops a stream it ended instead of leaving it in the client set", () => {
+    // `writeSseEvent` ends a stream whose buffer is over the cap, but the close handler its comment relies on does
+    // not fire for a socket that cannot flush: the response stayed in the set, with its ~4 MB buffer, and every
+    // later broadcast called `res.end()` on it again.
+    const clients = new Set()
+    const runtime = createRuntime({ getUiNotificationClients: () => clients })
+    const stalled = createResponse(5 * 1024 * 1024)
+    const healthy = createResponse()
+    clients.add(stalled)
+    clients.add(healthy)
+
+    runtime.broadcastUiNotification({ title: "Done", body: "x" })
+
+    expect(stalled.ended).toBe(true)
+    expect(clients.has(stalled)).toBe(false)
+    expect(clients.has(healthy)).toBe(true)
+    expect(healthy.written).toHaveLength(1)
+  })
+
   it("keeps writing while the pending buffer is under the cap", () => {
     const runtime = createRuntime()
     const res = createResponse(1024)

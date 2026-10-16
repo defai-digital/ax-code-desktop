@@ -60,6 +60,13 @@ export const registerNotificationRoutes = (app, dependencies) => {
       return res.status(401).json({ error: "UI authentication required" })
     }
 
+    // Both awaits above can take seconds on the first call, and the close listener below is attached after them:
+    // a client that disconnected in that window had already fired "close", so its response stayed in the client
+    // set with a live heartbeat interval and every later broadcast wrote to a dead socket.
+    if (req.destroyed || res.destroyed || res.writableEnded) {
+      return
+    }
+
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8")
     res.setHeader("Cache-Control", "no-cache, no-transform")
     res.setHeader("Connection", "keep-alive")
@@ -79,17 +86,24 @@ export const registerNotificationRoutes = (app, dependencies) => {
     // Keep the connection alive through reverse proxies / load balancers, which
     // reap idle SSE sockets. The client ignores any event whose type is not
     // "openchamber:notification".
+    const dropClient = () => {
+      clearInterval(heartbeat)
+      clients.delete(res)
+    }
     const heartbeat = setInterval(() => {
       try {
-        writeSseEvent(res, {
+        // `false` is how a stream whose write buffer is over the cap is ended (see `writeSseEvent`): the socket
+        // cannot flush, so the close listener below is not guaranteed to fire and the client would stay in the set.
+        if (writeSseEvent(res, {
           type: "openchamber:heartbeat",
           properties: {
             timestamp: Date.now(),
           },
-        })
+        }) === false) {
+          dropClient()
+        }
       } catch {
-        clearInterval(heartbeat)
-        clients.delete(res)
+        dropClient()
       }
     }, 25_000)
     if (typeof heartbeat.unref === "function") heartbeat.unref()

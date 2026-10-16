@@ -99,7 +99,12 @@ export const createNotificationEmitterRuntime = (dependencies) => {
 
     for (const res of clients) {
       try {
-        writeSseEvent(res, syntheticPayload)
+        // A `false` return means the stream was ended because this client's write buffer is over the cap. Such a
+        // socket cannot flush, so the close handler the comment above relies on is not guaranteed to fire: without
+        // this the client and its buffer stay in the set and every later broadcast writes to it again.
+        if (writeSseEvent(res, syntheticPayload) === false) {
+          clients.delete(res)
+        }
       } catch {
         // ignore
       }
