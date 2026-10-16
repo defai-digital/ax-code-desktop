@@ -555,6 +555,23 @@ describe("createEventPipeline", () => {
     expect(received[0].payload.type).toBe("message.part.updated")
   })
 
+  it("does not coalesce a busy status ahead of an idle queued in the same frame", async () => {
+    // One frame can hold the end of one turn and the start of the next. The later `busy` used to
+    // replace the earlier one at its slot, which moved it ahead of the queued `idle`: the session then
+    // showed idle while the server was busy, and the queued-message auto-send saw a busy→idle edge.
+    const directory = "/test/dir"
+    const received = await runPipelineWithEvents([
+      { payload: { type: "session.status", properties: { directory, sessionID: "ses_1", status: { type: "busy" } } } },
+      { payload: { type: "session.idle", properties: { directory, sessionID: "ses_1" } } },
+      { payload: { type: "session.status", properties: { directory, sessionID: "ses_1", status: { type: "busy" } } } },
+    ])
+
+    const types = received.map((entry) => entry.payload.type)
+    expect(types).toEqual(["session.status", "session.idle", "session.status"])
+    // The last event the reducer applies must be the busy one.
+    expect(types[types.length - 1]).toBe("session.status")
+  })
+
   it("keeps a completed tool part when a stale running update is coalesced in the same frame", async () => {
     const received = await runPipelineWithEvents([
       {

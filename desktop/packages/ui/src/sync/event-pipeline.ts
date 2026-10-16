@@ -443,6 +443,30 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     return `message.part.delta:${messageID}:${partID}:`
   }
 
+  // A later `session.status` replaces the earlier one at its slot, which moves it ahead of anything
+  // queued between them. `session.idle` and `session.error` write the same status slice, so coalescing
+  // across one of them applied the new busy state first and the idle after it: the session then showed
+  // idle while the server was busy on the new turn — the working indicator and Stop button went away,
+  // and the queued-message auto-send saw a busy→idle edge and sent early.
+  const sessionStatusInterruptedBy = (payload: Event, queue: readonly Event[], coalescedIndex: number) => {
+    if (payload.type !== "session.status") return false
+    const sessionID = (payload.properties as { sessionID?: string }).sessionID
+    if (typeof sessionID !== "string") return false
+
+    for (let index = coalescedIndex + 1; index < queue.length; index += 1) {
+      const queued = queue[index]
+      if (
+        queued.type !== "session.status" &&
+        queued.type !== "session.idle" &&
+        queued.type !== "session.error"
+      ) {
+        continue
+      }
+      if ((queued.properties as { sessionID?: string }).sessionID === sessionID) return true
+    }
+    return false
+  }
+
   const flushDir = (directory: string) => {
     const d = directories.get(directory)
     if (!d) return
@@ -590,6 +614,13 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     if (k) {
       const i = d.coalesced.get(k)
       if (i !== undefined) {
+        // Appended rather than coalesced: the event between them has to be applied first.
+        if (sessionStatusInterruptedBy(normalizedPayload, d.queue, i)) {
+          d.coalesced.set(k, d.queue.length)
+          d.queue.push(normalizedPayload)
+          scheduleDir(routedDirectory)
+          return
+        }
         if (d.measurement) d.measurement.coalescedEvents++
         if (normalizedPayload.type === "message.part.delta") {
           const prev = d.queue[i] as unknown as { properties: { delta: string; offset?: number } }
