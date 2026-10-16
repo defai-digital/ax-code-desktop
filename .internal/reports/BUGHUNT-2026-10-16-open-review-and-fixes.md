@@ -750,7 +750,15 @@ keep-alive connection is still established does succeed, but the request over th
 `ECONNRESET` rather than being answered by the old app, because Node closes idle connections when the
 listener closes. The remaining direction is an identifier or environment shared between files in one
 worker (the pool reuses workers with the module registry reset but not `process.env`), which the next
-pass should test by running the failing file with a poisoned environment.
+pass should test by running the failing file with a poisoned environment — and by running it with
+file parallelism off.
+
+Both were tried. The two failing files pass with `AX_CODE_SERVER_PASSWORD`, `AX_CODE_JWT_SECRET`,
+`AX_CODE_DESKTOP_JWT_SECRET` and a rejected `AX_CODE_DESKTOP_DATA_DIR` set, so the environment is not what
+turns them into 401s. Two runs with `--fileParallelism=false` passed as well, which leaves parallelism
+itself — port pressure or resource contention rather than a single identifier — as the remaining suspect.
+Two samples are not a conclusion; the honest summary is that the 401s are not produced by the apps under
+test and have never reproduced in a serial or isolated run.
 
 Three more full runs failed once each in a web file that passes alone — `server/lib/ax-code/core-routes.test.js`
 ("should parse JSON bodies for MCP auth pending routes") and `openchamber-routes.test.js` — both times
@@ -1182,6 +1190,15 @@ One gap remains, recorded rather than fixed:
   joins A's in-flight load instead of starting a third request, which is exactly what makes A the
   requested directory again; publishing A's answer is then correct. `c2ec9a4f` pins that case; removing
   the guard fails it and the neighbouring cross-directory case.
+- **`PermissionCard.handleSaveWebMcpApproval`'s missing reset is not a defect**
+  (`components/chat/PermissionCard.tsx:164-189`, reported confirmed by the chat reviewer of the eighth
+  round). The divergence from `handleResponse` is real — the success path leaves `submittingRef` set —
+  but the only production caller keys the card by `permission.id`, so a different permission is a
+  different instance. And a reused instance would not work anyway: `hasResponded` is instance state that
+  the prop change does not clear, so the card renders null for the next permission whatever the ref says.
+  A two-line reset was written, tested and reverted: an experiment showed the second approval is dropped
+  by the *null render*, not by the guard. Making instance reuse work is a component-contract change with
+  no caller that needs it.
 - **`PermissionNotifications` notifies once per pending batch, not once per request**
   (`components/notifications/PermissionNotifications.tsx:111-127`). `notifiedRef` latches after the first
   notification for a session and re-arms when the session's pending set empties, so a second request
