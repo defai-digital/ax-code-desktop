@@ -11,8 +11,10 @@ const childState = {
 }
 let currentDirectory = "/repo"
 
+const routeMessageMock = vi.fn(() => Promise.resolve())
+
 vi.doMock("@/sync/session-ui-store", () => ({
-  routeMessage: vi.fn(() => Promise.resolve()),
+  routeMessage: routeMessageMock,
   useSessionUIStore: {
     getState: () => ({
       setWorktreeMetadata: vi.fn(() => undefined),
@@ -240,6 +242,8 @@ describe("useMultiRunStore", () => {
     childState.limit = 5
     currentDirectory = "/repo"
     useMultiRunStore.setState({ isLoading: false, error: null })
+    routeMessageMock.mockReset()
+    routeMessageMock.mockImplementation(() => Promise.resolve())
   })
 
   test("registers created sessions without waiting for a sidebar refresh", async () => {
@@ -297,5 +301,34 @@ describe("useMultiRunStore", () => {
       expect.objectContaining({ path: "/repo/.worktrees/fix-thing" }),
       { deleteLocalBranch: true },
     )
+  })
+})
+
+describe("useMultiRunStore dispatch", () => {
+  test("reports the runs whose prompt reached the server", async () => {
+    // Create and start are two round trips. Reporting the created sessions as started left a run whose
+    // send failed showing nothing anywhere: empty session, prompt gone, success returned.
+    const { useMultiRunStore } = await import("./useMultiRunStore")
+    const params = {
+      name: "Fix thing",
+      isolateRuns: false,
+      groups: [
+        {
+          prompt: "Fix it",
+          models: [
+            { providerID: "anthropic", modelID: "claude-sonnet-4-5" },
+            { providerID: "openai", modelID: "gpt-5" },
+          ],
+        },
+      ],
+    }
+
+    routeMessageMock.mockImplementationOnce(() => Promise.resolve())
+    routeMessageMock.mockImplementationOnce(() => Promise.reject(new Error("send failed")))
+
+    const result = await useMultiRunStore.getState().createMultiRun(params as never)
+
+    expect(result?.sessionIds).toHaveLength(2)
+    expect(result?.startedRunCount).toBe(1)
   })
 })

@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
 
-type CreateMultiRunResult = { groupSlug: string; sessionIds: string[]; firstSessionId: string | null }
+type CreateMultiRunResult = {
+  groupSlug: string
+  sessionIds: string[]
+  firstSessionId: string | null
+  startedRunCount: number
+}
 
 const { createMultiRun, toastError, addedModels, instanceIds } = vi.hoisted(() => ({
   createMultiRun: vi.fn<() => Promise<CreateMultiRunResult | null>>(),
@@ -243,7 +248,7 @@ describe("MultiRunLauncher run count", () => {
   // The store reports a run whose session could not be created only in its own log, and still returns a
   // non-null result: the user asked for N runs and silently got fewer, with no lane named anywhere.
   test("a short creation says how many runs started", async () => {
-    createMultiRun.mockResolvedValue({ groupSlug: "slug", sessionIds: ["a"], firstSessionId: "a" })
+    createMultiRun.mockResolvedValue({ groupSlug: "slug", sessionIds: ["a"], firstSessionId: "a", startedRunCount: 1 })
     await renderLauncher()
     await typeName()
     await typePrompt(0, "review this")
@@ -259,8 +264,30 @@ describe("MultiRunLauncher run count", () => {
     expect(onCreated).toHaveBeenCalledTimes(1)
   })
 
+  // A run can be created and still fail to start: the send is a second round trip. Reporting only the
+  // created sessions told the user every lane had started.
+  test("a run that was created but never started is reported too", async () => {
+    createMultiRun.mockResolvedValue({
+      groupSlug: "slug",
+      sessionIds: ["a", "b"],
+      firstSessionId: "a",
+      startedRunCount: 1,
+    })
+    await renderLauncher()
+    await typeName()
+    await typePrompt(0, "review this")
+    await addModel(0)
+    await addModel(0)
+
+    await submit()
+
+    expect(toastError.mock.calls[0][0]).toBe(
+      dict["multirun.launcher.toast.partialRunsStarted"].replace("{created}", "1").replace("{requested}", "2"),
+    )
+  })
+
   test("a complete creation reports nothing", async () => {
-    createMultiRun.mockResolvedValue({ groupSlug: "slug", sessionIds: ["a", "b"], firstSessionId: "a" })
+    createMultiRun.mockResolvedValue({ groupSlug: "slug", sessionIds: ["a", "b"], firstSessionId: "a", startedRunCount: 2 })
     await renderLauncher()
     await typeName()
     await typePrompt(0, "review this")

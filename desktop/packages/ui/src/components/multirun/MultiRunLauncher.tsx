@@ -434,11 +434,14 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
         // The store reports a run whose session or worktree could not be created only in its own log,
         // and closes over the failure: the launcher sees a non-null result either way. Without this the
         // user asks for N parallel runs and silently gets fewer, with no way to tell which lane died.
-        const failedCount = plannedRunCount - result.sessionIds.length
+        // Both kinds of shortfall count here: a run that was never created, and a run that was created
+        // but whose prompt never reached the server.
+        const startedCount = result.startedRunCount ?? result.sessionIds.length
+        const failedCount = plannedRunCount - startedCount
         if (failedCount > 0) {
           toast.error(
             t("multirun.launcher.toast.partialRunsStarted", {
-              created: result.sessionIds.length,
+              created: startedCount,
               requested: plannedRunCount,
             }),
           )

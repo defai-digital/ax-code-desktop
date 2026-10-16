@@ -301,35 +301,36 @@ export const useMultiRunStore = create<MultiRunStore>()(
             url: f.url,
           }))
 
-          void (async () => {
-            try {
-              const expandText = useSnippetsStore.getState().expandText
-              await Promise.allSettled(
-                createdRuns.map(async (run) => {
-                  try {
-                    const text = await expandText(run.prompt).catch(() => run.prompt)
-                    await routeMessage({
-                      sessionId: run.sessionId,
-                      directory: run.worktreePath,
-                      content: text,
-                      providerID: run.providerID,
-                      modelID: run.modelID,
-                      variant: run.variant,
-                      agent,
-                      files: filesForMessage,
-                    })
-                  } catch (err) {
-                    console.warn("[MultiRun] Failed to start run:", err)
-                  }
-                }),
-              )
-            } catch (err) {
-              console.warn("[MultiRun] Failed to start runs:", err)
-            }
-          })()
+          // Awaited: creating the runs and starting them are two round trips, and the caller reports
+          // how many prompts actually reached the server. Detaching this reported a full success while
+          // a run whose send failed sat empty — its prompt gone, and only a console warning to show for
+          // it, because the caller could not know.
+          const expandText = useSnippetsStore.getState().expandText
+          const dispatchResults = await Promise.all(
+            createdRuns.map(async (run) => {
+              try {
+                const text = await expandText(run.prompt).catch(() => run.prompt)
+                await routeMessage({
+                  sessionId: run.sessionId,
+                  directory: run.worktreePath,
+                  content: text,
+                  providerID: run.providerID,
+                  modelID: run.modelID,
+                  variant: run.variant,
+                  agent,
+                  files: filesForMessage,
+                })
+                return true
+              } catch (err) {
+                console.warn("[MultiRun] Failed to start run:", err)
+                return false
+              }
+            }),
+          )
+          const startedRunCount = dispatchResults.filter(Boolean).length
 
           set({ isLoading: false })
-          return { groupSlug, sessionIds, firstSessionId }
+          return { groupSlug, sessionIds, firstSessionId, startedRunCount }
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : "Failed to create Multi-Run",

@@ -44,4 +44,9 @@ export interface CreateMultiRunResult {
   groupSlug: string
   sessionIds: string[]
   firstSessionId: string | null
+  /**
+   * Runs whose prompt reached the server. A run can be created and still fail to start — the send is a
+   * separate round trip — and the caller reports that difference to the user.
+   */
+  startedRunCount: number
 }
