@@ -46,6 +46,10 @@ const PACKAGE_JSON = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "pack
 
 let activeCommandOptions = null
 let foregroundServerActive = false
+// The `logs` follower installs its own SIGINT/SIGTERM handler that stops the tail and resolves, so the
+// global handler must not run first and exit 130 with "Operation cancelled." — which is what happened:
+// Ctrl+C on `logs` reported a cancelled operation and a failure exit status.
+let logsFollowerActive = false
 let foregroundShutdown = null
 
 const HAS_PLAIN_FLAG = process.argv.includes("--plain")
@@ -2238,6 +2242,13 @@ const commands = {
         // Do not call serve() here — just record the stop as a successful
         // restart and let the process manager handle the actual restart.
         if (isForeground) {
+          // The process manager restarts it, not this command: without checking, a stop that timed out
+          // (or a per-instance error inside `stop`, which records and returns instead of throwing) still
+          // read as a successful restart. The daemon path fails later on its own, because `serve` finds
+          // the port taken; the foreground path calls no `serve`.
+          if (isProcessRunning(instance.pid)) {
+            throw new Error(`Timed out stopping pid ${instance.pid}`)
+          }
           restarted.push({ fromPort: instance.port, toPort: restartPort, launchMode, ok: true })
           restartSpin?.stop(`Stopped foreground instance on port ${instance.port} (process manager will restart)`)
           if (showOutput && !restartSpin) {
@@ -2648,8 +2659,10 @@ const commands = {
         }
         process.off("SIGINT", onSignal)
         process.off("SIGTERM", onSignal)
+        logsFollowerActive = false
         resolve()
       }
+      logsFollowerActive = true
       process.on("SIGINT", onSignal)
       process.on("SIGTERM", onSignal)
     })
@@ -2842,6 +2855,10 @@ if (isCliExecution) {
       if (typeof foregroundShutdown === "function") {
         void foregroundShutdown("SIGINT")
       }
+      return
+    }
+    if (logsFollowerActive) {
+      // Let the follower's own handler run: it unsubscribes and resolves the command, which then exits 0.
       return
     }
     isHandlingSigint = true

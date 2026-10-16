@@ -166,6 +166,39 @@ describe("tunnel args", () => {
     ])
   })
 
+  it("does not report a foreground restart when the instance survived the stop", async () => {
+    // A foreground instance is restarted by its process manager, not by this command, and the daemon path
+    // fails on its own when `serve` finds the port taken — the foreground path calls no serve, so a stop
+    // that did not take read as a successful restart.
+    const fsImpl = await import("node:fs")
+    const os = await import("node:os")
+    const nodePath = await import("node:path")
+    const dataDir = fsImpl.mkdtempSync(nodePath.join(os.tmpdir(), "ax-code-restart-"))
+    const originalDataDir = process.env.AX_CODE_DESKTOP_DATA_DIR
+    process.env.AX_CODE_DESKTOP_DATA_DIR = dataDir
+    const runDir = nodePath.join(dataDir, "run")
+    fsImpl.mkdirSync(runDir, { recursive: true })
+    // A live pid (this process) with a stub for `stop`, so nothing is signalled.
+    fsImpl.writeFileSync(nodePath.join(runDir, "ax-code-desktop-3100.pid"), String(process.pid))
+    fsImpl.writeFileSync(
+      nodePath.join(runDir, "ax-code-desktop-3100.json"),
+      JSON.stringify({ port: 3100, launchMode: "foreground", startedAt: Date.now() }),
+    )
+
+    const originalStop = commands.stop
+    commands.stop = async () => {}
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true)
+    try {
+      await expect(commands.restart({ json: true })).rejects.toThrow("Timed out stopping pid")
+    } finally {
+      commands.stop = originalStop
+      stdoutWrite.mockRestore()
+      if (originalDataDir === undefined) delete process.env.AX_CODE_DESKTOP_DATA_DIR
+      else process.env.AX_CODE_DESKTOP_DATA_DIR = originalDataDir
+      fsImpl.rmSync(dataDir, { recursive: true, force: true })
+    }
+  })
+
   it("removes the startup env file when the integration is disabled", async () => {
     // The file holds the UI password and a snapshot of the environment (API keys included), and only the
     // macOS *enable* path ever removed it: a disabled integration left those credentials on disk.
