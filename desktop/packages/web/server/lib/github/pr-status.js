@@ -26,6 +26,10 @@ export const setCappedCacheEntry = (cache, key, value) => {
 export function clearPrStatusResolutionCaches() {
   defaultBranchCache.clear()
   repoMetadataCache.clear()
+  // Also keyed by repo, and it records a *permission* denial (the search API answering 403 for the
+  // repos of one account's token): a switch to a properly scoped account kept answering "no pull
+  // request" for a branch whose PR is only discoverable through search, for the whole retry window.
+  _searchApiDisabledRepos.clear()
 }
 
 const normalizeText = (value) => (typeof value === "string" ? value.trim() : "")

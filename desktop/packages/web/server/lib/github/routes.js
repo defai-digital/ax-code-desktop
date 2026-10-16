@@ -1105,6 +1105,12 @@ export function registerGitHubRoutes(app) {
             }))
           return { issues, hasMore }
         } catch (error) {
+          // A revoked or expired token fails every repo the same way, and it has to reach the route's
+          // handler, which clears it and reports the account as disconnected: swallowing it here
+          // showed an empty issue list and left the app looking connected.
+          if (error?.status === 401) {
+            throw error
+          }
           console.warn(`Failed to list issues for ${repoRef.owner}/${repoRef.repo}:`, error?.message || error)
           return { issues: [], hasMore: false }
         }
@@ -1116,6 +1122,15 @@ export function registerGitHubRoutes(app) {
 
       return res.json({ connected: true, repo, issues: allIssues, page: effectivePage, hasMore: anyHasMore })
     } catch (error) {
+      // The stored token can be revoked or expired here exactly as in the PR routes, which clear it
+      // and report the account as disconnected: answering 500 left the app connected to a token that
+      // no longer works until some other call happened to notice.
+      if (error?.status === 401) {
+        const { clearGitHubAuth } = await getGitHubLibraries()
+        clearGitHubAuth()
+        await clearGitHubAccountScopedCaches()
+        return res.json({ connected: false })
+      }
       console.error("Failed to list GitHub issues:", error)
       return res.status(500).json({ error: error.message || "Failed to list GitHub issues" })
     }
@@ -1177,6 +1192,12 @@ export function registerGitHubRoutes(app) {
         },
       })
     } catch (error) {
+      if (error?.status === 401) {
+        const { clearGitHubAuth } = await getGitHubLibraries()
+        clearGitHubAuth()
+        await clearGitHubAccountScopedCaches()
+        return res.json({ connected: false })
+      }
       console.error("Failed to fetch GitHub issue:", error)
       return res.status(500).json({ error: error.message || "Failed to fetch GitHub issue" })
     }
@@ -1221,6 +1242,12 @@ export function registerGitHubRoutes(app) {
 
       return res.json({ connected: true, repo, comments })
     } catch (error) {
+      if (error?.status === 401) {
+        const { clearGitHubAuth } = await getGitHubLibraries()
+        clearGitHubAuth()
+        await clearGitHubAccountScopedCaches()
+        return res.json({ connected: false })
+      }
       console.error("Failed to fetch GitHub issue comments:", error)
       return res.status(500).json({ error: error.message || "Failed to fetch GitHub issue comments" })
     }

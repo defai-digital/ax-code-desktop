@@ -123,6 +123,34 @@ describe("github routes", () => {
     expect(clearGitHubAuth).toHaveBeenCalledTimes(1)
   })
 
+  it("clears stored credentials when an issue route sees the token is gone", async () => {
+    // The PR routes and auth/status clear a revoked token and report the account as
+    // disconnected; the issue routes answered 500 and left the app connected to a token that no
+    // longer works until some other call happened to notice.
+    const { getGitHubAuth, getOctokitOrNull, clearGitHubAuth, resolveGitHubRepoFromDirectory } = await import(
+      "./index.js"
+    )
+    getGitHubAuth.mockReturnValueOnce({ accessToken: "tok", user: { login: "alice" }, scope: "repo" })
+    resolveGitHubRepoFromDirectory.mockResolvedValueOnce({ repo: { owner: "owner", repo: "repo" } })
+    // The first call the route makes fails with the revoked token, whichever it is.
+    const unauthorized = vi.fn(async () => {
+      throw Object.assign(new Error("bad credentials"), { status: 401 })
+    })
+    getOctokitOrNull.mockReturnValueOnce({
+      rest: { repos: { get: unauthorized }, issues: { listForRepo: unauthorized } },
+      paginate: unauthorized,
+    })
+
+    const app = createApp()
+    const response = await request(app)
+      .get("/api/github/issues/list")
+      .query({ directory: "/tmp/repo" })
+      .expect(200)
+
+    expect(response.body.connected).toBe(false)
+    expect(clearGitHubAuth).toHaveBeenCalledTimes(1)
+  })
+
   it("rejects unknown account activation before mutating auth state", async () => {
     const app = createApp()
 

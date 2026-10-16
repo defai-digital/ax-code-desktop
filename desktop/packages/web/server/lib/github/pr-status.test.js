@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { setCappedCacheEntry } from "./pr-status.js"
+import { clearPrStatusResolutionCaches, setCappedCacheEntry } from "./pr-status.js"
 
 describe("pr-status repo resolution caches", () => {
   it("evicts the oldest entry instead of growing past the cap", () => {
@@ -63,5 +63,37 @@ describe("resolveGitHubPrStatus on a rate-limit 403", () => {
     await expect(resolveGitHubPrStatus({ octokit, directory: "/tmp/repo", branch: "feature" })).rejects.toMatchObject({
       status: 403,
     })
+  })
+})
+
+describe("the search fallback's 403 memo", () => {
+  const octokitWithSearch = (search) => ({
+    rest: {
+      pulls: {
+        list: vi.fn(async () => ({ data: [] })),
+        get: vi.fn(async () => ({ data: {} })),
+      },
+      repos: { get: vi.fn(async () => ({ data: { default_branch: "main", private: false } })) },
+      search: { issuesAndPullRequests: search },
+    },
+  })
+
+  it("is dropped when the account-scoped caches are cleared", async () => {
+    // The memo records a permission denial for a repo set, which is account-scoped state: after a
+    // switch to a properly scoped account it kept answering "no pull request" for the whole window.
+    const forbidden = vi.fn(async () => {
+      throw Object.assign(new Error("forbidden"), { status: 403 })
+    })
+    await resolveGitHubPrStatus({ octokit: octokitWithSearch(forbidden), directory: "/tmp/repo", branch: "feature" })
+
+    expect(forbidden).toHaveBeenCalled()
+
+    clearPrStatusResolutionCaches()
+
+    // A different branch so the per-branch result cache cannot answer for the search API.
+    const allowed = vi.fn(async () => ({ data: { items: [] } }))
+    await resolveGitHubPrStatus({ octokit: octokitWithSearch(allowed), directory: "/tmp/repo", branch: "other" })
+
+    expect(allowed).toHaveBeenCalled()
   })
 })
