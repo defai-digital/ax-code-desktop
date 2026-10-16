@@ -2391,6 +2391,11 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     }
 
     if (!canEdit) {
+      // The target can never be opened in the editor (an oversized or outside-workspace file, or
+      // no write API), so this navigation is over. Leaving it pending made the next file
+      // selection re-run this effect against the stale target and pull the reader back to it.
+      setPendingFileNavigation(null)
+      pendingNavigationCycleRef.current = { key: "", attempts: 0 }
       return
     }
 
