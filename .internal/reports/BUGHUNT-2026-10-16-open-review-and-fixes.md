@@ -1289,6 +1289,75 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Thirteenth round
+
+A thirteenth round: the twelfth round's server scope re-run over `server/**` and
+`lib/{event-stream,preview,text,security}` with the Claude Code CLI (the Grok CLI run of that scope had
+returned its preamble only), fresh reviews of `ui/src/sync`, `server/lib/{git,fs,terminal}` and
+`ui/src/stores` plus `lib/{worktrees,permissions,quota}`, and an auditor over the twelfth round's own
+commits. Everything found so far is fixed; what is still being verified is listed at the end.
+
+### Fixed from the re-run of the server scope
+
+- **`1338e5b7`** — `rewriteProxyRedirectLocation` resolved an upstream `Location` against the target's
+  bare origin, so a legal relative reference lost the request path (`Location: intro` from `/docs/guide`
+  sent the browser to `/intro`, a query-only `Location: ?page=2` dropped the path), and the SSRF guard
+  accepted a rooted loopback name (`http://localhost./`, `http://svc.localhost./`,
+  `http://printer.local./`) as an external target because the WHATWG parser keeps the root dot. The
+  same commit makes the ax-code proxy's forwarded `authorization` replace the client's instead of
+  joining it under a second casing ("Bearer client, Basic server" reached the runtime).
+  The re-run's fourth finding — the global hub keeps its replay buffer across `stop()` while the new
+  reader starts without `Last-Event-ID` — was checked and is not a defect: the client's `onReconnect`
+  refetches the authoritative snapshot on every successful connect
+  (`sync/sync-context-impl.tsx:1466`).
+
+### Fixed from the git, files and terminal review
+
+- **`bed1f0c7`** — five defects: the terminal restart marker was added before the slot reservation and
+  removed only by an inner `try/finally` the 429 return never reached, so a refused restart of an id
+  with no live session permanently answered 409 for that id; `getCommitFiles` pushed `displayPath`,
+  which the rename branch set to `filePath` in both arms (dead code), so the history view received
+  `src/a.ts => lib/b.ts` as a path and every renamed file answered 500; `checkout` handed an
+  unvalidated value to `git checkout`, where a value naming a tracked file is a pathspec
+  (`git checkout README.md` restored it from the index and discarded the user's edits) and `-f` is an
+  option — both reported as a successful branch checkout; committing selected files temporarily
+  unstaged the other staged paths and restored them from their index entries, which cannot express a
+  staged *deletion*, so the deletion came back unstaged and the next commit no longer carried it; and
+  `/api/fs/raw` answered with the app's own CSP, which allows inline script, so a workspace SVG opened
+  directly ran on the app's loopback origin with the session cookie reachable by same-origin requests.
+
+### Fixed from the audit of the twelfth round's commits
+
+- **`40c6600a`** — the bound's own test (`count <= before + 1`) also passes with an unbounded map. It
+  asserts the first id is gone and the newest survives. Fixing that exposed the audit's third finding:
+  a counter that restarts at 1 after eviction can match the 1 an in-flight send captured and roll a
+  running turn back to idle, so stamps now come from one counter shared by every session.
+- **`9ceef9ee`** — the `startup disable` test called the real teardown with only the data dir
+  redirected, and `getStartupServicePaths` builds its path from the home directory: every
+  `pnpm run test` on a machine with the integration enabled ran `launchctl bootout` (or systemd, or
+  `schtasks`) and unlinked the developer's own entry. The three commands are refused through a
+  `child_process` mock now, HOME/USERPROFILE point at the temp dir, and the test asserts the teardown
+  did reach the stubbed command. The same commit makes the tunnel test's "stop did take effect" half
+  reach the `stopped || !isProcessRunning(pid)` condition it claims to cover (it took the
+  "not-running" early return, so a regression that dropped `stopped ||` passed).
+- **`031e86b5`** — `recoverPendingRemovals` ended by writing its leftovers over this window's pending
+  slot (or removing the key), dropping a removal the user made while its requests were in flight; a
+  crash inside that undo window resurrected the session. The leftovers go through
+  `keptForRecovery`/`persistPending()` like every other write.
+
+### Still being verified from this round
+
+- `ui/src/sync` (Grok CLI): a `session.status` snapshot applied by `bootstrapDirectory` can overwrite a
+  busy written while its request was in flight (the poll path already guards this with
+  `pickApplicableResyncedStatuses`); the question/permission snapshot guard compares request-time and
+  current id signatures, so a question asked and answered during the flight returns the signature to
+  its previous value and the answered question is merged back; and the reconnect path re-inserts an
+  archived parent session into the live list.
+- `ui/src/stores` (MiniMax-M3): `removeSessions` records no delete tombstone, so a reconnect snapshot
+  landing between the SDK call and the `session.deleted` event can bring the session back. Its three
+  SUSPECTED leads (worktree bootstrap poll timers after `clearWorktreeBootstrapState`, `toAbsolutePath`
+  with an empty base dir, `setSessionAutoAccept` broadcasting a stale value) are being checked.
+
 ## Twelfth round
 
 A twelfth round over surfaces the earlier ones had not opened (`web/bin/**` — the CLI and the tunnel
