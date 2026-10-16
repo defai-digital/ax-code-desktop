@@ -766,6 +766,7 @@ interface UIStore {
   addRecentAgent: (agentName: string) => void
   addRecentEffort: (providerID: string, modelID: string, variant: string | undefined) => void
   setDiffLayoutPreference: (mode: "dynamic" | "inline" | "side-by-side") => void
+  setDiffLayoutForAllFiles: (mode: "inline" | "side-by-side") => void
   setDiffFileLayout: (filePath: string, mode: "inline" | "side-by-side") => void
   setDiffWrapLines: (wrap: boolean) => void
   setDiffViewMode: (mode: "single" | "stacked") => void
@@ -1762,6 +1763,13 @@ export const useUIStore = create<UIStore>()(
 
         setDiffLayoutPreference: (mode) => {
           set({ diffLayoutPreference: mode })
+        },
+
+        // The Changes header's toggle: the layout for every diff from now on, which is
+        // the Appearance setting, and it drops the per-file choices that would override
+        // it. The toggle on a file row still changes only that file.
+        setDiffLayoutForAllFiles: (mode) => {
+          set({ diffLayoutPreference: mode, diffFileLayout: {} })
         },
 
         setDiffFileLayout: (filePath, mode) => {

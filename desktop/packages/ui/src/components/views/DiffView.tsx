@@ -984,7 +984,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
   const setPendingDiffFile = useUIStore((state) => state.setPendingDiffFile)
   const diffLayoutPreference = useUIStore((state) => state.diffLayoutPreference)
   const diffFileLayout = useUIStore((state) => state.diffFileLayout)
-  const setDiffFileLayout = useUIStore((state) => state.setDiffFileLayout)
+  const setDiffLayoutForAllFiles = useUIStore((state) => state.setDiffLayoutForAllFiles)
   const diffWrapLinesStore = useUIStore((state) => state.diffWrapLines)
   const setDiffWrapLines = useUIStore((state) => state.setDiffWrapLines)
   const diffViewMode = useUIStore((state) => state.diffViewMode)
@@ -1472,19 +1472,14 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
   const handleHeaderLayoutChange = React.useCallback(
     (mode: DiffViewMode) => {
-      const nextLayout: "inline" | "side-by-side" = mode === "side-by-side" ? "side-by-side" : "inline"
-
-      if (isStackedView) {
-        changedFiles.forEach((file) => {
-          setDiffFileLayout(file.path, nextLayout)
-        })
-        return
-      }
-
-      if (!selectedFileEntry) return
-      setDiffFileLayout(selectedFileEntry.path, nextLayout)
+      // The header picks the layout for every diff from now on — it writes the setting
+      // that a file opened later, another worktree or the next launch reads. Writing a
+      // per-file override for the files on screen left the setting at its old value, so
+      // the pick was forgotten the moment a new file appeared while Appearance still
+      // showed the old choice. The row toggle below stays per-file.
+      setDiffLayoutForAllFiles(mode === "side-by-side" ? "side-by-side" : "inline")
     },
-    [changedFiles, isStackedView, selectedFileEntry, setDiffFileLayout],
+    [setDiffLayoutForAllFiles],
   )
 
   const renderSideBySide = (currentLayoutForSelectedFile ?? "side-by-side") === "side-by-side"
