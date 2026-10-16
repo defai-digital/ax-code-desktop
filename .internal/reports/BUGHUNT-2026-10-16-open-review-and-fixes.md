@@ -1324,6 +1324,48 @@ carried five findings and the audit two, all fixed:
   outside the TTL; and the declared-size refusal in `downloadClawdHubSkill` threw without cancelling
   `response.body`, leaving the connection open (the streaming path already cancels).
 
+The round's other two reviewers (the UI libraries via deepseek-flash, `desktop/shared` and `tools` via
+MiniMax-M3) arrived after that batch; three of their findings were real:
+
+- **`6aae3c7c`** — `getAssistantTokenTotal` (`ui/src/lib/messages/assistantTokens.ts`) summed the
+  message's `reasoning` and `cache` fields without a guard, so a provider that omits them — the shape the
+  step-level twin in the same file already defaults to zero — made the total NaN, and `NaN <= 0` is false,
+  so the guard admitted the message and the context meter rendered NaN%. Reported by both reviewers of
+  that batch, one as CONFIRMED and one as CONFIRMED with the step path and `ContextSidebarTab`'s
+  `toNonNegativeNumber` as the sibling guards. Every field is read through one guard, the returned tokens
+  are normalized, and a payload JSON wrote as nulls is skipped.
+- **`99cd5cd5`** — `createLanguageController().update` wrote the file and advanced `preferences` before
+  reading the state, so a throwing `systemLanguages()` (`app.getPreferredSystemLanguages` in `main.js`)
+  rejected a save that was already committed. The state is resolved before the write.
+- **`e365d263`** — `tools/winget/generate-manifests.ts` read value-taking options as
+  `argv[++index] ?? <default>`, so `--out` or `--tag` as the last argument silently wrote the manifests to
+  `.tmp/winget` (or the derived tag) and reported success. All three options throw on a missing value now.
+
+The batch's two remaining SUSPECTED leads — both in `ui/src/lib/messages/assistantTokens.ts` and
+`ui/src/lib/shiki/appThemeRegistry.ts` — were checked and left alone, with the evidence below.
+
+### Suspected leads from this batch, verified and not changed
+
+- **A malformed newest `step-finish` aborts the scan and discards an older measurement**
+  (`assistantTokens.ts:56-58`, reported SUSPECTED). It does return `null` for a step whose `tokens` is
+  missing or non-numeric while a step reporting all zeros is skipped with `continue`, so the two branches
+  differ. Both readers of the same payload in the pinned runtime behave the same way: the TUI's
+  `Usage2.lastStepTokens` in `desktop/packages/electron/dist/mac-arm64/AX Code.app/.../index-node-tui.js`
+  returns `void 0` on the first `step-finish` whose `input`/`output` are not numbers rather than looking
+  further back, and the runtime writes `tokens: usage.tokens` on every step it finishes, so an absent
+  `tokens` object is not a shape it produces. The existing test pins the current contract
+  (`returns null for a malformed step-finish tokens payload`). Changing the fallback from the message
+  totals to an *older* step would also report a pre-step context size for a turn that just finished, so
+  the difference is not an unqualified improvement.
+- **The renderer's theme caches are never evicted** (`ui/src/lib/shiki/appThemeRegistry.ts:40-41`,
+  reported SUSPECTED, low severity). The ids are content-derived, so an edited theme does leave an
+  unreachable entry behind. Evicting `resolvedThemeCache` would not release anything, though:
+  `registerCustomTheme` (`@pierre/diffs`) calls `themeResolver.registerTheme(name, load)`, a module-level
+  registry that keeps the loader closure — and the resolved theme it returns — for the life of the
+  renderer, and the package exposes no unregister. The retained memory is the registration, not this map,
+  so bounding the map would be a change that does not bound the growth it is meant to bound. Recorded
+  rather than changed.
+
 ## Tenth round
 
 Two batches again. The review batch ran four reviewers over surfaces earlier rounds had not read
@@ -1886,6 +1928,11 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
+- Latest full run, after the twelfth round's UI-library and shared batches (each command's exit status
+  captured, not inferred from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
+  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 757, web 1 141
+  (+2 skipped). The lint run's only output is a pre-existing `react-hooks/exhaustive-deps` warning in
+  `ui/src/sync/use-sync.ts`.
 - Final state after the ninth round, with each command's exit status captured rather than inferred
   from a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0. `pnpm run test` reported one failure in its last full run — the

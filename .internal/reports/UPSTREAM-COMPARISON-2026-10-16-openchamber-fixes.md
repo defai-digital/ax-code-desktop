@@ -136,3 +136,25 @@ Ordered by severity. Line numbers are where the defect lives today.
     carries compaction as a message part rather than the assistant message's `summary`
     field, so there is no request to read the fill from, and what the meter should show
     after a compaction is a product decision.
+
+## Upstream fixes in the same module, checked later and not adopted
+
+Upstream rewrote this module (`packages/ui/src/stores/utils/tokenUtils.ts` there, our
+`ui/src/lib/messages/assistantTokens.ts`) around two readers we had not seen when the
+list above was written. Both were checked against our counterpart after the fact:
+
+- **The unguarded sum.** `getAssistantTokenTotal` summed `reasoning` and `cache` without
+  a guard, so a partial payload produced NaN and the `total <= 0` guard admitted it, and
+  the meter rendered NaN%. Upstream's `sumTokenBreakdown` defaults every field, which is
+  the same fix; ours is `6aae3c7c`, which now also normalizes the tokens it returns.
+- **Preferring `tokens.total`.** Upstream treats the server-reported `total` as the window
+  the context really holds and sums the fields only when it is absent, because `cache.read`
+  accumulates across a turn's round-trips. We did not adopt it: our runtime accumulates
+  `total` across a turn's steps the same way it accumulates the fields
+  (`assistantMessage.tokens = { total: (usage.tokens.total ?? 0) + (assistantMessage.tokens.total ?? 0), … }`
+  in `desktop/packages/electron/dist/mac-arm64/AX Code.app/.../index-node-tui.js`), and its
+  own reader takes `Math.max(total, component sum)` (`effectiveTokenTotal`). Preferring
+  `total` would therefore not correct the overstatement it corrects upstream, and which
+  number the meter should prefer is the same product question as the compaction entry
+  above. The step-level path still reports the newest finished step, which is the reading
+  upstream's fallback produces on a single-step turn.
