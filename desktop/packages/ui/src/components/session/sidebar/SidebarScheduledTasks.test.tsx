@@ -2,17 +2,19 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
+import { dict } from "@/lib/i18n/messages/en"
 import type { ScheduledTask } from "@/lib/scheduledTasksApi"
 
-const { fetchScheduledTasks, setScheduledTasksEnabled, deleteScheduledTasks } = vi.hoisted(() => ({
+const { fetchScheduledTasks, createScheduledTasks, setScheduledTasksEnabled, deleteScheduledTasks } = vi.hoisted(() => ({
   fetchScheduledTasks: vi.fn(),
+  createScheduledTasks: vi.fn(),
   setScheduledTasksEnabled: vi.fn(),
   deleteScheduledTasks: vi.fn(),
 }))
 
 vi.mock("@/lib/scheduledTasksApi", () => ({
   fetchScheduledTasks,
-  createScheduledTasks: vi.fn(),
+  createScheduledTasks,
   deleteScheduledTasks,
   expandPromptSnippets: vi.fn(async (_directory: string, prompt: string) => prompt),
   reconcileScheduledTaskFamily: vi.fn(),
@@ -22,10 +24,22 @@ vi.mock("@/lib/scheduledTasksApi", () => ({
 
 // The editor pulls in the provider/agent config stores; the list only needs to open it.
 const { editorProps } = vi.hoisted(() => ({
-  editorProps: { current: null as null | { open: boolean; task: { id: string } | null; projectLabel?: string } },
+  editorProps: {
+    current: null as null | {
+      open: boolean
+      task: { id: string } | null
+      projectLabel?: string
+      onSave: (submit: unknown) => Promise<void>
+    },
+  },
 }))
 vi.mock("../ScheduledTaskEditorDialog", () => ({
-  ScheduledTaskEditorDialog: (props: { open: boolean; task: { id: string } | null; projectLabel?: string }) => {
+  ScheduledTaskEditorDialog: (props: {
+    open: boolean
+    task: { id: string } | null
+    projectLabel?: string
+    onSave: (submit: unknown) => Promise<void>
+  }) => {
     editorProps.current = props
     return null
   },
@@ -91,6 +105,7 @@ describe("SidebarScheduledTasks", () => {
     root = createRoot(container)
     resetScheduledTasksStoreForTests()
     fetchScheduledTasks.mockReset()
+    createScheduledTasks.mockReset()
     setScheduledTasksEnabled.mockReset()
     deleteScheduledTasks.mockReset()
     editorProps.current = null
@@ -212,6 +227,49 @@ describe("SidebarScheduledTasks", () => {
     expect(setScheduledTasksEnabled).toHaveBeenCalledWith("/work/alpha", ["a1"], false)
     expect(rowText("Nightly")).not.toContain("Paused")
     expect(container.querySelector('button[aria-label="Pause Nightly"]')).not.toBeNull()
+  })
+
+  test("reloads the group when a fan-out create fails, so a retry adopts what exists", async () => {
+    // One project: the add button then opens the new-task editor directly instead of
+    // a project picker.
+    useProjectsStore.setState({
+      projects: [{ id: "p-alpha", path: "/work/alpha", label: "Alpha" }],
+      activeProjectId: "p-alpha",
+    })
+    fetchScheduledTasks.mockImplementation(async (directory: string) => [
+      task({ id: `${directory}-1`, directory, title: "Existing" }),
+    ])
+    await render()
+
+    const newTask = container.querySelector<HTMLButtonElement>(
+      `button[aria-label="${dict["sessions.sidebar.scheduled.newTask"]}"]`,
+    )
+    await act(async () => newTask?.click())
+    expect(editorProps.current?.open).toBe(true)
+
+    // The runtime created the task but refused to pause it: it exists and is active.
+    createScheduledTasks.mockRejectedValueOnce(new Error("Task was created but could not be paused"))
+    fetchScheduledTasks.mockClear()
+
+    await act(async () => {
+      await editorProps.current
+        ?.onSave({
+          enabled: false,
+          enabledChanged: true,
+          scheduleChanged: true,
+          input: {
+            name: "Nightly",
+            prompt: "Do it",
+            catchUpPolicy: "run_once",
+            schedule: { kind: "daily", times: ["09:00"], timezone: "UTC" },
+          },
+        })
+        .catch(() => {})
+    })
+    await flush()
+
+    expect(createScheduledTasks).toHaveBeenCalledTimes(1)
+    expect(fetchScheduledTasks).toHaveBeenCalledWith("/work/alpha")
   })
 
   test("pauses every part the store has now, not the row's snapshot", async () => {

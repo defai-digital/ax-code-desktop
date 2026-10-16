@@ -178,7 +178,16 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
           throw error
         }
       } else {
-        await createScheduledTasks(directory, payloads, { pause: !submit.enabled })
+        try {
+          await createScheduledTasks(directory, payloads, { pause: !submit.enabled })
+        } catch (error) {
+          // Same reason as the reconciliation path above: a fan-out draft creates
+          // several tasks and the runtime starts each one active, so a failure part
+          // way through (including a pause that did not take) leaves tasks behind
+          // that the list has to show for a retry to adopt rather than duplicate.
+          await loadGroup(directory)
+          throw error
+        }
       }
       await loadGroup(directory)
       toast.success(t("sessions.scheduledTasks.dialog.toast.saved"))
