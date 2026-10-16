@@ -27,21 +27,31 @@ export const createNotificationTriggerRuntime = (deps) => {
   const PERMISSION_NOTIFICATION_DEBOUNCE_MS = 500
   const questionNotificationDebounceTimers = new Map()
   const permissionNotificationDebounceTimers = new Map()
-  // Sessions whose question was already answered or dismissed. The flush below deletes its debounce entry before it
-  // starts awaiting the settings read and the template variables (which can run a git command), so a reply that
-  // lands mid-flush finds nothing to cancel and the ask was still announced — seconds after the user answered it.
-  const answeredQuestionSessions = new Set()
-  // Bounded like the permission dedupe window: a session answered long ago needs no mark.
-  const ANSWERED_QUESTION_SESSIONS_MAX = 500
-  const rememberAnsweredQuestionSession = (sessionId) => {
-    if (!sessionId) return
-    if (answeredQuestionSessions.size >= ANSWERED_QUESTION_SESSIONS_MAX) {
-      const oldest = answeredQuestionSessions.values().next().value
+  // Questions already answered or dismissed, keyed `sessionID:requestID`. The flush below deletes its debounce
+  // entry before it starts awaiting the settings read and the template variables (which can run a git command), so
+  // a reply that lands mid-flush finds nothing left to cancel and the ask was still announced — seconds after the
+  // user answered it. The key carries the request because a *new* question in the same session is a different
+  // question: a session-wide mark cleared by the next ask let the first, already answered flush through.
+  const answeredQuestions = new Set()
+  // Bounded like the permission dedupe window: a question answered long ago needs no mark.
+  const ANSWERED_QUESTIONS_MAX = 500
+  // An ask the runtime sent without an id can only be keyed by its session, which is also how its reply arrives.
+  const questionRequestKey = (sessionId, requestId) =>
+    typeof sessionId !== "string" || !sessionId
+      ? null
+      : typeof requestId === "string" && requestId
+        ? `${sessionId}:${requestId}`
+        : sessionId
+  const rememberAnsweredQuestion = (sessionId, requestId) => {
+    const key = questionRequestKey(sessionId, requestId)
+    if (!key) return
+    if (answeredQuestions.size >= ANSWERED_QUESTIONS_MAX) {
+      const oldest = answeredQuestions.values().next().value
       if (typeof oldest === "string") {
-        answeredQuestionSessions.delete(oldest)
+        answeredQuestions.delete(oldest)
       }
     }
-    answeredQuestionSessions.add(sessionId)
+    answeredQuestions.add(key)
   }
 // Distinguishes the asks a runtime sends without an id, which share no other key.
 let unkeyedPermissionAskSequence = 0
@@ -409,7 +419,8 @@ let unkeyedPermissionAskSequence = 0
     }
 
     if ((payload.type === "question.replied" || payload.type === "question.rejected") && sessionId) {
-      rememberAnsweredQuestionSession(sessionId)
+      const requestId = payload.properties?.requestID ?? payload.properties?.requestId ?? payload.properties?.id
+      rememberAnsweredQuestion(sessionId, requestId)
       const pendingNotification = questionNotificationDebounceTimers.get(sessionId)
       if (pendingNotification) {
         clearTimeout(pendingNotification)
@@ -419,8 +430,11 @@ let unkeyedPermissionAskSequence = 0
     }
 
     if (payload.type === "question.asked" && sessionId) {
-      // A new ask for a session is a new question: an earlier answer must not silence it.
-      answeredQuestionSessions.delete(sessionId)
+      // Only a session-keyed ask (one the runtime sent without an id) has to clear its session's mark: a new ask
+      // with an id of its own is a different question, and an earlier answer must not silence it.
+      if (typeof payload.properties?.id !== "string" || !payload.properties.id) {
+        answeredQuestions.delete(sessionId)
+      }
       const existingTimer = questionNotificationDebounceTimers.get(sessionId)
       if (existingTimer) {
         clearTimeout(existingTimer)
@@ -469,8 +483,10 @@ let unkeyedPermissionAskSequence = 0
         }
 
         // Checked here as well as in the reply handler: the answer may have arrived while this flush was awaiting
-        // the settings read or the template variables.
-        if (answeredQuestionSessions.has(sessionId)) {
+        // the settings read or the template variables. It is this ask's own key, so a later question in the same
+        // session does not let an answered flush through.
+        const requestKey = questionRequestKey(sessionId, payload.properties?.id)
+        if (requestKey && answeredQuestions.has(requestKey)) {
           return
         }
 

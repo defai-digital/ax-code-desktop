@@ -362,6 +362,50 @@ describe("notification debounce failure handling", () => {
     }
   })
 
+  it("does not announce an answered question when the session asks another one", async () => {
+    // The answered mark was keyed by session and a new ask cleared it, so a question answered while its own flush
+    // was awaiting the template variables was announced anyway as soon as the session asked something else.
+    let releaseTemplates = () => {}
+    const runtime = createRuntime({
+      readSettingsFromDisk: vi.fn(async () => ({
+        nativeNotificationsEnabled: true,
+        notificationMode: "always",
+        notifyOnQuestion: true,
+      })),
+      buildTemplateVariables: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseTemplates = () => resolve({})
+          }),
+      ),
+    })
+
+    vi.useFakeTimers()
+    try {
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.asked",
+        properties: { id: "q_first", sessionID: "ses_q", questions: [{ header: "First", question: "One?" }] },
+      })
+      await vi.advanceTimersByTimeAsync(600)
+
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.replied",
+        properties: { sessionID: "ses_q", requestID: "q_first" },
+      })
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.asked",
+        properties: { id: "q_second", sessionID: "ses_q", questions: [{ header: "Second", question: "Two?" }] },
+      })
+
+      releaseTemplates()
+      await settle()
+
+      expect(runtime.emitted.map((payload) => payload.body)).not.toContain("One?")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("gates a permission ask on the permission toggle, not the question one", async () => {
     // The permission path read `notifyOnQuestion`: turning "Questions" off silenced permission asks, and turning
     // "Permissions" off still announced them. While the window is unfocused the server is the only notifier, so a
