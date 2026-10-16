@@ -29,32 +29,38 @@ function decodeHtmlEntities(value: string): string {
 }
 
 function removeRawTextElementBlocks(value: string, tagName: string): string {
-  const needle = `<${tagName}`
-  const closeNeedle = `</${tagName}`
+  // The block search is case-insensitive without a lowercased copy: `İ` lowercases to two code units, so offsets
+  // found in the folded copy do not line up with the string they are applied to, and the slice left a fragment of
+  // the block in the notes. A regex with `i` indexes the original string.
+  const escapeRegExp = (needle: string) => needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const startPattern = new RegExp(`<${escapeRegExp(tagName)}`, "i")
+  const closePattern = new RegExp(`</${escapeRegExp(tagName)}`, "i")
   let remaining = value
   let output = ""
 
   while (remaining.length > 0) {
-    const lower = remaining.toLowerCase()
-    const start = lower.indexOf(needle)
-    if (start === -1) {
+    const startMatch = startPattern.exec(remaining)
+    if (!startMatch) {
       output += remaining
       break
     }
+    const start = startMatch.index
 
-    const startTagEnd = lower.indexOf(">", start + needle.length)
+    const startTagEnd = remaining.indexOf(">", start + startMatch[0].length)
     if (startTagEnd === -1) {
       output += remaining.slice(0, start)
       break
     }
 
-    const closeStart = lower.indexOf(closeNeedle, startTagEnd + 1)
-    if (closeStart === -1) {
+    const afterStartTag = remaining.slice(startTagEnd + 1)
+    const closeMatch = closePattern.exec(afterStartTag)
+    if (!closeMatch) {
       output += remaining.slice(0, start)
       break
     }
+    const closeStart = startTagEnd + 1 + closeMatch.index
 
-    const closeEnd = lower.indexOf(">", closeStart + closeNeedle.length)
+    const closeEnd = remaining.indexOf(">", closeStart + closeMatch[0].length)
     if (closeEnd === -1) {
       output += remaining.slice(0, start)
       break
@@ -148,6 +154,96 @@ export function normalizeReleaseNotesForMarkdown(body: string): string {
 }
 
 const GITHUB_RELEASES_URL = "https://github.com/defai-digital/ax-code/releases"
+
+export type ChangelogSectionEntry = {
+  version: string
+  dateLabel: string
+  content: string
+}
+
+export type ParsedChangelog =
+  | { kind: "raw"; title: string; content: string }
+  | { kind: "sections"; title: string; sections: ChangelogSectionEntry[] }
+
+const processChangelogMentions = (content: string): string => {
+  // Convert @username to markdown links so they can be styled via css
+  return content.replace(/(^|[^a-zA-Z0-9])@([a-zA-Z0-9-]+)/g, "$1[@$2](https://github.com/$2)")
+}
+
+const compareSemverDesc = (a: string, b: string): number => {
+  const pa = a.split(".").map((v) => Number.parseInt(v, 10))
+  const pb = b.split(".").map((v) => Number.parseInt(v, 10))
+  for (let i = 0; i < 3; i += 1) {
+    const da = Number.isFinite(pa[i]) ? (pa[i] as number) : 0
+    const db = Number.isFinite(pb[i]) ? (pb[i] as number) : 0
+    if (da !== db) {
+      return db - da
+    }
+  }
+  return 0
+}
+
+/** The body of a `## [x.y.z] - date` section, with its heading removed. */
+const stripChangelogHeading = (sectionRaw: string): string =>
+  sectionRaw.replace(/^## \[[^\]]+\] - \d{4}-\d{2}-\d{2}\s*\n?/, "").trim()
+
+const parseChangelogSections = (body: string) => {
+  const re = /^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})\s*$/gm
+  const matches: Array<{ version: string; date: string; start: number }> = []
+
+  let m: RegExpExecArray | null
+  while ((m = re.exec(body)) !== null) {
+    matches.push({ version: m[1] ?? "", date: m[2] ?? "", start: m.index })
+  }
+
+  if (matches.length === 0) {
+    return []
+  }
+
+  return matches.map((match, idx) => {
+    const end = matches[idx + 1]?.start ?? body.length
+    const raw = body.slice(match.start, end).trim()
+    return { version: match.version, date: match.date, start: match.start, end, raw }
+  })
+}
+
+/**
+ * The release notes split into the versions they describe, or the whole body when it carries no version headings.
+ *
+ * A section whose heading is all it has renders empty: the earlier fallback to the whole body printed every
+ * version's notes under the empty one, and every heading this parse accepts is one the strip removes, so the
+ * fallback could only ever fire for a section that really is empty.
+ */
+export function parseChangelog(body: string, title: string): ParsedChangelog {
+  const sections = parseChangelogSections(body)
+
+  if (sections.length === 0) {
+    return { kind: "raw", title, content: processChangelogMentions(body) }
+  }
+
+  const sorted = [...sections].sort((a, b) => compareSemverDesc(a.version, b.version))
+  return {
+    kind: "sections",
+    title,
+    sections: sorted.map((section) => ({
+      version: section.version,
+      dateLabel: formatIsoDateForUI(section.date),
+      content: processChangelogMentions(stripChangelogHeading(section.raw)),
+    })),
+  }
+}
+
+function formatIsoDateForUI(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00`)
+  if (Number.isNaN(d.getTime())) {
+    return isoDate
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(d)
+}
 
 export function buildUpdateReleaseUrl(version: string | undefined): string {
   const trimmedVersion = version?.trim()

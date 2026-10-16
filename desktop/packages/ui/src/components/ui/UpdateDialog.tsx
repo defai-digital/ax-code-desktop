@@ -6,7 +6,12 @@ import { Icon } from "@/components/icon/Icon"
 import type { UpdateInfo, UpdateProgress } from "@/lib/desktop"
 import { openExternalUrl } from "@/lib/url"
 import { useI18n } from "@/lib/i18n"
-import { buildUpdateReleaseUrl, normalizeReleaseNotesForMarkdown } from "./updateReleaseNotes"
+import {
+  buildUpdateReleaseUrl,
+  normalizeReleaseNotesForMarkdown,
+  parseChangelog,
+  type ParsedChangelog,
+} from "./updateReleaseNotes"
 
 interface UpdateDialogProps {
   open: boolean
@@ -18,84 +23,6 @@ interface UpdateDialogProps {
   error: string | null
   onDownload: () => void
   onRestart: () => void
-}
-
-type ChangelogSection = {
-  version: string
-  date: string
-  start: number
-  end: number
-  raw: string
-}
-
-type ParsedChangelog =
-  | {
-      kind: "raw"
-      title: string
-      content: string
-    }
-  | {
-      kind: "sections"
-      title: string
-      sections: Array<{ version: string; dateLabel: string; content: string }>
-    }
-
-function formatIsoDateForUI(isoDate: string): string {
-  const d = new Date(`${isoDate}T00:00:00`)
-  if (Number.isNaN(d.getTime())) {
-    return isoDate
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(d)
-}
-
-function stripChangelogHeading(sectionRaw: string): string {
-  return sectionRaw.replace(/^## \[[^\]]+\] - \d{4}-\d{2}-\d{2}\s*\n?/, "").trim()
-}
-
-function processChangelogMentions(content: string): string {
-  // Convert @username to markdown links so they can be styled via css
-  return content.replace(/(^|[^a-zA-Z0-9])@([a-zA-Z0-9-]+)/g, "$1[@$2](https://github.com/$2)")
-}
-
-function compareSemverDesc(a: string, b: string): number {
-  const pa = a.split(".").map((v) => Number.parseInt(v, 10))
-  const pb = b.split(".").map((v) => Number.parseInt(v, 10))
-  for (let i = 0; i < 3; i += 1) {
-    const da = Number.isFinite(pa[i]) ? (pa[i] as number) : 0
-    const db = Number.isFinite(pb[i]) ? (pb[i] as number) : 0
-    if (da !== db) {
-      return db - da
-    }
-  }
-  return 0
-}
-
-function parseChangelogSections(body: string): ChangelogSection[] {
-  const re = /^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})\s*$/gm
-  const matches: Array<{ version: string; date: string; start: number }> = []
-
-  let m: RegExpExecArray | null
-  while ((m = re.exec(body)) !== null) {
-    matches.push({
-      version: m[1] ?? "",
-      date: m[2] ?? "",
-      start: m.index,
-    })
-  }
-
-  if (matches.length === 0) {
-    return []
-  }
-
-  return matches.map((match, idx) => {
-    const end = matches[idx + 1]?.start ?? body.length
-    const raw = body.slice(match.start, end).trim()
-    return { version: match.version, date: match.date, start: match.start, end, raw }
-  })
 }
 
 export const UpdateDialog: React.FC<UpdateDialogProps> = ({
@@ -129,26 +56,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
       return null
     }
 
-    const sections = parseChangelogSections(body)
-
-    if (sections.length === 0) {
-      return {
-        kind: "raw",
-        title: t("updateDialog.changelog.title"),
-        content: processChangelogMentions(body),
-      }
-    }
-
-    const sorted = [...sections].sort((a, b) => compareSemverDesc(a.version, b.version))
-    return {
-      kind: "sections",
-      title: t("updateDialog.changelog.title"),
-      sections: sorted.map((section) => ({
-        version: section.version,
-        dateLabel: formatIsoDateForUI(section.date),
-        content: processChangelogMentions(stripChangelogHeading(section.raw) || body),
-      })),
-    }
+    return parseChangelog(body, t("updateDialog.changelog.title"))
   }, [info?.body, t])
 
   return (

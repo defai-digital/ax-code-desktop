@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { buildUpdateReleaseUrl, normalizeReleaseNotesForMarkdown } from "./updateReleaseNotes"
+import { buildUpdateReleaseUrl, normalizeReleaseNotesForMarkdown, parseChangelog } from "./updateReleaseNotes"
 
 describe("normalizeReleaseNotesForMarkdown", () => {
   test("converts HTML release notes to readable markdown text", () => {
@@ -40,6 +40,14 @@ describe("normalizeReleaseNotesForMarkdown", () => {
     expect(normalizeReleaseNotesForMarkdown("<p>Use a < b before closing.</p>")).toBe("Use a < b before closing.")
   })
 
+  test("searches a raw-text block without a folded copy whose offsets can drift", () => {
+    // `İ` lowercases to two code units, so the offsets found in the lowercased copy did not line up with the string
+    // they were sliced from: <script> blocks were only partly removed and the text around them shifted.
+    const result = normalizeReleaseNotesForMarkdown("İ<p>x</p><script>evil()</script>y")
+
+    expect(result).toBe("İx\n\ny")
+  })
+
   test("leaves an out-of-range numeric entity as written instead of throwing", () => {
     // `Number.isFinite` accepted these, and `String.fromCodePoint` threw a RangeError while the update
     // dialog was rendering, so the notes — and the buttons with them — never appeared.
@@ -63,5 +71,25 @@ describe("buildUpdateReleaseUrl", () => {
 
   test("falls back to the release list when no version is available", () => {
     expect(buildUpdateReleaseUrl(undefined)).toBe("https://github.com/defai-digital/ax-code/releases")
+  })
+})
+
+describe("parseChangelog", () => {
+  test("renders an empty version section as empty", () => {
+    // The section content fell back to the whole body when its own text was empty, so a version whose section
+    // carries nothing printed every other version's notes under it.
+    const parsed = parseChangelog("## [1.2.0] - 2026-01-01\n\n## [1.1.0] - 2025-12-01\n- fix A", "Changelog")
+
+    expect(parsed.kind).toBe("sections")
+    if (parsed.kind !== "sections") throw new Error("expected sections")
+    expect(parsed.sections.map((section) => section.version)).toEqual(["1.2.0", "1.1.0"])
+    expect(parsed.sections[0]?.content).toBe("")
+    expect(parsed.sections[1]?.content).toBe("- fix A")
+  })
+
+  test("keeps the whole body when it carries no version headings", () => {
+    const parsed = parseChangelog("Just a note for 1.2.0", "Changelog")
+
+    expect(parsed).toEqual({ kind: "raw", title: "Changelog", content: "Just a note for 1.2.0" })
   })
 })
