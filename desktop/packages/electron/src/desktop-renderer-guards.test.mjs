@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url)
 const {
   attachRendererNavigationGuards,
   createUpdateInstallGate,
+  createUpdateInstaller,
   quotePowerShellLiteral,
   waitForInstallStart,
 } = require("./desktop-renderer-guards.js")
@@ -18,9 +19,7 @@ describe("quotePowerShellLiteral", () => {
   test("stops a directory name from being expanded as a subexpression", () => {
     // In double quotes PowerShell would run this; a literal single-quoted
     // string keeps it as the path text.
-    expect(quotePowerShellLiteral("C:\\work\\$(Start-Process calc.exe)")).toBe(
-      "'C:\\work\\$(Start-Process calc.exe)'",
-    )
+    expect(quotePowerShellLiteral("C:\\work\\$(Start-Process calc.exe)")).toBe("'C:\\work\\$(Start-Process calc.exe)'")
   })
 
   test("doubles embedded single quotes", () => {
@@ -99,6 +98,37 @@ describe("attachRendererNavigationGuards", () => {
 })
 
 describe("waitForInstallStart", () => {
+  test("observes synchronous install signals before starting the installer", async () => {
+    const updater = new EventEmitter()
+    const app = new EventEmitter()
+    const start = vi.fn(() => updater.emit("before-quit-for-update"))
+    const result = waitForInstallStart({ updater, app, start })
+    expect(start).toHaveBeenCalledOnce()
+    await expect(result).resolves.toBe(true)
+    expect(updater.listenerCount("error")).toBe(0)
+    expect(app.listenerCount("before-quit")).toBe(0)
+  })
+
+  test.each(["emit", "throw"])("cleans up when starting the installer fails via %s", async (failure) => {
+    const updater = new EventEmitter()
+    const app = new EventEmitter()
+    const logger = vi.fn()
+    updater.on("error", logger)
+    const result = waitForInstallStart({
+      updater,
+      app,
+      start: () => {
+        const error = new Error("installer unavailable")
+        if (failure === "throw") throw error
+        updater.emit("error", error)
+      },
+    })
+    await expect(result).resolves.toBe(false)
+    expect(updater.listenerCount("before-quit-for-update")).toBe(0)
+    expect(updater.listenerCount("error")).toBe(1)
+    expect(app.listenerCount("before-quit")).toBe(0)
+  })
+
   test("resolves once the install quit starts, and reports a refusal otherwise", async () => {
     vi.useFakeTimers()
     try {
@@ -110,16 +140,92 @@ describe("waitForInstallStart", () => {
       await expect(started).resolves.toBe(true)
 
       // The updater refusing (unsigned build failing native verification, a missing
-      // installer, a spawn failure) quits nothing: by this point the services are
-      // already down, so the caller must be told the install never began.
+      // installer, a spawn failure) quits nothing; services must remain available.
       const refused = waitForInstallStart({ updater, app, timeoutMs: 1_000 })
       await vi.advanceTimersByTimeAsync(1_000)
       await expect(refused).resolves.toBe(false)
 
-      // A quit that begins without the updater's announcement is the same outcome.
-      const quitting = waitForInstallStart({ updater, app, timeoutMs: 1_000 })
+      // An ordinary app quit must not be mistaken for an installer signal.
+      const nativeUpdater = new EventEmitter()
+      const quitting = waitForInstallStart({ updater, nativeUpdater, timeoutMs: 1_000 })
       app.emit("before-quit")
-      await expect(quitting).resolves.toBe(true)
+      await vi.advanceTimersByTimeAsync(1_000)
+      await expect(quitting).resolves.toBe(false)
+
+      // electron-updater emits this on Electron's native updater on all targets.
+      const native = waitForInstallStart({ updater, nativeUpdater, timeoutMs: 1_000 })
+      nativeUpdater.emit("before-quit-for-update")
+      await expect(native).resolves.toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe("createUpdateInstaller", () => {
+  const setup = (quitAndInstall) => {
+    const updater = new EventEmitter()
+    updater.quitAndInstall = vi.fn(() => quitAndInstall(updater, app))
+    const app = new EventEmitter()
+    const stopServices = vi.fn()
+    const { createQuitCoordinator } = require("./quit-coordinator.js")
+    const coordinator = createQuitCoordinator({
+      onStarting: vi.fn(),
+      playEnding: vi.fn(),
+      stopServices,
+      quit: vi.fn(),
+    })
+    app.on("before-quit", (event) => void coordinator.handle(event))
+    const gate = createUpdateInstallGate()
+    gate.onDownloaded({ version: "7.26.1" })
+    const install = createUpdateInstaller({
+      updater,
+      gate,
+      isQuitting: () => coordinator.state !== "idle",
+      timeoutMs: 1_000,
+    })
+    return { updater, app, gate, install, stopServices, coordinator }
+  }
+
+  test("keeps services running when the installer emits an error", async () => {
+    const { install, gate, stopServices, coordinator } = setup((updater) => {
+      updater.emit("error", new Error("installer missing"))
+    })
+    await expect(install()).resolves.toEqual({ installed: false, reason: "install-not-started" })
+    expect(stopServices).not.toHaveBeenCalled()
+    expect(coordinator.state).toBe("idle")
+    expect(gate.canInstall()).toBe(false)
+  })
+
+  test("runs service cleanup through the normal quit coordinator after install starts", async () => {
+    const { install, stopServices, coordinator } = setup((updater, app) => {
+      updater.emit("before-quit-for-update")
+      app.emit("before-quit", { preventDefault: vi.fn() })
+    })
+    await expect(install()).resolves.toEqual({ installed: true, version: "7.26.1" })
+    expect(stopServices).toHaveBeenCalledOnce()
+    expect(coordinator.state).toBe("ready")
+  })
+
+  test("refuses an install while an ordinary quit is already cleaning up", async () => {
+    const { install, updater, app } = setup(() => {})
+    app.emit("before-quit", { preventDefault: vi.fn() })
+    await expect(install()).resolves.toEqual({ installed: false, reason: "app-quitting" })
+    expect(updater.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  test("shares an in-flight install and preserves services on a silent refusal", async () => {
+    vi.useFakeTimers()
+    try {
+      const { install, updater, stopServices } = setup(() => {})
+      const first = install()
+      expect(install()).toBe(first)
+      expect(updater.quitAndInstall).toHaveBeenCalledOnce()
+      await vi.advanceTimersByTimeAsync(1_000)
+      await expect(first).resolves.toEqual({ installed: false, reason: "install-not-started" })
+      expect(stopServices).not.toHaveBeenCalled()
+      await expect(install()).resolves.toEqual({ installed: false, reason: "no-downloaded-update" })
+      expect(updater.quitAndInstall).toHaveBeenCalledOnce()
     } finally {
       vi.useRealTimers()
     }

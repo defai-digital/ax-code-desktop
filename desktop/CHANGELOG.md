@@ -64,6 +64,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Keep Desktop services running when a downloaded update cannot start installing. Installer errors and synchronous failures finish promptly and concurrent install requests share one attempt. Cleanup runs only on an actual quit, and an ordinary quit is no longer treated as proof of an update install.
+- Preserve published message-part snapshots when a mutable PartMap parent is forked and then changed again, including overwrites, deletions and colliding message IDs.
+
 - AX Code Desktop no longer sets `AX_ENGINE_PYTHON` to `~/.ax-engine/venv` on its own, which hid the
   runtime's download environment at `~/.local/share/ax-engine/download-env`. A value you set still
   passes through, and the runtime picks the fallback.

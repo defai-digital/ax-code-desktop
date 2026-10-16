@@ -87,6 +87,10 @@ export class PartMap implements Iterable<PartMapEntry> {
 
   /** A mutable draft sharing every bucket with this map. O(buckets). */
   fork(): PartMap {
+    // The source may itself be a draft. Once its buckets are shared with a
+    // child, both maps must copy before writing, including buckets the source
+    // previously owned. Otherwise a later parent write corrupts the child.
+    this.owned?.fill(0)
     return new PartMap(this.buckets.slice(), this.count, true)
   }
 

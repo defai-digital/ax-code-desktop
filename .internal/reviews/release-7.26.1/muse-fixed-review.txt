@@ -1,0 +1,7 @@
+muse: workspace root: /tmp/ax-desktop-7.26.1-review (explicit)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+Top remaining regression: failure does not cancel the install. In `waitForInstallStart`, any updater `error` during the 30-second window, including an unrelated background check, or the timeout itself, resolves false, removes the listeners, and `createUpdateInstaller` clears the gate, but an already-started `quitAndInstall()` is not cancelled. On macOS, `MacUpdater` staging through `nativeUpdater` can exceed 30 seconds for a large zip, so the renderer receives `install-not-started`, retry is blocked as `no-downloaded-update`, and the app then quits abruptly when staging finishes. A narrower version exists on Windows between installer spawn and the `setImmediate` `before-quit-for-update`.
+
+Second, `installed:true` is now delivered before coordinator cleanup, which has no timeout; a hanging `stopBackgroundServices()` leaves the spawned NSIS or ShipIt installer waiting indefinitely despite the success reply.
+
+Otherwise the stated defects are fixed: services stop only in the held `before-quit`, and success is keyed to `before-quit-for-update`, not any app quit.
