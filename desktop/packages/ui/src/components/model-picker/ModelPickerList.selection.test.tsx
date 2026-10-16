@@ -71,11 +71,11 @@ describe("ModelPickerList selection", () => {
     })
   }
 
-  const pressKey = async (key: string) => {
+  const pressKey = async (key: string, { isComposing = false } = {}) => {
     const input = container.querySelector<HTMLInputElement>('input[type="text"]')
     if (!input) throw new Error("search input not found")
     await act(async () => {
-      input.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }))
+      input.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, isComposing }))
     })
   }
 
@@ -90,6 +90,23 @@ describe("ModelPickerList selection", () => {
 
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect.mock.calls[0][0]).toMatchObject({ modelID: "model-b" })
+  })
+
+  test("ignores the keys an input method is consuming", async () => {
+    // An input method consumes Enter to commit the composition and the arrow keys to move through candidates, and
+    // this handler acted on them: the highlighted model was selected, the highlight moved, the thinking variant
+    // switched, or the picker closed. The app is localized, so its search box is normally used this way.
+    const onSelect = vi.fn()
+    render(onSelect)
+
+    await pressKey("ArrowDown", { isComposing: true })
+    await pressKey("Enter", { isComposing: true })
+
+    expect(onSelect).not.toHaveBeenCalled()
+
+    // The same keys still act once the composition is over.
+    await pressKey("Enter")
+    expect(onSelect).toHaveBeenCalled()
   })
 
   test("keeps the highlight across a re-render when hiddenModels is not passed at all", async () => {

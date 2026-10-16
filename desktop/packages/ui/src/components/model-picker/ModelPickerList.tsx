@@ -12,6 +12,7 @@ import { getNextSelectableModelPickerIndex, normalizeModelPickerSelectionIndex }
 import { getProviderModelDisabledReason } from "@/lib/providerModelAvailability"
 import { isLocalProvider } from "@/lib/ax-code/providerApi"
 import { cn } from "@/lib/utils"
+import { isIMECompositionEvent } from "@/lib/ime"
 import type { ModelMetadata } from "@/types"
 
 export type ModelPickerModel = Record<string, unknown> & { id?: string; name?: string }
@@ -522,6 +523,11 @@ export const ModelPickerList: React.FC<ModelPickerListProps> = ({
   const handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent) => {
       if (event.defaultPrevented) return
+      // An input method consumes Enter (to commit the composition), the arrow keys (to move through candidates) and
+      // Escape: every branch below would act on that key instead — selecting the highlighted model, moving the
+      // highlight, switching the thinking variant, closing the picker. The app is localized, so this is the normal
+      // way its search box is used; `lib/ime` is the shared gate the composer and the question card already use.
+      if (isIMECompositionEvent(event)) return
       event.stopPropagation()
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
         const selected = flatModelList[selectionStore.getSnapshot()]

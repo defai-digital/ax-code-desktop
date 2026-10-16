@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { useDeviceInfo } from "@/lib/device"
 import { useI18n } from "@/lib/i18n"
+import { isIMECompositionEvent } from "@/lib/ime"
 
 interface InlineCommentInputProps {
   initialText?: string
@@ -94,6 +95,10 @@ export function InlineCommentInput({
   }, [isMobile])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // A composition consumes Escape (to dismiss its candidates) and Enter (to commit them): without this, Escape
+    // cancelled the whole inline comment and the text already typed into it was lost. The composer and the question
+    // card gate through the same helper.
+    if (isIMECompositionEvent(e)) return
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault()
       if (text.trim()) {
