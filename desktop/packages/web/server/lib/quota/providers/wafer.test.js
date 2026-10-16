@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest"
+import fsPromises from "fs/promises"
+import os from "os"
+import path from "path"
+import { describe, expect, it, vi } from "vitest"
 import { transformWaferWindows } from "./wafer.js"
 
 describe("Wafer quota transforms", () => {
@@ -62,5 +65,47 @@ describe("Wafer quota transforms", () => {
     expect(transformWaferWindows({})).toBeNull()
     expect(transformWaferWindows({ plan_tier: "pro" })).toBeNull()
     expect(transformWaferWindows(null)).toBeNull()
+  })
+  it("reports a timeout as a timeout instead of the raw abort message", async () => {
+    // `AbortSignal.timeout()` rejects with a DOMException named "TimeoutError", never "AbortError", so the
+    // friendly branch could not fire and the card showed "The operation was aborted due to timeout".
+    const dataDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "wafer-quota-"))
+    const previousDataHome = process.env.XDG_DATA_HOME
+    const previousDataDir = process.env.AX_CODE_DATA_DIR
+    process.env.XDG_DATA_HOME = dataDir
+    delete process.env.AX_CODE_DATA_DIR
+    await fsPromises.mkdir(path.join(dataDir, "ax-code"), { recursive: true })
+    await fsPromises.writeFile(
+      path.join(dataDir, "ax-code", "auth.json"),
+      JSON.stringify({ wafer: { key: "wafer-key" } }),
+      "utf8",
+    )
+    const originalFetch = globalThis.fetch
+    // The provider builds its own `AbortSignal.timeout(15_000)`; waiting it out is not a test, so the signal is
+    // supplied and the mock aborts it exactly as a timeout does — aborted, with a "TimeoutError" reason.
+    const controller = new AbortController()
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockReturnValue(controller.signal)
+    globalThis.fetch = vi.fn(async () => {
+      controller.abort(new DOMException("The operation was aborted due to timeout", "TimeoutError"))
+      throw controller.signal.reason
+    })
+    vi.resetModules()
+
+    try {
+      const { fetchQuota } = await import("./wafer.js")
+      const result = await fetchQuota()
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toBe("Request timed out")
+    } finally {
+      globalThis.fetch = originalFetch
+      timeoutSpy.mockRestore()
+      if (previousDataHome === undefined) delete process.env.XDG_DATA_HOME
+      else process.env.XDG_DATA_HOME = previousDataHome
+      if (previousDataDir === undefined) delete process.env.AX_CODE_DATA_DIR
+      else process.env.AX_CODE_DATA_DIR = previousDataDir
+      vi.resetModules()
+      await fsPromises.rm(dataDir, { recursive: true, force: true })
+    }
   })
 })

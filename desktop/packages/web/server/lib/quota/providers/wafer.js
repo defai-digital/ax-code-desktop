@@ -123,7 +123,14 @@ export const fetchQuota = async () => {
       usage: { windows: transformed.windows },
     })
   } catch (error) {
-    const isTimeout = error instanceof DOMException && error.name === "AbortError" && timeoutSignal.aborted
+    // `AbortSignal.timeout()` aborts with a DOMException named "TimeoutError", never "AbortError" — the
+    // repository handles that pairing in `ui/src/lib/ax-code/client.ts` and `search/crossSessionSearch.ts` for
+    // the same reason. Testing only for "AbortError" made the friendly message dead code and left the raw
+    // exception text ("The operation was aborted due to timeout") on the card.
+    const isTimeout =
+      error instanceof DOMException &&
+      (error.name === "AbortError" || error.name === "TimeoutError") &&
+      timeoutSignal.aborted
     const isParseError = error instanceof SyntaxError
     return buildResult({
       providerId,
