@@ -50,9 +50,13 @@ export function updateStreamingState(state: State) {
   const currentStreamStates = currentStore.messageStreamStates
   const currentPrefillIds = currentStore.prefillSessionIds
 
-  const nextStreamingIds = new Map<string, string | null>()
+  // Seeded, not empty: this state describes one directory, so a session it says nothing about belongs
+  // to another directory's store and keeps whatever it had. Rebuilding from empty dropped those
+  // entries — not completed, just gone — every time the active directory's store ticked, and the
+  // directory the user was watching only got them back on its own next event.
+  const nextStreamingIds = new Map(currentStreamingIds)
   const nextStreamStates = new Map(currentStreamStates)
-  const nextPrefillIds = new Set<string>()
+  const nextPrefillIds = new Set(currentPrefillIds)
   let changed = false
 
   // Fast path: only scan sessions that are actually busy.
@@ -165,6 +169,15 @@ export function updateStreamingState(state: State) {
     if ((statusBySession[sessionID] as SessionStatus).type === "busy") continue
 
     completeStreamingMessage(sessionID, msgId)
+  }
+
+  // A session this state reports as idle cannot be pre-filling either; the seeded entries for other
+  // directories are left alone above, because this state cannot speak for them.
+  for (const [sessionID, status] of Object.entries(statusBySession)) {
+    if ((status as SessionStatus).type === "busy") continue
+    if (nextPrefillIds.delete(sessionID)) {
+      changed = true
+    }
   }
 
   // Prune long-completed entries so messageStreamStates does not grow unbounded

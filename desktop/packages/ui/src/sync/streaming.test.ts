@@ -51,6 +51,25 @@ describe("updateStreamingState", () => {
     expect(useStreamingStore.getState().messageStreamStates.get("msg_assistant_1")?.phase).toBe("completed")
   })
 
+  test("keeps another directory's streaming session when this state ticks", () => {
+    // The state passed in describes one directory. A session it says nothing about belongs to
+    // another directory's store, and rebuilding the map from empty dropped it on every tick of the
+    // active directory — the chat the user was watching lost its streaming indicator until its own
+    // store happened to tick again.
+    updateStreamingState(stateWithMessages([message("msg_user_1", "user"), message("msg_assistant_1", "assistant")]))
+    expect(useStreamingStore.getState().streamingMessageIds.get("ses_1")).toBe("msg_assistant_1")
+
+    const otherDirectory: State = {
+      ...INITIAL_STATE,
+      session_status: { ses_9: { type: "busy" } as SessionStatus },
+      message: { ses_9: [message("msg_user_9", "user"), message("msg_assistant_9", "assistant")] },
+    }
+    updateStreamingState(otherDirectory)
+
+    expect(useStreamingStore.getState().streamingMessageIds.get("ses_1")).toBe("msg_assistant_1")
+    expect(useStreamingStore.getState().streamingMessageIds.get("ses_9")).toBe("msg_assistant_9")
+  })
+
   test("tracks the trailing assistant message once it appears", () => {
     updateStreamingState(stateWithMessages([message("msg_user_1", "user"), message("msg_assistant_1", "assistant")]))
     updateStreamingState(
