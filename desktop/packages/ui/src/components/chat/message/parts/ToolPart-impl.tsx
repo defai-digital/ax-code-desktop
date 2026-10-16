@@ -59,6 +59,7 @@ import {
   buildTaskSessionMessagesSignature,
   buildTaskSummaryEntriesFromSession,
   getTaskSummaryLabel,
+  mergeChildSessionMessages,
   normalizeTaskSummaryEntries,
   parseTaskMetadataBlock,
   readTaskSessionIdFromOutput,
@@ -1403,7 +1404,10 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
             return {
               message: {
                 ...prev.message,
-                [capturedSessionId]: records.map((r) => r.info) as import("@defai-digital/ax-code-sdk/v2").Message[],
+                [capturedSessionId]: mergeChildSessionMessages(
+                  prev.message[capturedSessionId],
+                  records.map((r) => r.info) as import("@defai-digital/ax-code-sdk/v2").Message[],
+                ),
               },
               part: partPatch,
             }
@@ -1550,7 +1554,10 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
           return {
             message: {
               ...prev.message,
-              [taskSessionId]: records.map((r) => r.info) as import("@defai-digital/ax-code-sdk/v2").Message[],
+              [taskSessionId]: mergeChildSessionMessages(
+                prev.message[taskSessionId],
+                records.map((r) => r.info) as import("@defai-digital/ax-code-sdk/v2").Message[],
+              ),
             },
             part: partPatch,
           }
