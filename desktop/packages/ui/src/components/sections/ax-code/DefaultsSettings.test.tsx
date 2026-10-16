@@ -86,6 +86,34 @@ describe("DefaultsSettings default model", () => {
     container.remove()
   })
 
+  test("keeps a saved variant while the provider list is still empty", async () => {
+    // The effect that drops a variant the model no longer supports fired while the provider list was
+    // still loading, where an empty list meant "not known yet": it persisted an empty defaultVariant
+    // that the user could not get back.
+    const { useConfigStore } = await import("@/stores/useConfigStore")
+    const state = useConfigStore.getState() as unknown as { providers: unknown[] }
+    const providers = state.providers
+    state.providers = []
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      ({
+        ok: true,
+        json: async () => ({ defaultModel: "defai/deepseek-flash", defaultVariant: "high" }),
+      }) as unknown as Response) as typeof fetch
+
+    try {
+      await act(async () => {
+        root.render(React.createElement(I18nProvider, null, React.createElement(DefaultsSettings)))
+      })
+      await act(async () => {})
+
+      expect(updateDesktopSettings).not.toHaveBeenCalled()
+    } finally {
+      state.providers = providers
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test("saves the picked model with one settings write", async () => {
     // Regression: the handler also issued its own PUT for the same field, which
     // bypassed the coalescing queue and the settings cache — two unordered writes

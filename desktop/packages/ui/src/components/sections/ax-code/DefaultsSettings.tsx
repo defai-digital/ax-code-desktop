@@ -178,9 +178,15 @@ export const DefaultsSettings: React.FC = () => {
   }, [parsedModel.modelId, parsedModel.providerId, providers])
 
   const supportsVariants = availableVariants.length > 0
+  // A provider that is not in the list yet is not evidence of anything: while the list is still
+  // loading (or its load failed) `availableVariants` is empty for that reason, and clearing the
+  // saved variant here persisted an empty value that nothing could restore.
+  const variantsKnown = Boolean(
+    parsedModel.providerId && parsedModel.modelId && providers.some((provider) => provider.id === parsedModel.providerId),
+  )
 
   React.useEffect(() => {
-    if (!supportsVariants && defaultVariant) {
+    if (variantsKnown && !supportsVariants && defaultVariant) {
       setDefaultVariant(undefined)
       setSettingsDefaultVariant(undefined)
       setCurrentVariant(undefined)
@@ -188,7 +194,7 @@ export const DefaultsSettings: React.FC = () => {
         // best effort
       })
     }
-  }, [defaultVariant, setCurrentVariant, setSettingsDefaultVariant, supportsVariants])
+  }, [defaultVariant, setCurrentVariant, setSettingsDefaultVariant, supportsVariants, variantsKnown])
 
   if (isLoading) {
     return null
