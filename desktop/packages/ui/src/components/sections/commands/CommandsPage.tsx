@@ -77,6 +77,10 @@ export const CommandsPage: React.FC = () => {
   // Which command's config the form holds, so a background reload of `commands` does not re-populate over
   // unsaved edits — the guard the MCP page uses. Saving moves the dirty baseline directly.
   const loadedCommandKeyRef = React.useRef<string | null>(null)
+  // The command the form belongs to, readable after an await: `handleSave` must not write the values it captured at
+  // submit time into a form that has moved to another command since.
+  const selectedCommandNameRef = React.useRef<string | undefined>(selectedCommandName)
+  selectedCommandNameRef.current = selectedCommandName
 
   React.useEffect(() => {
     const populateKey = isNewCommand ? `draft:${commandDraft?.name ?? ""}` : `command:${selectedCommandName ?? ""}`
@@ -196,15 +200,13 @@ export const CommandsPage: React.FC = () => {
         success = await updateCommand(commandName, config)
       }
 
-      if (success && !isNewCommand) {
-        // The list reload after a save no longer re-populates the form (see `loadedCommandKeyRef`), so the
-        // dirty-check baseline moves here or the editor stays "dirty" after every save. The form takes the
-        // trimmed values for the same reason: `isDirty` compares the raw state against this baseline, so the
-        // untrimmed text described above `trimmedAgent`/`trimmedModel`/`trimmedTemplate` left it dirty.
-        setDescription(description.trim())
-        setAgent(trimmedAgent)
-        setModel(trimmedModel)
-        setTemplate(trimmedTemplate)
+      if (success && !isNewCommand && selectedCommandNameRef.current === selectedCommandName) {
+        // The save awaits, and the fields stay live while it does: a value goes back into its field only when that
+        // field still holds what was submitted, so text typed during the save is not replaced by the stale value.
+        setDescription((current) => (current === description ? description.trim() : current))
+        setAgent((current) => (current === agent ? trimmedAgent : current))
+        setModel((current) => (current === model ? trimmedModel : current))
+        setTemplate((current) => (current === template ? trimmedTemplate : current))
         initialStateRef.current = {
           draftName: "",
           draftScope: "user",

@@ -234,6 +234,10 @@ export const AgentsPage: React.FC = () => {
   // creating another one, a config-change event) does not re-populate over unsaved edits — the same guard the
   // MCP page uses. Saving moves the dirty baseline directly, so skipping loses nothing.
   const loadedAgentKeyRef = React.useRef<string | null>(null)
+  // The agent the form belongs to, readable after an await: `handleSave` must not write the values it captured at
+  // submit time into a form that has moved to another agent since.
+  const selectedAgentNameRef = React.useRef<string | undefined>(selectedAgentName)
+  selectedAgentNameRef.current = selectedAgentName
 
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory ?? null)
   const [toolIds, setToolIds] = React.useState<string[]>([])
@@ -647,18 +651,20 @@ export const AgentsPage: React.FC = () => {
         success = await updateAgent(agentName, config)
       }
 
-      if (success && !isNewAgent) {
-        // The list reload after a save no longer re-populates the form (see `loadedAgentKeyRef`), so the
-        // dirty-check baseline has to move here or the editor stays "dirty" forever after saving. The form takes
-        // the trimmed values too, because `isDirty` compares the raw state against this baseline: leaving the
-        // untrimmed text behind kept the editor dirty for the rest of the session.
-        setDescription(description.trim())
-        setModel(model.trim())
-        setPrompt(prompt.trim())
-        // The second baseline the populate effect used to refresh through `applyPermissionState`. Left at the
-        // pre-save rules, every rule the save had just written stayed badged as added or modified, and
-        // `revertRule` put back an action the file no longer holds.
-        const savedPermissionState = applyPermissionState(permissionRules)
+      if (success && !isNewAgent && selectedAgentNameRef.current === selectedAgentName) {
+        // The save awaits, and the fields stay live while it does: a value goes back into its field only when that
+        // field still holds what was submitted, so text typed during the save is not replaced by the stale value.
+        setDescription((current) => (current === description ? description.trim() : current))
+        setModel((current) => (current === model ? model.trim() : current))
+        setPrompt((current) => (current === prompt ? prompt.trim() : current))
+        // The second baseline the populate effect used to refresh through `applyPermissionState`: what the file
+        // holds, so badges and `revertRule` compare against the rules that were saved. The live rules are left
+        // alone — the state setters would put the submitted list back over an edit made during the save.
+        const normalizedRules = normalizeRuleset(permissionRules)
+        const savedGlobal = getGlobalWildcardAction(normalizedRules)
+        const savedRules = filterRulesAgainstGlobal(normalizedRules, savedGlobal)
+        setGlobalPermission((current) => (current === globalPermission ? savedGlobal : current))
+        setPermissionBaseline(savedRules)
         initialStateRef.current = {
           draftName: "",
           draftScope: "user",
@@ -668,8 +674,8 @@ export const AgentsPage: React.FC = () => {
           temperature,
           topP,
           prompt: prompt.trim(),
-          globalPermission: savedPermissionState.global,
-          permissionRules: savedPermissionState.rules,
+          globalPermission: savedGlobal,
+          permissionRules: savedRules,
         }
       }
 

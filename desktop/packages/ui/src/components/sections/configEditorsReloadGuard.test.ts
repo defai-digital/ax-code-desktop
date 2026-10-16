@@ -40,23 +40,29 @@ describe("config editors keep unsaved edits across a list reload", () => {
     // in a newline (or a description with trailing whitespace) left the editor dirty after a successful save —
     // the re-population used to correct it, and it no longer runs for the same key.
     const agents = await readPage("agents/AgentsPage.tsx")
-    expect(agents).toContain(
-      [
-        "        setDescription(description.trim())",
-        "        setModel(model.trim())",
-        "        setPrompt(prompt.trim())",
-      ].join("\n"),
-    )
+    expect(agents).toContain("setDescription((current) => (current === description ? description.trim() : current))")
+    expect(agents).toContain("setModel((current) => (current === model ? model.trim() : current))")
+    expect(agents).toContain("setPrompt((current) => (current === prompt ? prompt.trim() : current))")
 
     const commands = await readPage("commands/CommandsPage.tsx")
-    expect(commands).toContain(
-      [
-        "        setDescription(description.trim())",
-        "        setAgent(trimmedAgent)",
-        "        setModel(trimmedModel)",
-        "        setTemplate(trimmedTemplate)",
-      ].join("\n"),
-    )
+    expect(commands).toContain("setDescription((current) => (current === description ? description.trim() : current))")
+    expect(commands).toContain("setAgent((current) => (current === agent ? trimmedAgent : current))")
+    expect(commands).toContain("setModel((current) => (current === model ? trimmedModel : current))")
+    expect(commands).toContain("setTemplate((current) => (current === template ? trimmedTemplate : current))")
+  })
+
+  test("a save that outlives an edit does not write its captured values into the form", async () => {
+    // The save awaits, and the fields stay live while it does: the values captured at submit time were written back
+    // unconditionally, so text typed during the save — or a switch to another agent mid-save — was replaced by them.
+    // A value only goes back into a field that still holds what was submitted, and only while the form still holds
+    // the agent (command) the save was for.
+    const agents = await readPage("agents/AgentsPage.tsx")
+    expect(agents).toContain("selectedAgentNameRef.current === selectedAgentName")
+    // The live rules are left alone: the setters would put the submitted list back over an edit made meanwhile.
+    expect(agents).not.toContain("const savedPermissionState = applyPermissionState(permissionRules)")
+
+    const commands = await readPage("commands/CommandsPage.tsx")
+    expect(commands).toContain("selectedCommandNameRef.current === selectedCommandName")
   })
 
   test("the agents editor refreshes its permission baseline on save", async () => {
@@ -65,9 +71,9 @@ describe("config editors keep unsaved edits across a list reload", () => {
     // pre-save action.
     const source = await readPage("agents/AgentsPage.tsx")
 
-    const saveIndex = source.indexOf("if (success && !isNewAgent)")
+    const saveIndex = source.indexOf("if (success && !isNewAgent")
     expect(saveIndex).toBeGreaterThan(-1)
-    expect(source.indexOf("applyPermissionState(permissionRules)", saveIndex)).toBeGreaterThan(saveIndex)
+    expect(source.indexOf("setPermissionBaseline(savedRules)", saveIndex)).toBeGreaterThan(saveIndex)
   })
 
   test("the agents editor clears a half-typed permission rule only when it re-populates", async () => {
