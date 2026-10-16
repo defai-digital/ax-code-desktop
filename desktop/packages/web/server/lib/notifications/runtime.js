@@ -35,13 +35,14 @@ export const createNotificationTriggerRuntime = (deps) => {
   const answeredQuestions = new Set()
   // Bounded like the permission dedupe window: a question answered long ago needs no mark.
   const ANSWERED_QUESTIONS_MAX = 500
-  // An ask the runtime sent without an id can only be keyed by its session, which is also how its reply arrives.
+  // Both an ask and its reply carry this id. A reply that arrives without one cannot be attributed to an ask (the
+  // permission path documents the same possibility), so it cancels the session's pending flush instead of leaving a
+  // session-wide mark behind: a mark would silence the *next* question in that session, which is worse than the
+  // stale notification it prevents.
   const questionRequestKey = (sessionId, requestId) =>
-    typeof sessionId !== "string" || !sessionId
-      ? null
-      : typeof requestId === "string" && requestId
-        ? `${sessionId}:${requestId}`
-        : sessionId
+    typeof sessionId === "string" && sessionId && typeof requestId === "string" && requestId
+      ? `${sessionId}:${requestId}`
+      : null
   const rememberAnsweredQuestion = (sessionId, requestId) => {
     const key = questionRequestKey(sessionId, requestId)
     if (!key) return
@@ -420,21 +421,22 @@ let unkeyedPermissionAskSequence = 0
 
     if ((payload.type === "question.replied" || payload.type === "question.rejected") && sessionId) {
       const requestId = payload.properties?.requestID ?? payload.properties?.requestId ?? payload.properties?.id
-      rememberAnsweredQuestion(sessionId, requestId)
-      const pendingNotification = questionNotificationDebounceTimers.get(sessionId)
-      if (pendingNotification) {
-        clearTimeout(pendingNotification)
-        questionNotificationDebounceTimers.delete(sessionId)
+      const requestKey = questionRequestKey(sessionId, requestId)
+      if (requestKey) {
+        rememberAnsweredQuestion(sessionId, requestId)
+      } else {
+        // Unattributable: the pending flush for this session is dropped rather than announced. The mark that would
+        // cover a flush already in flight is deliberately not kept — it could not tell one question from the next.
+        const pendingNotification = questionNotificationDebounceTimers.get(sessionId)
+        if (pendingNotification) {
+          clearTimeout(pendingNotification)
+          questionNotificationDebounceTimers.delete(sessionId)
+        }
       }
       return
     }
 
     if (payload.type === "question.asked" && sessionId) {
-      // Only a session-keyed ask (one the runtime sent without an id) has to clear its session's mark: a new ask
-      // with an id of its own is a different question, and an earlier answer must not silence it.
-      if (typeof payload.properties?.id !== "string" || !payload.properties.id) {
-        answeredQuestions.delete(sessionId)
-      }
       const existingTimer = questionNotificationDebounceTimers.get(sessionId)
       if (existingTimer) {
         clearTimeout(existingTimer)
@@ -485,10 +487,10 @@ let unkeyedPermissionAskSequence = 0
         // Checked here as well as in the reply handler: the answer may have arrived while this flush was awaiting
         // the settings read or the template variables. It is this ask's own key, so a later question in the same
         // session does not let an answered flush through.
-        // This ask's own key, and the session-level key a reply that arrived without an id leaves behind — the
-        // runtime can omit `requestID`, and then the answer cannot be attributed to one ask.
+        // This ask's own key: the reply handler stores the same key, and a reply that carries no id is handled
+        // there by dropping the session's pending flush.
         const requestKey = questionRequestKey(sessionId, payload.properties?.id)
-        if (requestKey && (answeredQuestions.has(requestKey) || answeredQuestions.has(sessionId))) {
+        if (requestKey && answeredQuestions.has(requestKey)) {
           return
         }
 

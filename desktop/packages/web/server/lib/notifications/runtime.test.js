@@ -322,8 +322,8 @@ describe("notification debounce failure handling", () => {
   it("does not announce a question that was answered while its flush was awaiting", async () => {
     // The flush deletes its debounce entry before awaiting the settings read and the template variables, which can
     // run a git command — so a reply landing in that window found nothing to cancel and the "Input needed"
-    // notification still fired, seconds after the user had answered it. The permission path cancels for exactly
-    // this reason; the question path did not.
+    // notification still fired, seconds after the user had answered it. The reply and the ask carry the same id,
+    // which is what the cancellation is keyed by.
     let releaseTemplates = () => {}
     const runtime = createRuntime({
       readSettingsFromDisk: vi.fn(async () => ({
@@ -343,14 +343,14 @@ describe("notification debounce failure handling", () => {
     try {
       await runtime.runtime.maybeDispatchNotificationForTrigger({
         type: "question.asked",
-        properties: { sessionID: "ses_q", questions: [{ header: "Plan Mode", question: "Continue?" }] },
+        properties: { id: "q_1", sessionID: "ses_q", questions: [{ header: "Plan Mode", question: "Continue?" }] },
       })
       // The flush is in flight, suspended inside the template variables.
       await vi.advanceTimersByTimeAsync(600)
 
       await runtime.runtime.maybeDispatchNotificationForTrigger({
         type: "question.replied",
-        properties: { sessionID: "ses_q" },
+        properties: { sessionID: "ses_q", requestID: "q_1" },
       })
 
       releaseTemplates()
@@ -406,22 +406,16 @@ describe("notification debounce failure handling", () => {
     }
   })
 
-  it("does not announce an ask whose session answered without a request id", async () => {
-    // The runtime can omit `requestID` on a reply, and then the answer cannot be attributed to one ask: the mark
-    // that reply leaves is the session's, and the flush has to consult it as well as its own key.
-    let releaseTemplates = () => {}
+  it("drops a pending ask whose reply carried no request id", async () => {
+    // The runtime can omit `requestID` on a reply, and then the answer cannot be attributed to one ask: the pending
+    // flush is dropped instead, and no session-wide mark is kept (one would silence the *next* question in the
+    // session, which is worse than the stale notification it prevents).
     const runtime = createRuntime({
       readSettingsFromDisk: vi.fn(async () => ({
         nativeNotificationsEnabled: true,
         notificationMode: "always",
         notifyOnQuestion: true,
       })),
-      buildTemplateVariables: vi.fn(
-        () =>
-          new Promise((resolve) => {
-            releaseTemplates = () => resolve({})
-          }),
-      ),
     })
 
     vi.useFakeTimers()
@@ -430,17 +424,24 @@ describe("notification debounce failure handling", () => {
         type: "question.asked",
         properties: { id: "q_1", sessionID: "ses_q", questions: [{ header: "Input", question: "Answered?" }] },
       })
-      await vi.advanceTimersByTimeAsync(600)
-
       await runtime.runtime.maybeDispatchNotificationForTrigger({
         type: "question.replied",
         properties: { sessionID: "ses_q" },
       })
-
-      releaseTemplates()
+      await vi.advanceTimersByTimeAsync(600)
       await settle()
 
       expect(runtime.emitted).toEqual([])
+
+      // The next question in that session is announced: an unattributable answer is not a session-wide silence.
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.asked",
+        properties: { id: "q_2", sessionID: "ses_q", questions: [{ header: "Input", question: "Next?" }] },
+      })
+      await vi.advanceTimersByTimeAsync(600)
+      await settle()
+
+      expect(runtime.emitted.map((payload) => payload.body)).toEqual(["Next?"])
     } finally {
       vi.useRealTimers()
     }
