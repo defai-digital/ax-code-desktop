@@ -269,6 +269,9 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
             const fallbackPayload = (await fallback.json().catch(() => null)) as SkillsCatalogResponse | null
             const fallbackItems = fallbackPayload?.itemsBySource?.[sourceId]
             if (fallback.ok && fallbackPayload?.ok && Array.isArray(fallbackItems)) {
+              if (!isCurrentRequest()) {
+                return false
+              }
               set((state) => ({
                 itemsBySource: { ...state.itemsBySource, [sourceId]: fallbackItems },
                 pageInfoBySource: { ...state.pageInfoBySource, [sourceId]: { nextCursor: null } },
@@ -289,6 +292,12 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
 
           const items = payload?.items || []
           const nextCursor = payload?.nextCursor ?? null
+
+          // Latest call wins for the page too, not only for the error and the loading flag: two
+          // overlapping loads for one source let the older answer land last and replace it.
+          if (!isCurrentRequest()) {
+            return false
+          }
 
           set((state) => ({
             itemsBySource: { ...state.itemsBySource, [sourceId]: items },

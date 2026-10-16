@@ -30,8 +30,12 @@ type FetchCall = {
   init?: RequestInit
 }
 
+// A queued entry is either the response or a promise of one, so a test can let an older request
+// answer after a newer one.
+type QueuedFetchResponse = Response | (() => Promise<Response>)
+
 const fetchCalls: FetchCall[] = []
-let queuedResponses: Response[] = []
+let queuedResponses: QueuedFetchResponse[] = []
 
 const jsonResponse = (body: unknown, init?: ResponseInit): Response =>
   new Response(JSON.stringify(body), {
@@ -41,10 +45,14 @@ const jsonResponse = (body: unknown, init?: ResponseInit): Response =>
 
 const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   fetchCalls.push({ input, init })
-  return queuedResponses.shift() ?? jsonResponse({ ok: true, items: [], nextCursor: null })
+  const queued = queuedResponses.shift()
+  if (typeof queued === "function") {
+    return queued()
+  }
+  return queued ?? jsonResponse({ ok: true, items: [], nextCursor: null })
 })
 
-const queueFetchResponses = (responses: Response[]) => {
+const queueFetchResponses = (responses: QueuedFetchResponse[]) => {
   queuedResponses = [...responses]
 }
 
@@ -141,6 +149,28 @@ describe("useSkillsCatalogStore", () => {
     expect(useSkillsCatalogStore.getState().itemsBySource.clawdhub).toHaveLength(1)
     expect(useSkillsCatalogStore.getState().pageInfoBySource.clawdhub).toEqual({ nextCursor: "cursor-3" })
     expect(useSkillsCatalogStore.getState().clawdhubHasMoreBySource.clawdhub).toBe(true)
+  })
+
+  test("keeps the newest page when an older load for the same source answers last", async () => {
+    // The sequence guarded the loading flag and the error, not the page: two overlapping loads for
+    // one source let the older answer replace the newer one.
+    let releaseOlder: (() => void) | undefined
+    queueFetchResponses([
+      () =>
+        new Promise<Response>((resolve) => {
+          releaseOlder = () => resolve(jsonResponse({ ok: true, items: [{ skillName: "old" }], nextCursor: null }))
+        }),
+      jsonResponse({ ok: true, items: [{ skillName: "new" }], nextCursor: null }),
+    ])
+
+    const older = useSkillsCatalogStore.getState().loadSource("source-a")
+    const newer = useSkillsCatalogStore.getState().loadSource("source-a")
+    await newer
+
+    releaseOlder?.()
+    await older
+
+    expect(useSkillsCatalogStore.getState().itemsBySource["source-a"]?.map((item) => item.skillName)).toEqual(["new"])
   })
 
   test("a forced refresh is not evicted by an older in-flight catalog load", async () => {
