@@ -147,13 +147,28 @@ export const createSessionRuntime = ({ writeSseEvent, getNotificationClients, br
     }
   }
 
+  // The fields a status event can carry besides its type. A repeated event repeats all of them; a retry that
+  // reports a new attempt, message or next time does not.
+  const sameStatusMetadata = (left, right) => {
+    const previous = left ?? {}
+    const next = right ?? {}
+    return previous.attempt === next.attempt && previous.message === next.message && previous.next === next.next
+  }
+
   const updateSessionState = (sessionId, status, eventId, metadata = {}) => {
     if (!sessionId || typeof sessionId !== "string") return
 
     const now = Date.now()
     const existing = sessionStates.get(sessionId)
     const existingAttentionState = sessionAttentionStates.get(sessionId)
-    if (existing && existing.lastUpdateAt > now - 5000 && status === existing.status) {
+    // The window dedupes a repeated event, not a changed one: comparing the type alone dropped a retry's
+    // second attempt — its message and next time went with it — and the UI kept showing the first attempt's.
+    if (
+      existing &&
+      existing.lastUpdateAt > now - 5000 &&
+      status === existing.status &&
+      sameStatusMetadata(existing.metadata, metadata)
+    ) {
       return
     }
 

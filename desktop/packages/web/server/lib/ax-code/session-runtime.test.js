@@ -37,6 +37,54 @@ describe("session runtime restart", () => {
   })
 })
 
+describe("session runtime retry metadata", () => {
+  it("keeps the newest attempt of a retry that repeats inside the dedupe window", async () => {
+    // The five-second window deduped on the status type alone, so a retry reporting a new attempt, message
+    // and next time inside it was dropped: no state was written and nothing was broadcast, and the UI went on
+    // showing the first attempt's numbers.
+    vi.useFakeTimers()
+    try {
+      const runtime = createSessionRuntime({
+        writeSseEvent() {},
+        getNotificationClients: () => new Set(),
+        broadcastEvent() {},
+      })
+
+      runtime.processAxCodeSsePayload({
+        type: "session.status",
+        properties: {
+          sessionID: "ses_retry",
+          status: { type: "retry", attempt: 1, message: "rate limited", next: 1_000 },
+        },
+      })
+      await vi.advanceTimersByTimeAsync(1_000)
+      runtime.processAxCodeSsePayload({
+        type: "session.status",
+        properties: {
+          sessionID: "ses_retry",
+          status: { type: "retry", attempt: 2, message: "rate limited", next: 2_000 },
+        },
+      })
+
+      expect(runtime.getSessionState("ses_retry").metadata.attempt).toBe(2)
+
+      // A repeated event with nothing new is still deduped: the state keeps its own timestamp.
+      const settledAt = runtime.getSessionState("ses_retry").lastUpdateAt
+      await vi.advanceTimersByTimeAsync(500)
+      runtime.processAxCodeSsePayload({
+        type: "session.status",
+        properties: {
+          sessionID: "ses_retry",
+          status: { type: "retry", attempt: 2, message: "rate limited", next: 2_000 },
+        },
+      })
+      expect(runtime.getSessionState("ses_retry").lastUpdateAt).toBe(settledAt)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe("session runtime activity cleanup", () => {
   it("does not forget a session that is still busy when the age-based cleanup runs", async () => {
     // `updatedAt` only moves when the phase changes, so a session that stays busy for a
