@@ -3421,6 +3421,7 @@
   "chat.queuedMessage.send": "senden",
   "chat.queuedMessage.sendFailed": "Nachricht aus der Warteschlange konnte nicht gesendet werden",
   "chat.queuedMessage.removeAria": "Aus der Warteschlange entfernen",
+  "chat.queuedMessage.full": "The queue is full ({count} messages) — send or remove one first",
   "chat.container.returnToParent.aria": "Zur \u00fcbergeordneten Sitzung zur\u00fcck",
   "chat.container.returnToParent.titleNamed": "Zur\u00fcck zu: {title}",
   "chat.container.returnToParent.title": "Zur \u00fcbergeordneten Sitzung zur\u00fcck",

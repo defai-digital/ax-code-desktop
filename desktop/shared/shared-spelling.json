@@ -8,6 +8,7 @@
     "chat.modelControls.modeValue.none",
     "chat.modelControls.topP",
     "chat.modelControls.webFetch",
+    "chat.queuedMessage.full",
     "desktop.native.ok",
     "desktopHostSwitcher.field.urlPlaceholder",
     "directoryExplorerDialog.shortcut.enter",

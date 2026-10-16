@@ -3415,6 +3415,7 @@
   "chat.queuedMessage.send": "enviar",
   "chat.queuedMessage.sendFailed": "Falha ao enviar a mensagem da fila",
   "chat.queuedMessage.removeAria": "Remover da fila",
+  "chat.queuedMessage.full": "The queue is full ({count} messages) — send or remove one first",
   "chat.container.returnToParent.aria": "Voltar \u00e0 sess\u00e3o pai",
   "chat.container.returnToParent.titleNamed": "Voltar para: {title}",
   "chat.container.returnToParent.title": "Voltar \u00e0 sess\u00e3o pai",

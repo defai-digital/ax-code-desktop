@@ -3421,6 +3421,7 @@
   "chat.queuedMessage.send": "g\u00f6nder",
   "chat.queuedMessage.sendFailed": "S\u0131radaki mesaj g\u00f6nderilemedi",
   "chat.queuedMessage.removeAria": "Kuyruktan kald\u0131r",
+  "chat.queuedMessage.full": "The queue is full ({count} messages) — send or remove one first",
   "chat.container.returnToParent.aria": "\u00dcst oturuma d\u00f6n",
   "chat.container.returnToParent.titleNamed": "\u015euraya d\u00f6n: {title}",
   "chat.container.returnToParent.title": "\u00dcst oturuma d\u00f6n",

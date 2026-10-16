@@ -3415,6 +3415,7 @@
   "chat.queuedMessage.send": "kirim",
   "chat.queuedMessage.sendFailed": "Gagal mengirim pesan dalam antrean",
   "chat.queuedMessage.removeAria": "Hapus dari antrean",
+  "chat.queuedMessage.full": "The queue is full ({count} messages) — send or remove one first",
   "chat.container.returnToParent.aria": "Kembali ke sesi induk",
   "chat.container.returnToParent.titleNamed": "Kembali ke: {title}",
   "chat.container.returnToParent.title": "Kembali ke sesi induk",

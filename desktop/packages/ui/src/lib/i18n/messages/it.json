@@ -3421,6 +3421,7 @@
   "chat.queuedMessage.send": "invia",
   "chat.queuedMessage.sendFailed": "Impossibile inviare il messaggio in coda",
   "chat.queuedMessage.removeAria": "Rimuovi dalla coda",
+  "chat.queuedMessage.full": "The queue is full ({count} messages) — send or remove one first",
   "chat.container.returnToParent.aria": "Torna alla sessione padre",
   "chat.container.returnToParent.titleNamed": "Torna a: {title}",
   "chat.container.returnToParent.title": "Torna alla sessione padre",

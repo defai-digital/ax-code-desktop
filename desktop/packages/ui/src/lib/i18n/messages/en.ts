@@ -1820,6 +1820,7 @@ export const dict = {
   "chat.queuedMessage.held": "held — agent errored",
   "chat.queuedMessage.edit": "edit",
   "chat.queuedMessage.send": "send",
+  "chat.queuedMessage.full": "The queue is full ({count} messages) — send or remove one first",
   "chat.queuedMessage.sendFailed": "Failed to send queued message",
   "chat.queuedMessage.removeAria": "Remove from queue",
   "chat.container.returnToParent.aria": "Return to parent session",

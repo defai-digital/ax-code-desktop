@@ -3415,6 +3415,7 @@
   "chat.queuedMessage.send": "envoyer",
   "chat.queuedMessage.sendFailed": "\u00c9chec de l'envoi du message en file d'attente",
   "chat.queuedMessage.removeAria": "Retirer de la file",
+  "chat.queuedMessage.full": "The queue is full ({count} messages) — send or remove one first",
   "chat.container.returnToParent.aria": "Retourner \u00e0 la session parente",
   "chat.container.returnToParent.titleNamed": "Retour \u00e0\u00a0: {title}",
   "chat.container.returnToParent.title": "Retourner \u00e0 la session parente",

@@ -3415,6 +3415,7 @@
   "chat.queuedMessage.send": "enviar",
   "chat.queuedMessage.sendFailed": "No se pudo enviar el mensaje en cola",
   "chat.queuedMessage.removeAria": "Eliminar de la cola",
+  "chat.queuedMessage.full": "The queue is full ({count} messages) — send or remove one first",
   "chat.container.returnToParent.aria": "Volver a la sesi\u00f3n padre",
   "chat.container.returnToParent.titleNamed": "Volver a: {title}",
   "chat.container.returnToParent.title": "Volver a la sesi\u00f3n padre",

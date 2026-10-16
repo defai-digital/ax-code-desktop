@@ -3,7 +3,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
 import { useUIStore } from "@/stores/useUIStore"
-import { useMessageQueueStore, type QueuedMessage } from "@/stores/messageQueueStore"
+import {
+  MESSAGE_QUEUE_MAX_PER_SESSION,
+  useMessageQueueStore,
+  type QueuedMessage,
+} from "@/stores/messageQueueStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { getNextUserMessageAfter, getRevertedUserMessages } from "@/sync/revert-order"
 import { useSelectionStore } from "@/sync/selection-store"
@@ -1428,6 +1432,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     // go back too - nothing else can restore them.
     if (!queued) {
       restoreConsumedDrafts(drafts)
+      // A full queue refuses the entry: say why, or Enter looks like it did nothing.
+      toast.error(t("chat.queuedMessage.full", { count: MESSAGE_QUEUE_MAX_PER_SESSION }))
       return
     }
 
@@ -1458,6 +1464,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     currentAgentName,
     currentVariant,
     inputMode,
+    t,
   ])
 
   const handleQueuedMessageEdit = React.useCallback((content: string) => {
