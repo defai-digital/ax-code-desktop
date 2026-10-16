@@ -56,6 +56,17 @@ export const findLatestStepTokenUsage = (parts: readonly unknown[]): AssistantTo
     if (!tokens || typeof tokens.input !== "number" || typeof tokens.output !== "number") {
       return null
     }
+
+    // All zeros is a placeholder for a step whose provider reported no usage, not a measurement:
+    // taking it as the answer dropped the context meter to nothing for the rest of the turn. Look
+    // for the newest step that has numbers and let the caller fall back to the message totals when
+    // none does.
+    const stepTotal =
+      tokens.input + tokens.output + (tokens.reasoning ?? 0) + (tokens.cache?.read ?? 0) + (tokens.cache?.write ?? 0)
+    if (!Number.isFinite(stepTotal) || stepTotal <= 0) {
+      continue
+    }
+
     return {
       input: tokens.input,
       output: tokens.output,

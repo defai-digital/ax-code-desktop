@@ -1,19 +1,30 @@
 import type { InlineCommentDraft } from "@/stores/useInlineCommentDraftStore"
 
 /**
+ * A fence longer than any backtick run in the code, so a snippet that itself contains a fence does
+ * not close the block early: the selected code then swallows the comment as code, and the model
+ * cannot tell the annotation from what it annotates.
+ */
+function fenceFor(code: string): string {
+  const runs = [...code.matchAll(/`{3,}/g)].map((match) => match[0].length)
+  return "`".repeat(Math.max(3, ...runs.map((run) => run + 1), 3))
+}
+
+/**
  * Format a single inline comment draft into the standard message format
  * used by diff, plan, and file viewers
  */
 function formatInlineCommentDraft(draft: InlineCommentDraft): string {
   const { fileLabel, startLine, endLine, side, language, code, text } = draft
+  const fence = fenceFor(code)
 
   // Diff format includes side (original/modified)
   if (draft.source === "diff" && side) {
-    return `Comment on \`${fileLabel}\` lines ${startLine}-${endLine} (${side}):\n\`\`\`${language}\n${code}\n\`\`\`\n\n${text}`
+    return `Comment on \`${fileLabel}\` lines ${startLine}-${endLine} (${side}):\n${fence}${language}\n${code}\n${fence}\n\n${text}`
   }
 
   if (draft.source === "preview-console") {
-    return `Attached preview context from \`${fileLabel}\`:\n\`\`\`${language}\n${code}\n\`\`\`\n\n${text}`
+    return `Attached preview context from \`${fileLabel}\`:\n${fence}${language}\n${code}\n${fence}\n\n${text}`
   }
 
   if (draft.source === "preview-annotation") {
@@ -21,7 +32,7 @@ function formatInlineCommentDraft(draft: InlineCommentDraft): string {
   }
 
   // Plan and file format (no side)
-  return `Comment on \`${fileLabel}\` lines ${startLine}-${endLine}:\n\`\`\`${language}\n${code}\n\`\`\`\n\n${text}`
+  return `Comment on \`${fileLabel}\` lines ${startLine}-${endLine}:\n${fence}${language}\n${code}\n${fence}\n\n${text}`
 }
 
 /**

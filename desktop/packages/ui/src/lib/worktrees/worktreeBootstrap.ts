@@ -10,6 +10,13 @@ const POLL_INTERVAL_MS = 250
 const state = new Map<string, WorktreeBootstrapState>()
 const waiters = new Map<string, Promise<void>>()
 
+// One generation per directory, bumped when its state is cleared. A poll that was already running
+// for the cleared directory belongs to the old generation and must not write: it re-created the
+// state the caller had just cleared, where a stale "ready" let a worktree re-created at the same
+// path pass its own wait before its setup commands had run, and a stale "failed" poisoned every
+// later wait for that path.
+const pollRuns = new Map<string, number>()
+
 const getKey = (directory: string): string => normalizeWorktreePath(directory)
 
 const getGitWorktreeBootstrapStatus = async (directory: string): Promise<GitWorktreeBootstrapStatus> => {
@@ -42,6 +49,7 @@ export const clearWorktreeBootstrapState = (directory: string): void => {
   }
   state.delete(key)
   waiters.delete(key)
+  pollRuns.set(key, (pollRuns.get(key) ?? 0) + 1)
 }
 
 const setWorktreeBootstrapState = (directory: string, next: WorktreeBootstrapState): void => {
@@ -56,10 +64,17 @@ const setWorktreeBootstrapState = (directory: string, next: WorktreeBootstrapSta
 }
 const pollWorktreeBootstrapUntilSettled = async (directory: string, timeoutMs: number): Promise<void> => {
   const startedAt = Date.now()
+  const key = getKey(directory)
+  const run = pollRuns.get(key) ?? 0
+  const isCurrentRun = () => (pollRuns.get(key) ?? 0) === run
 
   while (Date.now() - startedAt < timeoutMs) {
     const result = await getGitWorktreeBootstrapStatus(directory)
-    setWorktreeBootstrapState(directory, result)
+    // The wait still ends on the runtime's answer — that is what its caller is waiting for — but a
+    // retired run leaves the state alone.
+    if (isCurrentRun()) {
+      setWorktreeBootstrapState(directory, result)
+    }
 
     if (result.status === "ready") {
       return
@@ -95,7 +110,11 @@ export const waitForWorktreeBootstrap = async (directory: string, timeoutMs = DE
   }
 
   const pending = pollWorktreeBootstrapUntilSettled(directory, timeoutMs).finally(() => {
-    waiters.delete(key)
+    // Only its own entry: a wait that was cleared and replaced must not drop the new one, or the
+    // next caller would poll the same directory a second time.
+    if (waiters.get(key) === pending) {
+      waiters.delete(key)
+    }
   })
   waiters.set(key, pending)
   return pending

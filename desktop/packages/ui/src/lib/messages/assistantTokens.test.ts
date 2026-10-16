@@ -42,3 +42,22 @@ describe("findLatestStepTokenUsage", () => {
     expect(findLatestStepTokenUsage([{ type: "step-finish" }])).toBeNull()
   })
 })
+
+describe("findLatestStepTokenUsage and placeholder usage", () => {
+  const stepFinish = (tokens: Record<string, unknown>) => ({ type: "step-finish", tokens })
+
+  test("skips a step-finish that reports no usage", () => {
+    // A provider that reports nothing leaves zeros, which are not a measurement: the meter dropped
+    // to nothing for the rest of the turn instead of using the step that did report.
+    const parts = [
+      stepFinish({ input: 12_000, output: 40, reasoning: 0, cache: { read: 0, write: 0 } }),
+      stepFinish({ input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }),
+    ]
+
+    expect(findLatestStepTokenUsage(parts)?.input).toBe(12_000)
+  })
+
+  test("answers null when no step reported usage", () => {
+    expect(findLatestStepTokenUsage([stepFinish({ input: 0, output: 0 })])).toBeNull()
+  })
+})

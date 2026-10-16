@@ -110,6 +110,46 @@ describe("removeProjectWorktree", () => {
 describe("listProjectWorktrees", () => {
   beforeEach(() => {
     listWorktreesMock.mockClear()
+    useSessionUIStore.setState({
+      worktreeMetadata: new Map(),
+      availableWorktrees: [],
+      availableWorktreesByProject: new Map(),
+    })
+    useSessionWorktreeStore.setState({ attachments: new Map() })
+  })
+
+  test("does not cache a listing a removal invalidated while it was in flight", async () => {
+    // The listing that was already on its way answered with the worktree still in it and was
+    // cached anyway: the removed worktree came back in the sidebar for its whole TTL.
+    // A path of its own: the listing cache is module state that outlives a test.
+    const project = {
+      path: "/repo-inflight",
+      name: "repo-inflight",
+    } as unknown as Parameters<typeof listProjectWorktrees>[0]
+    const staleWorktree = {
+      path: "/repo-inflight/.worktrees/feature",
+      branch: "feature",
+      worktreeRoot: "/repo-inflight/.worktrees/feature",
+      projectDirectory: "/repo-inflight",
+    } as unknown as WorktreeMetadata
+
+    let resolveStale: (value: Array<{ path: string; branch: string }>) => void = () => {}
+    listWorktreesMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveStale = resolve
+      }),
+    )
+
+    const pending = listProjectWorktrees(project)
+    await removeProjectWorktree(project, staleWorktree, {})
+    resolveStale([{ path: staleWorktree.path, branch: "refs/heads/feature" }])
+    await pending
+
+    listWorktreesMock.mockResolvedValueOnce([])
+    const next = await listProjectWorktrees(project)
+
+    expect(listWorktreesMock).toHaveBeenCalledTimes(2)
+    expect(next.map((worktree) => worktree.path)).toEqual([])
   })
 
   test("does not list the enclosing repository root as a worktree of a subdirectory project", async () => {

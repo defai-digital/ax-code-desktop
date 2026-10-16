@@ -145,6 +145,18 @@ const _worktreeListCache = new Map<string, { value: WorktreeMetadata[]; at: numb
 const _worktreeListInflight = new Map<string, Promise<WorktreeMetadata[]>>()
 const WORKTREE_LIST_CACHE_TTL = 30_000 // 30 seconds
 
+// Bumped when a create or removal makes a listing in flight obsolete. Without it the answer that
+// was already on its way was written into the cache anyway, so the new worktree stayed missing from
+// the list — a removal brought the removed one back — for the whole TTL.
+const _worktreeListEpoch = new Map<string, number>()
+
+const invalidateWorktreeList = (projectDirectory: string): void => {
+  _worktreeListCache.delete(projectDirectory)
+  _worktreeListEpoch.set(projectDirectory, (_worktreeListEpoch.get(projectDirectory) ?? 0) + 1)
+  // A caller arriving now must not be handed the obsolete answer the dedup map still holds.
+  _worktreeListInflight.delete(projectDirectory)
+}
+
 // The TTL is only checked on read; purge on write so the cache holds the projects
 // listed inside the TTL instead of every project ever listed.
 export const pruneExpiredWorktreeListEntries = (
@@ -170,6 +182,8 @@ export async function listProjectWorktrees(project: ProjectRef): Promise<Worktre
   // Dedup in-flight requests
   const inflight = _worktreeListInflight.get(projectDirectory)
   if (inflight) return inflight
+
+  const epoch = _worktreeListEpoch.get(projectDirectory) ?? 0
 
   const promise = (async (): Promise<WorktreeMetadata[]> => {
     const metadataProjectDirectory = await resolveProjectRoot(projectDirectory).catch(() => projectDirectory)
@@ -218,12 +232,18 @@ export async function listProjectWorktrees(project: ProjectRef): Promise<Worktre
       return aLabel.localeCompare(bLabel)
     })
 
-    const now = Date.now()
-    pruneExpiredWorktreeListEntries(_worktreeListCache, now)
-    _worktreeListCache.set(projectDirectory, { value: sorted, at: now })
+    // Only cache what is still current: a create or removal that happened while this request was in
+    // flight bumped the epoch, and its answer describes a topology that no longer exists.
+    if ((_worktreeListEpoch.get(projectDirectory) ?? 0) === epoch) {
+      const now = Date.now()
+      pruneExpiredWorktreeListEntries(_worktreeListCache, now)
+      _worktreeListCache.set(projectDirectory, { value: sorted, at: now })
+    }
     return sorted
   })().finally(() => {
-    _worktreeListInflight.delete(projectDirectory)
+    if (_worktreeListInflight.get(projectDirectory) === promise) {
+      _worktreeListInflight.delete(projectDirectory)
+    }
   })
 
   _worktreeListInflight.set(projectDirectory, promise)
@@ -274,7 +294,7 @@ export async function createWorktree(project: ProjectRef, args: CreateWorktreeAr
 
   markWorktreeBootstrapPending(metadata.path)
 
-  _worktreeListCache.delete(projectDirectory)
+  invalidateWorktreeList(projectDirectory)
   // The new worktree changes the repo's worktree topology; drop cached root
   // resolutions so root-branch lookups re-resolve against the new layout.
   invalidateResolvedProjectRootCache()
@@ -326,7 +346,7 @@ export async function removeProjectWorktree(
 
   clearWorktreeBootstrapState(worktree.path)
 
-  _worktreeListCache.delete(normalizeWorktreePath(project.path))
+  invalidateWorktreeList(normalizeWorktreePath(project.path))
   // Removing a worktree changes the repo's worktree topology; drop cached root
   // resolutions so root-branch lookups re-resolve against the new layout.
   invalidateResolvedProjectRootCache()

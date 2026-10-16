@@ -1114,7 +1114,13 @@ const rejectSettingsWaiters = (waiters: typeof _pendingSettingsWaiters, error: u
   for (const waiter of waiters) waiter.reject(normalized)
 }
 
+// Numbers the flushes so an answer that a later flush has already superseded is not applied: two
+// overlapping saves let the older response win the local store, the cache and the UI preferences
+// while the server held the newer value.
+let _settingsFlushSequence = 0
+
 const _flushSettingsUpdate = async (): Promise<void> => {
+  const sequence = ++_settingsFlushSequence
   const changes = _pendingSettingsChanges
   const waiters = _pendingSettingsWaiters
   _pendingSettingsChanges = null
@@ -1134,13 +1140,18 @@ const _flushSettingsUpdate = async (): Promise<void> => {
           // The response predates any change queued while the request was in
           // flight; overlay the still-pending values so they are not rolled back.
           const effective = { ...updated, ...(_pendingSettingsChanges ?? {}) }
-          persistToLocalStorage(effective)
-          applyDesktopUiPreferences(effective)
-          dispatchSettingsSynced(effective)
-          // Keep the read cache coherent with the just-saved value (the fetch(PUT)
-          // branch below clears it). Otherwise a re-fetch within the cache TTL serves
-          // the pre-save snapshot and reverts the store to the old value.
-          _settingsCache = { value: effective, at: Date.now() }
+          // A flush that a later one superseded has nothing to say: what it carries is older than
+          // what that one saved, and applying it here — after the newer answer landed — put the old
+          // value back in the store, the cache and the interface.
+          if (sequence === _settingsFlushSequence) {
+            persistToLocalStorage(effective)
+            applyDesktopUiPreferences(effective)
+            dispatchSettingsSynced(effective)
+            // Keep the read cache coherent with the just-saved value (the fetch(PUT)
+            // branch below clears it). Otherwise a re-fetch within the cache TTL serves
+            // the pre-save snapshot and reverts the store to the old value.
+            _settingsCache = { value: effective, at: Date.now() }
+          }
         }
         resolveSettingsWaiters(waiters)
         return
@@ -1167,11 +1178,13 @@ const _flushSettingsUpdate = async (): Promise<void> => {
       // Same in-flight guard as the runtime path above: keep values that changed
       // locally while this request was out.
       const effective = { ...updated, ...(_pendingSettingsChanges ?? {}) }
-      persistToLocalStorage(effective)
-      applyDesktopUiPreferences(effective)
-      dispatchSettingsSynced(effective)
-      // Invalidate GET cache so next read sees the fresh data
-      _settingsCache = null
+      if (sequence === _settingsFlushSequence) {
+        persistToLocalStorage(effective)
+        applyDesktopUiPreferences(effective)
+        dispatchSettingsSynced(effective)
+        // Invalidate GET cache so next read sees the fresh data
+        _settingsCache = null
+      }
     }
     resolveSettingsWaiters(waiters)
   } catch (error) {

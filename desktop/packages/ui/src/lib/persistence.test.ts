@@ -161,6 +161,62 @@ describe("settings save response application", () => {
   })
 })
 
+describe("overlapping settings flushes", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.resetModules()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    vi.doUnmock("@/contexts/runtimeAPIRegistry")
+  })
+
+  test("does not let an earlier save's answer revert a later one", async () => {
+    // Two saves overlap — the debounce starts a second flush while the first is still out — and the
+    // older answer landing last put the value it carried back into the store, the cache and the
+    // interface while the server held the newer one.
+    const saves: Array<{ resolve: (value: unknown) => void }> = []
+    const save = vi.fn(
+      () =>
+        new Promise<unknown>((resolve) => {
+          saves.push({ resolve })
+        }),
+    )
+
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => ({
+        settings: {
+          load: vi.fn(),
+          save,
+        },
+      }),
+    }))
+
+    const { updateDesktopSettings } = await import("./persistence")
+
+    const synced: unknown[] = []
+    window.addEventListener("openchamber:settings-synced", (event) => {
+      synced.push((event as CustomEvent).detail)
+    })
+
+    const first = updateDesktopSettings({ fontSize: 110 })
+    await vi.advanceTimersByTimeAsync(200)
+    const second = updateDesktopSettings({ fontSize: 120 })
+    await vi.advanceTimersByTimeAsync(200)
+    expect(save).toHaveBeenCalledTimes(2)
+
+    saves[1]?.resolve({ fontSize: 120, showReasoningTraces: true })
+    await second
+    saves[0]?.resolve({ fontSize: 110, showReasoningTraces: true })
+    await first
+
+    const applied = synced.at(-1) as Record<string, unknown>
+    expect(applied.fontSize).toBe(120)
+  })
+})
+
 describe("persistToLocalStorage via save response", () => {
   beforeEach(() => {
     vi.useFakeTimers()
