@@ -57,6 +57,14 @@ function resolveTimeoutMs(value, fallback) {
  */
 export const DEFAULT_UPSTREAM_RECONNECT_MAX_DELAY_MS = 5000
 
+/**
+ * A reconnect counts as proof that the runtime is healthy — and clears the backoff — only once the connection
+ * has lasted this long. Clearing it when the response headers arrived let a runtime that answers `200` and
+ * closes the body right away (a crash loop, or a proxy dropping idle connections) be retried at the base delay
+ * forever, which is the storm the backoff above exists to prevent.
+ */
+export const MIN_UPSTREAM_HEALTHY_UPTIME_MS = DEFAULT_UPSTREAM_RECONNECT_MAX_DELAY_MS
+
 export const resolveReconnectDelay = (baseDelayMs, attempt) => {
   const base = Number.isFinite(baseDelayMs) ? Math.max(0, baseDelayMs) : 0
   if (base === 0) {
@@ -158,6 +166,7 @@ export function createUpstreamSseReader({
     stopped = false
     running = (async () => {
       let reconnectAttempt = 0
+      let connectedAt = 0
       while (!stopped && !signal?.aborted) {
         const controller = new AbortController()
         activeController = controller
@@ -211,6 +220,8 @@ export function createUpstreamSseReader({
             headers["Last-Event-ID"] = lastEventId
           }
 
+          // Cleared per attempt: a fetch that throws must not be judged by the uptime of an earlier connection.
+          connectedAt = 0
           const response = await fetchImpl(url.toString(), {
             headers,
             signal: controller.signal,
@@ -228,8 +239,7 @@ export function createUpstreamSseReader({
             continue
           }
 
-          // The runtime answered: the next failure starts the backoff over.
-          reconnectAttempt = 0
+          connectedAt = Date.now()
 
           if (typeof isReadyEvent !== "function") {
             attemptConnected = true
@@ -362,6 +372,11 @@ export function createUpstreamSseReader({
         }
 
         if (!stopped && !signal?.aborted) {
+          // Only a connection that stayed up clears the backoff: an immediate `200` that ends at once is not
+          // evidence that the next attempt will fare better.
+          if (connectedAt > 0 && Date.now() - connectedAt >= MIN_UPSTREAM_HEALTHY_UPTIME_MS) {
+            reconnectAttempt = 0
+          }
           reconnectAttempt += 1
           await waitForReconnectDelay(resolveReconnectDelay(reconnectDelayMs, reconnectAttempt), signal)
         }

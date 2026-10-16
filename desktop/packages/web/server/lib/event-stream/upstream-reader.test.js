@@ -1,4 +1,4 @@
-import { describe, expect, it, test } from "vitest"
+import { describe, expect, it, test, vi } from "vitest"
 
 import { createSseResponse } from "./test-helpers.js"
 import { createUpstreamSseReader, resolveReconnectDelay } from "./upstream-reader.js"
@@ -446,6 +446,44 @@ describe("createUpstreamSseReader", () => {
     ])
     expect(unavailableBodyCanceled).toBe(true)
     expect(attempt).toBe(2)
+  })
+
+  it("backs off when the runtime answers and ends the stream immediately", async () => {
+    // The attempt counter was cleared as soon as the response headers arrived, so a runtime that answers 200 and
+    // closes the body right away — a crash loop, or a proxy dropping idle connections — was retried at the base
+    // delay for as long as it stayed that way: the storm the backoff exists to prevent.
+    vi.useFakeTimers()
+    try {
+      let fetchCount = 0
+      const reader = createUpstreamSseReader({
+        buildUrl: () => "http://127.0.0.1:4096/global/event",
+        reconnectDelayMs: 100,
+        stallTimeoutMs: 60_000,
+        fetchImpl: async () => {
+          fetchCount += 1
+          return new Response('data: {"type":"server.connected"}\n\n', { status: 200 })
+        },
+        onEvent: () => {},
+      })
+
+      const started = reader.start()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(fetchCount).toBe(1)
+
+      // 100 + 200 + 400 ms of backoff between the four fetches: the fourth is still 1 ms away at 699.
+      await vi.advanceTimersByTimeAsync(699)
+      expect(fetchCount).toBe(3)
+
+      await vi.advanceTimersByTimeAsync(1)
+      expect(fetchCount).toBe(4)
+
+      // `stop()` ends the loop only once the pending delay resolves, which fake timers advance by hand.
+      reader.stop()
+      await vi.advanceTimersByTimeAsync(1000)
+      await started
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("removes abort listeners after stop", async () => {
