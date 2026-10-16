@@ -813,9 +813,9 @@ reviewer linked:
 - `sections/providers/ProvidersPage.tsx:125` (the remaining settings lead).
 - `hooks/**` — one remaining: a skipped manual cleanup reported as "no sessions are eligible".
 - `components/{supervision,multirun}` — four confirmed and one suspected.
-- `stores/**` — `useDirectoryStore.setDirectory` runs side effects inside Zustand's updater
-  (medium), a snippets cache key that races the in-flight directory (low), and a provider-cache
-  invalidation epoch question (suspected). The reviewer's other leads about the
+- `stores/**` — a snippets cache key that races the in-flight directory (low), and a provider-cache
+  invalidation epoch question (suspected). `useDirectoryStore.setDirectory`'s side effects inside the
+  updater were moved out with the rest of the store (`99093e86`). The reviewer's other leads about the
   `xxxLoadSequence === requestId` guard in `useMcpConfigStore`, `useSkillsStore` and `useAgentsStore`
   were examined and left alone: the guard is deliberately "only the newest request may write", and a
   response for an older directory must not replace the list the active directory is showing.
