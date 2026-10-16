@@ -11,6 +11,7 @@ import {
   rankNeedsYouEntries,
   listNeedsYouSessions,
   orderSwitcherSessionIds,
+  propagateAttentionToAncestors,
   selectNeedsYouSession,
   type NeedsYouSessionInput,
 } from "./needsYou"
@@ -92,5 +93,30 @@ describe("needs-you queue", () => {
       entry("e", "permission"),
     ])
     expect(ranked.map((item) => item.sessionId)).toEqual(["c", "e", "b", "a", "d"])
+  })
+
+  test("marks every ancestor of a blocked subagent, whatever order the sessions are in", () => {
+    // A single ordered pass promoted a parent only when its child was already marked as
+    // the loop reached it, so the top session lost its attention mark whenever the session
+    // in the middle came before the grandchild.
+    const ids = propagateAttentionToAncestors(new Set(["grandchild"]), [
+      { id: "middle", parentID: "top" },
+      { id: "grandchild", parentID: "middle" },
+      { id: "top", parentID: null },
+      { id: "unrelated", parentID: "top" },
+    ])
+
+    expect([...ids].sort()).toEqual(["grandchild", "middle", "top"])
+  })
+
+  test("walks a deep chain and ignores a missing parent", () => {
+    const ids = propagateAttentionToAncestors(new Set(["d"]), [
+      { id: "a" },
+      { id: "b", parentID: "a" },
+      { id: "c", parentID: "b" },
+      { id: "d", parentID: "c" },
+    ])
+
+    expect([...ids].sort()).toEqual(["a", "b", "c", "d"])
   })
 })

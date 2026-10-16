@@ -116,3 +116,33 @@ export function orderSwitcherSessionIds(ids: readonly string[], needsAttention: 
 export function sessionNeedsSwitcherAttention(session: NeedsYouSessionInput): boolean {
   return needsYouReason(session) !== null
 }
+
+/**
+ * Expand an attention set to every ancestor of a session it marks.
+ *
+ * A subagent's session is often the one that needs a person, and the switcher marks the
+ * whole chain that leads to it. One ordered pass over the sessions only promoted a parent
+ * whose child had already been marked when the loop reached it, so a grandparent was
+ * missed whenever the session in the middle came earlier in the list.
+ */
+export function propagateAttentionToAncestors(
+  attentionIds: ReadonlySet<string>,
+  sessions: readonly { id: string; parentID?: string | null }[],
+): Set<string> {
+  const ids = new Set(attentionIds)
+  const parentById = new Map<string, string>()
+  for (const session of sessions) {
+    const parentId = session.parentID
+    if (typeof parentId === "string" && parentId.length > 0) {
+      parentById.set(session.id, parentId)
+    }
+  }
+  for (const sessionId of ids) {
+    let parentId = parentById.get(sessionId)
+    while (parentId && !ids.has(parentId)) {
+      ids.add(parentId)
+      parentId = parentById.get(parentId)
+    }
+  }
+  return ids
+}

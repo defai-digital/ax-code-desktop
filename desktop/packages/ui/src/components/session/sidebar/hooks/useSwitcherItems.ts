@@ -6,7 +6,7 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSessionPinnedStore } from "@/stores/useSessionPinnedStore"
 import { useGitAllBranches } from "@/stores/useGitStore"
 import type { SessionNode, SessionSecondaryMeta } from "../types"
-import { orderSwitcherSessionIds, sessionNeedsSwitcherAttention } from "@/lib/needsYou"
+import { orderSwitcherSessionIds, propagateAttentionToAncestors, sessionNeedsSwitcherAttention } from "@/lib/needsYou"
 import { useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
 import { compareSessionsByPinnedAndTime, isPathWithinProject } from "../utils"
 
@@ -46,15 +46,11 @@ export const useSwitcherItems = (enabled: boolean, options: SwitcherItemsOptions
   const branchesByDirectory = useGitAllBranches()
   const needsYouInputs = useNeedsYouSessionInputs()
   const attentionIds = React.useMemo(() => {
-    const ids = new Set<string>()
+    const marked = new Set<string>()
     for (const session of needsYouInputs) {
-      if (sessionNeedsSwitcherAttention(session)) ids.add(session.id)
+      if (sessionNeedsSwitcherAttention(session)) marked.add(session.id)
     }
-    for (const session of activeSessions) {
-      const parentId = (session as Session & { parentID?: string | null }).parentID
-      if (parentId && ids.has(session.id)) ids.add(parentId)
-    }
-    return ids
+    return propagateAttentionToAncestors(marked, activeSessions)
   }, [activeSessions, needsYouInputs])
 
   const normalizedProjects = React.useMemo(
