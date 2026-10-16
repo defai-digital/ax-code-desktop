@@ -1289,6 +1289,56 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Fifteenth round
+
+A fifteenth round: an auditor over every fix the fourteenth round made, a reviewer over
+`ui/src/lib/preview` (the largest file in `ui/src/lib`, and the only one no round had read), and two over
+`server/lib/ax-code` — one for the runtime/bootstrap/core-route modules, one for the plugin and
+session-runtime modules (that one was killed by its own timeout with no report and is being re-run with
+the Claude CLI).
+
+### Fixed from the audit of the fourteenth round's fixes
+
+- **`b6bff10f`** — five findings, all in this series' own work: the blocking-request stamp defaulted a
+  session with no store entry to `0` while the stamp lives in module state and outlives the store, so such
+  a session read as "changed during the request" and its pending question was dropped (the module now
+  exposes a floor captured when the request goes out); `withRouteDefaults` filled the chat tab into
+  `/?file=src/a.ts`, killing the documented diff deep link; refusing an unparseable magic-prompts file also
+  blocked `resetAllOverrides`, the one operation whose purpose is to replace it; unkeyed permission asks got
+  distinct pending keys but kept one shared notification tag, so the sink still replaced the earlier one;
+  and bounding a long config file name left the legacy file behind, where every directory-enumerating reader
+  takes it for a second project.
+
+### Fixed from the preview review
+
+- **`fe7a3bee`** — three findings: both `instanceof HTMLElement` checks are false for nodes built by another
+  document (an iframe's, or snapDOM's clone document), which is every node they run on, so the nested-scroll
+  bake never recognised snapDOM's wrapper (applying its transform a second time) and
+  `document.scrollingElement` was never read; a failed proxied asset fetch left its registered target in the
+  cache, so everything after a server restart was a blank placeholder until it expired; and a failure inside
+  `inlineIframeCaptureAssets` meant the caller never received the closure that undoes its work, leaving the
+  live iframe with data-URL sources and frozen fixed elements.
+
+### Fixed from the ax-code review
+
+- **`5643d632`** — four findings: the `/api` session gate and the rate limiters were mounted after the body
+  parsers, and the status and system routes before the limiters, so an unauthenticated request had its body
+  buffered (50 MB) before the 401 (a malformed one answered the parser's 400) and
+  `GET /api/system/free-port`, which binds a listener per call, was never throttled; the urlencoded parser
+  had no path predicate while the JSON dispatcher sends the raw `/api/session/*` proxy path to `next()` on
+  purpose, so a form-encoded request to it arrived with the stream consumed and the proxy forwarded an empty
+  body; and `--ui-password` with no value became the empty string — this server's "no UI password" sentinel —
+  turning authentication off and overwriting a password seeded from the environment.
+
+### Suspected leads from this round, verified and not changed
+
+- **`POST /api/system/dev-shutdown` kills whatever listens on a caller-supplied loopback port**
+  (`core-routes.js:316-345` with `killListenPort`): the caller (the app's own dev UI) sends the preview URLs,
+  but nothing ties a named port to a preview server, so the runtime's own port could be named. The route
+  already requires the dev flag, a same-origin request and an authenticated UI session, and the correct fix —
+  kill only the ports the preview proxy registered — needs that runtime's private target registry, which the
+  status routes are not given; wiring it through is a design change rather than a bug fix. Recorded.
+
 ## Fourteenth round
 
 A fourteenth round: fresh reviewers over `ui/src/lib/{i18n,search,router,settings,tray,webmcp,wiki,preview}`,
@@ -2181,9 +2231,9 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
-- Latest full run, after the fourteenth round's fixes (each command's exit status captured, not inferred
+- Latest full run, after the fifteenth round's fixes (each command's exit status captured, not inferred
   from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
-  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 772, web 1 163
+  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 775, web 1 168
   (+2 skipped). The lint run's only output is a pre-existing `react-hooks/exhaustive-deps` warning in
   `ui/src/sync/use-sync.ts`.
 - Two runs during that round failed one test each, both of the load-related kind below and both green in
