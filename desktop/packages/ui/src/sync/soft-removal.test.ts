@@ -359,6 +359,34 @@ describe("soft-removal S4.5 contract", () => {
     ])
   })
 
+  test("keeps a removal the user made while the recovery was in flight", async () => {
+    // The recovery ends by writing its own leftovers over the whole slot, so a soft-delete made while
+    // its requests were in flight vanished from quit recovery: a crash inside that undo window left the
+    // session alive again on the next launch.
+    let releaseRecovery: (value: unknown) => void = () => {}
+    const inFlight = new Promise((resolve) => {
+      releaseRecovery = resolve
+    })
+    const sdkDelete = vi.fn(() => inFlight.then(() => ({})))
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({
+      session: { delete: sdkDelete, update: vi.fn(async () => ({})) },
+    } as never)
+
+    window.localStorage.setItem(
+      pendingKey("window-a"),
+      JSON.stringify([{ id: "ses_recovered", kind: "delete", directory: null }]),
+    )
+
+    const recovery = recoverPendingRemovals()
+    await Promise.resolve()
+    softDeleteSession(makeSession("ses_new"))
+    releaseRecovery({})
+    await recovery
+
+    const entries = storedSlots().flatMap((key) => JSON.parse(window.localStorage.getItem(key) as string))
+    expect(entries.map((entry: { id: string }) => entry.id)).toContain("ses_new")
+  })
+
   test("drops a removal the runtime reports as already gone", async () => {
     const sdkDelete = vi.fn(async () => ({ error: { message: "Session not found" } }))
     vi.mocked(axCodeClient.getSdkClient).mockReturnValue({

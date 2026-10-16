@@ -425,5 +425,12 @@ export async function recoverPendingRemovals(): Promise<void> {
       }
     }),
   )
-  writeOwnSlot(failed)
+  // Kept entries plus the leftovers, written the way every other write in this window is: the recovery
+  // used to write its own failures over the whole slot (or remove the key when it had none), which
+  // dropped a removal the user made while its requests were in flight — the next launch no longer
+  // committed that session.
+  for (const entry of failed) {
+    keptForRecovery.set(entry.id, entry)
+  }
+  persistPending()
 }
