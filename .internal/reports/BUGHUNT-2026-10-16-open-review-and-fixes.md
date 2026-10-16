@@ -1392,6 +1392,20 @@ MiniMax-M3) and two auditors over the tenth round's commits. Fixed from it:
   removal had failed. Entries kept for recovery are module state every write carries now, cleared when
   the removal is confirmed or undone.
 
+- **`7eee96a7`** — both preview panes rebuilt the iframe `src` from a resolved proxy base path plus the
+  current URL's path and query. That state outlives a URL change by one commit (the effect that resolves
+  the new target runs after the commit), so navigating between origins rendered
+  `previousBase + newPath?query` — a request carrying the new URL's path and query string (tokens
+  included) went through the *previous* origin's proxy, and a load started against the wrong server. The
+  state carries the key it was resolved for and is only used for that key.
+- **`eb848c6e`** — the project dialog's Save button is disabled during an icon upload or removal, but the
+  name field's Enter key calls the handler directly: a second press uploaded the icon twice and ran the
+  removal, `onSave` and the close handler again.
+- **`86c383d2`** — the sidebar tree's Refresh cleared the loaded-directory set and the children cache and
+  reloaded only the root; the effect that loads expanded directories keys on the expanded set and the root,
+  and a refresh changes neither, so every expanded folder kept its row and rendered empty until it was
+  collapsed and expanded again.
+
 ### Reported as confirmed, verified and rejected
 
 - **"DiffWorkerProvider caches a failed pool creation as a success"** (`contexts/DiffWorkerProvider.tsx:91-103`).
