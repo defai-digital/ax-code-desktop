@@ -32,6 +32,7 @@ import { selectIsConnected, useConnectionStore } from "@/lib/event-stream/connec
 import { registerSessionDirectory } from "./sync-refs"
 import { isSyntheticPart } from "@/lib/messages/synthetic"
 import { materializeSessionSnapshots } from "./materialization"
+import { serverSessionStatusCount } from "./session-status-events"
 import { stripMessageDiffSnapshots } from "./sanitize"
 import { sessionEvents } from "@/lib/sessionEvents"
 import { normalizeProjectPath } from "@/lib/projectResolution"
@@ -936,6 +937,8 @@ export async function optimisticSend(input: {
     },
   })
   markPromptAccepted(input.sessionId)
+  // The reducer counts every server status event, including one it dedupes because the value matches.
+  const statusEventsBeforeSend = serverSessionStatusCount(input.sessionId)
 
   try {
     await waitForConnectionOrThrow()
@@ -955,7 +958,11 @@ export async function optimisticSend(input: {
     // before its response failed leaves the server's own busy in the store, and rolling that back
     // showed a live turn as idle until the turn ended.
     const currentStatus = s.session_status[input.sessionId]
-    if (currentStatus === optimisticBusy) {
+    // Two ways the server can have taken over this status while the POST was in flight: it wrote a
+    // different value (the store no longer holds this object) or it published an equal `busy` that the
+    // reducer deduped away (the store still holds it — the usual case). Rolling either back shows a live
+    // turn as idle.
+    if (currentStatus === optimisticBusy && serverSessionStatusCount(input.sessionId) === statusEventsBeforeSend) {
       const restored = { ...s.session_status }
       if (previousStatus === undefined) {
         delete restored[input.sessionId]

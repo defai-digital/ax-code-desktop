@@ -1232,6 +1232,48 @@ describe("optimisticSend responsiveness", () => {
     expect(store.getState().session_status["session-a"]).toEqual({ type: "busy" })
   })
 
+  test("keeps a server busy the reducer deduped while the send was in flight", async () => {
+    // The reducer drops an equal `session.status {busy}`, so the store still holds the object this call
+    // wrote — identity alone says nothing, and rolling back showed the running turn as idle. The event
+    // count is what distinguishes "nothing was published" from "the turn started".
+    const store = createStore({})
+    const childStores = createChildStores([["/test/project", store]])
+
+    const { setActionRefs, setOptimisticRefs, optimisticSend } = await import("./session-actions")
+    const { noteServerSessionStatus } = await import("./session-status-events")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    setOptimisticRefs(
+      ({ sessionID, message, parts }) => {
+        store.setState((state) => ({
+          message: { ...state.message, [sessionID]: [...(state.message[sessionID] ?? []), message] },
+          part: state.part.withEntries([[message.id, parts]]),
+        }))
+      },
+      ({ sessionID, messageID }) => {
+        store.setState((state) => ({
+          message: { ...state.message, [sessionID]: (state.message[sessionID] ?? []).filter((m) => m.id !== messageID) },
+          part: state.part.without([messageID]),
+        }))
+      },
+    )
+
+    await expect(
+      optimisticSend({
+        sessionId: "session-a",
+        content: "hello",
+        providerID: "provider",
+        modelID: "model",
+        send: async () => {
+          // What the reducer does for the server's own busy: counted, deduped, no store write.
+          noteServerSessionStatus("session-a")
+          throw new Error("network")
+        },
+      }),
+    ).rejects.toThrow("network")
+
+    expect(store.getState().session_status["session-a"]).toEqual({ type: "busy" })
+  })
+
   test("keeps a server-published busy when the send response fails", async () => {
     // `optimisticSend` writes `{type:"busy"}` before the POST, and its failure path rolled that back
     // whenever the status merely *was* busy. A POST that reached the runtime and started the turn

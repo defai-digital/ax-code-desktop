@@ -8,6 +8,7 @@ import type {
   Session,
   SessionStatus,
 } from "@defai-digital/ax-code-sdk/v2/client"
+import { serverSessionStatusCount } from "../session-status-events"
 import { applyDirectoryEvent, reduceGlobalEvent } from "../event-reducer"
 import { INITIAL_STATE, type State } from "../types"
 import { PartMap } from "../part-map"
@@ -217,6 +218,25 @@ describe("applyDirectoryEvent", () => {
     expect(result).toBe(true)
     expect(draft.message.ses_1[0]).not.toBe(initial)
     expect((draft.message.ses_1[0] as Extract<Message, { role: "assistant" }>).finish).toBe("stop")
+  })
+
+  test("counts a session.status event that does not change the stored status", () => {
+    // The reducer dedupes an equal status without writing, so the store keeps the object a caller wrote.
+    // Callers that need to know "the server published a status" (optimisticSend's failure path) read the
+    // count instead, which is why it is noted before the dedupe.
+    const draft = state()
+    const status = { type: "busy" as const }
+    draft.session_status = { ses_counted: status }
+    const before = serverSessionStatusCount("ses_counted")
+
+    applyDirectoryEvent(draft, {
+      type: "session.status",
+      properties: { sessionID: "ses_counted", status: { type: "busy" } },
+    } as Event)
+
+    expect(serverSessionStatusCount("ses_counted")).toBe(before + 1)
+    // The stored object is untouched: the dedupe still holds.
+    expect(draft.session_status.ses_counted).toBe(status)
   })
 
   test("replaces an optimistic part the server echo did not land in front of", () => {

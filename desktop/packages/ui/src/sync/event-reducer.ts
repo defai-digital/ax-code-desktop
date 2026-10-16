@@ -9,6 +9,7 @@ import type {
   SessionStatus,
   Todo,
 } from "@defai-digital/ax-code-sdk/v2/client"
+import { noteServerSessionStatus } from "./session-status-events"
 import { Binary } from "./binary"
 import type { FileDiff, GlobalState, State } from "./types"
 import { dropSessionCaches, getProtectedSessionCacheIds } from "./session-cache"
@@ -576,6 +577,9 @@ export function applyDirectoryEvent(
 
     case "session.status": {
       const props = event.properties as { sessionID: string; status: SessionStatus }
+      // Counted before the equality dedupe below: the event is the server's answer even when the value
+      // matches, and callers that need to know "the server published a status" cannot see it in the store.
+      noteServerSessionStatus(props.sessionID)
       if (areSessionStatusesEqual(draft.session_status[props.sessionID], props.status)) {
         return false
       }
