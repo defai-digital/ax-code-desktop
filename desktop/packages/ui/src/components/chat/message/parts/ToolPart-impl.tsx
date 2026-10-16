@@ -29,6 +29,7 @@ import { formatInputForDisplay, tryParseJsonOutput } from "../toolRenderers"
 import { JsonTreeViewer } from "@/components/ui/JsonTreeViewer"
 import { Icon } from "@/components/icon/Icon"
 import { DiffViewToggle } from "../DiffViewToggle"
+import { useDefaultDiffViewMode } from "../useDefaultDiffViewMode"
 import type { DiffViewMode } from "../types"
 import { MinDurationShineText } from "./MinDurationShineText"
 import { ToolRevealOnMount } from "./ToolRevealOnMount"
@@ -615,7 +616,8 @@ interface ToolExpandedContentProps {
 const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(
   ({ part, state, syntaxTheme, currentDirectory, onShowPopup }) => {
     const { t } = useI18n()
-    const [diffViewMode, setDiffViewMode] = React.useState<DiffViewMode>("unified")
+    const defaultDiffViewMode = useDefaultDiffViewMode()
+    const [diffViewMode, setDiffViewMode] = React.useState<DiffViewMode>(defaultDiffViewMode)
     const stateWithData = state as ToolStateWithMetadata
     const metadata = stateWithData.metadata
     const input = stateWithData.input
@@ -675,8 +677,8 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(
     }, [hasInputText, input?.filePath, input?.file_path, input?.path, inputTextContent, isWriteLikeTool])
 
     React.useEffect(() => {
-      setDiffViewMode("unified")
-    }, [part.id])
+      setDiffViewMode(defaultDiffViewMode)
+    }, [defaultDiffViewMode, part.id])
 
     const renderScrollableBlock = (
       content: React.ReactNode,
