@@ -14,6 +14,9 @@ const gitLibraries = {
   deleteBranch: vi.fn(),
   renameBranch: vi.fn(),
   createWorktree: vi.fn(),
+  stashApply: vi.fn(),
+  stashPop: vi.fn(),
+  stashDrop: vi.fn(),
 }
 
 vi.doMock("./index.js", () => ({
@@ -26,6 +29,9 @@ vi.doMock("./index.js", () => ({
   deleteBranch: gitLibraries.deleteBranch,
   renameBranch: gitLibraries.renameBranch,
   createWorktree: gitLibraries.createWorktree,
+  stashApply: gitLibraries.stashApply,
+  stashPop: gitLibraries.stashPop,
+  stashDrop: gitLibraries.stashDrop,
 }))
 
 const { registerGitRoutes } = await import("./routes.js")
@@ -41,6 +47,9 @@ describe("git routes index mutations", () => {
     gitLibraries.deleteBranch.mockReset()
     gitLibraries.renameBranch.mockReset()
     gitLibraries.createWorktree.mockReset()
+    gitLibraries.stashApply.mockReset()
+    gitLibraries.stashPop.mockReset()
+    gitLibraries.stashDrop.mockReset()
   })
 
   it("rejects an option-like branch name instead of reporting a deletion", async () => {
@@ -295,5 +304,24 @@ describe("git worktree routes", () => {
       readProjectStartCommand,
     })
     expect(response.statusCode).toBe(200)
+  })
+})
+
+describe("git routes stash references", () => {
+  it.each([
+    ["/api/git/stash/apply", "stashApply"],
+    ["/api/git/stash/pop", "stashPop"],
+    ["/api/git/stash/drop", "stashDrop"],
+  ])("rejects an option-like stash ref on %s instead of reporting success", async (routePath, libraryName) => {
+    // Git parses a leading "-" as an option: `--help` prints usage and exits 0, so no stash was
+    // applied, popped or dropped while the route answered success.
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("POST", routePath)({ query: { directory: "/repo" }, body: { ref: "--help" } }, response)
+
+    expect(response.statusCode).toBe(400)
+    expect(gitLibraries[libraryName]).not.toHaveBeenCalled()
   })
 })

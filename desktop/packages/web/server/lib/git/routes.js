@@ -483,6 +483,12 @@ export function registerGitRoutes(app, options = {}) {
     try {
       const directory = req.query.directory
       if (!directory) return res.status(400).json({ error: "directory parameter is required" })
+      // Git parses a leading "-" as an option: `--help` prints usage and exits 0, so the stash was
+      // never touched and this route still answered success. Git refs never start with "-".
+      if (isOptionLikeRevision(req.body?.ref)) {
+        return res.status(400).json({ error: "ref must be a stash reference, not an option" })
+      }
+
       res.json(await stashApply(directory, req.body))
     } catch (error) {
       console.error("Failed to apply stash:", error)
@@ -495,6 +501,12 @@ export function registerGitRoutes(app, options = {}) {
     try {
       const directory = req.query.directory
       if (!directory) return res.status(400).json({ error: "directory parameter is required" })
+      // Git parses a leading "-" as an option: `--help` prints usage and exits 0, so the stash was
+      // never touched and this route still answered success. Git refs never start with "-".
+      if (isOptionLikeRevision(req.body?.ref)) {
+        return res.status(400).json({ error: "ref must be a stash reference, not an option" })
+      }
+
       res.json(await stashPop(directory, req.body))
     } catch (error) {
       console.error("Failed to pop stash:", error)
@@ -507,6 +519,12 @@ export function registerGitRoutes(app, options = {}) {
     try {
       const directory = req.query.directory
       if (!directory) return res.status(400).json({ error: "directory parameter is required" })
+      // Git parses a leading "-" as an option: `--help` prints usage and exits 0, so the stash was
+      // never touched and this route still answered success. Git refs never start with "-".
+      if (isOptionLikeRevision(req.body?.ref)) {
+        return res.status(400).json({ error: "ref must be a stash reference, not an option" })
+      }
+
       res.json(await stashDrop(directory, req.body))
     } catch (error) {
       console.error("Failed to drop stash:", error)
