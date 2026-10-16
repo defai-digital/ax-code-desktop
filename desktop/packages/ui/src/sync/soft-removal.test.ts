@@ -164,6 +164,27 @@ describe("soft-removal S4.5 contract", () => {
     expect(useGlobalSessionsStore.getState().activeSessions.map((s) => s.id)).toEqual(["ses_b"])
   })
 
+  test("does not queue a failure the user was already told about", async () => {
+    // The undo-window timer runs while the user is looking: it reports the failure and puts the session
+    // back, so writing the entry into the recovery slot would delete the session on the next launch
+    // without them asking again. Only the unload flush — whose outcome nobody can see — keeps it.
+    vi.useFakeTimers()
+    try {
+      const session = makeSession("ses_seen", { directory: "/repo" } as Partial<Session>)
+      useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+      deleteSessionMock.mockResolvedValue(false)
+
+      softDeleteSession(session)
+      await vi.advanceTimersByTimeAsync(7_000)
+
+      expect(toastErrorMock).toHaveBeenCalled()
+      expect(storedSlots()).toEqual([])
+      expect(useGlobalSessionsStore.getState().activeSessions.map((entry) => entry.id)).toEqual(["ses_seen"])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   test("keeps the quit-recovery record when a flushed removal fails fast", async () => {
     // `flushPendingRemovals` runs on beforeunload: it releases the pending flags before the requests
     // and then persisted the store's map, which that release had already emptied. A removal that

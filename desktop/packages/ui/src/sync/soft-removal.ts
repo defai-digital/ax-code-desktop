@@ -223,7 +223,7 @@ function failureMessage(kind: PendingRemovalKind, count: number): string {
   )
 }
 
-async function commitRemovals(ids: string[]): Promise<void> {
+async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}): Promise<void> {
   const store = useGlobalSessionsStore.getState()
   const entries = ids
     .map((id) => store.pendingRemoval.get(id))
@@ -249,11 +249,11 @@ async function commitRemovals(ids: string[]): Promise<void> {
       if (!ok) failed.push(entry)
     }),
   )
-  // Only the entries this commit confirmed may leave the slot: it was written for the removals that
-  // still need recovering (a quit while the requests were in flight is recovered on next launch,
-  // idempotent), and the failures have to stay in it — the pending flags were released above, so
-  // persisting the store's map alone dropped them and the next launch resurrected those sessions.
-  persistPending(failed)
+  // Only the entries this commit confirmed may leave the slot. The unload flush keeps its failures
+  // there because its requests are fire-and-forget and nobody can see the outcome (the slot's whole
+  // purpose); the undo-window timer runs while the user is looking, reports the failure and puts the
+  // session back, so retrying it behind their back on the next launch is not what they asked for.
+  persistPending(keepFailuresInSlot ? failed : [])
 
   if (failed.length > 0) {
     for (const entry of failed) {
@@ -332,7 +332,7 @@ export function softBulkDelete(sessions: Session[]): void {
 export function flushPendingRemovals(): void {
   const ids = Array.from(useGlobalSessionsStore.getState().pendingRemoval.keys())
   if (ids.length === 0) return
-  void commitRemovals(ids)
+  void commitRemovals(ids, { keepFailuresInSlot: true })
 }
 
 /**
