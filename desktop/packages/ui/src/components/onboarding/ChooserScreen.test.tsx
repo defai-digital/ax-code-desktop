@@ -115,6 +115,30 @@ describe("ChooserScreen CLI check", () => {
     return { container, root }
   }
 
+  test("tells the user when a manual check finds the CLI not ready", async () => {
+    // `checkCliAvailability` answers false for a CLI that is not running yet and for a health request that failed
+    // alike, and the manual check had no branch for it: the button returned to "Check now" with nothing said, so
+    // the user could not tell a failed check from a successful one.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ axCodeRunning: false, isAxCodeReady: false }), { status: 200 })),
+    )
+
+    const { container } = renderChooser()
+    const checkNow = Array.from(container.querySelectorAll("button")).find((button) =>
+      (button.textContent ?? "").includes("Check"),
+    )
+
+    await act(async () => {
+      checkNow?.click()
+    })
+    await act(async () => {})
+
+    expect(toastError).toHaveBeenCalledWith(
+      "AX Code CLI is not ready yet. Please confirm installation is complete and try again.",
+    )
+  })
+
   test("reports a verified CLI whose choice could not be recorded", async () => {
     // Reachable CLI, failing write: the poll used to swallow the rejection and try again every couple
     // of seconds, so the user sat behind the "watching" spinner with nothing said.

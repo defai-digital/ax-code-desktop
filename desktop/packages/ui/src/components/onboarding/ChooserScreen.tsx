@@ -229,14 +229,22 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
     setIsManualChecking(true)
     try {
       const available = await checkCliAvailability()
-      if (available) await announceAvailable()
+      if (available) {
+        await announceAvailable()
+      } else {
+        // The probe answers `false` both for "the CLI is not running yet" and for a health request that failed or
+        // could not be read, and the click said nothing either way: the button returned to "Check now" and the user
+        // could not tell this apart from a check that succeeded. The local-setup screen reports the same outcome
+        // with this message.
+        toast.error(t("onboarding.localSetup.errors.cliNotReady"))
+      }
     } catch (error) {
       // Same failure as the poll's, and the click is the one place the user is waiting on an answer.
       reportCheckFailure(error)
     } finally {
       setIsManualChecking(false)
     }
-  }, [checkCliAvailability, announceAvailable, reportCheckFailure])
+  }, [checkCliAvailability, announceAvailable, reportCheckFailure, t])
 
   const handleBrowse = React.useCallback(async () => {
     if (typeof window === "undefined") return
