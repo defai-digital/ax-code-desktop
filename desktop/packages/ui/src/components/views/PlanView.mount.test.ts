@@ -24,4 +24,26 @@ describe("PlanView mount contract", () => {
     expect(source).toContain("loadedContentRef.current = text")
     expect(source).toContain("planContentNeedsSave(content, loadedContentRef.current)")
   })
+  test("records what an autosave wrote, not only what a load read", async () => {
+    const source = await readFile(path.resolve(__dirname, "PlanView.tsx"), "utf8")
+
+    // The record means "what the disk holds". Only the load paths wrote it, so editing away from the loaded
+    // text and back to it looked like "nothing to save" while the file kept the newer text: the successful
+    // save has to move the record forward too.
+    expect(source).toContain("loadedContentRef.current = entry.content")
+  })
+
+  test("drops the queued edit when the content matches the disk again", async () => {
+    const source = await readFile(path.resolve(__dirname, "PlanView.tsx"), "utf8")
+
+    // Type "B", undo back to the loaded "A" inside the 350 ms delay: the effect cleanup cancels the timer but
+    // the queued entry stayed, and the flush on unmount wrote the abandoned "B".
+    const earlyReturnStart = source.indexOf("if (!planContentNeedsSave(content, loadedContentRef.current)) {")
+    expect(earlyReturnStart).toBeGreaterThan(-1)
+    // Cleared on the way out, not inside the debounce callback further down (which clears the same ref when
+    // its timer fires — that assignment exists either way and would make this assertion vacuous).
+    expect(/pendingSaveRef\.current = null\r?\n\s*return/.test(source.slice(earlyReturnStart, earlyReturnStart + 500))).toBe(
+      true,
+    )
+  })
 })

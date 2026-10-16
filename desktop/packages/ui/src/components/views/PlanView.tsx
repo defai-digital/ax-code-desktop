@@ -177,7 +177,11 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
       },
       isLatestEntry: (entry: PlanSaveQueueEntry) =>
         mountedRef.current && resolvedPathRef.current === entry.path && contentRef.current === entry.content,
-      onLatestSaved: () => {
+      onLatestSaved: (entry) => {
+        // What the disk holds now, so a later edit back to this content is not mistaken for "nothing to save":
+        // the ref was only ever written by the two load paths, and an autosave that left it at the pre-edit
+        // text mean a revert to the loaded text wrote nothing and the file kept the newer content.
+        loadedContentRef.current = entry.content
         setSaveError(null)
       },
       onLatestError: (_entry, error) => {
@@ -465,6 +469,10 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
     // later: opening a plan rewrote the file, which overwrote anything the agent had
     // written to it in the meantime.
     if (!planContentNeedsSave(content, loadedContentRef.current)) {
+      // Nothing to write, and the debounce below is not armed — but the entry the previous run armed is still
+      // queued, and a later flush (unmount, reload) writes it: type "B", undo back to the loaded "A" within the
+      // delay, and leaving the view wrote "B" over the user's "A".
+      pendingSaveRef.current = null
       return
     }
 
