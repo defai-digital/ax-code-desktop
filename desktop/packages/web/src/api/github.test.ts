@@ -6,6 +6,9 @@ const jsonResponse = (body: unknown): Response =>
 
 const fetchMock = vi.fn(async () => jsonResponse({ merged: true, ready: true, number: 7 }))
 
+const requestedUrls = (): string[] =>
+  (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit?]>).map((call) => String(call[0]))
+
 describe("web github API pull-request repo targeting", () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -24,9 +27,9 @@ describe("web github API pull-request repo targeting", () => {
     await api.prReady({ directory: "/repo", number: 7, sourceRepo })
     await api.prUpdate({ directory: "/repo", number: 7, title: "t", sourceRepo })
 
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-    for (const call of fetchMock.mock.calls) {
-      const url = String(call[0])
+    const urls = requestedUrls()
+    expect(urls).toHaveLength(3)
+    for (const url of urls) {
       expect(url).toContain("owner=org")
       expect(url).toContain("repo=upstream")
     }
@@ -38,7 +41,7 @@ describe("web github API pull-request repo targeting", () => {
 
     await api.prMerge({ directory: "/repo", number: 7, method: "merge" })
 
-    const url = String(fetchMock.mock.calls[0][0])
+    const [url] = requestedUrls()
     expect(url).not.toContain("owner=")
     expect(url).not.toContain("repo=")
   })
