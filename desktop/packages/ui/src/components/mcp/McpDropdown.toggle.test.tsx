@@ -4,10 +4,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
 
-const { connect, disconnect, toastError } = vi.hoisted(() => ({
+const { connect, disconnect, toastError, configState, statusState } = vi.hoisted(() => ({
   connect: vi.fn(),
   disconnect: vi.fn(),
   toastError: vi.fn(),
+  // Mutable: a test can put two servers in the list and control both switches.
+  configState: { mcpServers: [] as Array<{ name: string; scope: string }>, loadMcpConfigs: vi.fn(async () => {}) },
+  statusState: { current: {} as Record<string, { status: string }> },
 }))
 
 vi.mock("@/components/ui", () => ({
@@ -32,7 +35,7 @@ vi.mock("@/stores/useDirectoryStore", () => ({
 }))
 vi.mock("@/stores/useMcpStore", () => ({
   useMcpStore: stubStore({
-    getStatusForDirectory: () => ({ files: { status: "connected" } }),
+    getStatusForDirectory: () => statusState.current,
     refresh: vi.fn(async () => {}),
     connect,
     disconnect,
@@ -40,8 +43,12 @@ vi.mock("@/stores/useMcpStore", () => ({
 }))
 vi.mock("@/stores/useMcpConfigStore", () => ({
   useMcpConfigStore: stubStore({
-    mcpServers: [{ name: "files", scope: "project" }],
-    loadMcpConfigs: vi.fn(async () => {}),
+    get mcpServers() {
+      return configState.mcpServers
+    },
+    get loadMcpConfigs() {
+      return configState.loadMcpConfigs
+    },
   }),
 }))
 
@@ -60,6 +67,8 @@ describe("McpDropdownContent server toggles", () => {
     connect.mockReset()
     disconnect.mockReset()
     toastError.mockReset()
+    configState.mcpServers = [{ name: "files", scope: "project" }]
+    statusState.current = { files: { status: "connected" } }
     unhandled = []
     process.on("unhandledRejection", (reason) => unhandled.push(reason))
   })
@@ -105,5 +114,55 @@ describe("McpDropdownContent server toggles", () => {
       dict["mcpDropdown.status.failed"].replace("{error}", "server did not stop"),
     )
     expect(unhandled).toEqual([])
+  })
+
+  test("keeps each switch disabled for its own request, not for the last one toggled", async () => {
+    // One busy slot held a single server name: toggling a second server re-enabled the first one's
+    // switch while its call was still in flight (a second click then issued a concurrent call for
+    // it), and the first handler's `finally` re-enabled the second's the same way.
+    const pending: Array<{ resolve: () => void }> = []
+    connect.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          pending.push({ resolve: () => resolve() })
+        }),
+    )
+    configState.mcpServers = [
+      { name: "alpha", scope: "project" },
+      { name: "beta", scope: "project" },
+    ]
+    statusState.current = { alpha: { status: "failed" }, beta: { status: "failed" } }
+    await render()
+
+    const switches = () => Array.from(container.querySelectorAll<HTMLElement>('[role="switch"]'))
+    expect(switches()).toHaveLength(2)
+
+    await act(async () => {
+      switches()[0].click()
+    })
+    await act(async () => {})
+    expect(switches()[0].getAttribute("aria-disabled")).toBe("true")
+
+    await act(async () => {
+      switches()[1].click()
+    })
+    await act(async () => {})
+    expect(connect).toHaveBeenCalledTimes(2)
+    // Both are pending, so both stay disabled.
+    expect(switches()[0].getAttribute("aria-disabled")).toBe("true")
+    expect(switches()[1].getAttribute("aria-disabled")).toBe("true")
+
+    // The first request finishing must not re-enable the second.
+    await act(async () => {
+      pending[0]?.resolve()
+    })
+    await act(async () => {})
+    expect(switches()[0].getAttribute("aria-disabled")).not.toBe("true")
+    expect(switches()[1].getAttribute("aria-disabled")).toBe("true")
+
+    await act(async () => {
+      pending[1]?.resolve()
+    })
+    await act(async () => {})
   })
 })

@@ -73,7 +73,25 @@ export const McpDropdownContent: React.FC<McpDropdownContentProps> = ({ active, 
   const mcpServers = useMcpConfigStore((state) => state.mcpServers)
   const loadMcpConfigs = useMcpConfigStore((state) => state.loadMcpConfigs)
   const [isSpinning, setIsSpinning] = React.useState(false)
-  const [busyName, setBusyName] = React.useState<string | null>(null)
+  // Every server with a connect or disconnect in flight, not one busy slot: two toggles moved the
+  // slot to the second server, which re-enabled the first one's switch (a second click then issued a
+  // concurrent call for it) and the first handler's `finally` re-enabled the second's while it was
+  // still pending.
+  const [busyNames, setBusyNames] = React.useState<ReadonlySet<string>>(() => new Set())
+  const setBusy = React.useCallback((serverName: string, busy: boolean) => {
+    setBusyNames((previous) => {
+      if (busy === previous.has(serverName)) {
+        return previous
+      }
+      const next = new Set(previous)
+      if (busy) {
+        next.add(serverName)
+      } else {
+        next.delete(serverName)
+      }
+      return next
+    })
+  }, [])
 
   React.useEffect(() => {
     void refresh({ directory, silent: true })
@@ -145,7 +163,7 @@ export const McpDropdownContent: React.FC<McpDropdownContentProps> = ({ active, 
           const serverStatus = status[serverName]
           const tone = statusTone(serverStatus)
           const isConnected = serverStatus?.status === "connected"
-          const isBusy = busyName === serverName
+          const isBusy = busyNames.has(serverName)
           const tooltip = statusTooltip(serverStatus, t)
 
           return (
@@ -181,7 +199,7 @@ export const McpDropdownContent: React.FC<McpDropdownContentProps> = ({ active, 
                 disabled={isBusy}
                 className="data-[checked]:bg-status-info"
                 onCheckedChange={async (checked) => {
-                  setBusyName(serverName)
+                  setBusy(serverName, true)
                   try {
                     if (checked) {
                       await connect(serverName, directory)
@@ -199,7 +217,7 @@ export const McpDropdownContent: React.FC<McpDropdownContentProps> = ({ active, 
                       }),
                     )
                   } finally {
-                    setBusyName(null)
+                    setBusy(serverName, false)
                   }
                 }}
               />
