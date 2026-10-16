@@ -690,12 +690,13 @@ export function applyDirectoryEvent(
           dedupeFields.length > 0 ? ({ ...part, __dedupeNextDeltaFields: dedupeFields } as unknown as Part) : part
       } else {
         // Replace optimistic part (no sessionID) with server part of same type.
-        // Gate: only scan if the first part lacks sessionID (optimistic parts are
-        // always inserted first). Assistant messages never have optimistic parts,
-        // so this check is effectively free during streaming.
-        const hasOptimistic = next.length > 0 && !(next[0] as { sessionID?: string }).sessionID
+        // The scan is unconditional: parts are inserted by sorted id and the server echoes a prompt's
+        // parts one at a time, so an earlier echo can sort in front of the optimistic ones. Gating on
+        // "the first part has no sessionID" then skipped the scan and left the optimistic copy in
+        // place — the user's text rendered twice. Assistant messages never carry optimistic parts, so
+        // the scan is free during streaming.
         const optimisticIdx =
-          hasOptimistic && (part.type === "text" || part.type === "file")
+          part.type === "text" || part.type === "file"
             ? next.findIndex((p) => p.type === part.type && !(p as { sessionID?: string }).sessionID)
             : -1
         if (optimisticIdx >= 0) {

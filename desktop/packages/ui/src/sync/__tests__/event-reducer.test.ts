@@ -219,6 +219,30 @@ describe("applyDirectoryEvent", () => {
     expect((draft.message.ses_1[0] as Extract<Message, { role: "assistant" }>).finish).toBe("stop")
   })
 
+  test("replaces an optimistic part the server echo did not land in front of", () => {
+    // The replacement scanned only when the *first* slot lacks a sessionID ("optimistic parts are
+    // always inserted first"), but insertions are by sorted id and the server echoes a prompt's parts
+    // one at a time. Once an earlier echo sorts in front of them, the scan was skipped and the
+    // matching optimistic part stayed: the user's prompt text rendered twice.
+    const draft = state()
+    draft.part.set("msg_opt", [
+      { id: "prt_opt_file", messageID: "msg_opt", type: "file", mime: "text/plain" } as unknown as Part,
+      { id: "prt_opt_text", messageID: "msg_opt", type: "text", text: "hello" } as unknown as Part,
+    ])
+
+    const echo = (part: Record<string, unknown>) =>
+      applyDirectoryEvent(draft, { type: "message.part.updated", properties: { part } } as Event)
+
+    // The server's file part echo sorts below both optimistic ids, so it becomes the first slot.
+    echo({ id: "prt_aaa", messageID: "msg_opt", sessionID: "ses_1", type: "file", mime: "text/plain" })
+    echo({ id: "prt_aab", messageID: "msg_opt", sessionID: "ses_1", type: "text", text: "hello" })
+
+    const parts = draft.part.get("msg_opt") ?? []
+    expect(parts.filter((part) => part.type === "text")).toHaveLength(1)
+    expect(parts.filter((part) => part.type === "file")).toHaveLength(1)
+    expect(parts.map((part) => part.id)).toEqual(["prt_aaa", "prt_aab"])
+  })
+
   test("dedupes long delta overlaps after long accumulated text", () => {
     const draft = state()
     const longPrefix = "x".repeat(50_000)
