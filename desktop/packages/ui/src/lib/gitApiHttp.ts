@@ -115,9 +115,13 @@ const invalidateGitStatusCache = (directory: string): void => {
   if (!key) {
     return
   }
-  gitStatusCache.delete(key)
-  gitStatusInFlight.delete(key)
-  gitStatusInvalidationEpoch.set(key, (gitStatusInvalidationEpoch.get(key) ?? 0) + 1)
+  // Both keys a directory's status can be cached under: the full status and the light
+  // projection. Missing the light one left that request's pre-mutation payload cached.
+  for (const cacheKey of [key, `${key}::light`]) {
+    gitStatusCache.delete(cacheKey)
+    gitStatusInFlight.delete(cacheKey)
+    gitStatusInvalidationEpoch.set(cacheKey, (gitStatusInvalidationEpoch.get(cacheKey) ?? 0) + 1)
+  }
 }
 
 const directoryFromRequest = (input: RequestInfo | URL): string => {

@@ -228,6 +228,58 @@ describe("git api status cache invalidation", () => {
       restoreMocks()
     }
   })
+
+  test("a mutation also drops the light status a directory has cached", async () => {
+    // Light mode caches under its own key, and invalidation only touched the plain one: the light
+    // entry survived the mutation, and a light request in flight wrote its pre-mutation payload
+    // back after it.
+    const statusPayload = (isClean: boolean, files: unknown[]) =>
+      new Response(JSON.stringify({ current: "main", tracking: null, ahead: 0, behind: 0, files, isClean }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    const staleFile = { path: "a.ts", status: "modified", staged: false }
+    let statusCalls = 0
+    let resolveSlowStatus: (response: Response) => void = () => {}
+    const slowResponse = new Promise<Response>((resolve) => {
+      resolveSlowStatus = resolve
+    })
+    globalThis.fetch = (async (input, init) => {
+      const url = String(input)
+      if (init?.method && String(init.method).toUpperCase() !== "GET") {
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      if (url.includes("/status")) {
+        statusCalls += 1
+        if (statusCalls === 1) {
+          return slowResponse
+        }
+        return statusPayload(true, [])
+      }
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    }) as typeof fetch
+
+    try {
+      const slow = getGitStatus("/repo-slow-light", { mode: "light" })
+      await stageGitFiles("/repo-slow-light", ["a.ts"])
+      resolveSlowStatus(statusPayload(false, [staleFile]))
+      await slow
+
+      const afterMutation = await getGitStatus("/repo-slow-light", { mode: "light" })
+
+      expect(statusCalls).toBe(2)
+      expect(afterMutation.files).toEqual([])
+      expect(afterMutation.isClean).toBe(true)
+    } finally {
+      restoreMocks()
+    }
+  })
 })
 
 describe("git api http caches", () => {
