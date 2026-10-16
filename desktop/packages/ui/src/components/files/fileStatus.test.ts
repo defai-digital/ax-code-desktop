@@ -29,6 +29,24 @@ describe("file git status helpers", () => {
     ).toEqual({ modified: 1, added: 1 })
   })
 
+  test("counts a file in one bucket, as its own status classifies it", () => {
+    // The two checks were independent `if`s, so a file staged as added and edited again (`A` + `M`) counted as both
+    // — while its own row is "git-added" — and a folder with one changed file reported `modified: 1, added: 1`.
+    expect(
+      getFolderBadgeForPath("/repo/src", {
+        root: "/repo",
+        gitStatus: gitStatus([
+          { path: "src/new.ts", index: "A", working_dir: "M" },
+          { path: "src/gone.ts", index: "D", working_dir: " " },
+          { path: "src/edited.ts", index: "M", working_dir: "M" },
+        ]),
+      }),
+    ).toEqual({ modified: 1, added: 1 })
+    expect(
+      getFileStatusForPath("/repo/src/new.ts", { root: "/repo", isOpen: () => false, gitStatus: gitStatus([{ path: "src/new.ts", index: "A", working_dir: "M" }]) }),
+    ).toBe("git-added")
+  })
+
   test("does not match sibling folder prefixes for badges", () => {
     expect(
       getFolderBadgeForPath("/repo/src", {

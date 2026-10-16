@@ -57,8 +57,18 @@ export const getFolderBadgeForPath = (
     if (!file.path.startsWith(prefix)) {
       continue
     }
+    // Each file lands in at most one bucket, in the order `getFileStatusForPath` classifies it: a file staged as
+    // added and edited again (`A` + `M`) is "added" there, and counting it in both made a folder with one changed
+    // file report `modified: 1, added: 1`.
+    if (file.index === "A" || file.working_dir === "?") {
+      added++
+      continue
+    }
+    if (file.index === "D") {
+      // A staged deletion has its own status and no badge bucket.
+      continue
+    }
     if (file.index === "M" || file.working_dir === "M") modified++
-    if (file.index === "A" || file.working_dir === "?") added++
   }
 
   return modified + added > 0 ? { modified, added } : null
