@@ -6,21 +6,22 @@ describe("validateContextFileOpen", () => {
     // `optional: true` tells the engine that an absent file is not a failure: a missing path then resolves with no
     // content, the line count of "" is 1, and the guard answered `{ ok: true }` for a file that is not there —
     // making its own "File not found" message unreachable.
-    const readFile = vi.fn(async (_path: string, _options?: Record<string, unknown>) => ({ content: "" }))
+    const readFile = vi.fn(async () => ({ content: "" }))
 
     await validateContextFileOpen({ readFile } as never, "/nope.md")
 
     expect(readFile).toHaveBeenCalledTimes(1)
-    expect(readFile.mock.calls[0][1]).not.toHaveProperty("optional")
+    const options = (readFile.mock.calls[0] as unknown as [string, Record<string, unknown>?])[1]
+    expect(options).not.toHaveProperty("optional")
   })
 
   test("does not ask the fetch fallback for an optional read either", async () => {
-    const fetchMock = vi.fn(async (_url: string) => new Response("", { status: 200 }))
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }))
     vi.stubGlobal("fetch", fetchMock)
     try {
       await validateContextFileOpen({} as never, "/nope.md")
 
-      const url = String(fetchMock.mock.calls[0][0])
+      const url = String((fetchMock.mock.calls[0] as unknown as [string])[0])
       expect(url).not.toContain("optional=")
       expect(url).toContain("allowOutsideWorkspace=true")
     } finally {
