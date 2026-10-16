@@ -44,4 +44,16 @@ describe("SidebarFilesTree dialog guards", () => {
     expect(source).toContain("normalizePath(existingTarget.path) !== normalizePath(oldPath)")
     expect(source).toContain("sidebarFilesTree.toast.fileAlreadyExists")
   })
+
+  test("reloads the folders that stay expanded when the root is refreshed", async () => {
+    const source = await read()
+
+    // The effect that loads expanded dirs keys on the expanded set and the root, and a refresh changes
+    // neither: without this reload every expanded folder kept its row and rendered empty.
+    const refresh = source.slice(source.indexOf("const refreshRoot = React.useCallback"))
+    const body = refresh.slice(0, refresh.indexOf("}, [expandedPaths, loadDirectory, root])"))
+    expect(body).toContain("const expandedToLoad = expandedPaths")
+    expect(body).toContain("await loadDirectory(root)")
+    expect(body).toContain("expandedToLoad.slice(index, index + 3).map((dir) => loadDirectory(dir))")
+  })
 })

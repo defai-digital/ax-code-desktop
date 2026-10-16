@@ -509,8 +509,22 @@ export const SidebarFilesTree: React.FC = () => {
     setLoadErrorsByDir({})
     setChildrenByDir((prev) => (Object.keys(prev).length === 0 ? prev : {}))
 
+    // Reload the folders that stay expanded. The effect that loads them runs when the expanded set or the
+    // root changes, and a refresh changes neither: an expanded folder kept its row and lost its children,
+    // so it rendered empty until the user collapsed and expanded it again.
+    const expandedToLoad = expandedPaths
+      .map((entry) => normalizePath(entry))
+      .filter(
+        (normalized): normalized is string =>
+          !!normalized && normalized !== root && normalized.startsWith(`${root}/`),
+      )
+      .sort((a, b) => a.split("/").length - b.split("/").length)
+
     await loadDirectory(root)
-  }, [loadDirectory, root])
+    for (let index = 0; index < expandedToLoad.length; index += 3) {
+      await Promise.all(expandedToLoad.slice(index, index + 3).map((dir) => loadDirectory(dir)))
+    }
+  }, [expandedPaths, loadDirectory, root])
 
   /**
    * Incrementally refresh a single directory without nuking the rest of the
