@@ -32,6 +32,7 @@ import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
 import { mergeSessionListPage } from "./session-list-merge"
 import { createMaterializationQueue } from "./session-materialization-queue"
 import { useGlobalSyncStore } from "./global-sync-store"
+import { createPendingToastTracker, pendingToastId } from "./pendingToastTracker"
 import { ChildStoreManager, type DirectoryStore } from "./child-store"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 import { ingestScheduledTaskRuntimeEvent, isScheduledTaskRuntimeEventType } from "@/lib/scheduledTaskEvents"
@@ -372,8 +373,11 @@ function pruneExternallyViewedSessions(now = Date.now()) {
     }
   }
 }
-const pendingQuestionToastIds = new Set<string>()
-const pendingPermissionToastIds = new Set<string>()
+// The pending "an agent needs you" toasts. A key is dropped when its request is answered and when its session goes
+// away, which a session deleted with a request outstanding never reports as an answer.
+const pendingToasts = createPendingToastTracker({
+  onDismiss: (kind, key) => toast.dismiss(pendingToastId(kind, key)),
+})
 
 const getQuestionToastKey = (sessionID?: string, requestID?: string) => {
   if (!sessionID || !requestID) return null
@@ -603,8 +607,8 @@ export async function resyncBlockingRequestsForDirectory(
       for (const question of questions) {
         if (knownIds.has(question.id)) continue
         const toastKey = getQuestionToastKey(sessionId, question.id)
-        if (!toastKey || pendingQuestionToastIds.has(toastKey)) continue
-        pendingQuestionToastIds.add(toastKey)
+        if (!toastKey || pendingToasts.has("question", toastKey)) continue
+        pendingToasts.remember("question", toastKey)
         const firstQuestion = question.questions?.[0]
         const title = firstQuestion?.header?.trim() || "Input needed"
         const description = firstQuestion?.question?.trim() || "Agent is waiting for your response"
@@ -708,8 +712,8 @@ export async function resyncBlockingRequestsForDirectory(
       for (const permission of permissions) {
         if (knownIds.has(permission.id)) continue
         const toastKey = getPermissionToastKey(sessionId, permission.id)
-        if (!toastKey || pendingPermissionToastIds.has(toastKey)) continue
-        pendingPermissionToastIds.add(toastKey)
+        if (!toastKey || pendingToasts.has("permission", toastKey)) continue
+        pendingToasts.remember("permission", toastKey)
         const description =
           typeof permission.permission === "string" && permission.permission.trim().length > 0
             ? permission.permission
@@ -1067,6 +1071,13 @@ function handleEvent(
 
   childStores.mark(resolvedDirectory)
 
+  if (payload.type === "session.deleted") {
+    // A session deleted (or archived) while a request was outstanding never reports the reply, so its keys have to
+    // go with it — and so does the toast, which otherwise points at a session that is gone.
+    const info = (payload.properties as { info?: { id?: string } }).info
+    pendingToasts.clearSession(info?.id)
+  }
+
   if (payload.type === "permission.asked") {
     const permission = payload.properties as PermissionRequest
     const permissionStore = usePermissionStore.getState()
@@ -1094,8 +1105,8 @@ function handleEvent(
 
     const toastKey = getPermissionToastKey(permission.sessionID, permission.id)
     const isViewed = isViewedInCurrentSession(resolvedDirectory, permission.sessionID)
-    if (!isViewed && toastKey && !pendingPermissionToastIds.has(toastKey)) {
-      pendingPermissionToastIds.add(toastKey)
+    if (!isViewed && toastKey && !pendingToasts.has("permission", toastKey)) {
+      pendingToasts.remember("permission", toastKey)
       const description =
         typeof permission.permission === "string" && permission.permission.trim().length > 0
           ? permission.permission
@@ -1115,8 +1126,7 @@ function handleEvent(
     const props = payload.properties as { sessionID?: string; requestID?: string }
     const toastKey = getPermissionToastKey(props.sessionID, props.requestID)
     if (toastKey) {
-      pendingPermissionToastIds.delete(toastKey)
-      toast.dismiss(`permission-${toastKey}`)
+      pendingToasts.clear("permission", toastKey)
     }
   }
 
@@ -1125,8 +1135,8 @@ function handleEvent(
     const sessionID = question.sessionID
     const toastKey = getQuestionToastKey(sessionID, question.id)
     const isViewed = isViewedInCurrentSession(resolvedDirectory, sessionID)
-    if (!isViewed && toastKey && !pendingQuestionToastIds.has(toastKey)) {
-      pendingQuestionToastIds.add(toastKey)
+    if (!isViewed && toastKey && !pendingToasts.has("question", toastKey)) {
+      pendingToasts.remember("question", toastKey)
       const firstQuestion = question.questions?.[0]
       const title = firstQuestion?.header?.trim() || "Input needed"
       const description = firstQuestion?.question?.trim() || "Agent is waiting for your response"
@@ -1145,8 +1155,7 @@ function handleEvent(
     const props = payload.properties as { sessionID?: string; requestID?: string }
     const toastKey = getQuestionToastKey(props.sessionID, props.requestID)
     if (toastKey) {
-      pendingQuestionToastIds.delete(toastKey)
-      toast.dismiss(`question-${toastKey}`)
+      pendingToasts.clear("question", toastKey)
     }
   }
 
