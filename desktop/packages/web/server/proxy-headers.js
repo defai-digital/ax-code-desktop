@@ -36,8 +36,13 @@ export const collectForwardProxyHeaders = (requestHeaders, authHeaders = {}) => 
     headers[normalizedKey] = Array.isArray(value) ? value.join(", ") : String(value)
   }
 
-  if (authHeaders.Authorization) {
-    headers.Authorization = authHeaders.Authorization
+  // A client that sends its own `authorization` reaches here under the normalized key,
+  // and Headers init keeps `authorization` and `Authorization` as two separate entries and
+  // joins their values: setting the credential under the capital key sent the runtime
+  // "Bearer client, Basic server" and it answered 401. The normalized key replaces it.
+  const runtimeAuthorization = authHeaders.Authorization ?? authHeaders.authorization
+  if (runtimeAuthorization) {
+    headers.authorization = runtimeAuthorization
   }
 
   return headers

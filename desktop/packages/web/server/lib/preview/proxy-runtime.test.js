@@ -273,6 +273,20 @@ describe("proxy target normalization (SSRF guard)", () => {
     expect(normalizeProxyTargetUrl("http://[0:0:0:0:0:ffff:808:808]/", { allowExternal: true }).ok).toBe(true)
     expect(normalizeProxyTargetUrl("http://[2001:4860:4860::8888]/", { allowExternal: true }).ok).toBe(true)
   })
+
+  it("refuses a loopback name written with its root dot", () => {
+    // The WHATWG parser keeps a fully-qualified name's trailing dot, and the resolver treats
+    // `localhost.` exactly like `localhost`, so the name rules have to see the same name.
+    for (const url of [
+      "http://localhost./",
+      "http://localhost.:3100/",
+      "http://svc.localhost./",
+      "http://printer.local./",
+      "http://localhost../",
+    ]) {
+      expect(normalizeProxyTargetUrl(url, { allowExternal: true }).ok, url).toBe(false)
+    }
+  })
 })
 
 describe("external preview sandbox CSP", () => {
@@ -830,12 +844,12 @@ describe("external preview documents are sandboxed", () => {
 
     const [sourceCookie] = String(headers.get("set-cookie")).split(";", 1)
     const target = targetResponse.json.mock.calls[0][0]
-    const redirect = async (location) => {
+    const redirect = async (location, requestPath = "/") => {
       const redirectHeaders = new Map()
       await proxyOptions.on.proxyRes(
         Buffer.alloc(0),
         { statusCode: 302, headers: { location } },
-        { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: sourceCookie }, secure: false },
+        { originalUrl: `${target.proxyBasePath}${requestPath}`, headers: { cookie: sourceCookie }, secure: false },
         {
           statusCode: 302,
           removeHeader: vi.fn(),
@@ -864,5 +878,13 @@ describe("external preview documents are sandboxed", () => {
     expect(
       proxyOptions.router({ originalUrl: otherLocation, headers: { cookie: `${sourceCookie}; ${otherCookie}` } }),
     ).toBe("http://127.0.0.1:4000")
+
+    // A relative Location resolves against the URL of the request that produced it
+    // (RFC 9110), not against the origin: `intro` from `/docs/guide` means `/docs/intro`,
+    // and a query-only Location keeps the path it redirected from.
+    const relative = await redirect("intro", "/docs/guide")
+    expect(relative.get("location")).toBe(`${target.proxyBasePath}/docs/intro`)
+    const queryOnly = await redirect("?page=2", "/docs/guide")
+    expect(queryOnly.get("location")).toBe(`${target.proxyBasePath}/docs/guide?page=2`)
   })
 })

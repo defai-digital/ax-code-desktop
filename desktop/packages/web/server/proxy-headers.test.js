@@ -18,6 +18,14 @@ describe("ax-code proxy header handling", () => {
     expect(headers["accept-encoding"]).toBeUndefined()
   })
 
+  it("replaces a client's authorization header with the runtime credential", () => {
+    // Headers init keeps `authorization` and `Authorization` as separate entries and joins
+    // them, so the runtime received "Bearer client, Basic server" and rejected the request.
+    const headers = collectForwardProxyHeaders({ authorization: "Bearer client" }, { Authorization: "Basic server" })
+
+    expect(new Headers(headers).get("authorization")).toBe("Basic server")
+  })
+
   it("drops content-encoding from forwarded response headers", () => {
     expect(shouldForwardProxyResponseHeader("content-encoding")).toBe(false)
     expect(shouldForwardProxyResponseHeader("Content-Encoding")).toBe(false)

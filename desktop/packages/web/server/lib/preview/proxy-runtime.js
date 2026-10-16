@@ -943,6 +943,12 @@ const isBlockedExternalHost = (hostname) => {
   let host = hostname.toLowerCase()
   if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1)
 
+  // The WHATWG parser keeps a fully-qualified name's root dot (`localhost.`, `svc.localhost.`)
+  // and the resolver reads it as the same name, so the rules below have to see the name without
+  // it; otherwise every name check misses and the loopback is proxied as an external host.
+  host = host.replace(/\.+$/, "")
+  if (!host) return true
+
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return true
 
   const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
@@ -1279,10 +1285,15 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
   // would then frame-block). Cross-origin redirects must receive a new target:
   // mutating `resolved.entry.origin` would let a redirected subresource retarget
   // the page's shared proxy entry and break all subsequent requests.
-  const rewriteProxyRedirectLocation = (location, resolved) => {
+  const rewriteProxyRedirectLocation = (location, resolved, requestPath = "/") => {
     try {
       const currentOrigin = resolved.entry.origin
-      const abs = new URL(String(location), currentOrigin)
+      // A Location that is not an absolute reference resolves against the URL of the request
+      // that produced it, not against the origin: the dev server's `intro` from `/docs/guide`
+      // means `/docs/intro`, and `?page=2` keeps the path it redirected from. Resolving against
+      // the bare origin sent the browser to `/intro` and `/?page=2`.
+      const base = new URL(requestPath.startsWith("/") ? requestPath : `/${requestPath}`, `${currentOrigin}/`)
+      const abs = new URL(String(location), base)
       let targetId = resolved.id
       let redirectTarget = null
       if (abs.origin !== currentOrigin) {
@@ -1516,7 +1527,14 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
           if (statusCode >= 300 && statusCode < 400) {
             const location = proxyRes.headers?.location
             if (location && resolved.ok && res && typeof res.setHeader === "function") {
-              const rewritten = rewriteProxyRedirectLocation(location, resolved)
+              // The request's own upstream path is the base a relative Location resolves
+              // against (RFC 9110): `intro` from `/docs/guide` means `/docs/intro`.
+              const requestUrl = new URL(req.originalUrl || req.url || "", "http://localhost")
+              const rewritten = rewriteProxyRedirectLocation(
+                location,
+                resolved,
+                `${stripProxyPrefix(requestUrl.pathname, resolved.id)}${requestUrl.search}`,
+              )
               if (rewritten) {
                 res.setHeader("location", rewritten.location)
                 if (rewritten.redirectTarget) {
