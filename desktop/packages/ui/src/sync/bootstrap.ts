@@ -8,6 +8,7 @@ import type {
 import { retry } from "./retry"
 import type { GlobalState, State } from "./types"
 import { hasCompletedAssistantReply, resolveResyncedSessionStatus } from "./reconnect-recovery"
+import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
 import { wasPromptRecentlyAccepted } from "./session-actions"
 import { API_ENDPOINTS } from "@/lib/http"
 
@@ -157,28 +158,37 @@ export async function bootstrapDirectory(input: {
         if (next) set({ project: next })
       }),
     ),
-    retry(() =>
-      sdk.session.status(directory ? { directory } : undefined).then((x) => {
-        const snapshot = unwrap(x, "session.status") as unknown as Record<string, SessionStatus>
-        // The snapshot lists only the sessions the server currently considers active,
-        // so taking it wholesale flipped a just-sent turn's optimistic busy back to
-        // idle: prompt_async returns before the turn registers as busy. Merge through
-        // the same resolver the reconnect/poll paths use, which keeps the optimistic
-        // status inside the accepted-prompt grace window.
-        const current = getState()
-        const existing = current.session_status ?? {}
-        const merged: Record<string, SessionStatus> = {}
-        for (const sessionId of new Set([...Object.keys(existing), ...Object.keys(snapshot)])) {
-          merged[sessionId] = resolveResyncedSessionStatus({
-            serverStatus: snapshot[sessionId],
-            existingStatus: existing[sessionId],
-            promptRecentlyAccepted: wasPromptRecentlyAccepted(sessionId),
-            hasCompletedAssistantReply: hasCompletedAssistantReply(current.message?.[sessionId]),
-          })
-        }
-        set({ session_status: merged })
-      }),
-    ),
+    (() => {
+      // What the statuses looked like when the request went out. The snapshot is computed before it is
+      // sent, so an entry the event stream changed while it was in flight is newer than the answer: the
+      // poll path drops those, and applying them here flipped a running turn back to idle.
+      const beforeStatuses = getState().session_status ?? {}
+      return retry(() =>
+        sdk.session.status(directory ? { directory } : undefined).then((x) => {
+          const snapshot = unwrap(x, "session.status") as unknown as Record<string, SessionStatus>
+          // The snapshot lists only the sessions the server currently considers active,
+          // so taking it wholesale flipped a just-sent turn's optimistic busy back to
+          // idle: prompt_async returns before the turn registers as busy. Merge through
+          // the same resolver the reconnect/poll paths use, which keeps the optimistic
+          // status inside the accepted-prompt grace window.
+          const current = getState()
+          const existing = current.session_status ?? {}
+          const merged: Record<string, SessionStatus> = { ...existing }
+          for (const sessionId of new Set([...Object.keys(existing), ...Object.keys(snapshot)])) {
+            if (!haveEquivalentSyncSnapshots(existing[sessionId], beforeStatuses[sessionId])) {
+              continue
+            }
+            merged[sessionId] = resolveResyncedSessionStatus({
+              serverStatus: snapshot[sessionId],
+              existingStatus: existing[sessionId],
+              promptRecentlyAccepted: wasPromptRecentlyAccepted(sessionId),
+              hasCompletedAssistantReply: hasCompletedAssistantReply(current.message?.[sessionId]),
+            })
+          }
+          set({ session_status: merged })
+        }),
+      )
+    })(),
   ])
 
   const phase1Errors = phase1Results
@@ -215,6 +225,10 @@ export async function bootstrapDirectory(input: {
     ),
     retry(async () => {
       const before = getState()
+      // A question asked and answered while the request is in flight leaves the id list looking
+      // unchanged, which the signature comparison cannot see; the directory's blocking-request revision
+      // can.
+      const beforeBlockingRevision = before.blockingRequestRevision ?? 0
       const beforeSignatures = new Map(
         Object.entries(before.question ?? {}).map(([sessionID, questions]) => [sessionID, requestSignature(questions)]),
       )
@@ -235,20 +249,23 @@ export async function bootstrapDirectory(input: {
         // would silently overwrite the fresher event-driven state.
         const beforeSignature = beforeSignatures.get(sessionID) ?? ""
         const currentSignature = requestSignature(getState().question[sessionID])
-        if (currentSignature !== beforeSignature) continue
+        if (currentSignature !== beforeSignature || getState().blockingRequestRevision !== beforeBlockingRevision)
+          continue
         merged[sessionID] = questions.filter((q) => !!q?.id).sort((a, b) => cmp(a.id, b.id))
       }
       for (const sessionID of beforeSignatures.keys()) {
         if (grouped[sessionID]) continue
         const beforeSignature = beforeSignatures.get(sessionID) ?? ""
         const currentSignature = requestSignature(getState().question[sessionID])
-        if (currentSignature !== beforeSignature) continue
+        if (currentSignature !== beforeSignature || getState().blockingRequestRevision !== beforeBlockingRevision)
+          continue
         delete merged[sessionID]
       }
       set({ question: merged })
     }),
     retry(async () => {
       const before = getState()
+      const beforeBlockingRevision = before.blockingRequestRevision ?? 0
       const beforeSignatures = new Map(
         Object.entries(before.permission ?? {}).map(([sessionID, permissions]) => [
           sessionID,
@@ -271,14 +288,16 @@ export async function bootstrapDirectory(input: {
         // snapshot computed before a concurrent live change overwrite it.
         const beforeSignature = beforeSignatures.get(sessionID) ?? ""
         const currentSignature = requestSignature(getState().permission[sessionID])
-        if (currentSignature !== beforeSignature) continue
+        if (currentSignature !== beforeSignature || getState().blockingRequestRevision !== beforeBlockingRevision)
+          continue
         merged[sessionID] = perms.filter((p) => !!p?.id).sort((a, b) => cmp(a.id, b.id))
       }
       for (const sessionID of beforeSignatures.keys()) {
         if (grouped[sessionID]) continue
         const beforeSignature = beforeSignatures.get(sessionID) ?? ""
         const currentSignature = requestSignature(getState().permission[sessionID])
-        if (currentSignature !== beforeSignature) continue
+        if (currentSignature !== beforeSignature || getState().blockingRequestRevision !== beforeBlockingRevision)
+          continue
         delete merged[sessionID]
       }
       set({ permission: merged })

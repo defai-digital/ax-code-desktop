@@ -239,6 +239,37 @@ describe("applyDirectoryEvent", () => {
     expect(draft.session_status.ses_counted).toBe(status)
   })
 
+  test("bumps the directory's blocking-request revision on every question and permission event", () => {
+    // The resync paths compare this counter around their snapshot request: a question asked and answered
+    // inside that window leaves the id list back where it started, so the signature comparison alone
+    // cannot tell that the answer they are about to apply is older than the store.
+    const draft = state()
+    const beforeQuestions = draft.blockingRequestRevision
+
+    applyDirectoryEvent(draft, {
+      type: "question.asked",
+      properties: { id: "que_1", sessionID: "ses_1", questions: [] },
+    } as Event)
+    applyDirectoryEvent(draft, {
+      type: "question.replied",
+      properties: { sessionID: "ses_1", requestID: "que_1" },
+    } as Event)
+
+    expect(draft.blockingRequestRevision).toBeGreaterThanOrEqual(beforeQuestions + 2)
+
+    const beforePermissions = draft.blockingRequestRevision
+    applyDirectoryEvent(draft, {
+      type: "permission.asked",
+      properties: { id: "perm_1", sessionID: "ses_1", permission: "bash" },
+    } as Event)
+    applyDirectoryEvent(draft, {
+      type: "permission.replied",
+      properties: { sessionID: "ses_1", requestID: "perm_1" },
+    } as Event)
+
+    expect(draft.blockingRequestRevision).toBeGreaterThanOrEqual(beforePermissions + 2)
+  })
+
   test("replaces an optimistic part the server echo did not land in front of", () => {
     // The replacement scanned only when the *first* slot lacks a sessionID ("optimistic parts are
     // always inserted first"), but insertions are by sorted id and the server echoes a prompt's parts

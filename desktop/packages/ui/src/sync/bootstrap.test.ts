@@ -162,6 +162,28 @@ describe("bootstrapDirectory — session status snapshot", () => {
     expect(harness.getState().session_status.ses_b).toEqual({ type: "busy" })
   })
 
+  test("keeps a status the event stream changed while the snapshot was in flight", async () => {
+    // The snapshot is computed before the request goes out, so a `session.status` event that lands while
+    // it is in flight is newer than the answer. The poll path drops those entries
+    // (pickApplicableResyncedStatuses); bootstrap applied the older view and a running turn showed as
+    // idle with no Stop until the next event.
+    wasPromptRecentlyAcceptedMock.mockReturnValue(false)
+    const harness = makeHarness({ session_status: {} })
+    const sdk = makeBaseSdk({
+      session: {
+        status: vi.fn(async () => {
+          harness.set({ session_status: { ses_a: { type: "busy" } } })
+          return { data: {} }
+        }),
+      },
+    })
+
+    await boot(harness, sdk)
+    await flush()
+
+    expect(harness.getState().session_status.ses_a).toEqual({ type: "busy" })
+  })
+
   test("still settles a session the server omits once the grace window has passed", async () => {
     wasPromptRecentlyAcceptedMock.mockReturnValue(false)
     const harness = makeHarness({ session_status: { ses_a: { type: "busy" } } })

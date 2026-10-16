@@ -8,16 +8,22 @@ let pendingQuestionsResponse: QuestionRequest[] = []
 let pendingPermissionsResponse: PermissionRequest[] = []
 let pendingQuestionsShouldThrow = false
 let pendingPermissionsShouldThrow = false
+// Runs while the snapshot request is in flight, so a test can change the local store after the server
+// computed its answer.
+let onPendingQuestionsRequest: (() => void) | null = null
+let onPendingPermissionsRequest: (() => void) | null = null
 
 vi.doMock("@/lib/ax-code/client", () => ({
   axCodeClient: {
     listPendingQuestions: vi.fn(async (opts?: { directories?: Array<string | null | undefined> }) => {
       listPendingQuestionsCalls.push(opts ?? {})
+      onPendingQuestionsRequest?.()
       if (pendingQuestionsShouldThrow) throw new Error("question.list failed: simulated")
       return pendingQuestionsResponse
     }),
     listPendingPermissions: vi.fn(async (opts?: { directories?: Array<string | null | undefined> }) => {
       listPendingPermissionsCalls.push(opts ?? {})
+      onPendingPermissionsRequest?.()
       if (pendingPermissionsShouldThrow) throw new Error("permission.list failed: simulated")
       return pendingPermissionsResponse
     }),
@@ -56,6 +62,7 @@ import type { DirectoryStore } from "../child-store"
 
 const { INITIAL_STATE } = await import("../types")
 const { resyncBlockingRequestsForDirectory } = await import("../sync-context")
+const { applyDirectoryEvent } = await import("../event-reducer")
 
 function buildQuestion(overrides: Partial<QuestionRequest> = {}): QuestionRequest {
   return {
@@ -98,6 +105,8 @@ describe("resyncBlockingRequestsForDirectory", () => {
     pendingPermissionsResponse = []
     pendingQuestionsShouldThrow = false
     pendingPermissionsShouldThrow = false
+    onPendingQuestionsRequest = null
+    onPendingPermissionsRequest = null
   })
 
   test("calls listPendingQuestions and listPendingPermissions exactly once for the directory", async () => {
@@ -111,6 +120,45 @@ describe("resyncBlockingRequestsForDirectory", () => {
     expect(listPendingQuestionsCalls[0]).toEqual({ directories: ["/repo"] })
     expect(listPendingPermissionsCalls).toHaveLength(1)
     expect(listPendingPermissionsCalls[0]).toEqual({ directories: ["/repo"] })
+  })
+
+  test("does not restore a question the user answered while the snapshot was in flight", async () => {
+    // The snapshot is computed before the request travels, so a question asked and answered inside that
+    // window is still listed in it. The id list is back to what it was before the request, so the
+    // signature comparison alone cannot tell that the answer is older than the store.
+    // Own question/permission maps: `createDirectoryStore` shares the nested objects with INITIAL_STATE,
+    // and the reducer mutates the draft in place.
+    const store = createDirectoryStore({ question: {}, permission: {} })
+    const stale = buildQuestion()
+    pendingQuestionsResponse = [stale]
+    onPendingQuestionsRequest = () => {
+      applyDirectoryEvent(store.getState(), { type: "question.asked", properties: stale } as never)
+      applyDirectoryEvent(store.getState(), {
+        type: "question.replied",
+        properties: { sessionID: "ses_a", requestID: stale.id },
+      } as never)
+    }
+
+    await resyncBlockingRequestsForDirectory("/repo", store)
+
+    expect(store.getState().question["ses_a"] ?? []).toEqual([])
+  })
+
+  test("does not restore a permission the user answered while the snapshot was in flight", async () => {
+    const store = createDirectoryStore({ question: {}, permission: {} })
+    const stale = buildPermission()
+    pendingPermissionsResponse = [stale]
+    onPendingPermissionsRequest = () => {
+      applyDirectoryEvent(store.getState(), { type: "permission.asked", properties: stale } as never)
+      applyDirectoryEvent(store.getState(), {
+        type: "permission.replied",
+        properties: { sessionID: "ses_a", requestID: stale.id },
+      } as never)
+    }
+
+    await resyncBlockingRequestsForDirectory("/repo", store)
+
+    expect(store.getState().permission["ses_a"] ?? []).toEqual([])
   })
 
   test("merges newly fetched questions/permissions into the directory store", async () => {

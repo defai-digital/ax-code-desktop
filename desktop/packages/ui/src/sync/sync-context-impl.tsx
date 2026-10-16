@@ -558,6 +558,9 @@ export async function resyncBlockingRequestsForDirectory(
   candidateSessionIds?: string[],
 ) {
   const before = store.getState()
+  // A question asked and answered while the request is in flight leaves the id list looking unchanged,
+  // which the signature comparison cannot see; the directory's blocking-request revision can.
+  const beforeBlockingRevision = before.blockingRequestRevision ?? 0
   const knownSessionIds = new Set<string>([
     ...before.session.map((session) => session.id),
     ...Object.keys(before.message ?? {}),
@@ -621,14 +624,14 @@ export async function resyncBlockingRequestsForDirectory(
         // event-driven state.
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.question[sessionId])
-        if (currentSignature !== beforeSignature) continue
+        if (currentSignature !== beforeSignature || state.blockingRequestRevision !== beforeBlockingRevision) continue
         merged[sessionId] = questions
       }
       for (const sessionId of candidates) {
         if (grouped[sessionId]) continue
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.question[sessionId])
-        if (currentSignature !== beforeSignature) continue
+        if (currentSignature !== beforeSignature || state.blockingRequestRevision !== beforeBlockingRevision) continue
         delete merged[sessionId]
       }
       return { question: merged }
@@ -721,14 +724,14 @@ export async function resyncBlockingRequestsForDirectory(
         // snapshot computed before a concurrent live change overwrite it.
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.permission[sessionId])
-        if (currentSignature !== beforeSignature) continue
+        if (currentSignature !== beforeSignature || state.blockingRequestRevision !== beforeBlockingRevision) continue
         merged[sessionId] = permissions
       }
       for (const sessionId of candidates) {
         if (grouped[sessionId]) continue
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.permission[sessionId])
-        if (currentSignature !== beforeSignature) continue
+        if (currentSignature !== beforeSignature || state.blockingRequestRevision !== beforeBlockingRevision) continue
         delete merged[sessionId]
       }
       return { permission: merged }
@@ -779,8 +782,19 @@ async function resyncDirectoryAfterReconnect(
         let sessions = state.session
         let sessionChanged = false
         let sessionTotal = state.sessionTotal
+        // Candidates include the parent of every listed session, and its answer is only read to
+        // materialize that child's messages. An archived session is not part of this list — the
+        // `session.updated` reducer removes it — so the snapshot must neither re-insert it nor leave it
+        // where it is, and the count follows the reducer's rule for a session without a parent.
+        const archived = Boolean(nextSession.time?.archived)
 
-        if (sessionIndex >= 0) {
+        if (archived) {
+          if (sessionIndex >= 0) {
+            sessions = state.session.filter((item) => item.id !== nextSession.id)
+            if (!nextSession.parentID) sessionTotal = Math.max(0, sessionTotal - 1)
+            sessionChanged = true
+          }
+        } else if (sessionIndex >= 0) {
           if (!haveEquivalentSyncSnapshots(sessions[sessionIndex], nextSession)) {
             sessions = [...state.session]
             sessions[sessionIndex] = nextSession

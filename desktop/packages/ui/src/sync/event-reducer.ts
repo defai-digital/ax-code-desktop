@@ -268,6 +268,11 @@ function areTokenUsageEqual(
   )
 }
 
+/** The directory revision a snapshot fetched over HTTP is compared against (see `State`). */
+function noteBlockingRequestEvent(draft: State) {
+  draft.blockingRequestRevision = (draft.blockingRequestRevision ?? 0) + 1
+}
+
 function areMessageErrorsEqual(
   left: Extract<Message, { role: "assistant" }>["error"] | undefined,
   right: Extract<Message, { role: "assistant" }>["error"] | undefined,
@@ -819,6 +824,9 @@ export function applyDirectoryEvent(
 
     case "permission.asked": {
       const permission = event.properties as PermissionRequest
+      // Counted before the dedupe: the resync paths compare this counter around their snapshot request,
+      // and an event that leaves the list looking the same still makes an older answer stale.
+      noteBlockingRequestEvent(draft)
       const permissions = draft.permission[permission.sessionID] ?? []
       const next = [...permissions]
       const result = Binary.search(next, permission.id, (p) => p.id)
@@ -833,6 +841,7 @@ export function applyDirectoryEvent(
 
     case "permission.replied": {
       const props = event.properties as { sessionID: string; requestID: string }
+      noteBlockingRequestEvent(draft)
       const permissions = draft.permission[props.sessionID]
       if (!permissions) return false
       const result = Binary.search(permissions, props.requestID, (p) => p.id)
@@ -847,6 +856,7 @@ export function applyDirectoryEvent(
 
     case "question.asked": {
       const question = event.properties as QuestionRequest
+      noteBlockingRequestEvent(draft)
       const questions = draft.question[question.sessionID] ?? []
       const next = [...questions]
       const result = Binary.search(next, question.id, (q) => q.id)
@@ -862,6 +872,7 @@ export function applyDirectoryEvent(
     case "question.replied":
     case "question.rejected": {
       const props = event.properties as { sessionID: string; requestID: string }
+      noteBlockingRequestEvent(draft)
       const questions = draft.question[props.sessionID]
       if (!questions) return false
       const result = Binary.search(questions, props.requestID, (q) => q.id)
