@@ -201,6 +201,49 @@ describe("ui passkeys", () => {
     expect(simpleWebAuthn.verifyAuthenticationResponse).not.toHaveBeenCalled()
   })
 
+  it("does not resurrect a revoked passkey when a registration verifies in parallel", async () => {
+    // The registration awaits the WebAuthn verification between its read and its write, and the write
+    // replaces the whole list: a revoke that landed in that window was overwritten by the older
+    // snapshot, and the credential the user had just removed could sign in again.
+    const passkeys = createUiPasskeys({ passwordBinding: "password-binding", storeFile })
+    const req = createMockRequest({ host: "localhost:3000" })
+
+    const first = await passkeys.beginRegistration(req, { label: "first" })
+    await passkeys.finishRegistration({ requestId: first.requestId, response: { id: "first-id" } })
+
+    simpleWebAuthn.verifyRegistrationResponse.mockImplementationOnce(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                verified: true,
+                registrationInfo: {
+                  credential: {
+                    id: "second-id",
+                    publicKey: Uint8Array.from([1, 2, 3]),
+                    counter: 1,
+                    transports: ["internal"],
+                  },
+                  credentialDeviceType: "singleDevice",
+                  credentialBackedUp: false,
+                },
+              }),
+            20,
+          ),
+        ),
+    )
+
+    const second = await passkeys.beginRegistration(req, { label: "second" })
+    const registering = passkeys.finishRegistration({ requestId: second.requestId, response: { id: "second-id" } })
+    // The mocked verification issues "credential-id" for the first registration.
+    await passkeys.revokePasskey(req, "credential-id")
+    await registering
+
+    const stored = JSON.parse(fs.readFileSync(storeFile, "utf8"))
+    expect(stored.passkeys.map((passkey) => passkey.id)).toEqual(["second-id"])
+  })
+
   it("trims passkey ids before revoking them", async () => {
     const passkeys = createUiPasskeys({
       passwordBinding: "password-binding",
@@ -214,7 +257,8 @@ describe("ui passkeys", () => {
       response: { id: "credential-id" },
     })
 
-    expect(passkeys.revokePasskey(req, " credential-id ")).toMatchObject({
+    // The mutation is serialized behind the other store mutations, so it is awaited.
+    await expect(passkeys.revokePasskey(req, " credential-id ")).resolves.toMatchObject({
       revoked: true,
       passkeyCount: 0,
     })

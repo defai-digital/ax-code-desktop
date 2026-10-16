@@ -666,9 +666,10 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
     }
   }
 
-  const handlePasskeyRevoke = (req, res) => {
+  const handlePasskeyRevoke = async (req, res) => {
     try {
-      const result = passkeyController.revokePasskey(req, req.params?.id)
+      // Awaited: the store mutation is serialized behind the other passkey mutations (see ui-passkeys).
+      const result = await passkeyController.revokePasskey(req, req.params?.id)
       res.json(result)
     } catch (error) {
       respondPasskeyError(res, error)
@@ -705,7 +706,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
     res.json({ authenticated: false })
   }
 
-  const handleResetAuth = (req, res) => {
+  const handleResetAuth = async (req, res) => {
     try {
       // Refuse before destroying anything. When the JWT secret is pinned via env,
       // rotateJwtSecret() -> persistJwtSecret() throws a 400, but clearAllPasskeys()
@@ -718,7 +719,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
         error.statusCode = 400
         throw error
       }
-      const passkeyResult = passkeyController.clearAllPasskeys()
+      const passkeyResult = await passkeyController.clearAllPasskeys()
       rotateJwtSecret()
       clearSessionCookie(req, res)
       res.json({

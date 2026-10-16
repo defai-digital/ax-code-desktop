@@ -78,6 +78,23 @@ export const createUiPasskeys = ({
   const registrationChallenges = new Map()
   const authenticationChallenges = new Map()
 
+  // Every mutation below is a load → (sometimes await) → persist cycle over the same JSON store, and
+  // `persistStore` replaces the whole passkey list. The registration flow awaits the WebAuthn
+  // verification in the middle, so a revoke that landed in that window was overwritten by the
+  // registration's older snapshot: the credential the user had just revoked came back, and the device
+  // could sign in again. The reverse order lost the new credential. Mutations run one at a time, as the
+  // login rate limiter in ui-auth.js does.
+  let mutationTail = Promise.resolve()
+  const withStoreMutationLock = (fn) => {
+    const result = mutationTail.then(fn, fn)
+    mutationTail = result.then(
+      () => {},
+      () => {},
+    )
+    return result
+  }
+  const runLocked = (fn) => withStoreMutationLock(() => fn())
+
   const ensureStoreDirectory = () => {
     const storeDirectory = path.dirname(storeFile)
     fs.mkdirSync(storeDirectory, { recursive: true, mode: 0o700 })
@@ -228,7 +245,10 @@ export const createUiPasskeys = ({
     }))
   }
 
-  const revokePasskey = (req, passkeyId) => {
+  const revokePasskey = (req, passkeyId) =>
+    runLocked(() => revokePasskeyUnlocked(req, passkeyId))
+
+  const revokePasskeyUnlocked = (req, passkeyId) => {
     assertEnabled()
 
     const normalizedPasskeyId = asTrimmedString(passkeyId)
@@ -265,7 +285,9 @@ export const createUiPasskeys = ({
     }
   }
 
-  const clearAllPasskeys = () => {
+  const clearAllPasskeys = () => runLocked(clearAllPasskeysUnlocked)
+
+  const clearAllPasskeysUnlocked = () => {
     assertEnabled()
 
     const store = loadStore()
@@ -343,11 +365,13 @@ export const createUiPasskeys = ({
     }
   }
 
-  const finishRegistration = async (payload) => {
+  const finishRegistration = (payload) => runLocked(() => finishRegistrationUnlocked(payload))
+
+  const finishRegistrationUnlocked = async (payload) => {
     assertEnabled()
     cleanupChallengeMap(registrationChallenges)
 
-    const store = loadStore()
+    let store = loadStore()
     const requestId = typeof payload?.requestId === "string" ? payload.requestId : ""
     const response = payload?.response
 
@@ -375,6 +399,10 @@ export const createUiPasskeys = ({
     }
 
     const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo
+
+    // Re-read: this ran across an await, and a plain read helper can also reset the store (a changed
+    // password binding clears it). The new credential is added to whatever the store holds now.
+    store = loadStore()
 
     const nextPasskeys = store.passkeys.filter((passkey) => passkey.id !== credential.id)
     nextPasskeys.push({
