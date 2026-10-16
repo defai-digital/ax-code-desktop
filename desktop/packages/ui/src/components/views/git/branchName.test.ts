@@ -23,4 +23,48 @@ describe("sanitizeBranchNameInput", () => {
     expect(sanitizeBranchNameInput("/-feat/-x-/")).toBe("feat/x")
     expect(sanitizeBranchNameInput("feat---x")).toBe("feat-x")
   })
+
+  test("removes a dot a component starts with, not only the first one", () => {
+    // Git rejects any component that begins with a dot, so `feature/.hidden` was returned unchanged
+    // and the create failed against git's own check.
+    expect(sanitizeBranchNameInput("feature/.hidden")).toBe("feature/hidden")
+    expect(sanitizeBranchNameInput(".hidden")).toBe("hidden")
+    expect(sanitizeBranchNameInput("feat/.x/.y")).toBe("feat/x/y")
+  })
+
+  test("empties the one name git forbids on its own", () => {
+    // `@` alone is not a ref; an empty value leaves the create button disabled instead.
+    expect(sanitizeBranchNameInput("@")).toBe("")
+    expect(sanitizeBranchNameInput("feat@1")).toBe("feat@1")
+  })
+
+  test("every result is a name git accepts", () => {
+    const forbidden = [
+      /(^|\/)\./,
+      /\.\./,
+      /@\{/,
+      /[\s~^:?*[\\"]/,
+      /\/\//,
+      /^\/|\/$/,
+      /\.lock(\/|$)/,
+    ]
+
+    for (const input of [
+      "feature/.hidden",
+      "@",
+      "a..b",
+      "feat~1",
+      " feature ",
+      "wip.lock",
+      "///",
+      "测试/.分支",
+    ]) {
+      const result = sanitizeBranchNameInput(input)
+      if (!result) continue
+      expect(result).not.toBe("@")
+      for (const pattern of forbidden) {
+        expect(result).not.toMatch(pattern)
+      }
+    }
+  })
 })

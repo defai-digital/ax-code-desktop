@@ -80,6 +80,53 @@ describe("PullRequestSection body hydration", () => {
     await act(async () => {})
   }
 
+  // The section re-reads the entry when the window is refocused, so a refresh that just happened must
+  // not latch the answer: `shouldRefresh` used to be computed once per effect run and captured.
+  const renderWithRefreshSpy = async () => {
+    const refreshSpy = vi.spyOn(useGitHubPrStatusStore.getState(), "refresh")
+    const key = getGitHubPrStatusKey(DIRECTORY, BRANCH, null)
+    const now = Date.now()
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(now)
+    try {
+      useGitHubPrStatusStore.setState({
+        entries: {
+          [key]: {
+            status: status("A description"),
+            isLoading: false,
+            error: null,
+            isInitialStatusResolved: true,
+            lastRefreshAt: now,
+            lastDiscoveryPollAt: 0,
+            watchers: 1,
+            params: null,
+            identity: null,
+            resolvedRemoteName: null,
+          },
+        },
+      })
+
+      await renderSection()
+      // Rendering arms the status watcher, which refreshes on its own; only the calls after this
+      // point belong to the refocus.
+      const baseline = refreshSpy.mock.calls.length
+
+      nowSpy.mockReturnValue(now + 61_000)
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"))
+      })
+
+      return { refreshSpy, baseline, key }
+    } finally {
+      nowSpy.mockRestore()
+    }
+  }
+
+  test("refreshes on refocus once the entry is stale", async () => {
+    const { refreshSpy, baseline, key } = await renderWithRefreshSpy()
+
+    expect(refreshSpy.mock.calls.slice(baseline)).toEqual([[key, { force: true, silent: true }]])
+  })
+
   const showsLoadingDescription = () =>
     container.textContent?.includes(dict["gitView.pr.loadingDescription"]) ?? false
 

@@ -16,11 +16,17 @@ export const sanitizeBranchNameInput = (value: string): string => {
       .replace(/\.{2,}/g, "-")
       .replace(/@\{/g, "-")
       .replace(/\.lock\b/g, "-")
+      // No component may begin with a dot, and not only the first one: git rejects
+      // `feature/.hidden`, and this returned it unchanged.
+      .replace(/(^|\/)\.+/g, "$1")
       .replace(/-+/g, "-")
       .replace(/\/{2,}/g, "/")
       .replace(/\/-+/g, "/")
       .replace(/-+\//g, "/")
       .replace(/^[-/.]+/, "")
       .replace(/[-/.]+$/, "")
+      // `@` on its own is not a ref name. An empty result leaves the create button disabled, which is
+      // what typing nothing valid should look like.
+      .replace(/^@$/, "")
   )
 }

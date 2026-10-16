@@ -1184,21 +1184,25 @@ export const PullRequestSection: React.FC<{
   }, [remotes, status?.resolvedRemoteName])
 
   React.useEffect(() => {
-    const isTerminal = status?.pr?.state === "closed" || status?.pr?.state === "merged"
-    const lastRefreshAt = statusEntry?.lastRefreshAt ?? 0
-    const isStale = Date.now() - lastRefreshAt > 60_000
-    const shouldRefresh = !isTerminal && isStale
-
-    const onFocus = () => {
-      if (shouldRefresh) {
-        void refresh({ force: true, silent: true })
+    const refreshIfStale = () => {
+      // Read at call time: computing this when the effect ran latched the first answer, so once a
+      // refresh had happened recently the focus and visibility handlers never fired again — the
+      // 60-second staleness check they exist for could not come true.
+      const current = useGitHubPrStatusStore.getState().entries[prStatusKey]
+      const prState = current?.status?.pr?.state
+      if (prState === "closed" || prState === "merged") {
+        return
       }
+      if (Date.now() - (current?.lastRefreshAt ?? 0) <= 60_000) {
+        return
+      }
+      void refresh({ force: true, silent: true })
     }
+
+    const onFocus = () => refreshIfStale()
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        if (shouldRefresh) {
-          void refresh({ force: true, silent: true })
-        }
+        refreshIfStale()
       }
     }
 
@@ -1208,7 +1212,7 @@ export const PullRequestSection: React.FC<{
       window.removeEventListener("focus", onFocus)
       document.removeEventListener("visibilitychange", onVisibility)
     }
-  }, [refresh, status?.pr?.state, statusEntry?.lastRefreshAt])
+  }, [prStatusKey, refresh])
 
   React.useEffect(() => {
     if (githubAuthChecked && githubAuthStatus?.connected === false) {
