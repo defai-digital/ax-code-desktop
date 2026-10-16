@@ -74,6 +74,10 @@ const acceptedPromptAt = new Map<string, number>()
 // current busy status (from the new prompt), and incorrectly forces idle —
 // clobbering the new turn and tripping its own watchdog.
 const acceptedPromptWatchdogTimers = new Map<string, ReturnType<typeof globalThis.setTimeout>>()
+// Which prompt's watchdog owns the session's slot. A check that suspends on its refetch resumes after
+// a newer prompt may have registered its own timer, and it must not take the slot back from it — the
+// handle itself cannot answer that, because a re-arm replaces the handle of the same prompt.
+const acceptedPromptWatchdogOwners = new Map<string, object>()
 
 function markPromptAccepted(sessionId: string): void {
   acceptedPromptAt.set(sessionId, Date.now())
@@ -217,6 +221,8 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
   if (existingTimer) {
     clearTimeout(existingTimer)
   }
+  const owner = {}
+  acceptedPromptWatchdogOwners.set(sessionId, owner)
 
   const runWatchdogCheck = async () => {
     // Re-resolve the directory on every fire (including grace-window re-arms)
@@ -300,6 +306,14 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
     // to fire again once the grace window expires, so a truly dead turn is
     // still caught but a grace-window clobber does not fabricate a false error.
     if (wasPromptRecentlyAccepted(sessionId)) {
+      // Only when this check still owns the session's slot. Its own timer removed the entry before
+      // these checks ran, so an entry here belongs to a *newer* prompt: overwriting it left that
+      // prompt's timer uncancellable — the following clearTimeout killed this handle instead — and it
+      // then fired during a later turn, which is the cross-turn clobber the cancellation above
+      // exists to prevent. A newer prompt's watchdog covers the session from here.
+      if (acceptedPromptWatchdogOwners.get(sessionId) !== owner) {
+        return
+      }
       const acceptedAt = acceptedPromptAt.get(sessionId) ?? Date.now()
       const rearmDelay = Math.max(1, acceptedAt + PROMPT_ACCEPTED_BUSY_GRACE_MS - Date.now())
       const rearmTimer = globalThis.setTimeout(runWatchdogCheck, rearmDelay)
@@ -348,7 +362,13 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
   }
 
   const timer = globalThis.setTimeout(async () => {
-    acceptedPromptWatchdogTimers.delete(sessionId)
+    // Only while this prompt still owns the session: a newer prompt's timer could have replaced the
+    // entry while this timer was waiting, and deleting that one would make its watchdog
+    // uncancellable. (The owner token, not the timer handle: with a synchronous timer mock the
+    // callback runs before the handle is assigned.)
+    if (acceptedPromptWatchdogOwners.get(sessionId) === owner) {
+      acceptedPromptWatchdogTimers.delete(sessionId)
+    }
     await runWatchdogCheck()
   }, ACCEPTED_PROMPT_NO_OUTPUT_MS)
 

@@ -1597,6 +1597,88 @@ describe("optimisticSend: stale watchdog from previous prompt is cancelled (stal
     }
   })
 
+  test("does not let an in-flight watchdog's re-arm overwrite the next prompt's timer", async () => {
+    // The watchdog's own timer removes its map entry before its async checks run, so a prompt sent
+    // during those checks registers a *new* timer. The grace-window re-arm then wrote its handle over
+    // that entry: the next prompt's timer could never be cancelled (the following clearTimeout hit the
+    // re-arm handle instead), so it fired during a later turn — the cross-turn clobber the
+    // cancellation above exists to prevent.
+    const originalSetTimeout = globalThis.setTimeout
+    const originalClearTimeout = globalThis.clearTimeout
+    const timers = new Map<number, () => void>()
+    let nextTimerId = 1
+
+    globalThis.setTimeout = ((callback: () => void) => {
+      const id = nextTimerId++
+      timers.set(id, callback)
+      return id as unknown as ReturnType<typeof setTimeout>
+    }) as unknown as typeof setTimeout
+    globalThis.clearTimeout = ((id: unknown) => {
+      timers.delete(id as number)
+    }) as unknown as typeof clearTimeout
+
+    try {
+      const store = createStore({})
+      const { optimisticSend } = await setupOptimistic(store)
+
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "first prompt",
+        providerID: "provider",
+        modelID: "model",
+        send: () => Promise.resolve(),
+      })
+      expect(timers.size).toBe(1)
+
+      // Hold the watchdog's refetch so the second prompt can register its timer first.
+      let releaseRefetch: () => void = () => {}
+      const refetch = new Promise((resolve) => {
+        releaseRefetch = () => resolve({ data: [] })
+      })
+      mockScopedClient.session.messages.mockReturnValueOnce(refetch as never)
+
+      // The turn spin-up gap clobbers busy back to idle: this is what lets the check proceed (a
+      // busy session returns immediately) and what the grace-window re-arm exists for.
+      const setIdle = () =>
+        store.setState((state) => ({
+          session_status: { ...state.session_status, "session-a": { type: "idle" as const } },
+        }))
+      setIdle()
+
+      const [firstTimerId, firstCallback] = [...timers.entries()][0]
+      const firing = firstCallback()
+      // A fired timer is no longer pending; the map below counts pending timers only.
+      timers.delete(firstTimerId)
+      await new Promise((resolve) => originalSetTimeout(resolve, 0))
+      // The check is parked on its refetch now, or the rest of this test proves nothing.
+      expect(mockScopedClient.session.messages).toHaveBeenCalled()
+
+      await optimisticSend({
+        sessionId: "session-a",
+        content: "second prompt",
+        providerID: "provider",
+        modelID: "model",
+        send: () => Promise.resolve(),
+      })
+      expect(timers.size).toBe(1)
+      setIdle()
+
+      releaseRefetch()
+      await firing
+
+      // Only the second prompt's watchdog may be pending: the re-arm belongs to a prompt that no
+      // longer owns this session.
+      expect(timers.size).toBe(1)
+    } finally {
+      // The refetch mock above may be left unconsumed, and the next test's watchdog would then wait
+      // on it forever.
+      mockScopedClient.session.messages.mockReset()
+      mockScopedClient.session.messages.mockImplementation(() => Promise.resolve(scopedMessagesResult))
+      globalThis.setTimeout = originalSetTimeout
+      globalThis.clearTimeout = originalClearTimeout
+    }
+  })
+
   test("does not force idle from a previous turn's completed assistant when a newer prompt is in progress", async () => {
     // This test exercises the defense-in-depth guard: even if the stale timer
     // somehow fires (e.g., race between clearTimeout and the event loop), the
