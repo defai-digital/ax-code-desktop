@@ -1377,6 +1377,21 @@ MiniMax-M3) and two auditors over the tenth round's commits. Fixed from it:
   user is watching, reports the failure and puts the session back — queueing it deleted that session on
   the next launch. Only the flush keeps its failures.
 
+- **`e59e9b74`** — the worktree bootstrap's ownership guard sat before the upstream configuration
+  *and* after the start scripts, but the upstream step awaits a network fetch (the longest suspension in
+  the run): a worktree removed and re-created during that fetch still had the stale run configure its
+  upstream and start the previous project's scripts in it.
+- **`562d1326`** — the reordered terminal restart holds no reservation while it spawns (the session it
+  replaces holds that slot), and that session can leave the map in that window — its shell exiting, or
+  another window closing it — after which a create takes the freed slot and the replacement registered
+  past the cap, leaving a PTY nobody owned. The replacement takes a slot of its own at swap time and is
+  refused when the cap filled up.
+- **`3e5b75b9`** — the recovery slot: an entry kept for the next launch was dropped by the next write in
+  that window (`persistPending` rebuilds the slot from the store's pending map, which no longer holds it),
+  so an unrelated removal or an undo lost the record and the next launch resurrected a session whose
+  removal had failed. Entries kept for recovery are module state every write carries now, cleared when
+  the removal is confirmed or undone.
+
 ### Reported as confirmed, verified and rejected
 
 - **"DiffWorkerProvider caches a failed pool creation as a success"** (`contexts/DiffWorkerProvider.tsx:91-103`).
