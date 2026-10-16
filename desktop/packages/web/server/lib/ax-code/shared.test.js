@@ -12,8 +12,10 @@ import {
   getProjectConfigCandidates,
   getUserConfigPaths,
   readConfigFile,
+  readSkillSupportingFile,
   resolveAxCodeConfigDir,
   resolveProjectAxCodeResourcePath,
+  writeSkillSupportingFile,
 } from "./shared.js"
 
 describe("shared ax-code resource paths", () => {
@@ -204,5 +206,45 @@ describe("shared config entity sources", () => {
     } finally {
       await fsPromises.rm(tempRoot, { recursive: true, force: true })
     }
+  })
+})
+
+describe("skill supporting files", () => {
+  const withSkillDir = async (run) => {
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-files-"))
+    try {
+      const skillDir = path.join(tempRoot, ".ax-code", "skills", "demo")
+      const outsideDir = path.join(tempRoot, "outside")
+      await fsPromises.mkdir(skillDir, { recursive: true })
+      await fsPromises.mkdir(outsideDir, { recursive: true })
+      await fsPromises.writeFile(path.join(skillDir, "SKILL.md"), "# Demo\n", "utf8")
+      await fsPromises.writeFile(path.join(outsideDir, "secret.txt"), "do not touch", "utf8")
+      await run({ skillDir, outsideDir })
+    } finally {
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
+  }
+
+  it("refuses a supporting file a symlink points at", async () => {
+    // `path.resolve` does not follow symlinks, so a link that a project ships inside its own skill directory passed
+    // the containment check and the read and the write acted on whatever it pointed at — any file the user can
+    // reach, which is not what "inside this skill" means.
+    await withSkillDir(async ({ skillDir, outsideDir }) => {
+      const secretPath = path.join(outsideDir, "secret.txt")
+      fs.symlinkSync(secretPath, path.join(skillDir, "evil"))
+
+      expect(() => readSkillSupportingFile(skillDir, "evil")).toThrow(/denied/)
+      expect(() => writeSkillSupportingFile(skillDir, "evil", "overwritten")).toThrow(/denied/)
+      expect(fs.readFileSync(secretPath, "utf8")).toBe("do not touch")
+    })
+  })
+
+  it("still reads and writes a file inside the skill directory", async () => {
+    await withSkillDir(async ({ skillDir }) => {
+      writeSkillSupportingFile(skillDir, path.join("notes", "one.md"), "hello")
+
+      expect(readSkillSupportingFile(skillDir, path.join("notes", "one.md"))).toBe("hello")
+      expect(readSkillSupportingFile(skillDir, "missing.md")).toBeNull()
+    })
   })
 })

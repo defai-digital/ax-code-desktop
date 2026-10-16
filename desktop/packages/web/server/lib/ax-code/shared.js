@@ -598,10 +598,39 @@ function listSkillSupportingFiles(skillDir) {
   return files
 }
 
+// `path.resolve` does not follow symlinks, so a link shipped inside the skill directory passed the containment
+// check below and every read, write and delete acted on whatever it pointed at — any file the user can reach, from
+// a skill directory a project controls. The comparison has to be canonical: `realpath` of the target, or of its
+// deepest existing ancestor, because a write may be creating the file and its directory is what must be inside.
+function resolveCanonicalPath(target) {
+  const trailing = []
+  let existing = path.resolve(target)
+
+  for (;;) {
+    try {
+      const real = fs.realpathSync(existing)
+      return trailing.length === 0 ? real : path.join(real, ...trailing.slice().reverse())
+    } catch (error) {
+      // A component that is not a directory cannot be resolved either, and the joined path cannot exist: what
+      // matters is that the existing prefix is resolved before the comparison.
+      if (error?.code !== "ENOENT" && error?.code !== "ENOTDIR") {
+        throw error
+      }
+    }
+
+    const parent = path.dirname(existing)
+    if (parent === existing) {
+      return target
+    }
+    trailing.push(path.basename(existing))
+    existing = parent
+  }
+}
+
 function assertPathWithinSkillDir(skillDir, relativePath) {
   const root = fs.realpathSync(skillDir)
   const target = path.resolve(root, relativePath)
-  const relative = path.relative(root, target)
+  const relative = path.relative(root, resolveCanonicalPath(target))
   const isWithin = relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))
 
   if (!isWithin) {
