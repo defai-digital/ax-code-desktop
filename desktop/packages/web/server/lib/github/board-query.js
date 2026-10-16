@@ -35,10 +35,17 @@ function quoteSearchText(value) {
   return `"${cleaned}"`
 }
 
-function quoteLabel(value) {
+function quoteLabels(value) {
   const cleaned = sanitizeGitHubLabel(value)
   if (!cleaned) return ""
-  return `label:"${cleaned}"`
+  // The caller sends a comma-joined value to this path because a comma separates labels on `listForRepo`, and
+  // GitHub's search matches several labels with repeated qualifiers: one quoted phrase covering the whole value
+  // (`label:"bug,ui"`) matches only a label literally named that, so the board silently showed nothing.
+  const labels = cleaned
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  return labels.map((label) => `label:"${label}"`).join(" ")
 }
 
 function safeRepo(owner, repo) {
@@ -53,7 +60,7 @@ function safeRepo(owner, repo) {
 export function buildIssueSearchQuery({ owner, repo, state, label, text }) {
   if (!safeRepo(owner, repo)) return null
   const parts = [`repo:${owner}/${repo}`, "is:issue", `is:${normalizeIssueListState(state)}`]
-  const quotedLabel = quoteLabel(label)
+  const quotedLabel = quoteLabels(label)
   if (quotedLabel) parts.push(quotedLabel)
   const quotedText = quoteSearchText(text)
   if (quotedText) parts.push(quotedText)

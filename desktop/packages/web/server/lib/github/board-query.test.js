@@ -33,6 +33,17 @@ describe("github board query", () => {
     ).toBe('repo:acme/app is:issue is:closed label:"good first issue" "repo:evil"')
   })
 
+  it("matches several labels when the value is comma-separated", () => {
+    // The route sends a comma-joined value down this path *because* a comma separates labels on listForRepo, and
+    // GitHub's search needs one qualifier per label: a single quoted phrase matched only a label by that name.
+    expect(
+      buildIssueSearchQuery({ owner: "acme", repo: "app", state: "open", label: "bug,ui", text: "" }),
+    ).toBe('repo:acme/app is:issue is:open label:"bug" label:"ui"')
+    expect(
+      buildIssueSearchQuery({ owner: "acme", repo: "app", state: "open", label: "bug, ui ,", text: "" }),
+    ).toBe('repo:acme/app is:issue is:open label:"bug" label:"ui"')
+  })
+
   it("builds a merged pull search that stays inside the repository", () => {
     expect(buildPullSearchQuery({ owner: "acme", repo: "app", state: "merged", text: "fix login" })).toBe(
       'repo:acme/app is:pr is:merged "fix login"',
