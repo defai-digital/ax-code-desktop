@@ -59,10 +59,9 @@ const JsonTreeView = React.memo(function JsonTreeView({
     )
   }
 
-  if (parsedData === null) {
-    return null
-  }
-
+  // A document whose top-level value is `null` is valid and parses to null; the empty and
+  // invalid cases already returned through `parseError` above, so rendering nothing here
+  // showed a blank pane for a file that is perfectly readable.
   return (
     <div className={className}>
       <div className="flex items-center gap-1 border-b border-[var(--interactive-border)] px-2 py-1">
