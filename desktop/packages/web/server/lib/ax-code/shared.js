@@ -602,6 +602,11 @@ function listSkillSupportingFiles(skillDir) {
 // check below and every read, write and delete acted on whatever it pointed at — any file the user can reach, from
 // a skill directory a project controls. The comparison has to be canonical: `realpath` of the target, or of its
 // deepest existing ancestor, because a write may be creating the file and its directory is what must be inside.
+//
+// `null` answers a third case: a link that exists but cannot be resolved, because its target does not. It is not
+// "outside" — the link itself is inside the skill — but what sits behind it cannot be told, and a write through it
+// would create that file, wherever it is. The one caller that acts on the link's target rather than the link
+// refuses it; reading and removing act on the link and keep their previous answers.
 function resolveCanonicalPath(target) {
   const trailing = []
   let existing = path.resolve(target)
@@ -618,6 +623,10 @@ function resolveCanonicalPath(target) {
       }
     }
 
+    if (fs.lstatSync(existing, { throwIfNoEntry: false })?.isSymbolicLink()) {
+      return null
+    }
+
     const parent = path.dirname(existing)
     if (parent === existing) {
       return target
@@ -627,39 +636,51 @@ function resolveCanonicalPath(target) {
   }
 }
 
+function skillFileAccessDenied() {
+  const error = new Error("Access to file denied")
+  error.code = "EACCES"
+  return error
+}
+
 function assertPathWithinSkillDir(skillDir, relativePath) {
   const root = fs.realpathSync(skillDir)
   const target = path.resolve(root, relativePath)
-  const relative = path.relative(root, resolveCanonicalPath(target))
-  const isWithin = relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))
+  const canonical = resolveCanonicalPath(target)
 
-  if (!isWithin) {
-    const error = new Error("Access to file denied")
-    error.code = "EACCES"
-    throw error
+  if (canonical !== null) {
+    const relative = path.relative(root, canonical)
+    const isWithin = relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))
+
+    if (!isWithin) {
+      throw skillFileAccessDenied()
+    }
   }
 
-  return target
+  return { target, canonical }
 }
 
 function readSkillSupportingFile(skillDir, relativePath) {
-  const fullPath = assertPathWithinSkillDir(skillDir, relativePath)
-  if (!fs.existsSync(fullPath)) {
+  const { target } = assertPathWithinSkillDir(skillDir, relativePath)
+  if (!fs.existsSync(target)) {
     return null
   }
-  return fs.readFileSync(fullPath, "utf8")
+  return fs.readFileSync(target, "utf8")
 }
 
 function writeSkillSupportingFile(skillDir, relativePath, content) {
-  const fullPath = assertPathWithinSkillDir(skillDir, relativePath)
-  const dir = path.dirname(fullPath)
+  const { target, canonical } = assertPathWithinSkillDir(skillDir, relativePath)
+  if (canonical === null) {
+    // A link whose target does not exist: writing to it would create that file, wherever the link points.
+    throw skillFileAccessDenied()
+  }
+  const dir = path.dirname(target)
   fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(fullPath, content, "utf8")
+  fs.writeFileSync(target, content, "utf8")
 }
 
 function deleteSkillSupportingFile(skillDir, relativePath) {
   const root = fs.realpathSync(skillDir)
-  const fullPath = assertPathWithinSkillDir(skillDir, relativePath)
+  const { target: fullPath } = assertPathWithinSkillDir(skillDir, relativePath)
   if (fs.existsSync(fullPath)) {
     fs.unlinkSync(fullPath)
     let parentDir = path.dirname(fullPath)

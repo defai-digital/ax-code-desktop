@@ -239,6 +239,20 @@ describe("skill supporting files", () => {
     })
   })
 
+  it("refuses to create the file a link with no target points at", async () => {
+    // A link whose target does not exist cannot be resolved, and the walk up from it treated the leaf as a file
+    // about to be created: the write followed the link and created that file wherever it pointed.
+    await withSkillDir(async ({ skillDir, outsideDir }) => {
+      const missingTarget = path.join(outsideDir, "new.txt")
+      fs.symlinkSync(missingTarget, path.join(skillDir, "evil"))
+
+      expect(() => writeSkillSupportingFile(skillDir, "evil", "created")).toThrow(/denied/)
+      expect(fs.existsSync(missingTarget)).toBe(false)
+      // The link is also not something to hand back as a file's contents.
+      expect(readSkillSupportingFile(skillDir, "evil")).toBeNull()
+    })
+  })
+
   it("still reads and writes a file inside the skill directory", async () => {
     await withSkillDir(async ({ skillDir }) => {
       writeSkillSupportingFile(skillDir, path.join("notes", "one.md"), "hello")
