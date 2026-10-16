@@ -87,6 +87,22 @@ function resolveRelativeImport(file: string, specifier: string) {
   return rel(path.resolve(path.dirname(absoluteFile), cleanSpecifier))
 }
 
+// The `@/` alias resolves into a package's own src tree (the UI's Vite config, and the web config
+// through it), so a specifier that walks out of that tree with `..` reaches another package's source
+// and has to be judged there. Normalizing the specifier alone collapsed `@/../electron/src/x.js`
+// into a plain relative path, which neither the web-alias rule nor the sibling-source rule saw.
+const UI_SOURCE_ROOT = "desktop/packages/ui/src"
+
+function resolveAliasImport(file: string, specifier: string) {
+  // Only inside the package that owns the alias: from another package the alias is already a
+  // violation of its own (webUiAlias), and resolving it there reported the same import twice.
+  if (desktopPackage(file) !== "ui" || !specifier.startsWith("@/")) return undefined
+  const cleanSpecifier = specifier.split(/[?#]/, 1)[0] ?? specifier
+  const resolvedFromUi = normalize(path.posix.join(UI_SOURCE_ROOT, cleanSpecifier.slice(2)))
+  if (!resolvedFromUi.startsWith("..")) return resolvedFromUi
+  return undefined
+}
+
 function isPrivateRuntimeImport(candidate: string) {
   return blockedRuntimeAreas.some(
     (area) =>
@@ -140,7 +156,8 @@ export function analyzeDesktopSource(file: string, source: string) {
 
   for (const item of extractImportSpecifiers(source, file)) {
     const specifier = normalize(item.specifier)
-    const resolved = resolveRelativeImport(file, item.specifier)
+    const aliased = resolveAliasImport(file, item.specifier)
+    const resolved = resolveRelativeImport(file, item.specifier) ?? aliased
     const candidates = resolved ? [specifier, resolved] : [specifier]
 
     if (candidates.some(isPrivateRuntimeImport)) {
@@ -155,7 +172,9 @@ export function analyzeDesktopSource(file: string, source: string) {
       violations.push(violation(file, item, DESKTOP_BOUNDARY_REASONS.privateUi, sourceLines))
     }
 
-    if (owner === "web" && hasPathPrefix(specifier, "@")) {
+    // Judged on the specifier as written: normalizing it collapses the alias away, so the rule never
+    // fired for `@/../electron/src/x.js`.
+    if (owner === "web" && hasPathPrefix(item.specifier.trim(), "@")) {
       violations.push(violation(file, item, DESKTOP_BOUNDARY_REASONS.webUiAlias, sourceLines))
     }
 

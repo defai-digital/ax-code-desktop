@@ -158,6 +158,38 @@ describe("R5 connection-state writer registry", () => {
     expect(violations[0].rule).toBe("R5")
   })
 
+  test("blocks a re-export of the write API from an unregistered module", () => {
+    // `export … from` binds what it re-exports, so a component could import the writer through this
+    // module while R5 passed — the guard the rule exists for was reachable that way.
+    const { violations, importsWriteApi } = analyzeConnectionStateWriterImports(
+      componentFile("ui", "connectionStateFacade.ts"),
+      'export { markStreamConnected, markStreamDisconnected } from "@/lib/event-stream/connection-state"',
+    )
+
+    expect(importsWriteApi).toBe(true)
+    expect(violations).toHaveLength(2)
+    expect(violations.every((violation) => violation.rule === "R5")).toBe(true)
+  })
+
+  test("blocks a whole-module re-export from an unregistered module", () => {
+    const { violations, importsWriteApi } = analyzeConnectionStateWriterImports(
+      componentFile("ui", "connectionStateFacade.ts"),
+      'export * from "@/lib/event-stream/connection-state"',
+    )
+
+    expect(importsWriteApi).toBe(true)
+    expect(violations).toHaveLength(1)
+  })
+
+  test("allows a registered writer to re-export", () => {
+    const { violations } = analyzeConnectionStateWriterImports(
+      path.join(uiSrc, "sync/event-pipeline.ts"),
+      'export { markStreamConnected } from "@/lib/event-stream/connection-state"',
+    )
+
+    expect(violations).toEqual([])
+  })
+
   test("blocks namespace imports from unregistered modules", () => {
     const { violations } = analyzeConnectionStateWriterImports(
       componentFile("ui", "ReconnectBanner.tsx"),

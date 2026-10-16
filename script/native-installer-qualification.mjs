@@ -195,7 +195,17 @@ async function qualify(target, artifacts, output) {
         command("sudo", ["ditto", stage, installed])
         fs.rmSync(stage, { recursive: true, force: true })
       } finally {
-        command("hdiutil", ["detach", mount])
+        try {
+          command("hdiutil", ["detach", mount])
+        } catch (error) {
+          // A failed detach (usually a busy volume) must not replace the failure being unwound: the
+          // job then reported an unmount problem instead of the signature or copy that broke, and the
+          // real cause was lost with it.
+          console.warn(
+            "Failed to detach the installer volume:",
+            error instanceof Error ? error.message : String(error),
+          )
+        }
       }
       assert.equal(
         command("/usr/libexec/PlistBuddy", [

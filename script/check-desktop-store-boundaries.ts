@@ -360,8 +360,50 @@ export function analyzeConnectionStateWriterImports(
     )
   }
 
+  // `export { markStreamConnected } from "…/connection-state"` binds and re-exports the writer just
+  // as an import does: without this the module a component imports from could hand out the whole
+  // write API while R5 passed, and the connection state it guards could be written from anywhere.
+  const checkExportDeclaration = (statement: ts.ExportDeclaration) => {
+    const moduleSpecifier = statement.moduleSpecifier
+    if (!moduleSpecifier || !ts.isStringLiteralLike(moduleSpecifier)) return
+    if (resolveUiModule(file, moduleSpecifier.text) !== CONNECTION_STATE_MODULE) return
+
+    const clause = statement.exportClause
+    // `export * from …,`: the whole module, like a namespace import.
+    const reExportsEverything = !clause
+    const writtenNames: ts.Node[] = []
+    if (reExportsEverything) {
+      writtenNames.push(moduleSpecifier)
+    } else if (ts.isNamedExports(clause)) {
+      // A re-exported name is bound to what it names in the module, so the exported name is the one
+      // that has to be a writer (the local alias only renames it).
+      for (const element of clause.elements) {
+        if (CONNECTION_STATE_WRITE_API.has(element.name.text)) {
+          writtenNames.push(element.name)
+        }
+      }
+    }
+
+    if (writtenNames.length === 0) return
+    importsWriteApi = true
+    if (registered) return
+    for (const node of writtenNames) {
+      const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
+      violations.push(
+        violation(
+          file,
+          { specifier: moduleSpecifier.text, line: position.line + 1, column: position.character + 1 },
+          "R5",
+          STORE_BOUNDARY_REASONS.connectionStateWriter,
+          sourceLines,
+        ),
+      )
+    }
+  }
+
   const visit = (node: ts.Node) => {
     if (ts.isImportDeclaration(node)) checkStaticImport(node)
+    else if (ts.isExportDeclaration(node)) checkExportDeclaration(node)
     else if (ts.isCallExpression(node)) checkDynamicImport(node)
     ts.forEachChild(node, visit)
   }

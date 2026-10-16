@@ -71,6 +71,17 @@ describe("Desktop source boundaries", () => {
     ])
   })
 
+  test("blocks an alias that walks out of the UI source tree", () => {
+    // The alias is normalized before the web rule looked at it, so `@/../electron/src/x.js` in the
+    // web package collapsed to a plain relative path and passed both rules that exist for it.
+    expect(reasons(webSource, 'import "@/../electron/src/api-prefix-router.js"')).toEqual([
+      DESKTOP_BOUNDARY_REASONS.webUiAlias,
+    ])
+    expect(reasons(uiSource, 'import "@/../../electron/src/api-prefix-router.js"')).toEqual([
+      DESKTOP_BOUNDARY_REASONS.siblingSource,
+    ])
+  })
+
   test("allows the UI package to use its own local alias", () => {
     expect(analyzeDesktopSource(uiSource, 'import "@/lib/http"')).toEqual([])
   })
