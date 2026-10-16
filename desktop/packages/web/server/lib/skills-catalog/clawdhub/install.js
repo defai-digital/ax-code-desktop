@@ -177,6 +177,7 @@ export async function installSkillsFromClawdHub({
       // Extract to a temp directory first for validation
       const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `clawdhub-${plan.slug}-`))
       let movedToTarget = false
+      let backupDir = null
 
       try {
         const zip = new AdmZip(Buffer.from(zipBuffer))
@@ -210,8 +211,15 @@ export async function installSkillsFromClawdHub({
         // The installed copy is only removed once the replacement is downloaded, extracted and
         // validated: removing it before the download meant a network error, a yanked version or a bad
         // ZIP left the user with no skill at all while the result reported it as merely "skipped".
-        // It still has to go before the rename, which cannot land on a non-empty directory.
+        // It still has to go before the rename, which cannot land on a non-empty directory — so it is
+        // kept as a backup until the replacement is in place. The move itself can fail too (a
+        // cross-device copy out of space, a directory that reappeared under the target), and that was
+        // the same loss one step later.
+        let backupSkillDir = null
         if (exists && decision === "overwrite") {
+          backupDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `clawdhub-replaced-${plan.slug}-`))
+          backupSkillDir = path.join(backupDir, "skill")
+          await fs.promises.cp(targetDir, backupSkillDir, { recursive: true })
           await safeRm(targetDir)
         }
 
@@ -222,13 +230,22 @@ export async function installSkillsFromClawdHub({
         // spurious "failed to install" error for a perfectly good download.
         await ensureDir(path.dirname(targetDir))
         try {
-          await fs.promises.rename(tempDir, targetDir)
-        } catch (renameError) {
-          if (renameError?.code !== "EXDEV") {
-            throw renameError
+          try {
+            await fs.promises.rename(tempDir, targetDir)
+          } catch (renameError) {
+            if (renameError?.code !== "EXDEV") {
+              throw renameError
+            }
+            await fs.promises.cp(tempDir, targetDir, { recursive: true })
+            await safeRm(tempDir)
           }
-          await fs.promises.cp(tempDir, targetDir, { recursive: true })
-          await safeRm(tempDir)
+        } catch (moveError) {
+          if (backupSkillDir) {
+            // The failed move may have left a partial copy behind; put the installed copy back.
+            await safeRm(targetDir)
+            await fs.promises.cp(backupSkillDir, targetDir, { recursive: true }).catch(() => {})
+          }
+          throw moveError
         }
         movedToTarget = true
 
@@ -239,6 +256,9 @@ export async function installSkillsFromClawdHub({
       } finally {
         if (!movedToTarget) {
           await safeRm(tempDir)
+        }
+        if (backupDir) {
+          await safeRm(backupDir)
         }
       }
     } catch (error) {

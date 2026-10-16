@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 
-const { downloadClawdHubSkill, readBodyWithinLimit, MAX_SKILL_ARCHIVE_BYTES } = await import("./api.js")
+const {
+  downloadClawdHubSkill,
+  fetchClawdHubSkills,
+  readBodyWithinLimit,
+  MAX_SKILL_ARCHIVE_BYTES,
+} = await import("./api.js")
 
 const streamOf = (chunks) =>
   new ReadableStream({
@@ -79,5 +84,42 @@ describe("clawdhub download size cap", () => {
     const response = { headers: { get: () => null }, arrayBuffer: async () => new Uint8Array(9).buffer }
 
     await expect(readBodyWithinLimit(response, 8)).rejects.toThrow("larger than the 0 MB limit")
+  })
+})
+
+describe("clawdhub retry bodies", () => {
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  test("releases the body of a response it retries", async () => {
+    // An unconsumed body keeps its socket until the response is collected, and the rate-limit loop can leave
+    // nine of them per call. The size guard cancels for the same reason.
+    const cancelled = []
+    let calls = 0
+    globalThis.fetch = vi.fn(async () => {
+      calls += 1
+      if (calls === 1) {
+        return {
+          status: 503,
+          ok: false,
+          statusText: "Service Unavailable",
+          body: { cancel: async () => cancelled.push(calls) },
+        }
+      }
+      return {
+        status: 200,
+        ok: true,
+        body: { cancel: async () => {} },
+        json: async () => ({ items: [{ slug: "review-code" }] }),
+      }
+    })
+
+    const result = await fetchClawdHubSkills()
+
+    expect(result.items).toEqual([{ slug: "review-code" }])
+    expect(cancelled).toEqual([1])
   })
 })

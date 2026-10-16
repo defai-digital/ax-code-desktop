@@ -38,6 +38,13 @@ async function rateLimitedFetch(url, options = {}) {
 
     if (response.status === 429 || response.status >= 500) {
       if (attempt < maxAttempts - 1) {
+        // Release the body before retrying. An unconsumed body keeps its socket until it is collected, and
+        // this loop can leave nine of them per call: the size guard below cancels for the same reason.
+        try {
+          await response.body?.cancel?.()
+        } catch {
+          // Discarded either way.
+        }
         const waitMs = 50 * (attempt + 1)
         await new Promise((resolve) => setTimeout(resolve, waitMs))
         continue

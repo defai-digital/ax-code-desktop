@@ -52,6 +52,70 @@ describe("ClawdHub skill installation", () => {
     }
   })
 
+  test("keeps the installed skill when the replacement cannot be moved into place", async () => {
+    // The overwrite deleted the installed copy before the rename, and a rename cannot land on a directory that
+    // still exists — so a move that then failed (a cross-device copy out of space, a target that reappeared)
+    // left the user with neither the old skill nor the new one, recorded only as "skipped".
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
+    const renameSpy = vi.spyOn(fsPromises, "rename")
+    try {
+      const installedDir = path.join(tempRoot, "review-code")
+      await fsPromises.mkdir(installedDir, { recursive: true })
+      await fsPromises.writeFile(path.join(installedDir, "SKILL.md"), "# Review Code\nold body\n")
+
+      downloadClawdHubSkill.mockResolvedValueOnce(
+        zipWithFiles({ "SKILL.md": '---\nname: "Review Code"\ndescription: Review code.\n---\nnew body\n' }),
+      )
+      const renameError = Object.assign(new Error("ENOTEMPTY: directory not empty"), { code: "ENOTEMPTY" })
+      renameSpy.mockRejectedValue(renameError)
+
+      const result = await installSkillsFromClawdHub({
+        scope: "user",
+        targetSource: "ax-code",
+        userSkillDir: tempRoot,
+        conflictDecisions: { "review-code": "overwrite" },
+        selections: [{ skillDir: "review-code", clawdhub: { slug: "review-code", version: "1.0.0" } }],
+      })
+
+      expect(result.installed).toEqual([])
+      expect(result.skipped.map((entry) => entry.skillName)).toEqual(["review-code"])
+      await expect(fsPromises.readFile(path.join(installedDir, "SKILL.md"), "utf8")).resolves.toContain("old body")
+    } finally {
+      renameSpy.mockRestore()
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test("replaces the installed skill when the move succeeds", async () => {
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
+    try {
+      const installedDir = path.join(tempRoot, "review-code")
+      await fsPromises.mkdir(installedDir, { recursive: true })
+      await fsPromises.writeFile(path.join(installedDir, "SKILL.md"), "# Review Code\nold body\n")
+      await fsPromises.writeFile(path.join(installedDir, "notes.txt"), "old note\n")
+
+      downloadClawdHubSkill.mockResolvedValueOnce(
+        zipWithFiles({ "SKILL.md": '---\nname: "Review Code"\ndescription: Review code.\n---\nnew body\n' }),
+      )
+
+      const result = await installSkillsFromClawdHub({
+        scope: "user",
+        targetSource: "ax-code",
+        userSkillDir: tempRoot,
+        conflictDecisions: { "review-code": "overwrite" },
+        selections: [{ skillDir: "review-code", clawdhub: { slug: "review-code", version: "1.0.0" } }],
+      })
+
+      expect(result.installed.map((entry) => entry.skillName)).toEqual(["review-code"])
+      await expect(fsPromises.readFile(path.join(installedDir, "SKILL.md"), "utf8")).resolves.toContain("new body")
+      // Nothing of the replaced copy is left behind, and no backup directory stayed next to it.
+      await expect(fsPromises.stat(path.join(installedDir, "notes.txt"))).rejects.toMatchObject({ code: "ENOENT" })
+      expect((await fsPromises.readdir(tempRoot)).filter((entry) => entry !== "review-code")).toEqual([])
+    } finally {
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
   test("keeps the installed skill when the overwrite download fails", async () => {
     // The installed copy used to be deleted before the download, so a network error or a yanked
     // version left the user with no skill at all while the result reported it as merely "skipped".
