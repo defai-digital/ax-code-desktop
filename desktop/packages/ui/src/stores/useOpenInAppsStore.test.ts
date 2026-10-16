@@ -46,6 +46,8 @@ const clearMockLocalStorage = () => {
   Reflect.deleteProperty(window, "localStorage")
 }
 
+const updateDesktopSettingsMock = vi.fn(async () => {})
+
 const importStore = async () => {
   vi.resetModules()
   vi.doMock("@/lib/desktop", () => ({
@@ -54,7 +56,7 @@ const importStore = async () => {
     isTauriShell: () => true,
   }))
   vi.doMock("@/lib/persistence", () => ({
-    updateDesktopSettings: vi.fn(async () => {}),
+    updateDesktopSettings: updateDesktopSettingsMock,
   }))
   return import("./useOpenInAppsStore")
 }
@@ -63,6 +65,8 @@ describe("useOpenInAppsStore", () => {
   beforeEach(() => {
     vi.useRealTimers()
     fetchDesktopInstalledAppsMock.mockReset()
+    updateDesktopSettingsMock.mockReset()
+    updateDesktopSettingsMock.mockImplementation(async () => {})
     installMockLocalStorage()
     setDesktopPlatform("win32")
   })
@@ -214,5 +218,38 @@ describe("useOpenInAppsStore", () => {
     expect(forceArgs).toEqual([undefined, true, undefined])
     expect(useOpenInAppsStore.getState().isScanning).toBe(false)
     expect(useOpenInAppsStore.getState().availableApps.some((app) => app.id === "cursor")).toBe(true)
+  })
+})
+
+describe("useOpenInAppsStore selectApp", () => {
+  beforeEach(() => {
+    vi.useRealTimers()
+    fetchDesktopInstalledAppsMock.mockReset()
+    updateDesktopSettingsMock.mockReset()
+    installMockLocalStorage()
+    setDesktopPlatform("win32")
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    clearDesktopPlatform()
+    clearMockLocalStorage()
+    vi.doUnmock("@/lib/desktop")
+    vi.doUnmock("@/lib/persistence")
+    vi.resetModules()
+    vi.restoreAllMocks()
+  })
+
+  test("resolves even when the shared-settings write fails", async () => {
+    // The selection is applied to state and local storage before the write. Awaiting the write made a
+    // failure break the caller's next step: the project never opened in the app just picked, and the
+    // rejection escaped from the store.
+    updateDesktopSettingsMock.mockRejectedValueOnce(new Error("settings write failed"))
+    const { useOpenInAppsStore } = await importStore()
+
+    await expect(useOpenInAppsStore.getState().selectApp("vscode")).resolves.toBeUndefined()
+
+    expect(useOpenInAppsStore.getState().selectedAppId).toBe("vscode")
+    expect(window.localStorage.getItem("openInAppId")).toBe("vscode")
   })
 })

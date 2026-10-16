@@ -335,6 +335,11 @@ export const useOpenInAppsStore = create<OpenInAppsState>()((set, get) => ({
       getSafeStorage().setItem("openInAppId", appId)
     }
 
-    await updateDesktopSettings({ openInAppId: appId })
+    // Best effort: the selection is already applied above (state and local storage). Awaiting the
+    // shared-settings write here made a failed write break the caller's next step — the project never
+    // opened in the app the user had just picked — and the rejection escaped from the store.
+    void updateDesktopSettings({ openInAppId: appId }).catch(() => {
+      console.warn("[OpenInApps] Failed to persist the selected app")
+    })
   },
 }))
