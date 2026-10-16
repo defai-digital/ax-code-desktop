@@ -908,10 +908,11 @@ export async function optimisticSend(input: {
   // sees promptRecentlyAccepted=true and preserves busy via resolveResyncedSessionStatus.
   const current = store.getState()
   const previousStatus = current.session_status[input.sessionId]
+  const optimisticBusy = { type: "busy" as const }
   store.setState({
     session_status: {
       ...current.session_status,
-      [input.sessionId]: { type: "busy" as const },
+      [input.sessionId]: optimisticBusy,
     },
   })
   markPromptAccepted(input.sessionId)
@@ -928,11 +929,13 @@ export async function optimisticSend(input: {
       directory: sessionDirectory,
     })
     const s = store.getState()
-    // Restore the status snapshot taken before the optimistic busy write instead
-    // of forcing idle — the server-side turn may still be running. If the server
-    // has already published a non-busy status since, keep it.
+    // Restore the status snapshot taken before the optimistic busy write instead of forcing idle —
+    // the server-side turn may still be running — and only when the store still holds *this* call's
+    // write: identity, not `type === "busy"`. A POST that reached the runtime and started the turn
+    // before its response failed leaves the server's own busy in the store, and rolling that back
+    // showed a live turn as idle until the turn ended.
     const currentStatus = s.session_status[input.sessionId]
-    if (currentStatus?.type === "busy") {
+    if (currentStatus === optimisticBusy) {
       const restored = { ...s.session_status }
       if (previousStatus === undefined) {
         delete restored[input.sessionId]

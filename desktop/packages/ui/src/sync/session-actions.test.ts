@@ -1232,6 +1232,56 @@ describe("optimisticSend responsiveness", () => {
     expect(store.getState().session_status["session-a"]).toEqual({ type: "busy" })
   })
 
+  test("keeps a server-published busy when the send response fails", async () => {
+    // `optimisticSend` writes `{type:"busy"}` before the POST, and its failure path rolled that back
+    // whenever the status merely *was* busy. A POST that reached the runtime and started the turn
+    // before its response failed leaves the server's own busy in the store: restoring the previous
+    // (idle) status showed a live turn as idle — working indicator and Stop gone, and the
+    // queued-message auto-send firing on a busy-to-idle edge that never happened — until the turn
+    // ended. Only the object this call wrote may be rolled back.
+    const store = createStore({})
+    const childStores = createChildStores([["/test/project", store]])
+
+    const { setActionRefs, setOptimisticRefs, optimisticSend } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    setOptimisticRefs(
+      ({ sessionID, message, parts }) => {
+        store.setState((state) => ({
+          message: {
+            ...state.message,
+            [sessionID]: [...(state.message[sessionID] ?? []), message],
+          },
+          part: state.part.withEntries([[message.id, parts]]),
+        }))
+      },
+      ({ sessionID, messageID }) => {
+        store.setState((state) => {
+          const messages = state.message[sessionID] ?? []
+          return {
+            message: { ...state.message, [sessionID]: messages.filter((message) => message.id !== messageID) },
+            part: state.part.without([messageID]),
+          }
+        })
+      },
+    )
+
+    const serverBusy = { type: "busy" as const }
+    await expect(
+      optimisticSend({
+        sessionId: "session-a",
+        content: "hello",
+        providerID: "provider",
+        modelID: "model",
+        send: async () => {
+          store.setState((state) => ({ session_status: { ...state.session_status, "session-a": serverBusy } }))
+          throw new Error("network")
+        },
+      }),
+    ).rejects.toThrow("network")
+
+    expect(store.getState().session_status["session-a"]).toBe(serverBusy)
+  })
+
   test("adds a visible fallback when an accepted prompt goes idle without assistant output", async () => {
     resetScopedMessagesResult()
     const originalSetTimeout = globalThis.setTimeout
