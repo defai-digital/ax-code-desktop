@@ -1880,6 +1880,7 @@
   "multirun.launcher.toast.attachFailed": "\u65e0\u6cd5\u9644\u52a0\u300c{fileName}\u300d",
   "multirun.launcher.toast.attachedSingle": "\u5df2\u9644\u52a0 {count} \u4e2a\u6587\u4ef6",
   "multirun.launcher.toast.attachedPlural": "\u5df2\u9644\u52a0 {count} \u4e2a\u6587\u4ef6",
+  "multirun.launcher.toast.partialRunsStarted": "\u5df2\u542f\u52a8 {created}/{requested} \u4e2a\u8fd0\u884c\uff0c\u5176\u4f59\u672a\u80fd\u542f\u52a8",
   "multirun.modelMultiSelect.actions.addModel": "\u6dfb\u52a0\u6a21\u578b",
   "multirun.modelMultiSelect.search.placeholder": "\u641c\u7d22\u6a21\u578b",
   "multirun.modelMultiSelect.search.noResults": "\u672a\u627e\u5230\u6a21\u578b",

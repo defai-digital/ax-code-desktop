@@ -1874,6 +1874,7 @@
   "multirun.launcher.toast.attachFailed": "Falha ao anexar \"{fileName}\"",
   "multirun.launcher.toast.attachedSingle": "{count} arquivo anexado",
   "multirun.launcher.toast.attachedPlural": "{count} arquivos anexados",
+  "multirun.launcher.toast.partialRunsStarted": "Iniciadas {created} de {requested} execuções; as demais não puderam ser iniciadas",
   "multirun.modelMultiSelect.actions.addModel": "Adicionar modelo",
   "multirun.modelMultiSelect.search.placeholder": "Pesquisar modelos",
   "multirun.modelMultiSelect.search.noResults": "Nenhum modelo encontrado",

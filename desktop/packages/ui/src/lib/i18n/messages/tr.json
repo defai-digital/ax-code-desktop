@@ -1880,6 +1880,7 @@
   "multirun.launcher.toast.attachFailed": "\"{fileName}\" eklenemedi",
   "multirun.launcher.toast.attachedSingle": "{count} dosya eklendi",
   "multirun.launcher.toast.attachedPlural": "{count} dosya eklendi",
+  "multirun.launcher.toast.partialRunsStarted": "{requested} çalıştırmadan {created} tanesi başlatıldı; kalanlar başlatılamadı",
   "multirun.modelMultiSelect.actions.addModel": "Model ekle",
   "multirun.modelMultiSelect.search.placeholder": "Model ara",
   "multirun.modelMultiSelect.search.noResults": "Model bulunamad\u0131",

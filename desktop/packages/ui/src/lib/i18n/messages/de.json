@@ -1880,6 +1880,7 @@
   "multirun.launcher.toast.attachFailed": "\"{fileName}\" konnte nicht angeh\u00e4ngt werden",
   "multirun.launcher.toast.attachedSingle": "{count} Datei angeh\u00e4ngt",
   "multirun.launcher.toast.attachedPlural": "{count} Dateien angeh\u00e4ngt",
+  "multirun.launcher.toast.partialRunsStarted": "Gestartet: {created} von {requested} L\u00e4ufen; die \u00fcbrigen konnten nicht starten",
   "multirun.modelMultiSelect.actions.addModel": "Modell hinzuf\u00fcgen",
   "multirun.modelMultiSelect.search.placeholder": "Modelle suchen",
   "multirun.modelMultiSelect.search.noResults": "Keine Modelle gefunden",

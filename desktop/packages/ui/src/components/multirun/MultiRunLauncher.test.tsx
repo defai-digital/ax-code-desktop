@@ -2,6 +2,16 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
+import { dict } from "@/lib/i18n/messages/en"
+
+type CreateMultiRunResult = { groupSlug: string; sessionIds: string[]; firstSessionId: string | null }
+
+const { createMultiRun, toastError, addedModels, instanceIds } = vi.hoisted(() => ({
+  createMultiRun: vi.fn<() => Promise<CreateMultiRunResult | null>>(),
+  toastError: vi.fn<(message: string) => void>(),
+  addedModels: { current: 0 },
+  instanceIds: { current: 0 },
+}))
 
 const stubStore = <State,>(state: State) => {
   const useStore = ((selector?: (value: State) => unknown) => (selector ? selector(state) : state)) as unknown as {
@@ -12,7 +22,7 @@ const stubStore = <State,>(state: State) => {
   return useStore
 }
 
-vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+vi.mock("@/components/ui", () => ({ toast: { error: toastError, success: vi.fn() } }))
 
 vi.mock("@/stores/useDirectoryStore", () => ({
   useDirectoryStore: stubStore({ currentDirectory: "/repo", homeDirectory: "/home/user" }),
@@ -25,7 +35,7 @@ vi.mock("@/stores/useProjectsStore", () => ({
   }),
 }))
 vi.mock("@/stores/useMultiRunStore", () => ({
-  useMultiRunStore: stubStore({ createMultiRun: vi.fn(), error: null, clearError: vi.fn() }),
+  useMultiRunStore: stubStore({ createMultiRun, error: null, clearError: vi.fn() }),
 }))
 vi.mock("@/sync/session-ui-store", () => ({
   useSessionUIStore: { getState: () => ({ setCurrentSession: vi.fn() }) },
@@ -46,9 +56,28 @@ vi.mock("./BranchSelector", () => ({
   useBranchOptions: () => ({ isLoading: false, isGitRepository: false }),
 }))
 vi.mock("./AgentSelector", () => ({ AgentSelector: () => null }))
+// The real picker is a whole dialog tree; what the launcher needs from it is the model it hands back,
+// one add button per run group in the order the groups render.
 vi.mock("./ModelMultiSelect", () => ({
-  ModelMultiSelect: () => null,
-  generateInstanceId: () => "instance-1",
+  ModelMultiSelect: ({ onAdd }: { onAdd: (model: unknown) => void }) => (
+    <button
+      type="button"
+      data-add-model=""
+      onClick={() => {
+        addedModels.current += 1
+        onAdd({
+          providerID: "provider",
+          modelID: `model-${addedModels.current}`,
+          displayName: `model-${addedModels.current}`,
+          instanceId: `instance-${addedModels.current}`,
+        })
+      }}
+    />
+  ),
+  generateInstanceId: () => {
+    instanceIds.current += 1
+    return `instance-${instanceIds.current}`
+  },
 }))
 vi.mock("@/components/chat/CommandAutocomplete", () => ({ CommandAutocomplete: () => null }))
 vi.mock("@/components/chat/FileMentionAutocomplete", () => ({ FileMentionAutocomplete: () => null }))
@@ -60,6 +89,20 @@ const escapeEvent = () => {
   const event = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
   return event
 }
+
+const byPlaceholder = (container: HTMLElement, placeholder: string, tag = "textarea") =>
+  container.querySelector<HTMLTextAreaElement | HTMLInputElement>(`${tag}[placeholder="${placeholder}"]`)
+
+// React tracks the value it last rendered, so assigning `element.value` directly does not reach it.
+const setReactValue = (element: HTMLTextAreaElement | HTMLInputElement, value: string) => {
+  const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set
+  setter?.call(element, value)
+  element.dispatchEvent(new Event("input", { bubbles: true }))
+}
+
+const buttonByText = (container: HTMLElement, label: string) =>
+  Array.from(container.querySelectorAll("button")).find((button) => button.textContent === label)
 
 describe("MultiRunLauncher Escape handling", () => {
   let container: HTMLDivElement
@@ -108,5 +151,126 @@ describe("MultiRunLauncher Escape handling", () => {
       window.dispatchEvent(handled)
     })
     expect(onCancel).not.toHaveBeenCalled()
+  })
+})
+
+describe("MultiRunLauncher run count", () => {
+  let container: HTMLDivElement
+  let root: Root
+  let onCreated: () => void
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    addedModels.current = 0
+    createMultiRun.mockReset()
+    toastError.mockReset()
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+    onCreated = vi.fn()
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+    vi.restoreAllMocks()
+  })
+
+  const renderLauncher = async () => {
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <MultiRunLauncher onCancel={vi.fn()} onCreated={onCreated} />
+        </I18nProvider>,
+      )
+    })
+  }
+
+  const typeName = async () => {
+    await act(async () => {
+      setReactValue(byPlaceholder(container, dict["multirun.launcher.groupName.placeholder"], "input")!, "batch")
+    })
+  }
+
+  const typePrompt = async (groupIndex: number, text: string) => {
+    await act(async () => {
+      const prompts = container.querySelectorAll<HTMLTextAreaElement>(
+        `textarea[placeholder="${dict["multirun.launcher.groups.prompt.placeholder"]}"]`,
+      )
+      setReactValue(prompts[groupIndex], text)
+    })
+  }
+
+  const addModel = async (groupIndex: number) => {
+    await act(async () => {
+      container.querySelectorAll<HTMLButtonElement>("[data-add-model]")[groupIndex].click()
+    })
+  }
+
+  const addGroup = async () => {
+    await act(async () => {
+      buttonByText(container, dict["multirun.launcher.groups.addGroup"])?.click()
+    })
+  }
+
+  const submit = async () => {
+    const form = container.querySelector("form")
+    await act(async () => {
+      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    })
+  }
+
+  const startButton = () => container.querySelector<HTMLButtonElement>('button[type="submit"]')!
+
+  test("the start button counts only the groups that will be submitted", async () => {
+    await renderLauncher()
+    await typeName()
+    await typePrompt(0, "review this")
+    await addModel(0)
+    await addModel(0)
+
+    // A second group with models but no prompt is dropped by handleSubmit, so it must not be counted.
+    await addGroup()
+    await addModel(1)
+    await addModel(1)
+    await addModel(1)
+
+    expect(startButton().textContent).toBe(
+      dict["multirun.launcher.actions.startWithRunCount"].replace("{count}", "2"),
+    )
+  })
+
+  // The store reports a run whose session could not be created only in its own log, and still returns a
+  // non-null result: the user asked for N runs and silently got fewer, with no lane named anywhere.
+  test("a short creation says how many runs started", async () => {
+    createMultiRun.mockResolvedValue({ groupSlug: "slug", sessionIds: ["a"], firstSessionId: "a" })
+    await renderLauncher()
+    await typeName()
+    await typePrompt(0, "review this")
+    await addModel(0)
+    await addModel(0)
+
+    await submit()
+
+    expect(toastError).toHaveBeenCalledTimes(1)
+    expect(toastError.mock.calls[0][0]).toBe(
+      dict["multirun.launcher.toast.partialRunsStarted"].replace("{created}", "1").replace("{requested}", "2"),
+    )
+    expect(onCreated).toHaveBeenCalledTimes(1)
+  })
+
+  test("a complete creation reports nothing", async () => {
+    createMultiRun.mockResolvedValue({ groupSlug: "slug", sessionIds: ["a", "b"], firstSessionId: "a" })
+    await renderLauncher()
+    await typeName()
+    await typePrompt(0, "review this")
+    await addModel(0)
+    await addModel(0)
+
+    await submit()
+
+    expect(createMultiRun).toHaveBeenCalledTimes(1)
+    expect(toastError).not.toHaveBeenCalled()
+    expect(onCreated).toHaveBeenCalledTimes(1)
   })
 })

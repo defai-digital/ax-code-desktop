@@ -1874,6 +1874,7 @@
   "multirun.launcher.toast.attachFailed": "\u00c9chec de la jointure de \u00ab\u00a0{fileName}\u00a0\u00bb",
   "multirun.launcher.toast.attachedSingle": "{count} fichier joint",
   "multirun.launcher.toast.attachedPlural": "{count} fichiers joints",
+  "multirun.launcher.toast.partialRunsStarted": "Démarrage de {created} exécutions sur {requested} ; les autres n'ont pas pu démarrer",
   "multirun.modelMultiSelect.actions.addModel": "Ajouter un mod\u00e8le",
   "multirun.modelMultiSelect.search.placeholder": "Rechercher des mod\u00e8les",
   "multirun.modelMultiSelect.search.noResults": "Aucun mod\u00e8le trouv\u00e9",

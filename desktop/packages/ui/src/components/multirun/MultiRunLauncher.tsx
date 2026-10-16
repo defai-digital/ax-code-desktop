@@ -50,6 +50,10 @@ interface RunGroupState {
   models: ModelSelectionWithId[]
 }
 
+// A group is submitted only when it has both a prompt and a model, so it is also the only kind of
+// group whose models count towards the run total the launcher shows and compares against.
+const isSubmittableGroup = (group: RunGroupState): boolean => group.prompt.trim().length > 0 && group.models.length >= 1
+
 interface MultiRunLauncherProps {
   initialPrompt?: string
   onCreated?: () => void
@@ -378,14 +382,17 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
     setAttachedFiles((prev) => prev.filter((f) => f.id !== id))
   }
 
-  const totalRunCount = React.useMemo(() => runGroups.reduce((sum, g) => sum + g.models.length, 0), [runGroups])
+  const plannedRunCount = React.useMemo(
+    () => runGroups.reduce((sum, group) => (isSubmittableGroup(group) ? sum + group.models.length : sum), 0),
+    [runGroups],
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const validGroups = runGroups.filter((g) => g.prompt.trim() && g.models.length >= 1)
+    const validGroups = runGroups.filter(isSubmittableGroup)
     if (validGroups.length === 0) return
-    if (totalRunCount < 1) return
+    if (plannedRunCount < 1) return
 
     setIsSubmitting(true)
     clearError()
@@ -424,6 +431,18 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
         if (result.firstSessionId) {
           useSessionUIStore.getState().setCurrentSession(result.firstSessionId)
         }
+        // The store reports a run whose session or worktree could not be created only in its own log,
+        // and closes over the failure: the launcher sees a non-null result either way. Without this the
+        // user asks for N parallel runs and silently gets fewer, with no way to tell which lane died.
+        const failedCount = plannedRunCount - result.sessionIds.length
+        if (failedCount > 0) {
+          toast.error(
+            t("multirun.launcher.toast.partialRunsStarted", {
+              created: result.sessionIds.length,
+              requested: plannedRunCount,
+            }),
+          )
+        }
         onCreated?.()
       }
     } finally {
@@ -434,7 +453,7 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
   const isValid = Boolean(
     name.trim() &&
       runGroups.some((g) => g.prompt.trim() && g.models.length >= 1) &&
-      totalRunCount >= 1 &&
+      plannedRunCount >= 1 &&
       selectedProjectDirectory &&
       !isLoadingWorktreeBaseBranches &&
       (isGitRepository === false || !effectiveIsolateRuns || worktreeBaseBranch),
@@ -733,7 +752,7 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
             {isSubmitting ? (
               t("multirun.launcher.actions.creating")
             ) : (
-              <>{t("multirun.launcher.actions.startWithRunCount", { count: totalRunCount })}</>
+              <>{t("multirun.launcher.actions.startWithRunCount", { count: plannedRunCount })}</>
             )}
           </Button>
         </div>

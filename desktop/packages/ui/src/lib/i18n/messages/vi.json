@@ -1880,6 +1880,7 @@
   "multirun.launcher.toast.attachFailed": "Kh\u00f4ng \u0111\u00ednh k\u00e8m \u0111\u01b0\u1ee3c \"{fileName}\"",
   "multirun.launcher.toast.attachedSingle": "\u0110\u00e3 \u0111\u00ednh k\u00e8m {count} t\u1ec7p",
   "multirun.launcher.toast.attachedPlural": "\u0110\u00e3 \u0111\u00ednh k\u00e8m {count} t\u1ec7p",
+  "multirun.launcher.toast.partialRunsStarted": "\u0110\u00e3 b\u1eaft \u0111\u1ea7u {created} tr\u00ean {requested} l\u01b0\u1ee3t ch\u1ea1y; s\u1ed1 c\u00f2n l\u1ea1i kh\u00f4ng th\u1ec3 b\u1eaft \u0111\u1ea7u",
   "multirun.modelMultiSelect.actions.addModel": "Th\u00eam m\u00f4 h\u00ecnh",
   "multirun.modelMultiSelect.search.placeholder": "T\u00ecm m\u00f4 h\u00ecnh",
   "multirun.modelMultiSelect.search.noResults": "Kh\u00f4ng t\u00ecm th\u1ea5y m\u00f4 h\u00ecnh",

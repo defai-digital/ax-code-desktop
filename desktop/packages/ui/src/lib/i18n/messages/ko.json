@@ -1880,6 +1880,7 @@
   "multirun.launcher.toast.attachFailed": "\"{fileName}\"\uc744(\ub97c) \ucca8\ubd80\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
   "multirun.launcher.toast.attachedSingle": "\ud30c\uc77c {count}\uac1c\ub97c \ucca8\ubd80\ud588\uc2b5\ub2c8\ub2e4",
   "multirun.launcher.toast.attachedPlural": "\ud30c\uc77c {count}\uac1c\ub97c \ucca8\ubd80\ud588\uc2b5\ub2c8\ub2e4",
+  "multirun.launcher.toast.partialRunsStarted": "{requested}\uac1c \uc911 {created}\uac1c \uc2e4\ud589\uc744 \uc2dc\uc791\ud588\uc2b5\ub2c8\ub2e4. \ub098\uba38\uc9c0\ub294 \uc2dc\uc791\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
   "multirun.modelMultiSelect.actions.addModel": "\ubaa8\ub378 \ucd94\uac00",
   "multirun.modelMultiSelect.search.placeholder": "\ubaa8\ub378 \uac80\uc0c9",
   "multirun.modelMultiSelect.search.noResults": "\ubaa8\ub378\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4",

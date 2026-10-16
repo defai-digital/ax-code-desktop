@@ -1880,6 +1880,7 @@
   "multirun.launcher.toast.attachFailed": "Impossibile allegare \"{fileName}\"",
   "multirun.launcher.toast.attachedSingle": "Allegato {count} file",
   "multirun.launcher.toast.attachedPlural": "Allegati {count} file",
+  "multirun.launcher.toast.partialRunsStarted": "Avviate {created} esecuzioni su {requested}; le altre non sono partite",
   "multirun.modelMultiSelect.actions.addModel": "Aggiungi modello",
   "multirun.modelMultiSelect.search.placeholder": "Cerca modelli",
   "multirun.modelMultiSelect.search.noResults": "Nessun modello trovato",

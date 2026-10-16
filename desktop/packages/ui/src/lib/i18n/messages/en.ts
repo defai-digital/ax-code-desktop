@@ -198,6 +198,7 @@ export const dict = {
   "multirun.launcher.toast.attachFailed": 'Failed to attach "{fileName}"',
   "multirun.launcher.toast.attachedSingle": "Attached {count} file",
   "multirun.launcher.toast.attachedPlural": "Attached {count} files",
+  "multirun.launcher.toast.partialRunsStarted": "Started {created} of {requested} runs; the rest could not start",
   "multirun.modelMultiSelect.actions.addModel": "Add model",
   "multirun.modelMultiSelect.search.placeholder": "Search models",
   "multirun.modelMultiSelect.search.noResults": "No models found",

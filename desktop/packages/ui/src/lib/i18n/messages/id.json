@@ -1874,6 +1874,7 @@
   "multirun.launcher.toast.attachFailed": "Gagal melampirkan \"{fileName}\"",
   "multirun.launcher.toast.attachedSingle": "{count} berkas dilampirkan",
   "multirun.launcher.toast.attachedPlural": "{count} berkas dilampirkan",
+  "multirun.launcher.toast.partialRunsStarted": "Menjalankan {created} dari {requested} proses; sisanya gagal dimulai",
   "multirun.modelMultiSelect.actions.addModel": "Tambah model",
   "multirun.modelMultiSelect.search.placeholder": "Cari model",
   "multirun.modelMultiSelect.search.noResults": "Tidak ada model yang ditemukan",
