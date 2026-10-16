@@ -155,6 +155,11 @@ describe("pageKind", () => {
     expect(kind("https://trip.com/")).toBe("ready")
     expect(kind("http://127.0.0.1:3000/")).toBe("ready")
     expect(kind("http://localhost:5173/")).toBe("ready")
+    // Every 127.x.x.x address is loopback, not only 127.0.0.1: a local service bound to another of them was read
+    // as a public http page, so the pane was marked un-grantable and the agent's navigate failed.
+    expect(kind("http://127.0.0.2:8080/")).toBe("ready")
+    expect(kind("http://127.255.0.1/")).toBe("ready")
+    expect(kind("http://[::1]:3000/")).toBe("ready")
     expect(kind("http://trip.com/")).toBe("unsupported")
     expect(kind("chrome-error://chromewebdata/")).toBe("unsupported")
   })

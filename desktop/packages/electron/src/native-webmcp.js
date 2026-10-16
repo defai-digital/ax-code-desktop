@@ -1,6 +1,7 @@
 "use strict"
 
 const { createHash, randomUUID } = require("node:crypto")
+const { isLoopbackDesktopHostname } = require("./desktop-hosts")
 const page = require("./webmcp-page")
 
 const CAPABILITY = "desktop.webmcp.v1"
@@ -34,8 +35,11 @@ const agentOrigin = (value) => {
   try {
     const url = new URL(value)
     if (url.username || url.password) return null
+    // Every 127.x.x.x address is loopback, not just 127.0.0.1: a local service bound to any of them was read as a
+    // public http page, so the address bar marked it un-grantable and the agent's navigate failed. The shared
+    // helper is the same one the renderer protocol's loopback checks use.
     return url.protocol === "https:" ||
-      (url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname))
+      (url.protocol === "http:" && isLoopbackDesktopHostname(url.hostname))
       ? url.origin
       : null
   } catch {
