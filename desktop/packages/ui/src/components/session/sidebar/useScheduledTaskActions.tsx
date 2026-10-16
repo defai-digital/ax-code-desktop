@@ -181,10 +181,12 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
         try {
           await createScheduledTasks(directory, payloads, { pause: !submit.enabled })
         } catch (error) {
-          // Same reason as the reconciliation path above: a fan-out draft creates
-          // several tasks and the runtime starts each one active, so a failure part
-          // way through (including a pause that did not take) leaves tasks behind
-          // that the list has to show for a retry to adopt rather than duplicate.
+          // A fan-out draft creates several tasks and the runtime starts each one active, so a
+          // failure part way through (including a pause that did not take) leaves tasks behind
+          // that the list did not show. Reload so the user sees them; the editor re-enters this
+          // branch on a retry and creates the whole set again, so a retry still duplicates what
+          // this one created — adopting it would need the create path to take over an existing
+          // family, which is a decision about what creating a task with a repeated name means.
           await loadGroup(directory)
           throw error
         }

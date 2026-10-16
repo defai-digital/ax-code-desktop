@@ -229,7 +229,7 @@ describe("SidebarScheduledTasks", () => {
     expect(container.querySelector('button[aria-label="Pause Nightly"]')).not.toBeNull()
   })
 
-  test("reloads the group when a fan-out create fails, so a retry adopts what exists", async () => {
+  test("reloads the group when a fan-out create fails, so the list shows what exists", async () => {
     // One project: the add button then opens the new-task editor directly instead of
     // a project picker.
     useProjectsStore.setState({
