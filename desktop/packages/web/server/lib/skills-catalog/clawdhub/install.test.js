@@ -93,4 +93,33 @@ describe("ClawdHub skill installation", () => {
       }),
     ).toEqual({ ok: false, reason: "Invalid ZIP entry path: ..\\outside.txt" })
   })
+
+  test("rejects a symbolic-link entry before extraction", () => {
+    // The path string is fine, so the name check passes and AdmZip creates a real link in the skill
+    // directory — pointing wherever the archive says. The Unix mode lives in the high 16 bits of the
+    // entry's external attributes.
+    const symlinkEntry = { entryName: "SKILL.md", attr: (0o120777 << 16) >>> 0 }
+    const regularEntry = { entryName: "references/example.md", attr: (0o100644 << 16) >>> 0 }
+
+    expect(validateClawdHubZipEntries({ getEntries: () => [regularEntry] })).toEqual({ ok: true })
+    expect(validateClawdHubZipEntries({ getEntries: () => [regularEntry, symlinkEntry] })).toEqual({
+      ok: false,
+      reason: "Skill package contains a symbolic link: SKILL.md",
+    })
+  })
+
+  test("rejects a real symlink entry written into a ZIP", () => {
+    // Built with the library so the entry's central-directory record carries the mode the check reads.
+    const zip = new AdmZip()
+    zip.addFile("SKILL.md", Buffer.from("# Skill\n"))
+    zip.addFile("escape", Buffer.from("../../.ssh/authorized_keys"))
+    const entry = zip.getEntries().find((candidate) => candidate.entryName === "escape")
+    entry.attr = (0o120777 << 16) >>> 0
+
+    const reread = new AdmZip(zip.toBuffer())
+    expect(validateClawdHubZipEntries(reread)).toEqual({
+      ok: false,
+      reason: "Skill package contains a symbolic link: escape",
+    })
+  })
 })

@@ -191,6 +191,28 @@ const callRoute = async (handler, req = {}) => {
   return res
 }
 
+describe("fs read optional contract", () => {
+  it("answers a missing file with an empty body when optional is set", async () => {
+    // The reported claim was that realpath's ENOENT escapes the optional branch: it does not — the
+    // realpath call is inside the same try whose catch maps ENOENT to "" for optional reads. This test
+    // pins that contract so the report's finding stays settled.
+    const missing = Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
+    const { getRoute } = registerFs(
+      { realpath: async () => { throw missing }, stat: async () => null },
+      undefined,
+      { read: async () => "content" },
+    )
+
+    const read = getRoute("GET", "/api/fs/read")
+    const optionalRes = await callRoute(read, { query: { path: "/repo/missing.md", optional: "true" } })
+    expect(optionalRes.statusCode).toBe(200)
+    expect(optionalRes.body).toBe("")
+
+    const requiredRes = await callRoute(read, { query: { path: "/repo/missing.md" } })
+    expect(requiredRes.statusCode).toBe(404)
+  })
+})
+
 describe("fs write", () => {
   it("does not rewrite a file when content is unchanged", async () => {
     const fsPromises = {

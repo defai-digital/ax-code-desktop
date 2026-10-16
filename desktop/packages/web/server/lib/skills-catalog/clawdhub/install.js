@@ -22,10 +22,19 @@ import {
   validateSkillName,
 } from "../shared.js"
 
+// The high 16 bits of a ZIP entry's external attributes are its Unix mode. A symbolic-link entry passes
+// the path-string check below and AdmZip then creates a real link in the skill directory pointing wherever
+// the archive says — the escape the GitHub install path already refuses with `lstat().isSymbolicLink()`.
+const S_IFMT = 0o170000
+const S_IFLNK = 0o120000
+
 export function validateClawdHubZipEntries(zip) {
   for (const entry of zip.getEntries()) {
     if (!normalizeRepoRelativePath(entry.entryName)) {
       return { ok: false, reason: `Invalid ZIP entry path: ${entry.entryName}` }
+    }
+    if (((entry.attr >>> 16) & S_IFMT) === S_IFLNK) {
+      return { ok: false, reason: `Skill package contains a symbolic link: ${entry.entryName}` }
     }
   }
   return { ok: true }
