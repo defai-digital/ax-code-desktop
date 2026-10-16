@@ -190,7 +190,11 @@ export const useSkillsStore = create<SkillsStore>()(
                   group: parseConfigPathGroup(s.path, { segment: "skills", minimumPartsForGroup: 3 }),
                 }))
 
-                if (!isCurrentLoad()) return true
+                // A load whose result was discarded (another directory's load
+                // started later and won) put nothing in the store, so it must not
+                // report success: the caller would read this directory's skills
+                // out of the other directory's list and treat the catalog as loaded.
+                if (!isCurrentLoad()) return false
                 set({ skills: configSkills, isLoading: false })
                 setConfigCacheEntry(skillsCacheByKey, cacheKey, configSkills)
                 skillsLastLoadedAt.set(cacheKey, Date.now())

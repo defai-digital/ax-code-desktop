@@ -110,7 +110,9 @@ describe("useSkillsStore", () => {
         ],
       }),
     )
-    await oldLoad
+    // The discarded load owns nothing in the store, so it must report that instead
+    // of claiming this directory's skills are loaded.
+    await expect(oldLoad).resolves.toBe(false)
 
     expect(fetchCalls.map(String)).toEqual([
       "/api/config/skills?directory=%2Fworkspace%2Fold-project",

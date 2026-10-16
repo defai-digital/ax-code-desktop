@@ -183,7 +183,12 @@ export const useCommandsStore = create<CommandsStore>()(
                   }),
                 )
 
-                if (!isCurrentLoad()) return true
+                // A load whose result was discarded (another directory's load
+                // started later and won) put nothing in the store, so it must not
+                // report success: the caller would read this directory's commands
+                // out of the other directory's list, find the user's command
+                // missing, and send the slash command as plain text.
+                if (!isCurrentLoad()) return false
                 const nextSignature = buildCommandsSignature(commandsWithScope)
                 if (previousSignature !== nextSignature) {
                   set({ commands: commandsWithScope, isLoading: false })

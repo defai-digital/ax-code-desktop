@@ -103,7 +103,11 @@ describe("useCommandsStore", () => {
     await newLoad
 
     staleCommands.resolve([{ name: "old-command", source: "project" }])
-    await oldLoad
+    // The discarded load owns nothing in the store, so it must report that instead
+    // of claiming this directory's commands are loaded: the slash-command path
+    // reads `true` as "the catalog holds this directory" and would otherwise send
+    // an unknown command as plain text.
+    await expect(oldLoad).resolves.toBe(false)
 
     expect(withDirectories).toEqual(["/workspace/old-project", "/workspace/new-project"])
     expect(fetchCalls.map(String)).toEqual([
