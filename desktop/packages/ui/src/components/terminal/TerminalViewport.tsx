@@ -1,6 +1,6 @@
 import React from "react"
 import { createPortal } from "react-dom"
-import { Ghostty, Terminal as GhosttyTerminal, FitAddon } from "ghostty-web"
+import { Terminal as GhosttyTerminal, FitAddon } from "ghostty-web"
 
 import type { TerminalTheme } from "@/lib/terminalTheme"
 import { getGhosttyTerminalOptions } from "@/lib/terminalTheme"
@@ -9,15 +9,7 @@ import { copyTextToClipboard } from "@/lib/clipboard"
 import { cn } from "@/lib/utils"
 import { OverlayScrollbar } from "@/components/ui/OverlayScrollbar"
 import { useI18n } from "@/lib/i18n"
-
-let ghosttyPromise: Promise<Ghostty> | null = null
-
-function getGhostty(): Promise<Ghostty> {
-  if (!ghosttyPromise) {
-    ghosttyPromise = Ghostty.load()
-  }
-  return ghosttyPromise
-}
+import { getGhostty } from "./ghosttyLoader"
 
 function findScrollableViewport(container: HTMLElement): HTMLElement | null {
   if (typeof window === "undefined") {
