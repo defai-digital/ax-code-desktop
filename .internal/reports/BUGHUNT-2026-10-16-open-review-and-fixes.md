@@ -822,13 +822,22 @@ was written.
   `MultiRunFusionDialog.test.tsx` and `MultiRunWindow.test.tsx`, each case confirmed failing against the
   previous code.
 
+- **`84d281ca`** — the manual "run cleanup now" button forces the run, which bypasses the disabled and
+  cooldown skips but not the `isLoading` guard: the "keep the newest N" protection cannot pick a correct
+  set from a partially loaded session list, so the run is refused. That refusal returned empty
+  completed/failed lists and the settings page read an empty result as "no sessions eligible for
+  deletion" — it told the user their sessions had been checked and had passed when none had been
+  evaluated. The page now reads the `skippedReason` the hook already returned and says the sessions are
+  still loading; the neighbouring outcomes (genuinely none eligible, and a counted success) are pinned
+  too. The new string is in English and all 14 catalogs, each in that file's own escaping style, so
+  `pnpm run check:locales` stays green (4 691 keys, 60 983 translated entries).
+
 ### Waiting for a first re-check
 
 Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
 reviewer linked:
 
 - `sections/providers/ProvidersPage.tsx:125` (the remaining settings lead).
-- `hooks/**` — one remaining: a skipped manual cleanup reported as "no sessions are eligible".
 - `components/{supervision,multirun}` — three findings in the supervision surface are still unread
   (the multi-run ones above are fixed), plus one suspected.
 - `stores/**` — a snippets cache key that races the in-flight directory (low), and a provider-cache
@@ -947,8 +956,8 @@ One gap remains, recorded rather than fixed:
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 619, web 1 099 (+2 skipped), electron 574, root
-  scripts 179 (+6 skipped).
+- Test totals at the last run: ui 2 623, web 1 099 (+2 skipped), electron 574, root
+  scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 691 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
   scripts, no sibling dependencies, source ownership, runtime pin, release policy
