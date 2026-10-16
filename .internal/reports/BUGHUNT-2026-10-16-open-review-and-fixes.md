@@ -64,6 +64,22 @@ validated function looks up, a rollback that assumed a serialised writer, an ent
 point check that failed on a symlinked path, and a comment overstating what a
 reload achieves. They are listed in the ninth round section.
 
+Rounds ten to twenty-two kept that rotation: each round runs three or four reviewers on disjoint scopes drawn from
+the areas no round has read (or from the areas whose code has changed most since it did), one of which audits the
+series' own previous fixes. The reviewers are the Claude Code CLI, the Grok CLI, Muse CLI, and AX Code's own
+`glm-5.3`, `MiniMax-M3`, `qwen3.8-flash`, `mimo-v2.6-pro` and `deepseek-flash`; a reviewer that dies mid-report
+(MiniMax-M3 looped on `proxy.js` in the seventeenth round) is recorded as having returned nothing rather than
+counted as a clean pass. Every finding is re-checked against the current source before any fix, and fixes in the
+series' own code are audited by the next round — which has caught a defect in its predecessor's fix every time it
+has been run.
+
+Coverage, for choosing the next round's scopes: `web/server/**` has been reviewed in full at least twice (with
+`lib/ax-code/**` read file by file), `electron/src/**`, `desktop/scripts/**`, `script/**`, `.github/workflows/**`,
+`ui/src/lib/**`, `ui/src/sync/**`, `ui/src/stores/**` and the `ui/src/components/**` trees have each had at least
+one focused pass, and the patches under `patches/` and the release identity in `config/` have been read. The
+twenty-third round is reading the `ui/src/lib` files the twenty-second named as unread, the settings sections and
+the hooks/contexts trees.
+
 ## Fixes
 
 Each entry: commit · symptom · cause · evidence.
