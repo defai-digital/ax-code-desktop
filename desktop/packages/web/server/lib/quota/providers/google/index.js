@@ -41,7 +41,16 @@ export const fetchGoogleQuota = async () => {
         continue
       }
       const { clientId, clientSecret } = resolveGoogleOAuthClient(source.sourceId)
-      accessToken = await refreshGoogleAccessToken(source.refreshToken, clientId, clientSecret)
+      try {
+        accessToken = await refreshGoogleAccessToken(source.refreshToken, clientId, clientSecret)
+      } catch (error) {
+        // A transport error or the request timeout rejects here, where an HTTP failure returns null.
+        // Letting it through abandoned this provider's other sources and reported the raw abort message
+        // instead of the per-source reason this loop exists to collect.
+        console.warn("[Quota] Google token refresh failed:", error?.message || error)
+        sourceErrors.push(`${source.sourceLabel}: Failed to refresh OAuth token`)
+        continue
+      }
     }
 
     if (!accessToken) {
