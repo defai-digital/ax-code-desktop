@@ -643,6 +643,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
   const addOpenPath = useFilesViewTabsStore((state) => state.addOpenPath)
   const removeOpenPath = useFilesViewTabsStore((state) => state.removeOpenPath)
   const removeOpenPathsByPrefix = useFilesViewTabsStore((state) => state.removeOpenPathsByPrefix)
+  const removeUnselectedOpenPath = useFilesViewTabsStore((state) => state.removeUnselectedOpenPath)
   const setSelectedPath = useFilesViewTabsStore((state) => state.setSelectedPath)
   const toggleExpandedPath = useFilesViewTabsStore((state) => state.toggleExpandedPath)
   const expandPaths = useFilesViewTabsStore((state) => state.expandPaths)
@@ -1439,6 +1440,9 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     [files],
   )
 
+  // Prune open tabs whose file is gone. The tab on screen is kept: it still names the path
+  // the user is looking at, and dropping it moved the editor to a different file with no
+  // error at all.
   React.useEffect(() => {
     if (!root || !files.statFile || openPaths.length === 0) {
       return
@@ -1452,11 +1456,11 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
         try {
           const stat = await files.statFile?.(path)
           if (!cancelled && stat && !stat.isFile) {
-            removeOpenPathsByPrefix(root, path)
+            removeUnselectedOpenPath(root, path)
           }
         } catch (error) {
           if (!cancelled && isFileMissingError(error)) {
-            removeOpenPathsByPrefix(root, path)
+            removeUnselectedOpenPath(root, path)
           }
         }
       }),
@@ -1465,7 +1469,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     return () => {
       cancelled = true
     }
-  }, [files, openPaths, removeOpenPathsByPrefix, root])
+  }, [files, openPaths, removeUnselectedOpenPath, root])
 
   const displayedContent = React.useMemo(
     () =>
@@ -1757,19 +1761,9 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
             }
             return
           }
-          if (isFileMissingError(error)) {
-            if (root) {
-              removeOpenPathsByPrefix(root, node.path)
-            }
-            setFileContent("")
-            setDraftContent("")
-            setFileError(null)
-            lastLoadedFileStatRef.current = null
-            if (isMobile) {
-              setShowMobilePageContent(false)
-            }
-            return
-          }
+          // A file that is gone keeps its tab, which still names the path on screen, and
+          // reports the failure like any other failed read. Closing the tab here moved the
+          // editor to another open file and gave no sign of what happened.
           setFileContent("")
           setDraftContent("")
           setFileError(error instanceof Error ? error.message : t("filesView.error.readFileFailed"))
@@ -1788,7 +1782,6 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
       mode,
       readFile,
       readFileStat,
-      removeOpenPathsByPrefix,
       root,
       runtime.isDesktop,
       searchQuery,
