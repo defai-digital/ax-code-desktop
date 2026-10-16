@@ -22,7 +22,7 @@ have, and the same defects can be found by comparing rather than by reading.
    not have (mobile, spaces, guests, VS Code/JetBrains, relay/tunnel), and cases
    where our code already handles it a different way.
 
-That produced 29 confirmed defects in our tree. The eleven entries below are fixed; the 17
+That produced 29 confirmed defects in our tree. The fifteen entries below are fixed; the 14
 that remain are listed with the shape of their fix so they can be picked up.
 
 ## Fixed
@@ -58,6 +58,17 @@ that remain are listed with the shape of their fix so they can be picked up.
   trailing commas no longer read as "Invalid JSON".
 - `39f5267e` **An imported MCP server name is normalized** and a rejected create now
   reports the server's reason instead of "Failed to save".
+- `982e13d7` **The New Worktree form initializes once per open.** Its reset effect was
+  keyed on a slug generator derived from the worktree list, so a background worktree
+  change replaced the typed branch name, issue and PR with a random slug mid-typing.
+- `7be3d315` **A second restart-to-update click is ignored** while the install is in
+  flight, instead of reporting the updater's refusal as a restart failure.
+- `1c7a9585` **@ mentions follow the loaded agent list** rather than a getter whose
+  identity never changes, so a popup opened while a directory's agents loaded kept the
+  previous directory's.
+- `265c6e73` **An image viewer measurement stays with its image.** The reset effect
+  raced a cached image's load and wiped the size, leaving a frame whose margins
+  swallowed the click that closes it.
 
 ## Confirmed in our tree, not yet fixed
 
@@ -72,11 +83,10 @@ Ordered by severity. Line numbers are where the defect lives today.
    `security/request-security.js:16`). Browsers key cookies by host, not port, so two
    instances on one host overwrite each other's `oc_ui_session` and log each other
    out. Fix: derive the cookie name from the request's host, appending the port.
-3. **Layout and word-case loss in file mentions**: the @ mention agent list is
-   computed from a getter whose identity never changes
-   (`ui/src/components/chat/FileMentionAutocomplete.tsx:68`), so it keeps the
-   previous directory's agents until the query changes; and recent files are offered
-   without checking they still exist (`:127`), so choosing one inserts a dead path.
+3. **Recent files are offered without checking they still exist**
+   (`ui/src/components/chat/FileMentionAutocomplete.tsx:127`): deleting or renaming a
+   file that is still open in a Files tab leaves it in the @ list, and choosing it
+   inserts a path that is gone.
 4. **"Revert All" and "Generate" fan out without a bound**
    (`ui/src/components/views/GitView-impl.tsx:1742`): one POST per changed path at
    once saturates the connection pool and the panel appears hung. Upstream bounds it
@@ -88,41 +98,29 @@ Ordered by severity. Line numbers are where the defect lives today.
     (`ui/src/components/ui/CodeMirrorEditor.tsx:461`): a config object built inline
     upstream re-runs the effect and re-parses the document. Upstream diffs each
     compartment against the last applied one.
-7. **The New Worktree dialog re-initializes when the worktree list changes**
-    (`ui/src/components/session/NewWorktreeDialog.tsx:602`): the reset effect depends
-    on a callback derived from that list, so a background worktree change while the
-    dialog is open replaces the typed branch name, issue and PR with a fresh random
-    slug.
-8. **The restart-to-update button is not latched**
-    (`ui/src/stores/useUpdateStore.ts:164`): a second click runs
-    `quitAndInstall()` again, which Squirrel refuses after the services were already
-    stopped, surfacing "install-not-started" on a dead runtime.
-9. **An agent's `displayName` is ignored** (`ui/src/components/chat/ModelControls.tsx:1154`,
+7. **An agent's `displayName` is ignored** (`ui/src/components/chat/ModelControls.tsx:1154`,
     `sections/commands/AgentSelector.tsx:93`): pickers and search show the
     capitalized id instead of the name the runtime supplies.
-10. **A collapsed user message has no keyboard-accessible expand control**
+8. **A collapsed user message has no keyboard-accessible expand control**
     (`ui/src/components/chat/message/parts/UserTextPart.tsx:243`): the only way to
     read a long message is to click the clipped text.
-11. **The PR base-branch field opens when its wrapper is clicked**
+9. **The PR base-branch field opens when its wrapper is clicked**
     (`ui/src/components/views/git/PullRequestSection.tsx:1913`): the block is a
     `<label>`, so clicking its whitespace activates the select inside it.
-12. **The context meter shows the compaction request's fill**
+10. **The context meter shows the compaction request's fill**
     (`ui/src/lib/messages/assistantTokens.ts:25`): after `/compact` the newest
     token-bearing assistant message is the summarising request itself.
-13. **Staged and unstaged line counts are merged into one number**
+11. **Staged and unstaged line counts are merged into one number**
     (`web/server/lib/git/service.js:1642`): a half-staged file shows the same total
     on both its Staged and Changes rows.
-14. **The image viewer's frame size is reset by a racing effect**
-    (`ui/src/components/chat/message/ToolOutputDialog.tsx:376`): on a cached image the
-    reset erases the measurement, and the empty margins swallow clicks.
-15. **The worktree start command is read from a legacy file the runtime does not
+12. **The worktree start command is read from a legacy file the runtime does not
     write** (`web/server/lib/git/service.js:1221`), so a new worktree runs no project
     start command at all.
-16. **The Zhipu coding-plan provider matches only `TOKENS_LIMIT`**
+13. **The Zhipu coding-plan provider matches only `TOKENS_LIMIT`**
     (`web/server/lib/quota/providers/zhipuai-coding-plan.js:99`) and ignores the
     envelope's in-body errors, so its card shows no windows and a rejected key reads
     as a successful empty card. The neighbouring `zai.js` shares the one-type match.
-17. **The worktree branch rename field silently renames to a different name**
+14. **The worktree branch rename field silently renames to a different name**
     (`ui/src/components/views/git/WorktreeBranchDisplay.tsx`): covered by the branch
     name fix above for the character set; what remains is that a sanitized name equal
     to the current one closes the editor without saying so.
