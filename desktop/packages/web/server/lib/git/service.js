@@ -1374,6 +1374,12 @@ const queueWorktreeBootstrap = (args) => {
           )
         })
       }
+      // Checked again here because the upstream step above awaits a network fetch (the longest
+      // suspension in this run): the worktree can be removed and re-created under the same name while it
+      // is in flight, and the start scripts are the side effect that must not run for the stale owner.
+      if (!isCurrentBootstrap()) {
+        return
+      }
       await runWorktreeStartScripts(directory, projectID, startCommand, readProjectStartCommand).catch((error) => {
         console.warn("Worktree start script task failed:", error instanceof Error ? error.message : String(error))
       })

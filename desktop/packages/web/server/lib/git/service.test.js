@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process"
+import { readFile } from "node:fs/promises"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -997,5 +998,34 @@ describe("commit with selected files", () => {
     expect(runGit(repo, ["rev-parse", ":a.txt"]).trim()).toBe(stagedBlobBefore)
     expect(runGit(repo, ["status", "--porcelain", "--", "a.txt"]).trim()).toBe("MM a.txt")
     expect(runGit(repo, ["diff", "--", "a.txt"])).toContain("unstaged")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// createWorktree bootstrap ownership
+// ---------------------------------------------------------------------------
+
+describe("createWorktree bootstrap ownership", () => {
+  it("checks the run's ownership after every suspension that can precede a side effect", async () => {
+    // The run's awaits are the points where its worktree can be removed and re-created under the same
+    // name. Each side effect (git reset, the upstream configuration, the project's start scripts, the
+    // recorded state) has to be preceded by the ownership check; the upstream fetch is a network round
+    // trip, so a check before it alone left the start scripts unguarded.
+    const source = await readFile(path.resolve(__dirname, "service.js"), "utf8")
+    const queue = source.slice(source.indexOf("const queueWorktreeBootstrap = (args) => {"))
+    const run = queue.slice(0, queue.indexOf("const ensureRemoteWithUrl"))
+
+    const check = (before, after) =>
+      expect(run.indexOf(before)).toBeLessThan(run.indexOf(after, run.indexOf(before)))
+
+    check("if (!isCurrentBootstrap())", 'runGitCommandOrThrow(directory, ["reset", "--hard"]')
+    check("if (!isCurrentBootstrap())", "applyUpstreamConfiguration({")
+    // The upstream step awaits a network fetch; the guard has to follow it, not only precede it.
+    const upstreamIdx = run.indexOf("applyUpstreamConfiguration({")
+    const guardAfterUpstream = run.indexOf("if (!isCurrentBootstrap())", upstreamIdx)
+    const startScriptsIdx = run.indexOf("runWorktreeStartScripts(directory, projectID")
+    expect(guardAfterUpstream).toBeGreaterThan(-1)
+    expect(guardAfterUpstream).toBeLessThan(startScriptsIdx)
+    check("if (!isCurrentBootstrap())", "setWorktreeBootstrapState(directory, WORKTREE_BOOTSTRAP_READY)")
   })
 })
