@@ -25,6 +25,10 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
       contents.close = () => {
         contents.destroyed = true
       }
+      // Electron throws from the object itself once it is destroyed.
+      contents.reload = vi.fn(() => {
+        if (contents.destroyed) throw new Error("Object has been destroyed")
+      })
       contents.setWindowOpenHandler = vi.fn()
       contents.loadedUrls = []
       contents.loadURL = async (url) => {
@@ -440,6 +444,22 @@ describe("native project browser integration", () => {
     ])
 
     expect(created.id).toBeTruthy()
+  })
+
+  it("refuses a command aimed at a pane whose view is already gone", async () => {
+    // Teardown destroys the webContents, which can land between the lookup and the command: the
+    // raw Electron error ("Object has been destroyed") reached the renderer, while every other
+    // branch in this file guards the same object.
+    const f = fixture()
+    const { sender, status } = await f.create()
+    f.guests.at(-1).destroyed = true
+
+    await expect(f.controller.command(sender, { action: "reload", id: status.id })).rejects.toThrow(
+      "no longer available",
+    )
+    await expect(
+      f.controller.command(sender, { action: "navigate", id: status.id, url: "https://example.org/next" }),
+    ).rejects.toThrow("no longer available")
   })
 
   it("fails a navigation that never settles instead of leaving the pane busy", async () => {

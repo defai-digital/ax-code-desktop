@@ -71,6 +71,14 @@ function createDesktopWebMcpBrowser({
     if (!entry || entry.id !== id || entry.sender !== sender) throw new Error("This browser belongs to another window")
     return entry
   }
+  // A command that acts on the pane's view: teardown destroys the webContents, which can land
+  // while the command is being dispatched. `status()` reads a destroyed pane deliberately (it
+  // reports a blank address), so only the acting commands check.
+  function assertViewAlive(entry) {
+    if (entry.closed || entry.view.webContents.isDestroyed()) {
+      throw new Error("The project browser is no longer available")
+    }
+  }
   async function disconnect(entry) {
     entry.revision = (entry.revision ?? 0) + 1
     const connection = entry.connection
@@ -419,6 +427,7 @@ function createDesktopWebMcpBrowser({
       return status(entry)
     }
     if (args.action === "navigate") {
+      assertViewAlive(entry)
       if (!allowedUrl(args.url)) throw new Error("Only ordinary web page URLs are supported")
       // Same deadline as the first load: a load that never settles would otherwise
       // leave the pane busy forever, with every toolbar command disabled.
@@ -426,6 +435,7 @@ function createDesktopWebMcpBrowser({
       return status(entry)
     }
     if (args.action === "reload") {
+      assertViewAlive(entry)
       entry.view.webContents.reload()
       return status(entry)
     }
