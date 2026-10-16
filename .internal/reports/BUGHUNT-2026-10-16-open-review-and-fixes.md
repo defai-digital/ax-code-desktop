@@ -832,14 +832,30 @@ was written.
   too. The new string is in English and all 14 catalogs, each in that file's own escaping style, so
   `pnpm run check:locales` stays green (4 691 keys, 60 983 translated entries).
 
+- **`e5fb2707`** — two ways the multi-run launcher's run count disagreed with what happened. The start
+  button counted every group's models, but `handleSubmit` drops a group with an empty prompt, so filling
+  one group and leaving a second group's prompt blank showed "Start (5 runs)" for a submission that
+  created two; the count now uses the same predicate as the submit path, through one shared
+  `isSubmittableGroup` helper. The store creates runs one at a time, logs a run whose session or
+  worktree could not be created, cleans up its worktree, and still returns a non-null result — the
+  launcher closed on that partial success as if every lane had started and the only trace was a console
+  warning, so the user had to notice the missing lanes themselves; the launcher now compares created
+  sessions against the requested count and reports how many started.
+
+- **`778f7929`** — the mini-chat window's "session unavailable" screen never arrived while a sibling
+  session was active. The wait was an effect whose dependency list included the directory's session
+  array; that array gets a fresh identity on every session event, so each run cleared and recreated the
+  five-second timer, turning "no sign of this session for five seconds" into "five seconds without any
+  session activity at all". The deadline is anchored when the wait starts now, and the hook moved to
+  `apps/useMiniChatSessionUnavailable.ts` next to `miniChatPresence.ts` so it can be tested without
+  mounting the whole app.
+
 ### Waiting for a first re-check
 
 Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
 reviewer linked:
 
 - `sections/providers/ProvidersPage.tsx:125` (the remaining settings lead).
-- `components/{supervision,multirun}` — three findings in the supervision surface are still unread
-  (the multi-run ones above are fixed), plus one suspected.
 - `stores/**` — a snippets cache key that races the in-flight directory (low), and a provider-cache
   invalidation epoch question (suspected). `useDirectoryStore.setDirectory`'s side effects inside the
   updater were moved out with the rest of the store (`99093e86`). The reviewer's other leads about the
@@ -956,8 +972,8 @@ One gap remains, recorded rather than fixed:
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 623, web 1 099 (+2 skipped), electron 574, root
-  scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 691 keys.
+- Test totals at the last run: ui 2 630, web 1 099 (+2 skipped), electron 574, root
+  scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
   scripts, no sibling dependencies, source ownership, runtime pin, release policy
