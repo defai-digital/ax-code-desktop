@@ -1289,6 +1289,56 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Fourteenth round
+
+A fourteenth round: fresh reviewers over `ui/src/lib/{i18n,search,router,settings,tray,webmcp,wiki,preview}`,
+`server/lib/{sessions,lsp,plugins,update,notifications,magic-prompts,session-folders,desktop}` and
+`ui/src/components/{ui,desktop,update,icon,icons,notifications,comments}`, plus an auditor over everything
+the thirteenth round's audit did not cover (the fixes that followed it, that whole round, and the batch the
+upstream comparison produced). The audit found five things in that work; all five are fixed.
+
+### Fixed from the audit
+
+- **`759e1674`** — `continueRebase` and `continueMerge` continued through simple-git's own
+  `rebase()`/`commit()`, and simple-git's `rebase()` *resolves* when git refuses a step, answering the
+  failure text as its value: the `catch` was dead code, so a rebase stopped on unresolved conflicts was
+  reported as `{success: true, conflict: false}` and the panel never showed the conflict list. Both run the
+  step through `runGitCommand` (a real exit status) now. The same commit does the ordering the audit
+  flagged: the structural answer (unmerged entries) comes first, git's empty-step text is consulted only
+  once the conflicts are resolved — its message quotes the commit it failed to apply, whose subject can
+  read "handle no changes in the diff view" — and a failed `rebase --skip` is re-checked instead of being
+  reported as a completed step.
+- **`2405d281`** — the counter added in `784f8d17` lived on the reducer's draft, and the pipeline publishes
+  a draft only when the reducer reports a change; a `question.replied` for a question this client never
+  held (the reconnect-gap case, exactly what the counter is for) returns false, so the draft and the count
+  were discarded and the stale snapshot restored the answered question. The stamp is module state now
+  (`sync/blocking-request-events.ts`), one counter per session, like `serverSessionStatusStamp`.
+- **`ccc3903f`** — two follow-ups to the previous batch: the relative-redirect base took the request path
+  as a URL reference, so a path beginning with `//` was read as protocol-relative and registered a proxy
+  target for that host; and the Codex provider's new 401 body read fell through to cancelling a body that
+  had already been consumed.
+- **`6d793f99`** — bounding a long config file name (`8ab5933f`) left the name and the project id no longer
+  the same thing, and the scheduled-task convergence derives the id from the file name: it logged "project
+  path is unavailable; left for next boot" on every boot for such a project. The runtime writes `projectID`
+  into the config it owns, and the convergence reads it first.
+
+### Fixed while the round ran
+
+- **`86a3c917`** — the gap the "Limit audit" recorded: a full message queue refused the entry silently.
+  The refusal reports it now, with the cap read from the store's own constant through the message's
+  `{count}` placeholder; the key is in all fourteen catalogs.
+
+### Arrived, being verified
+
+- `server/lib/{sessions,lsp,plugins,update,notifications,magic-prompts,session-folders,desktop}`
+  (deepseek-flash): two CONFIRMED — a corrupt magic-prompts file is replaced instead of being kept, and
+  unkeyed permission asks overwrite each other — plus two SUSPECTED (session-state endpoints and the auth
+  gate, and `session-folders` returning unvalidated file content).
+- `ui/src/components/{ui,desktop,update,icon,icons,notifications,comments}` (MiniMax-M3): no confirmed
+  bugs; two SUSPECTED (an `ErrorBoundary` `setTimeout` that is never cleared, and a stale
+  `cliStatusRef.current` in the update toast).
+- `ui/src/lib/{i18n,search,router,settings,tray,webmcp,wiki,preview}` (Grok CLI): still running.
+
 ## Thirteenth round
 
 A thirteenth round: the twelfth round's server scope re-run over `server/**` and
