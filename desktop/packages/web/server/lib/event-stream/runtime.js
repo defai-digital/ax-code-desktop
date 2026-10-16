@@ -23,7 +23,12 @@ export function createGlobalUiEventBroadcaster({ sseClients, wsClients, writeSse
     if (hasSseClients) {
       for (const res of sseClients) {
         try {
-          writeSseEvent(res, payload)
+          // `false` is how a stream whose write buffer is over the cap is ended, and the close handler is not
+          // guaranteed to fire for a socket that cannot flush: it leaves the set here, as the websocket branch
+          // below does for a socket it could not write to.
+          if (writeSseEvent(res, payload) === false) {
+            sseClients.delete(res)
+          }
         } catch {}
       }
     }

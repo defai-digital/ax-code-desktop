@@ -836,6 +836,7 @@ describe("terminal shell env", () => {
     const env = sanitizeTerminalEnv({
       PATH: "/usr/bin",
       AX_CODE_DESKTOP_UI_PASSWORD: "ui-password",
+      UI_PASSWORD: "container-password",
       AX_CODE_UI_PASSWORD: "legacy-password",
       AX_CODE_JWT_SECRET: "session-key",
       AX_CODE_DESKTOP_JWT_SECRET: "desktop-session-key",
@@ -843,6 +844,7 @@ describe("terminal shell env", () => {
     })
 
     expect(env.AX_CODE_DESKTOP_UI_PASSWORD).toBeUndefined()
+    expect(env.UI_PASSWORD).toBeUndefined()
     expect(env.AX_CODE_UI_PASSWORD).toBeUndefined()
     expect(env.AX_CODE_JWT_SECRET).toBeUndefined()
     expect(env.AX_CODE_DESKTOP_JWT_SECRET).toBeUndefined()

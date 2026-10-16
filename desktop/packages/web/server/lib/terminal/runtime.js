@@ -108,6 +108,9 @@ export const sanitizeTerminalEnv = (env) => {
   delete next.AX_CODE_BROWSER_MODE
   delete next.AX_CODE_DESKTOP_UI_PASSWORD
   delete next.AX_CODE_UI_PASSWORD
+  // The container entrypoint's own alias: it passes `$UI_PASSWORD` as `--ui-password` and `exec`s the server in
+  // the same environment, so the credential the names above remove is still there under this one.
+  delete next.UI_PASSWORD
   delete next.AX_CODE_JWT_SECRET
   delete next.AX_CODE_DESKTOP_JWT_SECRET
   return next

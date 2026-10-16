@@ -77,6 +77,23 @@ describe("event stream broadcaster", () => {
     ])
   })
 
+  it("removes an SSE client whose stream could not be written to", () => {
+    // `writeSseEvent` answers `false` after ending a stream whose buffer is over the cap, and this fan-out is the
+    // path production uses: `broadcastUiNotification` delegates to it whenever a broadcaster is wired, so the
+    // emitter's own cleanup never runs there. The socket cannot flush, so the close handler is not guaranteed to
+    // fire either — it leaves the set here, as the websocket branch below does for a socket it could not write to.
+    const sseClients = new Set([{ id: "stalled" }, { id: "healthy" }])
+    const broadcast = createGlobalUiEventBroadcaster({
+      sseClients,
+      wsClients: new Set(),
+      writeSseEvent: (res) => res.id !== "stalled",
+    })
+
+    broadcast({ type: "openchamber:session-status" })
+
+    expect([...sseClients].map((client) => client.id)).toEqual(["healthy"])
+  })
+
   it("removes websocket clients that fail to receive a payload", () => {
     const wsClients = new Set([
       {
