@@ -2745,6 +2745,27 @@ const readStagedIndexEntries = async (git, paths) => {
       }
       entries.set(record.slice(tabIndex + 1), { mode, object })
     }
+    // A staged deletion has no index entry at all — `ls-files --stage` lists nothing for a path that is
+    // gone — so the loop above records nothing for it and the path came back unstaged after the commit.
+    // HEAD is what distinguishes "deleted" from "never tracked".
+    const headRaw = await git
+      .raw(["ls-tree", "--full-tree", "-z", "HEAD", "--", ...paths])
+      .catch(() => "")
+    for (const record of String(headRaw || "").split("\0")) {
+      if (!record) {
+        continue
+      }
+      const headTabIndex = record.indexOf("\t")
+      if (headTabIndex < 0) {
+        continue
+      }
+      const [headMode, , headObject] = record.slice(0, headTabIndex).split(" ")
+      const headPath = record.slice(headTabIndex + 1)
+      if (!headMode || !headObject || entries.has(headPath)) {
+        continue
+      }
+      entries.set(headPath, { deletion: true })
+    }
   } catch (error) {
     console.error("Failed to read the staged entries that are about to be unstaged:", error)
   }
@@ -2755,6 +2776,12 @@ const restoreStagedIndexEntries = async (git, paths, entries) => {
   for (const filePath of paths) {
     const entry = entries.get(filePath)
     if (!entry) {
+      continue
+    }
+    if (entry.deletion) {
+      // A staged deletion *is* the absence of an index entry, which `update-index --cacheinfo` cannot
+      // express: `--force-remove` drops the entry without touching the worktree file.
+      await git.raw(["update-index", "--force-remove", "--", filePath])
       continue
     }
     await git.raw(["update-index", "--cacheinfo", `${entry.mode},${entry.object},${filePath}`])
@@ -2957,6 +2984,18 @@ export async function createBranch(directory, branchName, options = {}) {
   }
 }
 
+/** Whether a checkout target names something git can check out as a revision (not a path or an option). */
+async function isCheckoutableRevision(git, name) {
+  const value = String(name || "").trim()
+  if (!value || value.startsWith("-")) {
+    return false
+  }
+  return git
+    .raw(["rev-parse", "--verify", "--quiet", `${value}^{commit}`])
+    .then((output) => Boolean(String(output || "").trim()))
+    .catch(() => false)
+}
+
 export async function checkoutBranch(directory, branchName) {
   const { git } = await createRepositoryGitContext(directory)
 
@@ -2981,6 +3020,12 @@ export async function checkoutBranch(directory, branchName) {
         }
       }
     } else {
+      // Git's DWIM reads a value that names a tracked file as a pathspec: `git checkout README.md`
+      // restored that file from the index and discarded the user's uncommitted edits, while this
+      // function reported a successful branch checkout. Only a revision is checked out.
+      if (!(await isCheckoutableRevision(git, target.local))) {
+        throw new Error(`No branch or revision named "${target.local}"`)
+      }
       await git.checkout(target.local)
     }
     return { success: true, branch: target.local }
@@ -4052,15 +4097,13 @@ export async function getCommitFiles(directory, commitHash) {
       const isBinary = insertionsRaw === "-" && deletionsRaw === "-"
 
       let changeType = "M"
-      let displayPath = filePath
 
+      // `git show --numstat` writes a rename as `old.ts => new.ts` or `src/{old.ts => new.ts}`, which is
+      // not a path: the history view passed it back as `commit-file-diff`'s `path` and every renamed file
+      // answered 500. The destination is what the file is called at this commit.
+      const displayPath = filePath.includes(" => ") ? extractGitNumstatDestinationPath(filePath) : filePath
       if (filePath.includes(" => ")) {
         changeType = "R"
-
-        const match = filePath.match(/(?:\{[^}]*\s=>\s[^}]*\}|.*\s=>\s.*)/)
-        if (match) {
-          displayPath = filePath
-        }
       }
 
       files.push({

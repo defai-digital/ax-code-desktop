@@ -13,6 +13,8 @@ import {
   commit,
   countStashFiles,
   createWorktree,
+  getCommitFileDiff,
+  getCommitFiles,
   getFileDiff,
   getStatus,
   getWorktreeBootstrapStatus,
@@ -999,6 +1001,31 @@ describe("commit with selected files", () => {
     expect(runGit(repo, ["status", "--porcelain", "--", "a.txt"]).trim()).toBe("MM a.txt")
     expect(runGit(repo, ["diff", "--", "a.txt"])).toContain("unstaged")
   })
+
+  it("keeps a staged deletion staged when another file is committed", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "a.txt"), "a\n")
+    fs.writeFileSync(path.join(repo, "b.txt"), "b\n")
+    runGit(repo, ["add", "."])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+
+    // The user staged a deletion and selected only b.txt to commit.
+    runGit(repo, ["rm", "a.txt"])
+    fs.writeFileSync(path.join(repo, "b.txt"), "b\nchanged\n")
+    runGit(repo, ["add", "b.txt"])
+
+    await commit(repo, "Only b", { files: ["b.txt"], stageFiles: ["b.txt"] })
+
+    // Unstaging it for the commit and re-staging it from an index entry cannot work for a deletion —
+    // there is no entry to read — so the deletion came back unstaged and the next commit lost it.
+    expect(runGit(repo, ["status", "--porcelain"]).trim()).toContain("D  a.txt")
+    expect(runGit(repo, ["show", "--name-only", "--format=", "HEAD"]).trim()).toBe("b.txt")
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -1027,5 +1054,60 @@ describe("createWorktree bootstrap ownership", () => {
     expect(guardAfterUpstream).toBeGreaterThan(-1)
     expect(guardAfterUpstream).toBeLessThan(startScriptsIdx)
     check("if (!isCurrentBootstrap())", "setWorktreeBootstrapState(directory, WORKTREE_BOOTSTRAP_READY)")
+  })
+})
+
+describe("getCommitFiles rename handling", () => {
+  it("reports a renamed file's destination path so its diff can be loaded", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.mkdirSync(path.join(repo, "src"), { recursive: true })
+    fs.writeFileSync(path.join(repo, "src/a.ts"), "line1\nline2\n")
+    runGit(repo, ["add", "-A"])
+    runGit(repo, ["commit", "-m", "base"])
+
+    fs.mkdirSync(path.join(repo, "lib"), { recursive: true })
+    runGit(repo, ["mv", "src/a.ts", "lib/b.ts"])
+    runGit(repo, ["commit", "-m", "rename"])
+
+    const [hash] = runGit(repo, ["rev-parse", "HEAD"]).trim().split("\n")
+    const { files } = await getCommitFiles(repo, hash)
+    const renamed = files.find((file) => file.changeType === "R")
+
+    // `git show --numstat` reports the rename as `src/{a.ts => b.ts}` (or `a.ts => b.ts`), which is not
+    // a path: the history view handed it to `commit-file-diff` and every renamed file answered 500.
+    expect(renamed?.path).toBe("lib/b.ts")
+    await expect(getCommitFileDiff(repo, hash, renamed.path, false)).resolves.toMatchObject({ isBinary: false })
+  })
+})
+
+describe("checkoutBranch target validation", () => {
+  it("refuses a path and an option instead of letting git reinterpret them", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "notes.txt"), "committed\n")
+    runGit(repo, ["add", "-A"])
+    runGit(repo, ["commit", "-m", "base"])
+    runGit(repo, ["branch", "feature"])
+
+    // `git checkout notes.txt` is a pathspec: it restores the file from the index and drops the edit,
+    // while the route reported a branch checkout.
+    fs.writeFileSync(path.join(repo, "notes.txt"), "uncommitted edit\n")
+    await expect(checkoutBranch(repo, "notes.txt")).rejects.toThrow(/No branch or revision named/)
+    expect(fs.readFileSync(path.join(repo, "notes.txt"), "utf8")).toBe("uncommitted edit\n")
+
+    await expect(checkoutBranch(repo, "-f")).rejects.toThrow(/No branch or revision named/)
+
+    // A real branch still switches.
+    await expect(checkoutBranch(repo, "feature")).resolves.toMatchObject({ success: true, branch: "feature" })
+    expect(runGit(repo, ["rev-parse", "--abbrev-ref", "HEAD"]).trim()).toBe("feature")
   })
 })

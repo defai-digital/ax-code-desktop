@@ -959,7 +959,6 @@ export function createTerminalRuntime({
       if (restartsInFlight.has(sessionId)) {
         return res.status(409).json({ error: "A restart of this terminal session is already in progress" })
       }
-      restartsInFlight.add(sessionId)
 
       // The existing session is killed only once the replacement exists. Killing it first (after the
       // cwd validated, which is what the comment here used to cover) left a failed provider or spawn
@@ -976,6 +975,12 @@ export function createTerminalRuntime({
           return res.status(429).json({ error: "Maximum terminal sessions reached" })
         }
       }
+
+      // Marked only once the reservation succeeded. The 429 above returns before this block's
+      // try/finally, so a marker added earlier was never removed and every later restart of that id
+      // answered 409 "already in progress" for good. Nothing awaits between the check and this line, so
+      // the guard still serializes two overlapping restarts.
+      restartsInFlight.add(sessionId)
 
       try {
         const newSessionId = crypto.randomBytes(24).toString("hex")

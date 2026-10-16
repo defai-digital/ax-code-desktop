@@ -17,6 +17,7 @@ const gitLibraries = {
   stashApply: vi.fn(),
   stashPop: vi.fn(),
   stashDrop: vi.fn(),
+  checkoutBranch: vi.fn(),
 }
 
 vi.doMock("./index.js", () => ({
@@ -32,6 +33,7 @@ vi.doMock("./index.js", () => ({
   stashApply: gitLibraries.stashApply,
   stashPop: gitLibraries.stashPop,
   stashDrop: gitLibraries.stashDrop,
+  checkoutBranch: gitLibraries.checkoutBranch,
 }))
 
 const { registerGitRoutes } = await import("./routes.js")
@@ -50,6 +52,7 @@ describe("git routes index mutations", () => {
     gitLibraries.stashApply.mockReset()
     gitLibraries.stashPop.mockReset()
     gitLibraries.stashDrop.mockReset()
+    gitLibraries.checkoutBranch.mockReset()
   })
 
   it("rejects an option-like branch name instead of reporting a deletion", async () => {
@@ -82,6 +85,23 @@ describe("git routes index mutations", () => {
 
     expect(response.statusCode).toBe(400)
     expect(gitLibraries.renameBranch).not.toHaveBeenCalled()
+  })
+
+  it("rejects an option-like branch name instead of handing it to git checkout", async () => {
+    // `git checkout -f` discards the working tree and exits 0, and a value that names a tracked file
+    // is a pathspec: `git checkout README.md` restored that file from the index. The route answered
+    // success for both, so the user believed a branch had been checked out.
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("POST", "/api/git/checkout")(
+      { query: { directory: "/repo" }, body: { branch: "-f" } },
+      response,
+    )
+
+    expect(response.statusCode).toBe(400)
+    expect(gitLibraries.checkoutBranch).not.toHaveBeenCalled()
   })
 
   it("accepts legacy stage path payloads", async () => {

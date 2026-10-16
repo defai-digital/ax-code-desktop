@@ -1128,6 +1128,15 @@ export const registerFsRoutes = (app, dependencies) => {
       }
       const mimeType = mimeMap[ext] || "application/octet-stream"
 
+      // A raw read can be navigated to instead of rendered as an image (a chat link, a pasted URL, the
+      // browser's own view of the response), and an SVG is a document then: the app's own policy allows
+      // inline script, so a workspace SVG carrying one ran on the app's loopback origin, where a
+      // same-origin request reaches the API with the session cookie. Every response carries its own
+      // policy, the way the project-icon route answers, and nosniff keeps the octet-stream fallback from
+      // being sniffed into a document.
+      res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+      res.setHeader("X-Content-Type-Options", "nosniff")
+
       const download = req.query.download === "true"
       if (download) {
         const fileName = path.basename(canonicalPath)

@@ -387,6 +387,61 @@ describe("terminal restart", () => {
     }
   })
 
+  it("does not leave a restart marker behind when the cap refuses it", async () => {
+    // The marker that serializes restarts is added before the slot reservation, and only the inner
+    // try/finally removed it — which the 429 return never reached. Every later restart of that id then
+    // answered 409 "already in progress", permanently, even after slots were free.
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const makeFakePty = () => ({
+      onData: () => ({ dispose() {} }),
+      onExit: () => ({ dispose() {} }),
+      write: () => {},
+      kill: () => {},
+      resize: () => {},
+    })
+    const runtime = createRuntime(server, {
+      app,
+      getPtyProvider: async () => ({ backend: "mock", spawn: () => makeFakePty() }),
+      isExecutable: () => true,
+      validateCwd: async (_req, cwd) => ({ ok: true, cwd }),
+      uiAuthController: { enabled: false },
+      buildAugmentedPath: () => "",
+      TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: 1000,
+      TERMINAL_INPUT_WS_REBIND_WINDOW_MS: 1000,
+      MAX_TERMINAL_SESSIONS: 1,
+    })
+
+    try {
+      const createRoute = getRoute("POST", "/api/terminal/create")
+      const created = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, created)
+      expect(created.body?.sessionId).toBeTruthy()
+
+      const restartRoute = getRoute("POST", "/api/terminal/:sessionId/restart")
+      const unknownSessionId = "unknown-terminal-session"
+      const refused = createMockResponse()
+      await restartRoute(
+        { params: { sessionId: unknownSessionId }, body: { cwd: "/tmp", cols: 80, rows: 24 } },
+        refused,
+      )
+      expect(refused.statusCode).toBe(429)
+
+      // Free the slot, then restart the same id again: the refusal must not have marked it in flight.
+      const closeRoute = getRoute("DELETE", "/api/terminal/:sessionId")
+      await closeRoute({ params: { sessionId: created.body.sessionId } }, createMockResponse())
+
+      const retried = createMockResponse()
+      await restartRoute(
+        { params: { sessionId: unknownSessionId }, body: { cwd: "/tmp", cols: 80, rows: 24 } },
+        retried,
+      )
+      expect(retried.statusCode).toBe(200)
+    } finally {
+      await runtime.shutdown()
+    }
+  })
+
   it("refuses a second restart of the same session while one is in flight", async () => {
     // The replacement is spawned before the old session is swapped out, so two overlapping restarts for
     // one id both read the same live session and neither reserves a slot: both spawn, both register, the

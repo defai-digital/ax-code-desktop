@@ -848,6 +848,12 @@ export function registerGitRoutes(app, options = {}) {
       if (!branch) {
         return res.status(400).json({ error: "branch is required" })
       }
+      // Git parses a leading "-" as an option (`git checkout -f` discards the working tree) and a
+      // value that names a tracked file as a pathspec (`git checkout README.md` restores it from the
+      // index, silently dropping the user's edits), and this route answered success either way.
+      if (isOptionLikeRevision(branch)) {
+        return res.status(400).json({ error: "branch must be a branch name, not an option" })
+      }
 
       const result = await checkoutBranch(directory, branch)
       res.json(result)

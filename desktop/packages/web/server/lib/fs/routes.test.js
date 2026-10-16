@@ -892,6 +892,43 @@ describe("fs core file adapter responses", () => {
     expect(res.contentType).toContain("image/png")
   })
 
+  it("gives a raw SVG its own policy instead of the app's", async () => {
+    // An SVG is a document when it is opened directly, and the app's own policy allows inline script:
+    // a workspace SVG carrying one ran on the app's origin, where a same-origin request reaches the API
+    // with the session cookie. The project-icon route already answers this way.
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>fetch("/api/fs/list")</script></svg>')
+    const coreFileAdapter = {
+      raw: vi.fn(async () => ({ buffer: svg, mimeType: "image/svg+xml" })),
+    }
+    const { getRoute } = registerFs(
+      { stat: vi.fn(async () => ({ isDirectory: () => false })) },
+      { approvedDirectories: [] },
+      coreFileAdapter,
+    )
+
+    const res = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/evil.svg" } })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.getHeader("Content-Security-Policy")).toBe("default-src 'none'; style-src 'unsafe-inline'; sandbox")
+    expect(res.getHeader("X-Content-Type-Options")).toBe("nosniff")
+  })
+
+  it("refuses to let a raw read be sniffed into a document", async () => {
+    const coreFileAdapter = {
+      raw: vi.fn(async () => ({ buffer: Buffer.from("<html><script>x</script>"), mimeType: "application/octet-stream" })),
+    }
+    const { getRoute } = registerFs(
+      { stat: vi.fn(async () => ({ isDirectory: () => false })) },
+      { approvedDirectories: [] },
+      coreFileAdapter,
+    )
+
+    const res = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/page" } })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.getHeader("X-Content-Type-Options")).toBe("nosniff")
+  })
+
   it("answers a non-file raw read as a client error", async () => {
     const coreFileAdapter = {
       raw: vi.fn(async () => {
