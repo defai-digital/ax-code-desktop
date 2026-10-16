@@ -73,3 +73,16 @@ export const getFilesViewDisplayPath = (root: string | null, path: string): stri
   }
   return relative.startsWith("/") ? relative.slice(1) : relative
 }
+
+/**
+ * Whether a dialog's typed name is one entry of the directory the dialog is scoped to.
+ *
+ * The name is joined onto that directory, so a separator or a `..` segment moves the operation
+ * somewhere else — out of the folder the dialog named, and with enough of them out of the project,
+ * which is what every containment check here (a string-prefix matcher) would still call "inside".
+ */
+export const isFilesViewEntryName = (value: string): boolean => {
+  const name = value.trim()
+  if (!name || name === "." || name === "..") return false
+  return !name.includes("/") && !name.includes("\\")
+}

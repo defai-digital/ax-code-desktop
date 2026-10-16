@@ -1061,6 +1061,7 @@ export const dict = {
   "sidebarFilesTree.toast.writeNotSupported": "Write not supported",
   "sidebarFilesTree.toast.fileCreated": "File created",
   "sidebarFilesTree.toast.fileAlreadyExists": "A file with this name already exists",
+  "sidebarFilesTree.toast.nameInvalid": "Use a name without a path",
   "sidebarFilesTree.toast.operationFailed": "Operation failed",
   "sidebarFilesTree.toast.folderNameRequired": "Folder name is required",
   "sidebarFilesTree.toast.folderCreated": "Folder created",

@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises"
+import path from "node:path"
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
@@ -178,6 +180,32 @@ describe("FilesView file dialogs", () => {
     expect(writeFile).toHaveBeenCalled()
     expect(toastError).toHaveBeenCalledWith(dict["sidebarFilesTree.toast.operationFailed"])
     expect(toastSuccess).not.toHaveBeenCalledWith(dict["sidebarFilesTree.toast.fileCreated"])
+  })
+
+  test("rejects a name that would escape the directory scoped by the dialog", async () => {
+    writeFile.mockResolvedValue({ success: true, path: "/repo/new.md" })
+    await render()
+
+    await clickByLabel(dict["filesView.tree.actions.newFileTitle"])
+    await typeIntoDialog("../../evil.txt")
+    await submitDialog()
+
+    expect(toastError).toHaveBeenCalledWith(dict["sidebarFilesTree.toast.nameInvalid"])
+    expect(writeFile).not.toHaveBeenCalled()
+  })
+
+  // The rename dialog opens from a tree row's context menu, and this harness renders no rows, so its
+  // guard is asserted against the source — including that it comes before the rename call, which is
+  // the whole point: `rename` replaces an existing target.
+  test("refuses to rename onto an existing file", async () => {
+    const source = await readFile(path.resolve(__dirname, "FilesView-impl.tsx"), "utf8")
+
+    const collisionCheck = source.indexOf("const existingTarget = files.statFile")
+    const renameCall = source.indexOf("await files\n          .rename(oldPath, newPath)")
+    expect(collisionCheck).toBeGreaterThan(-1)
+    expect(renameCall).toBeGreaterThan(-1)
+    expect(collisionCheck).toBeLessThan(renameCall)
+    expect(source.slice(collisionCheck, renameCall)).toContain('fileAlreadyExists')
   })
 
   test("confirms a created file", async () => {

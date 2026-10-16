@@ -2675,6 +2675,7 @@
   "sidebarFilesTree.toast.writeNotSupported": "\uc4f0\uae30\ub97c \uc9c0\uc6d0\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4",
   "sidebarFilesTree.toast.fileCreated": "\ud30c\uc77c\uc744 \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4",
   "sidebarFilesTree.toast.fileAlreadyExists": "\uac19\uc740 \uc774\ub984\uc758 \ud30c\uc77c\uc774 \uc774\ubbf8 \uc788\uc2b5\ub2c8\ub2e4",
+  "sidebarFilesTree.toast.nameInvalid": "\uacbd\ub85c\uac00 \uc5c6\ub294 \uc774\ub984\uc744 \uc785\ub825\ud574 \uc8fc\uc138\uc694",
   "sidebarFilesTree.toast.operationFailed": "\uc791\uc5c5\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4",
   "sidebarFilesTree.toast.folderNameRequired": "\ud3f4\ub354 \uc774\ub984\uc774 \ud544\uc694\ud569\ub2c8\ub2e4",
   "sidebarFilesTree.toast.folderCreated": "\ud3f4\ub354\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4",

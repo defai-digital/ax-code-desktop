@@ -2669,6 +2669,7 @@
   "sidebarFilesTree.toast.writeNotSupported": "Escrita n\u00e3o suportada",
   "sidebarFilesTree.toast.fileCreated": "Arquivo criado",
   "sidebarFilesTree.toast.fileAlreadyExists": "J\u00e1 existe um arquivo com esse nome",
+  "sidebarFilesTree.toast.nameInvalid": "Use um nome sem caminho",
   "sidebarFilesTree.toast.operationFailed": "Opera\u00e7\u00e3o falhou",
   "sidebarFilesTree.toast.folderNameRequired": "O nome da pasta \u00e9 obrigat\u00f3rio",
   "sidebarFilesTree.toast.folderCreated": "Pasta criada",

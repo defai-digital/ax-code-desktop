@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest"
 import {
   filesViewPathsEqual,
   getFilesViewDisplayPath,
+  isFilesViewEntryName,
   isFilesViewPathWithinRoot,
   normalizeFilesViewPath,
 } from "./filesViewPathUtils"
@@ -39,5 +40,25 @@ describe("filesViewPathUtils", () => {
 
   test("slices relative paths by the original root length when lowercasing expands characters", () => {
     expect(getFilesViewDisplayPath("C:/DİJİTAL", "C:/DİJİTAL/readme.md")).toBe("readme.md")
+  })
+})
+
+describe("isFilesViewEntryName", () => {
+  test("accepts a single name", () => {
+    expect(isFilesViewEntryName("notes.txt")).toBe(true)
+    expect(isFilesViewEntryName("  spaced name.md  ")).toBe(true)
+    expect(isFilesViewEntryName("测试.md")).toBe(true)
+  })
+
+  test("rejects a name that would move the operation out of the directory", () => {
+    // The dialog joins the name onto the folder it is scoped to, so a separator or a `..` segment
+    // wrote (or renamed) somewhere else — out of that folder, and with enough of them out of the
+    // project, while every containment check here is a string-prefix matcher and still said "inside".
+    expect(isFilesViewEntryName("../evil.txt")).toBe(false)
+    expect(isFilesViewEntryName("a/b.txt")).toBe(false)
+    expect(isFilesViewEntryName("a\\b.txt")).toBe(false)
+    expect(isFilesViewEntryName("..")).toBe(false)
+    expect(isFilesViewEntryName(".")).toBe(false)
+    expect(isFilesViewEntryName("   ")).toBe(false)
   })
 })
