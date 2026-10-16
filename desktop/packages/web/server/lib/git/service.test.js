@@ -10,6 +10,7 @@ import {
   checkoutCommit,
   cherryPick,
   countStashFiles,
+  getFileDiff,
   getStatus,
   removeWorktree,
   resetToCommit,
@@ -682,5 +683,71 @@ describe("removeWorktree", () => {
 
     expect(result).toBe(true)
     expect(runGit(repo, ["branch", "--list", "solo"]).trim()).toBe("")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getFileDiff
+// ---------------------------------------------------------------------------
+
+describe("getFileDiff", () => {
+  const initRepoWithFile = (repo, filePath, content) => {
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.mkdirSync(path.dirname(path.join(repo, filePath)), { recursive: true })
+    fs.writeFileSync(path.join(repo, filePath), content)
+    runGit(repo, ["add", "-A"])
+    runGit(repo, ["commit", "-m", "base"])
+  }
+
+  it("reads an already-staged deletion as HEAD content against an empty side", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    initRepoWithFile(repo, "gone.txt", "one\ntwo\n")
+    runGit(repo, ["rm", "-q", "gone.txt"])
+
+    // `git show :<path>` fails for a staged deletion (`path ... does not exist
+    // (neither on disk nor in the index)`), and simple-git's GitError carries no
+    // `code`, so the deletion must not be reported as a server failure.
+    await expect(getFileDiff(repo, { path: "gone.txt", staged: true })).resolves.toMatchObject({
+      original: "one\ntwo\n",
+      modified: "",
+      isBinary: false,
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getStatus diff stats
+// ---------------------------------------------------------------------------
+
+describe("getStatus diff stats", () => {
+  it("keys a renamed file's numstat counts by its destination path", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.mkdirSync(path.join(repo, "src"), { recursive: true })
+    const lines = Array.from({ length: 20 }, (_, index) => `line${index + 1}`).join("\n")
+    fs.writeFileSync(path.join(repo, "src/a.ts"), `${lines}\n`)
+    runGit(repo, ["add", "-A"])
+    runGit(repo, ["commit", "-m", "base"])
+
+    fs.mkdirSync(path.join(repo, "lib"), { recursive: true })
+    runGit(repo, ["mv", "src/a.ts", "lib/b.ts"])
+    fs.writeFileSync(path.join(repo, "lib/b.ts"), `${lines.replace("line3", "LINE3")}\n`)
+    runGit(repo, ["add", "-A"])
+
+    const status = await getStatus(repo)
+
+    // git reports the rename as `1\t1\tsrc/a.ts => lib/b.ts` while the file entry's
+    // path is the destination, so the raw key would never match and the row would
+    // render as "+0 -0".
+    expect(status.diffStats["lib/b.ts"]).toEqual({ insertions: 1, deletions: 1 })
+    expect(status.diffStats["src/a.ts => lib/b.ts"]).toBeUndefined()
   })
 })

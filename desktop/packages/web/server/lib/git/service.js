@@ -1623,7 +1623,9 @@ export async function getStatus(directory, options = {}) {
             return
           }
           const [insertionsRaw, deletionsRaw, ...pathParts] = parts
-          const path = pathParts.join("\t")
+          // numstat reports a rename as `old => new` (or `dir/{old => new}`), while the
+          // status entry's path is the destination, so the raw key would never match.
+          const path = extractGitNumstatDestinationPath(pathParts.join("\t"))
           if (!path) {
             return
           }
@@ -2147,8 +2149,12 @@ export async function getFileDiff(directory, { path: filePath, staged = false } 
   }
 
   let modified = ""
-  try {
-    if (staged) {
+  if (staged) {
+    // The index is the modified side when staged, and a staged deletion has no
+    // index entry: `git show :<path>` fails with "path ... does not exist
+    // (neither on disk nor in the index)" and simple-git's GitError carries no
+    // `code` to match, so a deletion must read as an empty side, not a 500.
+    try {
       if (isImage) {
         const { stdout } = await execFileAsync(getGitBinary(), ["show", `:${repoPath}`], {
           cwd: repoRoot,
@@ -2162,7 +2168,11 @@ export async function getFileDiff(directory, { path: filePath, staged = false } 
       } else {
         modified = await git.show([`:${repoPath}`])
       }
-    } else {
+    } catch {
+      modified = ""
+    }
+  } else {
+    try {
       if (isImage) {
         // For images, read as binary and convert to data URL
         const buffer = await fsp.readFile(absolutePath)
@@ -2170,13 +2180,13 @@ export async function getFileDiff(directory, { path: filePath, staged = false } 
       } else {
         modified = await fsp.readFile(absolutePath, "utf8")
       }
-    }
-  } catch (error) {
-    if (error && typeof error === "object" && (error.code === "ENOENT" || error.code === "EISDIR")) {
-      modified = ""
-    } else {
-      console.error("Failed to read modified file contents for diff:", error)
-      throw error
+    } catch (error) {
+      if (error && typeof error === "object" && (error.code === "ENOENT" || error.code === "EISDIR")) {
+        modified = ""
+      } else {
+        console.error("Failed to read modified file contents for diff:", error)
+        throw error
+      }
     }
   }
 
