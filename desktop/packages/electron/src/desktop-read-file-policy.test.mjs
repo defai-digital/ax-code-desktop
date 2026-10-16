@@ -58,6 +58,13 @@ describe("desktop read file policy", () => {
       "/Users/alice/.docker/config.json",
       "/Users/alice/.kube/config",
       "/Users/alice/.config/gh/hosts.yml",
+      // The app's own stores: the loopback session signing secret, and the
+      // runtime's provider credentials, MCP credentials and install secret.
+      "/Users/alice/.config/openchamber/jwt-secret",
+      "/Users/alice/.config/ax-code/ax-code.jsonc",
+      "/Users/alice/.local/share/ax-code/auth.json",
+      "/Users/alice/.local/share/ax-code/mcp-auth.json",
+      "/Users/alice/.local/share/ax-code/.install-secret",
       "/Users/alice/Library/Application Support/Google/Chrome/Default/Cookies",
       // Same class of plaintext or keychain credential store: git tokens, the
       // macOS Keychain, Firefox profiles and the GNOME keyring.
@@ -77,6 +84,10 @@ describe("desktop read file policy", () => {
       "/Users/alice/.gitconfig",
       "/Users/alice/.config/git/config",
       "/Users/alice/Library/Preferences/com.apple.dock.plist",
+      // Only the stores themselves are denied, not paths that share a prefix
+      // with the segment name.
+      "/Users/alice/.local/share/ax-code-old/notes.md",
+      "/Users/alice/.config/openchamber-notes/todo.md",
     ]) {
       expect(() => assertDesktopReadFileAllowed(target, options)).not.toThrow()
     }

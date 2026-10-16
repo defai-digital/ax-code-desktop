@@ -12,12 +12,20 @@ const DENIED_SEGMENTS = [
   ".docker",
   ".kube",
   ".azure",
+  ".config/ax-code",
   ".config/gh",
   ".config/gcloud",
   ".config/git/credentials",
   ".config/google-chrome",
   ".config/chromium",
+  // The app's own config root: the loopback session signing secret, the install
+  // id and any future credential file live here.
+  ".config/openchamber",
   ".config/openchamber/credentials",
+  // The runtime's data dir: auth.json holds provider credentials, mcp-auth.json
+  // the MCP ones, and .install-secret signs the install. All are written 0600 by
+  // ax-code, and none of the basename rules below matches them.
+  ".local/share/ax-code",
   ".local/share/keyrings",
   ".mozilla",
   "library/application support/firefox",
