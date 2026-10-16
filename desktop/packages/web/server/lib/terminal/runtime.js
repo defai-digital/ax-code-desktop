@@ -267,6 +267,8 @@ export function createTerminalRuntime({
   }
 
   const terminalSessions = new Map()
+  // Session ids with a restart in flight (see the restart route): one replacement per id at a time.
+  const restartsInFlight = new Set()
   const terminalWsConnections = new Set()
   const MAX_TERMINAL_SESSIONS =
     Number.isInteger(MAX_TERMINAL_SESSIONS_OVERRIDE) && MAX_TERMINAL_SESSIONS_OVERRIDE > 0
@@ -950,6 +952,15 @@ export function createTerminalRuntime({
         return res.status(400).json({ error: "Invalid working directory: not accessible" })
       }
 
+      // One restart per session at a time. With the replacement spawned before the swap, two overlapping
+      // restarts for the same id both read the same live session and neither reserves a slot: both spawn,
+      // both register, the session count goes past the cap and the first replacement is orphaned (the
+      // client only keeps the last id it was given).
+      if (restartsInFlight.has(sessionId)) {
+        return res.status(409).json({ error: "A restart of this terminal session is already in progress" })
+      }
+      restartsInFlight.add(sessionId)
+
       // The existing session is killed only once the replacement exists. Killing it first (after the
       // cwd validated, which is what the comment here used to cover) left a failed provider or spawn
       // answering 500 with the client's session id deleted and its shell already dead.
@@ -1014,6 +1025,7 @@ export function createTerminalRuntime({
         })
       } finally {
         releaseTerminalSlot?.()
+        restartsInFlight.delete(sessionId)
       }
     } catch (error) {
       console.error("Failed to restart terminal session:", error)

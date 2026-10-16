@@ -387,6 +387,64 @@ describe("terminal restart", () => {
     }
   })
 
+  it("refuses a second restart of the same session while one is in flight", async () => {
+    // The replacement is spawned before the old session is swapped out, so two overlapping restarts for
+    // one id both read the same live session and neither reserves a slot: both spawn, both register, the
+    // count goes past the cap and the first replacement is orphaned (the client keeps only the last id).
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const kills = []
+    const makeFakePty = () => ({
+      onData: () => ({ dispose() {} }),
+      onExit: () => ({ dispose() {} }),
+      write: () => {},
+      kill: () => kills.push(1),
+      resize: () => {},
+    })
+    let spawnCount = 0
+    const runtime = createRuntime(server, {
+      app,
+      getPtyProvider: async () => ({
+        backend: "mock",
+        spawn: () => {
+          spawnCount += 1
+          return makeFakePty()
+        },
+      }),
+      isExecutable: () => true,
+      validateCwd: async (_req, cwd) => ({ ok: true, cwd }),
+      uiAuthController: { enabled: false },
+      buildAugmentedPath: () => "",
+      TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: 1000,
+      TERMINAL_INPUT_WS_REBIND_WINDOW_MS: 1000,
+    })
+
+    try {
+      const createRoute = getRoute("POST", "/api/terminal/create")
+      const first = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, first)
+      const sessionId = first.body?.sessionId
+      expect(sessionId).toBeTruthy()
+
+      const restartRoute = getRoute("POST", "/api/terminal/:sessionId/restart")
+      const accepted = createMockResponse()
+      const refused = createMockResponse()
+      const body = { cwd: "/tmp", cols: 80, rows: 24 }
+      await Promise.all([
+        restartRoute({ params: { sessionId }, body }, accepted),
+        restartRoute({ params: { sessionId }, body }, refused),
+      ])
+
+      // One replacement spawned (plus the original session); the second request is refused instead of
+      // spawning another, and the old PTY was killed exactly once.
+      expect(spawnCount).toBe(2)
+      expect(kills).toHaveLength(1)
+      expect([accepted.statusCode, refused.statusCode].sort()).toEqual([200, 409])
+    } finally {
+      await runtime.shutdown()
+    }
+  })
+
   it("enforces the session cap when restarting a stale session id", async () => {
     const { app, getRoute } = createRouteRegistry()
     const server = new EventEmitter()
