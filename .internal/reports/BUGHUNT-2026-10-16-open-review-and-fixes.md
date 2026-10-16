@@ -1289,6 +1289,31 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Sixteenth round
+
+A different lens: two reviewers (the Claude Code CLI and deepseek-flash) were asked to *falsify* this
+report's own conclusions — to take the entries in "Reported as confirmed, verified and rejected",
+"Reviewed and deliberately not changed" and the "Suspected … verified and not changed" subsections and check
+whether the guard each one names still stops what it claims to stop.
+
+Both returned **"no falsified recordings"**: no rejection or deferral was shown to be wrong. What they did
+show is that four of the entries state more than their evidence carries, and one of those overstated entries
+hid a real defect:
+
+- **`615743d0`** — the `session-folders` entry said the client "guards every shape the reviewer named", which
+  is true of the three shapes it named and false as a general claim: the guard is an object check, not the
+  per-entry check the entry described, so `{"foldersMap":{"/p":"oops"}}` reached the store and
+  `getFoldersForScope` handed a string to callers that map over it. One validating reader serves both the
+  localStorage and the disk path now.
+- Three entries were reworded to what was actually established: the `ErrorBoundary` timeout (the reset path
+  is safe; the "every path that exists today" claim was never enumerated), the dev-shutdown route (its
+  UI-session requirement is conditional on a controller being configured), and — already phrased that way —
+  the heartbeat recording, whose interleaving could not be produced.
+
+This is the second time the falsification lens paid: the fifteenth round's pass over the same list found a
+rejection whose stated reason was simply wrong (the packaged renderer *does* forward the session cookie, so
+the gate it deferred was safe to add), and a deferral that had already been fixed two rounds earlier.
+
 ## Fifteenth round
 
 A fifteenth round: an auditor over every fix the fourteenth round made, a reviewer over
