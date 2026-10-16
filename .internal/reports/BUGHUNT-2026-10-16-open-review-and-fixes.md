@@ -1806,7 +1806,7 @@ Round six and seven are complete: every confirmed finding is fixed.
   `pnpm run check:locales` 0. `pnpm run test` reported one failure in its last full run — the
   `core-routes.test.js` flake below — and every suite passed with the machine idle afterwards
   (typecheck 0, lint 0, test 0, boundaries 0; web 1 124, ui 2 743, electron 594, root scripts 179).
-- Test totals at that run: ui 2 743, web 1 124 (+2 skipped), electron 594, root scripts 179
+- Test totals at that run: ui 2 747, web 1 125 (+2 skipped), electron 594, root scripts 179
   (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 695 keys and 61 035 translated
   entries; the ninth round added one key (`sessions.sidebar.session.export.failed`), translated in
   every catalog.
