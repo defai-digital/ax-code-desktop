@@ -1485,6 +1485,35 @@ const applyUpstreamConfiguration = async (args) => {
   await setBranchTrackingFallback(worktreeDirectory, localBranch, upstream)
 }
 
+/**
+ * Whether a repository's top level is a directory we refuse to treat as a project.
+ *
+ * An accidental `git init` in the home directory, or a repository at a filesystem root, is never
+ * the project the user meant: accepting it made the Git panel run `status` over the whole tree,
+ * which takes minutes per refresh and cannot be aborted (the reads there have no timeout).
+ */
+export const isRefusedRepositoryRoot = (toplevelPath, homePath = os.homedir()) => {
+  const resolvedTop = typeof toplevelPath === "string" ? toplevelPath.trim() : ""
+  if (!resolvedTop) {
+    return false
+  }
+  // Compare canonical paths: git reports a resolved top level, while the home directory itself
+  // can be reached through a symlink (macOS `/var` → `/private/var`, and home symlinks).
+  const canonical = (value) => {
+    try {
+      return fs.realpathSync(value)
+    } catch {
+      return path.resolve(value)
+    }
+  }
+  const resolved = canonical(resolvedTop)
+  if (resolved === path.resolve(path.parse(resolved).root)) {
+    return true
+  }
+  const home = typeof homePath === "string" && homePath ? canonical(homePath) : ""
+  return Boolean(home) && resolved === home
+}
+
 export async function isGitRepository(directory) {
   const directoryPath = normalizeDirectoryPath(directory)
   if (!directoryPath || !fs.existsSync(directoryPath)) {
@@ -1492,7 +1521,18 @@ export async function isGitRepository(directory) {
   }
 
   const result = await runGitCommand(directoryPath, ["rev-parse", "--git-dir"])
-  return result.success
+  if (!result.success) {
+    return false
+  }
+
+  const toplevel = await runGitCommand(directoryPath, ["rev-parse", "--show-toplevel"]).catch(() => null)
+  const toplevelPath = toplevel?.success ? String(toplevel.stdout ?? "").trim() : ""
+  if (!toplevelPath) {
+    // A bare repository has no working tree to compare; keep the previous answer for it.
+    return true
+  }
+
+  return !isRefusedRepositoryRoot(toplevelPath)
 }
 
 export async function getGlobalIdentity() {

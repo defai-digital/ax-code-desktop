@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { simpleGit } from "simple-git"
 
 import {
@@ -12,6 +12,8 @@ import {
   countStashFiles,
   getFileDiff,
   getStatus,
+  isGitRepository,
+  isRefusedRepositoryRoot,
   removeWorktree,
   resetToCommit,
   resolveRepositoryFilePath,
@@ -149,6 +151,53 @@ describe("git index path validation", () => {
 // ---------------------------------------------------------------------------
 // getStatus
 // ---------------------------------------------------------------------------
+
+describe("isGitRepository roots", () => {
+  it("refuses a repository whose top level is a home directory or a filesystem root", () => {
+    // An accidental `git init` above the project made the Git panel run status over the whole
+    // tree; the reads have no timeout, so the panel simply hung.
+    expect(isRefusedRepositoryRoot("/", "/Users/alice")).toBe(true)
+    expect(isRefusedRepositoryRoot("/Users/alice", "/Users/alice")).toBe(true)
+    expect(isRefusedRepositoryRoot("/Users/alice/project", "/Users/alice")).toBe(false)
+    expect(isRefusedRepositoryRoot("/Volumes/work/project", "/Users/alice")).toBe(false)
+    expect(isRefusedRepositoryRoot("", "/Users/alice")).toBe(false)
+  })
+
+  it("refuses a repository that is the home directory itself", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+
+    // The home directory on this machine is not a repository, so the rule is exercised by
+    // pointing the home path at the temporary repository.
+    const homedirSpy = vi.spyOn(os, "homedir").mockReturnValue(repo)
+    try {
+      expect(await isGitRepository(repo)).toBe(false)
+    } finally {
+      homedirSpy.mockRestore()
+    }
+
+    expect(await isGitRepository(repo)).toBe(true)
+  })
+
+  it("still accepts a project repository", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+
+    expect(await isGitRepository(repo)).toBe(true)
+
+    const nested = path.join(repo, "packages", "app")
+    fs.mkdirSync(nested, { recursive: true })
+    expect(await isGitRepository(nested)).toBe(true)
+  })
+})
 
 describe("getStatus", () => {
   it("handles repositories without upstream tracking", async () => {
