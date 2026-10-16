@@ -1305,6 +1305,159 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | an audit of `git diff ea6e8a96 HEAD` — the twenty-sixth round's own commits |
+| ax-code `xiaomi/mimo-v2.6-pro` | `web/server/lib/{ax-code,terminal,event-stream}/**` |
+| Claude Code CLI | `ui/src/components/{dashboard,model-picker,mini-chat,files,comments}/**` |
+| Grok CLI | `web/src/**` and `web/server/lib/{notifications,projects,desktop}/**` |
+
+### Fixed from the audit of the round's own commits
+
+An audit of the twenty-sixth round's own commits, the server's `ax-code`, `terminal` and `event-stream` trees, the
+UI trees this record mentions least (`dashboard`, `model-picker`, `mini-chat`, `files`, `comments`), the web
+package's own source with the `notifications`, `projects` and `desktop` server helpers, and — once the fixes were in
+— an audit of the round's own commits.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | an audit of `git diff ea6e8a96 HEAD` — the twenty-sixth round's own commits |
+| ax-code `xiaomi/mimo-v2.6-pro` | `web/server/lib/{ax-code,terminal,event-stream}/**` |
+| Claude Code CLI | `ui/src/components/{dashboard,model-picker,mini-chat,files,comments}/**` |
+| Grok CLI | `web/src/**` and `web/server/lib/{notifications,projects,desktop}/**` — ended without reviewing |
+| Claude Code CLI (re-run) | the same `web` scope, on the same prompt |
+| muse-wonder-full-1.0 | an audit of this round's own commits (`git diff 971e2975 HEAD`) |
+
+The Grok cell is the harness failure this record keeps meeting in a new shape: it ran a shell command first
+(`node --input-type=module`), the headless session refused to approve it, and the process ended with that refusal as
+its entire output — 343 bytes and an exit status of 0. That is why the batch helper looks for findings rather than
+for a process that ended, and why the same scope was re-run on the Claude Code CLI: that cell is the one that
+produced the four `web` findings below.
+
+### Fixed from the audit of the round's own commits
+
+- **`0fa22360`** — `4d3eaaf7` cleared a session's pending toast keys in its `session.deleted` branch only, though
+  its own comment and the tracker's test both say "(or archived)". Archiving arrives as `session.updated` with
+  `time.archived` — the signal `event-reducer` reads for the same thing — so an archived session kept its keys for
+  the life of the renderer with its toast pointing at a session that is gone. The clear also sat *after* the early
+  return a directory with no loaded child store hits, which skipped it entirely for a delete there.
+- **`1ae54451`** — `5d6f5457`'s reset read `dragAxisRef`, which outlives the drag that set it: a later
+  disappearance of that axis's thumb, with no drag running, was read as the interrupted drag — the hover flag of
+  the thumb the pointer was actually on was cleared and the bar hid under the cursor.
+- **`ac70e683`** — `e1c2ea11` leaves a settled task in the project file when the loop threw before its removal
+  write, and the attempts-exhausted cleanup removed only what it counted as remaining: the migrated task stayed
+  listed for good, with the marker's `migratedAt` stopping any later boot from cleaning it up. The cleanup write
+  includes the keys this pass settled — without recording them as dropped, so the counts keep their meaning.
+
+### Fixed from the UI review
+
+- **`527e805f`** — two key handlers acted on the keys an input method consumes. In the model picker's search box,
+  Enter (which commits a composition) selected the highlighted model and closed the picker, the arrow keys (which
+  move through candidates) moved the highlight or switched the thinking variant, and Escape closed it. In the
+  inline comment field, Escape (which dismisses candidates) cancelled the comment and unmounted the field with the
+  text already typed in it. The composer and the question card gate through `lib/ime`; these two do now as well.
+- **`6e0b059a`** — the same class in the two remaining text fields, found while sweeping for it: the cross-session
+  search box (its arrows move the highlighted hit and Enter opens it) and the directory browser's filter (its arrows
+  move the row highlight, Enter opens a row or adds one). Both acted during a composition, so the highlight moved
+  while the user was picking an IME candidate and Enter opened something before the query was committed. The sweep
+  also settled the two cases it could not: `ProvidersPage`'s handlers only `stopPropagation`, `ProjectsHome`'s need
+  the list itself focused and hold no text field, and Base UI's own Escape dismissal already defers while composing
+  (`floating-ui-react/hooks/useDismiss.js:96`), so dialogs need no guard.
+- **`1dffd654`** — found while reading the controller the review above pointed at: its reset keys the selection, the
+  half-typed text and the edit target on the comment *scope*, and that scope was the session (or the draft project)
+  without the file. A draft carries its `fileLabel`, and the file view passes the file it shows as that label
+  without being remounted per file — so switching files with the comment box open carried all three into the next
+  file, and saving wrote the comment against the file now on screen or moved the draft being edited onto it.
+- **`f25dcf10`** — `getFolderBadgeForPath` counted a file in two buckets: the two checks were independent `if`s, so
+  a file staged as added and edited again (`A` + `M`) counted as both modified and added while
+  `getFileStatusForPath` classifies it as "git-added" and its own row says so. A folder with one such file reported
+  `modified: 1, added: 1`. Each file lands in one bucket now, in the per-file classifier's order.
+
+### Found while re-reading the round's own fixes
+
+- **`ae9bed2a`** / **`6ad0788d`** — `93762314` keyed the question path's answered mark by request id, and only a
+  session-level mark covered a reply the runtime sends without `requestID` (which the permission path documents as
+  a possibility). `ae9bed2a` added that session-level check; re-reading it showed the mark's cost is worse than
+  the stale notification it prevents — a session-wide mark is cleared by the *next* question in that session, and
+  not clearing it silences that question, a notification nobody has answered. `6ad0788d` settles it the way the
+  permission path does: an unattributable reply drops the session's *pending* flush, no mark is kept, and an
+  id-carrying ask and reply are cancelled by their own key.
+
+### Fixed from the server tree review
+
+- **`49239d7a`** — `parseSseEventEnvelope` took the *first* `id:` line of an upstream block with `.find()`, while the
+  SSE spec makes a repeated `id` field overwrite the earlier ones and this module's own `readTrailingEventId`
+  implements last-wins for a block too large to keep. The cursor stored for a reconnect was therefore the first id,
+  and the replay it requested either re-delivered an event the client had applied or skipped one it never saw.
+- **`b1570268`** — `assertPathWithinSkillDir` realpath'd the skill directory but compared the target as written, and
+  `path.resolve` does not follow symlinks: a link shipped inside a project's own skill directory passed the check,
+  so a supporting file read returned whatever it pointed at, a write overwrote it and a delete unlinked it. The
+  comparison is canonical now, using the deepest existing ancestor for a write that is creating the file.
+- **`9c133917`** — one SSE client's backpressure answered with `session.ptyProcess.pause()`, and that pty is shared
+  by every other SSE client, the bound WS clients and the replay buffer: one socket that stopped draining froze
+  output for all of them, which is the freeze the teardown path then spent lines undoing. With two stalled clients
+  the first `drain` resumed the pty while the second was still behind, since `paused` was per-client state. The WS
+  path already disconnects the client that is too far behind, and the SSE path now does the same, so the pty is
+  never paused for a viewer.
+- **`9c133917`** — in the same file, `sanitizeTerminalEnv` dropped `AX_CODE_SERVER_PASSWORD` and the browser marker
+  but not the loopback UI password or the session signing keys, so a shell spawned by the app inherited them and any
+  command in it — including a script from the project being opened — could read them. The app's own credentials are
+  now dropped by name, as `cli-install` does for the upgrade CLI; the user's own exported tokens stay, because
+  scrubbing by pattern would break `git push` with an exported `GITHUB_TOKEN`.
+- **`0c72a164`** — the queue that holds upstream events arriving before `server.connected` is bounded at 200, and
+  evicting its oldest was silent: the ready frame plus the surviving tail read as a gap-free stream, and the client's
+  cursor had already moved past the dropped prefix, so nothing would ask for it again. The flush now prepends the
+  `server.resync_required` frame this module already uses for an unrecoverable gap elsewhere.
+
+### Fixed from the web review
+
+- **`4d2adf23`** — a reasoning part carries `text` like a text part, and the text extractor accepted any part that
+  did, so the notification body led with the model's chain of thought instead of its answer; the body is truncated
+  to 250 characters, so the answer was usually cut off and the trace also reached the OS notification centre.
+  `AssistantTextPart` renders the two as different parts, which is the distinction the extractor now makes.
+- **`96fd7c31`** — the codex import read `trust_level` from a fixed 240-character window starting at the section
+  header with no section boundary, so a project that sets no trust level — the usual case — reported the next
+  section's, and the import UI showed a trust the user never set.
+- **`78b1601f`** — two ways a notification stream stayed in `getUiNotificationClients()` after it was gone, each
+  with a live 25 s heartbeat and a write on every later broadcast: `writeSseEvent` answers `false` after ending a
+  stream whose buffer is over the cap, and both callers discarded it (which is also why the close handler the
+  emitter's comment relies on does not fire for such a socket); and the stream route attaches `req.on("close")`
+  after two awaits, the first of which starts the global watcher, so a client that disconnected in that window had
+  already fired `close` and was never removed.
+
+### Fixed from the audit of this round's own fixes
+
+- **`7cd0445b`** — `93762314` keyed the question path's answered mark by request id, and an ask the runtime sends
+  without an id has no id for its reply to be keyed by: the mark the flush checks computed `null`, so a reply in the
+  flush's await window no longer stopped the "Input needed" notification. `c5e7352d` had covered that case with a
+  session-wide mark and this round's `6ad0788d` moved the debounce cancellation into its own branch on top of it,
+  leaving the unkeyed ask with no suppression on either path. The reply is now marked against the key it can carry
+  — its own id, or the pending ask's id, or the session when neither has one — and the next unkeyed ask clears that
+  session mark, since it is a different question. **The audit also caught that this round had rewritten the original
+  test's inputs to carry ids**, which is why the case had stopped being covered; the test now covers both shapes.
+- **`0c67c6e8`** — `ac70e683` added the keys this pass settled to the attempts-exhausted removal, but the loop
+  `continue`d on an empty remaining list before building that set, and a file whose removal write failed is exactly
+  the one whose remaining list is empty. Its write never ran and the marker's `migratedAt` stopped the next boot
+  from trying again, so the file kept tasks the runtime already owned.
+- **`b575ecbb`** — `0fa22360` moved the pending-toast clear above the store lookup, but the global branch above that
+  one returns first for a `session.deleted` that resolves to "global" or empty, which is where a session no child
+  store knows lands. The clear now sits with the other code that runs before the first branch that returns, and the
+  source assertion covers that branch rather than only the store lookup.
+- **`547e64c6`** — `527e805f` put the composition guard above `event.stopPropagation()` in the model picker's search
+  box. That call was unconditional before it, so the guard also dropped the shield the box keeps for the keys the
+  picker owns, and Escape from a composition reached the menu and the window-level handlers above it — one of the
+  outcomes the guard was added to prevent. The two other handlers this round guarded propagate their keys already,
+  so nothing changed there.
+
+### Reported, verified, and not changed
+
+- **The slash-command hand-back runs before the command's send** (SUSPECTED, the same audit). `158d456a` moved the
+  hand-back to each branch's first statement, so for a command submitted from a new-session draft the session
+  guard sees `null === null` and the attachments return to the composer before the command creates its session.
+  That is the intended side of the trade: the attachments live in a single input store rather than per session — so
+  they are simply still attached, the same state a failed send restores — while the position the guard was written
+  for (after the await) could only *drop* them. Losing a user's attachments is worse than their remaining attached.
+
 ## Twenty-sixth round
 
 An audit of the twenty-fifth round's own seventeen commits, the `sync` and `stores` trees, the server's
@@ -3197,6 +3350,29 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
+- Every fix in this round carries the regression test named in its commit, and each was verified by running that
+  test against the pre-fix source and observing the stated failure, then against the fixed source and observing it
+  pass. The round's twenty commits answer twenty-one findings — one fix spans a pair of commits, and two fixes each
+  answer a pair of findings. The assertions are behavioural almost everywhere: the notification runtime through its
+  own trigger surface, the migration through a real projects directory and marker file (including a write that
+  fails once), the codex TOML and the SSE envelope through their parsers, the notification stream through the route
+  harness and the emitter's client set, the directory websocket bridge through the real runtime and a fake socket,
+  the skill helpers against a real directory and a real symlink, and the terminal stream through a real session
+  with a mock pty whose `pause`/`resume` are counted. The one source-level assertion is the pending-toast wiring,
+  where `handleEvent` is private to the provider and mounting it needs the SDK, the child stores and the event
+  pipeline — the same seam the config editors' and `PlanView`'s contracts use, and it now covers the branch that
+  the previous version of it missed.
+- Latest full run, after the twenty-seventh round's fixes (each command's exit status captured, not inferred from a
+  pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+  `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 960, web 1 295 (+2 skipped),
+  0 `FAIL` lines. The lint run's only output is the pre-existing `react-hooks/exhaustive-deps` warning in
+  `ui/src/sync/use-sync.ts`, and the `401` flake did not appear. This run covers all 22 fixes the round produced,
+  the last eleven of them after a second pass over the round's own work.
+- The first attempt at that run is the reason the sentence above spells the requirement out: the loop piped each
+  command into `tail`, so the status it recorded was the pipeline's last stage and every line read `0`. It was
+  caught by reading the captured output rather than the statuses — the test counts were there, the per-command
+  statuses were not the commands' — and the run was repeated with the command's own status captured. The same
+  distinction the batch helper for the reviewer cells makes between a cell that finished and one that failed.
 - Latest full run, after the twenty-sixth round's fixes (each command's exit status captured, not inferred from a
   pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 950, web 1 280 (+2 skipped),
