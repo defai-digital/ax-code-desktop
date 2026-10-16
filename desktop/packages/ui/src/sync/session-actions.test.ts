@@ -882,6 +882,50 @@ describe("rollback and fork actions use the session directory", () => {
     expect(store.getState().part.get("msg-stale")).toBeUndefined()
   })
 
+  test("applyRollbackPoint keeps the messages when the follow-up read fails", async () => {
+    // The SDK resolves with `{ error }` rather than rejecting, and an empty record list is a
+    // legitimate answer here (a rollback can leave a session with no messages), so an unchecked
+    // failure wiped the whole conversation off the screen while the rollback toast said success.
+    const store = createStore({})
+    store.setState({
+      session: [
+        {
+          id: "session-b",
+          directory: "/other/project",
+          time: { created: 1, updated: 1 },
+        } as unknown as Session,
+      ],
+      message: {
+        "session-b": [
+          {
+            id: "msg-kept",
+            sessionID: "session-b",
+            role: "user",
+            time: { created: 1 },
+          } as unknown as Message,
+        ],
+      },
+      part: PartMap.from({
+        "msg-kept": [{ id: "prt-kept", type: "text", messageID: "msg-kept", text: "kept" } as unknown as Part],
+      }),
+    })
+    mockScopedClient.session.messages.mockImplementationOnce(() =>
+      Promise.resolve({ error: { message: "Unavailable" } } as never),
+    )
+
+    const { applyRollbackPoint, setActionRefs } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/other/project", store]]),
+      () => "/test/project",
+    )
+
+    await applyRollbackPoint("session-b", { step: 2 })
+
+    expect(store.getState().message["session-b"].map((message) => message.id)).toEqual(["msg-kept"])
+    expect(store.getState().part.get("msg-kept")?.map((part) => part.id)).toEqual(["prt-kept"])
+  })
+
   test("applyRollbackPoint surfaces a rejected rollback instead of reporting success", async () => {
     const store = createStore({})
     mockScopedClient.session.rollback.mockImplementationOnce((params: Record<string, unknown>) => {

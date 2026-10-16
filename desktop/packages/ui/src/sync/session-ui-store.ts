@@ -25,6 +25,7 @@ import type {
 import type { AttachedFile, SessionContextUsage, SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import type { WorktreeMetadata } from "@/types/worktree"
 import { axCodeClient } from "@/lib/ax-code/client"
+import { formatSdkError } from "@/lib/ax-code/sdkError"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useGlobalSessionsStore, resolveGlobalSessionDirectory } from "@/stores/useGlobalSessionsStore"
@@ -134,15 +135,19 @@ export function routeMessage(params: {
     if (params.inputMode === "shell") {
       const sdk = axCodeClient.getSdkClient()
       const dir = axCodeClient.getDirectory() || undefined
-      return sdk.session
-        .shell({
-          sessionID: params.sessionId,
-          directory: dir,
-          agent: params.agent ?? "build",
-          model: { providerID: params.providerID, modelID: params.modelID },
-          command: params.content,
-        })
-        .then(() => {})
+      const result = await sdk.session.shell({
+        sessionID: params.sessionId,
+        directory: dir,
+        agent: params.agent ?? "build",
+        model: { providerID: params.providerID, modelID: params.modelID },
+        command: params.content,
+      })
+      // The generated SDK resolves with `{ error }` instead of throwing, so without this the send
+      // counted as done: the composer cleared and the command never ran.
+      if (result?.error) {
+        throw new Error(formatSdkError(result.error))
+      }
+      return
     }
 
     // Work mode (Agent | Council | Arena) — multi-model send routing.
@@ -1130,10 +1135,22 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     const targetFolderId = draft.targetFolderId
     get().closeNewSessionDraft()
 
+    // The draft carries the project, parent session, folder and composed parts the user chose, and
+    // it is closed before a request that can fail. Without putting it back, the retry starts a
+    // session in whatever directory the app happens to be on instead of the one the user picked.
+    const restoreDraft = () => {
+      if (draft?.open) {
+        set({ newSessionDraft: draft })
+      }
+    }
+
     try {
       const dir = directoryOverride ?? axCodeClient.getDirectory()
       const session = await createSessionAction(title, dir, parentID ?? null)
-      if (!session) return null
+      if (!session) {
+        restoreDraft()
+        return null
+      }
 
       if (targetFolderId) {
         const scopeKey = directoryOverride || get().lastLoadedDirectory || session.directory
@@ -1145,6 +1162,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       return session
     } catch (e) {
       console.error("[session-ui-store] createSession failed", e)
+      restoreDraft()
       set({ error: e instanceof Error ? e.message : String(e) })
       return null
     }

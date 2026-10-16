@@ -645,16 +645,32 @@ export async function resyncBlockingRequestsForDirectory(
     )
 
     if (autoAcceptingSessionIds.length > 0) {
+      // Answer every auto-accepting session's pending permissions, but only drop the ones that
+      // were actually answered: a failed reply leaves the request pending server-side, and the
+      // live path surfaces it again in that case (see the `skipPermissionAutoAccept` fallback).
+      // Removing it here instead dropped a request the agent is still blocked on — the store lost
+      // it and the toast below never saw it, until the next resync.
+      const answeredIds = new Set<string>()
       await Promise.all(
         autoAcceptingSessionIds.flatMap((sessionId) =>
-          (grouped[sessionId] ?? []).map((permission) =>
-            sessionActions.respondToPermission(permission.sessionID, permission.id, "once").catch(() => undefined),
-          ),
+          (grouped[sessionId] ?? []).map(async (permission) => {
+            try {
+              await sessionActions.respondToPermission(permission.sessionID, permission.id, "once")
+              answeredIds.add(permission.id)
+            } catch {
+              // Still pending: leave it in the snapshot.
+            }
+          }),
         ),
       )
 
       for (const sessionId of autoAcceptingSessionIds) {
-        delete grouped[sessionId]
+        const unanswered = (grouped[sessionId] ?? []).filter((permission) => !answeredIds.has(permission.id))
+        if (unanswered.length === 0) {
+          delete grouped[sessionId]
+        } else {
+          grouped[sessionId] = unanswered
+        }
       }
     }
 

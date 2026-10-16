@@ -1255,6 +1255,16 @@ async function replaceSessionMessagesFromServer(sessionId: string, directory: st
     directory,
     limit: MESSAGE_REFETCH_LIMIT,
   })
+  // The generated SDK resolves with `{ error }` instead of throwing, and an empty record list is
+  // legitimate here (a rollback can leave a session with no messages), so the error is the only
+  // way to tell a failed read from an empty one: applying it would wipe the session on screen.
+  // The next snapshot corrects the view, so leave the messages as they are.
+  if (result?.error) {
+    console.warn(
+      `Failed to read session ${sessionId} after a rollback: ${formatSdkError(result.error)} — keeping the messages on screen.`,
+    )
+    return
+  }
   const records = (result.data ?? []).filter((record: { info?: { id?: string } }) => !!record?.info?.id)
 
   store.setState((state) => {
