@@ -401,6 +401,12 @@ export const registerPluginRoutes = (app, dependencies) => {
       if (directory === null && res.headersSent) return
       validateFileId(req.params.id)
 
+      // The writer falls back to "" for a missing field, so without this a request
+      // that forgot `content` cleared the file and still reported success.
+      if (typeof req.body?.content !== "string") {
+        return res.status(400).json({ error: "Plugin file content must be a string" })
+      }
+
       const existing = readPluginDirFile(req.params.id, directory)
       if (!existing) {
         return res.status(404).json({ error: "Plugin file not found" })

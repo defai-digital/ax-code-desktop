@@ -428,6 +428,24 @@ describe("ax-code plugin routes", () => {
     expect(refreshAxCodeAfterConfigChange).toHaveBeenCalledWith("plugin file update")
   })
 
+  test("PUT /file/:id without content leaves the file alone instead of clearing it", async () => {
+    // The body is written with `content ?? ""`, so a request that forgot the field (or
+    // sent it as null) emptied the file and still answered 200: the user's plugin was
+    // gone with no error to explain it.
+    await createFile("test.js", "//x")
+    const listed = await request(app).get("/api/config/plugins").expect(200)
+    const id = listed.body.files[0].id
+
+    const response = await request(app)
+      .put(`/api/config/plugins/file/${encodeURIComponent(id)}`)
+      .send({})
+      .expect(400)
+
+    expect(response.body.error).toContain("content")
+    expect(fs.readFileSync(path.join(rootDir, "plugins", "test.js"), "utf8")).toBe("//x")
+    expect(refreshAxCodeAfterConfigChange).not.toHaveBeenCalledWith("plugin file update")
+  })
+
   test("DELETE /file/:id unlinks file", async () => {
     await createFile("test.js", "//x")
     const listed = await request(app).get("/api/config/plugins").expect(200)
