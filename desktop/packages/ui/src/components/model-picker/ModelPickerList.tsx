@@ -478,11 +478,23 @@ export const ModelPickerList: React.FC<ModelPickerListProps> = ({
     [disabled],
   )
 
+  // What the last reset was for. The reset belongs to a change of the list itself — a query, new
+  // providers, a different disabled state — but `onActiveEntryChange` is an inline callback at the
+  // call site, so its identity changes on every parent re-render (a thinking-variant key, a window
+  // resize) and the reset used to fire then too: the highlight jumped back to the first row and the
+  // following Enter selected the wrong model.
+  const lastResetKeyRef = React.useRef<{ list: typeof flatModelList; disabled: boolean; query: string } | null>(null)
+
   React.useEffect(() => {
+    const previous = lastResetKeyRef.current
+    if (previous && previous.list === flatModelList && previous.disabled === disabled && previous.query === searchQuery) {
+      return
+    }
+    lastResetKeyRef.current = { list: flatModelList, disabled, query: searchQuery }
     const nextIndex = normalizeModelPickerSelectionIndex(flatModelList, 0, isEntryDisabled)
     selectionStore.set(nextIndex)
     onActiveEntryChange?.(nextIndex >= 0 ? flatModelList[nextIndex] : undefined)
-  }, [flatModelList, isEntryDisabled, onActiveEntryChange, searchQuery, selectionStore])
+  }, [disabled, flatModelList, isEntryDisabled, onActiveEntryChange, searchQuery, selectionStore])
 
   const moveSelection = React.useCallback(
     (direction: 1 | -1) => {
