@@ -96,13 +96,14 @@ export function useInlineCommentController<TRange extends LineRange>(
     setEditingDraftId(null)
   }, [])
 
-  // Selection and edit state belong to one comment scope (session or draft
-  // project). Without this reset, switching sessions in the same project kept
-  // `editingDraftId` set while the draft list emptied, leaving the comment
-  // input permanently suppressed.
+  // Selection and edit state belong to one comment scope: the session (or draft project) *and* the file. Without
+  // this reset, switching sessions in the same project kept `editingDraftId` set while the draft list emptied,
+  // leaving the comment input permanently suppressed — and the file view, which passes the file it has selected as
+  // `fileLabel` and is not remounted per file, carried the selection, the half-typed text and the edit target into
+  // the next file: saving wrote the comment against the file now on screen, or moved the draft being edited to it.
   React.useEffect(() => {
     reset()
-  }, [sessionKey, reset])
+  }, [fileLabel, sessionKey, reset])
 
   const cancel = React.useCallback(() => {
     reset()
