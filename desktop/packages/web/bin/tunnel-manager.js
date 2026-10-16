@@ -171,7 +171,12 @@ export function createTunnelManager(dependencies) {
       return { port, stopped: false, reason: "not-running" }
     }
     const stopped = await terminateProcessTree(pid, { gracefulTimeoutMs: 2000, forceTimeoutMs: 3000 })
-    removeTunnelState(port)
+    // The state file is the only way this CLI finds the tunnel again: removing it while the process
+    // survived untracked a tunnel that is still public — `tunnel status` stopped listing it and a retry
+    // reported "not-running". `commands.stop` keeps its pid and instance files on the same grounds.
+    if (stopped || !isProcessRunning(pid)) {
+      removeTunnelState(port)
+    }
     return { port, pid, stopped }
   }
 

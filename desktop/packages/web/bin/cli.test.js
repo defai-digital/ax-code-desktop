@@ -166,6 +166,109 @@ describe("tunnel args", () => {
     ])
   })
 
+  it("removes the startup env file when the integration is disabled", async () => {
+    // The file holds the UI password and a snapshot of the environment (API keys included), and only the
+    // macOS *enable* path ever removed it: a disabled integration left those credentials on disk.
+    const fsImpl = await import("node:fs")
+    const os = await import("node:os")
+    const nodePath = await import("node:path")
+    const dataDir = fsImpl.mkdtempSync(nodePath.join(os.tmpdir(), "ax-code-startup-"))
+    const originalDataDir = process.env.AX_CODE_DESKTOP_DATA_DIR
+    process.env.AX_CODE_DESKTOP_DATA_DIR = dataDir
+
+    const envFile = nodePath.join(dataDir, "startup.env")
+    fsImpl.writeFileSync(envFile, "AX_CODE_DESKTOP_UI_PASSWORD=hunter2\n")
+    const printed = []
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+      printed.push(String(chunk))
+      return true
+    })
+
+    try {
+      await commands.startup({}, "disable")
+      expect(fsImpl.existsSync(envFile)).toBe(false)
+    } finally {
+      stdoutWrite.mockRestore()
+      if (originalDataDir === undefined) delete process.env.AX_CODE_DESKTOP_DATA_DIR
+      else process.env.AX_CODE_DESKTOP_DATA_DIR = originalDataDir
+      fsImpl.rmSync(dataDir, { recursive: true, force: true })
+    }
+  })
+
+  it("answers an explicit stop port with no CLI-tracked instance", async () => {
+    // `stop --port N` used to hit the "no running instances" early return before it probed the port, so a
+    // desktop-managed or orphaned server kept the port with the command reporting nothing to do.
+    const fsImpl = await import("node:fs")
+    const os = await import("node:os")
+    const nodePath = await import("node:path")
+    const dataDir = fsImpl.mkdtempSync(nodePath.join(os.tmpdir(), "ax-code-stop-"))
+    const originalDataDir = process.env.AX_CODE_DESKTOP_DATA_DIR
+    process.env.AX_CODE_DESKTOP_DATA_DIR = dataDir
+
+    const printed = []
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+      printed.push(String(chunk))
+      return true
+    })
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ runtime: "desktop", pid: 4321 }), { status: 200 }))
+
+    try {
+      await commands.stop({ explicitPort: true, port: 3100, json: true })
+
+      const payload = JSON.parse(printed.join(""))
+      expect(payload.results[0]).toMatchObject({ port: 3100, runtime: "desktop", reason: "desktop-managed" })
+      expect(payload.messages?.[0]?.code).toBe("DESKTOP_MANAGED_PORT")
+    } finally {
+      stdoutWrite.mockRestore()
+      fetchSpy.mockRestore()
+      if (originalDataDir === undefined) delete process.env.AX_CODE_DESKTOP_DATA_DIR
+      else process.env.AX_CODE_DESKTOP_DATA_DIR = originalDataDir
+      fsImpl.rmSync(dataDir, { recursive: true, force: true })
+    }
+  })
+
+  it("keeps a tunnel's state file when the process survived the stop", async () => {
+    // The file is how this CLI finds the tunnel again. Removing it after a stop that did not take
+    // untracked a tunnel that is still public: `tunnel status` stopped listing it and a retry reported
+    // "not-running" with no way to stop it.
+    const fsImpl = await import("node:fs")
+    const os = await import("node:os")
+    const nodePath = await import("node:path")
+    const runDir = nodePath.join(fsImpl.mkdtempSync(nodePath.join(os.tmpdir(), "ax-code-tunnel-")), "run")
+    fsImpl.mkdirSync(runDir, { recursive: true })
+    const statePath = nodePath.join(runDir, "ax-code-desktop-tunnel-3100.json")
+    fsImpl.writeFileSync(statePath, JSON.stringify({ port: 3100, pid: 4321 }))
+
+    const manager = createTunnelManager({
+      getRunDir: () => runDir,
+      getLogsDir: () => runDir,
+      isProcessRunning: () => true,
+      terminateProcessTree: async () => false,
+      searchPathFor: () => "/usr/bin/cloudflared",
+      processLike: { env: {} },
+    })
+
+    const result = await manager.stopTunnel({ port: 3100 })
+    expect(result).toMatchObject({ port: 3100, stopped: false })
+    expect(fsImpl.existsSync(statePath)).toBe(true)
+
+    // A stop that did take effect clears it.
+    const stoppedManager = createTunnelManager({
+      getRunDir: () => runDir,
+      getLogsDir: () => runDir,
+      isProcessRunning: () => false,
+      terminateProcessTree: async () => true,
+      searchPathFor: () => "/usr/bin/cloudflared",
+      processLike: { env: {} },
+    })
+    await stoppedManager.stopTunnel({ port: 3100 })
+    expect(fsImpl.existsSync(statePath)).toBe(false)
+
+    fsImpl.rmSync(nodePath.dirname(runDir), { recursive: true, force: true })
+  })
+
   it("parses Cloudflare quick tunnel URLs from logs", () => {
     expect(
       parseCloudflareQuickTunnelUrl(

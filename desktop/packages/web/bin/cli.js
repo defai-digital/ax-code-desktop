@@ -1114,6 +1114,11 @@ function disableStartupService() {
     throw new CliError(`Startup integration is not supported on ${paths.platform}.`, EXIT_CODE.USAGE_ERROR)
   }
 
+  // The env file is written by `startup enable` and holds the UI password plus a snapshot of the
+  // environment (API keys included). It used to be removed only in the macOS enable path, so a
+  // "disabled" integration left those credentials on disk.
+  removeStartupEnvFile()
+
   if (paths.platform === "macos") {
     runStartupCommand("/bin/launchctl", ["bootout", `gui/${process.getuid()}`, paths.servicePath], {
       allowFailure: true,
@@ -1974,7 +1979,12 @@ const commands = {
     }
 
     let runningInstances = await discoverRunningInstances()
-    if (runningInstances.length === 0) {
+
+    // An explicit port is answered even when no CLI-tracked instance exists: the port may be held by the
+    // desktop app (which cannot be stopped from here) or by an orphaned server this CLI can still ask to
+    // shut down. This check used to sit below the empty-list early return, so `stop --port N` printed
+    // "no running instances found" and left the port occupied.
+    if (runningInstances.length === 0 && !options.explicitPort) {
       if (isJsonMode(options)) {
         printJson({ stoppedCount: 0, results: jsonResults })
       }
