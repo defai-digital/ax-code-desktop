@@ -177,6 +177,19 @@ const JsonTreeViewer = React.forwardRef<{ expandAll: () => void; collapseAll: ()
       return new Set(getExpandableIdsAboveDepth(treeRoot, initiallyExpandedDepth))
     })
 
+    // Re-derive the collapsed set when the document changes. The ids are paths, so the set a
+    // previous document left behind applies to the next one — and the next document shares no path
+    // with it — while the viewer is not remounted between files (FilesView renders it for another
+    // file in the same slot). A shared path collapsed the new document to that row; a disjoint one
+    // left it fully expanded instead of stopping at `initiallyExpandedDepth`.
+    React.useEffect(() => {
+      if (!treeRoot) {
+        setCollapsedPaths(new Set())
+        return
+      }
+      setCollapsedPaths(new Set(getExpandableIdsAboveDepth(treeRoot, initiallyExpandedDepth)))
+    }, [treeRoot, initiallyExpandedDepth])
+
     const flatNodes = React.useMemo(() => flattenTree(treeRoot, collapsedPaths), [treeRoot, collapsedPaths])
 
     const shouldVirtualize = flatNodes.length > VIRTUALIZE_THRESHOLD
