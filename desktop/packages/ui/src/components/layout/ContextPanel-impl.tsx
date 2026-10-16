@@ -1255,7 +1255,10 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
           const errorBody = await response.json().catch(() => ({}))
           const message = typeof errorBody?.error === "string" ? errorBody.error : `HTTP ${response.status}`
           if (!cancelled) {
+            // The error card is rendered instead of an iframe, so no load event will ever
+            // clear this and the loading overlay covered the card and swallowed its retry.
             setProxyState({ status: "error", message })
+            setIsLoading(false)
           }
           return
         }
@@ -1266,6 +1269,7 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
         if (!proxyBasePath) {
           if (!cancelled) {
             setProxyState({ status: "error", message: t("contextPanel.preview.proxyError") })
+            setIsLoading(false)
           }
           return
         }
@@ -1278,6 +1282,7 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
         if (!cancelled) {
           const message = error instanceof Error ? error.message : String(error)
           setProxyState({ status: "error", message })
+          setIsLoading(false)
         }
       }
     })()

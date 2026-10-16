@@ -35,4 +35,15 @@ describe("ContextPanel browser source guards", () => {
     expect(source).toContain('t("contextPanel.browser.loadFailed")')
     expect(source).toContain('className="pointer-events-none absolute right-3 top-3')
   })
+
+  test("clears the loading overlay when the preview proxy target fails", async () => {
+    const source = await readFile(sourcePath, "utf8")
+
+    // The error card is rendered instead of an iframe, so no load event ever clears the flag:
+    // the overlay stayed up over the card and swallowed its recovery click.
+    const errorBranches =
+      source.match(/setProxyState\(\{ status: "error"[^\n]*\)\n\s*setIsLoading\(false\)/g) ?? []
+
+    expect(errorBranches).toHaveLength(3)
+  })
 })
