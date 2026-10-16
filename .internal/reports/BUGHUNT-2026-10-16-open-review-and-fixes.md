@@ -1631,8 +1631,10 @@ Round six and seven are complete: every confirmed finding is fixed.
 ## Verification
 
 - Final state after the ninth round, with each command's exit status captured rather than inferred
-  from a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
-  `pnpm run check:boundaries` 0, `pnpm run check:locales` 0.
+  from a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run check:boundaries` 0,
+  `pnpm run check:locales` 0. `pnpm run test` reported one failure in its last full run — the
+  `core-routes.test.js` flake below — and the affected suite passed when re-run by itself
+  (web 1 117, ui 2 730, both just now; electron 589 and the root scripts 179 in that same run).
 - Test totals at that run: ui 2 730, web 1 117 (+2 skipped), electron 589, root scripts 179
   (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 695 keys and 61 035 translated
   entries; the ninth round added one key (`sessions.sidebar.session.export.failed`), translated in
