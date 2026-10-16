@@ -42,6 +42,14 @@ export const AxCodeUpdateToast: React.FC = () => {
   const cliSeenVersionsRef = React.useRef(new Set<string>())
   const cliUpgradingRef = React.useRef(false)
   const cliStatusRef = React.useRef<AxCodeCliStatus | null>(null)
+  const mountedRef = React.useRef(true)
+
+  React.useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   React.useEffect(() => {
     if (!showAxCodeUpdateNotifications) {
@@ -89,7 +97,10 @@ export const AxCodeUpdateToast: React.FC = () => {
         fail(started.cli?.manualCommand ?? cliStatusRef.current?.manualCommand)
         return
       }
-      const settled = await waitForAxCodeCliUpgrade()
+      const settled = await waitForAxCodeCliUpgrade({ isCancelled: () => !mountedRef.current })
+      // Cancelled by unmount: the upgrade keeps running on the server, and this
+      // toast is gone, so there is nothing left to report to.
+      if (!mountedRef.current) return
       const job = settled?.upgrade
       if (settled) cliStatusRef.current = settled
       // The job vanished (the server restarted) but the CLI is now current.
@@ -200,8 +211,10 @@ export const AxCodeUpdateToast: React.FC = () => {
         return
       }
       // When Desktop's runtime is the user's own CLI, the CLI toast offers
-      // the update for that binary; two toasts would start two upgrades.
-      if (cliStatusRef.current?.isRuntimeBinary) return
+      // the update for that binary; two toasts would start two upgrades. Only
+      // skip it when that toast can stand in: an off-PATH install, or a CLI too
+      // old to check, gets no CLI toast and would lose the notification.
+      if (cliStatusRef.current?.isRuntimeBinary && resolveAxCodeCliUpdateVersion(cliStatusRef.current)) return
       const decision = shouldShowAxCodeUpdateToast({
         version,
         dismissedVersion: getSafeStorage().getItem(UPDATE_TOAST_DISMISSED_VERSION_KEY),
