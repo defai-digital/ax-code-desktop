@@ -151,11 +151,15 @@ describe("extractLoopbackUrls boundaries", () => {
     // `evil.example`), percent-encoded and non-ASCII labels, an IDN dot equivalent, and an unknown port —
     // the prefix matched and the message offered a preview of a host it never named.
     expect(extractLoopbackUrls("http://localhost@evil.example/x")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost@evil.example/phish")).toEqual([])
+    expect(extractLoopbackUrls("http://127.0.0.1:3000@evil.example/")).toEqual([])
     expect(extractLoopbackUrls("http://localhost:3000@evil.example/x")).toEqual([])
     expect(extractLoopbackUrls("http://localhost%2eevil.example")).toEqual([])
     expect(extractLoopbackUrls("http://localhost\\evil")).toEqual([])
     expect(extractLoopbackUrls("http://localhosté.example")).toEqual([])
     expect(extractLoopbackUrls("http://localhost。evil.example")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost．evil.example")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost｡evil.example")).toEqual([])
     expect(extractLoopbackUrls("http://localhost:")).toEqual([])
     expect(extractLoopbackUrls("http://localhost:abc")).toEqual([])
     expect(extractLoopbackUrls("http://localhost-x")).toEqual([])
