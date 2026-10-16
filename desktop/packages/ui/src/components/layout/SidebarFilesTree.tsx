@@ -43,6 +43,7 @@ import type { FileNode, FileStatus } from "@/components/files/types"
 import {
   getFilesViewDisplayPath as getDisplayPath,
   normalizeFilesViewPath as normalizePath,
+  isFilesViewEntryName,
 } from "@/components/views/filesViewPathUtils"
 
 const sortNodes = (items: FileNode[]) =>
@@ -698,6 +699,14 @@ export const SidebarFilesTree: React.FC = () => {
           done()
           return
         }
+        // The name is joined onto the dialog's directory, so a separator or a `..` segment moves
+        // the operation out of it — far enough and it leaves the project. FilesView's dialogs
+        // reject these the same way.
+        if (!isFilesViewEntryName(dialogInputValue)) {
+          toast.error(t("sidebarFilesTree.toast.nameInvalid"))
+          done()
+          return
+        }
         if (!files.writeFile) {
           toast.error(t("sidebarFilesTree.toast.writeNotSupported"))
           done()
@@ -736,6 +745,12 @@ export const SidebarFilesTree: React.FC = () => {
           return
         }
 
+        if (!isFilesViewEntryName(dialogInputValue)) {
+          toast.error(t("sidebarFilesTree.toast.nameInvalid"))
+          done()
+          return
+        }
+
         const parentPath = dialogData.path
         const prefix = parentPath ? `${parentPath}/` : ""
         const newPath = normalizePath(`${prefix}${dialogInputValue.trim()}`)
@@ -760,6 +775,11 @@ export const SidebarFilesTree: React.FC = () => {
           done()
           return
         }
+        if (!isFilesViewEntryName(dialogInputValue)) {
+          toast.error(t("sidebarFilesTree.toast.nameInvalid"))
+          done()
+          return
+        }
         if (!files.rename) {
           toast.error(t("sidebarFilesTree.toast.renameNotSupported"))
           done()
@@ -770,6 +790,16 @@ export const SidebarFilesTree: React.FC = () => {
         const parentDir = oldPath.split("/").slice(0, -1).join("/")
         const prefix = parentDir ? `${parentDir}/` : ""
         const newPath = normalizePath(`${prefix}${dialogInputValue.trim()}`)
+
+        // `rename` replaces an existing target, so renaming onto a sibling's name destroyed that
+        // file behind a "Renamed successfully" toast. The create branches check the same way; a
+        // name that resolves back to the file itself (a case-only rename) is not a collision.
+        const existingTarget = files.statFile ? await files.statFile(newPath).catch(() => null) : null
+        if (existingTarget && normalizePath(existingTarget.path) !== normalizePath(oldPath)) {
+          toast.error(t("sidebarFilesTree.toast.fileAlreadyExists"))
+          done()
+          return
+        }
 
         await files
           .rename(oldPath, newPath)
