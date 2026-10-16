@@ -600,6 +600,91 @@ Four cases of the generated SDK's `{ error }` result being applied as data:
   failure. A code is exchanged once; a failed exchange releases it so a retry can try again.
   Three tests cover it; the StrictMode case reports two exchanges on the pre-fix page.
 
+## Fourth round
+
+The surfaces left after three rounds: the filesystem and terminal server libraries, the AX Code
+proxy routes, the worktree and message libraries, chat, the Electron main process and the packaging
+scripts. Six reviewers ran in parallel; two produced nothing usable (see below), and every finding
+acted on was re-checked in the source and run against its pre-fix source.
+
+| Reviewer | Area |
+| --- | --- |
+| Claude Code CLI | `web/server/lib/{fs,terminal,event-stream}` |
+| `deepseek-flash` (ax-code, read-only) | `web/server/lib/ax-code` |
+| `qwen3.8-flash` → `MiniMax-M3` (ax-code, read-only) | `script`, `desktop/scripts`, `electron/scripts` |
+| Muse CLI (`--trust-workspace`) | `ui/src/lib/{http,persistence,worktrees,messages}` |
+| `glm-5.3` (ax-code, read-only) | `ui/src/components/chat` |
+| Grok CLI | `electron/src/main.js` |
+
+No reviewer reported a rate limit or a truncated answer. The Grok CLI run for the Electron main
+process was blocked by a shell command its plan mode would not approve, and returned nothing; the
+`qwen3.8-flash` run failed with a provider error and its re-run on `MiniMax-M3` ended in a model
+output loop. Both areas stay unreviewed by a machine reviewer.
+
+### `7120e97a` fix(fs): act on the entry the user named, not what it points at
+
+- **Delete and rename acted on the realpath**, which resolves a symlink in the final position to
+  its target: deleting a link removed the target (a linked directory took the whole directory with
+  it) and renaming one renamed the target and left the link dangling. The directory chain is still
+  resolved through the same cache the containment check used, so an intermediate component that
+  became a link is still followed; the final entry is acted on as written.
+- **The realpath cache cached its misses** for 60 s, so a directory that did not exist when it was
+  first listed answered "Directory not found" after it was created. A successful mkdir, write,
+  delete or rename invalidates the cache.
+- **The terminal input WebSocket's heartbeat only pinged**: a peer that stopped answering kept its
+  session binding and interval until the operating system noticed. Two silent intervals end it now.
+  (No test: the runtime exposes only its shutdown.)
+
+### `84d610ed` fix(ax-code): set the credential file's mode, and stop inventing agents
+
+- **`writeAuthFile`'s `mode: 0o600` only applies when the file is created** (and only as far as the
+  umask allows), so an `auth.json` restored from a backup kept looser permissions while the log line
+  reported success. It is chmodded like every other credential file here.
+- **`deleteAgent` wrote `disable: true` for any name it could not find**, so deleting a name that
+  existed nowhere answered "deleted successfully", appended a marker that would suppress a later
+  agent of that name, and restarted the runtime for nothing. The route asks the runtime whether it
+  knows the agent; a name it does not know is answered as not found, and a built-in agent is still
+  disabled as before.
+
+### `be7fbe50` fix(ax-code): bound a runtime call so a wedged runtime cannot hang the request
+
+- **The prompt and command forwards had no timeout**: a runtime that accepted the connection and
+  stopped answering left the request pending for as long as the client waited, so the 503 that would
+  have told the client to retry never ran. The long-request timeout the server already defines — and
+  passed to `registerAxCodeProxy`, which never read it — covers them now.
+
+### Reviewed and not changed
+
+- **The project icon's `immutable` year-long cache** is not a defect: the client appends
+  `?v=<iconImage.updatedAt>` (`ui/src/lib/projectMeta.ts:75`), so a replaced or deleted icon is a
+  different URL. The reviewer read the route without its caller.
+- **An over-limit body on the prompt path** does reach the client: the streamed read rejects with a
+  413 and Express 5 hands it to the final error handler, which keeps the status
+  (`lib/final-error-handler.js`), and the JSON path is capped by the body parser first. A test now
+  covers that contract.
+
+### Pending from this round
+
+Confirmed in the source, not yet fixed:
+
+- **`worktreeManager`'s list can land after a create or delete cleared it**
+  (`ui/src/lib/worktrees/worktreeManager.ts:221`): the stale answer is cached for its 30 s TTL, so a
+  new worktree is missing from the list and a deleted one comes back.
+- **`clearWorktreeBootstrapState` only deletes the map entry**
+  (`ui/src/lib/worktrees/worktreeBootstrap.ts:38`): a poll response already in flight writes it back,
+  so a stale `ready` lets a wait pass early and a stale `failed` poisons every later wait.
+- **Two overlapping settings flushes can revert the newer value**
+  (`ui/src/lib/persistence.ts:1201`).
+- **A selected code block containing a fence closes the fence early**
+  (`ui/src/lib/messages/inlineComments.ts:11`), so the comment text is swallowed by the code block.
+- **A step-finish with all-zero tokens overrides a valid message total**
+  (`ui/src/lib/messages/assistantTokens.ts:55`, suspected).
+- Chat: **a queue flush through a slash command drops the rest of the queue and the composer input**;
+  **the same queued slash command runs as a command when sent from the chip but is delivered as a
+  literal prompt by auto-send**; **`MarkdownRenderer`'s memo comparator omits
+  `enableFileReferences`**, so file links in a finished part stay dead until the stream ends; and a
+  suspected non-reactive `getState()` read of the mermaid rendering mode.
+
 ## Limit audit
 
 Prompted by the caps that produced the findings above, the hard limits in the
