@@ -9,6 +9,7 @@ import { copyTextToClipboard } from "@/lib/clipboard"
 import { cn } from "@/lib/utils"
 import { OverlayScrollbar } from "@/components/ui/OverlayScrollbar"
 import { useI18n } from "@/lib/i18n"
+import { buildPastedInput } from "@/lib/terminalPaste"
 import { getGhostty } from "./ghosttyLoader"
 
 function findScrollableViewport(container: HTMLElement): HTMLElement | null {
@@ -1598,8 +1599,7 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
         }
         event.preventDefault()
         const terminal = terminalRef.current
-        const payload = terminal?.hasBracketedPaste?.() ? `\x1b[200~${text}\x1b[201~` : text
-        inputHandlerRef.current(payload)
+        inputHandlerRef.current(buildPastedInput(text, Boolean(terminal?.hasBracketedPaste?.())))
       },
       [],
     )
