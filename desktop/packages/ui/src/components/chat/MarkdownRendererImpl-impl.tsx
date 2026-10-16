@@ -34,6 +34,7 @@ import { sanitizeMermaidSvg } from "./sanitizeSvg"
 import { useStableMarkdownBlocks } from "./useMarkdownBlocks"
 import { PreparedMarkdown } from "./PreparedMarkdown"
 import { StreamingMarkdownBlock } from "./StreamingMarkdownBlock"
+import { areMarkdownRendererPropsEqual } from "@/components/chat/markdownRendererMemo"
 import { useEnteredBlockCount } from "./useEnteredBlockCount"
 
 const useCurrentMermaidTheme = () => {
@@ -1099,7 +1100,7 @@ const buildMarkdownComponents = ({
   },
 })
 
-interface MarkdownRendererProps {
+export interface MarkdownRendererProps {
   content: string
   part?: Part
   messageId: string
@@ -1753,20 +1754,7 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
   return markdownContent
 }
 
-export const MarkdownRenderer = React.memo(MarkdownRendererImpl, (prev, next) => {
-  return (
-    prev.content === next.content &&
-    prev.isStreaming === next.isStreaming &&
-    prev.disableStreamAnimation === next.disableStreamAnimation &&
-    prev.variant === next.variant &&
-    prev.isAnimated === next.isAnimated &&
-    prev.skipFadeIn === next.skipFadeIn &&
-    prev.className === next.className &&
-    prev.messageId === next.messageId &&
-    prev.onShowPopup === next.onShowPopup &&
-    prev.part?.id === next.part?.id
-  )
-})
+export const MarkdownRenderer = React.memo(MarkdownRendererImpl, areMarkdownRendererPropsEqual)
 
 const SimpleMarkdownRendererImpl: React.FC<{
   content: string

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest"
 
+import { areMarkdownRendererPropsEqual } from "./markdownRendererMemo"
 import { getSafeMarkdownHref } from "./markdownLinks"
 
 describe("getSafeMarkdownHref", () => {
@@ -13,5 +14,23 @@ describe("getSafeMarkdownHref", () => {
     expect(getSafeMarkdownHref("file:///Users/test/secret.txt")).toBeUndefined()
     expect(getSafeMarkdownHref("https://user:pass@example.com/docs")).toBeUndefined()
     expect(getSafeMarkdownHref(undefined)).toBeUndefined()
+  })
+})
+
+describe("areMarkdownRendererPropsEqual", () => {
+  const props = (overrides: Record<string, unknown> = {}) => ({
+    content: "text",
+    messageId: "msg-1",
+    ...overrides,
+  })
+
+  test("does not skip a re-render that enables file references", () => {
+    // The comparator left this prop out, so a part finalized (stream over) with file references
+    // enabled kept the dead links it had rendered while streaming.
+    expect(areMarkdownRendererPropsEqual(props({ enableFileReferences: false }), props({ enableFileReferences: true }))).toBe(false)
+  })
+
+  test("skips a re-render when nothing it renders from changed", () => {
+    expect(areMarkdownRendererPropsEqual(props(), props())).toBe(true)
   })
 })
