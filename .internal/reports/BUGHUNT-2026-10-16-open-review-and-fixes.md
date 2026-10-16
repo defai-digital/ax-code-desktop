@@ -729,6 +729,66 @@ tests can answer 401 — their apps carry only the synchronous security middlewa
 in the server that writes that status without a route is the socket-level refusal in
 `lib/security/request-security.js`, so that is where to look if it reproduces on its own.
 
+## Fifth round
+
+The surfaces the earlier rounds read once or not at all: `ui/src/lib` minus the files already
+fixed, the packaging scripts and workflows, the settings pages, the server services, the supervision
+and multi-run surfaces, the hooks and the stores. Seven reviewers ran in parallel with the same
+prompts; this round produced more confirmed findings than any before it, so the list below is split
+between what has been fixed and what is still waiting for a first re-check against the source.
+
+| Reviewer | Area |
+| --- | --- |
+| Claude Code CLI | `ui/src/lib/**` minus the files already fixed |
+| Muse CLI (`--trust-workspace`) | `sections/{providers,models,ax-code}` |
+| Grok CLI | `script/**`, `.github/workflows/**` |
+| `deepseek-flash` (ax-code, read-only) | `web/server/lib/{github,magic-prompts,session-folders,proxy}` |
+| `glm-5.3` (ax-code, read-only) | `components/{supervision,multirun}`, `apps` |
+| `qwen3.8-flash` (ax-code, read-only) | `ui/src/hooks/**` |
+| `MiniMax-M3` (ax-code, read-only) | `ui/src/stores/**` |
+
+No reviewer reported a rate limit or a truncated answer; the Grok CLI run had not finished when this
+was written.
+
+### Fixed from this round
+
+- **`171145cb`** — the three GitHub *issue* routes answered 500 when the stored token had been
+  revoked, and the list route's per-repo handler swallowed the failure into an empty list, so the
+  app looked connected with an empty tab; every PR route and `auth/status` already clear the
+  credentials on a 401. The search fallback's 403 memo is account-scoped state and was not cleared
+  with the caches it belongs to, so a switch to a properly scoped account kept answering "no pull
+  request" for the whole retry window. The skills catalog store's load sequence guarded the loading
+  flag and the error, not the page it writes, so an older load that answered last replaced the newer
+  source list (`930c770d`).
+- **`30a16fb6`** — the git status TTL cache (1.2 s) was never evicted by a mutation and the UI
+  refreshes right after one, so the refresh returned the pre-mutation status and a second click on
+  the stale row acted on the wrong state; every request in that module now goes through one wrapper
+  that drops the cached status of a successful non-GET. `substituteCommandVariables` injected a path
+  as a string replacement, mangling `$` patterns in it and substituting a path that itself looked
+  like the variable. The loopback URL pattern had no boundary after the host or port, so
+  `http://localhost.evil.example/x` was offered as `http://localhost/`. Removing a plan entry deleted
+  whatever path the config named, which a config cloned into a repository can point anywhere.
+
+### Waiting for a first re-check
+
+Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
+reviewer linked:
+
+- `sections/providers/customApiProviderFormModel.ts:110`,
+  `sections/ax-code/DefaultsSettings.tsx:182`, `sections/providers/ProvidersPage.tsx:1119` and
+  `:125`, `sections/models/LocalModelsPage.tsx:93` (settings surfaces).
+- `hooks/**` — four confirmed: a cleanup re-entry guard that is per hook instance while the hook is
+  mounted twice, an uncaught async probe on every Git view mount, a skipped manual cleanup reported
+  as "no sessions are eligible", and `useTraySync`'s `void invokeDesktop(...)` without a `.catch`.
+- `components/{supervision,multirun}` — four confirmed and one suspected.
+- `stores/**` — `useDirectoryStore.setDirectory` runs side effects inside Zustand's updater
+  (medium), a snippets cache key that races the in-flight directory (low), and a provider-cache
+  invalidation epoch question (suspected). The reviewer's other leads about the
+  `xxxLoadSequence === requestId` guard in `useMcpConfigStore`, `useSkillsStore` and `useAgentsStore`
+  were examined and left alone: the guard is deliberately "only the newest request may write", and a
+  response for an older directory must not replace the list the active directory is showing.
+- `script/**` and `.github/workflows/**` — the run had not finished.
+
 ## Limit audit
 
 Prompted by the caps that produced the findings above, the hard limits in the
