@@ -1289,7 +1289,16 @@ export const McpPage: React.FC = () => {
       return
     }
 
-    const pendingContext = response.stateKey ? await getPendingMcpAuthContext(response.stateKey) : null
+    // A failed context lookup must not reject before this handler can report anything: the callback already
+    // carries what the completion needs, and the state key is only a fallback for the name and directory.
+    let pendingContext: { name: string; directory: string | null } | null = null
+    if (response.stateKey) {
+      try {
+        pendingContext = await getPendingMcpAuthContext(response.stateKey)
+      } catch {
+        pendingContext = null
+      }
+    }
     const resolvedContext = response.context ?? pendingContext
     const targetName = resolvedContext?.name ?? selectedMcpName
     const targetDirectory = resolvedContext?.directory ?? currentDirectory
