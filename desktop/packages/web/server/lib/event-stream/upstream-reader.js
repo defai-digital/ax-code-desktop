@@ -14,13 +14,14 @@ export const DEFAULT_UPSTREAM_MAX_BUFFER_BYTES = 1024 * 1024
 // this size (the SDK's own per-event cap); a block beyond it is treated as a
 // broken stream and the connection is dropped, as before.
 export const DEFAULT_UPSTREAM_MAX_EVENT_BYTES = 16 * 1024 * 1024
-// While skipping, only enough of the tail is kept to spot an event separator
-// ("\n\n", or "\r\n\r\n" normalized) that straddles two chunks.
-const OVERSIZE_TAIL_CHARS = 3
+// While skipping, the tail is kept to spot an event separator ("\n\n", or
+// "\r\n\r\n" normalized) that straddles two chunks, and to read an `id:` line
+// that trails the block.
+const OVERSIZE_TAIL_CHARS = 4096
 const OVERSIZE_ID_SCAN_CHARS = 4096
 
-// The `id:` line normally leads the block, so it is readable from the head of an
-// event whose body is too large to keep.
+// A writer may lead a block with its `id:` line, which makes it readable from
+// the head of an event whose body is too large to keep.
 function readLeadingEventId(buffer) {
   const lines = buffer.slice(0, OVERSIZE_ID_SCAN_CHARS).split("\n")
   if (buffer.length > OVERSIZE_ID_SCAN_CHARS) lines.pop()
@@ -28,6 +29,17 @@ function readLeadingEventId(buffer) {
     if (line.startsWith("id:")) return line.slice(3).trim() || null
   }
   return null
+}
+
+// The runtime's own frames carry `id:` after the data, so only the tail of a
+// block that is too large to keep can see it. A repeated `id` field overwrites
+// the earlier ones, so the last line wins.
+function readTrailingEventId(text) {
+  const pattern = /(?:^|\n)id:[ \t]?([^\n]*)/g
+  let eventId = null
+  let match
+  while ((match = pattern.exec(text))) eventId = match[1].trim()
+  return eventId || null
 }
 
 function resolveTimeoutMs(value, fallback) {
@@ -136,6 +148,15 @@ export function createUpstreamSseReader({
         let attemptConnected = false
         let reader = null
         let stallTimer = null
+        // Set while an event larger than maxBufferBytes is being skipped. It is
+        // declared here so the error path below can settle it as well.
+        let oversize = null
+        const settleOversize = (eventId) => {
+          if (!oversize) return
+          const skipped = oversize
+          oversize = null
+          onOversize?.({ eventId: eventId ?? skipped.eventId, bytes: skipped.bytes })
+        }
         const clearStallTimer = () => {
           if (stallTimer) {
             clearTimeout(stallTimer)
@@ -194,14 +215,6 @@ export function createUpstreamSseReader({
           const decoder = new TextDecoder()
           reader = response.body.getReader()
           let buffer = ""
-          // Set while an event larger than maxBufferBytes is being skipped.
-          let oversize = null
-          const settleOversize = () => {
-            if (!oversize) return
-            const skipped = oversize
-            oversize = null
-            onOversize?.({ eventId: skipped.eventId, bytes: skipped.bytes })
-          }
 
           resetStallTimer()
 
@@ -224,8 +237,12 @@ export function createUpstreamSseReader({
                 buffer = buffer.slice(-OVERSIZE_TAIL_CHARS)
                 continue
               }
+              // The skipped block's own `id:` was kept in the tail; advancing to
+              // it is what stops a reconnect from asking for the same event.
+              const skippedId = readTrailingEventId(buffer.slice(0, end))
+              if (skippedId) lastEventId = skippedId
               buffer = buffer.slice(end + 2)
-              settleOversize()
+              settleOversize(skippedId)
             }
 
             let separatorIndex = buffer.indexOf("\n\n")
@@ -258,8 +275,8 @@ export function createUpstreamSseReader({
             // event too large to hold (or a peer that never ends a block).
             if (buffer.length > maxBufferBytes && !stopped && !signal?.aborted) {
               oversize = { eventId: readLeadingEventId(buffer), bytes: buffer.length }
-              // Advance the cursor past the skipped event so a reconnect does not
-              // ask the runtime to replay it.
+              // A writer that leads with `id:` can be advanced past right away;
+              // one that trails it is advanced when the tail settles below.
               if (oversize.eventId) lastEventId = oversize.eventId
               if (oversize.bytes > Math.max(maxEventBytes, maxBufferBytes)) {
                 settleOversize()
@@ -297,6 +314,10 @@ export function createUpstreamSseReader({
             }
           }
         } catch (error) {
+          // A skip abandoned by a read error or the stall timer has already
+          // moved `Last-Event-ID` past an event nobody received, so consumers
+          // have to resync just as they do when a skip ends cleanly.
+          if (oversize && !stopped && !signal?.aborted) settleOversize()
           if (!stopped && !signal?.aborted && abortReason !== "upstream_stalled") {
             onError?.({
               type: "stream_error",

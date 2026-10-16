@@ -176,6 +176,31 @@ describe("createUpstreamSseReader oversized events", () => {
     expect(result.headers).toEqual([undefined, "2"])
   })
 
+  it("reports a resync when the connection dies in the middle of a skipped event", async () => {
+    // The stall timer ends the attempt while the event is still being skipped.
+    // The cursor has already moved past that event, so the gap has to be
+    // announced like it is when the stream ends on its own.
+    const big = evt("2", "y".repeat(2000))
+    const result = await collect({ blocks: [evt("1"), big.slice(0, 1500)], holdOpen: true, stallTimeoutMs: 50 })
+
+    expect(result.events).toEqual(["1"])
+    expect(result.oversize.map((info) => info.eventId)).toEqual(["2"])
+    expect(result.headers).toEqual([undefined, "2"])
+  })
+
+  it("advances the cursor past an oversized event whose id trails the block", async () => {
+    // The runtime writes frames with Hono's SSE writer, which puts `id:` after
+    // the data: an event too large to keep only shows its id in the retained
+    // tail, and without reading it there every reconnect asks for it again.
+    const runtimeEvt = (id, text) => `data: {"type":"session.updated","properties":{"text":"${text}"}}\nid: ${id}\n\n`
+    const big = runtimeEvt("EPOCH:2", "y".repeat(5000))
+    const result = await collect({ blocks: [runtimeEvt("EPOCH:1", "a"), ...big.match(/[^]{1,700}/g)] })
+
+    expect(result.events).toEqual(["EPOCH:1"])
+    expect(result.oversize.map((info) => info.eventId)).toEqual(["EPOCH:2"])
+    expect(result.headers).toEqual([undefined, "EPOCH:2"])
+  })
+
   it("reports an oversized event with no readable id as unidentified", async () => {
     const big = `data: {"type":"session.updated","properties":{"text":"${"y".repeat(2000)}"}}\n\n`
     const result = await collect({ blocks: [evt("1"), ...big.match(/[^]{1,700}/g), evt("3")], stopAfter: 2 })
