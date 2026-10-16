@@ -319,6 +319,48 @@ describe("notification debounce failure handling", () => {
     }
   })
 
+  it("gates a permission ask on the permission toggle, not the question one", async () => {
+    // The permission path read `notifyOnQuestion`: turning "Questions" off silenced permission asks, and turning
+    // "Permissions" off still announced them. While the window is unfocused the server is the only notifier, so a
+    // silenced ask leaves the user with no idea an agent is blocked.
+    vi.useFakeTimers()
+    try {
+      const notificationsOff = createRuntime({
+        readSettingsFromDisk: vi.fn(async () => ({
+          nativeNotificationsEnabled: true,
+          notificationMode: "always",
+          notifyOnQuestion: false,
+          notifyOnPermission: true,
+        })),
+      })
+      await notificationsOff.runtime.maybeDispatchNotificationForTrigger({
+        type: "permission.asked",
+        properties: { id: "req_on", permission: "bash", sessionTitle: "My session", sessionID: "ses_on" },
+      })
+      await vi.advanceTimersByTimeAsync(600)
+      await settle()
+      expect(notificationsOff.emitted.map((payload) => payload.tag)).toEqual(["permission-ses_on:req_on"])
+
+      const permissionsOff = createRuntime({
+        readSettingsFromDisk: vi.fn(async () => ({
+          nativeNotificationsEnabled: true,
+          notificationMode: "always",
+          notifyOnQuestion: true,
+          notifyOnPermission: false,
+        })),
+      })
+      await permissionsOff.runtime.maybeDispatchNotificationForTrigger({
+        type: "permission.asked",
+        properties: { id: "req_off", permission: "bash", sessionTitle: "My session", sessionID: "ses_off" },
+      })
+      await vi.advanceTimersByTimeAsync(600)
+      await settle()
+      expect(permissionsOff.emitted).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("keeps a failed settings read inside the debounced permission ask", async () => {
     vi.useFakeTimers()
     const watcher = watchUnhandledRejections()

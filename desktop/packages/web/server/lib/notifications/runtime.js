@@ -186,7 +186,11 @@ let unkeyedPermissionAskSequence = 0
 
     const settings = await readSettingsFromDisk()
 
-    if (settings.notifyOnQuestion === false) {
+    // The permission toggle, not the question one: the server is the only notifier while the window is unfocused
+    // (the client watcher covers an unfocused session on a focused window), so gating this on `notifyOnQuestion`
+    // both suppressed a permission ask for a user who had only turned questions off and announced one for a user
+    // who had turned permissions off.
+    if (settings.notifyOnPermission === false) {
       return
     }
 
