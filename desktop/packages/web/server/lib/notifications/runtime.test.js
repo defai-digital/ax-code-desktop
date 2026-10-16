@@ -406,6 +406,46 @@ describe("notification debounce failure handling", () => {
     }
   })
 
+  it("does not announce an ask whose session answered without a request id", async () => {
+    // The runtime can omit `requestID` on a reply, and then the answer cannot be attributed to one ask: the mark
+    // that reply leaves is the session's, and the flush has to consult it as well as its own key.
+    let releaseTemplates = () => {}
+    const runtime = createRuntime({
+      readSettingsFromDisk: vi.fn(async () => ({
+        nativeNotificationsEnabled: true,
+        notificationMode: "always",
+        notifyOnQuestion: true,
+      })),
+      buildTemplateVariables: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseTemplates = () => resolve({})
+          }),
+      ),
+    })
+
+    vi.useFakeTimers()
+    try {
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.asked",
+        properties: { id: "q_1", sessionID: "ses_q", questions: [{ header: "Input", question: "Answered?" }] },
+      })
+      await vi.advanceTimersByTimeAsync(600)
+
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.replied",
+        properties: { sessionID: "ses_q" },
+      })
+
+      releaseTemplates()
+      await settle()
+
+      expect(runtime.emitted).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("gates a permission ask on the permission toggle, not the question one", async () => {
     // The permission path read `notifyOnQuestion`: turning "Questions" off silenced permission asks, and turning
     // "Permissions" off still announced them. While the window is unfocused the server is the only notifier, so a

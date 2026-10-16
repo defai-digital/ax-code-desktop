@@ -485,8 +485,10 @@ let unkeyedPermissionAskSequence = 0
         // Checked here as well as in the reply handler: the answer may have arrived while this flush was awaiting
         // the settings read or the template variables. It is this ask's own key, so a later question in the same
         // session does not let an answered flush through.
+        // This ask's own key, and the session-level key a reply that arrived without an id leaves behind — the
+        // runtime can omit `requestID`, and then the answer cannot be attributed to one ask.
         const requestKey = questionRequestKey(sessionId, payload.properties?.id)
-        if (requestKey && answeredQuestions.has(requestKey)) {
+        if (requestKey && (answeredQuestions.has(requestKey) || answeredQuestions.has(sessionId))) {
           return
         }
 
