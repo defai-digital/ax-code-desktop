@@ -248,13 +248,20 @@ type RevertedMessageDockProps = {
   directory?: string
 }
 
-const RevertedMessageDock: React.FC<RevertedMessageDockProps> = React.memo(({ sessionId, directory }) => {
+// Exposed for unit testing the click guards. Not part of the stable consumer surface.
+export const RevertedMessageDock: React.FC<RevertedMessageDockProps> = React.memo(({ sessionId, directory }) => {
   const { t } = useI18n()
   const revertToMessage = useSessionUIStore((s) => s.revertToMessage)
   const forkFromMessage = useSessionUIStore((s) => s.forkFromMessage)
   const handleSlashRedo = useSessionUIStore((s) => s.handleSlashRedo)
   const [restoringId, setRestoringId] = React.useState<string | null>(null)
   const [forkingId, setForkingId] = React.useState<string | null>(null)
+  // The state above drives the dimmed row, but it is not a guard: two clicks in the same tick both
+  // read it before React re-renders, and each sent its own revert, so the session came back reverted
+  // past the row the user asked for. QuestionCard and PermissionCard guard the same way, with a ref
+  // that is written synchronously.
+  const restoringRef = React.useRef<string | null>(null)
+  const forkingRef = React.useRef<string | null>(null)
   const [collapsed, setCollapsed] = React.useState(true)
   const revertMessageID = useDirectorySync(
     React.useCallback(
@@ -301,7 +308,8 @@ const RevertedMessageDock: React.FC<RevertedMessageDockProps> = React.memo(({ se
 
   const handleRestore = React.useCallback(
     async (messageId: string) => {
-      if (!sessionId || restoringId) return
+      if (!sessionId || restoringRef.current) return
+      restoringRef.current = messageId
       setRestoringId(messageId)
       try {
         const nextMessage = getNextUserMessageAfter(userMessages, messageId)
@@ -311,25 +319,29 @@ const RevertedMessageDock: React.FC<RevertedMessageDockProps> = React.memo(({ se
           await handleSlashRedo(sessionId, { fullUnrevert: true })
         }
       } finally {
+        restoringRef.current = null
         setRestoringId(null)
       }
     },
-    [handleSlashRedo, revertToMessage, restoringId, sessionId, userMessages],
+    [handleSlashRedo, revertToMessage, sessionId, userMessages],
   )
 
   const handleRedoAll = React.useCallback(async () => {
-    if (!sessionId || restoringId) return
+    if (!sessionId || restoringRef.current) return
+    restoringRef.current = "all"
     setRestoringId("all")
     try {
       await handleSlashRedo(sessionId, { fullUnrevert: true })
     } finally {
+      restoringRef.current = null
       setRestoringId(null)
     }
-  }, [handleSlashRedo, restoringId, sessionId])
+  }, [handleSlashRedo, sessionId])
 
   const handleFork = React.useCallback(
     async (messageId: string) => {
-      if (!sessionId || forkingId) return
+      if (!sessionId || forkingRef.current) return
+      forkingRef.current = messageId
       setForkingId(messageId)
       try {
         await forkFromMessage(sessionId, messageId)
@@ -339,10 +351,11 @@ const RevertedMessageDock: React.FC<RevertedMessageDockProps> = React.memo(({ se
           description: error instanceof Error ? error.message : t("chat.revertPopover.forkFailed.retry"),
         })
       } finally {
+        forkingRef.current = null
         setForkingId(null)
       }
     },
-    [forkFromMessage, forkingId, sessionId, t],
+    [forkFromMessage, sessionId, t],
   )
 
   if (!sessionId || items.length === 0) return null
