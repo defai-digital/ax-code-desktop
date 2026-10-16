@@ -117,13 +117,14 @@ function parsePreferences(value: unknown): ResolvedLanguagePreferences {
 // write win.
 let saveChain: Promise<void> = Promise.resolve()
 
-const storedRevision = (): number => {
-  if (typeof window === "undefined") return 0
+const readStoredPreferences = (): LanguagePreferences | null => {
+  if (typeof window === "undefined") return null
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null") as { revision?: unknown } | null
-    return typeof parsed?.revision === "number" ? parsed.revision : 0
+    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null")
+    if (!parsed || typeof parsed !== "object") return null
+    return normalizePreferences(parsed)
   } catch {
-    return 0
+    return null
   }
 }
 
@@ -141,10 +142,15 @@ async function savePreferences(patch: Partial<Pick<LanguagePreferences, "interfa
   // load is slow (a later save would wait for the earlier apply to finish).
   const run = saveChain.then(() => {
     const current = useI18nStore.getState()
-    // Take the latest stored revision into account: another tab may have saved since
-    // this one last applied.
-    const revision = Math.max(current.revision, storedRevision()) + 1
-    const next = normalizePreferences({ ...current, ...patch, revision })
+    // Another tab may have saved since this one last applied. Its revision has to be taken into
+    // account, and so does the field it changed: merging only the revision wrote this tab's stale
+    // value back over the other tab's, and the higher revision then discarded that tab's own value.
+    // Start from the newer record and apply only this tab's change.
+    const stored = readStoredPreferences()
+    const storedRev = stored?.revision ?? 0
+    const base = stored && storedRev > current.revision ? stored : current
+    const revision = Math.max(current.revision, storedRev) + 1
+    const next = normalizePreferences({ ...base, ...patch, revision })
     if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
     return resolvePreferences(next, systemLanguages())
   })

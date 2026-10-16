@@ -65,6 +65,25 @@ describe("i18n store", () => {
     expect(useI18nStore.getState().revision).toBe(2)
   })
 
+  test("keeps another tab's field when this tab saves a stale preference", async () => {
+    // Standalone path: local storage holds a newer revision from another tab that this tab has not
+    // applied yet. Merging only the revision number wrote this tab's stale field back over the other
+    // tab's, and the bumped revision then made the other tab's value lose as well.
+    window.localStorage.setItem(
+      "ax-coder.language.v1",
+      JSON.stringify({ schema: 1, interface: "en", conversation: "ja", revision: 2 }),
+    )
+    useI18nStore.setState({ interface: "en", conversation: "auto", revision: 1 })
+
+    await useI18nStore.getState().setInterface("de")
+
+    expect(JSON.parse(window.localStorage.getItem("ax-coder.language.v1") || "null")).toMatchObject({
+      interface: "de",
+      conversation: "ja",
+      revision: 3,
+    })
+  })
+
   test("restores persisted preferences on initialization", async () => {
     await useI18nStore.getState().setLocale("zh-TW")
     await useI18nStore.getState().setConversation("vi")
