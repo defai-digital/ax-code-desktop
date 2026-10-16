@@ -58,7 +58,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Scheduled CLI update checks and reopened settings apply the server cache expiry instead of reading
-  an old result indefinitely. Upgrade progress polling remains read-only.
+  an old result indefinitely. Cached upgrade progress reads remain non-spawning.
+- A stalled CLI status request now respects the polling reachability deadline instead of keeping
+  upgrade progress stuck indefinitely.
 - CLI upgrade progress resumes after a temporary connection outage, and a failed pre-upgrade check
   no longer starts an installer without confirming that an update is available.
 

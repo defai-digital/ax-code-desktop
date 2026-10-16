@@ -72,10 +72,32 @@ describe("resolveAxCodeCliUpdateVersion", () => {
 
 describe("waitForAxCodeCliUpgrade", () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
   const respond = (body: unknown) => ({ ok: true, status: 200, statusText: "", json: async () => body }) as Response
+
+  test("ends a stalled status request within the reachability budget", async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_input, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new Error("Aborted")), { once: true })
+          }),
+      ),
+    )
+    let settled = false
+    const pending = waitForAxCodeCliUpgrade({ intervalMs: 1, unreachableMs: 10 }).then((result) => {
+      settled = true
+      return result
+    })
+    await vi.advanceTimersByTimeAsync(20)
+    expect(settled).toBe(true)
+    expect(await pending).toBeNull()
+  })
 
   test("keeps polling while the server reports the upgrade running", async () => {
     const states = ["running", "running", "running", "succeeded"]

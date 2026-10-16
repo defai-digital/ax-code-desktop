@@ -1,0 +1,49 @@
+{
+  "schema": "ax-code-desktop.cli-review.v1",
+  "version": "7.26.0",
+  "sourceBase": "e241d0b4b97e67ddc774faa628f34f49b6a60b1d",
+  "muse": "completed",
+  "grok": "completed",
+  "reviewerVersions": {
+    "muse": "1.4.9-R6297.1",
+    "grok": "1.0.60"
+  },
+  "grokSessionId": "01a1420f-f650-7412-9f07-248525180221",
+  "grokExitCode": 0,
+  "grokToolCalls": 0,
+  "museExitCode": 0,
+  "grokAttempts": [
+    {
+      "scope": "initial snapshot",
+      "outcome": "timeout; no assistant output; terminated after 8 minutes"
+    },
+    {
+      "scope": "focused snapshot",
+      "outcome": "timeout; no assistant output; terminated after 8 minutes"
+    },
+    {
+      "scope": "polling and cache helper",
+      "outcome": "completed successfully after 483895 ms"
+    },
+    {
+      "scope": "older CLI and fast-model retries",
+      "outcome": "cancelled after the polling review completed; no findings claimed"
+    }
+  ],
+  "dispositions": {
+    "muse-recovery": "Reproduced and fixed; resume polling after a running fallback status.",
+    "muse-failed-precheck": "Reproduced and fixed; unknown availability cannot start an installer.",
+    "muse-timeout-success": "Not adopted; a killed installer may not finish later install steps. Existing failure policy clarified.",
+    "grok-empty-cache": "Recovery POST after a restarted empty cache is intentional and necessary. The actual check endpoint returns a status, never a checked:false placeholder. No duplicate empty-status POST response exists in the server protocol.",
+    "grok-stalled-request": "Reproduced: a stalled HTTP request bypassed the reachability deadline. Polling now aborts requests at the remaining reachability budget."
+  },
+  "reviewSha256": {
+    "muse-review.txt": "8de117b8fae19f1b989b1c5af23d8c3c290535318684efe4c3bc48bf472ed5d9",
+    "grok-review.txt": "411e6b3c66f73f72c9b1358b2d5968c788175f66f7b25226ed33f51c85bf9636"
+  },
+  "grokTranscriptSha256": "f7cda6795f262b64f7086402d2e88a1387faa321a8bdfe6bcf408d38fb011caa",
+  "reviewedSources": {
+    "muse": "e241d0b4b97e67ddc774faa628f34f49b6a60b1d",
+    "grok": "e8f30d914fac7b39b2fb2dfd0455045157341443"
+  }
+}

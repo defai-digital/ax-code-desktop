@@ -109,11 +109,12 @@ export const parseAxCodeCliStatus = (value: unknown): AxCodeCliStatus | null => 
   }
 }
 
-const postCheck = (refresh: boolean) =>
+const postCheck = (refresh: boolean, signal?: AbortSignal) =>
   fetch(API_ENDPOINTS.axCode.cliCheck, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ refresh }),
+    ...(signal ? { signal } : {}),
   })
 
 /**
@@ -122,15 +123,18 @@ const postCheck = (refresh: boolean) =>
  * policy; `refresh` forces a new check. Polling omits both to preserve the job.
  */
 export const fetchAxCodeCliStatus = async (
-  options: { refresh?: boolean; check?: boolean } = {},
+  options: { refresh?: boolean; check?: boolean; signal?: AbortSignal } = {},
 ): Promise<AxCodeCliStatus> => {
   let response =
     options.refresh || options.check
-      ? await postCheck(options.refresh === true)
-      : await fetch(API_ENDPOINTS.axCode.cliStatus, { headers: { Accept: "application/json" } })
+      ? await postCheck(options.refresh === true, options.signal)
+      : await fetch(API_ENDPOINTS.axCode.cliStatus, {
+          headers: { Accept: "application/json" },
+          ...(options.signal ? { signal: options.signal } : {}),
+        })
   let payload = await response.json().catch(() => null)
   if (!options.refresh && response.ok && payload && (payload as { checked?: unknown }).checked === false) {
-    response = await postCheck(false)
+    response = await postCheck(false, options.signal)
     payload = await response.json().catch(() => null)
   }
   const status = parseAxCodeCliStatus(payload)
@@ -184,8 +188,12 @@ export const waitForAxCodeCliUpgrade = async (
     if (options.isCancelled?.()) return null
     await sleep(intervalMs)
     if (options.isCancelled?.()) return null
+    const controller = new AbortController()
+    // A pending response (including its body) must not outlive the same
+    // reachability budget that bounds repeated failed requests.
+    const timeout = setTimeout(() => controller.abort(), Math.max(1, unreachableMs - (Date.now() - lastReached)))
     try {
-      const status = await fetchAxCodeCliStatus()
+      const status = await fetchAxCodeCliStatus({ signal: controller.signal })
       lastReached = Date.now()
       if (status.upgrade?.state === "running") {
         vanishedSince = null
@@ -197,6 +205,8 @@ export const waitForAxCodeCliUpgrade = async (
     } catch {
       // The server restarts the runtime after some upgrades; keep polling.
       if (Date.now() - lastReached >= unreachableMs) return null
+    } finally {
+      clearTimeout(timeout)
     }
   }
 }
