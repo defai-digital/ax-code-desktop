@@ -1550,6 +1550,17 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
     }
   }, [props.directory, childStores, routingIndex])
 
+  // The directory this provider renders is never idle from the reader's point of view.
+  // Without a pin, the store is evicted once DIR_IDLE_TTL_MS passes without an event or
+  // a mark, even though the views under this provider are still subscribed to it: they
+  // then render from a store nobody updates. pin()/unpin() are the ref-counted API for
+  // exactly this, and nothing in production called them.
+  useEffect(() => {
+    if (!props.directory) return
+    childStores.pin(props.directory)
+    return () => childStores.unpin(props.directory)
+  }, [props.directory, childStores])
+
   // Set refs so non-React code (session-actions, session-ui-store) can access sync state
   useEffect(() => {
     setSyncRefs(childStores, props.directory, (sessionID, dir) => {
