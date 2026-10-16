@@ -190,7 +190,11 @@ it("notifies every unkeyed permission ask in a burst, not only the last", async 
 
     await vi.advanceTimersByTimeAsync(600)
 
-    expect(emitted.filter((entry) => String(entry.tag).startsWith("permission-"))).toHaveLength(2)
+    const tags = emitted.filter((entry) => String(entry.tag).startsWith("permission-")).map((entry) => entry.tag)
+    // Distinct tags, not just two emissions: the sink replaces a notification that carries the same tag, so
+    // one session-wide tag left the user seeing only the last ask of the burst.
+    expect(tags).toHaveLength(2)
+    expect(new Set(tags).size).toBe(2)
   } finally {
     vi.useRealTimers()
   }

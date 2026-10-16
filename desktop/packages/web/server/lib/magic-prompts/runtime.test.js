@@ -40,6 +40,18 @@ describe("magic prompt runtime", () => {
     expect(await fs.readFile(stateFile(), "utf8")).toBe(unfinished)
   })
 
+  it("clears a state file it cannot parse instead of refusing", async () => {
+    // Reset-all is the one operation whose purpose is to replace the file, so the read that refuses a
+    // corrupt one must not block it: otherwise a truncated file left the app with no way to recover.
+    const runtime = createRuntime()
+    await fs.writeFile(stateFile(), '{ "overrides": { "a.visible": ', "utf8")
+
+    await expect(runtime.resetAllOverrides()).resolves.toMatchObject({ overrides: {} })
+
+    const written = JSON.parse(await fs.readFile(stateFile(), "utf8"))
+    expect(written).toMatchObject({ version: 1, overrides: {} })
+  })
+
   it("normalizes prompt ids consistently when setting and resetting overrides", async () => {
     const runtime = createRuntime()
 

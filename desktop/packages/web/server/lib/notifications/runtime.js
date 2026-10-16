@@ -178,7 +178,7 @@ let unkeyedPermissionAskSequence = 0
   }
 
   // One ask's notification work, run once per pending entry at the debounce flush.
-  const flushPermissionAsk = async (sessionId, requestKey, payload) => {
+  const flushPermissionAsk = async (sessionId, requestKey, payload, tagKey = requestKey) => {
     if (await isSessionAutoAccepting(sessionId)) {
       rememberNotifiedPermissionRequest(requestKey)
       return
@@ -223,12 +223,16 @@ let unkeyedPermissionAskSequence = 0
       return
     }
 
+    // The tag is what the notification sink replaces on: an ask the runtime sent without an id is still its
+    // own notification, so it carries the key that distinguishes it rather than the session's.
+    const tag = tagKey ? `permission-${tagKey}` : `permission-${sessionId}`
+
     if (settings.nativeNotificationsEnabled) {
       emitDesktopNotification({
         kind: "permission",
         title,
         body,
-        tag: requestKey ? `permission-${requestKey}` : `permission-${sessionId}`,
+        tag,
         sessionId,
         requireHidden: settings.notificationMode !== "always",
       })
@@ -237,7 +241,7 @@ let unkeyedPermissionAskSequence = 0
         kind: "permission",
         title,
         body,
-        tag: requestKey ? `permission-${requestKey}` : `permission-${sessionId}`,
+        tag,
         sessionId,
         requireHidden: settings.notificationMode !== "always",
       })
@@ -530,11 +534,8 @@ let unkeyedPermissionAskSequence = 0
           }
 
           for (const [pendingKey, pendingPayload] of pending) {
-            await flushPermissionAsk(
-              sessionId,
-              pendingKey.startsWith("unkeyed:") ? null : pendingKey,
-              pendingPayload,
-            )
+            const unkeyed = pendingKey.startsWith("unkeyed:")
+            await flushPermissionAsk(sessionId, unkeyed ? null : pendingKey, pendingPayload, pendingKey)
           }
         })().catch((error) => {
           console.warn("[Notification] Permission notification failed:", error?.message || error)

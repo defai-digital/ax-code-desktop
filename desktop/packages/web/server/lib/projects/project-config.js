@@ -340,6 +340,21 @@ export const createProjectConfigRuntime = (deps) => {
     return paths
   }
 
+  /**
+   * Drop the file an earlier version wrote under the full id, once a write has landed under the bounded name.
+   *
+   * The readers that enumerate the directory take every `*.json` for a project, so leaving the old file
+   * behind means the same project is seen twice — its tasks migrated a second time, and tasks deleted since
+   * reappearing from the stale copy. Best-effort: a refusal leaves the write itself intact.
+   */
+  const removeLegacyProjectConfigFile = async (projectID) => {
+    const safeProjectID = sanitizeProjectID(projectID)
+    if (projectConfigFileStemOf(safeProjectID) === safeProjectID) {
+      return
+    }
+    await fsPromises.rm(path.join(projectsDirPath, `${safeProjectID}.json`), { force: true }).catch(() => {})
+  }
+
   const readRawProjectConfigFromDisk = async (projectID) => {
     const paths = projectConfigReadPaths(projectID)
     for (const [index, filePath] of paths.entries()) {
@@ -406,6 +421,7 @@ export const createProjectConfigRuntime = (deps) => {
     await fsPromises.mkdir(parentDirectory, { recursive: true })
     await fsPromises.writeFile(temporaryPath, JSON.stringify(merged, null, 2), "utf8")
     await fsPromises.rename(temporaryPath, filePath)
+    await removeLegacyProjectConfigFile(projectID)
   }
 
   // S2.6 (SPEC-2026-08-29-desktop-process-model-collapse §2 D6): the runtime
@@ -433,6 +449,7 @@ export const createProjectConfigRuntime = (deps) => {
     await fsPromises.mkdir(parentDirectory, { recursive: true })
     await fsPromises.writeFile(temporaryPath, JSON.stringify(merged, null, 2), "utf8")
     await fsPromises.rename(temporaryPath, filePath)
+    await removeLegacyProjectConfigFile(projectID)
   }
 
   const withProjectWriteLock = async (projectID, mutate) => {

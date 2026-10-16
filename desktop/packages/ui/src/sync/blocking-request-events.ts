@@ -27,3 +27,13 @@ export const noteBlockingRequestEvent = (sessionID: string): void => {
 }
 
 export const blockingRequestStamp = (sessionID: string): number => blockingRequestsBySession.get(sessionID) ?? 0
+
+/**
+ * The stamp any session without an entry of its own would have had at this moment.
+ *
+ * A caller captures this before its request: a session that had no entry then cannot have been changed by
+ * an event, so its own stamp staying at or below the floor means "nothing arrived for it", while a stamp
+ * above it means an event bumped it (which is also how a reply for a session the store never held is
+ * seen). Comparing such a session against 0 instead compared it against every event it had ever seen.
+ */
+export const blockingRequestStampFloor = (): number => blockingRequestStampSequence

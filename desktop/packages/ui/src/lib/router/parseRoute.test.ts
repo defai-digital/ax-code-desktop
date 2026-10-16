@@ -26,6 +26,14 @@ describe("withRouteDefaults", () => {
     expect(withRouteDefaults(route)).toMatchObject({ sessionId: "abc", tab: "chat" })
   })
 
+  test("leaves the tab absent when the route names a file", () => {
+    // `/?file=src/a.ts` is the documented diff deep link: applyRoute reads an absent tab as "the file
+    // decides", so filling in the chat default dropped the file and stayed on chat.
+    const route = parseRoute(new URLSearchParams("file=src/a.ts"))
+
+    expect(withRouteDefaults(route)).toMatchObject({ tab: null, diffFile: "src/a.ts" })
+  })
+
   test("keeps the tab the route names", () => {
     const route = parseRoute(new URLSearchParams("session=abc&tab=git"))
 

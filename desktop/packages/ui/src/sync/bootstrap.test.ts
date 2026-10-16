@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from "vitest"
 import type { AxCodeClient, PermissionRequest, QuestionRequest } from "@defai-digital/ax-code-sdk/v2/client"
+import type { Event } from "@defai-digital/ax-code-sdk/v2/client"
 
 const { wasPromptRecentlyAcceptedMock } = vi.hoisted(() => ({
   wasPromptRecentlyAcceptedMock: vi.fn<(sessionId: string) => boolean>(() => false),
@@ -10,6 +11,8 @@ vi.mock("./session-actions", () => ({
 }))
 
 import { bootstrapDirectory } from "./bootstrap"
+import { applyDirectoryEvent } from "./event-reducer"
+import { PartMap } from "./part-map"
 import { INITIAL_STATE, type State } from "./types"
 
 function makeHarness(overrides: Partial<State> = {}) {
@@ -42,6 +45,40 @@ function makeBaseSdk(overrides: Record<string, unknown> = {}): AxCodeClient {
     ...overrides,
   } as unknown as AxCodeClient
 }
+
+describe("bootstrapDirectory — a session the store has no entry for", () => {
+  test("still applies the answer, even though that session's stamp is already non-zero", async () => {
+    // The stamp lives in module state and outlives the store, so a session with no entry can already carry
+    // one (a reply for a session this window never held stamps it). Comparing it against 0 reads every
+    // such session as "changed during the request" and silently drops a pending question the agent is
+    // waiting on; the floor stands in for what the session's stamp was when the request went out.
+    // A store this window has never held: the stamp survives it, because it lives in module state.
+    applyDirectoryEvent({ ...INITIAL_STATE, message: {}, part: PartMap.EMPTY } as State, {
+      type: "question.replied",
+      properties: { sessionID: "ses_a", requestID: "que_unknown" },
+    } as Event)
+
+    const pending = {
+      id: "que_1",
+      sessionID: "ses_a",
+      questions: [{ question: "Continue?", header: "Q", options: [{ label: "Yes", description: "" }] }],
+    } as QuestionRequest
+    const harness = makeHarness({ question: {} })
+    const sdk = makeBaseSdk({ question: { list: vi.fn(async () => ({ data: [pending] })) } })
+
+    await bootstrapDirectory({
+      directory: "/repo",
+      sdk,
+      getState: harness.getState,
+      set: harness.set,
+      global: { projects: [{ id: "proj_1", worktree: "/repo" } as never] },
+      loadSessions: () => undefined,
+    })
+    await flush()
+
+    expect(harness.getState().question.ses_a?.map((entry) => entry.id)).toEqual(["que_1"])
+  })
+})
 
 describe("bootstrapDirectory — deferred permission/question resync", () => {
   test("a permission list snapshot fetched concurrently with a live update does not clobber the live update", async () => {

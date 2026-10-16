@@ -340,6 +340,37 @@ describe("project config file names", () => {
     }
   })
 
+  it("replaces that file once it writes under the bounded name", async () => {
+    // Leaving both on disk shows the project twice to every reader that enumerates the directory, so its
+    // tasks could be migrated a second time and tasks deleted since could come back from the stale copy.
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-legacy-replaced-"))
+    const runtime = createProjectConfigRuntime({
+      fsPromises: await import("fs/promises"),
+      path,
+      projectsDirPath: tempRoot,
+      createTaskID: () => "task-fixed-id",
+    })
+    try {
+      const longID = `path_${"c".repeat(180)}`
+      const legacyPath = path.join(tempRoot, `${longID}.json`)
+      await writeFile(legacyPath, JSON.stringify({ version: 1, scheduledTasks: [] }), "utf8")
+
+      await runtime.upsertScheduledTask(longID, {
+        name: "Digest",
+        enabled: true,
+        schedule: { kind: "daily", time: "09:30", timezone: "UTC" },
+        execution: { prompt: "Summarize", providerID: "openai", modelID: "gpt-4.1" },
+      })
+
+      const entries = await readdir(tempRoot)
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).not.toBe(`${longID}.json`)
+      expect(JSON.parse(await readFile(path.join(tempRoot, entries[0]), "utf8"))).toMatchObject({ projectID: longID })
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
   it("still reads a config an earlier version wrote under the full id", async () => {
     // An id longer than the bound but still short enough for the filesystem: the bounded name is used for
     // new writes, and the file the earlier version wrote under the full id is still read.

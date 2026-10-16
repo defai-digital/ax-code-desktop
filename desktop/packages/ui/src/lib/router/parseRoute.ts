@@ -118,7 +118,11 @@ function parseDiffFile(params: URLSearchParams): string | null {
  * store-driven update is expected to name just the fields it changes.
  */
 export function withRouteDefaults(route: RouteState): RouteState {
-  return route.tab ? route : { ...route, tab: DEFAULT_TAB }
+  // A route that names a file is the documented diff deep link (`/?file=src/a.ts`): its tab is left absent
+  // because `applyRoute` reads that as "the file decides", and filling in the chat default here would send
+  // the deep link to chat and then rewrite the URL without the file.
+  if (route.tab || route.diffFile) return route
+  return { ...route, tab: DEFAULT_TAB }
 }
 
 /**

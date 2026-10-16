@@ -125,7 +125,17 @@ export const createMagicPromptRuntime = (dependencies) => {
   }
 
   const resetAllOverrides = async () => {
-    return persist(async () => ({ version: FILE_VERSION, overrides: new Map() }))
+    // Deliberately does not read first. This is the operation whose purpose is to replace the file, and the
+    // read refuses a file it cannot parse — so going through `persist` left a truncated file with no way to
+    // clear it from the app at all (`setOverride`, `resetOverride` and the read all answered the same
+    // error). It writes under the same lock as every other write.
+    const run = async () => {
+      const next = { version: FILE_VERSION, overrides: new Map() }
+      await writePromptState(next)
+      return serializeState(next)
+    }
+    writeLock = writeLock.then(run, run)
+    return writeLock
   }
 
   return {
