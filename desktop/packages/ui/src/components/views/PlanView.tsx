@@ -148,6 +148,10 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
   // The text the current `resolvedPath` was read from, so the autosave effect can tell a load
   // from an edit: writing a load back clobbered whatever the agent wrote in the debounce window.
   const loadedContentRef = React.useRef<string | null>(null)
+  // What the disk is known to hold, per path. `onSaved` cannot move `loadedContentRef` when a newer write is
+  // already queued — that content is not what the disk will hold — but the newer write can fail, and the disk
+  // then holds exactly what this records.
+  const diskContentRef = React.useRef(new Map<string, string>())
 
   resolvedPathRef.current = resolvedPath
   contentRef.current = content
@@ -184,6 +188,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
         // newer content. A newer write that is already queued is the exception: that content is not what the disk
         // will hold, and recording it made the same revert look like "nothing to save" while the newer write went
         // out anyway.
+        diskContentRef.current.set(entry.path, entry.content)
         if (saveQueueRef.current?.hasQueued(entry.path)) {
           return
         }
@@ -199,7 +204,16 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
         loadedContentRef.current = entry.content
         setSaveError(null)
       },
-      onLatestError: (_entry, error) => {
+      onLatestError: (entry, error) => {
+        // The write that failed did not reach the disk, so the file holds the last write that did — which a queued
+        // write behind it kept out of `loadedContentRef`. Leaving the record on older text made a revert to that
+        // text look like "nothing to save" while the disk held the newer content.
+        if (resolvedPathRef.current === entry.path) {
+          const lastWritten = diskContentRef.current.get(entry.path)
+          if (lastWritten !== undefined) {
+            loadedContentRef.current = lastWritten
+          }
+        }
         setSaveError(error instanceof Error ? error.message : tRef.current("planView.error.saveFailed"))
       },
     })
@@ -392,6 +406,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
           const text = await readText(targetPath)
           if (cancelled) return
           loadedContentRef.current = text
+          diskContentRef.current.set(targetPath, text)
           setResolvedPath(targetPath)
           setContent(text)
         } catch {
@@ -447,6 +462,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
         }
 
         loadedContentRef.current = text
+        diskContentRef.current.set(resolved, text)
         setResolvedPath(resolved)
         setContent(text)
       } catch {

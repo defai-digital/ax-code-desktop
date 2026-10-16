@@ -39,6 +39,16 @@ describe("PlanView mount contract", () => {
     expect(source).toContain("if (resolvedPathRef.current !== entry.path)")
   })
 
+  test("falls back to the last write that landed when the queued one fails", async () => {
+    const source = await readFile(path.resolve(__dirname, "PlanView.tsx"), "utf8")
+
+    // A write that is skipped because a newer one is queued still reached the disk, and the newer one can fail:
+    // the record stayed on older text while the file held the skipped write's content, so reverting to the older
+    // text looked like "nothing to save" and the file kept the newer content.
+    expect(source).toContain("diskContentRef.current.set(entry.path, entry.content)")
+    expect(source).toContain("const lastWritten = diskContentRef.current.get(entry.path)")
+  })
+
   test("drops the queued edit when the content matches the disk again", async () => {
     const source = await readFile(path.resolve(__dirname, "PlanView.tsx"), "utf8")
 
