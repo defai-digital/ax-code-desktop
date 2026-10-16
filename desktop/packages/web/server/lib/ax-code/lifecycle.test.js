@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 const spawnMock = vi.fn()
+const spawnSyncMock = vi.fn()
 const startHeadlessBackendMock = vi.fn()
 
 vi.mock("node:child_process", () => ({
   spawn: spawnMock,
-  spawnSync: vi.fn(),
+  spawnSync: spawnSyncMock,
 }))
 
 vi.mock("@defai-digital/ax-code-sdk/headless", () => ({
@@ -619,6 +620,46 @@ describe("ax-code lifecycle", () => {
     expect(onRuntimeOriginChange.mock.calls.at(-1)).toEqual([null, { exhausted: false }])
 
     runtime.shutdown()
+  })
+
+  it("does not spawn again when shutdown begins inside the retry delay", async () => {
+    // The retry loop checked `isShuttingDown` before the delay and not after it. A shutdown that ran inside the
+    // delay had already run the ax-code teardown (which found no process to close), so the next attempt spawned
+    // a child nothing closes: the process outlives the app with its port bound.
+    delete process.env.AX_CODE_BINARY
+    startHeadlessBackendMock.mockReset()
+    startHeadlessBackendMock.mockRejectedValueOnce(new Error("spawn failed"))
+    startHeadlessBackendMock.mockResolvedValue({ close: vi.fn() })
+
+    const state = createLifecycleState()
+    const runtime = createRuntime({ state })
+
+    try {
+      const startup = runtime.bootstrapAxCodeAtStartup()
+      await vi.waitFor(() => expect(startHeadlessBackendMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
+
+      runtime.shutdown()
+      await startup.catch(() => {})
+
+      expect(startHeadlessBackendMock).toHaveBeenCalledTimes(1)
+    } finally {
+      runtime.shutdown()
+      startHeadlessBackendMock.mockReset()
+    }
+  }, 20000)
+
+  it("kills only a listener on the port, not a client that merely uses it", () => {
+    // `lsof -ti :PORT` matches every process whose local or remote port is PORT, so a client connected to the
+    // runtime — or an unrelated app whose source port happens to be that number — was killed with it. The
+    // sibling helper in `core-routes.js` filters on LISTEN for exactly this reason.
+    const runtime = createRuntime()
+    spawnSyncMock.mockReset()
+    spawnSyncMock.mockReturnValue({ stdout: "", stderr: "" })
+
+    runtime.killProcessOnPort(45678)
+
+    const lsofArgs = spawnSyncMock.mock.calls.find(([command]) => command === "lsof")?.[1] ?? []
+    expect(lsofArgs).toContain("-sTCP:LISTEN")
   })
 
   it("reports exhausted:true once the bootstrap retry budget is spent (S2.4a)", async () => {

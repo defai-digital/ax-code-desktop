@@ -106,7 +106,14 @@ export const createAxCodeLifecycleRuntime = (deps) => {
   const killProcessOnPort = (port) => {
     if (!port || process.platform === "win32") return
     try {
-      const result = spawnSync("lsof", ["-ti", `:${port}`], { encoding: "utf8", timeout: 5000, windowsHide: true })
+      // Listen-only, like the sibling helper in core-routes.js: `lsof -ti :PORT` matches every process whose
+      // local *or remote* port is PORT, so a client connected to the runtime — or an unrelated app whose
+      // source port happens to be that number — was killed along with it.
+      const result = spawnSync("lsof", ["-nP", "-t", `-iTCP:${Math.trunc(port)}`, "-sTCP:LISTEN"], {
+        encoding: "utf8",
+        timeout: 5000,
+        windowsHide: true,
+      })
       const output = result.stdout || ""
       const myPid = process.pid
       for (const pidStr of output.split(/\s+/)) {
@@ -804,6 +811,13 @@ export const createAxCodeLifecycleRuntime = (deps) => {
           state.axCodeNotReadySince = Date.now()
           syncToHmrState()
           await delay(750 * attempt)
+          // The guard above runs before the delay only. A shutdown that began inside it has already run the
+          // ax-code teardown (which found `axCodeProcess` null), so retrying here spawns a child nothing will
+          // close: the process outlives the app with its port bound. `restartAxCode` guards its own gap the
+          // same way.
+          if (state.isShuttingDown) {
+            break
+          }
         }
       }
 
