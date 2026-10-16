@@ -13,6 +13,7 @@ import { shouldVirtualizeToolOutput } from "../toolOutputText"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useDirectorySync, useSessionMessageRecords, useEnsureSessionMessages } from "@/sync/sync-context"
+import { mergeChildSessionMessages } from "@/sync/optimistic"
 import { getSyncChildStores } from "@/sync/sync-refs"
 import { useUIStore } from "@/stores/useUIStore"
 import { useSessionActivity } from "@/hooks/useSessionActivity"
@@ -59,7 +60,6 @@ import {
   buildTaskSessionMessagesSignature,
   buildTaskSummaryEntriesFromSession,
   getTaskSummaryLabel,
-  mergeChildSessionMessages,
   normalizeTaskSummaryEntries,
   parseTaskMetadataBlock,
   readTaskSessionIdFromOutput,

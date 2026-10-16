@@ -1,5 +1,6 @@
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import { Binary } from "./binary"
+import { areMessagesEqual } from "./event-reducer"
 import { compareIds, sortPartsById } from "./part-ordering"
 export type OptimisticItem = {
   message: Message
@@ -91,3 +92,16 @@ export function mergeMessages<T extends { id: string }>(
   if (!changed) return a as T[]
   return [...existing.values()].sort((x, y) => compareIds(x.id, y.id))
 }
+
+/**
+ * A fetched page of a child session merged into what its store already holds.
+ *
+ * The reads that feed it are bounded — 500 messages on the first one, 160 while the task runs, 80 while it is idle
+ * — so assigning the page dropped every message before it, and the task record and the child session's own view
+ * read that array. `mergeMessages` keeps the ids the page does not carry, and with `areMessagesEqual` a page copy
+ * that changed (a reply that completed while the poll ran) still replaces the stale one.
+ */
+export const mergeChildSessionMessages = (
+  existing: readonly Message[] | undefined,
+  page: readonly Message[],
+): Message[] => mergeMessages(existing ?? [], page, areMessagesEqual)

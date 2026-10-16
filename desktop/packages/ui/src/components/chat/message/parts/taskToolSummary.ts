@@ -1,7 +1,4 @@
-import type { Message } from "@defai-digital/ax-code-sdk/v2"
 import type { MessageRecord } from "@/lib/messageCompletion"
-import { areMessagesEqual } from "@/sync/event-reducer"
-import { mergeMessages } from "@/sync/optimistic"
 import { normalizeToolName } from "./toolPartFormat"
 
 export type TaskToolSummaryEntry = {
@@ -15,19 +12,6 @@ export type TaskToolSummaryEntry = {
 }
 
 export type SessionMessageWithParts = MessageRecord
-
-/**
- * A fetched page of a task's child session, merged into what the child store already holds.
- *
- * The reads are bounded — 500 on the first one, 160 while the task is running, 80 while it is idle — so assigning
- * the page dropped every message before it from the child session, and the task record's step list and the child
- * session's own view read that array. `mergeMessages` keeps the older ids, and with `areMessagesEqual` a page copy
- * that changed (a reply that completed while the task ran) still replaces the stale one.
- */
-export const mergeChildSessionMessages = (
-  existing: readonly Message[] | undefined,
-  page: readonly Message[],
-): Message[] => mergeMessages(existing ?? [], page, areMessagesEqual)
 
 const normalizeSessionIdCandidate = (value: unknown): string | undefined => {
   if (typeof value !== "string") {
