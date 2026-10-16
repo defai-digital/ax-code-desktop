@@ -1061,10 +1061,11 @@ Read against the source and confirmed, waiting for a fix rather than a re-check:
   everything after it is read as ordinary input, newlines included, which is what the wrapper exists to
   prevent. Both markers are stripped from the text before it is wrapped, in the 7-bit and 8-bit
   spellings; `buildPastedInput` holds that rule with a test.
-- **The suspected leads from these two runs are still unverified**: `onboarding/ChooserScreen.tsx:210-218`
-  (an uncaught rejection on a manual check, and a poll that retries a failing write forever) and
-  `notifications/PermissionNotifications.tsx:111-127` (a second permission request in one pending batch
-  possibly never notifying).
+- **`1ecb7d31`** — the chooser screen's CLI probe and the write that records the local choice shared one
+  try/catch, so a reachable CLI whose write failed was swallowed and the poll retried the same write
+  every couple of seconds, silently and endlessly, with the user behind the "watching" spinner of a
+  screen that had already verified the CLI. The manual "check now" button had no catch at all. The probe
+  retries now; a failed announce is reported and ends the poll, and the manual check reports it too.
 - **`6fd4fa79`** — both remaining session-export findings. The export read messages from the store
   keyed by the session's own directory but loaded them through `useSync()`, which follows the directory
   that is open: exporting a session from another project wrote an empty file, or whatever event
@@ -1162,6 +1163,14 @@ One gap remains, recorded rather than fixed:
   joins A's in-flight load instead of starting a third request, which is exactly what makes A the
   requested directory again; publishing A's answer is then correct. `c2ec9a4f` pins that case; removing
   the guard fails it and the neighbouring cross-directory case.
+- **`PermissionNotifications` notifies once per pending batch, not once per request**
+  (`components/notifications/PermissionNotifications.tsx:111-127`). `notifiedRef` latches after the first
+  notification for a session and re-arms when the session's pending set empties, so a second request
+  arriving while the first is pending is not announced by this watcher. That is coherent with what this
+  watcher is: it fills the gap the *server* leaves (its tag is `permission:<sessionId>`, and its
+  condition is "app focused while another session is on screen"), and the server path — the one fixed in
+  `623bea47` — is per request key, with its own debounce. A second notification from here would duplicate
+  the server's.
 - **`useGitStore` per-directory state is never released.** `setActiveDirectory`
   and `fetchStatus` insert a `DirectoryGitState` for every directory seen, and
   nothing removes one; each holds `status`, `branches`, `log` and a diff cache
@@ -1237,7 +1246,7 @@ questions rather than local fixes.
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 674, web 1 105 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 675, web 1 105 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
