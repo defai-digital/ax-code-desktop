@@ -704,14 +704,25 @@ describe("ax-code lifecycle", () => {
     // `lsof -ti :PORT` matches every process whose local or remote port is PORT, so a client connected to the
     // runtime — or an unrelated app whose source port happens to be that number — was killed with it. The
     // sibling helper in `core-routes.js` filters on LISTEN for exactly this reason.
+    //
+    // The platform is pinned rather than skipped: the helper returns before it spawns anything on win32, so on
+    // a Windows runner the assertion would read an empty call list and fail for a reason unrelated to the bug.
+    const platformDescriptor = Object.getOwnPropertyDescriptor(process, "platform")
+    Object.defineProperty(process, "platform", { value: "linux", configurable: true })
     const runtime = createRuntime()
     spawnSyncMock.mockReset()
     spawnSyncMock.mockReturnValue({ stdout: "", stderr: "" })
 
-    runtime.killProcessOnPort(45678)
+    try {
+      runtime.killProcessOnPort(45678)
 
-    const lsofArgs = spawnSyncMock.mock.calls.find(([command]) => command === "lsof")?.[1] ?? []
-    expect(lsofArgs).toContain("-sTCP:LISTEN")
+      const lsofArgs = spawnSyncMock.mock.calls.find(([command]) => command === "lsof")?.[1] ?? []
+      expect(lsofArgs).toEqual(["-nP", "-t", "-iTCP:45678", "-sTCP:LISTEN"])
+    } finally {
+      if (platformDescriptor) {
+        Object.defineProperty(process, "platform", platformDescriptor)
+      }
+    }
   })
 
   it("reports exhausted:true once the bootstrap retry budget is spent (S2.4a)", async () => {
