@@ -124,9 +124,16 @@ export const BranchSelector: React.FC<MultirunBranchSelectorProps> = ({
     // If current value is valid, keep it
     if (value && allBranches.includes(value)) return
 
+    // A resolution that lands after the user has picked is not this effect's to apply: the guard above reads
+    // `value` from the render that started it, so the pick would be silently replaced by the repo root.
+    let cancelled = false
+
     const resolve = async () => {
       try {
         const rootBranch = directory ? await getRootBranch(directory).catch(() => null) : null
+        if (cancelled) {
+          return
+        }
         const saved = localStorage.getItem(LAST_SOURCE_BRANCH_KEY)
 
         if (saved && allBranches.includes(saved)) {
@@ -146,6 +153,9 @@ export const BranchSelector: React.FC<MultirunBranchSelectorProps> = ({
     }
 
     void resolve()
+    return () => {
+      cancelled = true
+    }
   }, [allBranches, directory, disabled, isLoading, onChange, value])
 
   const isDisabled = disabled || !isGitRepository || isLoading
