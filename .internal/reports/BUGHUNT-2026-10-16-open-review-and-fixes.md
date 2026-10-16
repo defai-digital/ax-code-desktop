@@ -1294,8 +1294,10 @@ questions rather than local fixes.
 A fifteenth round: an auditor over every fix the fourteenth round made, a reviewer over
 `ui/src/lib/preview` (the largest file in `ui/src/lib`, and the only one no round had read), and two over
 `server/lib/ax-code` — one for the runtime/bootstrap/core-route modules, one for the plugin and
-session-runtime modules (that one was killed by its own timeout with no report and is being re-run with
-the Claude CLI).
+session-runtime modules. That second one took three attempts: the MiniMax run was killed by its own timeout
+with no report, the first Claude run sent its findings to a reporting tool this session does not have and
+left only a summary, and the re-run asked for plain stdout and produced one CONFIRMED and four SUSPECTED
+leads, all five fixed.
 
 ### Fixed from the audit of the fourteenth round's fixes
 
@@ -1333,6 +1335,28 @@ the Claude CLI).
   purpose, so a form-encoded request to it arrived with the stream consumed and the proxy forwarded an empty
   body; and `--ui-password` with no value became the empty string — this server's "no UI password" sentinel —
   turning authentication off and overwriting a password seeded from the environment.
+
+### Suspected leads from this round, verified and not changed
+
+### Fixed from the plugins and session-runtime review
+
+- **`f3444e84`** — `updatePluginEntry` renamed an entry onto a spec another entry in the same scope already
+  carried; the entry id is derived from scope and spec, so the duplicate could be neither edited nor deleted
+  (`getPluginTarget` only reaches the first copy) and the runtime loaded the plugin twice.
+  `createPluginEntry` already refused that with `ENTRY_EXISTS`, which the route maps to 409. And one entry
+  `parsePluginRaw` rejects threw out of the `map`/`findIndex`/`some` callback that reached it, so `GET
+  /api/config/plugins` answered 500 and no entry at or after the broken one could be addressed — it is
+  skipped and logged now, and stays in the file for a manual fix. (The same commit adds `use` to the route
+  harness, which the session gate of `a283fc56` needed and the fake app did not have.)
+- **`aacc972d`** — the five-second status dedupe compared the status *type* alone, so a retry reporting a new
+  attempt, message and next time inside the window was dropped without a write or a broadcast, and the
+  snapshot kept the first attempt's numbers. The comparison includes those fields.
+- **`eb432ec1`** — `resetAllSessionActivityToIdle` (the bulk path `resume()` runs after an in-process
+  restart) moved the activity phase to idle but broadcast nothing and left `sessionStates` and
+  `sessionAttentionStates` at busy, so clients and `getSessionStateSnapshot` reported a run that no longer
+  existed for up to the state's 24-hour window; and `isPathSpec` accepted any `~` prefix while
+  `parsePathSpec` expands only `~` and `~/…`, so a spec like `~other/plugin.js` was resolved against the
+  server's own cwd and the registry answered missing/ok for a path nobody named.
 
 ### Suspected leads from this round, verified and not changed
 
