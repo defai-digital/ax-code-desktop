@@ -663,6 +663,7 @@
   "settings.openchamber.sessionRetention.manualCleanup.eligibleDeleteNow": "\u4eca\u3059\u3050\u524a\u9664\u53ef\u80fd: {count}",
   "settings.openchamber.sessionRetention.toast.noneEligibleArchive": "\u30a2\u30fc\u30ab\u30a4\u30d6\u53ef\u80fd\u306a\u30bb\u30c3\u30b7\u30e7\u30f3\u304c\u3042\u308a\u307e\u305b\u3093",
   "settings.openchamber.sessionRetention.toast.noneEligibleDelete": "\u524a\u9664\u53ef\u80fd\u306a\u30bb\u30c3\u30b7\u30e7\u30f3\u304c\u3042\u308a\u307e\u305b\u3093",
+  "settings.openchamber.sessionRetention.toast.stillLoading": "\u30bb\u30c3\u30b7\u30e7\u30f3\u3092\u8aad\u307f\u8fbc\u307f\u4e2d\u3067\u3059\u3002\u3057\u3070\u3089\u304f\u3057\u3066\u304b\u3089\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044",
   "settings.openchamber.sessionRetention.toast.archivedCount": "{count} \u4ef6\u306e\u30bb\u30c3\u30b7\u30e7\u30f3\u3092\u30a2\u30fc\u30ab\u30a4\u30d6\u3057\u307e\u3057\u305f",
   "settings.openchamber.sessionRetention.toast.deletedCount": "{count} \u4ef6\u306e\u30bb\u30c3\u30b7\u30e7\u30f3\u3092\u524a\u9664\u3057\u307e\u3057\u305f",
   "settings.openchamber.sessionRetention.toast.failedArchiveCount": "{count} \u4ef6\u306e\u30bb\u30c3\u30b7\u30e7\u30f3\u306e\u30a2\u30fc\u30ab\u30a4\u30d6\u306b\u5931\u6557\u3057\u307e\u3057\u305f",

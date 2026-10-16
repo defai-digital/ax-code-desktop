@@ -663,6 +663,7 @@
   "settings.openchamber.sessionRetention.manualCleanup.eligibleDeleteNow": "Memenuhi syarat untuk dihapus sekarang: {count}",
   "settings.openchamber.sessionRetention.toast.noneEligibleArchive": "Tidak ada sesi yang memenuhi syarat untuk diarsipkan",
   "settings.openchamber.sessionRetention.toast.noneEligibleDelete": "Tidak ada sesi yang memenuhi syarat untuk dihapus",
+  "settings.openchamber.sessionRetention.toast.stillLoading": "Sesi masih dimuat, coba lagi sebentar lagi",
   "settings.openchamber.sessionRetention.toast.archivedCount": "{count} sesi diarsipkan",
   "settings.openchamber.sessionRetention.toast.deletedCount": "{count} sesi dihapus",
   "settings.openchamber.sessionRetention.toast.failedArchiveCount": "Gagal mengarsipkan {count} sesi",

@@ -695,6 +695,7 @@ export const settingsDict = {
   "settings.openchamber.sessionRetention.manualCleanup.eligibleDeleteNow": "Eligible for deletion right now: {count}",
   "settings.openchamber.sessionRetention.toast.noneEligibleArchive": "No sessions eligible for archiving",
   "settings.openchamber.sessionRetention.toast.noneEligibleDelete": "No sessions eligible for deletion",
+  "settings.openchamber.sessionRetention.toast.stillLoading": "Sessions are still loading, try again in a moment",
   "settings.openchamber.sessionRetention.toast.archivedCount": "Archived {count} session(s)",
   "settings.openchamber.sessionRetention.toast.deletedCount": "Deleted {count} session(s)",
   "settings.openchamber.sessionRetention.toast.failedArchiveCount": "Failed to archive {count} session(s)",

@@ -109,3 +109,51 @@ describe("runCleanup re-entry guard", () => {
     }
   })
 })
+
+describe("runCleanup skip reasons", () => {
+  test("a forced run still refuses while the session list is loading, and says so", async () => {
+    vi.resetModules()
+    const { useSessionAutoCleanup } = await import("./useSessionAutoCleanup")
+    const { useUIStore } = await import("@/stores/useUIStore")
+    const { useSessionUIStore } = await import("@/sync/session-ui-store")
+
+    useUIStore.setState({
+      autoDeleteEnabled: true,
+      autoDeleteAfterDays: 30,
+      sessionRetentionAction: "delete",
+      autoDeleteLastRunAt: 0,
+    })
+    useSessionUIStore.setState({ isLoading: true })
+
+    let hook: ReturnType<typeof useSessionAutoCleanup> | null = null
+    const Probe = (): null => {
+      hook = useSessionAutoCleanup({ autoRun: false })
+      return null
+    }
+
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement("div")
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    try {
+      await React.act(async () => {
+        root.render(React.createElement(Probe))
+      })
+
+      // The settings page forces the run, so refusing it is the only outcome that can explain an empty
+      // result: the "keep the newest N" protection cannot pick a correct set from a partial list. The
+      // caller needs to tell that apart from "nothing was eligible".
+      const result = await React.act(async () => hook!.runCleanup({ force: true }))
+
+      expect(result).toMatchObject({ completedIds: [], failedIds: [], skippedReason: "loading" })
+    } finally {
+      await React.act(async () => {
+        root.unmount()
+      })
+      container.remove()
+      useSessionUIStore.setState({ isLoading: false })
+      vi.resetModules()
+    }
+  })
+})

@@ -663,6 +663,7 @@
   "settings.openchamber.sessionRetention.manualCleanup.eligibleDeleteNow": "Eleg\u00edveis para exclus\u00e3o agora: {count}",
   "settings.openchamber.sessionRetention.toast.noneEligibleArchive": "Nenhuma sess\u00e3o eleg\u00edvel para arquivamento",
   "settings.openchamber.sessionRetention.toast.noneEligibleDelete": "Nenhuma sess\u00e3o eleg\u00edvel para exclus\u00e3o",
+  "settings.openchamber.sessionRetention.toast.stillLoading": "As sess\u00f5es ainda est\u00e3o carregando, tente novamente em instantes",
   "settings.openchamber.sessionRetention.toast.archivedCount": "{count} sess\u00e3o(\u00f5es) arquivada(s)",
   "settings.openchamber.sessionRetention.toast.deletedCount": "{count} sess\u00e3o(\u00f5es) exclu\u00edda(s)",
   "settings.openchamber.sessionRetention.toast.failedArchiveCount": "Falha ao arquivar {count} sess\u00e3o(\u00f5es)",

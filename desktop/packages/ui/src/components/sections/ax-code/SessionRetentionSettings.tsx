@@ -33,11 +33,18 @@ export const SessionRetentionSettings: React.FC = () => {
     const result = await runCleanup({ force: true })
 
     if (result.completedIds.length === 0 && result.failedIds.length === 0) {
-      toast.message(
-        result.action === "archive"
-          ? t("settings.openchamber.sessionRetention.toast.noneEligibleArchive")
-          : t("settings.openchamber.sessionRetention.toast.noneEligibleDelete"),
-      )
+      // A forced run is still refused while the session list is loading, because the "keep the newest
+      // N" protection cannot pick the right set from a partial list. Reporting that as "nothing is
+      // eligible" told the user their sessions had been checked and had passed, when none had been.
+      if (result.skippedReason !== "loading") {
+        toast.message(
+          result.action === "archive"
+            ? t("settings.openchamber.sessionRetention.toast.noneEligibleArchive")
+            : t("settings.openchamber.sessionRetention.toast.noneEligibleDelete"),
+        )
+        return
+      }
+      toast.message(t("settings.openchamber.sessionRetention.toast.stillLoading"))
       return
     }
     if (result.completedIds.length > 0) {

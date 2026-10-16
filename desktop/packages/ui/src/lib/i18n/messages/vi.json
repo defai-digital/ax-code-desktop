@@ -663,6 +663,7 @@
   "settings.openchamber.sessionRetention.manualCleanup.eligibleDeleteNow": "\u0110\u1ee7 \u0111i\u1ec1u ki\u1ec7n x\u00f3a ngay: {count}",
   "settings.openchamber.sessionRetention.toast.noneEligibleArchive": "Kh\u00f4ng c\u00f3 phi\u00ean n\u00e0o \u0111\u1ee7 \u0111i\u1ec1u ki\u1ec7n l\u01b0u tr\u1eef",
   "settings.openchamber.sessionRetention.toast.noneEligibleDelete": "Kh\u00f4ng c\u00f3 phi\u00ean n\u00e0o \u0111\u1ee7 \u0111i\u1ec1u ki\u1ec7n x\u00f3a",
+  "settings.openchamber.sessionRetention.toast.stillLoading": "Phi\u00ean v\u1eabn \u0111ang t\u1ea3i, h\u00e3y th\u1eed l\u1ea1i sau gi\u00e2y l\u00e1t",
   "settings.openchamber.sessionRetention.toast.archivedCount": "\u0110\u00e3 l\u01b0u tr\u1eef {count} phi\u00ean",
   "settings.openchamber.sessionRetention.toast.deletedCount": "\u0110\u00e3 x\u00f3a {count} phi\u00ean",
   "settings.openchamber.sessionRetention.toast.failedArchiveCount": "Kh\u00f4ng l\u01b0u tr\u1eef \u0111\u01b0\u1ee3c {count} phi\u00ean",

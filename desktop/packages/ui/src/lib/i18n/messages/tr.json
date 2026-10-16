@@ -663,6 +663,7 @@
   "settings.openchamber.sessionRetention.manualCleanup.eligibleDeleteNow": "\u015eimdi silinmeye uygun: {count}",
   "settings.openchamber.sessionRetention.toast.noneEligibleArchive": "Ar\u015fivlenmeye uygun oturum yok",
   "settings.openchamber.sessionRetention.toast.noneEligibleDelete": "Silinmeye uygun oturum yok",
+  "settings.openchamber.sessionRetention.toast.stillLoading": "Oturumlar hâlâ yükleniyor, birazdan tekrar deneyin",
   "settings.openchamber.sessionRetention.toast.archivedCount": "{count} oturum ar\u015fivlendi",
   "settings.openchamber.sessionRetention.toast.deletedCount": "{count} oturum silindi",
   "settings.openchamber.sessionRetention.toast.failedArchiveCount": "{count} oturum ar\u015fivlenemedi",

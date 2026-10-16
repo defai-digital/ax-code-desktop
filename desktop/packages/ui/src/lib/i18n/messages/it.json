@@ -663,6 +663,7 @@
   "settings.openchamber.sessionRetention.manualCleanup.eligibleDeleteNow": "Idonee all'eliminazione ora: {count}",
   "settings.openchamber.sessionRetention.toast.noneEligibleArchive": "Nessuna sessione idonea all'archiviazione",
   "settings.openchamber.sessionRetention.toast.noneEligibleDelete": "Nessuna sessione idonea all'eliminazione",
+  "settings.openchamber.sessionRetention.toast.stillLoading": "Le sessioni sono ancora in fase di caricamento, riprova tra un momento",
   "settings.openchamber.sessionRetention.toast.archivedCount": "Archiviate {count} sessioni",
   "settings.openchamber.sessionRetention.toast.deletedCount": "Eliminate {count} sessioni",
   "settings.openchamber.sessionRetention.toast.failedArchiveCount": "Archiviazione di {count} sessioni non riuscita",

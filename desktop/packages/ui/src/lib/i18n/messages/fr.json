@@ -663,6 +663,7 @@
   "settings.openchamber.sessionRetention.manualCleanup.eligibleDeleteNow": "\u00c9ligibles \u00e0 la suppression d\u00e8s maintenant\u00a0: {count}",
   "settings.openchamber.sessionRetention.toast.noneEligibleArchive": "Aucune session \u00e9ligible \u00e0 l\u2019archivage",
   "settings.openchamber.sessionRetention.toast.noneEligibleDelete": "Aucune session \u00e9ligible \u00e0 la suppression",
+  "settings.openchamber.sessionRetention.toast.stillLoading": "Les sessions sont encore en cours de chargement, r\u00e9essayez dans un instant",
   "settings.openchamber.sessionRetention.toast.archivedCount": "{count} session(s) archiv\u00e9e(s)",
   "settings.openchamber.sessionRetention.toast.deletedCount": "{count} session(s) supprim\u00e9e(s)",
   "settings.openchamber.sessionRetention.toast.failedArchiveCount": "\u00c9chec de l\u2019archivage de {count} session(s)",
