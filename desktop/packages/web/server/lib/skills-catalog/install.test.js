@@ -133,6 +133,39 @@ describe("git skill installation", () => {
     await expect(fsPromises.readFile(path.join(targetDir, "SKILL.md"), "utf8")).resolves.toContain("installed")
   })
 
+  test("removes the backup directory when the backup copy itself fails", async () => {
+    // The backup copy can fail on its own (no space, a permission it cannot read). The installed copy is
+    // untouched in that case, so the partial backup is not the only copy of anything — but the `finally` keeps
+    // the backup whenever the replacement did not land, so a `openchamber-skills-replaced-*` directory was left
+    // in the temp directory on every such failure, with no record pointing at it.
+    const targetDir = path.join(userSkillDir, "review")
+    await fsPromises.mkdir(targetDir, { recursive: true })
+    await fsPromises.writeFile(path.join(targetDir, "SKILL.md"), skillMarkdown("Review Code", "installed"), "utf8")
+    await writeSkill(cloneDir, "skills/review", "Review Code", "incoming")
+
+    const backupDirPrefix = "openchamber-skills-replaced-"
+    const backupsBefore = (await fsPromises.readdir(os.tmpdir())).filter((entry) => entry.startsWith(backupDirPrefix))
+    // Only the backup copy fails: the clone fixture copies through the same call.
+    const realCp = fsPromises.cp
+    const cpSpy = vi.spyOn(fsPromises, "cp").mockImplementation((source, destination, options) =>
+      String(destination).includes(backupDirPrefix)
+        ? Promise.reject(Object.assign(new Error("ENOSPC"), { code: "ENOSPC" }))
+        : realCp(source, destination, options),
+    )
+
+    try {
+      await expect(install(["skills/review"], { conflictDecisions: { review: "overwrite" } })).rejects.toThrow("ENOSPC")
+    } finally {
+      cpSpy.mockRestore()
+    }
+
+    expect((await fsPromises.readdir(os.tmpdir())).filter((entry) => entry.startsWith(backupDirPrefix))).toEqual(
+      backupsBefore,
+    )
+    // The skill the user already had is untouched.
+    await expect(fsPromises.readFile(path.join(targetDir, "SKILL.md"), "utf8")).resolves.toContain("installed")
+  })
+
   test("replaces the installed skill when the copy succeeds", async () => {
     const targetDir = path.join(userSkillDir, "review")
     await fsPromises.mkdir(targetDir, { recursive: true })

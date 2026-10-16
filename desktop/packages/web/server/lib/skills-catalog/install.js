@@ -287,7 +287,18 @@ export async function installSkillsFromRepository({
         // documents the same rule.
         backupDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "openchamber-skills-replaced-"))
         backupSkillDir = path.join(backupDir, "skill")
-        await fs.promises.cp(targetDir, backupSkillDir, { recursive: true })
+        try {
+          await fs.promises.cp(targetDir, backupSkillDir, { recursive: true })
+        } catch (backupError) {
+          // The backup copy can fail on its own (no space, a permission it cannot read). The installed copy is
+          // untouched, so the partial backup is the only copy of nothing — and the `finally` below keeps the
+          // backup whenever the replacement did not land, which left a `openchamber-skills-replaced-*` directory
+          // behind on every such failure.
+          await safeRm(backupDir)
+          backupDir = null
+          backupSkillDir = null
+          throw backupError
+        }
         await safeRm(targetDir)
       }
 
