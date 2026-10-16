@@ -63,7 +63,9 @@ let statusCalls = 0
 
 const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input)
-  if (url.endsWith("/cli/status")) statusCalls += 1
+  // The toast reads the CLI status through either route (a cached read or a
+  // check that honours the server's cache expiry).
+  if (url.endsWith("/cli/status") || url.endsWith("/cli/check")) statusCalls += 1
   const result = handler(url, init)
   if (result && typeof result === "object" && "__status" in (result as Record<string, unknown>)) {
     const { __status, ...body } = result as Record<string, unknown> & { __status: number }
@@ -168,9 +170,7 @@ describe("AxCodeUpdateToast", () => {
     // Desktop runs its own CLI, but that install is not the one the terminal
     // runs, so it gets no CLI toast: the update still has to be announced.
     handler = (url) =>
-      url.includes("upgrade-status")
-        ? { binarySource: "path" }
-        : { ...cliStatus, isRuntimeBinary: true, onPath: false }
+      url.includes("upgrade-status") ? { binarySource: "path" } : { ...cliStatus, isRuntimeBinary: true, onPath: false }
     await render()
     await advance(9_000)
     expect(statusCalls).toBeGreaterThan(0)

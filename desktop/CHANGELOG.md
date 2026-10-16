@@ -67,6 +67,12 @@ All notable changes to this project will be documented in this file.
 - AX Code Desktop no longer sets `AX_ENGINE_PYTHON` to `~/.ax-engine/venv` on its own, which hid the
   runtime's download environment at `~/.local/share/ax-engine/download-env`. A value you set still
   passes through, and the runtime picks the fallback.
+- Scheduled CLI update checks and reopened settings apply the server cache expiry instead of reading
+  an old result indefinitely. Cached upgrade progress reads remain non-spawning.
+- A stalled CLI status request now respects the polling reachability deadline instead of keeping
+  upgrade progress stuck indefinitely.
+- CLI upgrade progress resumes after a temporary connection outage, and a failed pre-upgrade check
+  no longer starts an installer without confirming that an update is available.
 - Opening a session that had only been seen through live events (created or run elsewhere in the same
   project) rendered just the fragment those events had built, with no older history and no way to load it:
   the sync treated the event-built tail as a cached conversation. The store now tracks whether a session's

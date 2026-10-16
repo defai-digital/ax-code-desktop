@@ -366,7 +366,7 @@ export const AxCodeUpdateToast: React.FC = () => {
         return
       }
       try {
-        const status = await fetchAxCodeCliStatus()
+        const status = await fetchAxCodeCliStatus({ check: true })
         if (cancelled) return
         cliStatusRef.current = status
         showCliToast(status)

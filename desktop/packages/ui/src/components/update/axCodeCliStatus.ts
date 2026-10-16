@@ -61,7 +61,8 @@ const parseJob = (value: unknown): AxCodeCliUpgradeJob | null => {
   const raw = value as Record<string, unknown>
   const state = raw.state
   if (state !== "running" && state !== "succeeded" && state !== "failed") return null
-  const shadow = raw.shadowedBy && typeof raw.shadowedBy === "object" ? (raw.shadowedBy as Record<string, unknown>) : null
+  const shadow =
+    raw.shadowedBy && typeof raw.shadowedBy === "object" ? (raw.shadowedBy as Record<string, unknown>) : null
   return {
     state,
     path: asString(raw.path),
@@ -88,7 +89,9 @@ export const parseAxCodeCliStatus = (value: unknown): AxCodeCliStatus | null => 
     installed: raw.installed,
     path: asString(raw.path),
     onPath: raw.onPath === true,
-    otherPaths: Array.isArray(raw.otherPaths) ? raw.otherPaths.filter((entry): entry is string => typeof entry === "string") : [],
+    otherPaths: Array.isArray(raw.otherPaths)
+      ? raw.otherPaths.filter((entry): entry is string => typeof entry === "string")
+      : [],
     isRuntimeBinary: raw.isRuntimeBinary === true,
     runtimeSource: asString(raw.runtimeSource),
     currentVersion: asString(raw.currentVersion),
@@ -106,24 +109,32 @@ export const parseAxCodeCliStatus = (value: unknown): AxCodeCliStatus | null => 
   }
 }
 
-const postCheck = (refresh: boolean) =>
+const postCheck = (refresh: boolean, signal?: AbortSignal) =>
   fetch(API_ENDPOINTS.axCode.cliCheck, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ refresh }),
+    ...(signal ? { signal } : {}),
   })
 
 /**
  * Reads the status. The GET only serves the server's last check, so before
- * the first check this asks for one (a POST); `refresh` forces a new check.
+ * the first check this asks for one (a POST). `check` applies the server cache
+ * policy; `refresh` forces a new check. Polling omits both to preserve the job.
  */
-export const fetchAxCodeCliStatus = async (options: { refresh?: boolean } = {}): Promise<AxCodeCliStatus> => {
-  let response = options.refresh
-    ? await postCheck(true)
-    : await fetch(API_ENDPOINTS.axCode.cliStatus, { headers: { Accept: "application/json" } })
+export const fetchAxCodeCliStatus = async (
+  options: { refresh?: boolean; check?: boolean; signal?: AbortSignal } = {},
+): Promise<AxCodeCliStatus> => {
+  let response =
+    options.refresh || options.check
+      ? await postCheck(options.refresh === true, options.signal)
+      : await fetch(API_ENDPOINTS.axCode.cliStatus, {
+          headers: { Accept: "application/json" },
+          ...(options.signal ? { signal: options.signal } : {}),
+        })
   let payload = await response.json().catch(() => null)
   if (!options.refresh && response.ok && payload && (payload as { checked?: unknown }).checked === false) {
-    response = await postCheck(false)
+    response = await postCheck(false, options.signal)
     payload = await response.json().catch(() => null)
   }
   const status = parseAxCodeCliStatus(payload)
@@ -177,8 +188,12 @@ export const waitForAxCodeCliUpgrade = async (
     if (options.isCancelled?.()) return null
     await sleep(intervalMs)
     if (options.isCancelled?.()) return null
+    const controller = new AbortController()
+    // A pending response (including its body) must not outlive the same
+    // reachability budget that bounds repeated failed requests.
+    const timeout = setTimeout(() => controller.abort(), Math.max(1, unreachableMs - (Date.now() - lastReached)))
     try {
-      const status = await fetchAxCodeCliStatus()
+      const status = await fetchAxCodeCliStatus({ signal: controller.signal })
       lastReached = Date.now()
       if (status.upgrade?.state === "running") {
         vanishedSince = null
@@ -190,6 +205,8 @@ export const waitForAxCodeCliUpgrade = async (
     } catch {
       // The server restarts the runtime after some upgrades; keep polling.
       if (Date.now() - lastReached >= unreachableMs) return null
+    } finally {
+      clearTimeout(timeout)
     }
   }
 }

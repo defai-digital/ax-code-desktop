@@ -1,0 +1,74 @@
+muse: workspace root: /tmp/ax-desktop-7.26.0-review (explicit)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+Below are the three highest-confidence issues I can support from the code alone. I would not call more speculative PATH, symlink, or process-group cases definite bugs.
+
+### 1. `waitForAxCodeCliUpgrade` can stop following a still-running upgrade after an unreachable period
+
+**Functions:** [AxCodeCliInstallSection.tsx](/tmp/ax-desktop-7.26.0-review/desktop/packages/ui/src/components/sections/ax-code/AxCodeCliInstallSection.tsx) `followUpgrade`, and [axCodeCliStatus.ts](/tmp/ax-desktop-7.26.0-review/desktop/packages/ui/src/components/update/axCodeCliStatus.ts) `waitForAxCodeCliUpgrade`
+
+**Trigger**
+
+1. An upgrade is running.
+2. The server becomes unreachable long enough for `waitForAxCodeCliUpgrade` to return `null` — by default, three minutes, while a server-side upgrade can run for ten minutes.
+3. The server becomes reachable again while the upgrade is still running.
+4. `followUpgrade` performs its one fallback `fetchAxCodeCliStatus()`, receives `upgrade.state === "running"`, stores that status, and returns.
+
+Nobody resumes polling. The section remains in the “updating” state, with both Check and Update disabled because `upgrading` is true, until the component remounts or the page reloads.
+
+**Regression test**
+
+Mock `waitForAxCodeCliUpgrade` to resolve `null`, then mock the fallback fetch to return a running job followed later by a succeeded job. Assert that the component polls again and eventually renders the succeeded outcome.
+
+---
+
+### 2. The server starts an upgrade when the pre-check does not know whether an update exists
+
+**Functions:** [cli-install.js](/tmp/ax-desktop-7.26.0-review/desktop/packages/web/server/lib/ax-code/cli-install.js) `checkCli`, `startUpgrade`, and `runUpgrade`
+
+**Trigger**
+
+The fresh pre-check in `startUpgrade` returns a parsed check report with a known method, such as `curl`, but also an error, so `checkCli` sets:
+
+```js
+updateAvailable: null
+canUpgrade: true
+```
+
+`startUpgrade` rejects only `updateAvailable === false`; it does not reject `null`. It therefore spawns `ax-code upgrade --method curl` even though its own authoritative pre-check did not establish that an update exists. This can happen when the UI holds an older “update available” status, but the server-side pre-check re-runs and its network check fails.
+
+The resulting outcome is also unreliable:
+
+- If a later check works and reports the already-current CLI as up to date, `runUpgrade` reports `succeeded`, even if its `previousVersion` and final `version` are identical and nothing was upgraded.
+- If the later check still cannot determine the latest version and there is no recorded target, the same no-op can be reported as `failed`.
+
+**Regression test**
+
+Use a fake CLI whose check returns `method: "curl"`, `error: "network failed"`, `upToDate: null`, and no `latest`. Call `startUpgrade` and assert that it refuses with a 409-style unknown/not-confirmed result and never spawns the `upgrade` subcommand.
+
+---
+
+### 3. A timed-out installer is reported as failed even when the fresh post-check proves it reached the target
+
+**Function:** [cli-install.js](/tmp/ax-desktop-7.26.0-review/desktop/packages/web/server/lib/ax-code/cli-install.js) `runUpgrade`
+
+**Trigger**
+
+1. `ax-code upgrade` replaces the binary with the announced target version but hangs in a later post-install step.
+2. `runCli` reaches `UPGRADE_TIMEOUT_MS`, kills the process tree, and marks `result.timedOut === true`.
+3. The subsequent fresh check reports either `updateAvailable === false` or a current version at least equal to `before.latestVersion`.
+
+Despite that fresh evidence, this condition always fails the job:
+
+```js
+if (result.timedOut || !(current || reachedTarget)) {
+  return { state: "failed", reason: result.timedOut ? "timeout" : "upgrade-failed" }
+}
+```
+
+That contradicts the immediately preceding design statement in the code: because `ax-code upgrade` can exit `0` even when installation fails, “the outcome is what a fresh check reports afterwards.” Here, the fresh check can prove success, but the timeout flag overrides it. The UI then tells the user the upgrade failed and suggests a manual command, while the next ordinary check shows the CLI already up to date.
+
+This is a definite behavioral mismatch; the only inference is that the fresh-check rule, rather than timeout-dominance, is the intended product rule, as stated in the adjacent comment.
+
+**Regression test**
+
+Fake the upgrade child so it times out and is killed, but make the post-upgrade `--version` / `upgrade check --json` report the target version as current. Assert that `runUpgrade` settles as `succeeded` with that version, or, if timeout-dominance is intentionally chosen instead, update the stated outcome rule and test explicitly for `failed/timeout`.

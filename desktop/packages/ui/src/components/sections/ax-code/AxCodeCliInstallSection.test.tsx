@@ -2,6 +2,7 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
+import * as cliStatus from "@/components/update/axCodeCliStatus"
 import { AxCodeCliInstallSection } from "./AxCodeCliInstallSection"
 
 const baseStatus = {
@@ -73,6 +74,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
@@ -90,6 +92,19 @@ describe("AxCodeCliInstallSection", () => {
     expect(text()).toContain("Version 7.26.0 available")
     expect(text()).toContain("built-in AX Code 7.25.8")
     expect(button("Update to 7.26.0")).not.toBeNull()
+  })
+
+  test("checks again when reopening settings after the cached result expires", async () => {
+    handler = (url) => {
+      if (url.includes("upgrade-status")) return runtimeStatus
+      return url.endsWith("/cli/status")
+        ? { ...baseStatus, updateAvailable: false, latestVersion: "7.25.0" }
+        : baseStatus
+    }
+    await render()
+    expect(text()).toContain("Version 7.26.0 available")
+    const check = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/cli/check"))
+    expect(JSON.parse(String(check?.[1]?.body))).toEqual({ refresh: false })
   })
 
   test("re-checks with a POST", async () => {
@@ -207,7 +222,9 @@ describe("AxCodeCliInstallSection", () => {
   test("reports a failed check after a status has already loaded", async () => {
     handler = (url, init) => {
       if (url.includes("upgrade-status")) return runtimeStatus
-      if (url.endsWith("/cli/check") && init?.method === "POST") return { __status: 500, error: "offline" }
+      // Opening the panel also checks (without a refresh); only "Check now" fails.
+      if (url.endsWith("/cli/check") && init?.method === "POST" && JSON.parse(String(init.body)).refresh === true)
+        return { __status: 500, error: "offline" }
       return baseStatus
     }
     await render()
@@ -291,11 +308,43 @@ describe("AxCodeCliInstallSection", () => {
     expect(text()).toContain("couldn't restart its runtime on it. Reload AX Code")
   })
 
+  test("resumes polling when a fallback request finds the upgrade still running", async () => {
+    const wait = cliStatus.waitForAxCodeCliUpgrade
+    const poll = vi
+      .spyOn(cliStatus, "waitForAxCodeCliUpgrade")
+      .mockResolvedValueOnce(null)
+      .mockImplementationOnce((options) => wait({ ...options, intervalMs: 1 }))
+    let reads = 0
+    handler = (url) => {
+      if (url.includes("upgrade-status")) return runtimeStatus
+      if (url.endsWith("/cli/status")) reads += 1
+      return reads < 2
+        ? { ...baseStatus, upgrade: { state: "running" } }
+        : {
+            ...baseStatus,
+            currentVersion: "7.26.0",
+            updateAvailable: false,
+            upgrade: { state: "succeeded", version: "7.26.0" },
+          }
+    }
+    await render()
+    expect(poll).toHaveBeenCalledTimes(2)
+    expect(text()).toContain("Updated to 7.26.0.")
+    expect(button("Check now")?.disabled).toBe(false)
+  })
+
   test("reports a missing CLI", async () => {
     handler = (url) =>
       url.includes("upgrade-status")
         ? runtimeStatus
-        : { ...baseStatus, installed: false, path: null, currentVersion: null, latestVersion: null, updateAvailable: null }
+        : {
+            ...baseStatus,
+            installed: false,
+            path: null,
+            currentVersion: null,
+            latestVersion: null,
+            updateAvailable: null,
+          }
     await render()
     expect(text()).toContain("No ax-code command was found")
   })

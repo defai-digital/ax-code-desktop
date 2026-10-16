@@ -76,26 +76,29 @@ export const AxCodeCliInstallSection: React.FC = () => {
 
   const followUpgrade = React.useCallback(async () => {
     sawRunningRef.current = true
-    const settled = await waitForAxCodeCliUpgrade({ isCancelled: () => !mountedRef.current })
-    if (!mountedRef.current) return
-    if (settled) {
-      setStatus(settled)
-      return
-    }
-    // The server stayed unreachable; show whatever it reports once it is back.
-    try {
-      const next = await fetchAxCodeCliStatus()
+    while (mountedRef.current) {
+      const settled = await waitForAxCodeCliUpgrade({ isCancelled: () => !mountedRef.current })
       if (!mountedRef.current) return
-      setStatus(next)
-      // It can come back with the job still running (a brief outage, or a
-      // server that was wedged): keep following it, or the panel stays on
-      // "Updating…" with nothing left to poll it.
-      if (next.upgrade?.state === "running") void followUpgrade()
-    } catch {
-      if (mountedRef.current) {
-        setStatus((current) => (current ? { ...current, upgrade: null } : current))
-        setLoadFailed(true)
+      if (settled) {
+        setStatus(settled)
+        setLoadFailed(false)
+        return
       }
+      // If connectivity returns while the installer is still running, keep
+      // following it rather than leaving the controls disabled indefinitely.
+      try {
+        const next = await fetchAxCodeCliStatus()
+        if (!mountedRef.current) return
+        setStatus(next)
+        setLoadFailed(false)
+        if (next.upgrade?.state === "running") continue
+      } catch {
+        if (mountedRef.current) {
+          setStatus((current) => (current ? { ...current, upgrade: null } : current))
+          setLoadFailed(true)
+        }
+      }
+      return
     }
   }, [])
 
@@ -104,7 +107,7 @@ export const AxCodeCliInstallSection: React.FC = () => {
       setChecking(true)
       setNotice(null)
       try {
-        const next = await fetchAxCodeCliStatus({ refresh })
+        const next = await fetchAxCodeCliStatus({ refresh, check: true })
         if (!mountedRef.current) return
         setStatus(next)
         setLoadFailed(false)

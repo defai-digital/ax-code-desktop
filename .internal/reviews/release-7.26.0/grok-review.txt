@@ -1,0 +1,9 @@
+Confirmed bug: the empty-cache path starts a check during upgrade polling.
+
+`waitForAxCodeCliUpgrade` calls `fetchAxCodeCliStatus()` with no options. On HTTP 200 and `checked === false` (the empty-cache body, including after a mid-upgrade restart), that helper still runs `postCheck(false)`. The GET result is dropped.
+
+If that POST fails while the runtime is restarting, the waiter counts the server as unreachable and returns `null` only after `unreachableMs`. A POST that never settles never hits that deadline: there is no timeout, and `isCancelled` does not abort the request. Vanished-grace never sees the GET body.
+
+`{check:true}` has the same hole. It already POSTed `{refresh:false}`. A 200 `{checked:false}` answer POSTs again. While an upgrade is in progress the server returns that cached body unchanged, so the second call cannot fill the cache.
+
+The TTL split is otherwise consistent: `{check:true}` posts `refresh:false`, a bare read uses GET, and `refresh:true` skips the fallback. A non-running `upgrade` returns immediately; a missing job waits `vanishedGraceMs`.
