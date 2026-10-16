@@ -121,3 +121,23 @@ describe("safe external URL helpers", () => {
     expect(open).not.toHaveBeenCalled()
   })
 })
+
+describe("extractLoopbackUrls boundaries", () => {
+  test("does not match a host that merely starts with a loopback name", () => {
+    // The pattern had no boundary after the host, so the prefix matched and the offer pointed at
+    // `http://localhost/` instead of the address in the text.
+    expect(extractLoopbackUrls("see http://localhost.evil.example/x")).toEqual([])
+    expect(extractLoopbackUrls("see http://127.0.0.1.evil.example/x")).toEqual([])
+  })
+
+  test("does not match a port that is out of range", () => {
+    expect(extractLoopbackUrls("see http://localhost:123456/")).toEqual([])
+  })
+
+  test("still matches a loopback address with a path, a query and a fragment", () => {
+    expect(extractLoopbackUrls("ready at http://127.0.0.2:5173/app?x=1#top")).toEqual([
+      "http://127.0.0.2:5173/app?x=1#top",
+    ])
+    expect(extractLoopbackUrls("ready at http://localhost:5173 and more")).toEqual(["http://localhost:5173/"])
+  })
+})

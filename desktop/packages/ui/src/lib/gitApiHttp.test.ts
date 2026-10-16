@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest"
 import {
   checkIsGitRepository,
+  getGitStatus,
   pruneExpiredCacheEntries,
   stageGitFile,
   stageGitFiles,
@@ -126,6 +127,50 @@ describe("gitApiHttp index mutations", () => {
       expect(unstageError).toBeInstanceOf(Error)
       expect((unstageError as Error).message).toBe("path is required to unstage git changes")
       expect(calls).toHaveLength(0)
+    } finally {
+      restoreMocks()
+    }
+  })
+})
+
+describe("git api status cache invalidation", () => {
+  test("a mutation drops the cached status the refresh would read", async () => {
+    // The cache has a 1.2 s TTL and the UI refreshes right after a mutation, so the refresh used to
+    // return the status from before it: the reverted file still listed as modified, and a second
+    // click on the stale row acted on the wrong state.
+    const statusResponse = () =>
+      new Response(
+        JSON.stringify({ current: "main", tracking: null, ahead: 0, behind: 0, files: [], isClean: true }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      )
+    let statusCalls = 0
+    globalThis.fetch = (async (input, init) => {
+      const url = String(input)
+      if (init?.method && String(init.method).toUpperCase() !== "GET") {
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      if (url.includes("/status")) {
+        statusCalls += 1
+        return statusResponse()
+      }
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    }) as typeof fetch
+
+    try {
+      await getGitStatus("/repo-invalidation")
+      await getGitStatus("/repo-invalidation")
+      expect(statusCalls).toBe(1)
+
+      await stageGitFiles("/repo-invalidation", ["a.ts"])
+      await getGitStatus("/repo-invalidation")
+
+      expect(statusCalls).toBe(2)
     } finally {
       restoreMocks()
     }

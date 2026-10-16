@@ -94,9 +94,12 @@ export const normalizeLoopbackPreviewUrl = (url: string): string | null => {
   return parsed.toString()
 }
 
+// The host and the port have to end where they end: without the trailing boundary the pattern also
+// matched the prefix of a longer name, so text mentioning `http://localhost.evil.example/x` offered
+// `http://localhost/`, and `http://localhost:123456/` offered a port that does not exist.
 const LOOPBACK_URL_PATTERN =
   // eslint-disable-next-line no-control-regex
-  /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[(?:::1|::)\])(?::\d{2,5})?(?:\/[^\s<>"'`\u0000-\u001f]*)?/gi
+  /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[(?:::1|::)\])(?::\d{2,5})?(?=[\s<>"'`\u0000-\u001f]|\/|\?|#|$)(?:\/[^\s<>"'`\u0000-\u001f]*)?/gi
 
 const TRAILING_PUNCT = new Set([".", ",", ";", ":", "!", "?"])
 

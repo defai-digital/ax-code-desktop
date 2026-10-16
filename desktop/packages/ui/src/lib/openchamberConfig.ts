@@ -8,6 +8,7 @@ import type { FilesAPI, RuntimeAPIs } from "./api/types"
 import { buildAxCodeApiUrl } from "./ax-code/baseUrl"
 import { getDesktopHomeDirectory } from "./desktop"
 import { createProjectIdFromPath } from "./projectId"
+import { projectPathMatchesRoot } from "./projectResolution"
 import { sanitizeStarterRefs, type DraftStarterRef } from "./draftStarters"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
 
@@ -827,8 +828,13 @@ export async function deleteProjectPlanFile(project: ProjectRef, planId: string)
     return false
   }
 
-  // Best-effort: remove underlying markdown file, ignore failure.
-  await deleteFile(target.path).catch(() => false)
+  // Best-effort: remove the markdown file the app wrote for this plan, ignore failure. The link
+  // comes from the config, and a config cloned into a repository can name any path — deleting that
+  // entry used to remove whatever it pointed at, anywhere on the machine.
+  const plansDirectory = await getProjectPlansDirectory(project)
+  if (plansDirectory && projectPathMatchesRoot(target.path, plansDirectory)) {
+    await deleteFile(target.path).catch(() => false)
+  }
   return true
 }
 
@@ -917,14 +923,13 @@ export async function saveProjectActionsState(
  * - $ROOT_WORKTREE_PATH: Legacy alias for $ROOT_PROJECT_PATH
  */
 export function substituteCommandVariables(command: string, variables: { rootWorktreePath: string }): string {
-  return (
-    command
-      // New preferred name
-      .replace(/\$ROOT_PROJECT_PATH/g, variables.rootWorktreePath)
-      .replace(/\$\{ROOT_PROJECT_PATH\}/g, variables.rootWorktreePath)
-      // Legacy
-      .replace(/\$ROOT_WORKTREE_PATH/g, variables.rootWorktreePath)
-      .replace(/\$\{ROOT_WORKTREE_PATH\}/g, variables.rootWorktreePath)
+  // The path is injected through a function replacer: a string replacement parses `$` patterns, so
+  // a project at `/Users/me/co$$op` became `/Users/me/co$op`, and `$&` or `$'` spliced in the match
+  // and the surrounding command text. One pass over all four spellings, so a path that itself looks
+  // like a variable is not substituted again.
+  return command.replace(
+    /\$\{ROOT_PROJECT_PATH\}|\$\{ROOT_WORKTREE_PATH\}|\$ROOT_PROJECT_PATH|\$ROOT_WORKTREE_PATH/g,
+    () => variables.rootWorktreePath,
   )
 }
 
