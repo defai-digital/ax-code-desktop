@@ -782,19 +782,27 @@ export function ScheduledTaskEditorDialog(props: {
     void loadAgents()
   }, [open, loadProviders, loadAgents])
 
+  // The provider, model and agent are read into the initial draft, but they must not re-run the
+  // reset below: the effect above loads them on open, and `useConfigStore` rewrites the current
+  // selection when the stored one is not selectable — a background agent or model change does the
+  // same. That reset replaced the draft the user was typing, and the `openedRef` baseline under
+  // it, with a fresh one. Read them through a ref so the deps stay what the reset belongs to.
+  const initialSelectionRef = React.useRef({
+    providerID: currentProviderID,
+    modelID: currentModelID,
+    agent: currentAgentName,
+  })
+  initialSelectionRef.current = {
+    providerID: currentProviderID,
+    modelID: currentModelID,
+    agent: currentAgentName,
+  }
+
   React.useEffect(() => {
     if (!open) {
       return
     }
-    const next = toDraft(
-      task,
-      {
-        providerID: currentProviderID,
-        modelID: currentModelID,
-        agent: currentAgentName,
-      },
-      family,
-    )
+    const next = toDraft(task, initialSelectionRef.current, family)
     setDraft(next)
     openedRef.current = {
       baseline: next,
@@ -808,7 +816,7 @@ export function ScheduledTaskEditorDialog(props: {
     setShowFileMention(false)
     setCommandQuery("")
     setMentionQuery("")
-  }, [open, task, family, currentProviderID, currentModelID, currentAgentName])
+  }, [open, task, family])
 
   React.useEffect(() => {
     if (!isDatePickerOpen) {
