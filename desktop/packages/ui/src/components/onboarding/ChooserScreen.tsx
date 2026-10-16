@@ -81,6 +81,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
   const [isApplyingPath, setIsApplyingPath] = React.useState(false)
   const [isManualChecking, setIsManualChecking] = React.useState(false)
   const [axCodeBinary, setAxCodeBinary] = React.useState("")
+  const [applyError, setApplyError] = React.useState<string | null>(null)
   const [platform, setPlatform] = React.useState<OnboardingPlatform>("unknown")
   const [advancedOpen, setAdvancedOpen] = React.useState(false)
   const [troubleOpen, setTroubleOpen] = React.useState(false)
@@ -241,6 +242,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
 
   const handleApplyPath = React.useCallback(async () => {
     setIsApplyingPath(true)
+    setApplyError(null)
     try {
       await updateDesktopSettings({ axCodeBinary: axCodeBinary.trim() })
       if (isTauriShell()) {
@@ -249,6 +251,11 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
         return
       }
       await fetch(API_ENDPOINTS.config.reload, { method: "POST" })
+    } catch (error) {
+      // The write is the whole point of this button, and persistence deliberately keeps the
+      // rejection for awaiting callers to report it. Without this the click failed silently -
+      // the busy flag simply cleared a second later - and the rejection escaped the handler.
+      setApplyError(error instanceof Error ? error.message : t("desktopHostSwitcher.error.failedToSave"))
     } finally {
       applyingResetTimerRef.current = resetReplaceableTimeout(
         applyingResetTimerRef.current,
@@ -259,7 +266,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
         1000,
       )
     }
-  }, [axCodeBinary, persistLocalChoice])
+  }, [axCodeBinary, persistLocalChoice, t])
 
   const handleCopy = React.useCallback(async () => {
     const result = await copyTextToClipboard(getInstallCommand(platform))
@@ -440,6 +447,14 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
               <p className="typography-micro text-muted-foreground">
                 {t("onboarding.localSetup.helper.saveAndReload")}
               </p>
+              {applyError && (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-destructive/50 bg-destructive/10 p-2 typography-micro text-destructive"
+                >
+                  {applyError}
+                </div>
+              )}
             </div>
           </details>
 

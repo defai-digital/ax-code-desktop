@@ -220,6 +220,11 @@ export function LocalSetupScreen({ onBack, onCliAvailable }: LocalSetupScreenPro
       }
 
       await fetch(API_ENDPOINTS.config.reload, { method: "POST" })
+    } catch (error) {
+      // The write is the whole point of this button, and persistence deliberately keeps the
+      // rejection for awaiting callers to report it. Without this the click failed silently -
+      // the busy flag simply cleared a second later - and the rejection escaped the handler.
+      setCheckError(error instanceof Error ? error.message : t("desktopHostSwitcher.error.failedToSave"))
     } finally {
       retryResetTimerRef.current = resetReplaceableTimeout(
         retryResetTimerRef.current,
@@ -230,7 +235,7 @@ export function LocalSetupScreen({ onBack, onCliAvailable }: LocalSetupScreenPro
         1000,
       )
     }
-  }, [axCodeBinary])
+  }, [axCodeBinary, t])
 
   const handleCopy = React.useCallback(async () => {
     const result = await copyTextToClipboard(getInstallCommand(platform))
