@@ -99,6 +99,7 @@ export function MultiRunFusionDialog({
   const [variant, setVariant] = React.useState<string>("")
   const [agent, setAgent] = React.useState(currentAgentName ?? "")
   const [sources, setSources] = React.useState<FusionSource[]>([])
+  const [excludedSessionIds, setExcludedSessionIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [isStarting, setIsStarting] = React.useState(false)
 
   const parsed = React.useMemo(() => parseMultiRunSessionTitle(session.title), [session.title])
@@ -121,6 +122,7 @@ export function MultiRunFusionDialog({
         const candidateParsed = parseMultiRunSessionTitle(candidate.title)
         if (!candidateParsed || candidateParsed.groupSlug !== parsed.groupSlug || candidateParsed.fusion) return null
         if ((candidateParsed.runGroup ?? null) !== (parsed.runGroup ?? null)) return null
+        if (excludedSessionIds.has(candidate.id)) return null
         const directory =
           useSessionUIStore.getState().getDirectoryForSession(candidate.id) ?? resolveGlobalSessionDirectory(candidate)
         const projectDirectory = getSessionProjectDirectory(candidate.id, directory)
@@ -131,7 +133,11 @@ export function MultiRunFusionDialog({
       .sort((a, b) => (a.session.time?.created ?? 0) - (b.session.time?.created ?? 0))
 
     setSources(nextSources)
-  }, [allSessions, open, parsed, session.id])
+  }, [allSessions, excludedSessionIds, open, parsed, session.id])
+
+  React.useEffect(() => {
+    if (!open) setExcludedSessionIds(new Set())
+  }, [open])
 
   const selectedProvider = providers.find((provider) => provider.id === providerID)
   const selectedProviderModel = selectedProvider?.models.find((model) => model.id === modelID) as
@@ -283,7 +289,14 @@ export function MultiRunFusionDialog({
                 <span className="min-w-0 flex-1 truncate">{source.session.title || source.session.id}</span>
                 <button
                   type="button"
-                  onClick={() => setSources((prev) => prev.filter((item) => item.session.id !== source.session.id))}
+                  onClick={() =>
+                    setExcludedSessionIds((prev) => {
+                      if (prev.has(source.session.id)) return prev
+                      const next = new Set(prev)
+                      next.add(source.session.id)
+                      return next
+                    })
+                  }
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <Icon name="close" className="h-4 w-4" />

@@ -248,14 +248,21 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
   React.useEffect(() => {
     if (!onCancel) return
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault()
-        e.stopPropagation()
-        onCancel()
+      if (e.key !== "Escape") {
+        return
       }
+      // An autocomplete inside a prompt consumes Escape first and marks the event handled (see
+      // handlePromptKeyDown), so a popup closes instead of the whole launcher with every typed prompt
+      // in it. This listener is on the bubble phase, so the prompt's own handler has already run
+      // where the event was registered in the capture phase before.
+      if (e.defaultPrevented) {
+        return
+      }
+      e.preventDefault()
+      onCancel()
     }
-    window.addEventListener("keydown", handleKeyDown, true)
-    return () => window.removeEventListener("keydown", handleKeyDown, true)
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
   }, [onCancel])
 
   const [worktreeBaseBranch, setWorktreeBaseBranch] = React.useState<string>("")

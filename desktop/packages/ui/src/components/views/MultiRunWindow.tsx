@@ -25,6 +25,16 @@ export const MultiRunWindow: React.FC<MultiRunWindowProps> = ({ open, onOpenChan
     )
   }, [])
 
+  // The launcher's own Escape handler closes through this too: calling `onOpenChange(false)` directly
+  // walked past the guard above, so closing while a floating menu was open discarded the launcher's
+  // state even though the guard exists to prevent exactly that.
+  const requestClose = React.useCallback(() => {
+    if (hasOpenFloatingMenu()) {
+      return
+    }
+    onOpenChange(false)
+  }, [hasOpenFloatingMenu, onOpenChange])
+
   return (
     <Dialog.Root
       open={open}
@@ -70,7 +80,7 @@ export const MultiRunWindow: React.FC<MultiRunWindowProps> = ({ open, onOpenChan
             <MultiRunLauncher
               initialPrompt={initialPrompt}
               onCreated={() => onOpenChange(false)}
-              onCancel={() => onOpenChange(false)}
+              onCancel={requestClose}
               isWindowed
             />
           </Dialog.Popup>
