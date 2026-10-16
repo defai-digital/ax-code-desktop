@@ -1060,15 +1060,13 @@ Read against the source and confirmed, waiting for a fix rather than a re-check:
   `notifications/PermissionNotifications.tsx:111-127` (a second permission request in one pending batch
   possibly never notifying), and `terminal/TerminalViewport.tsx:1601` (bracketed-paste wrapping without
   stripping a carriage return or an embedded `201~`).
-- **`session/sidebar/SessionNodeItem.tsx:351`** (confirmed by the session reviewer) — the markdown
-  export reads messages from the store keyed by the session's own directory but loads them through
-  `useSync()`, which is bound to the directory currently open, so exporting a session from another
-  project writes an empty or partial file. Loading and reading have to name the same directory, which
-  needs a store handle for the session's directory rather than the active one.
-- **`session/sidebar/SessionNodeItem.tsx:475`** (confirmed by the same reviewer) — the export walks only
-  the first page of messages (150) and never calls `loadMore`, so a session with more history exports
-  silently short, with the UI reporting success. Draining the pages before writing the file is the fix;
-  it changes how long an export of a long session takes, which is the user's call to make.
+- **`6fd4fa79`** — both remaining session-export findings. The export read messages from the store
+  keyed by the session's own directory but loaded them through `useSync()`, which follows the directory
+  that is open: exporting a session from another project wrote an empty file, or whatever event
+  fragments that store happened to hold. `useSync` takes an optional directory now. And the export read
+  the snapshot straight after the initial page load, so a session longer than 150 messages exported
+  short, silently, with the UI reporting success; `loadAllSessionRecords` drains the remaining pages and
+  stops when a page adds nothing, so a repeating cursor cannot spin it.
 - **`sync/soft-removal.ts:223`** (confirmed by the sync reviewer) — the undo window's timer commits the
   removal on its own 7-second clock while the toast pauses its own countdown on hover, so Undo after the
   timer fired only rewrites a record the commit already took: the session stays hidden and the delete
@@ -1232,7 +1230,7 @@ questions rather than local fixes.
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 665, web 1 105 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 667, web 1 105 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
