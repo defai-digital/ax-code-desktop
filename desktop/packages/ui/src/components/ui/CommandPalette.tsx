@@ -83,6 +83,7 @@ export const CommandPalette: React.FC = () => {
   const toggleRightSidebar = useUIStore((s) => s.toggleRightSidebar)
   const toggleBottomTerminal = useUIStore((s) => s.toggleBottomTerminal)
   const setTimelineDialogOpen = useUIStore((s) => s.setTimelineDialogOpen)
+  const setCrossSessionSearchOpen = useUIStore((s) => s.setCrossSessionSearchOpen)
   const openContextOverview = useUIStore((s) => s.openContextOverview)
   const openContextFile = useUIStore((s) => s.openContextFile)
   const shortcutOverrides = useUIStore((s) => s.shortcutOverrides)
@@ -389,6 +390,14 @@ export const CommandPalette: React.FC = () => {
         onSelect: run(() => setTimelineDialogOpen(true)),
       },
       {
+        id: "search-all-sessions",
+        title: t("commandPalette.item.searchAllSessions"),
+        icon: <Icon name="search" className="mr-2 h-4 w-4" />,
+        shortcutId: "search_all_sessions",
+        searchText: `${t("commandPalette.item.searchAllSessions")} sessions messages find text history`,
+        onSelect: run(() => setCrossSessionSearchOpen(true)),
+      },
+      {
         id: "theme-system",
         title: t("commandPalette.item.themeModeSystem"),
         icon: <Icon name="computer" className="mr-2 h-4 w-4" />,
@@ -454,6 +463,7 @@ export const CommandPalette: React.FC = () => {
     setSettingsDialogOpen,
     setSettingsPage,
     setTimelineDialogOpen,
+    setCrossSessionSearchOpen,
     setThemeMode,
     activeProject?.id,
     activeProject?.path,

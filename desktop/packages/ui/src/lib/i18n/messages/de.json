@@ -4711,5 +4711,20 @@
   "sessions.sidebar.scheduled.history.trigger.scheduled": "Nach Zeitplan",
   "sessions.sidebar.scheduled.history.trigger.manual": "Manuell gestartet",
   "sessions.sidebar.scheduled.history.coalesced": "+{count}",
-  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} verpasste Ausf\u00fchrungen wurden in dieser zusammengefasst"
+  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} verpasste Ausf\u00fchrungen wurden in dieser zusammengefasst",
+  "crossSessionSearch.title": "Alle Sitzungen durchsuchen",
+  "crossSessionSearch.description": "Nachrichtentext in den {count} neuesten Sitzungen dieses Projekts suchen",
+  "crossSessionSearch.placeholder": "Nachrichten in allen Sitzungen suchen\u2026",
+  "crossSessionSearch.loadingSessions": "Sitzungen werden geladen\u2026",
+  "crossSessionSearch.loadFailed": "Sitzungen konnten nicht geladen werden",
+  "crossSessionSearch.retry": "Erneut versuchen",
+  "crossSessionSearch.scanned": "{scanned} von {total} Sitzungen gescannt",
+  "crossSessionSearch.failedSessions": "{count} konnten nicht durchsucht werden",
+  "crossSessionSearch.truncated": "Nur erste Ergebnisse werden angezeigt",
+  "crossSessionSearch.hint": "Gib mindestens {count} Zeichen ein, um zu suchen",
+  "crossSessionSearch.noSessions": "Noch keine Sitzungen in diesem Projekt",
+  "crossSessionSearch.searching": "Suche l\u00e4uft\u2026",
+  "crossSessionSearch.noResults": "Keine Nachrichten gefunden",
+  "commandPalette.item.searchAllSessions": "Nachrichten in allen Sitzungen suchen\u2026",
+  "settings.openchamber.keyboardShortcuts.action.search_all_sessions.label": "Nachrichten in allen Sitzungen suchen"
 }

@@ -13,6 +13,7 @@ import { resolveBesideChatRedirect } from "@/lib/supervision/besideChat"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { ErrorBoundary } from "../ui/ErrorBoundary"
 import { CommandPalette } from "../ui/CommandPalette"
+import { CrossSessionSearchDialog } from "@/components/chat/CrossSessionSearchDialog"
 import { HelpDialog } from "../ui/HelpDialog"
 import { AxCodeStatusDialog } from "../ui/AxCodeStatusDialog"
 import { SessionSidebar } from "@/components/session/SessionSidebar"
@@ -399,6 +400,7 @@ export const MainLayout: React.FC = () => {
     <DiffWorkerProvider>
       <div data-page-scroll-lock="true" className={cn("flex h-[100dvh]", "bg-background")}>
         <CommandPalette />
+        <CrossSessionSearchDialog />
         <HelpDialog />
         <AxCodeStatusDialog />
         <SessionDialogs />

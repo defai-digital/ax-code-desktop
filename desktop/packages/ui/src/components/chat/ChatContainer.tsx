@@ -679,6 +679,27 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
     activeTurnChangeRef.current = timelineController.handleActiveTurnChange
   }, [timelineController.handleActiveTurnChange])
 
+  // Cross-session search selects a result by switching sessions first and
+  // leaving a pending navigation behind; scroll once the target session is
+  // current and its messages (including the target) have loaded. The request
+  // expires so a target that never loads cannot fire on a much later visit.
+  const pendingMessageNavigation = useUIStore((s) => s.pendingMessageNavigation)
+  const setPendingMessageNavigation = useUIStore((s) => s.setPendingMessageNavigation)
+  React.useEffect(() => {
+    if (!pendingMessageNavigation) return
+    const expiry = window.setTimeout(() => setPendingMessageNavigation(null), 15_000)
+    return () => window.clearTimeout(expiry)
+  }, [pendingMessageNavigation, setPendingMessageNavigation])
+  React.useEffect(() => {
+    if (!pendingMessageNavigation || !currentSessionId) return
+    if (pendingMessageNavigation.sessionId !== currentSessionId) return
+    const loaded = sessionMessages.some((entry) => entry.info.id === pendingMessageNavigation.messageId)
+    if (!loaded) return
+    const { messageId } = pendingMessageNavigation
+    setPendingMessageNavigation(null)
+    void timelineController.scrollToMessage(messageId)
+  }, [currentSessionId, pendingMessageNavigation, sessionMessages, setPendingMessageNavigation, timelineController])
+
   React.useEffect(() => {
     if (sessionPermissions.length === 0 && sessionQuestions.length === 0) {
       return

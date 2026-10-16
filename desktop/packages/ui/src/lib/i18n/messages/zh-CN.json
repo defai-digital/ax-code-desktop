@@ -4711,5 +4711,20 @@
   "sessions.sidebar.scheduled.history.trigger.scheduled": "\u6309\u8ba1\u5212",
   "sessions.sidebar.scheduled.history.trigger.manual": "\u624b\u52a8\u542f\u52a8",
   "sessions.sidebar.scheduled.history.coalesced": "+{count}",
-  "sessions.sidebar.scheduled.history.coalescedTitle": "\u9519\u8fc7\u7684 {count} \u6b21\u8fd0\u884c\u5df2\u5408\u5e76\u5230\u8fd9\u4e00\u6b21"
+  "sessions.sidebar.scheduled.history.coalescedTitle": "\u9519\u8fc7\u7684 {count} \u6b21\u8fd0\u884c\u5df2\u5408\u5e76\u5230\u8fd9\u4e00\u6b21",
+  "crossSessionSearch.title": "\u641c\u7d22\u6240\u6709\u4f1a\u8bdd",
+  "crossSessionSearch.description": "\u5728\u6b64\u9879\u76ee\u6700\u8fd1\u7684 {count} \u4e2a\u4f1a\u8bdd\u4e2d\u641c\u7d22\u6d88\u606f\u6587\u672c",
+  "crossSessionSearch.placeholder": "\u641c\u7d22\u6240\u6709\u4f1a\u8bdd\u4e2d\u7684\u6d88\u606f\u2026",
+  "crossSessionSearch.loadingSessions": "\u6b63\u5728\u52a0\u8f7d\u4f1a\u8bdd\u2026",
+  "crossSessionSearch.loadFailed": "\u65e0\u6cd5\u52a0\u8f7d\u4f1a\u8bdd",
+  "crossSessionSearch.retry": "\u91cd\u8bd5",
+  "crossSessionSearch.scanned": "\u5df2\u626b\u63cf {scanned} / {total} \u4e2a\u4f1a\u8bdd",
+  "crossSessionSearch.failedSessions": "{count} \u4e2a\u65e0\u6cd5\u641c\u7d22",
+  "crossSessionSearch.truncated": "\u4ec5\u663e\u793a\u524d\u9762\u7684\u7ed3\u679c",
+  "crossSessionSearch.hint": "\u8f93\u5165\u81f3\u5c11 {count} \u4e2a\u5b57\u7b26\u4ee5\u641c\u7d22",
+  "crossSessionSearch.noSessions": "\u6b64\u9879\u76ee\u5c1a\u65e0\u4f1a\u8bdd",
+  "crossSessionSearch.searching": "\u641c\u7d22\u4e2d\u2026",
+  "crossSessionSearch.noResults": "\u672a\u627e\u5230\u6d88\u606f",
+  "commandPalette.item.searchAllSessions": "\u641c\u7d22\u6240\u6709\u4f1a\u8bdd\u7684\u6d88\u606f\u2026",
+  "settings.openchamber.keyboardShortcuts.action.search_all_sessions.label": "\u641c\u7d22\u6240\u6709\u4f1a\u8bdd\u4e2d\u7684\u6d88\u606f"
 }

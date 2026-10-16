@@ -4711,5 +4711,20 @@
   "sessions.sidebar.scheduled.history.trigger.scheduled": "Sesuai jadwal",
   "sessions.sidebar.scheduled.history.trigger.manual": "Dimulai manual",
   "sessions.sidebar.scheduled.history.coalesced": "+{count}",
-  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} jalankan yang terlewat digabungkan ke jalankan ini"
+  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} jalankan yang terlewat digabungkan ke jalankan ini",
+  "crossSessionSearch.title": "Cari Semua Sesi",
+  "crossSessionSearch.description": "Cari teks pesan di {count} sesi terbaru dalam proyek ini",
+  "crossSessionSearch.placeholder": "Cari pesan di semua sesi\u2026",
+  "crossSessionSearch.loadingSessions": "Memuat sesi\u2026",
+  "crossSessionSearch.loadFailed": "Tidak dapat memuat sesi",
+  "crossSessionSearch.retry": "Coba Lagi",
+  "crossSessionSearch.scanned": "Telah memindai {scanned} dari {total} sesi",
+  "crossSessionSearch.failedSessions": "{count} tidak dapat dicari",
+  "crossSessionSearch.truncated": "Hanya menampilkan hasil pertama",
+  "crossSessionSearch.hint": "Ketik minimal {count} karakter untuk mencari",
+  "crossSessionSearch.noSessions": "Belum ada sesi dalam proyek ini",
+  "crossSessionSearch.searching": "Mencari\u2026",
+  "crossSessionSearch.noResults": "Tidak ada pesan ditemukan",
+  "commandPalette.item.searchAllSessions": "Cari Pesan di Semua Sesi\u2026",
+  "settings.openchamber.keyboardShortcuts.action.search_all_sessions.label": "Cari pesan di semua sesi"
 }

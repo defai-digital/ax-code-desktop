@@ -4711,5 +4711,20 @@
   "sessions.sidebar.scheduled.history.trigger.scheduled": "Zamanlamaya g\u00f6re",
   "sessions.sidebar.scheduled.history.trigger.manual": "Elle ba\u015flat\u0131ld\u0131",
   "sessions.sidebar.scheduled.history.coalesced": "+{count}",
-  "sessions.sidebar.scheduled.history.coalescedTitle": "Ka\u00e7\u0131r\u0131lan {count} \u00e7al\u0131\u015ft\u0131rma bu \u00e7al\u0131\u015ft\u0131rmada birle\u015ftirildi"
+  "sessions.sidebar.scheduled.history.coalescedTitle": "Ka\u00e7\u0131r\u0131lan {count} \u00e7al\u0131\u015ft\u0131rma bu \u00e7al\u0131\u015ft\u0131rmada birle\u015ftirildi",
+  "crossSessionSearch.title": "T\u00fcm Oturumlarda Ara",
+  "crossSessionSearch.description": "Bu projedeki en son {count} oturumda mesaj metni ara",
+  "crossSessionSearch.placeholder": "T\u00fcm oturumlardaki mesajlar\u0131 ara\u2026",
+  "crossSessionSearch.loadingSessions": "Oturumlar y\u00fckleniyor\u2026",
+  "crossSessionSearch.loadFailed": "Oturumlar y\u00fcklenemedi",
+  "crossSessionSearch.retry": "Yeniden Dene",
+  "crossSessionSearch.scanned": "{total} oturumdan {scanned} tanesi tarand\u0131",
+  "crossSessionSearch.failedSessions": "{count} tanesinde arama yap\u0131lamad\u0131",
+  "crossSessionSearch.truncated": "Yaln\u0131zca ilk sonu\u00e7lar g\u00f6steriliyor",
+  "crossSessionSearch.hint": "Aramak i\u00e7in en az {count} karakter yaz\u0131n",
+  "crossSessionSearch.noSessions": "Bu projede hen\u00fcz oturum yok",
+  "crossSessionSearch.searching": "Aran\u0131yor\u2026",
+  "crossSessionSearch.noResults": "Mesaj bulunamad\u0131",
+  "commandPalette.item.searchAllSessions": "T\u00fcm Oturumlardaki Mesajlar\u0131 Ara\u2026",
+  "settings.openchamber.keyboardShortcuts.action.search_all_sessions.label": "T\u00fcm oturumlardaki mesajlar\u0131 ara"
 }

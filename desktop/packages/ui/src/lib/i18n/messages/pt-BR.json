@@ -4711,5 +4711,20 @@
   "sessions.sidebar.scheduled.history.trigger.scheduled": "Agendada",
   "sessions.sidebar.scheduled.history.trigger.manual": "Iniciada manualmente",
   "sessions.sidebar.scheduled.history.coalesced": "+{count}",
-  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} execu\u00e7\u00f5es perdidas foram combinadas nesta"
+  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} execu\u00e7\u00f5es perdidas foram combinadas nesta",
+  "crossSessionSearch.title": "Pesquisar em todas as sess\u00f5es",
+  "crossSessionSearch.description": "Pesquisar texto de mensagens nas {count} sess\u00f5es mais recentes deste projeto",
+  "crossSessionSearch.placeholder": "Pesquisar mensagens em todas as sess\u00f5es\u2026",
+  "crossSessionSearch.loadingSessions": "Carregando sess\u00f5es\u2026",
+  "crossSessionSearch.loadFailed": "N\u00e3o foi poss\u00edvel carregar as sess\u00f5es",
+  "crossSessionSearch.retry": "Tentar novamente",
+  "crossSessionSearch.scanned": "Verificadas {scanned} de {total} sess\u00f5es",
+  "crossSessionSearch.failedSessions": "{count} n\u00e3o puderam ser pesquisadas",
+  "crossSessionSearch.truncated": "Mostrando apenas os primeiros resultados",
+  "crossSessionSearch.hint": "Digite pelo menos {count} caracteres para pesquisar",
+  "crossSessionSearch.noSessions": "Nenhuma sess\u00e3o neste projeto ainda",
+  "crossSessionSearch.searching": "Pesquisando\u2026",
+  "crossSessionSearch.noResults": "Nenhuma mensagem encontrada",
+  "commandPalette.item.searchAllSessions": "Pesquisar mensagens em todas as sess\u00f5es\u2026",
+  "settings.openchamber.keyboardShortcuts.action.search_all_sessions.label": "Pesquisar mensagens em todas as sess\u00f5es"
 }

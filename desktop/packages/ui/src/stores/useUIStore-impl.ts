@@ -77,6 +77,11 @@ type PendingFileNavigation = {
   column: number
 }
 
+export type PendingMessageNavigation = {
+  sessionId: string
+  messageId: string
+}
+
 type MainTabGuard = (nextTab: MainTab) => boolean
 
 const LEGACY_DEFAULT_NOTIFICATION_TEMPLATES = {
@@ -611,6 +616,8 @@ interface UIStore {
   diffViewMode: "single" | "stacked"
   gitChangesViewMode: "flat" | "tree"
   isTimelineDialogOpen: boolean
+  isCrossSessionSearchOpen: boolean
+  pendingMessageNavigation: PendingMessageNavigation | null
   isImagePreviewOpen: boolean
   nativeNotificationsEnabled: boolean
   notificationMode: "always" | "hidden-only"
@@ -765,6 +772,8 @@ interface UIStore {
   setGitChangesViewMode: (mode: "flat" | "tree") => void
   setMultiRunLauncherOpen: (open: boolean) => void
   setTimelineDialogOpen: (open: boolean) => void
+  setCrossSessionSearchOpen: (open: boolean) => void
+  setPendingMessageNavigation: (navigation: PendingMessageNavigation | null) => void
   setImagePreviewOpen: (open: boolean) => void
   setNativeNotificationsEnabled: (value: boolean) => void
   setNotificationMode: (mode: "always" | "hidden-only") => void
@@ -884,6 +893,8 @@ export const useUIStore = create<UIStore>()(
         diffViewMode: "stacked",
         gitChangesViewMode: "flat",
         isTimelineDialogOpen: false,
+        isCrossSessionSearchOpen: false,
+        pendingMessageNavigation: null,
         isImagePreviewOpen: false,
         nativeNotificationsEnabled: false,
         notificationMode: "hidden-only",
@@ -2019,6 +2030,14 @@ export const useUIStore = create<UIStore>()(
 
         setTimelineDialogOpen: (open) => {
           set({ isTimelineDialogOpen: open })
+        },
+
+        setCrossSessionSearchOpen: (open) => {
+          set({ isCrossSessionSearchOpen: open })
+        },
+
+        setPendingMessageNavigation: (navigation) => {
+          set({ pendingMessageNavigation: navigation })
         },
 
         setImagePreviewOpen: (open) => {

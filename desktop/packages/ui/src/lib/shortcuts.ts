@@ -187,6 +187,14 @@ const SHORTCUT_ACTIONS: ReadonlyArray<ShortcutAction> = [
     customizable: true,
   },
   {
+    // mod+shift+f already belongs to open_search_mode / toggle_files.
+    id: "search_all_sessions",
+    defaultCombo: "mod+alt+f",
+    label: "Search messages in all sessions",
+    description: "Search message text across recent sessions of the current project",
+    customizable: true,
+  },
+  {
     id: "toggle_right_sidebar",
     defaultCombo: "mod+b",
     label: "Toggle right sidebar",

@@ -4711,5 +4711,20 @@
   "sessions.sidebar.scheduled.history.trigger.scheduled": "Planifi\u00e9e",
   "sessions.sidebar.scheduled.history.trigger.manual": "Lanc\u00e9e manuellement",
   "sessions.sidebar.scheduled.history.coalesced": "+{count}",
-  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} ex\u00e9cutions manqu\u00e9es ont \u00e9t\u00e9 regroup\u00e9es dans celle-ci"
+  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} ex\u00e9cutions manqu\u00e9es ont \u00e9t\u00e9 regroup\u00e9es dans celle-ci",
+  "crossSessionSearch.title": "Rechercher dans toutes les sessions",
+  "crossSessionSearch.description": "Rechercher du texte dans les {count} sessions les plus r\u00e9centes de ce projet",
+  "crossSessionSearch.placeholder": "Rechercher des messages dans toutes les sessions\u2026",
+  "crossSessionSearch.loadingSessions": "Chargement des sessions\u2026",
+  "crossSessionSearch.loadFailed": "Impossible de charger les sessions",
+  "crossSessionSearch.retry": "R\u00e9essayer",
+  "crossSessionSearch.scanned": "{scanned} sessions analys\u00e9es sur {total}",
+  "crossSessionSearch.failedSessions": "{count} n'ont pas pu \u00eatre explor\u00e9es",
+  "crossSessionSearch.truncated": "Affichage des premiers r\u00e9sultats uniquement",
+  "crossSessionSearch.hint": "Saisissez au moins {count} caract\u00e8res pour rechercher",
+  "crossSessionSearch.noSessions": "Aucune session dans ce projet pour l'instant",
+  "crossSessionSearch.searching": "Recherche\u2026",
+  "crossSessionSearch.noResults": "Aucun message trouv\u00e9",
+  "commandPalette.item.searchAllSessions": "Rechercher des messages dans toutes les sessions\u2026",
+  "settings.openchamber.keyboardShortcuts.action.search_all_sessions.label": "Rechercher des messages dans toutes les sessions"
 }

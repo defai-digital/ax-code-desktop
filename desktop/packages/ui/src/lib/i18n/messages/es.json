@@ -4711,5 +4711,20 @@
   "sessions.sidebar.scheduled.history.trigger.scheduled": "Programada",
   "sessions.sidebar.scheduled.history.trigger.manual": "Iniciada manualmente",
   "sessions.sidebar.scheduled.history.coalesced": "+{count}",
-  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} ejecuciones perdidas se combinaron en esta"
+  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} ejecuciones perdidas se combinaron en esta",
+  "crossSessionSearch.title": "Buscar en todas las sesiones",
+  "crossSessionSearch.description": "Buscar texto de mensajes en las {count} sesiones m\u00e1s recientes de este proyecto",
+  "crossSessionSearch.placeholder": "Buscar mensajes en todas las sesiones\u2026",
+  "crossSessionSearch.loadingSessions": "Cargando sesiones\u2026",
+  "crossSessionSearch.loadFailed": "No se pudieron cargar las sesiones",
+  "crossSessionSearch.retry": "Reintentar",
+  "crossSessionSearch.scanned": "Se escanearon {scanned} de {total} sesiones",
+  "crossSessionSearch.failedSessions": "No se pudieron buscar {count}",
+  "crossSessionSearch.truncated": "Mostrando solo los primeros resultados",
+  "crossSessionSearch.hint": "Escribe al menos {count} caracteres para buscar",
+  "crossSessionSearch.noSessions": "A\u00fan no hay sesiones en este proyecto",
+  "crossSessionSearch.searching": "Buscando\u2026",
+  "crossSessionSearch.noResults": "No se encontraron mensajes",
+  "commandPalette.item.searchAllSessions": "Buscar mensajes en todas las sesiones\u2026",
+  "settings.openchamber.keyboardShortcuts.action.search_all_sessions.label": "Buscar mensajes en todas las sesiones"
 }
