@@ -302,6 +302,37 @@ describe("scheduled task convergence migration", () => {
     expect(project.scheduledTasks).toBeUndefined()
   })
 
+  it("creates the second of two same-named tasks when the runtime already has one", async () => {
+    // The runtime's list is the resume record, and one entry covers one desktop task. Both tasks matched the same
+    // entry, so the second was read as already migrated and removed from the project file without a runtime task
+    // or a skip record — the state a partial run leaves behind.
+    const harness = await createHarness({
+      runtimeTasks: [{ id: "st_existing", title: "Daily report", status: "active" }],
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", {
+      projectPath: "/work/alpha",
+      scheduledTasks: [
+        dailyTask({ id: "task-1", name: "Daily report" }),
+        dailyTask({
+          id: "task-2",
+          name: "Daily report",
+          schedule: { kind: "daily", times: ["17:00"], timezone: "UTC" },
+        }),
+      ],
+    })
+
+    await harness.convergence.start()
+
+    const creates = harness.requests.filter(
+      (request) => request.method === "POST" && request.url.endsWith("/scheduled-task?directory=%2Fwork%2Falpha"),
+    )
+    expect(creates.map((request) => request.body.schedule.time)).toEqual(["17:00"])
+
+    const project = await harness.readProject("proj-a.json")
+    expect(project.scheduledTasks).toBeUndefined()
+  })
+
   it("keeps a retryable task the normalized reader would drop", async () => {
     // `replaceScheduledTasks` handed its updater the normalized task list, which silently drops every task
     // whose normalization throws — `execution.providerID`/`modelID` are optional for the transform (it warns
