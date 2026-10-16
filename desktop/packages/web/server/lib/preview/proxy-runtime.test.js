@@ -733,4 +733,84 @@ describe("external preview documents are sandboxed", () => {
     expect(csp).toContain("sandbox")
     expect(csp).not.toContain("allow-same-origin")
   })
+
+  it("keeps a local preview's redirect inside loopback within the proxy", async () => {
+    // A dev server that canonicalizes to its own loopback name (localhost instead
+    // of 127.0.0.1) or to another of its ports used to hand the raw Location to the
+    // browser: the page left the proxy and lost the injected bridge and the
+    // frame-header handling that makes it embeddable.
+    let targetRoute = null
+    let proxyOptions = null
+    let randomCounter = 0
+    const app = {
+      post: (_path, ...handlers) => {
+        targetRoute = handlers.at(-1)
+      },
+      use() {},
+    }
+    const runtime = createPreviewProxyRuntime({
+      crypto: {
+        randomBytes: () => Buffer.from(String(++randomCounter).padStart(32, "0"), "hex"),
+      },
+      URL,
+      createProxyMiddleware: (options) => {
+        proxyOptions = options
+        const middleware = vi.fn()
+        middleware.upgrade = vi.fn()
+        return middleware
+      },
+      responseInterceptor: (handler) => handler,
+    })
+    runtime.attach(app, {
+      server: { on: vi.fn() },
+      express: { json: vi.fn(() => vi.fn()) },
+      uiAuthController: null,
+      isRequestOriginAllowed: vi.fn(async () => true),
+      rejectWebSocketUpgrade: vi.fn(),
+    })
+
+    const headers = new Map()
+    const targetResponse = {
+      setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+      json: vi.fn(),
+    }
+    await targetRoute({ body: { url: "http://127.0.0.1:3000" }, secure: false }, targetResponse)
+
+    const [sourceCookie] = String(headers.get("set-cookie")).split(";", 1)
+    const target = targetResponse.json.mock.calls[0][0]
+    const redirect = async (location) => {
+      const redirectHeaders = new Map()
+      await proxyOptions.on.proxyRes(
+        Buffer.alloc(0),
+        { statusCode: 302, headers: { location } },
+        { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: sourceCookie }, secure: false },
+        {
+          statusCode: 302,
+          removeHeader: vi.fn(),
+          getHeader: (name) => redirectHeaders.get(name.toLowerCase()),
+          setHeader: (name, value) => redirectHeaders.set(name.toLowerCase(), value),
+        },
+      )
+      return redirectHeaders
+    }
+
+    // Another name for the same origin: the entry is reused, so no second target
+    // and no second cookie.
+    const sameOrigin = await redirect("http://localhost:3000/dashboard")
+    expect(sameOrigin.get("location")).toBe(`${target.proxyBasePath}/dashboard`)
+    expect(sameOrigin.get("set-cookie")).toBeUndefined()
+    expect(proxyOptions.router({ originalUrl: `${target.proxyBasePath}/dashboard`, headers: { cookie: sourceCookie } })).toBe(
+      "http://127.0.0.1:3000",
+    )
+
+    // Another loopback port: a new target that is still proxied, and still local.
+    const otherPort = await redirect("http://127.0.0.1:4000/app")
+    const otherLocation = otherPort.get("location")
+    expect(otherLocation).toMatch(/^\/api\/preview\/proxy\/[a-f0-9]{32}\/app$/)
+    expect(otherLocation).not.toContain(target.id)
+    const otherCookie = otherPort.get("set-cookie")[0].split(";", 1)[0]
+    expect(
+      proxyOptions.router({ originalUrl: otherLocation, headers: { cookie: `${sourceCookie}; ${otherCookie}` } }),
+    ).toBe("http://127.0.0.1:4000")
+  })
 })

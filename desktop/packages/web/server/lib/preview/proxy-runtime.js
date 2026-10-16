@@ -1210,19 +1210,34 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       let targetId = resolved.id
       let redirectTarget = null
       if (abs.origin !== currentOrigin) {
-        const normalized = normalizeProxyTargetUrl(abs.origin, { allowExternal: true })
+        // A dev server that canonicalizes its own loopback name (localhost instead
+        // of 127.0.0.1, or one of its other ports) is still the user's own server,
+        // so a local preview may redirect within loopback; anything else has to be
+        // a public host, which is all the external rule allows. Refusing a
+        // loopback redirect would hand the raw Location to the browser and take
+        // the document out of the proxy.
+        const isLocalPreview = !resolved.entry.external
+        const loopback = isLocalPreview
+          ? normalizeProxyTargetUrl(abs.origin, { allowExternal: false })
+          : { ok: false }
+        const normalized = loopback.ok ? loopback : normalizeProxyTargetUrl(abs.origin, { allowExternal: true })
         if (!normalized.ok) {
           return null
         }
-        // The guard above refuses loopback and private targets, so a redirect
-        // that reaches this branch points at a public host: it has to be
-        // treated as an external preview, or the document would keep the
-        // Desktop origin and its scripts could call the local API as the
-        // signed-in user.
+        if (normalized.origin === currentOrigin) {
+          // The same target under another of its names: keep the entry, so the
+          // path's cookie and the page's other requests stay valid.
+          return {
+            location: `/api/preview/proxy/${targetId}${abs.pathname}${abs.search}${abs.hash}`,
+            redirectTarget: null,
+          }
+        }
+        // A public host keeps the Desktop origin unless it is sandboxed, so it is
+        // always marked external; a loopback target of a local preview is not.
         redirectTarget = createTarget(normalized.origin, resolved.entry.expiresAt - now(), {
           token: resolved.entry.token,
           expiresAt: resolved.entry.expiresAt,
-          external: true,
+          external: !loopback.ok,
         })
         targetId = redirectTarget.id
       }
