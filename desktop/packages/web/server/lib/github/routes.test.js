@@ -19,6 +19,13 @@ vi.mock("./index.js", () => ({
   startDeviceFlow: vi.fn(),
 }))
 
+// The PR lookup itself is exercised in pr-status.test.js; this file is about how the route answers.
+const resolveGitHubPrStatusMock = vi.hoisted(() => vi.fn())
+vi.mock("./pr-status.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveGitHubPrStatus: resolveGitHubPrStatusMock,
+}))
+
 const { registerGitHubRoutes } = await import("./routes.js")
 
 const createApp = () => {
@@ -56,6 +63,49 @@ describe("github routes", () => {
 
     expect(response.body.connected).toBe(true)
     expect(clearGitHubAuth).not.toHaveBeenCalled()
+  })
+
+  it("answers GitHub's own refusal when the PR status is forbidden", async () => {
+    // An organization that restricts OAuth apps answers 403. The route answered the "no pull request"
+    // shape for it, so a branch that has one looked like it had none and GitHub's own reason never
+    // reached the user.
+    const forbidden = () =>
+      Object.assign(new Error("Forbidden"), {
+        status: 403,
+        response: { data: { message: "OAuth app access restrictions" } },
+      })
+    const pull = {
+      number: 7,
+      title: "Feature",
+      state: "open",
+      head: { ref: "feature", sha: "abc123" },
+      base: { ref: "main" },
+    }
+    resolveGitHubPrStatusMock.mockResolvedValueOnce({
+      repo: { owner: "owner", repo: "repo" },
+      pr: pull,
+      defaultBranch: "main",
+      resolvedRemoteName: "origin",
+    })
+    const { getGitHubAuth, getOctokitOrNull } = await import("./index.js")
+    getGitHubAuth.mockReturnValueOnce({ accessToken: "tok", user: { login: "alice" }, scope: "repo" })
+    getOctokitOrNull.mockReturnValueOnce({
+      rest: {
+        pulls: {
+          get: vi.fn(async () => {
+            throw forbidden()
+          }),
+        },
+      },
+    })
+
+    const app = createApp()
+    const response = await request(app)
+      .get("/api/github/pr/status")
+      .query({ directory: "/repo", branch: "feature", force: "true" })
+
+    expect(response.status).toBe(403)
+    expect(response.body.error).toBe("OAuth app access restrictions")
   })
 
   it("caps branch pagination at a bounded number of pages", async () => {

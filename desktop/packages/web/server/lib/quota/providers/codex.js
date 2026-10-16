@@ -41,6 +41,21 @@ export const fetchQuota = async () => {
     })
 
     if (!response.ok) {
+      // A 401 is not always an expired token: the endpoint answers an access-enforcement body
+      // (`rejected_by_access_enforcement`) for a sign-in method it refuses while the credential is
+      // fine, and calling that an expired session sends the user to re-authenticate for nothing.
+      if (response.status === 401) {
+        const body = await response.json().catch(() => null)
+        if (body?.error?.type === "rejected_by_access_enforcement") {
+          return buildResult({
+            providerId,
+            providerName,
+            ok: false,
+            configured: true,
+            error: "Usage is not available for this OpenAI sign-in method; chat still works",
+          })
+        }
+      }
       response.body?.cancel()
       return buildResult({
         providerId,

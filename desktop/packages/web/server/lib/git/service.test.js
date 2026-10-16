@@ -11,6 +11,7 @@ import {
   checkoutCommit,
   cherryPick,
   commit,
+  continueRebase,
   countStashFiles,
   createWorktree,
   getCommitFileDiff,
@@ -1109,5 +1110,40 @@ describe("checkoutBranch target validation", () => {
     // A real branch still switches.
     await expect(checkoutBranch(repo, "feature")).resolves.toMatchObject({ success: true, branch: "feature" })
     expect(runGit(repo, ["rev-parse", "--abbrev-ref", "HEAD"]).trim()).toBe("feature")
+  })
+})
+
+describe("continueRebase on a step that resolved to nothing", () => {
+  it("skips the empty step instead of reporting a conflict that is gone", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    // The apply backend answers the empty step with git's conflict hint in front of it ("Resolve all
+    // conflicts manually"), which the panel read as a conflict that is still there.
+    runGit(repo, ["config", "rebase.backend", "apply"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "base\n")
+    runGit(repo, ["add", "."])
+    runGit(repo, ["commit", "-m", "base"])
+    runGit(repo, ["checkout", "-b", "other"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "other\n")
+    runGit(repo, ["commit", "-am", "other"])
+    runGit(repo, ["checkout", "main"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "main\n")
+    runGit(repo, ["commit", "-am", "main"])
+
+    expect(() => runGit(repo, ["rebase", "other"])).toThrow()
+    // Resolve the conflict to the upstream content: the step has nothing left to apply.
+    runGit(repo, ["checkout", "--ours", "f.txt"])
+    runGit(repo, ["add", "f.txt"])
+
+    await expect(continueRebase(repo)).resolves.toMatchObject({ success: true, conflict: false })
+
+    // The rebase advanced to the end instead of staying stopped on a conflict that no longer exists.
+    expect(fs.existsSync(path.join(repo, ".git", "rebase-apply"))).toBe(false)
+    expect(fs.existsSync(path.join(repo, ".git", "rebase-merge"))).toBe(false)
+    expect(runGit(repo, ["status", "--porcelain"]).trim()).toBe("")
   })
 })

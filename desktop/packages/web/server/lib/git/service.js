@@ -4336,6 +4336,20 @@ export async function abortMerge(directory) {
   }
 }
 
+/**
+ * Whether git's answer says the step had nothing left to apply, whatever hint it printed alongside it.
+ *
+ * The apply backend answers a step whose conflict resolution left nothing to stage with git's conflict
+ * hint in front of "No changes - did you forget to use 'git add'?", and the cherry-pick wording is "The
+ * previous cherry-pick is now empty, possibly due to conflict resolution": reading those as a conflict
+ * showed a conflict list that no longer exists and left the step unable to advance.
+ */
+const saysNothingLeftToApply = (message) =>
+  message.includes("nothing to commit") ||
+  message.includes("no changes") ||
+  message.includes("nothing left to stage") ||
+  message.includes("now empty")
+
 export async function continueRebase(directory) {
   const { git } = await createRepositoryGitContext(directory)
 
@@ -4345,6 +4359,20 @@ export async function continueRebase(directory) {
     return { success: true, conflict: false }
   } catch (error) {
     const errorMessage = String(error?.message || error || "").toLowerCase()
+
+    // Before the conflict branch: git's empty-step answer mentions conflicts in its hint, so checking that
+    // first reported a conflict that is gone and the rebase never advanced.
+    if (saysNothingLeftToApply(errorMessage)) {
+      // Skip this commit and continue
+      try {
+        await git.env("GIT_EDITOR", "true").rebase(["--skip"])
+        return { success: true, conflict: false }
+      } catch {
+        // If skip also fails, the rebase may be complete
+        return { success: true, conflict: false }
+      }
+    }
+
     const isConflict =
       errorMessage.includes("conflict") ||
       errorMessage.includes("needs merge") ||
@@ -4357,18 +4385,6 @@ export async function continueRebase(directory) {
         success: false,
         conflict: true,
         conflictFiles: status.conflicted || [],
-      }
-    }
-
-    // Check for "nothing to commit" which means rebase step is complete
-    if (errorMessage.includes("nothing to commit") || errorMessage.includes("no changes")) {
-      // Skip this commit and continue
-      try {
-        await git.env("GIT_EDITOR", "true").rebase(["--skip"])
-        return { success: true, conflict: false }
-      } catch {
-        // If skip also fails, the rebase may be complete
-        return { success: true, conflict: false }
       }
     }
 
@@ -4397,6 +4413,14 @@ export async function continueMerge(directory) {
     return { success: true, conflict: false }
   } catch (error) {
     const errorMessage = String(error?.message || error || "").toLowerCase()
+
+    // "nothing to commit" can happen if all conflicts resolved to one side. Checked before the conflict
+    // branch for the same reason as in continueRebase: the hint git prints alongside it can name conflicts.
+    if (saysNothingLeftToApply(errorMessage)) {
+      // The merge is effectively complete (all changes already committed or no changes needed)
+      return { success: true, conflict: false }
+    }
+
     const isConflict =
       errorMessage.includes("conflict") ||
       errorMessage.includes("needs merge") ||
@@ -4410,12 +4434,6 @@ export async function continueMerge(directory) {
         conflict: true,
         conflictFiles: status.conflicted || [],
       }
-    }
-
-    // "nothing to commit" can happen if all conflicts resolved to one side
-    if (errorMessage.includes("nothing to commit") || errorMessage.includes("no changes added")) {
-      // The merge is effectively complete (all changes already committed or no changes needed)
-      return { success: true, conflict: false }
     }
 
     console.error("Failed to continue merge:", error)

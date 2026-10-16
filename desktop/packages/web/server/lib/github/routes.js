@@ -108,7 +108,18 @@ export function registerGitHubRoutes(app) {
   }
 
   const isGitHubAuthInvalid = (error) => error?.status === 401
-  const isGitHubResourceUnavailable = (error) => error?.status === 403 || error?.status === 404
+  // A 404 is "this repository, branch or pull request is not visible to this token", which the caller
+  // renders as "no pull request". A 403 is GitHub refusing the request itself (an organization that
+  // restricts OAuth apps, or a rate limit) and must not read as the same thing.
+  const isGitHubResourceUnavailable = (error) => error?.status === 404
+
+  const gitHubRefusalMessage = (error) => {
+    const message = error?.response?.data?.message
+    if (typeof message === "string" && message.trim()) {
+      return message.trim()
+    }
+    return String(error?.message || "GitHub refused the request")
+  }
 
   app.get("/api/github/auth/status", async (_req, res) => {
     try {
@@ -526,6 +537,12 @@ export function registerGitHubRoutes(app) {
         clearGitHubAuth()
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
+      }
+      if (error?.status === 403) {
+        // GitHub's own reason (the organization restricts OAuth apps, or the API is rate-limited) is
+        // what the user has to act on. Answering the "no pull request" shape below hid it, even for a
+        // branch where this request had just found one. Not cached, for the same reason as the 404 shape.
+        return res.status(403).json({ error: gitHubRefusalMessage(error) })
       }
       if (isGitHubResourceUnavailable(error)) {
         // Respond directly (not via sendJson, which is scoped to the try block and
