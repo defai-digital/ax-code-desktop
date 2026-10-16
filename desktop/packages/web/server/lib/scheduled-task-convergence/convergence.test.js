@@ -154,7 +154,8 @@ describe("scheduled task convergence migration", () => {
       },
     })
     cleanup = harness.cleanup
-    await harness.writeProject("a.json", {
+    // The runtime resolves the config file from the project id, so the fixture is named for it.
+    await harness.writeProject("proj-a.json", {
       projectID: "proj-a",
       projectPath: "/work/alpha",
       scheduledTasks: [
@@ -169,6 +170,11 @@ describe("scheduled task convergence migration", () => {
     const marker = await harness.readMarker()
     const exhaustedRecords = marker.skipped.filter((entry) => /attempts exhausted/.test(entry.reason))
     expect(exhaustedRecords.map((entry) => entry.task)).toEqual(["Second"])
+    // The task that did migrate leaves the file too: the loop threw before its removal write, and the exhaustion
+    // cleanup removed only what it counted as remaining — the file kept a task the runtime already owns, with the
+    // marker's `migratedAt` stopping any later boot from cleaning it up.
+    // The key itself goes when nothing remains for the project.
+    expect((await harness.readProject("proj-a.json")).scheduledTasks ?? []).toEqual([])
   })
 
   it("records a project whose settled tasks could not be removed from its file", async () => {

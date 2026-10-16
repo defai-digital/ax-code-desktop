@@ -284,8 +284,11 @@ export const createScheduledTaskConvergence = (deps) => {
       }
     }
 
-    // Per-file remaining tasks, kept for the attempts-exhausted cleanup.
+    // Per-file remaining tasks, kept for the attempts-exhausted cleanup, and the keys this pass settled — the
+    // exhaustion write has to remove those from the file too: if the loop threw before its removal wrote, they stay
+    // listed with nothing left to clean them up once the marker is finalized.
     const remainingByFile = new Map()
+    const settledKeysByFile = new Map()
     let retryableRemaining = 0
 
     for (const fileName of files) {
@@ -410,6 +413,7 @@ export const createScheduledTaskConvergence = (deps) => {
       }
       retryableRemaining += projectRemaining.length
       remainingByFile.set(projectID, projectRemaining)
+      settledKeysByFile.set(projectID, settledTaskKeys)
     }
 
     if (retryableRemaining === 0) {
@@ -431,7 +435,10 @@ export const createScheduledTaskConvergence = (deps) => {
         }
         // The recorded tasks are what leaves the file: passing a literal `[]` also deleted a task saved while
         // the pass was talking to the runtime, and recorded nothing about it.
-        const exhaustedKeys = new Set(remaining.map((task) => scheduledTaskKey(task)))
+        const exhaustedKeys = new Set([
+          ...remaining.map((task) => scheduledTaskKey(task)),
+          ...(settledKeysByFile.get(projectID) ?? []),
+        ])
         await projectConfigRuntime.replaceScheduledTasks(projectID, (currentTasks) =>
           currentTasks.filter((task) => !exhaustedKeys.has(scheduledTaskKey(task))),
         )
