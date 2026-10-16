@@ -46,6 +46,11 @@ windows_key_acl() {
 }
 
 TEMP_BASE="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+case "$(uname -s)" in
+  # A Windows runner hands this variable over as a native path (`D:\a\_temp`), which the shell's mktemp cannot
+  # treat as a directory: the signing step exited before it wrote a signature at all.
+  MINGW*|MSYS*|CYGWIN*) TEMP_BASE="$(cygpath -u "$TEMP_BASE")" ;;
+esac
 KEY_DIRECTORY="$(mktemp -d "$TEMP_BASE/ax-coder-shadow-sign.XXXXXX")"
 SECRET_KEY="$KEY_DIRECTORY/ax.minisign.key"
 cleanup() {

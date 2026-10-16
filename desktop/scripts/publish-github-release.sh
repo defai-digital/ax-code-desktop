@@ -498,6 +498,13 @@ HEAD_SHA="$(git rev-parse HEAD)"
 # Captured before the push so the run the tag triggers is identifiable: a workflow run
 # on the same commit from an earlier push already finished and is not this release's.
 TAG_PUSHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+# The tag triggers a release workflow, and this script watches for its run. Refusing before the push is the
+# difference between a clear error and a tag left on the remote with no run behind it: the watch below polls
+# for ten minutes, fails, and a second attempt then rejects the tag that already exists.
+if ! gh workflow view desktop-release.yml >/dev/null 2>&1; then
+  echo "error: the desktop-release workflow is not present on the default branch; refusing to push $TAG" >&2
+  exit 1
+fi
 create_and_push_tag "$TAG"
 
 if [[ "$WATCH" != true ]]; then

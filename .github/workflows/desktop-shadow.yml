@@ -241,7 +241,12 @@ jobs:
           security create-keychain -p "$keychain_password" "$keychain_path"
           security set-keychain-settings -lut 21600 "$keychain_path"
           security unlock-keychain -p "$keychain_password" "$keychain_path"
-          echo "$APPLE_CERTIFICATE" | base64 --decode > "$certificate_path"
+          if ! printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$certificate_path" 2>/dev/null; then
+            # macOS's /usr/bin/base64 spells this `-D`; the GNU long option exits non-zero there, and with
+            # `set -euo pipefail` that ended the step before the certificate was ever imported. The signing
+            # script handles the same pair the same way.
+            printf '%s' "$APPLE_CERTIFICATE" | base64 -D > "$certificate_path"
+          fi
           security import "$certificate_path" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain_path"
           security list-keychain -d user -s "$keychain_path"
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain_path"
