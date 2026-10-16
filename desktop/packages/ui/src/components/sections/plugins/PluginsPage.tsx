@@ -206,7 +206,9 @@ export const PluginsPage: React.FC = () => {
             toast.success(result.message || t("settings.plugins.toast.updated"))
           }
         } else {
-          toast.error(result.message || t("settings.plugins.toast.reloadFailed"))
+          // A failed save is not a failed reload: the reload hint told the user to restart for an update that
+          // never happened.
+          toast.error(result.message || t("settings.plugins.toast.updateFailed"))
         }
       } finally {
         setIsSaving(false)
@@ -322,7 +324,9 @@ export const PluginsPage: React.FC = () => {
             toast.success(result.message || t("settings.plugins.toast.updated"))
           }
         } else {
-          toast.error(result.message || t("settings.plugins.toast.reloadFailed"))
+          // A failed save is not a failed reload: the reload hint told the user to restart for an update that
+          // never happened.
+          toast.error(result.message || t("settings.plugins.toast.updateFailed"))
         }
       } finally {
         setIsSaving(false)

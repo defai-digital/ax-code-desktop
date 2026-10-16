@@ -111,7 +111,8 @@ export const AddPluginDialog: React.FC<AddPluginDialogProps> = ({ open, onOpenCh
         }
         onOpenChange(false)
       } else {
-        toast.error(result.message || t("settings.plugins.sidebar.toast.deleteFailed"))
+        // An add failure claimed to be a delete failure.
+        toast.error(result.message || t("settings.plugins.toast.addFailed"))
       }
     } finally {
       setSubmitting(false)
