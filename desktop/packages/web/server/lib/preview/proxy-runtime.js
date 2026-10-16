@@ -15,6 +15,43 @@ const isLoopbackHost = (hostname) => {
   return Number(v4[1]) === 127
 }
 
+// Strip one directive from a CSP header value while preserving every other directive. Returns
+// null if no directives remain.
+const removeCspDirective = (cspValue, directiveName) => {
+  if (typeof cspValue !== "string" || cspValue.length === 0) {
+    return cspValue
+  }
+  const directives = cspValue
+    .split(";")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+
+  const filtered = directives.filter((directive) => {
+    const name = directive.split(/\s+/, 1)[0]?.toLowerCase() ?? ""
+    return name !== directiveName
+  })
+
+  if (filtered.length === 0) {
+    return null
+  }
+  return filtered.join("; ")
+}
+
+/**
+ * The CSP an external preview document is served with: the policy the upstream sent, minus its own
+ * `sandbox` directive, followed by the proxy's. An upstream that sends the policy as repeated
+ * headers arrives here as an array, and reading only the string form dropped its whole policy.
+ */
+export const mergeExternalPreviewSandboxCsp = (existingHeaderValue, sandboxCsp) => {
+  const values =
+    existingHeaderValue == null ? [] : Array.isArray(existingHeaderValue) ? existingHeaderValue : [existingHeaderValue]
+  const upstream = values
+    .map((value) => removeCspDirective(String(value), "sandbox"))
+    .filter((value) => typeof value === "string" && value.trim().length > 0)
+    .join("; ")
+  return upstream.length > 0 ? `${upstream}; ${sandboxCsp}` : sandboxCsp
+}
+
 const PREVIEW_BRIDGE_SCRIPT_ID = "openchamber-preview-bridge"
 
 const parsePreviewResourcePath = (url) => {
@@ -244,6 +281,11 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
       Object.defineProperty(mql, 'media', { get: () => nativeMql.media });
       mql.addEventListener = function(type, callback, options) {
         if (type !== 'change' || typeof callback !== 'function') return nativeMql.addEventListener?.(type, callback, options);
+        // Adding a callback that is already registered is a no-op in the platform, and it has to
+        // be here too: the set holds entries, so a second add left the first one behind and the
+        // single removeEventListener the page then calls could never reach it. The orphan kept
+        // firing — and kept its closure, and the page's DOM, alive — for good.
+        if (listenersForMql.has(callback)) return;
         const entry = { media: query, mql, callback };
         listenersForMql.set(callback, entry);
         colorSchemeListeners.add(entry);
@@ -914,11 +956,62 @@ const isBlockedExternalHost = (hostname) => {
     if (host === "::1" || host === "::") return true // loopback / unspecified
     if (host.startsWith("fe80")) return true // link-local
     if (host.startsWith("fc") || host.startsWith("fd")) return true // unique local fc00::/7
-    if (host.includes("::ffff:")) return true // IPv4-mapped (dotted or hex form)
+    // An IPv6 address that carries an IPv4 address reaches it, however it is written:
+    // `::ffff:127.0.0.1`, `::ffff:7f00:1` and the expanded `0:0:0:0:0:ffff:7f00:1`. Matching the
+    // text (`::ffff:`) let the expanded form through as an external host while the OS routed it to
+    // the loopback it names, so the address is expanded and the IPv4 rules decide.
+    const carried = ipv4CarriedByIpv6(host)
+    if (carried) return isBlockedExternalHost(carried)
     return false
   }
 
   return false
+}
+
+// The IPv4 address an IPv6 address carries, or null when it carries none. That is the IPv4-mapped
+// form (`::ffff:127.0.0.1`, `::ffff:7f00:1`, `0:0:0:0:0:ffff:7f00:1`), which the OS routes to the
+// IPv4 address it names, and the deprecated IPv4-compatible form (`::7f00:1`), which it does not —
+// refused all the same, so no reader has to know which of the two is still routed. The address is
+// expanded to its eight groups, so the check does not depend on how the text was shortened.
+const ipv4CarriedByIpv6 = (host) => {
+  if (!host.includes(":")) return null
+
+  const [head, tail, ...extra] = host.split("::")
+  if (extra.length > 0) return null
+
+  const withEmbeddedIpv4 = (groups) => {
+    const last = groups[groups.length - 1]
+    if (!last || !last.includes(".")) return groups
+    const octets = last.split(".")
+    if (octets.length !== 4 || octets.some((octet) => !/^\d{1,3}$/.test(octet) || Number(octet) > 255)) {
+      return null
+    }
+    const values = octets.map(Number)
+    return [
+      ...groups.slice(0, -1),
+      ((values[0] << 8) | values[1]).toString(16),
+      ((values[2] << 8) | values[3]).toString(16),
+    ]
+  }
+
+  const headGroups = head.length > 0 ? head.split(":") : []
+  const tailGroups = tail === undefined || tail.length === 0 ? [] : tail.split(":")
+  const missing = 8 - headGroups.length - tailGroups.length
+  if (missing < 0 || (tail === undefined && missing !== 0)) return null
+
+  const groups = withEmbeddedIpv4([...headGroups, ...Array(missing).fill("0"), ...tailGroups])
+  if (!groups || groups.length !== 8) return null
+
+  const values = []
+  for (const group of groups) {
+    if (!/^[0-9a-f]{1,4}$/.test(group)) return null
+    values.push(Number.parseInt(group, 16))
+  }
+  const mapped = values.slice(0, 5).every((value) => value === 0) && values[5] === 0xffff
+  const compatible = values.slice(0, 6).every((value) => value === 0)
+  if (!mapped && !compatible) return null
+
+  return `${values[6] >> 8}.${values[6] & 0xff}.${values[7] >> 8}.${values[7] & 0xff}`
 }
 
 export const normalizeProxyTargetUrl = (rawUrl, { allowExternal = false } = {}) => {
@@ -1118,28 +1211,6 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     return { ok: true, id, entry, parsed }
   }
 
-  // Strip one directive from a CSP header value while preserving every other
-  // directive. Returns null if no directives remain.
-  const removeCspDirective = (cspValue, directiveName) => {
-    if (typeof cspValue !== "string" || cspValue.length === 0) {
-      return cspValue
-    }
-    const directives = cspValue
-      .split(";")
-      .map((part) => part.trim())
-      .filter((part) => part.length > 0)
-
-    const filtered = directives.filter((directive) => {
-      const name = directive.split(/\s+/, 1)[0]?.toLowerCase() ?? ""
-      return name !== directiveName
-    })
-
-    if (filtered.length === 0) {
-      return null
-    }
-    return filtered.join("; ")
-  }
-
   const removeFrameAncestorsDirective = (cspValue) => removeCspDirective(cspValue, "frame-ancestors")
 
   // Drop response headers that prevent the dev server from being framed.
@@ -1265,15 +1336,11 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       return
     }
     const existing = typeof res.getHeader === "function" ? res.getHeader("content-security-policy") : null
-    // A `sandbox` directive the upstream chose the flags for cannot be trusted:
-    // an external site is attacker-controlled, it may ship `allow-same-origin`,
-    // and a second `sandbox` directive after ours would be ignored. Drop theirs
-    // and always add the proxy's own.
-    const upstream = typeof existing === "string" ? removeCspDirective(existing, "sandbox") : null
-    const merged = typeof upstream === "string" && upstream.trim().length > 0
-      ? `${upstream}; ${EXTERNAL_PREVIEW_SANDBOX_CSP}`
-      : EXTERNAL_PREVIEW_SANDBOX_CSP
-    res.setHeader("content-security-policy", merged)
+    // A `sandbox` directive the upstream chose the flags for cannot be trusted: an external site is
+    // attacker-controlled, it may ship `allow-same-origin`, and a second `sandbox` directive after
+    // ours would be ignored. mergeExternalPreviewSandboxCsp drops theirs and adds the proxy's own,
+    // keeping every other directive they sent.
+    res.setHeader("content-security-policy", mergeExternalPreviewSandboxCsp(existing, EXTERNAL_PREVIEW_SANDBOX_CSP))
   }
 
   const attach = (

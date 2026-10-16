@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   buildPreviewProxyUpstreamPath,
+  mergeExternalPreviewSandboxCsp,
   classifyPreviewNavigation,
   classifyPreviewResourceError,
   createPreviewProxyRuntime,
@@ -249,6 +250,57 @@ describe("proxy target normalization (SSRF guard)", () => {
 
   it("still blocks private hosts even via IPv4-mapped IPv6", () => {
     expect(normalizeProxyTargetUrl("http://[::ffff:127.0.0.1]/", { allowExternal: true }).ok).toBe(false)
+  })
+
+  it("blocks a private host however its IPv6 address is written", () => {
+    // Matching the text `::ffff:` missed the expanded form, which the OS still routes to the
+    // IPv4 address it carries: `0:0:0:0:0:ffff:7f00:1` reached the loopback while the guard
+    // called it external. The compatible form is refused too, though no OS routes it.
+    for (const url of [
+      "http://[::ffff:7f00:1]/",
+      "http://[0:0:0:0:0:ffff:7f00:1]/",
+      "http://[0:0:0:0:0:ffff:127.0.0.1]/",
+      "http://[::ffff:169.254.169.254]/",
+      "http://[0:0:0:0:0:ffff:a9fe:a9fe]/",
+      "http://[::7f00:1]/",
+    ]) {
+      expect(normalizeProxyTargetUrl(url, { allowExternal: true }).ok, url).toBe(false)
+    }
+  })
+
+  it("keeps an external host reachable through its mapped or global IPv6 form", () => {
+    // The mapped form carries a public address here, so refusing it would only be a false alarm.
+    expect(normalizeProxyTargetUrl("http://[0:0:0:0:0:ffff:808:808]/", { allowExternal: true }).ok).toBe(true)
+    expect(normalizeProxyTargetUrl("http://[2001:4860:4860::8888]/", { allowExternal: true }).ok).toBe(true)
+  })
+})
+
+describe("external preview sandbox CSP", () => {
+  const SANDBOX = "sandbox allow-scripts"
+
+  it("keeps the upstream's directives and adds the proxy's sandbox", () => {
+    expect(mergeExternalPreviewSandboxCsp("default-src 'none'; img-src 'self'", SANDBOX)).toBe(
+      "default-src 'none'; img-src 'self'; sandbox allow-scripts",
+    )
+  })
+
+  it("drops only the upstream's own sandbox directive", () => {
+    expect(mergeExternalPreviewSandboxCsp("sandbox allow-same-origin; img-src 'self'", SANDBOX)).toBe(
+      "img-src 'self'; sandbox allow-scripts",
+    )
+  })
+
+  it("keeps every policy when the upstream sent them as repeated headers", () => {
+    // Express hands an upstream that sent the header twice an array; reading only the string form
+    // replaced the site's whole policy with ours.
+    expect(mergeExternalPreviewSandboxCsp(["default-src 'none'", "img-src 'self'"], SANDBOX)).toBe(
+      "default-src 'none'; img-src 'self'; sandbox allow-scripts",
+    )
+  })
+
+  it("adds the proxy's sandbox when the upstream sent none", () => {
+    expect(mergeExternalPreviewSandboxCsp(null, SANDBOX)).toBe(SANDBOX)
+    expect(mergeExternalPreviewSandboxCsp("sandbox allow-same-origin", SANDBOX)).toBe(SANDBOX)
   })
 })
 
