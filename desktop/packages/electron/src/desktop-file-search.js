@@ -120,6 +120,12 @@ const collectNativeSearchResults = async ({
         // (*.pem, *.key, .env*) need no resolution, and names are what this search returns.
         const resolvedDir = await resolvePolicyRealPath(full, fsImpl)
         if (resolvedDir && !shouldSearchNativeRoot(resolvedDir, options)) continue
+      } else if (shouldIncludeNativeSearchEntry(entry, resultType, query)) {
+        // A file needs the same resolution, and only a *matching* one pays for it: a search rooted at a symlinked
+        // directory returned `credentials` — the name of a path `desktop_read_file` refuses, and the walk follows
+        // the link — because the literal `/tmp/alias/credentials` names no denied prefix.
+        const resolvedEntry = await resolvePolicyRealPath(full, fsImpl)
+        if (resolvedEntry && !shouldSearchNativeRoot(resolvedEntry, options)) continue
       }
       if (shouldIncludeNativeSearchEntry(entry, resultType, query)) {
         const extension = entry.isDirectory() ? undefined : pathTools.extname(entry.name).replace(/^\./, "") || undefined

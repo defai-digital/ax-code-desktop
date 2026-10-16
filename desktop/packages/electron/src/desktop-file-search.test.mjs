@@ -169,6 +169,56 @@ describe("collectNativeSearchResults", () => {
     expect(results.map((entry) => entry.relativePath)).toEqual(["project/auth-notes.md"])
   })
 
+  test("resolves a matching file in a symlinked root before applying the policy to it", async () => {
+    // The directory branch resolved through the link, but a *file* was judged on the caller's path alone: a search
+    // rooted at a symlinked directory returned `credentials` — the name of a path `desktop_read_file` refuses, and
+    // the walk follows the link to it.
+    const root = "/tmp/alias"
+    const results = await collectNativeSearchResults({
+      root,
+      query: "cred",
+      options: policyOptions,
+      fs: {
+        ...createFs({
+          [root]: [
+            { name: "credentials", type: "file" },
+            { name: "project-notes.md", type: "file" },
+          ],
+        }),
+        realpath: async (candidate) =>
+          candidate === `${root}/credentials` ? "/Users/alice/.config/git/credentials" : candidate,
+      },
+    })
+
+    expect(results).toEqual([])
+  })
+
+  test("keeps a matching file the policy allows, without resolving it needlessly", async () => {
+    const root = "/Users/alice/project"
+    let realpathCalls = 0
+    const results = await collectNativeSearchResults({
+      root,
+      query: "notes",
+      options: policyOptions,
+      fs: {
+        ...createFs({
+          [root]: [
+            { name: "notes.md", type: "file" },
+            { name: "readme.md", type: "file" },
+          ],
+        }),
+        realpath: async (candidate) => {
+          realpathCalls += 1
+          return candidate
+        },
+      },
+    })
+
+    expect(results.map((entry) => entry.relativePath)).toEqual(["notes.md"])
+    // Only the entry that can appear in the results was resolved.
+    expect(realpathCalls).toBe(1)
+  })
+
   test("walks past a directory the policy denies but keeps ordinary siblings", async () => {
     const root = "/Users/alice/project"
     const results = await collectNativeSearchResults({
