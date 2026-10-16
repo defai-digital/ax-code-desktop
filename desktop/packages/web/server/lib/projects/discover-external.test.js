@@ -25,6 +25,22 @@ trust_level = "trusted"
     )
   })
 
+  it("does not take a trust level from the section below", () => {
+    // The window was a fixed 240 characters from the section header and the match was not bounded by the section:
+    // a project that sets no trust level of its own — the usual case, since a section is a few lines — was
+    // reported with the next project's, and the import UI showed a trust the user never set.
+    const text = `
+[projects."/work/a"]
+
+[projects."/work/b"]
+trust_level = "trusted"
+`
+    const result = parseCodexProjectsToml(text)
+
+    expect(result.find((entry) => entry.root === "/work/a")?.trustLevel).toBeNull()
+    expect(result.find((entry) => entry.root === "/work/b")?.trustLevel).toBe("trusted")
+  })
+
   it("returns empty for invalid input", () => {
     expect(parseCodexProjectsToml("")).toEqual([])
     expect(parseCodexProjectsToml(null)).toEqual([])

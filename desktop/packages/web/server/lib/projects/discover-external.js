@@ -53,9 +53,12 @@ export const parseCodexProjectsToml = (text) => {
     if (!root || seen.has(root)) continue
     seen.add(root)
 
-    // Peek nearby lines for trust_level (optional).
-    const slice = text.slice(match.index, match.index + 240)
-    const trustMatch = /trust_level\s*=\s*"([^"]+)"/.exec(slice)
+    // Peek at this section only for trust_level (optional): the next table header ends it, so a project that sets
+    // no trust level of its own does not report its neighbour's.
+    const sectionRest = text.slice(match.index + match[0].length)
+    const nextSectionOffset = sectionRest.search(/^\[/m)
+    const section = nextSectionOffset === -1 ? sectionRest : sectionRest.slice(0, nextSectionOffset)
+    const trustMatch = /trust_level\s*=\s*"([^"]+)"/.exec(section)
     const trustLevel = trustMatch?.[1] === "trusted" || trustMatch?.[1] === "untrusted" ? trustMatch[1] : null
 
     results.push({
