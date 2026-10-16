@@ -179,6 +179,11 @@ export const useSessionRollbackStore = create<SessionRollbackStore>()(
       // maps alongside the points so cleared sessions do not leave orphaned
       // entries behind (previously these two maps were never pruned at all).
       const reqKeyPrefix = `${dirKey}:${sessionId}\u0000`
+      // Invalidate an in-flight refresh first, as clearSessions does: otherwise the answer it is
+      // already waiting for repopulates the points of the session that was just cleared.
+      for (const key of [...rollbackRefreshRequestIds.keys()]) {
+        if (key.startsWith(reqKeyPrefix)) rollbackRefreshRequestIds.delete(key)
+      }
       set((state) => {
         const nextDirectoryPoints = { ...(state.pointsByDirectory[dirKey] ?? {}) }
         for (const key of Object.keys(nextDirectoryPoints)) {

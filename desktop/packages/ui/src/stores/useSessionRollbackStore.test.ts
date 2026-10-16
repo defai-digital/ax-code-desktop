@@ -217,6 +217,22 @@ describe("useSessionRollbackStore", () => {
     expect(useSessionRollbackStore.getState().getPoints("ses_1", { directory: "/repo" })).toEqual([])
   })
 
+  test("clearSession blocks a late in-flight refresh of the same session", async () => {
+    // `clearSessions` invalidated the in-flight refresh before pruning; `clearSession` did not, so the
+    // answer it was already waiting for repopulated the points of the session that was just cleared —
+    // a deleted session showed rollback points again.
+    const { rollbackRequests, useSessionRollbackStore } = await importStore()
+    const refresh = useSessionRollbackStore.getState().refreshPoints("ses_1", { directory: "/repo" })
+    await Promise.resolve()
+
+    useSessionRollbackStore.getState().clearSession("ses_1", "/repo")
+
+    rollbackRequests[0].resolve({ data: [point(1, "edit")] })
+    await refresh
+
+    expect(useSessionRollbackStore.getState().getPoints("ses_1", { directory: "/repo" })).toEqual([])
+  })
+
   test("clearSessions without matching entries keeps state references stable", async () => {
     const { useSessionRollbackStore } = await importStore()
 
