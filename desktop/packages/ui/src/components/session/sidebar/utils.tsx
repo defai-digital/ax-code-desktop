@@ -136,6 +136,35 @@ export const dedupeSessionsById = (sessions: Session[]): Session[] => {
   return Array.from(byId.values())
 }
 
+/**
+ * The sessions a bulk archive or delete acts on: the selection plus its descendants, the way the
+ * single-session path cascades. Acting on the selection alone left a removed parent's subagents
+ * behind — they re-rooted as top-level rows, and a hard delete left them running entirely.
+ *
+ * Archived descendants are skipped when archiving (they are already in that state) and kept when
+ * deleting, matching `filterDescendantsForAction` in useSessionActions.
+ */
+export const collectRemovalTargets = (
+  selected: readonly Session[],
+  childrenMap: Map<string, Session[]>,
+  { includeArchivedDescendants }: { includeArchivedDescendants: boolean },
+): Session[] => {
+  const targets = new Map<string, Session>()
+  selected.forEach((session) => targets.set(session.id, session))
+
+  const visit = (id: string) => {
+    for (const child of childrenMap.get(id) ?? []) {
+      if (targets.has(child.id)) continue
+      if (!includeArchivedDescendants && child.time?.archived) continue
+      targets.set(child.id, child)
+      visit(child.id)
+    }
+  }
+  selected.forEach((session) => visit(session.id))
+
+  return Array.from(targets.values())
+}
+
 export const getArchivedScopeKey = (projectRoot: string): string => `__archived__:${projectRoot}`
 
 export const resolveArchivedFolderName = (session: Session, projectRoot: string | null): string => {

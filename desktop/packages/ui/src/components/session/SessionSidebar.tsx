@@ -69,7 +69,7 @@ import {
 import { useSupervisionRows } from "@/hooks/useSupervisionRows"
 import { useActiveNowStore } from "@/stores/useActiveNowStore"
 import { useSessionPinnedStore } from "@/stores/useSessionPinnedStore"
-import { compareSessionsByPinnedAndTime, formatProjectLabel, normalizePath } from "./sidebar/utils"
+import { collectRemovalTargets, compareSessionsByPinnedAndTime, formatProjectLabel, normalizePath } from "./sidebar/utils"
 import {
   refreshGlobalSessions,
   resolveGlobalSessionDirectory,
@@ -1497,16 +1497,31 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     removeSessionsFromFolders(derivedSelectionScope, Array.from(selectedIds))
   }, [removeSessionsFromFolders, selectedIds, derivedSelectionScope])
 
-  const executeBulkDelete = React.useCallback(async () => {
-    if (selectedIds.size === 0) return
+  // The sessions a bulk action removes: the selection plus its descendants, so a removed parent
+  // does not leave subagents behind to re-root as top-level rows (and a hard delete leaves them
+  // running). The confirm dialog counts these, so the count and the executed list agree.
+  const resolveBulkRemovalTargets = React.useCallback((): Session[] => {
     // Archived sessions are not in the live sync stores — resolve selected
     // ids against the global lists as well, or archived-bucket deletes
     // silently miss sessions whose child stores were disposed.
     const source = bulkScopeIsArchived ? archivedSessions : [...globalActiveSessions, ...liveSessions]
     const byId = new Map(source.map((session) => [session.id, session]))
-    const sessions = Array.from(selectedIds, (id) => byId.get(id)).filter((session): session is Session =>
+    const selected = Array.from(selectedIds, (id) => byId.get(id)).filter((session): session is Session =>
       Boolean(session),
     )
+    return collectRemovalTargets(selected, childrenMap, { includeArchivedDescendants: bulkScopeIsArchived })
+  }, [
+    archivedSessions,
+    bulkScopeIsArchived,
+    childrenMap,
+    globalActiveSessions,
+    liveSessions,
+    selectedIds,
+  ])
+
+  const executeBulkDelete = React.useCallback(async () => {
+    if (selectedIds.size === 0) return
+    const sessions = resolveBulkRemovalTargets()
     if (sessions.length > 0) {
       if (bulkScopeIsArchived) {
         softBulkDelete(sessions)
@@ -1515,17 +1530,17 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       }
     }
     useSessionMultiSelectStore.getState().clear()
-  }, [archivedSessions, bulkScopeIsArchived, globalActiveSessions, liveSessions, selectedIds])
+  }, [bulkScopeIsArchived, resolveBulkRemovalTargets, selectedIds])
 
   const handleBulkDelete = React.useCallback(() => {
-    const count = selectedIds.size
+    const count = resolveBulkRemovalTargets().length
     if (count === 0) return
     if (!showDeletionDialog) {
       void executeBulkDelete()
       return
     }
     setBulkDeleteConfirm({ sessionCount: count, archivedBucket: bulkScopeIsArchived })
-  }, [bulkScopeIsArchived, executeBulkDelete, selectedIds, showDeletionDialog])
+  }, [bulkScopeIsArchived, executeBulkDelete, resolveBulkRemovalTargets, showDeletionDialog])
 
   const confirmBulkDelete = React.useCallback(async () => {
     setBulkDeleteConfirm(null)

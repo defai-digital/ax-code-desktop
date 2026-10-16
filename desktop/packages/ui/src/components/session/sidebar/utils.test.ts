@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 import {
+  collectRemovalTargets,
   isPathWithinProject,
   isSessionOwnedByProject,
   isSessionRelatedToProject,
@@ -149,5 +150,44 @@ describe("resolveNestedRepoLabel", () => {
     expect(
       resolveNestedRepoLabel(session({ id: "s", project: { worktree: "/Users/alvinhu/work/foo" } }), "/Users/alvinhu"),
     ).toBe("foo")
+  })
+})
+
+describe("collectRemovalTargets", () => {
+  const session = (id: string, archived = false): Session =>
+    ({ id, time: { created: 1, updated: 1, archived: archived ? 1 : undefined } }) as Session
+
+  const childrenMap = (entries: Record<string, Session[]>) => new Map(Object.entries(entries))
+
+  test("includes every descendant of a selected parent", () => {
+    // Acting on the selection alone left a removed parent's subagents behind: they re-rooted as
+    // top-level rows, and a hard delete left them running.
+    const child = session("child")
+    const grandchild = session("grandchild")
+    const map = childrenMap({ parent: [child], child: [grandchild] })
+
+    expect(collectRemovalTargets([session("parent")], map, { includeArchivedDescendants: true })).toEqual([
+      expect.objectContaining({ id: "parent" }),
+      child,
+      grandchild,
+    ])
+  })
+
+  test("skips an already-archived descendant when archiving", () => {
+    const map = childrenMap({ parent: [session("live"), session("old", true)] })
+
+    const archived = collectRemovalTargets([session("parent")], map, { includeArchivedDescendants: false })
+    expect(archived.map((entry) => entry.id)).toEqual(["parent", "live"])
+
+    const deleted = collectRemovalTargets([session("parent")], map, { includeArchivedDescendants: true })
+    expect(deleted.map((entry) => entry.id)).toEqual(["parent", "live", "old"])
+  })
+
+  test("keeps the selection order and lists each session once", () => {
+    const child = session("child")
+    const map = childrenMap({ child: [session("parent")] })
+
+    const targets = collectRemovalTargets([session("parent"), child], map, { includeArchivedDescendants: true })
+    expect(targets.map((entry) => entry.id)).toEqual(["parent", "child"])
   })
 })
