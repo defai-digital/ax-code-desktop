@@ -26,8 +26,13 @@ export const rewriteAppProtocolNetworkUrl = (
 
   try {
     const parsed = new URL(raw, `${pageOrigin}/`)
-    const isAppPage = parsed.protocol === "app:" && parsed.hostname === "ax-code"
-    if (!isAppPage && parsed.origin !== pageOrigin) return input
+    const appHost = new URL(pageOrigin).hostname
+    // The UI derives its socket URLs from the page — `normalizeWebSocketPath` builds
+    // `ws://${window.location.host}<path>` — so on the packaged page they arrive as `ws://<app host>/…`, and the
+    // scheme is never `app:`. Matching the app host under the socket schemes is what lets this reach the input
+    // it exists for; the loopback path check below still bounds what may be rewritten.
+    const isAppOrigin = parsed.hostname === appHost && ["app:", "ws:", "wss:"].includes(parsed.protocol)
+    if (!isAppOrigin && parsed.origin !== pageOrigin) return input
     if (!isLoopbackApiPath(parsed.pathname)) return input
     return `${apiOrigin}${parsed.pathname}${parsed.search}${parsed.hash}`
   } catch {

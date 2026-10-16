@@ -22,4 +22,21 @@ describe("app protocol network rewrite", () => {
     expect(rewriteAppProtocolNetworkUrl("app://ax-code/api/session", options)).toBe("http://127.0.0.1:3910/api/session")
     expect(rewriteAppProtocolWebSocketUrl("/api/event/ws", options)).toBe("ws://127.0.0.1:3910/api/event/ws")
   })
+
+  test("rewrites a socket URL the page itself derives, which keeps the page's host", () => {
+    // `normalizeWebSocketPath` builds socket URLs as `ws://<window.location.host><path>`; on the packaged page
+    // that host is the app host, so the protocol is `ws:`, never `app:`. Testing for `app:` alone therefore
+    // missed the only shape this function is installed to catch, and the packaged renderer's CSP allows
+    // WebSockets to loopback only — so the socket was left pointing at a host that cannot resolve.
+    expect(rewriteAppProtocolWebSocketUrl("ws://ax-code/api/terminal/ws", options)).toBe(
+      "ws://127.0.0.1:3910/api/terminal/ws",
+    )
+    // The target decides the socket scheme: the desktop server is plain loopback, so a secure socket URL to the
+    // app host also lands on `ws:`.
+    expect(rewriteAppProtocolWebSocketUrl("wss://ax-code/api/event/ws?directory=%2Frepo", options)).toBe(
+      "ws://127.0.0.1:3910/api/event/ws?directory=%2Frepo",
+    )
+    // The loopback path check still bounds what may be rewritten.
+    expect(rewriteAppProtocolWebSocketUrl("ws://ax-code/assets/thing", options)).toBe("ws://ax-code/assets/thing")
+  })
 })
