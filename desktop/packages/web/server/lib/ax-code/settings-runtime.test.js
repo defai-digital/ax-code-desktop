@@ -6,7 +6,7 @@ import path from "path"
 import { createProjectIdFromPath } from "../projects/project-id.js"
 import { createSettingsRuntime } from "./settings-runtime.js"
 
-const createRuntime = async () => {
+const createRuntime = async (overrides = {}) => {
   const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-settings-runtime-"))
   const settingsFilePath = path.join(tempRoot, "settings.json")
   const runtime = createSettingsRuntime({
@@ -22,6 +22,7 @@ const createRuntime = async () => {
       Array.isArray(values) ? values.filter((value) => typeof value === "string") : [],
     formatSettingsResponse: (settings) => settings,
     resolveDirectoryCandidate: (value) => value,
+    ...overrides,
   })
 
   return {
@@ -144,6 +145,111 @@ describe("settings runtime", () => {
         { id: "inside", path: path.join(newStorageDir, "plans", "inside.md") },
         { id: "sibling", path: path.join(siblingStorageDir, "plans", "outside.md") },
       ])
+    } finally {
+      await cleanup()
+    }
+  })
+
+  it("repoints a dangling active project id before migrating the deterministic ids", async () => {
+    // Documents that `migrateSettingsFromLegacyLastDirectory` repairs an active id that names no project before
+    // `migrateSettingsToDeterministicProjectIds` maps the ids, which is why that later migration's
+    // `projectIdMap.get(currentActiveId) || currentActiveId` fallback cannot leave a dangling id behind.
+    const { runtime, settingsFilePath, tempRoot, cleanup } = await createRuntime()
+    try {
+      const projectPath = path.join(tempRoot, "project")
+      await fsPromises.mkdir(projectPath, { recursive: true })
+      const migratedId = createProjectIdFromPath(projectPath)
+      await fsPromises.writeFile(
+        settingsFilePath,
+        JSON.stringify(
+          {
+            projects: [{ id: "legacy-project-id", path: projectPath, addedAt: 1, lastOpenedAt: 1 }],
+            activeProjectId: "removed-project-id",
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      )
+
+      const settings = await runtime.readSettingsFromDiskMigrated()
+
+      expect(settings.projects.map((project) => project.id)).toEqual([migratedId])
+      expect(settings.activeProjectId).toBe(migratedId)
+      const onDisk = JSON.parse(await fsPromises.readFile(settingsFilePath, "utf8"))
+      expect(onDisk.activeProjectId).toBe(migratedId)
+    } finally {
+      await cleanup()
+    }
+  })
+
+  it("keeps the destination file when a migrating rename fails", async () => {
+    // `moveDirectoryContents` deleted the destination before renaming, so a rename that then failed left the
+    // destination's previous content gone and the source file still in the old directory — while the merged
+    // config already pointed at the new one.
+    const failingFs = {
+      ...fsPromises,
+      rename: async (fromPath, toPath) => {
+        if (String(toPath).endsWith("notes.md")) {
+          const error = new Error("operation not permitted")
+          error.code = "EACCES"
+          throw error
+        }
+        return fsPromises.rename(fromPath, toPath)
+      },
+    }
+    const { runtime, settingsFilePath, tempRoot, cleanup } = await createRuntime({ fsPromises: failingFs })
+    try {
+      const projectPath = path.join(tempRoot, "project")
+      const projectsRoot = path.join(path.dirname(settingsFilePath), "projects")
+      const oldProjectId = "legacy-project-id"
+      const newProjectId = createProjectIdFromPath(projectPath)
+      await fsPromises.mkdir(projectPath, { recursive: true })
+      await fsPromises.mkdir(path.join(projectsRoot, oldProjectId), { recursive: true })
+      await fsPromises.mkdir(path.join(projectsRoot, newProjectId), { recursive: true })
+      await fsPromises.writeFile(
+        settingsFilePath,
+        JSON.stringify({ projects: [{ id: oldProjectId, path: projectPath, addedAt: 1, lastOpenedAt: 1 }] }, null, 2),
+        "utf8",
+      )
+      await fsPromises.writeFile(path.join(projectsRoot, oldProjectId, "notes.md"), "source", "utf8")
+      await fsPromises.writeFile(path.join(projectsRoot, newProjectId, "notes.md"), "destination", "utf8")
+
+      await runtime.readSettingsFromDiskMigrated().catch(() => {})
+
+      await expect(fsPromises.readFile(path.join(projectsRoot, newProjectId, "notes.md"), "utf8")).resolves.toBe(
+        "destination",
+      )
+      await expect(fsPromises.readFile(path.join(projectsRoot, oldProjectId, "notes.md"), "utf8")).resolves.toBe(
+        "source",
+      )
+    } finally {
+      await cleanup()
+    }
+  })
+
+  it("overwrites an existing destination file when the migration moves storage", async () => {
+    const { runtime, settingsFilePath, tempRoot, cleanup } = await createRuntime()
+    try {
+      const projectPath = path.join(tempRoot, "project")
+      const projectsRoot = path.join(path.dirname(settingsFilePath), "projects")
+      const oldProjectId = "legacy-project-id"
+      const newProjectId = createProjectIdFromPath(projectPath)
+      await fsPromises.mkdir(projectPath, { recursive: true })
+      await fsPromises.mkdir(path.join(projectsRoot, oldProjectId), { recursive: true })
+      await fsPromises.mkdir(path.join(projectsRoot, newProjectId), { recursive: true })
+      await fsPromises.writeFile(
+        settingsFilePath,
+        JSON.stringify({ projects: [{ id: oldProjectId, path: projectPath, addedAt: 1, lastOpenedAt: 1 }] }, null, 2),
+        "utf8",
+      )
+      await fsPromises.writeFile(path.join(projectsRoot, oldProjectId, "notes.md"), "newer", "utf8")
+      await fsPromises.writeFile(path.join(projectsRoot, newProjectId, "notes.md"), "older", "utf8")
+
+      await runtime.readSettingsFromDiskMigrated()
+
+      await expect(fsPromises.readFile(path.join(projectsRoot, newProjectId, "notes.md"), "utf8")).resolves.toBe("newer")
+      await expect(fsPromises.access(path.join(projectsRoot, oldProjectId))).rejects.toMatchObject({ code: "ENOENT" })
     } finally {
       await cleanup()
     }

@@ -230,17 +230,12 @@ export const createSettingsRuntime = (deps) => {
           await moveDirectoryContents(fromPath, toPath)
           continue
         }
-        // Remove the destination if it already exists so we always overwrite
-        // (and so the subsequent rename/rename-fallback never skips the source
-        // file — the old code silently skipped existing destinations but then
-        // deleted the entire source directory, causing data loss on retried
-        // migrations).
-        try {
-          await fsPromises.access(toPath)
-          await fsPromises.rm(toPath, { force: true })
-        } catch {
-          // destination does not exist — nothing to remove
-        }
+        // Rename replaces an existing destination atomically on POSIX and, via libuv's
+        // MOVEFILE_REPLACE_EXISTING, on Windows as well — so the source file is never skipped the way the older
+        // pre-`access`-check code skipped it (which then deleted the whole source directory: data loss on
+        // retried migrations). Removing the destination first opened the opposite window: a rename that then
+        // failed left the destination's previous content gone, the source file still in the old directory, and
+        // the merged config already pointing at the new one.
         try {
           await fsPromises.rename(fromPath, toPath)
         } catch (renameErr) {
