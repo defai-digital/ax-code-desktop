@@ -4,17 +4,24 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 
 const updateDesktopSettings = vi.fn()
+const desktopHostsSet = vi.fn(async () => {})
+const toastError = vi.fn()
+// Flipped by the tests that need the desktop shell path.
+const tauriShell = { current: false }
 
 vi.doMock("@/lib/persistence", () => ({ updateDesktopSettings }))
+vi.doMock("@/components/ui", () => ({
+  toast: { error: toastError, success: vi.fn(), message: vi.fn(), warning: vi.fn() },
+}))
 vi.doMock("@/lib/desktop", () => ({
   isDesktopShell: () => false,
-  isTauriShell: () => false,
+  isTauriShell: () => tauriShell.current,
   startDesktopWindowDrag: () => {},
   restartDesktopApp: async () => {},
 }))
 vi.doMock("@/lib/desktopHosts", () => ({
   desktopHostsGet: async () => ({ hosts: [], defaultHostId: "local" }),
-  desktopHostsSet: async () => {},
+  desktopHostsSet,
 }))
 
 const { ChooserScreen } = await import("./ChooserScreen")
@@ -27,6 +34,10 @@ describe("ChooserScreen custom binary path", () => {
       act(() => root.unmount())
     }
     updateDesktopSettings.mockReset()
+    desktopHostsSet.mockClear()
+    desktopHostsSet.mockImplementation(async () => {})
+    toastError.mockReset()
+    tauriShell.current = false
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
@@ -72,5 +83,60 @@ describe("ChooserScreen custom binary path", () => {
     expect(updateDesktopSettings).toHaveBeenCalled()
     const alert = container.querySelector('[role="alert"]')
     expect(alert?.textContent).toContain("settings write failed")
+  })
+})
+
+describe("ChooserScreen CLI check", () => {
+  const roots: Array<ReturnType<typeof createRoot>> = []
+
+  afterEach(() => {
+    for (const root of roots.splice(0)) {
+      act(() => root.unmount())
+    }
+    updateDesktopSettings.mockReset()
+    toastError.mockReset()
+    tauriShell.current = false
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  const renderChooser = () => {
+    const container = document.createElement("div")
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    roots.push(root)
+    act(() => {
+      root.render(
+        <I18nProvider>
+          <ChooserScreen />
+        </I18nProvider>,
+      )
+    })
+    return { container, root }
+  }
+
+  test("reports a verified CLI whose choice could not be recorded", async () => {
+    // Reachable CLI, failing write: the poll used to swallow the rejection and try again every couple
+    // of seconds, so the user sat behind the "watching" spinner with nothing said.
+    tauriShell.current = true
+    desktopHostsSet.mockRejectedValue(new Error("hosts write failed"))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ axCodeRunning: true }), { status: 200 })),
+    )
+
+    const { container } = renderChooser()
+    const checkNow = Array.from(container.querySelectorAll("button")).find((button) =>
+      (button.textContent ?? "").includes("Check"),
+    )
+    expect(checkNow).toBeDefined()
+
+    await act(async () => {
+      checkNow?.click()
+    })
+    await act(async () => {})
+
+    expect(desktopHostsSet).toHaveBeenCalled()
+    expect(toastError).toHaveBeenCalledWith("hosts write failed")
   })
 })

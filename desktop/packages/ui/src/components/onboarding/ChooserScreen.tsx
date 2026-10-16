@@ -6,6 +6,7 @@ import { Icon } from "@/components/icon/Icon"
 import { updateDesktopSettings } from "@/lib/persistence"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { restartDesktopApp } from "@/lib/desktop"
+import { toast } from "@/components/ui"
 import { openExternalUrl } from "@/lib/url"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "@/lib/http"
 import { desktopHostsGet, desktopHostsSet } from "@/lib/desktopHosts"
@@ -176,6 +177,16 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
     onCliAvailable?.()
   }, [onCliAvailable, persistLocalChoice])
 
+  // The CLI can be reachable while recording the choice fails (the write keeps its rejection for the
+  // awaiting caller). Nothing else surfaces that, and the poll below used to swallow it and try again
+  // every couple of seconds — the user sat on the chooser behind a spinner while it was verified up.
+  const reportCheckFailure = React.useCallback(
+    (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : t("onboarding.localSetup.errors.detectionFailed"))
+    },
+    [t],
+  )
+
   // Periodically check whether the local AX Code CLI is reachable. As soon as
   // it is, transition automatically — the user doesn't have to click anything.
   React.useEffect(() => {
@@ -184,19 +195,26 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
 
     const tick = async () => {
       if (cancelled) return
+      let available = false
       try {
-        const available = await checkCliAvailability()
-        if (cancelled) return
-        if (available) {
-          await announceAvailable()
-          return
-        }
+        available = await checkCliAvailability()
       } catch {
-        // ignore
+        // A probe that fails is transient: the next tick asks again.
       }
-      if (!cancelled) {
-        timer = setTimeout(tick, POLL_INTERVAL_MS)
+      if (cancelled) return
+      if (available) {
+        try {
+          await announceAvailable()
+        } catch (error) {
+          // Verified reachable, but the choice could not be recorded. Polling the same write every
+          // couple of seconds was silent and endless; the user is told and can retry from the button.
+          if (!cancelled) {
+            reportCheckFailure(error)
+          }
+        }
+        return
       }
+      timer = setTimeout(tick, POLL_INTERVAL_MS)
     }
 
     timer = setTimeout(tick, POLL_INTERVAL_MS)
@@ -205,17 +223,20 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
       cancelled = true
       if (timer) clearTimeout(timer)
     }
-  }, [checkCliAvailability, announceAvailable])
+  }, [checkCliAvailability, announceAvailable, reportCheckFailure])
 
   const handleManualCheck = React.useCallback(async () => {
     setIsManualChecking(true)
     try {
       const available = await checkCliAvailability()
       if (available) await announceAvailable()
+    } catch (error) {
+      // Same failure as the poll's, and the click is the one place the user is waiting on an answer.
+      reportCheckFailure(error)
     } finally {
       setIsManualChecking(false)
     }
-  }, [checkCliAvailability, announceAvailable])
+  }, [checkCliAvailability, announceAvailable, reportCheckFailure])
 
   const handleBrowse = React.useCallback(async () => {
     if (typeof window === "undefined") return
