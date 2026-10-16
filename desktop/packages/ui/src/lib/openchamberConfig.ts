@@ -8,7 +8,7 @@ import type { FilesAPI, RuntimeAPIs } from "./api/types"
 import { buildAxCodeApiUrl } from "./ax-code/baseUrl"
 import { getDesktopHomeDirectory } from "./desktop"
 import { createProjectIdFromPath } from "./projectId"
-import { projectPathMatchesRoot } from "./projectResolution"
+import { projectPathIsInsideRoot } from "./projectResolution"
 import { sanitizeStarterRefs, type DraftStarterRef } from "./draftStarters"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
 
@@ -690,15 +690,46 @@ async function writeOpenChamberConfig(project: ProjectRef, config: OpenChamberCo
 }
 
 /**
+ * The save paths below all start from the whole config file, so two overlapping cycles lose one of the
+ * two updates: creating a plan while another save was in flight kept the plan's markdown file but
+ * dropped its link, which left the plan invisible and the file orphaned. Cycles for one project run in
+ * the order they were requested. A task must use the unserialized helpers — nesting a cycle on the same
+ * project would wait on the task that is running it.
+ */
+const configWriteQueues = new Map<string, Promise<unknown>>()
+
+const runConfigWrite = <T,>(project: ProjectRef, task: () => Promise<T>): Promise<T> => {
+  const key = typeof project?.path === "string" ? project.path.trim() : ""
+  const previous = key ? (configWriteQueues.get(key) ?? Promise.resolve()) : Promise.resolve()
+  const run = previous.then(task, task)
+  if (key) {
+    const settled = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    configWriteQueues.set(key, settled)
+    void settled.then(() => {
+      if (configWriteQueues.get(key) === settled) {
+        configWriteQueues.delete(key)
+      }
+    })
+  }
+  return run
+}
+
+const writeConfigMerge = async (project: ProjectRef, updates: Partial<OpenChamberConfig>): Promise<boolean> => {
+  const existing = (await readOpenChamberConfig(project)) || {}
+  return writeOpenChamberConfig(project, { ...existing, ...updates })
+}
+
+/**
  * Update specific keys in the config, preserving other values.
  */
 async function updateOpenChamberConfig(
   project: ProjectRef,
   updates: Partial<OpenChamberConfig>,
 ): Promise<boolean> {
-  const existing = (await readOpenChamberConfig(project)) || {}
-  const merged = { ...existing, ...updates }
-  return writeOpenChamberConfig(project, merged)
+  return runConfigWrite(project, () => writeConfigMerge(project, updates))
 }
 
 /**
@@ -763,18 +794,28 @@ async function getProjectPlanFiles(project: ProjectRef): Promise<OpenChamberProj
   return sanitizeProjectPlanFileLinks(config?.projectPlanFiles)
 }
 
-async function saveProjectPlanFiles(
-  project: ProjectRef,
-  value: OpenChamberProjectPlanFileLink[],
-): Promise<boolean> {
-  const sanitized = sanitizeProjectPlanFileLinks(value)
-  return updateOpenChamberConfig(project, {
-    projectPlanFiles: sanitized,
-  })
+/**
+ * The link is written by the app under the project's plans directory, and the path is read back from
+ * config. A config cloned into a repository can name any path on the machine, so a plan file is only
+ * touched when it really sits inside that directory.
+ */
+const resolveStoredPlanPath = async (project: ProjectRef, path: string): Promise<string | null> => {
+  const trimmedPath = typeof path === "string" ? path.trim() : ""
+  if (!trimmedPath) {
+    return null
+  }
+  const plansDirectory = await getProjectPlansDirectory(project)
+  if (!plansDirectory || !projectPathIsInsideRoot(trimmedPath, plansDirectory)) {
+    return null
+  }
+  return trimmedPath
 }
 
-export async function readProjectPlanFile(path: string): Promise<OpenChamberProjectPlanFile | null> {
-  const trimmedPath = typeof path === "string" ? path.trim() : ""
+export async function readProjectPlanFile(
+  project: ProjectRef,
+  path: string,
+): Promise<OpenChamberProjectPlanFile | null> {
+  const trimmedPath = await resolveStoredPlanPath(project, path)
   if (!trimmedPath) {
     return null
   }
@@ -816,24 +857,28 @@ export async function deleteProjectPlanFile(project: ProjectRef, planId: string)
     return false
   }
 
-  const existing = await getProjectPlanFiles(project)
-  const target = existing.find((entry) => entry.id === trimmedId)
+  // The link is dropped while holding the project's write queue: reading the list outside it would let
+  // a concurrent save restore the entry this call is removing.
+  const target = await runConfigWrite(project, async () => {
+    const existing = await getProjectPlanFiles(project)
+    const found = existing.find((entry) => entry.id === trimmedId)
+    if (!found) {
+      return null
+    }
+    const saved = await writeConfigMerge(project, {
+      projectPlanFiles: sanitizeProjectPlanFileLinks(existing.filter((entry) => entry.id !== trimmedId)),
+    })
+    return saved ? found : null
+  })
   if (!target) {
     return false
   }
 
-  const next = existing.filter((entry) => entry.id !== trimmedId)
-  const saved = await saveProjectPlanFiles(project, next)
-  if (!saved) {
-    return false
-  }
-
-  // Best-effort: remove the markdown file the app wrote for this plan, ignore failure. The link
-  // comes from the config, and a config cloned into a repository can name any path — deleting that
-  // entry used to remove whatever it pointed at, anywhere on the machine.
-  const plansDirectory = await getProjectPlansDirectory(project)
-  if (plansDirectory && projectPathMatchesRoot(target.path, plansDirectory)) {
-    await deleteFile(target.path).catch(() => false)
+  // Best-effort: remove the markdown file the app wrote for this plan, ignore failure. The path comes
+  // from the config, which is why it is checked against the plans directory before it is deleted.
+  const storedPath = await resolveStoredPlanPath(project, target.path)
+  if (storedPath) {
+    await deleteFile(storedPath).catch(() => false)
   }
   return true
 }
@@ -883,9 +928,16 @@ export async function createProjectPlanFile(
     return null
   }
 
-  const existing = await getProjectPlanFiles(project)
   const nextEntry = { id, path: filePath, createdAt }
-  const saved = await saveProjectPlanFiles(project, [nextEntry, ...existing])
+  // Appended while holding the project's write queue: a read taken outside it can be replaced by a
+  // concurrent save before this write lands, and the plan that lost the race keeps its file but not
+  // its link.
+  const saved = await runConfigWrite(project, async () => {
+    const existing = await getProjectPlanFiles(project)
+    return writeConfigMerge(project, {
+      projectPlanFiles: sanitizeProjectPlanFileLinks([nextEntry, ...existing]),
+    })
+  })
   if (!saved) {
     return null
   }

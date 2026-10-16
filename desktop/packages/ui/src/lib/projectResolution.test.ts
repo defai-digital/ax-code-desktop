@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest"
 import type { ProjectEntry } from "@/lib/api/types"
 import type { WorktreeMetadata } from "@/types/worktree"
 
-import { resolveProjectForDirectory, resolveProjectForSessionDirectory } from "./projectResolution"
+import { projectPathIsInsideRoot, resolveProjectForDirectory, resolveProjectForSessionDirectory } from "./projectResolution"
 
 const project = (id: string, path: string): ProjectEntry => ({
   id,
@@ -74,5 +74,41 @@ describe("worktree ownership precedence", () => {
     const projects = [project("broad", "/tmp"), project("owner", "/projects/app")]
     const worktrees = new Map([["/projects/app", [worktree("/tmp/wt", "/projects/app")]]])
     expect(resolveProjectForSessionDirectory(projects, worktrees, "/tmp/wt/src")?.id).toBe("owner")
+  })
+})
+
+describe("projectPathIsInsideRoot", () => {
+  test("accepts a path inside the root", () => {
+    expect(projectPathIsInsideRoot("/home/user/.config/app/plans/1-alpha.md", "/home/user/.config/app/plans")).toBe(
+      true,
+    )
+  })
+
+  test("rejects a sibling directory that shares the prefix", () => {
+    expect(projectPathIsInsideRoot("/home/user/.config/app/plans-elsewhere/1-alpha.md", "/home/user/.config/app/plans")).toBe(
+      false,
+    )
+  })
+
+  // The written string starts with the root, so a prefix check alone accepted it while the filesystem
+  // resolved it to a file anywhere above the root.
+  test("rejects a path that climbs out of the root", () => {
+    expect(
+      projectPathIsInsideRoot("/home/user/.config/app/plans/../../../../../../etc/passwd", "/home/user/.config/app/plans"),
+    ).toBe(false)
+  })
+
+  test("resolves segments the filesystem resolves", () => {
+    expect(projectPathIsInsideRoot("/home/user/.config/app/plans/./nested/../1-alpha.md", "/home/user/.config/app/plans")).toBe(
+      true,
+    )
+    expect(projectPathIsInsideRoot("/home/user/.config/app/plans/../../../etc/passwd", "/home/user/.config/app/plans")).toBe(
+      false,
+    )
+  })
+
+  test("keeps Windows drive paths case-insensitive and separate from other drives", () => {
+    expect(projectPathIsInsideRoot("C:/Users/Alice/App/plans/1.md", "c:/Users/Alice/App/plans")).toBe(true)
+    expect(projectPathIsInsideRoot("D:/Users/Alice/App/plans/1.md", "C:/Users/Alice/App/plans")).toBe(false)
   })
 })

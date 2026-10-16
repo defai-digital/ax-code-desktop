@@ -30,6 +30,39 @@ export const projectPathMatchesRoot = (directory: string, root: string): boolean
   return comparableDirectory === comparableRoot || comparableDirectory.startsWith(`${comparableRoot}/`)
 }
 
+/**
+ * Collapse "." and ".." segments the way a filesystem resolves them.
+ */
+const collapsePathSegments = (path: string): string => {
+  const normalized = normalizeProjectPath(path)
+  if (!normalized) return ""
+  const segments: string[] = []
+  for (const segment of normalized.split("/")) {
+    if (!segment || segment === ".") continue
+    if (segment === "..") {
+      segments.pop()
+      continue
+    }
+    segments.push(segment)
+  }
+  const joined = segments.join("/")
+  return normalized.startsWith("/") ? `/${joined}` : joined
+}
+
+/**
+ * Whether a path really sits inside a root directory.
+ *
+ * `projectPathMatchesRoot` compares the written strings, so `<root>/../../../../etc/passwd` passes it
+ * while the filesystem resolves it somewhere else entirely. Callers that act on a path named by stored
+ * configuration — reading or deleting what a project config points at — need this instead.
+ */
+export const projectPathIsInsideRoot = (path: string, root: string): boolean => {
+  const collapsedPath = collapsePathSegments(path)
+  const collapsedRoot = collapsePathSegments(root)
+  if (!collapsedPath || !collapsedRoot) return false
+  return projectPathMatchesRoot(collapsedPath, collapsedRoot)
+}
+
 const findProjectByPath = (projects: ProjectEntry[], path: string): ProjectEntry | null =>
   projects.find((project) => {
     const projectPath = normalizeProjectPath(project.path)
