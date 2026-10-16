@@ -120,11 +120,16 @@ export const IntegrateCommitsSection: React.FC<{
       return
     }
     let cancelled = false
+    // The restore effect above can hand the panel to a persisted conflict while
+    // `computeIntegratePlan` is in flight. Re-read the kind afterwards: a plan that
+    // lands late must not replace the conflict view, or Move becomes clickable again
+    // over a worktree that still holds the half-finished cherry-pick.
+    const panelIsFree = () => uiKindRef.current !== "conflict" && uiKindRef.current !== "running"
     setUi({ kind: "loading" })
     void (async () => {
       try {
         const plan = await computeIntegratePlan({ repoRoot, sourceBranch, targetBranch })
-        if (cancelled) return
+        if (cancelled || !panelIsFree()) return
         setUi({ kind: "ready", plan })
 
         // Preload commit subjects for preview.
@@ -154,7 +159,7 @@ export const IntegrateCommitsSection: React.FC<{
       } catch (error) {
         // A failed plan check must not read as "nothing to move": surface the
         // refusal (e.g. an exec endpoint that will not run git commands).
-        if (!cancelled) {
+        if (!cancelled && panelIsFree()) {
           setUi({ kind: "error", message: error instanceof Error ? error.message : String(error) })
         }
       }
