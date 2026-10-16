@@ -47,6 +47,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       resolveProjectDirectory,
       resolveOptionalProjectDirectory,
       validateDirectoryPath,
+      longRequestTimeoutMs,
       readCustomThemesFromDisk,
       writeCustomThemeToDisk,
       refreshAxCodeAfterConfigChange,
@@ -93,6 +94,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     registerAxCodeRoutes(app, {
       crypto,
       clientReloadDelayMs,
+      longRequestTimeoutMs,
       getAxCodeResolutionSnapshot,
       getAxCodeBinarySource,
       formatSettingsResponse,

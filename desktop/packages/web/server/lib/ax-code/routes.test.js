@@ -167,6 +167,57 @@ describe("ax-code routes", () => {
     }
   })
 
+  it("answers an over-limit body with 413 rather than dropping the request", async () => {
+    // `readForwardBodyText` rejects with a 413 outside the handler's own try; Express 5 forwards
+    // that to the error handler, which keeps the status (see lib/final-error-handler.js).
+    const originalLimit = process.env.AX_CODE_DESKTOP_MAX_FORWARD_BODY_BYTES
+    process.env.AX_CODE_DESKTOP_MAX_FORWARD_BODY_BYTES = "64"
+    const { app } = createApp()
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn(async () => ({ ok: true, status: 200, headers: { get: () => null }, text: async () => "{}" }))
+
+    try {
+      // Not JSON, so no body parser runs and the route reads the stream itself — the path the
+      // ceiling exists for.
+      const response = await request(app)
+        .post("/api/session/session-1/command")
+        .set("Content-Type", "application/octet-stream")
+        .send("x".repeat(4096))
+
+      expect(response.status).toBe(413)
+    } finally {
+      globalThis.fetch = originalFetch
+      if (originalLimit === undefined) delete process.env.AX_CODE_DESKTOP_MAX_FORWARD_BODY_BYTES
+      else process.env.AX_CODE_DESKTOP_MAX_FORWARD_BODY_BYTES = originalLimit
+    }
+  })
+
+  it("answers a runtime that stopped answering instead of waiting for it", async () => {
+    // A wedged runtime accepted the connection and never wrote a response, so the fetch never
+    // settled, the 503 below never ran, and the composer kept its "sending" state for as long as
+    // the client waited. The long-request bound the server already defines covers it now.
+    const { app } = createApp({ longRequestTimeoutMs: 250 })
+    const originalFetch = globalThis.fetch
+    let signal = null
+    globalThis.fetch = vi.fn((_url, options) => {
+      signal = options?.signal ?? null
+      // A real fetch rejects when its signal aborts; the mock has to do the same or the request
+      // would hang here exactly like the one under test.
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(new Error("The operation was aborted due to timeout")))
+      })
+    })
+
+    try {
+      const response = await request(app).post("/api/session/session-1/command").send({ command: "ls" })
+
+      expect(signal).toBeInstanceOf(AbortSignal)
+      expect(response.status).toBe(503)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   it("reports runtime version compatibility in upgrade status", async () => {
     const { app } = createApp()
     const originalFetch = globalThis.fetch

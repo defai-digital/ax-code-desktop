@@ -8,6 +8,10 @@ import path from "path"
 // attachments). Resolved per request so an operator (or a test) can lower it
 // without a rebuild.
 const DEFAULT_MAX_FORWARD_BODY_BYTES = 64 * 1024 * 1024
+// Bound for a non-streaming call to the runtime. `server/index.js` passes the same value as its
+// long-request timeout; it is also the default here so the bound holds for any caller.
+const DEFAULT_LONG_REQUEST_TIMEOUT_MS = 4 * 60 * 1000
+
 const resolveMaxForwardBodyBytes = () => {
   const raw = Number(process.env.AX_CODE_DESKTOP_MAX_FORWARD_BODY_BYTES)
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_MAX_FORWARD_BODY_BYTES
@@ -51,6 +55,11 @@ const sendUnexpectedError = (res, message, error, { status = 500, extras = {} } 
 }
 
 export const registerAxCodeRoutes = (app, dependencies) => {
+  const longRequestTimeoutMs =
+    Number.isFinite(dependencies?.longRequestTimeoutMs) && dependencies.longRequestTimeoutMs > 0
+      ? dependencies.longRequestTimeoutMs
+      : DEFAULT_LONG_REQUEST_TIMEOUT_MS
+
   const {
     clientReloadDelayMs,
     getAxCodeResolutionSnapshot,
@@ -194,6 +203,10 @@ export const registerAxCodeRoutes = (app, dependencies) => {
           : typeof forwardBody === "string"
             ? forwardBody
             : JSON.stringify(req.body ?? {}),
+      // A runtime that accepted the connection and stopped answering left the request pending for
+      // as long as the client waited, so the 503 below never ran and the composer kept its
+      // "sending" state. Nothing forwarded here streams, so a bound cannot cut a stream short.
+      signal: AbortSignal.timeout(longRequestTimeoutMs),
     })
     const contentType = response.headers.get("content-type") || "application/json"
     const bodyText = await response.text().catch(() => "")

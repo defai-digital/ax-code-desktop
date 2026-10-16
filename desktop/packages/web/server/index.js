@@ -1418,6 +1418,7 @@ async function main(options = {}) {
     resolveProjectDirectory,
     resolveOptionalProjectDirectory,
     validateDirectoryPath,
+    longRequestTimeoutMs: LONG_REQUEST_TIMEOUT_MS,
     readCustomThemesFromDisk,
     writeCustomThemeToDisk: (...args) => themeRuntime.writeCustomThemeToDisk(...args),
     refreshAxCodeAfterConfigChange,
