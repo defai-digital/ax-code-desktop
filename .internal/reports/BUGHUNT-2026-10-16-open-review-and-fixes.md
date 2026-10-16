@@ -1392,11 +1392,37 @@ scale) produced eight leads in `.tmp/bughunt/upstream/pass2-leads.txt`. Three we
   access-enforcement refusal the endpoint sends for a sign-in method it declines while the credential is
   fine; that body's `error.type` is reported on its own now.
 
-The other five leads are still being checked: a bare repository's worktrees (the top-level refusal), a
-project path long enough to push the config file name past the filesystem limit, the git store's
-prefetch slots, and two upstream readers that live behind endpoints we do not call (the Ollama Cloud
-usage API and the Moonshot balance API) — those last two are feature divergences rather than defects we
-can verify offline, so they are recorded as such.
+Two more were real and are fixed:
+
+- **`b8485bd6`** — `resolveWorktreeProjectContext` required `rev-parse --show-toplevel`, which a bare
+  checkout answers with "fatal: this operation must be run in a work tree", so creating, previewing or
+  validating a worktree for a bare repository failed outright. The directory is the sandbox when the top
+  level cannot be resolved, and a bare repository — whose common directory is itself — is its own primary
+  worktree rather than its parent (which would have handed the project id and the AX Code worktree root to
+  the wrong path). `git worktree list` also reports the bare repository itself as a `bare` worktree (now
+  marked and filtered out: it has no work tree to check out), and the listing ran from the top level it
+  cannot resolve there, so it returned nothing at all.
+- **`8ab5933f`** — the project config is `<projects dir>/<project id>.json` with the id being `path_` plus
+  base64url of the whole project path, so a long enough path pushed the file name past the filesystem's
+  255-byte limit and the config could be neither written nor read (`ENAMETOOLONG` — reproduced here with a
+  300-character id). Names longer than 96 characters keep a readable prefix and a digest of the rest, and
+  the read path still finds the file an earlier version wrote under the full id.
+
+The last three leads were checked and left alone:
+
+- **The git store's prefetch slots** (`ui/src/stores/useGitStore.ts:870,878`). A prefetch that passes its
+  10-second UI deadline releases the path in `inFlight` while its transport is still running, so a later
+  pass can start the same request again. `inFlight` is this store's *dedupe reservation*, not its
+  concurrency cap — that is the worker count per pass, so a single pass never exceeds it — and upstream's
+  alternative (hold the path until the transport settles) trades one duplicate request for a path that
+  stays reserved forever if a transport never settles, which is the case the deadline exists for. The
+  empty per-directory sets the same lead mentions are part of the `useGitStore` per-directory state that
+  "Reviewed and deliberately not changed" already records.
+- **The Ollama Cloud usage reader** (`lib/quota/providers/ollama-cloud.js`) and **the Moonshot balance
+  reader** (`lib/quota/providers/kimi.js`) live behind endpoints we do not call (`ollama.com/api/balance`,
+  `api.moonshot.ai/v1/users/me/balance`). Upstream moved to them so a refused or reworded page still has a
+  number to show; that is a feature we cannot verify offline, and our readers are not broken as written.
+  Recorded as a divergence rather than a defect.
 
 ### Reported as suspected, verified and rejected (this round)
 
