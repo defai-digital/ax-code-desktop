@@ -6,6 +6,7 @@
  */
 
 import type { ChildStoreManager } from "./child-store"
+import { findLiveSessionStatus } from "./live-aggregate"
 import { getSessionMaterializationStatus } from "./materialization"
 import type { State } from "./types"
 
@@ -92,13 +93,14 @@ export function getSyncSessionStatus(sessionId: string, directory?: string) {
  * Read a session's status from whichever child store owns it. Callers that act on a
  * session outside the active directory must use this: the per-directory read answers
  * `undefined` (i.e. "idle") for a session that is actually busy in another project.
+ *
+ * Several stores can hold an entry for one session after it moved between projects, so
+ * the winner is decided by the same priority/recency rule the live aggregate uses. The
+ * first store that happens to hold an entry can be the stale `idle` one, which would
+ * report a busy turn as finished.
  */
 export function getGlobalSyncSessionStatus(sessionId: string) {
   const stores = _childStores
   if (!stores) return undefined
-  for (const store of stores.children.values()) {
-    const status = store.getState().session_status[sessionId]
-    if (status) return status
-  }
-  return undefined
+  return findLiveSessionStatus(Array.from(stores.children.values(), (store) => store.getState()), sessionId)
 }
