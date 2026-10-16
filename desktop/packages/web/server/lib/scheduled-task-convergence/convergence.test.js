@@ -118,6 +118,59 @@ describe("scheduled task convergence migration", () => {
     expect((await harness.readProject("a.json")).scheduledTasks).toHaveLength(1)
   })
 
+  it("counts a project that failed on its file write once", async () => {
+    // `retryableRemaining` was added inside the try as well as in the catch, so a project whose file write failed
+    // after a task retried reported that task twice.
+    const harness = await createHarness({
+      maxAttempts: 2,
+      runtimeHandler: async (url, init = {}) => {
+        if ((init.method || "GET") === "GET") {
+          return new Response(JSON.stringify([]), { status: 200 })
+        }
+        // The runtime refuses the create, so the task stays in the file — and then the write itself fails.
+        return new Response(JSON.stringify({ error: "busy" }), { status: 503 })
+      },
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("a.json", {
+      projectID: "proj/a",
+      projectPath: "/work/alpha",
+      scheduledTasks: [dailyTask()],
+    })
+
+    const result = await harness.convergence.migrate()
+
+    expect(result).toMatchObject({ migrated: false, reason: "retry-pending", retryableRemaining: 1 })
+  })
+
+  it("keeps a migrated task out of the attempts-exhausted records", async () => {
+    // The catch reset the project to every task it was handed, discarding what the pass had already settled — so
+    // when the attempts ran out the task that had been migrated was recorded as dropped and removed from the file.
+    const harness = await createHarness({
+      maxAttempts: 1,
+      expandSnippets: (prompt) => {
+        if (prompt.includes("boom")) throw new Error("snippet directory unreadable")
+        return prompt
+      },
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("a.json", {
+      projectID: "proj-a",
+      projectPath: "/work/alpha",
+      scheduledTasks: [
+        dailyTask(),
+        dailyTask({ id: "task-2", name: "Second", execution: { prompt: "boom", providerID: "openai", modelID: "gpt" } }),
+      ],
+    })
+
+    const result = await harness.convergence.migrate()
+
+    expect(result).toMatchObject({ migrated: true, exhausted: true, attempts: 1 })
+    const marker = await harness.readMarker()
+    const exhaustedRecords = marker.skipped.filter((entry) => /attempts exhausted/.test(entry.reason))
+    expect(exhaustedRecords.map((entry) => entry.task)).toEqual(["Second"])
+  })
+
   it("resolves a project whose id is too long for its config file name", async () => {
     const harness = await createHarness({
       listProjects: async () => [{ id: `path_${"b".repeat(180)}`, path: "/work/long" }],

@@ -350,6 +350,10 @@ export const createScheduledTaskConvergence = (deps) => {
       // skipping. The write below removes exactly these from the file as it stands then, instead of
       // replacing it with the list read before the runtime calls.
       const settledTaskKeys = new Set()
+      // What this project still has to hand over: set inside the `try` and corrected by the `catch`, then counted
+      // once — counting inside the `try` as well made a project that failed on its file write report its tasks
+      // twice.
+      let projectRemaining = tasks
       try {
         for (const task of tasks) {
           const outcome = await migrateTask({ projectID, projectPath, task, existingByTitle, now })
@@ -370,8 +374,7 @@ export const createScheduledTaskConvergence = (deps) => {
             })
           }
         }
-        retryableRemaining += remaining.length
-        remainingByFile.set(projectID, remaining)
+        projectRemaining = remaining
         await projectConfigRuntime.replaceScheduledTasks(projectID, (currentTasks) =>
           currentTasks.filter((task) => !settledTaskKeys.has(scheduledTaskKey(task))),
         )
@@ -381,14 +384,17 @@ export const createScheduledTaskConvergence = (deps) => {
         // not, and it escaped both loops. The marker is only written once the loops finish, so the pass never
         // advanced `attempts`, the attempts-exhausted branch could not fire, and every project file after this one
         // was never migrated at all: their scheduled tasks simply stopped firing, with one log line to show for it.
-        // Left as a retry, the project is read again next boot like the runtime-unreachable case above.
-        retryableRemaining += tasks.length
-        remainingByFile.set(projectID, tasks)
+        // Left as a retry, the project is read again next boot like the runtime-unreachable case above — and only
+        // the tasks it did not settle: the ones it migrated are in the runtime, and re-listing them as remaining
+        // made the attempts-exhausted branch record them as dropped, removing them from the project file.
+        projectRemaining = tasks.filter((task) => !settledTaskKeys.has(scheduledTaskKey(task)))
         logger.warn("[ScheduledTaskMigration] project left for next boot", {
           project: projectID,
           error: error?.message || String(error),
         })
       }
+      retryableRemaining += projectRemaining.length
+      remainingByFile.set(projectID, projectRemaining)
     }
 
     if (retryableRemaining === 0) {
