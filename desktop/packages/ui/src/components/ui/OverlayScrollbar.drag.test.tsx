@@ -9,6 +9,17 @@ const TRACK_INSET = 8
 
 const frames = { current: [] as FrameRequestCallback[] }
 
+// Frames are collected and run on demand: running one inside the call that requested it left the ref holding the id
+// `requestAnimationFrame` returns, which is the guard the next request checks. `vi.useFakeTimers()` installs its own
+// fake here, so a test that turns them on re-installs this afterwards.
+const stubFrameQueue = () => {
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    frames.current.push(callback)
+    return frames.current.length
+  })
+  vi.stubGlobal("cancelAnimationFrame", () => {})
+}
+
 describe("OverlayScrollbar drag mapping", () => {
   let container: HTMLDivElement
   let root: Root
@@ -18,13 +29,7 @@ describe("OverlayScrollbar drag mapping", () => {
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     vi.stubGlobal("ResizeObserver", undefined)
-    // Frames are collected and run on demand: running one inside the call that requested it left the ref holding
-    // the id `requestAnimationFrame` returns, which is the guard the next request checks.
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      frames.current.push(callback)
-      return frames.current.length
-    })
-    vi.stubGlobal("cancelAnimationFrame", () => {})
+    stubFrameQueue()
     // jsdom has no pointer capture.
     Object.defineProperty(HTMLElement.prototype, "setPointerCapture", { configurable: true, value: () => {} })
     Object.defineProperty(HTMLElement.prototype, "releasePointerCapture", { configurable: true, value: () => {} })
@@ -156,6 +161,56 @@ describe("OverlayScrollbar drag mapping", () => {
     const bar = container.querySelector(".overlay-scrollbar")
     if (!(bar instanceof HTMLElement)) throw new Error("scrollbar not rendered")
     expect(bar.style.opacity).toBe("0")
+  })
+
+  test("hides the bar again after a drag whose thumb vanished under the pointer", () => {
+    // `handlePointerUp` schedules the hide, and an interrupted drag never ran it — while the hover flag stayed set,
+    // because the mouseleave that clears it goes to the node that is gone and `scheduleHide` returns early.
+    vi.useFakeTimers()
+    stubFrameQueue()
+    try {
+      render()
+      const scrollContainer = scrollContainerRef.current
+      if (!scrollContainer) throw new Error("container not rendered")
+
+      let scrollHeight = 3000
+      Object.defineProperty(scrollContainer, "clientHeight", { configurable: true, value: 300 })
+      Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, get: () => scrollHeight })
+      Object.defineProperty(scrollContainer, "scrollTop", { configurable: true, get: () => 0, set: () => {} })
+
+      act(() => {
+        scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+      runFrames()
+
+      const thumb = container.querySelector('[data-overlay-scrollbar-thumb="vertical"]')
+      if (!(thumb instanceof HTMLElement)) throw new Error("vertical thumb not rendered")
+      act(() => {
+        thumb.dispatchEvent(new MouseEvent("mouseenter"))
+        thumb.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientY: 0, clientX: 0 }))
+      })
+
+      scrollHeight = 300
+      act(() => {
+        scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+      runFrames()
+      scrollHeight = 3000
+      act(() => {
+        scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+      runFrames()
+
+      act(() => {
+        vi.advanceTimersByTime(2000)
+      })
+
+      const bar = container.querySelector(".overlay-scrollbar")
+      if (!(bar instanceof HTMLElement)) throw new Error("scrollbar not rendered")
+      expect(bar.style.opacity).toBe("0")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   test("drags the thumb over the same travel it is positioned with", () => {

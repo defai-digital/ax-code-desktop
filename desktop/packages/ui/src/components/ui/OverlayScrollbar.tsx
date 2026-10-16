@@ -358,13 +358,17 @@ const OverlayScrollbarComponent: React.FC<OverlayScrollbarProps> = ({
   // on screen left the flag set.
   React.useEffect(() => {
     const axis = dragAxisRef.current
-    if (axis === "vertical" && !showVertical) {
-      isDraggingRef.current = false
+    const lostThumb = (axis === "vertical" && !showVertical) || (axis === "horizontal" && !showHorizontal)
+    if (!lostThumb) {
+      return
     }
-    if (axis === "horizontal" && !showHorizontal) {
-      isDraggingRef.current = false
-    }
-  }, [showVertical, showHorizontal])
+    isDraggingRef.current = false
+    // The hover flag is cleared with the drag: the mouseleave that would have cleared it is delivered to the node
+    // that is gone, and `scheduleHide` returns early while it is set — so the bar stayed on screen with no hide
+    // timer behind it. `handlePointerUp` schedules the hide for the same reason.
+    isHoveringRef.current = false
+    scheduleHide()
+  }, [scheduleHide, showVertical, showHorizontal])
 
   if (!showVertical && !showHorizontal) return null
 
