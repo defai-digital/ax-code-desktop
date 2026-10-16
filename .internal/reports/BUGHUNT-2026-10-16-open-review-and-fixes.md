@@ -586,12 +586,19 @@ Four cases of the generated SDK's `{ error }` result being applied as data:
   there. It reports through the page's existing catalog error banner
   (`useSkillsCatalogStore.reportCatalogError`), so no new user-visible string was needed.
 
-### SUSPECTED, not changed
+### `0d6377fb` fix(mcp): the two suspected leads, both confirmed
 
-- The resource preview's staleness guard compares only its URI, not the client and directory
-  it was fetched for.
-- The MCP OAuth callback page re-exchanges a single-use code when its effect re-runs, which
-  would replace a success with "Authorization Failed".
+- **The resource preview's staleness guard compared the uri alone**
+  (`sections/mcp/McpResourceBrowser.tsx:64`), while the read is parameterized by its client,
+  uri *and* directory: the same resource read under another project arrived as the new
+  project's preview and cleared its loading state while it was still reading. The read
+  carries a token, retired when the target changes. Two tests fail on the pre-fix guard.
+- **The MCP OAuth callback page exchanged its code from an effect with no once-guard**
+  (`sections/mcp/McpOAuthCallbackPage.tsx:120`): an authorization code is single-use, and the
+  second exchange — React's development StrictMode invokes the effect twice, and the page can
+  remount — fails at the provider and replaced the success the page had just shown with that
+  failure. A code is exchanged once; a failed exchange releases it so a retry can try again.
+  Three tests cover it; the StrictMode case reports two exchanges on the pre-fix page.
 
 ## Limit audit
 
