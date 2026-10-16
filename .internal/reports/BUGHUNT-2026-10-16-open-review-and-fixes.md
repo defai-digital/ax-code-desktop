@@ -1517,7 +1517,7 @@ Round six and seven are complete: every confirmed finding is fixed.
 - Final state after the eighth round, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0.
 - Test totals at that run: ui 2 708, web 1 112 (+2 skipped), electron 586, root scripts 179 (+6 skipped).
-  `pnpm run check:locales` reports 14 locales, 4 692 keys; the eighth round changed no user-facing string
+  `pnpm run check:locales` reports 14 locales, 4 694 keys; the eighth round changed no user-facing string
   (the one new server-side message is an HTTP error body, asserted by its test).
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
