@@ -29,6 +29,7 @@ import {
 } from "./event-routing"
 import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
 import { mergeSessionListPage } from "./session-list-merge"
+import { createMaterializationQueue } from "./session-materialization-queue"
 import { useGlobalSyncStore } from "./global-sync-store"
 import { ChildStoreManager, type DirectoryStore } from "./child-store"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
@@ -280,43 +281,43 @@ const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 // Tracked per-directory, deduplicated, and auto-expiring.
 // ---------------------------------------------------------------------------
 
-type PendingSessionMaterialization = {
-  sessionID: string
-  directory: string
-  enqueuedAt: number
-}
-
 const SESSION_MATERIALIZATION_COOLDOWN_MS = 5_000
-const pendingSessionMaterializations = new Map<string, PendingSessionMaterialization>() // key: directory:sessionID
+const materializationQueue = createMaterializationQueue()
 
 const materializationKey = (directory: string, sessionID: string) => `${directory}:${sessionID}`
 
 function enqueueSessionMaterialization(directory: string, sessionID: string, childStores: ChildStoreManager) {
   if (!directory || directory === "global" || !sessionID) return
   const k = materializationKey(directory, sessionID)
-  const existing = pendingSessionMaterializations.get(k)
-  if (existing && Date.now() - existing.enqueuedAt < SESSION_MATERIALIZATION_COOLDOWN_MS) return
+  if (!materializationQueue.shouldEnqueue(k, Date.now(), SESSION_MATERIALIZATION_COOLDOWN_MS)) return
 
-  pendingSessionMaterializations.set(k, { sessionID, directory, enqueuedAt: Date.now() })
+  // The claim belongs to this request: a later one may supersede it, and then this request must not
+  // write its older snapshot, nor clear the newer request's registration on the way out.
+  const claim = materializationQueue.begin(k, Date.now())
 
   // Defer to next microtask so we don't hold up the current event batch
   void Promise.resolve().then(async () => {
     const store = childStores.getChild(directory)
     if (!store) {
-      pendingSessionMaterializations.delete(k)
+      materializationQueue.finish(claim)
       return
     }
     try {
-      await materializeSessionFromServer(directory, sessionID, store)
+      await materializeSessionFromServer(directory, sessionID, store, () => materializationQueue.isCurrent(claim))
     } catch {
       // Transient failure — next SSE event or reconnect will catch up.
     } finally {
-      pendingSessionMaterializations.delete(k)
+      materializationQueue.finish(claim)
     }
   })
 }
 
-async function materializeSessionFromServer(directory: string, sessionID: string, store: StoreApi<DirectoryStore>) {
+async function materializeSessionFromServer(
+  directory: string,
+  sessionID: string,
+  store: StoreApi<DirectoryStore>,
+  isStillCurrent: () => boolean,
+) {
   // The server answers 409 when the request directory is not the session's own project, and a
   // session can be listed under a parent or sibling directory's store. The session record carries
   // the directory it was created in, so prefer it over the caller's guess.
@@ -327,6 +328,9 @@ async function materializeSessionFromServer(directory: string, sessionID: string
   )
   const records = (result.data ?? []).filter((record: { info?: { id?: string } }) => !!record?.info?.id)
   if (records.length === 0) return
+  // A newer request for this session started while this one was in flight: its answer is newer than
+  // this one's, so neither the prefetch cursor nor the snapshot may be written from here.
+  if (!isStillCurrent()) return
   const cursor = result.response?.headers?.get?.("x-next-cursor") ?? undefined
   setSessionPrefetch({
     directory,
@@ -1949,7 +1953,8 @@ export function useEnsureSessionMessages(sessionID: string, directory?: string) 
 
     void (async () => {
       try {
-        await materializeSessionFromServer(dir ?? "", sessionID, store)
+        // One request per key is already guaranteed here by `_ensureMessagesLoading`.
+        await materializeSessionFromServer(dir ?? "", sessionID, store, () => true)
       } catch {
         // Transient failure — next navigation or reconnect will retry
       } finally {
