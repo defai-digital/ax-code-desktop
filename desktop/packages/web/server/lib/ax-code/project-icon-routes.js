@@ -270,6 +270,13 @@ export const registerProjectIconRoutes = (app, dependencies) => {
               : projectIconExtensionToMime[ext] || "application/octet-stream"
           const contentType = resolvedMime === "image/svg+xml" ? "image/svg+xml; charset=utf-8" : resolvedMime
 
+          // An icon is only ever rendered as an image, and an SVG is a document when it is
+          // opened directly: with only the app's own CSP, which allows inline script, an icon
+          // that carries one would run on the app's loopback origin, where a same-origin request
+          // reaches the API with the session cookie. Give every icon response its own policy.
+          res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+          res.setHeader("X-Content-Type-Options", "nosniff")
+
           if (resolvedMime === "image/svg+xml" && requestedThemeVariant) {
             const svgMarkup = data.toString("utf8")
             const themedSvgMarkup = applyProjectIconSvgTheme(svgMarkup, requestedThemeVariant, requestedIconColor)

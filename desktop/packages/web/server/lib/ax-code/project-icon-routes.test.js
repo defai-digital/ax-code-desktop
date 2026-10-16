@@ -54,6 +54,51 @@ describe("project icon routes", () => {
     expect(res.body).toBe(jpgBytes)
   })
 
+  it("gives an icon response its own sandboxed policy", async () => {
+    // An SVG is a document when it is opened directly, and the app's own CSP allows inline
+    // script: without a policy of its own an icon carrying a script would run on the app's
+    // loopback origin, where a same-origin request reaches the API with the session cookie.
+    const { app, getRoute } = createRouteRegistry()
+    const svgBytes = Buffer.from("<svg></svg>")
+    const enoent = Object.assign(new Error("missing"), { code: "ENOENT" })
+    const fsPromises = {
+      readFile: vi.fn(async (iconPath) => {
+        if (iconPath.endsWith(".svg")) {
+          return svgBytes
+        }
+        throw enoent
+      }),
+    }
+
+    registerProjectIconRoutes(app, {
+      fsPromises,
+      path,
+      crypto,
+      openchamberDataDir: "/tmp/openchamber-test",
+      sanitizeProjects: (projects) => projects,
+      readSettingsFromDiskMigrated: async () => ({
+        projects: [
+          {
+            id: "proj-1",
+            path: "/repo",
+            iconImage: { mime: "image/svg+xml", updatedAt: 1, source: "custom" },
+          },
+        ],
+      }),
+      persistSettings: async () => ({}),
+      createFsSearchRuntime: () => ({ searchFilesystemFiles: async () => [] }),
+      spawn: vi.fn(),
+      resolveGitBinaryForSpawn: vi.fn(),
+    })
+
+    const res = createMockResponse()
+    await getRoute("GET", "/api/projects/:projectId/icon")({ params: { projectId: "proj-1" }, query: {} }, res)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.getHeader("Content-Security-Policy")).toBe("default-src 'none'; style-src 'unsafe-inline'; sandbox")
+    expect(res.getHeader("X-Content-Type-Options")).toBe("nosniff")
+  })
+
   it("trims project id route params before project lookup", async () => {
     const { app, getRoute } = createRouteRegistry()
     const svgBytes = Buffer.from("<svg></svg>")
