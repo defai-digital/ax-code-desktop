@@ -991,6 +991,22 @@ export function createTerminalRuntime({
           env: resolvedEnv,
         })
 
+        // The session being replaced can leave the map on its own while this spawns (its shell exiting, or
+        // a concurrent close): the slot it held no longer covers the replacement, so the replacement needs
+        // one of its own — and the cap has to hold for it as well.
+        if (existingSession && !terminalSessions.has(sessionId)) {
+          const reserveForReplacement = reserveTerminalSlot()
+          if (!reserveForReplacement) {
+            try {
+              killTerminalProcess(ptyProcess, "term")
+            } catch (error) {
+              console.warn("Failed to kill the terminal session spawned past the cap:", error)
+            }
+            return res.status(429).json({ error: "Maximum terminal sessions reached" })
+          }
+          releaseTerminalSlot = reserveForReplacement
+        }
+
         if (existingSession) {
           try {
             killTerminalProcess(existingSession.ptyProcess, "term")

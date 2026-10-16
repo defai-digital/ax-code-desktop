@@ -445,6 +445,89 @@ describe("terminal restart", () => {
     }
   })
 
+  it("keeps the cap when the replaced session leaves on its own during the spawn", async () => {
+    // A restart of a live session holds no reservation while it spawns — the session it replaces holds
+    // its slot. That session can leave the map in that window (its shell exiting, or a concurrent
+    // close), and a create then takes the freed slot: the replacement must take one of its own rather
+    // than register past the cap.
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const exits = []
+    const kills = []
+    const makeFakePty = () => ({
+      onData: () => ({ dispose() {} }),
+      onExit: (callback) => {
+        exits.push(callback)
+        return { dispose() {} }
+      },
+      write: () => {},
+      kill: () => kills.push(1),
+      resize: () => {},
+    })
+    // Hold the restart's provider call only: the create that follows has to proceed.
+    let holdNextProvider = false
+    let releaseProvider = () => {}
+    const runtime = createRuntime(server, {
+      app,
+      getPtyProvider: async () => {
+        if (holdNextProvider) {
+          holdNextProvider = false
+          await new Promise((resolve) => {
+            releaseProvider = resolve
+          })
+        }
+        return { backend: "mock", spawn: () => makeFakePty() }
+      },
+      isExecutable: () => true,
+      validateCwd: async (_req, cwd) => ({ ok: true, cwd }),
+      uiAuthController: { enabled: false },
+      buildAugmentedPath: () => "",
+      TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: 1000,
+      TERMINAL_INPUT_WS_REBIND_WINDOW_MS: 1000,
+      MAX_TERMINAL_SESSIONS: 1,
+    })
+
+    try {
+      const createRoute = getRoute("POST", "/api/terminal/create")
+      const first = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, first)
+      const sessionId = first.body?.sessionId
+      expect(sessionId).toBeTruthy()
+
+      holdNextProvider = true
+      const restartRoute = getRoute("POST", "/api/terminal/:sessionId/restart")
+      const restartRes = createMockResponse()
+      const restarting = restartRoute(
+        { params: { sessionId }, body: { cwd: "/tmp", cols: 80, rows: 24 } },
+        restartRes,
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      // The replaced session leaves on its own (closed from another window), and a create takes the
+      // freed slot.
+      const closeRoute = getRoute("DELETE", "/api/terminal/:sessionId")
+      const closing = createMockResponse()
+      await closeRoute({ params: { sessionId } }, closing)
+      expect(closing.statusCode).toBe(200)
+      const second = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, second)
+      expect(second.statusCode).toBe(200)
+
+      releaseProvider()
+      await restarting
+
+      // The replacement had no slot to take, so it was refused and its PTY killed.
+      expect(restartRes.statusCode).toBe(429)
+
+      // The cap still holds: a third session cannot be created.
+      const third = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, third)
+      expect(third.statusCode).toBe(429)
+    } finally {
+      await runtime.shutdown()
+    }
+  })
+
   it("enforces the session cap when restarting a stale session id", async () => {
     const { app, getRoute } = createRouteRegistry()
     const server = new EventEmitter()
