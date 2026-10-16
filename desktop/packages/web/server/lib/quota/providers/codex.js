@@ -45,6 +45,7 @@ export const fetchQuota = async () => {
       // (`rejected_by_access_enforcement`) for a sign-in method it refuses while the credential is
       // fine, and calling that an expired session sends the user to re-authenticate for nothing.
       if (response.status === 401) {
+        // Reading the body consumes it, so there is nothing left to cancel on this path.
         const body = await response.json().catch(() => null)
         if (body?.error?.type === "rejected_by_access_enforcement") {
           return buildResult({
@@ -55,8 +56,10 @@ export const fetchQuota = async () => {
             error: "Usage is not available for this OpenAI sign-in method; chat still works",
           })
         }
+      } else {
+        // Not read: release the connection rather than leaving it open.
+        void response.body?.cancel?.()?.catch?.(() => {})
       }
-      response.body?.cancel()
       return buildResult({
         providerId,
         providerName,

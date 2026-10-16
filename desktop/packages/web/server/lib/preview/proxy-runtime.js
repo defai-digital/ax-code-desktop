@@ -1292,7 +1292,15 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       // that produced it, not against the origin: the dev server's `intro` from `/docs/guide`
       // means `/docs/intro`, and `?page=2` keeps the path it redirected from. Resolving against
       // the bare origin sent the browser to `/intro` and `/?page=2`.
-      const base = new URL(requestPath.startsWith("/") ? requestPath : `/${requestPath}`, `${currentOrigin}/`)
+      // The request path is untrusted, and it must be a *path* of the base, not a relative reference:
+      // one that begins with `//` would be read as a protocol-relative URL, so `Location: intro` from
+      // `/api/preview/proxy/<id>//evil.example/x` resolved against http://evil.example/ and registered a
+      // target for it. Assigning the path onto the origin keeps the host.
+      const base = new URL(currentOrigin)
+      const questionIndex = requestPath.indexOf("?")
+      const requestPathname = questionIndex === -1 ? requestPath : requestPath.slice(0, questionIndex)
+      base.pathname = requestPathname.startsWith("/") ? requestPathname : `/${requestPathname}`
+      base.search = questionIndex === -1 ? "" : requestPath.slice(questionIndex)
       const abs = new URL(String(location), base)
       let targetId = resolved.id
       let redirectTarget = null

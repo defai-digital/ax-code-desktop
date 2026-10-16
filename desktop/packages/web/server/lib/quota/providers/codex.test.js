@@ -40,10 +40,27 @@ describe("codex quota provider", () => {
   })
 
   it("still reports a plain 401 as an expired session", async () => {
-    const provider = await importProvider(unauthorizedResponse({ error: { type: "invalid_api_key" } }))
+    const response = unauthorizedResponse({ error: { type: "invalid_api_key" } })
+    const provider = await importProvider(response)
 
     const result = await provider.fetchQuota()
 
     expect(result.error).toContain("Session expired")
+    // The body was read for the check above, so the connection must not be cancelled a second time.
+    expect(response.body.cancel).not.toHaveBeenCalled()
+  })
+
+  it("releases the connection when the body was not read", async () => {
+    const response = {
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+      body: { cancel: vi.fn(async () => {}) },
+    }
+    const provider = await importProvider(response)
+
+    await provider.fetchQuota()
+
+    expect(response.body.cancel).toHaveBeenCalled()
   })
 })

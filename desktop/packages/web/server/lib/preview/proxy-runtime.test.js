@@ -886,5 +886,11 @@ describe("external preview documents are sandboxed", () => {
     expect(relative.get("location")).toBe(`${target.proxyBasePath}/docs/intro`)
     const queryOnly = await redirect("?page=2", "/docs/guide")
     expect(queryOnly.get("location")).toBe(`${target.proxyBasePath}/docs/guide?page=2`)
+
+    // A path that begins with `//` is still the upstream's path, not another host: read as a relative
+    // reference it became a protocol-relative URL and the redirect was rewritten for that host.
+    const doubleSlash = await redirect("intro", "//evil.example/x")
+    expect(doubleSlash.get("location")).toBe(`${target.proxyBasePath}//evil.example/intro`)
+    expect(doubleSlash.get("set-cookie")).toBeUndefined()
   })
 })
