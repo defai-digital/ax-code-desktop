@@ -32,6 +32,7 @@ const importStore = async () => {
 describe("useGitHubAuthStore", () => {
   afterEach(() => {
     vi.resetModules()
+    vi.useRealTimers()
   })
 
   test("does not reuse an in-flight auth refresh across different runtime clients", async () => {
@@ -56,5 +57,34 @@ describe("useGitHubAuthStore", () => {
       connected: true,
       user: { login: "second" },
     })
+  })
+
+  test("replaces a refresh whose request never settles", async () => {
+    // A bridge or fetch that never settles left its promise in the in-flight map for the life of the
+    // app: every later refresh returned that same promise, `isLoading` stayed true, and no GitHub
+    // surface could recover short of a restart.
+    vi.useFakeTimers()
+    const { useGitHubAuthStore } = await importStore()
+    const stuck = createRuntimeGitHub()
+
+    const stuckRefresh = useGitHubAuthStore.getState().refreshStatus(stuck.runtimeGitHub, { force: true })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(useGitHubAuthStore.getState().isLoading).toBe(true)
+
+    // The timeout fails the request instead of waiting forever.
+    await vi.advanceTimersByTimeAsync(12_000)
+    await stuckRefresh
+    expect(useGitHubAuthStore.getState().isLoading).toBe(false)
+    expect(useGitHubAuthStore.getState().status).toMatchObject({ connected: false })
+
+    // And a later refresh goes out instead of reusing a stuck promise.
+    const recovered = createRuntimeGitHub()
+    const recoveredRefresh = useGitHubAuthStore.getState().refreshStatus(recovered.runtimeGitHub, { force: true })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(recovered.runtimeGitHub.authStatus).toHaveBeenCalledTimes(1)
+
+    recovered.request.resolve({ connected: true, user: { login: "recovered" } })
+    await recoveredRefresh
+    expect(useGitHubAuthStore.getState().status).toMatchObject({ connected: true })
   })
 })

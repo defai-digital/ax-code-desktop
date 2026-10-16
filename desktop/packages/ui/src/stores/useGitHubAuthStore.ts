@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import type { GitHubAuthStatus, RuntimeAPIs } from "@/lib/api/types"
 import { API_ENDPOINTS } from "@/lib/http"
+import { withTimeout } from "@/lib/asyncTimeout"
 
 type GitHubAuthStatusWithError = GitHubAuthStatus & { error?: string }
 
@@ -33,6 +34,8 @@ const fetchStatus = async (runtimeGitHub?: RuntimeAPIs["github"]): Promise<GitHu
 }
 
 const runtimeGitHubIds = new WeakMap<object, number>()
+const GITHUB_AUTH_STATUS_TIMEOUT_MS = 12_000
+
 const inFlightAuthRefreshes = new Map<string, Promise<GitHubAuthStatusWithError | null>>()
 let runtimeGitHubSequence = 0
 let authRefreshSequence = 0
@@ -73,7 +76,13 @@ export const useGitHubAuthStore = create<GitHubAuthStore>((set, get) => ({
     latestAuthRefreshRequestId = requestId
     const request = (async () => {
       try {
-        const payload = await fetchStatus(runtimeGitHub)
+        // Bounded, like the other stores' remote reads: a bridge or fetch that never settles used to
+        // leave this promise in the in-flight map for the life of the app, so every later refresh
+        // returned the same stuck promise and `isLoading` stayed true. The timeout surfaces as the
+        // ordinary failure below, which also lets the in-flight entry be replaced.
+        const payload = await withTimeout(fetchStatus(runtimeGitHub), GITHUB_AUTH_STATUS_TIMEOUT_MS, () => {
+          throw new Error("GitHub auth status timed out")
+        })
         if (latestAuthRefreshRequestId === requestId) {
           lastResolvedAuthRefreshKey = refreshKey
           set({ status: payload, isLoading: false, hasChecked: true })
