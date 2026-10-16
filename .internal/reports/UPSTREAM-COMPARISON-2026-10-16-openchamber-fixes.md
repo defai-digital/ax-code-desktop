@@ -6,6 +6,46 @@ is `release v2.3.1` from 2026-10-13, while our `desktop/` has been developed
 independently since the extraction. Upstream has therefore fixed defects we still
 have, and the same defects can be found by comparing rather than by reading.
 
+## Follow-up pass: the commits that landed after the pass above
+
+Rerun the same day, over the 58 commits upstream landed after 2026-10-13 (the newest
+at the time being `d648bdedf`, 2026-10-16) — about 29 of them `fix(...)`. The same
+method applies: read each diff, map its paths onto ours, keep it only when the file
+exists and still contains the fix's context lines verbatim and none of its added
+lines. Two commits survived that test and our tree had the defect:
+
+- `2698eb8a` **The Changes header kept its layout only for the files on screen.**
+  `openchamber 0ceac5c964545a829f7716184dbd9e47e6a7323a`. The header wrote a
+  per-file override and never touched the Appearance setting, so a file that
+  appeared later, another session or the next launch opened inline again while the
+  setting still showed the old choice.
+- `16998525` **Chat diff previews ignored the layout setting.** `openchamber
+  1cd03296e2700f820b64e31fb009d10b1ab7cd6a` (its functional half; the separator
+  tint and the toggle's localized label in the same commit are cosmetic and were
+  not ported). Both the transcript preview and the tool output window hard-coded
+  `unified` and reset to it whenever the preview changed.
+
+Discarded, with the reason:
+
+- **Features our fork does not have**: spaces (7 commits), guests, the VS Code and
+  JetBrains shells, `session-work`, mobile and the phone List.
+- **Cosmetic or build**: dark-theme body text, the command palette's icon for Run in
+  parallel, red confirm buttons' label, the diff separator tint, the diff toggle's
+  `aria-label`, the TypeScript 7 / oxlint migration, the dependency bumps, the Linux
+  `.deb`/`.rpm` packaging feature.
+- **Our code already handles it differently**: the usage-credit display and the
+  sidebar's sub-agent handling have no counterpart here.
+
+One limitation: the reference clone is fetch-shallow per ref, with 42 boundary
+commits, so a branch tip whose parent object is absent cannot be diffed at all
+(`git show` then reports the whole tree as added). Six of the 29 fixes above are in
+that state — the two chat-composer fixes ("keep typed text when a session moves to
+another worktree", "send the queue again with Enter in an empty message box"), the
+two sidebar sub-agent fixes, "draw assistant images saved anywhere on the machine"
+and the credit-balance one. None of them is reachable from a branch merged into
+upstream's main line in this clone, so none of them is a *released* upstream fix;
+they need a deepened clone to check.
+
 ## Method
 
 1. List upstream's `fix(...)` commits since 2026-09-01 — 932 of them.

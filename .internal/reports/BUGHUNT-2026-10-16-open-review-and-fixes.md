@@ -1305,14 +1305,79 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Twenty-eighth round
+
+An audit of the twenty-seventh round's own commits, on two reviewers, plus the UI trees this record mentions least
+(`mini-chat`, `comments`) together with every remaining key handler in `ui/src` that acts on a composition's keys, and
+the small server trees that have all changed since they were last read.
+
 | Reviewer | Scope |
 | --- | --- |
-| Claude Code CLI | an audit of `git diff ea6e8a96 HEAD` — the twenty-sixth round's own commits |
-| ax-code `xiaomi/mimo-v2.6-pro` | `web/server/lib/{ax-code,terminal,event-stream}/**` |
-| Claude Code CLI | `ui/src/components/{dashboard,model-picker,mini-chat,files,comments}/**` |
-| Grok CLI | `web/src/**` and `web/server/lib/{notifications,projects,desktop}/**` |
+| Claude Code CLI | an audit of `git diff 971e2975 HEAD` — the twenty-seventh round's own commits |
+| `muse-wonder-full-1.0` (ax-code) | a second, independent audit of the same diff |
+| ax-code `xiaomi/mimo-v2.6-pro` | `web/server/lib/{magic-prompts,session-folders,skills-catalog,ui-auth}/**` |
+| Claude Code CLI | `ui/src/components/{mini-chat,comments}/**` and the remaining composition-sensitive key handlers |
 
-### Fixed from the audit of the round's own commits
+Both audits converged on three of the same defects in the round's own work — two of them regressions that round had
+introduced with its own fixes — and the second found two more in what those fixes left on the path production
+actually uses.
+
+### Fixed from the round's own commits
+
+- **`e02d553f`** — `0c67c6e8` left the attempts-exhausted guard `if (remaining.length === 0 && settledKeys.length === 0)`
+  in place, and `settledKeys` comes from a map of `Set`s: `length` is `undefined`, so the `continue` could never run.
+  It could not have run for a second reason the audit did not check — the project loop `continue`s on
+  `tasks.length === 0` before either map is written, so every project that reaches this loop has something to remove
+  — which is also why the consequence the audit named (an unguarded write for a file with nothing to remove) does not
+  occur. The guard was a remnant of the pre-`ac70e683` logic and is the thing that skipped the file whose
+  settled-task removal is what failed, so it is gone; the test pins the invariant that makes it unnecessary.
+- **`00d4206c`** — `b1570268` resolved the deepest *existing* ancestor for a target that does not exist yet, because
+  a write may be creating the file. A symlink whose target does not exist answers the same `ENOENT`, so the walk up
+  from it treated the leaf as "about to be created": the path compared as inside the skill, and the write then
+  followed the link and created the file wherever it pointed. The resolution now reports that case as its own,
+  reading and removing answer as before (both act on the link itself), and the write refuses it.
+- **`7082c5c8`** — `7cd0445b` marked the ask being answered from its debounce entry, but the flush deleted that entry
+  as its first statement: a keyed ask answered by a reply without an id still announced "Input needed" while the
+  flush awaited the template variables, and an unkeyed ask answered by a reply *with* an id marked only the keyed
+  set its own flush never consults. The entry now outlives the flush — cleared when it settles, and only if it is
+  still that ask's — which is what lets a reply name the ask it can only be answering.
+- **`6d5c3f13`** — two fixes from that round which did not reach the path production uses.
+  `78b1601f` made `broadcastUiNotification` drop a stream it ended, but that function delegates to
+  `createGlobalUiEventBroadcaster` whenever one is wired, and that fan-out ignored `writeSseEvent`'s `false` and left
+  the client in the set — its own test forced the fallback branch, so it passed where production does not go. And
+  `sanitizeTerminalEnv`'s by-name list missed `UI_PASSWORD`, the alias the container entrypoint passes as
+  `--ui-password` while `exec`ing the server in the same environment.
+
+### Fixed from the UI review
+
+- **`34ccdc71`** — the timeline dialog's search field acted on the keys a composition consumes, the class round 27
+  fixed in four other fields: Enter navigated to the message the half-typed query matched and closed the dialog, and
+  the arrow keys moved the result highlight instead of the candidate list. The sweep that found it covered every
+  remaining key handler in `ui/src`.
+
+### Ported from the upstream comparison's follow-up pass
+
+- **`2698eb8a`** — the Changes header kept its layout only for the files on screen, so a file that appeared later,
+  another session or the next launch opened inline again while Appearance still showed the old choice
+  (`openchamber 0ceac5c964545a829f7716184dbd9e47e6a7323a`).
+- **`16998525`** — both diff previews in chat hard-coded `unified` and reset to it whenever the preview changed,
+  whatever the layout setting said (`openchamber 1cd03296e2700f820b64e31fb009d10b1ab7cd6a`, its functional half).
+  See `.internal/reports/UPSTREAM-COMPARISON-2026-10-16-openchamber-fixes.md` for the pass, its method and what it
+  discarded.
+
+### Reported, verified, and not changed
+
+- **Two source-order assertions are weaker than the behaviour they stand for** (SUSPECTED, the first audit):
+  `DirectoryExplorerDialog-browse.test.ts` asserts that the composition guard's line index precedes the first
+  `event.key === "ArrowDown"`, so it would still pass if the guard were wrapped in a condition, and
+  `pendingToastWiring.source.test.ts` compares a call site against a comment string. Neither can be made
+  behavioural cheaply: both handlers live inside components that need the desktop file API, the SDK's message
+  records and the child-store manager before they mount, which is the seam this record documents for such
+  components. What the guard *does* is call `isIMECompositionEvent`, which four dispatch tests in this series
+  exercise with `isComposing: true`, and the pending-toast tracker's own semantics are covered by
+  `pendingToastTracker.test.ts`.
+
+## Twenty-seventh round
 
 An audit of the twenty-sixth round's own commits, the server's `ax-code`, `terminal` and `event-stream` trees, the
 UI trees this record mentions least (`dashboard`, `model-picker`, `mini-chat`, `files`, `comments`), the web
@@ -3362,6 +3427,21 @@ Round six and seven are complete: every confirmed finding is fixed.
   where `handleEvent` is private to the provider and mounting it needs the SDK, the child stores and the event
   pipeline — the same seam the config editors' and `PlanView`'s contracts use, and it now covers the branch that
   the previous version of it missed.
+- Every fix in this round carries the regression test named in its commit, and each was verified by running that
+  test against the pre-fix source and observing the stated failure, then against the fixed source and observing it
+  pass — nine defects across seven commits. The assertions are behavioural: the diff-layout store through the public
+  store, the chat preview through a probe hook plus the two call sites' sources, the timeline dialog through a
+  mounted dialog with the SDK and the stores stubbed, the convergence migration through a real projects directory
+  and marker file, the skill helpers against a real directory and a real symlink, the notification runtime through
+  its own trigger surface, the SSE fan-out through a set of clients, and the terminal env through the sanitizer.
+- One of the nine has no behavioural red light and says so: `e02d553f` removes a predicate that could never fire
+  (`undefined === 0` on a `Set`'s `length`, in a loop that cannot see a project with nothing to remove). Its test
+  passes either way and was written to fail if the invariant behind that goes away.
+- Latest full run, after the twenty-eighth round's fixes (each command's exit status captured, not inferred from a
+  pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+  `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 967, web 1 300 (+2 skipped),
+  0 `FAIL` lines. The lint run's only output is the pre-existing `react-hooks/exhaustive-deps` warning in
+  `ui/src/sync/use-sync.ts`, and the `401` flake did not appear.
 - Latest full run, after the twenty-seventh round's fixes (each command's exit status captured, not inferred from a
   pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 960, web 1 295 (+2 skipped),
