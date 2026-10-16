@@ -1,6 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { spawnSync } from "child_process"
 import path from "path"
 import { pathToFileURL } from "url"
+
+// `startup disable` tears down the real launchd agent, systemd unit or Task Scheduler entry, and its
+// paths come from the home directory, not from the data dir a test can redirect. A test that reached
+// it uninstalled the developer's own integration, so these three commands are refused here and
+// everything else in the module passes through untouched.
+vi.mock("child_process", async (importOriginal) => {
+  const actual = await importOriginal()
+  const startupCommands = new Set(["launchctl", "systemctl", "schtasks.exe"])
+  return {
+    ...actual,
+    spawnSync: vi.fn((command, args, options) => {
+      if (startupCommands.has(path.basename(String(command)))) {
+        return { status: 0, stdout: "", stderr: "", error: undefined, pid: 1, output: [], signal: null }
+      }
+      return actual.spawnSync(command, args, options)
+    }),
+  }
+})
 
 import { isModuleCliExecution, normalizeCliEntryPath } from "./cli-entry.js"
 import {
@@ -208,6 +227,12 @@ describe("tunnel args", () => {
     const dataDir = fsImpl.mkdtempSync(nodePath.join(os.tmpdir(), "ax-code-startup-"))
     const originalDataDir = process.env.AX_CODE_DESKTOP_DATA_DIR
     process.env.AX_CODE_DESKTOP_DATA_DIR = dataDir
+    // The service path is built from the home directory: keep it inside the temp dir so nothing
+    // outside it can be named, let alone unlinked (see the child_process mock at the top).
+    const originalHome = process.env.HOME
+    const originalUserProfile = process.env.USERPROFILE
+    process.env.HOME = dataDir
+    process.env.USERPROFILE = dataDir
 
     const envFile = nodePath.join(dataDir, "startup.env")
     fsImpl.writeFileSync(envFile, "AX_CODE_DESKTOP_UI_PASSWORD=hunter2\n")
@@ -220,10 +245,20 @@ describe("tunnel args", () => {
     try {
       await commands.startup({}, "disable")
       expect(fsImpl.existsSync(envFile)).toBe(false)
+      // The teardown really reached the platform command — through the stub, not the machine.
+      const startupCommands = vi
+        .mocked(spawnSync)
+        .mock.calls.map(([command]) => path.basename(String(command)))
+        .filter((command) => ["launchctl", "systemctl", "schtasks.exe"].includes(command))
+      expect(startupCommands.length).toBeGreaterThan(0)
     } finally {
       stdoutWrite.mockRestore()
       if (originalDataDir === undefined) delete process.env.AX_CODE_DESKTOP_DATA_DIR
       else process.env.AX_CODE_DESKTOP_DATA_DIR = originalDataDir
+      if (originalHome === undefined) delete process.env.HOME
+      else process.env.HOME = originalHome
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE
+      else process.env.USERPROFILE = originalUserProfile
       fsImpl.rmSync(dataDir, { recursive: true, force: true })
     }
   })
@@ -287,16 +322,40 @@ describe("tunnel args", () => {
     expect(result).toMatchObject({ port: 3100, stopped: false })
     expect(fsImpl.existsSync(statePath)).toBe(true)
 
-    // A stop that did take effect clears it.
+    // A stop that did take effect clears it. `isProcessRunning` keeps reporting a live process until
+    // the kill succeeds, so this reaches the branch that decides on `stopped` instead of the
+    // "not-running" early return.
+    let terminated = false
     const stoppedManager = createTunnelManager({
       getRunDir: () => runDir,
       getLogsDir: () => runDir,
-      isProcessRunning: () => false,
-      terminateProcessTree: async () => true,
+      isProcessRunning: () => !terminated,
+      terminateProcessTree: async () => {
+        terminated = true
+        return true
+      },
       searchPathFor: () => "/usr/bin/cloudflared",
       processLike: { env: {} },
     })
-    await stoppedManager.stopTunnel({ port: 3100 })
+    await expect(stoppedManager.stopTunnel({ port: 3100 })).resolves.toMatchObject({ port: 3100, stopped: true })
+    expect(fsImpl.existsSync(statePath)).toBe(false)
+
+    // The other half of the same condition: the kill reported failure but the process is gone, so the
+    // file still has to go. The first poll (the guard) sees it alive, the poll after the kill does not.
+    fsImpl.writeFileSync(statePath, JSON.stringify({ port: 3100, pid: 4321 }))
+    let polls = 0
+    const diedAnyway = createTunnelManager({
+      getRunDir: () => runDir,
+      getLogsDir: () => runDir,
+      isProcessRunning: () => {
+        polls += 1
+        return polls === 1
+      },
+      terminateProcessTree: async () => false,
+      searchPathFor: () => "/usr/bin/cloudflared",
+      processLike: { env: {} },
+    })
+    await expect(diedAnyway.stopTunnel({ port: 3100 })).resolves.toMatchObject({ port: 3100, stopped: false })
     expect(fsImpl.existsSync(statePath)).toBe(false)
 
     fsImpl.rmSync(nodePath.dirname(runDir), { recursive: true, force: true })
