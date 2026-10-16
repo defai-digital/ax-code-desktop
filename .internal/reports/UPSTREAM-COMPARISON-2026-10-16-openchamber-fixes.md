@@ -23,8 +23,8 @@ have, and the same defects can be found by comparing rather than by reading.
    where our code already handles it a different way.
 
 That produced 29 confirmed defects in our tree, and one more was found while fixing them.
-The twenty-eight entries below are fixed; the 2 that remain are listed with the shape of
-their fix so they can be picked up.
+The twenty-nine entries below are fixed; the 1 that remains is listed with the shape of its
+fix so it can be picked up.
 
 ## Fixed
 
@@ -119,14 +119,20 @@ their fix so they can be picked up.
   and no longer writes, so the command never ran. It now comes from the runtime's project
   record over `GET /project`.
 
+- (no upstream commit) **A worktree branch rename shows the name it would use.** The field
+  sanitized the name only when saving, so typing `feature a` for the existing `feature-a`
+  looked like a rename and then quietly closed the editor, and a name that sanitizes to
+  nothing was sent to git as an empty branch name. The field sanitizes as it is typed and
+  the save button is off while the name is empty or already exists. Upstream has the same
+  behaviour, so this is a defect of our tree rather than an upstream fix we lack.
+
 ## Confirmed in our tree, not yet fixed
 
 Ordered by severity. Line numbers are where the defect lives today.
 
 1. **The context meter shows the compaction request's fill**
     (`ui/src/lib/messages/assistantTokens.ts:25`): after `/compact` the newest
-    token-bearing assistant message is the summarising request itself.
-2. **The worktree branch rename field silently renames to a different name**
-    (`ui/src/components/views/git/WorktreeBranchDisplay.tsx`): covered by the branch
-    name fix above for the character set; what remains is that a sanitized name equal
-    to the current one closes the editor without saying so.
+    token-bearing assistant message is the summarising request itself. Deferred: our SDK
+    carries compaction as a message part rather than the assistant message's `summary`
+    field, so there is no request to read the fill from, and what the meter should show
+    after a compaction is a product decision.
