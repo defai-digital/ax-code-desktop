@@ -310,6 +310,16 @@ export const createSessionRuntime = ({ writeSseEvent, getNotificationClients, br
     for (const [sessionId] of sessionActivityPhases) {
       sessionActivityPhases.set(sessionId, { phase: "idle", updatedAt: now })
     }
+    // This resets every phase at once, so it is a transition like any other: consumers
+    // that track the busy count only re-read it when they are told, and the runtime-busy
+    // reporter dedupes by count. Without this, main kept the pre-restart count and its
+    // wedged-kill honored the busy restart grace indefinitely - the outcome resume()
+    // exists to prevent.
+    if (typeof onActivityChange === "function") {
+      try {
+        onActivityChange()
+      } catch {}
+    }
   }
 
   const cleanupOldSessionStates = () => {

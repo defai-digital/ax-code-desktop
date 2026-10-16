@@ -114,6 +114,12 @@ describe("session runtime", () => {
       const afterBusy = changes.length
       runtime.processAxCodeSsePayload(busy)
       expect(changes.length).toBe(afterBusy)
+
+      // resume() resets every phase at once. The readers of this count only re-read it
+      // when told, so the reset has to report as well or main keeps the pre-restart count.
+      runtime.resume()
+      expect(changes.length).toBe(afterBusy + 1)
+      expect(runtime.getSessionActivitySnapshot()["session-1"].type).toBe("idle")
     } finally {
       vi.useRealTimers()
     }
