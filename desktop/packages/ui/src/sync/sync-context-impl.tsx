@@ -28,6 +28,7 @@ import {
   type EventRoutingIndex,
 } from "./event-routing"
 import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
+import { mergeSessionListPage } from "./session-list-merge"
 import { useGlobalSyncStore } from "./global-sync-store"
 import { ChildStoreManager, type DirectoryStore } from "./child-store"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
@@ -1327,7 +1328,7 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
                   }
                   throw wrapped
                 }
-                const sessions = (result.data ?? [])
+                const rootPage = (result.data ?? [])
                   .filter((s) => !!s?.id)
                   .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
                 // Race guard: if the list came back empty but event pipeline
@@ -1335,16 +1336,21 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
                 // answer HTTP with empty sessions while WS delivers session
                 // events for the same data (disk warmup race on app launch).
                 const currentSessions = store.getState().session
-                if (sessions.length === 0 && currentSessions.length > 0) {
+                if (rootPage.length === 0 && currentSessions.length > 0) {
                   console.warn(
                     `[bootstrap] session.list returned empty for ${dir}; preserving ${currentSessions.length} existing sessions`,
                   )
                   return
                 }
+                // The page lists root sessions only: the child (subagent) sessions
+                // the event pipeline already inserted are carried over, or a
+                // re-bootstrap would erase a running subagent and its notification
+                // and parent-resync guards until it announced itself again.
+                const sessions = mergeSessionListPage(rootPage, currentSessions)
                 store.setState({
                   session: sessions,
-                  sessionTotal: sessions.length,
-                  limit: Math.max(sessions.length, 50),
+                  sessionTotal: rootPage.length,
+                  limit: Math.max(rootPage.length, 50),
                 })
                 ingestDirectoryStateIntoRoutingIndex(routingIndex, directory, store.getState())
               }),
