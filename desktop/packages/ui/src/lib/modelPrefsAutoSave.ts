@@ -1,5 +1,7 @@
 import { useUIStore } from "@/stores/useUIStore"
 import { updateDesktopSettings } from "@/lib/persistence"
+import { toast } from "@/components/ui"
+import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 
 type ModelRef = { providerID: string; modelID: string }
 
@@ -43,12 +45,26 @@ export const startModelPrefsAutoSave = () => {
       return
     }
 
-    lastSent = {
+    const previousSent = lastSent
+    const sent = {
       favoriteModels: payload.favoriteModels.slice(),
       recentModels: payload.recentModels.slice(),
     }
+    // Marked before the request so a flush that runs while it is in flight does not
+    // send the same list twice.
+    lastSent = sent
 
-    void updateDesktopSettings(payload).catch(() => {})
+    void updateDesktopSettings(payload).catch((error) => {
+      // The write failed, so the server still holds `previousSent`. Recording `sent`
+      // would make every later flush skip the value and lose the preference for good.
+      if (lastSent === sent) {
+        lastSent = previousSent
+      }
+      console.warn("Failed to auto-save model preferences:", error)
+      toast.error(formatMessage(useI18nStore.getState().dictionary, "settings.toast.saveFailed"), {
+        id: "model-prefs-auto-save-failed",
+      })
+    })
   }
 
   const schedule = () => {
@@ -57,6 +73,27 @@ export const startModelPrefsAutoSave = () => {
     }
     timer = window.setTimeout(flush, 1200)
   }
+
+  // A change made inside the debounce must still land when the window goes away.
+  // persistence.ts flushes the changes it already holds on these same events, but a
+  // payload still pending here never reached it.
+  const flushPendingNow = () => {
+    if (timer !== null) {
+      window.clearTimeout(timer)
+      timer = null
+    }
+    flush()
+  }
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "hidden") {
+      flushPendingNow()
+    }
+  }
+  if (typeof document !== "undefined") {
+    // "hidden" typically precedes termination, pagehide covers real unloads.
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+  }
+  window.addEventListener("pagehide", flushPendingNow)
 
   const unsubscribe = useUIStore.subscribe((state, prevState) => {
     const next = { favoriteModels: state.favoriteModels, recentModels: state.recentModels }
@@ -69,6 +106,10 @@ export const startModelPrefsAutoSave = () => {
 
   return () => {
     unsubscribe()
+    window.removeEventListener("pagehide", flushPendingNow)
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
     if (timer !== null) {
       window.clearTimeout(timer)
     }
