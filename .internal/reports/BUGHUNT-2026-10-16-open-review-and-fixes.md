@@ -1406,6 +1406,23 @@ MiniMax-M3) and two auditors over the tenth round's commits. Fixed from it:
   and a refresh changes neither, so every expanded folder kept its row and rendered empty until it was
   collapsed and expanded again.
 
+- **`33dbb94c`** — `replaceScheduledTasks` coerced an updater's non-array result to `[]`, and
+  `writeScheduledTasksToDisk` deletes the `scheduledTasks` key for an empty list: a broken caller erased
+  every scheduled task in the project with nothing thrown or logged. It refuses now. (The one caller
+  today always filters the list, so the trap was latent — fixed because the failure mode is silent data
+  loss.)
+- **`1958c090`** — the ClawdHub ZIP validator checked entry *names* only, so a symbolic-link entry (whose
+  name is ordinary) passed and `AdmZip.extractAllTo` created a real link in the skill directory pointing
+  wherever the archive said — the escape the GitHub install path already refuses with
+  `lstat().isSymbolicLink()`. The Unix mode in the entry's external attributes is checked now.
+- **`804c137d`** — `downloadClawdHubSkill` returned `response.arrayBuffer()`: a malicious or compromised
+  publisher could hand the desktop process a multi-gigabyte archive, materialised in memory and then
+  extracted under `os.tmpdir()`. The body is read against a 32 MB cap (declared length, streamed
+  chunks stopped and cancelled, and a size check for a body with no stream).
+- **`34152cba`** — the exec-job TTL pruner retires jobs by `updatedAt`, which the runner refreshes
+  *between* commands: a background job whose single command outlasted the 30-minute TTL was deleted
+  mid-flight and polling it answered 404. Only finished jobs age out now.
+
 ### Reported as confirmed, verified and rejected
 
 - **"DiffWorkerProvider caches a failed pool creation as a success"** (`contexts/DiffWorkerProvider.tsx:91-103`).
@@ -1418,6 +1435,10 @@ MiniMax-M3) and two auditors over the tenth round's commits. Fixed from it:
   `ensurePierreThemeRegistered` for both themes and only then applies, which is exactly the guard the
   report said was absent; the registry call is synchronous (`registerCustomTheme` stores the loader), so
   the pool has the id before `setRenderOptions`.
+- **"`/api/fs/read?optional=true` is defeated by `realpath`"** (`server/lib/fs/routes.js:1000-1064`).
+  The `realpath` call is inside the same `try` whose catch maps `ENOENT` to an empty body when `optional`
+  is set, so the optional contract does hold for a missing file. A test now pins it (200 + `""` with the
+  flag, 404 without), which is the durable answer either way.
 - **"`suppressTransitionsForThemeSwitch` leaves `.ax-theme-switching` on `<html>`"**
   (`contexts/ThemeSystemContext.tsx:46-64`). The returned cleanup removes the class unconditionally, and
   the uncancellable inner frame only removes it as well, so the class cannot outlive the effect. What is
