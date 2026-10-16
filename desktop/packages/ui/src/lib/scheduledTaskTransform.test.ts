@@ -120,14 +120,29 @@ describe("buildRuntimeScheduledTaskPayloads", () => {
   test("caps the runtime title without splitting a character at the cut", () => {
     // The title is persisted as the runtime task's title, so a code-unit cut that
     // lands inside the emoji would store a lone surrogate.
-    const name = `${"z".repeat(199)}🚀tail`
+    const name = `${"z".repeat(193)}🚀tail`
     const payloads = buildRuntimeScheduledTaskPayloads(
       baseDraft({ name, schedule: { kind: "daily", times: ["09:00", "10:00"], timezone: "UTC" } }),
     )
 
     const title = payloads?.[0]?.title ?? ""
-    expect(title).toBe("z".repeat(199))
+    expect(title).toBe(`${"z".repeat(193)} (1/2)`)
+    expect(title.length).toBeLessThanOrEqual(200)
     expect(title).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+  })
+
+  test("keeps the fan-out suffix of a name at the title limit, so the slots stay distinct", () => {
+    // Composing the title and then cutting it trimmed the suffix off a name at the limit, which
+    // gave every slot of that task the same title - and the migration's per-title idempotency
+    // check then read the later slots as already created and dropped them.
+    const payloads = buildRuntimeScheduledTaskPayloads(
+      baseDraft({ name: "z".repeat(300), schedule: { kind: "daily", times: ["09:00", "10:00"], timezone: "UTC" } }),
+    )
+
+    expect(payloads?.map((payload) => payload.title)).toEqual([
+      `${"z".repeat(194)} (1/2)`,
+      `${"z".repeat(194)} (2/2)`,
+    ])
   })
 
   test("returns null for invalid drafts", () => {

@@ -62,6 +62,24 @@ describe("slotTitle", () => {
     expect(slotTitle("x".repeat(300), 0, 1)).toHaveLength(200)
   })
 
+  it("keeps the fan-out suffix of a name that is at the title limit", () => {
+    // Clamping the composed title cut the suffix off a name at the limit, so every slot of
+    // that task got the same title: the migration's per-title idempotency check then read
+    // slots 2..N as already created and dropped them without a warning.
+    const name = "x".repeat(300)
+    const titles = [0, 1, 2].map((index) => slotTitle(name, index, 3))
+
+    expect(titles).toEqual([
+      `${"x".repeat(194)} (1/3)`,
+      `${"x".repeat(194)} (2/3)`,
+      `${"x".repeat(194)} (3/3)`,
+    ])
+    expect(new Set(titles).size).toBe(3)
+    for (const title of titles) {
+      expect(title.length).toBeLessThanOrEqual(200)
+    }
+  })
+
   it("does not cut inside a surrogate pair at the title cap", () => {
     // The emoji occupies UTF-16 units 199-200, so a raw slice at 200 would keep
     // its high surrogate alone and store a corrupted title in the runtime.

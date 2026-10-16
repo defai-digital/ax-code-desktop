@@ -141,10 +141,19 @@ const FAN_OUT_SUFFIX_PATTERN = / \(\d+\/\d+\)$/
 export const stripFanOutSuffix = (name: string): string => name.replace(FAN_OUT_SUFFIX_PATTERN, "")
 
 const slotTitle = (name: string, index: number, total: number): string => {
-  const base = total > 1 ? `${name} (${index + 1}/${total})` : name
+  if (total <= 1) {
+    return truncateToCodeUnits(name, MAX_RUNTIME_TITLE_LENGTH, "")
+  }
+
+  // Reserve room for the fan-out suffix before cutting the name. Cutting the composed title
+  // trimmed the suffix off a name at the limit, which gave every slot of that task the same
+  // title - and the migration's per-title idempotency check then read the later slots as
+  // already created and dropped them.
+  const suffix = ` (${index + 1}/${total})`
+  const room = Math.max(0, MAX_RUNTIME_TITLE_LENGTH - suffix.length)
   // The runtime caps the title, and this value is persisted as the task title:
   // cutting it by code unit could store a lone surrogate at the boundary.
-  return truncateToCodeUnits(base, MAX_RUNTIME_TITLE_LENGTH, "")
+  return `${truncateToCodeUnits(name, room, "")}${suffix}`
 }
 
 /**

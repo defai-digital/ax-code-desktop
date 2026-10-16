@@ -210,8 +210,17 @@ const clampTitle = (value) => {
 // tasks named "<name> (i/N)" (the runtime only supports a single
 // time/weekday per task). Single-slot tasks keep the bare name.
 export const slotTitle = (name, index, total) => {
-  const base = total > 1 ? `${name} (${index + 1}/${total})` : name
-  return clampTitle(base)
+  if (total <= 1) {
+    return clampTitle(name)
+  }
+
+  // Reserve room for the suffix before clamping the name. Clamping the composed title cut the
+  // suffix off a name at the limit, which gave every slot of that task the same title - and the
+  // migration's per-title idempotency check then read slots 2..N as "already created earlier"
+  // and dropped them, with no warning, before recording the task as migrated.
+  const suffix = ` (${index + 1}/${total})`
+  const room = Math.max(0, MAX_RUNTIME_TITLE_LENGTH - suffix.length)
+  return `${clampTitle(name.slice(0, room))}${suffix}`
 }
 
 /**
