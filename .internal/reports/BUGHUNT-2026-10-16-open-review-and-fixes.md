@@ -617,9 +617,10 @@ acted on was re-checked in the source and run against its pre-fix source.
 | Grok CLI | `electron/src/main.js` |
 
 No reviewer reported a rate limit or a truncated answer. The Grok CLI run for the Electron main
-process was blocked by a shell command its plan mode would not approve, and returned nothing; the
-`qwen3.8-flash` run failed with a provider error and its re-run on `MiniMax-M3` ended in a model
-output loop. Both areas stay unreviewed by a machine reviewer.
+process was first blocked by a shell command its plan mode would not approve; told to read and grep
+only, it returned five confirmed findings on `main.js`. The `qwen3.8-flash` run failed with a
+provider error and its re-run on `MiniMax-M3` ended in a model output loop, so the packaging scripts
+were not reviewed by a machine.
 
 ### `7120e97a` fix(fs): act on the entry the user named, not what it points at
 
@@ -663,27 +664,60 @@ output loop. Both areas stay unreviewed by a machine reviewer.
   (`lib/final-error-handler.js`), and the JSON path is capped by the body parser first. A test now
   covers that contract.
 
+### `343b0e52` fix(ui): keep a stale answer, save or fence from winning over the newer one
+
+- **A worktree listing already on its way when a create or removal invalidated the cache** was
+  written into it anyway: the new worktree stayed missing from the list — or the removed one came
+  back — for the whole 30 s TTL. Listings carry a generation now, and a caller arriving after the
+  invalidation is not handed the obsolete answer the dedup map held.
+- **Clearing a worktree's bootstrap state left its running poll behind**: the poll wrote its answer
+  back, and a stale `ready` let a worktree re-created at the same path pass its own wait before its
+  setup commands had run, while a stale `failed` was answered to every later caller instead of
+  asking the runtime. A retired poll leaves the state alone, and a replaced wait no longer drops the
+  new one's entry.
+- **Two overlapping settings flushes** let the older response land last and put the value it carried
+  back into the store, the cache and the interface while the server held the newer one.
+- **A selected code block that itself contains a fence** closed the block early, so the code after
+  it became prose and the user's comment was swallowed by the block.
+- **A `step-finish` part with all-zero usage is a placeholder, not a measurement**, and taking it as
+  the answer left the context meter at nothing for the rest of the turn.
+
+### `4b3425ed` fix(chat): keep a rendered part's file references alive when the stream ends
+
+The markdown renderer's memo comparator left `enableFileReferences` out, so a part that finished
+streaming kept the dead links it had rendered while streaming — the prop changes exactly at that
+point, and the skipped re-render left the reader with links that do nothing. The comparator moved to
+its own module (the lint rule forbids exporting a function from a component file), covers every prop
+the render reads, and a test pins that contract.
+
 ### Pending from this round
 
-Confirmed in the source, not yet fixed:
+Confirmed in the source, not yet fixed. The two chat queue findings need a decision on the
+queue/command contract rather than a local guard, which is why they are here and not in a commit:
 
-- **`worktreeManager`'s list can land after a create or delete cleared it**
-  (`ui/src/lib/worktrees/worktreeManager.ts:221`): the stale answer is cached for its 30 s TTL, so a
-  new worktree is missing from the list and a deleted one comes back.
-- **`clearWorktreeBootstrapState` only deletes the map entry**
-  (`ui/src/lib/worktrees/worktreeBootstrap.ts:38`): a poll response already in flight writes it back,
-  so a stale `ready` lets a wait pass early and a stale `failed` poisons every later wait.
-- **Two overlapping settings flushes can revert the newer value**
-  (`ui/src/lib/persistence.ts:1201`).
-- **A selected code block containing a fence closes the fence early**
-  (`ui/src/lib/messages/inlineComments.ts:11`), so the comment text is swallowed by the code block.
-- **A step-finish with all-zero tokens overrides a valid message total**
-  (`ui/src/lib/messages/assistantTokens.ts:55`, suspected).
-- Chat: **a queue flush through a slash command drops the rest of the queue and the composer input**;
-  **the same queued slash command runs as a command when sent from the chip but is delivered as a
-  literal prompt by auto-send**; **`MarkdownRenderer`'s memo comparator omits
-  `enableFileReferences`**, so file links in a finished part stay dead until the stream ends; and a
-  suspected non-reactive `getState()` read of the mermaid rendering mode.
+- **A queue flush that begins with a slash command drops the rest of the queue and the composer
+  input** (`ui/src/components/chat/ChatInput-impl.tsx:1626`): the queue and the input are cleared
+  before the command branches, which then return; the snapshot/restore the code builds is only
+  consulted on the send path's failure.
+- **The same queued slash command runs as a command from the chip but is delivered as a literal
+  prompt by auto-send** (`ChatInput-impl.tsx:1449` vs `hooks/useQueuedMessageAutoSend.ts:41`): the
+  two dispatch paths for one queue entry disagree, and nothing filters a command out at queue time.
+- **Mermaid rendering mode is read through a non-reactive `getState()` during render** (suspected),
+  so toggling the setting leaves existing diagrams as they were.
+- Electron `main.js` (five findings, read but not yet re-checked against the source by me): a
+  notification clicked with no window or before the renderer is ready; `quitAndInstall` with no
+  `before-quit` when the update cannot install; the Windows "open in app" fallback; `Alt+Space` with
+  no window; and `desktop_search_files` reached through a symlink to a refused directory, which
+  would step around the credential-store refusal added in the second round.
+
+### One unresolved flake
+
+The full-repository run failed three web tests once (`socket hang up` on an MCP route, and
+`expected 200, got 401` on two routes) while the web package alone passed twice consecutively
+(125 files, 1097 tests). The same 401 appeared once in an earlier full run. Nothing in the affected
+tests can answer 401 — their apps carry only the synchronous security middleware — and the only code
+in the server that writes that status without a route is the socket-level refusal in
+`lib/security/request-security.js`, so that is where to look if it reproduces on its own.
 
 ## Limit audit
 
