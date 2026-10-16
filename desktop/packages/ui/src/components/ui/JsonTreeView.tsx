@@ -4,12 +4,15 @@ import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/icon/Icon"
 import { JsonTreeViewer } from "./JsonTreeViewer"
 import { useI18n } from "@/lib/i18n"
+import stripJsonComments from "strip-json-comments"
 
 interface JsonTreeViewProps {
   jsonString: string
   className?: string
   maxHeight?: string
   initiallyExpandedDepth?: number
+  /** `jsonc` accepts the comments and trailing commas a `.jsonc` file may carry. */
+  format?: "json" | "jsonc"
 }
 
 const JsonTreeView = React.memo(function JsonTreeView({
@@ -17,6 +20,7 @@ const JsonTreeView = React.memo(function JsonTreeView({
   className,
   maxHeight = "100%",
   initiallyExpandedDepth = 2,
+  format = "json",
 }: JsonTreeViewProps) {
   const { t } = useI18n()
   const viewerRef = React.useRef<{ expandAll: () => void; collapseAll: () => void }>(null)
@@ -29,14 +33,16 @@ const JsonTreeView = React.memo(function JsonTreeView({
         setParseError(t("jsonTreeView.error.emptyJson"))
         return null
       }
-      const parsed = JSON.parse(trimmed)
+      // A `.jsonc` document carries comments and trailing commas that JSON.parse rejects, which
+      // reported a perfectly readable file as invalid JSON.
+      const parsed = JSON.parse(format === "jsonc" ? stripJsonComments(trimmed, { trailingCommas: true }) : trimmed)
       setParseError(null)
       return parsed
     } catch (err) {
       setParseError(err instanceof Error ? err.message : t("jsonTreeView.error.invalidJson"))
       return null
     }
-  }, [jsonString, t])
+  }, [format, jsonString, t])
 
   const handleExpandAll = React.useCallback(() => {
     viewerRef.current?.expandAll()

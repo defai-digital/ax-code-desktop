@@ -203,6 +203,11 @@ const isMarkdownFile = (path: string): boolean => {
   return ext === "md" || ext === "markdown"
 }
 
+const isJsoncFile = (path: string): boolean => {
+  if (!path) return false
+  return path.toLowerCase().split(".").pop() === "jsonc"
+}
+
 const isJsonFile = (path: string): boolean => {
   if (!path) return false
   const ext = path.toLowerCase().split(".").pop()
@@ -3387,7 +3392,12 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
               }
             >
               <div className="h-full overflow-auto">
-                <JsonTreeView jsonString={fileContent} maxHeight="100%" initiallyExpandedDepth={2} />
+                <JsonTreeView
+                  jsonString={fileContent}
+                  maxHeight="100%"
+                  initiallyExpandedDepth={2}
+                  format={isJsoncFile(selectedFile.path) ? "jsonc" : "json"}
+                />
               </div>
             </ErrorBoundary>
           ) : selectedFile && isMarkdown && getMdViewMode() === "preview" ? (

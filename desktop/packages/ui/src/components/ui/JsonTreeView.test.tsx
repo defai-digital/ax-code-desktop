@@ -15,7 +15,7 @@ describe("JsonTreeView", () => {
     vi.restoreAllMocks()
   })
 
-  const render = (jsonString: string) => {
+  const render = (jsonString: string, format?: "json" | "jsonc") => {
     const container = document.createElement("div")
     document.body.appendChild(container)
     const root = createRoot(container)
@@ -24,7 +24,7 @@ describe("JsonTreeView", () => {
     act(() => {
       root.render(
         <I18nProvider>
-          <JsonTreeView jsonString={jsonString} />
+          <JsonTreeView jsonString={jsonString} format={format} />
         </I18nProvider>,
       )
     })
@@ -38,6 +38,21 @@ describe("JsonTreeView", () => {
     const container = render("null")
 
     expect(container.textContent?.trim()).not.toBe("")
+  })
+
+  test("renders a .jsonc document's comments and trailing commas in jsonc mode", () => {
+    // A `.jsonc` file is a JSON file with comments and trailing commas; parsing it as strict JSON
+    // reported a perfectly readable file as invalid.
+    const container = render('{\n  // why\n  "unicorn": "cake",\n}', "jsonc")
+
+    expect(container.textContent).toContain("unicorn")
+    expect(container.textContent).not.toContain("Invalid JSON")
+  })
+
+  test("still reports the same document as invalid in json mode", () => {
+    const container = render('{\n  // why\n  "unicorn": "cake",\n}')
+
+    expect(container.textContent).toContain("Invalid JSON")
   })
 
   test("still reports an empty document instead of rendering nothing", () => {
