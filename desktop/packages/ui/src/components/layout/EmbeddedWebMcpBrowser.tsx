@@ -137,10 +137,14 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       const element = host.current
       if (!element || disposed) return
       const box = element.getBoundingClientRect()
+      // The app's dialogs are Base UI popups: they carry `role="dialog"` and no `aria-modal`, so testing for
+      // `[role="dialog"][aria-modal="true"]` alone did not see the settings window, the command palette or a
+      // confirm dialog — the native view stayed over them and swallowed every click inside its rectangle. A native
+      // `dialog[open]` and an `aria-modal`-only overlay are matched too.
       const hidden =
         document.hidden ||
         !element.checkVisibility() ||
-        Boolean(document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]'))
+        Boolean(document.querySelector('[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open]'))
       const bounds = hidden
         ? { x: 0, y: 0, width: 0, height: 0 }
         : { x: Math.max(0, box.x), y: Math.max(0, box.y), width: box.width, height: box.height }

@@ -154,6 +154,37 @@ describe("agent browser enable request", () => {
     expect(useWebMcpBrowserStore.getState().browserId ?? null).toBeNull()
   })
 
+  test("hides the native view behind a dialog that carries no aria-modal", async () => {
+    // The app's dialogs are Base UI popups: they carry `role="dialog"` and no `aria-modal`, while the hidden test
+    // looked for `[role="dialog"][aria-modal="true"]` or a native `dialog[open]` — so the native view stayed on top
+    // of the settings window, the command palette or a confirm dialog, and every click inside its rectangle went to
+    // the embedded page instead of the dialog.
+    const box = { x: 5, y: 5, width: 100, height: 100, top: 5, left: 5, right: 105, bottom: 105, toJSON: () => box }
+    Object.defineProperty(Element.prototype, "getBoundingClientRect", { configurable: true, value: () => box })
+
+    render()
+    openAgentMode()
+    await flush()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50)
+    })
+
+    const lastBounds = () => callsFor("bounds").at(-1)?.[1] as { width?: number; height?: number } | undefined
+    expect(lastBounds()?.width).toBe(100)
+
+    const dialog = document.createElement("div")
+    dialog.setAttribute("role", "dialog")
+    act(() => {
+      document.body.appendChild(dialog)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50)
+    })
+
+    expect(lastBounds()?.width).toBe(0)
+    expect(lastBounds()?.height).toBe(0)
+  })
+
   test("still enables after a dependency changes inside the delay", async () => {
     // The request used to be consumed when the timer was armed, so a `busy` flip in the 150 ms
     // window cancelled the timer and left the request consumed: the user's enable never landed.
