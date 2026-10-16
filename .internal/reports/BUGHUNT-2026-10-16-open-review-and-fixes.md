@@ -737,6 +737,11 @@ server (`ECONNRESET`) and the port not being reused immediately, so that is not 
 lead is the socket-level 401 in `lib/security/request-security.js`, which is the only code in the
 server that writes that status without a route.
 
+Another full run failed once in `server/lib/ax-code/config-entity-routes.test.js` ("still reports 500
+for an unexpected mutation failure") while its neighbours passed; the file passed alone immediately
+after, and re-running the file alone then failed a *different* case in it, which is the same signature
+seen from the other side. The source changes in that run were all in the ui package.
+
 Later the same flake hit three cases in one file, `server/lib/github/routes.test.js` (credential
 clearing, and two about the repo the caller names), on a full run whose only source changes were in
 the ui package; the package passed alone immediately afterwards and the full suite passed on the next
@@ -1014,6 +1019,32 @@ prompt; two runs ended in a transport failure and produced nothing, and are list
   one from before the read finished. A late read now lands in the draft it was started from, and still
   disappears when that draft's files were cleared or replaced.
 
+- **`24742167`** — the MCP dropdown toggles a server through `connect` (which re-throws on failure) and
+  `disconnect` (which asks for errors), and it is the only caller of either that reads neither the
+  diagnostics the store records for them nor anything else the user can see: with no catch the switch
+  snapped back in silence and the rejection escaped the handler. The failure is reported now, with the
+  same message the dropdown's own status tooltip uses.
+- **`cdcb9d27`** — both recovery-screen actions end in a write or a restart that can reject — a Tauri
+  invoke that fails, or a reload request against the server that is already unreachable, which is
+  usually what put the user on that screen. Neither had a catch: the click did nothing at all (no
+  restart, no reload, and not even the `onRetry` the handler still owed its caller) and the rejection
+  escaped the handler. The sibling onboarding screens carry the same fix and say so in a comment. The
+  fallback string is in English and all 14 catalogs.
+- **`7e3a192f`** — the delete-worktree dialog inspects the worktree asynchronously and only then renders
+  the uncommitted-changes warning, while the removal itself is forced. The confirm button waited only
+  on the in-flight flag, so a click in that window removed the worktree — and the uncommitted work with
+  it — before the user could see any warning at all. The button waits for the check now, and the
+  handler refuses the same case.
+- **`b59b5840`** — the model picker's highlight reset listed `onActiveEntryChange` among its
+  dependencies and every call site passes an inline arrow, so any parent re-render (a thinking-variant
+  key, a window resize) re-ran it although the list was unchanged: the highlight jumped back to the
+  first row and the next Enter selected a different model than the one the user had navigated to and
+  configured. The reset is keyed on the list itself now.
+- **`f3c43ba3`** — the todo send dialog guards against a second confirm with the `submitting` prop,
+  which the handler sets only after two awaited prompt renders. Two confirms in the same tick (a click
+  and Cmd+Enter) both passed it, and each created a session and sent the same message. The handler
+  takes an in-flight ref before the prompts, and the prompts moved inside its `try`.
+
 ### Verified from this round, not yet fixed
 
 Read against the source and confirmed, waiting for a fix rather than a re-check:
@@ -1024,12 +1055,20 @@ Read against the source and confirmed, waiting for a fix rather than a re-check:
 - **`PlanView.tsx:453`** (suspected) — the autosave effect has no dirty check against the content it
   loaded, so merely opening a plan schedules a write of the just-loaded text ~350 ms later; an external
   write landing in that window is overwritten by content the user never edited.
-- **Two reviewers' output is read but not yet verified**: the `components` run reported
-  `mcp/McpDropdown.tsx:182-193`, `onboarding/RecoveryScreen.tsx:57-73` and
-  `model-picker/ModelPickerList.tsx:481-485` as confirmed, and the re-run over `session`/`files` reported
-  `session/SessionDialogs.tsx:735`, `session/sidebar/SessionNodeItem.tsx:351` and `:475`, and
-  `session/ProjectNotesTodoPanel.tsx:492`. Each is listed here so the next pass starts from the lines
-  rather than from the transcripts.
+- **The suspected leads from these two runs are still unverified**: `onboarding/ChooserScreen.tsx:210-218`
+  (an uncaught rejection on a manual check, and a poll that retries a failing write forever),
+  `notifications/PermissionNotifications.tsx:111-127` (a second permission request in one pending batch
+  possibly never notifying), and `terminal/TerminalViewport.tsx:1601` (bracketed-paste wrapping without
+  stripping a carriage return or an embedded `201~`).
+- **`session/sidebar/SessionNodeItem.tsx:351`** (confirmed by the session reviewer) — the markdown
+  export reads messages from the store keyed by the session's own directory but loads them through
+  `useSync()`, which is bound to the directory currently open, so exporting a session from another
+  project writes an empty or partial file. Loading and reading have to name the same directory, which
+  needs a store handle for the session's directory rather than the active one.
+- **`session/sidebar/SessionNodeItem.tsx:475`** (confirmed by the same reviewer) — the export walks only
+  the first page of messages (150) and never calls `loadMore`, so a session with more history exports
+  silently short, with the UI reporting success. Draining the pages before writing the file is the fix;
+  it changes how long an export of a long session takes, which is the user's call to make.
 - **`sync/soft-removal.ts:223`** (confirmed by the sync reviewer) — the undo window's timer commits the
   removal on its own 7-second clock while the toast pauses its own countdown on hover, so Undo after the
   timer fired only rewrites a record the commit already took: the session stays hidden and the delete
@@ -1193,7 +1232,7 @@ questions rather than local fixes.
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 659, web 1 105 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 665, web 1 105 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
