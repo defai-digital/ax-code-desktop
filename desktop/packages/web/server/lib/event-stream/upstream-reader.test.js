@@ -36,6 +36,7 @@ describe("createUpstreamSseReader buffer ceiling", () => {
       buildUrl: () => "http://127.0.0.1:4096/global/event",
       reconnectDelayMs: 0,
       maxBufferBytes: 512,
+      maxEventBytes: 1024,
       fetchImpl: async (_url, options) => {
         attempts += 1
         if (attempts === 1) {
@@ -67,6 +68,120 @@ describe("createUpstreamSseReader buffer ceiling", () => {
     expect(errors[0].error.message).toContain("without a complete event")
     expect(disconnects.length).toBeGreaterThan(0)
     expect(attempts).toBe(2)
+  })
+})
+
+describe("createUpstreamSseReader oversized events", () => {
+  const evt = (id, text = "x") => `id: ${id}\ndata: {"type":"session.updated","properties":{"text":"${text}"}}\n\n`
+
+  async function collect({ blocks, holdOpen = false, ...options }) {
+    const events = []
+    const oversize = []
+    const errors = []
+    const headers = []
+    let attempts = 0
+    let reader
+    reader = createUpstreamSseReader({
+      buildUrl: () => "http://127.0.0.1:4096/global/event",
+      reconnectDelayMs: 0,
+      maxBufferBytes: 512,
+      maxEventBytes: 64 * 1024,
+      ...options,
+      fetchImpl: async (_url, init) => {
+        attempts += 1
+        headers.push(init.headers["Last-Event-ID"])
+        if (attempts > 1) {
+          reader.stop()
+          return createSseResponse({ blocks: [] })
+        }
+        return createSseResponse({ blocks, signal: init.signal, holdOpen })
+      },
+      onEvent(event) {
+        events.push(event.eventId)
+        if (options.stopAfter && events.length >= options.stopAfter) reader.stop()
+      },
+      onOversize: (info) => oversize.push(info),
+      onError: (error) => errors.push(error),
+    })
+    await reader.start()
+    return { events, oversize, errors, headers, attempts, reader }
+  }
+
+  it("skips an oversized event on the same connection and keeps reading", async () => {
+    const big = evt("2", "y".repeat(5000))
+    // Deliver the oversized event in small chunks so it grows across several reads.
+    const chunks = [evt("1"), ...big.match(/[^]{1,700}/g), evt("3")]
+    const result = await collect({ blocks: chunks, stopAfter: 2 })
+
+    expect(result.events).toEqual(["1", "3"])
+    expect(result.attempts).toBe(1)
+    expect(result.errors).toEqual([])
+    expect(result.oversize).toHaveLength(1)
+    expect(result.oversize[0].eventId).toBe("2")
+    expect(result.oversize[0].bytes).toBeGreaterThan(512)
+    expect(result.reader.getLastEventId()).toBe("3")
+  })
+
+  it("finds the separator when it straddles two chunks while skipping", async () => {
+    const big = evt("2", "y".repeat(2000))
+    const blocks = [big.slice(0, -1), "\n", evt("3")]
+    const result = await collect({ blocks, stopAfter: 1 })
+
+    expect(result.events).toEqual(["3"])
+    expect(result.oversize.map((info) => info.eventId)).toEqual(["2"])
+    expect(result.attempts).toBe(1)
+  })
+
+  it("finds a CRLF separator split between chunks while skipping", async () => {
+    const big = evt("2", "y".repeat(2000)).replace(/\n/g, "\r\n")
+    const blocks = [big.slice(0, -3), "\n\r", "\n", evt("3")]
+    const result = await collect({ blocks, stopAfter: 1 })
+
+    expect(result.events).toEqual(["3"])
+    expect(result.oversize).toHaveLength(1)
+  })
+
+  it("does not treat many complete events in one chunk as oversized", async () => {
+    const batch = Array.from({ length: 20 }, (_, i) => evt(String(i + 1), "z".repeat(100))).join("")
+    expect(batch.length).toBeGreaterThan(512)
+    const result = await collect({ blocks: [batch], stopAfter: 20 })
+
+    expect(result.events).toHaveLength(20)
+    expect(result.oversize).toEqual([])
+  })
+
+  it("resumes after the skipped event instead of looping when the stream is dropped", async () => {
+    // Larger than maxEventBytes: the connection is dropped, but the cursor already
+    // moved past the event, so the retry must not ask for it again.
+    const big = evt("2", "y".repeat(5000))
+    const result = await collect({
+      blocks: [evt("1"), ...big.match(/[^]{1,700}/g)],
+      maxBufferBytes: 512,
+      maxEventBytes: 2048,
+    })
+
+    expect(result.events).toEqual(["1"])
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0].error.message).toContain("without a complete event")
+    expect(result.oversize.map((info) => info.eventId)).toEqual(["2"])
+    expect(result.headers).toEqual([undefined, "2"])
+  })
+
+  it("reports a resync when the stream ends in the middle of a skipped event", async () => {
+    const big = evt("2", "y".repeat(2000))
+    const result = await collect({ blocks: [evt("1"), big.slice(0, 1500)] })
+
+    expect(result.events).toEqual(["1"])
+    expect(result.oversize.map((info) => info.eventId)).toEqual(["2"])
+    expect(result.headers).toEqual([undefined, "2"])
+  })
+
+  it("reports an oversized event with no readable id as unidentified", async () => {
+    const big = `data: {"type":"session.updated","properties":{"text":"${"y".repeat(2000)}"}}\n\n`
+    const result = await collect({ blocks: [evt("1"), ...big.match(/[^]{1,700}/g), evt("3")], stopAfter: 2 })
+
+    expect(result.events).toEqual(["1", "3"])
+    expect(result.oversize).toEqual([expect.objectContaining({ eventId: null })])
   })
 })
 

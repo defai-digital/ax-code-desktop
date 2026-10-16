@@ -205,6 +205,16 @@ export function acceptDirectoryMessageStreamWsConnection({
           upstreamConnected = false
         },
         onEvent: forwardEvent,
+        onOversize({ eventId, bytes }) {
+          console.warn(`Directory message stream skipped an upstream event of ${bytes} bytes; requesting a resync`)
+          forwardEvent({
+            envelope: { directory: "global", eventId: null },
+            payload: {
+              type: "server.resync_required",
+              properties: { reason: "event_too_large", cursor: eventId ?? undefined },
+            },
+          })
+        },
         onError(error) {
           if (controller.signal.aborted) {
             return

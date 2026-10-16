@@ -55,6 +55,56 @@ describe("createGlobalMessageStreamHub", () => {
     },
   )
 
+  it("skips an event over the buffer ceiling and tells clients to resync instead of looping", async () => {
+    const received = []
+    const requested = []
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const huge = `id: evt-2\ndata: {"type":"message.part.updated","properties":{"text":"${"y".repeat(1_200_000)}"}}\n\n`
+    const hub = createGlobalMessageStreamHub({
+      buildAxCodeUrl: (pathname) => `http://127.0.0.1:4096${pathname}`,
+      getAxCodeAuthHeaders: () => ({}),
+      upstreamReconnectDelayMs: 100,
+      fetchImpl: async (_url, init) => {
+        requested.push(init.headers["Last-Event-ID"])
+        return createSseResponse({
+          signal: init.signal,
+          holdOpen: true,
+          blocks: [
+            'data: {"type":"server.connected","properties":{}}\n\n',
+            'id: evt-1\ndata: {"type":"session.updated","properties":{}}\n\n',
+            ...huge.match(/[^]{1,65536}/g),
+            'id: evt-3\ndata: {"type":"session.updated","properties":{}}\n\n',
+          ],
+        })
+      },
+    })
+    hub.subscribeEvent((event) => received.push(event))
+    try {
+      hub.start()
+      await waitForAssertion(() => expect(received.at(-1)?.eventId).toBe("evt-3"))
+
+      expect(received.map((event) => event.payload.type)).toEqual([
+        "session.updated",
+        "server.resync_required",
+        "session.updated",
+      ])
+      expect(received[1]).toMatchObject({
+        directory: "global",
+        eventId: undefined,
+        payload: { properties: { reason: "event_too_large", cursor: "evt-2" } },
+      })
+      // One connection: the oversized event did not trigger a reconnect.
+      expect(requested).toEqual([undefined])
+      // A client that reconnects later is told about the gap too.
+      const replay = hub.replayAfter("evt-1")
+      expect(replay.resyncRequired).toBe(true)
+      expect(replay.entries.map((entry) => entry.payload.type)).toEqual(["server.resync_required", "session.updated"])
+    } finally {
+      hub.stop()
+      warn.mockRestore()
+    }
+  })
+
   it("keeps the last identified cursor when the replay tail has no id", async () => {
     const received = []
     const hub = createGlobalMessageStreamHub({

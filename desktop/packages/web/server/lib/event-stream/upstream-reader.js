@@ -8,6 +8,27 @@ export const DEFAULT_UPSTREAM_RECONNECT_DELAY_MS = 250
 // ceiling: without one a single hostile or broken stream grows an unbounded
 // string per subscriber until the process runs out of memory.
 export const DEFAULT_UPSTREAM_MAX_BUFFER_BYTES = 1024 * 1024
+// A single event larger than the buffer ceiling is skipped, not fatal: tearing the
+// connection down makes the runtime replay the same event after `Last-Event-ID`,
+// which wedges the stream in a reconnect loop behind it. Skipping is bounded by
+// this size (the SDK's own per-event cap); a block beyond it is treated as a
+// broken stream and the connection is dropped, as before.
+export const DEFAULT_UPSTREAM_MAX_EVENT_BYTES = 16 * 1024 * 1024
+// While skipping, only enough of the tail is kept to spot an event separator
+// ("\n\n", or "\r\n\r\n" normalized) that straddles two chunks.
+const OVERSIZE_TAIL_CHARS = 3
+const OVERSIZE_ID_SCAN_CHARS = 4096
+
+// The `id:` line normally leads the block, so it is readable from the head of an
+// event whose body is too large to keep.
+function readLeadingEventId(buffer) {
+  const lines = buffer.slice(0, OVERSIZE_ID_SCAN_CHARS).split("\n")
+  if (buffer.length > OVERSIZE_ID_SCAN_CHARS) lines.pop()
+  for (const line of lines) {
+    if (line.startsWith("id:")) return line.slice(3).trim() || null
+  }
+  return null
+}
 
 function resolveTimeoutMs(value, fallback) {
   const resolved = typeof value === "function" ? value() : value
@@ -63,7 +84,9 @@ export function createUpstreamSseReader({
   stallTimeoutMs = DEFAULT_UPSTREAM_STALL_TIMEOUT_MS,
   reconnectDelayMs = DEFAULT_UPSTREAM_RECONNECT_DELAY_MS,
   maxBufferBytes = DEFAULT_UPSTREAM_MAX_BUFFER_BYTES,
+  maxEventBytes = DEFAULT_UPSTREAM_MAX_EVENT_BYTES,
   onEvent,
+  onOversize,
   onConnect,
   onDisconnect,
   onError,
@@ -171,6 +194,14 @@ export function createUpstreamSseReader({
           const decoder = new TextDecoder()
           reader = response.body.getReader()
           let buffer = ""
+          // Set while an event larger than maxBufferBytes is being skipped.
+          let oversize = null
+          const settleOversize = () => {
+            if (!oversize) return
+            const skipped = oversize
+            oversize = null
+            onOversize?.({ eventId: skipped.eventId, bytes: skipped.bytes })
+          }
 
           resetStallTimer()
 
@@ -182,13 +213,19 @@ export function createUpstreamSseReader({
 
             resetStallTimer()
             buffer = `${buffer}${decoder.decode(value, { stream: true })}`.replace(/\r\n/g, "\n")
-            if (buffer.length > maxBufferBytes) {
-              // The peer is streaming data that never completes an event block.
-              // Drop this connection (the outer loop reconnects) instead of
-              // buffering until the process dies.
-              throw new Error(
-                `upstream event stream exceeded ${maxBufferBytes} bytes without a complete event`,
-              )
+            if (oversize) {
+              oversize.bytes += value.byteLength
+              const end = buffer.indexOf("\n\n")
+              if (end === -1) {
+                if (oversize.bytes > Math.max(maxEventBytes, maxBufferBytes)) {
+                  settleOversize()
+                  throw new Error(`upstream event exceeded ${maxEventBytes} bytes without a complete event`)
+                }
+                buffer = buffer.slice(-OVERSIZE_TAIL_CHARS)
+                continue
+              }
+              buffer = buffer.slice(end + 2)
+              settleOversize()
             }
 
             let separatorIndex = buffer.indexOf("\n\n")
@@ -215,6 +252,28 @@ export function createUpstreamSseReader({
               }
               separatorIndex = buffer.indexOf("\n\n")
             }
+
+            // Only the incomplete tail counts toward the ceiling: a chunk may carry
+            // many complete events. A tail that is still growing past it is one
+            // event too large to hold (or a peer that never ends a block).
+            if (buffer.length > maxBufferBytes && !stopped && !signal?.aborted) {
+              oversize = { eventId: readLeadingEventId(buffer), bytes: buffer.length }
+              // Advance the cursor past the skipped event so a reconnect does not
+              // ask the runtime to replay it.
+              if (oversize.eventId) lastEventId = oversize.eventId
+              if (oversize.bytes > Math.max(maxEventBytes, maxBufferBytes)) {
+                settleOversize()
+                throw new Error(`upstream event exceeded ${maxEventBytes} bytes without a complete event`)
+              }
+              buffer = buffer.slice(-OVERSIZE_TAIL_CHARS)
+            }
+          }
+
+          if (oversize) {
+            // The stream ended mid-skip: the event is lost, so consumers must resync.
+            if (!stopped && !signal?.aborted) settleOversize()
+            oversize = null
+            buffer = ""
           }
 
           if (!stopped && !signal?.aborted && buffer.trim().length > 0) {

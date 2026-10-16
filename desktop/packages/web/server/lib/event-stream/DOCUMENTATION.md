@@ -39,7 +39,7 @@ This module contains the AX Code Desktop message-stream WebSocket protocol and r
 
 - `DEFAULT_UPSTREAM_STALL_TIMEOUT_MS`: default idle timeout before an attached upstream SSE fetch is aborted for reconnect.
 - `DEFAULT_UPSTREAM_RECONNECT_DELAY_MS`: default delay between upstream reconnect attempts.
-- `createUpstreamSseReader(...)`: creates a start/stop reader for AX Code SSE streams. The reader parses SSE blocks, tracks the latest `Last-Event-ID`, reconnects after closed or stalled upstream streams, and reports events through callbacks.
+- `createUpstreamSseReader(...)`: creates a start/stop reader for AX Code SSE streams. The reader parses SSE blocks, tracks the latest `Last-Event-ID`, reconnects after closed or stalled upstream streams, and reports events through callbacks. An event larger than the buffer ceiling (`maxBufferBytes`, 1 MiB) is skipped on the same connection with its `id:` taken from the block head so the cursor moves past it, and `onOversize({ eventId, bytes })` fires once the event has been skipped. The global hub and directory bridge turn that into a `server.resync_required` (`reason: "event_too_large"`) event, because the skipped event cannot be replayed. Only a block beyond `maxEventBytes` (16 MiB) drops the connection.
 - `shouldTriggerUpstreamHealthCheck(upstream)`: shared policy for deciding whether an initial upstream failure should prod AX Code health monitoring.
 
 ## Runtime behavior

@@ -58,6 +58,19 @@ export function createGlobalMessageStreamHub({
     }
   }
 
+  // Replay and fan-out share one path so a synthetic event is recoverable exactly
+  // like an upstream one.
+  const publish = (normalized) => {
+    replay.push(normalized)
+    if (replay.length > replayLimit) {
+      replay.splice(0, replay.length - replayLimit)
+    }
+
+    for (const subscriber of Array.from(eventSubscribers)) {
+      notifySubscriber("event", subscriber, normalized)
+    }
+  }
+
   const start = () => {
     if (reader) {
       return
@@ -110,14 +123,25 @@ export function createGlobalMessageStreamHub({
         }
         // Preserve unidentified domain events too. Their position cannot be
         // acknowledged independently, so replay across them requires a snapshot.
-        replay.push(normalized)
-        if (replay.length > replayLimit) {
-          replay.splice(0, replay.length - replayLimit)
+        publish(normalized)
+      },
+      onOversize({ eventId, bytes }) {
+        if (!isCurrentConnection()) {
+          return
         }
-
-        for (const subscriber of Array.from(eventSubscribers)) {
-          notifySubscriber("event", subscriber, normalized)
-        }
+        console.warn(`Global message stream skipped an upstream event of ${bytes} bytes; requesting a resync`)
+        // The skipped event is gone, so every client needs an authoritative
+        // snapshot. It carries no event id: replay then also reports a gap to a
+        // client that reconnects later, instead of silently omitting the event.
+        publish({
+          envelope: null,
+          payload: {
+            type: "server.resync_required",
+            properties: { reason: "event_too_large", cursor: eventId ?? undefined },
+          },
+          directory: "global",
+          eventId: undefined,
+        })
       },
       onError(error) {
         if (!isCurrentConnection() || controller?.signal.aborted) {

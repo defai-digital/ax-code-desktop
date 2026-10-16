@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { createSseResponse } from "./test-helpers.js"
 import { createGlobalUiEventBroadcaster, createMessageStreamWsRuntime } from "./runtime.js"
@@ -292,6 +292,58 @@ describe("message stream websocket runtime", () => {
 
     socket.close()
     await runtime.close()
+  })
+
+  it("sends a resync frame instead of dropping the stream when a directory event is too large", async () => {
+    const server = new EventEmitter()
+    const huge = `id: evt-2\ndata: {"type":"message.part.updated","properties":{"text":"${"y".repeat(1_200_000)}"}}\n\n`
+    const requested = []
+    const runtime = createMessageStreamWsRuntime({
+      server,
+      uiAuthController: null,
+      isRequestOriginAllowed: async () => true,
+      rejectWebSocketUpgrade() {
+        throw new Error("upgrade should not be used in this test")
+      },
+      buildAxCodeUrl: (path) => `http://127.0.0.1:4096${path}`,
+      getAxCodeAuthHeaders: () => ({}),
+      processForwardedEventPayload() {},
+      wsClients: new Set(),
+      heartbeatIntervalMs: 1000,
+      upstreamReconnectDelayMs: 0,
+      fetchImpl: async (_url, options) => {
+        requested.push(options.headers["Last-Event-ID"])
+        return createSseResponse({
+          signal: options.signal,
+          holdOpen: true,
+          blocks: [
+            'id: evt-1\ndata: {"type":"server.connected","properties":{}}\n\n',
+            ...huge.match(/[^]{1,65536}/g),
+            'id: evt-3\ndata: {"type":"session.updated","properties":{}}\n\n',
+          ],
+        })
+      },
+    })
+
+    const socket = new FakeSocket()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      runtime.wsServer.emit("connection", socket, { url: "/api/event/ws?directory=/tmp/project" })
+      await waitFor(() => socket.sent.some((frame) => frame.eventId === "evt-3"))
+
+      const types = socket.sent.filter((frame) => frame.type === "event").map((frame) => frame.payload.type)
+      expect(types).toEqual(["server.resync_required", "session.updated"])
+      // Framed like every event on this stream; the renderer routes a resync to global itself.
+      expect(socket.sent.find((frame) => frame.payload?.type === "server.resync_required")).toMatchObject({
+        directory: "/tmp/project",
+        payload: { properties: { reason: "event_too_large", cursor: "evt-2" } },
+      })
+      expect(requested).toEqual([undefined])
+    } finally {
+      socket.close()
+      await runtime.close()
+      warn.mockRestore()
+    }
   })
 
   it("registers ready directory websocket clients for synthetic UI broadcasts", async () => {

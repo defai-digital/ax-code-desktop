@@ -92,6 +92,9 @@ export const createAxCodeWatcherRuntime = (deps) => {
         }
         onPayload(payload)
       },
+      onOversize({ bytes }) {
+        console.warn(`[PushWatcher] skipped an upstream event of ${bytes} bytes`)
+      },
       onError(error) {
         if (signal.aborted) {
           return
