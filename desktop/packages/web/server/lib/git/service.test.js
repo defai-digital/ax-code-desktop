@@ -1519,6 +1519,30 @@ describe("stageHunk and unstageHunk", () => {
     await expect(stageHunk(repo, "file.txt", patch)).rejects.toThrow("Patch does not target file.txt")
   })
 
+  it("rejects a second file section that carries no diff --git line", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    writeTwoEditFile(repo)
+    // One `diff --git` line, so counting those is satisfied, but the patch still declares a second file section
+    // and `git apply` would stage or unstage a hunk of it.
+    const patch = [
+      "diff --git a/file.txt b/file.txt",
+      "--- a/file.txt",
+      "+++ b/file.txt",
+      "@@ -1,1 +1,1 @@",
+      "-x",
+      "+y",
+      "--- a/other.txt",
+      "+++ b/other.txt",
+      "@@ -1,1 +1,1 @@",
+      "-x",
+      "+y",
+      "",
+    ].join("\n")
+
+    await expect(stageHunk(repo, "file.txt", patch)).rejects.toThrow("Patch does not target file.txt")
+  })
+
   it("rejects an empty patch payload", async () => {
     if (!canRunGit()) return
     const repo = createHunkTestRepo()

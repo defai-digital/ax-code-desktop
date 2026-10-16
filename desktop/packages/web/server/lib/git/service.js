@@ -2815,26 +2815,55 @@ const unquoteGitHeaderPath = (value) => {
   return Buffer.from(bytes).toString("utf8")
 }
 
+const HUNK_HEADER_PATTERN = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/
+
+/**
+ * The file sections a patch declares: its `--- `/`+++ ` header pairs that are not part of a hunk body.
+ *
+ * A hunk body is content — its lines start with ` `, `+`, `-` or `\` — and a removed `-- old` line directly above
+ * the added `++ new` line that replaces it renders as `--- old` / `+++ new`, which reads exactly like a header.
+ * The body is consumed by the line counts its `@@ ` header declares (a `\ No newline` marker is not among them, so
+ * it is skipped), and only pairs outside every body are sections. Counting `diff --git` lines is not enough on
+ * its own: a patch can start another file's section straight at a `--- `/`+++ ` pair.
+ */
+const declaredFileSections = (lines) => {
+  const sections = []
+  let index = 0
+  while (index < lines.length) {
+    const hunk = HUNK_HEADER_PATTERN.exec(lines[index])
+    if (hunk) {
+      const oldCount = hunk[1] === undefined ? 1 : Number(hunk[1])
+      const newCount = hunk[2] === undefined ? 1 : Number(hunk[2])
+      let remaining = oldCount + newCount
+      index += 1
+      while (remaining > 0 && index < lines.length) {
+        if (!lines[index].startsWith("\\ ")) {
+          remaining -= 1
+        }
+        index += 1
+      }
+      continue
+    }
+    if (lines[index].startsWith("--- ") && (lines[index + 1] ?? "").startsWith("+++ ")) {
+      sections.push({ preImage: lines[index], postImage: lines[index + 1] })
+      index += 2
+      continue
+    }
+    index += 1
+  }
+  return sections
+}
+
 const patchTargetsDeclaredPath = (patchText, repoPath) => {
   const allLines = patchText.split("\n")
-  // One file section only. Section boundaries are the `diff --git` lines a patch carries, and a hunk body cannot
-  // start one (its lines are prefixed with ` `, `+` or `-`), so counting them catches the case the test below
-  // covers — another file's whole section appended after ours.
-  if (allLines.filter((line) => line.startsWith("diff --git ")).length > 1) {
+  // One file only: a second section would let the patch edit another file, whether it carries its own
+  // `diff --git` line or starts straight at a `--- `/`+++ ` pair.
+  const sections = declaredFileSections(allLines)
+  if (sections.length !== 1) {
     return false
   }
-  // The `---`/`+++` pair check has to stay in the header region: a hunk body can hold a removed `-- old` line
-  // directly above the added `++ new` line that replaces it, which renders as `--- old` / `+++ new` and reads
-  // exactly like a second file header — scanning the whole patch rejected such a valid single-file patch.
-  // Headers always precede the first `@@ ` hunk header in a unified diff.
-  const firstHunkIndex = allLines.findIndex((line) => line.startsWith("@@ "))
-  const lines = firstHunkIndex === -1 ? allLines : allLines.slice(0, firstHunkIndex)
-  // One file only: a second `---`/`+++` header pair would let the patch edit another file.
-  const headerPairs = lines.filter((line, index) => line.startsWith("--- ") && lines[index + 1]?.startsWith("+++ "))
-  if (headerPairs.length !== 1) {
-    return false
-  }
-  const postImage = lines.find((line) => line.startsWith("+++ "))
+  const [section] = sections
+  const postImage = section?.postImage
   if (!postImage) {
     return false
   }
@@ -2845,8 +2874,7 @@ const patchTargetsDeclaredPath = (patchText, repoPath) => {
   }
 
   if (postImagePath === "/dev/null") {
-    const preImage = lines.find((line) => line.startsWith("--- "))
-    return Boolean(preImage) && unquoteGitHeaderPath(preImage.slice(4).trim()) === `a/${repoPath}`
+    return unquoteGitHeaderPath((section.preImage ?? "").slice(4).trim()) === `a/${repoPath}`
   }
 
   return false
