@@ -335,6 +335,11 @@ export const createSessionRuntime = ({ writeSseEvent, getNotificationClients, br
       }
     }
     for (const [sessionId, data] of sessionActivityPhases) {
+      // Only idle entries are forgotten. A busy entry's `updatedAt` stops moving while
+      // the phase repeats, so aging it out dropped a session that is still working from
+      // the activity snapshot — and with it the busy count the wedged-session kill
+      // honors. Live work keeps its entry; the map stays bounded by live sessions.
+      if (data.phase !== "idle") continue
       if (now - data.updatedAt > SESSION_ATTENTION_MAX_AGE_MS) {
         sessionActivityPhases.delete(sessionId)
       }

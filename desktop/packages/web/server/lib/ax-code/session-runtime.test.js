@@ -37,6 +37,44 @@ describe("session runtime restart", () => {
   })
 })
 
+describe("session runtime activity cleanup", () => {
+  it("does not forget a session that is still busy when the age-based cleanup runs", async () => {
+    // `updatedAt` only moves when the phase changes, so a session that stays busy for a
+    // day was evicted by the hourly cleanup: it vanished from the activity snapshot and
+    // the busy count main uses to spare a wedged session dropped to zero.
+    vi.useFakeTimers()
+    try {
+      const runtime = createSessionRuntime({
+        writeSseEvent() {},
+        getNotificationClients: () => new Set(),
+        broadcastEvent() {},
+      })
+
+      runtime.processAxCodeSsePayload({
+        type: "session.status",
+        properties: { sessionID: "session-busy", status: { type: "busy" } },
+      })
+      runtime.processAxCodeSsePayload({
+        type: "session.status",
+        properties: { sessionID: "session-idle", status: { type: "idle" } },
+      })
+      // The cooldown entry settles into idle, which is what the cleanup is for.
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(runtime.getSessionActivitySnapshot()["session-idle"].type).toBe("idle")
+
+      await vi.advanceTimersByTimeAsync(25 * 60 * 60 * 1000)
+
+      const snapshot = runtime.getSessionActivitySnapshot()
+      expect(snapshot["session-busy"]?.type).toBe("busy")
+      expect(snapshot["session-idle"]).toBeUndefined()
+
+      runtime.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe("session runtime tracking caps", () => {
   const runtimes = []
 
