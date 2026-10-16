@@ -3,7 +3,6 @@ import { createRoot } from "react-dom/client"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import type { GitStatus } from "@/lib/api/types"
 import { I18nProvider } from "@/lib/i18n"
-import { useUIStore } from "@/stores/useUIStore"
 
 vi.doMock("@/lib/device", () => ({
   useDeviceInfo: () => ({ isMobile: false, hasTouchInput: false }),

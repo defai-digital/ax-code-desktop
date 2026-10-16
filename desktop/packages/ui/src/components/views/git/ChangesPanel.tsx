@@ -225,9 +225,13 @@ export const ChangesPanel: React.FC<ChangesPanelProps> = ({
   // the scroll element was attached (so it was empty), and that value was returned forever -
   // at 1000+ changed files the panel rendered no rows at all inside a full-height scroll
   // area. The other virtualizers in this repo read it inline during render for the same
-  // reason; the prefetch effect below compares the paths it reported instead of relying on
-  // the array's identity.
+  // reason. The prefetch effect below reads it through a ref and re-runs on the visible
+  // indexes, which is what actually changes with scrolling; it also compares the paths it
+  // reported, so a re-render with the same window does not re-notify the parent.
   const virtualRows = shouldVirtualize && totalSize >= 0 ? rowVirtualizer.getVirtualItems() : []
+  const visibleRowIndexes = virtualRows.map((item) => item.index).join(",")
+  const virtualRowsRef = React.useRef(virtualRows)
+  virtualRowsRef.current = virtualRows
   const reportedPathsRef = React.useRef<string[] | null>(null)
 
   React.useEffect(() => {
@@ -269,9 +273,11 @@ export const ChangesPanel: React.FC<ChangesPanelProps> = ({
     }
 
     report(
-      virtualRows.map((item) => collectFromRow(rows[item.index])).filter((value): value is string => Boolean(value)),
+      virtualRowsRef.current
+        .map((item) => collectFromRow(rows[item.index]))
+        .filter((value): value is string => Boolean(value)),
     )
-  }, [onVisiblePathsChange, rowCount, rows, shouldVirtualize, virtualRows])
+  }, [onVisiblePathsChange, rowCount, rows, shouldVirtualize, visibleRowIndexes])
 
   const toggleGroupCollapsed = React.useCallback((groupId: string) => {
     setCollapsedGroups((previous) => {
