@@ -861,6 +861,48 @@ const reloadCommandsAfterGap = () => {
   void useCommandsStore.getState().loadCommands()
 }
 
+// A directory with a snapshot pass in flight. Replay gaps can arrive in a burst
+// and a gap can land while a reconnect pass runs, and two overlapping passes could
+// write an older snapshot over newer state, so both entry points share this guard.
+const snapshotRecoveryInFlight = new Set<string>()
+
+export function triggerDirectorySnapshotRecovery(
+  directory: string,
+  store: StoreApi<DirectoryStore>,
+  routingIndex: EventRoutingIndex,
+  recover: typeof resyncDirectoryAfterReconnect = resyncDirectoryAfterReconnect,
+) {
+  if (snapshotRecoveryInFlight.has(directory)) return
+  snapshotRecoveryInFlight.add(directory)
+  void recover(directory, store, routingIndex)
+    .catch(() => {
+      // Transient failure — the watchdog, next SSE event, or reconnect will catch up.
+    })
+    .finally(() => {
+      snapshotRecoveryInFlight.delete(directory)
+    })
+}
+
+/**
+ * A replay gap (`server.resync_required`) dropped events this client can never ask
+ * for again, and the session index plus the directory bootstrap both stop at
+ * metadata: without this, a session whose `message.part.updated` was dropped keeps
+ * that part stale (a tool part that never finishes, for example). Each directory
+ * with a store takes the same per-session snapshot pass as a reconnect.
+ * Exposed for unit testing. Not part of the stable consumer surface.
+ */
+export function recoverSessionSnapshotsAfterGap(
+  childStores: ChildStoreManager,
+  routingIndex: EventRoutingIndex,
+  recover?: typeof resyncDirectoryAfterReconnect,
+) {
+  for (const directory of childStores.children.keys()) {
+    const store = childStores.getChild(directory)
+    if (!store) continue
+    triggerDirectorySnapshotRecovery(directory, store, routingIndex, recover)
+  }
+}
+
 function handleEvent(
   rawDirectory: string,
   payload: Event,
@@ -897,6 +939,10 @@ function handleEvent(
       if (requiresResync) {
         void useGlobalSessionsStore.getState().loadSessions()
         reloadCommandsAfterGap()
+        // ...and the per-session snapshots: the index reload and the directory
+        // bootstrap below both stop at metadata, so a dropped message or part
+        // event would leave its session stale (a tool part that never completes).
+        recoverSessionSnapshotsAfterGap(childStores, routingIndex)
       }
     } else if (result.type === "project") {
       const current = useGlobalSyncStore.getState()
@@ -1206,7 +1252,6 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
   if (!routingIndexRef.current) routingIndexRef.current = createEventRoutingIndex()
   const routingIndex = routingIndexRef.current
   const lastStatusPollAtByDirectoryRef = useRef(new Map<string, number>())
-  const resyncingDirectoriesRef = useRef(new Set<string>())
   const statusPollingDirectoriesRef = useRef(new Set<string>())
 
   const system = useMemo<SyncSystem>(
@@ -1222,17 +1267,9 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
     (directory: string) => {
       const store = childStores.children.get(directory)
       if (!store) return
-      const resyncing = resyncingDirectoriesRef.current
-      if (resyncing.has(directory)) return
-
-      resyncing.add(directory)
-      void resyncDirectoryAfterReconnect(directory, store, routingIndex)
-        .catch(() => {
-          // Transient failure — the watchdog, next SSE event, or reconnect will catch up.
-        })
-        .finally(() => {
-          resyncing.delete(directory)
-        })
+      // The in-flight guard is shared with the replay-gap recovery, so a gap and a
+      // reconnect cannot run two passes over the same directory at once.
+      triggerDirectorySnapshotRecovery(directory, store, routingIndex)
     },
     [childStores, routingIndex],
   )

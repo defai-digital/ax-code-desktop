@@ -265,3 +265,57 @@ describe("resyncBlockingRequestsForDirectory", () => {
     expect(listPendingPermissionsCalls).toHaveLength(1)
   })
 })
+
+describe("replay-gap snapshot recovery", () => {
+  const buildChildStores = (directories: string[]) => {
+    const stores = new Map(directories.map((directory) => [directory, createDirectoryStore({})]))
+    return {
+      children: stores,
+      getChild: (directory: string) => stores.get(directory),
+    }
+  }
+
+  test("takes a snapshot pass for every directory that has a store", async () => {
+    const { recoverSessionSnapshotsAfterGap } = await import("../sync-context")
+    const recovered: string[] = []
+    const childStores = buildChildStores(["/repo", "/other"])
+
+    recoverSessionSnapshotsAfterGap(
+      childStores as unknown as Parameters<typeof recoverSessionSnapshotsAfterGap>[0],
+      {} as unknown as Parameters<typeof recoverSessionSnapshotsAfterGap>[1],
+      async (directory) => {
+        recovered.push(directory)
+      },
+    )
+
+    expect(recovered).toEqual(["/repo", "/other"])
+  })
+
+  test("skips a directory whose pass is still running, and allows it again after", async () => {
+    const { recoverSessionSnapshotsAfterGap } = await import("../sync-context")
+    const childStores = buildChildStores(["/repo"])
+    const started: string[] = []
+    let release = () => {}
+    const recover = async (directory: string) => {
+      started.push(directory)
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+    }
+    const run = () =>
+      recoverSessionSnapshotsAfterGap(
+        childStores as unknown as Parameters<typeof recoverSessionSnapshotsAfterGap>[0],
+        {} as unknown as Parameters<typeof recoverSessionSnapshotsAfterGap>[1],
+        recover,
+      )
+
+    run()
+    run()
+    expect(started).toEqual(["/repo"])
+
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    run()
+    expect(started).toEqual(["/repo", "/repo"])
+  })
+})
