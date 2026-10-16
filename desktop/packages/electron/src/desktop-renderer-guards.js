@@ -42,6 +42,41 @@ const createUpdateInstallGate = () => {
 }
 
 /**
+ * Resolves `true` as soon as the updater announces that quitting for the install
+ * has begun, and `false` when the deadline passes first.
+ *
+ * `quitAndInstall()` is fire-and-forget: it can refuse to install without quitting
+ * the app (an unsigned build failing native verification, a missing installer, a
+ * spawn failure). By then the caller has already stopped every service, so claiming
+ * success would leave the app running on a dead runtime with nothing telling the
+ * user why. The app's own quit counts as the same signal, so a slow quit is not
+ * reported as a failure.
+ */
+const DEFAULT_INSTALL_START_TIMEOUT_MS = 30_000
+
+const waitForInstallStart = ({ updater, app, timeoutMs = DEFAULT_INSTALL_START_TIMEOUT_MS } = {}) =>
+  new Promise((resolve) => {
+    let settled = false
+    let timer = null
+    const finish = (started) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      updater?.removeListener?.("before-quit-for-update", onStarted)
+      app?.removeListener?.("before-quit", onStarted)
+      resolve(started)
+    }
+    const onStarted = () => finish(true)
+    timer = setTimeout(() => finish(false), timeoutMs)
+    // Must not keep the process alive while the app is meant to be quitting.
+    timer.unref?.()
+    // Attached before the caller calls `quitAndInstall`: the announcement can
+    // arrive immediately.
+    updater?.once?.("before-quit-for-update", onStarted)
+    app?.once?.("before-quit", onStarted)
+  })
+
+/**
  * Blocks every navigation of `webContents` (renderer-initiated AND
  * server-side redirects) that `isTrustedUrl` rejects. A renderer that lands on
  * a remote page keeps its preload bridge, so both paths must be guarded;
@@ -62,4 +97,5 @@ module.exports = {
   attachRendererNavigationGuards,
   createUpdateInstallGate,
   quotePowerShellLiteral,
+  waitForInstallStart,
 }

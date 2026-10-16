@@ -112,6 +112,7 @@ const {
   attachRendererNavigationGuards,
   createUpdateInstallGate,
   quotePowerShellLiteral,
+  waitForInstallStart,
 } = require("./desktop-renderer-guards")
 const { createTrayController } = require("./tray.mjs")
 const { createLanguageController } = require("../../../shared/localization.mjs")
@@ -1100,7 +1101,16 @@ handleCommand("desktop_quit_and_install", async () => {
     return { installed: false, reason: "no-downloaded-update" }
   }
   await shutdownForExit()
+  // Attached before the call and awaited after it: `quitAndInstall()` can refuse
+  // the install without quitting, and every service is already stopped here.
+  const installStarted = waitForInstallStart({ updater: autoUpdater, app })
   autoUpdater.quitAndInstall()
+  if (!(await installStarted)) {
+    // Nothing is installable any more, and the renderer has to hear it: leaving the
+    // gate set would let the user retry straight back into the same dead state.
+    updateInstallGate.onNotInstallable()
+    return { installed: false, reason: "install-not-started" }
+  }
   return { installed: true, version: updateInstallGate.version() ?? undefined }
 })
 

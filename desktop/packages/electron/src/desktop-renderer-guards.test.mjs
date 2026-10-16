@@ -7,6 +7,7 @@ const {
   attachRendererNavigationGuards,
   createUpdateInstallGate,
   quotePowerShellLiteral,
+  waitForInstallStart,
 } = require("./desktop-renderer-guards.js")
 
 describe("quotePowerShellLiteral", () => {
@@ -94,5 +95,33 @@ describe("attachRendererNavigationGuards", () => {
 
   test("ignores contents without an event API", () => {
     expect(() => attachRendererNavigationGuards(null, {})).not.toThrow()
+  })
+})
+
+describe("waitForInstallStart", () => {
+  test("resolves once the install quit starts, and reports a refusal otherwise", async () => {
+    vi.useFakeTimers()
+    try {
+      const updater = new EventEmitter()
+      const app = new EventEmitter()
+
+      const started = waitForInstallStart({ updater, app, timeoutMs: 1_000 })
+      updater.emit("before-quit-for-update")
+      await expect(started).resolves.toBe(true)
+
+      // The updater refusing (unsigned build failing native verification, a missing
+      // installer, a spawn failure) quits nothing: by this point the services are
+      // already down, so the caller must be told the install never began.
+      const refused = waitForInstallStart({ updater, app, timeoutMs: 1_000 })
+      await vi.advanceTimersByTimeAsync(1_000)
+      await expect(refused).resolves.toBe(false)
+
+      // A quit that begins without the updater's announcement is the same outcome.
+      const quitting = waitForInstallStart({ updater, app, timeoutMs: 1_000 })
+      app.emit("before-quit")
+      await expect(quitting).resolves.toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
