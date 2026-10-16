@@ -805,6 +805,23 @@ was written.
   answers the second half of that finding: the manual click reports the run's real outcome instead of
   an empty one.
 
+- **`711c34c0`** — three multi-run defects that each threw away input the UI had already collected.
+  `MultiRunLauncher` listened for Escape on `window` in the *capture* phase and called
+  `stopPropagation`, so the listener ran before the prompt autocompletes ever saw the event: Escape
+  with a command, file or snippet popup open closed the whole launcher and dropped every typed prompt.
+  It now listens on the bubble phase and returns early on `defaultPrevented`, which is the flag
+  `handlePromptKeyDown` sets when a popup consumes Escape. `MultiRunWindow` handed the launcher
+  `onCancel={() => onOpenChange(false)}`, walking past the `hasOpenFloatingMenu()` guard that its own
+  base-ui `Dialog` handler and a comment above it exist to uphold; the launcher now receives
+  `requestClose`, which honours the guard. `MultiRunFusionDialog` rebuilt its source list from the live
+  sessions inside an effect that had the live session array in its dependency list and wrote the result
+  back unconditionally, so any session event resurrected a source the user had dismissed with the ✕ and
+  silently put it back into the fusion prompt; exclusions are now a session-id set, applied during the
+  rebuild and cleared when the dialog closes. This round also gave the `multirun` surface its first
+  test harness (jsdom + `createRoot`, stubbed stores): `MultiRunLauncher.test.tsx`,
+  `MultiRunFusionDialog.test.tsx` and `MultiRunWindow.test.tsx`, each case confirmed failing against the
+  previous code.
+
 ### Waiting for a first re-check
 
 Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
@@ -812,7 +829,8 @@ reviewer linked:
 
 - `sections/providers/ProvidersPage.tsx:125` (the remaining settings lead).
 - `hooks/**` — one remaining: a skipped manual cleanup reported as "no sessions are eligible".
-- `components/{supervision,multirun}` — four confirmed and one suspected.
+- `components/{supervision,multirun}` — three findings in the supervision surface are still unread
+  (the multi-run ones above are fixed), plus one suspected.
 - `stores/**` — a snippets cache key that races the in-flight directory (low), and a provider-cache
   invalidation epoch question (suspected). `useDirectoryStore.setDirectory`'s side effects inside the
   updater were moved out with the rest of the store (`99093e86`). The reviewer's other leads about the
@@ -929,8 +947,8 @@ One gap remains, recorded rather than fixed:
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 503, web 1 046 (+2 skipped), electron 566, root
-  scripts 175.
+- Test totals at the last run: ui 2 619, web 1 099 (+2 skipped), electron 574, root
+  scripts 179 (+6 skipped).
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
   scripts, no sibling dependencies, source ownership, runtime pin, release policy
