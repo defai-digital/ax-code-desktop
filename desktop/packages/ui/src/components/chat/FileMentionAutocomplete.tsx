@@ -429,6 +429,10 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
       commitPickerOpen,
       terminalRowKey,
       visibleCommitKey,
+      // A search hides the file rows behind a spinner and drops them from the key sequence, so the selection has
+      // to move onto the context rows that stay on screen: left on a hidden row, Enter wrapped modulo the shorter
+      // list and attached a row that carried no selection.
+      loading,
     ])
 
     React.useEffect(() => {

@@ -381,6 +381,67 @@ describe("FileMentionAutocomplete context mentions", () => {
     })
   })
 
+  test("puts the selection on the first context row when a search starts", async () => {
+    // A search swaps the file rows out for a spinner while the context rows stay on screen, and the keys stay
+    // live for them. `selectedIndex` was left where the file list had it: with one context row and file row 1
+    // selected, the row the user had picked was no longer rendered while Enter still wrapped onto the context
+    // row below the spinner.
+    setTerminalOutput(["ready\n"])
+    let releaseSearch = () => {}
+    useFileSearchStore.setState({
+      searchFiles: vi.fn((_directory, query: string) => {
+        if (query === "term") {
+          return Promise.resolve([
+            { path: `${ROOT}/terminal.md`, name: "terminal.md", relativePath: "terminal.md" },
+            { path: `${ROOT}/terms.md`, name: "terms.md", relativePath: "terms.md" },
+            { path: `${ROOT}/termux.md`, name: "termux.md", relativePath: "termux.md" },
+          ])
+        }
+        return new Promise((resolve) => {
+          releaseSearch = () => resolve([])
+        })
+      }) as never,
+    })
+
+    renderMenu("term")
+    await flush()
+    expect(labels()).toContain("termux.md")
+
+    await act(async () => {
+      mentionRef.current?.handleKeyDown("ArrowDown")
+    })
+    const selectedText = () => container.querySelector(".bg-interactive-selection")?.textContent ?? ""
+    expect(selectedText()).toContain("terminal.md")
+
+    // A longer query, still a context keyword, so the context row stays on screen while the search runs.
+    renderMenu("terminal")
+    await flush()
+
+    await act(async () => {
+      mentionRef.current?.handleKeyDown("ArrowDown")
+    })
+    expect(selectedText()).toContain("terminal.md")
+
+    // Past the 180 ms input debounce, so the second search has started and is still in flight.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 220))
+    })
+
+    expect(selectedText()).toContain("zsh")
+
+    await act(async () => {
+      mentionRef.current?.handleKeyDown("Enter")
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(onContextAttachment).toHaveBeenCalledTimes(1)
+    expect((onContextAttachment.mock.calls[0]?.[0] as File).name).toBe("Terminal output (zsh)")
+
+    await act(async () => {
+      releaseSearch()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  })
+
   test("keeps the highlighted context row when later terminal output arrives", async () => {
     setTerminalOutput(["one\n"])
     renderMenu("")
