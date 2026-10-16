@@ -1499,6 +1499,7 @@ async function main(options = {}) {
     scheduleAxCodeApiDetection,
     bootstrapAxCodeAtStartup,
     stopAxCodeLifecycle,
+    stopManagedAxCodeProcess: () => gracefulShutdownRuntime.stopManagedAxCodeProcess(),
     triggerHealthCheck,
     staticRoutesRuntime,
     process,

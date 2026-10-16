@@ -27,6 +27,55 @@ export const createGracefulShutdownRuntime = (dependencies) => {
     stopAxCodeLifecycle,
   } = dependencies
 
+  // Close the managed runtime the lifecycle published and make sure its port is free. The shutdown phases run
+  // this as phase 3; the startup pipeline runs it when a failed bind has to abort a runtime the bootstrap has
+  // already started. `stopAxCodeLifecycle` is not enough for that: it flags the shutdown and cancels a spawn
+  // that has begun, but phase 3 is what closes a child that is already up.
+  const stopManagedAxCodeProcess = async () => {
+    if (shouldSkipAxCodeStop()) {
+      console.log("Skipping ax-code shutdown (external server)")
+      return
+    }
+
+    const portToKill = getAxCodePort()
+    const axCodeProcess = getAxCodeProcess()
+
+    if (axCodeProcess) {
+      console.log("Stopping ax-code process...")
+      let closeTimedOut = false
+      let closeTimeout = null
+      try {
+        await Promise.race([
+          axCodeProcess.close(),
+          new Promise((resolve) => {
+            closeTimeout = setTimeout(
+              () => {
+                closeTimedOut = true
+                resolve()
+              },
+              Math.max(1000, shutdownTimeoutMs - 1000),
+            )
+          }),
+        ])
+      } catch (error) {
+        console.warn("Error closing ax-code process:", error)
+      } finally {
+        if (closeTimeout) {
+          clearTimeout(closeTimeout)
+        }
+      }
+      if (closeTimedOut) {
+        console.warn("Timed out closing ax-code process; forcing port cleanup")
+      }
+      setAxCodeProcess(null)
+    }
+
+    killProcessOnPort(portToKill)
+    if (!(await waitForPortRelease(portToKill, 5000))) {
+      console.warn(`Timed out waiting for ax-code port ${portToKill} to be released during shutdown`)
+    }
+  }
+
   const gracefulShutdown = async (options = {}) => {
     if (getIsShuttingDown()) return
 
@@ -93,53 +142,7 @@ export const createGracefulShutdownRuntime = (dependencies) => {
     // Phase 3: ax-code process teardown + HTTP server close in parallel.
     // These are independent: the HTTP server does not depend on the ax-code
     // process, and running them concurrently saves up to shutdownTimeoutMs.
-    const phase3Tasks = []
-
-    if (!shouldSkipAxCodeStop()) {
-      const portToKill = getAxCodePort()
-      const axCodeProcess = getAxCodeProcess()
-
-      phase3Tasks.push(
-        (async () => {
-          if (axCodeProcess) {
-            console.log("Stopping ax-code process...")
-            let closeTimedOut = false
-            let closeTimeout = null
-            try {
-              await Promise.race([
-                axCodeProcess.close(),
-                new Promise((resolve) => {
-                  closeTimeout = setTimeout(
-                    () => {
-                      closeTimedOut = true
-                      resolve()
-                    },
-                    Math.max(1000, shutdownTimeoutMs - 1000),
-                  )
-                }),
-              ])
-            } catch (error) {
-              console.warn("Error closing ax-code process:", error)
-            } finally {
-              if (closeTimeout) {
-                clearTimeout(closeTimeout)
-              }
-            }
-            if (closeTimedOut) {
-              console.warn("Timed out closing ax-code process; forcing port cleanup")
-            }
-            setAxCodeProcess(null)
-          }
-
-          killProcessOnPort(portToKill)
-          if (!(await waitForPortRelease(portToKill, 5000))) {
-            console.warn(`Timed out waiting for ax-code port ${portToKill} to be released during shutdown`)
-          }
-        })(),
-      )
-    } else {
-      console.log("Skipping ax-code shutdown (external server)")
-    }
+    const phase3Tasks = [stopManagedAxCodeProcess()]
 
     const server = getServer()
     if (server) {
@@ -186,5 +189,6 @@ export const createGracefulShutdownRuntime = (dependencies) => {
 
   return {
     gracefulShutdown,
+    stopManagedAxCodeProcess,
   }
 }

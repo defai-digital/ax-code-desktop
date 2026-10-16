@@ -314,6 +314,20 @@ describe("ax-code lifecycle", () => {
     ])
   })
 
+  it("does not spawn when the shutdown began before the first attempt", async () => {
+    // `shutdown()` flags the teardown and aborts the controller an attempt creates for itself, and the retry
+    // loop only checked the flag on its retry path. A shutdown that landed between the caller's bootstrap and
+    // this first attempt therefore spawned a runtime nothing would close.
+    delete process.env.AX_CODE_BINARY
+    startHeadlessBackendMock.mockResolvedValue({ close: vi.fn(async () => undefined) })
+
+    const runtime = createRuntime()
+    runtime.shutdown()
+
+    await expect(runtime.startAxCode()).rejects.toThrow("shutting down")
+    expect(startHeadlessBackendMock).not.toHaveBeenCalled()
+  })
+
   it("does not retry startup after shutdown() aborts the in-progress SDK launch", async () => {
     delete process.env.AX_CODE_BINARY
     // Mirror the real SDK pattern: check signal.aborted after addEventListener so an

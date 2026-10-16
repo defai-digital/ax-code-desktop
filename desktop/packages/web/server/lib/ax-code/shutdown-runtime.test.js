@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createGracefulShutdownRuntime } from "./shutdown-runtime.js"
 
-const createRuntime = (server) =>
+const createRuntime = (server, overrides = {}) =>
   createGracefulShutdownRuntime({
     process: { exit: vi.fn() },
     shutdownTimeoutMs: 1000,
@@ -30,6 +30,7 @@ const createRuntime = (server) =>
     getActiveTunnelController: () => null,
     setActiveTunnelController: vi.fn(),
     destroyAllClientConnections: vi.fn(),
+    ...overrides,
   })
 
 describe("graceful shutdown runtime", () => {
@@ -54,5 +55,26 @@ describe("graceful shutdown runtime", () => {
 
     expect(warnSpy).not.toHaveBeenCalledWith("Server close timeout reached, forcing shutdown")
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("closes the managed process and frees its port in the teardown the pipeline shares", async () => {
+    // The extraction that let the startup pipeline reuse this teardown must keep closing the process the
+    // lifecycle published — the flag/abort hook the pipeline used to call does not.
+    const axCodeProcess = { close: vi.fn(async () => undefined) }
+    const setAxCodeProcess = vi.fn()
+    const killProcessOnPort = vi.fn()
+    const runtime = createRuntime(null, {
+      shouldSkipAxCodeStop: () => false,
+      getAxCodePort: () => 45678,
+      getAxCodeProcess: () => axCodeProcess,
+      setAxCodeProcess,
+      killProcessOnPort,
+    })
+
+    await runtime.gracefulShutdown({ exitProcess: false })
+
+    expect(axCodeProcess.close).toHaveBeenCalledTimes(1)
+    expect(setAxCodeProcess).toHaveBeenCalledWith(null)
+    expect(killProcessOnPort).toHaveBeenCalledWith(45678)
   })
 })

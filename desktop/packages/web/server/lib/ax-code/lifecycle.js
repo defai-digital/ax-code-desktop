@@ -804,6 +804,13 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     const startPromise = (async () => {
       let lastError = null
       for (let attempt = 1; attempt <= START_AX_CODE_MAX_ATTEMPTS; attempt += 1) {
+        // A shutdown can begin before the first attempt — the bootstrap is awaited by the caller, and a failed
+        // bind (or any other teardown) calls shutdown() while this start is still queued. Only the attempt's own
+        // retry path checked the flag, so that first attempt still spawned a child nothing would close.
+        if (state.isShuttingDown) {
+          lastError = lastError ?? new Error("AX Code start skipped: the server is shutting down")
+          break
+        }
         try {
           return await startAxCodeOnce()
         } catch (error) {

@@ -32,6 +32,7 @@ export const createStartupPipelineRuntime = (dependencies) => {
       scheduleAxCodeApiDetection,
       bootstrapAxCodeAtStartup,
       stopAxCodeLifecycle,
+      stopManagedAxCodeProcess,
       staticRoutesRuntime,
       process,
       gracefulShutdown,
@@ -115,11 +116,18 @@ export const createStartupPipelineRuntime = (dependencies) => {
     } catch (error) {
       // The bootstrap above is already spawning (or has spawned) the managed runtime. A failed bind — a port
       // already in use, or a host the loopback policy refuses — used to leave that child running with its port
-      // bound while the process exited, once per failed launch.
+      // bound while the process exited, once per failed launch. `stopAxCodeLifecycle` flags the shutdown and
+      // cancels a spawn that has begun; `stopManagedAxCodeProcess` is what closes a runtime the bootstrap had
+      // already started and published, so both are needed and neither may fail the caller's error.
       try {
         await stopAxCodeLifecycle?.()
       } catch {
         // The original failure is what the caller needs to see.
+      }
+      try {
+        await stopManagedAxCodeProcess?.()
+      } catch {
+        // As above: report the bind failure, not the teardown's.
       }
       throw error
     }
