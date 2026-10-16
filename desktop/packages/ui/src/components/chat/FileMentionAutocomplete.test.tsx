@@ -297,11 +297,12 @@ describe("FileMentionAutocomplete context mentions", () => {
   test("does not attach a hidden file hit while a search is still running", async () => {
     // The list renders a spinner while a search runs, but `files` keeps the previous query's hits until the new
     // one settles: Enter or Tab then attached a mention that was nowhere on screen.
+    setTerminalOutput(["ready\n"])
     let releaseSecondSearch = () => {}
     useFileSearchStore.setState({
       searchFiles: vi.fn((_directory, query: string) => {
-        if (query === "app") {
-          return Promise.resolve([{ path: "/repo/app.tsx", name: "app.tsx", relativePath: "app.tsx" }])
+        if (query === "term") {
+          return Promise.resolve([{ path: "/repo/terms.md", name: "terms.md", relativePath: "terms.md" }])
         }
         return new Promise((resolve) => {
           releaseSecondSearch = () => resolve([])
@@ -326,9 +327,10 @@ describe("FileMentionAutocomplete context mentions", () => {
         ),
       )
 
-    render("app")
+    render("term")
     await flush()
-    render("appl")
+    expect(labels()).toContain("terms.md")
+    render("terms")
     // Past the 180 ms input debounce, so the second search has started and is still in flight.
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 220))
@@ -342,6 +344,39 @@ describe("FileMentionAutocomplete context mentions", () => {
 
     await act(async () => {
       releaseSecondSearch()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  })
+
+  test("still answers the keys for a context row while a search runs", async () => {
+    // The context rows are not behind the spinner, so refusing every key while loading stopped the terminal and
+    // diff rows from being picked at all.
+    setTerminalOutput(["ready\n"])
+    let releaseSearch = () => {}
+    useFileSearchStore.setState({
+      searchFiles: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseSearch = () => resolve([])
+          }),
+      ) as never,
+    })
+
+    renderMenu("term")
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 220))
+    })
+
+    // Attaching a context row reads the terminal store, so the handler's work settles a tick later.
+    await act(async () => {
+      mentionRef.current?.handleKeyDown("Enter")
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onContextAttachment).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      releaseSearch()
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
   })

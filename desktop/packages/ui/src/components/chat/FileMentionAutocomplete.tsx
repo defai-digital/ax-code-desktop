@@ -715,18 +715,20 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
             return
           }
 
-          if (loading) {
-            // The list renders a spinner while a search runs, but the arrays below still hold the previous
-            // query's hits — navigating or committing them attached a mention the user could not see.
-            return
-          }
+          // The rows behind the spinner are not on screen while a search runs, and those arrays still hold the
+          // previous query's hits — but the context rows (terminal, diff, commit picker) stay visible, so the
+          // keys have to keep working for them instead of being refused outright.
+          const keyedAgents = loading ? [] : visibleAgents
+          const keyedDirectories = loading ? [] : visibleDirectories
+          const keyedRecentFiles = loading ? [] : visibleRecentFiles
+          const keyedFiles = loading ? [] : visibleFiles
 
           const total =
             contextEntries.length +
-            visibleAgents.length +
-            visibleDirectories.length +
-            visibleRecentFiles.length +
-            visibleFiles.length
+            keyedAgents.length +
+            keyedDirectories.length +
+            keyedRecentFiles.length +
+            keyedFiles.length
           if (total === 0) {
             return
           }
@@ -749,22 +751,22 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
               return
             }
             const rest = safeIndex - contextEntries.length
-            if (rest < visibleAgents.length) {
-              const agent = visibleAgents[rest]
+            if (rest < keyedAgents.length) {
+              const agent = keyedAgents[rest]
               if (agent) handleAgentPick(agent.name)
               return
             }
-            const dirIndex = rest - visibleAgents.length
-            if (dirIndex < visibleDirectories.length) {
-              const dir = visibleDirectories[dirIndex]
+            const dirIndex = rest - keyedAgents.length
+            if (dirIndex < keyedDirectories.length) {
+              const dir = keyedDirectories[dirIndex]
               if (dir) handleFileSelect(dir)
               return
             }
-            const fileIndex = dirIndex - visibleDirectories.length
+            const fileIndex = dirIndex - keyedDirectories.length
             const selectedFile =
-              fileIndex < visibleRecentFiles.length
-                ? visibleRecentFiles[fileIndex]
-                : visibleFiles[fileIndex - visibleRecentFiles.length]
+              fileIndex < keyedRecentFiles.length
+                ? keyedRecentFiles[fileIndex]
+                : keyedFiles[fileIndex - keyedRecentFiles.length]
             if (selectedFile) handleFileSelect(selectedFile)
           }
         },
