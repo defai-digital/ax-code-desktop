@@ -715,6 +715,12 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
             return
           }
 
+          if (loading) {
+            // The list renders a spinner while a search runs, but the arrays below still hold the previous
+            // query's hits — navigating or committing them attached a mention the user could not see.
+            return
+          }
+
           const total =
             contextEntries.length +
             visibleAgents.length +
@@ -777,6 +783,9 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
         visibleRecentFiles,
         handleFileSelect,
         handleAgentPick,
+        // The handler refuses input while a search runs, so it must be re-created when that changes: a stale
+        // closure would read the previous value and commit the row the spinner is hiding.
+        loading,
       ],
     )
 

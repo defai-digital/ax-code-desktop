@@ -294,6 +294,58 @@ describe("FileMentionAutocomplete context mentions", () => {
     expect(await readBlobText(file)).toBe("Terminal output (zsh)\n\nhello from terminal\n")
   })
 
+  test("does not attach a hidden file hit while a search is still running", async () => {
+    // The list renders a spinner while a search runs, but `files` keeps the previous query's hits until the new
+    // one settles: Enter or Tab then attached a mention that was nowhere on screen.
+    let releaseSecondSearch = () => {}
+    useFileSearchStore.setState({
+      searchFiles: vi.fn((_directory, query: string) => {
+        if (query === "app") {
+          return Promise.resolve([{ path: "/repo/app.tsx", name: "app.tsx", relativePath: "app.tsx" }])
+        }
+        return new Promise((resolve) => {
+          releaseSecondSearch = () => resolve([])
+        })
+      }) as never,
+    })
+
+    // `renderMenu` wires its own throwaway `onFileSelect`, so this renders the same tree with one this test owns.
+    const onFileSelect = vi.fn()
+    const render = (searchQuery: string) =>
+      act(() =>
+        root.render(
+          <I18nProvider>
+            <FileMentionAutocomplete
+              ref={mentionRef}
+              searchQuery={searchQuery}
+              onFileSelect={onFileSelect}
+              onContextAttachment={onContextAttachment}
+              onClose={onClose}
+            />
+          </I18nProvider>,
+        ),
+      )
+
+    render("app")
+    await flush()
+    render("appl")
+    // Past the 180 ms input debounce, so the second search has started and is still in flight.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 220))
+    })
+
+    act(() => {
+      mentionRef.current?.handleKeyDown("Enter")
+    })
+
+    expect(onFileSelect).not.toHaveBeenCalled()
+
+    await act(async () => {
+      releaseSecondSearch()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  })
+
   test("keeps the highlighted context row when later terminal output arrives", async () => {
     setTerminalOutput(["one\n"])
     renderMenu("")
