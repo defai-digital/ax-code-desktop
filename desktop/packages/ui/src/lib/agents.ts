@@ -43,6 +43,23 @@ export const isAgentHidden = (agent: Agent): boolean => {
 export const filterVisibleAgents = (agents: Agent[]): Agent[] => agents.filter((agent) => !isAgentHidden(agent))
 
 /**
+ * The name to show for an agent: the display name the runtime supplies, or the agent's id with its
+ * first letter capitalized.
+ *
+ * Every picker and label used the id, so an agent whose configured display name differs - the
+ * runtime ships `goal-plan-writer` as "Goal Plan Writer" - read as `Goal-plan-writer`, and
+ * searching by the name the user knows found nothing.
+ */
+export const agentLabel = (agent: Pick<Agent, "name"> & { displayName?: string } | null | undefined): string => {
+  const displayName = typeof agent?.displayName === "string" ? agent.displayName.trim() : ""
+  if (displayName) {
+    return displayName
+  }
+  const name = typeof agent?.name === "string" ? agent.name.trim() : ""
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : ""
+}
+
+/**
  * Whether Settings → Agents should list this agent.
  *
  * Runtime-internal agents (title, compaction, summary) are hidden and are none of the user's

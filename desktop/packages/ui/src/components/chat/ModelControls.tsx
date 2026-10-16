@@ -46,6 +46,7 @@ import { useAxCodeReadiness } from "@/hooks/useAxCodeReadiness"
 import { eventMatchesShortcut, getEffectiveShortcutCombo, normalizeCombo } from "@/lib/shortcuts"
 import type { PermissionAction, PermissionRule } from "@/stores/utils/permissionUtils"
 import { truncateToCodeUnits } from "@/lib/textTruncate"
+import { agentLabel } from "@/lib/agents"
 
 type ModelControlIconName = IconName
 
@@ -1145,10 +1146,10 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
     if (!uiAgentName) {
       const buildAgent = primaryAgents.find((agent) => agent.name === "build")
       const defaultAgent = buildAgent || primaryAgents[0]
-      return defaultAgent ? capitalizeAgentName(defaultAgent.name) : "Select Agent"
+      return defaultAgent ? agentLabel(defaultAgent) : "Select Agent"
     }
     const agent = agents.find((a) => a.name === uiAgentName)
-    return agent ? capitalizeAgentName(agent.name) : capitalizeAgentName(uiAgentName)
+    return agent ? agentLabel(agent) : capitalizeAgentName(uiAgentName)
   }
 
   const capitalizeAgentName = (name: string) => {
@@ -1564,7 +1565,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
         <div className="flex min-w-[200px] flex-col gap-2.5">
           <div className="flex flex-col gap-0.5">
             <span className="typography-micro font-semibold text-foreground">
-              {capitalizeAgentName(currentAgent.name)}
+              {agentLabel(currentAgent)}
             </span>
             {currentAgent.description && (
               <span className="typography-meta text-muted-foreground">{currentAgent.description}</span>
@@ -1844,7 +1845,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
                         <div className="flex flex-col gap-0.5">
                           <div className="flex items-center gap-1.5">
                             <div className={cn("h-1 w-1 rounded-full agent-dot", getAgentColor(agent.name).class)} />
-                            <span className="font-medium">{capitalizeAgentName(agent.name)}</span>
+                            <span className="font-medium">{agentLabel(agent)}</span>
                           </div>
                           {agent.description && (
                             <span className="typography-meta text-muted-foreground max-w-[200px] ml-2.5 break-words">

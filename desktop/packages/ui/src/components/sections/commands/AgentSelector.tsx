@@ -9,6 +9,7 @@ import { MobileOverlayPanel } from "@/components/ui/MobileOverlayPanel"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { useAxCodeReadiness } from "@/hooks/useAxCodeReadiness"
+import { agentLabel } from "@/lib/agents"
 
 interface CommandAgentSelectorProps {
   agentName: string
@@ -90,7 +91,7 @@ export const AgentSelector: React.FC<CommandAgentSelectorProps> = ({ agentName, 
                 }}
               >
                 <div className="flex flex-col">
-                  <span className="typography-meta font-medium">{agent.name}</span>
+                  <span className="typography-meta font-medium">{agentLabel(agent)}</span>
                   {agent.description && (
                     <span className="typography-micro text-muted-foreground">{agent.description}</span>
                   )}
@@ -174,7 +175,7 @@ export const AgentSelector: React.FC<CommandAgentSelectorProps> = ({ agentName, 
                 className="typography-meta"
                 onSelect={() => handleAgentChange(agent.name)}
               >
-                <span className="font-medium">{agent.name}</span>
+                <span className="font-medium">{agentLabel(agent)}</span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

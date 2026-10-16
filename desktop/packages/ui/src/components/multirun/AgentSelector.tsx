@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
 import { useI18n } from "@/lib/i18n"
+import { agentLabel } from "@/lib/agents"
 
 interface MultirunAgentSelectorProps {
   /** Currently selected agent name (empty string for no agent) */
@@ -88,7 +89,7 @@ export const AgentSelector: React.FC<MultirunAgentSelectorProps> = ({
           <SelectGroup>
             {selectableAgents.map((agent) => (
               <SelectItem key={agent.name} value={agent.name} className="w-auto whitespace-nowrap">
-                {agent.name}
+                {agentLabel(agent)}
               </SelectItem>
             ))}
           </SelectGroup>

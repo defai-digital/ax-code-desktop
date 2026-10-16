@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import type { Agent } from "@defai-digital/ax-code-sdk/v2"
-import { isAgentManageable } from "./agents"
+import { agentLabel, isAgentManageable } from "./agents"
 
 const agent = (overrides: Record<string, unknown>): Agent => ({ name: "a", ...overrides }) as unknown as Agent
 
@@ -21,5 +21,21 @@ describe("isAgentManageable", () => {
     expect(isAgentManageable(agent({ name: "title", hidden: true, native: true }))).toBe(false)
     expect(isAgentManageable(agent({ name: "summary", options: { hidden: true }, builtIn: true }))).toBe(false)
     expect(isAgentManageable(agent({ name: "unknown", hidden: true }))).toBe(false)
+  })
+})
+
+describe("agentLabel", () => {
+  test("shows the display name the runtime supplies", () => {
+    // Every picker used the id, so an agent the runtime ships as "Goal Plan Writer" read as
+    // "Goal-plan-writer" and searching by the name the user knows found nothing.
+    expect(agentLabel({ name: "goal-plan-writer", displayName: "Goal Plan Writer" })).toBe("Goal Plan Writer")
+    expect(agentLabel({ name: "security", displayName: "  Security  " })).toBe("Security")
+  })
+
+  test("falls back to the capitalized id", () => {
+    expect(agentLabel({ name: "review" })).toBe("Review")
+    expect(agentLabel({ name: "review", displayName: "   " })).toBe("Review")
+    expect(agentLabel({ name: "" })).toBe("")
+    expect(agentLabel(null)).toBe("")
   })
 })
