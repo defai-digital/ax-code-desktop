@@ -1,11 +1,17 @@
 export const createRouteRegistry = () => {
   const routes = new Map()
+  // Middleware mounts are recorded, not run: this harness models Express's route table (the last handler
+  // of each route is the one a test calls), and a registration that mounts a gate has no pipeline here.
+  const mounts = []
   const register = (method, routePath, handlers) => {
     routes.set(`${method} ${routePath}`, handlers.at(-1))
   }
 
   return {
     app: {
+      use(routePath, ...handlers) {
+        mounts.push({ routePath, handlers })
+      },
       get(routePath, ...handlers) {
         register("GET", routePath, handlers)
       },
@@ -21,6 +27,9 @@ export const createRouteRegistry = () => {
     },
     getRoute(method, routePath) {
       return routes.get(`${method} ${routePath}`)
+    },
+    getMounts() {
+      return mounts.slice()
     },
   }
 }

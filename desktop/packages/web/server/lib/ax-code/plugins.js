@@ -147,6 +147,22 @@ function splitScopedValue(value) {
   }
 }
 
+/**
+ * `parsePluginRaw` for the places that look at every entry in a config array.
+ *
+ * One malformed entry (a third element, an empty string, an object) used to throw out of the `findIndex` /
+ * `map` / `some` callback that reached it, which took the whole list with it: `GET /api/config/plugins`
+ * answered 500 and no entry after the broken one could be addressed, so the user could not delete it from
+ * the UI either. Here it is skipped instead; the entry stays in the file for a manual fix.
+ */
+function parsePluginRawOrNull(raw) {
+  try {
+    return parsePluginRaw(raw)
+  } catch {
+    return null
+  }
+}
+
 function getPluginTarget(id, workingDirectory) {
   const decoded = decodePluginId(id)
   if (decoded.prefix !== "config") {
@@ -157,7 +173,7 @@ function getPluginTarget(id, workingDirectory) {
   const layers = readPluginConfigLayers(workingDirectory)
   const source = configSources(layers).find((candidate) => candidate.scope === scope)
   const plugin = Array.isArray(source?.config?.plugin) ? source.config.plugin : []
-  const index = plugin.findIndex((raw) => parsePluginRaw(raw).spec === spec)
+  const index = plugin.findIndex((raw) => parsePluginRawOrNull(raw)?.spec === spec)
   if (!source || index === -1) {
     return null
   }
@@ -227,17 +243,23 @@ function listPluginEntries(workingDirectory) {
     if (!Array.isArray(source.config?.plugin)) {
       return []
     }
-    return source.config.plugin.map((raw) => {
-      const parsed = parsePluginRaw(raw)
-      return {
-        id: encodePluginId("config", `${source.scope}:${parsed.spec}`),
-        spec: parsed.spec,
-        ...(parsed.options !== undefined ? { options: parsed.options } : {}),
-        scope: source.scope,
-        kind: "config",
-        parsedKind: parsedKindForSpec(parsed.spec),
-        sourcePath: source.filePath,
+    return source.config.plugin.flatMap((raw) => {
+      const parsed = parsePluginRawOrNull(raw)
+      if (!parsed) {
+        console.warn(`[plugins] skipped an unreadable entry in ${source.filePath}`)
+        return []
       }
+      return [
+        {
+          id: encodePluginId("config", `${source.scope}:${parsed.spec}`),
+          spec: parsed.spec,
+          ...(parsed.options !== undefined ? { options: parsed.options } : {}),
+          scope: source.scope,
+          kind: "config",
+          parsedKind: parsedKindForSpec(parsed.spec),
+          sourcePath: source.filePath,
+        },
+      ]
     })
   })
 }
@@ -256,7 +278,7 @@ function createPluginEntry(entry, workingDirectory) {
     (source) =>
       source.scope === scope &&
       Array.isArray(source.config?.plugin) &&
-      source.config.plugin.some((raw) => parsePluginRaw(raw).spec === spec),
+      source.config.plugin.some((raw) => parsePluginRawOrNull(raw)?.spec === spec),
   )
   if (existing) {
     throw codedError(`Plugin "${spec}" already exists`, "ENTRY_EXISTS")
@@ -286,6 +308,18 @@ function updatePluginEntry(id, updates, workingDirectory) {
   }
   const existing = parsePluginRaw(target.plugin[target.index])
   const nextSpec = updates?.spec === undefined ? existing.spec : validatePluginSpec(updates.spec)
+  // Renaming an entry onto a spec another entry in the same scope already carries produced a duplicate the
+  // id — derived from scope and spec — cannot tell apart: `getPluginTarget` only ever reaches the first copy
+  // (so the second cannot be edited or deleted) and the runtime loads the plugin twice. `createPluginEntry`
+  // refuses the same thing, and the route already maps ENTRY_EXISTS to 409.
+  if (
+    nextSpec !== existing.spec &&
+    target.plugin.some(
+      (raw, index) => index !== target.index && parsePluginRawOrNull(raw)?.spec === nextSpec,
+    )
+  ) {
+    throw codedError(`Plugin "${nextSpec}" already exists`, "ENTRY_EXISTS")
+  }
   const nextOptions = updates?.options === undefined ? existing.options : updates.options
   target.plugin[target.index] = serializePluginEntry({ spec: nextSpec, options: nextOptions })
   writeConfig(target.source.config, target.source.filePath)

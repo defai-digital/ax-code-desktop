@@ -84,6 +84,34 @@ describe("ax-code plugins data layer", () => {
     ).toHaveProperty("code", "ENTRY_EXISTS")
   })
 
+  test("refuses to rename an entry onto a spec another entry already carries", () => {
+    // The entry id is derived from scope and spec, so a duplicate cannot be told apart: getPluginTarget only
+    // ever reaches the first copy (the second cannot be edited or deleted) and the runtime loads the plugin
+    // twice. createPluginEntry refuses the same thing, and the route maps it to 409.
+    plugins.createPluginEntry({ spec: "a-plugin", scope: "user" }, projectDir)
+    plugins.createPluginEntry({ spec: "b-plugin", scope: "user" }, projectDir)
+    const id = plugins.listPluginEntries(projectDir).find((entry) => entry.spec === "a-plugin").id
+
+    expect(thrownBy(() => plugins.updatePluginEntry(id, { spec: "b-plugin" }, projectDir))).toHaveProperty(
+      "code",
+      "ENTRY_EXISTS",
+    )
+
+    expect(readJson(userConfigPath).plugin).toEqual(["a-plugin", "b-plugin"])
+  })
+
+  test("lists and edits the readable entries when one entry is malformed", () => {
+    // One broken entry threw out of the map/findIndex that reached it, which took the whole list with it:
+    // GET answered 500 and no entry after the broken one could be addressed, so it could not be repaired.
+    writeJson(userConfigPath, { plugin: [["x", {}, "y"], "good-plugin"] })
+
+    expect(plugins.listPluginEntries(projectDir).map((entry) => entry.spec)).toEqual(["good-plugin"])
+
+    plugins.deletePluginEntry(plugins.listPluginEntries(projectDir)[0].id, projectDir)
+
+    expect(readJson(userConfigPath).plugin).toEqual([["x", {}, "y"]])
+  })
+
   test("routes project entries to project config and user entries to custom user config", () => {
     plugins.createPluginEntry({ spec: "user-plugin", scope: "user" }, projectDir)
     plugins.createPluginEntry({ spec: "project-plugin", scope: "project" }, projectDir)
