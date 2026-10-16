@@ -230,6 +230,11 @@ export const AgentsPage: React.FC = () => {
     permissionRules: PermissionRule[]
   } | null>(null)
 
+  // Which agent's config is currently loaded into the form, so a background reload of `agents` (deleting or
+  // creating another one, a config-change event) does not re-populate over unsaved edits — the same guard the
+  // MCP page uses. Saving moves the dirty baseline directly, so skipping loses nothing.
+  const loadedAgentKeyRef = React.useRef<string | null>(null)
+
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory ?? null)
   const [toolIds, setToolIds] = React.useState<string[]>([])
 
@@ -472,6 +477,11 @@ export const AgentsPage: React.FC = () => {
       return { global: nextGlobal, rules: filtered }
     }
 
+    const populateKey = isNewAgent ? `draft:${agentDraft?.name ?? ""}` : `agent:${selectedAgentName ?? ""}`
+    if (loadedAgentKeyRef.current === populateKey) {
+      return
+    }
+
     if (isNewAgent && agentDraft) {
       const draftNameValue = agentDraft.name || ""
       const draftScopeValue = agentDraft.scope || "user"
@@ -506,6 +516,7 @@ export const AgentsPage: React.FC = () => {
         globalPermission: permissionState.global,
         permissionRules: permissionState.rules,
       }
+      loadedAgentKeyRef.current = populateKey
       return
     }
 
@@ -544,6 +555,10 @@ export const AgentsPage: React.FC = () => {
         globalPermission: permissionState.global,
         permissionRules: permissionState.rules,
       }
+      loadedAgentKeyRef.current = populateKey
+    } else {
+      // Nothing selected and no draft: forget the key, so selecting the same agent again populates.
+      loadedAgentKeyRef.current = null
     }
   }, [agentDraft, isNewAgent, selectedAgent, selectedAgentName])
 
@@ -625,6 +640,23 @@ export const AgentsPage: React.FC = () => {
         }
       } else {
         success = await updateAgent(agentName, config)
+      }
+
+      if (success && !isNewAgent) {
+        // The list reload after a save no longer re-populates the form (see `loadedAgentKeyRef`), so the
+        // dirty-check baseline has to move here or the editor stays "dirty" forever after saving.
+        initialStateRef.current = {
+          draftName: "",
+          draftScope: "user",
+          description: description.trim(),
+          mode,
+          model: model.trim(),
+          temperature,
+          topP,
+          prompt: prompt.trim(),
+          globalPermission,
+          permissionRules,
+        }
       }
 
       if (success) {

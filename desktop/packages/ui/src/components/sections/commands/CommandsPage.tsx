@@ -74,8 +74,16 @@ export const CommandsPage: React.FC = () => {
     model: string
     template: string
   } | null>(null)
+  // Which command's config the form holds, so a background reload of `commands` does not re-populate over
+  // unsaved edits — the guard the MCP page uses. Saving moves the dirty baseline directly.
+  const loadedCommandKeyRef = React.useRef<string | null>(null)
 
   React.useEffect(() => {
+    const populateKey = isNewCommand ? `draft:${commandDraft?.name ?? ""}` : `command:${selectedCommandName ?? ""}`
+    if (loadedCommandKeyRef.current === populateKey) {
+      return
+    }
+
     if (isNewCommand && commandDraft) {
       const draftNameValue = commandDraft.name || ""
       const draftScopeValue = commandDraft.scope || "user"
@@ -98,6 +106,7 @@ export const CommandsPage: React.FC = () => {
         model: modelValue,
         template: templateValue,
       }
+      loadedCommandKeyRef.current = populateKey
     } else if (selectedCommand) {
       const descriptionValue = selectedCommand.description || ""
       const agentValue = selectedCommand.agent || ""
@@ -116,6 +125,9 @@ export const CommandsPage: React.FC = () => {
         model: modelValue,
         template: templateValue,
       }
+      loadedCommandKeyRef.current = populateKey
+    } else {
+      loadedCommandKeyRef.current = null
     }
   }, [selectedCommand, isNewCommand, selectedCommandName, commands, commandDraft])
 
@@ -182,6 +194,19 @@ export const CommandsPage: React.FC = () => {
         }
       } else {
         success = await updateCommand(commandName, config)
+      }
+
+      if (success && !isNewCommand) {
+        // The list reload after a save no longer re-populates the form (see `loadedCommandKeyRef`), so the
+        // dirty-check baseline moves here or the editor stays "dirty" after every save.
+        initialStateRef.current = {
+          draftName: "",
+          draftScope: "user",
+          description: description.trim(),
+          agent: agent.trim(),
+          model: model.trim(),
+          template,
+        }
       }
 
       if (success) {
