@@ -50,6 +50,7 @@ const createHarness = async ({ runtimeTasks = [], runtimeHandler } = {}) => {
 
   return {
     convergence,
+    projectConfigRuntime,
     projectsDir,
     markerPath,
     requests,
@@ -105,6 +106,50 @@ describe("scheduled task convergence migration", () => {
     const marker = await harness.readMarker()
     expect(typeof marker.migratedAt).toBe("number")
     expect(marker.skipped).toEqual([])
+  })
+
+  it("keeps a task saved while the migration was talking to the runtime", async () => {
+    // The migration reads the project file, then spends seconds on per-task runtime calls, then wrote
+    // back the list computed from that first read: a task the user saved in that window was silently
+    // deleted by the write.
+    let releaseFirstCreate = () => {}
+    const firstCreateGate = new Promise((resolve) => {
+      releaseFirstCreate = resolve
+    })
+    let createCalls = 0
+    const harness = await createHarness({
+      runtimeHandler: async (url, init = {}) => {
+        const method = init.method || "GET"
+        if (method === "GET") {
+          return new Response(JSON.stringify([]), { status: 200 })
+        }
+        createCalls += 1
+        if (createCalls === 1) {
+          await firstCreateGate
+        }
+        return new Response(JSON.stringify({ id: `st_${createCalls}`, status: "active" }), { status: 200 })
+      },
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", {
+      projectPath: "/work/alpha",
+      scheduledTasks: [dailyTask()],
+    })
+
+    const migrating = harness.convergence.start()
+    await vi.waitFor(async () => {
+      expect(createCalls).toBe(1)
+    })
+    // The user saves a task while the first create is still in flight.
+    await harness.projectConfigRuntime.upsertScheduledTask(
+      "proj-a",
+      dailyTask({ id: "task-saved", name: "Saved meanwhile" }),
+    )
+    releaseFirstCreate()
+    await migrating
+
+    const project = await harness.readProject("proj-a.json")
+    expect((project.scheduledTasks ?? []).map((task) => task.id)).toEqual(["task-saved"])
   })
 
   it("fans out multi-time tasks and pauses disabled ones", async () => {

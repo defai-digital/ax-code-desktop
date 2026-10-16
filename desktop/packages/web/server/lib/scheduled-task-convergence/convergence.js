@@ -35,6 +35,12 @@ const DEFAULT_WAKE_PROJECTS_CHECK_MS = 60_000
 const DEFAULT_WAKE_FOLLOW_UP_MS = 60_000
 const DEFAULT_WAKE_REQUEST_TIMEOUT_MS = 30_000
 
+// Identity of a scheduled task across the migration's read and its write.
+const scheduledTaskKey = (task) => {
+  const id = asNonEmptyString(task?.id)
+  return id ? `id:${id}` : `name:${asNonEmptyString(task?.name)}`
+}
+
 const asNonEmptyString = (value) => {
   if (typeof value !== "string") {
     return null
@@ -329,6 +335,10 @@ export const createScheduledTaskConvergence = (deps) => {
       }
 
       const remaining = []
+      // What this migration settles, by identity: the tasks it migrated and the ones it is permanently
+      // skipping. The write below removes exactly these from the file as it stands then, instead of
+      // replacing it with the list read before the runtime calls.
+      const settledTaskKeys = new Set()
       for (const task of tasks) {
         const outcome = await migrateTask({ projectID, projectPath, task, existingByTitle, now })
         warnings.push(...outcome.warnings)
@@ -336,6 +346,9 @@ export const createScheduledTaskConvergence = (deps) => {
           remaining.push(task)
           continue
         }
+        // Not a retry, so this task is settled either way: it was handed to the runtime or it is being
+        // skipped permanently. Both leave the project file.
+        settledTaskKeys.add(scheduledTaskKey(task))
         if (outcome.outcome === "skipped") {
           skipped.push({ project: projectID, task: outcome.taskLabel, reason: outcome.reason })
           logger.warn("[ScheduledTaskMigration] task skipped", {
@@ -347,7 +360,9 @@ export const createScheduledTaskConvergence = (deps) => {
       }
       retryableRemaining += remaining.length
       remainingByFile.set(projectID, remaining)
-      await projectConfigRuntime.replaceScheduledTasks(projectID, remaining)
+      await projectConfigRuntime.replaceScheduledTasks(projectID, (currentTasks) =>
+        currentTasks.filter((task) => !settledTaskKeys.has(scheduledTaskKey(task))),
+      )
     }
 
     if (retryableRemaining === 0) {

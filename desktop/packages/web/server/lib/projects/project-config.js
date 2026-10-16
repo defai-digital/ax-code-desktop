@@ -530,9 +530,15 @@ export const createProjectConfigRuntime = (deps) => {
   // (the input comes from a prior listScheduledTasks read, so it is already
   // normalized). An empty list deletes the key; the key is never deleted while
   // any task still awaits confirmation in the runtime.
-  const replaceScheduledTasks = async (projectID, tasks) => {
+  const replaceScheduledTasks = async (projectID, tasksOrUpdater) => {
     return withProjectWriteLock(projectID, async () => {
-      const nextTasks = Array.isArray(tasks) ? tasks : []
+      // An updater is handed the list as it is *now*, inside the lock. A caller that computed its list
+      // from an earlier read — the boot migration reads the file, talks to the runtime for seconds and
+      // then writes back — would otherwise replace whatever a task edit added in the meantime.
+      const resolved = Array.isArray(tasksOrUpdater)
+        ? tasksOrUpdater
+        : await tasksOrUpdater((await readProjectConfigFromDisk(projectID)).scheduledTasks)
+      const nextTasks = Array.isArray(resolved) ? resolved : []
       await writeScheduledTasksToDisk(projectID, nextTasks)
       return {
         tasks: nextTasks,
