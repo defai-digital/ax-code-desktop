@@ -722,10 +722,11 @@ the render reads, and a test pins that contract.
 
 ### One unresolved flake
 
-Occasional full-run flakiness in the web package: the same test file that passes every time in
-isolation has failed five times across these rounds with a response it cannot produce — `expected
-200, got 401` three times, `socket hang up` once, and once a body of `{}` where the route answers
-`{ok:true}` or `{error:"Forbidden"}`. Nothing in the affected apps answers 401, and running the web
+Occasional full-run flakiness in the web package: five different test files that pass every time in
+isolation have failed six times across these rounds with a response they cannot produce — `expected
+200, got 401` five times (the last on a `GET /api/config/plugins` whose app carries no auth
+middleware at all), `socket hang up` once, and once a body of `{}` where the route answers `{ok:true}`
+or `{error:"Forbidden"}`. Nothing in the affected apps answers 401, and running the web
 package alone (125 files, 1097 tests) passes on every attempt, including three consecutive runs
 after the last failure.
 
@@ -797,14 +798,20 @@ was written.
   something was in flight, so a project switch was swallowed by the previous project's request and
   that answer became the page's state while every action ran against the current directory.
 
+- **`afd9783e`** — the session-retention cleanup's re-entry guard was a ref inside the hook while the
+  hook is mounted twice (the app-wide run and the settings page's manual run), so two runs built the
+  same candidate list and deleted every session twice, and the manual run reported the sessions it had
+  just deleted as failures. The run in flight is shared now and a later call joins it, which also
+  answers the second half of that finding: the manual click reports the run's real outcome instead of
+  an empty one.
+
 ### Waiting for a first re-check
 
 Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
 reviewer linked:
 
 - `sections/providers/ProvidersPage.tsx:125` (the remaining settings lead).
-- `hooks/**` — two remaining: a cleanup re-entry guard that is per hook instance while the hook is
-  mounted twice, and a skipped manual cleanup reported as "no sessions are eligible".
+- `hooks/**` — one remaining: a skipped manual cleanup reported as "no sessions are eligible".
 - `components/{supervision,multirun}` — four confirmed and one suspected.
 - `stores/**` — `useDirectoryStore.setDirectory` runs side effects inside Zustand's updater
   (medium), a snippets cache key that races the in-flight directory (low), and a provider-cache
