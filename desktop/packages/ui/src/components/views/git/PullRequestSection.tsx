@@ -548,6 +548,11 @@ export const PullRequestSection: React.FC<{
 
     return () => {
       cancelled = true
+      // The store update in `.then` re-renders this section, and React runs a passive effect's cleanup
+      // before that chain's `.finally` continues. `.finally` then sees `cancelled` and returns without
+      // clearing the flag, and the re-run returns early because the body is already there — so
+      // "Loading description…" stayed on screen for good. Ending the attempt ends the flag as well.
+      setHydratingPrBodyKey((prev) => (prev === hydrationKey ? null : prev))
     }
   }, [directory, github, pr, prSourceRepo, prStatusKey, updatePrStatus])
 
