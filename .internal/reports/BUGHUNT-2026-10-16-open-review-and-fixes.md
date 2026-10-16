@@ -1378,9 +1378,13 @@ upstream comparison produced). The audit found five things in that work; all fiv
   cannot be established here. Recorded rather than changed — a security gate that locks the app out of its
   own session list is worse than the asymmetry it closes.
 - **`session-folders` GET echoes whatever the file holds** (`session-folders/routes.js:21-23`): a file
-  containing `[]` or `{"foldersMap":42}` is answered 200 with that JSON, and the client's shape contract
-  is then violated. The reviewer could not show a client failure, and the corrupt-JSON case next to it is
-  already refused with 500, so this is a validation gap rather than a defect with a reproducer. Recorded.
+  containing `[]`, `"x"` or `{"foldersMap":42}` is answered 200 with that JSON. Checked against the reader
+  and it is not a defect: the client guards every shape the reviewer named (`useSessionFoldersStore.ts:540-556`
+  requires `foldersMap` to be an object and `collapsedFolderIds` to be an array, and returns without
+  touching its state when the result carries no folders), so an invalid-but-parseable file leaves the
+  local folders alone instead of corrupting them. The writer is this repository's own POST path, which
+  already refuses a non-object body, and the corrupt-JSON case beside it is refused with 500. Verified and
+  not changed.
 - **`ErrorBoundary`'s copy timeout is never cleared** (`ui/ErrorBoundary.tsx:70`): the `setTimeout` that
   restores the copy label is not stored, so nothing clears it on unmount. The instance is a class
   component whose state survives re-renders, and the boundary only unmounts when the tree above it does,
