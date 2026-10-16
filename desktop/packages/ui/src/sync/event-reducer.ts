@@ -11,7 +11,7 @@ import type {
 } from "@defai-digital/ax-code-sdk/v2/client"
 import { Binary } from "./binary"
 import type { FileDiff, GlobalState, State } from "./types"
-import { dropSessionCaches } from "./session-cache"
+import { dropSessionCaches, getProtectedSessionCacheIds } from "./session-cache"
 import { stripSessionDiffSnapshots } from "./sanitize"
 import { syncDebug } from "./debug"
 import { recordPartChanges } from "./part-changes"
@@ -885,17 +885,14 @@ export function applyDirectoryEvent(
 
 function trimSessions(draft: State) {
   if (draft.session.length <= draft.limit) return
-  // Keep sessions with a pending blocking request (permission or question) so
-  // they stay visible — matches getProtectedSessionIds / hasPendingBlockingRequests.
-  // Evicting a session with an unanswered question would hide the dialog and
-  // leave the agent blocked forever.
-  const protectedIds = new Set<string>()
-  for (const [sessionID, perms] of Object.entries(draft.permission ?? {})) {
-    if (perms && perms.length > 0) protectedIds.add(sessionID)
-  }
-  for (const [sessionID, questions] of Object.entries(draft.question ?? {})) {
-    if (questions && questions.length > 0) protectedIds.add(sessionID)
-  }
+  // The ids the cache eviction protects: a session that is working, or that is waiting on an approval
+  // or a question, keeps its place in the list. Every lookup by id starts from this list (`useSession`,
+  // fork, undo, the parent resync), and the dialog or the stream those sessions are blocked on lives in
+  // the caches — a session with an unanswered question would hide its dialog and leave the agent blocked
+  // forever. Only the pending requests were protected, so a busy session with the smallest id was
+  // evicted as soon as the list grew past the limit: a subagent appearing was enough, and then every
+  // later event for that session re-inserted it only to trim it away again.
+  const protectedIds = getProtectedSessionCacheIds(draft)
   while (draft.session.length > draft.limit) {
     // Find the oldest non-protected session. We can't simply shift from the
     // front because a protected session (pending question/permission) at

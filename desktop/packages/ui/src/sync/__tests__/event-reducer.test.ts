@@ -702,6 +702,27 @@ describe("applyDirectoryEvent", () => {
     expect(ids).toContain("ses_3")
   })
 
+  test("does not evict a session that is working when trimming", () => {
+    // Only pending requests were protected, so a busy session with the smallest id was spliced out as
+    // soon as the list grew past the limit — a subagent appearing was enough. Every lookup by id starts
+    // from this list (`useSession`, fork, undo, the parent resync), so the session the user was watching
+    // disappeared from it and its later events re-inserted it only to be trimmed away again.
+    const draft = state({
+      limit: 2,
+      session: [session("ses_1", "first"), session("ses_2", "second")],
+      session_status: { ses_1: { type: "busy" } as SessionStatus },
+    })
+
+    applyDirectoryEvent(draft, {
+      type: "session.created",
+      properties: { info: session("ses_3", "third") },
+    } as Event)
+
+    const ids = draft.session.map((s) => s.id)
+    expect(ids).toContain("ses_1")
+    expect(ids).toContain("ses_3")
+  })
+
   test("evicts the oldest session when trimming and none are protected", () => {
     const draft = state({
       limit: 2,
