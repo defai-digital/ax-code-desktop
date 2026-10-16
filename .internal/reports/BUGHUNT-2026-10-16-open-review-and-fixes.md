@@ -1288,19 +1288,36 @@ Fixed from this round so far:
   awaited, the result carries `startedRunCount`, and the launcher's shortfall toast counts that instead
   of created sessions.
 
-Read and not yet verified: `r7-serversessions` (21 KiB) names six findings —
-`ui-auth/ui-passkeys.js:350-399`, `quota/providers/google/index.js:38-50`,
-`skills-catalog/clawdhub/install.js:165-170` and `skills-catalog/install.js:121-134` as confirmed, and
-`scheduled-task-convergence/convergence.js:277-289` twice as suspected — and `r7-tui` (18 KiB) finished
-with findings that are still unread. `r7-electron` was still running. The three suspected leads in
-`r7-sync` are unread.
+- **`be60ad01`** — every passkey mutation is a load → (sometimes await) → persist cycle over the same
+  JSON store, and the write replaces the whole credential list. The registration awaits the WebAuthn
+  verification in the middle, so a revoke landing in that window was overwritten by the registration's
+  older snapshot: the credential the user had just revoked came back and that device could sign in
+  again. Mutations run one at a time now, through the same tail-promise shape the login rate limiter
+  next door uses, and the registration re-reads the store after its await.
+- **`e20b1f0d`** — `refreshGoogleAccessToken` returns null on an HTTP failure but *rejects* on a
+  transport error or the timeout, and the per-source loop only handled the null: the rejection escaped
+  and turned a two-source aggregate into a whole-provider failure, discarding the source that had not
+  been attempted yet. The call is wrapped, treating a rejection like the null case.
+- **`954dc531`** — overwriting an installed ClawdHub skill removed the installed copy *before*
+  downloading the replacement, so a network error, a yanked version tag or a ZIP that failed validation
+  left the user with no skill at all while the endpoint reported it as merely "skipped". The removal
+  happens once the replacement is downloaded, extracted and validated, still before the rename.
+- **`e38fbbe1`** — the boot migration read the project file, spent seconds on per-task runtime calls and
+  then replaced the file's task list with the list computed from that first read, so a task the user
+  saved in that window was silently deleted. `replaceScheduledTasks` accepts an updater now, handed the
+  list as it stands inside the write lock, and the migration removes exactly the tasks it settled.
+
+Read and not yet verified: `r7-tui` (18 KiB) finished with findings that are still unread, `r7-electron`
+was still running, and the three suspected leads in `r7-sync` are unread. The last item in
+`r7-serversessions` (the scheduled-task convergence one above) is fixed; the rest of that run's findings
+are the passkey, quota and skills ones above.
 
 ## Verification
 
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 685, web 1 105 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 685, web 1 109 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
