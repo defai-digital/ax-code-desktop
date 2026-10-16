@@ -55,9 +55,13 @@ import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 const { toast } = await import("@/components/ui")
 const { axCodeClient } = await import("@/lib/ax-code/client")
 
-const { softDeleteSession, softArchiveSession, flushPendingRemovals, recoverPendingRemovals } = await import(
-  "./soft-removal"
-)
+const {
+  softDeleteSession,
+  softArchiveSession,
+  flushPendingRemovals,
+  recoverPendingRemovals,
+  resetSoftRemovalForTests,
+} = await import("./soft-removal")
 
 const STORAGE_KEY_PREFIX = "axcode.pending-session-removals"
 const pendingKey = (owner: string) => `${STORAGE_KEY_PREFIX}.pending.${owner}`
@@ -112,6 +116,7 @@ describe("soft-removal S4.5 contract", () => {
   beforeEach(() => {
     window.localStorage.clear()
     resetStore()
+    resetSoftRemovalForTests()
     deleteSessionMock.mockReset()
     archiveSessionMock.mockReset()
     setCurrentSessionMock.mockClear()
@@ -162,6 +167,34 @@ describe("soft-removal S4.5 contract", () => {
     // No event is emitted for a failed delete — the rollback re-upsert is the
     // only mechanism that brings the session back.
     expect(useGlobalSessionsStore.getState().activeSessions.map((s) => s.id)).toEqual(["ses_b"])
+  })
+
+  test("keeps a queued quit-recovery entry across an unrelated removal", async () => {
+    // The kept entry no longer lives in the store (its pending flag was released), so a later write in
+    // the same window — an unrelated removal or an undo — has to carry it. Merging it into the one write
+    // meant the next launch resurrected the session whose removal had failed.
+    const kept = makeSession("ses_keep", { directory: "/repo" } as Partial<Session>)
+    const other = makeSession("ses_other", { directory: "/repo" } as Partial<Session>)
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", kept))
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", other))
+
+    deleteSessionMock.mockResolvedValue(false)
+    softDeleteSession(kept)
+    flushPendingRemovals()
+    await vi.waitFor(() => expect(toastErrorMock).toHaveBeenCalled())
+
+    const owner = storedSlots()[0]?.split(".").pop() ?? ""
+    const key = pendingKey(owner)
+    type Persisted = { id: string }
+    expect((JSON.parse(window.localStorage.getItem(key) ?? "[]") as Persisted[]).map((entry) => entry.id)).toEqual([
+      "ses_keep",
+    ])
+
+    // An unrelated removal now writes this window's slot.
+    softDeleteSession(other)
+
+    const after = (JSON.parse(window.localStorage.getItem(key) ?? "[]") as Persisted[]).map((entry) => entry.id).sort()
+    expect(after).toEqual(["ses_keep", "ses_other"])
   })
 
   test("does not queue a failure the user was already told about", async () => {

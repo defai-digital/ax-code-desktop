@@ -78,21 +78,29 @@ function writeOwnSlot(entries: PersistedRemoval[]): void {
  * releases the pending flags before its requests, so a removal that failed after that is in neither
  * the store nor the slot unless it is added here.
  */
+const toPersistedRemoval = (entry: PendingRemovalEntry): PersistedRemoval => ({
+  id: entry.session.id,
+  kind: entry.kind,
+  directory: resolveGlobalSessionDirectory(entry.session),
+})
+
+/**
+ * Removals kept for the next launch's recovery whose pending flag is already released (a failure on the
+ * unload path). The store no longer holds them, so every later write has to carry them: merging them
+ * into that one write meant an unrelated removal or undo in the same window rewrote this window's slot
+ * without them, and the next launch resurrected those sessions.
+ */
+const keptForRecovery = new Map<string, PersistedRemoval>()
+
 function persistPending(alsoPersist: PendingRemovalEntry[] = []): void {
-  const byId = new Map<string, PendingRemovalEntry>()
+  const byId = new Map<string, PersistedRemoval>(keptForRecovery)
   for (const entry of useGlobalSessionsStore.getState().pendingRemoval.values()) {
-    byId.set(entry.session.id, entry)
+    byId.set(entry.session.id, toPersistedRemoval(entry))
   }
   for (const entry of alsoPersist) {
-    byId.set(entry.session.id, entry)
+    byId.set(entry.session.id, toPersistedRemoval(entry))
   }
-  writeOwnSlot(
-    Array.from(byId.values()).map((entry) => ({
-      id: entry.session.id,
-      kind: entry.kind,
-      directory: resolveGlobalSessionDirectory(entry.session),
-    })),
-  )
+  writeOwnSlot(Array.from(byId.values()))
 }
 
 /**
@@ -253,7 +261,17 @@ async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}
   // there because its requests are fire-and-forget and nobody can see the outcome (the slot's whole
   // purpose); the undo-window timer runs while the user is looking, reports the failure and puts the
   // session back, so retrying it behind their back on the next launch is not what they asked for.
-  persistPending(keepFailuresInSlot ? failed : [])
+  if (keepFailuresInSlot) {
+    for (const entry of failed) {
+      keptForRecovery.set(entry.session.id, toPersistedRemoval(entry))
+    }
+  }
+  for (const entry of entries) {
+    if (!failed.includes(entry)) {
+      keptForRecovery.delete(entry.session.id)
+    }
+  }
+  persistPending()
 
   if (failed.length > 0) {
     for (const entry of failed) {
@@ -276,6 +294,10 @@ async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}
 function undoRemovals(ids: string[]): void {
   clearTimers(ids)
   useGlobalSessionsStore.getState().undoPendingRemoval(ids)
+  // The user no longer wants these gone, so a queued recovery for them has to go too.
+  for (const id of ids) {
+    keptForRecovery.delete(id)
+  }
   persistPending()
 }
 
@@ -317,6 +339,11 @@ export function softDeleteSession(session: Session): void {
 
 export function softBulkArchive(sessions: Session[]): void {
   softRemoveSessions(sessions, "archive")
+}
+
+/** Test seam: forget the removals kept for the next launch's recovery. */
+export function resetSoftRemovalForTests(): void {
+  keptForRecovery.clear()
 }
 
 export function softBulkDelete(sessions: Session[]): void {
