@@ -921,6 +921,55 @@ about the alias was still open:
 - `native-installer-qualification.mjs:197` — a failed `hdiutil detach` inside `finally` replaced the
   signature or copy failure being unwound. The detach has its own `catch` that warns.
 
+## Sixth round
+
+The surfaces no earlier round read, plus a second pass over two of them. Eight reviewers, again the same
+prompt; two runs ended in a transport failure and produced nothing, and are listed as needing a re-run.
+
+| Reviewer | Area | Outcome |
+| --- | --- | --- |
+| Claude Code CLI | `components/{auth,desktop,update,ui,icon,icons}` | 5 findings, 4 confirmed |
+| Muse CLI (`--trust-workspace`) | `components/views/**` | finished, not yet read |
+| `deepseek-flash` (ax-code) | server `{desktop,notifications,projects,scheduled-task-convergence,skills-catalog,ui-auth}`, `desktop-owned-routes.js`, `index.js` | 2 findings, 1 confirmed |
+| `glm-5.3` (ax-code) | `components/{dashboard,comments,model-picker,notifications,mcp,onboarding}` | finished, not yet read |
+| `qwen3.8-flash` (ax-code) | `components/{session,files,projects,terminal}` | **failed**: transport error after reading |
+| `MiniMax-M3` (ax-code) | `sync/**` | **failed**: transport error after reading |
+| Grok CLI | `desktop/shared/**`, `config/**`, `tools/**`, `lib/{i18n,theme}` | still running |
+| `mimo-v2.6-pro` (ax-code) | server `{git,projects,notifications}` | still running |
+
+### Fixed from this round
+
+- **`c20fa7dc`** — four defects, each with a test that fails against the previous code. The overlay
+  scrollbar cancelled its pending metrics frame on teardown but left the id in the ref, and only the
+  frame's own callback cleared it, so the guard skipped every later request and the thumb stopped
+  following content growth and resizes for the life of that instance. The release-note decoder passed an
+  entity such as `&#x110000;` to `String.fromCodePoint` behind a `Number.isFinite` guard, which throws a
+  RangeError while the update dialog renders, so the notes and the buttons with them never appeared.
+  `useConfirmDialog` replaced a pending request without settling it, so the first caller awaited a
+  promise nothing could settle — and anything it meant to do afterwards, a busy flag for one, never ran.
+  The passkey setup button stayed `disabled` while the register ceremony ran inside the password unlock,
+  so it showed "Cancel passkey setup" with that cancel short-circuited by the same flag: the user could
+  not dismiss an OS prompt from the app.
+- **`396feb78`** — the migration's fan-out title reserved room for its ` (i/N)` suffix and cut the name
+  with `slice` before clamping. The sliced value is always short enough for the clamp's early return, so
+  the surrogate-pair check never ran on that path: a name with a non-BMP character on the cut boundary
+  produced a title ending in a lone high surrogate, which the runtime stores as a replacement character.
+  The UI's `truncateToCodeUnits`, which the comment says must stay in sync, already behaved this way.
+
+### Reviewed and not changed from this round
+
+- **`AxCodeUpdateToast` does not re-announce after notifications are switched off and on**
+  (`components/update/AxCodeUpdateToast.tsx:226,335`). The dedup module documents its own intent
+  (`components/update/axCodeUpdateDedup.ts`): the seen set means "already surfaced in this tab session",
+  and a version the user dismissed is tracked separately in `dismissedVersion`. Re-announcing on a
+  settings toggle would contradict that record rather than complete it, and no user-visible loss was
+  established beyond the toast not returning until a reload.
+- **`permission.asked` and `permission.replied` resolve their request id with inverted field precedence**
+  (`web/server/lib/notifications/runtime.js:435,462`). Each handler prefers the field its own event
+  carries (`replied` → `requestID`, `asked` → `id`) and falls back to the other spellings, so the two
+  orders disagree only for a payload that carries both fields with different values, which the record of
+  the event shapes does not describe. Left as written.
+
 ## Limit audit
 
 Prompted by the caps that produced the findings above, the hard limits in the
@@ -1055,7 +1104,7 @@ questions rather than local fixes.
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 643, web 1 099 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 647, web 1 100 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
