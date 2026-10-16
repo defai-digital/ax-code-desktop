@@ -13,6 +13,7 @@ const gitLibraries = {
   isGitRepository: vi.fn(),
   deleteBranch: vi.fn(),
   renameBranch: vi.fn(),
+  createWorktree: vi.fn(),
 }
 
 vi.doMock("./index.js", () => ({
@@ -24,6 +25,7 @@ vi.doMock("./index.js", () => ({
   isGitRepository: gitLibraries.isGitRepository,
   deleteBranch: gitLibraries.deleteBranch,
   renameBranch: gitLibraries.renameBranch,
+  createWorktree: gitLibraries.createWorktree,
 }))
 
 const { registerGitRoutes } = await import("./routes.js")
@@ -38,6 +40,7 @@ describe("git routes index mutations", () => {
     gitLibraries.isGitRepository.mockReset()
     gitLibraries.deleteBranch.mockReset()
     gitLibraries.renameBranch.mockReset()
+    gitLibraries.createWorktree.mockReset()
   })
 
   it("rejects an option-like branch name instead of reporting a deletion", async () => {
@@ -270,5 +273,27 @@ describe("git repository hints route", () => {
     expect(response.body.childRepositories.map((repo) => repo.name)).toEqual(["app", "lib"])
     // The temp folder is outside the home folder, so the search does not walk upward.
     expect(response.body.gitRoot).toBeNull()
+  })
+})
+
+describe("git worktree routes", () => {
+  it("hands worktree creation the runtime-backed project start command reader", async () => {
+    // The project's start command lives in the runtime, which only the route layer can reach.
+    const { app, getRoute } = createRouteRegistry()
+    const readProjectStartCommand = vi.fn(async () => "pnpm install")
+    registerGitRoutes(app, { readProjectStartCommand })
+    const response = createMockResponse()
+    gitLibraries.createWorktree.mockResolvedValue({ directory: "/repo/.worktrees/feat" })
+
+    await getRoute("POST", "/api/git/worktrees")(
+      { query: { directory: "/repo" }, body: { branch: "feat" } },
+      response,
+    )
+
+    expect(gitLibraries.createWorktree).toHaveBeenCalledWith("/repo", {
+      branch: "feat",
+      readProjectStartCommand,
+    })
+    expect(response.statusCode).toBe(200)
   })
 })

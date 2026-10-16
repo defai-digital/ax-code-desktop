@@ -969,7 +969,11 @@ export function registerGitRoutes(app, options = {}) {
         return res.status(400).json({ error: "directory parameter is required" })
       }
 
-      const created = await createWorktree(directory, req.body || {})
+      const created = await createWorktree(directory, {
+        ...(req.body || {}),
+        // The project's start command lives in the runtime, which the route layer can reach.
+        readProjectStartCommand: options.readProjectStartCommand,
+      })
       res.json(created)
     } catch (error) {
       console.error("Failed to create worktree:", error)

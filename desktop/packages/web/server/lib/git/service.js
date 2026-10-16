@@ -1218,18 +1218,6 @@ const runWorktreeStartCommand = async (directory, command) => {
   return result
 }
 
-const loadProjectStartCommand = async (projectID) => {
-  const storagePath = path.join(getAxCodeDataPath(), "storage", "project", `${projectID}.json`)
-  try {
-    const raw = await fsp.readFile(storagePath, "utf8")
-    const parsed = JSON.parse(raw)
-    const start = typeof parsed?.commands?.start === "string" ? parsed.commands.start.trim() : ""
-    return start || ""
-  } catch {
-    return ""
-  }
-}
-
 const getProjectStoragePath = (projectID) => {
   return path.join(getAxCodeDataPath(), "storage", "project", `${projectID}.json`)
 }
@@ -1302,8 +1290,9 @@ const syncProjectSandboxRemove = async (projectID, primaryWorktree, sandboxPath)
   })
 }
 
-const runWorktreeStartScripts = async (directory, projectID, startCommand) => {
-  const projectStart = await loadProjectStartCommand(projectID)
+const runWorktreeStartScripts = async (directory, projectID, startCommand, readProjectStartCommand) => {
+  const projectStart =
+    typeof readProjectStartCommand === "function" ? await readProjectStartCommand(projectID) : ""
   if (projectStart) {
     const projectResult = await runWorktreeStartCommand(directory, projectStart)
     if (!projectResult.success) {
@@ -1337,6 +1326,7 @@ const queueWorktreeBootstrap = (args) => {
     ensureRemoteName,
     ensureRemoteUrl,
     startCommand,
+    readProjectStartCommand,
   } = args
   setTimeout(() => {
     const run = async () => {
@@ -1358,7 +1348,7 @@ const queueWorktreeBootstrap = (args) => {
           )
         })
       }
-      await runWorktreeStartScripts(directory, projectID, startCommand).catch((error) => {
+      await runWorktreeStartScripts(directory, projectID, startCommand, readProjectStartCommand).catch((error) => {
         console.warn("Worktree start script task failed:", error instanceof Error ? error.message : String(error))
       })
       setWorktreeBootstrapState(directory, WORKTREE_BOOTSTRAP_READY)
@@ -3414,6 +3404,7 @@ export async function createWorktree(directory, input = {}) {
     ensureRemoteName,
     ensureRemoteUrl,
     startCommand: input?.startCommand,
+    readProjectStartCommand: input?.readProjectStartCommand,
   })
 
   const headResult = await runGitCommand(candidate.directory, ["rev-parse", "HEAD"])

@@ -10,8 +10,10 @@ import {
   checkoutCommit,
   cherryPick,
   countStashFiles,
+  createWorktree,
   getFileDiff,
   getStatus,
+  getWorktreeBootstrapStatus,
   isGitRepository,
   isRefusedRepositoryRoot,
   removeWorktree,
@@ -897,5 +899,53 @@ describe("getStatus diff stats", () => {
     expect(status.diffStats.working["untracked.txt"]).toEqual({ insertions: 2, deletions: 0 })
     expect(status.diffStats.staged["staged.txt"]).toEqual({ insertions: 3, deletions: 0 })
     expect(status.diffStats.working["staged.txt"]).toBeUndefined()
+  })
+})
+
+
+// ---------------------------------------------------------------------------
+// createWorktree start scripts
+// ---------------------------------------------------------------------------
+
+describe("createWorktree start scripts", () => {
+  it("runs the project start command the runtime keeps, in the new worktree", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
+    runGit(repo, ["add", "README.md"])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+
+    const previousXdgDataHome = process.env.XDG_DATA_HOME
+    process.env.XDG_DATA_HOME = createTempDir()
+    const markerScript = path.join(createTempDir(), "project-start.cjs")
+    fs.writeFileSync(markerScript, "require('node:fs').writeFileSync('START_RAN', process.cwd());\n")
+    const askedFor = []
+
+    try {
+      const created = await createWorktree(repo, {
+        mode: "new",
+        branchName: "feature/project-start",
+        worktreeName: "project-start",
+        // The project's start command lives in the runtime; the route layer hands this reader in.
+        readProjectStartCommand: async (projectID) => {
+          askedFor.push(projectID)
+          return `${JSON.stringify(process.execPath)} ${JSON.stringify(markerScript)}`
+        },
+      })
+
+      await expect
+        .poll(async () => (await getWorktreeBootstrapStatus(created.path)).status, { timeout: 15000 })
+        .toBe("ready")
+
+      expect(fs.readFileSync(path.join(created.path, "START_RAN"), "utf8")).toBe(fs.realpathSync(created.path))
+      expect(askedFor).toEqual([expect.any(String)])
+    } finally {
+      if (previousXdgDataHome === undefined) delete process.env.XDG_DATA_HOME
+      else process.env.XDG_DATA_HOME = previousXdgDataHome
+    }
   })
 })

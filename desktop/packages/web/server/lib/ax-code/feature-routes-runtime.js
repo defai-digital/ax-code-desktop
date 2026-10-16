@@ -4,6 +4,7 @@ import { registerQuotaRoutes } from "../quota/routes.js"
 import { registerGitHubRoutes } from "../github/routes.js"
 import { registerGitRoutes } from "../git/routes.js"
 import { disposeRuntimeInstance } from "../git/dispose-runtime-instance.js"
+import { readRuntimeProjectStartCommand } from "../git/project-start-command.js"
 import { registerMagicPromptRoutes } from "../magic-prompts/routes.js"
 import { registerSessionFoldersRoutes } from "../session-folders/routes.js"
 import { registerConfigEntityRoutes } from "./config-entity-routes.js"
@@ -300,6 +301,8 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     registerGitRoutes(app, {
       disposeInstance: (worktreeDirectory) =>
         disposeRuntimeInstance({ directory: worktreeDirectory, buildAxCodeUrl, getAxCodeAuthHeaders }),
+      readProjectStartCommand: (projectID) =>
+        readRuntimeProjectStartCommand({ projectID, buildAxCodeUrl, getAxCodeAuthHeaders }),
     })
     registerMagicPromptRoutes(app, {
       fsPromises,
