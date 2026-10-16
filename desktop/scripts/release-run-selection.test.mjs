@@ -20,7 +20,7 @@ const run = (overrides) => ({
 })
 
 describe("release run selection", () => {
-  test("takes the run for the tag even when an older run on the commit is newer-looking", () => {
+  test("takes the run for the tag, not an earlier run on the same commit", () => {
     const selected = selectReleaseRun(
       [
         // A push on the same commit that ran and finished before the tag existed.
@@ -33,18 +33,31 @@ describe("release run selection", () => {
     expect(selected?.databaseId).toBe(42)
   })
 
+  test("the tag's own run wins even when a same-commit run started later", () => {
+    const selected = selectReleaseRun(
+      [
+        run({ databaseId: 45, headBranch: "main", createdAt: "2026-10-16T11:00:00Z" }),
+        run({ databaseId: 44, headBranch: TAG, createdAt: "2026-10-16T10:00:05Z" }),
+      ],
+      { tag: TAG, headSha: HEAD_SHA, pushedAt: PUSHED_AT },
+    )
+
+    expect(selected?.databaseId).toBe(44)
+  })
+
   test("ignores a same-commit run that started before the tag was pushed", () => {
     // Matching on headSha alone watched this one: it had already finished, so the script
-    // stopped waiting while the tag's own build was still running.
+    // stopped waiting while the tag's own build was still running. A tolerance for clock
+    // skew here would readmit the run from the push that created the commit.
     const selected = selectReleaseRun(
-      [run({ databaseId: 41, headBranch: "main", createdAt: "2026-10-16T08:00:00Z" })],
+      [run({ databaseId: 41, headBranch: "main", createdAt: "2026-10-16T09:59:00Z" })],
       { tag: TAG, headSha: HEAD_SHA, pushedAt: PUSHED_AT },
     )
 
     expect(selected).toBeNull()
   })
 
-  test("accepts a dispatch on the same commit that started with the tag push", () => {
+  test("falls back to a same-commit run that started with the tag push", () => {
     const selected = selectReleaseRun(
       [run({ databaseId: 43, headBranch: "main", event: "workflow_dispatch", createdAt: "2026-10-16T10:00:30Z" })],
       { tag: TAG, headSha: HEAD_SHA, pushedAt: PUSHED_AT },

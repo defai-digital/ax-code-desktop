@@ -3,43 +3,46 @@ import { pathToFileURL } from "node:url"
 /**
  * Picks the GitHub Actions run that will publish a release tag.
  *
- * Called from desktop/scripts/publish-github-release.sh right after the tag is pushed.
- * The run for the tag has `headBranch === tag`. A `workflow_dispatch` run for the same
- * commit carries the branch name instead, so a same-commit run is accepted only when it
- * started at or after the tag push: matching on `headSha` alone picked up a run from an
- * earlier push on that commit, and `gh run watch` returned the moment that finished run
- * did while the tag's own build was still going.
+ * Called from desktop/scripts/publish-github-release.sh right after the tag is pushed. The run
+ * for the tag has `headBranch === tag`, which is the only signal that a run cannot have come
+ * from an earlier push on the same commit — a run from the push that *put* that commit there is
+ * otherwise indistinguishable, and watching the finished one returned immediately while the
+ * tag's own build was still going.
  *
- * Exports nothing else and prints a bare databaseId when run as a command; empty output
- * means "no run yet" and the caller keeps polling.
+ * A same-commit run is therefore only a fallback, used when no tag run is listed yet (a
+ * `workflow_dispatch` carries the branch name, not the tag), and it must have started after the
+ * tag push. Exports nothing else and prints a bare databaseId when run as a command; empty
+ * output means "no run yet" and the caller keeps polling.
  */
-
-/** GitHub reports `createdAt` in UTC; the local clock can sit slightly behind it. */
-const CLOCK_SKEW_MS = 120_000
-
-function createdAfterPush(createdAt, pushedAt) {
+function startedAfterPush(createdAt, pushedAt) {
   const created = Date.parse(createdAt)
   const pushed = Date.parse(pushedAt)
   if (!Number.isFinite(created) || !Number.isFinite(pushed)) return false
-  return created >= pushed - CLOCK_SKEW_MS
+  return created > pushed
+}
+
+function newest(candidates) {
+  return candidates.reduce((best, run) => {
+    const runAt = Date.parse(run.createdAt)
+    const bestAt = Date.parse(best.createdAt)
+    if (!Number.isFinite(bestAt)) return run
+    if (!Number.isFinite(runAt)) return best
+    return runAt > bestAt ? run : best
+  })
 }
 
 export function selectReleaseRun(runs, { tag, headSha, pushedAt } = {}) {
-  const candidates = (Array.isArray(runs) ? runs : []).filter((run) => {
-    if (!run || typeof run !== "object" || run.databaseId === undefined || run.databaseId === null) return false
-    if (run.headBranch === tag) return true
-    return run.headSha === headSha && createdAfterPush(run.createdAt, pushedAt)
-  })
+  const candidates = (Array.isArray(runs) ? runs : []).filter(
+    (run) => run && typeof run === "object" && run.databaseId !== undefined && run.databaseId !== null,
+  )
 
-  if (candidates.length === 0) return null
+  const forTag = candidates.filter((run) => run.headBranch === tag)
+  if (forTag.length > 0) return newest(forTag)
 
-  return candidates.reduce((newest, run) => {
-    const runAt = Date.parse(run.createdAt)
-    const newestAt = Date.parse(newest.createdAt)
-    if (!Number.isFinite(newestAt)) return run
-    if (!Number.isFinite(runAt)) return newest
-    return runAt > newestAt ? run : newest
-  })
+  const afterPush = candidates.filter(
+    (run) => run.headSha === headSha && startedAfterPush(run.createdAt, pushedAt),
+  )
+  return afterPush.length > 0 ? newest(afterPush) : null
 }
 
 function main() {
