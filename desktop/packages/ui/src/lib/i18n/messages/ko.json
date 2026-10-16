@@ -2020,6 +2020,7 @@
   "sessions.sidebar.session.untitled": "\uc81c\ubaa9 \uc5c6\ub294 \uc138\uc158",
   "sessions.sidebar.session.export.nothingToExport": "\ub0b4\ubcf4\ub0bc \ud56d\ubaa9\uc774 \uc5c6\uc2b5\ub2c8\ub2e4",
   "sessions.sidebar.session.export.success": "\uc138\uc158\uc744 \ub0b4\ubcf4\ub0c8\uc2b5\ub2c8\ub2e4",
+  "sessions.sidebar.session.export.failed": "\ub0b4\ubcf4\ub0b4\uae30\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4",
   "sessions.sidebar.session.export.failedRevealPath": "\uacbd\ub85c\ub97c \ud45c\uc2dc\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
   "sessions.sidebar.session.export.untitledSubagent": "\uc81c\ubaa9 \uc5c6\ub294 \ud558\uc704 \uc5d0\uc774\uc804\ud2b8",
   "sessions.sidebar.session.export.skippedSubtaskSingle": "\uc138\uc158\uc744 \ub0b4\ubcf4\ub0c8\uc9c0\ub9cc \ubd88\ub7ec\uc62c \uc218 \uc5c6\ub294 \ud558\uc704 \uc5d0\uc774\uc804\ud2b8 \uc791\uc5c5 {count}\uac1c\ub97c \uac74\ub108\ub6f0\uc5c8\uc2b5\ub2c8\ub2e4.",

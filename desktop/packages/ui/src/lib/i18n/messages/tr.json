@@ -2020,6 +2020,7 @@
   "sessions.sidebar.session.untitled": "Ads\u0131z oturum",
   "sessions.sidebar.session.export.nothingToExport": "D\u0131\u015fa aktar\u0131lacak bir \u015fey yok",
   "sessions.sidebar.session.export.success": "Oturum d\u0131\u015fa aktar\u0131ld\u0131",
+  "sessions.sidebar.session.export.failed": "D\u0131\u015fa aktarma ba\u015far\u0131s\u0131z",
   "sessions.sidebar.session.export.failedRevealPath": "Yol g\u00f6sterilemedi",
   "sessions.sidebar.session.export.untitledSubagent": "Ads\u0131z alt arac\u0131",
   "sessions.sidebar.session.export.skippedSubtaskSingle": "Oturum d\u0131\u015fa aktar\u0131ld\u0131 ancak y\u00fcklenemeyen {count} alt arac\u0131 g\u00f6revi atland\u0131.",

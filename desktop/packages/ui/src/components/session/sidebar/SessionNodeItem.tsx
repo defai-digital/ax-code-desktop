@@ -32,6 +32,7 @@ import {
   getExportRevealLabelKey,
   revealExportedMarkdown,
   saveAsMarkdownDesktop,
+  shouldDownloadInsteadOfSaving,
 } from "@/lib/exportSession"
 import type { ChildSessionExport } from "@/lib/exportSession"
 import {
@@ -478,44 +479,61 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
         return
       }
 
-      const records = await loadAllSessionRecords({ sessionId: session.id, store: directoryStore, sync })
-      if (records.length === 0) {
-        toast.error(t("sessions.sidebar.session.export.nothingToExport"))
-        return
-      }
+      // Both callers discard this promise with `void`, and the loads below (session records,
+      // child exports) reject when the runtime is unreachable: the click then did nothing at
+      // all and left an unhandled rejection behind.
+      try {
+        const records = await loadAllSessionRecords({ sessionId: session.id, store: directoryStore, sync })
+        if (records.length === 0) {
+          toast.error(t("sessions.sidebar.session.export.nothingToExport"))
+          return
+        }
 
-      let childExports: ChildSessionExport[] | undefined
-      let skippedSubtaskCount = 0
-      if (includeSubtasks && node.children.length > 0) {
-        const collected = await collectChildExports(node.children)
-        childExports = collected.children
-        skippedSubtaskCount = collected.skipped
-      }
+        let childExports: ChildSessionExport[] | undefined
+        let skippedSubtaskCount = 0
+        if (includeSubtasks && node.children.length > 0) {
+          const collected = await collectChildExports(node.children)
+          childExports = collected.children
+          skippedSubtaskCount = collected.skipped
+        }
 
-      const markdown = formatSessionAsMarkdown(records, resolvedSession.title ?? null, childExports)
-      const filename = buildExportFilename(resolvedSession.title ?? null)
-      const savedPath = await saveAsMarkdownDesktop(markdown, filename)
+        const markdown = formatSessionAsMarkdown(records, resolvedSession.title ?? null, childExports)
+        const filename = buildExportFilename(resolvedSession.title ?? null)
+        const save = await saveAsMarkdownDesktop(markdown, filename)
 
-      if (savedPath) {
-        toast.success(t("sessions.sidebar.session.export.success"), {
-          action: {
-            label: t(getExportRevealLabelKey()),
-            onClick: () => {
-              void revealExportedMarkdown(savedPath).then((revealed) => {
-                if (!revealed) {
-                  toast.error(t("sessions.sidebar.session.export.failedRevealPath"))
-                }
-              })
+        if (save.kind === "saved") {
+          toast.success(t("sessions.sidebar.session.export.success"), {
+            action: {
+              label: t(getExportRevealLabelKey()),
+              onClick: () => {
+                void revealExportedMarkdown(save.path).then((revealed) => {
+                  if (!revealed) {
+                    toast.error(t("sessions.sidebar.session.export.failedRevealPath"))
+                  }
+                })
+              },
             },
-          },
-        })
-        showSkippedSubtasksWarning(skippedSubtaskCount)
-        return
-      }
+          })
+          showSkippedSubtasksWarning(skippedSubtaskCount)
+          return
+        }
 
-      downloadAsMarkdown(markdown, filename)
-      toast.success(t("sessions.sidebar.session.export.success"))
-      showSkippedSubtasksWarning(skippedSubtaskCount)
+        // A cancelled dialog and a failed write used to land here as well, and the fallback
+        // download ran for both: the user who cancelled got a second, unrequested copy and an
+        // "exported" toast, and a save that never happened was reported as a success.
+        if (!shouldDownloadInsteadOfSaving(save.kind)) {
+          if (save.kind === "failed") {
+            toast.error(t("sessions.sidebar.session.export.failed"))
+          }
+          return
+        }
+
+        downloadAsMarkdown(markdown, filename)
+        toast.success(t("sessions.sidebar.session.export.success"))
+        showSkippedSubtasksWarning(skippedSubtaskCount)
+      } catch {
+        toast.error(t("sessions.sidebar.session.export.failed"))
+      }
     },
     [
       collectChildExports,

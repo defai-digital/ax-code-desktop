@@ -2020,6 +2020,7 @@
   "sessions.sidebar.session.untitled": "Unbenannte Sitzung",
   "sessions.sidebar.session.export.nothingToExport": "Nichts zu exportieren",
   "sessions.sidebar.session.export.success": "Sitzung exportiert",
+  "sessions.sidebar.session.export.failed": "Export fehlgeschlagen",
   "sessions.sidebar.session.export.failedRevealPath": "Pfad konnte nicht angezeigt werden",
   "sessions.sidebar.session.export.untitledSubagent": "Unbenannter Sub-Agent",
   "sessions.sidebar.session.export.skippedSubtaskSingle": "Sitzung exportiert, aber {count} Sub-Agent-Aufgabe \u00fcbersprungen, die nicht geladen werden konnte.",

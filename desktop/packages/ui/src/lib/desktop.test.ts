@@ -7,6 +7,7 @@ import {
   requestDirectoryAccess,
   revealDesktopPath,
   restartToApplyUpdate,
+  saveDesktopMarkdownFile,
 } from "./desktop"
 
 const restoreWindow = () => {
@@ -265,6 +266,38 @@ describe("desktop updater IPC", () => {
 
     expect(await restartToApplyUpdate()).toBe(true)
     expect(commands).toEqual(["desktop_quit_and_install"])
+    restoreWindow()
+  })
+})
+
+describe("desktop markdown save outcome", () => {
+  test("reports the written path", async () => {
+    mockDesktopWindow({ invoke: async () => "/Users/test/session.md" })
+    expect(await saveDesktopMarkdownFile("session.md", "# body")).toEqual({
+      kind: "saved",
+      path: "/Users/test/session.md",
+    })
+    restoreWindow()
+  })
+
+  test("separates a cancelled dialog from a shell that cannot save", async () => {
+    // Both were `null` before, so the export fell through to the browser download: cancelling
+    // produced a second, unrequested copy and an "exported" toast.
+    mockDesktopWindow({ invoke: async () => null })
+    expect(await saveDesktopMarkdownFile("session.md", "# body")).toEqual({ kind: "cancelled" })
+    restoreWindow()
+
+    delete (globalThis as Record<string, unknown>).window
+    expect(await saveDesktopMarkdownFile("session.md", "# body")).toEqual({ kind: "unavailable" })
+  })
+
+  test("reports a failed write instead of a cancelled one", async () => {
+    mockDesktopWindow({
+      invoke: async () => {
+        throw new Error("disk is full")
+      },
+    })
+    expect(await saveDesktopMarkdownFile("session.md", "# body")).toEqual({ kind: "failed" })
     restoreWindow()
   })
 })

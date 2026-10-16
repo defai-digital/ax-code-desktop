@@ -379,6 +379,7 @@ export const dict = {
   "sessions.sidebar.session.untitled": "Untitled Session",
   "sessions.sidebar.session.export.nothingToExport": "Nothing to export",
   "sessions.sidebar.session.export.success": "Session exported",
+  "sessions.sidebar.session.export.failed": "Export failed",
   "sessions.sidebar.session.export.failedRevealPath": "Failed to reveal path",
   "sessions.sidebar.session.export.untitledSubagent": "Untitled Sub-agent",
   "sessions.sidebar.session.export.skippedSubtaskSingle":

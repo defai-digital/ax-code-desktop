@@ -2014,6 +2014,7 @@
   "sessions.sidebar.session.untitled": "Sesi\u00f3n sin t\u00edtulo",
   "sessions.sidebar.session.export.nothingToExport": "Nada para exportar",
   "sessions.sidebar.session.export.success": "Sesi\u00f3n exportada",
+  "sessions.sidebar.session.export.failed": "Error al exportar",
   "sessions.sidebar.session.export.failedRevealPath": "No se pudo mostrar la ruta",
   "sessions.sidebar.session.export.untitledSubagent": "Subagente sin t\u00edtulo",
   "sessions.sidebar.session.export.skippedSubtaskSingle": "Sesi\u00f3n exportada, pero se omiti\u00f3 {count} tarea de subagente que no se pudo cargar.",

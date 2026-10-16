@@ -2014,6 +2014,7 @@
   "sessions.sidebar.session.untitled": "Session sans titre",
   "sessions.sidebar.session.export.nothingToExport": "Rien \u00e0 exporter",
   "sessions.sidebar.session.export.success": "Session export\u00e9e",
+  "sessions.sidebar.session.export.failed": "\u00c9chec de l\u2019exportation",
   "sessions.sidebar.session.export.failedRevealPath": "\u00c9chec de la r\u00e9v\u00e9lation du chemin",
   "sessions.sidebar.session.export.untitledSubagent": "Sous-agent sans titre",
   "sessions.sidebar.session.export.skippedSubtaskSingle": "Session export\u00e9e, mais {count} t\u00e2che de sous-agent qui n\u2019a pas pu \u00eatre charg\u00e9e a \u00e9t\u00e9 ignor\u00e9e.",

@@ -15,6 +15,17 @@ export type UpdateInfo = {
   error?: string
 }
 
+/**
+ * Why a native save did not produce a path. The three cases used to be one `null`, so a caller
+ * could not tell a dialog the user cancelled (nothing to download, nothing to report) from a
+ * shell that cannot save at all (where the browser download is the fallback).
+ */
+export type SaveMarkdownOutcome =
+  | { kind: "saved"; path: string }
+  | { kind: "cancelled" }
+  | { kind: "unavailable" }
+  | { kind: "failed" }
+
 export type UpdateProgress = {
   downloaded: number
   total?: number
@@ -593,14 +604,17 @@ export const revealDesktopPath = async (path: string): Promise<boolean> => {
   }
 }
 
-export const saveDesktopMarkdownFile = async (defaultFileName: string, content: string): Promise<string | null> => {
+export const saveDesktopMarkdownFile = async (
+  defaultFileName: string,
+  content: string,
+): Promise<SaveMarkdownOutcome> => {
   if (!isTauriShell() || !isDesktopLocalOriginActive()) {
-    return null
+    return { kind: "unavailable" }
   }
 
   const trimmedFileName = defaultFileName?.trim()
   if (!trimmedFileName) {
-    return null
+    return { kind: "unavailable" }
   }
 
   try {
@@ -608,10 +622,13 @@ export const saveDesktopMarkdownFile = async (defaultFileName: string, content: 
       defaultFileName: trimmedFileName,
       content,
     })
-    return typeof result === "string" && result.trim().length > 0 ? result : null
+    // The main process answers a cancelled dialog with null, and a written file with its path.
+    return typeof result === "string" && result.trim().length > 0
+      ? { kind: "saved", path: result }
+      : { kind: "cancelled" }
   } catch (error) {
     console.warn("Failed to save markdown file (tauri)", error)
-    return null
+    return { kind: "failed" }
   }
 }
 

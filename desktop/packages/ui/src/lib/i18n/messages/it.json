@@ -2020,6 +2020,7 @@
   "sessions.sidebar.session.untitled": "Sessione senza titolo",
   "sessions.sidebar.session.export.nothingToExport": "Niente da esportare",
   "sessions.sidebar.session.export.success": "Sessione esportata",
+  "sessions.sidebar.session.export.failed": "Esportazione non riuscita",
   "sessions.sidebar.session.export.failedRevealPath": "Impossibile mostrare il percorso",
   "sessions.sidebar.session.export.untitledSubagent": "Sub-agente senza titolo",
   "sessions.sidebar.session.export.skippedSubtaskSingle": "Sessione esportata, ma ignorata {count} attivit\u00e0 di sub-agente che non \u00e8 stato possibile caricare.",

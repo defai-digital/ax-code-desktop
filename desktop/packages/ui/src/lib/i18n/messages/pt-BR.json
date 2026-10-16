@@ -2014,6 +2014,7 @@
   "sessions.sidebar.session.untitled": "Sess\u00e3o sem t\u00edtulo",
   "sessions.sidebar.session.export.nothingToExport": "Nada para exportar",
   "sessions.sidebar.session.export.success": "Sess\u00e3o exportada",
+  "sessions.sidebar.session.export.failed": "Falha ao exportar",
   "sessions.sidebar.session.export.failedRevealPath": "Falha ao revelar caminho",
   "sessions.sidebar.session.export.untitledSubagent": "Subagente sem t\u00edtulo",
   "sessions.sidebar.session.export.skippedSubtaskSingle": "Sess\u00e3o exportada, mas {count} subtarefa de subagente ignorada por n\u00e3o carregar.",

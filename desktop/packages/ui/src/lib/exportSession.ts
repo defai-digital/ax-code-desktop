@@ -1,6 +1,7 @@
 import type { Part } from "@defai-digital/ax-code-sdk/v2"
 import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { openDesktopPath, revealDesktopPath, saveDesktopMarkdownFile } from "@/lib/desktop"
+import type { SaveMarkdownOutcome } from "@/lib/desktop"
 import { getRevealLabelKey } from "@/lib/utils"
 import type { SessionMessageRecord } from "@/types/sessionMessages"
 
@@ -121,13 +122,17 @@ export function downloadAsMarkdown(content: string, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
-export async function saveAsMarkdownDesktop(content: string, filename: string): Promise<string | null> {
-  const desktopPath = await saveDesktopMarkdownFile(filename, content)
-  if (desktopPath) {
-    return desktopPath
-  }
+/**
+ * The desktop save's outcome, re-exported for callers of `saveAsMarkdownDesktop`. The browser
+ * download is the fallback for a shell that cannot save at all — nothing else.
+ */
+export type { SaveMarkdownOutcome }
 
-  return null
+export const shouldDownloadInsteadOfSaving = (outcome: SaveMarkdownOutcome["kind"]): boolean =>
+  outcome === "unavailable"
+
+export async function saveAsMarkdownDesktop(content: string, filename: string): Promise<SaveMarkdownOutcome> {
+  return saveDesktopMarkdownFile(filename, content)
 }
 
 export async function revealExportedMarkdown(path: string): Promise<boolean> {

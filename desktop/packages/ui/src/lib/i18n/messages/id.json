@@ -2014,6 +2014,7 @@
   "sessions.sidebar.session.untitled": "Sesi Tanpa Judul",
   "sessions.sidebar.session.export.nothingToExport": "Tidak ada yang diekspor",
   "sessions.sidebar.session.export.success": "Sesi diekspor",
+  "sessions.sidebar.session.export.failed": "Ekspor gagal",
   "sessions.sidebar.session.export.failedRevealPath": "Gagal menampilkan path",
   "sessions.sidebar.session.export.untitledSubagent": "Sub-agen Tanpa Judul",
   "sessions.sidebar.session.export.skippedSubtaskSingle": "Sesi diekspor, tetapi {count} tugas sub-agen yang tidak dapat dimuat dilewati.",

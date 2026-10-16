@@ -2014,6 +2014,7 @@
   "sessions.sidebar.session.untitled": "\u672a\u547d\u540d\u7684\u5de5\u4f5c\u968e\u6bb5",
   "sessions.sidebar.session.export.nothingToExport": "\u6c92\u6709\u53ef\u532f\u51fa\u7684\u5167\u5bb9",
   "sessions.sidebar.session.export.success": "\u5df2\u532f\u51fa\u5de5\u4f5c\u968e\u6bb5",
+  "sessions.sidebar.session.export.failed": "\u532f\u51fa\u5931\u6557",
   "sessions.sidebar.session.export.failedRevealPath": "\u986f\u793a\u8def\u5f91\u5931\u6557",
   "sessions.sidebar.session.export.untitledSubagent": "\u672a\u547d\u540d\u7684\u5b50\u4ee3\u7406",
   "sessions.sidebar.session.export.skippedSubtaskSingle": "\u5df2\u532f\u51fa\u5de5\u4f5c\u968e\u6bb5\uff0c\u4f46\u7565\u904e {count} \u500b\u7121\u6cd5\u8f09\u5165\u7684\u5b50\u4ee3\u7406\u5de5\u4f5c\u3002",
