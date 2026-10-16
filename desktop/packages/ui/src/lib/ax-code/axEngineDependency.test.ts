@@ -89,7 +89,8 @@ describe("describeAxEngineDependency", () => {
 
   test("shows only the version from a raw probe banner", () => {
     expect(
-      describeAxEngineDependency({ available: true, mode: "managed", version: "ax-engine 7.7.0", blockers: [] }).summary,
+      describeAxEngineDependency({ available: true, mode: "managed", version: "ax-engine 7.7.0", blockers: [] })
+        .summary,
     ).toBe("v7.7.0 · Installed by AX Code")
   })
 
@@ -104,8 +105,13 @@ describe("describeAxEngineDependency", () => {
       }).summary,
     ).toBe("v7.8.0 · Installed by AX Code · newer than 7.7.0")
     expect(
-      describeAxEngineDependency({ available: true, mode: "path", version: "7.8.0", pinnedVersion: "7.7.0", blockers: [] })
-        .summary,
+      describeAxEngineDependency({
+        available: true,
+        mode: "path",
+        version: "7.8.0",
+        pinnedVersion: "7.7.0",
+        blockers: [],
+      }).summary,
     ).toBe("v7.8.0 · From PATH")
   })
 
@@ -124,9 +130,9 @@ describe("canOfferAxEngineInstall", () => {
     expect(canOfferAxEngineInstall(data, "managed")).toBe(true)
     expect(canOfferAxEngineInstall(data, undefined)).toBe(true)
     expect(canOfferAxEngineInstall(data, "attach")).toBe(false)
-    expect(canOfferAxEngineInstall({ ...data, eligibility: { ...data.eligibility, supported: false } }, "managed")).toBe(
-      false,
-    )
+    expect(
+      canOfferAxEngineInstall({ ...data, eligibility: { ...data.eligibility, supported: false } }, "managed"),
+    ).toBe(false)
     expect(
       canOfferAxEngineInstall({ ...data, dependency: { ...data.dependency, installable: false } }, "managed"),
     ).toBe(false)
@@ -164,8 +170,12 @@ describe("axEngineUpdateVersion", () => {
         "managed",
       ),
     ).toBeNull()
-    expect(axEngineUpdateVersion({ dependency: { ...managed, updateAvailable: false }, eligibility }, "managed")).toBeNull()
-    expect(axEngineUpdateVersion({ dependency: { ...managed, pinnedVersion: undefined }, eligibility }, "managed")).toBeNull()
+    expect(
+      axEngineUpdateVersion({ dependency: { ...managed, updateAvailable: false }, eligibility }, "managed"),
+    ).toBeNull()
+    expect(
+      axEngineUpdateVersion({ dependency: { ...managed, pinnedVersion: undefined }, eligibility }, "managed"),
+    ).toBeNull()
   })
 
   test("never offers an update for PATH or configured engines, attach mode, or unsupported hosts", () => {

@@ -132,7 +132,6 @@ export const LocalModelsPage: React.FC = () => {
     }
   }, [load])
 
-
   const hasActiveJob = data?.jobs.some((job) => job.status === "queued" || job.status === "running") ?? false
   React.useEffect(() => {
     if (!hasActiveJob) return
@@ -219,7 +218,8 @@ export const LocalModelsPage: React.FC = () => {
   const engineMissingDetails = connection?.mode === "attach" ? [] : axEngineMissingDetails(data?.dependency)
   const installBusy = busyKey === "ax-engine-install"
   const engineUpdateVersion = axEngineUpdateVersion(data, connection?.mode)
-  const canInstallEngine = installBusy || canOfferAxEngineInstall(data, connection?.mode) || Boolean(engineUpdateVersion)
+  const canInstallEngine =
+    installBusy || canOfferAxEngineInstall(data, connection?.mode) || Boolean(engineUpdateVersion)
   const handleInstallEngine = async () => {
     // One install at a time: a second click must not replace the controller
     // that Cancel aborts, so claim the slot before any await.
@@ -260,10 +260,7 @@ export const LocalModelsPage: React.FC = () => {
       )
     } catch (err) {
       if (controller.signal.aborted) toast.success(t("localModels.toast.engineInstallCancelled"))
-      else
-        toast.error(
-          err instanceof Error ? stripAxEngineErrorCode(err.message) : t("localModels.toast.actionFailed"),
-        )
+      else toast.error(err instanceof Error ? stripAxEngineErrorCode(err.message) : t("localModels.toast.actionFailed"))
     } finally {
       if (installAbortRef.current === controller) installAbortRef.current = null
       if (mountedRef.current) setBusyKey(null)
@@ -620,8 +617,10 @@ const StatusBox: React.FC<{
     )}
   >
     <div className="typography-micro leading-4 text-muted-foreground">{title}</div>
-    <div className="flex items-center justify-between gap-2">
-      <div className="truncate typography-micro leading-5 text-foreground" title={tooltip ?? value}>
+    {/* The action wraps under the value when both do not fit, so a button
+        never squeezes the value down to a few characters. */}
+    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+      <div className="min-w-[7rem] flex-1 truncate typography-micro leading-5 text-foreground" title={tooltip ?? value}>
         {value}
       </div>
       {action}

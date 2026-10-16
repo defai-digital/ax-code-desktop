@@ -50,10 +50,19 @@ const json = (body: unknown, status = 200) =>
 const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input)
   const method = init?.method ?? "GET"
-  if (method !== "GET") calls.push(`${method} ${new URL(url, "http://x").pathname}`)
+  // Only AX Engine calls; other stores may save settings in the background.
+  if (method !== "GET" && url.includes("/provider/ax-engine/"))
+    calls.push(`${method} ${new URL(url, "http://x").pathname}`)
   if (url.includes("/provider/ax-engine/models")) return json(modelsQueue.length ? modelsQueue.shift() : modelsBody)
   if (url.includes("/provider/ax-engine/connection"))
-    return json({ mode: "managed", baseURL: "http://127.0.0.1:31418/v1", ready: false, models: [], toolcall: false, hasApiKey: false })
+    return json({
+      mode: "managed",
+      baseURL: "http://127.0.0.1:31418/v1",
+      ready: false,
+      models: [],
+      toolcall: false,
+      hasApiKey: false,
+    })
   if (url.includes("/provider/ax-engine/stop")) return json(true)
   if (url.includes("/provider/ax-engine/install")) return installResponse()
   if (url.endsWith("/health")) return json({ axCodeBinaryResolved: "/bundled/ax-code", axCodeVersion: "7.26.0" })
@@ -196,7 +205,9 @@ describe("LocalModelsPage AX Engine status", () => {
         installable: true,
         pinnedVersion: "7.7.0",
         blockers: ["AX_ENGINE_BINARY_MISSING: ax-engine was not found."],
-        warnings: ["AX_ENGINE_VERSION_UNSUPPORTED: managed ax-engine 7.6.0 does not establish the required 7.7.0 contract"],
+        warnings: [
+          "AX_ENGINE_VERSION_UNSUPPORTED: managed ax-engine 7.6.0 does not establish the required 7.7.0 contract",
+        ],
       },
       true,
     )
@@ -214,7 +225,12 @@ describe("LocalModelsPage AX Engine status", () => {
   })
 
   test("offers no update for an engine on PATH, even when behind the pin", async () => {
-    modelsBody = models({ ...staleManaged, mode: "path", binaryPath: "/opt/homebrew/bin/ax-engine", updateAvailable: false })
+    modelsBody = models({
+      ...staleManaged,
+      mode: "path",
+      binaryPath: "/opt/homebrew/bin/ax-engine",
+      updateAvailable: false,
+    })
     await render()
     expect(button("Update to 7.7.0")).toBeNull()
     expect(text()).toContain("Update it the same way you installed it.")
