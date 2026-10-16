@@ -129,6 +129,15 @@ export const createStartupPipelineRuntime = (dependencies) => {
       } catch {
         // As above: report the bind failure, not the teardown's.
       }
+      // The teardown cleared the handle the process was published under, so the HMR state has to be published
+      // again: an in-process re-entry (embedded mode, an HMR reload) resets `isShuttingDown` and then restores
+      // this state in the bootstrap's `syncFromHmrState()`, which would put the closed handle back and make
+      // `isManagedAxCodeProcessAlive()` answer for a process that is gone.
+      try {
+        syncToHmrState?.()
+      } catch {
+        // As above.
+      }
       throw error
     }
 

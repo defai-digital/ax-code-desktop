@@ -138,6 +138,7 @@ describe("startup pipeline failure handling", () => {
     const axCodeProcess = { close: vi.fn(async () => undefined) }
     const setAxCodeProcess = vi.fn()
     const killProcessOnPort = vi.fn()
+    const syncToHmrState = vi.fn()
     const shutdownRuntime = createGracefulShutdownRuntime({
       process: { exit: vi.fn() },
       shutdownTimeoutMs: 1000,
@@ -185,6 +186,7 @@ describe("startup pipeline failure handling", () => {
         bootstrapAxCodeAtStartup: () => {},
         stopAxCodeLifecycle: async () => {},
         stopManagedAxCodeProcess: () => shutdownRuntime.stopManagedAxCodeProcess(),
+        syncToHmrState,
       },
     })
 
@@ -192,5 +194,7 @@ describe("startup pipeline failure handling", () => {
     expect(axCodeProcess.close).toHaveBeenCalledTimes(1)
     expect(setAxCodeProcess).toHaveBeenCalledWith(null)
     expect(killProcessOnPort).toHaveBeenCalledWith(45678)
+    // The closed handle must not survive in the HMR state: a re-entry restores it from there.
+    expect(syncToHmrState).toHaveBeenCalledTimes(1)
   })
 })
