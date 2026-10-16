@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest"
 
 const require = createRequire(import.meta.url)
 const {
+  collectNativeSearchResults,
   resolveSearchableNativeRoot,
   shouldIncludeNativeSearchEntry,
   shouldSearchNativeRoot,
@@ -99,5 +100,63 @@ describe("resolveSearchableNativeRoot", () => {
 
   test("refuses without a way to resolve the path", async () => {
     await expect(resolveSearchableNativeRoot("/tmp/project")).resolves.toBeNull()
+  })
+})
+
+describe("collectNativeSearchResults", () => {
+  // A small in-memory directory tree: `readdir` answers from it, so the walk can be driven without a
+  // real home directory.
+  const createFs = (tree) => ({
+    readdir: async (dir) => {
+      const entries = tree[dir]
+      if (!entries) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+      return entries.map((entry) => ({
+        name: entry.name,
+        isDirectory: () => entry.type === "directory",
+        isFile: () => entry.type === "file",
+      }))
+    },
+  })
+
+  const policyOptions = { home: "/Users/alice", tmp: "/tmp", pathTools: path.posix }
+
+  test("does not list store contents under a root the policy allows", async () => {
+    // `~/.config` is an allowed root (only its longer denied prefixes are refused), and the walk used
+    // to descend into every child: searching it listed gh/hosts.yml and the runtime's auth files —
+    // names of exactly the paths `desktop_read_file` refuses.
+    const root = "/Users/alice/.config"
+    const results = await collectNativeSearchResults({
+      root,
+      query: "hosts",
+      options: policyOptions,
+      fs: createFs({
+        [root]: [
+          { name: "gh", type: "directory" },
+          { name: "nvim", type: "directory" },
+        ],
+        [`${root}/gh`]: [{ name: "hosts.yml", type: "file" }],
+        [`${root}/nvim`]: [{ name: "hosts.lua", type: "file" }],
+      }),
+    })
+
+    expect(results.map((entry) => entry.path)).toEqual([`${root}/nvim/hosts.lua`])
+  })
+
+  test("walks past a directory the policy denies but keeps ordinary siblings", async () => {
+    const root = "/Users/alice/project"
+    const results = await collectNativeSearchResults({
+      root,
+      query: "notes",
+      options: policyOptions,
+      fs: createFs({
+        [root]: [
+          { name: "src", type: "directory" },
+          { name: "notes.md", type: "file" },
+        ],
+        [`${root}/src`]: [{ name: "notes.txt", type: "file" }],
+      }),
+    })
+
+    expect(results.map((entry) => entry.relativePath).sort()).toEqual(["notes.md", "src/notes.txt"])
   })
 })

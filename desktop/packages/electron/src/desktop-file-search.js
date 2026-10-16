@@ -55,7 +55,73 @@ const shouldIncludeNativeSearchEntry = (entry, resultType, query) => {
   return matchesType && entry.name.toLowerCase().includes(normalizedQuery)
 }
 
+const NATIVE_SEARCH_SKIP_DIRS = new Set([
+  "node_modules",
+  ".git",
+  ".hg",
+  ".svn",
+  "dist",
+  "build",
+  ".next",
+  ".cache",
+  "target",
+])
+
+/**
+ * Walk a root for name matches.
+ *
+ * The denied-path policy applies to every entry, not only to the root: a search rooted at an allowed
+ * directory — HOME itself, or `~/.config`, which the policy allows because only its longer denied
+ * prefixes are refused — otherwise enumerated the credential stores `desktop_read_file` refuses
+ * (`.config/gh/hosts.yml`, the runtime's auth files, browser profiles, keychains), which is the name
+ * oracle `shouldSearchNativeRoot` exists to prevent. Only real directories are recursed into, so a
+ * link is never followed out of the tree.
+ */
+const collectNativeSearchResults = async ({
+  root,
+  query,
+  includeHidden = false,
+  resultType = "file",
+  limit = 200,
+  options = {},
+  fs: fsImpl,
+  pathTools = path,
+  maxDepth = 12,
+}) => {
+  const results = []
+  const walk = async (dir, depth) => {
+    if (results.length >= limit || depth > maxDepth) return
+    let entries
+    try {
+      entries = await fsImpl.readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (results.length >= limit) return
+      if (entry.name.startsWith(".") && !includeHidden) continue
+      if (entry.isDirectory() && NATIVE_SEARCH_SKIP_DIRS.has(entry.name)) continue
+      const full = pathTools.join(dir, entry.name)
+      if (!shouldSearchNativeRoot(full, options)) continue
+      if (shouldIncludeNativeSearchEntry(entry, resultType, query)) {
+        const extension = entry.isDirectory() ? undefined : pathTools.extname(entry.name).replace(/^\./, "") || undefined
+        results.push({
+          name: entry.name,
+          path: full,
+          relativePath: toNativeSearchRelativePath(root, full, pathTools),
+          ...(extension ? { extension } : {}),
+        })
+      }
+      if (entry.isDirectory()) await walk(full, depth + 1)
+    }
+  }
+
+  await walk(root, 0)
+  return results
+}
+
 module.exports = {
+  collectNativeSearchResults,
   resolveSearchableNativeRoot,
   shouldIncludeNativeSearchEntry,
   shouldSearchNativeRoot,

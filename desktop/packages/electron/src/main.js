@@ -34,9 +34,8 @@ const { mapWithConcurrency } = require("./map-with-concurrency")
 const { assertDesktopReadFileAllowed } = require("./desktop-read-file-policy")
 const { sanitizeDesktopWindowTitle } = require("./desktop-window-title")
 const {
+  collectNativeSearchResults,
   resolveSearchableNativeRoot,
-  shouldIncludeNativeSearchEntry,
-  toNativeSearchRelativePath,
 } = require("./desktop-file-search")
 const { AX_CODE_INSTALL_DOCS_URL, GITHUB_BUG_REPORT_URL, GITHUB_FEATURE_REQUEST_URL } = require("./support-urls")
 const { createSupervisionFsm } = require("./supervision-fsm")
@@ -1367,14 +1366,21 @@ const settingsFilePath = () => {
   return path.join(os.homedir(), ".config", "openchamber", "settings.json")
 }
 
-const readJsonFile = (filePath) => {
+// A missing file is an empty document; an unreadable or invalid one is not, and callers that write
+// back what they read need to tell the two apart.
+const readJsonFileResult = (filePath) => {
   try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8"))
+    return { ok: true, value: JSON.parse(fs.readFileSync(filePath, "utf8")) }
   } catch (error) {
-    if (error && error.code === "ENOENT") return {}
+    if (error && error.code === "ENOENT") return { ok: true, value: {} }
     console.warn("[electron] failed to read JSON file", filePath, error)
-    return {}
+    return { ok: false, value: null }
   }
+}
+
+const readJsonFile = (filePath) => {
+  const result = readJsonFileResult(filePath)
+  return result.ok ? result.value : {}
 }
 
 const writeJsonFile = async (filePath, data) => {
@@ -1462,7 +1468,15 @@ const readSettingsRoot = () => {
 let settingsMutationChain = Promise.resolve()
 const mutateSettingsRoot = (mutator) => {
   const next = settingsMutationChain.then(async () => {
-    const current = readSettingsRoot()
+    // Refuse to write over a file this process could not read. Answering `{}` for a truncated or
+    // unreadable settings.json and then persisting the mutation would replace the user's theme,
+    // projects, runtime path and shortcuts with whatever this one change carries — a window
+    // geometry, most often. The failure reaches the caller, which reports it.
+    const read = readJsonFileResult(settingsFilePath())
+    if (!read.ok) {
+      throw new Error("settings.json could not be read; the change was not written")
+    }
+    const current = read.value && typeof read.value === "object" && !Array.isArray(read.value) ? read.value : {}
     const result = await mutator(current)
     const nextRoot = result ?? current
     await writeJsonFile(settingsFilePath(), nextRoot)
@@ -2187,11 +2201,15 @@ const debounceWindowStatePersist = (browserWindow, immediate = false) => {
     await writeWindowState(browserWindow)
   }
   if (immediate) {
-    void persist()
+    void persist().catch((error) => {
+      console.warn("[electron] failed to persist window geometry", error)
+    })
     return
   }
   const timer = setTimeout(() => {
-    void persist()
+    void persist().catch((error) => {
+      console.warn("[electron] failed to persist window geometry", error)
+    })
   }, 300)
   windowGeometryTimers.set(key, timer)
 }
@@ -2995,35 +3013,14 @@ handleCommand("desktop_search_files", async (args) => {
   } catch {
     return []
   }
-  const SKIP_DIRS = new Set(["node_modules", ".git", ".hg", ".svn", "dist", "build", ".next", ".cache", "target"])
-  const results = []
-  const walk = async (dir, depth) => {
-    if (results.length >= limit || depth > 12) return
-    let entries
-    try {
-      entries = await fsp.readdir(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      if (results.length >= limit) return
-      if (entry.name.startsWith(".") && !includeHidden) continue
-      if (entry.isDirectory() && SKIP_DIRS.has(entry.name)) continue
-      const full = path.join(dir, entry.name)
-      if (shouldIncludeNativeSearchEntry(entry, resultType, query)) {
-        const ext = entry.isDirectory() ? undefined : path.extname(entry.name).replace(/^\./, "") || undefined
-        results.push({
-          name: entry.name,
-          path: full,
-          relativePath: toNativeSearchRelativePath(resolvedRoot, full),
-          ...(ext ? { extension: ext } : {}),
-        })
-      }
-      if (entry.isDirectory()) await walk(full, depth + 1)
-    }
-  }
-  await walk(resolvedRoot, 0)
-  return results
+  return collectNativeSearchResults({
+    root: resolvedRoot,
+    query,
+    includeHidden,
+    resultType,
+    limit,
+    fs: fsp,
+  })
 })
 
 handleCommand("desktop_clear_cache", async () => {
