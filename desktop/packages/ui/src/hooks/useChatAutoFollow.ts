@@ -174,6 +174,11 @@ export const useChatAutoFollow = ({
     followedTurnStopsRef.current.clear()
     followStopEligibilityRef.current.clear()
     heldAtFollowStopRef.current = false
+    // The unseen baseline is the message count of the session it was taken in. A new
+    // session that is restored already released (its viewport position was saved in
+    // this app run) would otherwise count its whole history against the previous
+    // session's total and report "N new messages" for messages it never received.
+    unseenBaseRef.current = sessionMessageCountRef.current
   }, [currentSessionId])
 
   const lastSessionIdRef = React.useRef<string | null>(null)

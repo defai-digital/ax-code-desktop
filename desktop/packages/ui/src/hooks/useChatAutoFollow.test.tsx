@@ -13,11 +13,13 @@ describe("useChatAutoFollow collapsed activity", () => {
   let frames: Map<number, FrameRequestCallback>
   let nextFrameId: number
   let sessionIsWorking = true
+  let currentSessionId = "session-a"
+  let sessionMessageCount = 2
 
   const Probe = () => {
     const follow = useChatAutoFollow({
-      currentSessionId: "session-a",
-      sessionMessageCount: 2,
+      currentSessionId,
+      sessionMessageCount,
       sessionIsWorking,
       isMobile: false,
     })
@@ -75,6 +77,8 @@ describe("useChatAutoFollow collapsed activity", () => {
     root = createRoot(container)
     result = null
     sessionIsWorking = true
+    currentSessionId = "session-a"
+    sessionMessageCount = 2
     useUIStore.setState({ activityRenderMode: "collapsed" })
   })
 
@@ -125,6 +129,34 @@ describe("useChatAutoFollow collapsed activity", () => {
       scrollContainer.dispatchEvent(new Event("scroll"))
     })
     expect(result?.showScrollButton).toBe(true)
+  })
+
+  test("does not count a new session's messages against the previous session's baseline", () => {
+    render()
+    const scrollContainer = setLayout(300)
+    flushFrames()
+    expect(result?.state).toBe("released")
+    expect(result?.unseenCount).toBe(0)
+
+    // The reader opens another session whose viewport was already released earlier in
+    // this run, so it restores released. Its history is not "new" for this reader.
+    currentSessionId = "session-b"
+    sessionMessageCount = 40
+    React.act(() => {
+      root.render(React.createElement(Probe))
+    })
+    flushFrames()
+
+    expect(result?.state).toBe("released")
+    expect(result?.unseenCount).toBe(0)
+
+    // A message that arrives while this session is released still counts.
+    sessionMessageCount = 41
+    React.act(() => {
+      root.render(React.createElement(Probe))
+    })
+    expect(result?.unseenCount).toBe(1)
+    expect(scrollContainer.scrollTop).toBe(300)
   })
 
   test("does not stop again at a consumed section after the reader returns to bottom", () => {
