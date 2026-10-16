@@ -33,6 +33,18 @@ describe("clawdhub download size cap", () => {
     await expect(downloadClawdHubSkill("skill", "latest")).rejects.toThrow("larger than the 32 MB limit")
   })
 
+  test("cancels the body it refuses on the declared size", async () => {
+    // Throwing without cancelling left the connection open until the response was collected.
+    let cancelled = false
+    const response = {
+      headers: { get: (name) => (name === "content-length" ? String(MAX_SKILL_ARCHIVE_BYTES + 1) : null) },
+      body: { cancel: async () => { cancelled = true } },
+    }
+
+    await expect(readBodyWithinLimit(response, MAX_SKILL_ARCHIVE_BYTES)).rejects.toThrow("larger than the 32 MB limit")
+    expect(cancelled).toBe(true)
+  })
+
   test("stops reading a body that outgrows the cap", async () => {
     const cancelled = { current: false }
     const response = {

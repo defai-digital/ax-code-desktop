@@ -128,6 +128,9 @@ export const MAX_SKILL_ARCHIVE_BYTES = 32 * 1024 * 1024
 export const readBodyWithinLimit = async (response, limit) => {
   const declared = Number(response.headers?.get?.("content-length") ?? "")
   if (Number.isFinite(declared) && declared > limit) {
+    // Cancel before giving up, like the streaming path below: throwing with the body unconsumed leaves
+    // the connection open until it is collected.
+    await response.body?.cancel?.().catch(() => {})
     throw new Error(`ClawdHub download is larger than the ${Math.round(limit / (1024 * 1024))} MB limit`)
   }
 

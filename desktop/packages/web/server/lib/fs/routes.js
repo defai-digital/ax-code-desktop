@@ -1508,7 +1508,24 @@ export const registerFsRoutes = (app, dependencies) => {
         })
       }
 
-      await runExecJob(job)
+      // A foreground run that throws leaves the job in "running" for the life of the process: the TTL
+      // only retires finished jobs (a running one must survive), and unlike the background path above
+      // this one had no catch that finishes the record.
+      try {
+        await runExecJob(job)
+      } catch (error) {
+        job.status = "done"
+        job.success = false
+        job.results = Array.isArray(job.results) ? job.results : []
+        job.results.push({
+          command: "",
+          success: false,
+          error: (error && error.message) || "Command execution failed",
+        })
+        job.finishedAt = Date.now()
+        job.updatedAt = Date.now()
+        throw error
+      }
       return res.json({
         jobId,
         status: job.status,
