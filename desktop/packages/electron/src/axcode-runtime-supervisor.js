@@ -133,11 +133,16 @@ const defaultIsExecutable = (candidate) => {
 // the command interpreter (the bundled staged launcher is ax-code.cmd there).
 // The pre-quoted command line requires windowsVerbatimArguments so Node does
 // not re-quote it. Used by BOTH the runtime spawn and the version probe.
+//
+// With `/s` cmd strips the leading quote and the last quote character of the /c string (rule 2 of its own parsing),
+// so the command has to be wrapped in a pair of its own: `"C:\Program Files\…\ax-code.cmd" serve` loses the quotes
+// around the binary and cmd then tries to run `C:\Program`, and an `&`, `|` or `^` that the quotes were holding
+// becomes a command separator. The staged launcher lives under the install directory, which has a space on Windows.
 function resolveSpawnInvocation(binary, args, platform, env) {
   if (platform === "win32" && /\.(cmd|bat)$/i.test(binary)) {
     const comspec = trim(env.ComSpec) || trim(env.COMSPEC) || "cmd.exe"
     const quoted = [`"${binary}"`, ...args].join(" ")
-    return { command: comspec, args: ["/d", "/s", "/c", quoted], windowsVerbatimArguments: true }
+    return { command: comspec, args: ["/d", "/s", "/c", `"${quoted}"`], windowsVerbatimArguments: true }
   }
   return { command: binary, args, windowsVerbatimArguments: false }
 }

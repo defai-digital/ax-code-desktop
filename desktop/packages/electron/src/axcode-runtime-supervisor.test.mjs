@@ -541,8 +541,29 @@ describe("resolveSpawnInvocation", () => {
       ComSpec: "C:\\Windows\\System32\\cmd.exe",
     })
     expect(result.command).toBe("C:\\Windows\\System32\\cmd.exe")
-    expect(result.args).toEqual(["/d", "/s", "/c", '"C:\\tools\\ax-code.cmd" serve --port 4096'])
+    // Wrapped in a pair of its own: `/s` strips the leading quote and the last quote character of the `/c` string,
+    // so without the extra pair the quotes around the binary are the ones that go.
+    expect(result.args).toEqual(["/d", "/s", "/c", '""C:\\tools\\ax-code.cmd" serve --port 4096"'])
     expect(result.windowsVerbatimArguments).toBe(true)
+  })
+
+  test("keeps the quotes around a .cmd launcher whose path has a space", () => {
+    // The staged launcher lives under the install directory, which on Windows is `C:\Program Files\AX Code\…`,
+    // so this is the shape the runtime spawn and the version probe actually use. Unwrapped, cmd strips the quotes
+    // around the binary and tries to run `C:\Program`.
+    const result = resolveSpawnInvocation(
+      "C:\\Program Files\\AX Code\\resources\\ax-code\\bin\\ax-code.cmd",
+      ["serve", "--port", "4096"],
+      "win32",
+      { ComSpec: "cmd.exe" },
+    )
+
+    expect(result.args).toEqual([
+      "/d",
+      "/s",
+      "/c",
+      '""C:\\Program Files\\AX Code\\resources\\ax-code\\bin\\ax-code.cmd" serve --port 4096"',
+    ])
   })
 
   test("honors COMSPEC when ComSpec is unset and falls back to cmd.exe", () => {
