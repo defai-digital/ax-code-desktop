@@ -737,6 +737,11 @@ server (`ECONNRESET`) and the port not being reused immediately, so that is not 
 lead is the socket-level 401 in `lib/security/request-security.js`, which is the only code in the
 server that writes that status without a route.
 
+Later the same flake hit three cases in one file, `server/lib/github/routes.test.js` (credential
+clearing, and two about the repo the caller names), on a full run whose only source changes were in
+the ui package; the package passed alone immediately afterwards and the full suite passed on the next
+run. Same signature, different file.
+
 ## Fifth round
 
 The surfaces the earlier rounds read once or not at all: `ui/src/lib` minus the files already
@@ -862,6 +867,17 @@ was written.
   by prefix, which `<plans>/../../…/etc/passwd` passes while the filesystem resolves it above the root;
   the new `projectPathIsInsideRoot` collapses `.` and `..` the way a filesystem does before comparing.
 
+- **`8b319302`** — the providers page tracked the authorization flow awaiting a code in a single slot, so
+  starting a second flow replaced the first: the first method's paste field and Complete button
+  disappeared while its verification URL and user code stayed on screen, and the browser flow it had
+  already opened could no longer be finished from the app. Each flow keeps its own slot now, and
+  completing one removes only that one. The list block's Complete button also compared its busy state
+  against the method's position among the OAuth entries rather than its position in the provider's whole
+  method list, so with `[api, oauth]` it could never match the busy key it had set and never showed that
+  it was saving — a residual instance of the index bug fixed in `8f52bdaf`. This page had no component
+  test until now; the new render case starts both OAuth methods and asserts both code fields exist, and
+  fails against the previous code.
+
 ### Waiting for a first re-check
 
 Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
@@ -918,6 +934,15 @@ One gap remains, recorded rather than fixed:
 
 ## Reviewed and deliberately not changed
 
+- **`useSnippetsStore`'s module-level "active cache key"** (`stores/useSnippetsStore.ts:47,76,101`) was
+  reported as weaker than the per-key monotonic sequence the other config stores use, with a scenario
+  where a load for a directory the user has left still publishes. It does not: the guard compares the
+  settled result's *own* cache key against the key named by the most recent call, so a result can only
+  be published for the directory that was requested last, and the version counter already covers a
+  re-fetch of one key. The join case the report described — A in flight, B started, A requested again —
+  joins A's in-flight load instead of starting a third request, which is exactly what makes A the
+  requested directory again; publishing A's answer is then correct. `c2ec9a4f` pins that case; removing
+  the guard fails it and the neighbouring cross-directory case.
 - **`useGitStore` per-directory state is never released.** `setActiveDirectory`
   and `fetchStatus` insert a `DirectoryGitState` for every directory seen, and
   nothing removes one; each holds `status`, `branches`, `log` and a diff cache
@@ -984,7 +1009,7 @@ One gap remains, recorded rather than fixed:
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 639, web 1 099 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 641, web 1 099 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
