@@ -101,6 +101,22 @@ describe("useTraySync", () => {
     expect(invokeCalls().some((call) => call[0] === "desktop_set_badge_count")).toBe(true)
   })
 
+  test("reports a rejected tray update instead of letting it escape", async () => {
+    // The try/catch around the flush only covers the synchronous snapshot build: a rejected invoke
+    // (the window gone, the handler throwing) came back as an unhandled rejection on every store
+    // change and on the five-second poll for as long as it kept failing.
+    invokeDesktopMock.mockRejectedValue(new Error("ipc dead"))
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    try {
+      await render()
+
+      expect(warn).toHaveBeenCalledWith("[tray-sync] failed to update the tray", expect.any(Error))
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
   test("does nothing outside the desktop shell", async () => {
     isDesktopShellMock.mockReturnValue(false)
 

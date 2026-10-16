@@ -176,12 +176,19 @@ export function useTraySync(enabled = true): void {
       if (disposed) return
       try {
         const snapshot = buildTraySnapshotFromStores()
-        void invokeDesktop("desktop_tray_update", snapshot)
+        // The invoke can reject — the main-process handler may throw, and the window may be gone —
+        // and the try/catch below only covers the synchronous build: an unhandled rejection came
+        // back on every store change and on the five-second poll for as long as it kept failing.
+        void invokeDesktop("desktop_tray_update", snapshot).catch((error) => {
+          console.warn("[tray-sync] failed to update the tray", error)
+        })
         // The dock badge is its own command so it keeps working when the menu bar
         // item is disabled by the user.
         if (snapshot.dockBadgeCount !== lastBadge) {
           lastBadge = snapshot.dockBadgeCount
-          void invokeDesktop("desktop_set_badge_count", { count: snapshot.dockBadgeCount })
+          void invokeDesktop("desktop_set_badge_count", { count: snapshot.dockBadgeCount }).catch((error) => {
+            console.warn("[tray-sync] failed to set the dock badge", error)
+          })
         }
       } catch (error) {
         console.warn("[tray-sync] failed to build the tray snapshot", error)

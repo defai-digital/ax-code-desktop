@@ -105,7 +105,12 @@ export function useDetectedWorktreeMetadata(
         headState,
         worktreeSource: "existing",
       })
-    })()
+    })().catch((error) => {
+      // `execCommand` rejects when the runtime is unreachable or the directory is gone, and this
+      // probe runs on every Git view mount: an uncaught rejection there repeated with each mount.
+      // The hook answers `undefined` for a failed probe, which is what the callers fall back from.
+      console.warn("[worktree-root] failed to detect the worktree root", error)
+    })
 
     return () => {
       cancelled = true
