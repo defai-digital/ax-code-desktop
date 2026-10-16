@@ -101,7 +101,9 @@ export const normalizeLoopbackPreviewUrl = (url: string): string | null => {
 // may end a sentence. Rejected after the host: a letter, digit, `_` or `-`; a `.` (or an IDN dot equivalent,
 // U+3002/U+FF0E/U+FF61) followed by one of those; a combining mark or a soft hyphen (IDNA drops the latter);
 // the glue `:`, `@`, `%`, `+`, `~`, `\`; and — because `localhost!x@evil.example` names `evil.example`, not
-// `localhost` — an `@` anywhere in what is left of the token. Everything else ends the address, which is what
+// `localhost` — an `@` anywhere in the rest of the *authority*, which is why that search stops at a `/`, `?` or
+// `#`: `http://localhost!x@evil.example` names `evil.example`, while `http://localhost:5173/@vite/client` is a
+// path and still ends at the port. Everything else ends the address, which is what
 // a sentence-final `.` or `)`, the CJK terminators `。` and `，` (`已啟動 http://localhost:3000。請開啟`) and
 // the old whitelist's own cases all need.
 //
@@ -111,7 +113,7 @@ export const normalizeLoopbackPreviewUrl = (url: string): string | null => {
 // (`http://localhost:3000.evil.example`) is still rejected.
 const LOOPBACK_URL_PATTERN =
   // eslint-disable-next-line no-control-regex
-  /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[(?:::1|::)\])(?::\d{2,5}(?![\p{L}\p{N}_-]|\.(?=[\p{L}\p{N}_-])|[:@%+~\\]|\p{M}|\u00AD|[^\s<>"'`\u0000-\u001f]*@)|(?![\p{L}\p{N}_-]|[.\u3002\uFF0E\uFF61](?=[\p{L}\p{N}_-])|[:@%+~\\]|\p{M}|\u00AD|[^\s<>"'`\u0000-\u001f]*@))(?:\/[^\s<>"'`\u0000-\u001f]*)?/giu
+  /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[(?:::1|::)\])(?::\d{2,5}(?![\p{L}\p{N}_-]|\.(?=[\p{L}\p{N}_-])|[:@%+~\\]|\p{M}|\u00AD|[^\s<>"'`\u0000-\u001f/?#]*@)|(?![\p{L}\p{N}_-]|[.\u3002\uFF0E\uFF61](?=[\p{L}\p{N}_-])|[:@%+~\\]|\p{M}|\u00AD|[^\s<>"'`\u0000-\u001f/?#]*@))(?:\/[^\s<>"'`\u0000-\u001f]*)?/giu
 
 const TRAILING_PUNCT = new Set([".", ",", ";", ":", "!", "?"])
 

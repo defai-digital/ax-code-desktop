@@ -163,6 +163,9 @@ describe("extractLoopbackUrls boundaries", () => {
     expect(extractLoopbackUrls("http://localhost:")).toEqual([])
     expect(extractLoopbackUrls("http://localhost:abc")).toEqual([])
     expect(extractLoopbackUrls("http://localhost-x")).toEqual([])
+    // An `@` in the path or query is not userinfo: the search for one stops at the authority's end.
+    expect(extractLoopbackUrls("http://localhost:5173/@vite/client")).toEqual(["http://localhost:5173/@vite/client"])
+    expect(extractLoopbackUrls("http://localhost:3000/p?e=a@b.c")).toEqual(["http://localhost:3000/p?e=a@b.c"])
   })
 
   test("ends the address at a CJK sentence terminator", () => {
