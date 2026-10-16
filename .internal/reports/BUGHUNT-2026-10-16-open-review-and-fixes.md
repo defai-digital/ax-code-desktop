@@ -1341,9 +1341,34 @@ Fixed from this round so far:
   reports success now and a mutation refuses to write when it failed; the geometry persistence logs that
   refusal, and the renderer-facing path already reports a rejected write.
 
-Round six and seven are complete: every confirmed finding is fixed. The three suspected leads in
-`r7-sync` are unread, as is the `stores` run's remaining suspected lead and `sync/sync-context-impl.tsx`
-earlier ones.
+- **`b98f757b`** — `trimSessions` protected only sessions with a pending permission or question, so a
+  session that is working and has the smallest id was spliced out of `state.session` as soon as the list
+  grew past its limit (a subagent appearing was enough, since children count against the same array).
+  Every lookup by id starts from that list, so the session the user was watching left the sidebar and the
+  lookups, and each later event for it re-inserted it only to be trimmed away again. The trim uses the
+  ids the cache eviction already protects.
+
+### Suspected, verified by reading, not fixed
+
+- **`sync-context-impl.tsx:505-513`** — a directory status resync applies its HTTP answer without
+  comparing it against state written after the request began: a run that starts outside `optimisticSend`
+  (shell mode, a scheduled task, another client) has its `session.status{busy}` overwritten by the
+  answer's `idle`, and the UI shows an idle session until the next poll. Only `promptRecentlyAccepted`
+  protects a newer status, and only `optimisticSend` sets it, while the question and permission resyncs
+  in the same file compare before/after signatures for exactly this reason. The fix is a signature or a
+  request-generation check on that path; it is a small change in the sync core, and it wants the
+  before/after shape the neighbouring resyncs already use rather than a fifth variant.
+- **`sync/soft-removal.ts:389`** — this window's pending-removal slot has two writers with different
+  ideas of what belongs in it: `persistPending` mirrors the store's `pendingRemoval` map, and
+  `recoverPendingRemovals` ends by writing only the entries it could not commit. A soft-delete during
+  the launch recovery overwrites the recovery failures, and the recovery's final write erases a removal
+  made while its requests were in flight — in both directions the user's delete can fail to stick if the
+  app quits inside the undo window. The outcome is benign (the session reappears; nothing is destroyed),
+  and the fix is a decision about ownership — separate keys for live removals and recovery failures, or
+  one writer that derives the slot from both sources — rather than a local guard.
+- **`stores` suspected lead**: `hooks/useQueuedMessageAutoSend.ts:272` — unread.
+
+Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
