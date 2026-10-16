@@ -21,6 +21,19 @@ describe("SidebarFilesTree dialog guards", () => {
     expect(source).toContain("sidebarFilesTree.toast.nameInvalid")
   })
 
+  test("reports a refused write instead of closing the dialog as a success", async () => {
+    const source = await read()
+
+    // The Files API reports a refusal by resolving `{ success: false }`, which `.catch` cannot
+    // see, and the dialog closed either way: a rejected create, rename or delete looked like it
+    // had worked. FilesView's branches report the refusal; so does this one now.
+    const successBranches = (source.match(/if \(result\.success\) \{/g) ?? []).length
+    const refusalToasts = (source.match(/toast\.error\(t\("sidebarFilesTree\.toast\.operationFailed"\)\)/g) ?? []).length
+    expect(successBranches).toBe(4)
+    // two per branch: the refused result and the thrown failure
+    expect(refusalToasts).toBeGreaterThanOrEqual(8)
+  })
+
   test("refuses to rename onto a file that already exists", async () => {
     const source = await read()
 

@@ -730,8 +730,12 @@ export const SidebarFilesTree: React.FC = () => {
             if (result.success) {
               toast.success(t("sidebarFilesTree.toast.fileCreated"))
               await refreshDirectory(parentPath)
+              closeDialog()
+              return
             }
-            closeDialog()
+            // The Files API reports a refusal by resolving `{ success: false }`, which `.catch`
+            // cannot see: the dialog used to close as if the file had been written.
+            toast.error(t("sidebarFilesTree.toast.operationFailed"))
           })
           .catch(() => toast.error(t("sidebarFilesTree.toast.operationFailed")))
           .finally(done)
@@ -761,8 +765,10 @@ export const SidebarFilesTree: React.FC = () => {
             if (result.success) {
               toast.success(t("sidebarFilesTree.toast.folderCreated"))
               await refreshDirectory(parentPath)
+              closeDialog()
+              return
             }
-            closeDialog()
+            toast.error(t("sidebarFilesTree.toast.operationFailed"))
           })
           .catch(() => toast.error(t("sidebarFilesTree.toast.operationFailed")))
           .finally(done)
@@ -813,8 +819,10 @@ export const SidebarFilesTree: React.FC = () => {
               if (selectedPath === oldPath || (selectedPath && selectedPath.startsWith(`${oldPath}/`))) {
                 setSelectedPath(root, null)
               }
+              closeDialog()
+              return
             }
-            closeDialog()
+            toast.error(t("sidebarFilesTree.toast.operationFailed"))
           })
           .catch(() => toast.error(t("sidebarFilesTree.toast.operationFailed")))
           .finally(done)
@@ -842,8 +850,10 @@ export const SidebarFilesTree: React.FC = () => {
               if (selectedPath === deletedPath || (selectedPath && selectedPath.startsWith(deletedPath + "/"))) {
                 setSelectedPath(root, null)
               }
+              closeDialog()
+              return
             }
-            closeDialog()
+            toast.error(t("sidebarFilesTree.toast.operationFailed"))
           })
           .catch(() => toast.error(t("sidebarFilesTree.toast.operationFailed")))
           .finally(done)
