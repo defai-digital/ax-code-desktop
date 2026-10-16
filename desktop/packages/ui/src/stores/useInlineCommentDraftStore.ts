@@ -142,6 +142,27 @@ const sanitizeDraftMap = (input: unknown): Record<string, InlineCommentDraft[]> 
   return result
 }
 
+/**
+ * The fields a fresh copy of an existing draft needs, without its identity.
+ *
+ * Used to put back what `consumeDrafts` took when the submit that consumed it never went
+ * through: the drafts are the only copy left at that point, so every persisted field has to
+ * be carried over - a missing one is a silent loss of what the user wrote.
+ */
+export const toRestorableInlineCommentDraft = (
+  draft: InlineCommentDraft,
+): Omit<InlineCommentDraft, "id" | "createdAt"> => ({
+  sessionKey: draft.sessionKey,
+  source: draft.source,
+  fileLabel: draft.fileLabel,
+  startLine: draft.startLine,
+  endLine: draft.endLine,
+  side: draft.side,
+  code: draft.code,
+  language: draft.language,
+  text: draft.text,
+})
+
 export const useInlineCommentDraftStore = create<InlineCommentDraftStore>()(
   devtools(
     persist(

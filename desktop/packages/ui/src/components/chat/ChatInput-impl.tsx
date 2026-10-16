@@ -14,6 +14,7 @@ import * as sessionActions from "@/sync/session-actions"
 import { useDirectorySync, useUserMessageHistory } from "@/sync/sync-context"
 import {
   buildInlineCommentSessionKey,
+  toRestorableInlineCommentDraft,
   useInlineCommentDraftStore,
   type InlineCommentDraft,
 } from "@/stores/useInlineCommentDraftStore"
@@ -1257,7 +1258,19 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     ),
   )
   const consumeDrafts = useInlineCommentDraftStore((state) => state.consumeDrafts)
+  const addInlineCommentDraft = useInlineCommentDraftStore((state) => state.addDraft)
   const removeInlineCommentDraft = useInlineCommentDraftStore((state) => state.removeDraft)
+  // Review comments a submit consumed are the only copy left: consumeDrafts removed them from
+  // the store before the payload was built, so a submit that never went through - a refused
+  // queue entry, a failed send - has to put them back or they are lost with no trace.
+  const restoreConsumedDrafts = React.useCallback(
+    (consumed: InlineCommentDraft[]) => {
+      for (const draft of consumed) {
+        addInlineCommentDraft(toRestorableInlineCommentDraft(draft))
+      }
+    },
+    [addInlineCommentDraft],
+  )
   const hasDrafts = draftCount > 0
   const [previewConsoleCount, previewAnnotationCount, reviewCount] = draftSourceKey
     .split(":")
@@ -1385,8 +1398,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     })
 
     // A full queue refuses the entry: keep the composer (and its attachments) intact
-    // instead of clearing input that was never queued.
-    if (!queued) return
+    // instead of clearing input that was never queued. The review comments came out of the
+    // store above and were only folded into the text that is being kept here, so they have to
+    // go back too - nothing else can restore them.
+    if (!queued) {
+      restoreConsumedDrafts(drafts)
+      return
+    }
 
     // Clear input and attachments
     // Note: confirmedMentionsRef is NOT cleared here because queued messages
@@ -1409,6 +1427,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     clearAttachedFiles,
     isMobile,
     consumeDrafts,
+    restoreConsumedDrafts,
     currentProviderId,
     currentModelId,
     currentAgentName,
@@ -1935,6 +1954,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           }
           saveStoredDraft(currentSessionId, consumedInputSnapshot)
         }
+
+        // The snapshot above is the composer text before the review comments were appended,
+        // so restoring the comments is what recovers them: with an empty composer the text
+        // restore is skipped entirely and the comments were lost without a trace.
+        restoreConsumedDrafts(drafts)
 
         // A failed send must not consume the queue or the composer text: put the taken
         // entries back at the head and restore the text that was folded into them.

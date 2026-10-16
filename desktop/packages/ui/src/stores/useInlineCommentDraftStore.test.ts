@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, test } from "vitest"
-import { buildInlineCommentSessionKey, useInlineCommentDraftStore } from "./useInlineCommentDraftStore"
+import {
+  buildInlineCommentSessionKey,
+  toRestorableInlineCommentDraft,
+  useInlineCommentDraftStore,
+} from "./useInlineCommentDraftStore"
 
 const makeDraft = (sessionKey: string, text: string) => ({
   sessionKey,
@@ -61,5 +65,39 @@ describe("inline comment draft keys", () => {
         .map((draft) => draft.text),
     ).toEqual(["review b"])
     expect(useInlineCommentDraftStore.getState().getDrafts("draft")).toEqual([])
+  })
+})
+
+describe("restoring consumed drafts", () => {
+  beforeEach(() => {
+    useInlineCommentDraftStore.setState({ drafts: {} })
+  })
+
+  test("carries every persisted field of a consumed draft back into the store", () => {
+    // A submit that never went through (a refused queue entry, a failed send) has to put the
+    // drafts it consumed back. They are the only copy left, so a field the restore forgets is
+    // a silent loss of what the user wrote.
+    const store = useInlineCommentDraftStore.getState()
+    const key = "ses_restore"
+    const allFields = {
+      sessionKey: key,
+      source: "diff" as const,
+      fileLabel: "src/app.ts",
+      startLine: 12,
+      endLine: 18,
+      side: "modified" as const,
+      code: "const value = 1",
+      language: "ts",
+      text: "this needs a guard",
+    }
+    store.addDraft(allFields)
+
+    const [consumed] = store.consumeDrafts(key)
+    expect(consumed).toBeTruthy()
+    useInlineCommentDraftStore.getState().addDraft(toRestorableInlineCommentDraft(consumed))
+
+    const [restored] = useInlineCommentDraftStore.getState().getDrafts(key)
+    expect(restored).toMatchObject(allFields)
+    expect(restored?.id).not.toBe(consumed.id)
   })
 })
