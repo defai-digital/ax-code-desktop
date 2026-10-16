@@ -18,6 +18,8 @@ const createApp = (overrides = {}) => {
     createAgent: vi.fn(),
     updateAgent: vi.fn(),
     deleteAgent: vi.fn(),
+    disableBuiltinAgent: vi.fn(),
+    isKnownAgent: vi.fn(async () => false),
     getCommandSources: vi.fn(() => ({})),
     createCommand: vi.fn(),
     updateCommand: vi.fn(),
@@ -92,5 +94,46 @@ describe("MCP config route statuses", () => {
     const response = await request(app).post("/api/config/mcp/broken").send({})
 
     expect(response.status).toBe(500)
+  })
+})
+
+describe("agent deletion route", () => {
+  it("answers a name that exists nowhere with 404 and writes no disable marker", async () => {
+    // The route answered success for any name, and the marker it wrote stayed in the user's config,
+    // where it would suppress an agent of that name later.
+    const disableBuiltinAgent = vi.fn()
+    const app = createApp({ deleteAgent: vi.fn(() => false), disableBuiltinAgent })
+
+    const response = await request(app).delete("/api/config/agents/zzz-not-an-agent")
+
+    expect(response.status).toBe(404)
+    expect(response.body.error).toBe('Agent "zzz-not-an-agent" not found')
+    expect(disableBuiltinAgent).not.toHaveBeenCalled()
+  })
+
+  it("disables a built-in agent the runtime knows", async () => {
+    const disableBuiltinAgent = vi.fn()
+    const app = createApp({
+      deleteAgent: vi.fn(() => false),
+      disableBuiltinAgent,
+      isKnownAgent: vi.fn(async (_directory, agentName) => agentName === "build"),
+    })
+
+    const response = await request(app).delete("/api/config/agents/build")
+
+    expect(response.status).toBe(200)
+    expect(disableBuiltinAgent).toHaveBeenCalledWith("build", "/tmp/project")
+  })
+
+  it("keeps a deletion that found the agent on disk out of the runtime's hands", async () => {
+    const disableBuiltinAgent = vi.fn()
+    const isKnownAgent = vi.fn(async () => false)
+    const app = createApp({ deleteAgent: vi.fn(() => true), disableBuiltinAgent, isKnownAgent })
+
+    const response = await request(app).delete("/api/config/agents/mine")
+
+    expect(response.status).toBe(200)
+    expect(isKnownAgent).not.toHaveBeenCalled()
+    expect(disableBuiltinAgent).not.toHaveBeenCalled()
   })
 })

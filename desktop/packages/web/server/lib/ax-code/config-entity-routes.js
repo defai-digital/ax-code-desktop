@@ -9,6 +9,8 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
     createAgent,
     updateAgent,
     deleteAgent,
+    disableBuiltinAgent,
+    isKnownAgent,
     getCommandSources,
     createCommand,
     updateCommand,
@@ -174,7 +176,18 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
         return res.status(400).json({ error })
       }
 
-      deleteAgent(agentName, directory)
+      const deleted = deleteAgent(agentName, directory)
+      if (!deleted) {
+        // Nothing of this name was on disk or in the config. If the runtime knows it, it is a
+        // built-in agent and deleting it means recording a disable marker; otherwise the name
+        // exists nowhere, and answering success wrote a marker that would suppress a later agent
+        // of that name.
+        const known = typeof isKnownAgent === "function" ? await isKnownAgent(directory, agentName) : false
+        if (known !== true) {
+          return res.status(404).json({ error: `Agent "${agentName}" not found` })
+        }
+        disableBuiltinAgent(agentName, directory)
+      }
       await refreshAxCodeAfterConfigChange("agent deletion")
 
       res.json({

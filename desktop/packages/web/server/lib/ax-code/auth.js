@@ -43,6 +43,12 @@ function writeAuthFile(auth) {
 
     // Match ax-code's 0o600 permission — auth.json contains encrypted secrets.
     fs.writeFileSync(AUTH_FILE, JSON.stringify(auth, null, 2), { encoding: "utf8", mode: 0o600 })
+    // The mode above applies only when the file is created, and then only as far as the umask
+    // allows: a file restored from a backup, or written by an older build, kept whatever mode it
+    // had. Every other credential writer here sets it explicitly too.
+    try {
+      fs.chmodSync(AUTH_FILE, 0o600)
+    } catch {}
     console.log("Successfully wrote auth file")
   } catch (error) {
     console.error("Failed to write auth file:", error)

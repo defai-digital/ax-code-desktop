@@ -529,6 +529,21 @@ function updateAgent(agentName, updates, workingDirectory) {
   console.log(`Updated agent: ${agentName} (scope: ${targetScope}, md: ${mdModified}, json: ${jsonModified})`)
 }
 
+/**
+ * Records that a built-in agent is not wanted: the runtime hides an agent whose config disables it.
+ * Only for agents the runtime knows — a name that exists nowhere would leave a marker behind that
+ * suppresses a later agent of the same name.
+ */
+function disableBuiltinAgent(agentName, workingDirectory) {
+  const layers = readConfigLayers(workingDirectory)
+  const jsonTarget = getJsonWriteTarget(layers, workingDirectory ? AGENT_SCOPE.PROJECT : AGENT_SCOPE.USER)
+  const targetConfig = jsonTarget.config || {}
+  if (!targetConfig.agent) targetConfig.agent = {}
+  targetConfig.agent[agentName] = { disable: true }
+  writeConfig(targetConfig, jsonTarget.path || CONFIG_FILE)
+  console.log(`Disabled built-in agent: ${agentName}`)
+}
+
 function deleteAgent(agentName, workingDirectory) {
   const lookupCache = createAgentLookupCache()
   let deleted = false
@@ -559,14 +574,10 @@ function deleteAgent(agentName, workingDirectory) {
     deleted = true
   }
 
-  if (!deleted) {
-    const jsonTarget = getJsonWriteTarget(layers, workingDirectory ? AGENT_SCOPE.PROJECT : AGENT_SCOPE.USER)
-    const targetConfig = jsonTarget.config || {}
-    if (!targetConfig.agent) targetConfig.agent = {}
-    targetConfig.agent[agentName] = { disable: true }
-    writeConfig(targetConfig, jsonTarget.path || CONFIG_FILE)
-    console.log(`Disabled built-in agent: ${agentName}`)
-  }
+  // Nothing of this name was there. Whether that means "disable this built-in agent" is the
+  // caller's call: it can ask the runtime, which knows its own agents. Writing the marker blindly
+  // answered success for a name that exists nowhere and left `disable: true` in the user's config.
+  return deleted
 }
 
 export {
@@ -581,4 +592,5 @@ export {
   createAgent,
   updateAgent,
   deleteAgent,
+  disableBuiltinAgent,
 }

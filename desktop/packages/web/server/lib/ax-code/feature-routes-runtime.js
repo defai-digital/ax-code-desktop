@@ -5,6 +5,7 @@ import { registerGitHubRoutes } from "../github/routes.js"
 import { registerGitRoutes } from "../git/routes.js"
 import { disposeRuntimeInstance } from "../git/dispose-runtime-instance.js"
 import { readRuntimeProjectStartCommand } from "../git/project-start-command.js"
+import { readRuntimeAgentNames } from "./runtime-agent-list.js"
 import { registerMagicPromptRoutes } from "../magic-prompts/routes.js"
 import { registerSessionFoldersRoutes } from "../session-folders/routes.js"
 import { registerConfigEntityRoutes } from "./config-entity-routes.js"
@@ -153,6 +154,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       createAgent,
       updateAgent,
       deleteAgent,
+      disableBuiltinAgent,
       getCommandSources,
       createCommand,
       updateCommand,
@@ -191,6 +193,11 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       createAgent,
       updateAgent,
       deleteAgent,
+      disableBuiltinAgent,
+      isKnownAgent: async (directory, agentName) => {
+        const names = await readRuntimeAgentNames({ directory, buildAxCodeUrl, getAxCodeAuthHeaders })
+        return names.has(agentName)
+      },
       getCommandSources,
       createCommand,
       updateCommand,
