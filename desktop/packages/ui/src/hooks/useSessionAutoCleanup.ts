@@ -88,6 +88,10 @@ export const applySessionRetentionAction = async (
   return !result?.error
 }
 
+// The cleanup run that is in flight, shared by every instance of the hook (see runCleanup). It is
+// cleared by the run itself, so a call that arrives later starts a fresh one.
+let sessionCleanupInFlight: Promise<CleanupResult> | null = null
+
 export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOptions) => {
   const options = typeof enabledOrOptions === "object" ? enabledOrOptions : undefined
   const autoRun = options?.autoRun !== false
@@ -105,7 +109,6 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
   const setAutoDeleteLastRunAt = useUIStore((state) => state.setAutoDeleteLastRunAt)
 
   const [isRunning, setIsRunning] = React.useState(false)
-  const runningRef = React.useRef(false)
 
   React.useEffect(() => {
     void ensureGlobalSessionsLoaded(getAllSyncSessions())
@@ -124,90 +127,102 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
 
   const runCleanup = React.useCallback(
     async ({ force = false }: { force?: boolean } = {}): Promise<CleanupResult> => {
-      if (runningRef.current) {
-        return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "running" }
+      // One cleanup at a time across every mounted instance of this hook. It is mounted twice — the
+      // app-wide housekeeping run in AppEffects and the settings page's manual run — and a
+      // per-instance ref only serialised calls on one of them: the two runs built the same candidate
+      // list and deleted each session twice, and the manual run reported the sessions it had just
+      // deleted as failures. A call that arrives while one run is in flight joins it and reports that
+      // run's outcome, which is what a manual click wants anyway.
+      if (sessionCleanupInFlight) {
+        setIsRunning(true)
+        try {
+          return await sessionCleanupInFlight
+        } finally {
+          setIsRunning(false)
+        }
       }
 
-      // Acquire the guard before the first await: a second call that arrives
-      // while ensureGlobalSessionsLoaded is still pending must bounce off,
-      // otherwise both runs iterate the same candidates and double-delete.
-      runningRef.current = true
       setIsRunning(true)
 
-      try {
-        if (!autoDeleteEnabled || autoDeleteAfterDays <= 0) {
-          if (!force) {
-            return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "disabled" }
-          }
-        }
-
-        if (isLoading) {
-          return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "loading" }
-        }
-
-        const now = Date.now()
-        if (!force && autoDeleteLastRunAt && now - autoDeleteLastRunAt < AUTO_DELETE_INTERVAL_MS) {
-          return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "cooldown" }
-        }
-
-        const { activeSessions: sessions } = await ensureGlobalSessionsLoaded(getAllSyncSessions())
-
-        if (sessions.length === 0) {
-          return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "no-candidates" }
-        }
-
-        const candidateIds = buildAutoDeleteCandidates({
-          sessions,
-          currentSessionId: useSessionUIStore.getState().currentSessionId,
-          cutoffDays: autoDeleteAfterDays,
-          now,
-        })
-
-        if (candidateIds.length === 0) {
-          setAutoDeleteLastRunAt(now)
-          return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "no-candidates" }
-        }
-
-        const sessionMap = new Map(sessions.map((session) => [session.id, session]))
-        const completedIds: string[] = []
-        const failedIds: string[] = []
-
-        for (const id of candidateIds) {
-          // Selection can change while loading or awaiting a prior action.
-          if (id === useSessionUIStore.getState().currentSessionId) continue
-          const session = sessionMap.get(id)
-          const directory = session ? resolveGlobalSessionDirectory(session) : null
-          if (!directory) {
-            failedIds.push(id)
-            continue
+      const run = (async (): Promise<CleanupResult> => {
+        try {
+          if (!autoDeleteEnabled || autoDeleteAfterDays <= 0) {
+            if (!force) {
+              return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "disabled" }
+            }
           }
 
-          const scopedSdk = axCodeClient.getScopedSdkClient(directory)
+          if (isLoading) {
+            return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "loading" }
+          }
 
-          try {
-            const completed = await applySessionRetentionAction(scopedSdk, id, directory, sessionRetentionAction)
-            if (completed) {
-              completedIds.push(id)
-            } else {
+          const now = Date.now()
+          if (!force && autoDeleteLastRunAt && now - autoDeleteLastRunAt < AUTO_DELETE_INTERVAL_MS) {
+            return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "cooldown" }
+          }
+
+          const { activeSessions: sessions } = await ensureGlobalSessionsLoaded(getAllSyncSessions())
+
+          if (sessions.length === 0) {
+            return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "no-candidates" }
+          }
+
+          const candidateIds = buildAutoDeleteCandidates({
+            sessions,
+            currentSessionId: useSessionUIStore.getState().currentSessionId,
+            cutoffDays: autoDeleteAfterDays,
+            now,
+          })
+
+          if (candidateIds.length === 0) {
+            setAutoDeleteLastRunAt(now)
+            return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "no-candidates" }
+          }
+
+          const sessionMap = new Map(sessions.map((session) => [session.id, session]))
+          const completedIds: string[] = []
+          const failedIds: string[] = []
+
+          for (const id of candidateIds) {
+            // Selection can change while loading or awaiting a prior action.
+            if (id === useSessionUIStore.getState().currentSessionId) continue
+            const session = sessionMap.get(id)
+            const directory = session ? resolveGlobalSessionDirectory(session) : null
+            if (!directory) {
+              failedIds.push(id)
+              continue
+            }
+
+            const scopedSdk = axCodeClient.getScopedSdkClient(directory)
+
+            try {
+              const completed = await applySessionRetentionAction(scopedSdk, id, directory, sessionRetentionAction)
+              if (completed) {
+                completedIds.push(id)
+              } else {
+                failedIds.push(id)
+              }
+            } catch {
               failedIds.push(id)
             }
-          } catch {
-            failedIds.push(id)
           }
-        }
 
-        // No manual global-store writes (S4.5): each successful SDK call above
-        // emits session.updated(time.archived) / session.deleted, and the
-        // event stream is the sole writer of record for the global index.
-        // (The delete event also funnels through removeSessions, so the
-        // per-session client-state cleanup there still runs.)
-        // Failed work must remain eligible for the next non-forced retry.
-        if (failedIds.length === 0) setAutoDeleteLastRunAt(Date.now())
-        return { completedIds, failedIds, action: sessionRetentionAction }
-      } finally {
-        runningRef.current = false
-        setIsRunning(false)
-      }
+          // No manual global-store writes (S4.5): each successful SDK call above
+          // emits session.updated(time.archived) / session.deleted, and the
+          // event stream is the sole writer of record for the global index.
+          // (The delete event also funnels through removeSessions, so the
+          // per-session client-state cleanup there still runs.)
+          // Failed work must remain eligible for the next non-forced retry.
+          if (failedIds.length === 0) setAutoDeleteLastRunAt(Date.now())
+          return { completedIds, failedIds, action: sessionRetentionAction }
+        } finally {
+          sessionCleanupInFlight = null
+          setIsRunning(false)
+        }
+      })()
+
+      sessionCleanupInFlight = run
+      return run
     },
     [
       autoDeleteAfterDays,

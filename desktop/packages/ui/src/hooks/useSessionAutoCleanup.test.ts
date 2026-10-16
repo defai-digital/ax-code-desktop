@@ -44,7 +44,7 @@ describe("applySessionRetentionAction", () => {
 })
 
 describe("runCleanup re-entry guard", () => {
-  test("a concurrent run bounces off while the first is still loading sessions", async () => {
+  test("a concurrent run joins the one still loading sessions", async () => {
     vi.resetModules()
     let releaseLoad: ((value: { activeSessions: never[] }) => void) | null = null
     vi.doMock("@/stores/useGlobalSessionsStore", async () => {
@@ -87,16 +87,18 @@ describe("runCleanup re-entry guard", () => {
         root.render(React.createElement(Probe))
       })
 
-      // The first run reaches the pending session load with the guard held.
+      // The first run reaches the pending session load with the guard held. A second call joins it
+      // rather than bouncing off: it waits for the same run and reports its outcome, so a manual run
+      // clicked during the automatic one neither repeats its work nor reports an empty result.
       const first = hook!.runCleanup({ force: true })
-      const second = await hook!.runCleanup({ force: true })
-      expect(second.skippedReason).toBe("running")
+      const second = hook!.runCleanup({ force: true })
 
       await React.act(async () => {
         releaseLoad?.({ activeSessions: [] })
         await first
       })
       await expect(first).resolves.toMatchObject({ skippedReason: "no-candidates" })
+      await expect(second).resolves.toMatchObject({ skippedReason: "no-candidates" })
     } finally {
       await React.act(async () => {
         root.unmount()

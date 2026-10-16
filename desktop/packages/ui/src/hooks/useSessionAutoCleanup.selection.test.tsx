@@ -47,8 +47,12 @@ for (const stage of ["loading", "deleting", "failure"] as const) {
         autoDeleteLastRunAt: 0,
       })
       let hook!: ReturnType<typeof useSessionAutoCleanup>
+      // A second mount, as the app has: AppEffects runs the housekeeping cleanup and the settings page
+      // has its own instance. The guard has to hold across both.
+      let hookSecond!: ReturnType<typeof useSessionAutoCleanup>
       const Probe = () => {
         hook = useSessionAutoCleanup({ autoRun: false })
+        hookSecond = useSessionAutoCleanup({ autoRun: false })
         return null
       }
       Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -75,20 +79,32 @@ for (const stage of ["loading", "deleting", "failure"] as const) {
           return
         }
         if (stage === "loading") {
+          // The second instance's manual run joins the one in flight instead of iterating the same
+          // candidates: a per-instance guard deleted every session twice and reported the sessions it
+          // had just deleted as failures.
+          let joined!: ReturnType<typeof hookSecond.runCleanup>
+          act(() => {
+            joined = hookSecond.runCleanup({ force: true })
+          })
           act(() => useSessionUIStore.setState({ currentSessionId: "old-2" }))
           await act(async () => {
             releaseLoad()
             await run
           })
-        } else {
-          await act(async () => releaseLoad())
-          expect(remove).toHaveBeenCalledWith({ sessionID: "old-1", directory: "/repo" })
-          act(() => useSessionUIStore.setState({ currentSessionId: "old-2" }))
           await act(async () => {
-            releaseDelete()
-            await run
+            await joined
           })
+          expect(remove.mock.calls.map(([args]) => args.sessionID)).toEqual(["old-1", "old-3"])
+          await expect(joined).resolves.toMatchObject({ completedIds: ["old-1", "old-3"], failedIds: [] })
+          return
         }
+        await act(async () => releaseLoad())
+        expect(remove).toHaveBeenCalledWith({ sessionID: "old-1", directory: "/repo" })
+        act(() => useSessionUIStore.setState({ currentSessionId: "old-2" }))
+        await act(async () => {
+          releaseDelete()
+          await run
+        })
         expect(remove.mock.calls.map(([args]) => args.sessionID)).toEqual(["old-1", "old-3"])
         await expect(run).resolves.toMatchObject({ completedIds: ["old-1", "old-3"], failedIds: [] })
       } finally {
