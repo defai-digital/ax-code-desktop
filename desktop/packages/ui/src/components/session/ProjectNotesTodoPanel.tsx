@@ -321,8 +321,12 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
   )
 
   const handleNotesBlur = React.useCallback(() => {
-    lastSavedNotesRef.current = notes
-    void persistProjectData(notes, todos)
+    void persistProjectData(notes, todos).then((saved) => {
+      // Only a write that landed may claim these notes are on disk. The debounce effect
+      // below compares against this ref, so recording a failed write as saved silenced the
+      // dirty state and the next edit no longer carried the unsaved text along.
+      if (saved) lastSavedNotesRef.current = notes
+    })
   }, [notes, persistProjectData, todos])
 
   React.useEffect(() => {
@@ -335,8 +339,9 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
     }
 
     const timer = window.setTimeout(() => {
-      lastSavedNotesRef.current = notes
-      void persistProjectData(notes, todos)
+      void persistProjectData(notes, todos).then((saved) => {
+        if (saved) lastSavedNotesRef.current = notes
+      })
     }, 400)
 
     return () => {
