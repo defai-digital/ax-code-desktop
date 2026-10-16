@@ -1383,7 +1383,11 @@ Fixed:
   config pointing at the new directory: a rename that then failed left the destination's previous content
   gone and the source file in the old id directory. The rename runs first now — it replaces an existing
   destination on POSIX and, through libuv's `MOVEFILE_REPLACE_EXISTING`, on Windows too — and the EXDEV
-  copy-then-delete fallback is unchanged.
+  copy-then-delete fallback is unchanged. The other half of that finding stands as recorded risk:
+  `migrateProjectScopedStorage` writes the merged config before it moves the storage, so a failure that leaves
+  files under the old id leaves the config pointing at the new one. The opposite order only moves which half is
+  stranded, and a compensating rollback is more machinery than a once-per-project-id migration earns, so it is
+  recorded rather than fixed.
 
 Reported, verified against the source and rejected:
 
