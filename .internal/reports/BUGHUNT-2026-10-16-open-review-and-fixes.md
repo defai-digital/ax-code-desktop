@@ -1240,10 +1240,10 @@ The one gap this section recorded is fixed:
   per-directory instance disposal writes nothing. No current reader consumes
   `state.lsp`, and the correct recovery for a disposal is a runtime-contract
   question rather than a guess.
-- **`useProjectKnowledge` caches a positive probe forever**, so the "knowledge
-  loaded" chip can outlive the file (deleted, or a branch without it). Cosmetic,
-  and a TTL or invalidation has to be reconciled with the create flow that relies
-  on misses not being cached.
+- **`useProjectKnowledge` caches a positive probe forever** — recorded here, then fixed in `b5fb92dd`:
+  the hit expires after 30 seconds, so a knowledge file deleted (or a branch without it) stops being claimed
+  by the chip, while the create flow's requirement — a *miss* is never cached — is untouched. That
+  reconciliation was the recording's own question, and a TTL on hits only answers it.
 - **`desktop_search_files` accepts any absolute directory** — recorded here when the confinement was
   missing, and stale by the time this list was re-checked: the credential denylist became a shared helper and
   the search refuses a root it denies (recorded in "Fixed after this list was written"), and `e1cd91e7`
