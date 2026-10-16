@@ -24,6 +24,27 @@ describe("mergeSessionListPage", () => {
     expect(merged.map((entry) => entry.id)).toEqual(["ses_b", "ses_c"])
   })
 
+  test("carries over a root that appeared while the page was in flight", () => {
+    // The answer comes from an index the request had already read, so a session created during the
+    // flight is legitimately missing from it. Dropping it hid the session the user had just created
+    // until the runtime's next update for it.
+    const knownBeforeRequest = new Set(["ses_old"])
+    const merged = mergeSessionListPage(
+      [session("ses_old")],
+      [session("ses_old"), session("ses_new")],
+      knownBeforeRequest,
+    )
+
+    expect(merged.map((entry) => entry.id)).toEqual(["ses_new", "ses_old"])
+  })
+
+  test("still drops a known root the page no longer lists", () => {
+    const knownBeforeRequest = new Set(["ses_gone", "ses_old"])
+    const merged = mergeSessionListPage([session("ses_old")], [session("ses_old"), session("ses_gone")], knownBeforeRequest)
+
+    expect(merged.map((entry) => entry.id)).toEqual(["ses_old"])
+  })
+
   test("returns the listed page when there is nothing local to add", () => {
     const page = [session("ses_a"), session("ses_b")]
 

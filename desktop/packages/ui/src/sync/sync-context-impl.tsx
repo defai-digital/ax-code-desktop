@@ -1323,6 +1323,10 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
             },
             loadSessions: (dir) =>
               retry(async () => {
+                // Which sessions this client already knew when the request went out: a root that
+                // first appears while the page is in flight was not in the index the answer was read
+                // from, so the merge must carry it instead of treating it as deleted.
+                const knownBeforeRequest = new Set(store.getState().session.map((session) => session.id))
                 const result = await props.sdk.session.list({
                   directory: dir,
                   roots: true,
@@ -1362,7 +1366,7 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
                 // the event pipeline already inserted are carried over, or a
                 // re-bootstrap would erase a running subagent and its notification
                 // and parent-resync guards until it announced itself again.
-                const sessions = mergeSessionListPage(rootPage, currentSessions)
+                const sessions = mergeSessionListPage(rootPage, currentSessions, knownBeforeRequest)
                 store.setState({
                   session: sessions,
                   sessionTotal: rootPage.length,

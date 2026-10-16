@@ -15,13 +15,29 @@ export interface SessionListEntry {
 
 const byId = <T extends SessionListEntry>(a: T, b: T) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 
-export function mergeSessionListPage<T extends SessionListEntry>(page: readonly T[], current: readonly T[]): T[] {
+export function mergeSessionListPage<T extends SessionListEntry>(
+  page: readonly T[],
+  current: readonly T[],
+  knownBeforeRequest?: ReadonlySet<string>,
+): T[] {
   const listed = new Set(page.map((session) => session.id))
-  // Only children are carried over: a locally-known root that the page no longer
-  // lists was deleted or archived on the server, and the page is authoritative.
-  const localChildren = current.filter((session) => Boolean(session.parentID) && !listed.has(session.id))
-  if (localChildren.length === 0) {
+  const carried = current.filter((session) => {
+    if (listed.has(session.id)) {
+      return false
+    }
+    // Children are always carried: the page lists roots only.
+    if (session.parentID) {
+      return true
+    }
+    // A root the page no longer lists was deleted or archived on the server, and the page is
+    // authoritative — but only for the sessions that existed when the page was read. A root this
+    // client first learned about while the request was in flight cannot be in it: the answer came
+    // from an index the request had already read, and dropping it hides a session the user just
+    // created until the runtime's next update for it.
+    return Boolean(knownBeforeRequest && !knownBeforeRequest.has(session.id))
+  })
+  if (carried.length === 0) {
     return [...page]
   }
-  return [...page, ...localChildren].sort(byId)
+  return [...page, ...carried].sort(byId)
 }
