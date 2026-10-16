@@ -1289,6 +1289,73 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Twenty-second round
+
+The sibling session's UI feature code (its worktrees are gone, so reviewing and fixing that code no longer risks
+colliding with it), a re-read of `ui/src/lib` after twenty rounds of changes, the electron main process, and the
+sync/stores trees.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | the sibling's feature components: the diff-hunk review list, the GitHub board and its model, the issue/PR dialogs, the scheduled-task run history, the mention autocomplete and the cross-session search dialog |
+| deepseek-flash | `ui/src/lib/**` (excluding what recent rounds covered) |
+| Grok CLI | `desktop/packages/electron/src/**` |
+| Claude Code CLI | `ui/src/sync/**`, `ui/src/stores/**` |
+
+Fixed:
+
+- **`51d0dc3c`** — four defects in `GitHubBoardView`, the board another session added. The list effect bumps the
+  request id that `loadMore`'s cleanup compares against, so a filter change, tab switch or refresh during a page
+  load left `loadingMore` true: "Load more" stayed disabled with "Loading…" until the view remounted.
+  `changeState` replaced the selection object for the same item — the detail pane reads the state from the bundle,
+  so that only re-ran the detail effect, which cleared the comment draft, dropped both bundles and refetched, and
+  its captured-`issueBundle` write could put one item's bundle over another's. `submitComment` appended the
+  comment to whichever bundle was current and cleared the draft there, so posting for one issue while another was
+  selected showed the comment on the wrong item. The detail effect's early return left in-flight work valid, so a
+  tab switch issued a request for the previous row under the new kind and its response was applied to state with
+  no selection.
+- **`23d5ddba`** — the working directory was moved back to the active project's root whenever the projects list
+  changed at all (`projectListKey` is the whole JSON, so an icon, a label or a `lastOpenedAt` bump counted,
+  including a sync from another window) and `removeProject` did it even when the removed project was a different
+  one. `addProjects` already conditioned its equivalent switch on the active id changing; these two did not.
+- **`063873d1`** — three unguarded reads in `ui/src/lib`: `desktopHostsGet` wrote
+  `window.__AX_CODE_DESKTOP_LOCAL_ORIGIN__` without the `try`/`catch` that `persistence.ts` applies to the
+  equivalent contextBridge property, so a read-only property rejected the whole read and lost the hosts config the
+  invoke had just returned; `findSessionHits` took the match index from `message.text.toLowerCase()` and sliced
+  `message.text` with it, so a code point that lowercases to a longer string (`İ`) shifted every offset and the
+  snippet highlighted `"edle"` instead of `"needle"`; and `shouldAnimateMessage` dereferenced `message.time.created`
+  where every sibling reader normalizes that field, throwing inside the render path for a replayed record.
+- **`7dffcac8`** — leaving a session (closing it, archiving or deleting it, or opening a new-session draft) never
+  cleared the module refs `isViewedInCurrentSession` answers from, because the only writer passed a session id. A
+  `permission.asked`, `question.asked`, `session.idle` or `session.error` for the session the user had left was
+  still treated as viewed: its toast was skipped and the completion notification was stored as seen.
+- **`60115dae`** — `createWorkingSet` drops the oldest set at the cap but only `deleteWorkingSet` cleared
+  `activeWorkingSetId`, so evicting the active set left the id pointing at nothing: the panel filtered by it,
+  showed nothing, and no tab was selected.
+- **`656266ce`** — `refetchSessionMessages` ignored `result.error` and returned on an empty list, so
+  `revertToMessage` applied its marker onto stale messages and `unrevertSession` gave up silently and let the
+  caller show the "restored" toast for content that never arrived. The file already had
+  `assertSessionCallSucceeded` for exactly this.
+- **`041b8fc0`** — two defects in the electron main process. `runProbe` captured the handle it probed but its
+  post-await guard only asked whether *an* attempt was healthy, and a restart installs a replacement that
+  answers the same: the stale result was counted against the new runtime (two loops then accumulating into one
+  `probeFailures`, so half the failures it needs judged a healthy runtime wedged and terminated a process
+  running agent work) and its trailing arm created a second probe timer beside the one the new attempt had
+  started. Separately, `collectNativeSearchResults` keeps the caller's paths and compares them as strings
+  against the read path's policy, so a root like `/tmp/alias` pointing at `~/.config` walked into `ax-code` and
+  listed the runtime's auth files — names of exactly the paths `desktop_read_file` refuses. Each directory is
+  resolved before it is entered now.
+- **`6be58872`** — the mention autocomplete renders a spinner while a file search runs but keeps the previous
+  query's hits in state, and `handleKeyDown` counted rows from those arrays: Enter or Tab attached a mention
+  that was nowhere on screen. The handler refuses input while loading, and the imperative handle depends on
+  that flag — without the dependency its closure kept the previous value, which is how the behaviour survived
+  the first version of the fix.
+
+Left as a lead for a second pass: the deepseek-flash reviewer read about sixty files of `ui/src/lib` and named
+the ones it did not reach (`debug.ts`, `desktopBridge.ts`, `search/fuzzySearch.ts`,
+`supervision/multiRunGroups.ts`, several `providers/` and `theme/` modules), reporting no defect in the
+network, path and IPC-facing helpers it did read.
+
 ## Twenty-first round
 
 The areas no round had named: the desktop-mode server wiring, the shared package and the web package's own
@@ -1301,8 +1368,14 @@ source, the release machinery (workflows, packaging scripts, winget, release ide
 | Grok CLI | `desktop/scripts/**`, `script/**`, `.github/workflows/**`, `tools/winget/**`, `config/**` |
 | Claude Code CLI | `ui/src/components/views/**` |
 
-The Grok CLI's release-machinery scope had not returned when this section was written; whatever it finds is
-recorded with the rest when it does.
+The Grok CLI's release-machinery scope returned after the rest, with three defects (`0ad5509e`):
+`sign-shadow-artifacts.sh` built its temporary directory under `$RUNNER_TEMP` as it stands, which on a Windows
+runner is a native path the shell's `mktemp` cannot treat as a directory, so the signing step exited before it
+wrote anything; `.github/workflows/desktop-shadow.yml` decoded the Apple certificate with `base64 --decode`,
+which macOS's `/usr/bin/base64` rejects, ending the step before the certificate was imported — the signing
+script already handled that pair; and `publish-github-release.sh` pushed the tag and then polled for a
+`desktop-release.yml` run that cannot exist, because that workflow is not in the repository, leaving the tag on
+the remote for a second attempt to reject. It now checks the workflow exists before pushing.
 
 Fixed:
 
@@ -2611,6 +2684,13 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
+- Latest full run, after the twenty-second round's fixes (each command's exit status captured, not inferred
+  from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
+  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 597, ui 2 895, web 1 262
+  (+2 skipped), 0 `FAIL` lines. The first run of this set failed one test,
+  `server/lib/quota/routes.test.js` "returns the providers the quota module lists" (200 expected, 401
+  answered) while four reviewer processes were still finishing; it passes in isolation and the run above,
+  with the machine quiet, is the one to read.
 - Latest full run, after the twenty-first round's fixes so far (each command's exit status captured, not
   inferred from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 880, web 1 262
