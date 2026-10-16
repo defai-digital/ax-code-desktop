@@ -1010,16 +1010,6 @@ One gap remains, recorded rather than fixed:
   `.config/ax-code`, `.env*`, `*.pem`…), so a compromised renderer can enumerate
   names the reader denies. The in-code comment says the open root is intentional,
   so this is a policy decision to confirm, not a silent fix.
-- **`useSkillsCatalogStore.loadSource`** writes its page unconditionally on
-  success, so two overlapping loads for one source can let the older land last.
-  The UI hides the refresh affordance while loading, so no reachable path was
-  found.
-- **`GitView` leaves a 1 200 ms bootstrap-refresh timer running across a
-  directory switch** and it then clears `isWaitingForGitRefreshAfterBootstrap`
-  for the new directory. The reviewer could not establish a user-visible outcome
-  (it also depends on the new directory's bootstrap status), so it is recorded
-  here as a lead rather than fixed: a directory-scoped timer with no handle and no
-  cleanup, next to a poll effect that does clear its own.
 - **`useDiffHunkRevert` reconstructs the whole file from the cached diff** and
   writes it back, so an edit made after that diff was cached — an agent working
   while the reader looks at the diff — is overwritten by the reconstruction. The
@@ -1030,18 +1020,35 @@ One gap remains, recorded rather than fixed:
   produce, so a false refusal has to be ruled out first). The reviewer ranked it
   below their reported limit, and a comparison I cannot validate end to end is the
   wrong thing to ship in its place.
-- **`PullRequestSection`'s body-hydration flag** (`views/git/PullRequestSection.tsx:542`) — the reviewer's
-  suspicion was right, and the ordering it depended on is now settled: React runs a passive effect's
-  cleanup *before* that promise chain's `.finally` continues, so the cleanup's `cancelled = true` made
-  `.finally` return without clearing the flag, and the re-run returned early because `pr.body` was
-  already filled in — with the empty string the request returned, for a pull request that has no
-  description. Fixed in `d3aef642`: the attempt's cleanup clears the flag too, with a regression test
-  that renders the section for that case.
-- **`EmbeddedWebMcpBrowser`'s one-shot enable request can be dropped** before its
-  150 ms timer when a dependency changes in that window (first, uncached capability
-  probe; always under StrictMode in development).
-- **`ProjectActionsButton`'s terminal stream and preview-wait timer are not closed
-  on unmount**, leaving a subscription on the shared socket.
+- **`PullRequestSection`'s body-hydration flag** — recorded here as suspected, then settled by experiment
+  and fixed; see the note below and `d3aef642`.
+
+### Fixed after this list was written
+
+Three commits fixed five leads that were recorded here rather than fixed, and this list was still showing
+them as open. Each is gone from the source now, with the fix's own test:
+
+- `19471557`
+  - the agent browser consumed its one-shot enable request when it armed the delay, so a dependency that
+    changed inside that window cancelled the timer with the request already spent — the user's enable
+    never reached the browser and nothing armed another attempt;
+  - the project actions button left its terminal streams and preview-wait timers running on unmount,
+    leaving a subscription on the shared socket;
+  - the git panel's post-bootstrap wait kept one timer with no directory of its own, so a switch inside
+    its 1.2 s could clear the waiting flag for whichever directory was open when it fired.
+- `930c770d` — the skills catalog store's load sequence guarded the loading flag and the error but not
+  the page it writes, so an older load that answered last replaced the newer source list. The UI hid the
+  refresh affordance while loading, which is why this was recorded as a lead; the ordering is now pinned
+  by a test that holds a response back.
+- `d3aef642` — `PullRequestSection`'s body-hydration flag, recorded above as suspected because it
+  depended on React flushing a passive effect's cleanup before a promise chain's `.finally` continues.
+  It does, when the chain's own store update is what re-rendered the component, so a pull request with no
+  description showed "Loading description…" where "No description" belongs, permanently.
+
+The entries left above were re-checked against the source while correcting this list: the per-directory
+maps in `useGitStore` still have no eviction beyond each directory's own diff cache, the two event
+branches still receive no callbacks from their only production caller, and the rest are policy or design
+questions rather than local fixes.
 
 ## Verification
 
