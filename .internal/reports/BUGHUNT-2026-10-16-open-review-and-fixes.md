@@ -460,6 +460,46 @@ the stale target and selected that one instead.
 
 Evidence: the effect has no render harness, so this one has no test.
 
+## Limit audit
+
+Prompted by the caps that produced the findings above, the hard limits in the
+client, the web server and the Electron main process were audited for caps that
+drop user data or user intent without saying so. The caps that are fine, and why:
+
+- **Notes, to-do text and plan titles** (`openchamberConfig`): the editor enforces
+  the same limit with a visible `length/max` counter and truncates as you type, so
+  the sanitiser's cut is a second line of defence, not the only one.
+- **Runtime supervisor diagnostics** (`CAPTURED_OUTPUT_TAIL_LINES = 20`): the text
+  is attached to the failure as an explicitly labelled "Recent output:", not passed
+  off as the whole log.
+- **Delete tombstones** (`DELETE_TOMBSTONE_CAP = 200`, 15 min TTL): deliberate and
+  commented; the worst case is a session whose delete predates the window showing
+  up again if the server still lists it.
+- **Session materialization** (`SESSION_MATERIALIZATION_MESSAGE_LIMIT = 30`): the
+  call registers the server's cursor with `complete: !cursor`, so the rest of the
+  history is known to be missing rather than assumed complete.
+- **New-file line counts** (`MAX_NEW_FILE_STATS = 200`, 1 MB per file): a commented
+  perf bound; files past it simply carry no estimate.
+- **Virtual-list thresholds** (`CHANGE_LIST_VIRTUALIZE_THRESHOLD`,
+  `ARCHIVED_VIRTUALIZE_THRESHOLD`): the two other virtualizers in the repo already
+  read `getVirtualItems()` inline with a comment explaining why a memo would return
+  stale rows, so `ChangesPanel` was the outlier this series fixed rather than one
+  instance of a pattern.
+- **Cache caps** (`DIFF_CACHE_*`, `MAX_PR_STATUS_ENTRIES`, `CONFIG_CACHE_MAX_ENTRIES`,
+  `EXPANDED_TOOLS_CACHE_MAX`, `FILE_REFERENCE_STAT_CACHE_MAX`): bounded by count or
+  bytes with eviction, not silently overgrown.
+
+One gap remains, recorded rather than fixed:
+
+- **A full message queue refuses the entry silently.** `addToQueue` returns false at
+  `MESSAGE_QUEUE_MAX_PER_SESSION` (50) and the caller keeps the composer — which this
+  series made sure it does without also eating the review comments — but nothing
+  tells the user why Enter did nothing; the queue's own panel is the only way to
+  find out. Telling them needs a new string, and the i18n contract requires every
+  one of the 13 locale files to carry it (plus the shared-spelling allowlist, since
+  the others would hold the English text), which is 15 files for one toast. Left
+  for a change that is already touching that catalogue.
+
 ## Reviewed and deliberately not changed
 
 - **`useGitStore` per-directory state is never released.** `setActiveDirectory`
