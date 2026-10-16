@@ -14,6 +14,7 @@ export const createBootstrapRuntime = (dependencies) => {
   const {
     createUiAuth,
     registerServerStatusRoutes,
+    registerApiSessionGate,
     registerCommonRequestMiddleware,
     registerAuthAndAccessRoutes,
     registerNotificationRoutes,
@@ -49,6 +50,15 @@ export const createBootstrapRuntime = (dependencies) => {
       console.log("UI password protection enabled for browser sessions")
     }
 
+    // Order matters: middleware only wraps the handlers registered after it. The limiters and the session
+    // gate therefore come before everything that reads a request — the body parsers below accept 50 MB, and
+    // an unauthenticated caller must be answered (401/429) without its body being buffered — and the status
+    // and system routes sit behind the limiter too, which they did not while they were registered above it.
+    app.use("/api", createDesktopRouteRateLimiter())
+    app.use("/auth", createDesktopRouteRateLimiter())
+
+    registerApiSessionGate(app, { uiAuthController })
+
     registerServerStatusRoutes(app, {
       express,
       process,
@@ -62,9 +72,6 @@ export const createBootstrapRuntime = (dependencies) => {
     })
 
     registerCommonRequestMiddleware(app, { express, verboseRequestLogs })
-
-    app.use("/api", createDesktopRouteRateLimiter())
-    app.use("/auth", createDesktopRouteRateLimiter())
 
     registerAuthAndAccessRoutes(app, {
       express,

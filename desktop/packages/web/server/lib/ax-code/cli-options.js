@@ -54,7 +54,15 @@ export const parseServeCliOptions = ({ argv = [], env = {}, defaultPort }) => {
     if (optionName === "ui-password") {
       const { value, nextIndex } = consumeValue(i, inlineValue)
       i = nextIndex
-      options.uiPassword = typeof value === "string" ? value : ""
+      // An absent operand must not become the empty string: "" is this server's "no UI password" sentinel,
+      // so `--ui-password` alone turned authentication off — and overwrote a password seeded from
+      // `AX_CODE_DESKTOP_UI_PASSWORD`. `--host` refuses a missing value the same way.
+      // Not trimmed: a password's own spaces are part of it (the option preserves them today). Only an
+      // *absent* operand is refused.
+      if (typeof value !== "string" || value.length === 0) {
+        throw new Error("--ui-password requires a value")
+      }
+      options.uiPassword = value
       continue
     }
   }

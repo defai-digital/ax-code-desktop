@@ -406,6 +406,38 @@ export const registerServerStatusRoutes = (app, dependencies) => {
   })
 }
 
+/**
+ * The UI-session gate for `/api`, as its own mount.
+ *
+ * It is separate from the routes because middleware only wraps the handlers registered *after* it, and this
+ * one belongs before the body parsers: those accept 50 MB per request, and an unauthenticated caller must be
+ * answered without its body being buffered. The login and passkey endpoints live under `/auth`, outside this
+ * mount, so a caller can still get a session.
+ */
+export const registerApiSessionGate = (app, dependencies) => {
+  const { uiAuthController } = dependencies
+  const authRouteRateLimiter = createAuthRouteRateLimiter()
+
+  const requireSession = async (req, res, next) => {
+    try {
+      await uiAuthController.requireAuth(req, res, next)
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  app.use("/api", authRouteRateLimiter, requireSession)
+
+  // Surfaces that live OUTSIDE /api but reach the runtime with its own
+  // credential: the bare event-stream proxy (`/global/event`) and the
+  // dashboard/graph panel proxy. They are registered later (the proxy is wired
+  // after the bootstrap), so this mount covers them, and none of their
+  // first-party consumers runs before the UI session exists: the browser build's
+  // dashboard iframe is only rendered inside the authenticated app, and the
+  // packaged Electron shell routes these paths to the runtime directly.
+  app.use(["/global", "/dre-graph", "/run-report", "/graph"], authRouteRateLimiter, requireSession)
+}
+
 export const registerAuthAndAccessRoutes = (app, dependencies) => {
   const { express, uiAuthController } = dependencies
   const authRouteRateLimiter = createAuthRouteRateLimiter()
@@ -517,24 +549,6 @@ export const registerAuthAndAccessRoutes = (app, dependencies) => {
     }
   })
 
-  const requireSession = async (req, res, next) => {
-    try {
-      await requireApiAuth(req, res, next)
-    } catch (err) {
-      next(err)
-    }
-  }
-
-  app.use("/api", authRouteRateLimiter, requireSession)
-
-  // Surfaces that live OUTSIDE /api but reach the runtime with its own
-  // credential: the bare event-stream proxy (`/global/event`) and the
-  // dashboard/graph panel proxy. They are registered later (the proxy is wired
-  // after the bootstrap), so this mount covers them, and none of their
-  // first-party consumers runs before the UI session exists: the browser build's
-  // dashboard iframe is only rendered inside the authenticated app, and the
-  // packaged Electron shell routes these paths to the runtime directly.
-  app.use(["/global", "/dre-graph", "/run-report", "/graph"], authRouteRateLimiter, requireSession)
 }
 
 export const registerSettingsUtilityRoutes = (app, dependencies) => {
@@ -596,6 +610,29 @@ export const registerSettingsUtilityRoutes = (app, dependencies) => {
   })
 }
 
+// The API paths whose bodies go through the large JSON parser. Kept as one list because a second parser
+// below has to skip exactly the same set (see the urlencoded mount).
+const LARGE_JSON_API_PREFIXES = [
+  "/api/config/agents",
+  "/api/config/commands",
+  "/api/config/mcp",
+  "/api/config/snippets",
+  "/api/config/settings",
+  "/api/config/skills",
+  "/api/config/plugins",
+  "/api/mcp",
+  "/api/projects",
+  "/api/fs",
+  "/api/git",
+  "/api/magic-prompts",
+  "/api/prompts",
+  "/api/terminal",
+  "/api/ax-code",
+  "/api/notifications",
+  "/api/session-folders",
+  "/api/text",
+]
+
 export const registerCommonRequestMiddleware = (app, dependencies) => {
   const { express, verboseRequestLogs = false } = dependencies
 
@@ -624,6 +661,10 @@ export const registerCommonRequestMiddleware = (app, dependencies) => {
 
   const parseJsonSmall = jsonBodyParser("1mb")
   const parseJsonLarge = jsonBodyParser("50mb")
+  const usesJsonBodyParser = (path) =>
+    path === "/api/config/themes" ||
+    path.startsWith("/api/behavior") ||
+    LARGE_JSON_API_PREFIXES.some((prefix) => path.startsWith(prefix))
 
   app.use((req, res, next) => {
     // Generated themes are capped at 512 KB on write, so the small parser is enough.
@@ -635,26 +676,7 @@ export const registerCommonRequestMiddleware = (app, dependencies) => {
         return res.status(413).json({ error: "Content exceeds maximum size of 1048576 bytes" })
       }
       parseJsonSmall(req, res, next)
-    } else if (
-      req.path.startsWith("/api/config/agents") ||
-      req.path.startsWith("/api/config/commands") ||
-      req.path.startsWith("/api/config/mcp") ||
-      req.path.startsWith("/api/config/snippets") ||
-      req.path.startsWith("/api/config/settings") ||
-      req.path.startsWith("/api/config/skills") ||
-      req.path.startsWith("/api/config/plugins") ||
-      req.path.startsWith("/api/mcp") ||
-      req.path.startsWith("/api/projects") ||
-      req.path.startsWith("/api/fs") ||
-      req.path.startsWith("/api/git") ||
-      req.path.startsWith("/api/magic-prompts") ||
-      req.path.startsWith("/api/prompts") ||
-      req.path.startsWith("/api/terminal") ||
-      req.path.startsWith("/api/ax-code") ||
-      req.path.startsWith("/api/notifications") ||
-      req.path.startsWith("/api/session-folders") ||
-      req.path.startsWith("/api/text")
-    ) {
+    } else if (LARGE_JSON_API_PREFIXES.some((prefix) => req.path.startsWith(prefix))) {
       parseJsonLarge(req, res, next)
     } else if (req.path.startsWith("/api")) {
       next()
@@ -663,7 +685,16 @@ export const registerCommonRequestMiddleware = (app, dependencies) => {
     }
   })
 
-  app.use(express.urlencoded({ extended: true, limit: "50mb" }))
+  // The one path family that must keep an unread body — the raw `/api/session/*` proxy path — fell to the
+  // `next()` branch above, but the urlencoded parser had no path predicate of its own: a form-encoded
+  // request to it arrived with the stream already consumed and the proxy forwarded an empty body.
+  const urlencodedParser = express.urlencoded({ extended: true, limit: "50mb" })
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api") && !usesJsonBodyParser(req.path)) {
+      return next()
+    }
+    urlencodedParser(req, res, next)
+  })
 
   app.use((req, _res, next) => {
     if (verboseRequestLogs) {

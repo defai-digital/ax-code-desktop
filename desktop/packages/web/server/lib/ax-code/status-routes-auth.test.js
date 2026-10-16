@@ -95,9 +95,8 @@ describe("status routes and the UI session", () => {
 describe("bare proxy surfaces require the UI session", () => {
   const buildProxyApp = async ({ authorized }) => {
     const app = express()
-    const { registerAuthAndAccessRoutes } = await import("./core-routes.js")
-    registerAuthAndAccessRoutes(app, {
-      express,
+    const { registerApiSessionGate } = await import("./core-routes.js")
+    registerApiSessionGate(app, {
       uiAuthController: createController({ authorized }),
     })
     // The proxy itself is registered after the bootstrap; a plain handler is

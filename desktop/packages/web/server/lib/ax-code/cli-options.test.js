@@ -43,6 +43,27 @@ describe("parseServeCliOptions", () => {
     ).toBe("  keep spaces  ")
   })
 
+  it("refuses a --ui-password without a value instead of turning authentication off", () => {
+    // "" is the "no UI password" sentinel, so a missing operand disabled authentication and overwrote the
+    // password seeded from the environment: the server came up unauthenticated with the flag present.
+    for (const argv of [["--ui-password"], ["--ui-password="], ["--ui-password", "--port", "3902"]]) {
+      expect(() =>
+        parseServeCliOptions({
+          argv,
+          env: { AX_CODE_DESKTOP_UI_PASSWORD: "from-env" },
+          defaultPort: 3902,
+        }),
+        argv.join(" "),
+      ).toThrow("--ui-password requires a value")
+    }
+
+    // The environment password still stands on its own.
+    expect(
+      parseServeCliOptions({ argv: [], env: { AX_CODE_DESKTOP_UI_PASSWORD: "from-env" }, defaultPort: 3902 })
+        .uiPassword,
+    ).toBe("from-env")
+  })
+
   it("rejects non-loopback bind hosts", () => {
     expect(() =>
       parseServeCliOptions({

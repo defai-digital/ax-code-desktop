@@ -3,6 +3,7 @@ import express from "express"
 import request from "supertest"
 import {
   createApiRequestSecurityMiddleware,
+  registerApiSessionGate,
   registerAuthAndAccessRoutes,
   registerCommonRequestMiddleware,
   registerServerStatusRoutes,
@@ -331,6 +332,45 @@ describe("core-routes", () => {
 
     resolveReloads[1]()
     await reloadPromises[1]
+  })
+
+  it("answers an unauthenticated request before the body parsers read it", async () => {
+    // The gate is mounted before the parsers (that is what `registerApiSessionGate` is for): with the
+    // parsers first, a malformed body was answered 400 "Invalid JSON body" for a caller that was never
+    // authenticated, and a 50 MB body was buffered before the 401.
+    const app = express()
+    registerApiSessionGate(app, {
+      uiAuthController: createAuthController((_req, res) => res.status(401).json({ error: "Unauthorized" })),
+    })
+    registerCommonRequestMiddleware(app, { express, verboseRequestLogs: false })
+    app.post("/api/config/agents/x", (_req, res) => res.json({ ok: true }))
+
+    const response = await request(app)
+      .post("/api/config/agents/x")
+      .set("Content-Type", "application/json")
+      .send('{"broken"')
+      .agent(false)
+
+    expect(response.status).toBe(401)
+  })
+
+  it("leaves the raw session proxy path's body unread for a form-encoded request", async () => {
+    // The JSON dispatcher sends this path to `next()` so the proxy sees the raw stream, but the urlencoded
+    // parser had no predicate of its own and consumed that body: the proxy forwarded nothing.
+    const app = express()
+    registerCommonRequestMiddleware(app, { express, verboseRequestLogs: false })
+    app.post("/api/session/x", async (req, res) => {
+      const chunks = []
+      for await (const chunk of req) chunks.push(chunk)
+      res.json({ parsed: req.body === undefined ? null : req.body, raw: Buffer.concat(chunks).toString("utf8") })
+    })
+
+    const response = await request(app)
+      .post("/api/session/x")
+      .set("Content-Type", "application/x-www-form-urlencoded")
+      .send("a=1")
+
+    expect(response.body).toEqual({ parsed: null, raw: "a=1" })
   })
 
   it("should require API auth before probing loopback preview URLs", async () => {
