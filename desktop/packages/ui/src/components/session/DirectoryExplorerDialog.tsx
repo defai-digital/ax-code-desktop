@@ -766,9 +766,12 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
           <div className="space-y-0.5">
             {rows.map((row, index) => {
               const isActive = index === highlightedIndex
+              // The quick-add is a sibling of the row, not a descendant: a button inside a button is invalid, and
+              // screen readers flatten the inner one into the outer — so it was announced as the row and could not
+              // be reached on its own.
               return (
+                <div key={row.value} className="relative">
                 <button
-                  key={row.value}
                   ref={(node) => {
                     if (node) {
                       rowRefs.current.set(row.value, node)
@@ -782,7 +785,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => executeRow(row)}
                   className={cn(
-                    "flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                    "flex w-full cursor-pointer items-center gap-2 rounded-lg py-1.5 pl-2 pr-8 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
                     isActive && "bg-interactive-selection text-interactive-selection-foreground",
                     !isActive && "hover:bg-interactive-hover/50",
                   )}
@@ -815,18 +818,19 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
                     <span className="rounded-full border border-border/60 px-2 py-0.5 typography-meta text-muted-foreground">
                       {t("directoryExplorerDialog.browse.addedBadge")}
                     </span>
-                  ) : row.type === "directory" ? (
-                    <button
-                      type="button"
-                      onMouseDown={(event) => event.stopPropagation()}
-                      onClick={(event) => handleQuickAdd(event, row.path)}
-                      className="flex-shrink-0 rounded-full p-1 text-muted-foreground transition-colors hover:bg-interactive-hover/60 hover:text-foreground"
-                      title={t("directoryExplorerDialog.browse.quickAdd")}
-                    >
-                      <Icon name="add" className="h-3.5 w-3.5" />
-                    </button>
                   ) : null}
                 </button>
+                {row.type === "directory" && !row.added ? (
+                  <button
+                    type="button"
+                    onClick={(event) => handleQuickAdd(event, row.path)}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:bg-interactive-hover/60 hover:text-foreground"
+                    title={t("directoryExplorerDialog.browse.quickAdd")}
+                  >
+                    <Icon name="add" className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+                </div>
               )
             })}
           </div>

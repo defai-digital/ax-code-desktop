@@ -21,6 +21,17 @@ describe("add project directory browser", () => {
     expect(dialog).toContain("const hasHighlightedBrowseItem = Boolean(highlightedRow)")
   })
 
+  test("quick add is a sibling of the row, not a button inside a button", () => {
+    // A button inside a button is invalid HTML, and screen readers flatten the inner one into the outer control:
+    // quick add was announced as the row itself and could not be reached on its own. The row reserves the room
+    // (pr-8) and the quick add sits beside it.
+    expect(dialog).toContain('<div key={row.value} className="relative">')
+    expect(dialog).toMatch(/pl-2 pr-8 text-left/)
+    expect(dialog).toMatch(
+      /<\/button>\n\s+\{row\.type === "directory" && !row\.added \? \(\n\s+<button\n\s+type="button"\n\s+onClick=\{\(event\) => handleQuickAdd\(event, row\.path\)\}/,
+    )
+  })
+
   test("an added folder shows the Added badge instead of quick add", () => {
     expect(dialog).toMatch(/row\.type === "directory" && row\.added \? \([\s\S]*?browse\.addedBadge/)
   })
