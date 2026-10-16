@@ -1,7 +1,7 @@
 import React from "react"
 import { cn, truncatePathMiddle } from "@/lib/utils"
 import { useFileSearchStore } from "@/stores/useFileSearchStore"
-import { useAgentsStore } from "@/stores/useAgentsStore"
+import { useAgentsStore, filterVisibleAgents } from "@/stores/useAgentsStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useFilesViewTabsStore } from "@/stores/useFilesViewTabsStore"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
@@ -65,7 +65,10 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
         [projectRoot],
       ),
     )
-    const getVisibleAgents = useAgentsStore((state) => state.getVisibleAgents)
+    // Subscribe to the list itself, not the getter: a getter's identity never changes, so the
+    // effect below never re-ran and the mention list kept the agents of the directory that was
+    // loaded when the popup opened - offering an agent that does not belong to this project.
+    const configAgents = useAgentsStore((state) => state.agents)
     const searchFiles = useFileSearchStore((state) => state.searchFiles)
     const debouncedQuery = useDebouncedValue(searchQuery, 180)
     const showHidden = useDirectoryShowHidden()
@@ -261,7 +264,7 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
     }, [currentDirectory, debouncedQuery, searchFiles, showHidden, showGitignored])
 
     React.useEffect(() => {
-      const visibleAgents = getVisibleAgents()
+      const visibleAgents = filterVisibleAgents(configAgents)
       const normalizedQuery = (searchQuery ?? "").trim().toLowerCase()
       const filtered = visibleAgents
         .filter((agent) => agent.mode && agent.mode !== "primary")
@@ -277,7 +280,7 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
         }))
         .sort((a, b) => a.name.localeCompare(b.name))
       setAgents(filtered)
-    }, [getVisibleAgents, searchQuery])
+    }, [configAgents, searchQuery])
 
     React.useEffect(() => {
       setSelectedIndex(0)
