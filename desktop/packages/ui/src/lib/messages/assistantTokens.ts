@@ -10,14 +10,41 @@ type AssistantTokens = {
   }
 }
 
+// What a provider actually sends. The fields are required in the SDK's schema, but a
+// provider that reports no reasoning or cache leaves them out, and the runtime passes
+// that payload through, so every reader here normalizes instead of assuming.
+type TokenFields = {
+  input?: unknown
+  output?: unknown
+  reasoning?: unknown
+  cache?: { read?: unknown; write?: unknown }
+}
+
 type AssistantTokenMessage = {
   id?: string
   role?: unknown
-  tokens?: AssistantTokens
+  tokens?: TokenFields
 }
 
-const getAssistantTokenTotal = (tokens: AssistantTokens): number =>
-  tokens.input + tokens.output + tokens.reasoning + (tokens.cache?.read ?? 0) + (tokens.cache?.write ?? 0)
+const toTokenCount = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0
+
+const normalizeAssistantTokens = (tokens: TokenFields): AssistantTokens => ({
+  input: toTokenCount(tokens.input),
+  output: toTokenCount(tokens.output),
+  reasoning: toTokenCount(tokens.reasoning),
+  cache: {
+    read: toTokenCount(tokens.cache?.read),
+    write: toTokenCount(tokens.cache?.write),
+  },
+})
+
+const getAssistantTokenTotal = (tokens: TokenFields): number =>
+  toTokenCount(tokens.input) +
+  toTokenCount(tokens.output) +
+  toTokenCount(tokens.reasoning) +
+  toTokenCount(tokens.cache?.read) +
+  toTokenCount(tokens.cache?.write)
 
 export const findLatestAssistantTokenUsage = (
   messages: readonly unknown[],
@@ -29,11 +56,11 @@ export const findLatestAssistantTokenUsage = (
     }
 
     const tokens = message.tokens
-    if (!tokens || getAssistantTokenTotal(tokens) <= 0) {
+    if (!tokens || typeof tokens !== "object" || getAssistantTokenTotal(tokens) <= 0) {
       continue
     }
 
-    return { tokens, messageId: message.id }
+    return { tokens: normalizeAssistantTokens(tokens), messageId: message.id }
   }
 
   return null

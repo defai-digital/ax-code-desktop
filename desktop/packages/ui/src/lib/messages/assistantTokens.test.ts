@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { findLatestStepTokenUsage } from "./assistantTokens"
+import { buildSessionContextUsage, findLatestAssistantTokenUsage, findLatestStepTokenUsage } from "./assistantTokens"
 
 describe("findLatestStepTokenUsage", () => {
   test("returns null when no step-finish part exists", () => {
@@ -59,5 +59,55 @@ describe("findLatestStepTokenUsage and placeholder usage", () => {
 
   test("answers null when no step reported usage", () => {
     expect(findLatestStepTokenUsage([stepFinish({ input: 0, output: 0 })])).toBeNull()
+  })
+})
+
+describe("findLatestAssistantTokenUsage", () => {
+  test("defaults the fields a provider omits instead of returning a NaN total", () => {
+    // The step-level path above already guards the same omission. Summing the message's
+    // fields unguarded made the total NaN, and the `total <= 0` guard reads NaN as a
+    // measurement, so the message was admitted and the context meter rendered NaN%.
+    expect(
+      findLatestAssistantTokenUsage([{ id: "m1", role: "assistant", tokens: { input: 12_000, output: 40 } }]),
+    ).toEqual({
+      tokens: { input: 12_000, output: 40, reasoning: 0, cache: { read: 0, write: 0 } },
+      messageId: "m1",
+    })
+  })
+
+  test("keeps the context usage finite for a partial tokens payload", () => {
+    const usage = findLatestAssistantTokenUsage([
+      { id: "m1", role: "assistant", tokens: { input: 12_000, output: 40 } },
+    ])
+    expect(usage).not.toBeNull()
+
+    const context = buildSessionContextUsage(usage!.tokens, { contextLimit: 200_000, outputLimit: 8_000 })
+    expect(context.totalTokens).toBe(12_040)
+    expect(context.percentage).toBe(6)
+    expect(context.normalizedOutput).toBe(1)
+  })
+
+  test("skips a message whose tokens carry no usable number", () => {
+    expect(findLatestAssistantTokenUsage([{ id: "m1", role: "assistant", tokens: {} }])).toBeNull()
+    // A payload the provider never filled serializes as nulls, not numbers.
+    expect(findLatestAssistantTokenUsage([{ id: "m1", role: "assistant", tokens: { input: null, output: null } }])).toBeNull()
+    expect(
+      findLatestAssistantTokenUsage([
+        { id: "m1", role: "assistant", tokens: { input: Number.NaN, output: Number.POSITIVE_INFINITY } },
+      ]),
+    ).toBeNull()
+    expect(findLatestAssistantTokenUsage([{ id: "m1", role: "assistant", tokens: 12_000 }])).toBeNull()
+  })
+
+  test("falls back to the previous assistant message when the newest carries no usage", () => {
+    expect(
+      findLatestAssistantTokenUsage([
+        { id: "m1", role: "assistant", tokens: { input: 1_000, output: 10 } },
+        { id: "m2", role: "assistant", tokens: { input: null, output: null } },
+      ]),
+    ).toEqual({
+      tokens: { input: 1_000, output: 10, reasoning: 0, cache: { read: 0, write: 0 } },
+      messageId: "m1",
+    })
   })
 })
