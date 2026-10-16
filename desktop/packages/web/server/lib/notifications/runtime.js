@@ -28,6 +28,10 @@ export const createNotificationTriggerRuntime = (deps) => {
   const questionNotificationDebounceTimers = new Map()
   const permissionNotificationDebounceTimers = new Map()
   const notifiedPermissionRequests = new Set()
+  // Requests the user has already answered. The flush below deletes its debounce entry before it
+  // starts awaiting, so a reply that lands mid-flush finds nothing to cancel and the ask would still
+  // be announced — seconds after the user answered it.
+  const repliedPermissionRequests = new Set()
   // Unique request keys accumulate for the life of the process; keep the dedupe
   // window bounded. A request older than the cap is long answered.
   const NOTIFIED_PERMISSION_REQUESTS_MAX = 500
@@ -40,6 +44,16 @@ export const createNotificationTriggerRuntime = (deps) => {
       }
     }
     notifiedPermissionRequests.add(requestKey)
+  }
+  const rememberRepliedPermissionRequest = (requestKey) => {
+    if (!requestKey) return
+    if (repliedPermissionRequests.size >= NOTIFIED_PERMISSION_REQUESTS_MAX) {
+      const oldest = repliedPermissionRequests.values().next().value
+      if (typeof oldest === "string") {
+        repliedPermissionRequests.delete(oldest)
+      }
+    }
+    repliedPermissionRequests.add(requestKey)
   }
   const lastReadyNotificationAt = new Map()
 
@@ -199,6 +213,12 @@ export const createNotificationTriggerRuntime = (deps) => {
       if (shouldApplyResolvedTemplateMessage(questionTemplate.message, resolvedBody, variables)) body = resolvedBody
     } catch (error) {
       console.warn("[Notification] Permission template resolution failed, using defaults:", error?.message || error)
+    }
+
+    // Checked here as well as in the reply handler: the reply may have arrived while this flush was
+    // awaiting the template variables or the settings read.
+    if (requestKey && repliedPermissionRequests.has(requestKey)) {
+      return
     }
 
     if (settings.nativeNotificationsEnabled) {
@@ -434,6 +454,7 @@ export const createNotificationTriggerRuntime = (deps) => {
     if (payload.type === "permission.replied" && sessionId) {
       const requestId = payload.properties?.requestID ?? payload.properties?.requestId ?? payload.properties?.id
       const requestKey = typeof requestId === "string" ? `${sessionId}:${requestId}` : null
+      rememberRepliedPermissionRequest(requestKey)
       const pendingNotification = permissionNotificationDebounceTimers.get(sessionId)
       if (!pendingNotification) {
         return

@@ -165,6 +165,44 @@ describe("notification trigger runtime", () => {
     }
   })
 
+it("does not notify for an ask the user answered while the flush was running", async () => {
+  // The flush deletes its debounce entry before it starts awaiting, so a reply that lands in that
+  // window found nothing to cancel: the prompt was announced after the user had answered it.
+  let releaseTemplate = () => {}
+  const templateGate = new Promise((resolve) => {
+    releaseTemplate = resolve
+  })
+
+  vi.useFakeTimers()
+  try {
+    const { runtime, emitted } = createRuntime({
+      buildTemplateVariables: vi.fn(async () => {
+        await templateGate
+        throw new Error("late template failure")
+      }),
+    })
+
+    await runtime.maybeDispatchNotificationForTrigger({
+      type: "permission.asked",
+      properties: { id: "req_gate", permission: "bash", sessionTitle: "My session", sessionID: "ses_g" },
+    })
+    // The debounce timer fires and the flush suspends inside the template variables.
+    await vi.advanceTimersByTimeAsync(600)
+
+    await runtime.maybeDispatchNotificationForTrigger({
+      type: "permission.replied",
+      properties: { requestID: "req_gate", sessionID: "ses_g" },
+    })
+
+    releaseTemplate()
+    await vi.advanceTimersByTimeAsync(50)
+
+    expect(emitted.map((entry) => entry.tag)).not.toContain("permission-ses_g:req_gate")
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
 it("drops only the replied permission ask and still notifies the pending ones", async () => {
   // A reply used to clear the whole session debounce entry, so every other ask
   // waiting in the same window lost its notification.
