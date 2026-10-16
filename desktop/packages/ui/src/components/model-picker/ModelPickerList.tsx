@@ -523,12 +523,14 @@ export const ModelPickerList: React.FC<ModelPickerListProps> = ({
   const handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent) => {
       if (event.defaultPrevented) return
+      // `stopPropagation` stays unconditional: it is what keeps the menu and the window-level handlers above this
+      // box from acting on a key the picker owns, and a composition must not reopen that door.
+      event.stopPropagation()
       // An input method consumes Enter (to commit the composition), the arrow keys (to move through candidates) and
       // Escape: every branch below would act on that key instead — selecting the highlighted model, moving the
       // highlight, switching the thinking variant, closing the picker. The app is localized, so this is the normal
       // way its search box is used; `lib/ime` is the shared gate the composer and the question card already use.
       if (isIMECompositionEvent(event)) return
-      event.stopPropagation()
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
         const selected = flatModelList[selectionStore.getSnapshot()]
         if (selected && onVariantKey?.(event, selected)) return

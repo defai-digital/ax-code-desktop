@@ -109,6 +109,40 @@ describe("ModelPickerList selection", () => {
     expect(onSelect).toHaveBeenCalled()
   })
 
+  test("keeps an ancestor's handlers out of a key an input method is consuming", async () => {
+    // `stopPropagation` was unconditional before the composition guard was added, and the guard was placed above
+    // it: the keys a composition consumes then reached the menu and the window-level handlers the picker had been
+    // shielding, which is one of the outcomes the guard was there to prevent. The action branches stay unreachable
+    // without reopening that door.
+    const onSelect = vi.fn()
+    const onAncestorKeyDown = vi.fn()
+
+    act(() => {
+      root.render(
+        <div onKeyDown={onAncestorKeyDown}>
+          <ModelPickerList
+            providers={providers}
+            favoriteModels={noFavorites}
+            recentModels={noRecents}
+            searchQuery=""
+            modelsMetadata={noMetadata}
+            hiddenModels={noHidden}
+            onSearchQueryChange={() => {}}
+            onSelect={onSelect}
+            labels={labels}
+            onActiveEntryChange={() => {}}
+          />
+        </div>,
+      )
+    })
+
+    await pressKey("Escape", { isComposing: true })
+    await pressKey("Enter", { isComposing: true })
+
+    expect(onAncestorKeyDown).not.toHaveBeenCalled()
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   test("keeps the highlight across a re-render when hiddenModels is not passed at all", async () => {
     // The default was a fresh literal, so `hiddenModels` — and every list derived from it — was a new
     // array on each render and the reset guard never matched. ModelMultiSelect omits the prop, and
