@@ -549,37 +549,49 @@ Four cases of the generated SDK's `{ error }` result being applied as data:
   already absolute**, so the fallback is dead code. The reviewer's own note is that the
   result is correct today; nothing to fix without a behaviour change.
 
-### Pending from this round
+### `dff3a3c2` fix(ui): close the remaining leads from this round
 
-Confirmed in the source, not yet fixed:
+- **A preview probe that read a 403 or 404 as the proxy's own refusal re-registered the
+  target forever** (`layout/ContextPanel-impl.tsx:773`), over an application's own 404 page,
+  and the frame never mounted. The proxy marks its own refusals
+  (`PREVIEW_REFUSAL_HEADER`, `web/server/lib/preview/proxy-runtime.js`) so the probe can tell
+  them apart; an application's answer is reachable. No test: the probe lives in a component
+  that renders the whole panel.
+- **The address bar missed in-page navigation** (`layout/ContextPanel-impl.tsx:1772`):
+  Electron reports the URL on the event itself, as `readDesktopBrowserLoadFailure` and
+  `readDesktopBrowserNewWindowNavigation` already read theirs, and the handler read only the
+  compatibility `detail`. `readDesktopBrowserInPageNavigation` reads both; three tests cover
+  it, and the event-field case fails on the pre-fix reader.
+- **A command reply that landed after the agent browser unmounted restored the closed
+  browser** (`layout/EmbeddedWebMcpBrowser.tsx:197`): `lifecycleRef` is retired on unmount
+  now, so the reply fails the lifecycle check instead of writing `phase: "ready"` with the
+  `browserId` the cleanup had cleared. Covered; the test fails with `expected 'ready' to be
+  'idle'` on the pre-fix source.
+- **The non-Electron iframe could be left behind its loading overlay**
+  (`layout/ContextPanel-impl.tsx:1677`): the iframe's `load` waits for every subresource, so
+  one that never finished kept the click-taking overlay over a usable page. It carries the
+  same 30 s safety timeout the desktop pane has. No test: the pane is not exported.
+- **`EnvEditor` keyed its reveal state by row position** (`sections/mcp/McpPage.tsx:278`):
+  removing a row above a revealed one printed the next row's secret in plain text and
+  re-masked the revealed one. `revealedRowsAfterRemoval` moves the positions with the rows;
+  five tests cover it.
+- **`SnippetsPage` re-populated the form from a background reload**
+  (`sections/snippets/SnippetsPage.tsx:60`): deleting another snippet re-fetches the list,
+  every snippet object is new, and the effect overwrote unsaved edits and reset the
+  baseline. A run that is not a selection change leaves unsaved edits alone now. No test:
+  the page needs the whole settings surface.
+- **`removeSelectedCatalog` had no `catch`**
+  (`sections/skills/catalog/SkillsCatalogPage.tsx:143`): a refused settings write escaped as
+  an unhandled rejection, the dialog stayed open and nothing said the catalog was still
+  there. It reports through the page's existing catalog error banner
+  (`useSkillsCatalogStore.reportCatalogError`), so no new user-visible string was needed.
 
-- **`EnvEditor` keys its reveal state by row index** (`sections/mcp/McpPage.tsx:278-289`):
-  removing a row above a revealed one shifts the indices, so the next row's secret is
-  printed in plain text and the revealed row is masked again.
-- **`SnippetsPage` re-populates the form from a background reload**
-  (`sections/snippets/SnippetsPage.tsx:60-88`): a delete elsewhere re-fetches the store and
-  the effect overwrites unsaved edits, where `McpPage` guards the same hazard with a
-  loaded-name ref.
-- **`removeSelectedCatalog` has no `catch`** (`sections/skills/catalog/SkillsCatalogPage.tsx:143-162`):
-  a failed settings write escapes as an unhandled rejection, the dialog stays open and
-  nothing tells the user the catalog was not removed.
-- **A preview probe that answers 403 or 404 re-registers the target forever**
-  (`layout/ContextPanel-impl.tsx:773`): the branch treats a proxy refusal and an upstream's
-  own 403/404 alike, so the iframe never mounts and the target POST repeats without a bound.
-- **The address bar misses in-page navigation** (`layout/ContextPanel-impl.tsx:1772`): the
-  `did-navigate-in-page` handler reads `detail.url` while the desktop browser reports the
-  URL the way its sibling helpers read it, so an anchor jump or `pushState` leaves the bar
-  and the open-externally button on the previous URL.
-- **A command reply that lands after the agent browser unmounted restores the closed
-  browser** (`layout/EmbeddedWebMcpBrowser.tsx:197`): `lifecycleRef` is not bumped when the
-  pane unmounts, so the reply passes the lifecycle check and writes `phase: "ready"` with
-  the `browserId` the cleanup had just cleared.
-- **The non-Electron iframe browser can be left behind a full-screen loading overlay**
-  (`layout/ContextPanel-impl.tsx:1677`): it is cleared only by the iframe's `load` event,
-  it has no `pointer-events-none`, and the iframe pane has no timeout, where the desktop
-  pane caps the same wait at 30 s. A page whose subresources never finish takes the clicks.
-- Two SUSPECTED leads: the resource preview's staleness guard compares only its URI, and
-  the MCP OAuth callback page can re-exchange a single-use code when its effect re-runs.
+### SUSPECTED, not changed
+
+- The resource preview's staleness guard compares only its URI, not the client and directory
+  it was fetched for.
+- The MCP OAuth callback page re-exchanges a single-use code when its effect re-runs, which
+  would replace a success with "Authorization Failed".
 
 ## Limit audit
 
