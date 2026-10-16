@@ -2451,6 +2451,14 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
+- Latest full run, after the nineteenth round's fixes (each command's exit status captured, not inferred
+  from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
+  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 876, web 1 240
+  (+2 skipped), 0 `FAIL` lines. The ui and web totals are larger than the eighteenth round's because six
+  feature commits from a sibling session landed on this branch between the two runs (a project Issues & PRs
+  board, hunk staging, mention attachments, message search, scheduled-task run history, and one web fix);
+  the run covers that tree, not only this series' work. The individual suites this round touched were also
+  run on their own: `server/lib/ax-code/` 462 passed in 48 files.
 - Latest full run, after the eighteenth round's fixes (each command's exit status captured, not inferred
   from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 780, web 1 200
