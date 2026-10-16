@@ -1,7 +1,6 @@
 "use strict"
 
 const { createHash, randomUUID } = require("node:crypto")
-const { isLoopbackDesktopHostname } = require("./desktop-hosts")
 const page = require("./webmcp-page")
 
 const CAPABILITY = "desktop.webmcp.v1"
@@ -35,13 +34,12 @@ const agentOrigin = (value) => {
   try {
     const url = new URL(value)
     if (url.username || url.password) return null
-    // Every 127.x.x.x address is loopback, not just 127.0.0.1: a local service bound to any of them was read as a
-    // public http page, so the address bar marked it un-grantable and the agent's navigate failed. The shared
-    // helper is the same one the renderer protocol's loopback checks use.
-    return url.protocol === "https:" ||
-      (url.protocol === "http:" && isLoopbackDesktopHostname(url.hostname))
-      ? url.origin
-      : null
+    // `localhost`, `127.0.0.1` and `[::1]` — the runtime's own WebMCP origin rule (its `WEBMCP_LOOPBACK_HOSTS`,
+    // shared by the bridge policy, the approval store and the TUI allowlist dialog), which is also what the UI's
+    // copy of it offers. Every 127.x.x.x address is loopback, but this pane has to report what the runtime will
+    // accept: accepting more here made a page the bridge policy refuses read as "ready".
+    const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]"
+    return url.protocol === "https:" || (url.protocol === "http:" && loopback) ? url.origin : null
   } catch {
     return null
   }

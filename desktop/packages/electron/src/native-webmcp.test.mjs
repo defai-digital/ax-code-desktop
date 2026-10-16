@@ -155,11 +155,12 @@ describe("pageKind", () => {
     expect(kind("https://trip.com/")).toBe("ready")
     expect(kind("http://127.0.0.1:3000/")).toBe("ready")
     expect(kind("http://localhost:5173/")).toBe("ready")
-    // Every 127.x.x.x address is loopback, not only 127.0.0.1: a local service bound to another of them was read
-    // as a public http page, so the pane was marked un-grantable and the agent's navigate failed.
-    expect(kind("http://127.0.0.2:8080/")).toBe("ready")
-    expect(kind("http://127.255.0.1/")).toBe("ready")
     expect(kind("http://[::1]:3000/")).toBe("ready")
+    // The pane reports what the runtime's own WebMCP origin rule accepts (its `WEBMCP_LOOPBACK_HOSTS`, shared by
+    // the approval store and the TUI allowlist dialog): another loopback address is a page the bridge policy
+    // refuses, so "ready" here would offer a grant the server rejects.
+    expect(kind("http://127.0.0.2:8080/")).toBe("unsupported")
+    expect(kind("http://127.255.0.1/")).toBe("unsupported")
     expect(kind("http://trip.com/")).toBe("unsupported")
     expect(kind("chrome-error://chromewebdata/")).toBe("unsupported")
   })
