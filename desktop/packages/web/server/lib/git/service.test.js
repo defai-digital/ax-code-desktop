@@ -17,6 +17,7 @@ import {
   getWorktreeBootstrapStatus,
   isGitRepository,
   isRefusedRepositoryRoot,
+  leavesRepositoryRoot,
   removeWorktree,
   resetToCommit,
   resolveRepositoryFilePath,
@@ -140,6 +141,16 @@ describe("git index path validation", () => {
     expect(() =>
       validateRepositoryFilePaths("C:\\Users\\Alice\\Repo", ["C:\\Users\\Alice\\Repo2\\file.ts"], path.win32),
     ).toThrow("Path is outside repository: C:\\Users\\Alice\\Repo2\\file.ts")
+  })
+
+  it("accepts a path in a directory whose name starts with two dots", () => {
+    // Only ".." itself or a leading "../" leaves the repository. `..cache/file.txt` is a normal path
+    // inside it, and rejecting it made those files unstageable (fs/routes.js states the same rule).
+    expect(() => validateRepositoryFilePaths("/repo", ["..cache/file.txt"])).not.toThrow()
+    expect(() => resolveRepositoryFilePath("/repo", "..cache/file.txt")).not.toThrow()
+    expect(leavesRepositoryRoot("..cache/file.txt")).toBe(false)
+    expect(leavesRepositoryRoot("..")).toBe(true)
+    expect(leavesRepositoryRoot(`..${path.sep}file.txt`)).toBe(true)
   })
 
   it("rejects stage paths outside the repository before invoking git", async () => {

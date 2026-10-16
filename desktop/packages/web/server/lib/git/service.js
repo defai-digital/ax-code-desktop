@@ -453,13 +453,19 @@ const normalizeStringList = (values) =>
 
 const normalizeFilePathList = (paths) => normalizeStringList(paths)
 
+// Only ".." itself or a leading "../" leaves the repository: a directory whose *name* starts with
+// ".." (`..cache/file.txt`) is a normal path inside it, and rejecting it made those files
+// unstageable. `fs/routes.js` isPathWithinRoot states the same rule.
+export const leavesRepositoryRoot = (relative, pathTools = path) =>
+  relative === ".." || relative.startsWith(`..${pathTools.sep}`) || pathTools.isAbsolute(relative)
+
 export const validateRepositoryFilePaths = (directoryPath, filePaths, pathTools = path) => {
   const repoRoot = pathTools.resolve(directoryPath)
 
   for (const filePath of filePaths) {
     const absoluteTarget = pathTools.resolve(repoRoot, filePath)
     const relative = pathTools.relative(repoRoot, absoluteTarget)
-    if (relative.startsWith("..") || pathTools.isAbsolute(relative)) {
+    if (leavesRepositoryRoot(relative, pathTools)) {
       throw new Error(`Path is outside repository: ${filePath}`)
     }
   }
@@ -469,7 +475,7 @@ const toGitPath = (value) => value.replace(/\\/g, "/")
 
 const isInsideOrSameDirectory = (root, target) => {
   const relative = path.relative(root, target)
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))
+  return relative === "" || !leavesRepositoryRoot(relative, path)
 }
 
 export const resolveRepositoryFilePath = (repoRoot, filePath) => {
