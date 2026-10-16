@@ -41,6 +41,9 @@ export function checkThemeContrast(theme: Theme): ThemeContrastFailure[] {
   check("surface.mutedForeground-on-background", "report", surface.mutedForeground, surface.background, 3)
   check("primary.foreground-on-primary.base", "hard", primaryForeground, primary.base, 4.5)
   check("interactive.border-on-background", "report", interactive.border, surface.background, 1.2)
+  // The caret in the editor and the terminal cursor: a non-text indicator, so WCAG asks 3:1. A theme
+  // whose cursor matched the background left the caret invisible (#CECDC3 on #ffffff was 1.6:1).
+  check("interactive.cursor-on-background", "hard", interactive.cursor, surface.background, 3)
 
   // Mirror button.tsx: --primary-base supplies both the text and the tint.
   // Curated themes report this newer rule; generated palettes must pass it.

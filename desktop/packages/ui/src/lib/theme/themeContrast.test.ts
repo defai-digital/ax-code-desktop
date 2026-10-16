@@ -91,6 +91,22 @@ describe("checkGeneratedThemeContrast", () => {
 })
 
 describe("checkThemeContrast", () => {
+  test("requires 3:1 for the caret against the surface it sits on", () => {
+    // The editor caret and the terminal cursor are non-text indicators. One bundled light theme
+    // carried a cursor that matched its background (#CECDC3 on #ffffff, 1.6:1), which left both
+    // invisible in that theme.
+    const base = getThemeById("automatosx-dark")!
+    const broken: Theme = {
+      ...base,
+      colors: {
+        ...base.colors,
+        interactive: { ...base.colors.interactive, cursor: base.colors.surface.background },
+      },
+    }
+    const failure = checkThemeContrast(broken).find((f) => f.rule === "interactive.cursor-on-background")
+    expect(failure).toMatchObject({ severity: "hard", required: 3 })
+  })
+
   test("detects a broken surface foreground pairing", () => {
     const base = getThemeById("automatosx-dark")!
     const broken: Theme = {
