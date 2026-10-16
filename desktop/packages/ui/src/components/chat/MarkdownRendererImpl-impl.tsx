@@ -848,6 +848,18 @@ const MarkdownCodeBlock: React.FC<{
   )
 }
 
+/**
+ * The mermaid block for a code fence, in the rendering mode the settings currently ask for.
+ *
+ * The mode is subscribed here rather than read with `getState()` where the block is created: a value
+ * read that way during render never re-renders anything, so flipping the setting left every diagram
+ * already on screen exactly as it was.
+ */
+const MermaidBlockWithMode: React.FC<{ source: string; deferRender: boolean }> = ({ source, deferRender }) => {
+  const mermaidRenderingMode = useUIStore((state) => state.mermaidRenderingMode)
+  return <MermaidBlock source={source} mode={mermaidRenderingMode} deferRender={deferRender} />
+}
+
 const buildMarkdownComponents = ({
   syntaxTheme,
   onPreviewLoopback,
@@ -1039,7 +1051,7 @@ const buildMarkdownComponents = ({
     const language = getCodeLanguage(className)
     const code = normalizeCodeBlockText(extractCodeText(child.props.children).replace(/\n$/, ""), language)
     if (language === "mermaid") {
-      return <MermaidBlock source={code} mode={useUIStore.getState().mermaidRenderingMode} deferRender={isStreaming} />
+      return <MermaidBlockWithMode source={code} deferRender={isStreaming} />
     }
     return (
       <MarkdownCodeBlock

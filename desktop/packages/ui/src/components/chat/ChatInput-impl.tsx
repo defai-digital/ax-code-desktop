@@ -52,6 +52,7 @@ import { isDesktopShell } from "@/lib/desktop"
 import { listenDesktopNativeDragDrop, readDesktopFile } from "@/lib/desktopNative"
 import { isIMECompositionEvent } from "@/lib/ime"
 import { parseChatSlashCommand } from "./chatInputSlashCommand"
+import { isQueueableMessage } from "./queuedMessageRouting"
 import { StopIcon } from "@/components/icons/StopIcon"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getCycledPrimaryAgentName } from "@/lib/modelControlUtils"
@@ -1378,6 +1379,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const inputSnapshot = getCurrentInputSnapshot()
     if (!inputSnapshot.hasContent || !currentSessionId) return
 
+    // A command runs when it is sent, not when the session falls idle, and the queue's two dispatch
+    // paths disagreed about what to do with one: the chip ran it through the command-aware submit
+    // while auto-send delivered it to the model as text. Send it the way Ctrl+Enter does instead.
+    if (!isQueueableMessage(inputSnapshot.message, inputMode)) {
+      void handleSubmitRef.current()
+      return
+    }
+
     const drafts = consumeDrafts(currentSessionId)
 
     let messageToQueue = inputSnapshot.message.replace(/^\n+|\n+$/g, "")
@@ -1435,6 +1444,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     currentModelId,
     currentAgentName,
     currentVariant,
+    inputMode,
   ])
 
   const handleQueuedMessageEdit = React.useCallback((content: string) => {
