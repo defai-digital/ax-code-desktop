@@ -7,6 +7,25 @@ export const isAppProtocolPageOrigin = (origin: string): boolean => origin === A
 const isLoopbackApiPath = (pathname: string): boolean =>
   LOOPBACK_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 
+/**
+ * The loopback URL for a path that has already passed the prefix test, or null.
+ *
+ * The check has to be on the request that will actually be made: the loopback origin is an `http:` URL, and the
+ * WHATWG parser normalises *special* schemes further — a backslash separates segments and dot segments collapse —
+ * where the `app:` page origin is not special and leaves them alone. `new URL("/api\..\assets/x", "app://ax-code")`
+ * keeps its backslashes and passes the prefix test, while the request built from it lands on `/assets/x`.
+ */
+const toLoopbackUrl = (apiOrigin: string, pathname: string, search: string, hash: string): string | null => {
+  let target: URL
+  try {
+    target = new URL(`${apiOrigin}${pathname}${search}${hash}`)
+  } catch {
+    return null
+  }
+  if (!isLoopbackApiPath(target.pathname)) return null
+  return target.toString()
+}
+
 export const rewriteAppProtocolNetworkUrl = (
   input: string,
   options: { pageOrigin: string; apiOrigin: string },
@@ -22,14 +41,15 @@ export const rewriteAppProtocolNetworkUrl = (
     // Normalize before the prefix test, the way the absolute branch does through `new URL`: else a path like
     // "/api/../assets/index.js" passes on its `api/` prefix and then resolves to an asset path that the app://
     // protocol handler owns, not the loopback server.
-    let pathname = "/"
+    let parsed: URL
     try {
-      pathname = new URL(raw, pageOrigin).pathname
+      parsed = new URL(raw, pageOrigin)
     } catch {
       return input
     }
+    const { pathname, search: parsedSearch, hash: parsedHash } = parsed
     if (!isLoopbackApiPath(pathname)) return input
-    return `${apiOrigin}${raw}`
+    return toLoopbackUrl(apiOrigin, pathname, parsedSearch, parsedHash) ?? input
   }
 
   try {
@@ -42,7 +62,7 @@ export const rewriteAppProtocolNetworkUrl = (
     const isAppOrigin = parsed.hostname === appHost && ["app:", "ws:", "wss:"].includes(parsed.protocol)
     if (!isAppOrigin && parsed.origin !== pageOrigin) return input
     if (!isLoopbackApiPath(parsed.pathname)) return input
-    return `${apiOrigin}${parsed.pathname}${parsed.search}${parsed.hash}`
+    return toLoopbackUrl(apiOrigin, parsed.pathname, parsed.search, parsed.hash) ?? input
   } catch {
     return input
   }

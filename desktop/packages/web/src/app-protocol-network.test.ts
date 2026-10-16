@@ -21,6 +21,19 @@ describe("app protocol network rewrite", () => {
     )
   })
 
+  test("validates the URL the request will actually use, not the text it was built from", () => {
+    // The prefix test runs on an `app:` URL, which is not a special scheme, so a backslash stays a backslash and
+    // the path passes on its `/api/` prefix. The request goes to the loopback origin, whose parser treats the
+    // backslash as a separator and collapses the dot segments: it lands on `/assets/x`, outside the API tree, with
+    // the protocol handler's own traversal guard bypassed because the URL was rebound to loopback.
+    expect(rewriteAppProtocolNetworkUrl("/api/a\\..\\..\\assets/x", options)).toBe("/api/a\\..\\..\\assets/x")
+    expect(rewriteAppProtocolWebSocketUrl("/api/a\\..\\..\\assets/x", options)).toBe("/api/a\\..\\..\\assets/x")
+    // A path that stays inside the API tree still rewrites, and the URL handed back is the parsed one.
+    expect(rewriteAppProtocolNetworkUrl("/api/fs/raw?path=%2Frepo%2Fa.txt", options)).toBe(
+      "http://127.0.0.1:3910/api/fs/raw?path=%2Frepo%2Fa.txt",
+    )
+  })
+
   test("rewrites app-origin absolute API URLs", () => {
     expect(rewriteAppProtocolNetworkUrl("app://ax-code/api/session", options)).toBe("http://127.0.0.1:3910/api/session")
     expect(rewriteAppProtocolWebSocketUrl("/api/event/ws", options)).toBe("ws://127.0.0.1:3910/api/event/ws")
