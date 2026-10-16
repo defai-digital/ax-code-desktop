@@ -14,6 +14,7 @@ import { useSessions } from "@/sync/sync-context"
 import * as sessionActions from "@/sync/session-actions"
 import { useI18n } from "@/lib/i18n"
 import { serializeQuestionAsJson, serializeQuestionAsMarkdown } from "./questionSerializers"
+import { withTimeout } from "@/lib/asyncTimeout"
 
 interface QuestionCardProps {
   question: QuestionRequest
@@ -21,6 +22,13 @@ interface QuestionCardProps {
 
 type QuestionTabKey = string
 const SUMMARY_TAB = "summary"
+
+// Both the reply and the rejection wait for a connection and then for the runtime. Bound them
+// the way PermissionCard does: a request that never settles left the card locked with
+// submittingRef true, so neither button worked again and the agent stayed blocked on this
+// question. Only a rejection resets that guard, so a hang has to become one.
+const QUESTION_REPLY_TIMEOUT_MS = 20_000
+const questionReplyTimeoutMessage = "Timed out sending the question response"
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({ question }) => {
   const { t } = useI18n()
@@ -194,7 +202,13 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question }) => {
 
     try {
       const answers = buildAnswersPayload()
-      await respondToQuestion(question.sessionID, question.id, answers)
+      await withTimeout(
+        respondToQuestion(question.sessionID, question.id, answers),
+        QUESTION_REPLY_TIMEOUT_MS,
+        () => {
+          throw new Error(questionReplyTimeoutMessage)
+        },
+      )
       if (unmountedRef.current) return
       setHasResponded(true)
     } catch (error) {
@@ -239,7 +253,13 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question }) => {
     setIsResponding(true)
 
     try {
-      await rejectQuestion(question.sessionID, question.id)
+      await withTimeout(
+        rejectQuestion(question.sessionID, question.id),
+        QUESTION_REPLY_TIMEOUT_MS,
+        () => {
+          throw new Error(questionReplyTimeoutMessage)
+        },
+      )
       if (unmountedRef.current) return
       setHasResponded(true)
     } catch (error) {
