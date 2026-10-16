@@ -850,13 +850,16 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     useSessionUIStore.getState().sendMessage(...args),
   ).current
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
-  // The history cursor and the draft it stashes belong to one session; the composer
-  // is not remounted on a session switch, so leaving them set would let ArrowDown
-  // restore the previous session's draft into this one (and persist it as such).
+  const setActiveAttachmentDraft = useInputStore((s) => s.setActiveAttachmentDraft)
+  // The history cursor, the draft it stashes and the attached files all belong to one session;
+  // the composer is not remounted on a session switch, so leaving them set would let ArrowDown
+  // restore the previous session's draft into this one (and persist it as such), and would send
+  // the previous session's files with this session's prompt.
   React.useEffect(() => {
     setHistoryIndex(-1)
     setDraftMessage("")
-  }, [currentSessionId])
+    setActiveAttachmentDraft(currentSessionId ?? "")
+  }, [currentSessionId, setActiveAttachmentDraft])
   const activeSessions = useGlobalSessionsStore((s) => s.activeSessions)
   const archivedSessions = useGlobalSessionsStore((s) => s.archivedSessions)
   const workSendDisabled = React.useMemo(() => {

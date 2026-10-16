@@ -50,6 +50,13 @@ type InputState = {
    */
   pendingPresetSubmit: string | null
   attachedFiles: AttachedFile[]
+  /**
+   * Files held per draft identity. `attachedFiles` is the active draft's list; switching
+   * drafts stashes it here, so a session switch cannot show - or send - another session's
+   * files with this session's prompt.
+   */
+  attachmentsByDraft: Record<string, AttachedFile[]>
+  activeAttachmentDraftKey: string
 
   setPendingInputText: (text: string | null, mode?: "replace" | "append" | "append-inline") => void
   consumePendingInputText: () => { text: string; mode: "replace" | "append" | "append-inline" } | null
@@ -61,6 +68,8 @@ type InputState = {
   removeAttachedFile: (id: string) => void
   setAttachedFiles: (files: AttachedFile[]) => void
   clearAttachedFiles: () => void
+  /** Make a draft's attachment list the active one, stashing the list being left behind. */
+  setActiveAttachmentDraft: (key: string | null) => void
   /** Add attachments restored from a reverted message (file already on server) */
   addRestoredAttachment: (file: { url: string; mimeType: string; filename: string }) => void
   addMcpResourceAttachment: (resource: { client: string; name: string; uri: string; mimeType?: string }) => void
@@ -72,6 +81,8 @@ export const useInputStore = create<InputState>()((set, get) => ({
   pendingSyntheticParts: null,
   pendingPresetSubmit: null,
   attachedFiles: [],
+  attachmentsByDraft: {},
+  activeAttachmentDraftKey: "",
 
   setPendingInputText: (text, mode = "replace") => set({ pendingInputText: text, pendingInputMode: mode }),
 
@@ -132,7 +143,32 @@ export const useInputStore = create<InputState>()((set, get) => ({
 
   clearAttachedFiles: () => {
     attachmentReadGeneration += 1
-    set({ attachedFiles: [] })
+    const { activeAttachmentDraftKey, attachmentsByDraft } = get()
+    if (!activeAttachmentDraftKey) {
+      set({ attachedFiles: [] })
+      return
+    }
+    // Drop the stash as well: these files were sent or discarded, so switching back to this
+    // draft must not bring them back.
+    const nextByDraft = { ...attachmentsByDraft }
+    delete nextByDraft[activeAttachmentDraftKey]
+    set({ attachedFiles: [], attachmentsByDraft: nextByDraft })
+  },
+
+  setActiveAttachmentDraft: (key) => {
+    const nextKey = (key ?? "").trim()
+    const { activeAttachmentDraftKey, attachedFiles, attachmentsByDraft } = get()
+    if (activeAttachmentDraftKey === nextKey) return
+
+    const nextByDraft = { ...attachmentsByDraft, [activeAttachmentDraftKey]: attachedFiles }
+    // A read still in flight belongs to the draft just left: its completion must not drop a
+    // file into the draft now on screen.
+    attachmentReadGeneration += 1
+    set({
+      activeAttachmentDraftKey: nextKey,
+      attachmentsByDraft: nextByDraft,
+      attachedFiles: nextByDraft[nextKey] ?? [],
+    })
   },
 
   addRestoredAttachment: ({ url, mimeType, filename }) => {

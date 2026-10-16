@@ -118,6 +118,33 @@ describe("input-store attachments", () => {
     expect(useInputStore.getState().attachedFiles).toEqual([])
   })
 
+  test("keeps attached files with the draft they were added to", () => {
+    // The composer is not remounted on a session switch, so a single shared list showed one
+    // session's chips in another's composer and sent those files with its prompt.
+    const file = { id: "f1", filename: "notes.png", mimeType: "image/png", size: 3, dataUrl: "data:,x", source: "local" as const }
+
+    useInputStore.getState().setActiveAttachmentDraft("ses_a")
+    useInputStore.getState().setAttachedFiles([file])
+
+    useInputStore.getState().setActiveAttachmentDraft("ses_b")
+    expect(useInputStore.getState().attachedFiles).toEqual([])
+
+    useInputStore.getState().setActiveAttachmentDraft("ses_a")
+    expect(useInputStore.getState().attachedFiles).toEqual([file])
+  })
+
+  test("does not restore files that were sent from their draft", () => {
+    const file = { id: "f1", filename: "notes.png", mimeType: "image/png", size: 3, dataUrl: "data:,x", source: "local" as const }
+
+    useInputStore.getState().setActiveAttachmentDraft("ses_a")
+    useInputStore.getState().setAttachedFiles([file])
+    useInputStore.getState().clearAttachedFiles()
+
+    useInputStore.getState().setActiveAttachmentDraft("ses_b")
+    useInputStore.getState().setActiveAttachmentDraft("ses_a")
+    expect(useInputStore.getState().attachedFiles).toEqual([])
+  })
+
   test("adds MCP resource attachments without reading local files", () => {
     useInputStore.getState().addMcpResourceAttachment({
       client: "docs",
