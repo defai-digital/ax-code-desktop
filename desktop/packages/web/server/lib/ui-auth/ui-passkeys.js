@@ -470,7 +470,9 @@ export const createUiPasskeys = ({
     }
   }
 
-  const finishAuthentication = async (payload) => {
+  const finishAuthentication = (payload) => runLocked(() => finishAuthenticationUnlocked(payload))
+
+  const finishAuthenticationUnlocked = async (payload) => {
     assertEnabled()
     cleanupChallengeMap(authenticationChallenges)
 
@@ -490,7 +492,7 @@ export const createUiPasskeys = ({
     authenticationChallenges.delete(requestId)
 
     const response = payload?.response
-    const store = loadStore()
+    let store = loadStore()
     const passkey = store.passkeys.find((item) => item.id === response?.id)
 
     if (!passkey) {
@@ -519,22 +521,31 @@ export const createUiPasskeys = ({
       throw error
     }
 
-    const nextPasskeys = store.passkeys.map((item) =>
-      item.id === passkey.id
-        ? {
-            ...item,
-            counter: verification.authenticationInfo.newCounter,
-            lastUsedAt: Date.now(),
-          }
-        : item,
-    )
+    // Re-read: this ran across an await, and `persistStore` replaces the whole list. Writing the
+    // snapshot read before the verification back resurrected a credential revoked in that window (and
+    // dropped one registered in it), which is why the other mutations hold this lock too.
+    store = loadStore()
+    const current = store.passkeys.find((item) => item.id === response?.id)
+    if (current) {
+      const nextPasskeys = store.passkeys.map((item) =>
+        item.id === current.id
+          ? {
+              ...item,
+              counter: verification.authenticationInfo.newCounter,
+              lastUsedAt: Date.now(),
+            }
+          : item,
+      )
 
-    persistStore({
-      ...store,
-      passwordBinding,
-      passkeys: nextPasskeys,
-    })
+      persistStore({
+        ...store,
+        passwordBinding,
+        passkeys: nextPasskeys,
+      })
+    }
 
+    // The credential was revoked while it was being verified: the sign-in itself succeeded, and
+    // nothing is written back for it.
     return { verified: true }
   }
 

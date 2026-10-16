@@ -244,6 +244,59 @@ describe("ui passkeys", () => {
     expect(stored.passkeys.map((passkey) => passkey.id)).toEqual(["second-id"])
   })
 
+  it("does not resurrect a revoked passkey when an authentication verifies in parallel", async () => {
+    // The sign-in path awaited its WebAuthn verification and then wrote back the snapshot it had read
+    // before it: a revoke that landed in that window was overwritten and the credential the user had
+    // just removed could sign in again. The other mutations hold the store lock; this one did not.
+    const passkeys = createUiPasskeys({ passwordBinding: "password-binding", storeFile })
+    const req = createMockRequest({ host: "localhost:3000" })
+
+    const first = await passkeys.beginRegistration(req, { label: "first" })
+    await passkeys.finishRegistration({ requestId: first.requestId, response: { id: "first-id" } })
+
+    simpleWebAuthn.verifyRegistrationResponse.mockImplementationOnce(async () => ({
+      verified: true,
+      registrationInfo: {
+        credential: {
+          id: "second-id",
+          publicKey: Uint8Array.from([1, 2, 3]),
+          counter: 1,
+          transports: ["internal"],
+        },
+        credentialDeviceType: "singleDevice",
+        credentialBackedUp: false,
+      },
+    }))
+    const second = await passkeys.beginRegistration(req, { label: "second" })
+    await passkeys.finishRegistration({ requestId: second.requestId, response: { id: "second-id" } })
+
+    let releaseVerification = () => {}
+    simpleWebAuthn.verifyAuthenticationResponse.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseVerification = () => resolve({ verified: true, authenticationInfo: { newCounter: 5 } })
+        }),
+    )
+
+    const authentication = await passkeys.beginAuthentication(req)
+    const authenticating = passkeys.finishAuthentication({
+      requestId: authentication.requestId,
+      response: { id: "credential-id" },
+    })
+    // Let the sign-in reach its verification (it runs after the previous store mutation), then revoke:
+    // the revoke is queued behind the sign-in's own store mutation.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(simpleWebAuthn.verifyAuthenticationResponse).toHaveBeenCalled()
+    const revoking = passkeys.revokePasskey(req, "second-id")
+    releaseVerification()
+    await authenticating
+    await revoking
+
+    const stored = JSON.parse(fs.readFileSync(storeFile, "utf8"))
+    expect(stored.passkeys.map((passkey) => passkey.id)).toEqual(["credential-id"])
+    expect(stored.passkeys[0].counter).toBe(5)
+  })
+
   it("trims passkey ids before revoking them", async () => {
     const passkeys = createUiPasskeys({
       passwordBinding: "password-binding",
