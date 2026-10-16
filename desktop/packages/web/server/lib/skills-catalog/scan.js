@@ -78,12 +78,16 @@ export async function scanSkillsRepository({ source, subpath, defaultSubpath, id
 
       const listResult = await runGit(listArgs, { identity, timeoutMs: 30_000 })
       if (!listResult.ok) {
-        // If subpath doesn't exist, treat as empty scan.
+        // A subpath that does not exist is not a failure: `git ls-tree -r HEAD -- <missing>` exits 0 with no
+        // output. So a failure here is a real one — a ref the clone does not have, a timeout, or stdout past the
+        // runner's buffer — and answering with an empty scan cached "this repository has no skills" for the
+        // whole scan TTL.
         return {
-          ok: true,
-          normalizedRepo: parsed.normalizedRepo,
-          effectiveSubpath,
-          items: [],
+          ok: false,
+          error: {
+            kind: "unknown",
+            message: listResult.stderr || listResult.message || "Failed to list the repository tree",
+          },
         }
       }
 
