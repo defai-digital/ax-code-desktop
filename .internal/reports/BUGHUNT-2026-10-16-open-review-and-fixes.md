@@ -1072,10 +1072,12 @@ Read against the source and confirmed, waiting for a fix rather than a re-check:
   timer fired only rewrites a record the commit already took: the session stays hidden and the delete
   still goes out. Cancelling work that is already in flight needs a decision about what the server half
   of it should do, which is more than a local fix.
-- **`sync/sync-context-impl.tsx:298`** (confirmed by the same reviewer) — the snapshot-materialization
-  cooldown is a timestamp in a map and its `finally` deletes whatever entry is there, so an older request
-  that outlived the cooldown clears the newer one's registration and can then write its older snapshot
-  over newer messages. A generation per session is the fix; the current code carries no such notion.
+- **`69aff63a`** — the snapshot-materialization cooldown was a timestamp in a map and every request
+  cleared its own key on the way out, so a request that outlived the cooldown let a second start and
+  then, finishing last, cleared the second's registration while it was still running (and the next gap
+  started a third alongside it). The first request also wrote the snapshot it had fetched *before* the
+  second published anything, and a snapshot replaces the message list, so parts and messages could
+  regress to their older state. Each request takes a claim now and a newer claim supersedes it.
 - **`notifications/runtime.js:505`** (suspected, from the same reviewer as the flush fix above) — the
   `question.asked` path still replaces a pending question notification instead of coalescing it in a
   map the way the permission path does, so a burst of questions may announce only the last one. It
@@ -1230,7 +1232,7 @@ questions rather than local fixes.
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 667, web 1 105 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 670, web 1 105 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
