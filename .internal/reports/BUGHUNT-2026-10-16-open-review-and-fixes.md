@@ -1331,13 +1331,40 @@ upstream comparison produced). The audit found five things in that work; all fiv
 ### Arrived, being verified
 
 - `server/lib/{sessions,lsp,plugins,update,notifications,magic-prompts,session-folders,desktop}`
-  (deepseek-flash): two CONFIRMED — a corrupt magic-prompts file is replaced instead of being kept, and
-  unkeyed permission asks overwrite each other — plus two SUSPECTED (session-state endpoints and the auth
-  gate, and `session-folders` returning unvalidated file content).
+  (deepseek-flash), two CONFIRMED, both fixed in **`71848983`**: a file the magic-prompt runtime cannot
+  parse was answered exactly like a missing one and the next edit then rewrote it with only that one
+  override — every other stored override was gone (the read now refuses, which the routes answer as 500,
+  the choice `session-folders` documents for the same reason) — and an ask the runtime sends without an id
+  was keyed `unkeyed:<session>`, a constant, so a burst collapsed onto one entry and only the last ask
+  reached the user. Its two SUSPECTED leads are recorded below.
 - `ui/src/components/{ui,desktop,update,icon,icons,notifications,comments}` (MiniMax-M3): no confirmed
-  bugs; two SUSPECTED (an `ErrorBoundary` `setTimeout` that is never cleared, and a stale
-  `cliStatusRef.current` in the update toast).
+  bugs; two SUSPECTED, recorded below.
 - `ui/src/lib/{i18n,search,router,settings,tray,webmcp,wiki,preview}` (Grok CLI): still running.
+
+### Suspected leads from this round, verified and not changed
+
+- **The session-state and notification routes carry no session gate**
+  (`notifications/routes.js:83-149`, `:192-203`), while the stream route in the same file does
+  (`:30-41`), as do the runtime-backed routes (`ax-code/core-routes.js:267`) and the diagnostics ones
+  (`requireSessionWhenEnabled`). In password mode the session titles, statuses and attention flags they
+  read (and the auto-accept they write) are therefore reachable without a session. The one production
+  caller is the renderer's own client (`ui/src/lib/http.ts:167`), and the gate would have to hold for the
+  *packaged* renderer too: its requests arrive through `desktop-renderer-protocol.js`, which forwards no
+  `Cookie` header at all (no occurrence of one in the file), so whether the app's own polling would 401
+  cannot be established here. Recorded rather than changed — a security gate that locks the app out of its
+  own session list is worse than the asymmetry it closes.
+- **`session-folders` GET echoes whatever the file holds** (`session-folders/routes.js:21-23`): a file
+  containing `[]` or `{"foldersMap":42}` is answered 200 with that JSON, and the client's shape contract
+  is then violated. The reviewer could not show a client failure, and the corrupt-JSON case next to it is
+  already refused with 500, so this is a validation gap rather than a defect with a reproducer. Recorded.
+- **`ErrorBoundary`'s copy timeout is never cleared** (`ui/ErrorBoundary.tsx:70`): the `setTimeout` that
+  restores the copy label is not stored, so nothing clears it on unmount. The instance is a class
+  component whose state survives re-renders, and the boundary only unmounts when the tree above it does,
+  so the deferred `setState` lands on a live instance in every path that exists today. Recorded.
+- **`AxCodeUpdateToast` reads `cliStatusRef.current` in its failure branch**
+  (`update/AxCodeUpdateToast.tsx:97-117`), so the manual command it shows can lag the polling loop's latest
+  state. The ref is written by that same loop and read immediately after a rejection, so the window is one
+  poll interval; the value shown is still a valid command. Recorded.
 
 ## Thirteenth round
 
