@@ -1,5 +1,6 @@
 import type { McpDraft } from "@/stores/useMcpConfigStore"
 import { isPlainRecord } from "@/lib/record"
+import { normalizeMcpServerName } from "./mcpServerName"
 
 interface ImportedMcpResult {
   readonly ok: true
@@ -288,7 +289,10 @@ export function applyImportedMcpToDraft(
   options?: { isNewServer?: boolean },
 ): Partial<McpDraft> & { name: string } {
   const isNew = options?.isNewServer ?? false
-  const importedName = result.name
+  // An imported name reaches the server's rule without the create form's typing rule, so an
+  // uppercase or spaced name failed with a validation error the dialog reported as a generic save
+  // failure.
+  const importedName = normalizeMcpServerName(result.name ?? "")
   const name = isNew && importedName ? importedName : (currentDraft.name ?? "")
 
   const draft: Partial<McpDraft> & { name: string } = {

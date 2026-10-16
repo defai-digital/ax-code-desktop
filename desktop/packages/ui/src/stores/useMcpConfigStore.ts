@@ -228,7 +228,10 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             }
           } catch (error) {
             console.error("[McpConfigStore] Failed to create MCP:", error)
-            return { ok: false }
+            return {
+              ok: false,
+              ...(error instanceof Error && error.message ? { message: error.message } : {}),
+            }
           } finally {
             if (!requiresReload) finishConfigUpdate()
           }
@@ -337,7 +340,10 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             }
           } catch (error) {
             console.error("[McpConfigStore] Failed to delete MCP:", error)
-            return { ok: false }
+            return {
+              ok: false,
+              ...(error instanceof Error && error.message ? { message: error.message } : {}),
+            }
           } finally {
             if (!requiresReload) finishConfigUpdate()
           }

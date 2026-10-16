@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { mergeFallbackSessions } from "./globalSessionMerge"
+import { mergeFallbackSessions } from "@/lib/globalSessionMerge"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { normalizeProjectPath } from "@/lib/projectResolution"

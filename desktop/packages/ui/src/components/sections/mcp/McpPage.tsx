@@ -38,6 +38,7 @@ import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { startSingleFlightInterval } from "@/lib/singleFlightInterval"
 import { runSettingsDeleteMutation } from "../settingsDeleteMutation"
+import { normalizeMcpServerName } from "./mcpServerName"
 
 // ─────────────────────────────────────────────────────────────
 // CommandTextarea  — one arg per line, paste-friendly
@@ -1020,7 +1021,9 @@ export const McpPage: React.FC = () => {
           )
         }
       } else {
-        toast.error(t("settings.mcp.page.toast.saveFailed"))
+        // The server answers a rejected name with a rule to follow; the store now carries that
+        // message here instead of collapsing every failure into "Failed to save".
+        toast.error(result.message || t("settings.mcp.page.toast.saveFailed"))
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("settings.mcp.page.toast.unexpectedError"))
@@ -1723,7 +1726,7 @@ export const McpPage: React.FC = () => {
                 <div className="flex min-w-0 flex-1 items-center gap-2 sm:w-fit sm:flex-initial">
                   <Input
                     value={draftName}
-                    onChange={(e) => setDraftName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "-"))}
+                    onChange={(e) => setDraftName(normalizeMcpServerName(e.target.value))}
                     placeholder={t("settings.mcp.page.server.namePlaceholder")}
                     className="h-7 w-48 font-mono px-2"
                     autoFocus
