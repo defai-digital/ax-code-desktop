@@ -189,7 +189,17 @@ export const useSupervisionStore = defineStore(
         const sessions = [...new Set(sessionIds)].slice(0, WORKING_SET_SESSION_LIMIT)
         // Oldest sets give way once the cap is reached, so storage stays bounded.
         const kept = get().workingSets.slice(-(WORKING_SET_LIMIT - 1))
-        update({ workingSets: [...kept, { id, name: trimmed, sessionIds: sessions }] })
+        const nextWorkingSets = [...kept, { id, name: trimmed, sessionIds: sessions }]
+        // Only reachable when the evicted set was the active one, which `deleteWorkingSet` already handles: the
+        // stored id kept pointing at a set that no longer exists, so the panel filtered by it and showed nothing
+        // and no tab was selected.
+        const activeWorkingSetId = get().activeWorkingSetId
+        const activeStillExists =
+          activeWorkingSetId === null || nextWorkingSets.some((ws) => ws.id === activeWorkingSetId)
+        update({
+          workingSets: nextWorkingSets,
+          ...(activeStillExists ? {} : { activeWorkingSetId: null }),
+        })
         return id
       },
       renameWorkingSet: (id, name) => {

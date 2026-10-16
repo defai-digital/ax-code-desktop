@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { pruneLastViewed, readPersistedSupervision } from "./useSupervisionStore"
+import { pruneLastViewed, readPersistedSupervision, useSupervisionStore } from "./useSupervisionStore"
 
 const storageWith = (value: string | null): Storage =>
   ({
@@ -55,5 +55,22 @@ describe("navigation history", () => {
     useSupervisionStore.getState().stepNavHistory(-1, available)
     useSupervisionStore.getState().pushNavHistory("e")
     expect(useSupervisionStore.getState().navHistory).toEqual(["a", "b", "e"])
+  })
+  test("clears the active working set when the set that filled the cap is evicted", () => {
+    // The eviction path dropped the oldest set without touching `activeWorkingSetId`, which `deleteWorkingSet`
+    // does clear: the stored id then pointed at a set that no longer existed, so the panel filtered by it and
+    // showed nothing, no tab was selected, and the id stayed in storage until the next load repaired it.
+    useSupervisionStore.setState({ workingSets: [], activeWorkingSetId: null })
+    for (let index = 0; index < 50; index += 1) {
+      useSupervisionStore.getState().createWorkingSet(`set ${index}`)
+    }
+    const oldest = useSupervisionStore.getState().workingSets[0].id
+    useSupervisionStore.getState().setActiveWorkingSet(oldest)
+
+    useSupervisionStore.getState().createWorkingSet("one more")
+
+    const state = useSupervisionStore.getState()
+    expect(state.workingSets.some((ws) => ws.id === oldest)).toBe(false)
+    expect(state.activeWorkingSetId).toBeNull()
   })
 })
