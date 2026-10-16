@@ -229,6 +229,51 @@ describe("scheduled task convergence migration", () => {
     expect((await harness.readProject("proj-a.json")).scheduledTasks ?? []).toEqual([])
   })
 
+  it("leaves a project with no scheduled tasks out of the pass entirely", async () => {
+    // The loop skips a project with no tasks before it can reach the exhaustion branch, so every project that does
+    // reach it has something to remove — each task either stayed for a retry or was settled and has to leave the
+    // file. That invariant is what makes the guard that used to sit in this loop unreachable: it read `length` off
+    // a `Set`, so its second half was always false, and it was written to skip files with nothing to remove.
+    const harness = await createHarness({
+      maxAttempts: 1,
+      listProjects: async () => [
+        { id: "proj-empty", path: "/work/empty" },
+        { id: "proj-b", path: "/work/beta" },
+      ],
+      runtimeHandler: async (url, init = {}) => {
+        if ((init.method || "GET") === "GET") {
+          return new Response(JSON.stringify([]), { status: 200 })
+        }
+        // The retryable task is what keeps the pass going to the attempts-exhausted branch.
+        return new Response(JSON.stringify({ error: "busy" }), { status: 503 })
+      },
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-empty.json", { projectID: "proj-empty", projectPath: "/work/empty" })
+    await harness.writeProject("proj-b.json", {
+      projectID: "proj-b",
+      projectPath: "/work/beta",
+      scheduledTasks: [dailyTask({ id: "task-2", name: "Beta digest" })],
+    })
+
+    const originalReplace = harness.projectConfigRuntime.replaceScheduledTasks
+    const written = []
+    harness.projectConfigRuntime.replaceScheduledTasks = async (projectID, updater) => {
+      written.push(projectID)
+      return originalReplace.call(harness.projectConfigRuntime, projectID, updater)
+    }
+
+    const result = await harness.convergence.migrate()
+
+    expect(result).toMatchObject({ migrated: true, exhausted: true, attempts: 1 })
+    // Nothing was written for it and it is in none of the marker's records: it had nothing to hand over.
+    expect(written).not.toContain("proj-empty")
+    const marker = await harness.readMarker()
+    expect(marker.skipped.filter((entry) => entry.project === "proj-empty")).toEqual([])
+    expect(marker.warnings.filter((entry) => entry.project === "proj-empty")).toEqual([])
+    expect(written).toContain("proj-b")
+  })
+
   it("records a project whose settled tasks could not be removed from its file", async () => {
     // `replaceScheduledTasks` failing after every task was handed over left the file listing them while the pass
     // reported `migrated` and the marker's `migratedAt` stopped the next boot from trying again: nothing recorded

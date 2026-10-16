@@ -423,12 +423,11 @@ export const createScheduledTaskConvergence = (deps) => {
 
     if (attempts >= maxAttempts) {
       for (const [projectID, remaining] of remainingByFile) {
-        const settledKeys = settledKeysByFile.get(projectID) ?? []
-        // A file whose remaining list is empty still needs the write when this pass settled tasks it could not
-        // remove: those are in no retry list, and the marker's `migratedAt` stops the next boot from trying again.
-        if (remaining.length === 0 && settledKeys.length === 0) {
-          continue
-        }
+        // Every project in this map has something to remove: it entered the loop with tasks, and each of them
+        // either stayed for a retry or was settled and has to leave the file. There is nothing to skip here — a
+        // guard that skipped an empty remainder also skipped the file whose settled-task removal is what failed,
+        // which is the stranding this write exists to clean up.
+        const settledKeys = [...(settledKeysByFile.get(projectID) ?? [])]
         for (const task of remaining) {
           skipped.push({
             project: projectID,
