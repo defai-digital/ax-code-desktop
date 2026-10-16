@@ -1192,6 +1192,15 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     try {
       syncFromHmrState()
 
+      // The retry budget belongs to one boot. This runtime is a process-wide singleton
+      // and an in-process restart reuses it, so the counters used to survive: the new
+      // boot's first failed start took the exhausted branch and reported a terminal
+      // failure without retrying once.
+      clearBootstrapRetryTimer()
+      bootstrapRetryAttempt = 0
+      state.axCodeNextRetryAt = 0
+      state.axCodeRetryExhausted = false
+
       // Run health probes in parallel to avoid serial waterfall delays.
       // probeProcessHealth checks a previously-managed process (HMR transfer),
       // probeExternalServer checks for an already-running external server.

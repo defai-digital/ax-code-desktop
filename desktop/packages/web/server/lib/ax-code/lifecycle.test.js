@@ -647,6 +647,14 @@ describe("ax-code lifecycle", () => {
     expect(onRuntimeOriginChange).toHaveBeenCalledWith(null, { exhausted: false })
     expect(onRuntimeOriginChange.mock.calls.at(-1)).toEqual([null, { exhausted: true }])
 
+    // A second boot in the same process - an in-process restart reuses this runtime -
+    // gets its own budget. The counters used to survive it, so the new boot reported
+    // the terminal failure without arming a single retry.
+    await runtime.bootstrapAxCodeAtStartup()
+
+    expect(state.axCodeRetryExhausted).toBe(false)
+    expect(state.axCodeNextRetryAt).toBeGreaterThan(0)
+
     runtime.shutdown()
   }, 30000)
 
