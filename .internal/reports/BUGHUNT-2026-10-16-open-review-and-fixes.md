@@ -878,19 +878,29 @@ was written.
   test until now; the new render case starts both OAuth methods and asserts both code fields exist, and
   fails against the previous code.
 
+- **`e0d5a225`** — of the two `stores/**` leads left in the waiting list, one turned out to be a defect
+  in the store the others were reported against. `loadAgents` marks a project's selection as the user's
+  (`"manual"`) or the inherited default (`"auto"`), and a later run lets a still-selectable manual pick
+  win over the settings default. With an empty provider list nothing can be resolved — both the
+  last-resort and settings-default paths need a model from that list — so the snapshot keeps its
+  provider and model, but its source was written as `"auto"`, and the next run then applied the settings
+  default over the user's pick. An empty list is reachable for a project whose agent name is unset: a run
+  with an empty agents list clears that name, and auth connect/disconnect empties every provider snapshot
+  while AX Code restarts. The other lead — an epoch check for `loadAgents` against
+  `invalidateAllProviderCaches` — is closed under *Reviewed and deliberately not changed*.
+
 ### Waiting for a first re-check
 
 Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
 reviewer linked:
 
-- `stores/**` — a provider-cache invalidation epoch question (suspected). The snippets cache key is
-  closed under *Reviewed and deliberately not changed* below. `useDirectoryStore.setDirectory`'s side
-  effects inside the updater were moved out with the rest of the store (`99093e86`). The reviewer's
-  other leads about the `xxxLoadSequence === requestId` guard in `useMcpConfigStore`, `useSkillsStore`
-  and `useAgentsStore` were examined and left alone: the guard is deliberately "only the newest request
-  may write", and a response for an older directory must not replace the list the active directory is
-  showing.
 - `script/**` and `.github/workflows/**` — the run had not finished.
+
+Everything else the reviewers of this round reported has been read against the source: the items
+closed under *Reviewed and deliberately not changed* below, and the ones fixed above. Where a
+reviewer's lead reached a surface that had no test harness, the harness is noted with the fix — the
+`multirun` components, the mini-chat's unavailability wait and the providers page gained their first
+component tests in this round.
 
 ## Limit audit
 
@@ -934,6 +944,14 @@ One gap remains, recorded rather than fixed:
 
 ## Reviewed and deliberately not changed
 
+- **`useConfigStore.loadAgents` has no epoch check against `invalidateAllProviderCaches`** (suspected,
+  `stores/useConfigStore-impl.ts:1245` and `:675`). Investigated and left alone as a *race*: it does not
+  write the agents list at all (that lives in `useAgentsStore`, loaded through the shared source), and
+  the provider snapshot it writes is read from the store in the same synchronous block as the write
+  (`get().providers` where the list is captured, `set` a few statements later, no `await` between), so
+  it cannot install a list older than the store's. What the lead did turn up is fixed in `e0d5a225`:
+  with an empty provider list the snapshot kept its provider and model but had its `selectionSource`
+  written as `"auto"`, which handed a manual pick to the settings default on the following run.
 - **`useSnippetsStore`'s module-level "active cache key"** (`stores/useSnippetsStore.ts:47,76,101`) was
   reported as weaker than the per-key monotonic sequence the other config stores use, with a scenario
   where a load for a directory the user has left still publishes. It does not: the guard compares the
@@ -1009,7 +1027,7 @@ One gap remains, recorded rather than fixed:
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 641, web 1 099 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 642, web 1 099 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
