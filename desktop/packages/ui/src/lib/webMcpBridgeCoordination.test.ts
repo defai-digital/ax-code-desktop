@@ -86,6 +86,37 @@ describe("Chrome bridge coordination", () => {
     expect(connect).toHaveBeenCalledWith("webmcp", "/Users/dev/app")
   })
 
+  test("a second pause does not undo the first one", async () => {
+    // The epoch that marks "a resume overtook this pause" was bumped by pauses too, so an
+    // overlapping pause looked like a resume: the first pause reconnected the bridge it had just
+    // disconnected and recorded nothing, leaving the embedded browser enrolled with the Chrome
+    // bridge still connected - the conflict this module exists to prevent.
+    const pending: Array<() => void> = []
+    const disconnect = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          pending.push(resolve)
+        }),
+    )
+    const connect = vi.fn(async () => {})
+    useMcpConfigStore.setState({ mcpServers: servers as never })
+    useMcpStore.setState({
+      disconnect,
+      connect,
+      getStatusForDirectory: () => ({ webmcp: { status: "connected" } }) as never,
+    })
+
+    const first = pauseChromeBridgeForProjectBrowser("/Users/dev/app")
+    await vi.waitFor(() => expect(disconnect).toHaveBeenCalledTimes(1))
+    const second = pauseChromeBridgeForProjectBrowser("/Users/dev/app")
+    await vi.waitFor(() => expect(disconnect).toHaveBeenCalledTimes(2))
+    for (const release of pending) release()
+    await Promise.all([first, second])
+
+    expect(connect).not.toHaveBeenCalled()
+    expect(pausedChromeBridgeServers("/Users/dev/app")).toEqual(["webmcp"])
+  })
+
   test("does nothing when no bridge is connected", async () => {
     const disconnect = vi.fn(async () => {})
     useMcpConfigStore.setState({ mcpServers: servers as never })
