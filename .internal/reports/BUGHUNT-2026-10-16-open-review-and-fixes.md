@@ -883,13 +883,13 @@ was written.
 Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
 reviewer linked:
 
-- `sections/providers/ProvidersPage.tsx:125` (the remaining settings lead).
-- `stores/**` — a snippets cache key that races the in-flight directory (low), and a provider-cache
-  invalidation epoch question (suspected). `useDirectoryStore.setDirectory`'s side effects inside the
-  updater were moved out with the rest of the store (`99093e86`). The reviewer's other leads about the
-  `xxxLoadSequence === requestId` guard in `useMcpConfigStore`, `useSkillsStore` and `useAgentsStore`
-  were examined and left alone: the guard is deliberately "only the newest request may write", and a
-  response for an older directory must not replace the list the active directory is showing.
+- `stores/**` — a provider-cache invalidation epoch question (suspected). The snippets cache key is
+  closed under *Reviewed and deliberately not changed* below. `useDirectoryStore.setDirectory`'s side
+  effects inside the updater were moved out with the rest of the store (`99093e86`). The reviewer's
+  other leads about the `xxxLoadSequence === requestId` guard in `useMcpConfigStore`, `useSkillsStore`
+  and `useAgentsStore` were examined and left alone: the guard is deliberately "only the newest request
+  may write", and a response for an older directory must not replace the list the active directory is
+  showing.
 - `script/**` and `.github/workflows/**` — the run had not finished.
 
 ## Limit audit
