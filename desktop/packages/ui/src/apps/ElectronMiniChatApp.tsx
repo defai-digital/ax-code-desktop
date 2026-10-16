@@ -19,6 +19,7 @@ import { SyncProvider, useSessions } from "@/sync/sync-context"
 import { SyncRuntimeEffects } from "./AppEffects"
 import { MINI_CHAT_PRESENCE_CHANNEL, type MiniChatPresenceMessage } from "./miniChatPresence"
 import { useAppFontEffects } from "./useAppFontEffects"
+import { useMiniChatSessionUnavailable } from "./useMiniChatSessionUnavailable"
 import { useMiniChatKeyboardShortcuts } from "@/hooks/useMiniChatKeyboardShortcuts"
 import { listProjectWorktrees } from "@/lib/worktrees/worktreeManager"
 import type { WorktreeMetadata } from "@/types/worktree"
@@ -223,27 +224,6 @@ const MiniChatPresencePublisher: React.FC = () => {
   return null
 }
 
-const useSessionUnavailable = (config: MiniChatConfig): boolean => {
-  const sessions = useSessions()
-  const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
-  const [timedOut, setTimedOut] = React.useState(false)
-
-  React.useEffect(() => {
-    if (config.mode !== "session" || !config.sessionId || currentSessionId === config.sessionId) {
-      setTimedOut(false)
-      return
-    }
-    if (sessions.some((entry) => entry.id === config.sessionId)) {
-      setTimedOut(false)
-      return
-    }
-    const timeout = window.setTimeout(() => setTimedOut(true), 5000)
-    return () => window.clearTimeout(timeout)
-  }, [config.mode, config.sessionId, currentSessionId, sessions])
-
-  return timedOut
-}
-
 export function ElectronMiniChatApp({ apis }: ElectronMiniChatAppProps) {
   const config = React.useMemo(() => readMiniChatConfig(), [])
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
@@ -278,7 +258,7 @@ export function ElectronMiniChatApp({ apis }: ElectronMiniChatAppProps) {
 }
 
 const ElectronMiniChatContent: React.FC<{ config: MiniChatConfig }> = ({ config }) => {
-  const sessionUnavailable = useSessionUnavailable(config)
+  const sessionUnavailable = useMiniChatSessionUnavailable(config)
 
   return (
     <>
