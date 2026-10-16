@@ -660,10 +660,12 @@ export const AgentsPage: React.FC = () => {
         // The second baseline the populate effect used to refresh through `applyPermissionState`: what the file
         // holds, so badges and `revertRule` compare against the rules that were saved. The live rules are left
         // alone — the state setters would put the submitted list back over an edit made during the save.
-        const normalizedRules = normalizeRuleset(permissionRules)
-        const savedGlobal = getGlobalWildcardAction(normalizedRules)
-        const savedRules = filterRulesAgainstGlobal(normalizedRules, savedGlobal)
-        setGlobalPermission((current) => (current === globalPermission ? savedGlobal : current))
+        //
+        // The global is the one that was submitted: the saved config carries its `*` rule from `globalPermission`
+        // (see `buildPermissionConfigWithGlobal` above), and `permissionRules` structurally excludes that rule —
+        // so deriving the global from the rules gave "allow" and flipped the selector on a save of an agent whose
+        // global is ask or deny.
+        const savedRules = filterRulesAgainstGlobal(normalizeRuleset(permissionRules), globalPermission)
         setPermissionBaseline(savedRules)
         initialStateRef.current = {
           draftName: "",
@@ -674,7 +676,7 @@ export const AgentsPage: React.FC = () => {
           temperature,
           topP,
           prompt: prompt.trim(),
-          globalPermission: savedGlobal,
+          globalPermission,
           permissionRules: savedRules,
         }
       }
