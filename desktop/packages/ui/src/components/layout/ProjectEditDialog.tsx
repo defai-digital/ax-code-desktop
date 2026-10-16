@@ -93,6 +93,10 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({
   const handleSave = async () => {
     const trimmed = name.trim()
     if (!trimmed) return
+    // The Save button is disabled while an icon upload or removal is in flight, but the name field's
+    // Enter key calls this directly: a second press started a second save, uploading the selected icon
+    // twice and running the removal and the dialog's close handlers again.
+    if (isUploadingIcon || isRemovingCustomIcon) return
 
     if (pendingUploadIconFile) {
       setIsUploadingIcon(true)
