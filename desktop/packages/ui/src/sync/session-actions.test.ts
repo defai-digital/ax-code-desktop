@@ -70,8 +70,12 @@ function resetConfigState() {
 let scopedMessagesResult: { data: Array<{ info: Message; parts?: Part[] }>; error?: { message: string } } = {
   data: [],
 }
+// Answers for the next `session.messages` calls, in order — a test that needs the first read to fail and the
+// next to succeed (the unrevert retry) queues them here.
+let scopedMessagesQueue: Array<{ data: Array<{ info: Message; parts?: Part[] }>; error?: { message: string } }> = []
 function resetScopedMessagesResult() {
   scopedMessagesResult = { data: [] }
+  scopedMessagesQueue = []
 }
 
 const mockScopedClient = {
@@ -86,7 +90,7 @@ const mockScopedClient = {
       createSessionCalls.push({ client: "scoped", params })
       return Promise.resolve({ data: { id: "ses_scoped", directory: params.directory } })
     }),
-    messages: vi.fn(() => Promise.resolve(scopedMessagesResult)),
+    messages: vi.fn(() => Promise.resolve(scopedMessagesQueue.shift() ?? scopedMessagesResult)),
     abort: vi.fn((params: Record<string, unknown>) => {
       sessionCalls.push({ method: "session.abort", params })
       return Promise.resolve({ data: true })
@@ -419,6 +423,40 @@ describe("respondToPermission passes directory", () => {
     scopedMessagesResult = { data: [], error: { message: "boom" } }
 
     await expect(refetchSessionMessages("session-a")).rejects.toThrow("refetchSessionMessages failed")
+  })
+
+  test("keeps retrying the unrevert refetch after a failed read", async () => {
+    // `refetchSessionMessages` reports a failed read now, and this loop exists for a read that has not caught up
+    // yet: a transient failure on the first attempt must not end the retries, or the restore is applied
+    // server-side and reported as failed with the messages never fetched.
+    const store = createStore({ "session-a": [] })
+    const childStores = createChildStores([["/test/project", store]])
+    const { setActionRefs, unrevertSession } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    scopedMessagesQueue = [
+      { data: [], error: { message: "boom" } },
+      { data: [{ info: { id: "msg_restored", role: "user", time: { created: 1 } } as Message, parts: [] }] },
+    ]
+
+    await expect(unrevertSession("session-a")).resolves.toBeUndefined()
+
+    expect(store.getState().message["session-a"]?.map((message: { id: string }) => message.id)).toEqual([
+      "msg_restored",
+    ])
+  })
+
+  test("reports the unrevert refetch failure when every attempt fails", async () => {
+    const store = createStore({ "session-a": [] })
+    const childStores = createChildStores([["/test/project", store]])
+    const { setActionRefs, unrevertSession } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    scopedMessagesQueue = [
+      { data: [], error: { message: "boom" } },
+      { data: [], error: { message: "boom" } },
+      { data: [], error: { message: "boom" } },
+    ]
+
+    await expect(unrevertSession("session-a")).rejects.toThrow("refetchSessionMessages failed")
   })
 
   test("passes directory from current directory as last resort", async () => {

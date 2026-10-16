@@ -1346,11 +1346,24 @@ export async function unrevertSession(sessionId: string): Promise<void> {
       store.setState({ session: sessions })
     }
   }
+  let lastRefetchError: unknown = null
   for (let attempt = 0; attempt < UNREVERT_REFETCH_ATTEMPTS; attempt += 1) {
     if (attempt > 0) await wait(UNREVERT_REFETCH_RETRY_MS)
-    await refetchSessionMessages(sessionId)
+    try {
+      await refetchSessionMessages(sessionId)
+      lastRefetchError = null
+    } catch (error) {
+      // The refetch reports a failed read now, and this loop exists for a read that has not caught up yet: a
+      // transient failure must not end the retries, so it is remembered and the next attempt runs. Everything
+      // failed — the restore is applied but the messages never arrived — and the caller has to hear it.
+      lastRefetchError = error
+      continue
+    }
     const nextMessageCount = store.getState().message[sessionId]?.length ?? 0
     if (nextMessageCount > previousMessageCount) return
+  }
+  if (lastRefetchError) {
+    throw lastRefetchError instanceof Error ? lastRefetchError : new Error(String(lastRefetchError))
   }
 }
 
