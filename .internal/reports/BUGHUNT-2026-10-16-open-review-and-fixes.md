@@ -1305,6 +1305,150 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Twenty-sixth round
+
+An audit of the twenty-fifth round's own seventeen commits, the `sync` and `stores` trees, the server's
+`fs`/`security`/`text`/`preview` helpers, and the layout, terminal, update, onboarding, desktop and icon UI
+trees.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | an audit of `git diff 66d55595 HEAD` — the twenty-fifth round's seventeen commits |
+| ax-code `xiaomi/mimo-v2.6-pro` → Claude Code CLI | a second, independent audit of the same diff |
+| ax-code `glm-5.3` → `MiniMax-M3` | `ui/src/sync/**`, `ui/src/stores/**` |
+| ax-code `deepseek-flash` | `web/server/lib/{fs,security,text,preview}/**` |
+| Grok CLI | `ui/src/components/{layout,terminal,update,onboarding,desktop,icon}/**` |
+
+Two cells had to be re-run, and the second time the failure was silent. The `sync`/`stores` cell died on its first
+model (`defai-01-ax-trust-com` slot cooldown: "all eligible credential slots are cooling down (stopped after 5
+retries)"), the same provider-side refusal the early rounds recorded for three other models; it was re-run on
+MiniMax-M3 with the same prompt. The second audit ran on `xiaomi/mimo-v2.6-pro` and its process then disappeared
+without writing its `EXIT` marker — its output file held startup traces, which read as "still running" until
+`check-round-outputs.sh` (written this round) compared the process table against the expected markers. It was
+re-run on the Claude Code CLI, which is the audit recorded above.
+
+### Fixed from the audit of the round's own commits
+
+All four audit findings were defects in the previous round's fixes — the fourth round running where that lens
+out-yields the fresh reviews.
+
+- **`158d456a`** — `c77d78a9` moved the slash-command hand-back into each branch that handles its command, but
+  put it just before the branch's `return`, i.e. after the branch's awaits. `/compact`, `/summary`, `/plan` and
+  the rest send and await before returning, and the hand-back restores a pre-submit snapshot with a
+  replace-style write (`setAttachedFiles` replaces the list) plus a session guard written for a synchronous
+  position: a file attached while the command ran was overwritten by the snapshot, a command submitted from a
+  new-session draft dropped its attachments (the send had created the session by then), and switching session
+  during the command dropped them too. It is the branch's first statement now.
+- **`08af72ff`** — `58112089`'s save path derived the global permission back out of `permissionRules`, which
+  structurally excludes the `*`/`*` rule (`applyPermissionState` filters it out; the saved config re-adds it from
+  `globalPermission`). `getGlobalWildcardAction` therefore answered its default `"allow"`, so saving an agent
+  whose global is ask or deny flipped the selector to allow and built the baseline against the wrong wildcard,
+  dropping the overrides that had become redundant from it. The baseline uses the submitted global now, which is
+  what a reload of that file produces.
+- **`6734ae37`** — `29e8a715` cleared the scrollbar drag flag when *no* thumb was left, but a drag belongs to one
+  axis: with both axes overflowing, shrinking the content until only the horizontal thumb remains left the flag
+  set, and the bar then showed for the programmatic scrolls `suppressVisibility` exists to hide. The reset checks
+  the axis the pointer captured.
+- **`e1c2ea11`** — `24a6e7c6`'s catch added to `retryableRemaining` after the `try` had already added to it, so a
+  project whose file write failed after a task retried reported that task twice; and it reset the project to every
+  task it was handed, discarding `settledTaskKeys` — so when the attempts ran out, the tasks that had been
+  migrated were recorded as dropped ("migration attempts exhausted") and removed from the project file. The
+  project's remaining tasks are computed once, after the try/catch, and hold only what this pass did not settle.
+- **`e4c9f36d`** — found while re-reading `08af72ff` above, in the same place: the save-time baseline is the
+  *filtered* rules (what a reload of the file produces) but the live list was left untouched, and `isDirty`
+  compares the live list against that baseline — so a wildcard override equal to the global (`bash: * = allow`
+  under an allow global) kept the editor dirty for the save that had just written it. The live list takes the
+  filtered rules now, and only while it still holds what was submitted.
+
+### Fixed from the sync and stores review
+
+- **`4d3eaaf7`** — the "an agent needs you" toasts kept their keys in two module-level `Set`s, deleted only when the
+  request was answered. A session deleted while a request was outstanding never reports that reply, so its keys
+  stayed for the life of the renderer (unbounded over a session of the app, and enough to suppress a toast if that
+  key came back), and the toast itself stayed on screen pointing at a session that no longer exists.
+  `pendingToastTracker` replaces the two sets, dismisses the toast when a key is dropped (the inline
+  `toast.dismiss` calls were the other half of the same bookkeeping), and `session.deleted` clears the keys that
+  belong to the session.
+
+### Fixed from the layout and onboarding review
+
+- **`6d808d46`** — the embedded agent browser's native view was hidden only when the document held
+  `[role="dialog"][aria-modal="true"]` or a native `dialog[open]`. The app's dialogs are Base UI popups: they carry
+  `role="dialog"` and no `aria-modal` (the only `aria-modal="true"` in the tree is the mobile overlay panel), so
+  the settings window, the command palette, a confirm dialog and the project edit dialog were invisible to that
+  test — the native view stayed on the browser host's rectangle, on top of the modal, and every click inside it
+  went to the embedded page instead of the dialog. The selector matches the shapes the app renders now.
+- **`f4d8c529`** — the bottom terminal's resize handle started a drag and listened for `pointermove`/`pointerup` on
+  `window` without capturing the pointer, so a release outside the Electron window was never delivered and the dock
+  kept following the pointer with no button down until the next `pointerup` anywhere; a platform-cancelled pointer
+  reports no `pointerup` at all and left the same state. The handle captures the pointer (as the sibling splitters
+  do) and the drag ends on `pointercancel` too.
+- **`421aa63d`** — the chooser's "Check now" did nothing for a `false` answer. `checkCliAvailability` answers false
+  both for a CLI that is not running yet and for a health request that failed or could not be read, and only a
+  rejection from recording the choice was reported: the button returned to "Check now" with the status area still
+  saying the app was waiting, so the user could not tell this check from one that had succeeded. It reports the
+  same `onboarding.localSetup.errors.cliNotReady` the local-setup screen uses.
+
+### Fixed from the second audit
+
+The same diff, a second reviewer. All five findings are defects in the twenty-fifth round's own fixes — and one of
+them is a *withdrawal*: the audit checked a fix against the rule the runtime actually applies, which the fix had
+taken from a sibling helper in the same tree instead.
+
+- **`91dc003f`** — `033a129d` widened the agent pane's WebMCP origin rule to every `127.x.x.x` address, following
+  the loopback helper next to it. That helper answers a different question (which hosts the renderer protocol may
+  fetch from); the pane has to answer the runtime's, and the runtime's own `WEBMCP_LOOPBACK_HOSTS` —
+  `localhost`, `127.0.0.1`, `[::1]`, shared by its bridge policy, approval store and TUI allowlist dialog, and
+  copied into the UI for the grant box — accepts no other address. With the wider rule the pane read
+  `http://127.0.0.2:8080/` as `ready` while the grant path refused the origin: the address bar offered something
+  the server rejects. The round-25 entry is superseded by this revert, and the round-25 review's finding (a local
+  service on another loopback address cannot be granted) is a property of the runtime's rule, not a pane defect.
+- **`c3cf0e4b`** — `8d8516e3` normalized a tool path before handing it to the editor, and the normalization
+  rewrites backslashes: a POSIX filename containing one (legal there) was turned into a path with an extra
+  separator, and the mobile branch of the same handler still used the raw path, so the two disagreed. A POSIX
+  absolute path is passed through as the tool wrote it; a Windows drive path is still normalized.
+- **`5d6f5457`** — `29e8a715`/`6734ae37` cleared the drag flag when the dragged axis's thumb vanished, but not the
+  rest of the state an interrupted `pointerup` resets: `handlePointerUp` schedules the hide, and the hover flag it
+  leaves set is what makes `scheduleHide` return early (the `mouseleave` that clears it goes to the node that is
+  gone). The bar could stay on screen with no hide timer behind it, indefinitely.
+- **`93762314`** — `c5e7352d` marked a question answered by *session*, and a new ask cleared that mark, so a
+  question answered while its own flush awaited the template variables was announced anyway as soon as the
+  session asked something else — with the session's tag, so the stale text could replace the newer question's
+  notification. The mark carries the request id now, as the permission path's equivalent does; only an ask the
+  runtime sent without an id, which can only be keyed by its session, clears its session's mark.
+- **`5125dd7d`** — `e1c2ea11`'s catch gives an empty retry set when the file write that removes a project's
+  settled tasks is what failed, so the pass reported `migrated: true` and wrote the marker's `migratedAt`, which
+  stops the next boot from trying again: the project file keeps listing tasks the runtime already holds and
+  nothing records the failure. A warning names it, and a task skipped again on a later boot (the same failed
+  removal) is listed once.
+
+### Reported, verified, and not changed
+
+- **The persisted child-store cache key can collide between directories** (SUSPECTED, the same review).
+  `storagePrefix` is the first 12 sanitized characters plus a 32-bit rolling hash of the whole path, so two
+  directories whose first 12 characters match and whose hashes agree share a `localStorage` key and would show one
+  workspace's VCS info, project metadata or icon for the other. The head already discriminates real paths, so an
+  accidental collision needs on the order of 2^16 paths sharing a head; a deliberate one needs local filesystem
+  control (to place a repository at a chosen absolute path) and buys a display-only substitution. Widening the hash
+  is a key-format change with no reachable defect behind it, so it is recorded rather than made.
+- **An archived session keeps its pending toasts** — the same tracker could clear them on `session.updated`
+  carrying `time.archived`, but an archived session can still be answered, and the reply clears the key. Recorded
+  as a judgement call rather than a defect.
+- **The `fs`/`security`/`text`/`preview` review found nothing** (`no confirmed bugs`), and withdrew both of its
+  own leads after checking them against the repository: the win32 reveal branch's `code === 0` gate is an extra
+  success condition (the project's own Windows launcher ignores the child's status and watches `error` only), and
+  the unguarded `distillNoteFallback` needs `mode: "note"`, which no production caller passes.
+- **Core search hits are joined onto the root without a containment check** (SUSPECTED, the same review, recorded
+  here after checking it myself). `mapCoreFindFilesToSearchEntries` does `path.join(rootPath, relativePath)` where
+  the sibling read/raw/list paths normalize through `toRuntimeRelativePath`. The only consumer is the deep-scan
+  favicon finder, which filters the hits by a `favicon.(ico|png|svg|jpg|jpeg|webp)` basename and serves the match
+  as an image under its own CSP; the runtime's `/find/file` contract scopes its results to the directory it was
+  given, so a `..`-bearing hit requires the signed runtime to misbehave. Adding the check would be defence in
+  depth rather than a fix for a reachable defect.
+- **The liveness tracker's `ping: false` mode declares a socket dead after two intervals** — `alive` is only ever
+  set by a pong, and no caller passes the option, so the branch is dead code today. Recorded rather than removed
+  (removing an unused option is churn, and the wait it encodes may be wanted by a future transport).
+
 ## Twenty-fifth round
 
 The UI primitives tree (last read in the first round) and its entry point, the web package's own source tree,
@@ -3053,6 +3197,19 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
+- Latest full run, after the twenty-sixth round's fixes (each command's exit status captured, not inferred from a
+  pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+  `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 950, web 1 280 (+2 skipped),
+  0 `FAIL` lines, 14 locales / 4 802 keys / 62 426 translated entries. The lint run's only output is the
+  pre-existing `react-hooks/exhaustive-deps` warning in `ui/src/sync/use-sync.ts`. The `401` flake did not appear.
+  This run covers the fourteen fixes the round produced, including the second audit's five.
+- Two rounds of harness trouble in this one, both caught by requiring every expected `out-r26-*.txt` to exist and
+  to carry an `EXIT` marker rather than by reading a batch's status: the `sync`/`stores` cell's first model died on
+  a provider cooldown ("all eligible credential slots are cooling down"), and two later cells' processes
+  disappeared without writing their marker at all (their files held startup traces, which read as "still
+  running"). Both were re-run — the sync review on MiniMax-M3, the second audit on the Claude Code CLI — and the
+  helper is what showed the difference between a cell that finished, one that failed, and one that is still
+  going.
 - Latest full run, after the twenty-fifth round's fixes (each command's exit status captured, not inferred from a
   pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 939, web 1 276 (+2 skipped),
