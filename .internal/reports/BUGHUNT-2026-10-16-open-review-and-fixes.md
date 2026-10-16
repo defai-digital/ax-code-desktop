@@ -722,12 +722,19 @@ the render reads, and a test pins that contract.
 
 ### One unresolved flake
 
-The full-repository run failed three web tests once (`socket hang up` on an MCP route, and
-`expected 200, got 401` on two routes) while the web package alone passed twice consecutively
-(125 files, 1097 tests). The same 401 appeared once in an earlier full run. Nothing in the affected
-tests can answer 401 — their apps carry only the synchronous security middleware — and the only code
-in the server that writes that status without a route is the socket-level refusal in
-`lib/security/request-security.js`, so that is where to look if it reproduces on its own.
+Occasional full-run flakiness in the web package: the same test file that passes every time in
+isolation has failed five times across these rounds with a response it cannot produce — `expected
+200, got 401` three times, `socket hang up` once, and once a body of `{}` where the route answers
+`{ok:true}` or `{error:"Forbidden"}`. Nothing in the affected apps answers 401, and running the web
+package alone (125 files, 1097 tests) passes on every attempt, including three consecutive runs
+after the last failure.
+
+One mechanism was tested and ruled out: Node 19+ keeps sockets alive in the default HTTP agent, so a
+socket could in principle be reused for a recycled port and answered by whichever server took it. A
+probe that closes a server and binds another to the same port shows the pooled socket dying with its
+server (`ECONNRESET`) and the port not being reused immediately, so that is not it. The remaining
+lead is the socket-level 401 in `lib/security/request-security.js`, which is the only code in the
+server that writes that status without a route.
 
 ## Fifth round
 
@@ -784,14 +791,18 @@ was written.
 - **`965d1059`** — a rejected worktree-root probe on every Git view mount, and a rejected tray IPC
   that kept repeating on every store change and poll.
 
+- **`8f52bdaf`** — the OAuth Connect and Complete handlers were given a method's position among the
+  OAuth entries while the server indexes the provider's whole method list, so with `[api, oauth]` the
+  flow was started with index 0, the API method. The local models page's load guard only knew that
+  something was in flight, so a project switch was swallowed by the previous project's request and
+  that answer became the page's state while every action ran against the current directory.
+
 ### Waiting for a first re-check
 
 Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
 reviewer linked:
 
-- `sections/providers/ProvidersPage.tsx:1119` (an OAuth method index taken from the filtered list
-  while the server indexes the full one) and `:125`, `sections/models/LocalModelsPage.tsx:93` (a load
-  for the previous directory landing after a switch).
+- `sections/providers/ProvidersPage.tsx:125` (the remaining settings lead).
 - `hooks/**` — two remaining: a cleanup re-entry guard that is per hook instance while the hook is
   mounted twice, and a skipped manual cleanup reported as "no sessions are eligible".
 - `components/{supervision,multirun}` — four confirmed and one suspected.
