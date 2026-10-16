@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 const spawnMock = vi.fn()
@@ -335,6 +336,43 @@ describe("ax-code lifecycle", () => {
     await expect(startPromise).rejects.toThrow("startHeadlessBackend aborted")
     expect(startHeadlessBackendMock).toHaveBeenCalledTimes(1)
   })
+
+  it("cancels an in-flight Windows legacy launch when shutdown aborts the signal", async () => {
+    // The win32 branch called the legacy spawn helper without the abort signal it was handed, so a shutdown that
+    // began while that spawn was pending left the child running with its port bound for the full 30s start
+    // timeout. The SDK path observes the same signal, so the platform with the legacy launcher behaved worse.
+    const platformDescriptor = Object.getOwnPropertyDescriptor(process, "platform")
+    Object.defineProperty(process, "platform", { value: "win32", configurable: true })
+    delete process.env.AX_CODE_BINARY
+
+    const child = new EventEmitter()
+    child.pid = 4242
+    child.exitCode = null
+    child.signalCode = null
+    child.stdout = new EventEmitter()
+    child.stderr = new EventEmitter()
+    child.kill = vi.fn((signalName) => {
+      child.signalCode = signalName || "SIGTERM"
+      child.emit("exit", null, child.signalCode)
+      child.emit("close")
+    })
+    spawnMock.mockReturnValue(child)
+
+    try {
+      const runtime = createRuntime()
+      const startPromise = runtime.startAxCode()
+      await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1), { timeout: 2000 })
+
+      runtime.shutdown()
+
+      await expect(startPromise).rejects.toThrow("AX Code launch was cancelled during shutdown")
+      expect(child.kill).toHaveBeenCalled()
+    } finally {
+      if (platformDescriptor) {
+        Object.defineProperty(process, "platform", platformDescriptor)
+      }
+    }
+  }, 3000)
 
   it("SDK handle has null exitCode/signalCode so isManagedAxCodeProcessAlive does not treat it as exited", async () => {
     delete process.env.AX_CODE_BINARY

@@ -293,6 +293,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     env: processEnv,
     binary,
     args,
+    signal,
   }) => {
     state.lastAxCodeLaunchDiagnostics = {
       ...state.lastAxCodeLaunchDiagnostics,
@@ -310,10 +311,15 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       let stdout = ""
       let stderr = ""
       let done = false
+      // A shutdown that begins while this spawn is pending aborts the signal. The SDK path observes it and the
+      // caller's comment says the in-flight launch is cancelled; this one had no listener, so the child
+      // survived the shutdown with its port bound until the (longer) timeout above.
+      let onAbort = () => {}
       const finish = (handler, value) => {
         if (done) return
         done = true
         clearTimeout(timer)
+        signal?.removeEventListener("abort", onAbort)
         child.stdout?.off("data", onStdout)
         child.stderr?.off("data", onStderr)
         child.off("exit", onExit)
@@ -376,6 +382,17 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       child.stderr?.on("data", onStderr)
       child.on("exit", onExit)
       child.on("error", onError)
+
+      onAbort = () => {
+        finish(reject, new Error("AX Code launch was cancelled during shutdown"))
+        void closeManagedAxCodeChild(child)
+      }
+      if (signal) {
+        signal.addEventListener("abort", onAbort, { once: true })
+        if (signal.aborted) {
+          onAbort()
+        }
+      }
     })
 
     return {
@@ -451,7 +468,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         },
         { source: "web-server", milestone: "ax-code.process.launched" },
       )
-      return createManagedAxCodeServerProcessLegacy({ hostname, port, timeout, cwd, env: processEnv, binary, args })
+      return createManagedAxCodeServerProcessLegacy({ hostname, port, timeout, cwd, env: processEnv, binary, args, signal })
     }
 
     // macOS/Linux: use the SDK-owned headless launcher for all managed CLI
