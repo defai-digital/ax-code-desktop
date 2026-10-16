@@ -690,25 +690,31 @@ point, and the skipped re-render left the reader with links that do nothing. The
 its own module (the lint rule forbids exporting a function from a component file), covers every prop
 the render reads, and a test pins that contract.
 
-### Pending from this round
+### `b56c5f39` fix(electron): honour the app that was chosen, and the window that is ready
 
-Confirmed in the source, not yet fixed. The two chat queue findings need a decision on the
-queue/command contract rather than a local guard, which is why they are here and not in a commit:
+- **`desktop_search_files` checked the root it was given, not what it resolves to**: a symlink to a
+  credential store is not the string that names the denied directory, and `stat`/`readdir` both
+  follow the link, so the search listed the names `desktop_read_file` refuses. The root is resolved
+  first, as the read path does.
+- **A notification click** only focused a window that existed and then sent the session to every
+  window: with every window closed it opened nothing, and with one still loading the event was
+  dropped before the app had mounted its listener.
+- **A menu action for a renderer that is not listening** was dropped, so the quick-dispatch shortcut
+  focused a freshly created window and opened no panel.
+- **An install that never started** left the app torn down — services stopped, `isQuitting` set,
+  `window-all-closed` refusing to quit and `activate` refusing to open a window. It relaunches.
+- **On Windows, `desktop_open_path` ignored the `app` name** the caller fell back with and opened the
+  path through the default handler while answering success.
 
-- **A queue flush that begins with a slash command drops the rest of the queue and the composer
-  input** (`ui/src/components/chat/ChatInput-impl.tsx:1626`): the queue and the input are cleared
-  before the command branches, which then return; the snapshot/restore the code builds is only
-  consulted on the send path's failure.
-- **The same queued slash command runs as a command from the chip but is delivered as a literal
-  prompt by auto-send** (`ChatInput-impl.tsx:1449` vs `hooks/useQueuedMessageAutoSend.ts:41`): the
-  two dispatch paths for one queue entry disagree, and nothing filters a command out at queue time.
-- **Mermaid rendering mode is read through a non-reactive `getState()` during render** (suspected),
-  so toggling the setting leaves existing diagrams as they were.
-- Electron `main.js` (five findings, read but not yet re-checked against the source by me): a
-  notification clicked with no window or before the renderer is ready; `quitAndInstall` with no
-  `before-quit` when the update cannot install; the Windows "open in app" fallback; `Alt+Space` with
-  no window; and `desktop_search_files` reached through a symlink to a refused directory, which
-  would step around the credential-store refusal added in the second round.
+### `52aa1693` fix(chat): a command is not a queue entry, and a diagram follows its setting
+
+- **The composer's own commands could be queued**, where the queue's two dispatch paths disagreed
+  about one: the chip ran it through the command-aware submit while auto-send delivered it to the
+  model as text. A command runs when it is sent, so queueing one sends it, and the queue can no
+  longer hold one — which is also what let a flush beginning with a command clear the rest of the
+  queue and the composer draft before running it.
+- **The mermaid block's rendering mode was read with `getState()`** where the block was created, so
+  flipping the setting never re-rendered a diagram already on screen.
 
 ### One unresolved flake
 
