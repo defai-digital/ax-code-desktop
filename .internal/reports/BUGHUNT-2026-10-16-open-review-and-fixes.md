@@ -1372,6 +1372,32 @@ commits. Everything found so far is fixed; what is still being verified is liste
   the answer already on its way — the behaviour the two existing retired-poll tests pin — and starts no
   further request.
 
+### Fixed from the upstream comparison's second pass
+
+The second pass over upstream's `fix(...)` commits (window 2026-09-15 .. 2026-10-13, 732 commits,
+screened programmatically after the identifier-per-commit method turned out to be unusable at that
+scale) produced eight leads in `.tmp/bughunt/upstream/pass2-leads.txt`. Three were real and are fixed:
+
+- **`a9e1f160`** — `continueRebase` tested its conflict pattern before the "the step has nothing left to
+  apply" one, and git answers that case with its conflict hint in front of the emptiness (`hint: Resolve
+  all conflicts manually …` plus `No changes - did you forget to use 'git add'?`, exit 1 on the apply
+  backend, reproduced in a real repository here). The panel reported a conflict that no longer exists,
+  with the stale conflict file list, and the step never advanced. The check runs first now — for
+  `continueMerge` too — and covers git's other wordings.
+- **`a9e1f160`** — the PR status route answered a 403 with the same "no pull request" shape it uses for a
+  404, so an organization that restricts OAuth apps (or a rate limit) read as a branch without a PR, even
+  when this very request had just found one and only the enrichment call was refused. A 403 answers 403
+  with GitHub's own message now; the 404 shape and its no-cache rule are unchanged.
+- **`a9e1f160`** — the Codex quota provider called every 401 an expired session, including the
+  access-enforcement refusal the endpoint sends for a sign-in method it declines while the credential is
+  fine; that body's `error.type` is reported on its own now.
+
+The other five leads are still being checked: a bare repository's worktrees (the top-level refusal), a
+project path long enough to push the config file name past the filesystem limit, the git store's
+prefetch slots, and two upstream readers that live behind endpoints we do not call (the Ollama Cloud
+usage API and the Moonshot balance API) — those last two are feature divergences rather than defects we
+can verify offline, so they are recorded as such.
+
 ### Reported as suspected, verified and rejected (this round)
 
 - **`worktreeStatus.toAbsolutePath` fabricating a path from an empty base** (`worktreeStatus.ts:6-23`).
