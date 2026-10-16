@@ -737,7 +737,22 @@ server (`ECONNRESET`) and the port not being reused immediately, so that is not 
 lead is the socket-level 401 in `lib/security/request-security.js`, which is the only code in the
 server that writes that status without a route.
 
-Two more full runs failed once each in a web file that passes alone — `server/lib/ax-code/core-routes.test.js`
+Three root runs were repeated to capture one: the middle run failed two cases, and both are real
+401s — `plugin-routes.test.js` "GET /registry rejects more than 100 unique specs" expected 400 and got
+401, and `routes.test.js` "falls back to direct file removal when ax-code API is unreachable" expected
+200 and got 401. That narrows the flake to a response neither app can produce: `registerPluginRoutes` has
+no 401 path at all, and neither test file mounts an auth middleware.
+
+Two mechanisms were tested and ruled out with probes rather than argument: (1) supertest requests do not
+use Node's global agent — after a request its `freeSockets` and `sockets` are both empty, so keep-alive
+socket pooling cannot carry a request to another server; and (2) an explicit rebind of a port whose
+keep-alive connection is still established does succeed, but the request over that connection fails with
+`ECONNRESET` rather than being answered by the old app, because Node closes idle connections when the
+listener closes. The remaining direction is an identifier or environment shared between files in one
+worker (the pool reuses workers with the module registry reset but not `process.env`), which the next
+pass should test by running the failing file with a poisoned environment.
+
+Three more full runs failed once each in a web file that passes alone — `server/lib/ax-code/core-routes.test.js`
 ("should parse JSON bodies for MCP auth pending routes") and `openchamber-routes.test.js` — both times
 while the only source changes were in the ui package.
 
@@ -1244,6 +1259,14 @@ The entries left above were re-checked against the source while correcting this 
 maps in `useGitStore` still have no eviction beyond each directory's own diff cache, the two event
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
+
+## Eighth round
+
+A second pass over the surfaces the earlier rounds read only once, again with reviewers those rounds did
+not use there: `components/views/**` (Claude Code CLI), the remaining `ui/src/lib/**` (Muse CLI),
+server `{mcp,lsp,plugins,update,sessions}/**` (deepseek-flash), the server's top-level files (glm-5.3),
+`components/chat/**` (MiniMax-M3), `script/**` and workflows (Grok CLI), and `hooks/**`,
+`contexts/**`, `sync/lib/**` (qwen3.8-flash). Launched this round; its findings are read next.
 
 ## Seventh round
 
