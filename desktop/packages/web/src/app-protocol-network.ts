@@ -19,7 +19,15 @@ export const rewriteAppProtocolNetworkUrl = (
   if (!raw) return input
 
   if (raw.startsWith("/")) {
-    const pathname = raw.split("?")[0] || "/"
+    // Normalize before the prefix test, the way the absolute branch does through `new URL`: else a path like
+    // "/api/../assets/index.js" passes on its `api/` prefix and then resolves to an asset path that the app://
+    // protocol handler owns, not the loopback server.
+    let pathname = "/"
+    try {
+      pathname = new URL(raw, pageOrigin).pathname
+    } catch {
+      return input
+    }
     if (!isLoopbackApiPath(pathname)) return input
     return `${apiOrigin}${raw}`
   }

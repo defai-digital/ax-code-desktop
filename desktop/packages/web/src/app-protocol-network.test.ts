@@ -10,6 +10,9 @@ describe("app protocol network rewrite", () => {
       "http://127.0.0.1:3910/api/fs/list?path=/repo",
     )
     expect(rewriteAppProtocolNetworkUrl("/assets/index.js", options)).toBe("/assets/index.js")
+    // The prefix test sees the normalized path, as the absolute branch does: a path that climbs out of the API
+    // tree is served by the app:// handler, not rebound to the loopback origin.
+    expect(rewriteAppProtocolNetworkUrl("/api/../assets/index.js", options)).toBe("/api/../assets/index.js")
     expect(rewriteAppProtocolNetworkUrl("/dre-graph/session/ses_1?directory=%2Frepo", options)).toBe(
       "http://127.0.0.1:3910/dre-graph/session/ses_1?directory=%2Frepo",
     )
