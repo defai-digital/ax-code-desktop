@@ -60,6 +60,7 @@ import {
   getReconnectCandidateSessionIds,
   resolveResyncedSessionStatus,
   hasCompletedAssistantReply,
+  pickApplicableResyncedStatuses,
 } from "./reconnect-recovery"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { usePermissionStore } from "@/stores/permissionStore"
@@ -502,6 +503,12 @@ async function resyncDirectorySessionStatuses(
   store: StoreApi<DirectoryStore>,
   candidateSessionIds: string[],
 ): Promise<Record<string, SessionStatus> | null> {
+  // What the candidates looked like when the request went out, so an entry the event stream changed
+  // while it was in flight is not overwritten with the answer's older view.
+  const beforeStatuses = Object.fromEntries(
+    candidateSessionIds.map((sessionId) => [sessionId, store.getState().session_status?.[sessionId]]),
+  )
+
   const nextStatuses = await axCodeClient.getSessionStatusForDirectory(directory)
   // null = fetch failed; preserve existing state. {} or populated = authoritative
   // snapshot of active sessions — candidates not listed are idle now (unless a
@@ -509,8 +516,13 @@ async function resyncDirectorySessionStatuses(
   // resolveResyncedSessionStatus).
   const relevantStatuses = buildRelevantSessionStatuses(nextStatuses, candidateSessionIds, store.getState())
   if (relevantStatuses === null) return null
-  applySessionStatusSnapshot(store, relevantStatuses)
-  return relevantStatuses
+  const applicableStatuses = pickApplicableResyncedStatuses({
+    relevantStatuses,
+    beforeStatuses,
+    currentStatuses: store.getState().session_status ?? {},
+  })
+  applySessionStatusSnapshot(store, applicableStatuses)
+  return applicableStatuses
 }
 
 function needsSnapshotAfterStatusPoll(

@@ -3,6 +3,7 @@ import type { Message, Part, SessionStatus } from "@defai-digital/ax-code-sdk/v2
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import {
   getReconnectCandidateSessionIds,
+  pickApplicableResyncedStatuses,
   resolveResyncedSessionStatus,
   hasCompletedAssistantReply,
 } from "./reconnect-recovery"
@@ -105,6 +106,44 @@ describe("getReconnectCandidateSessionIds", () => {
         },
       ).sort(),
     ).not.toContain("active")
+  })
+})
+
+describe("pickApplicableResyncedStatuses", () => {
+  const busy = { type: "busy" } as SessionStatus
+  const idle = { type: "idle" } as SessionStatus
+
+  test("applies the answer where the status did not move while it was in flight", () => {
+    expect(
+      pickApplicableResyncedStatuses({
+        relevantStatuses: { ses_1: idle },
+        beforeStatuses: { ses_1: busy },
+        currentStatuses: { ses_1: busy },
+      }),
+    ).toEqual({ ses_1: idle })
+  })
+
+  test("keeps a status the event stream updated while the answer was in flight", () => {
+    // A run started outside optimisticSend — shell mode, a scheduled task, another client — sends
+    // `session.status{busy}` while the answer, computed before it, carries `idle`: applying it showed
+    // an idle session (no working indicator, no Stop) until the next poll.
+    expect(
+      pickApplicableResyncedStatuses({
+        relevantStatuses: { ses_1: idle },
+        beforeStatuses: { ses_1: idle },
+        currentStatuses: { ses_1: busy },
+      }),
+    ).toEqual({})
+  })
+
+  test("decides each session on its own", () => {
+    expect(
+      pickApplicableResyncedStatuses({
+        relevantStatuses: { ses_1: idle, ses_2: busy },
+        beforeStatuses: { ses_1: idle, ses_2: idle },
+        currentStatuses: { ses_1: busy, ses_2: idle },
+      }),
+    ).toEqual({ ses_2: busy })
   })
 })
 
