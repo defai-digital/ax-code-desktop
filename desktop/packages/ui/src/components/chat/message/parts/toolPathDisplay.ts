@@ -36,3 +36,29 @@ export const getToolRelativePath = (path: string, currentDirectory: string): str
   }
   return relative.startsWith("/") ? relative.slice(1) : relative
 }
+
+const isAbsoluteToolPath = (normalizedPath: string): boolean =>
+  normalizedPath.startsWith("/") || /^[A-Za-z]:\//.test(normalizedPath)
+
+/**
+ * `filePath` as the editor's API wants it: the path itself when it already names a location — a POSIX root, a
+ * UNC share, or a Windows drive — and otherwise joined to the directory the tool ran in. Testing only for a
+ * leading `/` prefixed a drive path with the directory, so a click asked the editor to open
+ * `C:/repo/C:/repo/src/app.ts`.
+ */
+export const toAbsoluteToolPath = (currentDirectory: string, filePath: string): string => {
+  const normalizedPath = normalizeToolDisplayPath(filePath)
+  if (!normalizedPath) {
+    return ""
+  }
+  if (isAbsoluteToolPath(normalizedPath)) {
+    return normalizedPath
+  }
+  const normalizedDirectory = normalizeToolDisplayPath(currentDirectory)
+  if (!normalizedDirectory) {
+    return normalizedPath
+  }
+  return normalizedDirectory.endsWith("/")
+    ? `${normalizedDirectory}${normalizedPath}`
+    : `${normalizedDirectory}/${normalizedPath}`
+}

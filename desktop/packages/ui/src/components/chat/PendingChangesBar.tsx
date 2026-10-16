@@ -7,7 +7,13 @@ import { sessionEvents } from "@/lib/sessionEvents"
 import { normalizePath } from "@/components/session/sidebar/utils"
 import { Icon } from "@/components/icon/Icon"
 import { cn } from "@/lib/utils"
-import { type ChangedFileEntry, type GitChangedFile, extractGitChangedFiles, isGitFile } from "./changedFiles"
+import {
+  type ChangedFileEntry,
+  type GitChangedFile,
+  extractGitChangedFiles,
+  isAbsoluteChangedFilePath,
+  isGitFile,
+} from "./changedFiles"
 import { ChangedFilesList } from "./ChangedFilesList"
 import { changedFilesPopoverClassName, changedFilesPopoverStyle } from "./changedFilesPopover"
 import { useI18n } from "@/lib/i18n"
@@ -81,7 +87,9 @@ export const PendingChangesBar: React.FC = React.memo(() => {
     if (!currentDirectory) return
     if (!isGitFile(file)) return
 
-    const absolutePath = file.path.startsWith("/")
+    // A drive path is absolute too, and only `startsWith("/")` missed it: the editor was asked for
+    // `C:/repo/C:/repo/src/app.ts` and the click opened nothing.
+    const absolutePath = isAbsoluteChangedFilePath(file.path)
       ? file.path
       : (currentDirectory.endsWith("/") ? currentDirectory : currentDirectory + "/") + file.path
 

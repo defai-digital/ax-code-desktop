@@ -5,6 +5,7 @@ import {
   extractChangedFiles,
   extractGitChangedFiles,
   getFileStats,
+  isAbsoluteChangedFilePath,
   isSyntheticDiffFile,
   toRelativePath,
 } from "./changedFiles"
@@ -235,6 +236,17 @@ describe("toRelativePath", () => {
 
   test("returns the path unchanged when it is outside the base directory", () => {
     expect(toRelativePath("/etc/hosts", "/home/user/project")).toBe("/etc/hosts")
+  })
+})
+
+describe("isAbsoluteChangedFilePath", () => {
+  test("recognises every absolute shape a git status path can have", () => {
+    // The consumers that resolve a changed file for the editor tested only for a leading `/`, so a Windows drive
+    // path was prefixed with the directory it already starts with.
+    expect(isAbsoluteChangedFilePath("/home/user/project/src/app.ts")).toBe(true)
+    expect(isAbsoluteChangedFilePath("//server/share/src/app.ts")).toBe(true)
+    expect(isAbsoluteChangedFilePath("C:/Users/Alice/Project/src/app.ts")).toBe(true)
+    expect(isAbsoluteChangedFilePath("src/app.ts")).toBe(false)
   })
 })
 

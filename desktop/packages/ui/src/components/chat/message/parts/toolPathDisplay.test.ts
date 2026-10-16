@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { getToolRelativePath, normalizeToolDisplayPath } from "./toolPathDisplay"
+import { getToolRelativePath, normalizeToolDisplayPath, toAbsoluteToolPath } from "./toolPathDisplay"
 
 describe("toolPathDisplay", () => {
   test("normalizes path separators and drive roots", () => {
@@ -28,5 +28,30 @@ describe("toolPathDisplay", () => {
 
   test("returns an empty display path for empty input", () => {
     expect(getToolRelativePath(" ", "/repo")).toBe("")
+  })
+})
+
+describe("toAbsoluteToolPath", () => {
+  test("leaves a path that already names a location alone", () => {
+    expect(toAbsoluteToolPath("/repo", "/repo/src/app.ts")).toBe("/repo/src/app.ts")
+    expect(toAbsoluteToolPath("/repo", "//server/share/src/app.ts")).toBe("//server/share/src/app.ts")
+    // A drive path is absolute too: testing only for a leading `/` prefixed it with the directory and the click
+    // asked the editor to open `C:/Users/Alice/Project/C:/Users/Alice/Project/src/app.ts`.
+    expect(toAbsoluteToolPath("C:/Users/Alice/Project", "C:/Users/Alice/Project/src/app.ts")).toBe(
+      "C:/Users/Alice/Project/src/app.ts",
+    )
+    expect(toAbsoluteToolPath("C:\\Users\\Alice\\Project", "C:\\Users\\Alice\\Project\\src\\app.ts")).toBe(
+      "C:/Users/Alice/Project/src/app.ts",
+    )
+  })
+
+  test("joins a relative path to the directory the tool ran in", () => {
+    expect(toAbsoluteToolPath("/repo", "src/app.ts")).toBe("/repo/src/app.ts")
+    expect(toAbsoluteToolPath("/repo/", "src/app.ts")).toBe("/repo/src/app.ts")
+    expect(toAbsoluteToolPath("C:\\repo", "src\\app.ts")).toBe("C:/repo/src/app.ts")
+  })
+
+  test("returns an empty path for empty input", () => {
+    expect(toAbsoluteToolPath("/repo", " ")).toBe("")
   })
 })

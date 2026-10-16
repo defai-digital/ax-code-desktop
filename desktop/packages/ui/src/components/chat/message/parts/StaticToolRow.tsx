@@ -14,7 +14,7 @@ import { useSkillsStore } from "@/stores/useSkillsStore"
 import { getExternalFaviconUrl, openExternalUrl } from "@/lib/url"
 import { getSafeToolFetchHref } from "./toolFetchLinks"
 import { areRenderRelevantPartsEqual } from "../renderCompare"
-import { getToolRelativePath, normalizeToolDisplayPath } from "./toolPathDisplay"
+import { getToolRelativePath, normalizeToolDisplayPath, toAbsoluteToolPath } from "./toolPathDisplay"
 import { truncateToCodeUnits } from "@/lib/textTruncate"
 
 const TOOL_ROW_TEXT_CLASS = "!text-[length:var(--text-meta)] !leading-4 sm:!leading-6 tracking-normal"
@@ -268,23 +268,6 @@ const renderReadFilePath = (displayPath: string, animate = true) => {
   )
 }
 
-const resolveAbsolutePath = (currentDirectory: string, filePath: string): string => {
-  const normalizedPath = normalizeToolDisplayPath(filePath)
-  if (!normalizedPath) {
-    return ""
-  }
-  if (normalizedPath.startsWith("/") || /^[A-Za-z]:\//.test(normalizedPath)) {
-    return normalizedPath
-  }
-  const normalizedDirectory = normalizeToolDisplayPath(currentDirectory)
-  if (!normalizedDirectory) {
-    return normalizedPath
-  }
-  return normalizedDirectory.endsWith("/")
-    ? `${normalizedDirectory}${normalizedPath}`
-    : `${normalizedDirectory}/${normalizedPath}`
-}
-
 const resolveSkillFilePath = (skillPathOrDir: string): string => {
   const normalizedPath = normalizeToolDisplayPath(skillPathOrDir)
   if (!normalizedPath) {
@@ -474,7 +457,7 @@ const StaticToolRowInner: React.FC<{
 
   const handleReadFileClick = React.useCallback(
     (filePath: string, offset?: number) => {
-      const absolutePath = resolveAbsolutePath(currentDirectory, filePath)
+      const absolutePath = toAbsoluteToolPath(currentDirectory, filePath)
       if (!absolutePath) {
         return
       }

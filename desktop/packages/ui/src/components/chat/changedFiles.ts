@@ -48,7 +48,12 @@ const normalizeChangedFilePath = (value: string): string => {
   return normalized
 }
 
-const isAbsoluteChangedFilePath = (value: string): boolean =>
+/**
+ * Whether a changed-file path already names a location on its own: a POSIX root, a UNC share, or a Windows drive.
+ * `extractGitChangedFiles` stores every path absolute, and a caller that only tests for a leading `/` prefixes a
+ * drive path with the directory.
+ */
+export const isAbsoluteChangedFilePath = (value: string): boolean =>
   value.startsWith("/") || value.startsWith("//") || /^[A-Z]:\//.test(value)
 
 const toComparableChangedFilePath = (value: string): string =>

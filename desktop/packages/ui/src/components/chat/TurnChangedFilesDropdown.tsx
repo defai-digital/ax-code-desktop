@@ -9,6 +9,7 @@ import {
   type ChangedFileEntry,
   FILE_EDIT_TOOLS,
   extractChangedFiles,
+  isAbsoluteChangedFilePath,
   isGitFile,
   isSyntheticDiffFile,
   toRelativePath,
@@ -59,7 +60,7 @@ export const TurnChangedFilesDropdown: React.FC<TurnChangedFilesDropdownProps> =
     if (isGitFile(file)) return
     if (isSyntheticDiffFile(file)) return
 
-    const absolutePath = file.path.startsWith("/")
+    const absolutePath = isAbsoluteChangedFilePath(file.path)
       ? file.path
       : (currentDirectory.endsWith("/") ? currentDirectory : currentDirectory + "/") + file.path
 

@@ -39,7 +39,7 @@ import { areRenderRelevantPartsEqual } from "../renderCompare"
 import { useI18n } from "@/lib/i18n"
 import { getDiffPatchEntries, getPatchText, isRecord } from "./toolDiffUtils"
 import { LazyToolDiffPreview as DiffPreview } from "./LazyToolDiffPreview"
-import { getToolRelativePath } from "./toolPathDisplay"
+import { getToolRelativePath, toAbsoluteToolPath } from "./toolPathDisplay"
 import {
   buildWritePreviewPatch,
   formatDuration,
@@ -1675,11 +1675,9 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
 
     if (typeof filePath === "string") {
       e.stopPropagation()
-      let absolutePath = filePath
-      if (!filePath.startsWith("/")) {
-        absolutePath = currentDirectory.endsWith("/") ? currentDirectory + filePath : currentDirectory + "/" + filePath
-      }
-      runtime.editor.openFile(absolutePath, targetLine)
+      // A tool can name its file with a Windows drive path, which only `startsWith("/")` missed: the editor was
+      // asked for `C:/repo/C:/repo/src/app.ts` and the click opened nothing.
+      runtime.editor.openFile(toAbsoluteToolPath(currentDirectory, filePath), targetLine)
     } else {
       onToggle(part.id)
     }
