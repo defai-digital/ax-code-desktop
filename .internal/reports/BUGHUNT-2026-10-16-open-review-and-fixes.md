@@ -39,11 +39,14 @@ upstream provider (HTTP 403 `upstream_permission_error` for `grok-4.7` and
 `k3-256k`; "upstream rejected the request" for `claude-sonnet-5-5`) and their
 scopes were reassigned to another model.
 
-The comparison method: every fix's regression test was run against the pre-fix
-source and observed to fail, then against the fixed source and observed to pass.
-Where the file had already been committed in this series, the pre-fix source was
-read back from that commit's parent rather than stashed, so the comparison covers
-the original code and not a later edit of it.
+The comparison method: every fix that has a regression test was verified by running
+that test against the pre-fix source and observing the expected failure, then
+against the fixed source and observing it pass. Where the file had already been
+committed in this series, the pre-fix source was read back from that commit's
+parent rather than stashed, so the comparison covers the original code and not a
+later edit of it. Four fixes have no regression test; each says so where it is
+listed, and why (no render harness for that component, or a harness that would
+have to be invented for it).
 
 ## Fixes
 
@@ -337,6 +340,126 @@ Completes `4cad9c8c`: the route-side refusal was covered, this covers the half t
 carries the repo from the header the user is looking at. Against the pre-fix client
 the case fails with `'/api/github/pr/merge' to contain 'owner=org'`.
 
+## Second round
+
+The two reviewer invocations that the upstream provider had refused were re-run on
+the CLIs the user asked for, and the surfaces whose external reviewers had returned
+nothing got read-only reviews of their own.
+
+| Reviewer | Area |
+| --- | --- |
+| Grok CLI (`--sandbox read-only --permission-mode plan`) | `ui/src/components/chat` |
+| Claude Code CLI (`--allowedTools Read Glob Grep -p`) | `ui/src/components/{terminal,views,layout}`, `contexts`, `api` |
+| read-only review | `ui/src/components/{ui,model-picker,onboarding,comments,mini-chat}` |
+| read-only review | `ui/src/apps`, `constants`, `types`, `electron/scripts`, `script` |
+
+Both CLIs returned findings this time. Every one acted on below was re-checked in
+the source first, and every fix was verified against its pre-fix source.
+
+### `e1cd91e7` fix(electron): refuse a native file search rooted at a credential store
+
+`desktop_search_files` walks whatever absolute root the renderer names — which its
+comment says is deliberate — and applied none of the policy `desktop_read_file`
+applies, so a search rooted at HOME listed the names inside `.ssh`, `.aws`,
+`.config/ax-code` and `.local/share/ax-code`: a name oracle for exactly the paths
+the read path refuses. The credential denylist is now a shared helper and the
+search refuses a root it denies. The open-root policy is unchanged.
+
+Evidence: helper cases for the denied roots and for a project outside HOME, plus a
+source assertion that the handler applies the check. Verified against the pre-fix
+source.
+
+### `d1c9a047` fix(ui): keep the typed text in a bounded number field
+
+`handleChange` committed every keystroke through clamp/step normalization and the
+value returned through the `value` prop into the effect that rewrites the draft, so
+typing `75` into a min-50/step-5 field became `50`, then `505` → 200. Only a value
+the field can keep as typed is committed now; the blur path already forces an
+out-of-range or off-step entry into range.
+
+Evidence: a render test types `7` then `75`; it fails before (`expected '50' to be
+'7'`).
+
+### `48050c42` fix(ui): render a JSON document whose top-level value is null
+
+`null` parses to `null`, and the guard that returned nothing for a null parse result
+read it as a failure the `parseError` branch already reports: a file containing
+`null` opened as a blank pane.
+
+Evidence: a render test asserts the pane is not empty; it fails before.
+
+### `d71b6056` fix(ui): handle a refused mini-chat hand-off
+
+"Open main app" chained `desktop_focus_main_window` into
+`desktop_close_current_window` with no rejection handler; the command refuses a
+non-local sender or non-main frame, so the rejection escaped as an unhandled one
+while the click did nothing. The mount-time pin read had the same hole. The
+hand-off is now one function — which is also what makes the refusal testable — and
+the mini-chat stays open when it is refused.
+
+### `7c6b902d` fix(ui): report a failed settings write in onboarding
+
+Both onboarding screens applied a custom binary path with `try/finally` and no
+catch, so a failed write was silent (the busy flag cleared a second later) and the
+rejection escaped. LocalSetupScreen uses the error banner it already renders;
+ChooserScreen, which had none, gained one.
+
+Evidence: a render test on each screen with a rejecting settings write; both fail
+before.
+
+### `6efdbaf6` fix(ui): do not cache a failed Ghostty runtime load
+
+The runtime is fetched once per app run and the promise was cached whether it
+resolved or rejected, so one transient failure made every later terminal fail with
+it until the process restarted — Hard Restart only reloads the view. The loader
+moved into its own module so the retry is testable.
+
+Evidence: a loader test rejects once then resolves; against the caching version it
+fails.
+
+### `d7bf1087` fix(ui): bound the question reply so the card cannot stay locked
+
+PermissionCard bounds its reply with `withTimeout` because a promise that never
+settles leaves `submittingRef` true for good, and QuestionCard replies and
+dismisses through the same path with no bound — only a rejection resets its guard,
+so the card stayed locked and the agent stayed blocked on the question.
+
+Evidence: a render test replies with a never-settling promise, advances 20s and
+asserts the buttons are usable again; it fails before.
+
+### `8d649d7c` fix(ui): put consumed review comments back when the submit did not go through
+
+Both submit paths take the session's inline-comment drafts out of the store before
+building the payload. A full message queue returns early and the failed-send catch
+restores only the composer text — which is the text from *before* the comments were
+appended, and is skipped entirely when the composer was empty. The comments were
+lost with no trace on both paths.
+
+Evidence: the store's restore mapping is covered field by field in its test
+(a dropped field fails it). The two call sites are not covered: ChatInput has no
+render harness.
+
+### `3a1b2e66` fix(ui): retry a hash target that was not loaded yet, and keep the follow
+
+`applyHash` recorded the hash before running the scroll, so when the target turn was
+not in the model yet the later pass — the effect depends on `turnIds.length` for
+exactly that reason — returned early and the view never navigated. Both scroll
+helpers also released the auto-follow before checking the target existed, so a
+navigation that did nothing had already stopped the reader from being followed.
+
+Evidence: a hook test renders with the hash and an empty turn list, then re-renders
+with the turn; it fails before. The controller half has no test (no timeline render
+harness).
+
+### `2b2bb845` fix(ui): end a file navigation whose target cannot be opened in the editor
+
+The pending-navigation effect bails out when the target is not editable but left the
+request in the store, unlike the load-error and image branches above it. The store
+entry is what the effect keys on, so selecting a different file re-ran it against
+the stale target and selected that one instead.
+
+Evidence: the effect has no render harness, so this one has no test.
+
 ## Reviewed and deliberately not changed
 
 - **`useGitStore` per-directory state is never released.** `setActiveDirectory`
@@ -379,22 +502,38 @@ the case fails with `'/api/github/pr/merge' to contain 'owner=org'`.
   (it also depends on the new directory's bootstrap status), so it is recorded
   here as a lead rather than fixed: a directory-scoped timer with no handle and no
   cleanup, next to a poll effect that does clear its own.
+- **`useDiffHunkRevert` reconstructs the whole file from the cached diff** and
+  writes it back, so an edit made after that diff was cached — an agent working
+  while the reader looks at the diff — is overwritten by the reconstruction. The
+  write goes through the same endpoint as the editor's save, and the editor's save
+  has no on-disk check either, so the guard has to be a deliberate rule rather than
+  a local one: either re-fetch the diff before rebuilding, or compare the file on
+  disk against the diff's modified side (which two different server read paths
+  produce, so a false refusal has to be ruled out first). The reviewer ranked it
+  below their reported limit, and a comparison I cannot validate end to end is the
+  wrong thing to ship in its place.
+- **`PullRequestSection`'s body-hydration flag may not clear** after a successful
+  fetch when the store update cancels the effect first, which would leave
+  "Loading description…" where "No description" belongs. Suspected: it depends on
+  React flushing that cleanup before `.finally`, which the reviewer could not
+  settle by reading.
+- **`EmbeddedWebMcpBrowser`'s one-shot enable request can be dropped** before its
+  150 ms timer when a dependency changes in that window (first, uncached capability
+  probe; always under StrictMode in development).
+- **`ProjectActionsButton`'s terminal stream and preview-wait timer are not closed
+  on unmount**, leaving a subscription on the shared socket.
 
 ## Verification
 
-- Every regression test listed above was run against the pre-fix source and
-  observed to fail, then against the fixed source and observed to pass. Where a
-  fix's file had already been committed in this series, the pre-fix source was
-  read back from that commit's parent rather than stashed, so the comparison
-  covers the original code and not a later edit of it.
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals: ui 2 487, web 1 046 (+2 skipped), electron 563, root scripts 175.
+- Test totals at the last run: ui 2 503, web 1 046 (+2 skipped), electron 566, root
+  scripts 175.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
-  scripts, no sibling dependencies, source ownership (3 160 files), runtime pin,
-  release policy and release contract.
+  scripts, no sibling dependencies, source ownership, runtime pin, release policy
+  and release contract.
 - `pnpm run build` passes (3/3 turbo tasks).
 - One flake observed: `web/server/lib/ax-code/routes.test.js` "deduplicates
   concurrent prompt_async requests for the same session message" failed once
