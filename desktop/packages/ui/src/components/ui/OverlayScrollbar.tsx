@@ -24,6 +24,9 @@ type ThumbMetrics = {
 
 const USER_SCROLL_INTENT_WINDOW_MS = 1000
 const METRIC_EPSILON = 0.5
+// The thumb is inset from the track on both ends, so its travel is short by twice this: the positioning and the
+// drag mapping have to use the same number or the thumb drifts away from the pointer while it is dragged.
+const TRACK_INSET = 8
 const EMPTY_THUMB: ThumbMetrics = { length: 0, offset: 0 }
 
 const isSameThumbMetrics = (a: ThumbMetrics, b: ThumbMetrics): boolean => {
@@ -64,7 +67,7 @@ const OverlayScrollbarComponent: React.FC<OverlayScrollbarProps> = ({
     if (!container) return
 
     const { scrollHeight, clientHeight, scrollTop, scrollWidth, clientWidth, scrollLeft } = container
-    const trackInset = 8
+    const trackInset = TRACK_INSET
 
     let nextVertical: ThumbMetrics = EMPTY_THUMB
     if (scrollHeight > clientHeight) {
@@ -307,7 +310,7 @@ const OverlayScrollbarComponent: React.FC<OverlayScrollbarProps> = ({
     if (axis === "vertical") {
       const { pointerY, scrollTop } = dragStartRef.current
       const delta = event.clientY - pointerY
-      const trackLength = container.clientHeight
+      const trackLength = Math.max(container.clientHeight - TRACK_INSET * 2, 0)
       const thumbTravel = Math.max(trackLength - vertical.length, 1)
       const maxScroll = Math.max(container.scrollHeight - container.clientHeight, 1)
       const scrollDelta = (delta / thumbTravel) * maxScroll
@@ -315,7 +318,7 @@ const OverlayScrollbarComponent: React.FC<OverlayScrollbarProps> = ({
     } else if (axis === "horizontal") {
       const { pointerX, scrollLeft } = dragStartRef.current
       const delta = event.clientX - pointerX
-      const trackLength = container.clientWidth
+      const trackLength = Math.max(container.clientWidth - TRACK_INSET * 2, 0)
       const thumbTravel = Math.max(trackLength - horizontal.length, 1)
       const maxScroll = Math.max(container.scrollWidth - container.clientWidth, 1)
       const scrollDelta = (delta / thumbTravel) * maxScroll
@@ -349,7 +352,7 @@ const OverlayScrollbarComponent: React.FC<OverlayScrollbarProps> = ({
   const showHorizontal = horizontal.length > 0
   if (!showVertical && !showHorizontal) return null
 
-  const trackInset = 8
+  const trackInset = TRACK_INSET
 
   return (
     <div className={cn("overlay-scrollbar", className)} aria-hidden="true" style={{ opacity: visible ? 1 : 0 }}>
