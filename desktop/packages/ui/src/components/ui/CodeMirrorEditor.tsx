@@ -26,6 +26,7 @@ import {
 import { createPortal } from "react-dom"
 
 import { cn } from "@/lib/utils"
+import { searchPanelSpace } from "@/lib/codemirror/searchPanelSpace"
 
 /** Patches `title` attributes onto CodeMirror search-panel controls for icon-only tooltips. */
 const buttonTooltips: Record<string, string> = {
@@ -455,7 +456,9 @@ export function CodeMirrorEditor({
         externalExtensionsCompartment.of(extensions ?? []),
         highlightLinesCompartment.of(createHighlightLinesExtension(highlightLines)),
         blockWidgetsCompartment.of(createBlockWidgetsExtension(blockWidgets, widgetContainersRef.current)),
-        searchCompartment.of(enableSearch ? [search({ top: true }), keymap.of(toViewKeyBindings(searchKeymap))] : []),
+        searchCompartment.of(
+          enableSearch ? [search({ top: true }), searchPanelSpace(), keymap.of(toViewKeyBindings(searchKeymap))] : [],
+        ),
       ],
     })
 
@@ -529,7 +532,9 @@ export function CodeMirrorEditor({
     if (applied.enableSearch !== enableSearch) {
       effects.push(
         searchCompartment.reconfigure(
-          enableSearch ? [search({ top: true }), keymap.of(toViewKeyBindings(searchKeymap))] : [],
+          enableSearch
+            ? [search({ top: true }), searchPanelSpace(), keymap.of(toViewKeyBindings(searchKeymap))]
+            : [],
         ),
       )
     }
