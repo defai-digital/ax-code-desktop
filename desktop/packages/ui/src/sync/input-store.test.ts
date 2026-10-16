@@ -121,7 +121,15 @@ describe("input-store attachments", () => {
   test("keeps attached files with the draft they were added to", () => {
     // The composer is not remounted on a session switch, so a single shared list showed one
     // session's chips in another's composer and sent those files with its prompt.
-    const file = { id: "f1", filename: "notes.png", mimeType: "image/png", size: 3, dataUrl: "data:,x", source: "local" as const }
+    const file = {
+      id: "f1",
+      file: new File([], "notes.png", { type: "image/png" }),
+      filename: "notes.png",
+      mimeType: "image/png",
+      size: 3,
+      dataUrl: "data:,x",
+      source: "local" as const,
+    }
 
     useInputStore.getState().setActiveAttachmentDraft("ses_a")
     useInputStore.getState().setAttachedFiles([file])
@@ -134,7 +142,15 @@ describe("input-store attachments", () => {
   })
 
   test("does not restore files that were sent from their draft", () => {
-    const file = { id: "f1", filename: "notes.png", mimeType: "image/png", size: 3, dataUrl: "data:,x", source: "local" as const }
+    const file = {
+      id: "f1",
+      file: new File([], "notes.png", { type: "image/png" }),
+      filename: "notes.png",
+      mimeType: "image/png",
+      size: 3,
+      dataUrl: "data:,x",
+      source: "local" as const,
+    }
 
     useInputStore.getState().setActiveAttachmentDraft("ses_a")
     useInputStore.getState().setAttachedFiles([file])
