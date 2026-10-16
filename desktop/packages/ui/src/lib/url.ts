@@ -97,14 +97,21 @@ export const normalizeLoopbackPreviewUrl = (url: string): string | null => {
 // The host and the port have to end where they end: without a trailing boundary the pattern also matched
 // the prefix of a longer name, so text mentioning `http://localhost.evil.example/x` offered
 // `http://localhost/`, and `http://localhost:123456/` offered a port that does not exist. The boundary
-// therefore rejects anything that can still be part of the authority, instead of listing the characters
-// that may end a sentence: a letter, digit, `_` or `-`; a `.` that is followed by one of those; an IDN dot
-// equivalent (U+3002, U+FF0E, U+FF61); or the authority glue `:`, `@`, `%`, `+`, `~`, `\`. Everything else
-// ends the address, which is what a sentence-final `.` or `)`, CJK punctuation such as `已啟動
-// http://localhost:3000，請開啟`, and the old whitelist's own cases all need.
+// therefore rejects anything that can still be part of the authority, instead of listing the characters that
+// may end a sentence. Rejected after the host: a letter, digit, `_` or `-`; a `.` (or an IDN dot equivalent,
+// U+3002/U+FF0E/U+FF61) followed by one of those; a combining mark or a soft hyphen (IDNA drops the latter);
+// the glue `:`, `@`, `%`, `+`, `~`, `\`; and — because `localhost!x@evil.example` names `evil.example`, not
+// `localhost` — an `@` anywhere in what is left of the token. Everything else ends the address, which is what
+// a sentence-final `.` or `)`, the CJK terminators `。` and `，` (`已啟動 http://localhost:3000。請開啟`) and
+// the old whitelist's own cases all need.
+//
+// The two guards differ in one place: after a port, a dot cannot continue it (`http://localhost:3000。` and
+// `http://localhost:3000。請開啟` are prose, and the port is what ends the address), while a port that runs on
+// into a name character (`http://localhost:3000abc`) or into a dot and a name character
+// (`http://localhost:3000.evil.example`) is still rejected.
 const LOOPBACK_URL_PATTERN =
   // eslint-disable-next-line no-control-regex
-  /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[(?:::1|::)\])(?::\d{2,5})?(?![\p{L}\p{N}_-]|\.(?=[\p{L}\p{N}_-])|[\u3002\uFF0E\uFF61:@%+~\\])(?:\/[^\s<>"'`\u0000-\u001f]*)?/giu
+  /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[(?:::1|::)\])(?::\d{2,5}(?![\p{L}\p{N}_-]|\.(?=[\p{L}\p{N}_-])|[:@%+~\\]|\p{M}|\u00AD|[^\s<>"'`\u0000-\u001f]*@)|(?![\p{L}\p{N}_-]|[.\u3002\uFF0E\uFF61](?=[\p{L}\p{N}_-])|[:@%+~\\]|\p{M}|\u00AD|[^\s<>"'`\u0000-\u001f]*@))(?:\/[^\s<>"'`\u0000-\u001f]*)?/giu
 
 const TRAILING_PUNCT = new Set([".", ",", ";", ":", "!", "?"])
 

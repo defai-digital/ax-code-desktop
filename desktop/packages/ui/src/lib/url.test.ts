@@ -165,6 +165,31 @@ describe("extractLoopbackUrls boundaries", () => {
     expect(extractLoopbackUrls("http://localhost-x")).toEqual([])
   })
 
+  test("ends the address at a CJK sentence terminator", () => {
+    // `。` is the ordinary way a Chinese sentence ends, and it is also an IDN dot equivalent: rejecting it
+    // outright cost the preview for every address at the end of such a sentence, which is where the
+    // terminator normally lands. It continues a host only when a name character follows it.
+    expect(extractLoopbackUrls("已啟動 http://localhost:3000。")).toEqual(["http://localhost:3000/"])
+    expect(extractLoopbackUrls("已啟動 http://localhost:3000。請開啟")).toEqual(["http://localhost:3000/"])
+    expect(extractLoopbackUrls("http://localhost:5173。請")).toEqual(["http://localhost:5173/"])
+    expect(extractLoopbackUrls("http://localhost。")).toEqual(["http://localhost/"])
+    // …and the same terminator before a label still names the other host.
+    expect(extractLoopbackUrls("http://localhost。evil.example")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost．evil.example")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost｡evil.example")).toEqual([])
+  })
+
+  test("rejects a userinfo authority however it is punctuated", () => {
+    // The host of `localhost!x@evil.example` is `evil.example` — the `@` splits the authority — so the `@` has
+    // to be looked for anywhere in the rest of the token, not only directly after the host or port.
+    expect(extractLoopbackUrls("http://localhost!x@evil.example/")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost,x@evil.example/")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost;x@evil.example/")).toEqual([])
+    // A combining mark or a soft hyphen also keeps the name going (IDNA drops the hyphen).
+    expect(extractLoopbackUrls("http://localhost\u0301.evil.example")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost\u00ad.evil.example")).toEqual([])
+  })
+
   test("still matches a loopback address with a path, a query and a fragment", () => {
     expect(extractLoopbackUrls("ready at http://127.0.0.2:5173/app?x=1#top")).toEqual([
       "http://127.0.0.2:5173/app?x=1#top",
