@@ -988,6 +988,32 @@ prompt; two runs ended in a transport failure and produced nothing, and are list
   dropped while the route answered success. This is the leading-`-` argv hazard the branch, rename and
   log routes guard with `isOptionLikeRevision`; the three stash routes never applied it.
 
+- **`a58f3042`** — the standalone language save (no desktop bridge) took only the stored *revision*
+  into account and wrote this tab's in-memory fields back with it. A tab that had not applied another
+  tab's newer record yet therefore wrote its stale field over the newer one, under a revision that then
+  made the other tab's value lose too: changing the interface language in one tab reset the conversation
+  language the other tab had just chosen. The stored record is read as a whole now.
+- **`3e9e1ef6`** — Vitesse Light carried `interactive.cursor: #CECDC3` on `#ffffff`, 1.6:1, below the 3:1
+  WCAG asks of a non-text indicator. That colour is the editor caret and the terminal cursor, so in that
+  theme neither could be seen; every other bundled theme sits at 6.2:1 or better. The cursor is the
+  theme's own foreground now, and the contrast audit checks the cursor pair as a *hard* rule so the next
+  theme that ships an invisible caret fails the bundled-theme audit.
+- **`a61353c3`** — the bootstrap reload treats its page of root sessions as authoritative, which holds
+  only for sessions that existed when the page was read: a session created while the request was in
+  flight is legitimately absent from it, and dropping it hid the session the user had just created until
+  the runtime's next update for it (the sidebar lost it, `useEnsureSessionMessages` refused to fetch for
+  it, and the mini-chat's availability check counted it as gone). The merge is told which sessions the
+  client already knew when the request went out and carries over any root it did not.
+- **`65ecb6e7`** — `updateStreamingState` derives the streaming map from one directory's state and
+  rebuilt two of its three maps from empty, so a session belonging to another directory was not
+  completed — it was dropped — every time the active directory's store ticked for any reason. The
+  directory the user was watching lost its streaming indicator until its own store happened to tick
+  again.
+- **`0ea4ff20`** — a file read that finished after the composer moved to another draft was discarded: the
+  generation check returned without putting it anywhere, and the list the draft switch stashed was the
+  one from before the read finished. A late read now lands in the draft it was started from, and still
+  disappears when that draft's files were cleared or replaced.
+
 ### Verified from this round, not yet fixed
 
 Read against the source and confirmed, waiting for a fix rather than a re-check:
@@ -998,6 +1024,15 @@ Read against the source and confirmed, waiting for a fix rather than a re-check:
 - **`PlanView.tsx:453`** (suspected) — the autosave effect has no dirty check against the content it
   loaded, so merely opening a plan schedules a write of the just-loaded text ~350 ms later; an external
   write landing in that window is overwritten by content the user never edited.
+- **`sync/soft-removal.ts:223`** (confirmed by the sync reviewer) — the undo window's timer commits the
+  removal on its own 7-second clock while the toast pauses its own countdown on hover, so Undo after the
+  timer fired only rewrites a record the commit already took: the session stays hidden and the delete
+  still goes out. Cancelling work that is already in flight needs a decision about what the server half
+  of it should do, which is more than a local fix.
+- **`sync/sync-context-impl.tsx:298`** (confirmed by the same reviewer) — the snapshot-materialization
+  cooldown is a timestamp in a map and its `finally` deletes whatever entry is there, so an older request
+  that outlived the cooldown clears the newer one's registration and can then write its older snapshot
+  over newer messages. A generation per session is the fix; the current code carries no such notion.
 - **`notifications/runtime.js:505`** (suspected, from the same reviewer as the flush fix above) — the
   `question.asked` path still replaces a pending question notification instead of coalescing it in a
   map the way the permission path does, so a burst of questions may announce only the last one. It
@@ -1152,7 +1187,7 @@ questions rather than local fixes.
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 653, web 1 105 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 659, web 1 105 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
