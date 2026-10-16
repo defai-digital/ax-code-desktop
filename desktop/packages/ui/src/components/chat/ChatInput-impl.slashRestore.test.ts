@@ -45,6 +45,10 @@ describe("chat slash commands keep the composer's own state", () => {
     const returns = chain.match(/\n {8}return\n/g) ?? []
     expect(handBacks.length).toBeGreaterThan(0)
     expect(handBacks.length).toBe(returns.length)
-    expect(chain).toMatch(/releaseConsumedComposerState\(\)\r?\n\s*return\b/)
+    // …and it is the branch's first statement: a branch that awaits before handing the state back (a `/compact`
+    // that sends, a `/summary` that waits) left the files attached *during* that await to be replaced by the
+    // pre-submit snapshot, and evaluated the session guard after the command had created or switched a session.
+    const atBranchHead = chain.match(/\{\r?\n {8}releaseConsumedComposerState\(\)/g) ?? []
+    expect(atBranchHead.length).toBe(handBacks.length)
   })
 })

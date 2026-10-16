@@ -1706,8 +1706,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         }
       }
 
-
       if (commandName === "undo" && currentSessionId) {
+        releaseConsumedComposerState()
         // Every other slash branch reports its failure. These two let the rejection out of `handleSubmit`, which
         // clears the composer and drops the promise: a failed revert showed nothing at all.
         try {
@@ -1716,22 +1716,22 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.undoFailed"))
         }
-        releaseConsumedComposerState()
         return
       } else if (commandName === "redo" && currentSessionId) {
+        releaseConsumedComposerState()
         try {
           await useSessionUIStore.getState().handleSlashRedo(currentSessionId)
           scrollToBottom?.()
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.redoFailed"))
         }
-        releaseConsumedComposerState()
         return
       } else if (commandName === "timeline" && currentSessionId) {
-        setTimelineDialogOpen(true)
         releaseConsumedComposerState()
+        setTimelineDialogOpen(true)
         return
       } else if (commandName === "compact" && currentSessionId) {
+        releaseConsumedComposerState()
         try {
           await sessionActions.waitForConnectionOrThrow()
           const sdk = axCodeClient.getSdkClient()
@@ -1744,9 +1744,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.compactFailed"))
         }
-        releaseConsumedComposerState()
         return
       } else if (commandName === "summary" && currentSessionId) {
+        releaseConsumedComposerState()
         try {
           await sessionActions.waitForConnectionOrThrow()
           // Everything after `/summary ` is an optional topic hint
@@ -1774,9 +1774,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.summaryFailed"))
         }
-        releaseConsumedComposerState()
         return
       } else if (commandName === "workspace-review" && (currentSessionId || newSessionDraftOpen)) {
+        releaseConsumedComposerState()
         try {
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.review.visible")
@@ -1797,12 +1797,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.reviewFailed"))
         }
-        releaseConsumedComposerState()
         return
       } else if (
         (commandName === "plan" || commandName === "plan-feature") &&
         (currentSessionId || newSessionDraftOpen)
       ) {
+        releaseConsumedComposerState()
         try {
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.plan.visible")
@@ -1823,9 +1823,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.planFeatureFailed"))
         }
-        releaseConsumedComposerState()
         return
       } else if (commandName === "catch-up" && (currentSessionId || newSessionDraftOpen)) {
+        releaseConsumedComposerState()
         try {
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.catchup.visible")
@@ -1846,9 +1846,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.catchUpFailed"))
         }
-        releaseConsumedComposerState()
         return
       } else if (commandName === "debug" && (currentSessionId || newSessionDraftOpen)) {
+        releaseConsumedComposerState()
         try {
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.debug.visible")
@@ -1869,9 +1869,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.debugFailed"))
         }
-        releaseConsumedComposerState()
         return
       } else if (commandName === "weigh" && (currentSessionId || newSessionDraftOpen)) {
+        releaseConsumedComposerState()
         try {
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.weigh.visible")
@@ -1892,9 +1892,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.weighFailed"))
         }
-        releaseConsumedComposerState()
         return
       } else if (commandName === "explore" && (currentSessionId || newSessionDraftOpen)) {
+        releaseConsumedComposerState()
         try {
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.explore.visible")
@@ -1915,7 +1915,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.exploreFailed"))
         }
-        releaseConsumedComposerState()
         return
       }
     }
