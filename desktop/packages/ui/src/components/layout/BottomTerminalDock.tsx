@@ -95,10 +95,14 @@ export const BottomTerminalDock: React.FC<BottomTerminalDockProps> = ({ isOpen, 
 
     window.addEventListener("pointermove", handlePointerMove)
     window.addEventListener("pointerup", handlePointerUp, { once: true })
+    // A pointer the platform cancels (a touch that becomes a scroll, the window losing the pointer) never reports
+    // `pointerup`, and the dock would keep resizing until the next one.
+    window.addEventListener("pointercancel", handlePointerUp, { once: true })
 
     return () => {
       window.removeEventListener("pointermove", handlePointerMove)
       window.removeEventListener("pointerup", handlePointerUp)
+      window.removeEventListener("pointercancel", handlePointerUp)
     }
   }, [isFullscreen, isMobile, isResizing, setBottomTerminalHeight, setBottomTerminalOpen])
 
@@ -111,6 +115,17 @@ export const BottomTerminalDock: React.FC<BottomTerminalDockProps> = ({ isOpen, 
 
   const handlePointerDown = (event: React.PointerEvent) => {
     if (!isOpen || isFullscreen) return
+    // Capture the pointer: the drag listens on `window`, and a release outside the Electron window is not
+    // delivered there — the dock then kept following the pointer with no button down. With the capture, the
+    // release (and a cancellation) reaches the window listeners like any other event. The sibling splitters
+    // (SplitPaneLayout, ContextPanel, useSidebarResize) capture for the same reason.
+    try {
+      if (typeof event.currentTarget.setPointerCapture === "function") {
+        event.currentTarget.setPointerCapture(event.pointerId)
+      }
+    } catch {
+      // A pointer the platform already released cannot be captured; the drag still works by pointerup.
+    }
     setIsResizing(true)
     startYRef.current = event.clientY
     startHeightRef.current = appliedHeight
