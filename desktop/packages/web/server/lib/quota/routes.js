@@ -1,3 +1,16 @@
+/**
+ * Answer an unexpected failure with a stable message and log the detail. The raw exception
+ * message can carry absolute paths (fs errors, the quota module specifier), and the sibling
+ * ax-code routes keep it out of the response for the same reason.
+ */
+const sendQuotaError = (res, message, error) => {
+  console.error(`${message}:`, error)
+  if (res.headersSent) {
+    return
+  }
+  res.status(500).json({ error: message })
+}
+
 export function registerQuotaRoutes(app, { getQuotaProviders }) {
   app.get("/api/quota/providers", async (_req, res) => {
     try {
@@ -5,8 +18,7 @@ export function registerQuotaRoutes(app, { getQuotaProviders }) {
       const providers = listConfiguredQuotaProviders()
       res.json({ providers })
     } catch (error) {
-      console.error("Failed to list quota providers:", error)
-      res.status(500).json({ error: error.message || "Failed to list quota providers" })
+      sendQuotaError(res, "Failed to list quota providers", error)
     }
   })
 
@@ -20,8 +32,7 @@ export function registerQuotaRoutes(app, { getQuotaProviders }) {
       const result = await fetchQuotaForProvider(providerId)
       res.json(result)
     } catch (error) {
-      console.error("Failed to fetch quota:", error)
-      res.status(500).json({ error: error.message || "Failed to fetch quota" })
+      sendQuotaError(res, "Failed to fetch quota", error)
     }
   })
 }
