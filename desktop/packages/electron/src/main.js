@@ -33,7 +33,7 @@ const { FOCUS_MAIN_WINDOW_ACTION, resolveFocusMainWindowAction } = require("./fo
 const { mapWithConcurrency } = require("./map-with-concurrency")
 const { assertDesktopReadFileAllowed } = require("./desktop-read-file-policy")
 const { sanitizeDesktopWindowTitle } = require("./desktop-window-title")
-const { shouldIncludeNativeSearchEntry, toNativeSearchRelativePath } = require("./desktop-file-search")
+const { shouldIncludeNativeSearchEntry, shouldSearchNativeRoot, toNativeSearchRelativePath } = require("./desktop-file-search")
 const { AX_CODE_INSTALL_DOCS_URL, GITHUB_BUG_REPORT_URL, GITHUB_FEATURE_REQUEST_URL } = require("./support-urls")
 const { createSupervisionFsm } = require("./supervision-fsm")
 const { buildComputerUseServerEnv } = require("./computer-use-server-env")
@@ -2945,6 +2945,9 @@ handleCommand("desktop_search_files", async (args) => {
   const resultType = options.type === "directory" ? "directory" : "file"
   const limit = Number.isFinite(options.limit) && options.limit > 0 ? Math.min(Math.floor(options.limit), 1000) : 200
   const resolvedRoot = path.resolve(root)
+  // The renderer names this root, so it is not necessarily the project it searched before:
+  // refuse one the read path would deny rather than enumerating a credential store.
+  if (!shouldSearchNativeRoot(resolvedRoot)) return []
   try {
     if (!(await fsp.stat(resolvedRoot)).isDirectory()) return []
   } catch {
