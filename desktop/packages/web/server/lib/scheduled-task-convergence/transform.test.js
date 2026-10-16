@@ -88,6 +88,18 @@ describe("slotTitle", () => {
     expect(title).toBe("x".repeat(199))
     expect(title).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
   })
+
+  it("does not cut inside a surrogate pair when it reserves room for the suffix", () => {
+    // A fan-out slot cuts the name at 194 (200 - " (1/2)".length) and the emoji sits on units
+    // 194-195, so cutting there kept its high surrogate alone — and the pair check could not see it,
+    // because the value handed to the clamp was already short enough to return unchanged.
+    const name = `${"x".repeat(193)}🚀${"y".repeat(50)}`
+    const title = slotTitle(name, 0, 2)
+
+    expect(title).toBe(`${"x".repeat(193)} (1/2)`)
+    expect(title).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+    expect(title.length).toBeLessThanOrEqual(200)
+  })
 })
 
 describe("transformDesktopScheduledTask", () => {

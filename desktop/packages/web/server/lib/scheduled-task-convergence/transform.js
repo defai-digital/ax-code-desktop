@@ -193,12 +193,15 @@ export const isSlashCommandPrompt = (prompt) => typeof prompt === "string" && pr
 // is persisted as the runtime task title, and half a pair renders as a
 // replacement character. Mirrors truncateToCodeUnits in the UI fan-out helper
 // (desktop/packages/ui/src/lib/scheduledTaskTransform.ts), which must stay in
-// sync with this file.
-const clampTitle = (value) => {
-  if (value.length <= MAX_RUNTIME_TITLE_LENGTH) {
+// sync with this file. The limit is a parameter because the multi-slot path
+// reserves room for its suffix first: cutting the name with `slice` there put a
+// lone high surrogate at the boundary, and the early return below then skipped
+// the pair check entirely.
+const clampTitle = (value, limit = MAX_RUNTIME_TITLE_LENGTH) => {
+  if (value.length <= limit) {
     return value
   }
-  let end = MAX_RUNTIME_TITLE_LENGTH
+  let end = limit
   const boundary = value.charCodeAt(end - 1)
   if (boundary >= 0xd800 && boundary <= 0xdbff) {
     end -= 1
@@ -220,7 +223,7 @@ export const slotTitle = (name, index, total) => {
   // and dropped them, with no warning, before recording the task as migrated.
   const suffix = ` (${index + 1}/${total})`
   const room = Math.max(0, MAX_RUNTIME_TITLE_LENGTH - suffix.length)
-  return `${clampTitle(name.slice(0, room))}${suffix}`
+  return `${clampTitle(name, room)}${suffix}`
 }
 
 /**
