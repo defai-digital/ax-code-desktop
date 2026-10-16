@@ -477,11 +477,10 @@ new test fails without it.
 | `MiniMax-M3` (ax-code, read-only) | `web/server/lib/{quota,security,preview,text}`, `ui/src/contexts` |
 | `mimo-v2.6-pro` (ax-code, read-only) | `electron/src`, `electron/scripts` |
 
-Two reviewers returned nothing usable: `mimo-v2.6-pro` spent its budget re-issuing
-identical greps and reported no confirmed bugs, and the Grok CLI run for `layout` stopped
-after its preamble. `k3-256k` had been refused by the upstream provider with an HTTP 403
-permission denial, not a rate limit, and `glm-5.3` was not needed this round. No reviewer
-reported a rate limit or a truncated answer.
+`mimo-v2.6-pro` returned nothing usable: it spent its budget re-issuing identical greps
+and reported no confirmed bug. `k3-256k` had been refused by the upstream provider with an
+HTTP 403 permission denial, not a rate limit, and `glm-5.3` was not needed this round. No
+reviewer reported a rate limit or a truncated answer.
 
 ### `3aa60f9c` fix(sync): keep a failed reply, read and send from looking like a success
 
@@ -564,6 +563,21 @@ Confirmed in the source, not yet fixed:
 - **`removeSelectedCatalog` has no `catch`** (`sections/skills/catalog/SkillsCatalogPage.tsx:143-162`):
   a failed settings write escapes as an unhandled rejection, the dialog stays open and
   nothing tells the user the catalog was not removed.
+- **A preview probe that answers 403 or 404 re-registers the target forever**
+  (`layout/ContextPanel-impl.tsx:773`): the branch treats a proxy refusal and an upstream's
+  own 403/404 alike, so the iframe never mounts and the target POST repeats without a bound.
+- **The address bar misses in-page navigation** (`layout/ContextPanel-impl.tsx:1772`): the
+  `did-navigate-in-page` handler reads `detail.url` while the desktop browser reports the
+  URL the way its sibling helpers read it, so an anchor jump or `pushState` leaves the bar
+  and the open-externally button on the previous URL.
+- **A command reply that lands after the agent browser unmounted restores the closed
+  browser** (`layout/EmbeddedWebMcpBrowser.tsx:197`): `lifecycleRef` is not bumped when the
+  pane unmounts, so the reply passes the lifecycle check and writes `phase: "ready"` with
+  the `browserId` the cleanup had just cleared.
+- **The non-Electron iframe browser can be left behind a full-screen loading overlay**
+  (`layout/ContextPanel-impl.tsx:1677`): it is cleared only by the iframe's `load` event,
+  it has no `pointer-events-none`, and the iframe pane has no timeout, where the desktop
+  pane caps the same wait at 30 s. A page whose subresources never finish takes the clicks.
 - Two SUSPECTED leads: the resource preview's staleness guard compares only its URI, and
   the MCP OAuth callback page can re-exchange a single-use code when its effect re-runs.
 
