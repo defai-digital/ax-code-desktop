@@ -4188,6 +4188,7 @@
   "onboarding.remoteConnection.probe.unreachableMessage": "Kh\u00f4ng truy c\u1eadp \u0111\u01b0\u1ee3c m\u00e1y ch\u1ee7. Ki\u1ec3m tra k\u1ebft n\u1ed1i m\u1ea1ng v\u00e0 x\u00e1c minh \u0111\u1ecba ch\u1ec9 m\u00e1y ch\u1ee7.",
   "onboarding.remoteConnection.probe.incompatibleMessage": "M\u00e1y ch\u1ee7 \u0111\u00e3 ph\u1ea3n h\u1ed3i nh\u01b0ng kh\u00f4ng t\u01b0\u01a1ng th\u00edch v\u1edbi phi\u00ean b\u1ea3n AX Code n\u00e0y.",
   "onboarding.remoteConnection.probe.updateRecommendedMessage": "M\u00e1y ch\u1ee7 y\u00eau c\u1ea7u m\u00e1y kh\u00e1ch AX Code m\u1edbi h\u01a1n tr\u01b0\u1edbc khi k\u1ebft n\u1ed1i.",
+  "onboarding.desktopRecovery.error.actionFailed": "Kh\u00f4ng th\u00e0nh c\u00f4ng. H\u00e3y ki\u1ec3m tra k\u1ebft n\u1ed1i r\u1ed3i th\u1eed l\u1ea1i.",
   "onboarding.desktopRecovery.localUnavailable.title": "AX Code c\u1ee5c b\u1ed9 kh\u00f4ng kh\u1ea3 d\u1ee5ng",
   "onboarding.desktopRecovery.localUnavailable.description": "Kh\u00f4ng kh\u1edfi \u0111\u1ed9ng \u0111\u01b0\u1ee3c AX Code CLI ho\u1eb7c ch\u01b0a \u0111\u01b0\u1ee3c c\u00e0i \u0111\u1eb7t. H\u00e3y c\u00e0i AX Code ho\u1eb7c k\u1ebft n\u1ed1i v\u1edbi m\u00e1y ch\u1ee7 t\u1eeb xa.",
   "onboarding.desktopRecovery.localUnavailable.retry": "Th\u1eed l\u1ea1i c\u1ee5c b\u1ed9",

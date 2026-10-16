@@ -4182,6 +4182,7 @@
   "onboarding.remoteConnection.probe.unreachableMessage": "Server tidak dapat dijangkau. Periksa koneksi jaringan Anda dan pastikan alamat server.",
   "onboarding.remoteConnection.probe.incompatibleMessage": "Server merespons tetapi tidak kompatibel dengan versi AX Code ini.",
   "onboarding.remoteConnection.probe.updateRecommendedMessage": "Server memerlukan klien AX Code yang lebih baru sebelum menghubungkan.",
+  "onboarding.desktopRecovery.error.actionFailed": "Tidak berhasil. Periksa koneksi lalu coba lagi.",
   "onboarding.desktopRecovery.localUnavailable.title": "AX Code Lokal Tidak Tersedia",
   "onboarding.desktopRecovery.localUnavailable.description": "CLI AX Code tidak dapat dijalankan atau tidak terpasang. Pasang AX Code atau hubungkan ke server remote sebagai gantinya.",
   "onboarding.desktopRecovery.localUnavailable.retry": "Coba Lagi Lokal",

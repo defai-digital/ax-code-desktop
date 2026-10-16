@@ -4188,6 +4188,7 @@
   "onboarding.remoteConnection.probe.unreachableMessage": "Der Server ist nicht erreichbar. Pr\u00fcfe deine Netzwerkverbindung und die Serveradresse.",
   "onboarding.remoteConnection.probe.incompatibleMessage": "Der Server hat geantwortet, ist aber nicht mit dieser AX Code-Version kompatibel.",
   "onboarding.remoteConnection.probe.updateRecommendedMessage": "Der Server erfordert einen neueren AX Code-Client, bevor eine Verbindung m\u00f6glich ist.",
+  "onboarding.desktopRecovery.error.actionFailed": "Das hat nicht funktioniert. Pr\u00fcfen Sie die Verbindung und versuchen Sie es erneut.",
   "onboarding.desktopRecovery.localUnavailable.title": "Lokales AX Code nicht verf\u00fcgbar",
   "onboarding.desktopRecovery.localUnavailable.description": "Die AX Code-CLI konnte nicht gestartet werden oder ist nicht installiert. Installiere AX Code oder verbinde dich stattdessen mit einem Remote-Server.",
   "onboarding.desktopRecovery.localUnavailable.retry": "Lokal erneut versuchen",

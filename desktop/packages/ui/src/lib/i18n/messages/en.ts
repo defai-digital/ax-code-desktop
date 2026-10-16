@@ -2687,6 +2687,7 @@ export const dict = {
     "Server responded but is not compatible with this AX Code version.",
   "onboarding.remoteConnection.probe.updateRecommendedMessage":
     "Server requires a newer AX Code client before connecting.",
+  "onboarding.desktopRecovery.error.actionFailed": "That did not work. Check the connection and try again.",
   "onboarding.desktopRecovery.localUnavailable.title": "Local AX Code Unavailable",
   "onboarding.desktopRecovery.localUnavailable.description":
     "AX Code CLI could not be started or is not installed. Install AX Code or connect to a remote server instead.",

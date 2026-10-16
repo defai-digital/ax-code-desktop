@@ -4188,6 +4188,7 @@
   "onboarding.remoteConnection.probe.unreachableMessage": "\u670d\u52a1\u5668\u65e0\u6cd5\u8fde\u63a5\u3002\u8bf7\u68c0\u67e5\u7f51\u7edc\u8fde\u63a5\u5e76\u786e\u8ba4\u670d\u52a1\u5668\u5730\u5740\u3002",
   "onboarding.remoteConnection.probe.incompatibleMessage": "\u670d\u52a1\u5668\u5df2\u54cd\u5e94\uff0c\u4f46\u4e0e\u6b64 AX Code \u7248\u672c\u4e0d\u517c\u5bb9\u3002",
   "onboarding.remoteConnection.probe.updateRecommendedMessage": "\u8fde\u63a5\u524d\uff0c\u670d\u52a1\u5668\u8981\u6c42\u4f7f\u7528\u8f83\u65b0\u7684 AX Code \u5ba2\u6237\u7aef\u3002",
+  "onboarding.desktopRecovery.error.actionFailed": "\u64cd\u4f5c\u672a\u6210\u529f\u3002\u8bf7\u68c0\u67e5\u8fde\u63a5\u540e\u91cd\u8bd5\u3002",
   "onboarding.desktopRecovery.localUnavailable.title": "\u672c\u5730 AX Code \u4e0d\u53ef\u7528",
   "onboarding.desktopRecovery.localUnavailable.description": "\u65e0\u6cd5\u542f\u52a8 AX Code CLI\uff0c\u6216\u5c1a\u672a\u5b89\u88c5\u3002\u8bf7\u5b89\u88c5 AX Code\uff0c\u6216\u6539\u4e3a\u8fde\u63a5\u8fdc\u7a0b\u670d\u52a1\u5668\u3002",
   "onboarding.desktopRecovery.localUnavailable.retry": "\u91cd\u8bd5\u672c\u5730",
