@@ -1320,6 +1320,21 @@ were the higher-yield half, and five of their findings are fixed below.
   while electron-builder also takes `--win=nsis` and `-w`/`-m`/`-l`, so a cross-platform package staged
   the *host's* runtime tree (the launcher check passed and the packaged build then reported a
   placeholder skip instead of failing). The sibling `packaging-target.mjs` reads both forms.
+- **`db83f382`** — the JSON tree's collapsed set is initialized once, from the first document, and its
+  entries are node ids — which are paths. FilesView renders the viewer for another file in the same
+  slot, so switching files applied the previous document's paths to the new one: a shared path collapsed
+  it to that row, a disjoint one left it fully expanded instead of stopping at the initial depth.
+- **`9f080d2d`** — the sidebar file tree implements the same three dialogs as the Files view and only
+  the Files view's branches were guarded: a typed `sub/x.txt` or `../x.txt` was joined onto the dialog's
+  directory and wrote outside it (with enough `..`, outside the project) while the original directory
+  was refreshed, so the result was invisible; and `rename` replaces its target, so renaming a file onto a
+  sibling's name destroyed that file behind a "Renamed successfully" toast.
+- **`9ca2f478`** — the same four dialog branches closed as a success when the runtime refused the
+  operation by resolving `{ success: false }` (a channel `.catch` cannot see): the user read a refused
+  create, rename or delete as done.
+- **`4060c66d`** — a project action's only duplicate guard was the `projectActionRuns` snapshot, which
+  the store learns about only after `createSession`, a 350 ms wait and the terminal claim, so two clicks
+  in that window both reached `terminal.sendInput` and ran the command twice in one shell.
 
 ### Fixed from the audits of this series' own commits
 
@@ -1618,7 +1633,7 @@ Round six and seven are complete: every confirmed finding is fixed.
 - Final state after the ninth round, with each command's exit status captured rather than inferred
   from a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0, `pnpm run check:locales` 0.
-- Test totals at that run: ui 2 725, web 1 117 (+2 skipped), electron 589, root scripts 179
+- Test totals at that run: ui 2 730, web 1 117 (+2 skipped), electron 589, root scripts 179
   (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 695 keys and 61 035 translated
   entries; the ninth round added one key (`sessions.sidebar.session.export.failed`), translated in
   every catalog.
@@ -1628,16 +1643,22 @@ Round six and seven are complete: every confirmed finding is fixed.
   and release contract.
 - `pnpm run build` passes (3/3 turbo tasks) — last run before the ninth round; that round touched no
   bundling input.
-- One flake observed in an earlier round: `web/server/lib/ax-code/routes.test.js` "deduplicates
-  concurrent prompt_async requests for the same session message" failed once
-  during a run that overlapped a build, and passed both in isolation and on two
-  later full runs. The test races two supertest requests against an in-flight
-  fetch it releases by hand, so CPU contention can close its window; nothing in
-  this series touches that dedupe path. The eighth and ninth rounds added no new
-  sample: the full runs after their commits were clean.
+- Two flakes observed, both in the web package, both unexplained and neither reproducible:
+  - `server/lib/ax-code/routes.test.js` "deduplicates concurrent prompt_async requests for the same
+    session message" failed once during a run that overlapped a build, and passed in isolation and on
+    two later full runs. The test races two supertest requests against an in-flight fetch it releases
+    by hand, so CPU contention can close its window; nothing in this series touches that dedupe path.
+  - `server/lib/ax-code/core-routes.test.js` "should call gracefulShutdown with exitProcess: true on
+    /api/system/shutdown" failed once in the ninth round's final full run — `gracefulShutdown` was never
+    called, and that test does not assert the response status, so a 4xx/5xx under parallel load would
+    look exactly like this. It passes three times in isolation and the full web suite passed (1 117
+    tests) on the immediate re-run. Nothing in this series touches `core-routes.js` or that route.
+  Two samples of "a web test that makes a real HTTP request fails only under parallel load" are not
+  enough to name a cause, and the series records them rather than closing them.
 - Two follow-up commits fix defects in this series' own output rather than in the
   product: `1359da50` moves the change list's prefetch effect off a per-render
   array (a hooks-lint warning and a redundant parent notification), and `2b27bd59`
   types the github test's fetch mock (an unused-parameter lint error and a
   zero-length tuple that failed `tsc`). The ninth round's audits played the same
   role for the eighth round's commits, and five of their findings are fixed above.
+
