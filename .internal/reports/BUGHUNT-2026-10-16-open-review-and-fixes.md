@@ -1305,6 +1305,138 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Twenty-fifth round
+
+The UI primitives tree (last read in the first round) and its entry point, the web package's own source tree,
+the electron main process, the server modules this record mentions least (the scheduled-task convergence
+migrator, the magic-prompt store, the session-folder routes, the projects/notifications/desktop helpers), and —
+for the fourth round running — an audit of the previous round's own commits.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | `ui/src/components/ui/**`, `ui/src/main.tsx` |
+| ax-code `deepseek-flash` | `desktop/packages/web/src/**` |
+| Grok CLI | `desktop/packages/electron/src/**` |
+| ax-code `glm-5.3` | `web/server/lib/{scheduled-task-convergence,magic-prompts,session-folders}/**` |
+| ax-code `qwen/qwen3.8-flash` | `web/server/lib/{projects,notifications,desktop}/**` and the small cache/handler helpers |
+| Claude Code CLI | an audit of `git diff 67f599dc HEAD` — the twenty-fourth round's seventeen commits |
+
+The audit cell produced no output at all, and the reason was a harness defect of the same family as the
+previous round's: its prompt-building function wrote the prompt file and echoed the path but never invoked a
+reviewer. The cell was found by requiring every expected `out-r25-*.txt` to exist rather than by reading the
+batch's status, and it was re-run directly. Its findings — four of the round's own fixes — are the first group
+below, which is what makes this lens worth its slot every round.
+
+### Fixed from the audit of the round's own commits
+
+- **`c77d78a9`** — `f365a32d` handed the consumed review drafts and files back for *every* parsed command, but
+  only the branches that `return` leave the text unsent: `/summary`, `/compact` or `/undo` in a new-session
+  draft (those branches need a session) fall through to the ordinary send, which carries the drafts folded into
+  the text and the attachments out with it. The same comments were therefore sent *and* put back, and the
+  attachment chips reappeared after a successful send. Each branch that handles its command hands the state back
+  before returning; nothing restores on the way in.
+- **`7795ad22`** — `8ccbcbd3` wrote the values captured in the render that started a save back into the form
+  after the `await`. The fields are still live while a save is in flight and `isSaving` only disables the button,
+  so typing during a save was replaced by the pre-save text, a rule added meanwhile by the pre-save list, and a
+  switch to another agent or command by the previous entry's values — baseline included. A value goes back into
+  its field only when that field still holds what was submitted, and the baseline is set from the rules that were
+  saved while the live list is left alone.
+- **`8d8516e3`** — `816df1ef` used `isAbsoluteChangedFilePath` for the turn's changed-files dropdown, but that
+  helper reads the shape `extractGitChangedFiles` builds (forward slashes, uppercase drive) while the dropdown's
+  entries come from `extractChangedFiles`, which copies what a tool reported (`C:\repo\a.ts`, `c:/repo/a.ts`).
+  The drive path was prefixed with the directory it already starts with. The tool-path helper added in the same
+  round normalizes both shapes and is used there now.
+- **`530facd4`** — `06f3ee15` attached the disk record's fallback to `onLatestError`, which fires only for a
+  write that is still the latest entry with nothing queued: a write that failed after the content moved on was
+  reported nowhere, so the record kept pointing at text the disk never received and a revert to the text the disk
+  *does* hold looked like "nothing to save". `PlanSaveQueue` reports every failed write through `onError` now, the
+  counterpart of `onSaved`.
+
+### Fixed from the UI primitives review
+
+- **`b911d2a0`** — the update dialog's changelog split fell back to the whole release body for a version whose
+  section is only its heading, so that version's card printed every other version's notes; and
+  `normalizeReleaseNotesForMarkdown` searched for `<script`/`<style` in a lowercased copy and applied those
+  offsets to the string it slices, so a character whose lowercase form is longer (`İ`) made the removal start
+  inside the block — the notes kept a stray fragment and dropped the text after it.
+- **`5c90dce3`** — the overlay scrollbar's drag mapped pointer movement over the full client height while the
+  thumb is positioned on a track 16 px shorter, so the content scrolled about 6% slower than the pointer and the
+  thumb drifted away from it: dragging the thumb to the end of its travel left the content short of the end.
+- **`29e8a715`** — the thumb unmounts as soon as the content stops overflowing, and the `pointerup` that clears
+  the drag flag goes to the element that captured the pointer. A drag interrupted that way left the flag set for
+  the life of the instance, and the bar then showed for every programmatic scroll the `suppressVisibility` and
+  `userIntentOnly` paths exist to hide.
+- **`4962256a`** — `normalizeToStep` derived its precision from the step and returned the value untouched when
+  that precision was zero, so a whole-number step enforced nothing: `1.5` was committed into the retention-days
+  field (and every other integer field) and the blur documented as forcing an off-step entry into range left it
+  as typed.
+
+### Fixed from the web package review
+
+- **`a45a935a`** — the loopback-URL rewrite checked a path parsed against the `app:` page origin and then handed
+  back a URL built for the loopback origin. `app:` is not a special scheme, so a backslash survives its parser
+  while the `http:` parser treats it as a separator and collapses the dot segments around it:
+  `/api/a\..\..\assets/x` passed the `/api/` prefix test and was fetched as `/assets/x`, outside the API tree,
+  with the app-protocol handler's own traversal guard bypassed because the request had been rebound. Both
+  branches now build the URL they return against the loopback origin and check *its* pathname.
+
+### Fixed from the electron review
+
+- **`0733d92d`** — a `.cmd` launcher is spawned through `cmd.exe` with `/s`, which strips the leading quote and
+  the last quote character of the `/c` string. The command line was `"C:\…\ax-code.cmd" serve --port 4096`, so the
+  quotes that went were the ones around the binary: cmd tried to run `C:\Program`. The staged launcher lives
+  under the install directory, which has a space on Windows, so this is the shape the runtime spawn and the
+  version probe actually use.
+- **`16b1648e`** — the walk resolves a *directory* it entered through a symlinked root before the deny policy
+  sees it, but a *file* was judged on the caller's path alone: searching `/tmp/alias` (a link to
+  `~/.config/git`) returned `credentials`, the name of a path `desktop_read_file` refuses and the walk follows
+  the link to. Only an entry that can appear in the results is resolved, so the walk does not pay one `realpath`
+  per entry.
+- **`033a129d`** — `agentOrigin` listed `127.0.0.1`, `localhost` and `[::1]` by hand, so a local service bound to
+  any other loopback address was read as a public `http:` page: the address bar marked the pane un-grantable and
+  the agent's navigate failed. It uses the same loopback helper the renderer protocol's checks use.
+
+### Fixed from the convergence and magic-prompt review
+
+- **`24a6e7c6`** — the scheduled-task migration classifies every *runtime* answer as retry or permanent so one
+  bad task cannot abort the pass, but a *local* failure had no such classification: a snippet directory that
+  cannot be read, or a project id the config layer refuses, threw out of both loops. The marker is written only
+  after the loops finish, so `attempts` never advanced, the attempts-exhausted branch could not fire, and every
+  project file sorted after the failing one was never migrated — its scheduled tasks stopped firing with one log
+  line to show for it. A project that fails this way is left for the next boot, like the runtime-unreachable case.
+- **`eec6fe57`** — the magic-prompt state file was written in place, so a process killed or a full disk halfway
+  through left partial JSON, and every later read refuses that file as corrupted — which turns both the list and
+  every future edit into a 500. The only in-app recovery from there is `resetAllOverrides`, which drops every
+  stored override rather than the one whose write was interrupted. The write goes through a temp file and a
+  rename, as every sibling persistence path in this tree already does.
+
+### Fixed from the notifications review
+
+- **`955ee2cf`** — the permission-ask notification path read `settings.notifyOnQuestion`, the toggle that belongs
+  to `question.asked` (which reads it for its own path), and never consulted `notifyOnPermission`: turning
+  "Questions" off silenced permission asks, and turning "Permissions" off still announced them. The server is the
+  only notifier while the window is unfocused, so a silenced ask leaves the user with no idea an agent is blocked.
+- **`c5e7352d`** — the question path deletes its debounce entry before awaiting the settings read and the
+  template variables (which resolve a git command), so a reply landing in that window found nothing to cancel and
+  the "Input needed" notification fired seconds after the user had answered. The permission path cancels for
+  exactly this reason; the question path now does too, and a new ask clears the session's answered mark.
+
+### Reported, verified, and not changed
+
+- **An in-flight `realpath` promise never expires** (SUSPECTED, the qwen run). A hung OS-level lookup pins every
+  later resolution of that path. Sharing the in-flight promise *is* the cache's purpose — it is what keeps
+  concurrent callers from running the same lookup — and the hang it would have to be rescued from is an OS
+  condition the cache cannot fix: a deadline would issue a second lookup against the same hung mount. No failure
+  was demonstrated for it.
+- **The IME guard ahead of every shortcut** (SUSPECTED, the audit). The guard covers all shortcuts although the
+  comment that justifies it is about Escape arming the double-Escape abort. The project's own
+  `isIMECompositionEvent` — used by the composer's handler — defines "composing" as exactly
+  `isComposing || keyCode === 229`, and the helper documents why both signals are needed. Narrowing the guard
+  would trade a real abort defect for a speculative shortcut annoyance.
+- **`notifyAgentCompletion` treating a Tauri `undefined`/`null` result as success** (SUSPECTED, the web review).
+  The `result == null` branch is deliberate — it is what a legacy `desktop_notify` command returns — and the test
+  "treats legacy null desktop results as successful" documents it.
+
 ## Twenty-fourth round
 
 The composer's shell surface — the slash-command branches and what the submit path consumes before them —
@@ -2921,6 +3053,27 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
+- Latest full run, after the twenty-fifth round's fixes (each command's exit status captured, not inferred from a
+  pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+  `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 939, web 1 276 (+2 skipped),
+  0 `FAIL` lines, 14 locales / 4 802 keys / 62 426 translated entries. The lint run's only output is the
+  pre-existing `react-hooks/exhaustive-deps` warning in `ui/src/sync/use-sync.ts`. The first full run of this set
+  failed one web test — see the `401` flake below — and both the web package alone (1 276 + 2 skipped) and the
+  full suite were re-run green, which is the run recorded here.
+- The `401` flake again, and now with a quiet machine: `server/lib/ax-code/config-entity-routes.test.js` "still
+  reports 500 for an unexpected mutation failure" answered `401` where `500` is expected, a response no app in
+  that tree can produce (its shared guard is not mounted by any of these test apps). It passes alone (7 tests),
+  and the web package and the full suite pass on the next run. This is the sixth file to show the signature
+  recorded in the twenty-second round; the mechanism is still unexplained and the note there stands.
+- Every fix in this round carries the regression test named in its commit, and each was verified by running that
+  test against the pre-fix source and observing the stated failure, then against the fixed source and observing it
+  pass. The assertions are behavioural wherever the module has a surface a test can drive — `stageHunk`,
+  `mergeChildSessionMessages`, `toAbsoluteToolPath`, both skill installers' backup directories, `BranchSelector`
+  through a deferred `getRootBranch`, `FileMentionAutocomplete` through a pending search, the scrollbar through a
+  rendered thumb and pointer events, the `PlanSaveQueue`, the notification runtime, `resolveSpawnInvocation`,
+  `collectNativeSearchResults` and the app-protocol rewrite — and against the source where the component cannot be
+  rendered (`AgentsPage`, `CommandsPage`, `PlanView`, `ChatInput-impl`, `TurnChangedFilesDropdown`), as the earlier
+  rounds did.
 - Latest full run, after the twenty-fourth round's fixes (each command's exit status captured, not inferred from
   a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 597, ui 2 928, web 1 271 (+2 skipped),
