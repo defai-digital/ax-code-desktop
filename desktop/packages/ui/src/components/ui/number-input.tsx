@@ -138,9 +138,18 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
           return
         }
 
-        commitValue(parsed)
+        // Commit only a value the field can keep as typed. Committing a clamped or
+        // step-normalized value fed it straight back through `value`, and the effect above
+        // then replaced the draft mid-keystroke: typing "75" into a min-50 field became
+        // "50" and then "505" -> 200. An out-of-range or off-step entry is forced into
+        // range on blur, which already normalizes and re-renders the field.
+        const clamped = clamp(parsed, min, max)
+        const normalized = normalizeToStep(clamped, step)
+        if (normalized === parsed) {
+          onValueChange(normalized)
+        }
       },
-      [commitValue, onClear],
+      [max, min, onClear, onValueChange, step],
     )
 
     const handleBlur = React.useCallback(
