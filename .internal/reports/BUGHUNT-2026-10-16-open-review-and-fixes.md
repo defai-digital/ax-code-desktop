@@ -955,6 +955,13 @@ prompt; two runs ended in a transport failure and produced nothing, and are list
   the surrogate-pair check never ran on that path: a name with a non-BMP character on the cut boundary
   produced a title ending in a lone high surrogate, which the runtime stores as a replacement character.
   The UI's `truncateToCodeUnits`, which the comment says must stay in sync, already behaved this way.
+- **`2e7b1456`** — New File, New Folder, Rename and Delete all closed their dialog after the Files API
+  resolved, and `finishDialogOperation` only closes the dialog. The API reports failure by resolving
+  `{ success: false }` — the editor save and the hunk revert both treat that as a failure — so the
+  dialog closed with no toast at all: the user believed the file had been created, renamed or deleted
+  when nothing had happened, and the rejection path this API does not use was the only error branch.
+  Each branch reports the failure and leaves the dialog open now. This view had no test harness; it has
+  one now, and the refused-creation case fails against the previous code.
 - **`a23a8519`** — two more from the views reviewer. The pull request section's focus and visibility
   handlers decided whether to refresh from a value computed when the effect last ran, and that effect
   re-runs when the entry's `lastRefreshAt` changes — so once any refresh had happened the answer was
@@ -967,12 +974,6 @@ prompt; two runs ended in a transport failure and produced nothing, and are list
 
 Read against the source and confirmed, waiting for a fix rather than a re-check:
 
-- **`FilesView-impl.tsx:1209` (and 1233, 1265, 1303)** — New File, New Folder, Rename and Delete call
-  `finishDialogOperation()` after the Files API resolves, and `finishDialogOperation` only closes the
-  dialog. A result of `{ success: false }` — which the API's own type allows, and which the editor save
-  and the hunk revert both treat as a failure — therefore closes the dialog with a success toast
-  suppressed and no error at all: the user believes the file was created, renamed or deleted when
-  nothing happened. `failDialogOperation` is only reachable from the rejection path.
 - **`IntegrateCommitsSection.tsx:307`** (suspected) — `handleAbort` toasts "aborted" and clears the
   persisted conflict state, but `abortIntegrate` swallows both exec failures it performs, so a failed
   worktree removal leaves the half-finished cherry-pick on disk while the UI reports success.
@@ -1128,7 +1129,7 @@ questions rather than local fixes.
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 651, web 1 100 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 653, web 1 100 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
