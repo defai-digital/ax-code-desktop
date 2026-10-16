@@ -68,9 +68,12 @@ function createLanguageController({ read, write, systemLanguages, onChange = () 
       const patch = { ...validatePatch(value) }
       const next = chain.then(async () => {
         const candidate = { ...preferences, ...patch, revision: preferences.revision + 1 }
+        // Resolve the state before the write. Reading it afterwards meant a throwing
+        // system-language lookup rejected a save that had already been committed, and the
+        // caller retried a state that was already correct.
+        const state = resolvePreferences(candidate, systemLanguages())
         await write(candidate)
         preferences = candidate
-        const state = get()
         try {
           onChange(state)
         } catch (error) {

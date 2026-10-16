@@ -142,4 +142,19 @@ describe("desktop language preferences", () => {
       warning.mockRestore()
     }
   })
+
+  test("a system-language read that throws rejects without committing the patch", async () => {
+    const writes = []
+    const controller = createLanguageController({
+      read: () => null,
+      write: async (value) => {
+        writes.push(value)
+      },
+      systemLanguages: () => {
+        throw new Error("ipc down")
+      },
+    })
+    await expect(controller.update({ interface: "fr" })).rejects.toThrow("ipc down")
+    expect(writes).toEqual([])
+  })
 })
