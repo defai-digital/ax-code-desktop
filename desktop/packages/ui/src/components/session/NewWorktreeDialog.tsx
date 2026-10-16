@@ -599,9 +599,21 @@ export function NewWorktreeDialog({ open, onOpenChange, onWorktreeCreated }: New
   }, [branches, projectDirectory, newBranchState.sourceBranch])
 
   // Reset state on each open. Resetting on close would empty the form during
-  // the close animation, causing visible flicker.
+  // the close animation, causing visible flicker. The reset runs once per open:
+  // `generateUniqueSlug` is derived from the worktree list, so a background create
+  // or remove - the multi-run launcher, a worktree session, or the sidebar's
+  // rediscovery after a project change - re-ran this effect and replaced whatever
+  // the user had typed with a fresh random slug.
+  const initializedForCurrentOpen = React.useRef(false)
   React.useEffect(() => {
-    if (!open) return
+    if (!open) {
+      initializedForCurrentOpen.current = false
+      return
+    }
+    if (initializedForCurrentOpen.current) {
+      return
+    }
+    initializedForCurrentOpen.current = true
 
     abortValidation()
     setMode("new-branch")
