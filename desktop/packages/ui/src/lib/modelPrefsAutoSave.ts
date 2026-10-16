@@ -27,44 +27,59 @@ export const startModelPrefsAutoSave = () => {
   // already match) produces no change, so the user's first click became that first,
   // skipped change and never reached the server.
   const initialPrefs = useUIStore.getState()
+  // The list the server is known to hold: seeded with the values the app started from, and
+  // advanced only when a write succeeds. Marking a payload before the request instead, and
+  // rolling that mark back on failure, lost a change whenever two flushes overlapped: the
+  // second rollback restored the first one's payload, which the server had never received, and
+  // every later flush then saw the store equal to it and sent nothing.
   let lastSent: { favoriteModels: ModelRef[]; recentModels: ModelRef[] } | null = {
     favoriteModels: initialPrefs.favoriteModels.slice(),
     recentModels: initialPrefs.recentModels.slice(),
   }
+  // The payload currently on the wire, so a flush that lands while it is in flight does not
+  // send the same list twice without pretending the write already succeeded.
+  let inFlight: { favoriteModels: ModelRef[]; recentModels: ModelRef[] } | null = null
+
+  const samePrefs = (
+    a: { favoriteModels: ModelRef[]; recentModels: ModelRef[] } | null,
+    b: { favoriteModels: ModelRef[]; recentModels: ModelRef[] },
+  ): boolean =>
+    Boolean(a && refsEqual(a.favoriteModels, b.favoriteModels) && refsEqual(a.recentModels, b.recentModels))
 
   const flush = () => {
     timer = null
     const state = useUIStore.getState()
     const payload = { favoriteModels: state.favoriteModels, recentModels: state.recentModels }
 
-    if (
-      lastSent &&
-      refsEqual(lastSent.favoriteModels, payload.favoriteModels) &&
-      refsEqual(lastSent.recentModels, payload.recentModels)
-    ) {
+    if (samePrefs(lastSent, payload) || samePrefs(inFlight, payload)) {
       return
     }
 
-    const previousSent = lastSent
     const sent = {
       favoriteModels: payload.favoriteModels.slice(),
       recentModels: payload.recentModels.slice(),
     }
-    // Marked before the request so a flush that runs while it is in flight does not
-    // send the same list twice.
-    lastSent = sent
+    inFlight = sent
 
-    void updateDesktopSettings(payload).catch((error) => {
-      // The write failed, so the server still holds `previousSent`. Recording `sent`
-      // would make every later flush skip the value and lose the preference for good.
-      if (lastSent === sent) {
-        lastSent = previousSent
-      }
-      console.warn("Failed to auto-save model preferences:", error)
-      toast.error(formatMessage(useI18nStore.getState().dictionary, "settings.toast.saveFailed"), {
-        id: "model-prefs-auto-save-failed",
-      })
-    })
+    void updateDesktopSettings(payload).then(
+      () => {
+        lastSent = sent
+        if (inFlight === sent) {
+          inFlight = null
+        }
+      },
+      (error) => {
+        // The write failed, so the server still holds `lastSent`. Releasing the mark lets a
+        // later flush try again with the same list.
+        if (inFlight === sent) {
+          inFlight = null
+        }
+        console.warn("Failed to auto-save model preferences:", error)
+        toast.error(formatMessage(useI18nStore.getState().dictionary, "settings.toast.saveFailed"), {
+          id: "model-prefs-auto-save-failed",
+        })
+      },
+    )
   }
 
   const schedule = () => {

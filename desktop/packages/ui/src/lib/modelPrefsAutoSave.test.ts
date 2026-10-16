@@ -116,4 +116,39 @@ describe("model preferences autosave", () => {
 
     expect(updateDesktopSettings).not.toHaveBeenCalled()
   })
+
+  test("keeps trying a list whose overlapping writes both failed", async () => {
+    // Two flushes in flight at once, both rejected: the rollback used to restore the *first*
+    // flush's payload, which the server never received, and every later flush then saw the
+    // store equal to it and sent nothing — that favourite was never persisted at all.
+    stop = startModelPrefsAutoSave()
+    const pending: Array<{ resolve: () => void; reject: (error: Error) => void }> = []
+    updateDesktopSettings.mockImplementation(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          pending.push({ resolve: () => resolve(), reject: (error: Error) => reject(error) })
+        }),
+    )
+
+    const first = [{ providerID: "defai", modelID: "deepseek-flash" }]
+    const second = [{ providerID: "claude-code", modelID: "claude-sonnet" }]
+    useUIStore.setState({ favoriteModels: first })
+    await vi.advanceTimersByTimeAsync(flushDelayMs)
+    useUIStore.setState({ favoriteModels: second })
+    await vi.advanceTimersByTimeAsync(flushDelayMs)
+    expect(updateDesktopSettings).toHaveBeenCalledTimes(2)
+
+    for (const call of pending) {
+      call.reject(new Error("offline"))
+    }
+    await vi.advanceTimersByTimeAsync(0)
+
+    // Back to the first list: the server still has neither, so it has to go out again.
+    updateDesktopSettings.mockClear()
+    useUIStore.setState({ favoriteModels: first })
+    await vi.advanceTimersByTimeAsync(flushDelayMs)
+
+    expect(updateDesktopSettings).toHaveBeenCalledTimes(1)
+    expect(updateDesktopSettings.mock.calls[0][0]).toMatchObject({ favoriteModels: first })
+  })
 })
