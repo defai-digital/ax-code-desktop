@@ -1212,8 +1212,10 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
             if (result.success) {
               toast.success(t("sidebarFilesTree.toast.fileCreated"))
               await refreshDirectory(parentPath)
+              finishDialogOperation()
+            } else {
+              failDialogOperation(t("sidebarFilesTree.toast.operationFailed"))
             }
-            finishDialogOperation()
           })
           .catch(() => failDialogOperation(t("sidebarFilesTree.toast.operationFailed")))
           .finally(done)
@@ -1236,8 +1238,10 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
             if (result.success) {
               toast.success(t("sidebarFilesTree.toast.folderCreated"))
               await refreshDirectory(parentPath)
+              finishDialogOperation()
+            } else {
+              failDialogOperation(t("sidebarFilesTree.toast.operationFailed"))
             }
-            finishDialogOperation()
           })
           .catch(() => failDialogOperation(t("sidebarFilesTree.toast.operationFailed")))
           .finally(done)
@@ -1283,8 +1287,10 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
                   setShowMobilePageContent(false)
                 }
               }
+              finishDialogOperation()
+            } else {
+              failDialogOperation(t("sidebarFilesTree.toast.operationFailed"))
             }
-            finishDialogOperation()
           })
           .catch(() => failDialogOperation(t("sidebarFilesTree.toast.operationFailed")))
           .finally(done)
@@ -1321,8 +1327,10 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
                   setShowMobilePageContent(false)
                 }
               }
+              finishDialogOperation()
+            } else {
+              failDialogOperation(t("sidebarFilesTree.toast.operationFailed"))
             }
-            finishDialogOperation()
           })
           .catch(() => failDialogOperation(t("sidebarFilesTree.toast.operationFailed")))
           .finally(done)
