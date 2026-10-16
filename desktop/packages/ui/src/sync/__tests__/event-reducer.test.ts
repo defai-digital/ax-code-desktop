@@ -749,9 +749,16 @@ describe("message.part.delta offset reconciliation", () => {
     expect(textOf(draft)).toBe("hello world")
   })
 
-  test("drops a delta that continues beyond the local text until a snapshot heals the gap", () => {
+  test("drops a delta that continues beyond the local text and asks for a snapshot", () => {
     const draft = state({ part: PartMap.from({ msg_1: [textPart("hel")] }) })
-    applyDelta(draft, 10, "lo world")
+    const result = applyDelta(draft, 10, "lo world")
+
     expect(textOf(draft)).toBe("hel")
+    // Dropping the delta without requesting a snapshot lost its text for good: the
+    // sibling branches that cannot apply a delta all ask for one.
+    expect(result).toEqual({
+      changed: false,
+      materialization: { type: "incomplete-session-snapshot", messageID: "msg_1", partID: "prt_1" },
+    })
   })
 })

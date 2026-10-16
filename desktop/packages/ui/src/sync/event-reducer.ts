@@ -777,10 +777,15 @@ export function applyDirectoryEvent(
         // Blindly appending replayed a delta a second time as duplicated text, and
         // dropped one that arrived into a gap in the wrong place.
         if (props.offset > current.length) {
-          // Gap: the snapshot channel will deliver the missing text; appending this
-          // delta at the wrong place would corrupt it.
+          // Gap: this delta continues text the local copy does not have. Appending it
+          // here would place it after the wrong text, and dropping it silently lost the
+          // text for good - nothing else requests a snapshot, so ask for one exactly as
+          // the missing-parts branches above do.
           syncDebug.reducer.partDeltaGap(props.messageID, props.partID, props.offset, current.length)
-          return false
+          return {
+            changed: false,
+            materialization: { type: "incomplete-session-snapshot", messageID: props.messageID, partID: props.partID },
+          }
         }
         nextValue = current + props.delta.slice(current.length - props.offset)
       } else {
