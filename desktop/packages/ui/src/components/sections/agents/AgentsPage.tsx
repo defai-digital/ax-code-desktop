@@ -463,17 +463,20 @@ export const AgentsPage: React.FC = () => {
     [t],
   )
 
-  React.useEffect(() => {
-    const applyPermissionState = (rules: PermissionRule[]) => {
-      const normalized = normalizeRuleset(rules)
-      const nextGlobal = getGlobalWildcardAction(normalized)
-      const filtered = filterRulesAgainstGlobal(normalized, nextGlobal)
-      setGlobalPermission(nextGlobal)
-      setPermissionBaseline(filtered)
-      setPermissionRules(filtered)
-      return { global: nextGlobal, rules: filtered }
-    }
+  // The ruleset and the baseline the badges compare against, together — the editor's view of what the file holds.
+  // Defined outside the populate effect because a save has to refresh the same pair: the reload no longer
+  // re-populates the form for the same key, so the effect that used to do this does not run after a save.
+  const applyPermissionState = React.useCallback((rules: PermissionRule[]) => {
+    const normalized = normalizeRuleset(rules)
+    const nextGlobal = getGlobalWildcardAction(normalized)
+    const filtered = filterRulesAgainstGlobal(normalized, nextGlobal)
+    setGlobalPermission(nextGlobal)
+    setPermissionBaseline(filtered)
+    setPermissionRules(filtered)
+    return { global: nextGlobal, rules: filtered }
+  }, [])
 
+  React.useEffect(() => {
     const populateKey = isNewAgent ? `draft:${agentDraft?.name ?? ""}` : `agent:${selectedAgentName ?? ""}`
     if (loadedAgentKeyRef.current === populateKey) {
       return
@@ -562,7 +565,7 @@ export const AgentsPage: React.FC = () => {
       // Nothing selected and no draft: forget the key, so selecting the same agent again populates.
       loadedAgentKeyRef.current = null
     }
-  }, [agentDraft, isNewAgent, selectedAgent, selectedAgentName])
+  }, [agentDraft, applyPermissionState, isNewAgent, selectedAgent, selectedAgentName])
 
   const isDirty = React.useMemo(() => {
     const initial = initialStateRef.current
@@ -652,6 +655,10 @@ export const AgentsPage: React.FC = () => {
         setDescription(description.trim())
         setModel(model.trim())
         setPrompt(prompt.trim())
+        // The second baseline the populate effect used to refresh through `applyPermissionState`. Left at the
+        // pre-save rules, every rule the save had just written stayed badged as added or modified, and
+        // `revertRule` put back an action the file no longer holds.
+        const savedPermissionState = applyPermissionState(permissionRules)
         initialStateRef.current = {
           draftName: "",
           draftScope: "user",
@@ -661,8 +668,8 @@ export const AgentsPage: React.FC = () => {
           temperature,
           topP,
           prompt: prompt.trim(),
-          globalPermission,
-          permissionRules,
+          globalPermission: savedPermissionState.global,
+          permissionRules: savedPermissionState.rules,
         }
       }
 

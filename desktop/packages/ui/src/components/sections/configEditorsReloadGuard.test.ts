@@ -59,6 +59,17 @@ describe("config editors keep unsaved edits across a list reload", () => {
     )
   })
 
+  test("the agents editor refreshes its permission baseline on save", async () => {
+    // The populate effect set that baseline while it re-populated the form, and a save no longer reaches it: the
+    // badges kept calling a rule the save had just written "new"/"modified" and `revertRule` put back the
+    // pre-save action.
+    const source = await readPage("agents/AgentsPage.tsx")
+
+    const saveIndex = source.indexOf("if (success && !isNewAgent)")
+    expect(saveIndex).toBeGreaterThan(-1)
+    expect(source.indexOf("applyPermissionState(permissionRules)", saveIndex)).toBeGreaterThan(saveIndex)
+  })
+
   test("the agents editor clears a half-typed permission rule only when it re-populates", async () => {
     // The reset ran before the key guard, so the background reload of `agents` that the guard exists to ignore
     // also wiped the rule the user was in the middle of typing.
