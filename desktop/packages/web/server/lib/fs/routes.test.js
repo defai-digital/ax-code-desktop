@@ -1,4 +1,5 @@
 import { EventEmitter } from "events"
+import { validateHeaderValue } from "node:http"
 import path from "path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -922,5 +923,85 @@ describe("fs core file adapter responses", () => {
     expect(res.statusCode).toBe(400)
     expect(res.body).toEqual({ error: "Cannot delete the workspace root" })
     expect(fsPromises.rm).not.toHaveBeenCalled()
+  })
+})
+
+describe("fs raw download", () => {
+  it("keeps a non-Latin-1 download name out of the header value", async () => {
+    const content = Buffer.from("pdf")
+    const coreFileAdapter = { raw: vi.fn(async () => ({ buffer: content, mimeType: "application/pdf" })) }
+    const fsPromises = { stat: vi.fn(async () => ({ isDirectory: () => false })) }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, coreFileAdapter)
+
+    const res = await callRoute(getRoute("GET", "/api/fs/raw"), {
+      query: { path: "/repo/報告書.pdf", download: "true" },
+    })
+
+    // Node only accepts code points up to 0xFF in a header value, so interpolating
+    // the raw name threw ERR_INVALID_CHAR and the 500 JSON body was saved as the
+    // user's download. The quoted fallback must stay valid and filename* must carry
+    // the real name.
+    const disposition = res.getHeader("Content-Disposition")
+    expect(() => validateHeaderValue("Content-Disposition", disposition)).not.toThrow()
+    expect(disposition).toContain("filename*=UTF-8''%E5%A0%B1%E5%91%8A%E6%9B%B8.pdf")
+    expect(res.statusCode).toBe(200)
+    expect(res.sent).toEqual(content)
+  })
+})
+
+describe("fs rename", () => {
+  const missing = () => Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+
+  const registerRename = (existingPaths) => {
+    const fsPromises = {
+      realpath: vi.fn(async (targetPath) => {
+        if (existingPaths.includes(targetPath)) return targetPath
+        throw missing()
+      }),
+      rename: vi.fn(async () => undefined),
+    }
+    const { getRoute } = registerFs(fsPromises)
+    return { handler: getRoute("POST", "/api/fs/rename"), fsPromises }
+  }
+
+  it("refuses to replace a destination that already exists", async () => {
+    const { handler, fsPromises } = registerRename(["/repo", "/repo/a.txt", "/repo/b.txt"])
+
+    const res = await callRoute(handler, { body: { oldPath: "/repo/a.txt", newPath: "/repo/b.txt" } })
+
+    // `fs.rename` replaces the destination atomically, so this destroyed b.txt's
+    // contents and still answered success.
+    expect(res.statusCode).toBe(409)
+    expect(res.body).toEqual({ error: "Destination path already exists" })
+    expect(fsPromises.rename).not.toHaveBeenCalled()
+  })
+
+  it("renames to a destination that does not exist yet", async () => {
+    const { handler, fsPromises } = registerRename(["/repo", "/repo/a.txt"])
+
+    const res = await callRoute(handler, { body: { oldPath: "/repo/a.txt", newPath: "/repo/b.txt" } })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ success: true, path: "/repo/b.txt" })
+    expect(fsPromises.rename).toHaveBeenCalledWith("/repo/a.txt", "/repo/b.txt")
+  })
+
+  it("allows a case-only rename on a case-insensitive filesystem", async () => {
+    // The destination resolves to the source entry, which is not a collision.
+    const fsPromises = {
+      realpath: vi.fn(async (targetPath) => {
+        if (targetPath === "/repo/A.txt") return "/repo/a.txt"
+        if (targetPath === "/repo/a.txt" || targetPath === "/repo") return targetPath
+        throw missing()
+      }),
+      rename: vi.fn(async () => undefined),
+    }
+    const { getRoute } = registerFs(fsPromises)
+    const res = await callRoute(getRoute("POST", "/api/fs/rename"), {
+      body: { oldPath: "/repo/a.txt", newPath: "/repo/A.txt" },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(fsPromises.rename).toHaveBeenCalledWith("/repo/a.txt", "/repo/A.txt")
   })
 })

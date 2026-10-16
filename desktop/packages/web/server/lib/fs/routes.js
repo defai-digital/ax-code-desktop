@@ -1101,7 +1101,19 @@ export const registerFsRoutes = (app, dependencies) => {
       const download = req.query.download === "true"
       if (download) {
         const fileName = path.basename(canonicalPath)
-        res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`)
+        // Header values only accept code points up to 0xFF: interpolating the raw
+        // name made setHeader throw ERR_INVALID_CHAR for a non-Latin-1 name, and the
+        // 500 JSON body was then saved as the user's download. The quoted fallback
+        // keeps the header valid; filename* carries the real name (RFC 5987).
+        const asciiFileName = fileName.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_")
+        const encodedFileName = encodeURIComponent(fileName).replace(
+          /['()*]/g,
+          (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+        )
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${asciiFileName}"; filename*=UTF-8''${encodedFileName}`,
+        )
       }
 
       if (!coreFileAdapter || typeof coreFileAdapter.raw !== "function") {
@@ -1285,8 +1297,22 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(writableNew.statusCode).json({ error: writableNew.error })
       }
 
-      await fsPromises.rename(canonicalOld.path, writableNew.path)
-      return res.json({ success: true, path: writableNew.path })
+      // `fsPromises.rename` replaces an existing destination, so renaming onto a path
+      // that already exists destroyed the file that was there and still answered
+      // success. A case-only rename on a case-insensitive filesystem resolves to the
+      // same entry, which is not a collision.
+      const destinationRealPath = await fsPromises.realpath(writableNew.path).catch(() => null)
+      if (destinationRealPath && destinationRealPath !== canonicalOld.path) {
+        return res.status(409).json({ error: "Destination path already exists" })
+      }
+
+      // The containment check handed back the canonical destination, which for a
+      // case-only rename is the spelling the file already has: renaming to it would
+      // change nothing while answering success. Act on the requested spelling.
+      const renameTarget = destinationRealPath ? resolvedNew.resolved : writableNew.path
+
+      await fsPromises.rename(canonicalOld.path, renameTarget)
+      return res.json({ success: true, path: renameTarget })
     } catch (error) {
       const err = error
       if (err && typeof err === "object" && err.code === "ENOENT") {
