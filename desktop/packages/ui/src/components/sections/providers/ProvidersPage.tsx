@@ -122,7 +122,10 @@ export const ProvidersPage: React.FC = () => {
   const [privateGpuEndpointInputs, setPrivateGpuEndpointInputs] = React.useState<Record<string, string>>({})
   const [authBusyKey, setAuthBusyKey] = React.useState<string | null>(null)
   const [modelQuery, setModelQuery] = React.useState("")
-  const [pendingOAuth, setPendingOAuth] = React.useState<{ providerId: string; methodIndex: number } | null>(null)
+  // One slot per started flow: a single slot meant starting a second authorization replaced the first,
+  // so the first provider's paste-code field and Complete button disappeared while its URL and user
+  // code stayed on screen — the browser flow it had already opened could not be finished.
+  const [pendingOAuthKeys, setPendingOAuthKeys] = React.useState<ReadonlySet<string>>(() => new Set())
   const [oauthCodes, setOauthCodes] = React.useState<Record<string, string>>({})
   const [oauthDetails, setOauthDetails] = React.useState<
     Record<string, { url?: string; instructions?: string; userCode?: string }>
@@ -635,7 +638,7 @@ export const ProvidersPage: React.FC = () => {
       if (urlCandidate) {
         void openExternalUrl(urlCandidate)
       }
-      setPendingOAuth({ providerId, methodIndex })
+      setPendingOAuthKeys((prev) => new Set(prev).add(detailsKey))
       toast.message(t("settings.providers.page.toast.completeOAuthInBrowser"))
     } catch (error) {
       console.error("Failed to start OAuth flow:", error)
@@ -673,7 +676,12 @@ export const ProvidersPage: React.FC = () => {
       )
 
       setOauthCodes((prev) => ({ ...prev, [codeKey]: "" }))
-      setPendingOAuth(null)
+      setPendingOAuthKeys((prev) => {
+        if (!prev.has(codeKey)) return prev
+        const next = new Set(prev)
+        next.delete(codeKey)
+        return next
+      })
       try {
         await reloadAxCodeConfiguration({
           message: "Restarting AX Code to load provider credentials...",
@@ -1135,9 +1143,7 @@ export const ProvidersPage: React.FC = () => {
                             method.name ||
                             t("settings.providers.page.auth.oauthMethodFallback", { index: String(index + 1) })
                           const codeKey = `${candidateProviderId}:${methodIndex}`
-                          const isPending =
-                            pendingOAuth?.providerId === candidateProviderId &&
-                            pendingOAuth?.methodIndex === methodIndex
+                          const isPending = pendingOAuthKeys.has(codeKey)
 
                           return (
                             <div key={`${candidateProviderId}-${methodLabel}`} className="space-y-3">
@@ -1232,7 +1238,7 @@ export const ProvidersPage: React.FC = () => {
                                     onClick={() => handleOAuthComplete(candidateProviderId, methodIndex)}
                                     disabled={authBusyKey === `oauth-complete:${candidateProviderId}:${methodIndex}`}
                                   >
-                                    {authBusyKey === `oauth-complete:${candidateProviderId}:${index}`
+                                    {authBusyKey === `oauth-complete:${candidateProviderId}:${methodIndex}`
                                       ? t("settings.providers.page.actions.saving")
                                       : t("settings.providers.page.actions.complete")}
                                   </Button>
@@ -1432,8 +1438,7 @@ export const ProvidersPage: React.FC = () => {
                         method.name ||
                         t("settings.providers.page.auth.oauthMethodFallback", { index: String(index + 1) })
                       const codeKey = `${selectedProvider.id}:${methodIndex}`
-                      const isPending =
-                        pendingOAuth?.providerId === selectedProvider.id && pendingOAuth?.methodIndex === methodIndex
+                      const isPending = pendingOAuthKeys.has(codeKey)
 
                       return (
                         <div key={`${selectedProvider.id}-${methodLabel}`} className="space-y-3">
