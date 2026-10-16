@@ -1336,7 +1336,9 @@ line each names, and every confirmed one is fixed below.
 
 - **`7d029719`** — the hourly cleanup evicted any activity entry older than 24 h, but `updatedAt` only
   moves when the phase changes. A session that stayed busy aged out of the snapshot and the busy count
-  main reads before honouring the restart grace dropped to zero. Only idle entries are forgotten now.
+  main reads before honouring the restart grace dropped to zero. Only idle entries are forgotten now;
+  a stuck entry cannot wedge the restart path, because that path bounds its own grace
+  (`shouldSkipRestartForBusySessions`, 2 min) and restarts immediately when the runtime process is gone.
 
 - **`397407a1`** — the session-cleanup latch was cleared from inside the run, and the disabled/loading/
   cooldown skips return before the first `await`: an async function that returns before awaiting finishes
