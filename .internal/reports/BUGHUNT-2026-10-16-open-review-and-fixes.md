@@ -1244,11 +1244,11 @@ The one gap this section recorded is fixed:
   loaded" chip can outlive the file (deleted, or a branch without it). Cosmetic,
   and a TTL or invalidation has to be reconciled with the create flow that relies
   on misses not being cached.
-- **`desktop_search_files` accepts any absolute directory** and applies none of
-  the confinement `desktop_read_file` applies (HOME-relative `.ssh`, `.aws`,
-  `.config/ax-code`, `.env*`, `*.pem`…), so a compromised renderer can enumerate
-  names the reader denies. The in-code comment says the open root is intentional,
-  so this is a policy decision to confirm, not a silent fix.
+- **`desktop_search_files` accepts any absolute directory** — recorded here when the confinement was
+  missing, and stale by the time this list was re-checked: the credential denylist became a shared helper and
+  the search refuses a root it denies (recorded in "Fixed after this list was written"), and `e1cd91e7`
+  resolved the root through its symlinks before the policy sees it. The open-root policy itself is unchanged
+  — a project outside HOME is still searchable — which is the part this entry was right about.
 - **`useDiffHunkRevert` reconstructs the whole file from the cached diff** and
   writes it back, so an edit made after that diff was cached — an agent working
   while the reader looks at the diff — is overwritten by the reconstruction. The
