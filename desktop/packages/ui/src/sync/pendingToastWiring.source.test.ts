@@ -8,17 +8,23 @@ import { describe, expect, test } from "vitest"
 const readSource = () => readFile(path.resolve(__dirname, "sync-context-impl.tsx"), "utf8")
 
 describe("pending toast wiring", () => {
-  test("drops a session's pending toasts before the store lookup", async () => {
+  test("drops a session's pending toasts before every branch that returns", async () => {
     // The clear sat inside the `session.deleted` branch, which is after the `if (!store) … return` that a directory
-    // with no loaded child store hits: a session deleted there kept its keys for the life of the renderer.
+    // with no loaded child store hits: a session deleted there kept its keys for the life of the renderer. Moving
+    // it above the store lookup was not enough — the global branch above that one returns first for a
+    // `directory === "global"` lifecycle event, which is where a session no child store knows resolves to.
     const source = await readSource()
 
     const clearIndex = source.indexOf("clearPendingToastsForGoneSession(payload)")
-    // The early return that the delete branch sat behind; its comment is unique to that block.
-    const earlyReturnIndex = source.indexOf("// Try as global event for unknown directories")
+    // The global branch and the store lookup, in the order the handler reaches them.
+    const globalBranchIndex = source.indexOf("// Global events")
+    const storeLookupIndex = source.indexOf("// Try as global event for unknown directories")
     expect(clearIndex).toBeGreaterThan(-1)
-    expect(earlyReturnIndex).toBeGreaterThan(-1)
-    expect(clearIndex).toBeLessThan(earlyReturnIndex)
+    expect(globalBranchIndex).toBeGreaterThan(-1)
+    expect(storeLookupIndex).toBeGreaterThan(-1)
+    expect(clearIndex).toBeGreaterThan(source.indexOf("applySessionLifecycleEventToGlobalStore(payload)"))
+    expect(clearIndex).toBeLessThan(globalBranchIndex)
+    expect(clearIndex).toBeLessThan(storeLookupIndex)
   })
 
   test("treats an archived session like a deleted one", async () => {

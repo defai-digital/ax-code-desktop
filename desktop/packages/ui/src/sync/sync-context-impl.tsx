@@ -997,6 +997,11 @@ function handleEvent(
   // are outside the child-store slice-clone path (see sync/DOCUMENTATION.md).
   applySessionLifecycleEventToGlobalStore(payload)
 
+  // Every lifecycle event that reaches this handler passes here, before any branch that returns — the global
+  // branch below returns for `directory === "global"`, and the store lookup after it returns when no child store
+  // is loaded. A session that goes away takes its pending toasts with it on either path.
+  clearPendingToastsForGoneSession(payload)
+
   // Global events
   if (directory === "global" || !directory) {
     const recent = isRecentBoot()
@@ -1065,10 +1070,6 @@ function handleEvent(
       }
     }
   }
-
-  // Before the store lookup: a session that goes away takes its pending toasts with it, whether or not this
-  // directory's child store is loaded (the early return below used to skip it).
-  clearPendingToastsForGoneSession(payload)
 
   if (!store) {
     // Try as global event for unknown directories
