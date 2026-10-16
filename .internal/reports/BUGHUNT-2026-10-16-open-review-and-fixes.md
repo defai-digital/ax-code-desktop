@@ -1363,9 +1363,11 @@ leads, all five fixed.
 - **`POST /api/system/dev-shutdown` kills whatever listens on a caller-supplied loopback port**
   (`core-routes.js:316-345` with `killListenPort`): the caller (the app's own dev UI) sends the preview URLs,
   but nothing ties a named port to a preview server, so the runtime's own port could be named. The route
-  already requires the dev flag, a same-origin request and an authenticated UI session, and the correct fix —
-  kill only the ports the preview proxy registered — needs that runtime's private target registry, which the
-  status routes are not given; wiring it through is a design change rather than a bug fix. Recorded.
+  requires the dev flag and a same-origin request, and a UI session *when one is configured* — the
+  requirement is `if (uiAuthController)`, so a password-less server (where a session gate would mean nothing)
+  relies on the other two. The correct fix — kill only the ports the preview proxy registered — needs that
+  runtime's private target registry, which the status routes are not given; wiring it through is a design
+  change rather than a bug fix. Recorded.
 
 ## Fourteenth round
 
@@ -1456,17 +1458,19 @@ upstream comparison produced). The audit found five things in that work; all fiv
   `host`/`connection`/`content-length`, so the session cookie reaches the server and the gate cannot lock
   the app out. Fixed in **`a283fc56`** on that correction.
 - **`session-folders` GET echoes whatever the file holds** (`session-folders/routes.js:21-23`): a file
-  containing `[]`, `"x"` or `{"foldersMap":42}` is answered 200 with that JSON. Checked against the reader
-  and it is not a defect: the client guards every shape the reviewer named (`useSessionFoldersStore.ts:540-556`
-  requires `foldersMap` to be an object and `collapsedFolderIds` to be an array, and returns without
-  touching its state when the result carries no folders), so an invalid-but-parseable file leaves the
-  local folders alone instead of corrupting them. The writer is this repository's own POST path, which
-  already refuses a non-object body, and the corrupt-JSON case beside it is refused with 500. Verified and
-  not changed.
+  containing `[]`, `"x"` or `{"foldersMap":42}` is answered 200 with that JSON. Recorded here as harmless
+  because the client guards those shapes — which it does — and then **fixed in `615743d0`** after the
+  sixteenth round's falsification pass read it again: the guard was an object check, not the per-entry check
+  this entry described, so `{"foldersMap":{"/p":"oops"}}` reached the store and `getFoldersForScope` handed
+  a string to callers that map over it. Both the localStorage and the disk path go through one validating
+  reader now. The rest of the entry still holds: the writer is this repository's own POST path, which
+  refuses a non-object body, and the corrupt-JSON case beside it is refused with 500.
 - **`ErrorBoundary`'s copy timeout is never cleared** (`ui/ErrorBoundary.tsx:70`): the `setTimeout` that
-  restores the copy label is not stored, so nothing clears it on unmount. The instance is a class
-  component whose state survives re-renders, and the boundary only unmounts when the tree above it does,
-  so the deferred `setState` lands on a live instance in every path that exists today. Recorded.
+  restores the copy label is not stored, so nothing clears it on unmount. Recorded, with the bound the
+  falsification pass could confirm rather than the universal one this entry first claimed: the reset path is
+  safe (`handleReset` keeps the class instance mounted, so the pending timer fires on a live instance), and a
+  deferral remains because proving the rest would mean enumerating every scope-boundary mount site for one
+  that unmounts inside the 1 500 ms window.
 - **`AxCodeUpdateToast` reads `cliStatusRef.current` in its failure branch**
   (`update/AxCodeUpdateToast.tsx:97-117`), so the manual command it shows can lag the polling loop's latest
   state. The ref is written by that same loop and read immediately after a rejection, so the window is one
