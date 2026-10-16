@@ -1345,18 +1345,45 @@ commits. Everything found so far is fixed; what is still being verified is liste
   crash inside that undo window resurrected the session. The leftovers go through
   `keptForRecovery`/`persistPending()` like every other write.
 
-### Still being verified from this round
+### Fixed from the sync review
 
-- `ui/src/sync` (Grok CLI): a `session.status` snapshot applied by `bootstrapDirectory` can overwrite a
-  busy written while its request was in flight (the poll path already guards this with
-  `pickApplicableResyncedStatuses`); the question/permission snapshot guard compares request-time and
-  current id signatures, so a question asked and answered during the flight returns the signature to
-  its previous value and the answered question is merged back; and the reconnect path re-inserts an
-  archived parent session into the live list.
-- `ui/src/stores` (MiniMax-M3): `removeSessions` records no delete tombstone, so a reconnect snapshot
-  landing between the SDK call and the `session.deleted` event can bring the session back. Its three
-  SUSPECTED leads (worktree bootstrap poll timers after `clearWorktreeBootstrapState`, `toAbsolutePath`
-  with an empty base dir, `setSessionAutoAccept` broadcasting a stale value) are being checked.
+- **`784f8d17`** — three defects around a snapshot that arrives after a live change: `bootstrap.ts`
+  applied the `session.status` snapshot to every session it and the store named, so a
+  `session.status {busy}` that arrived while the request was in flight was overwritten with idle (the
+  poll path already dropped those entries with `pickApplicableResyncedStatuses`); the question and
+  permission resyncs (four sites, in `bootstrap.ts` and `sync-context-impl.tsx`) compared an id
+  signature taken before the request with the one after it, so a question asked *and answered* inside
+  that window left the signature back where it started and the answered question was merged back —
+  the directory now carries `blockingRequestRevision`, bumped by every question/permission event in
+  `event-reducer.ts` before its own dedupe, and the sites compare it in addition to the signature; and
+  the reconnect pass folded `session.get`'s answer into the live list without looking at
+  `time.archived`, so an archived parent — read only to materialize its child's messages — reappeared
+  in the sidebar's active list.
+
+### Fixed from the stores and worktrees review
+
+- **`436c7c23`** — `removeSessions` is the documented funnel for every delete path, but only the
+  `session.deleted` event path recorded a tombstone: the hard-delete flows remove the session
+  optimistically right after the server confirms, so a reconnect snapshot taken before the event (or a
+  dropped event) brought it back. A removal that took a session out of the lists records its ids now.
+  In the same commit, `worktreeBootstrap`'s poll loop consulted the generation counter only before
+  writing state, so a run retired by `clearWorktreeBootstrapState` (the worktree was removed) kept
+  asking the runtime for its status every 250 ms for the rest of the five-minute timeout; it settles on
+  the answer already on its way — the behaviour the two existing retired-poll tests pin — and starts no
+  further request.
+
+### Reported as suspected, verified and rejected (this round)
+
+- **`worktreeStatus.toAbsolutePath` fabricating a path from an empty base** (`worktreeStatus.ts:6-23`).
+  The function can produce `/.git` or `/etc/passwd` from an empty base, but nothing it produces reaches
+  a caller: every result goes through `derivePrimaryWorktreeRootFromGitDir`, whose `|| null` guard
+  returns null for `/.git` (an empty prefix) and for any path without the `.git`/`/.git/worktrees/`
+  markers, and `computeProjectRoot` then falls back to `directory`.
+- **`permissionStore.setSessionAutoAccept` broadcasting a stale `enabled` to descendants**
+  (`permissionStore.ts:296-307`). The scenario needs the first call's loop to run after the second
+  toggle, and it cannot: `set` and the loop over `resolveSessionScope` are one synchronous block with
+  no `await` between them, so the captured `enabled` is the live value for the session by the time the
+  loop reads it.
 
 ## Twelfth round
 
