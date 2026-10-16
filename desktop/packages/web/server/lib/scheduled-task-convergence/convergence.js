@@ -350,30 +350,45 @@ export const createScheduledTaskConvergence = (deps) => {
       // skipping. The write below removes exactly these from the file as it stands then, instead of
       // replacing it with the list read before the runtime calls.
       const settledTaskKeys = new Set()
-      for (const task of tasks) {
-        const outcome = await migrateTask({ projectID, projectPath, task, existingByTitle, now })
-        warnings.push(...outcome.warnings)
-        if (outcome.outcome === "retry") {
-          remaining.push(task)
-          continue
+      try {
+        for (const task of tasks) {
+          const outcome = await migrateTask({ projectID, projectPath, task, existingByTitle, now })
+          warnings.push(...outcome.warnings)
+          if (outcome.outcome === "retry") {
+            remaining.push(task)
+            continue
+          }
+          // Not a retry, so this task is settled either way: it was handed to the runtime or it is being
+          // skipped permanently. Both leave the project file.
+          settledTaskKeys.add(scheduledTaskKey(task))
+          if (outcome.outcome === "skipped") {
+            skipped.push({ project: projectID, task: outcome.taskLabel, reason: outcome.reason })
+            logger.warn("[ScheduledTaskMigration] task skipped", {
+              project: projectID,
+              task: outcome.taskLabel,
+              reason: outcome.reason,
+            })
+          }
         }
-        // Not a retry, so this task is settled either way: it was handed to the runtime or it is being
-        // skipped permanently. Both leave the project file.
-        settledTaskKeys.add(scheduledTaskKey(task))
-        if (outcome.outcome === "skipped") {
-          skipped.push({ project: projectID, task: outcome.taskLabel, reason: outcome.reason })
-          logger.warn("[ScheduledTaskMigration] task skipped", {
-            project: projectID,
-            task: outcome.taskLabel,
-            reason: outcome.reason,
-          })
-        }
+        retryableRemaining += remaining.length
+        remainingByFile.set(projectID, remaining)
+        await projectConfigRuntime.replaceScheduledTasks(projectID, (currentTasks) =>
+          currentTasks.filter((task) => !settledTaskKeys.has(scheduledTaskKey(task))),
+        )
+      } catch (error) {
+        // The runtime answers are classified retry-vs-permanent so that one bad task cannot abort the pass, but a
+        // *local* failure — a snippet directory that cannot be read, a project id the config layer refuses — was
+        // not, and it escaped both loops. The marker is only written once the loops finish, so the pass never
+        // advanced `attempts`, the attempts-exhausted branch could not fire, and every project file after this one
+        // was never migrated at all: their scheduled tasks simply stopped firing, with one log line to show for it.
+        // Left as a retry, the project is read again next boot like the runtime-unreachable case above.
+        retryableRemaining += tasks.length
+        remainingByFile.set(projectID, tasks)
+        logger.warn("[ScheduledTaskMigration] project left for next boot", {
+          project: projectID,
+          error: error?.message || String(error),
+        })
       }
-      retryableRemaining += remaining.length
-      remainingByFile.set(projectID, remaining)
-      await projectConfigRuntime.replaceScheduledTasks(projectID, (currentTasks) =>
-        currentTasks.filter((task) => !settledTaskKeys.has(scheduledTaskKey(task))),
-      )
     }
 
     if (retryableRemaining === 0) {

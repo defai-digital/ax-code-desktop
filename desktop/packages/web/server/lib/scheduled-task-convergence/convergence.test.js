@@ -8,7 +8,7 @@ import { createScheduledTaskConvergence } from "./convergence.js"
 
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} }
 
-const createHarness = async ({ runtimeTasks = [], runtimeHandler, listProjects, maxAttempts } = {}) => {
+const createHarness = async ({ runtimeTasks = [], runtimeHandler, listProjects, maxAttempts, expandSnippets } = {}) => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-scheduled-convergence-"))
   const projectsDir = path.join(tempRoot, "projects")
   const markerPath = path.join(tempRoot, "scheduled-tasks-migrated.json")
@@ -43,7 +43,7 @@ const createHarness = async ({ runtimeTasks = [], runtimeHandler, listProjects, 
     buildAxCodeUrl: () => "http://127.0.0.1:4096/",
     getAxCodeAuthHeaders: () => ({ authorization: "Basic test" }),
     waitForAxCodeReady: async () => {},
-    expandSnippets: (prompt) => prompt,
+    expandSnippets: expandSnippets || ((prompt) => prompt),
     logger: silentLogger,
     fetchImpl,
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
@@ -76,11 +76,46 @@ const dailyTask = (overrides = {}) => ({
   ...overrides,
 })
 
+
 describe("scheduled task convergence migration", () => {
   let cleanup = async () => {}
   afterEach(async () => {
     await cleanup()
     cleanup = async () => {}
+  })
+
+  it("keeps migrating the projects after the one a local failure aborts", async () => {
+    // A throw from the snippet expansion of one project's task escaped the whole pass: the marker is written only
+    // once the loops finish, so `attempts` never advanced, the attempts-exhausted branch could not fire, and every
+    // project file sorted after this one was never migrated — its scheduled tasks just stopped firing.
+    const harness = await createHarness({
+      maxAttempts: 2,
+      expandSnippets: (prompt) => {
+        if (prompt.includes("boom")) throw new Error("snippet directory unreadable")
+        return prompt
+      },
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("a.json", {
+      projectID: "proj-a",
+      projectPath: "/work/alpha",
+      scheduledTasks: [dailyTask({ execution: { prompt: "boom", providerID: "openai", modelID: "gpt" } })],
+    })
+    await harness.writeProject("b.json", {
+      projectID: "proj-b",
+      projectPath: "/work/beta",
+      scheduledTasks: [dailyTask({ id: "task-2", name: "Beta digest", execution: { prompt: "Summarize", providerID: "openai", modelID: "gpt" } })],
+    })
+
+    const result = await harness.convergence.migrate()
+
+    expect(result).toMatchObject({ migrated: false, reason: "retry-pending", attempts: 1 })
+    // The project after the failing one was migrated.
+    expect(harness.requests.find((request) => request.method === "POST")?.body?.title).toContain("Beta digest")
+    // The failing project keeps its task for the next boot, and the attempt was recorded.
+    const nextAttempt = await harness.readMarker()
+    expect(nextAttempt.attempts).toBe(1)
+    expect((await harness.readProject("a.json")).scheduledTasks).toHaveLength(1)
   })
 
   it("resolves a project whose id is too long for its config file name", async () => {
