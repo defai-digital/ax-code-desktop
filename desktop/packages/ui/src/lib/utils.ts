@@ -56,7 +56,11 @@ export const truncatePathMiddle = (value: string, options?: { maxLength?: number
 
   const segments = source.split("/")
   if (segments.length <= 1) {
-    return source
+    // A bare name has no directory prefix to abbreviate, but returning it whole ignored
+    // the budget the caller passed and the label it feeds overflowed anyway.
+    const head = Math.max(1, Math.ceil((maxLength - 1) / 2))
+    const tail = Math.max(1, maxLength - 1 - head)
+    return `${source.slice(0, head)}…${source.slice(source.length - tail)}`
   }
 
   const fileName = segments.pop() ?? ""
