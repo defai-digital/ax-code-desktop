@@ -6,6 +6,8 @@ import type { QueuedMessage } from "../stores/messageQueueStore"
 
 const RECENT_ABORT_WINDOW_MS_DELTA = 500
 
+const claimHookRef: { current: ClaimHook } = { current: null }
+
 let visibleAgents: Agent[] = []
 const sendMessageCalls: unknown[][] = []
 let sendShouldFail = false
@@ -98,6 +100,22 @@ vi.doMock("@/lib/i18n/store", () => ({
   formatMessage: (_dictionary: unknown, key: string) => key,
   useI18nStore: { getState: () => ({ dictionary: {} }) },
 }))
+
+// The claim runs between this window minting an id and sending with it; a test can have the claim
+// simulate the other window persisting *its* id first, which is the interleaving the shared id exists
+// to survive.
+type ClaimHook = (() => void) | null
+
+vi.doMock("@/stores/messageQueueStore", async () => {
+  const actual = await vi.importActual<typeof import("@/stores/messageQueueStore")>("@/stores/messageQueueStore")
+  return {
+    ...actual,
+    claimQueuedDispatch: (messageId: string) => {
+      claimHookRef.current?.()
+      return actual.claimQueuedDispatch(messageId)
+    },
+  }
+})
 
 const {
   buildQueuedAutoSendPayload,
@@ -374,6 +392,7 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     sendShouldFail = false
     toastErrorMock.mockClear()
     mockSessionAbortFlags.clear()
+    claimHookRef.current = null
     statusState.current = { "session-a": { type: "busy" } }
     useMessageQueueStore.setState({ queuedMessages: {} })
     useSyncNotificationStore.setState({
@@ -687,5 +706,72 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     // The lost claim must not have left the session marked in-flight forever.
     expect(sendMessageCalls).toHaveLength(1)
     expect(sendMessageCalls[0][0]).toBe("later queued message")
+  })
+})
+
+describe("useQueuedMessageAutoSend cross-window claim", () => {
+  let container: HTMLDivElement
+  let root: ReturnType<typeof createRoot>
+  let renderTick = 0
+
+  const Probe = ({ tick }: { tick: number }) => {
+    useQueuedMessageAutoSend(true)
+    return React.createElement("div", { "data-tick": tick })
+  }
+
+  const render = () => {
+    React.act(() => {
+      root.render(React.createElement(Probe, { tick: (renderTick += 1) }))
+    })
+  }
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+    renderTick = 0
+    sendMessageCalls.length = 0
+    sendShouldFail = false
+    claimHookRef.current = null
+    mockSessionAbortFlags.clear()
+    statusState.current = { "session-a": { type: "busy" } }
+    useMessageQueueStore.setState({ queuedMessages: {} })
+    useSyncNotificationStore.setState({
+      list: [],
+      index: {
+        session: { unseenCount: {}, unseenHasError: {} },
+        project: { unseenCount: {}, unseenHasError: {} },
+      },
+    })
+  })
+
+  afterEach(() => {
+    React.act(() => {
+      root.unmount()
+    })
+    container.remove()
+  })
+
+  test("sends the id the queue carries when the other window persisted one first", async () => {
+    // Two windows can both mint an id for the same entry, and the claim is not atomic with the write.
+    // Sending each window's own id delivered the prompt twice; sending the id the queue holds lets the
+    // server deduplicate it, which is what the mint-before-claim comment promises.
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+    const queuedId = useMessageQueueStore.getState().getQueueForSession("session-a")[0].id
+    claimHookRef.current = () => {
+      useMessageQueueStore.getState().assignMessageId("session-a", queuedId, "msg_from_other_window")
+    }
+
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+
+    expect(sendMessageCalls.length).toBe(1)
+    expect(sendOptionsOf(0)?.messageId).toBe("msg_from_other_window")
   })
 })

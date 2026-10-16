@@ -282,6 +282,16 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         return
       }
 
+      // The claim and the id write are not atomic either, so the entry may carry the other window's id
+      // by now. Both windows have to send the id the queue actually holds, or the duplicate send this
+      // comment describes is not deduplicated on the server — two different ids deliver the prompt
+      // twice, which is the case the shared id exists to prevent.
+      const dispatchMessageId =
+        useMessageQueueStore
+          .getState()
+          .getQueueForSession(sessionId)
+          .find((message) => message.id === payload.queuedMessageId)?.messageId ?? messageId
+
       inFlightSessionsRef.current.add(sessionId)
 
       // Take the entry out before the send: the chip stays interactive while the
@@ -302,7 +312,7 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
             agent: resolved.agent,
             variant: resolved.variant,
           },
-          messageId,
+          dispatchMessageId,
         )
       } catch (error) {
         console.warn("[queue] queued auto-send failed:", error)
