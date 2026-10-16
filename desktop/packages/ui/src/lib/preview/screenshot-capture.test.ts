@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest"
 
 import {
   formatPreviewAnnotationMarkdown,
+  isElementNode,
   isPreviewElementMetadata,
   renderPreviewScreenshot,
   type PreviewElementMetadata,
@@ -95,6 +96,29 @@ describe("renderPreviewScreenshot", () => {
       warn.mockRestore()
       delete (window as unknown as { __TAURI__?: unknown }).__TAURI__
       vi.useRealTimers()
+    }
+  })
+})
+
+describe("isElementNode", () => {
+  test("recognises an element built by another document", () => {
+    // The nodes these run on come from an iframe's document or from snapDOM's clone document, so
+    // `instanceof HTMLElement` (this module's constructor) was false for every one of them: the
+    // nested-scroll bake never recognised snapDOM's wrapper and `document.scrollingElement` was never read.
+    const iframe = document.createElement("iframe")
+    document.body.appendChild(iframe)
+    try {
+      const foreignDocument = iframe.contentDocument
+      const foreignElement = foreignDocument?.createElement("div")
+
+      expect(foreignElement instanceof HTMLElement).toBe(false)
+      expect(isElementNode(foreignElement)).toBe(true)
+      expect(isElementNode(document.createElement("span"))).toBe(true)
+      expect(isElementNode(document.createTextNode("x"))).toBe(false)
+      expect(isElementNode(null)).toBe(false)
+      expect(isElementNode(undefined)).toBe(false)
+    } finally {
+      iframe.remove()
     }
   })
 })

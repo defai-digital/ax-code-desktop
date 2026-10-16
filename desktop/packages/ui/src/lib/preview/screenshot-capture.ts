@@ -71,6 +71,17 @@ export const isPreviewElementMetadata = (value: unknown): value is PreviewElemen
   )
 }
 
+/**
+ * Whether a node is an element, in whatever realm it was built.
+ *
+ * `instanceof HTMLElement` compares against this module's constructor, and the nodes these run on come from
+ * another document — an iframe's, or the clone document snapDOM builds — so the check was false for every
+ * one of them: the nested-scroll bake never recognised snapDOM's own wrapper and applied its transform a
+ * second time, and `document.scrollingElement` was never read.
+ */
+export const isElementNode = (value: unknown): value is HTMLElement =>
+  typeof value === "object" && value !== null && (value as { nodeType?: unknown }).nodeType === 1
+
 export const formatPreviewAnnotationMarkdown = ({
   pageUrl,
   viewport,
@@ -532,11 +543,10 @@ const snapdomNestedScrollPlugin = {
         continue
       }
       const transform = `translate(${-spec.left}px, ${-spec.top}px)`
+      const firstChild = el.firstElementChild
       const existingWrapper =
-        el.children.length === 1 &&
-        el.firstElementChild instanceof HTMLElement &&
-        el.firstElementChild.style.willChange === "transform"
-          ? el.firstElementChild
+        el.children.length === 1 && isElementNode(firstChild) && firstChild.style.willChange === "transform"
+          ? firstChild
           : null
       if (existingWrapper) {
         existingWrapper.style.transform = transform
@@ -630,6 +640,13 @@ const fetchFrameResourceAsDataUrl = async (rawUrl: string, document: Document): 
     const proxyUrl = await getExternalResourceProxyUrl(url)
     const proxied = proxyUrl ? await fetchUrlAsDataUrl(proxyUrl, "include") : null
     if (proxied) return proxied
+    if (proxyUrl) {
+      // A registered target whose fetch failed is gone — the server restarted, or the HttpOnly cookie
+      // scoped to its proxy id expired. The cache entry outlives both (it is evicted on registration
+      // errors and on expiry, not here), so every later asset was answered with the blank placeholder
+      // until it expired; dropping it makes the next attempt register the target again.
+      previewProxyTargetCache.delete(getBrowserProxyTargetKey(url.toString()))
+    }
 
     return (await fetchUrlAsDataUrl(url.toString(), "omit")) ?? TRANSPARENT_IMAGE_PLACEHOLDER
   } catch {
@@ -787,6 +804,36 @@ const inlineIframeCaptureAssets = async (
   options: { applyLayoutWorkarounds?: boolean } = {},
 ): Promise<() => void> => {
   const restoreCallbacks: Array<() => void> = []
+  const restoreAll = () => {
+    for (let index = restoreCallbacks.length - 1; index >= 0; index -= 1) {
+      try {
+        restoreCallbacks[index]?.()
+      } catch {
+        /* best-effort restore */
+      }
+    }
+  }
+
+  try {
+    return await mutateIframeCaptureAssets(document, viewportWidth, viewportHeight, options, restoreCallbacks, restoreAll)
+  } catch (error) {
+    // The caller only receives the restore closure when this resolves, so a failure anywhere below was the
+    // one path where the live iframe kept the workarounds this applied — data-URL sources, a stripped
+    // `srcset`, frozen fixed elements — while the capture reported null. Restore what landed, then let the
+    // failure travel.
+    restoreAll()
+    throw error
+  }
+}
+
+const mutateIframeCaptureAssets = async (
+  document: Document,
+  viewportWidth: number,
+  viewportHeight: number,
+  options: { applyLayoutWorkarounds?: boolean },
+  restoreCallbacks: Array<() => void>,
+  restoreAll: () => void,
+): Promise<() => void> => {
   const view = document.defaultView ?? window
   const isVisibleInViewport = (element: Element): boolean => {
     if (element === document.documentElement || element === document.body) return true
@@ -881,15 +928,7 @@ const inlineIframeCaptureAssets = async (
     }),
   )
 
-  return () => {
-    for (let index = restoreCallbacks.length - 1; index >= 0; index -= 1) {
-      try {
-        restoreCallbacks[index]?.()
-      } catch {
-        /* best-effort restore */
-      }
-    }
-  }
+  return restoreAll
 }
 
 async function captureIframeSnapdomScreenshot(
@@ -908,7 +947,7 @@ async function captureIframeSnapdomScreenshot(
     const viewportWidth = Math.max(1, Math.ceil(frameWindow.innerWidth || iframe.clientWidth || iframeRect.width))
     const viewportHeight = Math.max(1, Math.ceil(frameWindow.innerHeight || iframe.clientHeight || iframeRect.height))
     const body = document.body
-    const scrollingElement = document.scrollingElement instanceof HTMLElement ? document.scrollingElement : null
+    const scrollingElement = isElementNode(document.scrollingElement) ? document.scrollingElement : null
     const windowScrollX = frameWindow.scrollX || 0
     const windowScrollY = frameWindow.scrollY || 0
     const pageScrollX = frameWindow.pageXOffset || 0
