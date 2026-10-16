@@ -20,6 +20,7 @@ export const WorktreeBranchDisplay: React.FC<WorktreeBranchDisplayProps> = ({
   const [editBranchName, setEditBranchName] = React.useState(currentBranch || "")
   const [isRenaming, setIsRenaming] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const sanitizedName = sanitizeBranchNameInput(editBranchName)
 
   const handleStartEdit = () => {
     if (!currentBranch || !onRename) return
@@ -30,11 +31,11 @@ export const WorktreeBranchDisplay: React.FC<WorktreeBranchDisplayProps> = ({
   }
 
   const handleSaveEdit = async () => {
-    if (!currentBranch || !onRename || !editBranchName.trim()) return
+    if (!currentBranch || !onRename) return
 
-    const sanitizedName = sanitizeBranchNameInput(editBranchName)
-    if (sanitizedName === currentBranch) {
-      setIsEditing(false)
+    // Nothing to rename, and nothing to say: the field already shows what git would be given,
+    // so the save button is disabled for both.
+    if (!sanitizedName || sanitizedName === currentBranch) {
       return
     }
 
@@ -81,7 +82,10 @@ export const WorktreeBranchDisplay: React.FC<WorktreeBranchDisplayProps> = ({
           <input
             ref={inputRef}
             value={editBranchName}
-            onChange={(e) => setEditBranchName(e.target.value)}
+            // Sanitized as it is typed, so the field shows the name git would be given: entering
+            // `feature a` for `feature-a` reads as the branch that already exists instead of
+            // looking like a rename that the save button then quietly drops.
+            onChange={(e) => setEditBranchName(sanitizeBranchNameInput(e.target.value))}
             className="flex-1 min-w-0 bg-transparent typography-ui-label outline-none placeholder:text-muted-foreground"
             placeholder={t("gitView.branch.namePlaceholder")}
             onKeyDown={handleKeyDown}
@@ -89,7 +93,7 @@ export const WorktreeBranchDisplay: React.FC<WorktreeBranchDisplayProps> = ({
           />
           <button
             type="submit"
-            disabled={isRenaming}
+            disabled={isRenaming || !sanitizedName || sanitizedName === currentBranch}
             aria-label={isRenaming ? t("gitView.branch.renameSaving") : t("gitView.branch.renameSave")}
             title={isRenaming ? t("gitView.branch.renameSaving") : t("gitView.branch.renameSave")}
             className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
