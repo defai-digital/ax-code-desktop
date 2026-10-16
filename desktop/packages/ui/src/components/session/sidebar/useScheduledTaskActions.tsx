@@ -15,6 +15,7 @@ import {
 } from "@/lib/scheduledTasksApi"
 import { buildRuntimeScheduledTaskPayloads, stripFanOutSuffix } from "@/lib/scheduledTaskTransform"
 import { ScheduledTaskEditorDialog, type ScheduledTaskEditorSubmit } from "../ScheduledTaskEditorDialog"
+import { ScheduledTaskRunHistoryDialog, type ScheduledTaskRunHistoryTarget } from "../ScheduledTaskRunHistoryDialog"
 import { normalizeDirectory } from "../scheduledTaskGroups"
 import {
   describeFamilySchedule,
@@ -40,6 +41,7 @@ export type ScheduledTaskActions = {
   toggleEnabled: (family: ScheduledTaskFamily, directory: string, enabled: boolean) => Promise<void>
   deleteTask: (family: ScheduledTaskFamily, directory: string) => Promise<void>
   runNow: (family: ScheduledTaskFamily, directory: string) => Promise<void>
+  openRunHistory: (family: ScheduledTaskFamily, directory: string, projectLabel: string) => void
   /** Row keys (`pendingEntryKey`) with a mutation in flight. */
   busyKeys: ReadonlySet<string>
   /** The editor and confirm dialogs; render once next to the list. */
@@ -59,6 +61,7 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
   const [editorOpen, setEditorOpen] = React.useState(false)
   const [editorTarget, setEditorTarget] = React.useState<EditorTarget | null>(null)
   const [busyKeys, setBusyKeys] = React.useState<ReadonlySet<string>>(() => new Set())
+  const [historyTarget, setHistoryTarget] = React.useState<ScheduledTaskRunHistoryTarget | null>(null)
 
   const markBusy = React.useCallback((key: string, busy: boolean) => {
     setBusyKeys((prev) => {
@@ -307,6 +310,15 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
     [loadGroup, markBusy, resolveCurrentFamily, t],
   )
 
+  const openRunHistory = React.useCallback((family: ScheduledTaskFamily, directory: string, projectLabel: string) => {
+    setHistoryTarget({
+      directory: normalizeDirectory(directory),
+      title: family.title,
+      projectLabel,
+      taskIDs: familyMemberIDs(family),
+    })
+  }, [])
+
   const dialogs = (
     <>
       <ScheduledTaskEditorDialog
@@ -317,9 +329,15 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
         onOpenChange={handleEditorOpenChange}
         onSave={handleSave}
       />
+      <ScheduledTaskRunHistoryDialog
+        target={historyTarget}
+        onOpenChange={(open) => {
+          if (!open) setHistoryTarget(null)
+        }}
+      />
       {confirmDialog}
     </>
   )
 
-  return { openNewTask, openEditTask, toggleEnabled, deleteTask, runNow, busyKeys, dialogs }
+  return { openNewTask, openEditTask, toggleEnabled, deleteTask, runNow, openRunHistory, busyKeys, dialogs }
 }

@@ -59,6 +59,20 @@ type RuntimeRunInfo = {
   time: { created: number }
 }
 
+/** One entry of `GET /scheduled-task/:id/runs`, as the run history dialog shows it. */
+export type ScheduledTaskRun = {
+  id: string
+  taskID: string
+  triggerType: "scheduled" | "manual"
+  status: RuntimeRunInfo["status"]
+  occurrenceAt?: number
+  coalescedCount: number
+  error?: string
+  timeStarted?: number
+  timeCompleted?: number
+  time: { created: number; updated?: number }
+}
+
 /**
  * What re-saving a fanned-out task (see components/session/scheduledTaskFamilies)
  * has to do to the runtime: in-place updates for kept parts, new parts for
@@ -213,6 +227,60 @@ export const fetchScheduledTasks = async (directory: string): Promise<ScheduledT
   const infos = (Array.isArray(response.data) ? response.data : []) as RuntimeTaskInfo[]
   const tasks = infos.map(toScheduledTask)
   return mapWithConcurrency(tasks, RUN_FETCH_CONCURRENCY, (task) => withLatestRun(directory, task))
+}
+
+const isRunStatus = (value: unknown): value is ScheduledTaskRun["status"] =>
+  value === "running" ||
+  value === "completed" ||
+  value === "failed" ||
+  value === "timeout" ||
+  value === "skipped_overlap" ||
+  value === "missed_skip"
+
+const toScheduledTaskRun = (value: unknown, taskID: string): ScheduledTaskRun | null => {
+  if (!value || typeof value !== "object") return null
+  const record = value as Record<string, unknown>
+  const time = record.time as { created?: unknown; updated?: unknown } | undefined
+  if (typeof record.id !== "string" || !isRunStatus(record.status) || typeof time?.created !== "number") return null
+  const optionalNumber = (field: unknown) => (typeof field === "number" && Number.isFinite(field) ? field : undefined)
+  const occurrenceAt = optionalNumber(record.occurrenceAt)
+  const timeStarted = optionalNumber(record.timeStarted)
+  const timeCompleted = optionalNumber(record.timeCompleted)
+  const updated = optionalNumber(time.updated)
+  return {
+    id: record.id,
+    taskID: typeof record.taskID === "string" ? record.taskID : taskID,
+    triggerType: record.triggerType === "manual" ? "manual" : "scheduled",
+    status: record.status,
+    ...(occurrenceAt !== undefined ? { occurrenceAt } : {}),
+    coalescedCount: optionalNumber(record.coalescedCount) ?? 0,
+    ...(typeof record.error === "string" && record.error.trim() ? { error: record.error } : {}),
+    ...(timeStarted !== undefined ? { timeStarted } : {}),
+    ...(timeCompleted !== undefined ? { timeCompleted } : {}),
+    time: { created: time.created, ...(updated !== undefined ? { updated } : {}) },
+  }
+}
+
+/**
+ * Run history of every given task (a fan-out family has one task per slot).
+ * Unlike the list's latest-run lookup this throws: the history dialog has
+ * nothing else to show and reports the failure instead.
+ */
+export const fetchScheduledTaskRuns = async (
+  directory: string,
+  taskIDs: readonly string[],
+  limit: number,
+): Promise<ScheduledTaskRun[]> => {
+  const client = clientFor(directory)
+  const perTask = await mapWithConcurrency([...taskIDs], RUN_FETCH_CONCURRENCY, async (taskID) => {
+    const response = await client.scheduledTask.listRuns({ scheduledTaskID: taskID, limit })
+    if (response.error) {
+      throw new Error(formatSdkError(response.error, "Failed to load run history"))
+    }
+    const runs = Array.isArray(response.data) ? response.data : []
+    return runs.map((run) => toScheduledTaskRun(run, taskID)).filter((run): run is ScheduledTaskRun => run !== null)
+  })
+  return perTask.flat()
 }
 
 /**

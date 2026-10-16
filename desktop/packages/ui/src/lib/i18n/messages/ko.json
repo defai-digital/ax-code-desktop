@@ -4694,5 +4694,22 @@
   "axCodeUpdate.cli.toast.failed.descriptionNoCommand": "사용한 설치 프로그램으로 업데이트하세요.",
   "settings.openchamber.axCodeCli.install.offPath": "셸 PATH에 없으므로 터미널은 이 항목을 실행하지 않습니다.",
   "settings.openchamber.axCodeCli.install.result.restartFailed": "{version}(으)로 업데이트했지만 AX Code Desktop이 런타임을 다시 시작하지 못했습니다. 새 버전을 사용하려면 AX Code를 다시 로드하세요.",
-  "axCodeUpdate.cli.toast.updated.restartFailed": "{version} 버전이 설치되었지만 AX Code Desktop이 다시 시작하지 못했습니다. 사용하려면 AX Code를 다시 로드하세요."
+  "axCodeUpdate.cli.toast.updated.restartFailed": "{version} 버전이 설치되었지만 AX Code Desktop이 다시 시작하지 못했습니다. 사용하려면 AX Code를 다시 로드하세요.",
+  "sessions.sidebar.scheduled.actions.history": "\uc2e4\ud589 \uae30\ub85d",
+  "sessions.sidebar.scheduled.history.title": "\uc2e4\ud589 \uae30\ub85d: {taskName}",
+  "sessions.sidebar.scheduled.history.description": "{project} \u00b7 \uc77c\uc815\ubcc4 \ucd5c\uadfc {count}\ud68c \uc2e4\ud589",
+  "sessions.sidebar.scheduled.history.loadFailed": "\uc2e4\ud589 \uae30\ub85d\uc744 \ubd88\ub7ec\uc62c \uc218 \uc5c6\uc2b5\ub2c8\ub2e4",
+  "sessions.sidebar.scheduled.history.empty": "\uc774 \uc791\uc5c5\uc740 \uc544\uc9c1 \uc2e4\ud589\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
+  "sessions.sidebar.scheduled.history.summary": "\uc644\ub8cc\ub41c {finished}\ud68c \uc911 {succeeded}\ud68c \uc131\uacf5",
+  "sessions.sidebar.scheduled.history.summaryNoneFinished": "\uc544\uc9c1 \uc644\ub8cc\ub41c \uc2e4\ud589\uc774 \uc5c6\uc2b5\ub2c8\ub2e4",
+  "sessions.sidebar.scheduled.history.failureStreak": "{count}\ud68c \uc5f0\uc18d \uc2e4\ud328",
+  "sessions.sidebar.scheduled.history.outcome.running": "\uc2e4\ud589 \uc911",
+  "sessions.sidebar.scheduled.history.outcome.success": "\uc131\uacf5",
+  "sessions.sidebar.scheduled.history.outcome.failed": "\uc2e4\ud328",
+  "sessions.sidebar.scheduled.history.outcome.timeout": "\uc2dc\uac04 \ucd08\uacfc",
+  "sessions.sidebar.scheduled.history.outcome.skipped": "\uac74\ub108\ub700",
+  "sessions.sidebar.scheduled.history.trigger.scheduled": "\uc77c\uc815\uc5d0 \ub530\ub77c",
+  "sessions.sidebar.scheduled.history.trigger.manual": "\uc218\ub3d9\uc73c\ub85c \uc2dc\uc791",
+  "sessions.sidebar.scheduled.history.coalesced": "+{count}",
+  "sessions.sidebar.scheduled.history.coalescedTitle": "\ub193\uce5c {count}\ud68c \uc2e4\ud589\uc774 \uc774\ubc88 \uc2e4\ud589\uc73c\ub85c \ud569\uccd0\uc84c\uc2b5\ub2c8\ub2e4"
 }

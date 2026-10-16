@@ -4694,5 +4694,22 @@
   "axCodeUpdate.cli.toast.failed.descriptionNoCommand": "Hãy cập nhật bằng trình cài đặt bạn đã dùng.",
   "settings.openchamber.axCodeCli.install.offPath": "Không nằm trong PATH của shell, nên terminal không chạy bản này.",
   "settings.openchamber.axCodeCli.install.result.restartFailed": "Đã cập nhật lên {version}, nhưng AX Code Desktop không thể khởi động lại runtime với phiên bản này. Hãy tải lại AX Code để dùng phiên bản mới.",
-  "axCodeUpdate.cli.toast.updated.restartFailed": "Đã cài phiên bản {version}, nhưng AX Code Desktop không thể khởi động lại với phiên bản này. Hãy tải lại AX Code để dùng."
+  "axCodeUpdate.cli.toast.updated.restartFailed": "Đã cài phiên bản {version}, nhưng AX Code Desktop không thể khởi động lại với phiên bản này. Hãy tải lại AX Code để dùng.",
+  "sessions.sidebar.scheduled.actions.history": "L\u1ecbch s\u1eed ch\u1ea1y",
+  "sessions.sidebar.scheduled.history.title": "L\u1ecbch s\u1eed ch\u1ea1y: {taskName}",
+  "sessions.sidebar.scheduled.history.description": "{project} \u00b7 {count} l\u1ea7n ch\u1ea1y g\u1ea7n nh\u1ea5t cho m\u1ed7i l\u1ecbch",
+  "sessions.sidebar.scheduled.history.loadFailed": "Kh\u00f4ng th\u1ec3 t\u1ea3i l\u1ecbch s\u1eed ch\u1ea1y",
+  "sessions.sidebar.scheduled.history.empty": "T\u00e1c v\u1ee5 n\u00e0y ch\u01b0a ch\u1ea1y l\u1ea7n n\u00e0o.",
+  "sessions.sidebar.scheduled.history.summary": "{succeeded}/{finished} l\u1ea7n ch\u1ea1y \u0111\u00e3 xong th\u00e0nh c\u00f4ng",
+  "sessions.sidebar.scheduled.history.summaryNoneFinished": "Ch\u01b0a c\u00f3 l\u1ea7n ch\u1ea1y n\u00e0o ho\u00e0n t\u1ea5t",
+  "sessions.sidebar.scheduled.history.failureStreak": "{count} l\u1ea7n th\u1ea5t b\u1ea1i li\u00ean ti\u1ebfp",
+  "sessions.sidebar.scheduled.history.outcome.running": "\u0110ang ch\u1ea1y",
+  "sessions.sidebar.scheduled.history.outcome.success": "Th\u00e0nh c\u00f4ng",
+  "sessions.sidebar.scheduled.history.outcome.failed": "Th\u1ea5t b\u1ea1i",
+  "sessions.sidebar.scheduled.history.outcome.timeout": "H\u1ebft th\u1eddi gian",
+  "sessions.sidebar.scheduled.history.outcome.skipped": "\u0110\u00e3 b\u1ecf qua",
+  "sessions.sidebar.scheduled.history.trigger.scheduled": "Theo l\u1ecbch",
+  "sessions.sidebar.scheduled.history.trigger.manual": "B\u1eaft \u0111\u1ea7u th\u1ee7 c\u00f4ng",
+  "sessions.sidebar.scheduled.history.coalesced": "+{count}",
+  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} l\u1ea7n ch\u1ea1y b\u1ecb l\u1ee1 \u0111\u00e3 \u0111\u01b0\u1ee3c g\u1ed9p v\u00e0o l\u1ea7n n\u00e0y"
 }

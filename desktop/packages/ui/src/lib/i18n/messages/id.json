@@ -4694,5 +4694,22 @@
   "axCodeUpdate.cli.toast.failed.descriptionNoCommand": "Perbarui dengan pemasang yang Anda gunakan.",
   "settings.openchamber.axCodeCli.install.offPath": "Tidak ada di PATH shell Anda, jadi terminal tidak menjalankan yang ini.",
   "settings.openchamber.axCodeCli.install.result.restartFailed": "Diperbarui ke {version}, tetapi AX Code Desktop tidak dapat memulai ulang runtime-nya dengan versi itu. Muat ulang AX Code untuk memakai versi baru.",
-  "axCodeUpdate.cli.toast.updated.restartFailed": "Versi {version} terpasang, tetapi AX Code Desktop tidak dapat memulai ulang dengannya. Muat ulang AX Code untuk memakainya."
+  "axCodeUpdate.cli.toast.updated.restartFailed": "Versi {version} terpasang, tetapi AX Code Desktop tidak dapat memulai ulang dengannya. Muat ulang AX Code untuk memakainya.",
+  "sessions.sidebar.scheduled.actions.history": "Riwayat jalankan",
+  "sessions.sidebar.scheduled.history.title": "Riwayat jalankan: {taskName}",
+  "sessions.sidebar.scheduled.history.description": "{project} \u00b7 {count} jalankan terakhir per jadwal",
+  "sessions.sidebar.scheduled.history.loadFailed": "Tidak dapat memuat riwayat jalankan",
+  "sessions.sidebar.scheduled.history.empty": "Tugas ini belum pernah dijalankan.",
+  "sessions.sidebar.scheduled.history.summary": "{succeeded} dari {finished} jalankan selesai berhasil",
+  "sessions.sidebar.scheduled.history.summaryNoneFinished": "Belum ada jalankan yang selesai",
+  "sessions.sidebar.scheduled.history.failureStreak": "{count} kali gagal berturut-turut",
+  "sessions.sidebar.scheduled.history.outcome.running": "Berjalan",
+  "sessions.sidebar.scheduled.history.outcome.success": "Berhasil",
+  "sessions.sidebar.scheduled.history.outcome.failed": "Gagal",
+  "sessions.sidebar.scheduled.history.outcome.timeout": "Waktu habis",
+  "sessions.sidebar.scheduled.history.outcome.skipped": "Dilewati",
+  "sessions.sidebar.scheduled.history.trigger.scheduled": "Sesuai jadwal",
+  "sessions.sidebar.scheduled.history.trigger.manual": "Dimulai manual",
+  "sessions.sidebar.scheduled.history.coalesced": "+{count}",
+  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} jalankan yang terlewat digabungkan ke jalankan ini"
 }

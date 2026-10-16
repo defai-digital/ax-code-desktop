@@ -4694,5 +4694,22 @@
   "axCodeUpdate.cli.toast.failed.descriptionNoCommand": "Mettez-la à jour avec l'installateur utilisé.",
   "settings.openchamber.axCodeCli.install.offPath": "Absente du PATH de votre shell : le terminal n'exécute pas celle-ci.",
   "settings.openchamber.axCodeCli.install.result.restartFailed": "Mise à jour vers {version}, mais AX Code Desktop n'a pas pu redémarrer son environnement d'exécution avec. Rechargez AX Code pour utiliser la nouvelle version.",
-  "axCodeUpdate.cli.toast.updated.restartFailed": "Version {version} installée, mais AX Code Desktop n'a pas pu redémarrer avec. Rechargez AX Code pour l'utiliser."
+  "axCodeUpdate.cli.toast.updated.restartFailed": "Version {version} installée, mais AX Code Desktop n'a pas pu redémarrer avec. Rechargez AX Code pour l'utiliser.",
+  "sessions.sidebar.scheduled.actions.history": "Historique des ex\u00e9cutions",
+  "sessions.sidebar.scheduled.history.title": "Historique des ex\u00e9cutions : {taskName}",
+  "sessions.sidebar.scheduled.history.description": "{project} \u00b7 les {count} derni\u00e8res ex\u00e9cutions par planification",
+  "sessions.sidebar.scheduled.history.loadFailed": "Impossible de charger l'historique des ex\u00e9cutions",
+  "sessions.sidebar.scheduled.history.empty": "Cette t\u00e2che n'a pas encore \u00e9t\u00e9 ex\u00e9cut\u00e9e.",
+  "sessions.sidebar.scheduled.history.summary": "{succeeded} ex\u00e9cutions termin\u00e9es sur {finished} ont r\u00e9ussi",
+  "sessions.sidebar.scheduled.history.summaryNoneFinished": "Aucune ex\u00e9cution termin\u00e9e pour l'instant",
+  "sessions.sidebar.scheduled.history.failureStreak": "{count} \u00e9checs cons\u00e9cutifs",
+  "sessions.sidebar.scheduled.history.outcome.running": "En cours",
+  "sessions.sidebar.scheduled.history.outcome.success": "R\u00e9ussie",
+  "sessions.sidebar.scheduled.history.outcome.failed": "\u00c9chec",
+  "sessions.sidebar.scheduled.history.outcome.timeout": "D\u00e9lai d\u00e9pass\u00e9",
+  "sessions.sidebar.scheduled.history.outcome.skipped": "Ignor\u00e9e",
+  "sessions.sidebar.scheduled.history.trigger.scheduled": "Planifi\u00e9e",
+  "sessions.sidebar.scheduled.history.trigger.manual": "Lanc\u00e9e manuellement",
+  "sessions.sidebar.scheduled.history.coalesced": "+{count}",
+  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} ex\u00e9cutions manqu\u00e9es ont \u00e9t\u00e9 regroup\u00e9es dans celle-ci"
 }

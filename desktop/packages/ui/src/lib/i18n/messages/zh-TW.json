@@ -4694,5 +4694,22 @@
   "axCodeUpdate.cli.toast.failed.descriptionNoCommand": "請使用當初的安裝程式更新。",
   "settings.openchamber.axCodeCli.install.offPath": "不在 shell 的 PATH 中，因此終端機不會執行這個。",
   "settings.openchamber.axCodeCli.install.result.restartFailed": "已更新至 {version}，但 AX Code Desktop 無法以此版本重新啟動執行環境。請重新載入 AX Code 以使用新版本。",
-  "axCodeUpdate.cli.toast.updated.restartFailed": "已安裝版本 {version}，但 AX Code Desktop 無法以此版本重新啟動。請重新載入 AX Code 以使用。"
+  "axCodeUpdate.cli.toast.updated.restartFailed": "已安裝版本 {version}，但 AX Code Desktop 無法以此版本重新啟動。請重新載入 AX Code 以使用。",
+  "sessions.sidebar.scheduled.actions.history": "\u57f7\u884c\u7d00\u9304",
+  "sessions.sidebar.scheduled.history.title": "\u57f7\u884c\u7d00\u9304\uff1a{taskName}",
+  "sessions.sidebar.scheduled.history.description": "{project} \u00b7 \u6bcf\u500b\u6392\u7a0b\u6700\u8fd1 {count} \u6b21\u57f7\u884c",
+  "sessions.sidebar.scheduled.history.loadFailed": "\u7121\u6cd5\u8f09\u5165\u57f7\u884c\u7d00\u9304",
+  "sessions.sidebar.scheduled.history.empty": "\u9019\u500b\u4efb\u52d9\u9084\u6c92\u6709\u57f7\u884c\u904e\u3002",
+  "sessions.sidebar.scheduled.history.summary": "\u5df2\u5b8c\u6210\u7684 {finished} \u6b21\u57f7\u884c\u4e2d\u6709 {succeeded} \u6b21\u6210\u529f",
+  "sessions.sidebar.scheduled.history.summaryNoneFinished": "\u5c1a\u7121\u5df2\u5b8c\u6210\u7684\u57f7\u884c",
+  "sessions.sidebar.scheduled.history.failureStreak": "\u9023\u7e8c\u5931\u6557 {count} \u6b21",
+  "sessions.sidebar.scheduled.history.outcome.running": "\u57f7\u884c\u4e2d",
+  "sessions.sidebar.scheduled.history.outcome.success": "\u6210\u529f",
+  "sessions.sidebar.scheduled.history.outcome.failed": "\u5931\u6557",
+  "sessions.sidebar.scheduled.history.outcome.timeout": "\u903e\u6642",
+  "sessions.sidebar.scheduled.history.outcome.skipped": "\u5df2\u7565\u904e",
+  "sessions.sidebar.scheduled.history.trigger.scheduled": "\u4f9d\u6392\u7a0b",
+  "sessions.sidebar.scheduled.history.trigger.manual": "\u624b\u52d5\u555f\u52d5",
+  "sessions.sidebar.scheduled.history.coalesced": "+{count}",
+  "sessions.sidebar.scheduled.history.coalescedTitle": "\u932f\u904e\u7684 {count} \u6b21\u57f7\u884c\u5df2\u5408\u4f75\u5230\u9019\u4e00\u6b21"
 }

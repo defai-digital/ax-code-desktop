@@ -4694,5 +4694,22 @@
   "axCodeUpdate.cli.toast.failed.descriptionNoCommand": "请使用当初的安装程序更新。",
   "settings.openchamber.axCodeCli.install.offPath": "不在 shell 的 PATH 中，因此终端不会运行这个。",
   "settings.openchamber.axCodeCli.install.result.restartFailed": "已更新到 {version}，但 AX Code Desktop 无法用它重启运行时。请重新加载 AX Code 以使用新版本。",
-  "axCodeUpdate.cli.toast.updated.restartFailed": "已安装版本 {version}，但 AX Code Desktop 无法用它重启。请重新加载 AX Code 以使用。"
+  "axCodeUpdate.cli.toast.updated.restartFailed": "已安装版本 {version}，但 AX Code Desktop 无法用它重启。请重新加载 AX Code 以使用。",
+  "sessions.sidebar.scheduled.actions.history": "\u8fd0\u884c\u8bb0\u5f55",
+  "sessions.sidebar.scheduled.history.title": "\u8fd0\u884c\u8bb0\u5f55\uff1a{taskName}",
+  "sessions.sidebar.scheduled.history.description": "{project} \u00b7 \u6bcf\u4e2a\u8ba1\u5212\u6700\u8fd1 {count} \u6b21\u8fd0\u884c",
+  "sessions.sidebar.scheduled.history.loadFailed": "\u65e0\u6cd5\u52a0\u8f7d\u8fd0\u884c\u8bb0\u5f55",
+  "sessions.sidebar.scheduled.history.empty": "\u6b64\u4efb\u52a1\u5c1a\u672a\u8fd0\u884c\u3002",
+  "sessions.sidebar.scheduled.history.summary": "\u5df2\u5b8c\u6210\u7684 {finished} \u6b21\u8fd0\u884c\u4e2d\u6709 {succeeded} \u6b21\u6210\u529f",
+  "sessions.sidebar.scheduled.history.summaryNoneFinished": "\u5c1a\u65e0\u5df2\u5b8c\u6210\u7684\u8fd0\u884c",
+  "sessions.sidebar.scheduled.history.failureStreak": "\u8fde\u7eed\u5931\u8d25 {count} \u6b21",
+  "sessions.sidebar.scheduled.history.outcome.running": "\u8fd0\u884c\u4e2d",
+  "sessions.sidebar.scheduled.history.outcome.success": "\u6210\u529f",
+  "sessions.sidebar.scheduled.history.outcome.failed": "\u5931\u8d25",
+  "sessions.sidebar.scheduled.history.outcome.timeout": "\u8d85\u65f6",
+  "sessions.sidebar.scheduled.history.outcome.skipped": "\u5df2\u8df3\u8fc7",
+  "sessions.sidebar.scheduled.history.trigger.scheduled": "\u6309\u8ba1\u5212",
+  "sessions.sidebar.scheduled.history.trigger.manual": "\u624b\u52a8\u542f\u52a8",
+  "sessions.sidebar.scheduled.history.coalesced": "+{count}",
+  "sessions.sidebar.scheduled.history.coalescedTitle": "\u9519\u8fc7\u7684 {count} \u6b21\u8fd0\u884c\u5df2\u5408\u5e76\u5230\u8fd9\u4e00\u6b21"
 }

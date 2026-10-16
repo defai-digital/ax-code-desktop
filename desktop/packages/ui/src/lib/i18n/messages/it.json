@@ -4694,5 +4694,22 @@
   "axCodeUpdate.cli.toast.failed.descriptionNoCommand": "Aggiornala con il programma di installazione usato.",
   "settings.openchamber.axCodeCli.install.offPath": "Non è nel PATH della shell, quindi il terminale non esegue questa.",
   "settings.openchamber.axCodeCli.install.result.restartFailed": "Aggiornata a {version}, ma AX Code Desktop non è riuscito a riavviare il runtime con questa versione. Ricarica AX Code per usare la nuova versione.",
-  "axCodeUpdate.cli.toast.updated.restartFailed": "Versione {version} installata, ma AX Code Desktop non è riuscito a riavviarsi con essa. Ricarica AX Code per usarla."
+  "axCodeUpdate.cli.toast.updated.restartFailed": "Versione {version} installata, ma AX Code Desktop non è riuscito a riavviarsi con essa. Ricarica AX Code per usarla.",
+  "sessions.sidebar.scheduled.actions.history": "Cronologia esecuzioni",
+  "sessions.sidebar.scheduled.history.title": "Cronologia esecuzioni: {taskName}",
+  "sessions.sidebar.scheduled.history.description": "{project} \u00b7 le ultime {count} esecuzioni per pianificazione",
+  "sessions.sidebar.scheduled.history.loadFailed": "Impossibile caricare la cronologia delle esecuzioni",
+  "sessions.sidebar.scheduled.history.empty": "Questa attivit\u00e0 non \u00e8 ancora stata eseguita.",
+  "sessions.sidebar.scheduled.history.summary": "{succeeded} esecuzioni concluse su {finished} riuscite",
+  "sessions.sidebar.scheduled.history.summaryNoneFinished": "Nessuna esecuzione conclusa finora",
+  "sessions.sidebar.scheduled.history.failureStreak": "{count} errori consecutivi",
+  "sessions.sidebar.scheduled.history.outcome.running": "In esecuzione",
+  "sessions.sidebar.scheduled.history.outcome.success": "Riuscita",
+  "sessions.sidebar.scheduled.history.outcome.failed": "Non riuscita",
+  "sessions.sidebar.scheduled.history.outcome.timeout": "Tempo scaduto",
+  "sessions.sidebar.scheduled.history.outcome.skipped": "Saltata",
+  "sessions.sidebar.scheduled.history.trigger.scheduled": "Pianificata",
+  "sessions.sidebar.scheduled.history.trigger.manual": "Avviata manualmente",
+  "sessions.sidebar.scheduled.history.coalesced": "+{count}",
+  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} esecuzioni perse sono state unite in questa"
 }

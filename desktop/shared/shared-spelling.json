@@ -35,6 +35,7 @@
     "sessions.scheduledTasks.dialog.schedule.cron",
     "sessions.scheduledTasks.dialog.schedule.cronWithTimezone",
     "sessions.scheduledTasks.dialog.schedule.weekdayShort.unknown",
+    "sessions.sidebar.scheduled.history.coalesced",
     "sessions.sidebar.scheduled.scheduleCountShort",
     "sessions.sidebar.sessionDialogs.ok",
     "settings.agents.page.field.agentNamePlaceholder",

@@ -4694,5 +4694,22 @@
   "axCodeUpdate.cli.toast.failed.descriptionNoCommand": "Kullandığınız yükleyiciyle güncelleyin.",
   "settings.openchamber.axCodeCli.install.offPath": "Kabuğunuzun PATH değişkeninde değil, bu yüzden terminal bunu çalıştırmaz.",
   "settings.openchamber.axCodeCli.install.result.restartFailed": "{version} sürümüne güncellendi, ancak AX Code Desktop çalışma zamanını bu sürümle yeniden başlatamadı. Yeni sürümü kullanmak için AX Code'u yeniden yükleyin.",
-  "axCodeUpdate.cli.toast.updated.restartFailed": "{version} sürümü kuruldu, ancak AX Code Desktop bu sürümle yeniden başlatılamadı. Kullanmak için AX Code'u yeniden yükleyin."
+  "axCodeUpdate.cli.toast.updated.restartFailed": "{version} sürümü kuruldu, ancak AX Code Desktop bu sürümle yeniden başlatılamadı. Kullanmak için AX Code'u yeniden yükleyin.",
+  "sessions.sidebar.scheduled.actions.history": "\u00c7al\u0131\u015ft\u0131rma ge\u00e7mi\u015fi",
+  "sessions.sidebar.scheduled.history.title": "\u00c7al\u0131\u015ft\u0131rma ge\u00e7mi\u015fi: {taskName}",
+  "sessions.sidebar.scheduled.history.description": "{project} \u00b7 her zamanlama i\u00e7in son {count} \u00e7al\u0131\u015ft\u0131rma",
+  "sessions.sidebar.scheduled.history.loadFailed": "\u00c7al\u0131\u015ft\u0131rma ge\u00e7mi\u015fi y\u00fcklenemedi",
+  "sessions.sidebar.scheduled.history.empty": "Bu g\u00f6rev hen\u00fcz \u00e7al\u0131\u015ft\u0131r\u0131lmad\u0131.",
+  "sessions.sidebar.scheduled.history.summary": "Tamamlanan {finished} \u00e7al\u0131\u015ft\u0131rmadan {succeeded} tanesi ba\u015far\u0131l\u0131",
+  "sessions.sidebar.scheduled.history.summaryNoneFinished": "Hen\u00fcz tamamlanan \u00e7al\u0131\u015ft\u0131rma yok",
+  "sessions.sidebar.scheduled.history.failureStreak": "Art arda {count} ba\u015far\u0131s\u0131zl\u0131k",
+  "sessions.sidebar.scheduled.history.outcome.running": "\u00c7al\u0131\u015f\u0131yor",
+  "sessions.sidebar.scheduled.history.outcome.success": "Ba\u015far\u0131l\u0131",
+  "sessions.sidebar.scheduled.history.outcome.failed": "Ba\u015far\u0131s\u0131z",
+  "sessions.sidebar.scheduled.history.outcome.timeout": "Zaman a\u015f\u0131m\u0131",
+  "sessions.sidebar.scheduled.history.outcome.skipped": "Atland\u0131",
+  "sessions.sidebar.scheduled.history.trigger.scheduled": "Zamanlamaya g\u00f6re",
+  "sessions.sidebar.scheduled.history.trigger.manual": "Elle ba\u015flat\u0131ld\u0131",
+  "sessions.sidebar.scheduled.history.coalesced": "+{count}",
+  "sessions.sidebar.scheduled.history.coalescedTitle": "Ka\u00e7\u0131r\u0131lan {count} \u00e7al\u0131\u015ft\u0131rma bu \u00e7al\u0131\u015ft\u0131rmada birle\u015ftirildi"
 }

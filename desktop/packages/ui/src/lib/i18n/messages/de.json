@@ -4694,5 +4694,22 @@
   "axCodeUpdate.cli.toast.failed.descriptionNoCommand": "Aktualisiere sie mit dem verwendeten Installer.",
   "settings.openchamber.axCodeCli.install.offPath": "Nicht im PATH deiner Shell, daher führt das Terminal diese nicht aus.",
   "settings.openchamber.axCodeCli.install.result.restartFailed": "Auf {version} aktualisiert, aber AX Code Desktop konnte seine Laufzeit nicht damit neu starten. Lade AX Code neu, um die neue Version zu nutzen.",
-  "axCodeUpdate.cli.toast.updated.restartFailed": "Version {version} installiert, aber AX Code Desktop konnte damit nicht neu starten. Lade AX Code neu, um sie zu nutzen."
+  "axCodeUpdate.cli.toast.updated.restartFailed": "Version {version} installiert, aber AX Code Desktop konnte damit nicht neu starten. Lade AX Code neu, um sie zu nutzen.",
+  "sessions.sidebar.scheduled.actions.history": "Ausf\u00fchrungsverlauf",
+  "sessions.sidebar.scheduled.history.title": "Ausf\u00fchrungsverlauf: {taskName}",
+  "sessions.sidebar.scheduled.history.description": "{project} \u00b7 die letzten {count} Ausf\u00fchrungen je Zeitplan",
+  "sessions.sidebar.scheduled.history.loadFailed": "Der Ausf\u00fchrungsverlauf konnte nicht geladen werden",
+  "sessions.sidebar.scheduled.history.empty": "Diese Aufgabe wurde noch nicht ausgef\u00fchrt.",
+  "sessions.sidebar.scheduled.history.summary": "{succeeded} von {finished} abgeschlossenen Ausf\u00fchrungen erfolgreich",
+  "sessions.sidebar.scheduled.history.summaryNoneFinished": "Noch keine abgeschlossenen Ausf\u00fchrungen",
+  "sessions.sidebar.scheduled.history.failureStreak": "{count} Fehlschl\u00e4ge in Folge",
+  "sessions.sidebar.scheduled.history.outcome.running": "L\u00e4uft",
+  "sessions.sidebar.scheduled.history.outcome.success": "Erfolgreich",
+  "sessions.sidebar.scheduled.history.outcome.failed": "Fehlgeschlagen",
+  "sessions.sidebar.scheduled.history.outcome.timeout": "Zeit\u00fcberschreitung",
+  "sessions.sidebar.scheduled.history.outcome.skipped": "\u00dcbersprungen",
+  "sessions.sidebar.scheduled.history.trigger.scheduled": "Nach Zeitplan",
+  "sessions.sidebar.scheduled.history.trigger.manual": "Manuell gestartet",
+  "sessions.sidebar.scheduled.history.coalesced": "+{count}",
+  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} verpasste Ausf\u00fchrungen wurden in dieser zusammengefasst"
 }

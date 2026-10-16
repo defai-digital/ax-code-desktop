@@ -393,6 +393,13 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
                   <Icon name="edit-2" className="h-4 w-4" />
                   <span>{t("sessions.scheduledTasks.dialog.actions.edit")}</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex items-center gap-2"
+                  onClick={() => actions.openRunHistory(family, directory, projectLabel)}
+                >
+                  <Icon name="history" className="h-4 w-4" />
+                  <span>{t("sessions.sidebar.scheduled.actions.history")}</span>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="flex items-center gap-2 text-destructive focus:text-destructive"

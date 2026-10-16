@@ -4694,5 +4694,22 @@
   "axCodeUpdate.cli.toast.failed.descriptionNoCommand": "Atualize com o instalador usado.",
   "settings.openchamber.axCodeCli.install.offPath": "Não está no PATH do shell, então o terminal não executa esta.",
   "settings.openchamber.axCodeCli.install.result.restartFailed": "Atualizada para {version}, mas o AX Code Desktop não conseguiu reiniciar o runtime com ela. Recarregue o AX Code para usar a nova versão.",
-  "axCodeUpdate.cli.toast.updated.restartFailed": "Versão {version} instalada, mas o AX Code Desktop não conseguiu reiniciar com ela. Recarregue o AX Code para usá-la."
+  "axCodeUpdate.cli.toast.updated.restartFailed": "Versão {version} instalada, mas o AX Code Desktop não conseguiu reiniciar com ela. Recarregue o AX Code para usá-la.",
+  "sessions.sidebar.scheduled.actions.history": "Hist\u00f3rico de execu\u00e7\u00f5es",
+  "sessions.sidebar.scheduled.history.title": "Hist\u00f3rico de execu\u00e7\u00f5es: {taskName}",
+  "sessions.sidebar.scheduled.history.description": "{project} \u00b7 as \u00faltimas {count} execu\u00e7\u00f5es por agendamento",
+  "sessions.sidebar.scheduled.history.loadFailed": "N\u00e3o foi poss\u00edvel carregar o hist\u00f3rico de execu\u00e7\u00f5es",
+  "sessions.sidebar.scheduled.history.empty": "Esta tarefa ainda n\u00e3o foi executada.",
+  "sessions.sidebar.scheduled.history.summary": "{succeeded} de {finished} execu\u00e7\u00f5es conclu\u00eddas tiveram sucesso",
+  "sessions.sidebar.scheduled.history.summaryNoneFinished": "Nenhuma execu\u00e7\u00e3o conclu\u00edda ainda",
+  "sessions.sidebar.scheduled.history.failureStreak": "{count} falhas seguidas",
+  "sessions.sidebar.scheduled.history.outcome.running": "Em execu\u00e7\u00e3o",
+  "sessions.sidebar.scheduled.history.outcome.success": "Conclu\u00edda",
+  "sessions.sidebar.scheduled.history.outcome.failed": "Falhou",
+  "sessions.sidebar.scheduled.history.outcome.timeout": "Tempo esgotado",
+  "sessions.sidebar.scheduled.history.outcome.skipped": "Ignorada",
+  "sessions.sidebar.scheduled.history.trigger.scheduled": "Agendada",
+  "sessions.sidebar.scheduled.history.trigger.manual": "Iniciada manualmente",
+  "sessions.sidebar.scheduled.history.coalesced": "+{count}",
+  "sessions.sidebar.scheduled.history.coalescedTitle": "{count} execu\u00e7\u00f5es perdidas foram combinadas nesta"
 }
