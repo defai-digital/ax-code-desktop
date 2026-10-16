@@ -37,6 +37,39 @@ describe("PlanSaveQueue queued-write reporting", () => {
   })
 })
 
+describe("PlanSaveQueue failure reporting", () => {
+  test("reports every failed write, not only the latest one", async () => {
+    // The caller records what the disk holds from `onSaved`, and a write that failed after the content changed again
+    // is reported nowhere else: the record kept pointing at text the disk never received, so a later revert to the
+    // text the disk *did* hold looked like "nothing to save".
+    const saveCalls: string[] = []
+    const failed: string[] = []
+    const queue = new PlanSaveQueue({
+      save: async (_path, content) => {
+        saveCalls.push(content)
+        if (content === "older") {
+          throw new Error("ENOSPC")
+        }
+      },
+      // The editor moved on: the failing write is no longer the latest entry, so `onLatestError` does not fire.
+      isLatestEntry: () => false,
+      onError: (entry) => {
+        failed.push(entry.content)
+      },
+      onLatestError: () => {
+        throw new Error("onLatestError must not fire for an entry the editor has moved past")
+      },
+    })
+
+    // `drain` reports failures through the hooks and keeps going; it does not reject.
+    await queue.enqueue({ path: "/repo/plan.md", content: "older" })
+    await queue.enqueue({ path: "/repo/plan.md", content: "newer" })
+
+    expect(saveCalls).toEqual(["older", "newer"])
+    expect(failed).toEqual(["older"])
+  })
+})
+
 describe("PlanSaveQueue disk reporting", () => {
   test("reports every write that reached the disk, not only the latest one", () => {
     // The caller records "what the disk holds" from this callback. Reporting only the latest entry left the

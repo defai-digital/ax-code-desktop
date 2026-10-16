@@ -26,6 +26,13 @@ type PlanSaveQueueOptions = {
    */
   onSaved?: (entry: PlanSaveQueueEntry) => void
   onLatestSaved?: (entry: PlanSaveQueueEntry) => void
+  /**
+   * Every write that failed, whether or not the editor moved on while it was in flight — the counterpart of
+   * `onSaved`. A write that failed after the content changed again still leaves the disk holding the previous
+   * write, and the caller's record of what the disk holds has to fall back to it; only reporting the failure of
+   * the latest entry left that record pointing at text the disk never received.
+   */
+  onError?: (entry: PlanSaveQueueEntry, error: unknown) => void
   onLatestError: (entry: PlanSaveQueueEntry, error: unknown) => void
 }
 
@@ -82,6 +89,7 @@ export class PlanSaveQueue {
           this.options.onLatestSaved?.(entry)
         }
       } catch (error) {
+        this.options.onError?.(entry, error)
         if (!this.queuedByPath.has(path) && this.options.isLatestEntry(entry)) {
           this.options.onLatestError(entry, error)
         }

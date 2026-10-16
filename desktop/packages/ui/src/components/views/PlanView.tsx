@@ -204,16 +204,21 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
         loadedContentRef.current = entry.content
         setSaveError(null)
       },
-      onLatestError: (entry, error) => {
+      onError: (entry) => {
         // The write that failed did not reach the disk, so the file holds the last write that did — which a queued
         // write behind it kept out of `loadedContentRef`. Leaving the record on older text made a revert to that
-        // text look like "nothing to save" while the disk held the newer content.
-        if (resolvedPathRef.current === entry.path) {
-          const lastWritten = diskContentRef.current.get(entry.path)
-          if (lastWritten !== undefined) {
-            loadedContentRef.current = lastWritten
-          }
+        // text look like "nothing to save" while the disk held the newer content. Every failed write reports here,
+        // not only the latest one: a write that fails after the content changed again is reported nowhere else,
+        // and the record has to fall back for it too.
+        if (resolvedPathRef.current !== entry.path) {
+          return
         }
+        const lastWritten = diskContentRef.current.get(entry.path)
+        if (lastWritten !== undefined) {
+          loadedContentRef.current = lastWritten
+        }
+      },
+      onLatestError: (_entry, error) => {
         setSaveError(error instanceof Error ? error.message : tRef.current("planView.error.saveFailed"))
       },
     })
