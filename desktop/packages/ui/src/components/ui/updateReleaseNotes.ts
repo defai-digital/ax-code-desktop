@@ -7,15 +7,22 @@ function decodeHtmlEntities(value: string): string {
     apos: "'",
     nbsp: " ",
   }
+  // `Number.isFinite` accepts a code point above the Unicode maximum, where `String.fromCodePoint`
+  // throws a RangeError — during the render that builds the update dialog. Anything out of range is
+  // left as written.
+  const decodeCodePoint = (codePoint: number, fallback: string): string => {
+    if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+      return fallback
+    }
+    return String.fromCodePoint(codePoint)
+  }
   return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity: string) => {
     const key = entity.toLowerCase()
     if (key.startsWith("#x")) {
-      const codePoint = Number.parseInt(key.slice(2), 16)
-      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match
+      return decodeCodePoint(Number.parseInt(key.slice(2), 16), match)
     }
     if (key.startsWith("#")) {
-      const codePoint = Number.parseInt(key.slice(1), 10)
-      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match
+      return decodeCodePoint(Number.parseInt(key.slice(1), 10), match)
     }
     return namedEntities[key] ?? match
   })

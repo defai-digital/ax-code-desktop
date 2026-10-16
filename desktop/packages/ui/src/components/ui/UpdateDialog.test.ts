@@ -39,6 +39,14 @@ describe("normalizeReleaseNotesForMarkdown", () => {
   test("preserves literal less-than comparisons inside HTML text", () => {
     expect(normalizeReleaseNotesForMarkdown("<p>Use a < b before closing.</p>")).toBe("Use a < b before closing.")
   })
+
+  test("leaves an out-of-range numeric entity as written instead of throwing", () => {
+    // `Number.isFinite` accepted these, and `String.fromCodePoint` threw a RangeError while the update
+    // dialog was rendering, so the notes — and the buttons with them — never appeared.
+    expect(normalizeReleaseNotesForMarkdown("<p>Ship it &#x110000; anyway</p>")).toBe("Ship it &#x110000; anyway")
+    expect(normalizeReleaseNotesForMarkdown("<p>Ship it &#99999999; anyway</p>")).toBe("Ship it &#99999999; anyway")
+    expect(() => normalizeReleaseNotesForMarkdown("<p>x &#xffffffff; y</p>")).not.toThrow()
+  })
 })
 
 describe("buildUpdateReleaseUrl", () => {

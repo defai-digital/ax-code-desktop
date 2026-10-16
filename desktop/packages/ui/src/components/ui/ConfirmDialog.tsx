@@ -31,20 +31,29 @@ export function useConfirmDialog(): {
 } {
   const { t } = useI18n()
   const [request, setRequest] = React.useState<ConfirmRequest | null>(null)
+  // The pending request is also held in a ref, so a caller that captured an older `requestConfirm`
+  // can still answer the request it replaces, and so settling stays out of the state updater.
+  const pendingRef = React.useRef<ConfirmRequest | null>(null)
 
   const requestConfirm = React.useCallback(
     (message: string, options?: RequestConfirmOptions) =>
       new Promise<boolean>((resolve) => {
-        setRequest({ message, destructive: options?.destructive ?? false, resolve })
+        // A second request replaces this one on screen, so the first caller would otherwise await a
+        // promise nothing can settle: whatever it was about to do after the answer — including
+        // clearing a busy flag — never happens. It is answered as "not confirmed".
+        pendingRef.current?.resolve(false)
+        const next: ConfirmRequest = { message, destructive: options?.destructive ?? false, resolve }
+        pendingRef.current = next
+        setRequest(next)
       }),
     [],
   )
 
   const settle = React.useCallback((confirmed: boolean) => {
-    setRequest((current) => {
-      current?.resolve(confirmed)
-      return null
-    })
+    const current = pendingRef.current
+    pendingRef.current = null
+    setRequest(null)
+    current?.resolve(confirmed)
   }, [])
 
   const confirmDialog = (

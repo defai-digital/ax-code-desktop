@@ -399,7 +399,17 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   }, [cancelActivePasskey, isPasskeyBusy, isSubmitting, supportsPasskeys, t, trustDevice])
 
   const handlePasskeySetupOnly = React.useCallback(async () => {
-    if (isSubmitting || !supportsPasskeys) {
+    if (isSubmitting) {
+      // The register ceremony runs inside the password unlock, so `isSubmitting` stays true for its
+      // whole duration. Without this the button showed "Cancel passkey setup" while its own disabled
+      // state and this guard made that cancel unreachable, leaving the user with a locked screen and
+      // an OS prompt they could not dismiss from the app.
+      if (isPasskeyBusy && activePasskeyAction === "register") {
+        cancelActivePasskey()
+      }
+      return
+    }
+    if (!supportsPasskeys) {
       return
     }
 
@@ -434,6 +444,7 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
     handlePasswordUnlock,
     isPasskeyBusy,
     isSubmitting,
+    activePasskeyAction,
     password,
     registerPasskeyForCurrentSession,
     state,
@@ -540,7 +551,7 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
                   size="sm"
                   className="text-muted-foreground hover:text-foreground"
                   onClick={() => void handlePasskeySetupOnly()}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting && !(isPasskeyBusy && activePasskeyAction === "register")}
                 >
                   {isPasskeyBusy && activePasskeyAction === "register"
                     ? t("sessionAuth.actions.cancelPasskeySetup")

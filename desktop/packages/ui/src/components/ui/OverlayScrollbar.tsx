@@ -238,7 +238,13 @@ const OverlayScrollbarComponent: React.FC<OverlayScrollbarProps> = ({
       observedElementsRef.current.clear()
       if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
       if (frameRef.current) cancelAnimationFrame(frameRef.current)
-      if (metricsFrameRef.current) cancelAnimationFrame(metricsFrameRef.current)
+      if (metricsFrameRef.current) {
+        cancelAnimationFrame(metricsFrameRef.current)
+        // Leaving the cancelled id in place made the guard in `scheduleMetricsUpdate` skip every
+        // later request: only the frame callback nulls it, and a cancelled frame never runs, so the
+        // thumb stopped following content growth and resizes for the life of this instance.
+        metricsFrameRef.current = null
+      }
     }
   }, [
     alwaysVisible,
