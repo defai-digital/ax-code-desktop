@@ -56,6 +56,7 @@ import { generateCommitMessage as generateSessionCommitMessage, getGitWorktreeBo
 import { sessionEvents } from "@/lib/sessionEvents"
 import { useI18n } from "@/lib/i18n"
 import type { CommitAction, SyncAction } from "./git/types"
+import { mapWithConcurrency } from "@/lib/concurrency"
 
 type BranchOperation = "merge" | "rebase" | null
 type ActionTab = "commit" | "branch" | "pr"
@@ -65,6 +66,10 @@ type HistoryBranchDivider = {
   branchName: string
   direction: "up" | "down"
 } | null
+
+// Revert-all drives one mutation per path; the server queues them per repository, so two in
+// flight keep the panel responsive without idling.
+const REVERT_ALL_CONCURRENCY = 2
 
 const GIT_ACTION_TAB_STORAGE_KEY = "oc.git.actionTab"
 const GIT_RECONCILE_DELAY_MS = 15000
@@ -1745,18 +1750,19 @@ export const GitView: React.FC = () => {
       const failed: Array<{ path: string; message: string }> = []
 
       try {
-        await Promise.all(
-          dedupedPaths.map(async (filePath) => {
-            try {
-              await git.revertGitFile(currentDirectory, filePath)
-            } catch (err) {
-              failed.push({
-                path: filePath,
-                message: err instanceof Error ? err.message : t("gitView.toast.revertFailed"),
-              })
-            }
-          }),
-        )
+        // Bounded: the server serialises reverts per repository anyway, so firing one request per
+        // path only filled the browser's connection pool, and the panel's own reads waited behind
+        // them - the view looked hung on a large changeset.
+        await mapWithConcurrency(dedupedPaths, REVERT_ALL_CONCURRENCY, async (filePath) => {
+          try {
+            await git.revertGitFile(currentDirectory, filePath)
+          } catch (err) {
+            failed.push({
+              path: filePath,
+              message: err instanceof Error ? err.message : t("gitView.toast.revertFailed"),
+            })
+          }
+        })
 
         if (touchesStagedIndex && failed.length < dedupedPaths.length) {
           bumpIndexRevision(currentDirectory)
