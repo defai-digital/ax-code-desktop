@@ -175,6 +175,10 @@ export const ProjectActionsButton = ({
   const streamCleanupByRunKeyRef = React.useRef<Record<string, () => void>>({})
   const previewWaitTimeoutByRunKeyRef = React.useRef<Record<string, number>>({})
   const loadRequestIdRef = React.useRef(0)
+  // Runs whose command has been dispatched but whose store entry does not exist yet: the snapshot
+  // guard above cannot see a run that `setProjectActionRun` has not written, so two clicks while
+  // the session was being created both reached `terminal.sendInput` and ran the command twice.
+  const startingRunKeysRef = React.useRef<Set<string>>(new Set())
 
   const projectId = projectRef?.id ?? null
   const projectPath = projectRef?.path ?? ""
@@ -460,6 +464,13 @@ export const ProjectActionsButton = ({
       if (existingRun && existingRun.status === "running") {
         return
       }
+      // The store only learns about the run at the end of this function's await chain, so the
+      // snapshot above is empty for every click until then: two clicks sent the command into the
+      // same shell twice (dev servers then failed on a taken port). The ref is set synchronously.
+      if (startingRunKeysRef.current.has(runKey)) {
+        return
+      }
+      startingRunKeysRef.current.add(runKey)
 
       try {
         const discovered =
@@ -628,6 +639,9 @@ export const ProjectActionsButton = ({
         window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
         delete previewWaitTimeoutByRunKeyRef.current[runKey]
         toast.error(error instanceof Error ? error.message : t("projectActions.error.failedToRunAction"))
+      } finally {
+        // The run is in the store from here on, so the snapshot guard can see it again.
+        startingRunKeysRef.current.delete(runKey)
       }
     },
     [
