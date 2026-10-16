@@ -145,8 +145,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
       setIsRunning(true)
 
       const run = (async (): Promise<CleanupResult> => {
-        try {
-          if (!autoDeleteEnabled || autoDeleteAfterDays <= 0) {
+        try {          if (!autoDeleteEnabled || autoDeleteAfterDays <= 0) {
             if (!force) {
               return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "disabled" }
             }
@@ -216,12 +215,22 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
           if (failedIds.length === 0) setAutoDeleteLastRunAt(Date.now())
           return { completedIds, failedIds, action: sessionRetentionAction }
         } finally {
-          sessionCleanupInFlight = null
           setIsRunning(false)
         }
       })()
 
       sessionCleanupInFlight = run
+      // Cleared from here, not from the run itself: the skip reasons return before the first
+      // await, and an async function that returns before awaiting finishes synchronously —
+      // including its `finally`, which would then clear the latch *before* the assignment
+      // below put the settled promise in it. Every later call joined that promise and replayed
+      // its stale result, so retention never ran again for the life of the window.
+      const release = () => {
+        if (sessionCleanupInFlight === run) {
+          sessionCleanupInFlight = null
+        }
+      }
+      void run.then(release, release)
       return run
     },
     [

@@ -156,4 +156,68 @@ describe("runCleanup skip reasons", () => {
       vi.resetModules()
     }
   })
+
+  test("a run that skipped before its first await does not become the latch for every later run", async () => {
+    // The body returns before its first await on the disabled/loading/cooldown skips, and an
+    // async function that returns before awaiting finishes synchronously — including its
+    // `finally`, which cleared the latch before the latch was assigned. The sticky promise then
+    // answered every later run for the rest of the app's life, so retention never ran again.
+    vi.resetModules()
+    vi.doMock("@/stores/useGlobalSessionsStore", async () => {
+      const actual = await vi.importActual<typeof import("@/stores/useGlobalSessionsStore")>(
+        "@/stores/useGlobalSessionsStore",
+      )
+      return { ...actual, ensureGlobalSessionsLoaded: vi.fn(async () => ({ activeSessions: [] })) }
+    })
+
+    const { useSessionAutoCleanup } = await import("./useSessionAutoCleanup")
+    const { useUIStore } = await import("@/stores/useUIStore")
+    const { useSessionUIStore } = await import("@/sync/session-ui-store")
+
+    useUIStore.setState({
+      autoDeleteEnabled: true,
+      autoDeleteAfterDays: 30,
+      sessionRetentionAction: "delete",
+      autoDeleteLastRunAt: 0,
+    })
+    useSessionUIStore.setState({ isLoading: true })
+
+    let hook: ReturnType<typeof useSessionAutoCleanup> | null = null
+    const Probe = (): null => {
+      hook = useSessionAutoCleanup({ autoRun: false })
+      return null
+    }
+
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement("div")
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    try {
+      await React.act(async () => {
+        root.render(React.createElement(Probe))
+      })
+
+      const skipped = await React.act(async () => hook!.runCleanup({ force: true }))
+      expect(skipped).toMatchObject({ skippedReason: "loading" })
+
+      // The load finished and nothing is stale: the next run has to be evaluated on its own
+      // terms instead of replaying the skip from the first one. The store change re-renders the
+      // probe, which is what replaces the captured `isLoading` in the hook's callback.
+      await React.act(async () => {
+        useSessionUIStore.setState({ isLoading: false })
+      })
+      const next = await React.act(async () => hook!.runCleanup({ force: true }))
+
+      expect(next).toMatchObject({ skippedReason: "no-candidates" })
+    } finally {
+      await React.act(async () => {
+        root.unmount()
+      })
+      container.remove()
+      useSessionUIStore.setState({ isLoading: false })
+      vi.doUnmock("@/stores/useGlobalSessionsStore")
+      vi.resetModules()
+    }
+  })
 })
