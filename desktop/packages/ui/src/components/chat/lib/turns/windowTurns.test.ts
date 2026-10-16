@@ -71,4 +71,21 @@ describe("windowTurns", () => {
 
     expect(model.messageToTurnId.get("a1")).toBe("u1")
   })
+
+  test("refuses an append whose prompt has a reply ordered before it", () => {
+    // `a2` lands before `u2` does, so the base model cannot map it (the same legacy id wrap the full build handles
+    // above). The append of `u2` was taken as a plain append, giving the new turn a slice start at `u2` itself,
+    // while the full build walks that slice back over `a2` — the window dropped the reply.
+    const u1 = message({ id: "u1", role: "user" })
+    const a1 = message({ id: "a1", role: "assistant", parentID: "u1" })
+    const a2 = message({ id: "a2", role: "assistant", parentID: "u2" })
+    const u2 = message({ id: "u2", role: "user" })
+
+    const base = buildTurnWindowModel([u1, a1, a2])
+    const next = updateTurnWindowModelIncremental(base, [u1, a1, a2], [u1, a1, a2, u2])
+
+    // The caller rebuilds on null (`incrementalModel ?? buildTurnWindowModel(messages)`), which is what puts `a2`
+    // back inside its prompt's turn.
+    expect(next).toBeNull()
+  })
 })

@@ -40,6 +40,23 @@ const cloneTurnWindowModel = (model: TurnWindowModel): TurnWindowModel => ({
   turnCount: model.turnCount,
 })
 
+/**
+ * Whether an earlier entry is a reply to the prompt at `promptIndex`, which the base model could not map because
+ * that prompt was not in the list yet (a store can order a reply before its prompt on a legacy id wrap).
+ */
+const hasReplyBeforePrompt = (messages: ChatMessageEntry[], promptIndex: number, promptId: string): boolean => {
+  for (let index = 0; index < promptIndex; index += 1) {
+    const candidate = messages[index]
+    if (!candidate || resolveMessageRole(candidate) !== "assistant") {
+      continue
+    }
+    if (resolveParentMessageId(candidate) === promptId) {
+      return true
+    }
+  }
+  return false
+}
+
 export const updateTurnWindowModelIncremental = (
   previousModel: TurnWindowModel | null,
   previousMessages: ChatMessageEntry[] | null,
@@ -94,6 +111,13 @@ export const updateTurnWindowModelIncremental = (
   const nextModel = cloneTurnWindowModel(previousModel)
 
   if (role === "user") {
+    // A reply that was ordered before its prompt is still unmapped, and the full build walks its prompt's slice
+    // back over it. Handing back a model here would put the new turn's start at the prompt itself and drop the
+    // reply from the window; refusing has the caller rebuild instead.
+    if (hasReplyBeforePrompt(nextMessages, nextMessages.length - 1, messageId)) {
+      return null
+    }
+
     const nextTurnIndex = nextModel.turnIds.length
     nextModel.turnIds.push(messageId)
     nextModel.turnMessageStartIndexes.push(nextMessages.length - 1)
