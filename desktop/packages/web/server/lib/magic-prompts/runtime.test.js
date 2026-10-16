@@ -1,7 +1,7 @@
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createMagicPromptRuntime } from "./runtime.js"
 
@@ -38,6 +38,35 @@ describe("magic prompt runtime", () => {
     await expect(runtime.setOverride("assistant.visible", "x")).rejects.toThrow(/corrupted/i)
 
     expect(await fs.readFile(stateFile(), "utf8")).toBe(unfinished)
+  })
+
+  it("keeps the stored overrides when a write is interrupted", async () => {
+    // The state file was written in place, so an interrupted write (a killed process, a full disk) left partial
+    // JSON that every later read refused as corrupted — and the only in-app recovery from there drops every
+    // override. The write goes to a temp file and is renamed into place.
+    const runtime = createRuntime()
+    await runtime.setOverride("assistant.visible", "keep me")
+
+    const realWriteFile = fs.writeFile
+    const writeFile = vi.spyOn(fs, "writeFile").mockImplementation(async (target, data, encoding) => {
+      if (String(target) === stateFile()) {
+        // What an interrupted in-place write leaves behind.
+        await realWriteFile(target, "", "utf8")
+      }
+      throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" })
+    })
+
+    try {
+      await expect(runtime.setOverride("assistant.visible", "next")).rejects.toThrow(/ENOSPC/)
+    } finally {
+      writeFile.mockRestore()
+    }
+
+    expect(JSON.parse(await fs.readFile(stateFile(), "utf8"))).toMatchObject({
+      overrides: { "assistant.visible": "keep me" },
+    })
+    // Nothing of the failed write is left next to the state file.
+    expect(await fs.readdir(tempDir)).toEqual(["magic-prompts.json"])
   })
 
   it("clears a state file it cannot parse instead of refusing", async () => {

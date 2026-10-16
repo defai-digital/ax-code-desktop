@@ -65,8 +65,22 @@ export const createMagicPromptRuntime = (dependencies) => {
   const readPromptState = async () => serializeState(await readMutablePromptState())
 
   const writePromptState = async (state) => {
+    // Temp file and rename, the way every sibling persistence path in this tree writes: `writeFile` truncates the
+    // target in place, so a process killed — or a disk that fills — halfway through a write leaves partial JSON
+    // behind, and every later read refuses that file as corrupted. The only in-app recovery from there is
+    // `resetAllOverrides`, which throws away every stored override.
     await fsPromises.mkdir(path.dirname(filePath), { recursive: true })
-    await fsPromises.writeFile(filePath, JSON.stringify(serializeState(state), null, 2), "utf8")
+    const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    let renamed = false
+    try {
+      await fsPromises.writeFile(temporaryPath, JSON.stringify(serializeState(state), null, 2), "utf8")
+      await fsPromises.rename(temporaryPath, filePath)
+      renamed = true
+    } finally {
+      if (!renamed) {
+        await fsPromises.rm(temporaryPath, { force: true }).catch(() => {})
+      }
+    }
   }
 
   const persist = async (mutator) => {
