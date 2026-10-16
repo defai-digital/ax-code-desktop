@@ -48,6 +48,16 @@ describe("event stream protocol helpers", () => {
     expect(parseSseEventEnvelope("data: {oops}\n")).toBeNull()
   })
 
+  it("takes the last id of a block that carries two", () => {
+    // `find` answered the first `id:` line, and the SSE spec makes a repeated id field overwrite the earlier ones —
+    // which is what this module's own `readTrailingEventId` implements for a block too large to keep. The cursor a
+    // reconnect sends would then be the first id, replaying an event the client already applied or skipping one it
+    // never saw.
+    const envelope = parseSseEventEnvelope('id: evt-1\ndata: {"directory":"/tmp/project"}\nid: evt-2\n')
+
+    expect(envelope?.eventId).toBe("evt-2")
+  })
+
   it("preserves flat domain events that contain their own nested payload", () => {
     const event = {
       type: "future.event",

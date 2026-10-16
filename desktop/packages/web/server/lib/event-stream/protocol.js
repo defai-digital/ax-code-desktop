@@ -27,10 +27,12 @@ export function parseSseEventEnvelope(block) {
     return null
   }
 
+  // A repeated `id` field overwrites the earlier ones — the SSE spec and this module's own oversized-block reader
+  // (`readTrailingEventId`) both take the last — so the cursor this reports for a reconnect is the effective id.
   const eventId =
     block
       .split("\n")
-      .find((line) => line.startsWith("id:"))
+      .findLast((line) => line.startsWith("id:"))
       ?.slice(3)
       .trim() || null
 
