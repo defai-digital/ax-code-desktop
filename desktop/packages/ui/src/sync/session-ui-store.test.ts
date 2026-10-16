@@ -4,6 +4,7 @@ import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import type { SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import { useSessionWorktreeStore } from "./session-worktree-store"
 import { attachmentToRouteFileInput, useSessionUIStore } from "./session-ui-store"
+import { getActiveSessionRef } from "./sync-context-impl"
 
 /**
  * Unit tests for session worktree routing through the authoritative store.
@@ -348,5 +349,22 @@ describe("session abort flags lifecycle", () => {
     const before = useSessionUIStore.getState().sessionAbortFlags
     useSessionUIStore.getState().clearSessionAbort("session-absent")
     expect(useSessionUIStore.getState().sessionAbortFlags).toBe(before)
+  })
+  test("clears the session the notification path treats as watched when the user leaves it", () => {
+    // The refs are what `isViewedInCurrentSession` compares against, so an arriving permission or question for a
+    // session the user had left was still treated as on screen and its toast was skipped.
+    useSessionUIStore.getState().setCurrentSession("ses_watched", "/repo")
+    expect(getActiveSessionRef()).toEqual({ directory: "/repo", sessionId: "ses_watched" })
+
+    useSessionUIStore.getState().setCurrentSession(null)
+    expect(getActiveSessionRef()).toEqual({ directory: "", sessionId: "" })
+  })
+
+  test("clears it when a new-session draft is opened", () => {
+    useSessionUIStore.getState().setCurrentSession("ses_watched", "/repo")
+
+    useSessionUIStore.getState().openNewSessionDraft()
+
+    expect(getActiveSessionRef()).toEqual({ directory: "", sessionId: "" })
   })
 })

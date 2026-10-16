@@ -394,6 +394,11 @@ export function setActiveSession(directory: string, sessionId: string) {
   _activeSession = sessionId
 }
 
+/** Test seam: the session the notification path treats as being on screen. */
+export function getActiveSessionRef(): { directory: string; sessionId: string } {
+  return { directory: _activeDirectory, sessionId: _activeSession }
+}
+
 export function setExternallyViewedSession(directory: string, sessionId: string, viewed: boolean) {
   if (!directory || !sessionId) return
   const key = viewedSessionKey(directory, sessionId)

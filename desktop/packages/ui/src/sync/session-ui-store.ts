@@ -615,6 +615,10 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       setActiveSession(resolvedDir ?? "", id)
     } else {
       clearPersistedActiveSessionTarget()
+      // Nothing is on screen any more. The ref above is what tells an arriving permission, question, idle or
+      // error event whether its session is being watched, and leaving the previous id there silenced those
+      // signals for a session the user had already left.
+      setActiveSession("", "")
     }
   },
 
@@ -691,6 +695,9 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       error: null,
     })
 
+    // A draft is not a session being watched either: leaving the refs on the previous session suppressed the
+    // permission and question signals for it, exactly as leaving the session by any other route did.
+    setActiveSession("", "")
     // New chat always starts in Agent work mode (not sticky council/arena).
     useWorkModeStore.getState().resetToAgent(directory)
 
