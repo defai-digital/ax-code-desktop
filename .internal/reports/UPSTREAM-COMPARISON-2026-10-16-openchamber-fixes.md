@@ -23,7 +23,7 @@ have, and the same defects can be found by comparing rather than by reading.
    where our code already handles it a different way.
 
 That produced 29 confirmed defects in our tree, and one more was found while fixing them.
-The twenty-five entries below are fixed; the 5 that remain are listed with the shape of
+The twenty-six entries below are fixed; the 4 that remain are listed with the shape of
 their fix so they can be picked up.
 
 ## Fixed
@@ -104,23 +104,25 @@ their fix so they can be picked up.
   compartment is now reconfigured only when its input changed, and the gutter width is
   read in CodeMirror's measure phase instead of forcing a layout on every update.
 
+- `bcaf5e3d5` **The Find panel no longer covers the first lines.** It floats over the top
+  of the editor, so at the top of a file it hid the lines a search started from the top is
+  looking at. While it is open the content carries a top padding as tall as the panel, and
+  the space scrolls away with the text.
+
 ## Confirmed in our tree, not yet fixed
 
 Ordered by severity. Line numbers are where the defect lives today.
 
-1. **The editor's Find panel covers the first lines of the document**
-   (`ui/src/components/ui/CodeMirrorEditor.tsx:426`): the theme positions the panel
-   out of flow and nothing reserves its height.
-2. **The context meter shows the compaction request's fill**
+1. **The context meter shows the compaction request's fill**
     (`ui/src/lib/messages/assistantTokens.ts:25`): after `/compact` the newest
     token-bearing assistant message is the summarising request itself.
-3. **Staged and unstaged line counts are merged into one number**
+2. **Staged and unstaged line counts are merged into one number**
     (`web/server/lib/git/service.js:1642`): a half-staged file shows the same total
     on both its Staged and Changes rows.
-4. **The worktree start command is read from a legacy file the runtime does not
+3. **The worktree start command is read from a legacy file the runtime does not
     write** (`web/server/lib/git/service.js:1221`), so a new worktree runs no project
     start command at all.
-5. **The worktree branch rename field silently renames to a different name**
+4. **The worktree branch rename field silently renames to a different name**
     (`ui/src/components/views/git/WorktreeBranchDisplay.tsx`): covered by the branch
     name fix above for the character set; what remains is that a sanitized name equal
     to the current one closes the editor without saying so.
