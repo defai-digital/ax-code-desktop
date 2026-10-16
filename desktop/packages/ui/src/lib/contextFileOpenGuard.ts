@@ -24,12 +24,15 @@ const classifyReadError = (error: unknown): ContextFileOpenFailureReason => {
 }
 
 const readFileContent = async (files: FilesAPI, path: string): Promise<string> => {
+  // Deliberately not `optional`: that flag tells the engine an absent file is not a failure, so a missing path
+  // resolved here with no content, `countLinesWithLimit("")` is 1, and this guard answered `{ ok: true }` for a
+  // file that is not there — leaving its own "File not found" verdict unreachable.
   if (files.readFile) {
-    const result = await files.readFile(path, { allowOutsideWorkspace: true, optional: true })
+    const result = await files.readFile(path, { allowOutsideWorkspace: true })
     return result.content ?? ""
   }
 
-  const params = new URLSearchParams({ path, allowOutsideWorkspace: "true", optional: "true" })
+  const params = new URLSearchParams({ path, allowOutsideWorkspace: "true" })
   const response = await fetch(`${API_ENDPOINTS.fs.read}?${params.toString()}`, {
     // Avoid conditional requests (304 + empty body).
     cache: HTTP_DEFAULTS.cache.noStore,
