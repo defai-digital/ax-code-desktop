@@ -41,7 +41,18 @@ export const createAxCodeWatcherRuntime = (deps) => {
     abortController = controller
     const signal = controller.signal
 
-    await waitForAxCodePort()
+    try {
+      await waitForAxCodePort()
+    } catch (error) {
+      // The claim exists so stop() can cancel a start that is still waiting for the
+      // runtime. A failed wait must release it: the guard above reads the claim as
+      // "a start is in flight", so a rejected start left it set and every later
+      // start() returned immediately - a silent stream for the rest of the process.
+      if (abortController === controller) {
+        abortController = null
+      }
+      throw error
+    }
 
     if (signal.aborted || abortController !== controller) {
       return

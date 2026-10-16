@@ -200,6 +200,48 @@ describe("createAxCodeWatcherRuntime", () => {
     expect(events.size).toBe(0)
   })
 
+  it("starts again after a port wait that failed", async () => {
+    // Regression: the abort controller was claimed before the port wait, so a rejected
+    // wait left it set. Every later start() then returned at the in-flight guard without
+    // subscribing or creating a reader, and the UI stream stayed silent for the rest of
+    // the process even after the runtime became reachable.
+    let attempts = 0
+    let startCalls = 0
+    const events = new Set()
+    const globalEventHub = {
+      start() {
+        startCalls += 1
+      },
+      subscribeEvent(subscriber) {
+        events.add(subscriber)
+        return () => events.delete(subscriber)
+      },
+      subscribeStatus(subscriber) {
+        events.add(subscriber)
+        return () => events.delete(subscriber)
+      },
+    }
+
+    const watcher = createAxCodeWatcherRuntime({
+      waitForAxCodePort: async () => {
+        attempts += 1
+        if (attempts === 1) {
+          throw new Error("Timed out waiting for ax-code port")
+        }
+      },
+      buildAxCodeUrl: (path) => `http://127.0.0.1:4096${path}`,
+      getAxCodeAuthHeaders: () => ({}),
+      globalEventHub,
+      onPayload: () => {},
+    })
+
+    await expect(watcher.start()).rejects.toThrow("Timed out waiting for ax-code port")
+    await watcher.start()
+
+    expect(startCalls).toBe(1)
+    expect(events.size).toBe(2)
+  })
+
   it("does not stop a shared global event hub when the watcher stops", async () => {
     const events = new Set()
     const statuses = new Set()
