@@ -306,6 +306,18 @@ describe("createAxCodeCliInstallRuntime", () => {
     expect(status.upgrade).toMatchObject({ state: "succeeded", version: "7.26.0" })
   })
 
+  it("fails when the CLI is already past the announced version and nothing was installed", async () => {
+    // `upgrade check` reports an update whenever the installed CLI differs from
+    // the newest release, so a prerelease ahead of it offers an update that
+    // `ax-code upgrade` cannot perform (the real CLI exits 0 having changed
+    // nothing). The verdict has to come from the version, not from the target.
+    const { runtime } = createRuntime({ cli: createCli({ versions: ["7.27.0-rc.1"], latest: "7.26.1" }) })
+    expect((await runtime.getStatus({ refresh: true })).updateAvailable).toBe(true)
+    await runtime.startUpgrade()
+    await runtime.whenIdle()
+    expect((await runtime.getStatus()).upgrade).toMatchObject({ state: "failed", reason: "upgrade-failed" })
+  })
+
   it("drops the finished upgrade's outcome once a new check runs", async () => {
     const { runtime, advance } = createRuntime({ cli: createCli({ versions: ["7.25.0", "7.26.0"] }) })
     await runtime.startUpgrade()

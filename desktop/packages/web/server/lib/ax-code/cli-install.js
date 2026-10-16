@@ -436,11 +436,19 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
       before.currentVersion &&
       compareVersions(upgradedBinary.currentVersion, before.currentVersion) > 0
     // Done means current, or at least at the version the check announced (a
-    // release published mid-upgrade does not turn that into a failure).
+    // release published mid-upgrade does not turn that into a failure). The
+    // announced version only counts when it was newer than the installed one:
+    // a CLI already at or past it (a prerelease, or a release that was pulled)
+    // satisfies the target without anything having been installed.
+    const targetIsNewer =
+      Boolean(before.latestVersion) &&
+      Boolean(before.currentVersion) &&
+      compareVersions(before.latestVersion, before.currentVersion) > 0
     const current = upgradedBinary.updateAvailable === false
-    const reachedTarget = before.latestVersion
-      ? Boolean(upgradedBinary.currentVersion) && compareVersions(upgradedBinary.currentVersion, before.latestVersion) >= 0
-      : advanced
+    const reachedTarget =
+      targetIsNewer && Boolean(upgradedBinary.currentVersion)
+        ? compareVersions(upgradedBinary.currentVersion, before.latestVersion) >= 0
+        : advanced
     if (result.timedOut || !(current || reachedTarget)) {
       logger.warn?.(`[ax-code cli] upgrade did not reach ${before.latestVersion || "the latest version"}: ${output.slice(-2000)}`)
       return { state: "failed", reason: result.timedOut ? "timeout" : "upgrade-failed" }
