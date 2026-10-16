@@ -17,6 +17,26 @@ describe("session folders disk flush", () => {
     vi.unstubAllGlobals()
   })
 
+  test("refuses a folder map whose entries are not arrays", async () => {
+    // The disk path accepted any object: `{"foldersMap":{"/p":"oops"}}` — a hand edit, or a file an older
+    // writer produced — reached the store, and `getFoldersForScope` handed a string to callers that map over
+    // it. The localStorage path has always validated every entry; both go through one reader now.
+    fetchMock.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        foldersMap: { "/p": "oops", "/ok": [{ id: "f1", name: "Flights" }] },
+        collapsedFolderIds: [],
+      }),
+    }))
+
+    const { useSessionFoldersStore } = await loadStore()
+    await vi.waitFor(() => {
+      expect(useSessionFoldersStore.getState().foldersMap["/ok"]).toHaveLength(1)
+    })
+
+    expect(Array.isArray(useSessionFoldersStore.getState().getFoldersForScope("/p"))).toBe(true)
+  })
+
   test("flushes the debounced disk write when the page unloads", async () => {
     const { useSessionFoldersStore } = await loadStore()
     fetchMock.mockClear()

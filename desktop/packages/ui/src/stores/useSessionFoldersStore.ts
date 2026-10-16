@@ -121,40 +121,50 @@ const schedulePersistToDisk = (foldersMap: SessionFoldersMap, collapsedFolderIds
   }, DISK_WRITE_DEBOUNCE_MS)
 }
 
+/**
+ * Every folder map this store accepts, whoever wrote it.
+ *
+ * The localStorage path validated each scope and each entry; the disk path took whatever the response held
+ * as long as it was an object, so `{"foldersMap": {"/p": "oops"}}` — a hand edit, or a file an older writer
+ * produced — reached the store and `getFoldersForScope` handed a string to callers that map over it.
+ */
+const normalizeFoldersMap = (value: unknown): SessionFoldersMap => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {}
+  }
+  const result: SessionFoldersMap = {}
+  for (const [scopeKey, entries] of Object.entries(value as Record<string, unknown>)) {
+    if (!Array.isArray(entries)) {
+      continue
+    }
+    const folders: SessionFolder[] = []
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue
+      const candidate = entry as Record<string, unknown>
+      const id = typeof candidate.id === "string" ? candidate.id.trim() : ""
+      const name = typeof candidate.name === "string" ? candidate.name.trim() : ""
+      if (!id || !name) continue
+      const createdAt = typeof candidate.createdAt === "number" ? candidate.createdAt : 0
+      const sessionIds = Array.isArray(candidate.sessionIds)
+        ? (candidate.sessionIds as unknown[]).filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+        : []
+      const parentId = typeof candidate.parentId === "string" ? candidate.parentId : null
+      folders.push({ id, name, sessionIds, createdAt, parentId })
+    }
+    if (folders.length > 0) {
+      result[scopeKey] = folders
+    }
+  }
+  return result
+}
+
 const readPersistedFolders = (): SessionFoldersMap => {
   try {
     const raw = safeStorage.getItem(FOLDERS_STORAGE_KEY)
     if (!raw) {
       return {}
     }
-    const parsed = JSON.parse(raw) as Record<string, unknown>
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {}
-    }
-    const result: SessionFoldersMap = {}
-    for (const [scopeKey, value] of Object.entries(parsed)) {
-      if (!Array.isArray(value)) {
-        continue
-      }
-      const folders: SessionFolder[] = []
-      for (const entry of value) {
-        if (!entry || typeof entry !== "object") continue
-        const candidate = entry as Record<string, unknown>
-        const id = typeof candidate.id === "string" ? candidate.id.trim() : ""
-        const name = typeof candidate.name === "string" ? candidate.name.trim() : ""
-        const createdAt = typeof candidate.createdAt === "number" ? candidate.createdAt : 0
-        if (!id || !name) continue
-        const sessionIds = Array.isArray(candidate.sessionIds)
-          ? (candidate.sessionIds as unknown[]).filter((v): v is string => typeof v === "string" && v.trim().length > 0)
-          : []
-        const parentId = typeof candidate.parentId === "string" ? candidate.parentId : null
-        folders.push({ id, name, sessionIds, createdAt, parentId })
-      }
-      if (folders.length > 0) {
-        result[scopeKey] = folders
-      }
-    }
-    return result
+    return normalizeFoldersMap(JSON.parse(raw))
   } catch {
     return {}
   }
@@ -541,7 +551,7 @@ const hydrateSessionFoldersFromDisk = async (): Promise<void> => {
       return
     }
 
-    const diskFolders = parsed.foldersMap && typeof parsed.foldersMap === "object" ? parsed.foldersMap : {}
+    const diskFolders = normalizeFoldersMap(parsed.foldersMap)
     const diskCollapsed = Array.isArray(parsed.collapsedFolderIds)
       ? toStringSet(parsed.collapsedFolderIds)
       : new Set<string>()
