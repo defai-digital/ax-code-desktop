@@ -75,10 +75,14 @@ else
   CLI_ENTRY="packages/web/bin/cli.js"
 fi
 
-set -- node "$CLI_ENTRY"
+# Keep the server as PID 1. Without --foreground the CLI's `serve` spawns the
+# server detached and exits, so PID 1 became the log follower below: a server
+# that died left the container running and the platform's restart policy never
+# fired, and SIGTERM reached the follower rather than the server. `--foreground`
+# serves inline, keeps its output on this process's stdout, and handles SIGTERM.
+set -- node "$CLI_ENTRY" serve --foreground
 if [ -n "${UI_PASSWORD:-}" ]; then
   set -- "$@" --ui-password "$UI_PASSWORD"
 fi
-"$@"
 
-exec node "$CLI_ENTRY" logs
+exec "$@"
