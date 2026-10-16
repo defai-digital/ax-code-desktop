@@ -159,6 +159,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
   const [plans, setPlans] = React.useState<ProjectPlanListItem[]>([])
   const [pendingSendTarget, setPendingSendTarget] = React.useState<PendingSendTarget | null>(null)
   const [isSendDialogSubmitting, setIsSendDialogSubmitting] = React.useState(false)
+  const sendInFlightRef = React.useRef(false)
   const [contextReloadTick, setContextReloadTick] = React.useState(0)
   const notesHydratedRef = React.useRef(false)
   const lastSavedNotesRef = React.useRef("")
@@ -488,19 +489,28 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
       if (!projectRef || !pendingSendTarget) {
         return
       }
-
-      const visiblePrompt = await renderMagicPrompt("plan.todo.visible", {
-        todo_text: pendingSendTarget.todoText,
-      })
-      const instructionsText = await renderMagicPrompt("plan.todo.instructions", {
-        todo_text: pendingSendTarget.todoText,
-      })
-      const syntheticParts = [{ synthetic: true as const, text: instructionsText }]
-
+      // The dialog's own guard reads the `submitting` prop, and a state update is not visible to a
+      // handler that is already running: two confirms in the same tick (a click and Cmd+Enter) both
+      // passed it and created two sessions with two copies of the same message. The ref is the guard
+      // that holds.
+      if (sendInFlightRef.current) {
+        return
+      }
+      sendInFlightRef.current = true
       setIsSendDialogSubmitting(true)
       setSendingTodoId(pendingSendTarget.todoId)
 
       try {
+        // Inside the try: these prompts are a network round trip on their first use, and a rejection
+        // here has to release the in-flight flag as well as report itself.
+        const visiblePrompt = await renderMagicPrompt("plan.todo.visible", {
+          todo_text: pendingSendTarget.todoText,
+        })
+        const instructionsText = await renderMagicPrompt("plan.todo.instructions", {
+          todo_text: pendingSendTarget.todoText,
+        })
+        const syntheticParts = [{ synthetic: true as const, text: instructionsText }]
+
         routeToChat()
 
         let sessionId: string | null = null
@@ -568,6 +578,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
         const description = error instanceof Error ? error.message : undefined
         toast.error(t("rightSidebar.contextNotesTodo.toast.sendTodoFailed"), description ? { description } : undefined)
       } finally {
+        sendInFlightRef.current = false
         setIsSendDialogSubmitting(false)
         setSendingTodoId(null)
       }
