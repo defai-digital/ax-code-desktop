@@ -30,6 +30,7 @@ import {
   PREVIEW_CONSOLE_EVENT_LIMIT,
   getContextPanelPreviewConsoleFilterMatch as getPreviewConsoleFilterMatch,
   normalizeContextPanelBrowserUrl as normalizeBrowserUrl,
+  resolvePreviewProxyBasePath,
   type PreviewBridgeMessage,
   type PreviewConsoleEvent,
   type PreviewConsoleFilter,
@@ -314,7 +315,10 @@ type PreviewPaneProps = {
 type PreviewProxyState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ready"; proxyBasePath: string; expiresAt: number }
+  // `targetKey` is the URL key this base path was resolved for: the state survives a `currentUrl` change
+  // for one commit, and a base path used with a newer URL's path and query sent that path (query string
+  // included) through the previous origin's proxy.
+  | { status: "ready"; targetKey: string; proxyBasePath: string; expiresAt: number }
   | { status: "error"; message: string }
 
 const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
@@ -383,7 +387,7 @@ const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
 
     const cached = getCachedProxyTarget(targetKey)
     if (cached) {
-      setProxyState({ status: "ready", proxyBasePath: cached.proxyBasePath, expiresAt: cached.expiresAt })
+      setProxyState({ status: "ready", targetKey, proxyBasePath: cached.proxyBasePath, expiresAt: cached.expiresAt })
       return
     }
 
@@ -422,7 +426,7 @@ const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
 
         previewProxyTargetCache.set(targetKey, { proxyBasePath, expiresAt })
         if (!cancelled) {
-          setProxyState({ status: "ready", proxyBasePath, expiresAt })
+          setProxyState({ status: "ready", targetKey, proxyBasePath, expiresAt })
         }
       } catch (error) {
         previewProxyTargetCache.delete(targetKey)
@@ -443,15 +447,16 @@ const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
       ? normalizedUrl.toString()
       : ""
 
+  const proxyBasePath = resolvePreviewProxyBasePath(proxyState, targetKey)
   const proxySrc =
-    isLoopback && proxyState.status === "ready" && normalizedUrl
+    isLoopback && proxyBasePath && normalizedUrl
       ? (() => {
           const path = normalizedUrl.pathname || "/"
           const searchParams = new URLSearchParams(normalizedUrl.search)
           searchParams.set("ocPreview", String(reloadNonce))
           const search = searchParams.toString()
           const hash = normalizedUrl.hash || ""
-          return `${proxyState.proxyBasePath}${path}${search ? `?${search}` : ""}${hash}`
+          return `${proxyBasePath}${path}${search ? `?${search}` : ""}${hash}`
         })()
       : ""
 
@@ -1250,7 +1255,12 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
     const proxyTargetKey = getBrowserProxyTargetKey(currentUrl)
     const cached = getCachedProxyTarget(proxyTargetKey)
     if (cached) {
-      setProxyState({ status: "ready", proxyBasePath: cached.proxyBasePath, expiresAt: cached.expiresAt })
+      setProxyState({
+        status: "ready",
+        targetKey: proxyTargetKey,
+        proxyBasePath: cached.proxyBasePath,
+        expiresAt: cached.expiresAt,
+      })
       return
     }
 
@@ -1292,7 +1302,7 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
 
         previewProxyTargetCache.set(proxyTargetKey, { proxyBasePath, expiresAt })
         if (!cancelled) {
-          setProxyState({ status: "ready", proxyBasePath, expiresAt })
+          setProxyState({ status: "ready", targetKey: proxyTargetKey, proxyBasePath, expiresAt })
         }
       } catch (error) {
         if (!cancelled) {
@@ -1309,11 +1319,15 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
   }, [currentUrl, t])
 
   const proxySrc = React.useMemo(() => {
-    if (!currentUrl || proxyState.status !== "ready") return ""
+    if (!currentUrl) return ""
+    // Only a base path resolved for this URL's origin: the state outlives an address change by one commit
+    // (see resolvePreviewProxyBasePath).
+    const proxyBasePath = resolvePreviewProxyBasePath(proxyState, getBrowserProxyTargetKey(currentUrl))
+    if (!proxyBasePath) return ""
     try {
       const parsed = new URL(currentUrl)
       const path = parsed.pathname || "/"
-      return `${proxyState.proxyBasePath}${path}${parsed.search}${parsed.hash}`
+      return `${proxyBasePath}${path}${parsed.search}${parsed.hash}`
     } catch {
       return ""
     }

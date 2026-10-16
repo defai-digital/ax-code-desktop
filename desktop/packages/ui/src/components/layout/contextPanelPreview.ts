@@ -51,3 +51,19 @@ export const normalizeContextPanelBrowserUrl = (value: string): string => {
     return "about:blank"
   }
 }
+
+/**
+ * The proxy base path to load a URL through, or "" when the resolved state does not belong to it.
+ *
+ * The state is resolved asynchronously for the URL that was current when the request went out, and it
+ * survives a change of URL for one commit. Pairing an old base path with a new URL's path and query sent
+ * that path — query string, tokens included — through the *previous* origin's proxy, so the key the state
+ * was resolved for has to match the URL being loaded.
+ */
+export const resolvePreviewProxyBasePath = (
+  state: { status: "idle" | "loading" | "ready" | "error"; targetKey?: string; proxyBasePath?: string },
+  targetKey: string,
+): string => {
+  if (state.status !== "ready" || !state.proxyBasePath) return ""
+  return state.targetKey === targetKey ? state.proxyBasePath : ""
+}

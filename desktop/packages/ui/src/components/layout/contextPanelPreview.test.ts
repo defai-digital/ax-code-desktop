@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest"
 
 import {
   getContextPanelPreviewConsoleFilterMatch,
+  resolvePreviewProxyBasePath,
   normalizeContextPanelBrowserUrl,
   type PreviewConsoleEvent,
 } from "./contextPanelPreview"
@@ -66,5 +67,27 @@ describe("normalizeContextPanelBrowserUrl", () => {
 
   test("returns about:blank for unparseable input", () => {
     expect(normalizeContextPanelBrowserUrl("http://")).toBe("about:blank")
+  })
+})
+
+describe("resolvePreviewProxyBasePath", () => {
+  test("only uses a base path resolved for the URL being loaded", () => {
+    // The resolved state outlives a URL change by one commit: using it with the new URL's path and query
+    // sent that path through the previous origin's proxy (query strings carry tokens).
+    expect(
+      resolvePreviewProxyBasePath({ status: "ready", targetKey: "https://a.example", proxyBasePath: "/p/a/" }, "https://a.example"),
+    ).toBe("/p/a/")
+    expect(
+      resolvePreviewProxyBasePath({ status: "ready", targetKey: "https://a.example", proxyBasePath: "/p/a/" }, "https://b.example"),
+    ).toBe("")
+  })
+
+  test("has nothing to offer while the state is resolving or failed", () => {
+    expect(resolvePreviewProxyBasePath({ status: "loading" }, "https://a.example")).toBe("")
+    expect(resolvePreviewProxyBasePath({ status: "idle" }, "https://a.example")).toBe("")
+    expect(resolvePreviewProxyBasePath({ status: "error" }, "https://a.example")).toBe("")
+    expect(
+      resolvePreviewProxyBasePath({ status: "ready", targetKey: "https://a.example", proxyBasePath: "" }, "https://a.example"),
+    ).toBe("")
   })
 })
