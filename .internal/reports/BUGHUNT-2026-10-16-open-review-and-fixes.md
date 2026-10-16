@@ -1289,6 +1289,42 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Nineteenth round
+
+The audit lens that has paid off most often in this series, over everything since `11a54e33` — the six
+commits of the seventeenth and eighteenth rounds, a 573-line diff — with the Claude Code CLI reading the
+frozen diff and then the current source of every file it touches.
+
+Two findings, both real, both defects in the *fixes* rather than in the code they fixed:
+
+- **`7ab7f114`** — the loopback-URL boundary from `70c6327e` was too loose. It rejected an ASCII name
+  character, an optional dot in front of one, or an unrecognized `:port`; every other way a longer authority
+  can continue passed it, and the pattern matched the prefix again — the very regression the boundary exists
+  for. `http://localhost@evil.example/x` (userinfo, so the text names `evil.example`) offered
+  `http://localhost/`, as did `http://localhost:3000@evil.example/x`, `http://localhost%2eevil.example`,
+  `http://localhost\evil`, `http://localhosté.example`, `http://localhost。evil.example` (U+3002, a WHATWG
+  dot equivalent), `http://localhost:` and `http://localhost:abc`. The lookahead now rejects what an
+  authority can be made of — a Unicode letter or digit, `_`, `-`, a `.` followed by one of those, an IDN dot
+  equivalent, or the glue `:`, `@`, `%`, `+`, `~`, `\` — which keeps the sentence punctuation and CJK text
+  `70c6327e` fixed and the two cases the earlier whitelist guarded.
+- **`559d8336`** — `724d9f4e` did not do what its message claimed. It gave the startup pipeline's
+  bind-failure path the `stopAxCodeLifecycle` hook, but that hook only flags the shutdown and aborts an
+  in-flight launch; the process itself is closed by the shutdown runtime's phase-3 teardown, which the
+  pipeline never ran. A bind failure *after* the bootstrap had finished and published its handle still left
+  the child running with its port bound. Phase 3's teardown is now one named function both callers share,
+  and the lifecycle's retry loop checks `isShuttingDown` before its first attempt as well: a shutdown landing
+  between the caller's bootstrap and that attempt found no abort controller to cancel (the attempt creates
+  its own) and spawned a runtime nothing would close; it now reports the skipped start rather than throwing
+  a null error.
+
+The audit's own evidence was stronger than the regression tests it criticised: the pipeline's new test used
+a `vi.fn()` for the stop hook, so it could only show the callback ran, which is exactly why the second
+finding survived the seventeenth round. The replacement wires the real shutdown runtime into the pipeline
+and asserts the process is closed and its port freed, and the lifecycle test asserts no spawn at all.
+
+Both findings are the same shape as the two the sixteenth round's falsification pass found: a fix whose
+*reason* was asserted rather than demonstrated. That lens stays in the rotation.
+
 ## Eighteenth round
 
 The falsification lens again, narrowed this time to the third-to-ninth round block of this report — the
