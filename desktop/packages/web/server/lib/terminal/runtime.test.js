@@ -333,6 +333,60 @@ describe("terminal restart", () => {
     }
   })
 
+  it("keeps the existing session alive when the replacement cannot spawn", async () => {
+    // The old PTY was killed and its id deleted before the new one was spawned, so a provider or spawn
+    // failure answered 500 with nothing left for the client to attach to: the user's shell was gone.
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const writes = []
+    const kills = []
+    const makeFakePty = () => ({
+      onData: () => ({ dispose() {} }),
+      onExit: () => ({ dispose() {} }),
+      write: (data) => writes.push(data),
+      kill: () => kills.push(1),
+      resize: () => {},
+    })
+    let providerFails = false
+    const runtime = createRuntime(server, {
+      app,
+      getPtyProvider: async () => {
+        if (providerFails) throw new Error("node-pty is not available. Run: npm rebuild node-pty")
+        return { backend: "mock", spawn: () => makeFakePty() }
+      },
+      isExecutable: () => true,
+      validateCwd: async (_req, cwd) => ({ ok: true, cwd }),
+      uiAuthController: { enabled: false },
+      buildAugmentedPath: () => "",
+      TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS: 1000,
+      TERMINAL_INPUT_WS_REBIND_WINDOW_MS: 1000,
+    })
+
+    try {
+      const createRoute = getRoute("POST", "/api/terminal/create")
+      const createRes = createMockResponse()
+      await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, createRes)
+      const sessionId = createRes.body?.sessionId
+      expect(sessionId).toBeTruthy()
+
+      providerFails = true
+      const restartRoute = getRoute("POST", "/api/terminal/:sessionId/restart")
+      const restartRes = createMockResponse()
+      await restartRoute({ params: { sessionId }, body: { cwd: "/tmp", cols: 80, rows: 24 } }, restartRes)
+      expect(restartRes.statusCode).toBe(500)
+
+      // Nothing was killed, and the client's session id still works.
+      expect(kills).toHaveLength(0)
+      const inputRoute = getRoute("POST", "/api/terminal/:sessionId/input")
+      const inputRes = createMockResponse()
+      await inputRoute({ params: { sessionId }, body: "ls\n" }, inputRes)
+      expect(inputRes.body).toEqual({ success: true })
+      expect(writes).toContain("ls\n")
+    } finally {
+      await runtime.shutdown()
+    }
+  })
+
   it("enforces the session cap when restarting a stale session id", async () => {
     const { app, getRoute } = createRouteRegistry()
     const server = new EventEmitter()

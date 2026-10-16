@@ -950,25 +950,20 @@ export function createTerminalRuntime({
         return res.status(400).json({ error: "Invalid working directory: not accessible" })
       }
 
-      // Kill the existing session only after the new cwd validates — a rejected
-      // restart must not leave the client holding a dead session id.
+      // The existing session is killed only once the replacement exists. Killing it first (after the
+      // cwd validated, which is what the comment here used to cover) left a failed provider or spawn
+      // answering 500 with the client's session id deleted and its shell already dead.
       const existingSession = terminalSessions.get(sessionId)
-      if (existingSession) {
-        try {
-          killTerminalProcess(existingSession.ptyProcess, "term")
-        } catch (error) {
-          console.warn("Failed to kill existing terminal session before restart:", error)
+      // A restart that replaces a session reuses that session's slot, so the cap only has to be
+      // enforced when there is nothing to replace. The reservation still happens before the first
+      // await: the freed slot counts as pending during the spawn window, so a concurrent create
+      // cannot take it and leave the replacement registering past the cap.
+      let releaseTerminalSlot = null
+      if (!existingSession) {
+        releaseTerminalSlot = reserveTerminalSlot()
+        if (!releaseTerminalSlot) {
+          return res.status(429).json({ error: "Maximum terminal sessions reached" })
         }
-        terminalSessions.delete(sessionId)
-      }
-      // Reserve after the old session freed its slot and before the first
-      // await: during the spawn window the freed slot counts as pending, so a
-      // concurrent create cannot take it and leave the replacement registering
-      // past the cap. (Reserving before the delete would 429 a restart that
-      // reuses its own slot; not reserving at all let the create through.)
-      const releaseTerminalSlot = reserveTerminalSlot()
-      if (!releaseTerminalSlot) {
-        return res.status(429).json({ error: "Maximum terminal sessions reached" })
       }
 
       try {
@@ -984,6 +979,15 @@ export function createTerminalRuntime({
           cwd,
           env: resolvedEnv,
         })
+
+        if (existingSession) {
+          try {
+            killTerminalProcess(existingSession.ptyProcess, "term")
+          } catch (error) {
+            console.warn("Failed to kill existing terminal session before restart:", error)
+          }
+          terminalSessions.delete(sessionId)
+        }
 
         const session = {
           ptyProcess,
@@ -1009,7 +1013,7 @@ export function createTerminalRuntime({
           capabilities: terminalTransportCapabilities,
         })
       } finally {
-        releaseTerminalSlot()
+        releaseTerminalSlot?.()
       }
     } catch (error) {
       console.error("Failed to restart terminal session:", error)
