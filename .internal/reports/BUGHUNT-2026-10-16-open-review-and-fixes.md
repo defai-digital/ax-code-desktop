@@ -1289,6 +1289,41 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Tenth round
+
+Two batches again. The review batch ran four reviewers over surfaces earlier rounds had not read
+(`components/{projects,onboarding,auth,dashboard,providers,model-picker,mcp,mini-chat,multirun}` via Claude
+Code CLI, server `{git,fs,terminal,preview,projects,skills-catalog,ui-auth}` via Grok CLI, `sync/**` via
+qwen3.8-flash and `stores/**` via MiniMax-M3); the audit batch was folded into the ninth round's own
+follow-ups above. Fixed from it:
+
+- **`e66a4814`** — the dashboard's URL stays empty until the runtime version arrives, and the
+  upgrade-status fetch had no deadline, so a runtime that accepted the connection and stopped answering
+  left it empty for good. The iframe was hidden in that state but the Open button stayed enabled, and
+  `window.open("")` opened a blank tab. The button is gated now and the fetch is bounded.
+- **`08c3c135`** — the MCP dropdown held one busy server name: toggling a second server re-enabled the
+  first one's switch while its call was in flight (a second click then issued a concurrent call for the
+  same server), and each handler's `finally` re-enabled the other's. A set of in-flight names now, and
+  the switch state agrees with the last click.
+- **`b1bb1357`** — the model picker's `hiddenModels` default was a fresh `[]`, so the flat list was a
+  different array on every render while the highlight-reset guard compares identities: it never matched,
+  and any unrelated re-render of an open picker reset the highlight to the first row, so the next Enter
+  selected a different model than the user had arrowed to. `ModelMultiSelect` omits that prop, and the
+  existing regression test passed a stable array.
+- **`a53c650a`** — the multi-run launcher loads `setup-worktree` commands per project and never cleared
+  them on a project switch, while Start did not wait for that load: pressing Start after switching
+  submitted the previous project's shell commands with the new project's worktrees. The commands are
+  cleared on the switch and Start waits for the load, as it already did for the worktree base branches.
+
+Suspected, recorded rather than changed:
+
+- **`useExecutionModeStore.setMode` reports a generic "update failed"** when `applyMode` fails part way
+  and the UI shows the mode's real settled state; the data is right and the message is not. Whether the
+  product wants the toast suppressed in that case is a wording decision.
+- **`useMcpStore.refresh`/`refreshResources` "silent" only suppresses the loading flag**, not the error
+  entry, so a silent post-connect refresh that fails still paints an error. Every silent call follows a
+  successful user-initiated mutation, so this is the meaning of "silent" rather than a wrong result.
+
 ## Ninth round
 
 A ninth round ran two review batches: six reviewers over surfaces the earlier rounds had not read
@@ -1677,18 +1712,17 @@ Round six and seven are complete: every confirmed finding is fixed.
   and release contract.
 - `pnpm run build` passes (3/3 turbo tasks) — last run before the ninth round; that round touched no
   bundling input.
-- Two flakes observed, both in the web package, both unexplained and neither reproducible:
-  - `server/lib/ax-code/routes.test.js` "deduplicates concurrent prompt_async requests for the same
-    session message" failed once during a run that overlapped a build, and passed in isolation and on
-    two later full runs. The test races two supertest requests against an in-flight fetch it releases
-    by hand, so CPU contention can close its window; nothing in this series touches that dedupe path.
-  - `server/lib/ax-code/core-routes.test.js` "should call gracefulShutdown with exitProcess: true on
-    /api/system/shutdown" failed once in the ninth round's final full run — `gracefulShutdown` was never
-    called, and that test does not assert the response status, so a 4xx/5xx under parallel load would
-    look exactly like this. It passes three times in isolation and the full web suite passed (1 117
-    tests) on the immediate re-run. Nothing in this series touches `core-routes.js` or that route.
-  Two samples of "a web test that makes a real HTTP request fails only under parallel load" are not
-  enough to name a cause, and the series records them rather than closing them.
+- **The web package's timing-sensitive tests fail while the machine is CPU-starved, and only then.**
+  Four full-suite runs that overlapped six parallel reviewer processes each failed a *different* test —
+  `routes.test.js` "deduplicates concurrent prompt_async requests" (the second response came back 401),
+  `routes.test.js` "answers a runtime that stopped answering" (the mocked `fetch` was never reached),
+  `core-routes.test.js` "should call gracefulShutdown" (never called; that test asserts no status, so a
+  4xx/5xx under load looks the same) and `config-entity-routes.test.js` "answers a name that exists
+  nowhere" — while every one of those files passes in isolation (9 runs for `routes.test.js`) and two
+  consecutive full runs with the machine idle pass, 1 117 tests each. Each failing test does real HTTP
+  through supertest, or races two requests against a fetch it releases by hand, or waits on a 250 ms
+  deadline, so a starved CPU closes its window. Nothing in this series touches those paths; the three
+  tests that assert no response status could be hardened to say why they failed.
 - Two follow-up commits fix defects in this series' own output rather than in the
   product: `1359da50` moves the change list's prefetch effect off a per-render
   array (a hooks-lint warning and a redundant parent notification), and `2b27bd59`
