@@ -178,6 +178,9 @@ export async function installSkillsFromClawdHub({
       const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `clawdhub-${plan.slug}-`))
       let movedToTarget = false
       let backupDir = null
+      // Declared beside the backup, not inside the `try`: the `finally` that decides the backup's fate has to be
+      // able to see it.
+      let restoredIntoPlace = false
 
       try {
         const zip = new AdmZip(Buffer.from(zipBuffer))
@@ -216,7 +219,6 @@ export async function installSkillsFromClawdHub({
         // cross-device copy out of space, a directory that reappeared under the target), and that was
         // the same loss one step later.
         let backupSkillDir = null
-        let restoredIntoPlace = false
         if (exists && decision === "overwrite") {
           backupDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `clawdhub-replaced-${plan.slug}-`))
           backupSkillDir = path.join(backupDir, "skill")
