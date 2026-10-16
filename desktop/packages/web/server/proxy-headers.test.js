@@ -26,6 +26,19 @@ describe("ax-code proxy header handling", () => {
     expect(new Headers(headers).get("authorization")).toBe("Basic server")
   })
 
+  it("does not forward the UI session cookie to the runtime", () => {
+    // The cookie authenticates the renderer against this server; the runtime's credential travels under
+    // `authorization`, so forwarding the cookie only moved a credential into a second process.
+    const headers = collectForwardProxyHeaders(
+      { cookie: "oc_ui_session_4096=session-token", accept: "text/event-stream" },
+      { Authorization: "Basic runtime" },
+    )
+
+    expect(headers.cookie).toBeUndefined()
+    expect(new Headers(headers).get("cookie")).toBeNull()
+    expect(headers.accept).toBe("text/event-stream")
+  })
+
   it("drops content-encoding from forwarded response headers", () => {
     expect(shouldForwardProxyResponseHeader("content-encoding")).toBe(false)
     expect(shouldForwardProxyResponseHeader("Content-Encoding")).toBe(false)

@@ -12,6 +12,10 @@ const filteredRequestHeaders = new Set([
   // validates Origin against its own server origin and will reject requests
   // from the sidecar's port with "origin mismatch".
   "origin",
+  // The UI session cookie authenticates the renderer against this server. The runtime authenticates with the
+  // credential under `authorization` (below), so the cookie only ever travels as a credential into a second
+  // process — one that logs its requests and answers errors with header dumps.
+  "cookie",
 ])
 
 const filteredResponseHeaders = new Set([
