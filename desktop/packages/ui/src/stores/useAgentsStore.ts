@@ -10,6 +10,7 @@ import {
   type ConfigChangeScope,
 } from "@/lib/configSync"
 import { startConfigUpdate, finishConfigUpdate, updateConfigUpdateMessage } from "@/lib/configUpdate"
+import { withTimeout } from "@/lib/asyncTimeout"
 import { createSingleFlight } from "@/lib/singleFlight"
 import { getSafeStorage } from "./utils/safeStorage"
 import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection"
@@ -28,10 +29,22 @@ import { buildRecordSignature } from "@/stores/utils/signature"
 import { streamDebugEnabled } from "@/stores/utils/streamDebug"
 
 const AGENTS_LOAD_CACHE_TTL_MS = 5000
+// A load whose requests never settle (the runtime wedged behind the local server)
+// used to hold the single-flight slot: every later load for that directory joined a
+// promise that never resolved, so the list could not refresh for the rest of the
+// session. The slot is dropped on timeout; an abandoned load still writes its
+// result if it is the current one when it finally arrives.
+const AGENTS_LOAD_TIMEOUT_MS = 15_000
 const agentsLastLoadedAt = new Map<string, number>()
 /** The cache key the agents currently in the store were loaded for. */
 let agentsLoadedCacheKey: string | null = null
 const agentsLoadInFlight = createSingleFlight<boolean>()
+const runAgentsLoad = (cacheKey: string, start: () => Promise<boolean>) =>
+  withTimeout(agentsLoadInFlight.run(cacheKey, start), AGENTS_LOAD_TIMEOUT_MS, () => {
+    agentsLoadInFlight.clear(cacheKey)
+    useAgentsStore.setState({ isLoading: false })
+    return false
+  })
 const agentsLoadRequestIds = new Map<string, number>()
 let agentsLoadSequence = 0
 
@@ -153,7 +166,7 @@ export const useAgentsStore = create<AgentsStore>()(
           }
 
 
-          return agentsLoadInFlight.run(cacheKey, async () => {
+          return runAgentsLoad(cacheKey, async () => {
             const requestId = ++agentsLoadSequence
             agentsLoadRequestIds.set(cacheKey, requestId)
             const isCurrentLoad = () =>
@@ -219,7 +232,11 @@ export const useAgentsStore = create<AgentsStore>()(
                   }),
                 )
 
-                if (!isCurrentLoad()) return true
+                // A load whose result was discarded (another directory's load
+                // started later and won) put nothing in the store, so it must not
+                // report success: the caller would read this directory's agents
+                // out of the other directory's list.
+                if (!isCurrentLoad()) return false
                 const nextSignature = buildAgentsSignature(agentsWithScope)
                 if (previousSignature !== nextSignature) {
                   set({ agents: agentsWithScope, isLoading: false })

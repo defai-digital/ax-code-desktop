@@ -141,10 +141,12 @@ describe("useAgentsStore", () => {
     await Promise.resolve()
 
     latestAgents.resolve([{ name: "new-agent" }])
-    await newLoad
+    await expect(newLoad).resolves.toBe(true)
 
     staleAgents.resolve([{ name: "old-agent" }])
-    await oldLoad
+    // The discarded load owns nothing in the store, so it reports that instead of
+    // letting the config store read this directory's agents from the other list.
+    await expect(oldLoad).resolves.toBe(false)
 
     expect(withDirectories).toEqual(["/workspace/old-project", "/workspace/new-project"])
     expect(fetchCalls.map(String)).toEqual([
@@ -209,5 +211,33 @@ describe("useAgentsStore", () => {
       },
     ])
     expect(useAgentsStore.getState().isLoading).toBe(false)
+  })
+
+  test("releases the in-flight slot when a load never settles", async () => {
+    // A wedged request used to hold the single-flight slot, so every later load
+    // for that directory joined a promise that never resolved and the agent list
+    // could not refresh for the rest of the session.
+    vi.useFakeTimers()
+    try {
+      const hung = createDeferred<unknown[]>()
+      agentLists.push(hung)
+      activeProjectPath = "/workspace/wedged"
+
+      const wedged = useAgentsStore.getState().loadAgents()
+      await vi.advanceTimersByTimeAsync(60_000)
+      await expect(wedged).resolves.toBe(false)
+      expect(useAgentsStore.getState().isLoading).toBe(false)
+
+      const retry = createDeferred<unknown[]>()
+      agentLists.push(retry)
+      const second = useAgentsStore.getState().loadAgents()
+      await Promise.resolve()
+      expect(withDirectories.filter((directory) => directory === "/workspace/wedged")).toHaveLength(2)
+
+      retry.resolve([{ name: "new-agent" }])
+      await expect(second).resolves.toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
