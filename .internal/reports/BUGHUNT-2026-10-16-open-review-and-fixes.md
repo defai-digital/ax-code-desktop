@@ -1289,6 +1289,129 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Eighteenth round
+
+The falsification lens again, narrowed this time to the third-to-ninth round block of this report — the
+"Reviewed and deliberately not changed", "Reported as confirmed, verified and rejected" and "Verified and
+left alone" entries of those rounds — with the Claude Code CLI and deepseek-flash. Both were asked to check
+the *stated reason* of each entry against the current source, not to re-find the bug.
+
+- deepseek-flash: **no falsified recordings**, two entries stating more than their evidence carries.
+- Claude Code CLI: three refutations, two of which are real defects in current source.
+
+Fixed from it:
+
+- **`70c6327e`** — `ui/src/lib/url.ts`. The fifth round had given the loopback-URL pattern a positive
+  boundary listing which characters may follow the host, so the trailing `.`, `,` or `)` of ordinary prose,
+  or CJK punctuation, made the whole match fail: `Server ready at http://localhost:3000.` offered no preview
+  at all, and the `trimUrlTrailingPunctuation` set written to strip exactly those characters never saw a
+  match. The boundary is now a negative lookahead for what would have continued the name, which keeps both
+  fifth-round regressions covered (`http://localhost.evil.example/x` and `http://localhost:123456/` still
+  match nothing).
+- **`2879fcf8`** — `ui/src/lib/openchamberConfig.ts`. `parseProjectPlanMarkdown` removed the heading line
+  from the body in full while the title took only its first 160 characters, so the overflow existed nowhere:
+  importing a plan file, or saving an assistant plan, with an H1 longer than the limit lost its tail for good
+  once `formatProjectPlanMarkdown` wrote the truncated title back. The heading now stays in the body in that
+  case. This also refutes the Limit audit's sentence that plan titles "have a visible `length/max` counter" —
+  they have no editor at all.
+
+Reported, verified against the source and rejected:
+
+- **Soft-removal undo after the timer fired** (Claude Code CLI, CONFIRMED). The trigger says "sonner pauses
+  the toast's countdown on hover, but the module's own 7 s timer keeps running". Sonner 2.0.8 does not pause
+  on hover: its only mouse-enter handler is `onMouseEnter: () => setExpanded(true)`, and the sole pause
+  mechanism is an explicit `duration === Infinity` (`dist/index.mjs`). The toast's duration and the commit
+  timer are the same 7 000 ms, so the residual window is the toast's exit animation, not hover.
+- **The provider circuit breaker counting errors it ignores** (Claude Code CLI, CONFIRMED). The counter is
+  named and documented as `consecutiveErrors`, and `recordProviderError` has always incremented it for every
+  error; the breaker opens only when the *current* status is retryable and the count has reached the
+  threshold, which is the "stop hammering a provider that has failed four times in a row" behaviour the
+  threshold is for. The third-round entry's "nothing user-visible follows" is too strong, but the code is
+  the designed behaviour and the reviewer's proposed change would alter it.
+
+Entries whose reason was corrected rather than the code:
+
+- The third round's `materializeSessionSnapshots` entry names `shouldPreserveExistingPart` as the guard
+  bounding it. That guard lives in `sync/event-reducer.ts` and runs on the live event path only; the
+  materialize path's tool-part handling is `finalizeUnsettledToolParts`, which rewrites a snapshot `running`
+  to `aborted` for an already-completed message. Both reviewers agree the divergence is not bounded by the
+  named guard, and neither could produce the interleaving, so the entry stands as an unproduced race with a
+  corrected reason.
+- The third round's `disconnectProviderAuth` entry calls the `new URL(baseUrl, "http://localhost")` second
+  argument "dead code". It is load-bearing in the mode the same function supports: with `window` absent,
+  `resolveBaseOrigin()` returns `""` and `buildDirectoryUrl` returns a relative path, so the base argument is
+  what lets `new URL` parse at all.
+
+Behind this round's table: the same Claude Code CLI reviewer also flagged that `ui/src/lib/gitApiHttp.ts`
+interpolates the identity id into `/api/git/identities/${id}` without encoding, while both the store
+(`profile-` plus `Math.random().toString(36)`) and the server accept arbitrary ids. That is an observation
+without an anchor in the recordings; the app-generated prefix is base36, so nothing in the UI produces an id
+that needs encoding today.
+
+## Seventeenth round
+
+A seventeenth round, aimed at the largest modules of `server/lib/ax-code/` — the area two directory-level
+passes had already covered, read file by file this time: `lifecycle.js` (1 531 lines, the biggest file in the
+package), `settings-runtime.js` (914) and `proxy.js` (810).
+
+| Reviewer | Scopes |
+| --- | --- |
+| Claude Code CLI | `lifecycle.js` |
+| deepseek-flash | `settings-runtime.js` and its helpers |
+| MiniMax-M3 | `proxy.js` and the network runtime |
+
+Fixed:
+
+- **`98effbe3`** — `lifecycle.js`, two findings. The managed-start retry loop checked `state.isShuttingDown`
+  before the retry delay and not after it, so a shutdown that began *inside* the delay spawned a child
+  nothing would close: it outlived the app with its port bound. The guard now runs after the delay too, as
+  `restartAxCode` already guarded its own gap. `killProcessOnPort` ran `lsof -ti :PORT`, which matches every
+  process whose local *or remote* port is that number — a client connected to the runtime, or an unrelated
+  app whose source port happens to be it — and killed it; it now filters on `-sTCP:LISTEN`, which the sibling
+  helper in `core-routes.js` already did.
+- **`724d9f4e`** — `lifecycle.js` / `startup-pipeline-runtime.js`. The startup pipeline bootstrapped the
+  managed runtime first and validated the host and port afterwards; when that validation failed it logged,
+  called `process.exit()` and left the runtime it had just started running. It now stops the runtime first.
+- **`45d7e083`** — `lifecycle.js`, the win32 branch. `createManagedAxCodeServerProcess` is handed the startup
+  abort signal and the macOS/Linux branch passes it to the SDK launcher, which rejects a pending launch; the
+  win32 branch dropped it on the way to the legacy launcher, which never listened for `abort` either. A
+  shutdown that began while that spawn was pending left the child bound to its port for the whole 30 s start
+  timeout. The legacy launcher now takes the signal, rejects the pending launch and closes the child it
+  spawned.
+- **`6935eb59`** — `settings-runtime.js`. `moveDirectoryContents` deleted the destination entry before the
+  rename meant to replace it, which added a data-loss window to a migration that had just written a merged
+  config pointing at the new directory: a rename that then failed left the destination's previous content
+  gone and the source file in the old id directory. The rename runs first now — it replaces an existing
+  destination on POSIX and, through libuv's `MOVEFILE_REPLACE_EXISTING`, on Windows too — and the EXDEV
+  copy-then-delete fallback is unchanged.
+
+Reported, verified against the source and rejected:
+
+- **Orphan recovery "could not be auto-matched"** (deepseek-flash, CONFIRMED). The claim is that the warning
+  branch is dead weight because nothing ever removes or quarantines the files it names. Removing an orphan
+  that matched no project would destroy the only copy of a user's notes or todos, so leaving it in place and
+  saying so is the safe half of the contract; the one-shot flag it also criticises is what the comment above
+  it claims ("cache the outcome for this process lifetime"), and it is set before the await so concurrent
+  settings reads cannot race into a second scan.
+- **The dangling `activeProjectId` fallback** (deepseek-flash, CONFIRMED). The reviewer read
+  `projectIdMap.get(currentActiveId) || currentActiveId || nextProjects[0]?.id` as able to write an active id
+  that names no project. It cannot be reached: `migrateSettingsFromLegacyLastDirectory` runs first in the same
+  read, repoints an active id that names no project, and the list it validates against is the same
+  `sanitizeProjects` output the later migration maps (both calls are pure functions of the same array), while
+  `persistSettings` repairs the same state right after `validateProjectEntries` drops entries. A regression
+  test now documents that invariant rather than a change to the fallback.
+- **`migrateProjectIconFiles` deleting the old icon** (deepseek-flash, SUSPECTED). The icon route resolves a
+  project's icon from the project's *current* id (`project-icon-routes.js`), so once the id has been migrated
+  the file under the old id is unreachable and removing it is the cleanup, not the loss.
+- **`persistSettings` logging secrets under non-enumerated keys** (deepseek-flash, SUSPECTED). The eight keys
+  the write path drops are the credential-bearing ones, and the log line hides exactly those; no key the
+  update path accepts carries a credential (the reviewer named `notificationTemplates`, `shortcutOverrides`
+  and `usageModelGroups`, which are user-visible display strings). A value-based redactor would be a
+  different design, not a guard for a proven leak.
+
+The MiniMax-M3 reviewer on `proxy.js` died mid-report in a repeated-output loop and returned no finding, so
+that file's round produced nothing to verify.
+
 ## Sixteenth round
 
 A different lens: two reviewers (the Claude Code CLI and deepseek-flash) were asked to *falsify* this
@@ -2288,6 +2411,20 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
+- Latest full run, after the eighteenth round's fixes (each command's exit status captured, not inferred
+  from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
+  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 780, web 1 200
+  (+2 skipped). As before, the lint run's only output is the pre-existing
+  `react-hooks/exhaustive-deps` warning in `ui/src/sync/use-sync.ts`. (Round 17 alone: the same four
+  commands, recorded inside this run.)
+- The rounds 17 and 18 fixes each carry the regression test named in their section, and each was verified by
+  running that test against the pre-fix source and observing the expected failure: `expected … to be called
+  1 times, but got 2 times` and `expected [ '-ti', ':45678' ] to include '-sTCP:LISTEN'` (98effbe3),
+  `expected "vi.fn()" to be called 1 times, but got 0 times` (724d9f4e), `Error: Test timed out in 3000ms`
+  for the in-flight win32 launch (45d7e083), `AssertionError: promise rejected "Error: ENOENT…" instead of
+  resolving` for the deleted storage destination (6935eb59), `AssertionError: expected [ '…3000/' ]` versus
+  `[]` for the sentence-final URL (70c6327e), and `AssertionError: expected 'body' to contain 'aaaa…'`
+  for the dropped plan-title overflow (2879fcf8).
 - Latest full run, after the fifteenth round's fixes (each command's exit status captured, not inferred
   from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 778, web 1 193
