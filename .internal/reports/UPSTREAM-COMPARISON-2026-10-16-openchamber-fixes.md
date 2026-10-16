@@ -22,7 +22,7 @@ have, and the same defects can be found by comparing rather than by reading.
    not have (mobile, spaces, guests, VS Code/JetBrains, relay/tunnel), and cases
    where our code already handles it a different way.
 
-That produced 29 confirmed defects in our tree. The nineteen entries below are fixed; the 10
+That produced 29 confirmed defects in our tree. The twenty-one entries below are fixed; the 8
 that remain are listed with the shape of their fix so they can be picked up.
 
 ## Fixed
@@ -79,44 +79,41 @@ that remain are listed with the shape of their fix so they can be picked up.
   capitalized id, so searching by the name the user knows finds the agent.
 - `12015b00` **Revert All fans out at two**, instead of one request per path, which
   filled the connection pool and made the panel look hung on a large changeset.
+- `4c285c15` **Removing a worktree releases the runtime's instance for it** before
+  the directory goes, instead of leaving instances rooted at paths that no longer
+  exist (best-effort: a refusal never fails the removal).
+- `0413cd6f` **The Zhipu coding plan's `CREDIT_LIMIT` is read**, and a failure the
+  monitor API reports inside an HTTP 200 body is answered as an error with its own
+  message, instead of an empty card with no reason.
 
 ## Confirmed in our tree, not yet fixed
 
 Ordered by severity. Line numbers are where the defect lives today.
 
-1. **The remove-worktree path never releases the runtime instance** that served it
-   (`web/server/lib/git/service.js:3461`, `git/routes.js:1037`). Instances rooted at
-   deleted paths accumulate until the runtime restarts, and a re-created worktree at
-   the same path is served by stale state. Fix: best-effort `POST /instance/dispose`
-   before `git worktree remove`, warn-and-continue on failure.
-2. **Recent files are offered without checking they still exist**
+1. **Recent files are offered without checking they still exist**
    (`ui/src/components/chat/FileMentionAutocomplete.tsx:127`): deleting or renaming a
    file that is still open in a Files tab leaves it in the @ list, and choosing it
    inserts a path that is gone.
-3. **The editor's Find panel covers the first lines of the document**
+2. **The editor's Find panel covers the first lines of the document**
    (`ui/src/components/ui/CodeMirrorEditor.tsx:426`): the theme positions the panel
    out of flow and nothing reserves its height.
-4. **The editor reconfigures all six compartments on every render**
+3. **The editor reconfigures all six compartments on every render**
     (`ui/src/components/ui/CodeMirrorEditor.tsx:461`): a config object built inline
     upstream re-runs the effect and re-parses the document. Upstream diffs each
     compartment against the last applied one.
-5. **A collapsed user message has no keyboard-accessible expand control**
+4. **A collapsed user message has no keyboard-accessible expand control**
     (`ui/src/components/chat/message/parts/UserTextPart.tsx:243`): the only way to
     read a long message is to click the clipped text.
-6. **The context meter shows the compaction request's fill**
+5. **The context meter shows the compaction request's fill**
     (`ui/src/lib/messages/assistantTokens.ts:25`): after `/compact` the newest
     token-bearing assistant message is the summarising request itself.
-7. **Staged and unstaged line counts are merged into one number**
+6. **Staged and unstaged line counts are merged into one number**
     (`web/server/lib/git/service.js:1642`): a half-staged file shows the same total
     on both its Staged and Changes rows.
-8. **The worktree start command is read from a legacy file the runtime does not
+7. **The worktree start command is read from a legacy file the runtime does not
     write** (`web/server/lib/git/service.js:1221`), so a new worktree runs no project
     start command at all.
-9. **The Zhipu coding-plan provider matches only `TOKENS_LIMIT`**
-    (`web/server/lib/quota/providers/zhipuai-coding-plan.js:99`) and ignores the
-    envelope's in-body errors, so its card shows no windows and a rejected key reads
-    as a successful empty card. The neighbouring `zai.js` shares the one-type match.
-10. **The worktree branch rename field silently renames to a different name**
+8. **The worktree branch rename field silently renames to a different name**
     (`ui/src/components/views/git/WorktreeBranchDisplay.tsx`): covered by the branch
     name fix above for the character set; what remains is that a sanitized name equal
     to the current one closes the editor without saying so.
