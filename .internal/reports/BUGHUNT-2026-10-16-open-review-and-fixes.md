@@ -850,6 +850,18 @@ was written.
   `apps/useMiniChatSessionUnavailable.ts` next to `miniChatPresence.ts` so it can be tested without
   mounting the whole app.
 
+- **`68aa6de1`** — two defects around the project config file. Every config save reads the whole file,
+  merges one key and writes it back, so two overlapping saves each started from the file as it was
+  before the other; creating a plan while another save was in flight kept the plan's markdown file but
+  lost its link, leaving the plan invisible and the file orphaned. Saves for one project now run
+  through a queue, and the read a save is built from happens inside it, including the link append and
+  the link removal in the plan routes. `readProjectPlanFile` also read whatever path a stored link
+  named — the delete path already refused to act outside the plans directory, but this read had no
+  check at all, so a config cloned into a repository could point a plan at any file on the machine and
+  the panel showed that file's first line as the plan's title. Both checks compared the written strings
+  by prefix, which `<plans>/../../…/etc/passwd` passes while the filesystem resolves it above the root;
+  the new `projectPathIsInsideRoot` collapses `.` and `..` the way a filesystem does before comparing.
+
 ### Waiting for a first re-check
 
 Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
@@ -972,7 +984,7 @@ One gap remains, recorded rather than fixed:
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 630, web 1 099 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 639, web 1 099 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
