@@ -463,10 +463,14 @@ export const useProjectsStore = create<ProjectsStore>()(
         }
 
         if (nextActiveId) {
-          const nextActive = nextProjects.find((project) => project.id === nextActiveId)
-          if (nextActive) {
-            axCodeClient.setDirectory(nextActive.path)
-            useDirectoryStore.getState().setDirectory(nextActive.path, { showOverlay: false })
+          // Only when the active project actually changed: removing a different project left the id as it was,
+          // and re-pointing the directory then yanked the user out of the worktree they were working in.
+          if (nextActiveId !== current.activeProjectId) {
+            const nextActive = nextProjects.find((project) => project.id === nextActiveId)
+            if (nextActive) {
+              axCodeClient.setDirectory(nextActive.path)
+              useDirectoryStore.getState().setDirectory(nextActive.path, { showOverlay: false })
+            }
           }
         } else {
           void useDirectoryStore.getState().goHome()
@@ -771,7 +775,13 @@ export const useProjectsStore = create<ProjectsStore>()(
         set({ projects: incomingProjects, activeProjectId: incomingActive })
         cacheProjects(incomingProjects, incomingActive)
 
-        if (incomingActive) {
+        // `projectsChanged` is true for any field — an icon, a label, a colour no other window can see — so
+        // switching the directory on it moved the file tree, the git panel and the terminal to the active
+        // project's root every time settings synced. Only a change to the project the directory should follow
+        // (a different active project, or the same one at a new path) switches it.
+        const previousActivePath = current.projects.find((project) => project.id === current.activeProjectId)?.path ?? ""
+        const nextActivePath = incomingProjects.find((project) => project.id === incomingActive)?.path ?? ""
+        if (incomingActive && (activeChanged || nextActivePath !== previousActivePath)) {
           const activeProject = incomingProjects.find((project) => project.id === incomingActive)
           if (activeProject) {
             axCodeClient.setDirectory(activeProject.path)

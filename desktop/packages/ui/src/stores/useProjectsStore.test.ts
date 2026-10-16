@@ -18,6 +18,7 @@ vi.doMock("@/stores/utils/streamDebug", () => ({
 }))
 
 const { useProjectsStore } = await import("./useProjectsStore")
+const { useDirectoryStore } = await import("./useDirectoryStore")
 
 const jsonResponse = (body: unknown): Response =>
   new Response(JSON.stringify(body), {
@@ -148,5 +149,36 @@ describe("useProjectsStore path identity", () => {
     expect(useProjectsStore.getState().projects[0]).toEqual(
       expect.objectContaining({ path: "/Users/Alice/Repo", pinned: true, lastOpenedAt: 42 }),
     )
+  })
+  test("does not move the working directory when only the project list changed", () => {
+    // `projectsChanged` is true for any field — an icon, a label, a colour — so switching the directory on it
+    // pulled the file tree, the git panel and the terminal back to the active project's root every time
+    // settings synced, including from another window.
+    const project = useProjectsStore.getState().addProject("/p")
+    expect(project).not.toBeNull()
+    useDirectoryStore.getState().setDirectory("/p/worktree")
+
+    // The same active project, a field the sanitizer keeps, so the list really differs.
+    useProjectsStore.getState().synchronizeFromSettings({
+      projects: [{ ...project!, lastOpenedAt: 99 }],
+      activeProjectId: project!.id,
+    })
+
+    expect(useDirectoryStore.getState().currentDirectory).toBe("/p/worktree")
+  })
+
+  test("does not move the working directory when another project is removed", () => {
+    useProjectsStore.setState({
+      projects: [
+        { id: "a", path: "/a", addedAt: 1, lastOpenedAt: 1 },
+        { id: "b", path: "/b", addedAt: 2, lastOpenedAt: 2 },
+      ],
+      activeProjectId: "a",
+    })
+    useDirectoryStore.getState().setDirectory("/a/wt")
+
+    useProjectsStore.getState().removeProject("b")
+
+    expect(useDirectoryStore.getState().currentDirectory).toBe("/a/wt")
   })
 })
