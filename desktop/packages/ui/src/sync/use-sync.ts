@@ -13,7 +13,7 @@ import {
   useSyncDirectory,
   useChildStoreManager,
 } from "./sync-context"
-import { dropSessionCaches, getProtectedSessionCacheIds } from "./session-cache"
+import { dropSessionCaches, getProtectedSessionCacheIds, pickEvictableSeenSessionIds } from "./session-cache"
 import { stripMessageDiffSnapshots } from "./sanitize"
 import {
   shouldSkipSessionPrefetch,
@@ -224,9 +224,16 @@ export function useSync(directoryOverride?: string | null) {
     while (seenByDirectory.size > MAX_SEEN_DIRS) {
       const first = seenByDirectory.keys().next().value
       if (!first) break
-      const staleSessionIds = [...(seenByDirectory.get(first) ?? [])]
+      const seen = seenByDirectory.get(first) ?? new Set<string>()
       seenByDirectory.delete(first)
-      evict(first, staleSessionIds)
+      // A session that is working, or that is waiting on an approval or a question, keeps its caches
+      // even when its directory falls out of the LRU: the blocking dialog lives in them, and the
+      // reconnect and poll candidates are derived from the same slices, so nothing brings the session
+      // back until the user opens it again. The per-session path below already protects these; this
+      // directory-level path did not.
+      const dirState = childStores.getChild(first)?.getState()
+      const protectedIds = dirState ? getProtectedSessionCacheIds(dirState) : new Set<string>()
+      evict(first, pickEvictableSeenSessionIds(seen, protectedIds))
     }
 
     return created

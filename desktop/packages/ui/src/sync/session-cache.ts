@@ -105,3 +105,14 @@ export function pickSessionCacheEvictions(input: {
   }
   return stale
 }
+
+/**
+ * The seen sessions of a directory that may have their caches dropped, minus the ones that must keep
+ * them: a session that is working, or that is waiting on an approval or a question, is blocked on a
+ * dialog that lives in those caches, and the reconnect and poll candidates are derived from the same
+ * slices — so dropping them leaves the dialog gone and the session showing nothing until the user
+ * opens it again. The per-session eviction path already protects these ids; the directory-level path
+ * that fires when the seen-directory LRU is over its limit did not.
+ */
+export const pickEvictableSeenSessionIds = (seen: Iterable<string>, preserve: ReadonlySet<string>): string[] =>
+  [...seen].filter((sessionId) => !preserve.has(sessionId))
