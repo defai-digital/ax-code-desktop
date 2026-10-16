@@ -1262,6 +1262,7 @@ export async function refetchSessionMessages(sessionId: string): Promise<void> {
     limit: MESSAGE_REFETCH_LIMIT,
   })
   const records = (result.data ?? []).filter((record: { info?: { id?: string } }) => !!record?.info?.id)
+  assertSessionCallSucceeded(result, "refetchSessionMessages")
   if (records.length === 0) return
 
   store.setState((state) => {

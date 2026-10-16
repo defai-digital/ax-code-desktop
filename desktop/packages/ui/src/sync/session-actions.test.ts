@@ -67,7 +67,9 @@ function resetConfigState() {
 // Configurable result for the session.messages refetch the accepted-prompt
 // watchdog performs before fabricating a failure. Defaults to "server has
 // nothing" so the watchdog falls through to the synthetic error.
-let scopedMessagesResult: { data: Array<{ info: Message; parts?: Part[] }> } = { data: [] }
+let scopedMessagesResult: { data: Array<{ info: Message; parts?: Part[] }>; error?: { message: string } } = {
+  data: [],
+}
 function resetScopedMessagesResult() {
   scopedMessagesResult = { data: [] }
 }
@@ -404,6 +406,19 @@ describe("respondToPermission passes directory", () => {
     expect(replyCalls[0].params.requestID).toBe("perm-2")
     expect(replyCalls[0].params.reply).toBe("always")
     expect(replyCalls[0].params.directory).toBe("/other/project")
+  })
+
+  test("reports a failed message refetch instead of reading it as nothing to restore", async () => {
+    // The refetch ignored `result.error` and returned on an empty list, so the revert and redo paths applied their
+    // marker onto whatever messages were already in the store and the restored toast was shown for a read that
+    // had returned nothing. `assertSessionCallSucceeded` exists for exactly this and the sibling reader uses it.
+    const store = createStore({ "session-a": [] })
+    const childStores = createChildStores([["/test/project", store]])
+    const { refetchSessionMessages, setActionRefs } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    scopedMessagesResult = { data: [], error: { message: "boom" } }
+
+    await expect(refetchSessionMessages("session-a")).rejects.toThrow("refetchSessionMessages failed")
   })
 
   test("passes directory from current directory as last resort", async () => {
