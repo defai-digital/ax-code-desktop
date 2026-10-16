@@ -4,6 +4,10 @@ import { createUpstreamSseReader } from "./upstream-reader.js"
 // Raised from 512 → 2048 to improve recovery after brief disconnects during
 // long-running agent sessions where many events accumulate quickly.
 export const MESSAGE_STREAM_GLOBAL_REPLAY_LIMIT = 2048
+// The count limit alone does not bound memory: one event may be up to the reader's
+// 1 MiB ceiling, so 2048 retained entries could hold ~2 GiB in the server process.
+// Entries are measured by their raw SSE block length (UTF-16 units, roughly bytes).
+export const MESSAGE_STREAM_GLOBAL_REPLAY_MAX_BYTES = 32 * 1024 * 1024
 
 export function createGlobalMessageStreamHub({
   buildAxCodeUrl,
@@ -12,10 +16,13 @@ export function createGlobalMessageStreamHub({
   upstreamStallTimeoutMs,
   upstreamReconnectDelayMs,
   replayLimit = MESSAGE_STREAM_GLOBAL_REPLAY_LIMIT,
+  replayMaxBytes = MESSAGE_STREAM_GLOBAL_REPLAY_MAX_BYTES,
 }) {
   const eventSubscribers = new Set()
   const statusSubscribers = new Set()
   const replay = []
+  const replaySizes = new WeakMap()
+  let replayBytes = 0
 
   let controller = null
   let reader = null
@@ -58,12 +65,33 @@ export function createGlobalMessageStreamHub({
     }
   }
 
+  const evictOldest = (count) => {
+    for (const entry of replay.splice(0, count)) {
+      replayBytes -= replaySizes.get(entry) ?? 0
+    }
+  }
+
   // Replay and fan-out share one path so a synthetic event is recoverable exactly
   // like an upstream one.
-  const publish = (normalized) => {
+  const publish = (normalized, size = 0) => {
     replay.push(normalized)
+    replaySizes.set(normalized, size)
+    replayBytes += size
+
     if (replay.length > replayLimit) {
-      replay.splice(0, replay.length - replayLimit)
+      evictOldest(replay.length - replayLimit)
+    }
+    // Then by size. The newest entry always stays: dropping it would leave a client
+    // whose Last-Event-ID is the previous event looking fully caught up while it had
+    // missed the evicted one.
+    let bytesToEvict = 0
+    let remaining = replayBytes
+    while (remaining > replayMaxBytes && bytesToEvict < replay.length - 1) {
+      remaining -= replaySizes.get(replay[bytesToEvict]) ?? 0
+      bytesToEvict += 1
+    }
+    if (bytesToEvict > 0) {
+      evictOldest(bytesToEvict)
     }
 
     for (const subscriber of Array.from(eventSubscribers)) {
@@ -123,7 +151,7 @@ export function createGlobalMessageStreamHub({
         }
         // Preserve unidentified domain events too. Their position cannot be
         // acknowledged independently, so replay across them requires a snapshot.
-        publish(normalized)
+        publish(normalized, event.block?.length ?? 0)
       },
       onOversize({ eventId, bytes }) {
         if (!isCurrentConnection()) {

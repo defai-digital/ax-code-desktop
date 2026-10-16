@@ -9,7 +9,11 @@ export {
 
 export { createGlobalUiEventBroadcaster, createMessageStreamWsRuntime } from "./runtime.js"
 
-export { MESSAGE_STREAM_GLOBAL_REPLAY_LIMIT, createGlobalMessageStreamHub } from "./global-hub.js"
+export {
+  MESSAGE_STREAM_GLOBAL_REPLAY_LIMIT,
+  MESSAGE_STREAM_GLOBAL_REPLAY_MAX_BYTES,
+  createGlobalMessageStreamHub,
+} from "./global-hub.js"
 
 export {
   DEFAULT_UPSTREAM_RECONNECT_DELAY_MS,

@@ -423,4 +423,66 @@ describe("createGlobalMessageStreamHub", () => {
       warnSpy.mockRestore()
     }
   })
+
+  describe("replay byte bound", () => {
+    const evt = (id, pad = 0) =>
+      `id: ${id}\ndata: {"type":"session.updated","properties":{"pad":"${"p".repeat(pad)}"}}\n\n`
+
+    async function runHub(blocks, hubOptions) {
+      const received = []
+      const hub = createGlobalMessageStreamHub({
+        buildAxCodeUrl: (pathname) => `http://127.0.0.1:4096${pathname}`,
+        getAxCodeAuthHeaders: () => ({}),
+        upstreamReconnectDelayMs: 100,
+        fetchImpl: async () => createSseResponse({ blocks }),
+        ...hubOptions,
+      })
+      hub.subscribeEvent((event) => received.push(event))
+      hub.start()
+      await waitForAssertion(() =>
+        expect(received.at(-1)?.eventId).toBe(blocks.length === 0 ? "" : `e${blocks.length}`),
+      )
+      return hub
+    }
+
+    it("evicts the oldest entries once retained bytes pass the limit", async () => {
+      const blocks = [1, 2, 3, 4, 5].map((n) => evt(`e${n}`, 1000))
+      const hub = await runHub(blocks, { replayMaxBytes: 2500 })
+      try {
+        // Each block is a little over 1,000 characters, so only the newest two fit.
+        const replay = hub.replayAfter("e4")
+        expect(replay.entries.map((entry) => entry.eventId)).toEqual(["e5"])
+        expect(replay.resyncRequired).toBe(false)
+        // e3 fell out of the window, so a client anchored there needs a snapshot.
+        expect(hub.replayAfter("e3").resyncRequired).toBe(true)
+        // An anchor older than the retained window must force a snapshot.
+        expect(hub.replayAfter("e1").resyncRequired).toBe(true)
+      } finally {
+        hub.stop()
+      }
+    })
+
+    it("always keeps the newest entry even when it alone exceeds the limit", async () => {
+      const hub = await runHub([evt("e1"), evt("e2", 5000)], { replayMaxBytes: 1000 })
+      try {
+        // e1 was evicted, so a client anchored there cannot be told it is caught up.
+        const replay = hub.replayAfter("e1")
+        expect(replay.resyncRequired).toBe(true)
+        expect(replay.entries.map((entry) => entry.eventId)).toEqual(["e2"])
+      } finally {
+        hub.stop()
+      }
+    })
+
+    it("releases bytes of entries evicted by count so the byte bound does not over-evict", async () => {
+      const blocks = Array.from({ length: 12 }, (_, i) => evt(`e${i + 1}`, 400))
+      // Room for three entries by count and by bytes; leaked accounting would shrink the window.
+      const hub = await runHub(blocks, { replayLimit: 3, replayMaxBytes: 1700 })
+      try {
+        expect(hub.replayAfter("e9").entries.map((entry) => entry.eventId)).toEqual(["e10", "e11", "e12"])
+      } finally {
+        hub.stop()
+      }
+    })
+  })
 })

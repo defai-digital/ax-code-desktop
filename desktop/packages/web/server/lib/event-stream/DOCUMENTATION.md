@@ -47,7 +47,7 @@ This module contains the AX Code Desktop message-stream WebSocket protocol and r
 - Browser clients connect to the WS endpoints above.
 - AX Code Desktop still fetches AX Code upstream event streams over SSE.
 - The web server creates one shared global message-stream hub. AX Code watcher side effects and global WS clients subscribe to that hub, so there is one upstream /global/event SSE reader for both server-side processing and browser fan-out.
-- The global hub keeps a bounded replay buffer keyed by SSE `eventId` so reconnecting browser clients can receive buffered events after their requested `Last-Event-ID`.
+- The global hub keeps a bounded replay buffer keyed by SSE `eventId` so reconnecting browser clients can receive buffered events after their requested `Last-Event-ID`. The buffer is bounded by entry count (`MESSAGE_STREAM_GLOBAL_REPLAY_LIMIT`, 2048) and by retained raw event size (`MESSAGE_STREAM_GLOBAL_REPLAY_MAX_BYTES`, 32 MiB); the oldest entries are evicted first, the newest is always kept, and a `Last-Event-ID` that has been evicted gets `server.resync_required`.
 - Directory WS clients still attach one upstream `/event?directory=...` SSE reader per connection because directory streams are scoped.
 - If an upstream SSE stream stalls after the browser WS is already ready, the reader aborts that upstream fetch and reconnects upstream with `Last-Event-ID`, keeping the browser WS alive when recovery is fast.
 - Health checks are reserved for initial upstream connect failures and explicit upstream-unavailable responses, not for ordinary stall recovery on an already-established stream.
