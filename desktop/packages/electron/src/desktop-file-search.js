@@ -21,6 +21,16 @@ const shouldSearchNativeRoot = (rootPath, options = {}) => {
   return !isDesktopPathDenied(rootPath, options)
 }
 
+/** The real path of a candidate, or null when it cannot be resolved. */
+const resolvePolicyRealPath = async (candidatePath, fsImpl) => {
+  if (!fsImpl || typeof fsImpl.realpath !== "function") return null
+  try {
+    return await fsImpl.realpath(candidatePath)
+  } catch {
+    return null
+  }
+}
+
 /**
  * The root a native search may walk, or null.
  *
@@ -103,6 +113,14 @@ const collectNativeSearchResults = async ({
       if (entry.isDirectory() && NATIVE_SEARCH_SKIP_DIRS.has(entry.name)) continue
       const full = pathTools.join(dir, entry.name)
       if (!shouldSearchNativeRoot(full, options)) continue
+      if (entry.isDirectory()) {
+        // The walk keeps the caller's paths, but the HOME-relative deny rules compare strings — so a directory
+        // entered through a symlinked root (`/tmp/alias` -> `~/.config`) is not the string that names the denied
+        // store and used to be enumerated. Resolve the directory before descending; the basename rules
+        // (*.pem, *.key, .env*) need no resolution, and names are what this search returns.
+        const resolvedDir = await resolvePolicyRealPath(full, fsImpl)
+        if (resolvedDir && !shouldSearchNativeRoot(resolvedDir, options)) continue
+      }
       if (shouldIncludeNativeSearchEntry(entry, resultType, query)) {
         const extension = entry.isDirectory() ? undefined : pathTools.extname(entry.name).replace(/^\./, "") || undefined
         results.push({

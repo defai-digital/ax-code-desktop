@@ -142,6 +142,33 @@ describe("collectNativeSearchResults", () => {
     expect(results.map((entry) => entry.path)).toEqual([`${root}/nvim/hosts.lua`])
   })
 
+  test("resolves a symlinked root before applying the policy to a directory", async () => {
+    // The walk keeps the caller's paths so results stay where the renderer expects them, and the HOME-relative
+    // deny rules compare strings — so a root like `/tmp/alias` pointing at `~/.config` walked into `ax-code` and
+    // listed the runtime's auth files, names of exactly the paths `desktop_read_file` refuses.
+    const root = "/tmp/alias"
+    const results = await collectNativeSearchResults({
+      root,
+      query: "auth",
+      options: policyOptions,
+      fs: {
+        ...createFs({
+          [root]: [
+            { name: "ax-code", type: "directory" },
+            { name: "project", type: "directory" },
+          ],
+          [`${root}/ax-code`]: [{ name: "auth.json", type: "file" }],
+          [`${root}/project`]: [{ name: "auth-notes.md", type: "file" }],
+        }),
+        realpath: async (candidate) =>
+          candidate === `${root}/ax-code` ? "/Users/alice/.config/ax-code" : candidate,
+      },
+    })
+
+    // The denied store is skipped, the ordinary sibling still answers.
+    expect(results.map((entry) => entry.relativePath)).toEqual(["project/auth-notes.md"])
+  })
+
   test("walks past a directory the policy denies but keeps ordinary siblings", async () => {
     const root = "/Users/alice/project"
     const results = await collectNativeSearchResults({

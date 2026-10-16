@@ -309,7 +309,13 @@ function createSupervisionFsm(options = {}) {
   async function runProbe() {
     probeTimer = null
     if (state !== "healthy" || !attempt) return
-    const handle = attempt.handle
+    // The attempt this probe started for. A crash and restart can install a *new* healthy attempt while the check
+    // is in flight, and that one passes the state/attempt re-check below just as the old one did: the stale
+    // failure then counted against the new process (half the failures it needs to be judged wedged, since two
+    // loops were then accumulating into `probeFailures`) and the trailing `setTimer` re-armed beside the timer the
+    // new attempt had already started.
+    const probedAttempt = attempt
+    const handle = probedAttempt.handle
     let timeoutTimer = null
     let ok = false
     try {
@@ -328,8 +334,9 @@ function createSupervisionFsm(options = {}) {
     } finally {
       if (timeoutTimer) clearTimer(timeoutTimer)
     }
-    // A crash/stop may have changed the state while the probe was in flight.
-    if (state !== "healthy" || !attempt) return
+    // A crash/stop may have changed the state while the probe was in flight — and a restart replaces the
+    // attempt, so the result only applies to the process it was taken from.
+    if (state !== "healthy" || attempt !== probedAttempt) return
     if (ok) {
       probeFailures = 0
       probeDeferralStartedAt = null

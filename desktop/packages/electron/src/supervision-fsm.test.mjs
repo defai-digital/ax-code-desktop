@@ -171,6 +171,59 @@ describe("supervision FSM happy path", () => {
   })
 })
 
+describe("supervision FSM probe ownership", () => {
+  test("a probe that resolves after the runtime restarted does not judge the new process", async () => {
+    // The probe captured its handle, but its post-await check only asked whether *an* attempt was healthy — and a
+    // restart installs a replacement that answers the same. The stale failure then counted against the new
+    // process, and the loop's trailing arm created a second probe beside the one the new attempt had started, so
+    // the two accumulated into one counter and killed a healthy runtime.
+    const clock = createFakeClock()
+    let releaseFirstCheck = () => {}
+    let checks = 0
+    const { fsm, events, driver } = createFsm({
+      clock,
+      probe: {
+        intervalMs: 1000,
+        timeoutMs: 5000,
+        maxConsecutiveFailures: 2,
+        check: () => {
+          checks += 1
+          if (checks === 1) {
+            return new Promise((resolve) => {
+              releaseFirstCheck = resolve
+            })
+          }
+          return Promise.resolve(true)
+        },
+      },
+    })
+    await startHealthy(fsm, driver)
+
+    clock.advance(1000)
+    await flushMicrotasks()
+    expect(checks).toBe(1)
+
+    // The process crashes and its replacement is healthy again before the first check answers.
+    driver.spawns[0].wire.exited(1)
+    clock.advance(500)
+    await flushMicrotasks()
+    expect(driver.spawns).toHaveLength(2)
+    driver.spawns[1].wire.ready({ port: 4096 })
+    await flushMicrotasks()
+
+    releaseFirstCheck(false)
+    await flushMicrotasks()
+
+    // The replacement keeps its own clean record, keeps running, and the stale loop did not arm a second timer.
+    expect(driver.spawns[1].terminated).toBe(0)
+    expect(events.filter((event) => event.type === "health-probe-failed")).toHaveLength(0)
+    const timersAfterStaleResult = clock.pendingCount()
+    clock.advance(1000)
+    await flushMicrotasks()
+    expect(clock.pendingCount()).toBeLessThanOrEqual(timersAfterStaleResult)
+  })
+})
+
 describe("supervision FSM crash recovery", () => {
   test("a restart attempt that crashes before ready counts against the budget", async () => {
     const { fsm, events, driver, clock } = createFsm()
