@@ -1305,6 +1305,154 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Twenty-fourth round
+
+The composer's shell surface — the slash-command branches and what the submit path consumes before them —
+the session, projects, supervision and multirun panels, and, for the third round running, an audit of this
+series' own commits since the last audit.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | `ui/src/components/chat/**` shell surface: the slash-command branches and the submit path |
+| Claude Code CLI | `ui/src/components/{session,projects,supervision,multirun}/**` |
+| Claude Code CLI | an audit of the round's own diff (`git diff 0b5920a3 HEAD`), run again after the harness defect below |
+| deepseek-flash | a second, independent audit of the same diff |
+| Grok CLI | `ui/src/components/chat/**` — the run before this one ended without a report; the second attempt's findings are below |
+
+### The audit harness handed the reviewer its own prompt
+
+`run-round24.sh` passed the prompt file itself as the scope of the audit cell, so `prompt_for` generated a
+prompt whose `SCOPE:` line named that file and the reviewer was asked to audit a prompt about auditing. It
+answered "no confirmed bugs" in 40 bytes and the run was recorded as clean. Every prompt the harness
+generates is now checked for a `SCOPE:` line that names source (a glob) or the diff, and the corrected run
+took 6 695 bytes to report **five defects, all of them in this series' own fixes**. The intermediate
+conclusion (that rounds 20–23's fixes had been audited clean) was not evidence and is withdrawn; what the
+earlier audit did cover is the twenty-third round's own record.
+
+### Fixed from the corrected audit
+
+- **`776a0c33`** — `bbb1717b` consumed a hunk body by draining `oldCount + newCount` from one counter, but a
+  context line is in *both* counts, so the guard ran `oldCount` lines past the body of any hunk with context.
+  `stageHunk`/`unstageHunk` rely on it to refuse a patch that edits another file, and the over-run swallowed
+  the next file's `--- `/`+++ ` pair: the guard counted one section, `git apply` staged the other file's hunk
+  too. The over-run read the other way as well — a later hunk's own `--- a`/`+++ b` body lines (a removed
+  `-- a` above the added `++ b` that replaces it) were counted as a second section, rejecting a patch that
+  targets nothing but the named file. The two counts are tracked apart now.
+- **`8ccbcbd3`** — the agents and commands editors moved their dirty-check baseline to the trimmed values but
+  left the untrimmed text in the form, and `isDirty` compares the raw state against that baseline while the
+  list reload no longer re-populates for the same key: a prompt ending in a newline stayed "dirty" after a
+  successful save. The commands editor's `template` had the same split in the other direction (baseline raw,
+  save trimmed). The same commit moves the agents editor's permission-rule reset below the key guard, where
+  the background reload the guard ignores had been wiping the rule being typed.
+- **`a5c23c8d`** — `3ecdcb7b` folded the searched text one code point at a time, which is not the fold the
+  query goes through: lowercasing `Σ` is context-sensitive, so a word-final capital sigma folds to `ς` in
+  `normalizeSearchQuery` and to `σ` here — text reading exactly `ΟΔΟΣ` stopped matching a search for `ΟΔΟΣ`,
+  which the older context-aware window had matched. The fold is applied to the whole string now, with the
+  per-code-point walk kept only for the index map, and the match reports the span's own length: `İ` lowercases
+  to two code units, so `"İstanbul city"` had been highlighted as `"İstanbul "`.
+- **`abd50e84`** — `861bdf45` let the arrow keys reach the context rows while a file search ran, but left
+  `selectedIndex` where the hidden file list had it: with one context row on screen and file row 1 selected,
+  nothing carried the selection while Enter wrapped to `1 % 1 = 0` and attached the terminal output. The
+  loading state is now one of the triggers that resets the selection. Reproducing this needed care — an
+  unrelated identity change in the reset effect's own dependency list (`visibleAgents`, re-filtered on every
+  query change) resets the index by accident in the harness unless the re-filter is allowed to land first, and
+  that accident is what hid the defect from the previous round's review.
+
+### Fixed from the panels review
+
+- **`94432c5c`** — `BranchSelector` resolved a default source branch in an effect that bails out when the
+  current value is already a branch, reading that value from the render that started the resolution. A
+  `getRootBranch` that landed after the user picked replaced the pick with the repository's root branch,
+  silently, because the selector's value comes from its parent. Reported as SUSPECTED (the reviewer could not
+  run a harness); the deferred-promise test that makes it fail on the pre-fix source is in the commit.
+- **`05756b4c`** — `DirectoryExplorerDialog` rendered the quick-add `<button>` inside the row `<button>` for a
+  directory that is not added yet. Invalid nesting: assistive technology flattens the inner control into the
+  row. The quick-add is a sibling now. Also SUSPECTED by the reviewer, and the one fix in this series whose
+  *visual* result is not verified — the class-level change keeps the row's original spacing by holding the
+  button in an absolutely positioned box over the row's padding, and there is no way to see the result from
+  here. The source assertion pins the sibling structure, not the pixels.
+
+### Fixed from the chat review
+
+The Grok CLI run over `ui/src/components/chat/**` — the reviewer's second attempt, after the first ended without a
+report.
+
+- **`bb79fdac`** — a store can order an assistant reply before the prompt it answers (the legacy id wrap the full
+  turn build handles), and the incremental update could not map such a reply. Appending that prompt was still taken
+  as a plain append, which put the new turn's slice start at the prompt itself while the full build walked the slice
+  back over the reply: the window dropped it, and `scrollToMessage` could not find it either.
+- **`132e10df`** — both reads of a subagent session are bounded (500 on the first, 160 while the task runs, 80 while
+  it is idle) and each wrote its page straight into the sync child store, dropping every message before it. The task
+  record's step list and the child session's own view read that array. The page is merged now, with the same
+  predicate the session store uses for a refetch, so a page copy that changed still replaces the stale one — and the
+  rollback path still replaces outright, which is what keeps a truncated session truncated.
+- **`816df1ef`** — three click handlers (the pending-changes bar, the turn's changed-files dropdown, and a tool
+  row's own file path) resolved a path with only a leading `/` as their absolute test. `extractGitChangedFiles`
+  builds absolute paths and a tool can name a `C:/…` path directly, so each prefixed the path with the directory it
+  already starts with: the editor was asked for `C:/repo/C:/repo/src/app.ts`. `StaticToolRow` carried the correct
+  test next to one of them, which is what made the others visible. The changed-file consumers now share
+  `isAbsoluteChangedFilePath` from the module that builds those paths, and the tool rows share `toAbsoluteToolPath`,
+  which is `StaticToolRow`'s own `resolveAbsolutePath` moved into the module that owns tool paths.
+- **`723f0822`** — `132e10df`'s helper imported `areMessagesEqual` from `event-reducer`, which the *store* boundary
+  check keeps private to `src/sync/` (R2). The focused runs in this round covered the desktop boundary check only;
+  `pnpm run check:boundaries` runs the store one after it, and it is the gate that caught this. The helper sits in
+  `optimistic` beside `mergeMessages` now, which the chat tree may import.
+
+### Fixed from the second audit
+
+- **`73e4abd2`** — both skill installers keep the replaced copy in a temp backup and hand it to `finally`, which
+  removes it once the replacement landed or was restored and keeps it otherwise (the backup is the user's only
+  complete copy when restoring failed too). That condition also covered the case where the *backup copy* is what
+  failed, and there the installed copy is untouched: a partial `replaced-*` directory was left in the temp
+  directory on every such failure with nothing pointing at it.
+- **`58112089`** — the agents editor compares every permission rule against a second baseline to badge rules as
+  added or modified and to serve `revertRule`. The populate effect set that baseline, and a save no longer reaches
+  it: rules a save had just written stayed badged, and reverting one restored the pre-save action.
+- **`06f3ee15`** — `PlanView`'s disk record means "what the disk holds", and a write that lands while a newer one is
+  queued deliberately does not move it. When that newer write then failed, nothing moved it either: the file held
+  the skipped write's content while the record stayed on older text, so reverting to that text looked like "nothing
+  to save" — the same dropped revert the previous round fixed on the success path.
+
+### Fixed from the shell review
+
+- **`4f3a5ca4`** — `/undo` and `/redo` were the only two slash branches without a `try/catch`: a refused
+  revert left an unhandled rejection and a cleared composer with nothing shown, while every neighbouring
+  branch reported through `toast.error` (two keys added to the fourteen catalogs). The same commit clears the
+  linked GitHub issue/PR when the session changes, which had been sending session A's issue context to
+  session B, and it holds off the keyboard shortcuts while an IME composition is open.
+- **`f365a32d`** — a slash command returned before the paths that put consumed review drafts back, so the
+  inline comments and the attachments the submit had already cleared vanished with no trace. The branch
+  restores both.
+- **`a514c9a4`** — the second auditor's two gaps in the round's fixes: the skills catalog did not release a
+  claimed name when the first directory failed to install and was not restored, holding the name against a
+  later installable copy; and `PlanView`'s `onSaved` wrote the loaded plan's state into whichever entry was
+  current when it resolved, so a save that landed after a switch marked the wrong plan saved.
+
+### Reported, verified, and not changed
+
+- **The permission card's pattern builder cannot take effect** (CONFIRMED by the chat review, and by the pinned
+  runtime's own contract). Confirming a suggested or custom pattern calls `handleResponse("always")`, whose body is
+  `{ requestID, reply }` only: the runtime persists exactly `request.always` — the pattern list the request itself
+  carries — and its `message` field is the reject *feedback* (`CorrectedError`), not a pattern. The SDK type agrees
+  (`reply: "once" | "always" | "reject"; message?: string`), and no other route writes the project's permission
+  table. So the user picks a narrower pattern, the runtime grants its own set (and on a request with no `always`
+  patterns, grants nothing durable at all), and the card disappears. Fixing it means either a channel in the
+  runtime's reply contract — this repository consumes that runtime as a pinned artifact and does not own it — or
+  removing an affordance that is a product decision, so it is recorded here rather than changed.
+- **An unmodified config-editor form never picks up an external change** (SUSPECTED, raised by both auditors). The
+  key guard skips every re-population for the same key, so editing an agent's file in another window leaves the
+  form on the old values and the next Save overwrites the new ones. This is the trade-off the MCP page already
+  documents in place ("Saving updates the baseline directly"), so it is a design decision rather than a local
+  defect, and widening the guard to a dirty check is the over-engineering the request rules out. The part of the
+  lead that was a plain defect — resetting the pending rule before the guard — is fixed above.
+- **`buildHunkPatch`'s split of a diff into single-hunk patches** — raised as a suspicion next to the server
+  one and refuted by reading: it keys on `@@ ` at the start of a line, and a hunk *body* line always begins
+  with ` `, `+`, `-` or `\`, so a body line cannot be mistaken for a header. No change.
+- **The `401` flake on the server route suites** (recorded in the twenty-second round and seen again here):
+  `server/lib/{ax-code,quota}/**` route tests answer `401` where `200` is expected while reviewers run, and
+  pass in isolation. No app in that tree has a `401` path of its own — the number comes from the shared guard
+  — and the mechanism is still unexplained. Every full run in this section was made with the machine quiet.
+
 ## Twenty-third round
 
 The audit lens on everything landed since the last one — rounds 20 to 22, twenty-seven commits — run by the
@@ -2773,6 +2921,22 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
+- Latest full run, after the twenty-fourth round's fixes (each command's exit status captured, not inferred from
+  a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+  `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 597, ui 2 928, web 1 271 (+2 skipped),
+  0 `FAIL` lines, 14 locales / 4 802 keys / 62 426 translated entries. The lint run's only output is the
+  pre-existing `react-hooks/exhaustive-deps` warning in `ui/src/sync/use-sync.ts`. One intermediate
+  `check:boundaries` run failed: the *store* boundary check (R2) rejected `taskToolSummary.ts` importing
+  `areMessagesEqual` from `event-reducer`, which the focused `check-desktop-boundaries` run this round used does not
+  cover; `723f0822` moved the helper into `src/sync/optimistic.ts` and the gate is green in the run above. The
+  `401` flake recorded below did not appear in this run; every reviewer process had finished first.
+- Every fix in this round carries the regression test named in its commit, and each was verified by running that
+  test against the pre-fix source and observing the stated failure, then against the fixed source and observing it
+  pass. The assertions are behavioural where the module has a unit surface
+  (`declaredFileSections` through `stageHunk`, `findCaseInsensitiveMatch`, the turn-window model,
+  `mergeChildSessionMessages`, `toAbsoluteToolPath`, both installers' backup directories, `BranchSelector` through a
+  deferred `getRootBranch`, and `FileMentionAutocomplete` through a pending search) and against the source where the
+  component cannot be rendered (`AgentsPage`/`CommandsPage` and `PlanView`, as the earlier rounds did).
 - Latest full run, after the twenty-third round's fixes (each command's exit status captured, not inferred from
   a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 597, ui 2 907, web 1 266 (+2 skipped),
