@@ -1691,16 +1691,21 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     if (slashCommand) {
       const commandName = slashCommand.name
 
-      // A slash command consumes the composer without sending it: the review comments this submit folded into
-      // the text and the files it cleared are not the command's payload, and the restore paths below only run for
-      // a refused queue entry or a failed send — so they were lost with no trace. The composer was cleared above,
-      // so handing both back restores exactly the state before the submit.
-      if (drafts.length > 0) {
-        restoreConsumedDrafts(drafts)
+      // A slash command consumes the composer without sending it: the review comments this submit folded into the
+      // text and the files it cleared are not the command's payload, and the paths that put them back run only for a
+      // refused queue entry or a failed send. Each branch that handles the command hands both back before it
+      // returns — and only a handled branch: an unhandled command falls through to the ordinary send below, which
+      // carries the drafts and files out with the text, so handing them back there sent them twice and left the
+      // comments and the attachment chips behind after a successful send.
+      const releaseConsumedComposerState = () => {
+        if (drafts.length > 0) {
+          restoreConsumedDrafts(drafts)
+        }
+        if (attachedFiles.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
+          useInputStore.getState().setAttachedFiles(attachedFiles)
+        }
       }
-      if (attachedFiles.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
-        useInputStore.getState().setAttachedFiles(attachedFiles)
-      }
+
 
       if (commandName === "undo" && currentSessionId) {
         // Every other slash branch reports its failure. These two let the rejection out of `handleSubmit`, which
@@ -1711,6 +1716,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.undoFailed"))
         }
+        releaseConsumedComposerState()
         return
       } else if (commandName === "redo" && currentSessionId) {
         try {
@@ -1719,9 +1725,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.redoFailed"))
         }
+        releaseConsumedComposerState()
         return
       } else if (commandName === "timeline" && currentSessionId) {
         setTimelineDialogOpen(true)
+        releaseConsumedComposerState()
         return
       } else if (commandName === "compact" && currentSessionId) {
         try {
@@ -1736,6 +1744,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.compactFailed"))
         }
+        releaseConsumedComposerState()
         return
       } else if (commandName === "summary" && currentSessionId) {
         try {
@@ -1765,6 +1774,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.summaryFailed"))
         }
+        releaseConsumedComposerState()
         return
       } else if (commandName === "workspace-review" && (currentSessionId || newSessionDraftOpen)) {
         try {
@@ -1787,6 +1797,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.reviewFailed"))
         }
+        releaseConsumedComposerState()
         return
       } else if (
         (commandName === "plan" || commandName === "plan-feature") &&
@@ -1812,6 +1823,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.planFeatureFailed"))
         }
+        releaseConsumedComposerState()
         return
       } else if (commandName === "catch-up" && (currentSessionId || newSessionDraftOpen)) {
         try {
@@ -1834,6 +1846,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.catchUpFailed"))
         }
+        releaseConsumedComposerState()
         return
       } else if (commandName === "debug" && (currentSessionId || newSessionDraftOpen)) {
         try {
@@ -1856,6 +1869,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.debugFailed"))
         }
+        releaseConsumedComposerState()
         return
       } else if (commandName === "weigh" && (currentSessionId || newSessionDraftOpen)) {
         try {
@@ -1878,6 +1892,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.weighFailed"))
         }
+        releaseConsumedComposerState()
         return
       } else if (commandName === "explore" && (currentSessionId || newSessionDraftOpen)) {
         try {
@@ -1900,6 +1915,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.exploreFailed"))
         }
+        releaseConsumedComposerState()
         return
       }
     }
