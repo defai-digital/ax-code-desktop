@@ -32,6 +32,15 @@ type HostProbeResult = {
 
 const SENSITIVE_QUERY_KEY = /token|auth|secret|api/i
 
+/** The query of a raw URL, for the comparisons `normalizeHostUrl` cannot make after stripping it. */
+const searchOf = (raw: string): string => {
+  try {
+    return new URL(raw.trim()).search
+  } catch {
+    return ""
+  }
+}
+
 export const normalizeHostUrl = (raw: string): string | null => {
   const trimmed = raw.trim()
   if (!trimmed) return null
@@ -93,7 +102,11 @@ export const locationMatchesHost = (locationHref: string, hostUrl: string): bool
       return false
     }
 
-    if (host.search && current.search !== host.search) {
+    // Read the query from the raw values: `normalizeHostUrl` strips it, so this compared an
+    // empty string against an empty string and a host configured for one query matched any
+    // other query on the same origin — the first entry in the list won.
+    const hostSearch = searchOf(hostUrl)
+    if (hostSearch && searchOf(locationHref) !== hostSearch) {
       return false
     }
 

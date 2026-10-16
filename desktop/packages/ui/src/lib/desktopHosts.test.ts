@@ -3,6 +3,7 @@ import {
   desktopHostProbe,
   desktopHostsGet,
   isBlockingHostProbeStatus,
+  locationMatchesHost,
   normalizeHostUrl,
   redactSensitiveUrl,
 } from "./desktopHosts"
@@ -98,5 +99,23 @@ describe("desktopHostProbe", () => {
     expect(isBlockingHostProbeStatus("incompatible")).toBe(true)
     expect(isBlockingHostProbeStatus("update-recommended")).toBe(true)
     expect(isBlockingHostProbeStatus(null)).toBe(false)
+  })
+})
+
+describe("locationMatchesHost", () => {
+  test("tells two hosts on one origin apart by their query", () => {
+    // normalizeHostUrl strips the query, so the query comparison inside the matcher checked an
+    // empty string against an empty string: a host configured for one profile matched the other
+    // profile's window on the same origin, and the first entry in the list was reported.
+    expect(locationMatchesHost("https://lab.example/ax?profile=prod", "https://lab.example/ax?profile=dev")).toBe(false)
+    expect(locationMatchesHost("https://lab.example/ax?profile=dev", "https://lab.example/ax?profile=dev")).toBe(true)
+    // A host configured without a query still matches any query on its path.
+    expect(locationMatchesHost("https://lab.example/ax?profile=dev", "https://lab.example/ax")).toBe(true)
+  })
+
+  test("keeps the path prefix rule", () => {
+    expect(locationMatchesHost("https://lab.example/ax/session/1", "https://lab.example/ax")).toBe(true)
+    expect(locationMatchesHost("https://lab.example/axle", "https://lab.example/ax")).toBe(false)
+    expect(locationMatchesHost("https://other.example/ax", "https://lab.example/ax")).toBe(false)
   })
 })
