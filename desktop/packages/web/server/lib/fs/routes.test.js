@@ -285,6 +285,7 @@ describe("fs outside workspace authorization", () => {
       list: vi.fn(async () => []),
     }
     const fsPromises = {
+      stat: vi.fn(async () => ({ isDirectory: () => false })),
       open: vi.fn(async () => {
         throw new Error("must not open")
       }),
@@ -306,6 +307,7 @@ describe("fs outside workspace authorization", () => {
       raw: vi.fn(async () => ({ buffer: content, mimeType: "image/png" })),
     }
     const fsPromises = {
+      stat: vi.fn(async () => ({ isDirectory: () => false })),
       open: vi.fn(async () => {
         throw new Error("must not open")
       }),
@@ -803,7 +805,11 @@ describe("fs core file adapter responses", () => {
     const coreFileAdapter = {
       raw: vi.fn(async () => ({ buffer: content, mimeType: "image/png" })),
     }
-    const { getRoute } = registerFs({}, { approvedDirectories: [] }, coreFileAdapter)
+    const { getRoute } = registerFs(
+      { stat: vi.fn(async () => ({ isDirectory: () => false })) },
+      { approvedDirectories: [] },
+      coreFileAdapter,
+    )
 
     const res = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/logo.png" } })
 
@@ -824,12 +830,38 @@ describe("fs core file adapter responses", () => {
         throw error
       }),
     }
-    const { getRoute } = registerFs({}, { approvedDirectories: [] }, coreFileAdapter)
+    const { getRoute } = registerFs(
+      { stat: vi.fn(async () => ({ isDirectory: () => false })) },
+      { approvedDirectories: [] },
+      coreFileAdapter,
+    )
 
     const res = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/src" } })
 
     expect(res.statusCode).toBe(400)
     expect(res.body).toEqual({ error: "Specified path is not a file" })
+  })
+
+  it("answers a directory read without asking the core, so the Files view can list it", async () => {
+    // The core reports a directory as a generic server fault with no errno, which
+    // the route cannot classify; stating it here is what lets the view fall back
+    // to a listing instead of showing a read failure.
+    const coreFileAdapter = { read: vi.fn(), raw: vi.fn() }
+    const { getRoute } = registerFs(
+      { stat: vi.fn(async () => ({ isDirectory: () => true })) },
+      { approvedDirectories: [] },
+      coreFileAdapter,
+    )
+
+    const read = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: "/repo/src" } })
+    expect(read.statusCode).toBe(400)
+    expect(String(read.body.error)).toContain("is a directory")
+    expect(coreFileAdapter.read).not.toHaveBeenCalled()
+
+    const raw = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/src" } })
+    expect(raw.statusCode).toBe(400)
+    expect(raw.body).toEqual({ error: "Specified path is not a file" })
+    expect(coreFileAdapter.raw).not.toHaveBeenCalled()
   })
 
   it("reports a missing path when deleting instead of claiming success", async () => {
@@ -877,5 +909,18 @@ describe("fs core file adapter responses", () => {
 
     expect(res.statusCode).toBe(200)
     expect(fsPromises.rm).toHaveBeenCalledWith("/repo/real/notes.txt", { recursive: true })
+  })
+
+  it("refuses to delete the workspace root itself", async () => {
+    // The containment check accepts the root (a relative path of "" is inside
+    // it) and the removal is recursive, so this would take the whole project.
+    const fsPromises = { rm: vi.fn(async () => undefined) }
+    const { getRoute } = registerFs(fsPromises)
+
+    const res = await callRoute(getRoute("POST", "/api/fs/delete"), { body: { path: "/repo" } })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: "Cannot delete the workspace root" })
+    expect(fsPromises.rm).not.toHaveBeenCalled()
   })
 })

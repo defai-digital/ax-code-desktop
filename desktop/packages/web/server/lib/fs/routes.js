@@ -1005,6 +1005,14 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(403).json({ error: "Access to file denied" })
       }
 
+      // A directory read comes back from the core as a generic server fault (its
+      // envelope carries no errno), so it is classified here: the Files view turns
+      // this wording into a directory listing instead of a read failure.
+      const stats = await fsPromises.stat(canonicalPath).catch(() => null)
+      if (stats?.isDirectory()) {
+        return res.status(400).json({ error: `EISDIR: ${path.basename(canonicalPath)} is a directory` })
+      }
+
       if (!coreFileAdapter || typeof coreFileAdapter.read !== "function") {
         return res.status(503).json({ error: "AX Code core file API is not ready" })
       }
@@ -1067,6 +1075,13 @@ export const registerFsRoutes = (app, dependencies) => {
 
       if (!isPathWithinRoot(canonicalPath, canonicalBase, path, os)) {
         return res.status(403).json({ error: "Access to file denied" })
+      }
+
+      // The core answers a directory read with a generic fault, so the route
+      // states what the caller asked for (as /api/fs/stat already does).
+      const stats = await fsPromises.stat(canonicalPath).catch(() => null)
+      if (stats?.isDirectory()) {
+        return res.status(400).json({ error: "Specified path is not a file" })
       }
 
       const ext = path.extname(canonicalPath).toLowerCase()
@@ -1189,6 +1204,13 @@ export const registerFsRoutes = (app, dependencies) => {
       })
       if (!canonical.ok) {
         return res.status(canonical.statusCode).json({ error: canonical.error })
+      }
+
+      // The containment check accepts the root itself (a relative path of "" is
+      // inside it) and the removal is recursive, so deleting it would take the
+      // whole project: the git service refuses the analogous case for worktrees.
+      if (canonical.path === canonical.base) {
+        return res.status(400).json({ error: "Cannot delete the workspace root" })
       }
 
       // Remove the path the containment check validated, not the raw string: the
