@@ -33,9 +33,10 @@ function getStepDecimals(step: number) {
 }
 
 function normalizeToStep(value: number, step: number) {
-  const decimals = getStepDecimals(step)
-  if (decimals <= 0) return value
-  return Number(value.toFixed(decimals))
+  // The step's own precision, and a whole-number step means whole numbers: returning the value untouched for
+  // `decimals <= 0` left a fractional entry in a field whose every caller stores an integer (px, days, line
+  // numbers), and the blur that is documented as forcing an off-step entry into range did nothing there.
+  return Number(value.toFixed(Math.max(0, getStepDecimals(step))))
 }
 
 const stopImmediatePropagation = (event: MouseEvent) => {

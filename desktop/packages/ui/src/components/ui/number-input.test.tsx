@@ -81,4 +81,26 @@ describe("NumberInput typing", () => {
     expect(changes.at(-1)).toBe(42)
     expect(input.value).toBe("42")
   })
+
+  test("rounds a fractional entry in a whole-number field on blur", () => {
+    // `normalizeToStep` returned the value untouched when the step had no decimals, so the blur that is meant to
+    // force an off-step entry into range kept "1.5" in a field whose callers store px, days or line numbers.
+    const { input, changes } = render({ initial: 10, min: 0, max: 100, step: 1 })
+
+    act(() => type(input, "1.5"))
+    act(() => input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })))
+
+    expect(changes.at(-1)).toBe(2)
+    expect(input.value).toBe("2")
+  })
+
+  test("keeps the precision a fractional step declares", () => {
+    const { input, changes } = render({ initial: 0, min: 0, max: 10, step: 0.5 })
+
+    act(() => type(input, "1.25"))
+    act(() => input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })))
+
+    expect(changes.at(-1)).toBe(1.3)
+    expect(input.value).toBe("1.3")
+  })
 })
