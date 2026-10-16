@@ -11,6 +11,7 @@ import { CODE_FONT_OPTION_MAP, DEFAULT_MONO_FONT } from "@/lib/fontOptions"
 import { convertThemeToXterm } from "@/lib/terminalTheme"
 import { TerminalViewport, type TerminalController } from "@/components/terminal/TerminalViewport"
 import { cn } from "@/lib/utils"
+import { quickKeyControlPayload } from "@/lib/terminalQuickKey"
 import { useUIStore } from "@/stores/useUIStore"
 import { Button } from "@/components/ui/button"
 import { SortableTabsStrip } from "@/components/ui/sortable-tabs-strip"
@@ -801,19 +802,15 @@ export const TerminalView: React.FC = () => {
       let payload = data
       let modifierConsumed = false
 
-      if (activeModifier && data.length > 0) {
-        const firstChar = data[0]
-        if (firstChar.length === 1 && /[a-zA-Z]/.test(firstChar)) {
-          const upper = firstChar.toUpperCase()
-          if (activeModifier === "ctrl" || activeModifier === "cmd") {
-            payload = String.fromCharCode(upper.charCodeAt(0) & 0b11111)
-            modifierConsumed = true
-          }
+      if (activeModifier) {
+        // A single letter becomes its control code; anything longer — a paste, most of all — is sent as
+        // it is. The transform used to apply to a multi-character input's first letter and drop the
+        // rest: pasting `echo hello` with CTRL armed sent one `0x05` byte.
+        const controlPayload = quickKeyControlPayload(data, activeModifier)
+        if (controlPayload !== null) {
+          payload = controlPayload
         }
-
-        if (!modifierConsumed) {
-          modifierConsumed = true
-        }
+        modifierConsumed = true
       }
 
       const terminalId = terminalIdRef.current
