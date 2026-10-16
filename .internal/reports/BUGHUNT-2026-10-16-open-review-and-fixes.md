@@ -1289,6 +1289,60 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Twenty-first round
+
+The areas no round had named: the desktop-mode server wiring, the shared package and the web package's own
+source, the release machinery (workflows, packaging scripts, winget, release identity) and the `ui` views tree.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | `web/server/lib/desktop/**`, `web/server/*.js`, `electron/src/api-prefix-router.js` |
+| deepseek-flash | `desktop/shared/**`, `packages/web/src/**` |
+| Grok CLI | `desktop/scripts/**`, `script/**`, `.github/workflows/**`, `tools/winget/**`, `config/**` |
+| Claude Code CLI | `ui/src/components/views/**` |
+
+The Grok CLI's release-machinery scope had not returned when this section was written; whatever it finds is
+recorded with the rest when it does.
+
+Fixed:
+
+- **`537a8c6b`** — the packaged renderer's socket URLs were never rebound to the loopback server.
+  `rewriteAppProtocolNetworkUrl` accepted an absolute URL only under the `app:` protocol, but the UI's socket
+  URLs never carry it: `normalizeWebSocketPath` builds `ws://${window.location.host}<path>`, which on the
+  packaged page is `ws://ax-code/api/terminal/ws`. The packaged renderer's CSP allows WebSockets to
+  `127.0.0.1`/`localhost`/`[::1]` only, so the terminal transport's socket pointed at a host that cannot
+  resolve. The app host is matched under the socket schemes now.
+- **`cc2d3384`** — the same function's relative branch tested the loopback prefix against the raw,
+  unnormalized string while the absolute branch used the parser-normalized path, so `/api/../assets/index.js`
+  was rebound to the API origin (where it resolves to an asset the app:// handler owns, and 404s). Both
+  branches agree on the normalized path.
+- **`8a4b40ab`** — `proxy-headers.js` dropped `host`, `origin`, `accept-encoding` and the hop-by-hop headers
+  but not `cookie`, so every proxied request carried the renderer's `oc_ui_session…` cookie into the runtime
+  process. The runtime's own credential travels under `authorization` (which the filter replaces), so the
+  cookie only moved a credential into a second process.
+- **`39847cc7`** — two ways `PlanView`'s autosave lost an edit: `loadedContentRef` ("what the disk holds") was
+  written only by the load paths, so editing away from the loaded text and back to it made
+  `planContentNeedsSave` answer false and the revert was never written; and the effect's early return left the
+  previous run's queued entry in `pendingSaveRef` while its cleanup cleared the debounce timer, so typing then
+  undoing inside the 350 ms delay and leaving the view wrote the abandoned text.
+
+Reported, verified against the source, and not fixed:
+
+- **Repeated response headers collapse** (`proxy-headers.js:64-68`, SUSPECTED). `applyForwardProxyResponseHeaders`
+  calls `setHeader` once per entry, so two `Set-Cookie` headers from the runtime leave only the last one on the
+  client. The reviewer found no evidence that the runtime emits more than one, so nothing is reachable today;
+  recorded rather than guarded.
+- **The git index mutation queue drops a merged mutation's rollback** (`ui/src/components/views/git/gitIndexMutationQueue.ts:78-86`,
+  SUSPECTED). Two stage clicks that queue behind a running mutation merge into one entry, and only the first
+  entry's rollback survives; that rollback restores a whole-status snapshot, so it can also revert a status
+  refresh that landed between the clicks. It relies on the delayed reconcile fetch to correct the display, and
+  the reviewer could not show that fetch failing.
+- **The rewrite installer no-ops silently when the desktop server origin is missing**
+  (`app-protocol-network.ts:54-57`, SUSPECTED). On the `app:` page that leaves every socket unrouted with no
+  diagnostic. The trigger is a preload projection that is absent or late at the moment `main.tsx` runs, which
+  the reviewer did not establish; the alternative is a startup retry, which is a design change rather than a
+  bug fix.
+
 ## Twentieth round
 
 | Reviewer | Scope |
@@ -2557,6 +2611,11 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
+- Latest full run, after the twenty-first round's fixes so far (each command's exit status captured, not
+  inferred from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
+  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 880, web 1 262
+  (+2 skipped), 0 `FAIL` lines. The Grok CLI's release-machinery review was still running; any finding it
+  returns is fixed and the gates re-run before that round is closed.
 - Latest full run, after the twentieth round's fixes (each command's exit status captured, not inferred
   from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 878, web 1 258
