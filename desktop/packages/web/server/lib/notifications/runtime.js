@@ -388,8 +388,12 @@ export const createNotificationTriggerRuntime = (deps) => {
         clearTimeout(existingTimer)
       }
 
-      const timer = setTimeout(async () => {
-        questionNotificationDebounceTimers.delete(sessionId)
+      const timer = setTimeout(() => {
+        // The body is asynchronous and nothing observes a rejection from a timer: an
+        // unreadable or corrupt settings file escaped it as an unhandled rejection, which
+        // Node's default turns into a process exit for the whole server.
+        void (async () => {
+          questionNotificationDebounceTimers.delete(sessionId)
 
         const settings = await readSettingsFromDisk()
         if (settings.notifyOnQuestion === false) {
@@ -445,6 +449,9 @@ export const createNotificationTriggerRuntime = (deps) => {
             requireHidden: settings.notificationMode !== "always",
           })
         }
+        })().catch((error) => {
+          console.warn("[Notification] Question notification failed:", error?.message || error)
+        })
       }, QUESTION_NOTIFICATION_DEBOUNCE_MS)
 
       questionNotificationDebounceTimers.set(sessionId, timer)
@@ -504,23 +511,29 @@ export const createNotificationTriggerRuntime = (deps) => {
       const pending = existing?.pending ?? new Map()
       pending.set(requestKey ?? `unkeyed:${sessionId}`, payload)
 
-      const timer = setTimeout(async () => {
-        permissionNotificationDebounceTimers.delete(sessionId)
+      const timer = setTimeout(() => {
+        // Same reason as the question ask above: `flushPermissionAsk` awaits the settings
+        // read, and a rejection from inside a timer has nowhere to go.
+        void (async () => {
+          permissionNotificationDebounceTimers.delete(sessionId)
 
-        if (await isSessionAutoAccepting(sessionId)) {
-          for (const key of pending.keys()) {
-            rememberNotifiedPermissionRequest(key.startsWith("unkeyed:") ? null : key)
+          if (await isSessionAutoAccepting(sessionId)) {
+            for (const key of pending.keys()) {
+              rememberNotifiedPermissionRequest(key.startsWith("unkeyed:") ? null : key)
+            }
+            return
           }
-          return
-        }
 
-        for (const [pendingKey, pendingPayload] of pending) {
-          await flushPermissionAsk(
-            sessionId,
-            pendingKey.startsWith("unkeyed:") ? null : pendingKey,
-            pendingPayload,
-          )
-        }
+          for (const [pendingKey, pendingPayload] of pending) {
+            await flushPermissionAsk(
+              sessionId,
+              pendingKey.startsWith("unkeyed:") ? null : pendingKey,
+              pendingPayload,
+            )
+          }
+        })().catch((error) => {
+          console.warn("[Notification] Permission notification failed:", error?.message || error)
+        })
       }, PERMISSION_NOTIFICATION_DEBOUNCE_MS)
 
       permissionNotificationDebounceTimers.set(sessionId, { timer, pending })

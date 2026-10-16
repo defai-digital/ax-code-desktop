@@ -238,3 +238,74 @@ it("drops only the replied permission ask and still notifies the pending ones", 
     vi.useRealTimers()
   }
 })
+
+describe("notification debounce failure handling", () => {
+  // A rejecting settings read inside the timer body had nothing to report it to: the handle
+  // only ever reaches clearTimeout, so the rejection escaped the timer and Node's default
+  // (`--unhandled-rejections=throw`) took the whole server process down with every open
+  // session and terminal.
+  const watchUnhandledRejections = () => {
+    const rejections = []
+    const listener = (reason) => rejections.push(reason)
+    process.on("unhandledRejection", listener)
+    return {
+      rejections,
+      stop: () => process.off("unhandledRejection", listener),
+    }
+  }
+
+  const settle = async () => {
+    await new Promise((resolve) => process.nextTick(resolve))
+    await Promise.resolve()
+  }
+
+  it("keeps a failed settings read inside the debounced question ask", async () => {
+    vi.useFakeTimers()
+    const watcher = watchUnhandledRejections()
+    try {
+      const { runtime, emitted } = createRuntime({
+        readSettingsFromDisk: vi.fn(async () => {
+          throw new Error("settings.json is unreadable")
+        }),
+      })
+
+      await runtime.maybeDispatchNotificationForTrigger({
+        type: "question.asked",
+        properties: { sessionID: "ses_q1", questions: [{ header: "Plan Mode", question: "Continue?" }] },
+      })
+      await vi.advanceTimersByTimeAsync(600)
+      await settle()
+
+      expect(emitted).toEqual([])
+      expect(watcher.rejections).toEqual([])
+    } finally {
+      watcher.stop()
+      vi.useRealTimers()
+    }
+  })
+
+  it("keeps a failed settings read inside the debounced permission ask", async () => {
+    vi.useFakeTimers()
+    const watcher = watchUnhandledRejections()
+    try {
+      const { runtime, emitted } = createRuntime({
+        readSettingsFromDisk: vi.fn(async () => {
+          throw new Error("settings.json is unreadable")
+        }),
+      })
+
+      await runtime.maybeDispatchNotificationForTrigger({
+        type: "permission.asked",
+        properties: { id: "req_p1", permission: "bash", sessionTitle: "My session", sessionID: "ses_p1" },
+      })
+      await vi.advanceTimersByTimeAsync(600)
+      await settle()
+
+      expect(emitted).toEqual([])
+      expect(watcher.rejections).toEqual([])
+    } finally {
+      watcher.stop()
+      vi.useRealTimers()
+    }
+  })
+})
