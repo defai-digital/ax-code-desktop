@@ -27,6 +27,8 @@ same areas and on the surfaces the sub-reviews did not cover:
 | read-only review | `electron/src` |
 | Muse CLI, Grok CLI | `ui/src/components/sections`, `update`, mixed UI, `script` |
 | AX Code `glm-5.3`, `MiniMax-M3`, `qwen3.8-flash`, `mimo-v2.6-pro`, `deepseek-flash` | server libraries, chat, files, projects/session trees |
+| Grok CLI, Claude Code CLI | rounds six to eight: views, server git and mcp, chat, hooks, scripts |
+| Muse CLI, Claude Code CLI, Grok CLI *(audit)* | round nine: UI components and lib, session tree, packaging scripts; and the series' own diff |
 
 What the external reviewers contributed, stated plainly: the Muse CLI run was
 refused the project rules because it treated the workspace as untrusted and
@@ -51,6 +53,16 @@ parent rather than stashed, so the comparison covers the original code and not a
 later edit of it. Four fixes have no regression test; each says so where it is
 listed, and why (no render harness for that component, or a harness that would
 have to be invented for it).
+
+By the ninth round the reviews of the source had reached the point where the
+higher-yield half was auditing the series' own changes: three reviewers were handed
+the round's unified diff (`git diff` over the commits) with the current source of
+every file it touches and asked to look only for mistakes in *it*. Five defects
+came back that way, all of them real — a selection guard reintroduced through its
+own tolerance, a validator keyed on constants that did not match the map the
+validated function looks up, a rollback that assumed a serialised writer, an entry
+point check that failed on a symlinked path, and a comment overstating what a
+reload achieves. They are listed in the ninth round section.
 
 ## Fixes
 
@@ -1277,6 +1289,95 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Ninth round
+
+A ninth round ran two review batches: six reviewers over surfaces the earlier rounds had not read
+(`components/{session,projects,supervision}` via Claude Code CLI, `components/{ui,comments,notifications,layout,files,desktop,update}`
+via Muse, server `{notifications,event-stream,security,text,quota,projects}` via deepseek-flash,
+`electron/src/**` via glm-5.3, packaging and tooling scripts via Grok CLI, and the remaining
+`ui/src/lib/**` via qwen3.8-flash) and three auditors over *this series' own commits*, each handed the
+round's unified diff and told to look only for mistakes in it. All nine produced findings; the audits
+were the higher-yield half, and five of their findings are fixed below.
+
+### Fixed from the review batch
+
+- **`037b26bb`** — both quota handlers returned `error.message` to the client, so a failed dynamic
+  import or provider call put absolute paths and module specifiers in the response body. The ax-code
+  routes already log the detail and answer a fixed string for exactly this reason.
+- **`25c1097b`** — `locationMatchesHost` normalized both URLs through `normalizeHostUrl` (which deletes
+  the query) and then compared `host.search`, always the empty string, so the guard could never refuse:
+  a host configured for `?profile=dev` matched a window on `?profile=prod` and `hosts.find` returned the
+  first entry — the wrong instance label and window title. The query is read from the raw values now.
+- **`7b7c3a79`** — the worktree-delete dialog's setup effect listed `deleteDialog` in its dependency
+  array while the status check wrote its result back into that state, so the effect re-ran and
+  re-initialised the "also delete the remote branch" choice, the dirty-worktree warning and the Delete
+  button's disabled state. Keyed to the dialog's identity now, read through a ref.
+- **`fd75d931`** — the bulk session archive and delete acted on the selection alone while the
+  single-session path cascades to descendants: a removed parent's subagents stayed behind and re-rooted
+  as top-level rows (a hard delete left them running). The cascade is a tested helper, and the confirm
+  dialog counts what it will act on.
+- **`4e77fd4e`** — `resolveStageTarget` read only the bare `--mac`/`--win`/`--windows`/`--linux` flags
+  while electron-builder also takes `--win=nsis` and `-w`/`-m`/`-l`, so a cross-platform package staged
+  the *host's* runtime tree (the launcher check passed and the packaged build then reported a
+  placeholder skip instead of failing). The sibling `packaging-target.mjs` reads both forms.
+
+### Fixed from the audits of this series' own commits
+
+- **`f87f60be`** — the release-run selection added in `80598ff2` accepted a same-commit run from up to
+  two minutes before the tag push, which readmits exactly the run that push created. The tag match is
+  authoritative now and the same-commit run is a fallback only when it started strictly after the push.
+- **`40bb758c`** — the selector's entry-point guard compared the caller's path against `import.meta.url`
+  as text, so a symlinked path (`/tmp` and `/var` are symlinks on macOS, as is a symlinked checkout)
+  skipped `main()`: the command printed nothing and `find_release_run` read it as "no workflow run yet"
+  for sixty polls. Both sides are realpathed.
+- **`23a9582b`** — invalidation touched only the plain status key while `mode: "light"` caches under
+  `::light`, so a light read kept its entry across a mutation and a light request in flight wrote its
+  pre-mutation payload back.
+- **`b5d0c7dc`** — the model-preference baseline was marked before the request and rolled back on
+  failure, so two overlapping flushes that both failed restored the *first* one's payload, which the
+  server never received; every later flush then saw the store equal to it and sent nothing. The baseline
+  only moves on success now.
+- **`ee45dc8a`** — the reload added in `efd5cefe` does not make a retry adopt what a failed create left
+  behind (adoption needs the editor's member ids, which a new task withholds): the comment claimed the
+  sibling branch's outcome and now states the reload's real effect, with the duplicate-on-retry left as
+  a decision.
+
+### Verified and left alone
+
+- **A stuck `busy` activity entry is never aged out** (`session-runtime.js:337-341`, after `7d029719`).
+  The audit is right that the 24 h eviction was the only bound for an entry whose idle status never
+  arrives. It is kept deliberately: the predecessor lost the count for a session that *was* working, and
+  the consumer bounds itself — `shouldSkipRestartForBusySessions` forces the restart after its own 2 min
+  grace and the restart path does not consult the count at all when the runtime process is gone. What
+  remains unfixed is a lost idle event leaving a false count (a longer upstream stall timeout, a 2 min
+  delay before an unhealthy runtime is restarted); clearing the entry on a session deletion or an SSE
+  reconnect needs a payload contract this module does not read today.
+- **The permission auto-accept mirror is sticky** (`notifications/runtime.js:70-78`). The server
+  suppresses permission notifications for sessions it believes are auto-accepting and the route is the
+  only mutator, with no TTL. A TTL would fight the feature (notifications resuming while the client
+  still auto-approves), and the client side already replays its effective map — including `false`
+  entries — on rehydration and reconnect, so the disagreement needs the client to disappear without
+  ever confirming. Invalidating on session close or on a reconnect handshake is a decision about that
+  contract.
+- **`verify-packaged-electron.cjs` walkers ignore symlinks** (`:45-54`, `:61-71`). With
+  `withFileTypes`, a symlink is neither a file nor a directory, so a symlinked directory in `Resources`
+  outside `ax-code`/`ax-computer`, and a symlink in `app.asar.unpacked`, are invisible to the packaging
+  gate. Nothing in this repo stages such a symlink today, and following links safely needs a
+  cycle-guarded walk — recorded rather than guessed at.
+- **Archive extraction does not refuse `..` members** (`stage-ax-code.sh:140`). The archive is checked
+  against a pinned size, SHA-256 and minisign signature first, so this needs that artifact to be
+  compromised; a member-name pre-check is the fix when that hardening is wanted.
+- **Single-digit loopback ports are not matched** (`lib/url.ts:100-102`), an unreachable-in-practice
+  class (no preview target binds port 0-9) that contradicts the pattern's intent.
+- **A git identity id is not URL-encoded** (`gitApiHttp.ts:893-914`). Ids are minted as
+  `profile-<time>-<random>`; a hand-edited id with a `/` would already fail the server's own lookup.
+- **PR create and repo-branch listing skip the repo containment their siblings enforce**
+  (`server/lib/github/routes.js:564-587` on create, `:1013-1045` for branches, while `/pr/update`,
+  `/pr/merge` and `/pr/ready` funnel through `resolveRepoForRequest`) and **every attachment is dropped
+  when a directory listing fails once** (`chatInputMentions.ts:391-395`). Both are bounded to the user's
+  own token and own service call, and the second is a missing user-visible signal rather than lost data;
+  the reviewers marked both SUSPECTED and they need a decision about how much the routes should narrow.
+
 ## Eighth round
 
 A second pass over the surfaces the earlier rounds read only once, again with reviewers those rounds did
@@ -1514,25 +1615,29 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
-- Final state after the eighth round, with each command's exit status captured rather than inferred from
-  a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0.
-- Test totals at that run: ui 2 708, web 1 112 (+2 skipped), electron 586, root scripts 179 (+6 skipped).
-  `pnpm run check:locales` reports 14 locales, 4 694 keys; the eighth round changed no user-facing string
-  (the one new server-side message is an HTTP error body, asserted by its test).
+- Final state after the ninth round, with each command's exit status captured rather than inferred
+  from a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
+  `pnpm run check:boundaries` 0, `pnpm run check:locales` 0.
+- Test totals at that run: ui 2 725, web 1 117 (+2 skipped), electron 589, root scripts 179
+  (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 695 keys and 61 035 translated
+  entries; the ninth round added one key (`sessions.sidebar.session.export.failed`), translated in
+  every catalog.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
   scripts, no sibling dependencies, source ownership, runtime pin, release policy
   and release contract.
-- `pnpm run build` passes (3/3 turbo tasks).
+- `pnpm run build` passes (3/3 turbo tasks) — last run before the ninth round; that round touched no
+  bundling input.
 - One flake observed in an earlier round: `web/server/lib/ax-code/routes.test.js` "deduplicates
   concurrent prompt_async requests for the same session message" failed once
   during a run that overlapped a build, and passed both in isolation and on two
   later full runs. The test races two supertest requests against an in-flight
   fetch it releases by hand, so CPU contention can close its window; nothing in
-  this series touches that dedupe path. The eighth round added no new sample: the
-  full run after its twelve commits was clean.
+  this series touches that dedupe path. The eighth and ninth rounds added no new
+  sample: the full runs after their commits were clean.
 - Two follow-up commits fix defects in this series' own output rather than in the
   product: `1359da50` moves the change list's prefetch effect off a per-render
   array (a hooks-lint warning and a redundant parent notification), and `2b27bd59`
   types the github test's fetch mock (an unused-parameter lint error and a
-  zero-length tuple that failed `tsc`).
+  zero-length tuple that failed `tsc`). The ninth round's audits played the same
+  role for the eighth round's commits, and five of their findings are fixed above.
