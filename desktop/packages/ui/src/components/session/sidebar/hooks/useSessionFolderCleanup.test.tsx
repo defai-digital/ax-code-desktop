@@ -77,8 +77,23 @@ describe("session folder cleanup", () => {
   })
 
   test("still drops the folder entry of a session that is gone", () => {
-    renderCleanup({ isSessionsLoading: false, sessions: [], archivedSessions: [] })
+    renderCleanup({
+      isSessionsLoading: false,
+      sessions: [],
+      archivedSessions: [],
+      normalizedProjects: [{ id: "p1", normalizedPath: SCOPE }],
+    })
 
     expect(useSessionFoldersStore.getState().getSessionFolderId(SCOPE, SESSION_ID)).toBeNull()
+  })
+
+  test("leaves a scope alone when this snapshot cannot account for its project", () => {
+    // The projects store hydrates in its own update after the session-load flag clears, so
+    // a scope whose project is missing from the snapshot computed no ids - and pruning on
+    // that emptied every folder in the scope and persisted it, destroying folder
+    // organisation that had nothing wrong with it.
+    renderCleanup({ isSessionsLoading: false, sessions: [], archivedSessions: [], normalizedProjects: [] })
+
+    expect(useSessionFoldersStore.getState().getSessionFolderId(SCOPE, SESSION_ID)).not.toBeNull()
   })
 })

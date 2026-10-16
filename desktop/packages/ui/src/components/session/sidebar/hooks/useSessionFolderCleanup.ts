@@ -54,6 +54,7 @@ export const useSessionFolderCleanup = (args: Args): void => {
     // directory missed it and silently pruned it from its folder. Counting both
     // scopes only ever keeps an entry the folder row filters out when rendering.
     const projectRoots = normalizedProjects.map((project) => project.normalizedPath)
+    const knownScopes = new Set(projectRoots.map((root) => normalizePath(root)).filter(Boolean) as string[])
     const idsByScope = new Map<string, Set<string>>()
     const addToScope = (scopeKey: string | null, sessionId: string) => {
       const scope = normalizePath(scopeKey)
@@ -76,7 +77,18 @@ export const useSessionFolderCleanup = (args: Args): void => {
       if (scopeKey.startsWith("__archived__:")) {
         return
       }
-      cleanupSessions(scopeKey, idsByScope.get(scopeKey) ?? new Set<string>())
+      const ids = idsByScope.get(scopeKey)
+      // A scope that produced no ids is not evidence that its sessions are gone: the
+      // projects, sessions and archived-sessions stores hydrate in separate updates after
+      // the session-load flag clears, so a project can be missing from this snapshot while
+      // its folders are perfectly valid - and pruning on "no ids computed" emptied every
+      // folder in it and persisted that, destroying the user's organisation for good.
+      // A scope this snapshot can still account for - one with ids, or one that is still a
+      // registered project root - keeps pruning, so a deleted session is still dropped.
+      if (!ids && !knownScopes.has(scopeKey)) {
+        return
+      }
+      cleanupSessions(scopeKey, ids ?? new Set<string>())
     })
   }, [archivedSessions, availableWorktreesByProject, cleanupSessions, isSessionsLoading, normalizedProjects, sessions])
 }
