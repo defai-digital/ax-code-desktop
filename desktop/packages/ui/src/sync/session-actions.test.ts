@@ -3,6 +3,7 @@ import type { PermissionRequest } from "@/types/permission"
 import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2/client"
 import { resolveResyncedSessionStatus, hasCompletedAssistantReply } from "./reconnect-recovery"
 import { useConnectionStore } from "@/lib/event-stream/connection-state"
+import { PartMap } from "./part-map"
 
 // Mock SDK client that records permission.reply / question.reply calls
 const replyCalls: Array<{ method: string; params: Record<string, unknown> }> = []
@@ -629,7 +630,7 @@ describe("rollback and fork actions use the session directory", () => {
           } as unknown as Message,
         ],
       },
-      part: {
+      part: PartMap.from({
         "msg-b": [
           {
             id: "prt-text",
@@ -650,7 +651,7 @@ describe("rollback and fork actions use the session directory", () => {
             },
           } as unknown as Part,
         ],
-      },
+      }),
     })
 
     const { revertToMessage, setActionRefs } = await import("./session-actions")
@@ -703,9 +704,9 @@ describe("rollback and fork actions use the session directory", () => {
           } as unknown as Message,
         ],
       },
-      part: {
+      part: PartMap.from({
         "msg-b": [{ id: "prt-text", type: "text", messageID: "msg-b", text: "redo this" } as unknown as Part],
-      },
+      }),
     })
 
     // A subagent's session.created event lands while the abort call is in flight.
@@ -752,9 +753,9 @@ describe("rollback and fork actions use the session directory", () => {
           time: { created: 1, updated: 1 },
         } as unknown as Session,
       ],
-      part: {
+      part: PartMap.from({
         "msg-b": [{ id: "prt-text", type: "text", messageID: "msg-b", text: "try an alternate path" } as unknown as Part],
-      },
+      }),
     })
     mockScopedClient.session.fork.mockImplementationOnce((params: Record<string, unknown>) => {
       sessionCalls.push({ method: "session.fork", params })
@@ -781,7 +782,7 @@ describe("rollback and fork actions use the session directory", () => {
           time: { created: 1, updated: 1 },
         } as unknown as Session,
       ],
-      part: {
+      part: PartMap.from({
         "msg-b": [
           {
             id: "prt-text",
@@ -790,7 +791,7 @@ describe("rollback and fork actions use the session directory", () => {
             text: "try an alternate path",
           } as unknown as Part,
         ],
-      },
+      }),
     })
 
     const { forkFromMessage, setActionRefs } = await import("./session-actions")
@@ -840,10 +841,10 @@ describe("rollback and fork actions use the session directory", () => {
           } as unknown as Message,
         ],
       },
-      part: {
+      part: PartMap.from({
         "msg-kept": [{ id: "prt-kept-old", type: "text", messageID: "msg-kept", text: "old" } as unknown as Part],
         "msg-stale": [{ id: "prt-stale", type: "text", messageID: "msg-stale", text: "stale" } as unknown as Part],
-      },
+      }),
     })
     scopedMessagesResult = {
       data: [
@@ -877,8 +878,8 @@ describe("rollback and fork actions use the session directory", () => {
       },
     })
     expect(store.getState().message["session-b"].map((message) => message.id)).toEqual(["msg-kept"])
-    expect(store.getState().part["msg-kept"]?.map((part) => part.id)).toEqual(["prt-kept-new"])
-    expect(store.getState().part["msg-stale"]).toBeUndefined()
+    expect(store.getState().part.get("msg-kept")?.map((part) => part.id)).toEqual(["prt-kept-new"])
+    expect(store.getState().part.get("msg-stale")).toBeUndefined()
   })
 
   test("applyRollbackPoint surfaces a rejected rollback instead of reporting success", async () => {
@@ -969,9 +970,9 @@ describe("rollback and fork actions use the session directory", () => {
           } as unknown as Message,
         ],
       },
-      part: {
+      part: PartMap.from({
         "msg-b": [{ id: "prt-b", type: "text", messageID: "msg-b", text: "keep me" } as unknown as Part],
-      },
+      }),
     })
 
     const { moveSession, setActionRefs } = await import("./session-actions")
@@ -997,11 +998,11 @@ describe("rollback and fork actions use the session directory", () => {
     })
     expect(sourceStore.getState().session).toHaveLength(0)
     expect(sourceStore.getState().message["session-b"]).toBeUndefined()
-    expect(sourceStore.getState().part["msg-b"]).toBeUndefined()
+    expect(sourceStore.getState().part.get("msg-b")).toBeUndefined()
     expect(sourceStore.getState().session_status["session-b"]).toBeUndefined()
     expect(targetStore.getState().session.map((session) => session.id)).toEqual(["session-b"])
     expect(targetStore.getState().message["session-b"]?.map((message) => message.id)).toEqual(["msg-b"])
-    expect(targetStore.getState().part["msg-b"]?.map((part) => part.id)).toEqual(["prt-b"])
+    expect(targetStore.getState().part.get("msg-b")?.map((part) => part.id)).toEqual(["prt-b"])
     expect(targetStore.getState().session_status["session-b"]).toEqual({ type: "idle" })
     // S4.5: no manual global-store write — the session.updated event
     // re-buckets the session under its new directory as the writer of record.
@@ -1149,18 +1150,14 @@ describe("optimisticSend responsiveness", () => {
             ...state.message,
             [sessionID]: [...(state.message[sessionID] ?? []), message],
           },
-          part: {
-            ...state.part,
-            [message.id]: parts,
-          },
+          part: state.part.withEntries([[message.id, parts]]),
         }))
       },
       ({ sessionID, messageID }) => {
         store.setState((state) => {
           const messages = state.message[sessionID] ?? []
           const nextMessages = messages.filter((message) => message.id !== messageID)
-          const nextPart = { ...state.part }
-          delete nextPart[messageID]
+          const nextPart = state.part.without([messageID])
           return {
             message: {
               ...state.message,
@@ -1181,7 +1178,7 @@ describe("optimisticSend responsiveness", () => {
       send: (messageID) => {
         const state = store.getState()
         sendSawOptimistic = state.message["session-a"]?.some((message: Message) => message.id === messageID) ?? false
-        expect(state.part[messageID]?.some((part: Part) => part.type === "text")).toBe(true)
+        expect(state.part.get(messageID)?.some((part: Part) => part.type === "text")).toBe(true)
         return Promise.resolve()
       },
     })
@@ -1220,18 +1217,14 @@ describe("optimisticSend responsiveness", () => {
               ...state.message,
               [sessionID]: [...(state.message[sessionID] ?? []), message],
             },
-            part: {
-              ...state.part,
-              [message.id]: parts,
-            },
+            part: state.part.withEntries([[message.id, parts]]),
           }))
         },
         ({ sessionID, messageID }) => {
           store.setState((state) => {
             const messages = state.message[sessionID] ?? []
             const nextMessages = messages.filter((message) => message.id !== messageID)
-            const nextPart = { ...state.part }
-            delete nextPart[messageID]
+            const nextPart = state.part.without([messageID])
             return {
               message: {
                 ...state.message,
@@ -1270,7 +1263,7 @@ describe("optimisticSend responsiveness", () => {
         "desktop-accepted-prompt-watchdog",
       )
       expect((fallback as (Message & { metadata?: Record<string, unknown> }) | undefined)?.metadata?.error).toBe(true)
-      expect(store.getState().part[fallback?.id ?? ""]?.[0]?.type).toBe("text")
+      expect(store.getState().part.get(fallback?.id ?? "")?.[0]?.type).toBe("text")
     } finally {
       globalThis.setTimeout = originalSetTimeout
       nowSpy.mockRestore()
@@ -1298,10 +1291,7 @@ describe("optimisticSend responsiveness", () => {
               ...state.message,
               [sessionID]: [...(state.message[sessionID] ?? []), message],
             },
-            part: {
-              ...state.part,
-              [message.id]: parts,
-            },
+            part: state.part.withEntries([[message.id, parts]]),
           }))
         },
         () => {},
@@ -1366,7 +1356,7 @@ describe("optimisticSend responsiveness", () => {
       expect(synthetic).toBeFalsy()
       const recovered = messages.find((message) => message.role === "assistant")
       expect(recovered?.id).toBe("msg_assistant")
-      expect(store.getState().part["msg_assistant"]?.[0]?.type).toBe("text")
+      expect(store.getState().part.get("msg_assistant")?.[0]?.type).toBe("text")
     } finally {
       globalThis.setTimeout = originalSetTimeout
     }
@@ -1395,14 +1385,13 @@ describe("optimisticSend: stale watchdog from previous prompt is cancelled (stal
             ...state.message,
             [sessionID]: [...(state.message[sessionID] ?? []), message],
           },
-          part: { ...state.part, [message.id]: parts },
+          part: state.part.withEntries([[message.id, parts]]),
         }))
       },
       ({ sessionID, messageID }) => {
         store.setState((state) => {
           const messages = state.message[sessionID] ?? []
-          const nextPart = { ...state.part }
-          delete nextPart[messageID]
+          const nextPart = state.part.without([messageID])
           return {
             message: { ...state.message, [sessionID]: messages.filter((m) => m.id !== messageID) },
             part: nextPart,
@@ -1714,14 +1703,13 @@ describe("optimisticSend: markPromptAccepted is synchronous with busy-set (race 
             ...state.message,
             [sessionID]: [...(state.message[sessionID] ?? []), message],
           },
-          part: { ...state.part, [message.id]: parts },
+          part: state.part.withEntries([[message.id, parts]]),
         }))
       },
       ({ sessionID, messageID }) => {
         store.setState((state) => {
           const messages = state.message[sessionID] ?? []
-          const nextPart = { ...state.part }
-          delete nextPart[messageID]
+          const nextPart = state.part.without([messageID])
           return {
             message: { ...state.message, [sessionID]: messages.filter((m) => m.id !== messageID) },
             part: nextPart,
@@ -1804,14 +1792,13 @@ describe("optimisticSend: watchdog recovery does not clobber a newer prompt (asy
       ({ sessionID, message, parts }) => {
         store.setState((state) => ({
           message: { ...state.message, [sessionID]: [...(state.message[sessionID] ?? []), message] },
-          part: { ...state.part, [message.id]: parts },
+          part: state.part.withEntries([[message.id, parts]]),
         }))
       },
       ({ sessionID, messageID }) => {
         store.setState((state) => {
           const messages = state.message[sessionID] ?? []
-          const nextPart = { ...state.part }
-          delete nextPart[messageID]
+          const nextPart = state.part.without([messageID])
           return {
             message: { ...state.message, [sessionID]: messages.filter((m) => m.id !== messageID) },
             part: nextPart,
@@ -1941,14 +1928,13 @@ describe("optimisticSend: grace-window re-arm prevents false error on same-turn 
             ...state.message,
             [sessionID]: [...(state.message[sessionID] ?? []), message],
           },
-          part: { ...state.part, [message.id]: parts },
+          part: state.part.withEntries([[message.id, parts]]),
         }))
       },
       ({ sessionID, messageID }) => {
         store.setState((state) => {
           const messages = state.message[sessionID] ?? []
-          const nextPart = { ...state.part }
-          delete nextPart[messageID]
+          const nextPart = state.part.without([messageID])
           return {
             message: { ...state.message, [sessionID]: messages.filter((m) => m.id !== messageID) },
             part: nextPart,

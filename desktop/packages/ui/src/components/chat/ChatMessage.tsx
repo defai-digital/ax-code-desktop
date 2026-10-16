@@ -684,7 +684,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     const payload = state
       ? buildAssistantRetryPayload({
           messages: state.message[sessionId] ?? [],
-          partsByMessage: state.part,
+          partsByMessage: state.part.toRecord(),
           failedAssistantMessage: message.info,
         })
       : null

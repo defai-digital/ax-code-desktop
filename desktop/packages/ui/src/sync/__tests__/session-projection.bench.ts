@@ -7,6 +7,7 @@ import type { SessionMessageRecord } from "../../types/sessionMessages"
 import { buildSessionMessageRecordsSnapshot } from "../session-message-records"
 import { createUserMessageHistorySelector } from "../user-message-history"
 import { recordPartChanges } from "../part-changes"
+import { PartMap } from "../part-map"
 import { INITIAL_STATE, type State } from "../types"
 
 // Mirrors the pre-change active-session rebuild and input-history projection.
@@ -15,7 +16,7 @@ function baseline(state: State, previous: SessionMessageRecord[]) {
   const nextById = new Map<string, SessionMessageRecord>()
   const list = state.message.s.map((info) => {
     const old = byId.get(info.id)
-    const parts = state.part[info.id]
+    const parts = state.part.get(info.id)!
     const record = old?.info === info && old.parts === parts ? old : { info, parts }
     nextById.set(info.id, record)
     return record
@@ -42,12 +43,12 @@ for (const size of [500, 4000]) {
   const initial: State = {
     ...INITIAL_STATE,
     message: { s: messages },
-    part: Object.fromEntries(messages.map((message) => [message.id, [{ type: "text", text: message.id } as Part]])),
+    part: PartMap.from(messages.map((message) => [message.id, [{ type: "text", text: message.id } as Part]] as const)),
   }
   const states = [initial]
   for (let i = 0; i < 200; i++) {
     const previous = states[states.length - 1]
-    const part = { ...previous.part, [`m${size - 1}`]: [{ type: "text", text: `stream${i}` } as Part] }
+    const part = previous.part.withEntries([[`m${size - 1}`, [{ type: "text", text: `stream${i}` } as Part]]])
     recordPartChanges(previous.part, part, new Set([`m${size - 1}`]))
     states.push({ ...previous, part })
   }
@@ -69,7 +70,7 @@ for (const size of [500, 4000]) {
           const nextById = new Map<string, SessionMessageRecord>()
           const list = state.message.s.map((info) => {
             const previous = old.byId.get(info.id)
-            const parts = state.part[info.id]
+            const parts = state.part.get(info.id)!
             const record = previous?.info === info && previous.parts === parts ? previous : { info, parts }
             nextById.set(info.id, record)
             return record

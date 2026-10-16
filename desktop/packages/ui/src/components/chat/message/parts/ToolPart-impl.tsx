@@ -1399,10 +1399,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
           const childStores = getSyncChildStores()
           childStores.update(currentDirectory, (prev) => {
             const records = messages as SessionMessageWithParts[]
-            const partPatch: Record<string, import("@defai-digital/ax-code-sdk/v2").Part[]> = { ...prev.part }
-            for (const rec of records) {
-              partPatch[rec.info.id] = rec.parts
-            }
+            const partPatch = prev.part.withEntries(records.map((rec) => [rec.info.id, rec.parts] as const))
             return {
               message: {
                 ...prev.message,
@@ -1549,10 +1546,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
         const childStores = getSyncChildStores()
         childStores.update(currentDirectory, (prev) => {
           const records = messages as SessionMessageWithParts[]
-          const partPatch: Record<string, import("@defai-digital/ax-code-sdk/v2").Part[]> = { ...prev.part }
-          for (const rec of records) {
-            partPatch[rec.info.id] = rec.parts
-          }
+          const partPatch = prev.part.withEntries(records.map((rec) => [rec.info.id, rec.parts] as const))
           return {
             message: {
               ...prev.message,

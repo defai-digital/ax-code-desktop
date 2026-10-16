@@ -80,7 +80,7 @@ export function getSyncSessionMaterializationStatus(sessionId: string, directory
 
 /** Read parts for a message from current directory's child store */
 export function getSyncParts(messageId: string, directory?: string) {
-  return getDirectoryState(directory)?.part[messageId] ?? []
+  return getDirectoryState(directory)?.part.get(messageId) ?? []
 }
 
 /** Read session status from current directory's child store */

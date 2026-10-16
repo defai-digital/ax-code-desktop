@@ -2,6 +2,7 @@ import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import { mergeMessages } from "./optimistic"
 import { areMessagesEqual } from "./event-reducer"
 import { compareIds, sortPartsById } from "./part-ordering"
+import type { PartMap } from "./part-map"
 
 const STREAMING_PART_FIELDS = ["text", "output"] as const
 
@@ -12,7 +13,7 @@ type MaterializedMessageRecord = {
 
 type MaterializedState = {
   message: Record<string, Message[]>
-  part: Record<string, Part[]>
+  part: PartMap
 }
 
 type MaterializeSessionSnapshotsOptions = {
@@ -22,7 +23,7 @@ type MaterializeSessionSnapshotsOptions = {
 
 type MaterializeSessionSnapshotsResult = {
   message: Record<string, Message[]>
-  part: Record<string, Part[]>
+  part: PartMap
   messages: Message[]
   messagesChanged: boolean
   partsChanged: boolean
@@ -172,15 +173,15 @@ export function materializeSessionSnapshots(
   const messagesChanged = messages !== currentMessages
 
   let partsChanged = false
-  const nextPartState = { ...state.part }
+  const nextPartState = state.part.fork()
   const isPrepend = options.mode === "prepend"
 
   for (const record of snapshots) {
     const messageID = record.info.id
-    if (isPrepend && nextPartState[messageID]) continue
+    if (isPrepend && nextPartState.has(messageID)) continue
 
     const isAssistant = record.info.role === "assistant"
-    const existing = nextPartState[messageID]
+    const existing = nextPartState.get(messageID)
     const nextParts = mergeMaterializedParts(
       existing,
       sortPartsById(record.parts ?? [], skipPartTypes),
@@ -196,20 +197,20 @@ export function materializeSessionSnapshots(
     if (equivalent) continue
 
     if (nextParts.length === 0 && !isAssistant) {
-      delete nextPartState[messageID]
+      nextPartState.delete(messageID)
     } else {
       // Store fetched-empty as an explicit [] (not absence): an assistant message the
       // server returned with zero parts (e.g. aborted before any output) is
       // authoritatively empty and must count as renderable, or the ensure-renderable
       // callers retry the sync forever.
-      nextPartState[messageID] = nextParts
+      nextPartState.set(messageID, nextParts)
     }
     partsChanged = true
   }
 
   return {
     message: messagesChanged ? { ...state.message, [sessionID]: messages } : state.message,
-    part: partsChanged ? nextPartState : state.part,
+    part: partsChanged ? nextPartState.seal() : state.part,
     messages,
     messagesChanged,
     partsChanged,
@@ -232,7 +233,7 @@ export function getSessionMaterializationStatus(
     // fetched-empty snapshot (e.g. aborted assistant turn) and counts as renderable —
     // otherwise sessions containing such a message can never reach renderable state
     // and ensure-renderable callers loop forever.
-    const parts = state.part[message.id]
+    const parts = state.part.get(message.id)
     if (!parts) {
       missingPartMessageIDs.push(message.id)
     }

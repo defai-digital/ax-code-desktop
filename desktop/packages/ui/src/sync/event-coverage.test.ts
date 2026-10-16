@@ -22,6 +22,7 @@ import { ChildStoreManager } from "./child-store"
 import { createEventPipeline } from "./event-pipeline"
 import { applyDirectoryEvent, prepareEventDraft } from "./event-reducer"
 import { INITIAL_STATE, type State } from "./types"
+import { PartMap } from "./part-map"
 
 // ---------------------------------------------------------------------------
 // Fixture: the documented event → cloned-slices table (DOCUMENTATION.md,
@@ -154,7 +155,7 @@ function frozenBaseline(): State {
     session: [session("ses_1")],
     sessionTotal: 1,
     message: { ses_1: [assistantMessage("msg_1", "ses_1")] },
-    part: { msg_1: [textPart("prt_1", "msg_1", "")] },
+    part: PartMap.from({ msg_1: [textPart("prt_1", "msg_1", "")] }),
     permission: { ses_1: [{ id: "per_1", sessionID: "ses_1" } as State["permission"][string][number]] },
     question: { ses_1: [{ id: "que_1", sessionID: "ses_1" } as State["question"][string][number]] },
     todo: { ses_1: [] },
@@ -263,10 +264,10 @@ describe("message.part.delta burst referential stability", () => {
         ses_1: [assistantMessage("msg_1", "ses_1")],
         ses_other: [assistantMessage("msg_other", "ses_other")],
       },
-      part: {
+      part: PartMap.from({
         msg_1: [textPart("prt_1", "msg_1", "")],
         msg_other: [textPart("prt_other", "msg_other", "untouched")],
-      },
+      }),
       permission: { ses_other: [{ id: "per_1", sessionID: "ses_other" } as State["permission"][string][number]] },
       todo: { ses_1: [] },
       session_status: { ses_1: { type: "busy" } },
@@ -289,7 +290,7 @@ describe("message.part.delta burst referential stability", () => {
     const before = store.getState()
     const stableReferences = new Map<string, unknown>(stableSlices.map((key) => [key, before[key]]))
     const unrelatedMessage = before.message.ses_other
-    const unrelatedPart = before.part.msg_other
+    const unrelatedPart = before.part.get("msg_other")
     const owningMessage = before.message.ses_1
 
     // Every intermediate state during the burst must keep those references.
@@ -299,7 +300,7 @@ describe("message.part.delta burst referential stability", () => {
         if ((state as unknown as Record<string, unknown>)[key] !== reference) violations.push(key)
       }
       if (state.message.ses_other !== unrelatedMessage) violations.push("message.ses_other")
-      if (state.part.msg_other !== unrelatedPart) violations.push("part.msg_other")
+      if (state.part.get("msg_other") !== unrelatedPart) violations.push("part.msg_other")
     })
 
     // Compose the same draft → reduce → commit core the production
@@ -328,7 +329,7 @@ describe("message.part.delta burst referential stability", () => {
       const expectedText = deltas.join("")
       await vi.waitFor(
         () => {
-          const part = store.getState().part.msg_1?.[0] as { text?: string } | undefined
+          const part = store.getState().part.get("msg_1")?.[0] as { text?: string } | undefined
           expect(part?.text).toBe(expectedText)
         },
         { timeout: 5_000, interval: 10 },
@@ -348,8 +349,8 @@ describe("message.part.delta burst referential stability", () => {
     }
     expect(after.message.ses_1).toBe(owningMessage)
     expect(after.message.ses_other).toBe(unrelatedMessage)
-    expect(after.part.msg_other).toBe(unrelatedPart)
-    expect(after.part.msg_1).not.toBe(before.part.msg_1)
+    expect(after.part.get("msg_other")).toBe(unrelatedPart)
+    expect(after.part.get("msg_1")).not.toBe(before.part.get("msg_1"))
 
     manager.disposeAll()
   })

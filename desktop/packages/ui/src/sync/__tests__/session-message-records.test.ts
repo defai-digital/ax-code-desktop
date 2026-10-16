@@ -6,6 +6,7 @@ import { createUserMessageHistorySelector } from "../user-message-history"
 import { subscribeSessionMessageRecords } from "../session-message-subscription"
 import { recordPartChanges } from "../part-changes"
 import { INITIAL_STATE, type State } from "../types"
+import { PartMap } from "../part-map"
 
 const text = (value: string): Part[] => [{ type: "text", text: value } as Part]
 const initial = (): State => ({
@@ -17,10 +18,10 @@ const initial = (): State => ({
       { id: "a", role: "assistant" },
     ] as Message[],
   },
-  part: { u: text("prompt"), a: text("reply") },
+  part: PartMap.from({ u: text("prompt"), a: text("reply") }),
 })
 const change = (state: State, id: string, value: string, hinted = true): State => {
-  const part = { ...state.part, [id]: text(value) }
+  const part = state.part.withEntries([[id, text(value)]])
   if (hinted) recordPartChanges(state.part, part, new Set([id]))
   return { ...state, part }
 }
@@ -30,13 +31,8 @@ describe("session message projections", () => {
     const state = initial()
     const before = buildSessionMessageRecordsSnapshot(state, "s")
     const nextState = change(state, "a", "stream")
-    const reads = vi.fn()
-    const part = new Proxy(nextState.part, {
-      get(target, key: string) {
-        reads(key)
-        return target[key]
-      },
-    })
+    const part = nextState.part
+    const reads = vi.spyOn(part, "get")
     recordPartChanges(state.part, part, new Set(["a"]))
     const next = buildSessionMessageRecordsSnapshot({ ...nextState, part }, "s", before)
     expect(reads.mock.calls).toEqual([["a"]])
@@ -79,7 +75,7 @@ describe("session message projections", () => {
     expect(next.list).toHaveLength(1)
     expect(next.list[0].info).toBe(metadata.message.s[0])
     expect(buildSessionMessageRecordsSnapshot(metadata, "other", next).list).toEqual([])
-    expect(buildSessionMessageRecordsSnapshot({ ...metadata, part: {} }, "s", next).list[0].parts).toEqual([])
+    expect(buildSessionMessageRecordsSnapshot({ ...metadata, part: PartMap.from({}) }, "s", next).list[0].parts).toEqual([])
   })
 
   test("user history ignores assistant updates but accepts edits, revert, and recovery", () => {
@@ -87,13 +83,8 @@ describe("session message projections", () => {
     const state = initial()
     const before = select(state, "s")
     const stream = change(state, "a", "stream")
-    const reads = vi.fn()
-    const part = new Proxy(stream.part, {
-      get(target, key: string) {
-        reads(key)
-        return target[key]
-      },
-    })
+    const part = stream.part
+    const reads = vi.spyOn(part, "get")
     recordPartChanges(state.part, part, new Set(["a"]))
     expect(select({ ...stream, part }, "s")).toBe(before)
     expect(reads).not.toHaveBeenCalled()
@@ -107,7 +98,7 @@ describe("session message projections", () => {
     const added = {
       ...edited,
       message: { s: [...edited.message.s, { id: "v", role: "user" } as Message] },
-      part: { ...edited.part, v: [{ type: "text", text: "" } as Part, ...text("second"), ...text("ignored")] },
+      part: edited.part.withEntries([["v", [{ type: "text", text: "" } as Part, ...text("second"), ...text("ignored")]]]),
     }
     expect(select(added, "s")).toEqual(["second", "edited"])
   })

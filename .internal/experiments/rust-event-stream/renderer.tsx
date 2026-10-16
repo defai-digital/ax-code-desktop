@@ -5,6 +5,7 @@ import { createEventPipeline } from "@/sync/event-pipeline"
 import { createSyncPerformanceRecorder } from "@/sync/performance"
 import { applyPartDeltaBatch } from "@/sync/part-delta-batch"
 import { INITIAL_STATE } from "@/sync/types"
+import { PartMap } from "@/sync/part-map"
 
 const parameters = new URLSearchParams(location.search)
 const projects = Number(parameters.get("projects"))
@@ -16,11 +17,11 @@ const states = new Map()
 for (let project = 0; project < projects; project++) {
   states.set(`/fixture/${project}`, {
     ...INITIAL_STATE,
-    part: Object.fromEntries(
+    part: PartMap.from(
       Array.from({ length: 2000 }, (_, revision) => [
         `msg_${project}_${revision}`,
         [{ id: "prt_live", type: "text", text: "" }],
-      ]),
+      ]) as never,
     ),
   })
 }
@@ -142,7 +143,7 @@ const pipeline = createEventPipeline({
     }
     if (payload.type !== "fixture.revision") return
     const { project, revision, sentAt } = payload.properties
-    const text = states.get(directory).part[`msg_${project}_${revision}`][0].text
+    const text = states.get(directory).part.get(`msg_${project}_${revision}`)[0].text
     if (text.length !== tokens) throw new Error("Fixture text was lost or reordered")
     snapshot = [...snapshot]
     snapshot[project] = { revision, sentAt, text }
@@ -167,7 +168,7 @@ const finishPoll = setInterval(() => {
       callbackErrors,
       totalAppliedCharacters: Array.from(states.values()).reduce(
         (total, state) =>
-          total + Object.values(state.part).reduce((sum: number, parts: any) => sum + parts[0].text.length, 0),
+          total + [...state.part.entries()].reduce((sum: number, [, parts]: any) => sum + parts[0].text.length, 0),
         0,
       ),
       textLengths: snapshot.map((row) => row.text.length),

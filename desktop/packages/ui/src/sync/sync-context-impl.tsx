@@ -1153,6 +1153,9 @@ function handleEvent(
   const materializationResult = typeof reducerResult === "boolean" ? undefined : reducerResult.materialization
 
   if (reducerChanged) {
+    // The draft's part map is published here: seal it so a later stray write throws
+    // instead of mutating the state subscribers are reading.
+    draft.part.seal()
     store.setState(draft)
     const sessionID = getSessionIdFromPayload(payload) ?? undefined
     const messageID = getMessageIdFromPayload(payload) ?? undefined
@@ -1164,7 +1167,7 @@ function handleEvent(
     if (sessionID && messageID && payload.type === "message.updated") {
       const after = store.getState()
       const info = (payload.properties as { info: Message }).info
-      if (info.role === "assistant" && (!after.part[messageID] || after.part[messageID].length === 0)) {
+      if (info.role === "assistant" && (after.part.get(messageID)?.length ?? 0) === 0) {
         enqueueSessionMaterialization(resolvedDirectory, sessionID, childStores)
       }
     }
@@ -1621,7 +1624,7 @@ export function useSessionMessagesResolved(sessionID: string, directory?: string
 /** Get parts for a specific message */
 export function useSessionParts(messageID: string, directory?: string) {
   return useDirectorySync(
-    useCallback((state: State) => state.part[messageID] ?? EMPTY_PARTS, [messageID]),
+    useCallback((state: State) => state.part.get(messageID) ?? EMPTY_PARTS, [messageID]),
     directory,
   )
 }

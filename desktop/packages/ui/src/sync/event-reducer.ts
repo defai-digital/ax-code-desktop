@@ -430,7 +430,7 @@ export function prepareEventDraft(current: State, event: Event): State {
       draft.session = [...current.session]
       draft.permission = { ...current.permission }
       draft.todo = { ...current.todo }
-      draft.part = { ...current.part }
+      draft.part = current.part.fork()
       // Archive and delete additionally run cleanupSessionCaches, which
       // deletes from four more slices. Those must be cloned too — deleting
       // through the un-cloned reference mutates the PREVIOUS state object in
@@ -462,12 +462,12 @@ export function prepareEventDraft(current: State, event: Event): State {
       break
     case "message.removed":
       draft.message = { ...current.message }
-      draft.part = { ...current.part }
+      draft.part = current.part.fork()
       break
     case "message.part.updated":
     case "message.part.removed":
     case "message.part.delta":
-      draft.part = { ...current.part }
+      draft.part = current.part.fork()
       recordPartChanges(
         current.part,
         draft.part,
@@ -646,7 +646,7 @@ export function applyDirectoryEvent(
           draft.message[props.sessionID] = next
         }
       }
-      delete draft.part[props.messageID]
+      draft.part.delete(props.messageID)
       return true
     }
 
@@ -659,10 +659,10 @@ export function applyDirectoryEvent(
       const messageID = (part as { messageID: string }).messageID
       const sessionID = (part as { sessionID?: string }).sessionID
       const missingOwningMessage = !hasMessage(draft, sessionID, messageID)
-      const parts = draft.part[messageID]
+      const parts = draft.part.get(messageID)
       if (!parts) {
         syncDebug.reducer.partUpdatedNoExistingParts(messageID, part.id, part.type)
-        draft.part[messageID] = [part]
+        draft.part.set(messageID, [part])
         return missingOwningMessage
           ? {
               changed: true,
@@ -704,7 +704,7 @@ export function applyDirectoryEvent(
         const insertResult = Binary.search(next, part.id, (p) => p.id)
         next.splice(insertResult.index, 0, part)
       }
-      draft.part[messageID] = next
+      draft.part.set(messageID, next)
       return missingOwningMessage
         ? {
             changed: true,
@@ -715,16 +715,16 @@ export function applyDirectoryEvent(
 
     case "message.part.removed": {
       const props = event.properties as { messageID: string; partID: string }
-      const parts = draft.part[props.messageID]
+      const parts = draft.part.get(props.messageID)
       if (!parts) return false
       const result = Binary.search(parts, props.partID, (p) => p.id)
       if (result.found) {
         const next = [...parts]
         next.splice(result.index, 1)
         if (next.length === 0) {
-          delete draft.part[props.messageID]
+          draft.part.delete(props.messageID)
         } else {
-          draft.part[props.messageID] = next
+          draft.part.set(props.messageID, next)
         }
         return true
       }
@@ -740,7 +740,7 @@ export function applyDirectoryEvent(
         /** Length of the text this delta continues; the runtime's replay contract. */
         offset?: number
       }
-      const parts = draft.part[props.messageID]
+      const parts = draft.part.get(props.messageID)
       if (!parts) {
         syncDebug.reducer.partDeltaNoParts(props.messageID, props.partID)
         return {
@@ -796,7 +796,7 @@ export function applyDirectoryEvent(
           (field) => field !== props.field,
         ),
       } as unknown as Part
-      draft.part[props.messageID] = next
+      draft.part.set(props.messageID, next)
       return true
     }
 

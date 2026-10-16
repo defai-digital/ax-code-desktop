@@ -1,11 +1,11 @@
 import type {
   Message,
-  Part,
   PermissionRequest,
   QuestionRequest,
   SessionStatus,
   Todo,
 } from "@defai-digital/ax-code-sdk/v2/client"
+import type { PartMap } from "./part-map"
 import type { FileDiff } from "./types"
 
 type SessionCache = {
@@ -13,7 +13,7 @@ type SessionCache = {
   session_diff: Record<string, FileDiff[] | undefined>
   todo: Record<string, Todo[] | undefined>
   message: Record<string, Message[] | undefined>
-  part: Record<string, Part[] | undefined>
+  part: PartMap
   permission: Record<string, PermissionRequest[] | undefined>
   question: Record<string, QuestionRequest[] | undefined>
 }
@@ -63,15 +63,17 @@ export function dropSessionCaches(store: SessionCache, sessionIDs: Iterable<stri
     }
   }
 
+  // `store.part` is a draft (forked by the caller); a published map throws on delete.
   for (const messageID of staleMessageIDs) {
-    if (store.part) delete store.part[messageID]
+    store.part?.delete(messageID)
   }
 
-  for (const key of Object.keys(store.part ?? {})) {
-    const parts = store.part[key]
+  const stalePartKeys: string[] = []
+  for (const [key, parts] of store.part?.entries() ?? []) {
     if (!parts?.some((part) => stale.has((part as { sessionID?: string })?.sessionID ?? ""))) continue
-    delete store.part[key]
+    stalePartKeys.push(key)
   }
+  for (const key of stalePartKeys) store.part.delete(key)
 
   for (const sessionID of stale) {
     delete store.message[sessionID]

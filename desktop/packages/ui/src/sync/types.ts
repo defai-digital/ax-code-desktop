@@ -1,7 +1,7 @@
+import { PartMap } from "./part-map"
 import type {
   LspStatus,
   Message,
-  Part,
   Path,
   PermissionRequest,
   Project,
@@ -50,7 +50,7 @@ export type State = {
   vcs: VcsInfo | undefined
   limit: number
   message: Record<string, Message[]>
-  part: Record<string, Part[]>
+  part: PartMap
 }
 
 /** Global store state */
@@ -110,7 +110,7 @@ export const INITIAL_STATE: State = {
   vcs: undefined,
   limit: 5,
   message: {},
-  part: {},
+  part: PartMap.EMPTY,
 }
 
 export const INITIAL_GLOBAL_STATE: GlobalState = {

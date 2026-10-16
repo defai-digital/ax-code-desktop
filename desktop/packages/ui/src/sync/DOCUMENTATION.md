@@ -235,7 +235,7 @@ const draft = {
   ...current,
   session: [...current.session],
   message: { ...current.message },
-  part: { ...current.part },
+  part: current.part.fork(),
   permission: { ...current.permission },
   // ...
 }
@@ -244,10 +244,24 @@ const draft = {
 const draft = { ...current }
 switch (event.type) {
   case "message.part.delta":
-    draft.part = { ...current.part }
+    draft.part = current.part.fork()
     break
 }
 ```
+
+## The part map
+
+`State.part` is a `PartMap` (`part-map.ts`), not a `Record`. It holds each message's parts in 256 hashed buckets so that
+publishing a delta copies one small bucket instead of every message in the directory (profiled at ~250 µs per publication
+for 2,000 messages and ~1.3 ms for 8,000, per streaming project; now ~1 µs regardless of history length).
+
+- Read with `state.part.get(messageID)` / `.has(messageID)`; iterate with `.entries()` / `.keys()`; `.toRecord()` copies it
+  to a plain object (O(n), debugging and rare user actions only).
+- Write only through a draft: `draft.part = current.part.fork()`, then `draft.part.set(id, parts)` / `.delete(id)`.
+  `fork()` copies the 256-entry bucket table and each bucket is copied on its first write, so the source is never touched.
+- For a one-off update use `current.part.withEntries([[id, parts]])` or `current.part.without([id])`; both return a published map.
+- Seal a draft when you publish it (`draft.part.seal()`). A sealed or shared map throws on `set`/`delete` instead of mutating the
+  state subscribers are reading.
 
 ## Why this matters
 

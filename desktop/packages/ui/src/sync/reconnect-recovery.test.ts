@@ -6,6 +6,7 @@ import {
   resolveResyncedSessionStatus,
   hasCompletedAssistantReply,
 } from "./reconnect-recovery"
+import { PartMap } from "./part-map"
 
 function createSession(id: string, overrides: Partial<Session> = {}): Session {
   return {
@@ -60,9 +61,9 @@ describe("getReconnectCandidateSessionIds", () => {
           message: {
             active: [createAssistantMessage("m-1", "active", 1)],
           },
-          part: {
+          part: PartMap.from({
             "m-1": [createPart("p-1", "m-1")],
-          },
+          }),
         },
         {
           directory: "/repo",
@@ -80,7 +81,7 @@ describe("getReconnectCandidateSessionIds", () => {
         message: {
           blank: [createAssistantMessage("m-1", "blank", 1)],
         },
-        part: {},
+        part: PartMap.from({}),
       }),
     ).toEqual(["blank"])
   })
@@ -94,9 +95,9 @@ describe("getReconnectCandidateSessionIds", () => {
           message: {
             active: [createAssistantMessage("m-1", "active", 1)],
           },
-          part: {
+          part: PartMap.from({
             "m-1": [createPart("p-1", "m-1")],
-          },
+          }),
         },
         {
           directory: "/repo-a",

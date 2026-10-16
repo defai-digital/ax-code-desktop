@@ -10,6 +10,7 @@ import {
   restoreBrowserGlobals,
   saveBrowserGlobals,
 } from "./event-pipeline-test-helpers"
+import { PartMap } from "../part-map"
 
 const saved = saveBrowserGlobals()
 afterEach(() => restoreBrowserGlobals(saved))
@@ -22,7 +23,7 @@ describe("event pipeline with the published SDK", () => {
     let cancelled = false
     let state: State = {
       ...INITIAL_STATE,
-      part: { msg_probe: [{ id: "prt_probe", type: "text", text: "" } as Part] },
+      part: PartMap.from({ msg_probe: [{ id: "prt_probe", type: "text", text: "" } as Part] }),
     }
     const received: { directory: string; type: string }[] = []
     const envelopes = [
@@ -83,7 +84,7 @@ describe("event pipeline with the published SDK", () => {
     try {
       await vi.waitFor(() => {
         expect(requests).toHaveLength(2)
-        expect((state.part.msg_probe[0] as { text: string }).text).toBe("A😀B")
+        expect((state.part.get("msg_probe")![0] as { text: string }).text).toBe("A😀B")
         expect(received).toContainEqual({ directory: "/fixture/beta", type: "future.integration.event" })
       })
       expect(requests[0]).toEqual({ cursor: null, directory })

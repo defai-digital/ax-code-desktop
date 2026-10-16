@@ -1,12 +1,13 @@
-import type { SessionStatus, Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
+import type { SessionStatus, Message } from "@defai-digital/ax-code-sdk/v2/client"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { getSessionMaterializationStatus } from "./materialization"
+import { PartMap } from "./part-map"
 
 type ReconnectMaterializationState = {
   session: Session[]
   session_status?: Record<string, SessionStatus>
   message?: Record<string, Message[]>
-  part?: Record<string, Part[]>
+  part?: PartMap
 }
 
 type ViewedSessionMaterializationTarget = {
@@ -77,7 +78,7 @@ export function getReconnectCandidateSessionIds(
     ) {
       ids.add(sessionId)
     } else if (
-      !getSessionMaterializationStatus({ message: state.message ?? {}, part: state.part ?? {} }, sessionId).renderable
+      !getSessionMaterializationStatus({ message: state.message ?? {}, part: state.part ?? PartMap.EMPTY }, sessionId).renderable
     ) {
       ids.add(sessionId)
     }

@@ -306,7 +306,7 @@ const childStoreHasMessagePartState = (
 ): boolean => {
   const store = childStores.getChild(directory)
   if (!store) return false
-  return Object.prototype.hasOwnProperty.call(store.getState().part, messageID)
+  return store.getState().part.has(messageID)
 }
 
 export const resolveDirectoryFromRoutingIndex = (
@@ -361,7 +361,7 @@ export const resolveDirectoryFromRoutingIndex = (
 
     // Scan child stores for a store that has parts for this message
     for (const [dir, store] of childStores.children) {
-      if (Object.prototype.hasOwnProperty.call(store.getState().part, messageID)) {
+      if (store.getState().part.has(messageID)) {
         return dir
       }
     }

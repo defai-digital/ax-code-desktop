@@ -183,7 +183,7 @@ export function useSync() {
       const current = dirStore.getState()
       const draft = {
         message: { ...current.message },
-        part: { ...current.part },
+        part: current.part.fork(),
         session_status: { ...current.session_status },
         session_diff: { ...current.session_diff },
         todo: { ...current.todo },
@@ -192,6 +192,7 @@ export function useSync() {
       }
       dropSessionCaches(draft, sessionIDs)
       dropCachedSessionMessageRecordsSnapshots(dirStore, sessionIDs)
+      draft.part.seal()
       dirStore.setState(draft)
     },
     [childStores],
@@ -477,7 +478,7 @@ export function useSync() {
       setOptimistic(input.sessionID, { message: input.message, parts: input.parts }, input.directory)
       const current = targetStore.getState()
       const message = { ...current.message }
-      const part = { ...current.part }
+      const part = current.part.fork()
 
       // Insert message
       const messages = message[input.sessionID] ? [...message[input.sessionID]] : []
@@ -486,9 +487,9 @@ export function useSync() {
       message[input.sessionID] = messages
 
       // Insert parts
-      part[input.message.id] = sortPartsById(input.parts)
+      part.set(input.message.id, sortPartsById(input.parts))
 
-      targetStore.setState({ message, part })
+      targetStore.setState({ message, part: part.seal() })
     },
     [store, childStores, directory, setOptimistic],
   )
@@ -500,7 +501,7 @@ export function useSync() {
       clearOptimistic(input.sessionID, input.messageID, input.directory)
       const current = targetStore.getState()
       const message = { ...current.message }
-      const part = { ...current.part }
+      const part = current.part.fork()
 
       const messages = message[input.sessionID]
       if (messages) {
@@ -511,9 +512,9 @@ export function useSync() {
           message[input.sessionID] = next
         }
       }
-      delete part[input.messageID]
+      part.delete(input.messageID)
 
-      targetStore.setState({ message, part })
+      targetStore.setState({ message, part: part.seal() })
     },
     [store, childStores, directory, clearOptimistic],
   )

@@ -45,7 +45,7 @@ export function buildSessionMessageRecordsSnapshot(
     let list = previous.list
     const update = (index: number) => {
       const record = previous.list[index]
-      const parts = state.part[record.info.id] ?? EMPTY_PARTS
+      const parts = state.part.get(record.info.id) ?? EMPTY_PARTS
       if (parts === record.parts) return
       if (list === previous.list) list = list.slice()
       list[index] = { info: record.info, parts }
@@ -70,7 +70,7 @@ export function buildSessionMessageRecordsSnapshot(
     indexById.set(message.id, index)
     const oldIndex = previous?.indexById.get(message.id)
     const old = oldIndex === undefined ? undefined : previous?.list[oldIndex]
-    const parts = suspendPartUpdates && old ? old.parts : (state.part[message.id] ?? EMPTY_PARTS)
+    const parts = suspendPartUpdates && old ? old.parts : (state.part.get(message.id) ?? EMPTY_PARTS)
     return old?.info === message && old.parts === parts ? old : { info: message, parts }
   })
   const sameList =

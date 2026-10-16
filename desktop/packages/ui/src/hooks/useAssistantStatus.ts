@@ -281,7 +281,7 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
     React.useCallback(
       (state) => {
         const genericKey = `${currentSessionId ?? ""}:${lastAssistantId ?? ""}`
-        const parts = lastAssistantId ? (state.part[lastAssistantId] ?? EMPTY_PARTS) : EMPTY_PARTS
+        const parts = lastAssistantId ? (state.part.get(lastAssistantId) ?? EMPTY_PARTS) : EMPTY_PARTS
         return encodeParsedStatus(createParsedStatus(parts, genericKey))
       },
       [currentSessionId, lastAssistantId],

@@ -7,6 +7,7 @@ import { useMessageQueueStore, type QueuedMessage } from "@/stores/messageQueueS
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { getNextUserMessageAfter, getRevertedUserMessages } from "@/sync/revert-order"
 import { useSelectionStore } from "@/sync/selection-store"
+import { PartMap } from "@/sync/part-map"
 import { useInputStore } from "@/sync/input-store"
 import type { AttachedFile } from "@/stores/types/sessionTypes"
 import * as sessionActions from "@/sync/session-actions"
@@ -271,8 +272,10 @@ const RevertedMessageDock: React.FC<RevertedMessageDockProps> = React.memo(({ se
     ),
     directory,
   )
+  // Only the revert popover reads parts. Subscribing to the whole map otherwise re-renders
+  // the composer on every streamed delta of any message in the directory.
   const partsByMessage = useDirectorySync(
-    React.useCallback((state) => state.part, []),
+    React.useCallback((state) => (revertMessageID ? state.part : PartMap.EMPTY), [revertMessageID]),
     directory,
   )
 
@@ -285,7 +288,7 @@ const RevertedMessageDock: React.FC<RevertedMessageDockProps> = React.memo(({ se
     if (!revertMessageID) return []
     return getRevertedUserMessages(sessionMessages, revertMessageID).map((message) => ({
       id: message.id,
-      text: getRevertedPreview(partsByMessage[message.id] ?? [], noTextContent),
+      text: getRevertedPreview(partsByMessage.get(message.id) ?? [], noTextContent),
     }))
   }, [noTextContent, partsByMessage, revertMessageID, sessionMessages])
   const firstRevertedMessageId = items[0]?.id

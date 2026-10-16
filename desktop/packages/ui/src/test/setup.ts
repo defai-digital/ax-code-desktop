@@ -1,3 +1,6 @@
+import { expect } from "vitest"
+import { PartMap } from "../sync/part-map"
+
 // Node >= 22 defines an experimental global `localStorage` accessor that
 // returns `undefined` unless --localstorage-file is passed. That accessor
 // shadows jsdom's Storage in the test environment, so zustand's persist
@@ -54,3 +57,17 @@ if (localStorageIsBroken()) {
     writable: true,
   })
 }
+
+// PartMap keeps its parts in hashed buckets. Two maps holding the same messages are
+// equal whatever their bucket layout or draft/published state, so compare by content.
+type EqualityTester = Parameters<typeof expect.addEqualityTesters>[0][number]
+
+expect.addEqualityTesters([
+  function partMapEquals(this: ThisParameterType<EqualityTester>, a, b, testers) {
+    const aMap = a instanceof PartMap
+    const bMap = b instanceof PartMap
+    if (!aMap && !bMap) return undefined
+    if (!aMap || !bMap) return false
+    return this.equals(a.toRecord(), b.toRecord(), testers)
+  },
+])

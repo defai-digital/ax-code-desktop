@@ -6,6 +6,7 @@ import assert from "node:assert/strict"
 import type { Event, Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import { applyDirectoryEvent, prepareEventDraft } from "../event-reducer"
 import { applyPartDeltaBatch } from "../part-delta-batch"
+import { PartMap } from "../part-map"
 import { INITIAL_STATE, type State } from "../types"
 import { projectTurnRecords } from "../../components/chat/lib/turns/projectTurnRecords"
 import type { ChatMessageEntry } from "../../components/chat/lib/turns/types"
@@ -19,8 +20,11 @@ const rethrow = (_event: Event, error: unknown) => {
 for (const size of [200, 2000, 8000]) {
   const state: State = {
     ...INITIAL_STATE,
-    part: Object.fromEntries(
-      Array.from({ length: size }, (_, index) => [`m${index}`, [{ id: `p${index}`, type: "text", text: "" } as Part]]),
+    part: PartMap.from(
+      Array.from(
+        { length: size },
+        (_, index) => [`m${index}`, [{ id: `p${index}`, type: "text", text: "" } as Part]] as const,
+      ),
     ),
   }
   const events = Array.from(
@@ -48,7 +52,7 @@ for (const size of [200, 2000, 8000]) {
       }
       if (run > 0) samples.push((performance.now() - started) / 20)
       for (let index = 0; index < 20; index++)
-        assert.equal((current.part[`m${index}`][0] as { text: string }).text, "x".repeat(20))
+        assert.equal((current.part.get(`m${index}`)![0] as { text: string }).text, "x".repeat(20))
     }
     return median(samples)
   }

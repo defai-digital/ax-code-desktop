@@ -5,6 +5,7 @@ import { Binary } from "@/sync/binary"
 import { buildSessionMessageRecordsSnapshot } from "@/sync/sync-context"
 import { projectTurnRecords } from "@/components/chat/lib/turns/projectTurnRecords"
 import type { ChatMessageEntry } from "@/components/chat/lib/turns/types"
+import { PartMap } from "../../sync/part-map"
 
 // Canonical server encoding — must stay in sync with packages/ax-code/src/id/id.ts
 // (Identifier.create): "z" version marker + 7-byte big-endian timestamp * 0x1000 +
@@ -142,14 +143,14 @@ describe("issue #325 — revert latest user message keeps earlier assistant repl
       ...INITIAL_STATE,
       session: [session],
       message: { ses_1: messages },
-      part: {
+      part: PartMap.from({
         [promptA]: [textPart("prt_a", promptA, "QA revert A")],
         [five]: [textPart("prt_5", five, "five")],
         [promptB]: [textPart("prt_b", promptB, "QA revert B")],
         [seven]: [textPart("prt_7", seven, "seven")],
         [promptC]: [textPart("prt_c", promptC, "QA revert C")],
         [nine]: [textPart("prt_9", nine, "nine")],
-      },
+      }),
     }
 
     const snapshot = buildSessionMessageRecordsSnapshot(state, "ses_1")

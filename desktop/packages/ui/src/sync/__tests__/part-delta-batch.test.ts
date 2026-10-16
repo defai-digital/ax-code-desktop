@@ -6,23 +6,24 @@ import { applyDirectoryEvent, prepareEventDraft } from "../event-reducer"
 import { subscribeSessionMessageRecords } from "../session-message-subscription"
 import { recordPartChanges } from "../part-changes"
 import { INITIAL_STATE, type State } from "../types"
+import { PartMap } from "../part-map"
 
 const delta = (messageID: string, text: string): Event =>
   ({ type: "message.part.delta", properties: { messageID, partID: messageID, field: "text", delta: text } }) as Event
 const initial = (): State => ({
   ...INITIAL_STATE,
   message: { active: [{ id: "a" } as Message], background: [{ id: "b" } as Message] },
-  part: {
+  part: PartMap.from({
     a: [{ id: "a", type: "text", text: "start" } as Part],
     b: [{ id: "b", type: "text", text: "" } as Part],
-  },
+  }),
 })
 
 describe("batched streaming updates", () => {
   test("matches sequential reduction, preserves the old snapshot, and notifies once", () => {
     const before = initial()
-    Object.freeze(before.part.a[0])
-    Object.freeze(before.part.a)
+    Object.freeze(before.part.get("a")![0])
+    Object.freeze(before.part.get("a"))
     Object.freeze(before.part)
     const events = [delta("a", " one"), delta("b", "background"), delta("a", " two")]
     let sequential = before
@@ -38,7 +39,7 @@ describe("batched streaming updates", () => {
     expect(result).toEqual(sequential)
     store.setState(result!)
     expect(notify).toHaveBeenCalledTimes(1)
-    expect(before.part.a[0]).toMatchObject({ text: "start" })
+    expect(before.part.get("a")![0]).toMatchObject({ text: "start" })
     expect(result!.message).toBe(before.message)
     unsubscribe()
   })
@@ -53,7 +54,7 @@ describe("batched streaming updates", () => {
       materialization: { type: "incomplete-session-snapshot", messageID: "missing" },
     })
     expect(onError).toHaveBeenCalledTimes(1)
-    expect(next!.part.a[0]).toMatchObject({ text: "startok" })
+    expect(next!.part.get("a")![0]).toMatchObject({ text: "startok" })
     expect(applyPartDeltaBatch(initial(), [delta("missing", "x")], vi.fn(), vi.fn())).toBeUndefined()
   })
 
@@ -66,24 +67,19 @@ describe("batched streaming updates", () => {
     const updated = prepareEventDraft(streamed, snapshot)
     applyDirectoryEvent(updated, snapshot)
     const after = applyPartDeltaBatch(updated, [delta("a", " two"), delta("a", " three")], vi.fn(), vi.fn())!
-    expect(after.part.a[0]).toMatchObject({ text: "start one two three" })
-    expect(streamed.part.a[0]).toMatchObject({ text: "start one two" })
+    expect(after.part.get("a")![0]).toMatchObject({ text: "start one two three" })
+    expect(streamed.part.get("a")![0]).toMatchObject({ text: "start one two" })
   })
 
   test("skips reading active message parts for status updates and hinted background deltas", () => {
     const state = initial()
-    const reads = vi.fn()
-    state.part = new Proxy(state.part, {
-      get: (target, key: string) => {
-        reads()
-        return target[key]
-      },
-    })
+    // The previous map must not be read: the subscription trusts the recorded hint.
+    const reads = vi.spyOn(state.part, "get")
     const store = createStore<State>(() => state)
     const notify = vi.fn()
     const unsubscribe = subscribeSessionMessageRecords(store, "active", notify)
     store.setState({ session_status: { background: { type: "busy" } } })
-    const nextPart = { a: state.part.a, b: [] }
+    const nextPart = state.part.fork().set("b", []).seal()
     reads.mockClear()
     recordPartChanges(state.part, nextPart, new Set(["b"]))
     store.setState({ part: nextPart })
@@ -96,18 +92,18 @@ describe("batched streaming updates", () => {
     const store = createStore<State>(() => initial())
     const notify = vi.fn()
     const unsubscribe = subscribeSessionMessageRecords(store, "active", notify)
-    const part = { ...store.getState().part, a: [] }
-    recordPartChanges({}, part, new Set(["b"]))
+    const part = store.getState().part.fork().set("a", []).seal()
+    recordPartChanges(PartMap.from({}), part, new Set(["b"]))
     store.setState({ part })
     expect(notify).toHaveBeenCalledTimes(1)
     store.setState({ message: { ...store.getState().message, active: [{ id: "c" } as Message] } })
     expect(notify).toHaveBeenCalledTimes(2)
-    const next = { ...store.getState().part, c: [] }
+    const next = store.getState().part.fork().set("c", []).seal()
     recordPartChanges(part, next, new Set(["c"]))
     store.setState({ part: next })
     expect(notify).toHaveBeenCalledTimes(3)
     unsubscribe()
-    store.setState({ part: {} })
+    store.setState({ part: PartMap.from({}) })
     expect(notify).toHaveBeenCalledTimes(3)
   })
 
@@ -115,7 +111,7 @@ describe("batched streaming updates", () => {
     const store = createStore<State>(() => initial())
     const notify = vi.fn()
     const unsubscribe = subscribeSessionMessageRecords(store, "active", notify, true)
-    store.setState({ part: {} })
+    store.setState({ part: PartMap.from({}) })
     expect(notify).not.toHaveBeenCalled()
     store.setState({ message: {} })
     expect(notify).toHaveBeenCalledTimes(1)

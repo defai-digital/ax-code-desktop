@@ -10,17 +10,21 @@ import type {
 } from "@defai-digital/ax-code-sdk/v2/client"
 import { applyDirectoryEvent, reduceGlobalEvent } from "../event-reducer"
 import { INITIAL_STATE, type State } from "../types"
+import { PartMap } from "../part-map"
 
 type ToolPart = Extract<Part, { type: "tool" }>
 
+// The reducer mutates its draft in place, so hand it a draft part map (what
+// prepareEventDraft provides in production) rather than a published one.
 function state(overrides: Partial<State> = {}): State {
-  return {
+  const base: State = {
     ...INITIAL_STATE,
     message: {},
-    part: {},
+    part: PartMap.EMPTY,
     session_status: {},
     ...overrides,
   }
+  return { ...base, part: base.part.fork() }
 }
 
 function deltaEvent(): Event {
@@ -104,7 +108,7 @@ describe("applyDirectoryEvent", () => {
 
   test("returns typed materialization when delta part is missing", () => {
     const result = applyDirectoryEvent(
-      state({ part: { msg_1: [{ id: "prt_2", messageID: "msg_1", type: "text", text: "" } as Part] } }),
+      state({ part: PartMap.from({ msg_1: [{ id: "prt_2", messageID: "msg_1", type: "text", text: "" } as Part] }) }),
       deltaEvent(),
     )
 
@@ -118,7 +122,7 @@ describe("applyDirectoryEvent", () => {
     const draft = state()
     const result = applyDirectoryEvent(draft, partUpdatedEvent())
 
-    expect(draft.part.msg_1.map((item) => item.id)).toEqual(["prt_1"])
+    expect(draft.part.get("msg_1")!.map((item) => item.id)).toEqual(["prt_1"])
     expect(result).toEqual({
       changed: true,
       materialization: {
@@ -136,7 +140,7 @@ describe("applyDirectoryEvent", () => {
     })
     const result = applyDirectoryEvent(draft, partUpdatedEvent())
 
-    expect(draft.part.msg_1.map((item) => item.id)).toEqual(["prt_1"])
+    expect(draft.part.get("msg_1")!.map((item) => item.id)).toEqual(["prt_1"])
     expect(result).toBe(true)
   })
 
@@ -256,7 +260,7 @@ describe("applyDirectoryEvent", () => {
       },
     } as Event)
 
-    expect((draft.part.msg_long?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe(
+    expect((draft.part.get("msg_long")?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe(
       `${longPrefix}${longOverlap}ghi`,
     )
   })
@@ -283,7 +287,7 @@ describe("applyDirectoryEvent", () => {
       properties: { messageID, partID, field: "text", delta: "\u{1F600}z" },
     } as Event)
 
-    expect((draft.part[messageID]?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe("ab\u{1F600}z")
+    expect((draft.part.get(messageID)?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe("ab\u{1F600}z")
   })
 
   test("does not duplicate overlapping delta text after a newer part update", () => {
@@ -325,8 +329,8 @@ describe("applyDirectoryEvent", () => {
       },
     } as Event)
 
-    expect(draft.part[messageID]).toHaveLength(1)
-    expect((draft.part[messageID]?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe(
+    expect(draft.part.get(messageID)).toHaveLength(1)
+    expect((draft.part.get(messageID)?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe(
       "Fix typo in ToolOutputDialog - toolFailedToReadDiagram vs toolFailedReadDiagram. Let me fix it.",
     )
   })
@@ -370,7 +374,7 @@ describe("applyDirectoryEvent", () => {
       },
     } as Event)
 
-    expect((draft.part[messageID]?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe(
+    expect((draft.part.get(messageID)?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe(
       "toolFailedToReadDiagram vs toolFailedReadDiagram. Let me fix it.",
     )
   })
@@ -402,7 +406,7 @@ describe("applyDirectoryEvent", () => {
       },
     } as Event)
 
-    expect((draft.part[messageID]?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe(
+    expect((draft.part.get(messageID)?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe(
       "PR comment done - Let me fix it.",
     )
   })
@@ -434,7 +438,7 @@ describe("applyDirectoryEvent", () => {
       },
     } as Event)
 
-    expect((draft.part[messageID]?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe("haha")
+    expect((draft.part.get(messageID)?.[0] as Extract<Part, { type: "text" }> | undefined)?.text).toBe("haha")
   })
 
   test("preserves newer completed tool parts when a stale snapshot arrives later", () => {
@@ -476,7 +480,7 @@ describe("applyDirectoryEvent", () => {
     } as Event)
 
     expect(result).toBe(false)
-    expect((draft.part.msg_1?.[0] as Extract<Part, { type: "tool" }> | undefined)?.state).toMatchObject({
+    expect((draft.part.get("msg_1")?.[0] as Extract<Part, { type: "tool" }> | undefined)?.state).toMatchObject({
       output: "newer",
       time: { start: 1, end: 20 },
     })
@@ -554,12 +558,12 @@ describe("applyDirectoryEvent", () => {
       properties: { part: runningToolPart },
     } as Event)
 
-    expect((draft.part.msg_1?.[0] as Extract<Part, { type: "tool" }> | undefined)?.state).toMatchObject({
+    expect((draft.part.get("msg_1")?.[0] as Extract<Part, { type: "tool" }> | undefined)?.state).toMatchObject({
       status: "running",
       time: { start: 20 },
     })
     expect(
-      ((draft.part.msg_1?.[0] as Extract<Part, { type: "tool" }> | undefined)?.state as { time?: { end?: number } })
+      ((draft.part.get("msg_1")?.[0] as Extract<Part, { type: "tool" }> | undefined)?.state as { time?: { end?: number } })
         .time?.end,
     ).toBeUndefined()
   })
@@ -723,10 +727,10 @@ describe("message.part.delta offset reconciliation", () => {
       properties: { messageID: "msg_1", partID: "prt_1", field: "text", offset, delta },
     } as Event)
 
-  const textOf = (draft: State) => (draft.part.msg_1?.[0] as Extract<Part, { type: "text" }> | undefined)?.text
+  const textOf = (draft: State) => (draft.part.get("msg_1")?.[0] as Extract<Part, { type: "text" }> | undefined)?.text
 
   test("appends the whole delta when the offset matches the local text", () => {
-    const draft = state({ part: { msg_1: [textPart("hello")] } })
+    const draft = state({ part: PartMap.from({ msg_1: [textPart("hello")] }) })
     applyDelta(draft, 5, " world")
     expect(textOf(draft)).toBe("hello world")
   })
@@ -734,19 +738,19 @@ describe("message.part.delta offset reconciliation", () => {
   test("does not re-apply a replayed delta whose text is already present", () => {
     // Replay after a parts refetch: the local text already contains the delta, and
     // blind appending pasted it a second time as duplicated output.
-    const draft = state({ part: { msg_1: [textPart("hello world")] } })
+    const draft = state({ part: PartMap.from({ msg_1: [textPart("hello world")] }) })
     applyDelta(draft, 6, "world")
     expect(textOf(draft)).toBe("hello world")
   })
 
   test("appends only the missing tail when the local text ends inside the delta", () => {
-    const draft = state({ part: { msg_1: [textPart("hello wor")] } })
+    const draft = state({ part: PartMap.from({ msg_1: [textPart("hello wor")] }) })
     applyDelta(draft, 6, "world")
     expect(textOf(draft)).toBe("hello world")
   })
 
   test("drops a delta that continues beyond the local text until a snapshot heals the gap", () => {
-    const draft = state({ part: { msg_1: [textPart("hel")] } })
+    const draft = state({ part: PartMap.from({ msg_1: [textPart("hel")] }) })
     applyDelta(draft, 10, "lo world")
     expect(textOf(draft)).toBe("hel")
   })

@@ -339,10 +339,7 @@ function scheduleAcceptedPromptWatchdog(sessionId: string, messageID: string): v
         ...current.message,
         [sessionId]: [...(current.message[sessionId] ?? []), assistantMessage],
       },
-      part: {
-        ...current.part,
-        [assistantMessageID]: [textPart],
-      },
+      part: current.part.withEntries([[assistantMessageID, [textPart]]]),
       session_status: {
         ...current.session_status,
         [sessionId]: { type: "idle" as const },
@@ -434,16 +431,14 @@ function moveSessionLocalState(sessionId: string, sourceDirectory: string | unde
   const movedTodo = sourceState.todo[sessionId]
   const movedPermission = sourceState.permission[sessionId]
   const movedQuestion = sourceState.question[sessionId]
-  const movedParts = Object.fromEntries(
-    (movedMessages ?? [])
-      .map((message) => [message.id, sourceState.part[message.id]] as const)
-      .filter((entry): entry is readonly [string, Part[]] => Array.isArray(entry[1])),
-  )
+  const movedParts = (movedMessages ?? [])
+    .map((message) => [message.id, sourceState.part.get(message.id)] as const)
+    .filter((entry): entry is readonly [string, Part[]] => Array.isArray(entry[1]))
 
   targetStore.setState((state) => ({
     session: upsertSessionList(state.session, session),
     ...(movedMessages ? { message: { ...state.message, [sessionId]: movedMessages } } : {}),
-    ...(Object.keys(movedParts).length > 0 ? { part: { ...state.part, ...movedParts } } : {}),
+    ...(movedParts.length > 0 ? { part: state.part.withEntries(movedParts) } : {}),
     ...(movedStatus ? { session_status: { ...state.session_status, [sessionId]: movedStatus } } : {}),
     ...(movedDiff ? { session_diff: { ...state.session_diff, [sessionId]: movedDiff } } : {}),
     ...(movedTodo ? { todo: { ...state.todo, [sessionId]: movedTodo } } : {}),
@@ -452,10 +447,7 @@ function moveSessionLocalState(sessionId: string, sourceDirectory: string | unde
   }))
 
   sourceStore.setState((state) => {
-    const nextPart = { ...state.part }
-    for (const message of movedMessages ?? []) {
-      delete nextPart[message.id]
-    }
+    const nextPart = state.part.without((movedMessages ?? []).map((message) => message.id))
 
     return {
       session: state.session.filter((item) => item.id !== sessionId),
@@ -1107,7 +1099,7 @@ export async function revertToMessage(sessionId: string, messageId: string): Pro
   let messageText = ""
   let submittedFileParts: Array<Record<string, unknown>> = []
   if (targetMsg && targetMsg.role === "user") {
-    const parts = state.part[messageId] ?? []
+    const parts = state.part.get(messageId) ?? []
     const textParts = parts.filter((p) => p.type === "text" && !isSyntheticPart(p))
     messageText = textParts
       .map((p: Record<string, unknown>) => (p as { text?: string }).text || (p as { content?: string }).content || "")
@@ -1266,10 +1258,7 @@ async function replaceSessionMessagesFromServer(sessionId: string, directory: st
   const records = (result.data ?? []).filter((record: { info?: { id?: string } }) => !!record?.info?.id)
 
   store.setState((state) => {
-    const nextPart = { ...state.part }
-    for (const message of state.message[sessionId] ?? []) {
-      delete nextPart[message.id]
-    }
+    const nextPart = state.part.without((state.message[sessionId] ?? []).map((message) => message.id))
     const nextMessage = { ...state.message, [sessionId]: [] }
     const materialized = materializeSessionSnapshots(
       { message: nextMessage, part: nextPart },
@@ -1381,7 +1370,7 @@ export async function forkFromMessage(sessionId: string, messageId: string): Pro
   // Only non-synthetic text parts — the server adds file content as synthetic
   // text parts that should not be restored. File parts (images, pasted
   // screenshots) are user-originated and must be restored.
-  const parts = state.part[messageId] ?? []
+  const parts = state.part.get(messageId) ?? []
   let messageText = ""
   const textParts = parts.filter((p) => p.type === "text" && !isSyntheticPart(p))
   messageText = textParts

@@ -15,6 +15,7 @@ import {
   setIndexedSessionMessages,
   updateRoutingIndexFromEvent,
 } from "./event-routing"
+import { PartMap } from "./part-map"
 
 function createEvent(type: string, properties?: unknown): Event {
   return { type, properties } as unknown as Event
@@ -256,7 +257,7 @@ describe("resolveDirectoryFromRoutingIndex", () => {
 
   test("routes message events to the store that has parts for the message", () => {
     const manager = createManagerWithStore("/repo", {
-      part: { m1: [{ id: "p1", messageID: "m1" } as Part] },
+      part: PartMap.from({ m1: [{ id: "p1", messageID: "m1" } as Part] }),
     })
     const index = createEventRoutingIndex()
 

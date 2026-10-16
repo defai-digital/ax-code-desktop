@@ -9,7 +9,7 @@ export function applyPartDeltaBatch(
   onResult: (event: Event, result: ReturnType<typeof applyDirectoryEvent>) => void,
   onError: (event: Event, error: unknown) => void,
 ): State | undefined {
-  const draft = { ...current, part: { ...current.part } }
+  const draft = { ...current, part: current.part.fork() }
   const changedMessageIds = new Set<string>()
   for (const event of events) {
     try {
@@ -25,5 +25,6 @@ export function applyPartDeltaBatch(
   }
   if (changedMessageIds.size === 0) return undefined
   recordPartChanges(current.part, draft.part, changedMessageIds)
+  draft.part.seal()
   return draft
 }

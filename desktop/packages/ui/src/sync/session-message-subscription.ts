@@ -46,7 +46,7 @@ export function subscribeSessionMessageRecords(
     // Bootstrap, materialization, removal, and other snapshot writers may not
     // carry hints. Compare references to preserve their existing semantics.
     for (const messageID of messageIds) {
-      if (state.part[messageID] !== before.part[messageID]) {
+      if (state.part.get(messageID) !== before.part.get(messageID)) {
         notify()
         return
       }

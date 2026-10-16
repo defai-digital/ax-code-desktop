@@ -3,6 +3,7 @@ import type { Message, Part, PermissionRequest, QuestionRequest } from "@defai-d
 import { canDisposeDirectory, hasPendingBlockingRequests, pickDirectoriesToEvict } from "../eviction"
 import { dropSessionCaches, getProtectedSessionCacheIds, pickSessionCacheEvictions } from "../session-cache"
 import { INITIAL_STATE, type DirState, type State } from "../types"
+import { PartMap } from "../part-map"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -143,7 +144,7 @@ describe("session cache eviction", () => {
       message: {
         ses_streaming: [{ id: "msg_1", role: "assistant", time: { created: 1 } } as Message],
       },
-      part: {},
+      part: PartMap.from({}),
       permission: {
         ses_permission: [buildPermission({ sessionID: "ses_permission" })],
       },
@@ -174,14 +175,15 @@ describe("session cache eviction", () => {
       message: {
         ses_old: [{ id: "msg_1", role: "user", time: { created: 1 } } as Message],
       },
-      part: {
+      // dropSessionCaches mutates a draft, as its callers hand it a forked part map.
+      part: PartMap.from({
         msg_1: [{ id: "prt_1", messageID: "msg_1" } as Part],
-      },
+      }).fork(),
     })
 
     dropSessionCaches(store, ["ses_old"])
 
     expect(store.message.ses_old).toBe(undefined)
-    expect(store.part.msg_1).toBe(undefined)
+    expect(store.part.get("msg_1")).toBe(undefined)
   })
 })
