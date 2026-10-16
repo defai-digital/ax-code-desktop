@@ -158,6 +158,30 @@ describe("getFirstChangedLineFromMetadata", () => {
 
     expect(getFirstChangedLineFromMetadata("apply_patch", metadata)).toBe(3)
   })
+
+  test("finds an added line whose content starts with ++ inside a hunk", () => {
+    const patch = ["--- a/f", "+++ b/f", "@@ -10,2 +10,3 @@", " ctx", "+++hello"].join("\n")
+
+    expect(getFirstChangedLineFromMetadata("edit", { patch })).toBe(11)
+  })
+
+  test("does not mistake a later file's +++ header for an added line", () => {
+    const patch = [
+      "diff --git a/a.txt b/a.txt",
+      "--- a/a.txt",
+      "+++ b/a.txt",
+      "@@ -1,2 +1,1 @@",
+      "-one",
+      "-two",
+      "diff --git a/b.txt b/b.txt",
+      "--- a/b.txt",
+      "+++ b/b.txt",
+      "@@ -0,0 +7,1 @@",
+      "+seven",
+    ].join("\n")
+
+    expect(getFirstChangedLineFromMetadata("edit", { patch })).toBe(7)
+  })
 })
 
 describe("getToolDiagnosticSection", () => {

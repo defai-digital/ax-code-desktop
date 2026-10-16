@@ -95,9 +95,11 @@ const extractFirstChangedLineFromDiff = (diffText: string): number | undefined =
   const lines = diffText.split("\n")
   let currentNewLine: number | undefined
   let firstHunkStart: number | undefined
+  let inHunk = false
 
-  for (const rawLine of lines) {
-    const line = rawLine.replace(/\r$/, "")
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].replace(/\r$/, "")
+
     const hunkMatch = line.match(/^@@\s+-\d+(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/)
     if (hunkMatch) {
       const parsed = Number.parseInt(hunkMatch[1] ?? "", 10)
@@ -107,14 +109,19 @@ const extractFirstChangedLineFromDiff = (diffText: string): number | undefined =
           firstHunkStart = currentNewLine
         }
       }
+      inHunk = true
       continue
     }
 
-    if (currentNewLine === undefined || !Number.isFinite(currentNewLine)) {
+    // A new file section ends the previous hunk. Headers only ever appear there,
+    // never inside one: a hunk's own `+++foo`/`---foo` line is added or removed
+    // content, and skipping it would report a later line than the real change.
+    if (line.startsWith("diff ") || (line.startsWith("--- ") && lines[index + 1]?.startsWith("+++ "))) {
+      inHunk = false
       continue
     }
 
-    if (line.startsWith("+++") || line.startsWith("---") || line.startsWith("diff ")) {
+    if (!inHunk || currentNewLine === undefined || !Number.isFinite(currentNewLine)) {
       continue
     }
 
@@ -124,11 +131,6 @@ const extractFirstChangedLineFromDiff = (diffText: string): number | undefined =
 
     if (line.startsWith(" ")) {
       currentNewLine += 1
-      continue
-    }
-
-    if (line.startsWith("-") || line.startsWith("\\")) {
-      continue
     }
   }
 
