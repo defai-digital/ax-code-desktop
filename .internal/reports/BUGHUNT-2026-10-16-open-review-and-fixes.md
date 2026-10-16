@@ -970,6 +970,24 @@ prompt; two runs ended in a transport failure and produced nothing, and are list
   `feature/.hidden` came back unchanged and the create failed against git's own check, and it returned
   `@`, which is not a ref name on its own.
 
+- **`58755e76`** — committing a selection while other files are staged temporarily unstages them with
+  `restore --staged` and then restored them with `git add`, which stages the *worktree* content. For a
+  file that was staged and then edited again (the `MM` state) the edits the user deliberately left
+  unstaged were folded into the index and would have been swept into the next commit, a staged state
+  that differs from the file could not be restored at all, and a failed restore was only logged while
+  the commit reported success. The index entry of each file — mode and blob, read with
+  `ls-files --stage -z` — is captured before the unstage and put back with `update-index --cacheinfo`
+  on both paths of the commit, so no worktree content is involved.
+- **`623bea47`** — the permission-notification debounce flush deleted its session entry before it
+  started awaiting, and each ask's flush then walks settings, template variables and the emitters over
+  hundreds of milliseconds to seconds. A `permission.replied` arriving in that window found no entry to
+  remove and nothing recorded the answer, so the prompt was announced after the user had already
+  approved or denied it — the exact case the "drop only the replied ask" rule exists for. Answered keys
+  are remembered now and the flush checks them once more immediately before emitting.
+- **`2246cac3`** — `git stash apply --help` prints usage and exits 0, so nothing was applied, popped or
+  dropped while the route answered success. This is the leading-`-` argv hazard the branch, rename and
+  log routes guard with `isOptionLikeRevision`; the three stash routes never applied it.
+
 ### Verified from this round, not yet fixed
 
 Read against the source and confirmed, waiting for a fix rather than a re-check:
@@ -980,6 +998,11 @@ Read against the source and confirmed, waiting for a fix rather than a re-check:
 - **`PlanView.tsx:453`** (suspected) — the autosave effect has no dirty check against the content it
   loaded, so merely opening a plan schedules a write of the just-loaded text ~350 ms later; an external
   write landing in that window is overwritten by content the user never edited.
+- **`notifications/runtime.js:505`** (suspected, from the same reviewer as the flush fix above) — the
+  `question.asked` path still replaces a pending question notification instead of coalescing it in a
+  map the way the permission path does, so a burst of questions may announce only the last one. It
+  stays suspected because the opposite reading is plausible: if a question keyed by session is re-emitted
+  on every update, replacing is the correct debounce and announcing each would duplicate.
 
 ### Reviewed and not changed from this round
 
@@ -1129,7 +1152,7 @@ questions rather than local fixes.
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 653, web 1 100 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 653, web 1 105 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
