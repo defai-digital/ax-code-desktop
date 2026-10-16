@@ -684,7 +684,11 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
       }
       cleanup()
     }
-  }, [diffThemeKey, fileName, handleSelectionChange, resolveClickedSide, workerPool])
+    // `original`, `modified` and `options` belong here as much as in the render effect above: they
+    // rebuild the container, and the rebuild replaces the `diffs-container` element this installed its
+    // capture listener on — leaving it attached to a detached shadow root, so gutter clicks stopped
+    // reaching this handler after a hunk revert or an agent edit.
+  }, [diffThemeKey, fileName, language, modified, options, original, handleSelectionChange, resolveClickedSide, workerPool])
 
   // MutationObserver to trigger re-renders when annotation DOM nodes are added/removed
   useEffect(() => {
@@ -721,7 +725,9 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
       if (rafId) cancelAnimationFrame(rafId)
       observer?.disconnect()
     }
-  }, [diffThemeKey, fileName])
+    // Same inputs as the render effect: a rebuild replaces the element this observes, and an observer
+    // on the detached node reports nothing.
+  }, [diffThemeKey, fileName, language, modified, options, original])
 
   if (typeof window === "undefined") {
     return null
