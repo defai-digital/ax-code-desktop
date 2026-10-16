@@ -737,6 +737,10 @@ server (`ECONNRESET`) and the port not being reused immediately, so that is not 
 lead is the socket-level 401 in `lib/security/request-security.js`, which is the only code in the
 server that writes that status without a route.
 
+Two more full runs failed once each in a web file that passes alone — `server/lib/ax-code/core-routes.test.js`
+("should parse JSON bodies for MCP auth pending routes") and `openchamber-routes.test.js` — both times
+while the only source changes were in the ui package.
+
 Another full run failed once in `server/lib/ax-code/config-entity-routes.test.js` ("still reports 500
 for an unexpected mutation failure") while its neighbours passed; the file passed alone immediately
 after, and re-running the file alone then failed a *different* case in it, which is the same signature
@@ -1307,17 +1311,36 @@ Fixed from this round so far:
   saved in that window was silently deleted. `replaceScheduledTasks` accepts an updater now, handed the
   list as it stands inside the write lock, and the migration removes exactly the tasks it settled.
 
-Read and not yet verified: `r7-tui` (18 KiB) finished with findings that are still unread, `r7-electron`
-was still running, and the three suspected leads in `r7-sync` are unread. The last item in
-`r7-serversessions` (the scheduled-task convergence one above) is fixed; the rest of that run's findings
-are the passkey, quota and skills ones above.
+- **`39c1821d`** — two defects in the New File/Folder and Rename dialogs. The typed name was only
+  checked for being non-empty and is joined onto the folder the dialog names, so `../../evil.txt` or
+  `a/b.txt` wrote (or renamed) outside that folder — and, with enough `..`, outside the project, while
+  every containment check in this view is a string-prefix matcher and still called it inside. The rename
+  branch also never checked its target: `rename` replaces an existing file, so renaming onto a sibling's
+  name destroyed it behind a "Renamed successfully" toast, where the create branch right above checks
+  exactly that.
+- **`733c5e5a`** — the terminal's viewport input transform built its payload from the first character of
+  whatever arrived, so with CTRL or CMD armed a paste became that letter's control code and the rest was
+  dropped: `echo hello` reached the shell as one 0x05 byte. The escape-sequence branch beside it passed
+  everything through unchanged. The transform applies to a single character now.
+- **`7cf02247`** — the Electron read policy names every major browser profile and `Library/Keychains`,
+  but not `Library/Cookies` or `Library/Safari`: `desktop_read_file` returned the session-cookie jar as
+  base64 while refusing Chrome's own copy of it.
+
+Round six and seven are complete; `r7-tui` and `r7-electron` are read and their confirmed findings fixed
+apart from two electron ones left for the next pass, both of which need a design decision:
+`main.js:3010` (the native search walk applies the denied-path policy to its root only, so searching
+`~/.config` or `~` lists credential stores the read API refuses — the policy module says that is exactly
+what it exists to prevent) and `main.js:1370` (`readJsonFile` answers `{}` for a parse error as well as
+for a missing file, and the next settings mutation then persists that `{}`: an invalid settings.json
+costs the user their theme, projects, runtime path and shortcuts). The three suspected leads in `r7-sync`
+are unread, as is the `stores` run's remaining suspected lead.
 
 ## Verification
 
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 685, web 1 109 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 693, web 1 109 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
