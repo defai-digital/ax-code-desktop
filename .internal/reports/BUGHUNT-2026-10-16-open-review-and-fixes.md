@@ -1326,21 +1326,31 @@ Fixed from this round so far:
   but not `Library/Cookies` or `Library/Safari`: `desktop_read_file` returned the session-cookie jar as
   base64 while refusing Chrome's own copy of it.
 
-Round six and seven are complete; `r7-tui` and `r7-electron` are read and their confirmed findings fixed
-apart from two electron ones left for the next pass, both of which need a design decision:
-`main.js:3010` (the native search walk applies the denied-path policy to its root only, so searching
-`~/.config` or `~` lists credential stores the read API refuses — the policy module says that is exactly
-what it exists to prevent) and `main.js:1370` (`readJsonFile` answers `{}` for a parse error as well as
-for a missing file, and the next settings mutation then persists that `{}`: an invalid settings.json
-costs the user their theme, projects, runtime path and shortcuts). The three suspected leads in `r7-sync`
-are unread, as is the `stores` run's remaining suspected lead.
+- **`7237debf`** — the native name search resolved its root through the denied-path policy and then
+  walked every child of it. A search rooted at an allowed directory — HOME, or `~/.config`, which the
+  policy allows because only its longer denied prefixes are refused — therefore listed the credential
+  stores `desktop_read_file` refuses (`gh/hosts.yml`, the runtime's auth files, browser profiles,
+  keychains), which is the name oracle the root check's own comment says the policy exists to prevent;
+  no hidden-file access was needed, since those directories are not dotfiles. The walk applies the same
+  predicate to each entry now, and it moved into `desktop-file-search.js` so it can be driven against an
+  in-memory tree.
+- **`e3627b54`** — `readJsonFile` answered `{}` for a missing settings file and for an invalid or
+  unreadable one alike, and every settings mutation reads through it before writing: a truncated or
+  unreadable settings.json was therefore replaced by whatever the next change carried — a window
+  geometry, most often — taking the user's theme, projects, runtime path and shortcuts with it. The read
+  reports success now and a mutation refuses to write when it failed; the geometry persistence logs that
+  refusal, and the renderer-facing path already reports a rejected write.
+
+Round six and seven are complete: every confirmed finding is fixed. The three suspected leads in
+`r7-sync` are unread, as is the `stores` run's remaining suspected lead and `sync/sync-context-impl.tsx`
+earlier ones.
 
 ## Verification
 
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 693, web 1 109 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 693, web 1 109 (+2 skipped), electron 577, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
