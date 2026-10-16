@@ -95,3 +95,37 @@ describe("startup pipeline error handling", () => {
     expect(rejectUnclaimedWebSocketUpgrade).toHaveBeenCalledWith(socket)
   })
 })
+
+describe("startup pipeline failure handling", () => {
+  it("stops the managed runtime when the bind fails after the bootstrap fired", async () => {
+    // `bootstrapAxCodeAtStartup()` runs before the host is validated and the port bound, and a failure there
+    // only logged and exited: every failed launch left the spawned runtime (or its spawn) alive with its port
+    // bound.
+    const app = express()
+    const stopAxCodeLifecycle = vi.fn(async () => {})
+    const bootstrapAxCodeAtStartup = vi.fn()
+    const pipeline = createStartupPipelineRuntime({
+      createTerminalRuntime: () => ({}),
+      createMessageStreamWsRuntime: () => ({}),
+      createServerStartupRuntime: () => ({
+        resolveBindHost: () => "127.0.0.1",
+        startListening: async () => {
+          throw new Error("EADDRINUSE")
+        },
+        attachProcessHandlers: () => {},
+      }),
+      createFinalErrorHandler: () => createFinalErrorHandler({ logger: { error: () => {} } }),
+    })
+
+    const run = runPipeline({
+      app,
+      pipeline,
+      staticRoutesRuntime: { registerStaticRoutes: () => {} },
+      extraOptions: { bootstrapAxCodeAtStartup, stopAxCodeLifecycle },
+    })
+
+    await expect(run).rejects.toThrow("EADDRINUSE")
+    expect(bootstrapAxCodeAtStartup).toHaveBeenCalledTimes(1)
+    expect(stopAxCodeLifecycle).toHaveBeenCalledTimes(1)
+  })
+})

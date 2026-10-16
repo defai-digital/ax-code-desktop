@@ -31,6 +31,7 @@ export const createStartupPipelineRuntime = (dependencies) => {
       setupProxy,
       scheduleAxCodeApiDetection,
       bootstrapAxCodeAtStartup,
+      stopAxCodeLifecycle,
       staticRoutesRuntime,
       process,
       gracefulShutdown,
@@ -104,11 +105,24 @@ export const createStartupPipelineRuntime = (dependencies) => {
       syncToHmrState,
     })
 
-    const bindHost = serverStartupRuntime.resolveBindHost(host)
-    const startupResult = await serverStartupRuntime.startListening({
-      port,
-      bindHost,
-    })
+    let startupResult
+    try {
+      const bindHost = serverStartupRuntime.resolveBindHost(host)
+      startupResult = await serverStartupRuntime.startListening({
+        port,
+        bindHost,
+      })
+    } catch (error) {
+      // The bootstrap above is already spawning (or has spawned) the managed runtime. A failed bind — a port
+      // already in use, or a host the loopback policy refuses — used to leave that child running with its port
+      // bound while the process exited, once per failed launch.
+      try {
+        await stopAxCodeLifecycle?.()
+      } catch {
+        // The original failure is what the caller needs to see.
+      }
+      throw error
+    }
 
     serverStartupRuntime.attachProcessHandlers({ attachSignals })
 

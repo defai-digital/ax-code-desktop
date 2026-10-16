@@ -1139,6 +1139,14 @@ const killProcessOnPort = (...args) => axCodeLifecycleRuntime.killProcessOnPort(
 const waitForPortRelease = (...args) => axCodeLifecycleRuntime.waitForPortRelease(...args)
 
 const setupProxy = (...args) => serverUtilsRuntime.setupProxy(...args)
+// The one entry point for stopping the managed runtime, shared by the shutdown phases and by the startup
+// pipeline's own failure path: a bind that fails after the bootstrap fired used to exit with the child (or
+// its spawn) still alive.
+const stopAxCodeLifecycle = () => {
+  scheduledTaskConvergence.stopWakeWatch()
+  return axCodeLifecycleRuntime.shutdown()
+}
+
 const gracefulShutdownRuntime = createGracefulShutdownRuntime({
   process,
   shutdownTimeoutMs: SHUTDOWN_TIMEOUT,
@@ -1173,10 +1181,7 @@ const gracefulShutdownRuntime = createGracefulShutdownRuntime({
   setUiAuthController: (value) => {
     uiAuthController = value
   },
-  stopAxCodeLifecycle: () => {
-    scheduledTaskConvergence.stopWakeWatch()
-    return axCodeLifecycleRuntime.shutdown()
-  },
+  stopAxCodeLifecycle,
   destroyAllClientConnections: () => {
     // Stop the shared global event hub first: nothing else ever calls
     // stop() on it, so without this its upstream reader keeps reconnecting
@@ -1493,6 +1498,7 @@ async function main(options = {}) {
     setupProxy,
     scheduleAxCodeApiDetection,
     bootstrapAxCodeAtStartup,
+    stopAxCodeLifecycle,
     triggerHealthCheck,
     staticRoutesRuntime,
     process,
