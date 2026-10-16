@@ -120,6 +120,55 @@ export async function fetchClawdHubSkillVersion(slug, version = "latest") {
  * @param {string} version - Specific version string
  * @returns {Promise<ArrayBuffer>} - ZIP file contents
  */
+// A skill package is text: markdown, scripts and references. The cap keeps a malicious or compromised
+// publisher from exhausting the desktop process (the body used to be materialised whole) and the temp
+// partition (the archive is then extracted under os.tmpdir()).
+export const MAX_SKILL_ARCHIVE_BYTES = 32 * 1024 * 1024
+
+export const readBodyWithinLimit = async (response, limit) => {
+  const declared = Number(response.headers?.get?.("content-length") ?? "")
+  if (Number.isFinite(declared) && declared > limit) {
+    throw new Error(`ClawdHub download is larger than the ${Math.round(limit / (1024 * 1024))} MB limit`)
+  }
+
+  const body = response.body
+  if (!body || typeof body.getReader !== "function") {
+    // No stream to bound: read it and check what arrived.
+    const buffer = await response.arrayBuffer()
+    if (buffer.byteLength > limit) {
+      throw new Error(`ClawdHub download is larger than the ${Math.round(limit / (1024 * 1024))} MB limit`)
+    }
+    return buffer
+  }
+
+  const reader = body.getReader()
+  const chunks = []
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value?.byteLength ?? 0
+      if (total > limit) {
+        // Stop pulling the body: the point of the cap is not to hold it.
+        await reader.cancel().catch(() => {})
+        throw new Error(`ClawdHub download is larger than the ${Math.round(limit / (1024 * 1024))} MB limit`)
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock?.()
+  }
+
+  const merged = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return merged.buffer
+}
+
 export async function downloadClawdHubSkill(slug, version) {
   const versionParam =
     typeof version === "string" && version !== "latest" ? `&version=${encodeURIComponent(version)}` : "&tag=latest"
@@ -136,7 +185,7 @@ export async function downloadClawdHubSkill(slug, version) {
     throw new Error(`ClawdHub download error (${response.status}): ${text || response.statusText}`)
   }
 
-  return response.arrayBuffer()
+  return readBodyWithinLimit(response, MAX_SKILL_ARCHIVE_BYTES)
 }
 
 /**
