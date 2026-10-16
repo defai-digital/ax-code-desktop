@@ -1289,6 +1289,41 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Twelfth round
+
+A twelfth round over surfaces the earlier ones had not opened (`web/bin/**` — the CLI and the tunnel
+manager, via Claude Code CLI; the server's top-level files plus `lib/{event-stream,preview,text,security}`
+via Grok CLI; `ui/src/lib/{codemirror,shiki,theme,messages}` via deepseek-flash; `desktop/shared/**`,
+`tools/**`, `config/**` via MiniMax-M3) and one auditor over the eleventh round's commits. The CLI batch
+carried five findings and the audit two, all fixed:
+
+- **`96159434`** — `stop --port N` hit the "no running AX Code Desktop instances found" early return
+  before it probed the port, so a port held by the desktop app (which this command cannot stop) or by an
+  orphaned server was reported as nothing to do and stayed occupied. The probe for an explicit port runs
+  first now, which is where its own branches already expected to be.
+- **`96159434`** — `startup disable` never removed `startup.env`, the file `startup enable` writes with the
+  UI password and a snapshot of the environment (API keys included); the only caller of
+  `removeStartupEnvFile` was the macOS *enable* path, so a disabled integration left those credentials on
+  disk.
+- **`96159434`** — `tunnel stop` removed the tunnel's state file even when the process survived the stop,
+  untracking a tunnel that is still public: `tunnel status` stopped listing it and a retry reported
+  "not-running". The file goes only once the process is confirmed gone, as `commands.stop` does with its
+  pid and instance files.
+- **`85edbf89`** — `restart` of a foreground instance reported success without checking that the stop took
+  effect: `commands.stop` records a per-instance failure and returns rather than throwing, and the
+  foreground path calls no `serve` (so nothing fails later the way the daemon path does). The instance's
+  pid is checked.
+- **`85edbf89`** — Ctrl+C on `logs` (follow by default) ran the module's global SIGINT handler first, and
+  that handler exits 130 with "Operation cancelled." before the follower's own handler can unsubscribe
+  and resolve — right after the banner promised "Ctrl+C to stop". The follower marks itself active and the
+  global handler leaves the signal to it, the same exemption the foreground server has. (No test: the
+  handler is installed only when the module is the process entry point.)
+- **`654484b9`** — the audit of the eleventh round found two gaps in my own fixes: the TTL prune skips
+  jobs that are not "done" (a running job must survive), and the *foreground* exec path had no catch that
+  finishes the record the way the background path does, so a run that threw left a job in "running"
+  outside the TTL; and the declared-size refusal in `downloadClawdHubSkill` threw without cancelling
+  `response.body`, leaving the connection open (the streaming path already cancels).
+
 ## Tenth round
 
 Two batches again. The review batch ran four reviewers over surfaces earlier rounds had not read
