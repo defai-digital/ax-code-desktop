@@ -407,6 +407,12 @@ export const SessionDialogs: React.FC = () => {
     if (!deleteDialog) {
       return
     }
+    // The uncommitted-changes warning is the only protection before a *forced* worktree removal, and
+    // it appears only once the status check has finished. Deleting before then lost work the user was
+    // never warned about, so the check has to complete first.
+    if (isWorktreeDelete && !hasCompletedDirtyCheck) {
+      return
+    }
     setIsProcessingDelete(true)
 
     try {
@@ -557,6 +563,7 @@ export const SessionDialogs: React.FC = () => {
     closeDeleteDialog,
     shouldArchiveWorktree,
     isWorktreeDelete,
+    hasCompletedDirtyCheck,
     removeSelectedWorktree,
     t,
   ])
@@ -732,7 +739,11 @@ export const SessionDialogs: React.FC = () => {
         <Button variant="ghost" onClick={closeDeleteDialog} disabled={isProcessingDelete}>
           {t("sessions.sidebar.dialogs.cancel")}
         </Button>
-        <Button variant="destructive" onClick={handleConfirmDelete} disabled={isProcessingDelete}>
+        <Button
+          variant="destructive"
+          onClick={handleConfirmDelete}
+          disabled={isProcessingDelete || !hasCompletedDirtyCheck}
+        >
           {isProcessingDelete
             ? t("sessions.sidebar.sessionDialogs.actions.deleting")
             : t("sessions.sidebar.sessionDialogs.actions.deleteWorktree")}
