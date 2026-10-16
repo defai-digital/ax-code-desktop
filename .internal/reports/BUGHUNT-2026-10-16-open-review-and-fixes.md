@@ -460,6 +460,113 @@ the stale target and selected that one instead.
 
 Evidence: the effect has no render harness, so this one has no test.
 
+## Third round
+
+Areas neither earlier round had read: the sync internals, the AX Code client, the
+settings surfaces, the preview/security server libraries, layout and the Electron main
+process. Six reviewers ran in parallel; each finding was re-checked in the source before
+anything was changed, and every fix was run against its pre-fix source to confirm the
+new test fails without it.
+
+| Reviewer | Area |
+| --- | --- |
+| Claude Code CLI (`--allowedTools Read Glob Grep -p`) | `ui/src/sync`, `ui/src/components/chat/lib/turns` |
+| Grok CLI (`--permission-mode plan`) | `ui/src/components/layout` |
+| `deepseek-flash` (ax-code, read-only) | `ui/src/lib/ax-code`, `ui/src/lib/api` |
+| `qwen3.8-flash` (ax-code, read-only) | `ui/src/components/sections` |
+| `MiniMax-M3` (ax-code, read-only) | `web/server/lib/{quota,security,preview,text}`, `ui/src/contexts` |
+| `mimo-v2.6-pro` (ax-code, read-only) | `electron/src`, `electron/scripts` |
+
+Two reviewers returned nothing usable: `mimo-v2.6-pro` spent its budget re-issuing
+identical greps and reported no confirmed bugs, and the Grok CLI run for `layout` stopped
+after its preamble. `k3-256k` had been refused by the upstream provider with an HTTP 403
+permission denial, not a rate limit, and `glm-5.3` was not needed this round. No reviewer
+reported a rate limit or a truncated answer.
+
+### `3aa60f9c` fix(sync): keep a failed reply, read and send from looking like a success
+
+Four cases of the generated SDK's `{ error }` result being applied as data:
+
+- **A refused auto-accept dropped a pending permission.** The permission resync
+  answered an auto-accepting session's pending permissions and then dropped the session
+  from the snapshot whether or not the reply succeeded. A refusal left the request pending
+  server-side while the store lost it and the toast loop never saw it, so the agent stayed
+  blocked with no dialog. The live event path already re-surfaces that case
+  (`skipPermissionAutoAccept`); now only the answered requests are dropped.
+  (`sync-context-impl.tsx`; no test — the resync runs inside the sync context, which has no
+  harness that stops at it.)
+- **A failed follow-up read wiped the session.** A rollback refetches the session's
+  messages, and an empty record list is legitimate after one, so the error is the only way
+  to tell a failed read from an empty session — unchecked, it emptied the conversation on
+  screen while the rollback toast said success. (`session-actions.ts`, covered by a test
+  that fails with `expected [] to deeply equal ['msg-kept']` on the pre-fix source.)
+- **A refused shell-mode send looked delivered.** The shell branch discarded the result,
+  so the composer cleared and the command never ran. (`session-ui-store.ts`, covered.)
+- **A failed create lost the draft's target.** The new-session draft is closed before the
+  create request and was not put back when it failed, so the retry started in whatever
+  directory the app was on instead of the project, worktree, parent session and folder the
+  user chose. (`session-ui-store.ts`, covered.)
+
+### `f615c851` fix(preview): block the IPv4 an IPv6 address carries, and keep the CSP it sends
+
+- **SSRF: the mapped-address check was textual.** `host.includes("::ffff:")` does not
+  match the expanded form, so `http://[0:0:0:0:0:ffff:7f00:1]/` passed as an external host.
+  Measured on this machine: connecting to that address reaches a listener on 127.0.0.1,
+  while `::7f00:1` (the deprecated IPv4-compatible form) gives `EHOSTUNREACH`. The address
+  is expanded to its eight groups now and the IPv4 rules decide, which blocks every
+  mapped form of a private address, still refuses the compatible form (so no reader has to
+  know which of the two the kernel routes), and lets a mapped public address through
+  instead of refusing it for its spelling. (`proxy-runtime.js`; two tests fail on the
+  pre-fix source.)
+- **The patched `addEventListener` leaked.** Adding a callback that was already
+  registered inserted a second entry into the listener set while the callback map kept only
+  the newest, so the page's single `removeEventListener` could not reach the first one: the
+  orphan kept firing, and kept its closure and the page's DOM alive, for the life of the
+  preview. Re-adding is a no-op now, as on the platform. (`.test.js`-less: the bridge is an
+  injected script string with no harness.)
+- **An upstream's CSP was replaced, not extended**, when it sent the policy as repeated
+  headers: Express hands that over as an array and only the string form was read.
+  (`mergeExternalPreviewSandboxCsp` is a module-level function now so the merge is
+  covered; the four tests fail on the pre-fix source.)
+
+### Reviewed and not changed
+
+- **`formatPromptSendError` maps any failure carrying `details.resource: "providerModel"`
+  to "The selected model is no longer available"**, without looking at the status, so a
+  429/5xx envelope with that resource would be reported as a stale model. The envelope's
+  status is the backend's to define and a `status === 400` guard could regress the case the
+  message exists for, so the mapping is left as it is.
+- **The provider circuit breaker counts to the threshold from the first failure** rather
+  than needing a recorded success first, and `recordProviderSuccess` no-ops for a provider
+  that never failed. Both are how the tracker is written; nothing user-visible follows from
+  it.
+- **`locationMatchesHost` treats a bare-origin host as matching every path on that
+  origin.** Cosmetic (window title, header label), and it reads as intentional.
+- **A stale HTTP snapshot can revert a `completed` tool part to `running`** in
+  `materializeSessionSnapshots`, where the live reducer has `shouldPreserveExistingPart`.
+  The reviewer could not establish that the ordering window is reachable, and guessing at
+  snapshot ordering is worse than the current behaviour.
+- **`disconnectProviderAuth` builds a `new URL(baseUrl, origin)` whose second argument is
+  already absolute**, so the fallback is dead code. The reviewer's own note is that the
+  result is correct today; nothing to fix without a behaviour change.
+
+### Pending from this round
+
+Confirmed in the source, not yet fixed:
+
+- **`EnvEditor` keys its reveal state by row index** (`sections/mcp/McpPage.tsx:278-289`):
+  removing a row above a revealed one shifts the indices, so the next row's secret is
+  printed in plain text and the revealed row is masked again.
+- **`SnippetsPage` re-populates the form from a background reload**
+  (`sections/snippets/SnippetsPage.tsx:60-88`): a delete elsewhere re-fetches the store and
+  the effect overwrites unsaved edits, where `McpPage` guards the same hazard with a
+  loaded-name ref.
+- **`removeSelectedCatalog` has no `catch`** (`sections/skills/catalog/SkillsCatalogPage.tsx:143-162`):
+  a failed settings write escapes as an unhandled rejection, the dialog stays open and
+  nothing tells the user the catalog was not removed.
+- Two SUSPECTED leads: the resource preview's staleness guard compares only its URI, and
+  the MCP OAuth callback page can re-exchange a single-use code when its effect re-runs.
+
 ## Limit audit
 
 Prompted by the caps that produced the findings above, the hard limits in the
