@@ -148,6 +148,80 @@ describe("AxCodeCliInstallSection", () => {
     expect(text()).toContain("Up to date")
   })
 
+  test("keeps following a running upgrade after the server comes back", async () => {
+    // The polls tolerate a three-minute outage. If the job is still running when
+    // the server answers again, the panel has to keep following it instead of
+    // sitting on "Updating…" with nothing left to poll it.
+    const settled = {
+      ...baseStatus,
+      currentVersion: "7.26.0",
+      updateAvailable: false,
+      upgrade: {
+        state: "succeeded",
+        previousVersion: "7.25.0",
+        version: "7.26.0",
+        shadowedBy: null,
+        finishedAt: new Date().toISOString(),
+      },
+    }
+    let polling = false
+    let failures = 0
+    handler = (url, init) => {
+      if (url.includes("upgrade-status")) return runtimeStatus
+      if (url.endsWith("/cli/upgrade") && init?.method === "POST") {
+        polling = true
+        failures = 0
+        return { __status: 202, accepted: true, upgrade: { state: "running", targetVersion: "7.26.0" } }
+      }
+      if (!polling) return baseStatus
+      failures += 1
+      if (failures <= 90) throw new Error("offline")
+      return failures <= 93 ? { ...baseStatus, upgrade: { state: "running" } } : settled
+    }
+    await render()
+    vi.useFakeTimers()
+    await act(async () => {
+      button("Update to 7.26.0")?.click()
+    })
+    expect(text()).toContain("Updating…")
+
+    // 90 failed polls at the 2s interval: the helper gives up, refetches once,
+    // and finds the job still running.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(181_000)
+    })
+    expect(text()).toContain("Updating…")
+    const statusFetches = () => fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/cli/status")).length
+    const duringOutage = statusFetches()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000)
+    })
+    vi.useRealTimers()
+    await flush()
+
+    expect(statusFetches()).toBeGreaterThan(duringOutage)
+    expect(text()).toContain("Updated to 7.26.0.")
+  })
+
+  test("reports a failed check after a status has already loaded", async () => {
+    handler = (url, init) => {
+      if (url.includes("upgrade-status")) return runtimeStatus
+      if (url.endsWith("/cli/check") && init?.method === "POST") return { __status: 500, error: "offline" }
+      return baseStatus
+    }
+    await render()
+    expect(text()).toContain("Version 7.26.0 available")
+
+    await act(async () => {
+      button("Check now")?.click()
+    })
+    await flush()
+
+    expect(text()).toContain("Couldn't check for updates")
+    expect(text()).toContain("Version 7.26.0 available")
+  })
+
   test("explains why a Homebrew CLI that Desktop runs is not updated in place", async () => {
     handler = (url) =>
       url.includes("upgrade-status")

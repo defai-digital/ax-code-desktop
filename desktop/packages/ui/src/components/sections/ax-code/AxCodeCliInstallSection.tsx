@@ -85,7 +85,12 @@ export const AxCodeCliInstallSection: React.FC = () => {
     // The server stayed unreachable; show whatever it reports once it is back.
     try {
       const next = await fetchAxCodeCliStatus()
-      if (mountedRef.current) setStatus(next)
+      if (!mountedRef.current) return
+      setStatus(next)
+      // It can come back with the job still running (a brief outage, or a
+      // server that was wedged): keep following it, or the panel stays on
+      // "Updating…" with nothing left to poll it.
+      if (next.upgrade?.state === "running") void followUpgrade()
     } catch {
       if (mountedRef.current) {
         setStatus((current) => (current ? { ...current, upgrade: null } : current))
@@ -214,7 +219,7 @@ export const AxCodeCliInstallSection: React.FC = () => {
       </div>
 
       <section className="px-2 pb-2 pt-0 space-y-1" aria-live="polite">
-        {loadFailed && !status ? (
+        {loadFailed ? (
           <div className="py-1.5 typography-meta text-[var(--status-error)]">
             {t("settings.openchamber.axCodeCli.install.status.checkFailed")}
           </div>
