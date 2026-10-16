@@ -191,6 +191,53 @@ const callRoute = async (handler, req = {}) => {
   return res
 }
 
+describe("background exec job retention", () => {
+  it("does not prune a job whose command is still running", async () => {
+    // `updatedAt` is refreshed between commands, not during one, and the TTL pruner runs on requests: a
+    // single command outlasting the TTL was deleted while it ran, and polling it answered 404.
+    vi.useFakeTimers()
+    try {
+      const children = []
+      const spawn = vi.fn(() => {
+        const child = new EventEmitter()
+        child.stdout = new EventEmitter()
+        child.stderr = new EventEmitter()
+        child.kill = () => {}
+        children.push(child)
+        // Never closes: the command is still running.
+        return child
+      })
+      const { getRoute } = registerFs(
+        { realpath: async (p) => p, stat: async () => ({ isDirectory: () => true }) },
+        undefined,
+        undefined,
+        spawn,
+      )
+
+      const exec = getRoute("POST", "/api/fs/exec")
+      const started = await callRoute(exec, {
+        body: { commands: ["git rev-parse --absolute-git-dir"], cwd: "/repo", background: true },
+      })
+      expect(started.statusCode).toBe(202)
+      const jobId = started.body?.jobId
+      expect(jobId).toBeTruthy()
+
+      const beforeTtl = await callRoute(getRoute("GET", "/api/fs/exec/:jobId"), { params: { jobId } })
+      // Past the TTL. The poll itself is the only trigger the pruner has, and it runs before the lookup.
+      vi.setSystemTime(Date.now() + 31 * 60 * 1000)
+
+      const status = await callRoute(getRoute("GET", "/api/fs/exec/:jobId"), { params: { jobId } })
+      expect(beforeTtl.body).toMatchObject({ status: "running" })
+      expect(status.statusCode).toBe(200)
+      expect(status.body).toMatchObject({ jobId, status: "running" })
+
+      for (const child of children) child.emit("close", 0, null)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe("fs read optional contract", () => {
   it("answers a missing file with an empty body when optional is set", async () => {
     // The reported claim was that realpath's ENOENT escapes the optional branch: it does not — the

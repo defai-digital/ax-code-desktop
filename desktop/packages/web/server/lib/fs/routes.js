@@ -607,6 +607,12 @@ export const registerFsRoutes = (app, dependencies) => {
         execJobs.delete(jobId)
         continue
       }
+      // Only finished jobs age out. The TTL retires results nobody collected, and a job that is still
+      // running keeps its entry: `updatedAt` is refreshed between commands, so a single command that
+      // outlasts the TTL was pruned mid-flight and a poll for a live job answered "Job not found".
+      if (job.status !== "done") {
+        continue
+      }
       const updatedAt = typeof job.updatedAt === "number" ? job.updatedAt : 0
       if (updatedAt && now - updatedAt > EXEC_JOB_TTL_MS) {
         execJobs.delete(jobId)
