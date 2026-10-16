@@ -891,16 +891,25 @@ was written.
 
 ### Waiting for a first re-check
 
-Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
-reviewer linked:
+Everything the reviewers of this round reported has been read against the source. The items closed
+under *Reviewed and deliberately not changed* below, the ones fixed above, and the `script/**` /
+`.github/workflows/**` run — which finished after the fix it was about to report had been written, see
+below. Where a reviewer's lead reached a surface that had no test harness, the harness is noted with
+the fix: the `multirun` components, the mini-chat's unavailability wait and the providers page gained
+their first component tests in this round.
 
-- `script/**` and `.github/workflows/**` — the run had not finished.
+The `script/**` and workflows reviewer finished at 09:02 with three findings, and `db1d7741` was
+committed at 09:08 with all three already fixed — it had read the tree as it was when the assertion
+about the alias was still open:
 
-Everything else the reviewers of this round reported has been read against the source: the items
-closed under *Reviewed and deliberately not changed* below, and the ones fixed above. Where a
-reviewer's lead reached a surface that had no test harness, the harness is noted with the fix — the
-`multirun` components, the mini-chat's unavailability wait and the providers page gained their first
-component tests in this round.
+- `check-desktop-boundaries.ts:141` — an alias that walks out of its tree (`@/../electron/src/x.js`)
+  was normalized before the web-alias rule looked at it. The rule now judges the specifier as written
+  and resolves the alias for the sibling-source rule (`script/check-desktop-boundaries.test.ts:75-81`).
+- `check-desktop-store-boundaries.ts:363` — the walker saw imports and dynamic imports but not
+  `export … from`, so a module could re-export the connection-state writers while R5 passed. It visits
+  export declarations now (`script/check-desktop-store-boundaries.test.ts:166,187`).
+- `native-installer-qualification.mjs:197` — a failed `hdiutil detach` inside `finally` replaced the
+  signature or copy failure being unwound. The detach has its own `catch` that warns.
 
 ## Limit audit
 
