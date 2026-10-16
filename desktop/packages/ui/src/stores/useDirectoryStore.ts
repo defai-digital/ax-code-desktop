@@ -243,10 +243,13 @@ export const useDirectoryStore = create<DirectoryNavigationStore>()(
         axCodeClient.setDirectory(resolvedPath)
         invalidateFileSearchCache()
 
-        set((state) => {
-          safeStorage.setItem("lastDirectory", resolvedPath)
-          void updateDesktopSettings({ lastDirectory: resolvedPath })
+        // After the state change, as goBack/goForward do: a Zustand updater has to be pure, and these
+        // are writes (local storage and an IPC call) that a middleware replaying the updater would
+        // otherwise repeat.
+        safeStorage.setItem("lastDirectory", resolvedPath)
+        void updateDesktopSettings({ lastDirectory: resolvedPath })
 
+        set((state) => {
           if (
             resolvedPath === state.currentDirectory &&
             state.directoryHistory[state.historyIndex] === resolvedPath
