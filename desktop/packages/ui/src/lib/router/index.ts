@@ -6,7 +6,7 @@
  *
  * URL Schema:
  * - `?session=<id>` - Navigate to specific session
- * - `?tab=<chat|git|diff|terminal|files>` - Active main tab
+ * - `?tab=<chat|plan|git|diff|terminal|files|context|wiki>` - Active main tab
  * - `?settings=<section>` - Open settings to specific section
  * - `?file=<path>` - Diff view with file selected
  *
@@ -18,9 +18,9 @@
  */
 
 export type { RouteState } from "./types"
-export {   ROUTE_PARAMS } from "./types"
+export { DEFAULT_TAB, ROUTE_PARAMS } from "./types"
 
-export { parseRoute, hasRouteParams } from "./parseRoute"
+export { parseRoute, hasRouteParams, withRouteDefaults } from "./parseRoute"
 
 export type { AppRouteState } from "./serializeRoute"
 export {    updateBrowserURL } from "./serializeRoute"

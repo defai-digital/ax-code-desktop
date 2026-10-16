@@ -1,7 +1,7 @@
 import React from "react"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useUIStore } from "@/stores/useUIStore"
-import { parseRoute, updateBrowserURL, hasRouteParams } from "@/lib/router"
+import { parseRoute, updateBrowserURL, hasRouteParams, withRouteDefaults } from "@/lib/router"
 import type { RouteState, AppRouteState } from "@/lib/router"
 import type { MainTab } from "@/stores/useUIStore"
 import { resolveSettingsSlug } from "@/lib/settings/metadata"
@@ -118,7 +118,9 @@ export function useRouter(): void {
       return
     }
 
-    const route = parseRoute()
+    // A route read from the address bar omits whatever matches the app's default, so the fields it
+    // leaves out have to be filled in here rather than left as "keep the current value".
+    const route = withRouteDefaults(parseRoute())
 
     // Apply the initial route. applyRoute re-syncs the URL to the normalized
     // form in its finally block once applying finishes.
@@ -192,7 +194,7 @@ export function useRouter(): void {
       // Parameter-free history entries also participate in the queue, so an
       // older pending settings route cannot reopen the overlay afterward.
       const route = hasRouteParams()
-        ? parseRoute()
+        ? withRouteDefaults(parseRoute())
         : { sessionId: null, tab: "chat" as const, settingsPath: null, diffFile: null }
       void applyRoute(route)
     }

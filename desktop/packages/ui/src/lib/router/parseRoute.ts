@@ -1,5 +1,5 @@
 import type { MainTab } from "@/stores/useUIStore"
-import { type RouteState, VALID_TABS, VALID_SETTINGS_SECTIONS, ROUTE_PARAMS } from "./types"
+import { type RouteState, VALID_TABS, VALID_SETTINGS_SECTIONS, ROUTE_PARAMS, DEFAULT_TAB } from "./types"
 
 /**
  * Parse the current URL search parameters into a RouteState.
@@ -106,6 +106,19 @@ function parseDiffFile(params: URLSearchParams): string | null {
   }
 
   return value.trim()
+}
+
+/**
+ * Fill in the defaults a route from the history or the address bar omits.
+ *
+ * Serialization leaves out whatever matches the app's default (the chat tab), so an entry reached by
+ * Back or a reload carries only the fields that differ — and `parseRoute` answers null for those. A
+ * caller that treats null as "leave the current value" then keeps the tab the user was on and its
+ * `finally` rewrites the entry it just navigated to. Only the popstate and mount paths call this: a
+ * store-driven update is expected to name just the fields it changes.
+ */
+export function withRouteDefaults(route: RouteState): RouteState {
+  return route.tab ? route : { ...route, tab: DEFAULT_TAB }
 }
 
 /**

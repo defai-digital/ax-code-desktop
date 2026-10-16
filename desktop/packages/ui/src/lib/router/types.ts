@@ -18,8 +18,12 @@ export interface RouteState {
 
 /**
  * Valid main tab values for URL routing.
+ *
+ * Every value `MainTab` can hold, because that is what `serializeRoute` writes: a
+ * shorter list meant `?tab=wiki`, `?tab=plan` and `?tab=context` were written to the URL and then
+ * rejected on the way back in, so a reload or a history entry could not restore those tabs.
  */
-export const VALID_TABS: readonly MainTab[] = ["chat", "git", "diff", "terminal", "files"] as const
+export const VALID_TABS: readonly MainTab[] = ["chat", "plan", "git", "diff", "terminal", "files", "context", "wiki"] as const
 
 /**
  * Valid settings section values for URL routing.
@@ -32,6 +36,11 @@ export const VALID_SETTINGS_SECTIONS: readonly SidebarSection[] = [
   "providers",
   "git-identities",
 ] as const
+
+/**
+ * The tab a route without a `tab` parameter means.
+ */
+export const DEFAULT_TAB: MainTab = "chat"
 
 /**
  * URL parameter names used for routing.

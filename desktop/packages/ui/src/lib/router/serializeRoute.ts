@@ -1,5 +1,5 @@
 import type { MainTab } from "@/stores/useUIStore"
-import { ROUTE_PARAMS } from "./types"
+import { DEFAULT_TAB, ROUTE_PARAMS } from "./types"
 
 /**
  * Application state relevant for URL serialization.
@@ -11,11 +11,6 @@ export interface AppRouteState {
   settingsPath: string
   diffFile: string | null
 }
-
-/**
- * Default tab when none is specified.
- */
-const DEFAULT_TAB: MainTab = "chat"
 
 /**
  * Serialize application state to URL search parameters.
