@@ -113,7 +113,11 @@ export const createNotificationTemplateRuntime = (deps) => {
     return joinNotificationTextLines(
       parts
         .filter(
-          (part) => part && (part.type === "text" || typeof part.text === "string" || typeof part.content === "string"),
+          (part) =>
+            part &&
+            // A reasoning part carries `text` too, and it is not what the message says: the answer is.
+            part.type !== "reasoning" &&
+            (part.type === "text" || typeof part.text === "string" || typeof part.content === "string"),
         )
         .map((part) => part.text || part.content || ""),
       maxLength,

@@ -51,6 +51,22 @@ describe("notification template text extraction", () => {
     ).toBe("First line \nSecond l")
   })
 
+  it("leaves a reasoning trace out of the text it extracts", () => {
+    // A reasoning part carries `text` like a text part does, so the filter's second clause took it and the
+    // notification body led with the model's chain of thought: `prepareNotificationLastMessage` keeps only the
+    // first 250 characters, so the answer itself was usually cut off — and the trace went to the OS notification
+    // centre with it. `AssistantTextPart` renders the two as different things (a collapsible reasoning block,
+    // `variant="reasoning"`), which is the distinction that was missing here.
+    const runtime = createRuntime()
+
+    expect(
+      runtime.extractTextFromParts([
+        { type: "reasoning", text: "weighing the options" },
+        { type: "text", text: "The answer" },
+      ]),
+    ).toBe("The answer")
+  })
+
   it("falls back to legacy message content arrays", () => {
     const runtime = createRuntime()
 
