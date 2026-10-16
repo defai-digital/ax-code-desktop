@@ -322,8 +322,39 @@ export const createSessionRuntime = ({ writeSseEvent, getNotificationClients, br
     }
     sessionActivityCooldowns.clear()
     const now = Date.now()
-    for (const [sessionId] of sessionActivityPhases) {
-      sessionActivityPhases.set(sessionId, { phase: "idle", updatedAt: now })
+    const knownSessionIds = new Set([
+      ...sessionActivityPhases.keys(),
+      ...sessionStates.keys(),
+      ...sessionAttentionStates.keys(),
+    ])
+    for (const sessionId of knownSessionIds) {
+      const previousPhase = sessionActivityPhases.get(sessionId)?.phase
+      if (previousPhase !== undefined && previousPhase !== "idle") {
+        sessionActivityPhases.set(sessionId, { phase: "idle", updatedAt: now })
+        // The activity phase was the only one this reset; the two maps below mirror the same status and kept
+        // reporting the run this restart ended — to `getSessionStateSnapshot` and to every client that
+        // connected afterwards, for as long as the state's own 24-hour window.
+        if (typeof broadcastEvent === "function") {
+          broadcastEvent({
+            type: "openchamber:session-activity",
+            properties: {
+              sessionId,
+              phase: "idle",
+            },
+          })
+        }
+      }
+
+      const state = sessionStates.get(sessionId)
+      if (state && state.status !== "idle") {
+        setTrackedSession(sessionStates, sessionId, { ...state, status: "idle", lastUpdateAt: now })
+      }
+
+      const attentionState = sessionAttentionStates.get(sessionId)
+      if (attentionState && attentionState.status !== "idle") {
+        attentionState.status = "idle"
+        attentionState.lastStatusChangeAt = now
+      }
     }
     // This resets every phase at once, so it is a transition like any other: consumers
     // that track the busy count only re-read it when they are told, and the runtime-busy

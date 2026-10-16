@@ -156,3 +156,16 @@ describe("parsePathSpec", () => {
     })
   })
 })
+
+describe("isPathSpec", () => {
+  test("only the prefixes parsePathSpec can expand count as paths", () => {
+    // A `~` it cannot expand was classified as a path and resolved against the server's cwd, so the registry
+    // reported missing/ok for a path nobody named; it is an npm spec lookup instead.
+    expect(spec.isPathSpec("~other/plugin.js")).toBe(false)
+    expect(spec.isPathSpec("~")).toBe(true)
+    expect(spec.isPathSpec("~/plugin.js")).toBe(true)
+    expect(spec.isPathSpec("/abs/plugin.js")).toBe(true)
+    expect(spec.isPathSpec("./rel.js")).toBe(true)
+    expect(spec.isPathSpec("some-package")).toBe(false)
+  })
+})

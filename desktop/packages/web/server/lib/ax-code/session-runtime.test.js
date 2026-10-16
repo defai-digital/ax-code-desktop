@@ -37,6 +37,45 @@ describe("session runtime restart", () => {
   })
 })
 
+describe("session runtime restart state", () => {
+  it("tells clients and the snapshots that the restart ended the activity", async () => {
+    // The bulk reset moved only the activity phase: connected clients were never told the session went idle,
+    // and `getSessionStateSnapshot` kept reporting busy for the rest of the state's 24-hour window.
+    vi.useFakeTimers()
+    try {
+      const events = []
+      const runtime = createSessionRuntime({
+        writeSseEvent() {},
+        getNotificationClients: () => new Set(),
+        broadcastEvent: (payload) => events.push(payload),
+      })
+
+      runtime.processAxCodeSsePayload({
+        type: "session.status",
+        properties: { sessionID: "ses_busy", status: { type: "busy" } },
+      })
+      events.length = 0
+
+      runtime.dispose()
+      runtime.resume()
+
+      expect(
+        events.some(
+          (event) =>
+            event.type === "openchamber:session-activity" &&
+            event.properties?.sessionId === "ses_busy" &&
+            event.properties?.phase === "idle",
+        ),
+      ).toBe(true)
+      expect(runtime.getSessionState("ses_busy").status).toBe("idle")
+
+      runtime.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe("session runtime retry metadata", () => {
   it("keeps the newest attempt of a retry that repeats inside the dedupe window", async () => {
     // The five-second window deduped on the status type alone, so a retry reporting a new attempt, message

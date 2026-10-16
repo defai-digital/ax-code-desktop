@@ -74,11 +74,15 @@ export function isExactSemver(version) {
  * @returns {boolean}
  */
 export function isPathSpec(spec) {
+  // Exactly the forms `parsePathSpec` expands. A `~` prefix it does not understand (`~other/file.js`) used to
+  // be classified as a path and then resolved against the server's own cwd, so the registry answered
+  // missing/ok for a path nobody named. Such a spec is left to the npm lookup instead.
   return (
     spec.startsWith("/") ||
     spec.startsWith("./") ||
     spec.startsWith("../") ||
-    spec.startsWith("~") ||
+    spec === "~" ||
+    spec.startsWith("~/") ||
     path.win32.isAbsolute(spec)
   )
 }
