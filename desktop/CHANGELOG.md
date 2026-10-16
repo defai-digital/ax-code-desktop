@@ -16,6 +16,9 @@ All notable changes to this project will be documented in this file.
   path, your PATH, AX Code's own install or a legacy bundle, with the runtime's warnings, such as a PATH
   copy older than the version AX Code pins. Desktop does not update a PATH or custom copy and says where
   to update it. The existing Install, still offered only when no engine is found, can now be cancelled.
+  With an AX Code runtime that reports `pinnedVersion` and `updateAvailable` (AX Code ADR-200), an engine
+  AX Code installed, or a legacy bundled one, that is older than the pin gets "Update to {version}"; a
+  running engine server is stopped first, after a confirmation. Older runtimes show no update button.
 - Scheduled tasks live in a "Scheduled" section of the session sidebar instead of a dialog: every
   project's tasks in one queue, running and failing first, then by next run, with the project, schedule
   and time to the next run on each row. Run now and pause are one click away, edit and delete are in the

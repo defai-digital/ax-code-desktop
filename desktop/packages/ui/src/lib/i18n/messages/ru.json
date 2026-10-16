@@ -4326,6 +4326,7 @@
   "localModels.toast.actionFailed": "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0441 \u043c\u043e\u0434\u0435\u043b\u044c\u044e \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c",
   "localModels.toast.engineInstalled": "AX Engine \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d",
   "localModels.toast.engineInstallCancelled": "Установка AX Engine отменена",
+  "localModels.toast.engineUpdated": "AX Engine обновлён до {version}",
   "localModels.toast.engineStopped": "AX Engine \u043e\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d",
   "localModels.toast.engineStarted": "AX Engine \u0437\u0430\u043f\u0443\u0449\u0435\u043d",
   "localModels.toast.noRunnableModel": "\u0421\u043a\u0430\u0447\u0430\u0439\u0442\u0435 \u0437\u0430\u043f\u0443\u0441\u043a\u0430\u0435\u043c\u0443\u044e \u043c\u043e\u0434\u0435\u043b\u044c \u043f\u0435\u0440\u0435\u0434 \u0437\u0430\u043f\u0443\u0441\u043a\u043e\u043c AX Engine",

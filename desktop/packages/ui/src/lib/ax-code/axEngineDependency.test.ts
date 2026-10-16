@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest"
-import { axEngineMissingDetails, canOfferAxEngineInstall, describeAxEngineDependency } from "./axEngineDependency"
+import {
+  axEngineMissingDetails,
+  axEngineUpdateVersion,
+  canOfferAxEngineInstall,
+  describeAxEngineDependency,
+} from "./axEngineDependency"
 
 const missingBlocker = [
   "AX_ENGINE_BINARY_MISSING: ax-engine was not found. It is only needed for local models; cloud providers work without it.",
@@ -82,6 +87,28 @@ describe("describeAxEngineDependency", () => {
     expect(axEngineMissingDetails({ ...dependency, available: true })).toEqual([])
   })
 
+  test("shows only the version from a raw probe banner", () => {
+    expect(
+      describeAxEngineDependency({ available: true, mode: "managed", version: "ax-engine 7.7.0", blockers: [] }).summary,
+    ).toBe("v7.7.0 · Installed by AX Code")
+  })
+
+  test("marks a managed engine newer than the runtime's pin", () => {
+    expect(
+      describeAxEngineDependency({
+        available: true,
+        mode: "managed",
+        version: "7.8.0",
+        pinnedVersion: "7.7.0",
+        blockers: [],
+      }).summary,
+    ).toBe("v7.8.0 · Installed by AX Code · newer than 7.7.0")
+    expect(
+      describeAxEngineDependency({ available: true, mode: "path", version: "7.8.0", pinnedVersion: "7.7.0", blockers: [] })
+        .summary,
+    ).toBe("v7.8.0 · From PATH")
+  })
+
   test("reports checking before data arrives", () => {
     expect(describeAxEngineDependency(null).summary).toBe("Checking")
   })
@@ -110,5 +137,44 @@ describe("canOfferAxEngineInstall", () => {
       ),
     ).toBe(false)
     expect(canOfferAxEngineInstall(null, "managed")).toBe(false)
+  })
+})
+
+describe("axEngineUpdateVersion", () => {
+  const eligibility = { supported: true, platform: "darwin", arch: "arm64", blockers: [], warnings: [] }
+  const managed = {
+    available: true,
+    mode: "managed",
+    version: "7.6.0",
+    pinnedVersion: "7.7.0",
+    updateAvailable: true,
+    blockers: [],
+  }
+
+  test("offers the pin when the runtime says an update applies", () => {
+    expect(axEngineUpdateVersion({ dependency: managed, eligibility }, "managed")).toBe("7.7.0")
+    expect(axEngineUpdateVersion({ dependency: { ...managed, mode: "bundled" }, eligibility }, "managed")).toBe("7.7.0")
+  })
+
+  test("offers nothing without the runtime's say-so", () => {
+    // Runtimes before ADR-200 send neither field.
+    expect(
+      axEngineUpdateVersion(
+        { dependency: { ...managed, updateAvailable: undefined, pinnedVersion: undefined }, eligibility },
+        "managed",
+      ),
+    ).toBeNull()
+    expect(axEngineUpdateVersion({ dependency: { ...managed, updateAvailable: false }, eligibility }, "managed")).toBeNull()
+    expect(axEngineUpdateVersion({ dependency: { ...managed, pinnedVersion: undefined }, eligibility }, "managed")).toBeNull()
+  })
+
+  test("never offers an update for PATH or configured engines, attach mode, or unsupported hosts", () => {
+    expect(axEngineUpdateVersion({ dependency: { ...managed, mode: "path" }, eligibility }, "managed")).toBeNull()
+    expect(axEngineUpdateVersion({ dependency: { ...managed, mode: "configured" }, eligibility }, "managed")).toBeNull()
+    expect(axEngineUpdateVersion({ dependency: managed, eligibility }, "attach")).toBeNull()
+    expect(
+      axEngineUpdateVersion({ dependency: managed, eligibility: { ...eligibility, supported: false } }, "managed"),
+    ).toBeNull()
+    expect(axEngineUpdateVersion(null, "managed")).toBeNull()
   })
 })

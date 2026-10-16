@@ -98,6 +98,10 @@ export type AxEngineModelsResponse = {
     version?: string
     managedVersion?: string
     installable?: boolean
+    /** Release the runtime's installer would install (runtimes with AX Code ADR-200). */
+    pinnedVersion?: string
+    /** True when that install would update the managed or legacy bundled engine in use. */
+    updateAvailable?: boolean
     blockers: string[]
     warnings?: string[]
   }
@@ -192,10 +196,14 @@ export type AxEngineConnectionView = {
 
 const jsonHeaders = { "Content-Type": "application/json", Accept: "application/json" }
 
-export const fetchAxEngineModels = async (directory: string | null): Promise<AxEngineModelsResponse> => {
+export const fetchAxEngineModels = async (
+  directory: string | null,
+  signal?: AbortSignal,
+): Promise<AxEngineModelsResponse> => {
   return fetchProviderJsonWithRetry(buildDirectoryUrl(API_ENDPOINTS.provider.axEngineModels, directory), {
     method: "GET",
     headers: { Accept: "application/json" },
+    signal,
   }) as Promise<AxEngineModelsResponse>
 }
 

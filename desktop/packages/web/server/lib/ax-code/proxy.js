@@ -676,7 +676,14 @@ export const registerAxCodeProxy = (app, deps) => {
 
   // Generic proxy for non-SSE ax-code API routes.
   const proxyEvents = {
-    proxyReq: (proxyReq) => {
+    proxyReq: (proxyReq, _req, res) => {
+      // http-proxy keeps the upstream request running after the client goes
+      // away. Close it too, so an aborted long request (an AX Engine install,
+      // for one) is cancelled in ax-code instead of finishing unseen.
+      res?.once?.("close", () => {
+        if (!res.writableFinished && !proxyReq.destroyed) proxyReq.destroy()
+      })
+
       // Inject ax-code auth headers
       const authHeaders = getAxCodeAuthHeaders()
       if (authHeaders.Authorization) {
@@ -700,6 +707,8 @@ export const registerAxCodeProxy = (app, deps) => {
       }
     },
     error: (err, _req, res) => {
+      // The client left and the upstream request was closed for it above.
+      if (res?.destroyed) return
       console.error("[proxy] ax-code proxy error:", err.message)
       if (res && !res.headersSent && typeof res.status === "function") {
         // This callback only fires when the proxy could not complete the

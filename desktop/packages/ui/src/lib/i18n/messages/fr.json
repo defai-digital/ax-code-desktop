@@ -4320,6 +4320,7 @@
   "localModels.toast.actionFailed": "\u00c9chec de l\u2019action sur le mod\u00e8le",
   "localModels.toast.engineInstalled": "AX Engine install\u00e9",
   "localModels.toast.engineInstallCancelled": "Installation d’AX Engine annulée",
+  "localModels.toast.engineUpdated": "AX Engine mis à jour vers {version}",
   "localModels.toast.engineStopped": "AX Engine arr\u00eat\u00e9",
   "localModels.toast.engineStarted": "AX Engine d\u00e9marr\u00e9",
   "localModels.toast.noRunnableModel": "T\u00e9l\u00e9chargez un mod\u00e8le ex\u00e9cutable avant de d\u00e9marrer AX Engine",

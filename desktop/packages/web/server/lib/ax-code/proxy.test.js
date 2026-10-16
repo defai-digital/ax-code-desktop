@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import http from "node:http"
 import express from "express"
 import request from "supertest"
 import fs from "node:fs"
@@ -199,5 +200,68 @@ describe("ax-code readiness gate", () => {
       restarting: false,
       lastError: "spawn failed",
     })
+  })
+})
+
+describe("api proxy client abort", () => {
+  it("closes the upstream request when the client aborts", async () => {
+    let upstreamClosed
+    const closed = new Promise((resolve) => {
+      upstreamClosed = resolve
+    })
+    let upstreamReceived
+    const received = new Promise((resolve) => {
+      upstreamReceived = resolve
+    })
+    // Never answers, like a long ax-engine install.
+    const upstream = http.createServer((req) => {
+      upstreamReceived()
+      req.socket.once("close", () => upstreamClosed(true))
+    })
+    await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve))
+    const upstreamPort = upstream.address().port
+
+    const app = express()
+    registerAxCodeProxy(app, {
+      fs,
+      os,
+      path,
+      OPEN_CODE_READY_GRACE_MS: 60_000,
+      getRuntime: () => ({
+        axCodePort: upstreamPort,
+        axCodeBaseUrl: `http://127.0.0.1:${upstreamPort}`,
+        isAxCodeReady: true,
+        isRestartingAxCode: false,
+      }),
+      getAxCodeAuthHeaders: () => ({}),
+      buildAxCodeUrl: (route) => `http://127.0.0.1:${upstreamPort}${route}`,
+      ensureAxCodeApiPrefix: () => {},
+    })
+    const server = app.listen(0, "127.0.0.1")
+    await new Promise((resolve) => server.once("listening", resolve))
+
+    try {
+      const client = http.request({
+        host: "127.0.0.1",
+        port: server.address().port,
+        method: "POST",
+        path: "/api/provider/ax-engine/install",
+        headers: { "content-type": "application/json" },
+      })
+      client.on("error", () => {})
+      client.end("{}")
+      await received
+      client.destroy()
+      const result = await Promise.race([
+        closed,
+        new Promise((resolve) => setTimeout(() => resolve(false), 2_000)),
+      ])
+      expect(result).toBe(true)
+    } finally {
+      server.closeAllConnections?.()
+      upstream.closeAllConnections?.()
+      await new Promise((resolve) => server.close(resolve))
+      await new Promise((resolve) => upstream.close(resolve))
+    }
   })
 })

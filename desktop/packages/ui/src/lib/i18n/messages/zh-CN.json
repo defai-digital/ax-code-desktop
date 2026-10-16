@@ -4326,6 +4326,7 @@
   "localModels.toast.actionFailed": "\u6a21\u578b\u64cd\u4f5c\u5931\u8d25",
   "localModels.toast.engineInstalled": "AX Engine \u5df2\u5b89\u88c5",
   "localModels.toast.engineInstallCancelled": "已取消安装 AX Engine",
+  "localModels.toast.engineUpdated": "AX Engine 已更新到 {version}",
   "localModels.toast.engineStopped": "AX Engine \u5df2\u505c\u6b62",
   "localModels.toast.engineStarted": "AX Engine \u5df2\u542f\u52a8",
   "localModels.toast.noRunnableModel": "\u542f\u52a8 AX Engine \u524d\uff0c\u8bf7\u5148\u4e0b\u8f7d\u53ef\u8fd0\u884c\u7684\u6a21\u578b",

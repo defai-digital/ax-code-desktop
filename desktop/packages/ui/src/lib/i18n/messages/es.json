@@ -4320,6 +4320,7 @@
   "localModels.toast.actionFailed": "Fall\u00f3 la acci\u00f3n del modelo",
   "localModels.toast.engineInstalled": "AX Engine instalado",
   "localModels.toast.engineInstallCancelled": "Instalación de AX Engine cancelada",
+  "localModels.toast.engineUpdated": "AX Engine actualizado a {version}",
   "localModels.toast.engineStopped": "AX Engine detenido",
   "localModels.toast.engineStarted": "AX Engine iniciado",
   "localModels.toast.noRunnableModel": "Descarga un modelo ejecutable antes de iniciar AX Engine",

@@ -2853,6 +2853,7 @@ export const dict = {
   "localModels.toast.actionFailed": "Model action failed",
   "localModels.toast.engineInstalled": "AX Engine installed",
   "localModels.toast.engineInstallCancelled": "AX Engine install cancelled",
+  "localModels.toast.engineUpdated": "AX Engine updated to {version}",
   "localModels.toast.engineStopped": "AX Engine stopped",
   "localModels.toast.engineStarted": "AX Engine started",
   "localModels.toast.noRunnableModel": "Download a runnable model before starting AX Engine",

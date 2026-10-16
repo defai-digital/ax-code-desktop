@@ -25,7 +25,28 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 
 // Runtime messages start with a machine code such as "AX_ENGINE_VERSION_UNSUPPORTED:".
-const stripErrorCode = (message: string) => message.replace(/^[A-Z][A-Z0-9_]+:\s*/, "").trim()
+export const stripAxEngineErrorCode = (message: string) => message.replace(/^[A-Z][A-Z0-9_]+:\s*/, "").trim()
+
+// Probes can report the raw banner ("ax-engine 7.7.0"); show just the version.
+const versionLabel = (value: string | undefined) => {
+  if (!value) return undefined
+  return /\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/.exec(value)?.[0] ?? value
+}
+
+const compareVersions = (left: string, right: string) => {
+  const parse = (value: string) =>
+    value
+      .split("-")[0]!
+      .split(".")
+      .map((part) => Number.parseInt(part, 10) || 0)
+  const a = parse(left)
+  const b = parse(right)
+  for (let index = 0; index < 3; index += 1) {
+    const diff = (a[index] ?? 0) - (b[index] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
 
 const UPDATE_HINTS: Record<string, string> = {
   configured:
@@ -39,15 +60,15 @@ export const describeAxEngineDependency = (dependency: Dependency | null | undef
   }
   const mode = dependency.mode ?? (dependency.available ? undefined : "missing")
   const sourceLabel = mode ? (SOURCE_LABELS[mode] ?? null) : null
-  const warnings = (dependency.warnings ?? []).map(stripErrorCode).filter(Boolean)
+  const warnings = (dependency.warnings ?? []).map(stripAxEngineErrorCode).filter(Boolean)
   const path = dependency.binaryPath ?? null
-  const version = dependency.version ?? dependency.managedVersion
+  const version = versionLabel(dependency.version ?? dependency.managedVersion)
 
   if (!dependency.available) {
     const blocker = dependency.blockers[0]
     // The missing-binary blocker is several lines of install instructions; the
     // status box shows its first line and the details panel shows the rest.
-    const firstLine = blocker ? stripErrorCode(blocker).split("\n")[0] : "Not installed"
+    const firstLine = blocker ? stripAxEngineErrorCode(blocker).split("\n")[0] : "Not installed"
     return {
       summary: mode === "configured" && path ? `${firstLine} · ${path}` : firstLine,
       path,
@@ -57,7 +78,11 @@ export const describeAxEngineDependency = (dependency: Dependency | null | undef
     }
   }
 
-  const parts = [version ? `v${version}` : null, sourceLabel].filter(Boolean)
+  // A managed engine newer than this runtime's pin stays as it is; the
+  // runtime refuses to downgrade it.
+  const pinned = dependency.pinnedVersion
+  const ahead = mode === "managed" && version && pinned && compareVersions(version, pinned) > 0
+  const parts = [version ? `v${version}` : null, sourceLabel, ahead ? `newer than ${pinned}` : null].filter(Boolean)
   return {
     summary: parts.length > 0 ? parts.join(" · ") : (path ?? "Available"),
     path,
@@ -85,10 +110,27 @@ export const canOfferAxEngineInstall = (
       data.eligibility.supported,
   )
 
+/**
+ * The pinned version to offer as "Update to …", or null. Only the runtime
+ * decides an update applies (ADR-200): it sets updateAvailable just for a
+ * managed or legacy bundled engine behind its pin. Older runtimes send
+ * neither field, so no update is offered.
+ */
+export const axEngineUpdateVersion = (
+  data: Pick<AxEngineModelsResponse, "dependency" | "eligibility"> | null | undefined,
+  connectionMode: string | null | undefined,
+) => {
+  if (!data || connectionMode === "attach" || !data.eligibility.supported) return null
+  const { dependency } = data
+  if (!dependency.available || dependency.updateAvailable !== true) return null
+  if (dependency.mode !== "managed" && dependency.mode !== "bundled") return null
+  return dependency.pinnedVersion?.trim() || null
+}
+
 /** The runtime's own manual-install instructions, shown when Desktop cannot install. */
 export const axEngineMissingDetails = (dependency: Dependency | null | undefined) => {
   if (!dependency || dependency.available) return []
   const blocker = dependency.blockers[0]
   if (!blocker) return []
-  return stripErrorCode(blocker).split("\n").slice(1).filter(Boolean)
+  return stripAxEngineErrorCode(blocker).split("\n").slice(1).filter(Boolean)
 }

@@ -28,8 +28,10 @@ import {
 } from "@/lib/ax-code/axEngineModelsApi"
 import {
   axEngineMissingDetails,
+  axEngineUpdateVersion,
   canOfferAxEngineInstall,
   describeAxEngineDependency,
+  stripAxEngineErrorCode,
 } from "@/lib/ax-code/axEngineDependency"
 import { downloadToastTracker } from "@/lib/ax-code/axEngineDownloadToasts"
 import { getCurrentDirectory } from "@/lib/ax-code/providerApi"
@@ -216,17 +218,52 @@ export const LocalModelsPage: React.FC = () => {
   const engineView = describeAxEngineDependency(data?.dependency)
   const engineMissingDetails = connection?.mode === "attach" ? [] : axEngineMissingDetails(data?.dependency)
   const installBusy = busyKey === "ax-engine-install"
-  const canInstallEngine = installBusy || canOfferAxEngineInstall(data, connection?.mode)
+  const engineUpdateVersion = axEngineUpdateVersion(data, connection?.mode)
+  const canInstallEngine = installBusy || canOfferAxEngineInstall(data, connection?.mode) || Boolean(engineUpdateVersion)
   const handleInstallEngine = async () => {
+    // One install at a time: a second click must not replace the controller
+    // that Cancel aborts, so claim the slot before any await.
+    if (installAbortRef.current) return
     const controller = new AbortController()
     installAbortRef.current = controller
     setBusyKey("ax-engine-install")
     try {
-      await installAxEngine(directory, controller.signal)
-      toast.success(t("localModels.toast.engineInstalled"))
+      // Decide from the state at click time: the server may have started (a
+      // local model request) or the engine changed since the last poll.
+      let current = data
+      try {
+        current = await fetchAxEngineModels(directory, controller.signal)
+        if (mountedRef.current) setData(current)
+      } catch {
+        // Fall back to the last snapshot; the runtime still refuses an unsafe install.
+      }
+      controller.signal.throwIfAborted()
+      const updateTo = axEngineUpdateVersion(current, connection?.mode)
+      if (!updateTo && !canOfferAxEngineInstall(current, connection?.mode)) return
+      // The runtime refuses to replace the engine under a live managed server
+      // (ADR-200). That includes an engine too old to count as installed, so
+      // stop it for Install too, with the user's consent.
+      if (current?.server.running) {
+        const ok = await requestConfirm(
+          `AX Engine is running. Stop it and ${updateTo ? `update to ${updateTo}` : "install AX Engine"}? Local model requests in progress will fail.`,
+        )
+        if (!ok) return
+        controller.signal.throwIfAborted()
+        await stopAxEngineServer(directory)
+      }
+      controller.signal.throwIfAborted()
+      const result = await installAxEngine(directory, controller.signal)
+      toast.success(
+        updateTo
+          ? t("localModels.toast.engineUpdated", { version: result?.version ?? updateTo })
+          : t("localModels.toast.engineInstalled"),
+      )
     } catch (err) {
       if (controller.signal.aborted) toast.success(t("localModels.toast.engineInstallCancelled"))
-      else toast.error(err instanceof Error ? err.message : t("localModels.toast.actionFailed"))
+      else
+        toast.error(
+          err instanceof Error ? stripAxEngineErrorCode(err.message) : t("localModels.toast.actionFailed"),
+        )
     } finally {
       if (installAbortRef.current === controller) installAbortRef.current = null
       if (mountedRef.current) setBusyKey(null)
@@ -467,7 +504,7 @@ export const LocalModelsPage: React.FC = () => {
                   ) : (
                     <Button size="sm" onClick={() => void handleInstallEngine()} disabled={Boolean(busyKey)}>
                       <Icon name="download" className="h-4 w-4" />
-                      Install
+                      {engineUpdateVersion ? `Update to ${engineUpdateVersion}` : "Install"}
                     </Button>
                   )
                 ) : undefined
@@ -501,7 +538,9 @@ export const LocalModelsPage: React.FC = () => {
 
           {installBusy && (
             <div className="typography-micro text-muted-foreground" aria-live="polite">
-              Installing AX Engine… AX Code downloads its pinned, signed release and verifies it before use.
+              {engineUpdateVersion ? `Updating AX Engine to ${engineUpdateVersion}…` : "Installing AX Engine…"} AX Code
+              downloads its pinned, signed release and verifies it before use. Cancel stops it before the new version
+              replaces the old one.
             </div>
           )}
 
