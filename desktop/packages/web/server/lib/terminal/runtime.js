@@ -72,18 +72,32 @@ export const TERMINAL_SHELL_STARTUP_GRACE_MS = 1_500
 
 // Per-client pending outbound WS buffer for terminal output. Unbounded pty output
 // against a stalled client would otherwise sit in the socket's send queue for the
-// process lifetime (the SSE path pauses the pty; this path has no pause). A late
-// client is disconnected instead — it reconnects and replays from its cursor.
+// process lifetime. A late client is disconnected instead — it reconnects and replays
+// from its cursor — and the SSE path is held to the same policy for the same reason:
+// what it would otherwise pause is the pty every other client and the replay buffer
+// read from.
 export const TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES = 16 * 1024 * 1024
 
 export const isTerminalOutputClientStalled = (socket, maxBufferedBytes = TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES) =>
   typeof socket?.bufferedAmount === "number" && socket.bufferedAmount > maxBufferedBytes
 
+export const TERMINAL_OUTPUT_SSE_MAX_BUFFERED_BYTES = 16 * 1024 * 1024
+
+export const isTerminalOutputResponseStalled = (res, maxBufferedBytes = TERMINAL_OUTPUT_SSE_MAX_BUFFERED_BYTES) =>
+  typeof res?.writableLength === "number" && res.writableLength > maxBufferedBytes
+
 /**
- * Env for a terminal shell: drop secrets, and drop the embedded-browser marker —
- * the token that pairs with it only exists in the runtime's own env, so a child
- * that inherits the marker alone gets a runtime where both the project browser
- * (403, no token) and the Chrome bridge (embedded mode blocks it) are unusable.
+ * Env for a terminal shell: drop the credentials this server holds, and drop the
+ * embedded-browser marker — the token that pairs with it only exists in the runtime's
+ * own env, so a child that inherits the marker alone gets a runtime where both the
+ * project browser (403, no token) and the Chrome bridge (embedded mode blocks it) are
+ * unusable.
+ *
+ * The names are the app's own, as `cli-install` scrubs for the upgrade CLI. What is
+ * deliberately *not* copied from there is its credential pattern: a terminal is the
+ * user's own shell, and its exported `GITHUB_TOKEN` or `AWS_SECRET_ACCESS_KEY` has to
+ * keep reaching `git push` and the AWS CLI. The UI password and the session signing
+ * keys are this process's, not the user's.
  */
 export const sanitizeTerminalEnv = (env) => {
   const next = { ...env }
@@ -92,6 +106,10 @@ export const sanitizeTerminalEnv = (env) => {
   delete next.ENV
   delete next.AX_CODE_SERVER_PASSWORD
   delete next.AX_CODE_BROWSER_MODE
+  delete next.AX_CODE_DESKTOP_UI_PASSWORD
+  delete next.AX_CODE_UI_PASSWORD
+  delete next.AX_CODE_JWT_SECRET
+  delete next.AX_CODE_DESKTOP_JWT_SECRET
   return next
 }
 
@@ -795,7 +813,6 @@ export function createTerminalRuntime({
     if (typeof heartbeatInterval.unref === "function") heartbeatInterval.unref()
 
     let cleanedUp = false
-    let paused = false
     let dataDisposable = null
     let exitDisposable = null
     const cleanup = () => {
@@ -806,19 +823,6 @@ export function createTerminalRuntime({
       cleanedUp = true
       clearInterval(heartbeatInterval)
       session.clients.delete(clientId)
-
-      // If this client paused the shared pty for backpressure and then
-      // disconnected before the 'drain' fired, the resume would never run and
-      // the pty would stay paused forever — freezing output for every other
-      // client and the replay buffer. Resume it as part of teardown.
-      if (paused && session.ptyProcess && typeof session.ptyProcess.resume === "function") {
-        try {
-          session.ptyProcess.resume()
-        } catch (error) {
-          console.error(`Failed to resume pty on cleanup for client ${clientId}:`, error)
-        }
-        paused = false
-      }
 
       if (dataDisposable && typeof dataDisposable.dispose === "function") {
         dataDisposable.dispose()
@@ -840,16 +844,14 @@ export function createTerminalRuntime({
       try {
         session.lastActivity = Date.now()
         const ok = res.write(`data: ${JSON.stringify({ type: "data", data })}\n\n`)
-        // `paused` guards against stacking a drain listener per buffered chunk while already paused.
-        if (!ok && !paused && session.ptyProcess && typeof session.ptyProcess.pause === "function") {
-          session.ptyProcess.pause()
-          paused = true
-          res.once("drain", () => {
-            paused = false
-            if (session.ptyProcess && typeof session.ptyProcess.resume === "function") {
-              session.ptyProcess.resume()
-            }
-          })
+        // Backpressure cannot be pushed onto the pty here. It is shared with every other SSE client, the bound WS
+        // clients and the replay buffer, so pausing it for one socket starves all of them — the freeze the teardown
+        // comment above used to have to undo. The WS path sheds the client that is too far behind instead
+        // (`isTerminalOutputClientStalled`) and this one does the same: the frame is not written, the stream ends,
+        // and the client reconnects.
+        if (!ok && isTerminalOutputResponseStalled(res)) {
+          console.warn(`Terminal SSE client ${clientId} is too far behind; ending its stream`)
+          cleanup()
         }
       } catch (error) {
         console.error(`Error sending data to client ${clientId}:`, error)

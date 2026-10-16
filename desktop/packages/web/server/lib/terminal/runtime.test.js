@@ -4,14 +4,16 @@ import path from "node:path"
 import { describe, expect, it } from "vitest"
 
 import {
+  TERMINAL_OUTPUT_SSE_MAX_BUFFERED_BYTES,
   TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES,
   TERMINAL_SHELL_STARTUP_GRACE_MS,
   createTerminalRuntime,
   isTerminalOutputClientStalled,
+  isTerminalOutputResponseStalled,
   observeTerminalShellStartup,
   sanitizeTerminalEnv,
 } from "./runtime.js"
-import { createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
+import { createMockRequest, createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
 
 function createRuntime(server, overrides = {}) {
   const app = overrides.app ?? {
@@ -726,6 +728,86 @@ describe("terminal output backpressure", () => {
     // A stalled client must be disconnected instead of buffering pty output forever.
     expect(isTerminalOutputClientStalled({ bufferedAmount: TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES + 1 })).toBe(true)
   })
+
+  it("treats an SSE response with a modest buffer as healthy and a far-behind one as stalled", () => {
+    expect(isTerminalOutputResponseStalled({ writableLength: 0 })).toBe(false)
+    expect(isTerminalOutputResponseStalled({})).toBe(false)
+    expect(isTerminalOutputResponseStalled({ writableLength: TERMINAL_OUTPUT_SSE_MAX_BUFFERED_BYTES })).toBe(false)
+    expect(isTerminalOutputResponseStalled({ writableLength: TERMINAL_OUTPUT_SSE_MAX_BUFFERED_BYTES + 1 })).toBe(true)
+  })
+
+  it("ends one far-behind SSE stream instead of pausing the pty every client shares", async () => {
+    // The pause this replaced was `session.ptyProcess.pause()`, and that process is shared with every other SSE
+    // client, the bound WS clients and the replay buffer: one slow socket froze output for all of them, and the
+    // teardown comment spent lines undoing it. The WS path disconnects the client that is too far behind; this one
+    // does the same.
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const dataHandlers = []
+    const pauseCalls = []
+    const previousShell = process.env.AX_CODE_DESKTOP_TERMINAL_SHELL
+    process.env.AX_CODE_DESKTOP_TERMINAL_SHELL = "/bin/zsh"
+    const runtime = createRuntime(server, {
+      app,
+      isExecutable: () => true,
+      searchPathFor: (name) => name,
+      getPtyProvider: async () => ({
+        backend: "mock",
+        spawn: () => ({
+          onData: (callback) => {
+            dataHandlers.push(callback)
+            return {
+              dispose() {
+                const index = dataHandlers.indexOf(callback)
+                if (index >= 0) dataHandlers.splice(index, 1)
+              },
+            }
+          },
+          onExit: () => ({ dispose() {} }),
+          write() {},
+          kill() {},
+          resize() {},
+          pause() {
+            pauseCalls.push("pause")
+          },
+          resume() {
+            pauseCalls.push("resume")
+          },
+        }),
+      }),
+    })
+
+    try {
+      const createRes = createMockResponse()
+      await getRoute("POST", "/api/terminal/create")({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, createRes)
+      const sessionId = createRes.body?.sessionId
+      expect(sessionId).toBeTruthy()
+
+      const streamRes = createMockResponse()
+      let streamEnded = false
+      streamRes.writableLength = TERMINAL_OUTPUT_SSE_MAX_BUFFERED_BYTES + 1
+      // Every write signals backpressure: this client has stopped draining.
+      streamRes.write = () => false
+      streamRes.once = () => {}
+      streamRes.end = () => {
+        streamEnded = true
+        return streamRes
+      }
+
+      const streamReq = createMockRequest()
+      streamReq.params = { sessionId }
+      await getRoute("GET", "/api/terminal/:sessionId/stream")(streamReq, streamRes)
+
+      for (const handler of [...dataHandlers]) handler("more output than the client can take")
+
+      expect(streamEnded).toBe(true)
+      expect(pauseCalls).toEqual([])
+    } finally {
+      if (previousShell === undefined) delete process.env.AX_CODE_DESKTOP_TERMINAL_SHELL
+      else process.env.AX_CODE_DESKTOP_TERMINAL_SHELL = previousShell
+      await runtime.shutdown()
+    }
+  })
 })
 
 
@@ -744,6 +826,28 @@ describe("terminal shell env", () => {
     // child inheriting the marker alone can use neither browser path.
     expect(env.AX_CODE_BROWSER_MODE).toBeUndefined()
     expect(env.BASH_ENV).toBeUndefined()
+  })
+
+  it("drops the UI password and the session signing keys the server holds", () => {
+    // The shell inherits this process's environment, so the loopback UI password and the keys that sign its session
+    // cookies reached every command run in a terminal — including a script from the project being opened. The names
+    // are the app's own, as `cli-install` scrubs for the upgrade CLI; a user's own exported token stays, because a
+    // terminal is their shell and `git push` has to keep working.
+    const env = sanitizeTerminalEnv({
+      PATH: "/usr/bin",
+      AX_CODE_DESKTOP_UI_PASSWORD: "ui-password",
+      AX_CODE_UI_PASSWORD: "legacy-password",
+      AX_CODE_JWT_SECRET: "session-key",
+      AX_CODE_DESKTOP_JWT_SECRET: "desktop-session-key",
+      GITHUB_TOKEN: "user-token",
+    })
+
+    expect(env.AX_CODE_DESKTOP_UI_PASSWORD).toBeUndefined()
+    expect(env.AX_CODE_UI_PASSWORD).toBeUndefined()
+    expect(env.AX_CODE_JWT_SECRET).toBeUndefined()
+    expect(env.AX_CODE_DESKTOP_JWT_SECRET).toBeUndefined()
+    expect(env.GITHUB_TOKEN).toBe("user-token")
+    expect(env.PATH).toBe("/usr/bin")
   })
 })
 
