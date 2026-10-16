@@ -68,29 +68,41 @@ type SessionMessageRecord = { info: Message; parts: Part[] }
 export const normalizeSearchText = (text: string): string => text.replace(/\s+/g, " ").trim()
 
 /**
- * Index of `needle` (already lowercased) in `text`, or -1.
+ * The first match of `needle` (already lowercased) in `text`, as the span of `text` it matched, or null.
  *
- * The lowercased text is built code point by code point while remembering where each folded character came
- * from, because lowercasing can *lengthen* a string (`İ` becomes two characters): a fixed-width window over the
- * original cannot match `needle` there, and the answer still has to be an index into `text` for the snippet.
+ * Two lengths are in play and neither is the other's: `İ` lowercases to two code units, so the folded text is
+ * longer than `text`, and a fixed-width window over `text` can never equal `needle` there. The fold itself is
+ * applied to the whole string — `Σ` lowercases context-sensitively, to `ς` at a word's end and `σ` elsewhere —
+ * while the index map is built code point by code point, because that fold never changes a code point's length.
+ * The span has to come from the map as well: `needle.length` counts *folded* code units, so slicing the original
+ * by it takes the following character into the match.
  */
-const findCaseInsensitiveIndex = (text: string, needle: string): number => {
+const findCaseInsensitiveMatch = (text: string, needle: string): { index: number; length: number } | null => {
   if (!needle) {
-    return -1
+    return null
   }
-  let folded = ""
+  const folded = text.toLowerCase()
   const originalIndexes: number[] = []
+  const originalLengths: number[] = []
   for (let index = 0; index < text.length; ) {
     const character = String.fromCodePoint(text.codePointAt(index) ?? 0)
-    const lowered = character.toLowerCase()
-    for (let offset = 0; offset < lowered.length; offset += 1) {
+    for (let offset = 0; offset < character.toLowerCase().length; offset += 1) {
       originalIndexes.push(index)
+      originalLengths.push(character.length)
     }
-    folded += lowered
     index += character.length
   }
   const found = folded.indexOf(needle)
-  return found === -1 ? -1 : (originalIndexes[found] ?? -1)
+  if (found === -1) {
+    return null
+  }
+  const start = originalIndexes[found]
+  if (start === undefined) {
+    return null
+  }
+  const last = Math.min(found + needle.length - 1, originalIndexes.length - 1)
+  const end = (originalIndexes[last] ?? start) + (originalLengths[last] ?? 1)
+  return { index: start, length: Math.max(1, end - start) }
 }
 
 const sessionUpdatedAt = (session: Session): number =>
@@ -182,11 +194,10 @@ export const findSessionHits = (
   if (!normalizedQuery) return []
   const hits: CrossSessionSearchHit[] = []
   for (const message of messages) {
-    // Index into the text as it will be sliced: lowercasing can change a string's length (`İ` becomes two code
-    // units), and the index used to come from the lowercased copy while the snippet sliced the original — the
-    // highlight and its ellipses landed a few characters off.
-    const matchIndex = findCaseInsensitiveIndex(message.text, normalizedQuery)
-    if (matchIndex === -1) continue
+    // The span comes back measured in the original text, so the snippet's highlight is the query's own text even
+    // where folding changes length (`İ` folds to two code units) or only the case (`ς` at a word's end).
+    const match = findCaseInsensitiveMatch(message.text, normalizedQuery)
+    if (!match) continue
     hits.push({
       sessionId: session.id,
       sessionTitle: session.title ?? "",
@@ -194,7 +205,7 @@ export const findSessionHits = (
       messageId: message.messageId,
       role: message.role,
       created: message.created,
-      snippet: buildSnippet(message.text, matchIndex, normalizedQuery.length),
+      snippet: buildSnippet(message.text, match.index, match.length),
     })
   }
   return hits

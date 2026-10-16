@@ -254,4 +254,32 @@ describe("scanSessionsForQuery", () => {
     expect(hits).toHaveLength(1)
     expect(hits[0].snippet.match).toBe("İstanbul")
   })
+
+  test("highlights the matched span, not the folded query's length", () => {
+    // `İ` is one code unit and its lowercase form is two, so the folded query is longer than the span it matched:
+    // slicing the original by the query's length took the space after `İstanbul` into the highlight.
+    const hits = findSessionHits(
+      session(),
+      [{ messageId: "msg_1", role: "user", created: 1000, text: "İstanbul city" }],
+      "i\u0307stanbul",
+    )
+
+    expect(hits).toHaveLength(1)
+    expect(hits[0].snippet.match).toBe("İstanbul")
+    expect(hits[0].snippet.after).toBe(" city")
+  })
+
+  test("matches a word-final capital sigma the way the query folds it", () => {
+    // Folding the text one code point at a time turns every `Σ` into `σ`, while the whole-string fold the query
+    // goes through turns the word-final one into `ς`: searching `ΟΔΟΣ` in text that reads exactly that found
+    // nothing at all.
+    const hits = findSessionHits(
+      session(),
+      [{ messageId: "msg_1", role: "user", created: 1000, text: "ΟΔΟΣ" }],
+      normalizeSearchQuery("ΟΔΟΣ"),
+    )
+
+    expect(hits).toHaveLength(1)
+    expect(hits[0].snippet.match).toBe("ΟΔΟΣ")
+  })
 })
