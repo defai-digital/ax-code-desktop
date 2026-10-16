@@ -19,6 +19,7 @@ import {
   getFileDiff,
   getStatus,
   getWorktreeBootstrapStatus,
+  getWorktrees,
   isGitRepository,
   isRefusedRepositoryRoot,
   leavesRepositoryRoot,
@@ -1145,5 +1146,54 @@ describe("continueRebase on a step that resolved to nothing", () => {
     expect(fs.existsSync(path.join(repo, ".git", "rebase-apply"))).toBe(false)
     expect(fs.existsSync(path.join(repo, ".git", "rebase-merge"))).toBe(false)
     expect(runGit(repo, ["status", "--porcelain"]).trim()).toBe("")
+  })
+})
+
+describe("createWorktree from a bare repository", () => {
+  it("creates a worktree instead of refusing to resolve a top level", async () => {
+    if (!canRunGit()) return
+
+    const source = createTempDir()
+    runGit(source, ["init", "-b", "main"])
+    runGit(source, ["config", "user.email", "test@example.com"])
+    runGit(source, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(source, "README.md"), "# Test\n")
+    runGit(source, ["add", "README.md"])
+    runGit(source, ["commit", "-m", "Initial commit"])
+
+    // A bare checkout answers `rev-parse --show-toplevel` with "fatal: this operation must be run in a
+    // work tree", which the worktree context read as "not a repository" and refused every worktree
+    // operation on it.
+    const bare = createTempDir()
+    runGit(bare, ["init", "--bare", "-b", "main"])
+    runGit(source, ["remote", "add", "origin", bare])
+    runGit(source, ["push", "-q", "origin", "main"])
+
+    const previousXdgDataHome = process.env.XDG_DATA_HOME
+    process.env.XDG_DATA_HOME = createTempDir()
+    try {
+      const created = await createWorktree(bare, {
+        mode: "new",
+        branchName: "feature/bare",
+        worktreeName: "bare-wt",
+      })
+
+      // The checkout itself is the bootstrap's job.
+      await expect
+        .poll(async () => (await getWorktreeBootstrapStatus(created.path)).status, { timeout: 15000 })
+        .toBe("ready")
+
+      expect(fs.existsSync(path.join(created.path, "README.md"))).toBe(true)
+      expect(runGit(created.path, ["rev-parse", "--abbrev-ref", "HEAD"]).trim()).toBe("feature/bare")
+
+      // Listing ran from the bare repository, which lists itself as a worktree: it has none to check out
+      // and must not be offered as one, while the worktree just created must be.
+      const listed = (await getWorktrees(bare)).map((entry) => fs.realpathSync(entry.path))
+      expect(listed).toContain(fs.realpathSync(created.path))
+      expect(listed).not.toContain(fs.realpathSync(bare))
+    } finally {
+      if (previousXdgDataHome === undefined) delete process.env.XDG_DATA_HOME
+      else process.env.XDG_DATA_HOME = previousXdgDataHome
+    }
   })
 })

@@ -725,6 +725,13 @@ const parseWorktreePorcelain = (raw) => {
       continue
     }
 
+    if (line === "bare") {
+      // A bare repository is listed as a worktree by `git worktree list`; it has no work tree to check
+      // out, so the callers that offer worktrees must not treat it as one.
+      current.bare = true
+      continue
+    }
+
     if (line.startsWith("HEAD ")) {
       current.head = line.substring("HEAD ".length).trim()
       continue
@@ -1053,12 +1060,11 @@ const resolveWorktreeProjectContext = async (directory) => {
     throw new Error("Directory is required")
   }
 
-  const topResult = await runGitCommandOrThrow(
-    directoryPath,
-    ["rev-parse", "--show-toplevel"],
-    "Failed to resolve git top-level directory",
-  )
-  const sandbox = path.resolve(directoryPath, topResult.stdout.trim())
+  // A bare repository has no work tree, so `--show-toplevel` fails there — but the directory is still a
+  // repository, and every worktree command runs from it. Refusing here left a bare checkout unable to
+  // create, preview or validate a worktree at all.
+  const topResult = await runGitCommand(directoryPath, ["rev-parse", "--show-toplevel"])
+  const sandbox = topResult.success ? path.resolve(directoryPath, topResult.stdout.trim()) : directoryPath
 
   const commonResult = await runGitCommandOrThrow(
     sandbox,
@@ -1066,7 +1072,9 @@ const resolveWorktreeProjectContext = async (directory) => {
     "Failed to resolve git common directory",
   )
   const commonDir = path.resolve(sandbox, commonResult.stdout.trim())
-  const primaryWorktree = path.dirname(commonDir)
+  // For a work tree the common directory is its `.git`, whose parent is the primary worktree; a bare
+  // repository answers with itself, and its parent would hand the project to the wrong directory.
+  const primaryWorktree = commonDir === sandbox ? sandbox : path.dirname(commonDir)
   const projectID = await ensureAxCodeProjectId(primaryWorktree)
   const worktreeRoot = path.join(getAxCodeDataPath(), "worktree", projectID)
 
@@ -3165,13 +3173,17 @@ export async function getWorktrees(directory) {
   }
   try {
     const directoryGit = await createGit(directoryPath)
-    const repoRoot = await resolveGitRepositoryRoot(directoryPath, directoryGit)
+    // A bare repository answers `--show-toplevel` with a fatal error while still listing the worktrees
+    // linked to it; it is its own root for this command, and its own bare entry is filtered out below.
+    const repoRoot = await resolveGitRepositoryRoot(directoryPath, directoryGit).catch(() => directoryPath)
     const result = await runGitCommandOrThrow(
       repoRoot,
       ["worktree", "list", "--porcelain"],
       "Failed to list git worktrees",
     )
-    return parseWorktreePorcelain(result.stdout).map((entry) => ({
+    return parseWorktreePorcelain(result.stdout)
+      .filter((entry) => !entry.bare)
+      .map((entry) => ({
       head: entry.head || "",
       name: path.basename(entry.worktree || ""),
       branch: entry.branch || "",
