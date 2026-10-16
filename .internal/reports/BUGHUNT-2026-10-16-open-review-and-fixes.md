@@ -1241,12 +1241,44 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Seventh round
+
+A second pass over the core with reviewers the first pass did not use there: `sync/**` (Claude Code CLI),
+`components/chat/**` (MiniMax-M3), server `{git,fs,terminal}/**` (mimo-v2.6-pro), server
+`{projects,scheduled-task-convergence,skills-catalog,ui-auth,quota}/**` (glm-5.3), `stores/**` and
+`hooks/**` (Muse CLI), `electron/src|scripts/**` (Grok CLI), and the terminal/files libraries plus two
+views (qwen3.8-flash). One run (the git/fs/terminal server one) ended in the same transport failure the
+sixth round saw twice and produced nothing.
+
+Fixed from this round so far:
+
+- **`99ebf2f1`** — the reverted-message dock guarded its restore, redo and fork handlers with React
+  state, so two clicks in the same tick both passed the guard and each sent its own revert: the session
+  came back reverted past the row the user asked for, and a second fork could be created the same way.
+  `QuestionCard` and `PermissionCard` guard that same class of click with a ref written synchronously;
+  the dock has the same refs now.
+- **`8f97dfe3`** — the pipeline coalesces `session.status` by replacing the earlier event at its slot,
+  which moves the later one ahead of anything queued between them. `session.idle` and `session.error`
+  write the same status slice, so one frame holding the end of a turn and the start of the next was
+  applied as busy-then-idle even though the server was busy: the working indicator and Stop button went
+  away and the queued-message auto-send saw a busy→idle edge and sent early. The delta/updated pair
+  already refuses to coalesce across an interrupting event; the status slice does too now.
+- **`4b33ec68`** — the seen-directory LRU (over 30 directories) evicted the oldest directory's session
+  caches without asking which of them the user is waiting on, so a session that was working or waiting on
+  an approval lost its status, permission and question slices: the dialog it was blocked on vanished
+  while the agent stayed blocked, and the reconnect and poll candidates read from those same slices no
+  longer listed it. The per-session path protects those ids; the directory-level path does now.
+
+Read and not yet verified: `r7-stores` (8 KiB), `r7-serversessions` (21 KiB) and `r7-tui` (18 KiB) each
+finished with findings, and `r7-electron` was still running. The three suspected leads in `r7-sync` are
+unread.
+
 ## Verification
 
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 675, web 1 105 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 680, web 1 105 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
