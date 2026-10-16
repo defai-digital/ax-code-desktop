@@ -71,10 +71,17 @@ const pollWorktreeBootstrapUntilSettled = async (directory: string, timeoutMs: n
   while (Date.now() - startedAt < timeoutMs) {
     const result = await getGitWorktreeBootstrapStatus(directory)
     // The wait still ends on the runtime's answer — that is what its caller is waiting for — but a
-    // retired run leaves the state alone.
-    if (isCurrentRun()) {
-      setWorktreeBootstrapState(directory, result)
+    // retired run (its state was cleared, e.g. the worktree was removed) starts no further request:
+    // answering with the one already on its way and leaving the state alone is the same thing a fresh
+    // caller gets for a directory with no state, and nothing keeps asking the runtime every 250 ms for
+    // the rest of the timeout.
+    if (!isCurrentRun()) {
+      if (result.status === "failed") {
+        throw new Error(result.error || "Worktree bootstrap failed")
+      }
+      return
     }
+    setWorktreeBootstrapState(directory, result)
 
     if (result.status === "ready") {
       return

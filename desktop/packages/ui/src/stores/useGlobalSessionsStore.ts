@@ -402,6 +402,18 @@ const recordDeleteTombstone = (tombstones: Map<string, number>, id: string, now:
 }
 
 /**
+ * Record a delete tombstone for every id in one state write.
+ */
+const recordDeleteTombstones = (tombstones: Map<string, number>, ids: Set<string>): Map<string, number> => {
+  const now = Date.now()
+  let next = tombstones
+  for (const id of ids) {
+    next = recordDeleteTombstone(next, id, now)
+  }
+  return next
+}
+
+/**
  * Drop sessions with a LIVE delete tombstone from an incoming snapshot.
  * Keeps the original list reference when nothing matches, so referential
  * stability is preserved for the common no-tombstone case.
@@ -657,6 +669,11 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
         activeSessions: nextActiveSessions,
         archivedSessions: nextArchivedSessions,
         sessionsByDirectory: removeSessionsFromDirectoryMap(state.sessionsByDirectory, idSet),
+        // A removal that actually took a session out of this list needs the tombstone here, not only in
+        // the `session.deleted` event path: the hard-delete flows remove the session optimistically as
+        // soon as the server confirms, and a reconnect snapshot taken before the event — or a dropped
+        // event — carried it again and the sidebar showed it once more.
+        deleteTombstones: recordDeleteTombstones(state.deleteTombstones, idSet),
       }
     })
 

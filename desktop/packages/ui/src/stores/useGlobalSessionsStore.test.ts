@@ -648,6 +648,19 @@ describe("removeSessions per-session state cleanup", () => {
     expect(cleanupRemovedSessionsMock.mock.calls[0]?.[0]).toEqual(new Set(["ses_doomed"]))
   })
 
+  test("removeSessions leaves a tombstone so a stale snapshot cannot resurrect the session", () => {
+    // The hard-delete flows call this directly right after the server confirms and rely on the
+    // `session.deleted` event to reconcile. A reconnect snapshot taken before that event (or a dropped
+    // event) carried the session again and the sidebar showed it once more.
+    const deleted = makeSession("ses_doomed", { directory: "/repo" })
+    useGlobalSessionsStore.getState().upsertSession(deleted)
+
+    useGlobalSessionsStore.getState().removeSessions(["ses_doomed"])
+    useGlobalSessionsStore.getState().applySnapshot([deleted], [], "ready")
+
+    expect(useGlobalSessionsStore.getState().activeSessions).toEqual([])
+  })
+
   test("removeSessions for an unknown id keeps lists stable and cleanup is an idempotent no-op", async () => {
     const keeper = makeSession("ses_keep", { directory: "/repo" })
     useGlobalSessionsStore.getState().upsertSession(keeper)

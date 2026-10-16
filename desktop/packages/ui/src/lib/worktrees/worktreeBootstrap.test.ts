@@ -55,6 +55,33 @@ describe("worktree bootstrap state", () => {
     await expect(waitForWorktreeBootstrap(DIRECTORY, 50)).resolves.toBeUndefined()
   })
 
+  test("a poll retired by a removal asks the runtime no further", async () => {
+    // The wait still ends on the answer that was already on its way — that is what its caller is waiting
+    // for — but the loop kept asking the runtime every 250 ms for the rest of the timeout, for a worktree
+    // that no longer exists.
+    vi.useFakeTimers()
+    try {
+      const inFlight = deferred<GitWorktreeBootstrapStatus>()
+      bootstrapStatus.mockReturnValueOnce(inFlight.promise)
+      // Any call after the first (only the unfixed loop makes one) still reports "pending".
+      bootstrapStatus.mockResolvedValue(status({ status: "pending" }))
+
+      markWorktreeBootstrapPending(DIRECTORY)
+      const staleWait = waitForWorktreeBootstrap(DIRECTORY, 5 * 60 * 1000)
+      await Promise.resolve()
+
+      clearWorktreeBootstrapState(DIRECTORY)
+      inFlight.resolve(status({ status: "pending" }))
+      await vi.advanceTimersByTimeAsync(60_000)
+      await expect(staleWait).resolves.toBeUndefined()
+
+      // One request, the one already on its way when the worktree was removed.
+      expect(bootstrapStatus.mock.calls.length).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   test("a poll retired by a removal does not let a re-created worktree skip its wait", async () => {
     // The retired poll's "ready" was written after the clear, and the next wait — for a worktree
     // re-created at the same path, whose setup commands are still running — returned immediately.
