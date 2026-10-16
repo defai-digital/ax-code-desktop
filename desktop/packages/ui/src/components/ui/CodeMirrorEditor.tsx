@@ -1,7 +1,7 @@
 import React from "react"
 
 import type { Extension } from "@codemirror/state"
-import { Compartment, EditorState, RangeSetBuilder, StateField } from "@codemirror/state"
+import { Compartment, EditorState, RangeSetBuilder, StateField, type StateEffect } from "@codemirror/state"
 import {
   Decoration,
   type DecorationSet,
@@ -160,6 +160,7 @@ type CodeMirrorEditorProps = {
   onSearchOpenChange?: (open: boolean) => void
 }
 
+const gutterWidthMeasureKey = {}
 const lineNumbersCompartment = new Compartment()
 const editableCompartment = new Compartment()
 const externalExtensionsCompartment = new Compartment()
@@ -340,16 +341,38 @@ export function CodeMirrorEditor({
     })
   }, [])
 
+  const gutterWidthRef = React.useRef<string | null>(null)
+  // The gutter width for inline widgets. Read in CodeMirror's own measure phase: read on
+  // every update instead, it forced a layout of the page on each keystroke.
   const syncEditorCssVars = React.useCallback((view?: EditorView | null) => {
-    const host = hostRef.current
     const resolvedView = view ?? viewRef.current
-    if (!host || !resolvedView) {
+    if (!hostRef.current || !resolvedView) {
       return
     }
 
-    const gutters = resolvedView.dom.querySelector(".cm-gutters")
-    const gutterWidth = gutters instanceof HTMLElement ? gutters.getBoundingClientRect().width : 0
-    host.style.setProperty("--ax-editor-gutter-width", `${gutterWidth}px`)
+    resolvedView.requestMeasure({
+      key: gutterWidthMeasureKey,
+      read: (measuredView) => {
+        const gutters = measuredView.dom.querySelector(".cm-gutters")
+        if (!(gutters instanceof HTMLElement)) {
+          return 0
+        }
+        // Hidden, it measures zero: keep the last real width.
+        return gutters.isConnected && gutters.offsetParent !== null ? gutters.getBoundingClientRect().width : null
+      },
+      write: (gutterWidth) => {
+        const host = hostRef.current
+        if (!host || gutterWidth === null) {
+          return
+        }
+        const next = `${gutterWidth}px`
+        if (gutterWidthRef.current === next) {
+          return
+        }
+        gutterWidthRef.current = next
+        host.style.setProperty("--ax-editor-gutter-width", next)
+      },
+    })
   }, [])
 
   React.useEffect(() => {
@@ -397,7 +420,16 @@ export function CodeMirrorEditor({
         indentUnit.of("  "),
         keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
         EditorView.updateListener.of((update) => {
-          syncEditorCssVars(update.view)
+          // Anything that can move the gutter needs a new width; a cursor-only update
+          // cannot, and measuring on those forced a layout per keystroke.
+          if (
+            update.docChanged ||
+            update.geometryChanged ||
+            update.viewportChanged ||
+            update.transactions.some((transaction) => transaction.reconfigured)
+          ) {
+            syncEditorCssVars(update.view)
+          }
           if (update.viewportChanged || update.geometryChanged) {
             syncPortalWidgets(blockWidgetsRef.current)
           }
@@ -452,24 +484,60 @@ export function CodeMirrorEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blockWidgetsRef, syncEditorCssVars, syncPortalWidgets])
 
+  // Only the compartments whose input changed are reconfigured: a reconfigure rebuilds the
+  // gutters, re-measures the editor and re-parses the document, and hosts pass fresh objects
+  // on every render. The creation effect applied the first values.
+  const appliedConfigRef = React.useRef({
+    lineNumbersConfig,
+    readOnly,
+    extensions,
+    highlightLines,
+    blockWidgets,
+    enableSearch,
+  })
+
   React.useEffect(() => {
     const view = viewRef.current
     if (!view) {
       return
     }
 
-    view.dispatch({
-      effects: [
-        lineNumbersCompartment.reconfigure(lineNumbers(lineNumbersConfig)),
-        editableCompartment.reconfigure(EditorView.editable.of(!readOnly)),
-        externalExtensionsCompartment.reconfigure(extensions ?? []),
-        highlightLinesCompartment.reconfigure(createHighlightLinesExtension(highlightLines)),
+    const applied = appliedConfigRef.current
+    appliedConfigRef.current = { lineNumbersConfig, readOnly, extensions, highlightLines, blockWidgets, enableSearch }
+
+    const effects: StateEffect<unknown>[] = []
+    if (applied.lineNumbersConfig !== lineNumbersConfig) {
+      effects.push(lineNumbersCompartment.reconfigure(lineNumbers(lineNumbersConfig)))
+    }
+    if (applied.readOnly !== readOnly) {
+      effects.push(editableCompartment.reconfigure(EditorView.editable.of(!readOnly)))
+    }
+    if (applied.extensions !== extensions) {
+      effects.push(externalExtensionsCompartment.reconfigure(extensions ?? []))
+    }
+    if (
+      applied.highlightLines?.start !== highlightLines?.start ||
+      applied.highlightLines?.end !== highlightLines?.end
+    ) {
+      effects.push(highlightLinesCompartment.reconfigure(createHighlightLinesExtension(highlightLines)))
+    }
+    if (applied.blockWidgets !== blockWidgets) {
+      effects.push(
         blockWidgetsCompartment.reconfigure(createBlockWidgetsExtension(blockWidgets, widgetContainersRef.current)),
+      )
+    }
+    if (applied.enableSearch !== enableSearch) {
+      effects.push(
         searchCompartment.reconfigure(
           enableSearch ? [search({ top: true }), keymap.of(toViewKeyBindings(searchKeymap))] : [],
         ),
-      ],
-    })
+      )
+    }
+    if (effects.length === 0) {
+      return
+    }
+
+    view.dispatch({ effects })
 
     forceParsingCompat(view, view.state.doc.length, 200)
     view.requestMeasure()

@@ -114,6 +114,9 @@ type FileStatSnapshot = {
   mtimeMs?: number
 }
 
+type LineNumbersConfig = React.ComponentProps<typeof CodeMirrorEditor>["lineNumbersConfig"]
+type LineNumberHandlers = NonNullable<NonNullable<LineNumbersConfig>["domEventHandlers"]>
+
 const OpenInAppListIcon = ({ label, iconDataUrl }: { label: string; iconDataUrl?: string }) => {
   const [failed, setFailed] = React.useState(false)
   const initial = label.trim().slice(0, 1).toUpperCase() || "?"
@@ -2666,6 +2669,85 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     [lightTheme, darkTheme],
   )
 
+  // The editor reconfigures a compartment only when the value it was handed changed, so these
+  // handlers are installed once and read the current state through the ref. Building the
+  // config inline rebuilt the gutters and re-parsed the document on every render, which is
+  // once per keystroke while typing.
+  const lineNumberHandlersRef = React.useRef<LineNumberHandlers>({})
+  lineNumberHandlersRef.current = {
+    mousedown: (view, line, event) => {
+      if (!(event instanceof MouseEvent)) {
+        return false
+      }
+      if (event.button !== 0) {
+        return false
+      }
+      event.preventDefault()
+
+      const lineNumber = view.state.doc.lineAt(line.from).number
+
+      // Mobile: tap-to-extend selection
+      if (isMobile && lineSelection && !event.shiftKey) {
+        const start = Math.min(lineSelection.start, lineSelection.end, lineNumber)
+        const end = Math.max(lineSelection.start, lineSelection.end, lineNumber)
+        setLineSelection({ start, end })
+        isSelectingRef.current = false
+        selectionStartRef.current = null
+        setIsDragging(false)
+        return true
+      }
+
+      isSelectingRef.current = true
+      selectionStartRef.current = lineNumber
+      setIsDragging(true)
+
+      if (lineSelection && event.shiftKey) {
+        const start = Math.min(lineSelection.start, lineNumber)
+        const end = Math.max(lineSelection.end, lineNumber)
+        setLineSelection({ start, end })
+      } else {
+        setLineSelection({ start: lineNumber, end: lineNumber })
+      }
+
+      return true
+    },
+    mouseover: (view, line, event) => {
+      if (!(event instanceof MouseEvent)) {
+        return false
+      }
+      if (event.buttons !== 1) {
+        return false
+      }
+      if (!isSelectingRef.current || selectionStartRef.current === null) {
+        return false
+      }
+
+      const lineNumber = view.state.doc.lineAt(line.from).number
+      const start = Math.min(selectionStartRef.current, lineNumber)
+      const end = Math.max(selectionStartRef.current, lineNumber)
+      setLineSelection({ start, end })
+      setIsDragging(true)
+      return false
+    },
+    mouseup: () => {
+      isSelectingRef.current = false
+      selectionStartRef.current = null
+      setIsDragging(false)
+      return false
+    },
+  }
+
+  const lineNumbersConfig = React.useMemo<LineNumbersConfig>(
+    () => ({
+      domEventHandlers: {
+        mousedown: (view, line, event) => lineNumberHandlersRef.current.mousedown?.(view, line, event) ?? false,
+        mouseover: (view, line, event) => lineNumberHandlersRef.current.mouseover?.(view, line, event) ?? false,
+        mouseup: (view, line, event) => lineNumberHandlersRef.current.mouseup?.(view, line, event) ?? false,
+      },
+    }),
+    [],
+  )
+
   const imageSrc =
     selectedFile?.path && isSelectedImage
       ? runtime.isDesktop
@@ -3469,70 +3551,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
                         }
                       : undefined
                   }
-                  lineNumbersConfig={{
-                    domEventHandlers: {
-                      mousedown: (view: EditorView, line: { from: number; to: number }, event: Event) => {
-                        if (!(event instanceof MouseEvent)) {
-                          return false
-                        }
-                        if (event.button !== 0) {
-                          return false
-                        }
-                        event.preventDefault()
-
-                        const lineNumber = view.state.doc.lineAt(line.from).number
-
-                        // Mobile: tap-to-extend selection
-                        if (isMobile && lineSelection && !event.shiftKey) {
-                          const start = Math.min(lineSelection.start, lineSelection.end, lineNumber)
-                          const end = Math.max(lineSelection.start, lineSelection.end, lineNumber)
-                          setLineSelection({ start, end })
-                          isSelectingRef.current = false
-                          selectionStartRef.current = null
-                          setIsDragging(false)
-                          return true
-                        }
-
-                        isSelectingRef.current = true
-                        selectionStartRef.current = lineNumber
-                        setIsDragging(true)
-
-                        if (lineSelection && event.shiftKey) {
-                          const start = Math.min(lineSelection.start, lineNumber)
-                          const end = Math.max(lineSelection.end, lineNumber)
-                          setLineSelection({ start, end })
-                        } else {
-                          setLineSelection({ start: lineNumber, end: lineNumber })
-                        }
-
-                        return true
-                      },
-                      mouseover: (view: EditorView, line: { from: number; to: number }, event: Event) => {
-                        if (!(event instanceof MouseEvent)) {
-                          return false
-                        }
-                        if (event.buttons !== 1) {
-                          return false
-                        }
-                        if (!isSelectingRef.current || selectionStartRef.current === null) {
-                          return false
-                        }
-
-                        const lineNumber = view.state.doc.lineAt(line.from).number
-                        const start = Math.min(selectionStartRef.current, lineNumber)
-                        const end = Math.max(selectionStartRef.current, lineNumber)
-                        setLineSelection({ start, end })
-                        setIsDragging(true)
-                        return false
-                      },
-                      mouseup: () => {
-                        isSelectingRef.current = false
-                        selectionStartRef.current = null
-                        setIsDragging(false)
-                        return false
-                      },
-                    },
-                  }}
+                  lineNumbersConfig={lineNumbersConfig}
                 />
               </div>
               {shouldMaskEditorForPendingNavigation && (
