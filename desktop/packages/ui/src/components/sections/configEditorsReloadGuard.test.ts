@@ -34,4 +34,43 @@ describe("config editors keep unsaved edits across a list reload", () => {
       expect(source).toContain("initialStateRef.current = {")
     }
   })
+
+  test("both put the trimmed values in the form too, so the save clears the dirty flag", async () => {
+    // Both baselines hold trimmed text while `isDirty` compares the raw state against them, so a prompt that ends
+    // in a newline (or a description with trailing whitespace) left the editor dirty after a successful save —
+    // the re-population used to correct it, and it no longer runs for the same key.
+    const agents = await readPage("agents/AgentsPage.tsx")
+    expect(agents).toContain(
+      [
+        "        setDescription(description.trim())",
+        "        setModel(model.trim())",
+        "        setPrompt(prompt.trim())",
+      ].join("\n"),
+    )
+
+    const commands = await readPage("commands/CommandsPage.tsx")
+    expect(commands).toContain(
+      [
+        "        setDescription(description.trim())",
+        "        setAgent(trimmedAgent)",
+        "        setModel(trimmedModel)",
+        "        setTemplate(trimmedTemplate)",
+      ].join("\n"),
+    )
+  })
+
+  test("the agents editor clears a half-typed permission rule only when it re-populates", async () => {
+    // The reset ran before the key guard, so the background reload of `agents` that the guard exists to ignore
+    // also wiped the rule the user was in the middle of typing.
+    const source = await readPage("agents/AgentsPage.tsx")
+
+    const guardIndex = source.indexOf("if (loadedAgentKeyRef.current === populateKey)")
+    expect(guardIndex).toBeGreaterThan(-1)
+    // The reset belongs to the populate that the guard lets through: it must come after the guard and before the
+    // form is filled.
+    const resetIndex = source.indexOf('setPendingRulePattern("*")', guardIndex)
+    const populateIndex = source.indexOf("setDescription(descriptionValue)", guardIndex)
+    expect(resetIndex).toBeGreaterThan(guardIndex)
+    expect(resetIndex).toBeLessThan(populateIndex)
+  })
 })

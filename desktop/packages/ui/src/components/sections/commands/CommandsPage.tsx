@@ -198,14 +198,20 @@ export const CommandsPage: React.FC = () => {
 
       if (success && !isNewCommand) {
         // The list reload after a save no longer re-populates the form (see `loadedCommandKeyRef`), so the
-        // dirty-check baseline moves here or the editor stays "dirty" after every save.
+        // dirty-check baseline moves here or the editor stays "dirty" after every save. The form takes the
+        // trimmed values for the same reason: `isDirty` compares the raw state against this baseline, so the
+        // untrimmed text described above `trimmedAgent`/`trimmedModel`/`trimmedTemplate` left it dirty.
+        setDescription(description.trim())
+        setAgent(trimmedAgent)
+        setModel(trimmedModel)
+        setTemplate(trimmedTemplate)
         initialStateRef.current = {
           draftName: "",
           draftScope: "user",
           description: description.trim(),
-          agent: agent.trim(),
-          model: model.trim(),
-          template,
+          agent: trimmedAgent,
+          model: trimmedModel,
+          template: trimmedTemplate,
         }
       }
 

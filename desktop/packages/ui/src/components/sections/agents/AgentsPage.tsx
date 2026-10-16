@@ -464,9 +464,6 @@ export const AgentsPage: React.FC = () => {
   )
 
   React.useEffect(() => {
-    setPendingRuleName("")
-    setPendingRulePattern("*")
-
     const applyPermissionState = (rules: PermissionRule[]) => {
       const normalized = normalizeRuleset(rules)
       const nextGlobal = getGlobalWildcardAction(normalized)
@@ -481,6 +478,11 @@ export const AgentsPage: React.FC = () => {
     if (loadedAgentKeyRef.current === populateKey) {
       return
     }
+
+    // Only a real populate clears the half-typed rule: a background reload of `agents` reaches this effect
+    // without changing the key, and resetting before the guard above wiped what the user was typing.
+    setPendingRuleName("")
+    setPendingRulePattern("*")
 
     if (isNewAgent && agentDraft) {
       const draftNameValue = agentDraft.name || ""
@@ -644,7 +646,12 @@ export const AgentsPage: React.FC = () => {
 
       if (success && !isNewAgent) {
         // The list reload after a save no longer re-populates the form (see `loadedAgentKeyRef`), so the
-        // dirty-check baseline has to move here or the editor stays "dirty" forever after saving.
+        // dirty-check baseline has to move here or the editor stays "dirty" forever after saving. The form takes
+        // the trimmed values too, because `isDirty` compares the raw state against this baseline: leaving the
+        // untrimmed text behind kept the editor dirty for the rest of the session.
+        setDescription(description.trim())
+        setModel(model.trim())
+        setPrompt(prompt.trim())
         initialStateRef.current = {
           draftName: "",
           draftScope: "user",
