@@ -109,6 +109,55 @@ describe("OverlayScrollbar drag mapping", () => {
     expect(bar.style.opacity).toBe("0")
   })
 
+  test("forgets the drag when the dragged axis's thumb goes away but the other stays", () => {
+    // The drag belongs to one axis, so a thumb on the other axis keeping the bar alive is not the thumb the pointer
+    // captured. Keying the reset on "no thumb at all" left the flag set here, and the bar then showed for the
+    // programmatic scrolls `suppressVisibility` exists to hide.
+    render({ suppressVisibility: true })
+    const scrollContainer = scrollContainerRef.current
+    if (!scrollContainer) throw new Error("container not rendered")
+
+    let scrollHeight = 3000
+    Object.defineProperty(scrollContainer, "clientHeight", { configurable: true, value: 300 })
+    Object.defineProperty(scrollContainer, "clientWidth", { configurable: true, value: 300 })
+    Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, get: () => scrollHeight })
+    Object.defineProperty(scrollContainer, "scrollWidth", { configurable: true, value: 600 })
+    Object.defineProperty(scrollContainer, "scrollTop", { configurable: true, get: () => 0, set: () => {} })
+    Object.defineProperty(scrollContainer, "scrollLeft", { configurable: true, get: () => 0, set: () => {} })
+
+    act(() => {
+      scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    runFrames()
+
+    const verticalThumb = container.querySelector('[data-overlay-scrollbar-thumb="vertical"]')
+    if (!(verticalThumb instanceof HTMLElement)) throw new Error("vertical thumb not rendered")
+    expect(container.querySelector('[data-overlay-scrollbar-thumb="horizontal"]')).not.toBeNull()
+    act(() => {
+      verticalThumb.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientY: 0, clientX: 0 }))
+    })
+
+    // The vertical axis stops overflowing; the horizontal one still does, so a thumb is still on screen.
+    scrollHeight = 300
+    act(() => {
+      scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    runFrames()
+    expect(container.querySelector('[data-overlay-scrollbar-thumb="vertical"]')).toBeNull()
+    expect(container.querySelector('[data-overlay-scrollbar-thumb="horizontal"]')).not.toBeNull()
+
+    scrollHeight = 3000
+    act(() => {
+      scrollContainer.dispatchEvent(new Event("scroll"))
+      scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    runFrames()
+
+    const bar = container.querySelector(".overlay-scrollbar")
+    if (!(bar instanceof HTMLElement)) throw new Error("scrollbar not rendered")
+    expect(bar.style.opacity).toBe("0")
+  })
+
   test("drags the thumb over the same travel it is positioned with", () => {
     // The thumb's travel is the track minus its own length, and the track is short by `TRACK_INSET` at both ends.
     // The drag mapped pointer movement over the *full* height, so the content scrolled slower than the pointer and
