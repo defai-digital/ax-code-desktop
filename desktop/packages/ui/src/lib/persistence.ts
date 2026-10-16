@@ -1238,27 +1238,40 @@ const _flushSettingsUpdateOnUnload = (): void => {
   }
   try {
     const runtimeSettings = getRuntimeSettingsAPI()
-    if (runtimeSettings) {
-      // Electron: best-effort IPC save; may not complete on a hard quit.
-      try {
-        void Promise.resolve(runtimeSettings.save(changes)).catch(() => {})
-      } catch {
-        /* ignore */
-      }
-    } else {
-      // Web: keepalive lets the PUT outlive the unloading document.
-      void fetch(API_ENDPOINTS.config.settings, {
-        method: HTTP_DEFAULTS.method.put,
-        headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
-        body: JSON.stringify(changes),
-        keepalive: true,
-      }).catch(() => {})
-    }
+    const write = runtimeSettings
+      ? // Electron: best-effort IPC save; may not complete on a hard quit.
+        Promise.resolve(runtimeSettings.save(changes))
+      : // Web: keepalive lets the PUT outlive the unloading document.
+        fetch(API_ENDPOINTS.config.settings, {
+          method: HTTP_DEFAULTS.method.put,
+          headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
+          body: JSON.stringify(changes),
+          keepalive: true,
+        }).then((response) => {
+          if (!response.ok) {
+            throw new Error(`Failed to update shared settings via API: ${response.status} ${response.statusText}`)
+          }
+        })
+
+    // Reported from the write's own outcome, not assumed. `visibilitychange → hidden` fires when
+    // the window is merely backgrounded, and this path used to answer every waiting caller with
+    // success before the write was confirmed: the settings UI showed a save that never happened.
+    void write.then(
+      () => resolveSettingsWaiters(waiters),
+      (error) => {
+        // The document may still be running (a backgrounded window, or a pagehide the browser
+        // took back), so keep the change queued: the next flush sends it again.
+        _pendingSettingsChanges = { ...changes, ...(_pendingSettingsChanges ?? {}) }
+        rejectSettingsWaiters(waiters, error)
+      },
+    )
     _settingsCache = null
-  } catch {
-    /* ignore — nothing more we can do while unloading */
+    return
+  } catch (error) {
+    /* nothing more we can do while unloading */
+    rejectSettingsWaiters(waiters, error)
+    return
   }
-  resolveSettingsWaiters(waiters)
 }
 
 if (typeof document !== "undefined" && typeof window !== "undefined") {

@@ -106,6 +106,40 @@ describe("updateDesktopSettings", () => {
     await vi.runAllTimersAsync()
     expect(save).toHaveBeenCalledTimes(1)
   })
+
+  test("does not report a save that failed while the window was hidden", async () => {
+    // `visibilitychange → hidden` also fires when the window is merely backgrounded, and the
+    // unload flush answered every waiting caller with success without looking at the write: the
+    // settings UI reported a save that never happened, and the change was gone.
+    const save = vi.fn<() => Promise<null>>(() => Promise.reject(new Error("offline")))
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => ({
+        settings: {
+          load: vi.fn(),
+          save,
+        },
+      }),
+    }))
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" })
+
+    try {
+      const { updateDesktopSettings } = await import("./persistence")
+      const update = updateDesktopSettings({ fontSize: 16 })
+      const rejection = expect(update).rejects.toThrow("offline")
+
+      document.dispatchEvent(new Event("visibilitychange"))
+      await rejection
+      expect(save).toHaveBeenCalledWith({ fontSize: 16 })
+
+      // Still pending, so the next flush carries it again instead of dropping it.
+      save.mockImplementation(() => Promise.resolve(null))
+      document.dispatchEvent(new Event("visibilitychange"))
+      expect(save).toHaveBeenCalledTimes(2)
+      expect(save).toHaveBeenLastCalledWith({ fontSize: 16 })
+    } finally {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" })
+    }
+  })
 })
 
 describe("settings save response application", () => {
