@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { mergeFallbackSessions } from "./globalSessionMerge"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { normalizeProjectPath } from "@/lib/projectResolution"
@@ -366,45 +367,6 @@ const applySessionUpsert = (
   }
 }
 
-const mergeSessionLists = (existing: Session[], incoming?: Session[]): Session[] => {
-  if (!incoming || incoming.length === 0) {
-    return existing
-  }
-
-  if (existing.length === 0) {
-    return incoming
-  }
-
-  const byId = new Map(existing.map((session) => [session.id, session]))
-  incoming.forEach((session) => {
-    byId.set(session.id, session)
-  })
-
-  const ordered: Session[] = []
-  const seen = new Set<string>()
-
-  existing.forEach((session) => {
-    const next = byId.get(session.id)
-    if (!next) {
-      return
-    }
-    ordered.push(next)
-    seen.add(session.id)
-  })
-
-  incoming.forEach((session) => {
-    if (seen.has(session.id)) {
-      return
-    }
-    const next = byId.get(session.id)
-    if (next) {
-      ordered.push(next)
-      seen.add(session.id)
-    }
-  })
-
-  return ordered
-}
 
 const withoutPendingRemoval = (sessions: Session[], pendingRemoval: Map<string, PendingRemovalEntry>): Session[] => {
   if (pendingRemoval.size === 0) {
@@ -596,7 +558,11 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
         // while the request was in flight, and the fallback merge below must
         // not drop it just because it predates this reload.
         const live = get()
-        const fallbackSnapshot = mergeSessionLists(live.activeSessions, fallbackActive)
+        const fallbackSnapshot = mergeFallbackSessions(
+          live.activeSessions,
+          fallbackActive,
+          new Set(live.archivedSessions.map((session) => session.id)),
+        )
         const nextActiveSessions = activeResult.status === "fulfilled" ? activeResult.value : fallbackSnapshot
         const nextArchivedSessions =
           archivedResult.status === "fulfilled" ? archivedResult.value : live.archivedSessions
@@ -623,7 +589,11 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
         return { activeSessions: nextActiveSessions, archivedSessions: nextArchivedSessions }
       } catch (error) {
         const live = get()
-        const nextActiveSessions = mergeSessionLists(live.activeSessions, fallbackActive)
+        const nextActiveSessions = mergeFallbackSessions(
+          live.activeSessions,
+          fallbackActive,
+          new Set(live.archivedSessions.map((session) => session.id)),
+        )
         const nextArchivedSessions = live.archivedSessions
         console.warn("[GlobalSessions] Failed to load sessions, using fallback snapshot:", error)
         set((state) => applySnapshot(state, nextActiveSessions, nextArchivedSessions, "error"))
