@@ -1172,16 +1172,16 @@ drop user data or user intent without saying so. The caps that are fine, and why
   `EXPANDED_TOOLS_CACHE_MAX`, `FILE_REFERENCE_STAT_CACHE_MAX`): bounded by count or
   bytes with eviction, not silently overgrown.
 
-One gap remains, recorded rather than fixed:
+The one gap this section recorded is fixed:
 
-- **A full message queue refuses the entry silently.** `addToQueue` returns false at
-  `MESSAGE_QUEUE_MAX_PER_SESSION` (50) and the caller keeps the composer — which this
-  series made sure it does without also eating the review comments — but nothing
-  tells the user why Enter did nothing; the queue's own panel is the only way to
-  find out. Telling them needs a new string, and the i18n contract requires every
-  one of the 13 locale files to carry it (plus the shared-spelling allowlist, since
-  the others would hold the English text), which is 15 files for one toast. Left
-  for a change that is already touching that catalogue.
+- **`86a3c917`** — a full message queue refused the entry silently: `addToQueue`
+  returns false at `MESSAGE_QUEUE_MAX_PER_SESSION` (50) and the caller keeps the
+  composer, but nothing said why Enter did nothing. The refusal reports it now,
+  with the cap read from the store's own constant through the message's `{count}`
+  placeholder. The new key is in all fourteen catalogs (the thirteen non-English
+  ones carry the English text and are listed in `shared/spelling`, which the locale
+  contract requires for an identical string), so `pnpm run check:locales` reports
+  14 locales, 4 696 keys and 61 048 entries.
 
 ## Reviewed and deliberately not changed
 
