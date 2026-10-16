@@ -25,6 +25,7 @@ import type { ToolPopupContent, DiffViewMode } from "./types"
 import { DiffViewToggle } from "./DiffViewToggle"
 import { VirtualizedCodeBlock, type CodeLine } from "./parts/VirtualizedCodeBlock"
 import { JsonTreeView } from "@/components/ui/JsonTreeView"
+import { fitImageToFrame, naturalSizeForUrl, type ImageNaturalSize } from "./imageFrameSize"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { API_ENDPOINTS } from "@/lib/http"
@@ -311,7 +312,7 @@ const ImagePreviewDialog: React.FC<{
   }, [popup.image])
 
   const [currentIndex, setCurrentIndex] = React.useState(0)
-  const [imageNaturalSize, setImageNaturalSize] = React.useState<{ width: number; height: number } | null>(null)
+  const [imageNaturalSize, setImageNaturalSize] = React.useState<ImageNaturalSize | null>(null)
   const { isRendered, isVisible, isTransitioning } = usePreviewOverlayState(popup.open)
   const viewport = usePreviewViewport(popup.open)
 
@@ -373,30 +374,17 @@ const ImagePreviewDialog: React.FC<{
     }
   }, [hasMultipleImages, onOpenChange, popup.open, showNext, showPrevious])
 
-  React.useEffect(() => {
-    setImageNaturalSize(null)
-  }, [currentImage?.url])
+  // The measurement is kept with the URL it was read from and the reset effect is gone: an image
+  // the browser already has cached fires `load` before that effect commits, and the reset then
+  // erased the size, leaving the frame at the whole viewport with margins that swallow the click.
+  const naturalSizeForCurrentImage = naturalSizeForUrl(imageNaturalSize, currentImage?.url)
 
   const imageDisplaySize = React.useMemo(() => {
     const maxWidth = Math.max(160, viewport.width * (isMobile ? 0.86 : 0.75))
     const maxHeight = Math.max(160, viewport.height * (isMobile ? 0.72 : 0.75))
 
-    if (!imageNaturalSize) {
-      return {
-        width: Math.round(maxWidth),
-        height: Math.round(maxHeight),
-      }
-    }
-
-    const widthScale = maxWidth / imageNaturalSize.width
-    const heightScale = maxHeight / imageNaturalSize.height
-    const scale = Math.min(widthScale, heightScale)
-
-    return {
-      width: Math.max(1, Math.round(imageNaturalSize.width * scale)),
-      height: Math.max(1, Math.round(imageNaturalSize.height * scale)),
-    }
-  }, [imageNaturalSize, isMobile, viewport.height, viewport.width])
+    return fitImageToFrame(naturalSizeForCurrentImage, { maxWidth, maxHeight })
+  }, [isMobile, naturalSizeForCurrentImage, viewport.height, viewport.width])
 
   if (!isRendered || !currentImage || typeof document === "undefined") {
     return null
@@ -479,11 +467,12 @@ const ImagePreviewDialog: React.FC<{
               const width = element.naturalWidth
               const height = element.naturalHeight
               if (width > 0 && height > 0) {
+                const url = currentImage?.url ?? ""
                 setImageNaturalSize((previous) => {
-                  if (previous && previous.width === width && previous.height === height) {
+                  if (previous && previous.url === url && previous.width === width && previous.height === height) {
                     return previous
                   }
-                  return { width, height }
+                  return { url, width, height }
                 })
               }
             }}
