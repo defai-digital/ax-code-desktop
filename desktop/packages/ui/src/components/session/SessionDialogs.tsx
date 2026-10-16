@@ -223,8 +223,19 @@ export const SessionDialogs: React.FC = () => {
     })
   }, [])
 
+  // Keyed on the dialog's identity, not on its value: the status check below writes its result
+  // back into `deleteDialog`, and with the object in the dependency array that re-ran this effect
+  // — resetting the "also delete the remote branch" choice the user had made in the meantime, the
+  // dirty-worktree warning, and the Delete button's disabled state while a second check ran.
+  const deleteDialogRef = React.useRef(deleteDialog)
+  deleteDialogRef.current = deleteDialog
+  const deleteDialogKey = deleteDialog
+    ? `${deleteDialog.sessions.map((session) => session.id).join(",")}|${deleteDialog.worktree?.path ?? ""}`
+    : null
+
   React.useEffect(() => {
-    if (!deleteDialog) {
+    const dialog = deleteDialogRef.current
+    if (!dialog) {
       setDeleteDialogSummaries([])
       setDeleteDialogShouldRemoveRemote(false)
       setDeleteDialogShouldDeleteLocalBranch(false)
@@ -233,7 +244,7 @@ export const SessionDialogs: React.FC = () => {
       return
     }
 
-    const summaries = deleteDialog.sessions
+    const summaries = dialog.sessions
       .map((session) => {
         const metadata = getWorktreeMetadata(session.id)
         return metadata ? { session, metadata } : null
@@ -246,8 +257,8 @@ export const SessionDialogs: React.FC = () => {
     setDirtyWorktreePaths(new Set())
 
     const metadataByPath = new Map<string, WorktreeMetadata>()
-    if (deleteDialog.worktree?.path) {
-      metadataByPath.set(normalizeProjectDirectory(deleteDialog.worktree.path), deleteDialog.worktree)
+    if (dialog.worktree?.path) {
+      metadataByPath.set(normalizeProjectDirectory(dialog.worktree.path), dialog.worktree)
     }
     summaries.forEach(({ metadata }) => {
       if (metadata.path) {
@@ -339,7 +350,7 @@ export const SessionDialogs: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [deleteDialog, getWorktreeMetadata])
+  }, [deleteDialogKey, getWorktreeMetadata])
 
   React.useEffect(() => {
     if (!canRemoveRemoteBranches) {
