@@ -423,7 +423,10 @@ export const createScheduledTaskConvergence = (deps) => {
 
     if (attempts >= maxAttempts) {
       for (const [projectID, remaining] of remainingByFile) {
-        if (remaining.length === 0) {
+        const settledKeys = settledKeysByFile.get(projectID) ?? []
+        // A file whose remaining list is empty still needs the write when this pass settled tasks it could not
+        // remove: those are in no retry list, and the marker's `migratedAt` stops the next boot from trying again.
+        if (remaining.length === 0 && settledKeys.length === 0) {
           continue
         }
         for (const task of remaining) {
@@ -435,10 +438,7 @@ export const createScheduledTaskConvergence = (deps) => {
         }
         // The recorded tasks are what leaves the file: passing a literal `[]` also deleted a task saved while
         // the pass was talking to the runtime, and recorded nothing about it.
-        const exhaustedKeys = new Set([
-          ...remaining.map((task) => scheduledTaskKey(task)),
-          ...(settledKeysByFile.get(projectID) ?? []),
-        ])
+        const exhaustedKeys = new Set([...remaining.map((task) => scheduledTaskKey(task)), ...settledKeys])
         await projectConfigRuntime.replaceScheduledTasks(projectID, (currentTasks) =>
           currentTasks.filter((task) => !exhaustedKeys.has(scheduledTaskKey(task))),
         )

@@ -177,6 +177,58 @@ describe("scheduled task convergence migration", () => {
     expect((await harness.readProject("proj-a.json")).scheduledTasks ?? []).toEqual([])
   })
 
+  it("removes a settled task whose project file write failed when the attempts run out", async () => {
+    // The exhaustion loop skipped a file with an empty remaining list, which is exactly the file whose only tasks
+    // were settled and whose removal write is what failed: the settled-keys cleanup was unreachable there, so the
+    // file kept listing a task the runtime already owns and the marker's `migratedAt` stopped any later boot.
+    const harness = await createHarness({
+      maxAttempts: 1,
+      listProjects: async () => [
+        { id: "proj-a", path: "/work/alpha" },
+        { id: "proj-b", path: "/work/beta" },
+      ],
+      runtimeHandler: async (url, init = {}) => {
+        if ((init.method || "GET") === "GET") {
+          return new Response(JSON.stringify([]), { status: 200 })
+        }
+        const body = init.body ? JSON.parse(init.body) : {}
+        // The retryable task keeps the pass going; the other project's write below is what fails.
+        if (typeof body.title === "string" && body.title.includes("Beta")) {
+          return new Response(JSON.stringify({ error: "busy" }), { status: 503 })
+        }
+        return new Response(JSON.stringify({ id: "st_1", status: "active" }), { status: 201 })
+      },
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", {
+      projectID: "proj-a",
+      projectPath: "/work/alpha",
+      scheduledTasks: [dailyTask({ name: "Alpha digest" })],
+    })
+    await harness.writeProject("proj-b.json", {
+      projectID: "proj-b",
+      projectPath: "/work/beta",
+      scheduledTasks: [dailyTask({ id: "task-2", name: "Beta digest" })],
+    })
+
+    // The removal write fails once, as a transiently unwritable file does; the pass that runs out of attempts
+    // writes again and succeeds.
+    const originalReplace = harness.projectConfigRuntime.replaceScheduledTasks
+    let refused = false
+    harness.projectConfigRuntime.replaceScheduledTasks = async (projectID, updater) => {
+      if (projectID === "proj-a" && !refused) {
+        refused = true
+        throw new Error("write refused")
+      }
+      return originalReplace.call(harness.projectConfigRuntime, projectID, updater)
+    }
+
+    const result = await harness.convergence.migrate()
+
+    expect(result).toMatchObject({ migrated: true, exhausted: true, attempts: 1 })
+    expect((await harness.readProject("proj-a.json")).scheduledTasks ?? []).toEqual([])
+  })
+
   it("records a project whose settled tasks could not be removed from its file", async () => {
     // `replaceScheduledTasks` failing after every task was handed over left the file listing them while the pass
     // reported `migrated` and the marker's `migratedAt` stopped the next boot from trying again: nothing recorded
