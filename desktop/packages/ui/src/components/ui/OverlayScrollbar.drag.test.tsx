@@ -7,6 +7,8 @@ import { OverlayScrollbar } from "./OverlayScrollbar"
 // track of `clientHeight - 2 * TRACK_INSET`).
 const TRACK_INSET = 8
 
+const frames = { current: [] as FrameRequestCallback[] }
+
 describe("OverlayScrollbar drag mapping", () => {
   let container: HTMLDivElement
   let root: Root
@@ -16,16 +18,18 @@ describe("OverlayScrollbar drag mapping", () => {
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     vi.stubGlobal("ResizeObserver", undefined)
-    // Frames run as they are requested: the metrics update then happens inside the same dispatch.
+    // Frames are collected and run on demand: running one inside the call that requested it left the ref holding
+    // the id `requestAnimationFrame` returns, which is the guard the next request checks.
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      callback(0)
-      return 1
+      frames.current.push(callback)
+      return frames.current.length
     })
     vi.stubGlobal("cancelAnimationFrame", () => {})
     // jsdom has no pointer capture.
     Object.defineProperty(HTMLElement.prototype, "setPointerCapture", { configurable: true, value: () => {} })
     Object.defineProperty(HTMLElement.prototype, "releasePointerCapture", { configurable: true, value: () => {} })
 
+    frames.current = []
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -41,14 +45,69 @@ describe("OverlayScrollbar drag mapping", () => {
     delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
   })
 
-  const render = () =>
+  const runFrames = () =>
+    act(() => {
+      for (const callback of frames.current.splice(0)) {
+        callback(0)
+      }
+    })
+
+  const render = ({ suppressVisibility = false } = {}) =>
     act(() => {
       root.render(
         <div ref={scrollContainerRef}>
-          <OverlayScrollbar containerRef={scrollContainerRef} observeMutations={false} />
+          <OverlayScrollbar
+            containerRef={scrollContainerRef}
+            observeMutations={false}
+            suppressVisibility={suppressVisibility}
+          />
         </div>,
       )
     })
+
+  test("forgets a drag whose thumb disappears before the pointer is released", () => {
+    // The thumb unmounts when the content stops overflowing, so the pointerup that clears the flag is delivered
+    // to an element that is no longer there. The stale flag then made every programmatic scroll show a bar the
+    // `suppressVisibility` path is meant to keep hidden.
+    render({ suppressVisibility: true })
+    const scrollContainer = scrollContainerRef.current
+    if (!scrollContainer) throw new Error("container not rendered")
+
+    let scrollHeight = 3000
+    Object.defineProperty(scrollContainer, "clientHeight", { configurable: true, value: 300 })
+    Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, get: () => scrollHeight })
+    Object.defineProperty(scrollContainer, "scrollTop", { configurable: true, get: () => 0, set: () => {} })
+
+    act(() => {
+      scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    runFrames()
+
+    const thumb = container.querySelector('[data-overlay-scrollbar-thumb="vertical"]')
+    if (!(thumb instanceof HTMLElement)) throw new Error("vertical thumb not rendered")
+    act(() => {
+      thumb.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientY: 0, clientX: 0 }))
+    })
+
+    // The content shrinks under the drag: the thumb unmounts and no pointerup is ever delivered.
+    scrollHeight = 300
+    act(() => {
+      scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    runFrames()
+    expect(container.querySelector('[data-overlay-scrollbar-thumb="vertical"]')).toBeNull()
+
+    scrollHeight = 3000
+    act(() => {
+      scrollContainer.dispatchEvent(new Event("scroll"))
+      scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    runFrames()
+
+    const bar = container.querySelector(".overlay-scrollbar")
+    if (!(bar instanceof HTMLElement)) throw new Error("scrollbar not rendered")
+    expect(bar.style.opacity).toBe("0")
+  })
 
   test("drags the thumb over the same travel it is positioned with", () => {
     // The thumb's travel is the track minus its own length, and the track is short by `TRACK_INSET` at both ends.
@@ -71,6 +130,7 @@ describe("OverlayScrollbar drag mapping", () => {
     act(() => {
       scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
     })
+    runFrames()
 
     const thumb = container.querySelector('[data-overlay-scrollbar-thumb="vertical"]')
     if (!(thumb instanceof HTMLElement)) throw new Error("vertical thumb not rendered")

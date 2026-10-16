@@ -350,6 +350,17 @@ const OverlayScrollbarComponent: React.FC<OverlayScrollbarProps> = ({
 
   const showVertical = vertical.length > 0
   const showHorizontal = horizontal.length > 0
+
+  // A drag whose thumb disappears mid-drag — the content shrank, a list filtered down, the pane was resized —
+  // never gets its pointerup: the element that captured the pointer is gone, and `handlePointerUp` runs on it.
+  // Left set, the flag kept the bar visible for the programmatic scrolls `suppressVisibility` exists to hide.
+  const hasThumb = showVertical || showHorizontal
+  React.useEffect(() => {
+    if (!hasThumb) {
+      isDraggingRef.current = false
+    }
+  }, [hasThumb])
+
   if (!showVertical && !showHorizontal) return null
 
   const trackInset = TRACK_INSET
