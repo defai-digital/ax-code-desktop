@@ -147,6 +147,24 @@ const UserTextPart: React.FC<UserTextPartProps> = ({ part, messageId, agentMenti
     setIsExpanded(false)
   }, [])
 
+  const handleExpand = React.useCallback((event: React.MouseEvent) => {
+    event.stopPropagation()
+    setIsExpanded(true)
+  }, [])
+
+  // A clamped message is only reachable by clicking the clipped text itself, which a keyboard
+  // user cannot reach at all: the same toggle is offered as a button, and the text answers Enter
+  // and Space like the button it behaves as.
+  const handleClampedKeyDown = React.useCallback(
+    (event: React.KeyboardEvent) => {
+      if (isExpanded || !isTruncated) return
+      if (event.key !== "Enter" && event.key !== " ") return
+      event.preventDefault()
+      setIsExpanded(true)
+    },
+    [isExpanded, isTruncated],
+  )
+
   const processedMarkdownContent = React.useMemo(() => {
     let content = textContent
 
@@ -240,6 +258,16 @@ const UserTextPart: React.FC<UserTextPartProps> = ({ part, messageId, agentMenti
 
   return (
     <div className="relative" key={part.id || `${messageId}-user-text`}>
+      {!isExpanded && isTruncated && (
+        <button
+          type="button"
+          onClick={handleExpand}
+          className="absolute top-0 right-0 z-10 flex items-center justify-center rounded-sm bg-[var(--surface-elevated)] p-0.5 text-[var(--surface-mutedForeground)] hover:text-[var(--surface-foreground)] hover:bg-[var(--interactive-hover)] transition-colors"
+          aria-label="Expand"
+        >
+          <Icon name="arrow-down-s" className="h-3.5 w-3.5" />
+        </button>
+      )}
       {isExpanded && (
         <button
           type="button"
@@ -260,6 +288,10 @@ const UserTextPart: React.FC<UserTextPartProps> = ({ part, messageId, agentMenti
         )}
         ref={textRef}
         onClick={handleClick}
+        onKeyDown={handleClampedKeyDown}
+        role={isTruncated && !isExpanded ? "button" : undefined}
+        tabIndex={isTruncated && !isExpanded ? 0 : undefined}
+        aria-expanded={isTruncated ? isExpanded : undefined}
       >
         {normalizedRenderingMode === "markdown" ? (
           <SimpleMarkdownRenderer
