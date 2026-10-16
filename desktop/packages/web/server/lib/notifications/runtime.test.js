@@ -319,6 +319,49 @@ describe("notification debounce failure handling", () => {
     }
   })
 
+  it("does not announce a question that was answered while its flush was awaiting", async () => {
+    // The flush deletes its debounce entry before awaiting the settings read and the template variables, which can
+    // run a git command — so a reply landing in that window found nothing to cancel and the "Input needed"
+    // notification still fired, seconds after the user had answered it. The permission path cancels for exactly
+    // this reason; the question path did not.
+    let releaseTemplates = () => {}
+    const runtime = createRuntime({
+      readSettingsFromDisk: vi.fn(async () => ({
+        nativeNotificationsEnabled: true,
+        notificationMode: "always",
+        notifyOnQuestion: true,
+      })),
+      buildTemplateVariables: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseTemplates = () => resolve({})
+          }),
+      ),
+    })
+
+    vi.useFakeTimers()
+    try {
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.asked",
+        properties: { sessionID: "ses_q", questions: [{ header: "Plan Mode", question: "Continue?" }] },
+      })
+      // The flush is in flight, suspended inside the template variables.
+      await vi.advanceTimersByTimeAsync(600)
+
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.replied",
+        properties: { sessionID: "ses_q" },
+      })
+
+      releaseTemplates()
+      await settle()
+
+      expect(runtime.emitted).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("gates a permission ask on the permission toggle, not the question one", async () => {
     // The permission path read `notifyOnQuestion`: turning "Questions" off silenced permission asks, and turning
     // "Permissions" off still announced them. While the window is unfocused the server is the only notifier, so a

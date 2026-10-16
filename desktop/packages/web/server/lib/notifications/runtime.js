@@ -27,6 +27,22 @@ export const createNotificationTriggerRuntime = (deps) => {
   const PERMISSION_NOTIFICATION_DEBOUNCE_MS = 500
   const questionNotificationDebounceTimers = new Map()
   const permissionNotificationDebounceTimers = new Map()
+  // Sessions whose question was already answered or dismissed. The flush below deletes its debounce entry before it
+  // starts awaiting the settings read and the template variables (which can run a git command), so a reply that
+  // lands mid-flush finds nothing to cancel and the ask was still announced — seconds after the user answered it.
+  const answeredQuestionSessions = new Set()
+  // Bounded like the permission dedupe window: a session answered long ago needs no mark.
+  const ANSWERED_QUESTION_SESSIONS_MAX = 500
+  const rememberAnsweredQuestionSession = (sessionId) => {
+    if (!sessionId) return
+    if (answeredQuestionSessions.size >= ANSWERED_QUESTION_SESSIONS_MAX) {
+      const oldest = answeredQuestionSessions.values().next().value
+      if (typeof oldest === "string") {
+        answeredQuestionSessions.delete(oldest)
+      }
+    }
+    answeredQuestionSessions.add(sessionId)
+  }
 // Distinguishes the asks a runtime sends without an id, which share no other key.
 let unkeyedPermissionAskSequence = 0
   const notifiedPermissionRequests = new Set()
@@ -392,7 +408,19 @@ let unkeyedPermissionAskSequence = 0
       return
     }
 
+    if ((payload.type === "question.replied" || payload.type === "question.rejected") && sessionId) {
+      rememberAnsweredQuestionSession(sessionId)
+      const pendingNotification = questionNotificationDebounceTimers.get(sessionId)
+      if (pendingNotification) {
+        clearTimeout(pendingNotification)
+        questionNotificationDebounceTimers.delete(sessionId)
+      }
+      return
+    }
+
     if (payload.type === "question.asked" && sessionId) {
+      // A new ask for a session is a new question: an earlier answer must not silence it.
+      answeredQuestionSessions.delete(sessionId)
       const existingTimer = questionNotificationDebounceTimers.get(sessionId)
       if (existingTimer) {
         clearTimeout(existingTimer)
@@ -438,6 +466,12 @@ let unkeyedPermissionAskSequence = 0
           if (shouldApplyResolvedTemplateMessage(questionTemplate.message, resolvedBody, variables)) body = resolvedBody
         } catch (error) {
           console.warn("[Notification] Question template resolution failed, using defaults:", error?.message || error)
+        }
+
+        // Checked here as well as in the reply handler: the answer may have arrived while this flush was awaiting
+        // the settings read or the template variables.
+        if (answeredQuestionSessions.has(sessionId)) {
+          return
         }
 
         if (settings.nativeNotificationsEnabled) {
