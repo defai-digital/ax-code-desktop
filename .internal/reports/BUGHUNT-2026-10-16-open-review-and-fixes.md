@@ -1055,11 +1055,16 @@ Read against the source and confirmed, waiting for a fix rather than a re-check:
 - **`PlanView.tsx:453`** (suspected) — the autosave effect has no dirty check against the content it
   loaded, so merely opening a plan schedules a write of the just-loaded text ~350 ms later; an external
   write landing in that window is overwritten by content the user never edited.
+- **`d4671753`** — the suspected bracketed-paste lead was real. Pasting into the touch hidden input
+  wrapped the clipboard text in the bracketed paste markers without looking at the text: a payload that
+  contains the closing marker — copied out of a terminal, or crafted — ends the paste there, and
+  everything after it is read as ordinary input, newlines included, which is what the wrapper exists to
+  prevent. Both markers are stripped from the text before it is wrapped, in the 7-bit and 8-bit
+  spellings; `buildPastedInput` holds that rule with a test.
 - **The suspected leads from these two runs are still unverified**: `onboarding/ChooserScreen.tsx:210-218`
-  (an uncaught rejection on a manual check, and a poll that retries a failing write forever),
+  (an uncaught rejection on a manual check, and a poll that retries a failing write forever) and
   `notifications/PermissionNotifications.tsx:111-127` (a second permission request in one pending batch
-  possibly never notifying), and `terminal/TerminalViewport.tsx:1601` (bracketed-paste wrapping without
-  stripping a carriage return or an embedded `201~`).
+  possibly never notifying).
 - **`6fd4fa79`** — both remaining session-export findings. The export read messages from the store
   keyed by the session's own directory but loaded them through `useSync()`, which follows the directory
   that is open: exporting a session from another project wrote an empty file, or whatever event
@@ -1232,7 +1237,7 @@ questions rather than local fixes.
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 670, web 1 105 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 674, web 1 105 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
