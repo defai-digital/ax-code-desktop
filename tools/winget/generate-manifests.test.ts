@@ -11,6 +11,12 @@ describe("AX Code Desktop winget manifest generator", () => {
     expect(() => parseArgs(["--version", "latest"])).toThrow("semantic version")
   })
 
+  test("rejects a value-taking option with no value instead of falling back to a default", () => {
+    expect(() => parseArgs(["--version", "7.10.2", "--out"])).toThrow("missing value for --out")
+    expect(() => parseArgs(["--version", "7.10.2", "--tag"])).toThrow("missing value for --tag")
+    expect(() => parseArgs(["--version"])).toThrow("missing value for --version")
+  })
+
   test("writes only Desktop manifests from the frozen release contract", async () => {
     const output = mkdtempSync(path.join(tmpdir(), "ax-coder-winget-"))
     try {

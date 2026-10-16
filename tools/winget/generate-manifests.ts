@@ -22,12 +22,28 @@ export function parseArgs(argv: string[]): Args {
   let skipDownload = false
   let tag = ""
 
+  // A value-taking option at the end of the line used to fall back to its default, so a
+  // mistyped command wrote manifests to a directory (or tag) the caller never asked for.
+  const takeValue = (index: number, flag: string): string => {
+    const value = argv[index + 1]
+    if (value === undefined) {
+      throw new Error(`missing value for ${flag}`)
+    }
+    return value
+  }
+
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
-    if (arg === "--version" || arg === "-v") version = argv[++index] ?? ""
-    else if (arg === "--out" || arg === "-o") out = argv[++index] ?? out
-    else if (arg === "--tag") tag = argv[++index] ?? ""
-    else if (arg === "--skip-download") skipDownload = true
+    if (arg === "--version" || arg === "-v") {
+      version = takeValue(index, arg)
+      index += 1
+    } else if (arg === "--out" || arg === "-o") {
+      out = takeValue(index, arg)
+      index += 1
+    } else if (arg === "--tag") {
+      tag = takeValue(index, arg)
+      index += 1
+    } else if (arg === "--skip-download") skipDownload = true
     else if (arg === "--help" || arg === "-h") {
       throw new Error("Usage: generate-manifests.ts --version <semver> [--tag <tag>] [--out <dir>] [--skip-download]")
     } else {
