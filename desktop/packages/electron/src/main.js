@@ -1250,7 +1250,9 @@ function flushPendingFocusOpen() {
   if (!rendererReadyForOpenProject || !mainWindow || mainWindow.isDestroyed()) return
   while (pendingFocusOpens.length > 0) {
     const pending = pendingFocusOpens.shift()
-    if (pending.sessionId) {
+    if (pending.event) {
+      emitToWindow(mainWindow, pending.event, pending.detail)
+    } else if (pending.sessionId) {
       emitToWindow(mainWindow, "openchamber:open-session", { sessionId: pending.sessionId, directory: pending.directory })
     } else if (pending.mode === "draft") {
       emitToWindow(mainWindow, "openchamber:open-draft-session", {
@@ -1259,6 +1261,22 @@ function flushPendingFocusOpen() {
       })
     }
   }
+}
+
+// Hand an event to the main window's renderer, or queue it until the renderer has
+// mounted its listeners. Transporting it over IPC only works once the renderer is
+// listening, and a window this code just created is not: loadURL resolves after
+// 'did-finish-load', not after 'ax-code:renderer-app-ready', so sending straight away
+// showed the window and dropped the event - the tray's session and approval clicks did
+// nothing while the app looked like it had honored them.
+function handOffToMainWindow(event, detail) {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (rendererReadyForOpenProject) {
+    emitToWindow(mainWindow, event, detail)
+    return
+  }
+  pendingFocusOpens.push({ event, detail })
+  flushPendingFocusOpen()
 }
 
 async function handleExternalOpenRequest(request) {
@@ -2110,16 +2128,22 @@ const clampWindowBoundsToVisibleWorkArea = (bounds) => {
 const writeWindowState = async (browserWindow) => {
   if (!browserWindow || browserWindow.isDestroyed()) return
   if (!mainWindow || browserWindow.id !== mainWindow.id) return
+  // Read the geometry now, not inside the mutator: the mutator runs later in the
+  // settings mutation chain, and on macOS the window is destroyed by the very close that
+  // triggers the final persist. The guard that skipped a destroyed window then returned
+  // the root unchanged, discarding the bounds this call exists to record, so the app
+  // reopened with its previous geometry.
   const bounds = browserWindow.getBounds()
+  const maximized = browserWindow.isMaximized()
+  const fullscreen = browserWindow.isFullScreen()
   await mutateSettingsRoot((root) => {
-    if (!browserWindow || browserWindow.isDestroyed()) return root
     root.desktopWindowState = {
       x: bounds.x,
       y: bounds.y,
       width: Math.max(bounds.width, MIN_WINDOW_WIDTH),
       height: Math.max(bounds.height, MIN_WINDOW_HEIGHT),
-      maximized: browserWindow.isMaximized(),
-      fullscreen: browserWindow.isFullScreen(),
+      maximized,
+      fullscreen,
     }
   })
 }
@@ -2580,13 +2604,11 @@ const dispatchTrayAction = async (action) => {
   }
   if (action.type === "respond-permission") {
     const target = mainWindow && !mainWindow.isDestroyed() ? mainWindow : await revealMainWindow()
-    // Use sendDesktopEvent so the tray action reaches the renderer via both
-    // the literal IPC channel (for __TAURI__.event.listen) AND the
-    // ax-code:dom-event envelope (for window.addEventListener). Raw
-    // webContents.send only delivers on the literal channel, where no
-    // listener exists for openchamber:tray-action — causing the click to
-    // silently do nothing. See #tray-permission-stability.
-    if (target && !target.isDestroyed()) sendDesktopEvent(target.webContents, "openchamber:tray-action", action)
+    // The tray action reaches the renderer through the ax-code:dom-event envelope (its
+    // listener is a window event listener), so it goes through the same ready gate the
+    // other hand-offs use - otherwise a click that revealed a fresh window answered
+    // nothing and the agent stayed blocked on that approval.
+    if (target && !target.isDestroyed()) handOffToMainWindow("openchamber:tray-action", action)
     return
   }
   if (action.type === "new-mini-chat") {
@@ -2600,9 +2622,7 @@ const dispatchTrayAction = async (action) => {
   if (action.type === "focus-session") {
     const target = await revealMainWindow()
     if (target && !target.isDestroyed() && action.sessionId) {
-      // Use sendDesktopEvent so the open-session event reaches the renderer
-      // via the ax-code:dom-event envelope (window.addEventListener path).
-      sendDesktopEvent(target.webContents, "openchamber:open-session", {
+      handOffToMainWindow("openchamber:open-session", {
         sessionId: action.sessionId,
         directory: action.directory || "",
       })
@@ -2612,7 +2632,7 @@ const dispatchTrayAction = async (action) => {
   const target = await revealMainWindow()
   if (!target || target.isDestroyed()) return
   if (action.type === "new-session") {
-    sendDesktopEvent(target.webContents, "openchamber:open-draft-session", { directory: "", projectId: "" })
+    handOffToMainWindow("openchamber:open-draft-session", { directory: "", projectId: "" })
   }
   // show-main-window: revealing the window above is the whole action.
 }
