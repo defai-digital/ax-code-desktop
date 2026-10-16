@@ -23,7 +23,7 @@ have, and the same defects can be found by comparing rather than by reading.
    where our code already handles it a different way.
 
 That produced 29 confirmed defects in our tree, and one more was found while fixing them.
-The twenty-four entries below are fixed; the 6 that remain are listed with the shape of
+The twenty-five entries below are fixed; the 5 that remain are listed with the shape of
 their fix so they can be picked up.
 
 ## Fixed
@@ -97,6 +97,12 @@ their fix so they can be picked up.
 - `a1f1156c1` **A missing or deleted file keeps its tab and reports the failure**
   (upstream issue 4477). A failed read closed the tab, so the editor fell back to another
   open file while the panel still named the failed path, and nothing was reported at all.
+- `1c9bfa1ab` (partly) **The editor rebuilds only what changed.** Every render
+  reconfigured all six compartments, which rebuilds the gutters, re-measures the editor
+  and re-parses the document — and the Files view hands over a fresh line-number config
+  and fresh highlight lines on every render, once per keystroke while typing. Each
+  compartment is now reconfigured only when its input changed, and the gutter width is
+  read in CodeMirror's measure phase instead of forcing a layout on every update.
 
 ## Confirmed in our tree, not yet fixed
 
@@ -105,20 +111,16 @@ Ordered by severity. Line numbers are where the defect lives today.
 1. **The editor's Find panel covers the first lines of the document**
    (`ui/src/components/ui/CodeMirrorEditor.tsx:426`): the theme positions the panel
    out of flow and nothing reserves its height.
-2. **The editor reconfigures all six compartments on every render**
-    (`ui/src/components/ui/CodeMirrorEditor.tsx:461`): a config object built inline
-    upstream re-runs the effect and re-parses the document. Upstream diffs each
-    compartment against the last applied one.
-3. **The context meter shows the compaction request's fill**
+2. **The context meter shows the compaction request's fill**
     (`ui/src/lib/messages/assistantTokens.ts:25`): after `/compact` the newest
     token-bearing assistant message is the summarising request itself.
-4. **Staged and unstaged line counts are merged into one number**
+3. **Staged and unstaged line counts are merged into one number**
     (`web/server/lib/git/service.js:1642`): a half-staged file shows the same total
     on both its Staged and Changes rows.
-5. **The worktree start command is read from a legacy file the runtime does not
+4. **The worktree start command is read from a legacy file the runtime does not
     write** (`web/server/lib/git/service.js:1221`), so a new worktree runs no project
     start command at all.
-6. **The worktree branch rename field silently renames to a different name**
+5. **The worktree branch rename field silently renames to a different name**
     (`ui/src/components/views/git/WorktreeBranchDisplay.tsx`): covered by the branch
     name fix above for the character set; what remains is that a sanitized name equal
     to the current one closes the editor without saying so.
