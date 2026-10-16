@@ -126,6 +126,10 @@ export function acceptDirectoryMessageStreamWsConnection({
       }
     }
 
+    // Set when the bounded queue below has to drop its oldest event: the gap cannot be recovered from the upstream
+    // (the client's cursor has moved past it), so the flush tells the client to re-read state.
+    let pendingEventsDropped = false
+
     const forwardEvent = (event) => {
       if (isUpstreamSubscriptionControl(event?.payload)) {
         return
@@ -134,6 +138,7 @@ export function acceptDirectoryMessageStreamWsConnection({
         pendingEvents.push(event)
         if (pendingEvents.length > MAX_PENDING_EVENTS) {
           pendingEvents.shift()
+          pendingEventsDropped = true
         }
         return
       }
@@ -191,6 +196,19 @@ export function acceptDirectoryMessageStreamWsConnection({
             }
             streamReady = true
             wsClients.add(socket)
+            if (pendingEventsDropped) {
+              pendingEventsDropped = false
+              // Ahead of the survivors, so the client learns about the gap before applying events that follow it.
+              // The same shape the upstream oversize path reports (`onOversize` below), and `global-hub` for an
+              // anchor evicted from its replay buffer.
+              pendingEvents.unshift({
+                envelope: { eventId: null },
+                payload: {
+                  type: "server.resync_required",
+                  properties: { reason: "events_dropped_before_ready" },
+                },
+              })
+            }
             for (const event of pendingEvents.splice(0, pendingEvents.length)) {
               sendEvent(event)
               if (closed) {

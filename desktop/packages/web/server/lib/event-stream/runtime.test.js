@@ -256,6 +256,58 @@ describe("message stream websocket runtime", () => {
     await runtime.close()
   })
 
+  it("tells a directory client about the pre-ready events it had to drop", async () => {
+    // The queue that holds events arriving before `server.connected` is bounded, and evicting its oldest was
+    // silent: the ready frame followed by the surviving tail presented a gap-free stream, and the client's own
+    // cursor had moved past the dropped prefix, so nothing would ever ask for it again. An unrecoverable gap is
+    // reported explicitly elsewhere in this module — `onOversize` here, and `global-hub` for an evicted anchor.
+    const server = new EventEmitter()
+    const wsClients = new Set()
+    const overflowCount = 205
+    const blocks = []
+    for (let index = 0; index < overflowCount; index += 1) {
+      blocks.push(
+        `id: evt-${index}\ndata: {"type":"session.updated","properties":{"directory":"/tmp/project","n":${index}}}\n\n`,
+      )
+    }
+    blocks.push('id: evt-ready\ndata: {"type":"server.connected","properties":{}}\n\n')
+
+    const runtime = createMessageStreamWsRuntime({
+      server,
+      uiAuthController: null,
+      isRequestOriginAllowed: async () => true,
+      rejectWebSocketUpgrade() {
+        throw new Error("upgrade should not be used in this test")
+      },
+      buildAxCodeUrl: (path) => `http://127.0.0.1:4096${path}`,
+      getAxCodeAuthHeaders: () => ({}),
+      processForwardedEventPayload() {},
+      wsClients,
+      upstreamReconnectDelayMs: 0,
+      fetchImpl: async (_url, options) =>
+        createSseResponse({ signal: options.signal, holdOpen: true, blocks }),
+    })
+
+    const socket = new FakeSocket()
+    runtime.wsServer.emit("connection", socket, { url: "/api/event/ws?directory=/tmp/project" })
+
+    await waitFor(() => socket.sent.some((frame) => frame.type === "ready"))
+
+    const resyncIndex = socket.sent.findIndex(
+      (frame) => frame.type === "event" && frame.payload?.type === "server.resync_required",
+    )
+    expect(resyncIndex).toBeGreaterThan(-1)
+    // The marker precedes the surviving events, so the client learns about the gap before applying them.
+    expect(resyncIndex).toBeLessThan(
+      socket.sent.findIndex((frame) => frame.type === "event" && frame.payload?.type !== "server.resync_required"),
+    )
+    // The oldest events are the ones that went, which is what the marker is about.
+    expect(socket.sent.some((frame) => frame.eventId === "evt-0")).toBe(false)
+
+    socket.close()
+    await runtime.close()
+  })
+
   it("labels directory websocket heartbeats with the requested directory", async () => {
     const server = new EventEmitter()
     const wsClients = new Set()
