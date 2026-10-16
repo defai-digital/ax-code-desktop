@@ -177,10 +177,14 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
       },
       isLatestEntry: (entry: PlanSaveQueueEntry) =>
         mountedRef.current && resolvedPathRef.current === entry.path && contentRef.current === entry.content,
+      onSaved: (entry) => {
+        // What the disk holds now. Reported for every write, not only the latest one: a save that completes
+        // after the user has already typed past it still means the disk holds that content, and leaving the
+        // record behind made a later revert to the older text look like "nothing to save" — the edit was
+        // dropped and the file kept the newer content.
+        loadedContentRef.current = entry.content
+      },
       onLatestSaved: (entry) => {
-        // What the disk holds now, so a later edit back to this content is not mistaken for "nothing to save":
-        // the ref was only ever written by the two load paths, and an autosave that left it at the pre-edit
-        // text mean a revert to the loaded text wrote nothing and the file kept the newer content.
         loadedContentRef.current = entry.content
         setSaveError(null)
       },

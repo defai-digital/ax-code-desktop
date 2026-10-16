@@ -18,6 +18,13 @@ export const planContentNeedsSave = (content: string, loadedContent: string | nu
 type PlanSaveQueueOptions = {
   save: (path: string, content: string) => Promise<void>
   isLatestEntry: (entry: PlanSaveQueueEntry) => boolean
+  /**
+   * Every write that reached the disk, whether or not the editor moved on while it was in flight. The caller
+   * records what the disk holds with it; reporting only the latest entry left that record behind whenever a
+   * save completed after the content changed again, and a later revert to the older text was then mistaken for
+   * "nothing to save".
+   */
+  onSaved?: (entry: PlanSaveQueueEntry) => void
   onLatestSaved?: (entry: PlanSaveQueueEntry) => void
   onLatestError: (entry: PlanSaveQueueEntry, error: unknown) => void
 }
@@ -62,6 +69,7 @@ export class PlanSaveQueue {
 
       try {
         await this.options.save(entry.path, entry.content)
+        this.options.onSaved?.(entry)
         if (!this.queuedByPath.has(path) && this.options.isLatestEntry(entry)) {
           this.options.onLatestSaved?.(entry)
         }

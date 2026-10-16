@@ -11,6 +11,43 @@ const createDeferred = <T>() => {
   return { promise, resolve, reject }
 }
 
+describe("PlanSaveQueue disk reporting", () => {
+  test("reports every write that reached the disk, not only the latest one", () => {
+    // The caller records "what the disk holds" from this callback. Reporting only the latest entry left the
+    // record behind whenever a save completed after the content changed again — the editor then held the older
+    // text and the disk the saved one, so a revert to the older text looked like "nothing to save".
+    const firstSave = createDeferred<void>()
+    const saveCalls: string[] = []
+    const reported: string[] = []
+    const queue = new PlanSaveQueue({
+      save: async (_path, content) => {
+        saveCalls.push(content)
+        if (saveCalls.length === 1) {
+          await firstSave.promise
+        }
+      },
+      // The editor moved on while the first write was in flight, so no entry is "the latest".
+      isLatestEntry: () => false,
+      onSaved: (entry) => {
+        reported.push(entry.content)
+      },
+      onLatestSaved: () => {
+        throw new Error("onLatestSaved must not fire for an entry the editor has moved past")
+      },
+      onLatestError: vi.fn(),
+    })
+
+    const first = queue.enqueue({ path: "/repo/plan.md", content: "older" })
+    const second = queue.enqueue({ path: "/repo/plan.md", content: "newer" })
+    firstSave.resolve()
+
+    return Promise.all([first, second]).then(() => {
+      expect(saveCalls).toEqual(["older", "newer"])
+      expect(reported).toEqual(["older", "newer"])
+    })
+  })
+})
+
 describe("PlanSaveQueue", () => {
   test("serializes plan saves for the same path and coalesces queued drafts", async () => {
     const firstSave = createDeferred<void>()
