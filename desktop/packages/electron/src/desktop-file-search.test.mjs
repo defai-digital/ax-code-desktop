@@ -3,7 +3,12 @@ import { createRequire } from "node:module"
 import { describe, expect, test } from "vitest"
 
 const require = createRequire(import.meta.url)
-const { shouldIncludeNativeSearchEntry, shouldSearchNativeRoot, toNativeSearchRelativePath } = require("./desktop-file-search.js")
+const {
+  resolveSearchableNativeRoot,
+  shouldIncludeNativeSearchEntry,
+  shouldSearchNativeRoot,
+  toNativeSearchRelativePath,
+} = require("./desktop-file-search.js")
 
 const mockEntry = (name, type) => ({
   name,
@@ -48,10 +53,51 @@ describe("desktop file search helpers", () => {
     expect(shouldSearchNativeRoot("")).toBe(false)
   })
 
-  test("the search handler applies the root check before it walks", async () => {
+  test("the search handler resolves the root and applies the policy before it walks", async () => {
     const { readFile } = await import("node:fs/promises")
     const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
 
-    expect(mainSource).toContain("if (!shouldSearchNativeRoot(resolvedRoot)) return []")
+    // Through its symlinks first: the policy reads the string it is given, and the walk follows the
+    // link, so a check on the unresolved path let a link to a credential store through.
+    expect(mainSource).toContain(
+      "const searchableRoot = await resolveSearchableNativeRoot(resolvedRoot, { realpath: (value) => fsp.realpath(value) })",
+    )
+    expect(mainSource).toContain("if (!searchableRoot) return []")
+  })
+})
+
+describe("resolveSearchableNativeRoot", () => {
+  const realpathTo = (targets) => async (value) => {
+    const resolved = targets[value]
+    if (!resolved) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+    return resolved
+  }
+
+  test("refuses a symlink that points into a credential store", async () => {
+    // `path.resolve` does not follow symlinks, so the link was not the string that names the denied
+    // directory: the walk followed it and listed the names desktop_read_file refuses.
+    const root = await resolveSearchableNativeRoot("/tmp/alias", {
+      home: "/Users/alice",
+      realpath: realpathTo({ "/tmp/alias": "/Users/alice/.ssh" }),
+    })
+
+    expect(root).toBeNull()
+  })
+
+  test("accepts a project outside HOME and hands back its resolved path", async () => {
+    const root = await resolveSearchableNativeRoot("/tmp/project-link", {
+      home: "/Users/alice",
+      realpath: realpathTo({ "/tmp/project-link": "/srv/project" }),
+    })
+
+    expect(root).toBe("/srv/project")
+  })
+
+  test("refuses a path that cannot be resolved", async () => {
+    await expect(resolveSearchableNativeRoot("/tmp/gone", { realpath: realpathTo({}) })).resolves.toBeNull()
+  })
+
+  test("refuses without a way to resolve the path", async () => {
+    await expect(resolveSearchableNativeRoot("/tmp/project")).resolves.toBeNull()
   })
 })

@@ -45,4 +45,38 @@ describe("main-window hand-off readiness", () => {
     expect(dispatch).toContain('handOffToMainWindow("openchamber:open-draft-session"')
     expect(dispatch).not.toContain("sendDesktopEvent(target.webContents")
   })
+
+  test("a menu action for a renderer that is not listening is queued, not dropped", async () => {
+    const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
+    const dispatch = mainSource.match(/const dispatchMenuAction = \(action\) => \{(?<body>[\s\S]*?)\n\}/)?.groups?.body
+
+    expect(dispatch).toBeDefined()
+    // The quick-dispatch shortcut creates the window and dispatches in the same turn, and the
+    // renderer registers its menu listener only after the app mounts: the panel never opened.
+    expect(dispatch).toContain("if (target === mainWindow && !rendererReadyForOpenProject)")
+    expect(dispatch).toContain('pendingFocusOpens.push({ event: "openchamber:menu-action", detail: action })')
+  })
+
+  test("a notification click reveals a window and queues its session", async () => {
+    const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
+    const click = mainSource.match(/notification\.on\("click", \(\) => \{(?<body>[\s\S]*?)\n  \}\)/)?.groups?.body
+
+    expect(click).toBeDefined()
+    // Without every window closed it does nothing, and with a window still loading the session was
+    // dropped: the tray's session click already reveals a window and goes through the ready gate.
+    expect(click).toContain("revealMainWindow()")
+    expect(click).toContain('handOffToMainWindow("openchamber:open-session"')
+  })
+
+  test("an install that never starts brings the app back instead of leaving it torn down", async () => {
+    const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
+    const handler = mainSource.match(/handleCommand\("desktop_quit_and_install"[\s\S]*?\n\}\)/)?.[0]
+
+    expect(handler).toBeDefined()
+    // The services are stopped and isQuitting is set before quitAndInstall runs; when it refuses,
+    // the window kept a dead server and window-all-closed would not quit the process.
+    expect(handler).toContain('reason: "install-not-started"')
+    expect(handler).toContain("app.relaunch()")
+    expect(handler).toContain("app.exit(0)")
+  })
 })

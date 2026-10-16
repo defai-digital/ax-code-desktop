@@ -33,7 +33,11 @@ const { FOCUS_MAIN_WINDOW_ACTION, resolveFocusMainWindowAction } = require("./fo
 const { mapWithConcurrency } = require("./map-with-concurrency")
 const { assertDesktopReadFileAllowed } = require("./desktop-read-file-policy")
 const { sanitizeDesktopWindowTitle } = require("./desktop-window-title")
-const { shouldIncludeNativeSearchEntry, shouldSearchNativeRoot, toNativeSearchRelativePath } = require("./desktop-file-search")
+const {
+  resolveSearchableNativeRoot,
+  shouldIncludeNativeSearchEntry,
+  toNativeSearchRelativePath,
+} = require("./desktop-file-search")
 const { AX_CODE_INSTALL_DOCS_URL, GITHUB_BUG_REPORT_URL, GITHUB_FEATURE_REQUEST_URL } = require("./support-urls")
 const { createSupervisionFsm } = require("./supervision-fsm")
 const { buildComputerUseServerEnv } = require("./computer-use-server-env")
@@ -1109,6 +1113,12 @@ handleCommand("desktop_quit_and_install", async () => {
     // Nothing is installable any more, and the renderer has to hear it: leaving the
     // gate set would let the user retry straight back into the same dead state.
     updateInstallGate.onNotInstallable()
+    // The services are already stopped and isQuitting is set, so this process cannot serve the
+    // window it still has: `window-all-closed` refuses to quit and `activate` refuses to re-create
+    // the window, which left a window with a dead server and, without a tray, an unreachable
+    // process. Come back up instead, into a working app that still has the update waiting.
+    app.relaunch()
+    app.exit(0)
     return { installed: false, reason: "install-not-started" }
   }
   return { installed: true, version: updateInstallGate.version() ?? undefined }
@@ -1618,7 +1628,20 @@ const maybeShowNativeNotification = (rawInput) => {
 
   notification.on("click", () => {
     focusForegroundWindow()
-    if (sessionId) emitToAllWindows("openchamber:open-session", { sessionId, directory })
+    if (sessionId) {
+      // The tray's session click already reveals the window and queues the event until the renderer
+      // is listening: this path only focused a window that existed, so a click with every window
+      // closed opened nothing, and a click while a window was still loading dropped the session.
+      void revealMainWindow()
+        .then((target) => {
+          if (target && !target.isDestroyed()) {
+            handOffToMainWindow("openchamber:open-session", { sessionId, directory })
+          }
+        })
+        .catch((error) => {
+          console.error("[electron] failed to open the session from a notification:", error)
+        })
+    }
     release()
   })
   notification.on("close", release)
@@ -2256,7 +2279,16 @@ const createAdditionalWindow = async (url) => {
 // ── Menu (native application menu) ─────────────────────────────────────────
 const dispatchMenuAction = (action) => {
   const target = getMenuTargetWindow()
-  if (target && !target.isDestroyed()) target.webContents.send("openchamber:menu-action", action)
+  if (!target || target.isDestroyed()) return
+  // The renderer registers its menu listener once the app has mounted, and a window this code just
+  // created has only finished loading: sending straight away dropped the action (the same reason
+  // handOffToMainWindow queues). Its own ready signal flushes what is queued.
+  if (target === mainWindow && !rendererReadyForOpenProject) {
+    pendingFocusOpens.push({ event: "openchamber:menu-action", detail: action })
+    flushPendingFocusOpen()
+    return
+  }
+  target.webContents.send("openchamber:menu-action", action)
 }
 
 const revealMainWindowForQuickDispatch = () => {
@@ -2717,6 +2749,13 @@ handleCommand("desktop_open_path", async (args) => {
     assertShellOpenPathSucceeded(await shell.openPath(targetPath))
     return null
   }
+  if (process.platform === "win32" && appName) {
+    // The name is the app the caller asked for: the default handler opened the path with whatever
+    // owns it (Explorer for a folder) and answered success, so the renderer that fell back here
+    // after `desktop_open_in_app` failed stopped offering the choice it was given.
+    await runSpecChain(buildWindowsOpenProjectSpecs({ projectPath: targetPath, appId: "", appName }), appName)
+    return null
+  }
   assertShellOpenPathSucceeded(await shell.openPath(targetPath))
   return null
 })
@@ -2945,9 +2984,12 @@ handleCommand("desktop_search_files", async (args) => {
   const resultType = options.type === "directory" ? "directory" : "file"
   const limit = Number.isFinite(options.limit) && options.limit > 0 ? Math.min(Math.floor(options.limit), 1000) : 200
   const resolvedRoot = path.resolve(root)
-  // The renderer names this root, so it is not necessarily the project it searched before:
-  // refuse one the read path would deny rather than enumerating a credential store.
-  if (!shouldSearchNativeRoot(resolvedRoot)) return []
+  // The renderer names this root, so it is not necessarily the project it searched before: resolve
+  // its symlinks and refuse one the read path would deny rather than enumerating a credential store
+  // a link points at. The walk keeps the path as it was given, so the results stay where the
+  // renderer expects them.
+  const searchableRoot = await resolveSearchableNativeRoot(resolvedRoot, { realpath: (value) => fsp.realpath(value) })
+  if (!searchableRoot) return []
   try {
     if (!(await fsp.stat(resolvedRoot)).isDirectory()) return []
   } catch {

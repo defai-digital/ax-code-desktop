@@ -21,6 +21,29 @@ const shouldSearchNativeRoot = (rootPath, options = {}) => {
   return !isDesktopPathDenied(rootPath, options)
 }
 
+/**
+ * The root a native search may walk, or null.
+ *
+ * The candidate is resolved through its symlinks before the policy sees it: `path.resolve` does not
+ * follow them, so a link such as `/tmp/alias -> ~/.ssh` was not the string that names the denied
+ * directory and the walk — `stat` and `readdir` both follow it — enumerated the credential store the
+ * read path refuses. The read path resolves first for the same reason.
+ */
+const resolveSearchableNativeRoot = async (rootPath, options = {}) => {
+  if (!rootPath || typeof rootPath !== "string") return null
+  const realpath = options.realpath
+  if (typeof realpath !== "function") return null
+
+  let resolved
+  try {
+    resolved = await realpath(rootPath)
+  } catch {
+    return null
+  }
+
+  return shouldSearchNativeRoot(resolved, options) ? resolved : null
+}
+
 const shouldIncludeNativeSearchEntry = (entry, resultType, query) => {
   const normalizedType = resultType === "directory" ? "directory" : "file"
   const normalizedQuery = typeof query === "string" ? query.toLowerCase() : ""
@@ -33,6 +56,7 @@ const shouldIncludeNativeSearchEntry = (entry, resultType, query) => {
 }
 
 module.exports = {
+  resolveSearchableNativeRoot,
   shouldIncludeNativeSearchEntry,
   shouldSearchNativeRoot,
   toNativeSearchRelativePath,
