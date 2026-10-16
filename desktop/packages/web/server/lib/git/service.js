@@ -969,11 +969,11 @@ const isNotGitRepositoryError = (error) => {
   return /not a git repository/i.test(text)
 }
 
-const runGitCommand = async (cwd, args) => {
+const runGitCommand = async (cwd, args, options = {}) => {
   try {
     const { stdout, stderr } = await execFileAsync(getGitBinary(), args, {
       cwd,
-      env: await buildGitEnv(),
+      env: { ...(await buildGitEnv()), ...(options.env || {}) },
       windowsHide: true,
       maxBuffer: 20 * 1024 * 1024,
     })
@@ -1011,6 +1011,14 @@ const resolveGitCommitFilePath = async (repoRoot, hash, candidates) => {
 
   throw new Error("Invalid file path")
 }
+
+/**
+ * Run a rebase/merge step with an editor that never prompts.
+ *
+ * simple-git's own `rebase()` resolves even when git refuses the step — it answers the failure text as
+ * its value — so the try/catch around it treated every unresolved conflict as a successful continue.
+ */
+const runSequencerStep = (cwd, args) => runGitCommand(cwd, args, { env: { GIT_EDITOR: "true" } })
 
 const runGitCommandOrThrow = async (cwd, args, fallbackMessage) => {
   const result = await runGitCommand(cwd, args)
@@ -4355,6 +4363,10 @@ export async function abortMerge(directory) {
  * hint in front of "No changes - did you forget to use 'git add'?", and the cherry-pick wording is "The
  * previous cherry-pick is now empty, possibly due to conflict resolution": reading those as a conflict
  * showed a conflict list that no longer exists and left the step unable to advance.
+ *
+ * The text is only ever consulted for a step whose conflicts are resolved — see the structural check in
+ * the callers — because git quotes the commit it failed to apply in the same message, and its subject
+ * can contain any of these phrases.
  */
 const saysNothingLeftToApply = (message) =>
   message.includes("nothing to commit") ||
@@ -4362,95 +4374,105 @@ const saysNothingLeftToApply = (message) =>
   message.includes("nothing left to stage") ||
   message.includes("now empty")
 
-export async function continueRebase(directory) {
-  const { git } = await createRepositoryGitContext(directory)
-
-  try {
-    // Set GIT_EDITOR to prevent editor prompts
-    await git.env("GIT_EDITOR", "true").rebase(["--continue"])
-    return { success: true, conflict: false }
-  } catch (error) {
-    const errorMessage = String(error?.message || error || "").toLowerCase()
-
-    // Before the conflict branch: git's empty-step answer mentions conflicts in its hint, so checking that
-    // first reported a conflict that is gone and the rebase never advanced.
-    if (saysNothingLeftToApply(errorMessage)) {
-      // Skip this commit and continue
-      try {
-        await git.env("GIT_EDITOR", "true").rebase(["--skip"])
-        return { success: true, conflict: false }
-      } catch {
-        // If skip also fails, the rebase may be complete
-        return { success: true, conflict: false }
-      }
-    }
-
-    const isConflict =
-      errorMessage.includes("conflict") ||
-      errorMessage.includes("needs merge") ||
-      errorMessage.includes("unmerged") ||
-      errorMessage.includes("fix conflicts")
-
-    if (isConflict) {
-      const status = await git.status().catch(() => ({ conflicted: [] }))
-      return {
-        success: false,
-        conflict: true,
-        conflictFiles: status.conflicted || [],
-      }
-    }
-
-    console.error("Failed to continue rebase:", error)
-    throw error
+/**
+ * Classify a refused `rebase --continue` / `merge` step.
+ *
+ * The structural answer comes first: unmerged entries mean a conflict is genuinely outstanding, whatever
+ * text git printed around it — its message quotes the commit it failed to apply, and a subject can say
+ * "no changes" or "now empty", which the empty-step check reads as text. The text is only consulted for a
+ * step whose conflicts are resolved.
+ */
+const classifyRefusedSequencerStep = async (git, message) => {
+  const text = String(message || "").toLowerCase()
+  const status = await git.status().catch(() => null)
+  const conflictedFiles = status?.conflicted ?? []
+  if (conflictedFiles.length > 0) {
+    return { conflict: true, conflictFiles: conflictedFiles, nothingLeftToApply: false }
   }
+  if (saysNothingLeftToApply(text)) {
+    return { conflict: false, conflictFiles: [], nothingLeftToApply: true }
+  }
+  const conflictText =
+    text.includes("conflict") ||
+    text.includes("needs merge") ||
+    text.includes("unmerged") ||
+    text.includes("fix conflicts")
+  return { conflict: conflictText, conflictFiles: [], nothingLeftToApply: false }
+}
+
+export async function continueRebase(directory) {
+  const { repoRoot, git } = await createRepositoryGitContext(directory)
+
+  const result = await runSequencerStep(repoRoot, ["rebase", "--continue"])
+  if (result.success) {
+    return { success: true, conflict: false }
+  }
+
+  const verdict = await classifyRefusedSequencerStep(git, result.message || result.stderr)
+  if (verdict.conflict) {
+    return {
+      success: false,
+      conflict: true,
+      conflictFiles: verdict.conflictFiles,
+    }
+  }
+
+  // Git's empty-step answer: the step has nothing left to apply, so it is skipped rather than left
+  // stopped. Whether the skip worked is reported from git's own answer, not assumed.
+  if (verdict.nothingLeftToApply) {
+    const skipped = await runSequencerStep(repoRoot, ["rebase", "--skip"])
+    if (!skipped.success) {
+      const afterSkip = await git.status().catch(() => null)
+      const stillConflicted = afterSkip?.conflicted ?? []
+      if (stillConflicted.length > 0) {
+        return { success: false, conflict: true, conflictFiles: stillConflicted }
+      }
+      console.warn("Rebase skip failed after an empty step:", skipped.message || skipped.stderr)
+    }
+    return { success: true, conflict: false }
+  }
+
+  console.error("Failed to continue rebase:", result.message || result.stderr)
+  throw new Error(result.message || "Failed to continue rebase")
 }
 
 export async function continueMerge(directory) {
-  const { git } = await createRepositoryGitContext(directory)
+  const { repoRoot, git } = await createRepositoryGitContext(directory)
 
-  try {
-    // Check if there are still unmerged files
-    const status = await git.status()
-    if (status.conflicted && status.conflicted.length > 0) {
-      return {
-        success: false,
-        conflict: true,
-        conflictFiles: status.conflicted,
-      }
+  // Check if there are still unmerged files
+  const status = await git.status()
+  if (status.conflicted && status.conflicted.length > 0) {
+    return {
+      success: false,
+      conflict: true,
+      conflictFiles: status.conflicted,
     }
-
-    // For merge, we commit after resolving conflicts
-    // Use --no-edit to use the default merge commit message
-    await git.env("GIT_EDITOR", "true").commit([], { "--no-edit": null })
-    return { success: true, conflict: false }
-  } catch (error) {
-    const errorMessage = String(error?.message || error || "").toLowerCase()
-
-    // "nothing to commit" can happen if all conflicts resolved to one side. Checked before the conflict
-    // branch for the same reason as in continueRebase: the hint git prints alongside it can name conflicts.
-    if (saysNothingLeftToApply(errorMessage)) {
-      // The merge is effectively complete (all changes already committed or no changes needed)
-      return { success: true, conflict: false }
-    }
-
-    const isConflict =
-      errorMessage.includes("conflict") ||
-      errorMessage.includes("needs merge") ||
-      errorMessage.includes("unmerged") ||
-      errorMessage.includes("fix conflicts")
-
-    if (isConflict) {
-      const status = await git.status().catch(() => ({ conflicted: [] }))
-      return {
-        success: false,
-        conflict: true,
-        conflictFiles: status.conflicted || [],
-      }
-    }
-
-    console.error("Failed to continue merge:", error)
-    throw error
   }
+
+  // For merge, the merge commit is written once the conflicts are resolved; --no-edit keeps the default
+  // message, and the editor is silenced for the same reason as in continueRebase.
+  const result = await runSequencerStep(repoRoot, ["commit", "--no-edit"])
+  if (result.success) {
+    return { success: true, conflict: false }
+  }
+
+  const verdict = await classifyRefusedSequencerStep(git, result.message || result.stderr)
+  if (verdict.conflict) {
+    return {
+      success: false,
+      conflict: true,
+      conflictFiles: verdict.conflictFiles,
+    }
+  }
+
+  // "nothing to commit" can happen if all conflicts resolved to one side: the merge is effectively
+  // complete (all changes already committed or no changes needed).
+  if (verdict.nothingLeftToApply) {
+    return { success: true, conflict: false }
+  }
+
+  console.error("Failed to continue merge:", result.message || result.stderr)
+  throw new Error(result.message || "Failed to continue merge")
 }
 
 export async function getConflictDetails(directory) {

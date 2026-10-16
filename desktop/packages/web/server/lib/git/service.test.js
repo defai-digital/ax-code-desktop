@@ -1114,6 +1114,68 @@ describe("checkoutBranch target validation", () => {
   })
 })
 
+describe("continueRebase with unresolved conflicts", () => {
+  it("reports the conflict instead of claiming the rebase continued", async () => {
+    if (!canRunGit()) return
+
+    // simple-git's own `rebase()` resolves even when git refuses the step (it answers the failure text as
+    // its value), so the try/catch around it never saw a conflict: the panel was told the rebase had
+    // continued while the repository stayed stopped, with no conflict list to resolve.
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "base\n")
+    runGit(repo, ["add", "."])
+    runGit(repo, ["commit", "-m", "base"])
+    runGit(repo, ["checkout", "-b", "other"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "other\n")
+    runGit(repo, ["commit", "-am", "other"])
+    runGit(repo, ["checkout", "main"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "main\n")
+    runGit(repo, ["commit", "-am", "main"])
+    expect(() => runGit(repo, ["rebase", "other"])).toThrow()
+
+    const result = await continueRebase(repo)
+
+    expect(result).toMatchObject({ success: false, conflict: true })
+    expect(result.conflictFiles).toContain("f.txt")
+    expect(runGit(repo, ["status", "--porcelain"]).trim()).toContain("UU f.txt")
+  })
+})
+
+describe("continueRebase on a conflicted commit whose subject reads as an empty step", () => {
+  it("keeps reporting the conflict instead of skipping the commit", async () => {
+    if (!canRunGit()) return
+
+    // git quotes the commit it failed to apply in the same message the empty-step check reads, so a
+    // subject carrying one of those phrases made the panel run `rebase --skip`: the user's conflicting
+    // commit was dropped and the answer said everything was fine.
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "base\n")
+    runGit(repo, ["add", "."])
+    runGit(repo, ["commit", "-m", "base"])
+    runGit(repo, ["checkout", "-b", "other"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "other\n")
+    runGit(repo, ["commit", "-am", "other"])
+    runGit(repo, ["checkout", "main"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "main\n")
+    runGit(repo, ["commit", "-am", "handle no changes in the diff view"])
+
+    expect(() => runGit(repo, ["rebase", "other"])).toThrow()
+
+    const result = await continueRebase(repo)
+
+    expect(result).toMatchObject({ success: false, conflict: true })
+    expect(result.conflictFiles).toContain("f.txt")
+    // Still stopped on the conflict, not advanced past it.
+    expect(runGit(repo, ["status", "--porcelain"]).trim()).toContain("UU f.txt")
+  })
+})
+
 describe("continueRebase on a step that resolved to nothing", () => {
   it("skips the empty step instead of reporting a conflict that is gone", async () => {
     if (!canRunGit()) return
