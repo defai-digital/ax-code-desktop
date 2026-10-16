@@ -6,6 +6,7 @@ import {
   newCustomApiProviderModelDraft,
   refreshCustomApiProviderInput,
   sameCustomApiBaseURL,
+  identityFromCustomApiBaseURL,
 } from "./customApiProviderFormModel"
 
 describe("custom API provider form model", () => {
@@ -149,5 +150,22 @@ describe("custom API provider endpoint reuse", () => {
       allowInsecureHttp: false,
       refreshModels: true,
     })
+  })
+})
+
+describe("identityFromCustomApiBaseURL", () => {
+  test("keeps two local providers on different ports apart", () => {
+    // Both derive from the hostname alone otherwise, and the second save upserted over the first.
+    const ollama = identityFromCustomApiBaseURL("http://localhost:11434/v1")
+    const lmStudio = identityFromCustomApiBaseURL("http://localhost:1234/v1")
+
+    expect(ollama.providerID).not.toBe(lmStudio.providerID)
+    expect(ollama.providerID).toBe("localhost-11434")
+    expect(lmStudio.providerID).toBe("localhost-1234")
+  })
+
+  test("leaves a host without a port as it was", () => {
+    expect(identityFromCustomApiBaseURL("https://api.example.com/v1").providerID).toBe("api-example-com")
+    expect(identityFromCustomApiBaseURL("https://www.example.com/v1").providerID).toBe("example-com")
   })
 })

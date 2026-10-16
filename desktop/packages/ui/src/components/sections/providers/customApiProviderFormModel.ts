@@ -106,14 +106,20 @@ export function refreshCustomApiProviderInput(existing: CustomApiProviderView): 
 
 export function identityFromCustomApiBaseURL(baseURL: string): { name: string; providerID: string } {
   let host = "custom-api"
+  let port = ""
   try {
-    host = new URL(baseURL.trim()).hostname
+    const parsed = new URL(baseURL.trim())
+    host = parsed.hostname
+    port = parsed.port
   } catch {
     // Keep the fallback slug while the URL is still being typed.
   }
   const clean = host.replace(/^\[|\]$/g, "").replace(/^www\./i, "")
   const name = (clean || "Custom API").slice(0, 120)
-  let providerID = clean
+  // The port belongs in the identity: two local servers on one host (Ollama on 11434, LM Studio on
+  // 1234) otherwise derive the same ID, and saving the second one overwrote the first provider's
+  // endpoint, token and models without a word.
+  let providerID = `${clean}${port ? `-${port}` : ""}`
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
