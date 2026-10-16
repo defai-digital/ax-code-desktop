@@ -1370,17 +1370,21 @@ Reported, verified against the source, and not fixed:
   `invalid_client` error) are a product change. Recorded here so the state is not mistaken for a working
   provider.
 
-Reported and left for their own workstream:
+Reported against a sibling session's feature diff, then fixed once that session had exited:
 
 - The glm-5.3 reviewer read the server side of a sibling session's feature commits (hunk staging, the GitHub
-  issues/PRs board, terminal replay) and returned two findings: the hunk-patch validation in
-  `git/service.js` scans every `--- `/`+++ ` line in the patch, including hunk bodies, so a content line that
-  begins with `-- `/`++ ` renders as a header and a valid hunk is rejected with "Patch does not target
-  file.txt" (fail-closed, but a false rejection of valid input); and the board's label filter sends a
-  comma-joined value as one quoted label (`label:"bug,ui"`) although the route takes that path precisely
-  because a comma separates labels, which returns nothing unless the repository has such a label. Neither is
-  fixed here: the code is a sibling session's active feature work, and editing it from this session risks
-  colliding with that workstream. Both are recorded with the reviewers' evidence and regression-test ideas.
+  issues/PRs board, terminal replay) and returned two findings. Both are now fixed — the session's worktrees
+  were gone by the time they were verified, so nothing was left to collide with:
+  - **`f61edf6c`** — the hunk-patch validation in `git/service.js` counted every `--- `/`+++ ` pair in the
+    patch, including pairs inside a hunk body, so a removed `-- old` line directly above the added `++ new`
+    line that replaces it read as a second file header and a valid hunk was rejected with "Patch does not
+    target file.txt". The pair scan stops at the first `@@ ` hunk header now, and "one file section" is
+    carried by the patch's `diff --git` lines, which a hunk body cannot start.
+  - **`1bd9f252`** — the board's label filter sent a comma-joined value as one quoted label
+    (`label:"bug,ui"`) although the route takes that path precisely because a comma separates labels, so
+    filtering by two labels returned nothing unless the repository had a label with that literal name. Each
+    label gets its own qualifier now. The reviewer's caveat about which API path a comma-free label should
+    take is untouched.
 
 ## Nineteenth round
 
