@@ -4746,5 +4746,12 @@
   "chat.fileMentionAutocomplete.context.diffEmpty": "\u6ca1\u6709\u672a\u63d0\u4ea4\u7684\u66f4\u6539",
   "chat.fileMentionAutocomplete.context.attachFailed": "\u65e0\u6cd5\u9644\u52a0\u6b64\u4e0a\u4e0b\u6587",
   "chat.fileMentionAutocomplete.context.noDirectory": "\u6b64\u4f1a\u8bdd\u6ca1\u6709\u9879\u76ee\u76ee\u5f55",
-  "chat.fileMentionAutocomplete.context.noSubject": "\uff08\u65e0\u4e3b\u9898\uff09"
+  "chat.fileMentionAutocomplete.context.noSubject": "\uff08\u65e0\u4e3b\u9898\uff09",
+  "diffView.hunk.stageAria": "\u6682\u5b58\u53d8\u66f4 {hunk}",
+  "diffView.hunk.stageTooltip": "\u4ec5\u6682\u5b58\u6b64\u53d8\u66f4",
+  "diffView.hunk.unstageAria": "\u53d6\u6d88\u6682\u5b58\u53d8\u66f4 {hunk}",
+  "diffView.hunk.unstageTooltip": "\u4ec5\u53d6\u6d88\u6682\u5b58\u6b64\u53d8\u66f4",
+  "diffView.hunk.stageFailed": "\u65e0\u6cd5\u6682\u5b58\u6b64\u53d8\u66f4",
+  "diffView.hunk.unstageFailed": "\u65e0\u6cd5\u53d6\u6d88\u6682\u5b58\u6b64\u53d8\u66f4",
+  "diffView.hunk.stageUnsupported": "\u6b64\u5904\u4e0d\u652f\u6301\u6682\u5b58\u5355\u4e2a\u53d8\u66f4"
 }

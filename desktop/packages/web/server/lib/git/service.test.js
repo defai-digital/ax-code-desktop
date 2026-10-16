@@ -30,7 +30,9 @@ import {
   resolveBaseRefForLog,
   revertCommit,
   stageFiles,
+  stageHunk,
   unstageFiles,
+  unstageHunk,
   validateRepositoryFilePaths,
 } from "./service.js"
 
@@ -1296,5 +1298,199 @@ describe("createWorktree from a bare repository", () => {
       if (previousXdgDataHome === undefined) delete process.env.XDG_DATA_HOME
       else process.env.XDG_DATA_HOME = previousXdgDataHome
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// stageHunk / unstageHunk
+// ---------------------------------------------------------------------------
+
+// The UI splits the file's unified diff into single-hunk patches the same way
+// before handing one to stageHunk/unstageHunk.
+const extractHunkPatch = (diffText, hunkIndex) => {
+  const lines = String(diffText).split("\n")
+  const firstHunkLine = lines.findIndex((line) => line.startsWith("@@ "))
+  if (firstHunkLine === -1) return null
+  const headerLines = lines.slice(0, firstHunkLine)
+  const hunks = []
+  for (const line of lines.slice(firstHunkLine)) {
+    if (line.startsWith("@@ ")) hunks.push([line])
+    else if (hunks.length > 0) hunks[hunks.length - 1].push(line)
+  }
+  const hunk = hunks[hunkIndex]
+  if (!hunk) return null
+  while (hunk.length > 0 && hunk[hunk.length - 1] === "") hunk.pop()
+  return `${headerLines.join("\n")}\n${hunk.join("\n")}\n`
+}
+
+const createHunkTestRepo = () => {
+  const repo = createTempDir()
+  runGit(repo, ["init", "-b", "main"])
+  runGit(repo, ["config", "user.email", "test@example.com"])
+  runGit(repo, ["config", "user.name", "Test User"])
+  return repo
+}
+
+const writeTwoEditFile = (repo) => {
+  const lines = Array.from({ length: 30 }, (_, index) => `line${index + 1}`)
+  fs.writeFileSync(path.join(repo, "file.txt"), `${lines.join("\n")}\n`)
+  runGit(repo, ["add", "file.txt"])
+  runGit(repo, ["commit", "-m", "base"])
+
+  const modified = [...lines]
+  modified[1] = "line2-edited"
+  modified[25] = "line26-edited"
+  fs.writeFileSync(path.join(repo, "file.txt"), `${modified.join("\n")}\n`)
+  return path.join(repo, "file.txt")
+}
+
+describe("stageHunk and unstageHunk", () => {
+  it("stages a single hunk without staging the rest of the file", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    const filePath = writeTwoEditFile(repo)
+
+    const diffText = runGit(repo, ["diff", "--unified=4", "--", "file.txt"])
+    const patch = extractHunkPatch(diffText, 0)
+    expect(patch).toContain("line2-edited")
+
+    await stageHunk(repo, "file.txt", patch)
+
+    const staged = runGit(repo, ["diff", "--cached", "--unified=0", "--", "file.txt"])
+    expect(staged).toContain("+line2-edited")
+    expect(staged).not.toContain("line26-edited")
+    const unstaged = runGit(repo, ["diff", "--unified=0", "--", "file.txt"])
+    expect(unstaged).toContain("+line26-edited")
+    expect(unstaged).not.toContain("+line2-edited")
+    // Staging a hunk rewrites the index only; the worktree keeps both edits.
+    expect(fs.readFileSync(filePath, "utf8")).toContain("line26-edited")
+  })
+
+  it("unstages a single staged hunk, leaving the other one staged", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    const filePath = writeTwoEditFile(repo)
+    runGit(repo, ["add", "file.txt"])
+
+    const cachedDiff = runGit(repo, ["diff", "--cached", "--unified=4", "--", "file.txt"])
+    const patch = extractHunkPatch(cachedDiff, 1)
+    expect(patch).toContain("line26-edited")
+
+    await unstageHunk(repo, "file.txt", patch)
+
+    const staged = runGit(repo, ["diff", "--cached", "--unified=0", "--", "file.txt"])
+    expect(staged).toContain("+line2-edited")
+    expect(staged).not.toContain("+line26-edited")
+    const unstaged = runGit(repo, ["diff", "--unified=0", "--", "file.txt"])
+    expect(unstaged).toContain("+line26-edited")
+    // Unstaging a hunk rewrites the index only; the worktree keeps both edits.
+    expect(fs.readFileSync(filePath, "utf8")).toContain("line2-edited")
+  })
+
+  it("stages part of a new (untracked) file", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    runGit(repo, ["commit", "--allow-empty", "-m", "base"])
+    fs.writeFileSync(path.join(repo, "new.txt"), "alpha\nbeta\ngamma\ndelta\n")
+
+    const patch = [
+      "diff --git a/new.txt b/new.txt",
+      "new file mode 100644",
+      "--- /dev/null",
+      "+++ b/new.txt",
+      "@@ -0,0 +1,2 @@",
+      "+alpha",
+      "+beta",
+      "",
+    ].join("\n")
+
+    await stageHunk(repo, "new.txt", patch)
+
+    const staged = runGit(repo, ["diff", "--cached", "--unified=0", "--", "new.txt"])
+    expect(staged).toContain("+alpha")
+    expect(staged).toContain("+beta")
+    expect(staged).not.toContain("+delta")
+    const unstaged = runGit(repo, ["diff", "--unified=0", "--", "new.txt"])
+    expect(unstaged).toContain("+gamma")
+    expect(unstaged).toContain("+delta")
+  })
+
+  it("rejects a hunk path outside the repository before invoking git", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    writeTwoEditFile(repo)
+
+    await expect(stageHunk(repo, "../secret.txt", "@@ -1 +1 @@\n-a\n+b\n")).rejects.toThrow(
+      "Path is outside repository: ../secret.txt",
+    )
+  })
+
+  it("rejects a patch whose post-image targets a different file", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    writeTwoEditFile(repo)
+
+    const patch = [
+      "diff --git a/other.txt b/other.txt",
+      "--- a/other.txt",
+      "+++ b/other.txt",
+      "@@ -1,1 +1,1 @@",
+      "-x",
+      "+y",
+      "",
+    ].join("\n")
+
+    await expect(stageHunk(repo, "file.txt", patch)).rejects.toThrow("Patch does not target file.txt")
+  })
+
+  it("rejects a patch that also carries another file's section", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    writeTwoEditFile(repo)
+    const patch = [
+      "diff --git a/file.txt b/file.txt",
+      "--- a/file.txt",
+      "+++ b/file.txt",
+      "@@ -1,1 +1,1 @@",
+      "-x",
+      "+y",
+      "diff --git a/other.txt b/other.txt",
+      "--- a/other.txt",
+      "+++ b/other.txt",
+      "@@ -1,1 +1,1 @@",
+      "-x",
+      "+y",
+      "",
+    ].join("\n")
+
+    await expect(stageHunk(repo, "file.txt", patch)).rejects.toThrow("Patch does not target file.txt")
+  })
+
+  it("rejects an empty patch payload", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    writeTwoEditFile(repo)
+
+    await expect(stageHunk(repo, "file.txt", "   ")).rejects.toThrow("patch are required")
+  })
+
+  it("rejects a patch that no longer applies", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    writeTwoEditFile(repo)
+
+    const patch = [
+      "diff --git a/file.txt b/file.txt",
+      "--- a/file.txt",
+      "+++ b/file.txt",
+      "@@ -1,3 +1,3 @@",
+      "-context-alpha",
+      "+rewritten",
+      " context-beta",
+      " context-gamma",
+      "",
+    ].join("\n")
+
+    await expect(stageHunk(repo, "file.txt", patch)).rejects.toThrow()
   })
 })

@@ -4746,5 +4746,12 @@
   "chat.fileMentionAutocomplete.context.diffEmpty": "Aucune modification non valid\u00e9e",
   "chat.fileMentionAutocomplete.context.attachFailed": "Impossible de joindre ce contexte",
   "chat.fileMentionAutocomplete.context.noDirectory": "Aucun r\u00e9pertoire de projet pour cette session",
-  "chat.fileMentionAutocomplete.context.noSubject": "(sans objet)"
+  "chat.fileMentionAutocomplete.context.noSubject": "(sans objet)",
+  "diffView.hunk.stageAria": "Stager la modification {hunk}",
+  "diffView.hunk.stageTooltip": "Stager uniquement cette modification",
+  "diffView.hunk.unstageAria": "D\u00e9stager la modification {hunk}",
+  "diffView.hunk.unstageTooltip": "D\u00e9stager uniquement cette modification",
+  "diffView.hunk.stageFailed": "\u00c9chec du staging de cette modification",
+  "diffView.hunk.unstageFailed": "\u00c9chec du destaging de cette modification",
+  "diffView.hunk.stageUnsupported": "Stager une seule modification n'est pas pris en charge ici"
 }

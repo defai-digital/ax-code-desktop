@@ -4746,5 +4746,12 @@
   "chat.fileMentionAutocomplete.context.diffEmpty": "Tidak ada perubahan yang belum di-commit",
   "chat.fileMentionAutocomplete.context.attachFailed": "Tidak dapat melampirkan konteks ini",
   "chat.fileMentionAutocomplete.context.noDirectory": "Tidak ada direktori proyek untuk sesi ini",
-  "chat.fileMentionAutocomplete.context.noSubject": "(tanpa subjek)"
+  "chat.fileMentionAutocomplete.context.noSubject": "(tanpa subjek)",
+  "diffView.hunk.stageAria": "Stage perubahan {hunk}",
+  "diffView.hunk.stageTooltip": "Hanya stage perubahan ini",
+  "diffView.hunk.unstageAria": "Unstage perubahan {hunk}",
+  "diffView.hunk.unstageTooltip": "Hanya unstage perubahan ini",
+  "diffView.hunk.stageFailed": "Gagal men-stage perubahan ini",
+  "diffView.hunk.unstageFailed": "Gagal meng-unstage perubahan ini",
+  "diffView.hunk.stageUnsupported": "Men-stage satu perubahan tidak didukung di sini"
 }

@@ -4746,5 +4746,12 @@
   "chat.fileMentionAutocomplete.context.diffEmpty": "Keine nicht \u00fcbernommenen \u00c4nderungen",
   "chat.fileMentionAutocomplete.context.attachFailed": "Dieser Kontext konnte nicht angeh\u00e4ngt werden",
   "chat.fileMentionAutocomplete.context.noDirectory": "Kein Projektverzeichnis f\u00fcr diese Sitzung",
-  "chat.fileMentionAutocomplete.context.noSubject": "(kein Betreff)"
+  "chat.fileMentionAutocomplete.context.noSubject": "(kein Betreff)",
+  "diffView.hunk.stageAria": "\u00c4nderung {hunk} stagen",
+  "diffView.hunk.stageTooltip": "Nur diese \u00c4nderung stagen",
+  "diffView.hunk.unstageAria": "\u00c4nderung {hunk} aus dem Staging nehmen",
+  "diffView.hunk.unstageTooltip": "Nur diese \u00c4nderung aus dem Staging nehmen",
+  "diffView.hunk.stageFailed": "Diese \u00c4nderung konnte nicht gestagt werden",
+  "diffView.hunk.unstageFailed": "Diese \u00c4nderung konnte nicht aus dem Staging genommen werden",
+  "diffView.hunk.stageUnsupported": "Das Stagen einer einzelnen \u00c4nderung wird hier nicht unterst\u00fctzt"
 }

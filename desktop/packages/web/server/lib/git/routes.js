@@ -410,6 +410,39 @@ export function registerGitRoutes(app, options = {}) {
     }
   })
 
+  const handleHunkMutation = async (req, res, mutate) => {
+    try {
+      const directory = req.query.directory
+      if (!directory) {
+        return res.status(400).json({ error: "directory parameter is required" })
+      }
+
+      const { path, patch } = req.body || {}
+      if (!path || typeof path !== "string") {
+        return res.status(400).json({ error: "path parameter is required" })
+      }
+      if (typeof patch !== "string" || patch.trim().length === 0) {
+        return res.status(400).json({ error: "patch parameter is required" })
+      }
+
+      await mutate(directory, path, patch)
+      res.json({ success: true })
+    } catch (error) {
+      console.error("Failed to apply git hunk patch:", error)
+      res.status(500).json({ error: error.message || "Failed to apply git hunk patch" })
+    }
+  }
+
+  app.post("/api/git/stage-hunk", async (req, res) => {
+    const { stageHunk } = await getGitLibraries()
+    await handleHunkMutation(req, res, stageHunk)
+  })
+
+  app.post("/api/git/unstage-hunk", async (req, res) => {
+    const { unstageHunk } = await getGitLibraries()
+    await handleHunkMutation(req, res, unstageHunk)
+  })
+
   app.post("/api/git/pull", async (req, res) => {
     const { pull } = await getGitLibraries()
     try {

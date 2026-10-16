@@ -8,8 +8,10 @@ vi.mock("@openchamber/ui/api/gitApiHttp", () => ({
   revertGitFile: vi.fn(),
   stageGitFile: vi.fn(),
   stageGitFiles: vi.fn(),
+  stageGitHunk: vi.fn(),
   unstageGitFile: vi.fn(),
   unstageGitFiles: vi.fn(),
+  unstageGitHunk: vi.fn(),
   isLinkedWorktree: vi.fn(),
   getGitBranches: vi.fn(),
   deleteGitBranch: vi.fn(),
@@ -68,5 +70,13 @@ describe("createWebGitAPI", () => {
 
     expect(typeof api.stageGitFiles).toBe("function")
     expect(typeof api.unstageGitFiles).toBe("function")
+  })
+
+  it("exposes single-hunk stage and unstage methods", async () => {
+    const { createWebGitAPI } = await import("./git")
+    const api = createWebGitAPI()
+
+    expect(typeof api.stageGitHunk).toBe("function")
+    expect(typeof api.unstageGitHunk).toBe("function")
   })
 })

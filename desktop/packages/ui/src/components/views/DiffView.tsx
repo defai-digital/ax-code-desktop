@@ -29,6 +29,7 @@ import { PierreDiffViewer } from "./PierreDiffViewer"
 import { DiffCommentSummaryBar } from "./DiffCommentSummaryBar"
 import { DiffHunkReviewList } from "./DiffHunkReviewList"
 import { useDiffHunkRevert } from "./useDiffHunkRevert"
+import { useDiffHunkStage } from "./useDiffHunkStage"
 import { buildInlineCommentSessionKey } from "@/stores/useInlineCommentDraftStore"
 import { useDeviceInfo } from "@/lib/device"
 import { FileTypeIcon } from "@/components/icons/FileTypeIcon"
@@ -460,32 +461,36 @@ interface TextDiffViewerProps {
 
 const TextDiffViewer = React.memo<TextDiffViewerProps>(
   ({ directory, filePath, diff, renderSideBySide, wrapLines, staged = false }) => {
-  const language = React.useMemo(() => getLanguageFromExtension(filePath) || "text", [filePath])
-  const { revertingHunkIndex, handleRevertHunk } = useDiffHunkRevert({ directory, filePath, diff })
+    const language = React.useMemo(() => getLanguageFromExtension(filePath) || "text", [filePath])
+    const { revertingHunkIndex, handleRevertHunk } = useDiffHunkRevert({ directory, filePath, diff })
+    const { gitHunks, stagingHunkIndex, handleStageHunk } = useDiffHunkStage({ directory, filePath, diff, staged })
 
-  return (
-    <>
-      {staged ? null : (
+    return (
+      <>
         <DiffHunkReviewList
           original={diff.original}
           modified={diff.modified}
           fileName={filePath}
           onRevertHunk={handleRevertHunk}
           revertingHunkIndex={revertingHunkIndex}
+          gitHunks={gitHunks}
+          onStageHunk={handleStageHunk}
+          stagingHunkIndex={stagingHunkIndex}
+          staged={staged}
         />
-      )}
-      <PierreDiffViewer
-        original={diff.original}
-        modified={diff.modified}
-        language={language}
-        fileName={filePath}
-        renderSideBySide={renderSideBySide}
-        wrapLines={wrapLines}
-        layout="inline"
-      />
-    </>
-  )
-})
+        <PierreDiffViewer
+          original={diff.original}
+          modified={diff.modified}
+          language={language}
+          fileName={filePath}
+          renderSideBySide={renderSideBySide}
+          wrapLines={wrapLines}
+          layout="inline"
+        />
+      </>
+    )
+  },
+)
 
 TextDiffViewer.displayName = "TextDiffViewer"
 
@@ -1879,5 +1884,3 @@ export const DiffView: React.FC<DiffViewProps> = ({
     </div>
   )
 }
-
- 

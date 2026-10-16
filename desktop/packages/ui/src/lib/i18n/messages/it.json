@@ -4746,5 +4746,12 @@
   "chat.fileMentionAutocomplete.context.diffEmpty": "Nessuna modifica non committata",
   "chat.fileMentionAutocomplete.context.attachFailed": "Impossibile allegare questo contesto",
   "chat.fileMentionAutocomplete.context.noDirectory": "Nessuna directory di progetto per questa sessione",
-  "chat.fileMentionAutocomplete.context.noSubject": "(nessun oggetto)"
+  "chat.fileMentionAutocomplete.context.noSubject": "(nessun oggetto)",
+  "diffView.hunk.stageAria": "Metti in stage la modifica {hunk}",
+  "diffView.hunk.stageTooltip": "Metti in stage solo questa modifica",
+  "diffView.hunk.unstageAria": "Togli dallo stage la modifica {hunk}",
+  "diffView.hunk.unstageTooltip": "Togli dallo stage solo questa modifica",
+  "diffView.hunk.stageFailed": "Impossibile mettere in stage questa modifica",
+  "diffView.hunk.unstageFailed": "Impossibile togliere dallo stage questa modifica",
+  "diffView.hunk.stageUnsupported": "Lo staging di una singola modifica non \u00e8 supportato qui"
 }

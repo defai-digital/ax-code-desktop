@@ -5,8 +5,10 @@ import {
   pruneExpiredCacheEntries,
   stageGitFile,
   stageGitFiles,
+  stageGitHunk,
   unstageGitFile,
   unstageGitFiles,
+  unstageGitHunk,
 } from "./gitApiHttp"
 
 type GitApiHttpFetchCall = {
@@ -110,6 +112,41 @@ describe("gitApiHttp index mutations", () => {
 
       expect(JSON.parse(String(calls[0].init?.body))).toEqual({ paths: ["a.ts"] })
       expect(JSON.parse(String(calls[1].init?.body))).toEqual({ paths: ["b.ts"] })
+    } finally {
+      restoreMocks()
+    }
+  })
+
+  test("sends single-hunk patches to the stage-hunk and unstage-hunk routes", async () => {
+    installWindowMock()
+    const calls = installFetchMock()
+    const patch = "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1,1 +1,1 @@\n-a\n+b\n"
+    try {
+      await stageGitHunk("/repo", "a.ts", patch)
+      await unstageGitHunk("/repo", "a.ts", patch)
+
+      expect(String(calls[0].input)).toBe("http://localhost:3000/api/git/stage-hunk?directory=%2Frepo")
+      expect(calls[0].init?.method).toBe("POST")
+      expect(JSON.parse(String(calls[0].init?.body))).toEqual({ path: "a.ts", patch })
+      expect(String(calls[1].input)).toBe("http://localhost:3000/api/git/unstage-hunk?directory=%2Frepo")
+      expect(JSON.parse(String(calls[1].init?.body))).toEqual({ path: "a.ts", patch })
+    } finally {
+      restoreMocks()
+    }
+  })
+
+  test("rejects empty hunk patch payloads before fetching", async () => {
+    installWindowMock()
+    const calls = installFetchMock()
+    try {
+      const stageError = await captureError(() => stageGitHunk("/repo", "a.ts", ""))
+      const unstageError = await captureError(() => unstageGitHunk("/repo", "a.ts", ""))
+
+      expect(stageError).toBeInstanceOf(Error)
+      expect((stageError as Error).message).toBe("path and patch are required to stage git changes")
+      expect(unstageError).toBeInstanceOf(Error)
+      expect((unstageError as Error).message).toBe("path and patch are required to unstage git changes")
+      expect(calls).toHaveLength(0)
     } finally {
       restoreMocks()
     }

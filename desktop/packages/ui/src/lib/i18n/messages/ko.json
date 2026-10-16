@@ -4746,5 +4746,12 @@
   "chat.fileMentionAutocomplete.context.diffEmpty": "\ucee4\ubc0b\ub418\uc9c0 \uc54a\uc740 \ubcc0\uacbd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4",
   "chat.fileMentionAutocomplete.context.attachFailed": "\uc774 \ucee8\ud14d\uc2a4\ud2b8\ub97c \ucca8\ubd80\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4",
   "chat.fileMentionAutocomplete.context.noDirectory": "\uc774 \uc138\uc158\uc5d0 \ud504\ub85c\uc81d\ud2b8 \ub514\ub809\ud130\ub9ac\uac00 \uc5c6\uc2b5\ub2c8\ub2e4",
-  "chat.fileMentionAutocomplete.context.noSubject": "(\uc81c\ubaa9 \uc5c6\uc74c)"
+  "chat.fileMentionAutocomplete.context.noSubject": "(\uc81c\ubaa9 \uc5c6\uc74c)",
+  "diffView.hunk.stageAria": "\ubcc0\uacbd \uc0ac\ud56d {hunk} \uc2a4\ud14c\uc774\uc9d5",
+  "diffView.hunk.stageTooltip": "\uc774 \ubcc0\uacbd \uc0ac\ud56d\ub9cc \uc2a4\ud14c\uc774\uc9d5",
+  "diffView.hunk.unstageAria": "\ubcc0\uacbd \uc0ac\ud56d {hunk} \uc2a4\ud14c\uc774\uc9d5 \ud574\uc81c",
+  "diffView.hunk.unstageTooltip": "\uc774 \ubcc0\uacbd \uc0ac\ud56d\ub9cc \uc2a4\ud14c\uc774\uc9d5 \ud574\uc81c",
+  "diffView.hunk.stageFailed": "\uc774 \ubcc0\uacbd \uc0ac\ud56d\uc744 \uc2a4\ud14c\uc774\uc9d5\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
+  "diffView.hunk.unstageFailed": "\uc774 \ubcc0\uacbd \uc0ac\ud56d\uc758 \uc2a4\ud14c\uc774\uc9d5\uc744 \ud574\uc81c\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
+  "diffView.hunk.stageUnsupported": "\uc5ec\uae30\uc11c\ub294 \ub2e8\uc77c \ubcc0\uacbd \uc0ac\ud56d \uc2a4\ud14c\uc774\uc9d5\uc774 \uc9c0\uc6d0\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4"
 }

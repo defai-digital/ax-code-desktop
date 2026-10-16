@@ -482,8 +482,10 @@ export interface GitAPI {
   revertGitFile(directory: string, filePath: string, options?: { scope?: "all" | "working" }): Promise<void>
   stageGitFile(directory: string, filePath: string): Promise<void>
   stageGitFiles?(directory: string, filePaths: string[]): Promise<void>
+  stageGitHunk?(directory: string, filePath: string, patch: string): Promise<void>
   unstageGitFile(directory: string, filePath: string): Promise<void>
   unstageGitFiles?(directory: string, filePaths: string[]): Promise<void>
+  unstageGitHunk?(directory: string, filePath: string, patch: string): Promise<void>
   isLinkedWorktree(directory: string): Promise<boolean>
   getGitBranches(directory: string): Promise<GitBranch>
   deleteGitBranch(directory: string, payload: GitDeleteBranchPayload): Promise<{ success: boolean }>

@@ -4746,5 +4746,12 @@
   "chat.fileMentionAutocomplete.context.diffEmpty": "\u0130\u015flenmemi\u015f de\u011fi\u015fiklik yok",
   "chat.fileMentionAutocomplete.context.attachFailed": "Bu ba\u011flam eklenemedi",
   "chat.fileMentionAutocomplete.context.noDirectory": "Bu oturum i\u00e7in proje dizini yok",
-  "chat.fileMentionAutocomplete.context.noSubject": "(konu yok)"
+  "chat.fileMentionAutocomplete.context.noSubject": "(konu yok)",
+  "diffView.hunk.stageAria": "{hunk} de\u011fi\u015fikli\u011fini stage'e al",
+  "diffView.hunk.stageTooltip": "Sadece bu de\u011fi\u015fikli\u011fi stage'e al",
+  "diffView.hunk.unstageAria": "{hunk} de\u011fi\u015fikli\u011fini stage'den \u00e7\u0131kar",
+  "diffView.hunk.unstageTooltip": "Sadece bu de\u011fi\u015fikli\u011fi stage'den \u00e7\u0131kar",
+  "diffView.hunk.stageFailed": "Bu de\u011fi\u015fiklik stage'e al\u0131namad\u0131",
+  "diffView.hunk.unstageFailed": "Bu de\u011fi\u015fiklik stage'den \u00e7\u0131kar\u0131lamad\u0131",
+  "diffView.hunk.stageUnsupported": "Tek bir de\u011fi\u015fikli\u011fi stage'e almak burada desteklenmiyor"
 }

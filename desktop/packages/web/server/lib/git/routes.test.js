@@ -7,6 +7,8 @@ import { createMockResponse, createRouteRegistry } from "../../test-helpers/rout
 const gitLibraries = {
   stageFiles: vi.fn(),
   unstageFiles: vi.fn(),
+  stageHunk: vi.fn(),
+  unstageHunk: vi.fn(),
   getLog: vi.fn(),
   getCommitFiles: vi.fn(),
   getCommitPatch: vi.fn(),
@@ -24,6 +26,8 @@ const gitLibraries = {
 vi.doMock("./index.js", () => ({
   stageFiles: gitLibraries.stageFiles,
   unstageFiles: gitLibraries.unstageFiles,
+  stageHunk: gitLibraries.stageHunk,
+  unstageHunk: gitLibraries.unstageHunk,
   getLog: gitLibraries.getLog,
   getCommitFiles: gitLibraries.getCommitFiles,
   getCommitPatch: gitLibraries.getCommitPatch,
@@ -44,6 +48,8 @@ describe("git routes index mutations", () => {
   beforeEach(() => {
     gitLibraries.stageFiles.mockReset()
     gitLibraries.unstageFiles.mockReset()
+    gitLibraries.stageHunk.mockReset()
+    gitLibraries.unstageHunk.mockReset()
     gitLibraries.getLog.mockReset()
     gitLibraries.getCommitFiles.mockReset()
     gitLibraries.getStatus.mockReset()
@@ -194,6 +200,56 @@ describe("git routes index mutations", () => {
     expect(response.statusCode).toBe(400)
     expect(response.body).toEqual({ error: "path parameter is required" })
     expect(gitLibraries.stageFiles).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["/api/git/stage-hunk", "stageHunk"],
+    ["/api/git/unstage-hunk", "unstageHunk"],
+  ])("passes a single-hunk patch through to %s", async (routePath, libraryName) => {
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("POST", routePath)(
+      { query: { directory: "/repo" }, body: { path: "a.ts", patch: "@@ -1,1 +1,1 @@\n-a\n+b\n" } },
+      response,
+    )
+
+    expect(response.statusCode).toBe(200)
+    expect(gitLibraries[libraryName]).toHaveBeenCalledWith("/repo", "a.ts", "@@ -1,1 +1,1 @@\n-a\n+b\n")
+  })
+
+  it.each([
+    ["/api/git/stage-hunk", "stageHunk"],
+    ["/api/git/unstage-hunk", "unstageHunk"],
+  ])("rejects a hunk payload without a usable patch on %s", async (routePath, libraryName) => {
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("POST", routePath)({ query: { directory: "/repo" }, body: { path: "a.ts" } }, response)
+
+    expect(response.statusCode).toBe(400)
+    expect(response.body).toEqual({ error: "patch parameter is required" })
+    expect(gitLibraries[libraryName]).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["/api/git/stage-hunk", "stageHunk"],
+    ["/api/git/unstage-hunk", "unstageHunk"],
+  ])("reports a hunk mutation failure without swallowing it on %s", async (routePath, libraryName) => {
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+    gitLibraries[libraryName].mockRejectedValueOnce(new Error("Patch does not target a.ts"))
+
+    await getRoute("POST", routePath)(
+      { query: { directory: "/repo" }, body: { path: "a.ts", patch: "@@ -1,1 +1,1 @@" } },
+      response,
+    )
+
+    expect(response.statusCode).toBe(500)
+    expect(response.body).toEqual({ error: "Patch does not target a.ts" })
   })
 
   it("rejects option-like log revisions before reaching git", async () => {

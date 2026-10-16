@@ -4746,5 +4746,12 @@
   "chat.fileMentionAutocomplete.context.diffEmpty": "No hay cambios sin confirmar",
   "chat.fileMentionAutocomplete.context.attachFailed": "No se pudo adjuntar este contexto",
   "chat.fileMentionAutocomplete.context.noDirectory": "No hay un directorio de proyecto para esta sesi\u00f3n",
-  "chat.fileMentionAutocomplete.context.noSubject": "(sin asunto)"
+  "chat.fileMentionAutocomplete.context.noSubject": "(sin asunto)",
+  "diffView.hunk.stageAria": "Preparar cambio {hunk}",
+  "diffView.hunk.stageTooltip": "Preparar solo este cambio",
+  "diffView.hunk.unstageAria": "Quitar del stage el cambio {hunk}",
+  "diffView.hunk.unstageTooltip": "Quitar del stage solo este cambio",
+  "diffView.hunk.stageFailed": "No se pudo preparar este cambio",
+  "diffView.hunk.unstageFailed": "No se pudo quitar este cambio del stage",
+  "diffView.hunk.stageUnsupported": "Preparar un solo cambio no es compatible aqu\u00ed"
 }

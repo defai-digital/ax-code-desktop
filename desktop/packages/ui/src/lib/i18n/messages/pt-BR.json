@@ -4746,5 +4746,12 @@
   "chat.fileMentionAutocomplete.context.diffEmpty": "Nenhuma altera\u00e7\u00e3o n\u00e3o confirmada",
   "chat.fileMentionAutocomplete.context.attachFailed": "N\u00e3o foi poss\u00edvel anexar este contexto",
   "chat.fileMentionAutocomplete.context.noDirectory": "Nenhum diret\u00f3rio de projeto para esta sess\u00e3o",
-  "chat.fileMentionAutocomplete.context.noSubject": "(sem assunto)"
+  "chat.fileMentionAutocomplete.context.noSubject": "(sem assunto)",
+  "diffView.hunk.stageAria": "Preparar altera\u00e7\u00e3o {hunk}",
+  "diffView.hunk.stageTooltip": "Preparar somente esta altera\u00e7\u00e3o",
+  "diffView.hunk.unstageAria": "Despreparar altera\u00e7\u00e3o {hunk}",
+  "diffView.hunk.unstageTooltip": "Despreparar somente esta altera\u00e7\u00e3o",
+  "diffView.hunk.stageFailed": "Falha ao preparar esta altera\u00e7\u00e3o",
+  "diffView.hunk.unstageFailed": "Falha ao despreparar esta altera\u00e7\u00e3o",
+  "diffView.hunk.stageUnsupported": "Preparar uma \u00fanica altera\u00e7\u00e3o n\u00e3o \u00e9 suportado aqui"
 }

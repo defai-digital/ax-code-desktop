@@ -2,7 +2,7 @@ import { simpleGit } from "simple-git"
 import fs from "fs"
 import path from "path"
 import os from "os"
-import { execFile } from "child_process"
+import { execFile, spawn } from "child_process"
 import { promisify } from "util"
 import { createWorktreeBootstrapGenerations } from "./worktree-bootstrap-generation.js"
 const fsp = fs.promises
@@ -1026,6 +1026,55 @@ const runGitCommandOrThrow = async (cwd, args, fallbackMessage) => {
     throw new Error(result.message || fallbackMessage || "Git command failed")
   }
   return result
+}
+
+// `git apply` reads its patch from stdin, and the promisified execFile cannot feed a stream, so
+// this wraps spawn with the same result shape as runGitCommand.
+const runGitCommandWithInput = async (cwd, args, input, options = {}) => {
+  const env = { ...(await buildGitEnv()), ...(options.env || {}) }
+
+  return await new Promise((resolve) => {
+    let child
+    try {
+      child = spawn(getGitBinary(), args, { cwd, env, windowsHide: true })
+    } catch (error) {
+      resolve({
+        success: false,
+        exitCode: 1,
+        stdout: "",
+        stderr: "",
+        message: error instanceof Error ? error.message : String(error),
+      })
+      return
+    }
+
+    let stdout = ""
+    let stderr = ""
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk)
+    })
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk)
+    })
+    // git may stop reading before the whole patch is written; an EPIPE here must not crash the server.
+    child.stdin.on("error", () => {})
+    child.stdin.end(input)
+
+    child.on("error", (error) => {
+      resolve({ success: false, exitCode: 1, stdout, stderr, message: parseGitErrorText(error) })
+    })
+    child.on("close", (code) => {
+      const exitCode = typeof code === "number" ? code : 1
+      resolve({
+        success: exitCode === 0,
+        exitCode,
+        stdout,
+        stderr,
+        message:
+          exitCode === 0 ? "" : parseGitErrorText({ stderr, stdout, message: `git exited with code ${exitCode}` }),
+      })
+    })
+  })
 }
 
 const ensureAxCodeProjectId = async (primaryWorktree) => {
@@ -2734,6 +2783,72 @@ export async function unstageFiles(directory, paths) {
       await git.raw(["reset", "HEAD", "--", ...repoPaths])
     })
   })
+}
+
+// The patch names the file it edits; the route validated a declared path, so a patch whose
+// post-image names a different file must be rejected rather than silently editing that one.
+// A deletion patch instead carries the target in its `--- a/<path>` pre-image line.
+const patchTargetsDeclaredPath = (patchText, repoPath) => {
+  const lines = patchText.split("\n")
+  // One file only: a second `---`/`+++` header pair would let the patch edit another file.
+  const headerPairs = lines.filter((line, index) => line.startsWith("--- ") && lines[index + 1]?.startsWith("+++ "))
+  if (headerPairs.length !== 1) {
+    return false
+  }
+  const postImage = lines.find((line) => line.startsWith("+++ "))
+  if (!postImage) {
+    return false
+  }
+
+  const postImagePath = postImage.slice(4).trim()
+  if (postImagePath === `b/${repoPath}`) {
+    return true
+  }
+
+  if (postImagePath === "/dev/null") {
+    const preImage = lines.find((line) => line.startsWith("--- "))
+    return Boolean(preImage) && preImage.slice(4).trim() === `a/${repoPath}`
+  }
+
+  return false
+}
+
+const applyHunkPatchToIndex = async (directory, filePath, patch, direction) => {
+  const action = direction === "unstage" ? "unstage" : "stage"
+  const patchText = typeof patch === "string" ? patch : ""
+
+  if (!directory || !filePath || !patchText.trim()) {
+    throw new Error(`directory, path, and patch are required to ${action} a hunk`)
+  }
+  validateRepositoryFilePaths(normalizeDirectoryPath(directory), [filePath])
+
+  await withGitIndexMutationQueue(directory, async () => {
+    const { directoryPath, directoryGit, repoRoot } = await createRepositoryGitContext(directory)
+    const { repoPath } = await resolveGitFileContext(directoryPath, directoryGit, filePath, repoRoot)
+    validateRepositoryFilePaths(repoRoot, [repoPath])
+
+    if (!patchTargetsDeclaredPath(patchText, repoPath)) {
+      throw new Error(`Patch does not target ${filePath}`)
+    }
+
+    const args = ["apply", "--cached", "--unidiff-zero", "--whitespace=nowarn"]
+    if (direction === "unstage") {
+      args.push("--reverse")
+    }
+
+    const result = await runGitCommandWithInput(repoRoot, args, patchText)
+    if (!result.success) {
+      throw new Error(result.message || `Failed to ${action} hunk`)
+    }
+  })
+}
+
+export async function stageHunk(directory, filePath, patch) {
+  await applyHunkPatchToIndex(directory, filePath, patch, "stage")
+}
+
+export async function unstageHunk(directory, filePath, patch) {
+  await applyHunkPatchToIndex(directory, filePath, patch, "unstage")
 }
 
 /**

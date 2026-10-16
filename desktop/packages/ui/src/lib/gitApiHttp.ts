@@ -359,6 +359,37 @@ export async function unstageGitFiles(directory: string, filePaths: string[]): P
   }
 }
 
+export async function stageGitHunk(directory: string, filePath: string, patch: string): Promise<void> {
+  await postHunkPatch(directory, "stage-hunk", filePath, patch, "stage git changes")
+}
+
+export async function unstageGitHunk(directory: string, filePath: string, patch: string): Promise<void> {
+  await postHunkPatch(directory, "unstage-hunk", filePath, patch, "unstage git changes")
+}
+
+const postHunkPatch = async (
+  directory: string,
+  routePath: string,
+  filePath: string,
+  patch: string,
+  actionDescription: string,
+): Promise<void> => {
+  if (!filePath || !patch) {
+    throw new Error(`path and patch are required to ${actionDescription}`)
+  }
+
+  const response = await gitRequest(buildUrl(`${API_BASE}/${routePath}`, directory), {
+    method: HTTP_DEFAULTS.method.post,
+    headers: HTTP_DEFAULTS.headers.contentTypeJson,
+    body: JSON.stringify({ path: filePath, patch }),
+  })
+
+  if (!response.ok) {
+    const message = await response.json().catch(() => ({ error: response.statusText }))
+    throw new Error(message.error || `Failed to ${actionDescription}`)
+  }
+}
+
 export async function isLinkedWorktree(directory: string): Promise<boolean> {
   if (!directory) {
     return false

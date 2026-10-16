@@ -138,6 +138,18 @@ export async function unstageGitFiles(directory: string, filePaths: string[]): P
   return gitHttp.unstageGitFiles(directory, filePaths)
 }
 
+export async function stageGitHunk(directory: string, filePath: string, patch: string): Promise<void> {
+  const runtime = getRuntimeGit()
+  if (runtime?.stageGitHunk) return runtime.stageGitHunk(directory, filePath, patch)
+  return gitHttp.stageGitHunk(directory, filePath, patch)
+}
+
+export async function unstageGitHunk(directory: string, filePath: string, patch: string): Promise<void> {
+  const runtime = getRuntimeGit()
+  if (runtime?.unstageGitHunk) return runtime.unstageGitHunk(directory, filePath, patch)
+  return gitHttp.unstageGitHunk(directory, filePath, patch)
+}
+
 export async function getGitBranches(directory: string): Promise<import("./api/types").GitBranch> {
   const runtime = getRuntimeGit()
   if (runtime) return runtime.getGitBranches(directory)
