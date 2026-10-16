@@ -1336,6 +1336,33 @@ were the higher-yield half, and five of their findings are fixed below.
   the store learns about only after `createSession`, a 350 ms wait and the terminal claim, so two clicks
   in that window both reached `terminal.sendInput` and ran the command twice in one shell.
 
+### Fixed from following the round's remaining leads
+
+- **`84514b55`** — the unload settings flush fired the write and answered every waiting caller with
+  success without looking at it, so a failed save was reported as done while the server file kept the
+  old value, and the change was lost. That path also serves `visibilitychange → hidden`, where the
+  document is still running. The waiters settle from the write now, and a failure re-queues the change.
+- **`f795be68`** — `reload` and `navigate` touched the pane's webContents after teardown could have
+  destroyed it, so Electron's raw "Object has been destroyed" reached the renderer while every other
+  branch in that file guards the same object (`status()` reads a destroyed pane deliberately and keeps
+  its own guard).
+- **`bc9e7f68`** — `pauseChromeBridgeForProjectBrowser` bumped the counter it also used to detect "a
+  resume overtook this pause", so a second pause looked like a resume: the first pause reconnected the
+  bridge it had just disconnected and recorded nothing, leaving the embedded browser enrolled with the
+  Chrome bridge connected. Only resumes bump it now.
+- **`603b3010`** — `desktop_get_installed_apps` answered two windows and a `force` request with
+  independent scans and plain `writeFile`s of one path; interleaved writers can leave a partial JSON
+  file that the next read loses to a parse error. One refresh at a time, through the atomic
+  `writeJsonFile` the file already uses elsewhere.
+- **`fac2aec5`** — the earlier conflict/plan fix re-read `uiKindRef`, which only moves on render, so a
+  queued `setUi({ kind: "conflict" })` was invisible to it. The two updates are conditional on the
+  state they are applied to now, which makes their order irrelevant. (The auditor of that commit found
+  this; the new test passes against both versions, so the argument stands on the update being
+  conditional — that is recorded in the commit and here.)
+- **`387e4e2c`** — the packaged smoke's readiness probe and asset fetch had no deadline: a socket that
+  was accepted and then went quiet held the gate past `--timeout-ms`, and its `finally` never stopped
+  the CLI. Both requests are bounded now.
+
 ### Fixed from the audits of this series' own commits
 
 - **`f87f60be`** — the release-run selection added in `80598ff2` accepted a same-commit run from up to
@@ -1386,6 +1413,11 @@ were the higher-yield half, and five of their findings are fixed below.
   class (no preview target binds port 0-9) that contradicts the pattern's intent.
 - **A git identity id is not URL-encoded** (`gitApiHttp.ts:893-914`). Ids are minted as
   `profile-<time>-<random>`; a hand-edited id with a `/` would already fail the server's own lookup.
+- **`sign-windows.cjs:64` passes only `--azure-key-vault-managed-identity`** while
+  `resolveSigningConfiguration` requires the tenant/client/secret trio and the shadow workflow checks
+  only that those three variables are non-empty. Whether that authenticates on a GitHub-hosted Windows
+  runner depends on AzureSignTool's flag semantics, which the reviewer could not read here; it needs a
+  check of that tool (or a signing rehearsal) rather than a guess.
 - **PR create and repo-branch listing skip the repo containment their siblings enforce**
   (`server/lib/github/routes.js:564-587` on create, `:1013-1045` for branches, while `/pr/update`,
   `/pr/merge` and `/pr/ready` funnel through `resolveRepoForRequest`) and **every attachment is dropped
