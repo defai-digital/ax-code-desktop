@@ -32,6 +32,14 @@ describe("toolPathDisplay", () => {
 })
 
 describe("toAbsoluteToolPath", () => {
+  test("hands an absolute path over as the tool wrote it", () => {
+    // The helper normalized first, so a POSIX path whose filename contains a backslash — legal there — was
+    // rewritten to a different path, and the caller passed that to the editor.
+    expect(toAbsoluteToolPath("/repo", "/repo/dir/a\\b.ts")).toBe("/repo/dir/a\\b.ts")
+    // A Windows drive path is normalized instead: a backslash is a separator there and the editor takes either.
+    expect(toAbsoluteToolPath("/repo", "C:\\repo\\src\\app.ts")).toBe("C:/repo/src/app.ts")
+  })
+
   test("leaves a path that already names a location alone", () => {
     expect(toAbsoluteToolPath("/repo", "/repo/src/app.ts")).toBe("/repo/src/app.ts")
     expect(toAbsoluteToolPath("/repo", "//server/share/src/app.ts")).toBe("//server/share/src/app.ts")

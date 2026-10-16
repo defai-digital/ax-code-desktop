@@ -47,6 +47,16 @@ const isAbsoluteToolPath = (normalizedPath: string): boolean =>
  * `C:/repo/C:/repo/src/app.ts`.
  */
 export const toAbsoluteToolPath = (currentDirectory: string, filePath: string): string => {
+  // A POSIX absolute path is handed over exactly as the tool wrote it: a backslash is a legal filename character
+  // there, so normalizing it names a different file. A Windows drive path is normalized instead, where a backslash
+  // is a separator and the callers pass the result to the OS.
+  if (filePath.startsWith("/")) {
+    return filePath
+  }
+  if (/^[A-Za-z]:[\\/]/.test(filePath)) {
+    return normalizeToolDisplayPath(filePath)
+  }
+
   const normalizedPath = normalizeToolDisplayPath(filePath)
   if (!normalizedPath) {
     return ""
