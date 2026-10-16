@@ -852,6 +852,17 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     state.currentStartPromise = startPromise
     try {
       const process = await startPromise
+      // A shutdown that began while this launch was in flight ran its teardown before the handle existed, so it
+      // closed nothing: publishing the handle now would leave that child running with its port bound after the
+      // app is gone — the orphan the pipeline's failure path exists to prevent, one race later.
+      if (state.isShuttingDown) {
+        try {
+          await process?.close?.()
+        } catch {
+          // The launch is being discarded either way.
+        }
+        throw new Error("AX Code start cancelled: the server is shutting down")
+      }
       // Publish the handle inside the start's own continuation: a restart that
       // awaited currentStartPromise resumes after this point and must already
       // see the process — otherwise it releases the new child's port and the

@@ -328,6 +328,36 @@ describe("ax-code lifecycle", () => {
     expect(startHeadlessBackendMock).not.toHaveBeenCalled()
   })
 
+  it("closes a launch that resolved after the shutdown had begun", async () => {
+    // The teardown closes what it can see, and the handle is published only once the launch resolves — so a
+    // shutdown that lands in that window used to be followed by the publish, leaving the child with nothing to
+    // close it. The new guard runs before the publish, not with it.
+    delete process.env.AX_CODE_BINARY
+    let releaseLaunch = () => {}
+    const launchGate = new Promise((resolve) => {
+      releaseLaunch = resolve
+    })
+    const handle = {
+      url: "http://127.0.0.1:45678",
+      headers: { Authorization: "Basic test" },
+      close: vi.fn(async () => undefined),
+    }
+    startHeadlessBackendMock.mockImplementation(async () => {
+      await launchGate
+      return handle
+    })
+
+    const runtime = createRuntime()
+    const startPromise = runtime.startAxCode()
+    await vi.waitFor(() => expect(startHeadlessBackendMock).toHaveBeenCalledTimes(1), { timeout: 2000 })
+
+    runtime.shutdown()
+    releaseLaunch()
+
+    await expect(startPromise).rejects.toThrow("shutting down")
+    expect(handle.close).toHaveBeenCalledTimes(1)
+  })
+
   it("does not retry startup after shutdown() aborts the in-progress SDK launch", async () => {
     delete process.env.AX_CODE_BINARY
     // Mirror the real SDK pattern: check signal.aborted after addEventListener so an
