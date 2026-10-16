@@ -118,6 +118,31 @@ describe("input-store attachments", () => {
     expect(useInputStore.getState().attachedFiles).toEqual([])
   })
 
+  testWithMockFileReader(
+    "keeps a file that finishes reading after the composer moved to another draft",
+    async () => {
+      // Switching drafts while a file was still being read dropped it: it was not in the list the
+      // switch stashed (that list is the one from before the read finished) and the generation check
+      // returned without putting it anywhere.
+      useInputStore.getState().setActiveAttachmentDraft("ses_a")
+      const addPromise = useInputStore
+        .getState()
+        .addAttachedFile(new File(["hello"], "hello.txt", { type: "text/plain" }))
+      expect(pendingReaders).toHaveLength(1)
+
+      useInputStore.getState().setActiveAttachmentDraft("ses_b")
+      resolveReader(pendingReaders[0], "data:text/plain;base64,aGVsbG8=")
+      await addPromise
+
+      // Not in the draft on screen…
+      expect(useInputStore.getState().attachedFiles).toEqual([])
+
+      // …and still in the draft it was added to.
+      useInputStore.getState().setActiveAttachmentDraft("ses_a")
+      expect(useInputStore.getState().attachedFiles.map((file) => file.filename)).toEqual(["hello.txt"])
+    },
+  )
+
   test("keeps attached files with the draft they were added to", () => {
     // The composer is not remounted on a session switch, so a single shared list showed one
     // session's chips in another's composer and sent those files with its prompt.

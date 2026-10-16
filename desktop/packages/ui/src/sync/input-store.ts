@@ -115,13 +115,16 @@ export const useInputStore = create<InputState>()((set, get) => ({
   addAttachedFile: async (file: File) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const generation = attachmentReadGeneration
+    // The draft this read belongs to. A read that finishes after the composer moved on must land in
+    // that draft's stash rather than vanishing: the file the user picked was otherwise attached to
+    // nothing, and nothing said so.
+    const draftKey = get().activeAttachmentDraftKey
     let dataUrl: string
     try {
       dataUrl = await readFileAsDataUrl(file)
     } catch {
       return
     }
-    if (generation !== attachmentReadGeneration) return
     const attached: AttachedFile = {
       id,
       file,
@@ -131,7 +134,21 @@ export const useInputStore = create<InputState>()((set, get) => ({
       size: file.size,
       source: "local",
     }
-    set((s) => ({ attachedFiles: [...s.attachedFiles, attached] }))
+    if (generation === attachmentReadGeneration) {
+      set((s) => ({ attachedFiles: [...s.attachedFiles, attached] }))
+      return
+    }
+    // The stash is dropped when the draft's files are cleared or replaced, which is a deliberate
+    // "these are gone"; a draft switch leaves it, and that is where this file belongs.
+    if (!Object.hasOwn(get().attachmentsByDraft, draftKey)) {
+      return
+    }
+    set((s) => ({
+      attachmentsByDraft: {
+        ...s.attachmentsByDraft,
+        [draftKey]: [...(s.attachmentsByDraft[draftKey] ?? []), attached],
+      },
+    }))
   },
 
   removeAttachedFile: (id) => set((s) => ({ attachedFiles: s.attachedFiles.filter((f) => f.id !== id) })),
