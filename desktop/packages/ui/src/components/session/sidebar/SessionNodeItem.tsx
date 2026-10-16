@@ -35,7 +35,6 @@ import {
 } from "@/lib/exportSession"
 import type { ChildSessionExport } from "@/lib/exportSession"
 import {
-  buildSessionMessageRecordsSnapshot,
   useDirectoryChildStore,
   useGlobalSessionStatus,
   useSession,
@@ -43,6 +42,7 @@ import {
   useSessionQuestions,
 } from "@/sync/sync-context"
 import { useSync } from "@/sync/use-sync"
+import { loadAllSessionRecords } from "./sessionExportRecords"
 import { useViewportStore } from "@/sync/viewport-store"
 import { DraggableSessionRow } from "./sessionFolderDnd"
 import type { SessionNode, SessionSummaryMeta } from "./types"
@@ -349,7 +349,10 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
     normalizePath((session as Session & { directory?: string | null }).directory ?? null) ??
     normalizePath(groupDirectory ?? null)
   const directoryStore = useDirectoryChildStore(sessionDirectory ?? undefined)
-  const sync = useSync()
+  // Bound to the session's own directory: `useSync()` follows the directory that is open, so loading a
+  // session of another project put its messages in one store while the export read another, and the
+  // file came out empty.
+  const sync = useSync(sessionDirectory)
 
   const selectionModeEnabled = useSessionMultiSelectStore((state) => state.enabled)
   const isRowSelected = useSessionMultiSelectStore(
@@ -432,8 +435,11 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
       let skipped = 0
       for (const child of children) {
         try {
-          await sync.ensureSessionRenderable(child.session.id)
-          const childRecords = buildSessionMessageRecordsSnapshot(directoryStore.getState(), child.session.id).list
+          const childRecords = await loadAllSessionRecords({
+            sessionId: child.session.id,
+            store: directoryStore,
+            sync,
+          })
           const childTitle = child.session.title || t("sessions.sidebar.session.export.untitledSubagent")
           const childAgent = (child.session as Session & { agent?: string }).agent
           const grandChildren = await collectChildExports(child.children)
@@ -472,9 +478,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
         return
       }
 
-      await sync.ensureSessionRenderable(session.id)
-
-      const records = buildSessionMessageRecordsSnapshot(directoryStore.getState(), session.id).list
+      const records = await loadAllSessionRecords({ sessionId: session.id, store: directoryStore, sync })
       if (records.length === 0) {
         toast.error(t("sessions.sidebar.session.export.nothingToExport"))
         return

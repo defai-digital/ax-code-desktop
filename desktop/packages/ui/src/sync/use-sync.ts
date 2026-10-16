@@ -122,10 +122,18 @@ function getPrefetchMeta(directory: string, sessionID: string): SyncMeta | undef
 // Message loading, pagination, optimistic updates
 // ---------------------------------------------------------------------------
 
-export function useSync() {
+/**
+ * Message loading, pagination and optimistic updates for one directory.
+ *
+ * Defaults to the directory that is open. A caller that works on a session of its own — the sidebar's
+ * markdown export reads a session that may belong to another project — passes that directory: loading
+ * into one store and reading another produced an empty file.
+ */
+export function useSync(directoryOverride?: string | null) {
   const sdk = useSyncSDK()
-  const directory = useSyncDirectory()
-  const store = useDirectoryChildStore()
+  const activeDirectory = useSyncDirectory()
+  const directory = directoryOverride ?? activeDirectory
+  const store = useDirectoryChildStore(directoryOverride ?? undefined)
   const childStores = useChildStoreManager()
 
   // Refs for mutable tracking (no re-renders)
