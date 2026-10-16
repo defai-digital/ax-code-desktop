@@ -23,7 +23,7 @@ have, and the same defects can be found by comparing rather than by reading.
    where our code already handles it a different way.
 
 That produced 29 confirmed defects in our tree, and one more was found while fixing them.
-The twenty-seven entries below are fixed; the 3 that remain are listed with the shape of
+The twenty-eight entries below are fixed; the 2 that remain are listed with the shape of
 their fix so they can be picked up.
 
 ## Fixed
@@ -114,6 +114,11 @@ their fix so they can be picked up.
   working tree showed the same summed total on its Staged row and its Changes row. The
   status now reports `{ staged, working }` and each surface reads the scope it shows.
 
+- `bdf2da86f` **A new worktree runs the project's start command again.** It read the
+  command from `<data dir>/storage/project/<id>.json`, the format the runtime migrated from
+  and no longer writes, so the command never ran. It now comes from the runtime's project
+  record over `GET /project`.
+
 ## Confirmed in our tree, not yet fixed
 
 Ordered by severity. Line numbers are where the defect lives today.
@@ -121,10 +126,7 @@ Ordered by severity. Line numbers are where the defect lives today.
 1. **The context meter shows the compaction request's fill**
     (`ui/src/lib/messages/assistantTokens.ts:25`): after `/compact` the newest
     token-bearing assistant message is the summarising request itself.
-2. **The worktree start command is read from a legacy file the runtime does not
-    write** (`web/server/lib/git/service.js:1221`), so a new worktree runs no project
-    start command at all.
-3. **The worktree branch rename field silently renames to a different name**
+2. **The worktree branch rename field silently renames to a different name**
     (`ui/src/components/views/git/WorktreeBranchDisplay.tsx`): covered by the branch
     name fix above for the character set; what remains is that a sanitized name equal
     to the current one closes the editor without saying so.
