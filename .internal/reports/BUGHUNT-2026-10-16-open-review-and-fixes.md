@@ -3209,7 +3209,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   disappeared without writing their marker at all (their files held startup traces, which read as "still
   running"). Both were re-run — the sync review on MiniMax-M3, the second audit on the Claude Code CLI — and the
   helper is what showed the difference between a cell that finished, one that failed, and one that is still
-  going.
+  going. The re-run of the second audit ended the same way — its process was gone and it never wrote its marker,
+  after it had produced all five findings and then tried to write a report of its own into a directory that does
+  not exist; its output file holds the complete answer, which is what this record is built from.
 - Latest full run, after the twenty-fifth round's fixes (each command's exit status captured, not inferred from a
   pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 939, web 1 276 (+2 skipped),
