@@ -1315,6 +1315,40 @@ follow-ups above. Fixed from it:
   submitted the previous project's shell commands with the new project's worktrees. The commands are
   cleared on the switch and Start waits for the load, as it already did for the worktree base branches.
 
+### Fixed from the round's remaining leads (server and sync)
+
+- **`765336ae`** — the passkey sign-in wrote back the snapshot it had read *before* the WebAuthn
+  verification, without the store lock every other mutation holds: a revoke landing in that window was
+  overwritten and the credential the user had just removed could sign in again (the same window dropped
+  a credential registered during it, and an older counter could overwrite a newer one).
+- **`d4586105`** — a queued worktree bootstrap closed over its directory string only. The directory can
+  be removed and re-created under the same (preferred) name while the run awaits git and the start
+  scripts, so the earlier run reset the new worktree's checkout and started the old project's scripts in
+  it. A run owns a generation now, checked after each await, and a removal retires it.
+- **`1042f5e0`** — the restart route killed the existing terminal and deleted its session id before
+  asking the provider for a replacement, so a provider or spawn failure answered 500 with the client's
+  shell already dead and nothing to attach to. The replacement spawns first and the swap follows.
+- **`65820182`** — `validateRepositoryFilePaths` treated any relative path starting with `..` as an
+  escape, so a directory whose name starts with two dots (`..cache/file.txt`) could not be staged,
+  unstaged or diffed. Only `..` itself or a leading `../` leaves the repository, as the fs routes state.
+- **`d1c5f223`** — global sign-out was refused whenever `AX_CODE_JWT_SECRET` was set, even when the value
+  is too short to be used for signing (the file secret is what protects those sessions), leaving them
+  valid until they expired.
+- **`8d0c0fc0`** — `optimisticSend`'s failure path restored the previous status whenever the store's
+  status merely *was* busy, so a POST that reached the runtime (starting the turn) before its response
+  failed left a live turn shown as idle — no working indicator, no Stop, and the queued-message auto-send
+  firing on a busy-to-idle edge that never happened.
+- **`d834b2f9`** — the beforeunload flush of pending removals released the pending flags before its
+  requests and then persisted the store's map, which that release had emptied: a removal that failed
+  fast wrote an empty recovery slot and the next launch resurrected a session the user had deleted.
+- **`e16c11e8`** — a watchdog's own timer removes its map entry before its async checks run, so a prompt
+  sent during those checks registers a new timer; the grace-window re-arm then overwrote that entry and
+  left the newer prompt's timer uncancellable, so it fired during a later turn. The slot is claimed by an
+  owner token per prompt now.
+- **`a3453a19`** — the optimistic-part replacement scanned only when the *first* slot lacked a sessionID,
+  but parts are inserted by sorted id and the server echoes a prompt's parts one at a time: an earlier
+  echo sorting in front of them skipped the scan and the user's prompt rendered twice.
+
 Suspected, recorded rather than changed:
 
 - **`useExecutionModeStore.setMode` reports a generic "update failed"** when `applyMode` fails part way
@@ -1436,6 +1470,11 @@ were the higher-yield half, and five of their findings are fixed below.
   entries — on rehydration and reconnect, so the disagreement needs the client to disappear without
   ever confirming. Invalidating on session close or on a reconnect handshake is a decision about that
   contract.
+- **A stream of a session dropped from `session_status` is never completed** (`sync/streaming.ts:166-172`,
+  the skip also covers this-directory sessions whose status entry was deleted, and the retention prune only
+  removes completed entries). The state is bounded by the number of sessions deleted while busy and the
+  dead message ids are no longer rendered, so it is a leak, not a wrong result; completing it needs a
+  decision about which directory's state proves the session is gone.
 - **`verify-packaged-electron.cjs` walkers ignore symlinks** (`:45-54`, `:61-71`). With
   `withFileTypes`, a symlink is neither a file nor a directory, so a symlinked directory in `Resources`
   outside `ax-code`/`ax-computer`, and a symlink in `app.asar.unpacked`, are invisible to the packaging
@@ -1700,9 +1739,9 @@ Round six and seven are complete: every confirmed finding is fixed.
 - Final state after the ninth round, with each command's exit status captured rather than inferred
   from a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0. `pnpm run test` reported one failure in its last full run — the
-  `core-routes.test.js` flake below — and the affected suite passed when re-run by itself
-  (web 1 117, ui 2 730, both just now; electron 589 and the root scripts 179 in that same run).
-- Test totals at that run: ui 2 730, web 1 117 (+2 skipped), electron 589, root scripts 179
+  `core-routes.test.js` flake below — and every suite passed with the machine idle afterwards
+  (typecheck 0, lint 0, test 0, boundaries 0; web 1 124, ui 2 743, electron 594, root scripts 179).
+- Test totals at that run: ui 2 743, web 1 124 (+2 skipped), electron 594, root scripts 179
   (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 695 keys and 61 035 translated
   entries; the ninth round added one key (`sessions.sidebar.session.export.failed`), translated in
   every catalog.
