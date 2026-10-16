@@ -1362,6 +1362,21 @@ MiniMax-M3) and two auditors over the tenth round's commits. Fixed from it:
   container, so after a hunk revert or an agent edit they stayed attached to the detached shadow root:
   gutter clicks stopped resolving a side and annotation changes stopped triggering a re-render.
 
+### Fixed from the audit of the tenth round's fixes
+
+- **`3430aea7`** — spawning the replacement terminal before the swap made "replace my own slot" a
+  check-then-act race: two overlapping restarts of one id both read the same live session, neither
+  reserved a slot, and both spawned and registered, so the count went past the cap and the first
+  replacement was orphaned. One restart per id now; the second is answered 409.
+- **`10698601`** — the connection between that fix and the SSE path: `optimisticSend`'s failure rollback
+  still restored idle, because the reducer dedupes an equal `busy` without writing, so the store kept the
+  object the send itself wrote. The reducer now counts every `session.status` event per session (before
+  the dedupe) and the rollback requires that no server status arrived since the send began.
+- **`8599ff61`** — the quit-recovery slot: keeping *every* failed removal for the next launch is right for
+  the unload flush (nobody can see the outcome) and wrong for the undo-window timer, which runs while the
+  user is watching, reports the failure and puts the session back — queueing it deleted that session on
+  the next launch. Only the flush keeps its failures.
+
 ### Reported as confirmed, verified and rejected
 
 - **"DiffWorkerProvider caches a failed pool creation as a success"** (`contexts/DiffWorkerProvider.tsx:91-103`).
@@ -1518,6 +1533,13 @@ were the higher-yield half, and five of their findings are fixed below.
   removes completed entries). The state is bounded by the number of sessions deleted while busy and the
   dead message ids are no longer rendered, so it is a leak, not a wrong result; completing it needs a
   decision about which directory's state proves the session is gone.
+- **The worktree bootstrap's invalidation key can differ from the key it registered**
+  (`server/lib/git/service.js:3628` with `:40-46`). `toBootstrapStateKey` only resolves, while
+  `git worktree list` reports canonical paths — a project opened through a symlinked root would file the
+  state and the invalidation under two spellings, and the in-flight run would keep going. Making the key
+  canonical is a change to every reader of that map (the status is polled, and the directory may be gone
+  by then, where `realpath` fails and the spelling falls back), so it needs one decision about the key's
+  semantics rather than a local `realpath` call.
 - **`verify-packaged-electron.cjs` walkers ignore symlinks** (`:45-54`, `:61-71`). With
   `withFileTypes`, a symlink is neither a file nor a directory, so a symlinked directory in `Resources`
   outside `ax-code`/`ax-computer`, and a symlink in `app.asar.unpacked`, are invisible to the packaging
