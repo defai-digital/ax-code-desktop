@@ -205,9 +205,9 @@ function SwitcherRow({
   const notifyOnSubtasks = useUIStore((state) => state.notifyOnSubtasks)
 
   const sessionStatus = useGlobalSessionStatus(session.id)
-  const sessionPermissions = useSessionPermissions(session.id)
-  const sessionQuestions = useSessionQuestions(session.id)
   const sessionDirectory = resolveGlobalSessionDirectory(session)
+  const sessionPermissions = useSessionPermissions(session.id, sessionDirectory ?? undefined)
+  const sessionQuestions = useSessionQuestions(session.id, sessionDirectory ?? undefined)
   const sessionGitDirty = useGitStore(
     React.useCallback(
       (s) => (sessionDirectory ? s.directories.get(sessionDirectory)?.status?.isClean === false : false),

@@ -33,7 +33,10 @@ function SessionPermissionWatcher({
   sessionDirectory?: string
 }): null {
   const { t } = useI18n()
-  const permissions = useSessionPermissions(sessionId)
+  // The session's own directory, not the active one: a pending request from another
+  // project lives in that project's child store, so reading the active store would
+  // report nothing and the request would never reach the notification center.
+  const permissions = useSessionPermissions(sessionId, sessionDirectory)
   const notifyOnPermission = useUIStore((s) => s.notifyOnPermission)
   const nativeNotificationsEnabled = useUIStore((s) => s.nativeNotificationsEnabled)
   const notificationMode = useUIStore((s) => s.notificationMode)
