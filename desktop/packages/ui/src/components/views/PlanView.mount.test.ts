@@ -14,4 +14,14 @@ describe("PlanView mount contract", () => {
     expect(source).toContain("mountedRef.current = true")
     expect(source).toContain("mountedRef.current = false")
   })
+
+  test("does not write back the text a load just read", async () => {
+    const source = await readFile(path.resolve(__dirname, "PlanView.tsx"), "utf8")
+
+    // Every successful read records what it read, and the autosave effect consults that
+    // record before arming its debounce. Dropping either half brings back the write-back
+    // that overwrote anything the agent wrote to the plan inside the 350 ms window.
+    expect(source).toContain("loadedContentRef.current = text")
+    expect(source).toContain("planContentNeedsSave(content, loadedContentRef.current)")
+  })
 })

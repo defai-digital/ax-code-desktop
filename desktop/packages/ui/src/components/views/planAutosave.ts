@@ -3,6 +3,18 @@ export type PlanSaveQueueEntry = {
   content: string
 }
 
+/**
+ * Whether the editor's content is an edit worth writing back.
+ *
+ * A load sets the content from disk, and PlanView's autosave effect reacts to every content
+ * change — including that one. Without this the plan was written back 350 ms after every read:
+ * harmless churn when nothing else touched the file, and an overwrite of whatever the agent
+ * wrote to the plan in that window. `loadedContent` is null until a read has succeeded, and
+ * then any content counts as an edit.
+ */
+export const planContentNeedsSave = (content: string, loadedContent: string | null): boolean =>
+  loadedContent === null || content !== loadedContent
+
 type PlanSaveQueueOptions = {
   save: (path: string, content: string) => Promise<void>
   isLatestEntry: (entry: PlanSaveQueueEntry) => boolean

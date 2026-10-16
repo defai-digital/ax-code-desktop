@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import { PlanSaveQueue, type PlanSaveQueueEntry } from "./planAutosave"
+import { PlanSaveQueue, planContentNeedsSave, type PlanSaveQueueEntry } from "./planAutosave"
 
 const createDeferred = <T>() => {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -109,5 +109,22 @@ describe("PlanSaveQueue", () => {
       ["/repo/plan.md", "last edit"],
     ])
     expect(queue.hasPending("/repo/plan.md")).toBe(false)
+  })
+})
+
+describe("planContentNeedsSave", () => {
+  test("does not write back the text a load just read", () => {
+    // The autosave effect fires for the load's own setContent: without this guard the file was
+    // rewritten 350 ms after it was opened, over anything the agent had written meanwhile.
+    expect(planContentNeedsSave("plan text", "plan text")).toBe(false)
+  })
+
+  test("treats any edit as a save", () => {
+    expect(planContentNeedsSave("plan text edited", "plan text")).toBe(true)
+    expect(planContentNeedsSave("", "plan text")).toBe(true)
+  })
+
+  test("treats content as an edit while no read has succeeded", () => {
+    expect(planContentNeedsSave("typed before the first load", null)).toBe(true)
   })
 })

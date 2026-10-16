@@ -55,7 +55,7 @@ import {
   resolveTildePlanPath,
   toPlanDisplayPath,
 } from "./planViewPaths"
-import { PlanSaveQueue, type PlanSaveQueueEntry } from "./planAutosave"
+import { PlanSaveQueue, planContentNeedsSave, type PlanSaveQueueEntry } from "./planAutosave"
 
 type PlanViewProps = {
   targetPath?: string | null
@@ -145,6 +145,9 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
   // Latest edit waiting on the 350ms debounce. The loader effect and the
   // unmount cleanup flush it so leaving the view never discards typed text.
   const pendingSaveRef = React.useRef<PlanSaveQueueEntry | null>(null)
+  // The text the current `resolvedPath` was read from, so the autosave effect can tell a load
+  // from an edit: writing a load back clobbered whatever the agent wrote in the debounce window.
+  const loadedContentRef = React.useRef<string | null>(null)
 
   resolvedPathRef.current = resolvedPath
   contentRef.current = content
@@ -369,6 +372,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
         try {
           const text = await readText(targetPath)
           if (cancelled) return
+          loadedContentRef.current = text
           setResolvedPath(targetPath)
           setContent(text)
         } catch {
@@ -423,6 +427,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
           return
         }
 
+        loadedContentRef.current = text
         setResolvedPath(resolved)
         setContent(text)
       } catch {
@@ -453,6 +458,13 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
   React.useEffect(() => {
     if (!resolvedPath) {
       setSaveError(null)
+      return
+    }
+
+    // A load sets the content too, and this effect writes whatever it sees back 350 ms
+    // later: opening a plan rewrote the file, which overwrote anything the agent had
+    // written to it in the meantime.
+    if (!planContentNeedsSave(content, loadedContentRef.current)) {
       return
     }
 
