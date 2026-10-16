@@ -53,6 +53,10 @@ const GIT_REPO_CHECK_CACHE_TTL_MS = 5000
 
 const gitStatusCache = new Map<string, { value: GitStatus; expiresAt: number }>()
 const gitStatusInFlight = new Map<string, { promise: Promise<GitStatus> }>()
+// Bumped by every invalidation. Dropping the in-flight entry stops later readers from joining a
+// request that started before the mutation, but that request still resolves: without this its
+// pre-mutation payload was written into the cache and served to the refresh the mutation triggered.
+const gitStatusInvalidationEpoch = new Map<string, number>()
 const gitRepoCache = new Map<string, { value: boolean; expiresAt: number }>()
 const gitRepoInFlight = new Map<string, { promise: Promise<boolean> }>()
 
@@ -113,6 +117,7 @@ const invalidateGitStatusCache = (directory: string): void => {
   }
   gitStatusCache.delete(key)
   gitStatusInFlight.delete(key)
+  gitStatusInvalidationEpoch.set(key, (gitStatusInvalidationEpoch.get(key) ?? 0) + 1)
 }
 
 const directoryFromRequest = (input: RequestInfo | URL): string => {
@@ -210,6 +215,7 @@ export async function getGitStatus(directory: string, options?: { mode?: "light"
     return inFlight.promise
   }
 
+  const epoch = gitStatusInvalidationEpoch.get(key) ?? 0
   const task = (async () => {
     const response = await gitRequest(buildUrl(`${API_BASE}/status`, directory, mode ? { mode } : undefined))
     if (!response.ok) {
@@ -217,11 +223,15 @@ export async function getGitStatus(directory: string, options?: { mode?: "light"
     }
     const payload = (await response.json()) as GitStatus
     const fetchedAt = Date.now()
-    pruneExpiredCacheEntries(gitStatusCache, fetchedAt)
-    gitStatusCache.set(key, {
-      value: payload,
-      expiresAt: fetchedAt + GIT_STATUS_CACHE_TTL_MS,
-    })
+    // A mutation invalidated the cache while this request was in flight: its payload
+    // describes the tree from before the mutation, so it must not be cached.
+    if ((gitStatusInvalidationEpoch.get(key) ?? 0) === epoch) {
+      pruneExpiredCacheEntries(gitStatusCache, fetchedAt)
+      gitStatusCache.set(key, {
+        value: payload,
+        expiresAt: fetchedAt + GIT_STATUS_CACHE_TTL_MS,
+      })
+    }
     return payload
   })()
 

@@ -175,6 +175,59 @@ describe("git api status cache invalidation", () => {
       restoreMocks()
     }
   })
+
+  test("a status request that started before the mutation does not refill the cache with its answer", async () => {
+    // Dropping the in-flight entry only keeps later readers from joining that request. The request
+    // itself still resolved and wrote its pre-mutation payload into the cache, where the 1.2 s TTL
+    // served it to the refresh the mutation had just triggered.
+    const statusPayload = (isClean: boolean, files: unknown[]) =>
+      new Response(JSON.stringify({ current: "main", tracking: null, ahead: 0, behind: 0, files, isClean }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    const staleFile = { path: "a.ts", status: "modified", staged: false }
+    let statusCalls = 0
+    let resolveSlowStatus: (response: Response) => void = () => {}
+    const slowResponse = new Promise<Response>((resolve) => {
+      resolveSlowStatus = resolve
+    })
+    globalThis.fetch = (async (input, init) => {
+      const url = String(input)
+      if (init?.method && String(init.method).toUpperCase() !== "GET") {
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      if (url.includes("/status")) {
+        statusCalls += 1
+        if (statusCalls === 1) {
+          // Started before the mutation and answers with the tree from before it.
+          return slowResponse
+        }
+        return statusPayload(true, [])
+      }
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    }) as typeof fetch
+
+    try {
+      const slow = getGitStatus("/repo-slow-status")
+      await stageGitFiles("/repo-slow-status", ["a.ts"])
+      resolveSlowStatus(statusPayload(false, [staleFile]))
+      await slow
+
+      const afterMutation = await getGitStatus("/repo-slow-status")
+
+      expect(statusCalls).toBe(2)
+      expect(afterMutation.files).toEqual([])
+      expect(afterMutation.isClean).toBe(true)
+    } finally {
+      restoreMocks()
+    }
+  })
 })
 
 describe("git api http caches", () => {
