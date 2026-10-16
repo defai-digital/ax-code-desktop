@@ -143,4 +143,54 @@ describe("github routes", () => {
     expect(response.body).toEqual({ error: "accountId is required" })
     expect(activateGitHubAuth).not.toHaveBeenCalled()
   })
+
+  it("refuses a pull request repo outside this repository's network instead of the origin repo", async () => {
+    // Merge, mark-ready and edit resolved the repo from the directory alone and ignored
+    // which repo the caller named, so they acted on the origin repo's pull request with
+    // the same number - an unrelated one - while the UI showed an upstream PR.
+    const merge = vi.fn(async () => ({ data: { merged: true } }))
+    const { getOctokitOrNull, resolveGitHubRepoFromDirectory } = await import("./index.js")
+    resolveGitHubRepoFromDirectory.mockResolvedValueOnce({ repo: { owner: "me", repo: "fork" } })
+    getOctokitOrNull.mockReturnValueOnce({ rest: { pulls: { merge } } })
+
+    const app = createApp()
+    const response = await request(app)
+      .post("/api/github/pr/merge")
+      .query({ owner: "org", repo: "upstream" })
+      .send({ directory: "/repo", number: 7, method: "squash" })
+
+    expect(response.status).toBe(400)
+    expect(merge).not.toHaveBeenCalled()
+  })
+
+  it("merges in the repo the caller named when it resolves to the same repo", async () => {
+    const merge = vi.fn(async () => ({ data: { merged: true, message: "ok" } }))
+    const { getOctokitOrNull, resolveGitHubRepoFromDirectory } = await import("./index.js")
+    resolveGitHubRepoFromDirectory.mockResolvedValueOnce({ repo: { owner: "me", repo: "fork" } })
+    getOctokitOrNull.mockReturnValueOnce({ rest: { pulls: { merge } } })
+
+    const app = createApp()
+    await request(app)
+      .post("/api/github/pr/merge")
+      .query({ owner: "me", repo: "fork" })
+      .send({ directory: "/repo", number: 7, method: "squash" })
+      .expect(200)
+
+    expect(merge).toHaveBeenCalledWith({ owner: "me", repo: "fork", pull_number: 7, merge_method: "squash" })
+  })
+
+  it("still uses the directory's repo when the caller names none", async () => {
+    const merge = vi.fn(async () => ({ data: { merged: true, message: "ok" } }))
+    const { getOctokitOrNull, resolveGitHubRepoFromDirectory } = await import("./index.js")
+    resolveGitHubRepoFromDirectory.mockResolvedValueOnce({ repo: { owner: "me", repo: "fork" } })
+    getOctokitOrNull.mockReturnValueOnce({ rest: { pulls: { merge } } })
+
+    const app = createApp()
+    await request(app)
+      .post("/api/github/pr/merge")
+      .send({ directory: "/repo", number: 7, method: "merge" })
+      .expect(200)
+
+    expect(merge).toHaveBeenCalledWith({ owner: "me", repo: "fork", pull_number: 7, merge_method: "merge" })
+  })
 })

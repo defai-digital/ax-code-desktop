@@ -25,6 +25,16 @@ const jsonOrNull = async <T>(response: Response): Promise<T | null> => {
   return (await response.json().catch(() => null)) as T | null
 }
 
+// A pull request can live in an upstream repo of the fork's network, so a mutation
+// has to name the repo the caller is showing: the route resolves from the directory
+// alone and would act on the origin repo's pull request with the same number.
+const repoQueryParams = (sourceRepo?: { owner: string; repo: string } | null): URLSearchParams | undefined => {
+  if (!sourceRepo?.owner || !sourceRepo.repo) {
+    return undefined
+  }
+  return new URLSearchParams({ owner: sourceRepo.owner, repo: sourceRepo.repo })
+}
+
 export const createWebGitHubAPI = (): GitHubAPI => ({
   async authStatus(): Promise<GitHubAuthStatus> {
     const response = await fetch(API_ENDPOINTS.github.authStatus, {
@@ -142,7 +152,7 @@ export const createWebGitHubAPI = (): GitHubAPI => ({
   },
 
   async prUpdate(payload: GitHubPullRequestUpdateInput): Promise<GitHubPullRequest> {
-    const response = await fetch(API_ENDPOINTS.github.prUpdate, {
+    const response = await fetch(buildQueryUrl(API_ENDPOINTS.github.prUpdate, repoQueryParams(payload.sourceRepo)), {
       method: HTTP_DEFAULTS.method.post,
       headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
       body: JSON.stringify(payload),
@@ -155,7 +165,7 @@ export const createWebGitHubAPI = (): GitHubAPI => ({
   },
 
   async prMerge(payload: GitHubPullRequestMergeInput): Promise<GitHubPullRequestMergeResult> {
-    const response = await fetch(API_ENDPOINTS.github.prMerge, {
+    const response = await fetch(buildQueryUrl(API_ENDPOINTS.github.prMerge, repoQueryParams(payload.sourceRepo)), {
       method: HTTP_DEFAULTS.method.post,
       headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
       body: JSON.stringify(payload),
@@ -168,7 +178,7 @@ export const createWebGitHubAPI = (): GitHubAPI => ({
   },
 
   async prReady(payload: GitHubPullRequestReadyInput): Promise<GitHubPullRequestReadyResult> {
-    const response = await fetch(API_ENDPOINTS.github.prReady, {
+    const response = await fetch(buildQueryUrl(API_ENDPOINTS.github.prReady, repoQueryParams(payload.sourceRepo)), {
       method: HTTP_DEFAULTS.method.post,
       headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
       body: JSON.stringify(payload),

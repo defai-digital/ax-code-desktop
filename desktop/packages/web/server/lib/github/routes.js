@@ -769,10 +769,12 @@ export function registerGitHubRoutes(app) {
         return res.status(401).json({ error: "GitHub not connected" })
       }
 
-      const { resolveGitHubRepoFromDirectory } = await import("./index.js")
-      const { repo } = await resolveGitHubRepoFromDirectory(directory)
+      // The pull request can live in an upstream repo of this fork's network, and the
+      // client names the one it is showing: resolving from the directory alone acted
+      // on the origin repo's pull request with the same number - an unrelated one.
+      const repo = await resolveRepoForRequest(octokit, directory, getRequestedRepo(req))
       if (!repo) {
-        return res.status(400).json({ error: "Unable to resolve GitHub repo from git remote" })
+        return res.status(400).json({ error: "Unable to resolve the pull request's repository" })
       }
 
       let updated
@@ -845,10 +847,12 @@ export function registerGitHubRoutes(app) {
         return res.status(401).json({ error: "GitHub not connected" })
       }
 
-      const { resolveGitHubRepoFromDirectory } = await import("./index.js")
-      const { repo } = await resolveGitHubRepoFromDirectory(directory)
+      // The pull request can live in an upstream repo of this fork's network, and the
+      // client names the one it is showing: resolving from the directory alone acted
+      // on the origin repo's pull request with the same number - an unrelated one.
+      const repo = await resolveRepoForRequest(octokit, directory, getRequestedRepo(req))
       if (!repo) {
-        return res.status(400).json({ error: "Unable to resolve GitHub repo from git remote" })
+        return res.status(400).json({ error: "Unable to resolve the pull request's repository" })
       }
 
       try {
@@ -888,10 +892,12 @@ export function registerGitHubRoutes(app) {
         return res.status(401).json({ error: "GitHub not connected" })
       }
 
-      const { resolveGitHubRepoFromDirectory } = await import("./index.js")
-      const { repo } = await resolveGitHubRepoFromDirectory(directory)
+      // The pull request can live in an upstream repo of this fork's network, and the
+      // client names the one it is showing: resolving from the directory alone acted
+      // on the origin repo's pull request with the same number - an unrelated one.
+      const repo = await resolveRepoForRequest(octokit, directory, getRequestedRepo(req))
       if (!repo) {
-        return res.status(400).json({ error: "Unable to resolve GitHub repo from git remote" })
+        return res.status(400).json({ error: "Unable to resolve the pull request's repository" })
       }
 
       const pr = await octokit.rest.pulls.get({ owner: repo.owner, repo: repo.repo, pull_number: number })

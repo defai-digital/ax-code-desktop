@@ -942,17 +942,20 @@ export type GitHubPullRequestUpdateInput = {
   number: number
   title: string
   body?: string
+  sourceRepo?: GitHubRepoSelector | null
 }
 
 export type GitHubPullRequestMergeInput = {
   directory: string
   number: number
   method: "merge" | "squash" | "rebase"
+  sourceRepo?: GitHubRepoSelector | null
 }
 
 export type GitHubPullRequestReadyInput = {
   directory: string
   number: number
+  sourceRepo?: GitHubRepoSelector | null
 }
 
 export type GitHubPullRequestReadyResult = {
