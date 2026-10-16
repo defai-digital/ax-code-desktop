@@ -57,6 +57,34 @@ describe("project-config runtime", () => {
     }
   })
 
+  it("refuses a task list an updater did not return as an array", async () => {
+    // `writeScheduledTasksToDisk` deletes the key for an empty list, so the old `Array.isArray(resolved)
+    // ? resolved : []` fallback answered a broken updater by erasing every scheduled task in the project
+    // and logging nothing.
+    const { runtime, cleanup } = await createRuntime()
+    try {
+      await runtime.upsertScheduledTask("project-test", {
+        name: "Nightly digest",
+        enabled: true,
+        schedule: { kind: "daily", time: "09:30", timezone: "UTC" },
+        execution: { prompt: "Summarize repository changes", providerID: "openai", modelID: "gpt-4.1" },
+      })
+
+      await expect(runtime.replaceScheduledTasks("project-test", async () => null)).rejects.toThrow(
+        "expects an array of tasks",
+      )
+      await expect(runtime.replaceScheduledTasks("project-test", async () => undefined)).rejects.toThrow(
+        "expects an array of tasks",
+      )
+
+      const reloaded = await runtime.listScheduledTasks("project-test")
+      expect(reloaded).toHaveLength(1)
+      expect(reloaded[0].name).toBe("Nightly digest")
+    } finally {
+      await cleanup()
+    }
+  })
+
   it("persists catch-up policy and active queue recovery state", async () => {
     const { runtime, cleanup } = await createRuntime()
     try {

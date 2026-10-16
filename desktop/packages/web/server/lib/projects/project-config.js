@@ -538,7 +538,13 @@ export const createProjectConfigRuntime = (deps) => {
       const resolved = Array.isArray(tasksOrUpdater)
         ? tasksOrUpdater
         : await tasksOrUpdater((await readProjectConfigFromDisk(projectID)).scheduledTasks)
-      const nextTasks = Array.isArray(resolved) ? resolved : []
+      // Refused, not coerced: an updater that returns something else is a contract violation, and
+      // `writeScheduledTasksToDisk` deletes the key for an empty list — so the old fallback answered a
+      // broken caller by erasing every scheduled task in the project with nothing logged.
+      if (!Array.isArray(resolved)) {
+        throw new Error(`replaceScheduledTasks expects an array of tasks, received ${typeof resolved}`)
+      }
+      const nextTasks = resolved
       await writeScheduledTasksToDisk(projectID, nextTasks)
       return {
         tasks: nextTasks,
