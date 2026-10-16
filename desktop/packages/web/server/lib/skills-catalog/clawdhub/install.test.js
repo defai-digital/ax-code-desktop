@@ -52,6 +52,34 @@ describe("ClawdHub skill installation", () => {
     }
   })
 
+  test("keeps the installed skill when the overwrite download fails", async () => {
+    // The installed copy used to be deleted before the download, so a network error or a yanked
+    // version left the user with no skill at all while the result reported it as merely "skipped".
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
+    try {
+      const installedDir = path.join(tempRoot, "review-code")
+      await fsPromises.mkdir(installedDir, { recursive: true })
+      await fsPromises.writeFile(path.join(installedDir, "SKILL.md"), "# Review Code\n")
+
+      downloadClawdHubSkill.mockRejectedValueOnce(new Error("network down"))
+
+      const result = await installSkillsFromClawdHub({
+        scope: "user",
+        targetSource: "ax-code",
+        userSkillDir: tempRoot,
+        conflictDecisions: { "review-code": "overwrite" },
+        selections: [{ skillDir: "review-code", clawdhub: { slug: "review-code", version: "1.0.0" } }],
+      })
+
+      expect(result.installed).toEqual([])
+      expect(result.skipped).toHaveLength(1)
+      // The skill the user already had is still there.
+      await expect(fsPromises.readFile(path.join(installedDir, "SKILL.md"), "utf8")).resolves.toContain("Review Code")
+    } finally {
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
   test("rejects unsafe ZIP entry paths before extraction", () => {
     expect(
       validateClawdHubZipEntries({

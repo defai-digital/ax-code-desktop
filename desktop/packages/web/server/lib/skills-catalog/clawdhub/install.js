@@ -162,10 +162,6 @@ export async function installSkillsFromClawdHub({
         continue
       }
 
-      if (exists && decision === "overwrite") {
-        await safeRm(targetDir)
-      }
-
       // Download the skill ZIP
       const zipBuffer = await downloadClawdHubSkill(plan.slug, resolvedVersion)
 
@@ -200,6 +196,14 @@ export async function installSkillsFromClawdHub({
         if (!isEnglishOnlyCatalogItem(catalogItem)) {
           skipped.push({ skillName: plan.slug, reason: "Skill catalog metadata must be English-only" })
           continue
+        }
+
+        // The installed copy is only removed once the replacement is downloaded, extracted and
+        // validated: removing it before the download meant a network error, a yanked version or a bad
+        // ZIP left the user with no skill at all while the result reported it as merely "skipped".
+        // It still has to go before the rename, which cannot land on a non-empty directory.
+        if (exists && decision === "overwrite") {
+          await safeRm(targetDir)
         }
 
         // Move to target directory. tempDir lives under os.tmpdir(), which on
