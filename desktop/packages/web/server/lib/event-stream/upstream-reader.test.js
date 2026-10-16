@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, test } from "vitest"
 
 import { createSseResponse } from "./test-helpers.js"
-import { createUpstreamSseReader } from "./upstream-reader.js"
+import { createUpstreamSseReader, resolveReconnectDelay } from "./upstream-reader.js"
 
 function createTrackedSignal() {
   const listeners = new Set()
@@ -24,6 +24,24 @@ function createTrackedSignal() {
     },
   }
 }
+
+describe("resolveReconnectDelay", () => {
+  test("doubles the delay per consecutive failed attempt, up to the cap", () => {
+    // The delay used to be flat, so a runtime that stayed down was retried at full rate forever -
+    // and every attempt re-reads state.
+    expect(resolveReconnectDelay(250, 1)).toBe(250)
+    expect(resolveReconnectDelay(250, 2)).toBe(500)
+    expect(resolveReconnectDelay(250, 3)).toBe(1000)
+    expect(resolveReconnectDelay(250, 6)).toBe(5000)
+    expect(resolveReconnectDelay(250, 50)).toBe(5000)
+  })
+
+  test("keeps a caller that asked for no delay at no delay", () => {
+    expect(resolveReconnectDelay(0, 1)).toBe(0)
+    expect(resolveReconnectDelay(0, 9)).toBe(0)
+    expect(resolveReconnectDelay(undefined, 3)).toBe(0)
+  })
+})
 
 describe("createUpstreamSseReader buffer ceiling", () => {
   it("drops a stream that never completes an event block instead of buffering forever", async () => {

@@ -47,6 +47,25 @@ function resolveTimeoutMs(value, fallback) {
   return Number.isFinite(resolved) ? resolved : fallback
 }
 
+/**
+ * Delay before the next upstream reconnect attempt.
+ *
+ * A flat delay retried at full rate for as long as the runtime stays unavailable, and every
+ * attempt re-reads state (the ready snapshot, the health probe), so a runtime that is down became
+ * a retry storm from the daemon and every open client. The delay doubles per consecutive failed
+ * attempt up to the cap, and a caller that asks for `0` still gets `0`.
+ */
+export const DEFAULT_UPSTREAM_RECONNECT_MAX_DELAY_MS = 5000
+
+export const resolveReconnectDelay = (baseDelayMs, attempt) => {
+  const base = Number.isFinite(baseDelayMs) ? Math.max(0, baseDelayMs) : 0
+  if (base === 0) {
+    return 0
+  }
+  const consecutive = Number.isFinite(attempt) ? Math.max(1, Math.trunc(attempt)) : 1
+  return Math.min(base * 2 ** (consecutive - 1), Math.max(base, DEFAULT_UPSTREAM_RECONNECT_MAX_DELAY_MS))
+}
+
 function waitForReconnectDelay(ms, signal) {
   if (signal?.aborted) {
     return Promise.resolve()
@@ -138,6 +157,7 @@ export function createUpstreamSseReader({
     attachStopListener()
     stopped = false
     running = (async () => {
+      let reconnectAttempt = 0
       while (!stopped && !signal?.aborted) {
         const controller = new AbortController()
         activeController = controller
@@ -203,9 +223,13 @@ export function createUpstreamSseReader({
               response,
             })
             await cancelResponseBody(response)
-            await waitForReconnectDelay(reconnectDelayMs, signal)
+            reconnectAttempt += 1
+            await waitForReconnectDelay(resolveReconnectDelay(reconnectDelayMs, reconnectAttempt), signal)
             continue
           }
+
+          // The runtime answered: the next failure starts the backoff over.
+          reconnectAttempt = 0
 
           if (typeof isReadyEvent !== "function") {
             attemptConnected = true
@@ -338,7 +362,8 @@ export function createUpstreamSseReader({
         }
 
         if (!stopped && !signal?.aborted) {
-          await waitForReconnectDelay(reconnectDelayMs, signal)
+          reconnectAttempt += 1
+          await waitForReconnectDelay(resolveReconnectDelay(reconnectDelayMs, reconnectAttempt), signal)
         }
       }
     })().finally(() => {
