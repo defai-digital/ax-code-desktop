@@ -1910,11 +1910,14 @@ export const PullRequestSection: React.FC<{
               />
             </label>
 
-            <label className="space-y-1">
+            {/* A <label> around a control that is itself a button makes the whole block - caption
+                and whitespace included - activate it, so clicking beside the field opened the
+                branch list. The trigger carries the field's name for assistive tech instead. */}
+            <div className="space-y-1">
               <div className="typography-micro text-muted-foreground">{t("gitView.pr.field.baseBranch")}</div>
               {availableBaseBranches.length > 0 ? (
                 <Select value={targetBaseBranch} onValueChange={setTargetBaseBranch}>
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger className="h-9" aria-label={t("gitView.pr.field.baseBranch")}>
                     <SelectValue placeholder={t("gitView.pr.placeholder.selectBaseBranch")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1932,7 +1935,7 @@ export const PullRequestSection: React.FC<{
                   placeholder={t("gitView.pr.placeholder.main")}
                 />
               )}
-            </label>
+            </div>
 
             <label className="space-y-1">
               <div className="typography-micro text-muted-foreground">{t("gitView.pr.field.description")}</div>
