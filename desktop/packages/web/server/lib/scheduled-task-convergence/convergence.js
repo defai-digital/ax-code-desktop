@@ -366,7 +366,12 @@ export const createScheduledTaskConvergence = (deps) => {
           // skipped permanently. Both leave the project file.
           settledTaskKeys.add(scheduledTaskKey(task))
           if (outcome.outcome === "skipped") {
-            skipped.push({ project: projectID, task: outcome.taskLabel, reason: outcome.reason })
+            // A task can be skipped again on a later boot when the write that would have removed it from the file
+            // failed, and the marker is a support-facing record: the same skip is listed once.
+            const record = { project: projectID, task: outcome.taskLabel, reason: outcome.reason }
+            if (!skipped.some((entry) => entry.project === record.project && entry.task === record.task && entry.reason === record.reason)) {
+              skipped.push(record)
+            }
             logger.warn("[ScheduledTaskMigration] task skipped", {
               project: projectID,
               task: outcome.taskLabel,
@@ -392,6 +397,16 @@ export const createScheduledTaskConvergence = (deps) => {
           project: projectID,
           error: error?.message || String(error),
         })
+        if (settledTaskKeys.size > 0 && projectRemaining.length === 0) {
+          // Every task this project had is settled and the write that removes them from the file is what failed:
+          // the pass would otherwise report `migrated` for a project whose file still lists them, and the marker's
+          // `migratedAt` stops the next boot from trying again.
+          warnings.push({
+            project: projectID,
+            task: null,
+            warning: "settled tasks could not be removed from the project file",
+          })
+        }
       }
       retryableRemaining += projectRemaining.length
       remainingByFile.set(projectID, projectRemaining)

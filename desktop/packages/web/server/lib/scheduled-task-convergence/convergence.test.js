@@ -171,6 +171,30 @@ describe("scheduled task convergence migration", () => {
     expect(exhaustedRecords.map((entry) => entry.task)).toEqual(["Second"])
   })
 
+  it("records a project whose settled tasks could not be removed from its file", async () => {
+    // `replaceScheduledTasks` failing after every task was handed over left the file listing them while the pass
+    // reported `migrated` and the marker's `migratedAt` stopped the next boot from trying again: nothing recorded
+    // that the removal had failed.
+    const harness = await createHarness({ maxAttempts: 2, listProjects: async () => [{ id: "proj/a", path: "/work/alpha" }] })
+    cleanup = harness.cleanup
+    await harness.writeProject("a.json", {
+      projectID: "proj/a",
+      projectPath: "/work/beta",
+      scheduledTasks: [dailyTask()],
+    })
+
+    const result = await harness.convergence.migrate()
+
+    expect(harness.requests.some((request) => request.method === "POST")).toBe(true)
+    expect(result).toMatchObject({ migrated: true })
+    const marker = await harness.readMarker()
+    expect(marker.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ project: "proj/a", warning: "settled tasks could not be removed from the project file" }),
+      ]),
+    )
+  })
+
   it("resolves a project whose id is too long for its config file name", async () => {
     const harness = await createHarness({
       listProjects: async () => [{ id: `path_${"b".repeat(180)}`, path: "/work/long" }],
