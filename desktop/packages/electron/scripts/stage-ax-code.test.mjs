@@ -53,6 +53,28 @@ describe("resolveStageTarget", () => {
     })
   })
 
+  it("reads the target from --win=nsis style flags and the short aliases", () => {
+    // Only the bare flags were recognised, so `package.mjs --win=nsis --x64` on a Linux host
+    // staged the Linux runtime tree into a Windows build, and the packaged check reported a
+    // placeholder skip because that tree has no bin/ax-code.cmd.
+    expect(resolveStageTarget({ argv: ["--win=nsis", "--x64"], env: {}, platform: "linux", arch: "x64" })).toEqual({
+      platform: "win32",
+      arch: "x64",
+    })
+    expect(resolveStageTarget({ argv: ["--mac=zip"], env: {}, platform: "linux", arch: "x64" })).toEqual({
+      platform: "darwin",
+      arch: "x64",
+    })
+    expect(resolveStageTarget({ argv: ["--linux=AppImage"], env: {}, platform: "win32", arch: "x64" })).toEqual({
+      platform: "linux",
+      arch: "x64",
+    })
+    expect(resolveStageTarget({ argv: ["-w", "--x64"], env: {}, platform: "darwin", arch: "arm64" })).toEqual({
+      platform: "win32",
+      arch: "x64",
+    })
+  })
+
   it("falls back to ELECTRON_BUILDER_ARCH then the host", () => {
     expect(
       resolveStageTarget({ argv: ["--linux"], env: { ELECTRON_BUILDER_ARCH: "x64" }, platform: "darwin" }),

@@ -39,10 +39,27 @@ export function readPinnedAxCodeVersion(electronDir = defaultElectronDir, fsp = 
 
 const PLATFORM_FLAGS = new Map([
   ["--mac", "darwin"],
+  ["-m", "darwin"],
   ["--win", "win32"],
+  ["-w", "win32"],
   ["--windows", "win32"],
   ["--linux", "linux"],
+  ["-l", "linux"],
 ])
+
+/**
+ * electron-builder also takes the target as a `--win=nsis` style value, and the short
+ * `-w`/`-m`/`-l` aliases. Only the bare flags were recognised here, so a cross-platform run
+ * (`package.mjs --win=nsis --x64` on Linux or macOS) staged the *host's* runtime tree; the
+ * launcher check passed because the host launcher exists and the packaged build then shipped the
+ * wrong platform's tree under a placeholder skip. `packaging-target.mjs` reads these the same way.
+ */
+const PLATFORM_PREFIXES = [
+  ["--mac=", "darwin"],
+  ["--win=", "win32"],
+  ["--windows=", "win32"],
+  ["--linux=", "linux"],
+]
 
 /**
  * Derives the packaging target from the electron-builder CLI flags forwarded
@@ -60,7 +77,10 @@ export function resolveStageTarget({
   let flagArch = null
   for (const arg of argv) {
     const flag = typeof arg === "string" ? arg.trim().toLowerCase() : ""
-    if (PLATFORM_FLAGS.has(flag)) {
+    const prefixedPlatform = PLATFORM_PREFIXES.find(([prefix]) => flag.startsWith(prefix))?.[1]
+    if (prefixedPlatform) {
+      flagPlatform = prefixedPlatform
+    } else if (PLATFORM_FLAGS.has(flag)) {
       flagPlatform = PLATFORM_FLAGS.get(flag)
     } else if (flag === "--x64" || flag === "--arm64" || flag === "--armv7l" || flag === "--ia32") {
       flagArch = flag.slice(2)
