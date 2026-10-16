@@ -1305,6 +1305,79 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Twenty-third round
+
+The audit lens on everything landed since the last one — rounds 20 to 22, twenty-seven commits — run by the
+Claude Code CLI and, in parallel, by the Grok CLI; plus the `ui/src/lib` files the previous round named as
+unread, and the settings sections, hooks and contexts trees.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | an audit of the twenty-seven commits since the nineteenth round's audit |
+| Grok CLI | the same diff, independently |
+| deepseek-flash | the `ui/src/lib` files the twenty-second round listed as unread, plus `search/`, `supervision/`, `theme/` |
+| Claude Code CLI | `ui/src/components/sections/**`, `ui/src/hooks/**`, `ui/src/contexts/**` |
+
+Both audits found defects **in this series' own fixes**, nine in total — the highest-yield lens in the whole
+report, and a plain argument for running it every round:
+
+- **`f0bd824c`** — `acdad603` searched the rest of the token for an `@`, so an `@` in a path or query read as
+  userinfo: `http://localhost:5173/@vite/client`, the shape every Vite dev server serves, stopped matching. The
+  search ends at the authority now.
+- **`6a0f2251`** — `656266ce` made `refetchSessionMessages` report a failed read, which `unrevertSession`'s retry
+  loop did not expect: the first transient failure ended the retries and reported a restore that had succeeded
+  server-side as failed.
+- **`cd03dc1e`** — `7c6ae05c` removed the in-run title registration, but the runtime's list is also the resume
+  record and one entry could answer for two same-named tasks: after a partial run, the second was read as
+  already migrated and deleted from the project file. An entry is consumed when it answers for a task now.
+- **`bbb1717b`** — `f61edf6c` leaned on the `diff --git` count for "one file only", and a patch can start a
+  second section without that line: `--- a/other.txt` / `+++ b/other.txt` after the first hunk passed the guard
+  and `git apply` would have staged it. The header search walks the patch, consuming each hunk body by the
+  counts its own header declares.
+- **`861bdf45`** — `6be58872` refused *every* key while a file search ran, but the spinner only covers four
+  arrays: the context rows (terminal, diff, commit picker) stay visible and stopped answering.
+- **`ff7fcf90`** — the double-Escape abort priming was a bare timestamp, so pressing the first Escape in one
+  session and switching within the window aborted whichever session was on screen, with no banner.
+- **`3ecdcb7b`** — `063873d1` replaced the lowercased index with a fixed-width window over the original text,
+  which cannot match when lowercasing *lengthens*: searching for `İstanbul` found nothing, where the older
+  `toLowerCase().indexOf` had found it. The folded text is built code point by code point, with a map back.
+- **`d90aba52`** / **`50cb0b5b`** — `cfbfcda0` claimed a skill name when a directory was first seen, so an
+  uninstallable `review` held the name and a second, installable one was skipped as a duplicate; `f194a96a`
+  swallowed a failed restore and then deleted the backup it had just failed to restore, destroying the last
+  complete copy. The second commit fixes a scope bug in the first: `restoredIntoPlace` was declared inside the
+  `try` and read in the `finally`, which eslint caught (`no-undef`) and I committed through — at runtime the
+  assignment created an implicit global, so the behaviour looked right for a reason the code did not state.
+- **`de32196e`** — `15c0e19f` advanced the "what the disk holds" record for every save that landed, including
+  one whose newer edit was already queued: the record said B while C was on its way out, so reverting the editor
+  to B matched it and C landed. The queue reports a *waiting* write (`hasQueued`) separately from the one in
+  flight, and the record only advances when nothing is queued.
+
+Found by the other two reviewers and fixed:
+
+- **`05ec41c8`** — `McpPage` awaited the pending-context lookup before its `try`, so a rejection left the
+  callback-URL handler with nothing shown and an unhandled rejection.
+- **`94dbbc54`** — a failed *add* reported "Failed to delete plugin", and a failed *update* reported the reload
+  hint ("ax-code reload failed — restart required"); both have their own keys now, added to every catalog.
+- **`25fd8a84`** — `validateContextFileOpen` read with `optional: true`, the flag that tells the engine an absent
+  file is not a failure, and then judged size: a missing plan or context file was reported as openable and the
+  guard's own "File not found" verdict was unreachable. The reviewer confirmed the flag's semantics against the
+  server handler before this became a finding.
+- **`fe759f19`** — the agents and commands editors re-populated their form whenever the object they read through
+  changed identity, so a sidebar delete or create, or a config-change event, dropped whatever was half-typed (the
+  MCP page already guarded this).
+- **`3d484ef8`** — a typing error in `25fd8a84`'s own test (`vi.fn(async () => …)` has an empty argument tuple, so
+  `mock.calls[0][1]` does not compile); the vitest run passed and `pnpm run typecheck` did not.
+
+Reported, verified against the source, and not fixed:
+
+- **`LocalModelsPage`'s refresh guard** (SUSPECTED). `load()` returns while a request for the same directory is in
+  flight, and the action handlers `await load()` to show their result, so a started download can take up to the
+  2 s poll interval to appear. Forcing the load would run two requests for one directory concurrently — the
+  clobbering the guard exists to prevent — and sequencing them properly is machinery this delay does not earn.
+- **The `detectDevServer` substring match** — the reviewer raised it, then refuted it from the call site:
+  `detectDevServerCommand` runs only under the auto-discover action, which discards the project's own actions, so
+  no real action can be mis-selected as the dev server.
+
 ## Twenty-second round
 
 The sibling session's UI feature code (its worktrees are gone, so reviewing and fixing that code no longer risks
@@ -2700,6 +2773,14 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
+- Latest full run, after the twenty-third round's fixes (each command's exit status captured, not inferred from
+  a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+  `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 597, ui 2 907, web 1 266 (+2 skipped),
+  0 `FAIL` lines, 14 locales / 4 800 keys / 62 400 entries. The first run of this set failed twice and neither was
+  the code under test: three `no-unused-vars` errors in the round's own new test (fixed in `d7a98647`) and
+  `server/lib/ax-code/cli-install.test.js` "accepts an upgrade with 202" answering 401 — the same load-related
+  signature as the other flakes below, and the file passes in isolation. The run above, with the machine quiet,
+  is the one to read.
 - Latest full run, after the twenty-second round's fixes (each command's exit status captured, not inferred
   from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 597, ui 2 895, web 1 262
