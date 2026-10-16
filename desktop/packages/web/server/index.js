@@ -37,6 +37,7 @@ import { createFeatureRoutesRuntime } from "./lib/ax-code/feature-routes-runtime
 import { parseServeCliOptions } from "./lib/ax-code/cli-options.js"
 import {
   createApiRequestSecurityMiddleware,
+  registerApiSessionGate,
   registerAuthAndAccessRoutes,
   registerCommonRequestMiddleware,
   registerServerStatusRoutes,
@@ -825,6 +826,7 @@ const featureRoutesRuntime = createFeatureRoutesRuntime({
 const bootstrapRuntime = createBootstrapRuntime({
   createUiAuth,
   registerServerStatusRoutes,
+  registerApiSessionGate,
   registerCommonRequestMiddleware,
   registerAuthAndAccessRoutes,
   registerNotificationRoutes,
