@@ -37,7 +37,11 @@ became fixes came from the read-only reviews, and every one of them was re-check
 in the source before any fix. Three external invocations were refused by the
 upstream provider (HTTP 403 `upstream_permission_error` for `grok-4.7` and
 `k3-256k`; "upstream rejected the request" for `claude-sonnet-5-5`) and their
-scopes were reassigned to another model.
+scopes were reassigned to another model. Both obstacles were cleared for the later
+rounds — the Muse CLI runs with `--trust-workspace`, and the Grok CLI's prompt tells it
+to read and grep only, since its plan mode cannot approve a shell command — and those
+rounds' findings are recorded in their own sections below, led by the reviewer table
+that produced them.
 
 The comparison method: every fix that has a regression test was verified by running
 that test against the pre-fix source and observing the expected failure, then
