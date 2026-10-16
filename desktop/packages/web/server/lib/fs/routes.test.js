@@ -895,13 +895,17 @@ describe("fs core file adapter responses", () => {
     expect(fsPromises.rm).toHaveBeenCalledWith("/repo/stale.txt", { recursive: true })
   })
 
-  it("deletes the path the containment check resolved, not the requested string", async () => {
+  it("deletes through an intermediate symlink that the check resolved", async () => {
     // The check resolves through a cache, so acting on the raw path could follow a
     // component that turned into a symlink after the cached check.
     const fsPromises = {
       rm: vi.fn(async () => undefined),
+      // A link at an intermediate component: both the link and everything through it resolve under
+      // the real directory, as they would on disk.
       realpath: vi.fn(async (targetPath) =>
-        targetPath === "/repo/link/notes.txt" ? "/repo/real/notes.txt" : targetPath,
+        targetPath === "/repo/link" || targetPath.startsWith("/repo/link/")
+          ? `/repo/real${targetPath.slice("/repo/link".length)}`
+          : targetPath,
       ),
     }
     const { getRoute } = registerFs(fsPromises)
@@ -910,6 +914,49 @@ describe("fs core file adapter responses", () => {
 
     expect(res.statusCode).toBe(200)
     expect(fsPromises.rm).toHaveBeenCalledWith("/repo/real/notes.txt", { recursive: true })
+  })
+
+  it("deletes a symlinked entry itself, not what it points at", async () => {
+    // `realpath` resolves the entry, so removing its answer deleted the target and left the link
+    // dangling: a link to a directory took the whole directory with it.
+    const fsPromises = {
+      rm: vi.fn(async () => undefined),
+      realpath: vi.fn(async (targetPath) =>
+        targetPath === "/repo/pointing.txt" ? "/repo/real/target.txt" : targetPath,
+      ),
+    }
+    const { getRoute } = registerFs(fsPromises)
+
+    const res = await callRoute(getRoute("POST", "/api/fs/delete"), { body: { path: "/repo/pointing.txt" } })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ success: true, path: "/repo/pointing.txt" })
+    expect(fsPromises.rm).toHaveBeenCalledWith("/repo/pointing.txt", { recursive: true })
+  })
+
+  it("stops answering with the miss it cached before the entry existed", async () => {
+    // The cache stores a failed lookup for its failure TTL, so a directory that did not exist when
+    // it was first listed stayed "not found" for 60 s after it was created.
+    const existingPaths = new Set(["/repo"])
+    const fsPromises = {
+      mkdir: vi.fn(async (targetPath) => existingPaths.add(targetPath)),
+      realpath: vi.fn(async (targetPath) => {
+        if (!existingPaths.has(targetPath)) {
+          throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+        }
+        return targetPath
+      }),
+    }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, { list: async () => [] })
+    const listRoute = getRoute("GET", "/api/fs/list")
+    const missing = await callRoute(listRoute, { query: { path: "/repo/notes" } })
+    expect(missing.statusCode).toBe(404)
+
+    const created = await callRoute(getRoute("POST", "/api/fs/mkdir"), { body: { path: "/repo/notes" } })
+    expect(created.statusCode).toBe(200)
+
+    const listed = await callRoute(listRoute, { query: { path: "/repo/notes" } })
+    expect(listed.statusCode).toBe(200)
   })
 
   it("refuses to delete the workspace root itself", async () => {
@@ -984,6 +1031,27 @@ describe("fs rename", () => {
     expect(res.statusCode).toBe(200)
     expect(res.body).toEqual({ success: true, path: "/repo/b.txt" })
     expect(fsPromises.rename).toHaveBeenCalledWith("/repo/a.txt", "/repo/b.txt")
+  })
+
+  it("renames a symlinked entry itself, not what it points at", async () => {
+    const fsPromises = {
+      realpath: vi.fn(async (targetPath) => {
+        if (targetPath === "/repo") return "/repo"
+        if (targetPath === "/repo/pointing.txt") return "/repo/real/target.txt"
+        if (targetPath === "/repo/moved.txt") throw missing()
+        return targetPath
+      }),
+      rename: vi.fn(async () => undefined),
+    }
+    const { getRoute } = registerFs(fsPromises)
+
+    const res = await callRoute(getRoute("POST", "/api/fs/rename"), {
+      body: { oldPath: "/repo/pointing.txt", newPath: "/repo/moved.txt" },
+    })
+
+    expect(res.statusCode).toBe(200)
+    // Renaming the target left the link pointing at a name that no longer exists.
+    expect(fsPromises.rename).toHaveBeenCalledWith("/repo/pointing.txt", "/repo/moved.txt")
   })
 
   it("allows a case-only rename on a case-insensitive filesystem", async () => {

@@ -404,6 +404,17 @@ export function createTerminalRuntime({
         return
       }
 
+      // The ping alone left a peer that stopped answering — a slept laptop, a changed network, a
+      // half-open socket — holding its session binding and this interval until the operating system
+      // noticed, which can take minutes or never. Any frame from the peer counts as liveness, so a
+      // client that is only sending input is never ended; two silent intervals are.
+      if (Date.now() - connectionState.lastActivityAt > TERMINAL_INPUT_WS_HEARTBEAT_INTERVAL_MS * 2) {
+        try {
+          socket.terminate()
+        } catch {}
+        return
+      }
+
       try {
         socket.ping()
       } catch {}

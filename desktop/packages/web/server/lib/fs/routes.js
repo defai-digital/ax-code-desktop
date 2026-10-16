@@ -490,6 +490,29 @@ export const registerFsRoutes = (app, dependencies) => {
     }
   }
 
+  // Canonicalizes the path's directory chain but keeps its final entry as the user wrote it, for the
+  // routes that act *on* that entry. `realpath` resolves a symlink in the final position to its
+  // target, so deleting or renaming through it removed the target and left the link dangling; the
+  // entry is named literally instead of followed, while an intermediate component is still resolved
+  // through the same cache the containment check used.
+  const resolveEntryPathKeepingFinalName = async ({ resolvedPath, basePath }) => {
+    const absoluteTarget = path.resolve(resolvedPath)
+    const canonicalBase = await resolveCanonicalBase(basePath)
+    const canonicalParent = await realpathCache.resolve(path.dirname(absoluteTarget))
+    const entryPath = path.join(canonicalParent, path.basename(absoluteTarget))
+
+    if (!isPathWithinRoot(entryPath, canonicalBase, path, os)) {
+      return { ok: false, statusCode: 403, error: "Access to path denied" }
+    }
+
+    return { ok: true, path: entryPath, base: canonicalBase }
+  }
+
+  // The cache answers by path, so an entry created or removed since its last lookup must not keep
+  // answering with the old answer: a directory that did not exist when it was first listed stayed
+  // "missing" for the rest of the failure TTL (60 s) after it was created.
+  const invalidateRealpathCache = () => realpathCache.clear()
+
   const rejectSymlinkEscape = async ({ resolvedPath, basePath }) => {
     const [canonicalPath, canonicalBase] = await Promise.all([
       realpathCache.resolve(resolvedPath),
@@ -770,6 +793,7 @@ export const registerFsRoutes = (app, dependencies) => {
       const resolvedPath = writable.path
 
       await fsPromises.mkdir(resolvedPath, { recursive: true })
+      invalidateRealpathCache()
       return res.json({ success: true, path: resolvedPath })
     } catch (error) {
       console.error("Failed to create directory:", error)
@@ -1180,6 +1204,7 @@ export const registerFsRoutes = (app, dependencies) => {
 
       await fsPromises.mkdir(path.dirname(writable.path), { recursive: true })
       await fsPromises.writeFile(writable.path, content, "utf8")
+      invalidateRealpathCache()
       return res.json({ success: true, path: writable.path })
     } catch (error) {
       const err = error
@@ -1210,7 +1235,7 @@ export const registerFsRoutes = (app, dependencies) => {
       if (!resolved.ok) {
         return res.status(400).json({ error: resolved.error })
       }
-      const canonical = await rejectSymlinkEscape({
+      const canonical = await resolveEntryPathKeepingFinalName({
         resolvedPath: resolved.resolved,
         basePath: resolved.base,
       })
@@ -1225,10 +1250,13 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(400).json({ error: "Cannot delete the workspace root" })
       }
 
-      // Remove the path the containment check validated, not the raw string: the
+
+      // Remove the entry the containment check validated, not the raw string: the
       // check resolves through a cache, so acting on the raw path could follow a
-      // component that became a symlink since.
+      // component that became a symlink since. Its final name stays as written, so
+      // deleting a symlink removes the link and not whatever it points at.
       await fsPromises.rm(canonical.path, { recursive: true })
+      invalidateRealpathCache()
       return res.json({ success: true, path: canonical.path })
     } catch (error) {
       const err = error
@@ -1265,7 +1293,7 @@ export const registerFsRoutes = (app, dependencies) => {
       if (!resolvedOld.ok) {
         return res.status(400).json({ error: resolvedOld.error })
       }
-      const canonicalOld = await rejectSymlinkEscape({
+      const canonicalOld = await resolveEntryPathKeepingFinalName({
         resolvedPath: resolvedOld.resolved,
         basePath: resolvedOld.base,
       })
@@ -1312,6 +1340,7 @@ export const registerFsRoutes = (app, dependencies) => {
       const renameTarget = destinationRealPath ? resolvedNew.resolved : writableNew.path
 
       await fsPromises.rename(canonicalOld.path, renameTarget)
+      invalidateRealpathCache()
       return res.json({ success: true, path: renameTarget })
     } catch (error) {
       const err = error
