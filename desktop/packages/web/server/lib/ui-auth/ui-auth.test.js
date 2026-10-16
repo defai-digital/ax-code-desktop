@@ -1,7 +1,9 @@
+import express from "express"
 import fs from "fs"
 import os from "os"
 import path from "path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import request from "supertest"
 
 import { derivePasswordBinding } from "./ui-auth.js"
 
@@ -196,5 +198,39 @@ describe("jwt secret strength", () => {
       else process.env.AX_CODE_JWT_SECRET = originalSecret
       vi.resetModules()
     }
+  })
+})
+
+describe("ui auth unauthorized responses", () => {
+  let tempRoot
+  const originalDataDir = process.env.AX_CODE_DESKTOP_DATA_DIR
+
+  beforeEach(() => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-ui-auth-mounted-"))
+    process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
+    vi.resetModules()
+  })
+
+  afterEach(() => {
+    fs.rmSync(tempRoot, { recursive: true, force: true })
+    if (originalDataDir === undefined) delete process.env.AX_CODE_DESKTOP_DATA_DIR
+    else process.env.AX_CODE_DESKTOP_DATA_DIR = originalDataDir
+    vi.resetModules()
+  })
+
+  it("answers an unauthenticated request to a mounted /api route with JSON", async () => {
+    // `req.path` inside a mounted middleware excludes the mount point, so it is "/sessions", never
+    // "/api/sessions": the API branch of `respondUnauthorized` could not run, and a client sending the default
+    // `Accept: */*` got text/plain where the contract promises { error, locked }.
+    const { createUiAuth } = await import("./ui-auth.js")
+    const auth = createUiAuth({ password: "correct horse battery staple" })
+    const app = express()
+    app.use("/api", auth.requireAuth)
+    app.get("/api/sessions", (_req, res) => res.json({ ok: true }))
+
+    const response = await request(app).get("/api/sessions").agent(false).set("Accept", "*/*")
+
+    expect(response.status).toBe(401)
+    expect(response.body).toEqual({ error: "UI authentication required", locked: true })
   })
 })

@@ -547,7 +547,11 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
   const respondUnauthorized = (req, res) => {
     res.status(401)
     const acceptsJson = req.headers.accept?.includes("application/json")
-    if (acceptsJson || req.path.startsWith("/api")) {
+    // `req.path` is relative to the mount point inside a mounted middleware: under `app.use("/api", …)` it is
+    // "/sessions", never "/api/sessions", so the API branch never ran and an API client that sends the default
+    // `Accept: */*` got text/plain. The full request URL is what the test has to use.
+    const requestUrl = typeof req.originalUrl === "string" ? req.originalUrl : req.path
+    if (acceptsJson || requestUrl.startsWith("/api")) {
       res.json({ error: "UI authentication required", locked: true })
     } else {
       res.type("text/plain").send("Authentication required")
