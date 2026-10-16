@@ -538,19 +538,26 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
       pendingWriteRef.current = ""
 
       isWritingRef.current = true
-      term.write(chunk, () => {
-        isWritingRef.current = false
-        if (pendingWriteRef.current) {
-          if (typeof window !== "undefined") {
-            writeScheduledRef.current = window.requestAnimationFrame(() => {
-              writeScheduledRef.current = null
+      try {
+        term.write(chunk, () => {
+          isWritingRef.current = false
+          if (pendingWriteRef.current) {
+            if (typeof window !== "undefined") {
+              writeScheduledRef.current = window.requestAnimationFrame(() => {
+                writeScheduledRef.current = null
+                flushWrites()
+              })
+            } else {
               flushWrites()
-            })
-          } else {
-            flushWrites()
+            }
           }
-        }
-      })
+        })
+      } catch (error) {
+        // A write that throws must not leave the state latched: every later flush returns
+        // on this flag, so one throw silently dropped all subsequent terminal output.
+        isWritingRef.current = false
+        console.warn("[terminal] failed to write to the viewport", error)
+      }
     }, [resetWriteState])
 
     const scheduleFlushWrites = React.useCallback(() => {
@@ -1083,11 +1090,15 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
           const fitAddon = new FitAddon()
 
           localTerminal = terminal
-          terminalRef.current = terminal
-          fitAddonRef.current = fitAddon
 
           terminal.loadAddon(fitAddon)
           terminal.open(container)
+          // Publish the refs only once the terminal is usable. open() can throw (a wasm or
+          // renderer failure), and a published ref then pointed at a terminal whose every
+          // method throws: the chunks effect read it as live and its reset() tripped the
+          // error boundary, while writes latched the write state and dropped all output.
+          terminalRef.current = terminal
+          fitAddonRef.current = fitAddon
           bumpTerminalReady()
           cursorBlinkStateRef.current = false
 
@@ -1198,6 +1209,12 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
         viewportRef.current = null
         lastReportedSizeRef.current = null
         cursorBlinkStateRef.current = null
+        // The key probe is a chained timeout that fires after teardown otherwise, and every
+        // other deferred handle in this effect is cancelled above.
+        if (keydownProbeTimeoutRef.current !== null) {
+          window.clearTimeout(keydownProbeTimeoutRef.current)
+          keydownProbeTimeoutRef.current = null
+        }
         resetWriteState()
       }
     }, [

@@ -61,4 +61,23 @@ describe("TerminalView source guards", () => {
     expect(viteConfigSource).toContain('server.middlewares.use("/ghostty-vt.wasm"')
     expect(terminalViewportSource).toContain("onInitializeError")
   })
+
+  test("publishes the terminal refs only after the terminal opened successfully", async () => {
+    const source = await readFile(path.resolve(__dirname, "../terminal/TerminalViewport.tsx"), "utf8")
+
+    // open() can throw (a wasm or renderer failure). Ref publishing it beforehand left a ref
+    // pointing at a terminal whose every method throws, so the chunks effect reset it and
+    // tripped the error boundary while writes latched the write state and dropped output.
+    const openedAt = source.indexOf("terminal.open(container)")
+    expect(openedAt).toBeGreaterThan(-1)
+    expect(source.indexOf("terminalRef.current = terminal")).toBeGreaterThan(openedAt)
+    expect(source.indexOf("fitAddonRef.current = fitAddon")).toBeGreaterThan(openedAt)
+  })
+
+  test("clears the write latch when a viewport write throws", async () => {
+    const source = await readFile(path.resolve(__dirname, "../terminal/TerminalViewport.tsx"), "utf8")
+
+    expect(source).toMatch(/try \{\n\s+term\.write\(chunk, \(\) => \{/)
+    expect(source).toMatch(/\} catch \(error\) \{\n\s+\/\/ A write that throws[\s\S]*?isWritingRef\.current = false/)
+  })
 })
