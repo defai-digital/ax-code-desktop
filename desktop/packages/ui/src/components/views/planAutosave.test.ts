@@ -11,6 +11,32 @@ const createDeferred = <T>() => {
   return { promise, resolve, reject }
 }
 
+describe("PlanSaveQueue queued-write reporting", () => {
+  test("separates a write waiting behind the one in flight from the one being written", async () => {
+    // `hasPending` is true for the entry being written, so it cannot answer "is there a newer write?" — which is
+    // what deciding whether the disk holds the content of a save that just landed needs.
+    const firstSave = createDeferred<void>()
+    const queue = new PlanSaveQueue({
+      save: async () => {
+        await firstSave.promise
+      },
+      isLatestEntry: () => false,
+      onLatestError: vi.fn(),
+    })
+
+    const first = queue.enqueue({ path: "/repo/plan.md", content: "one" })
+    expect(queue.hasPending("/repo/plan.md")).toBe(true)
+    expect(queue.hasQueued("/repo/plan.md")).toBe(false)
+
+    const second = queue.enqueue({ path: "/repo/plan.md", content: "two" })
+    expect(queue.hasQueued("/repo/plan.md")).toBe(true)
+
+    firstSave.resolve()
+    await Promise.all([first, second])
+    expect(queue.hasQueued("/repo/plan.md")).toBe(false)
+  })
+})
+
 describe("PlanSaveQueue disk reporting", () => {
   test("reports every write that reached the disk, not only the latest one", () => {
     // The caller records "what the disk holds" from this callback. Reporting only the latest entry left the

@@ -31,6 +31,9 @@ describe("PlanView mount contract", () => {
     // text and back to it looked like "nothing to save" while the file kept the newer text: the successful
     // save has to move the record forward too.
     expect(source).toContain("loadedContentRef.current = entry.content")
+    // …unless a newer write is already queued: that content is not what the disk will hold, and recording it made
+    // a revert to it look like "nothing to save" while the newer write went out anyway.
+    expect(source).toContain("if (saveQueueRef.current?.hasQueued(entry.path))")
   })
 
   test("drops the queued edit when the content matches the disk again", async () => {

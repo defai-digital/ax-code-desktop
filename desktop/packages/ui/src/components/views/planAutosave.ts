@@ -58,6 +58,14 @@ export class PlanSaveQueue {
     return this.activeByPath.has(path) || this.queuedByPath.has(path)
   }
 
+  /**
+   * Whether a write is waiting behind the one in flight for this path. `onSaved` consults it: the content of the
+   * entry that just landed is not what the disk will hold when a newer edit is already queued.
+   */
+  hasQueued(path: string): boolean {
+    return this.queuedByPath.has(path)
+  }
+
   private async drain(path: string): Promise<void> {
     while (true) {
       const entry = this.queuedByPath.get(path)

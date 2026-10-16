@@ -178,10 +178,15 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
       isLatestEntry: (entry: PlanSaveQueueEntry) =>
         mountedRef.current && resolvedPathRef.current === entry.path && contentRef.current === entry.content,
       onSaved: (entry) => {
-        // What the disk holds now. Reported for every write, not only the latest one: a save that completes
-        // after the user has already typed past it still means the disk holds that content, and leaving the
-        // record behind made a later revert to the older text look like "nothing to save" — the edit was
-        // dropped and the file kept the newer content.
+        // What the disk holds. Reported for every write, not only the latest one: a save that completes after the
+        // user has typed past it still leaves the disk holding that content, and leaving the record behind made a
+        // later revert to the older text look like "nothing to save" — the edit was dropped and the file kept the
+        // newer content. A newer write that is already queued is the exception: that content is not what the disk
+        // will hold, and recording it made the same revert look like "nothing to save" while the newer write went
+        // out anyway.
+        if (saveQueueRef.current?.hasQueued(entry.path)) {
+          return
+        }
         loadedContentRef.current = entry.content
       },
       onLatestSaved: (entry) => {
