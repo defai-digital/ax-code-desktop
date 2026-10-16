@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import {
   useAgentsStore,
   isAgentBuiltIn,
-  isAgentHidden,
+  isAgentManageable,
   type AgentScope,
   type AgentDraft,
 } from "@/stores/useAgentsStore"
@@ -70,7 +70,7 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
   const [renameDialogAgent, setRenameDialogAgent] = React.useState<Agent | null>(null)
   const [renameNewName, setRenameNewName] = React.useState("")
   const [confirmActionAgent, setConfirmActionAgent] = React.useState<Agent | null>(null)
-  const [confirmActionType, setConfirmActionType] = React.useState<"delete" | "reset" | null>(null)
+  const [confirmActionType, setConfirmActionType] = React.useState<"delete" | null>(null)
   const [isConfirmActionPending, setIsConfirmActionPending] = React.useState(false)
   const [openMenuAgent, setOpenMenuAgent] = React.useState<string | null>(null)
 
@@ -119,15 +119,6 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
     setConfirmActionType("delete")
   }
 
-  const handleResetAgent = async (agent: Agent) => {
-    if (!isAgentBuiltIn(agent)) {
-      return
-    }
-
-    setConfirmActionAgent(agent)
-    setConfirmActionType("reset")
-  }
-
   const closeConfirmActionDialog = () => {
     setConfirmActionAgent(null)
     setConfirmActionType(null)
@@ -142,16 +133,10 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
     const success = await deleteAgent(confirmActionAgent.name)
 
     if (success) {
-      if (confirmActionType === "delete") {
-        toast.success(t("settings.agents.sidebar.toast.agentDeleted", { name: confirmActionAgent.name }))
-      } else {
-        toast.success(t("settings.agents.sidebar.toast.agentReset", { name: confirmActionAgent.name }))
-      }
+      toast.success(t("settings.agents.sidebar.toast.agentDeleted", { name: confirmActionAgent.name }))
       closeConfirmActionDialog()
-    } else if (confirmActionType === "delete") {
-      toast.error(t("settings.agents.sidebar.toast.deleteFailed"))
     } else {
-      toast.error(t("settings.agents.sidebar.toast.resetFailed"))
+      toast.error(t("settings.agents.sidebar.toast.deleteFailed"))
     }
 
     setIsConfirmActionPending(false)
@@ -263,8 +248,9 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
     }
   }
 
-  // Filter out hidden agents (internal agents like title, compaction, summary)
-  const visibleAgents = agents.filter((agent) => !isAgentHidden(agent))
+  // Hidden agents are dropped unless a config file backs them: those are the user's own, and
+  // hiding them here left them impossible to open, rename or delete in the app.
+  const visibleAgents = agents.filter(isAgentManageable)
   const builtInAgents = visibleAgents.filter(isAgentBuiltIn)
   const customAgents = visibleAgents.filter((agent) => !isAgentBuiltIn(agent))
 
@@ -330,7 +316,6 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
                       setSelectedAgent(agent.name)
                       onItemSelect?.()
                     }}
-                    onReset={() => handleResetAgent(agent)}
                     onDuplicate={() => handleDuplicateAgent(agent)}
                     getAgentModeIcon={getAgentModeIcon}
                     isMenuOpen={openMenuAgent === agent.name}
@@ -403,15 +388,9 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {confirmActionType === "delete"
-                ? t("settings.agents.sidebar.dialog.deleteTitle")
-                : t("settings.agents.sidebar.dialog.resetTitle")}
-            </DialogTitle>
+            <DialogTitle>{t("settings.agents.sidebar.dialog.deleteTitle")}</DialogTitle>
             <DialogDescription>
-              {confirmActionType === "delete"
-                ? t("settings.agents.sidebar.dialog.deleteDescription", { name: confirmActionAgent?.name ?? "" })
-                : t("settings.agents.sidebar.dialog.resetDescription", { name: confirmActionAgent?.name ?? "" })}
+              {t("settings.agents.sidebar.dialog.deleteDescription", { name: confirmActionAgent?.name ?? "" })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -419,9 +398,7 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
               {t("settings.common.actions.cancel")}
             </Button>
             <Button size="sm" onClick={handleConfirmAction} disabled={isConfirmActionPending}>
-              {confirmActionType === "delete"
-                ? t("settings.common.actions.delete")
-                : t("settings.common.actions.reset")}
+              {t("settings.common.actions.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -466,7 +443,6 @@ interface AgentListItemProps {
   isSelected: boolean
   onSelect: () => void
   onDelete?: () => void
-  onReset?: () => void
   onRename?: () => void
   onDuplicate: () => void
   getAgentModeIcon: (mode?: string) => React.ReactNode
@@ -479,7 +455,6 @@ const AgentListItem: React.FC<AgentListItemProps> = ({
   isSelected,
   onSelect,
   onDelete,
-  onReset,
   onRename,
   onDuplicate,
   getAgentModeIcon,
@@ -559,17 +534,6 @@ const AgentListItem: React.FC<AgentListItemProps> = ({
               {t("settings.common.actions.duplicate")}
             </DropdownMenuItem>
 
-            {onReset && (
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onReset()
-                }}
-              >
-                <Icon name="restart" className="h-4 w-4 mr-px" />
-                {t("settings.common.actions.reset")}
-              </DropdownMenuItem>
-            )}
 
             {onDelete && (
               <DropdownMenuItem

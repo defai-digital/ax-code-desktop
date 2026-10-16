@@ -43,6 +43,23 @@ export const isAgentHidden = (agent: Agent): boolean => {
 export const filterVisibleAgents = (agents: Agent[]): Agent[] => agents.filter((agent) => !isAgentHidden(agent))
 
 /**
+ * Whether Settings → Agents should list this agent.
+ *
+ * Runtime-internal agents (title, compaction, summary) are hidden and are none of the user's
+ * business, but a hidden agent backed by a config file is the user's own: dropping it from the
+ * list made it unreachable, with hand-editing that file the only way to change or remove it. The
+ * file-backed scope is what tells the two apart; a hidden agent whose scope is not known yet
+ * stays hidden.
+ */
+export const isAgentManageable = (agent: Agent): boolean => {
+  if (!isAgentHidden(agent)) {
+    return true
+  }
+  const scope = (agent as AgentWithExtras).scope
+  return scope === "project" || scope === "user"
+}
+
+/**
  * Access point to the single agents home without a store→store import edge.
  * Registered by `useAgentsStore` at module load; consumers tolerate a null
  * source (treated as "no agents loaded yet").
