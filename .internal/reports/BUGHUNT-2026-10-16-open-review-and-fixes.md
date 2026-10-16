@@ -2290,8 +2290,9 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 - Latest full run, after the fifteenth round's fixes (each command's exit status captured, not inferred
   from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
-  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 775, web 1 193
-  (+2 skipped). The lint run's only output is a pre-existing `react-hooks/exhaustive-deps` warning in
+  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 778, web 1 193
+  (+2 skipped). (After the sixteenth round: the falsification pass and the session-folder validation it
+  turned up, and the expiry added to the project-knowledge cache.) The lint run's only output is a pre-existing `react-hooks/exhaustive-deps` warning in
   `ui/src/sync/use-sync.ts`.
 - Two runs during that round failed one test each, both of the load-related kind below and both green in
   isolation: `server/lib/ax-code/dev-shutdown-auth.test.js` "refuses an unauthenticated caller…" (a
