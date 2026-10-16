@@ -63,6 +63,7 @@ const waitForInstallStart = ({
       if (timer) clearTimeout(timer)
       nativeUpdater?.removeListener?.("before-quit-for-update", onStarted)
       updater?.removeListener?.("error", onFailed)
+      if (nativeUpdater !== updater) nativeUpdater?.removeListener?.("error", onFailed)
       resolve(started)
     }
     const onStarted = () => finish(true)
@@ -72,10 +73,16 @@ const waitForInstallStart = ({
     timer.unref?.()
     nativeUpdater?.once?.("before-quit-for-update", onStarted)
     updater?.once?.("error", onFailed)
+    if (nativeUpdater !== updater) nativeUpdater?.once?.("error", onFailed)
     try {
       start?.()
     } catch {
       onFailed()
+    } finally {
+      // After handoff, wrapper errors may belong to unrelated background
+      // checks. Native staging errors still arrive on the native updater;
+      // wrapper errors emitted synchronously by quitAndInstall are handled above.
+      if (nativeUpdater !== updater) updater?.removeListener?.("error", onFailed)
     }
   })
 

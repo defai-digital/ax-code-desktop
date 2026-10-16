@@ -20,9 +20,11 @@
     "muse-fixed-timeout": "Recorded existing limitation, not a cancellation promise: the existing observation deadline can precede a late native install. No platform cancellation or force-exit policy is invented.",
     "muse-fixed-cleanup-hang": "Existing unbounded service shutdown can block quitting both before and after this patch. Not counted as fixed; no unsupported claim of complete installation after the start signal.",
     "grok-parent-ownership": "Reproduced and fixed: forks relinquish parent ownership of shared buckets.",
-    "grok-batch-atomicity": "Not adopted. Batch processing intentionally isolates malformed events and preserves valid deltas, as existing regressions assert. Production batches contain only consecutive deltas separated by snapshot/lifecycle barriers. onResult failures are observer/handler errors after a valid reduction, not an instruction to discard streamed data. The proposed all-or-nothing/rollback behavior would lose valid deltas and is not the implemented contract."
+    "grok-batch-atomicity": "Not adopted. Batch processing intentionally isolates malformed events and preserves valid deltas, as existing regressions assert. Production batches contain only consecutive deltas separated by snapshot/lifecycle barriers. onResult failures are observer/handler errors after a valid reduction, not an instruction to discard streamed data. The proposed all-or-nothing/rollback behavior would lose valid deltas and is not the implemented contract.",
+    "muse-fixed-background-error": "Reproduced against the initial candidate: wrapper background-check errors incorrectly ended native staging observation. Fixed by observing wrapper errors only during the synchronous install call and native staging errors through settlement; new regressions pass. Muse final follow-up confirmed the Mac production-wiring lead addressed and found no concrete regression in scope."
   },
   "reviewSha256": {
+    "muse-qualified-review.txt": "12c153b432c4d8ef921d4721c660204e5eac934bbd92cddf00297c3805a5ac90",
     "muse-fixed-review.txt": "77c23c4b1e7c1475ae9938b10cf489667feb12672353b1d1e79d9ff9655b8c85",
     "muse-review.txt": "f6693936ff42db4ffdfda52b38b6070aa57f38c28d92b875d8d6bf0c617bce80",
     "grok-review.txt": "d6d556a33f8e2c5ec3237c9b6b86ab7264b0dc8747cb32001b8ef51192a08aed"
@@ -31,6 +33,16 @@
   "reviewedSources": {
     "muse": "11eae3e53d7952112ec91911f14de73cdc1d39a0",
     "grok": "11eae3e53d7952112ec91911f14de73cdc1d39a0",
-    "museFixed": "Proposed updater fix snapshot in muse-fixed-prompt.txt"
+    "museFixed": "Proposed updater fix snapshot in muse-fixed-prompt.txt",
+    "museQualified": "Final updater helper snapshot in muse-qualified-prompt.txt"
+  },
+  "museQualifiedReviewExitCode": 0,
+  "supersededCandidate": {
+    "commit": "38c7ff3f1a98aa769e58948629ba6cdd72065e8e",
+    "ci": 38861934785,
+    "codeql": 38861937729,
+    "shadow": 38861940683,
+    "shadowConclusion": "cancelled",
+    "evidenceReused": false
   }
 }

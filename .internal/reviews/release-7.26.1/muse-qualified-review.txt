@@ -1,0 +1,5 @@
+muse: workspace root: /tmp/ax-desktop-7.26.1-review (explicit)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+Top finding: the unrelated-background-error lead is addressed for the stated Mac production wiring, and I found no concrete regression.
+
+After `start()` returns, [the helper](/tmp/ax-desktop-7.26.1-review) removes only the wrapper `error` listener when `nativeUpdater !== updater`, so asynchronous wrapper background-check errors during staging no longer settle the observer or clear the gate. Synchronous `quitAndInstall()`/BaseUpdater errors are still caught before that removal, including thrown errors. Genuine Mac staging failures remain observable through the separate native `error` listener, and success remains observable through native `before-quit-for-update`, until settlement or the pre-existing deadline. The permanent wrapper error logger also prevents an unhandled EventEmitter `error` after listener removal. Native-channel errors are still treated as staging failures by design; that is pre-existing and indistinguishable from native staging errors, not a new regression.

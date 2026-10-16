@@ -129,6 +129,28 @@ describe("waitForInstallStart", () => {
     expect(app.listenerCount("before-quit")).toBe(0)
   })
 
+  test("ignores a background check error after handing installation to the native updater", async () => {
+    const updater = new EventEmitter()
+    const nativeUpdater = new EventEmitter()
+    updater.on("error", vi.fn())
+    const result = waitForInstallStart({ updater, nativeUpdater, start: vi.fn() })
+    updater.emit("error", new Error("background check offline"))
+    nativeUpdater.emit("before-quit-for-update")
+    await expect(result).resolves.toBe(true)
+    expect(nativeUpdater.listenerCount("error")).toBe(0)
+  })
+
+  test("reports native staging errors after the initial installer call returns", async () => {
+    const updater = new EventEmitter()
+    const nativeUpdater = new EventEmitter()
+    const result = waitForInstallStart({ updater, nativeUpdater, start: vi.fn() })
+    nativeUpdater.emit("error", new Error("native verification failed"))
+    await expect(result).resolves.toBe(false)
+    expect(nativeUpdater.listenerCount("before-quit-for-update")).toBe(0)
+    expect(nativeUpdater.listenerCount("error")).toBe(0)
+    expect(updater.listenerCount("error")).toBe(0)
+  })
+
   test("resolves once the install quit starts, and reports a refusal otherwise", async () => {
     vi.useFakeTimers()
     try {
