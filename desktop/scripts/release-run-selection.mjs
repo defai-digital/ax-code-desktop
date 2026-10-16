@@ -1,4 +1,5 @@
-import { pathToFileURL } from "node:url"
+import { realpathSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 
 /**
  * Picks the GitHub Actions run that will publish a release tag.
@@ -65,6 +66,22 @@ function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+/**
+ * True when this file is the process's entry point. Compared through realpath: the caller passes
+ * the path it resolved, which can carry symlinks (`/tmp` and `/var` on macOS, or a symlinked
+ * checkout), while `import.meta.url` is the resolved module URL — a mismatch would skip main()
+ * and the caller would read the empty output as "no run yet" for ten minutes.
+ */
+function isDirectRun() {
+  const entry = process.argv[1]
+  if (!entry) return false
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (isDirectRun()) {
   main()
 }

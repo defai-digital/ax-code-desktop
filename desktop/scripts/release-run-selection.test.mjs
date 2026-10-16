@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest"
 import { spawnSync } from "node:child_process"
+import fs from "node:fs"
+import os from "node:os"
 import path from "node:path"
 
 import { selectReleaseRun } from "./release-run-selection.mjs"
@@ -103,5 +105,32 @@ describe("release run selection", () => {
     })
     expect(notFound.status).toBe(0)
     expect(notFound.stdout.trim()).toBe("")
+  })
+
+  test("still runs as a command when its path carries a symlink", () => {
+    // The publish script passes the path it resolved, which can carry symlinks (/tmp and /var on
+    // macOS, a symlinked checkout). Comparing the entry path against the module URL textually
+    // skipped main(), and the empty output read as "the workflow has not started" for ten minutes.
+    const script = path.resolve(import.meta.dirname, "release-run-selection.mjs")
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-desktop-release-run-"))
+    const link = path.join(tempDir, "scripts-link")
+    fs.symlinkSync(path.dirname(script), link, "dir")
+
+    try {
+      const result = spawnSync("node", [path.join(link, "release-run-selection.mjs")], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          TAG,
+          HEAD_SHA,
+          PUSHED_AT,
+          RUNS_JSON: JSON.stringify([run({ databaseId: 48, headBranch: TAG, createdAt: "2026-10-16T10:00:05Z" })]),
+        },
+      })
+      expect(result.status).toBe(0)
+      expect(result.stdout.trim()).toBe("48")
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 })
