@@ -1321,7 +1321,7 @@ the Claude CLI).
 
 ### Fixed from the ax-code review
 
-- **`e1a2f9e9`** — the session-state and notification routes answered without a UI session (see the
+- **`a283fc56`** — the session-state and notification routes answered without a UI session (see the
   corrected recording in the fourteenth round below): `requireUiSession` is the gate the stream route in the
   same file already applied, mounted for `/api/sessions*` and `/api/session-activity` and attached to
   `/api/notifications/auto-accept`, which decides whether permission prompts are announced at all.
@@ -1430,7 +1430,7 @@ upstream comparison produced). The audit found five things in that work; all fiv
   `desktop-renderer-protocol.js` forwards no `Cookie` header because the file holds no occurrence of the
   word, while `copyProxiedRequestHeaders` (`:199-217`) copies every request header except
   `host`/`connection`/`content-length`, so the session cookie reaches the server and the gate cannot lock
-  the app out. Fixed in **`e1a2f9e9`** on that correction.
+  the app out. Fixed in **`a283fc56`** on that correction.
 - **`session-folders` GET echoes whatever the file holds** (`session-folders/routes.js:21-23`): a file
   containing `[]`, `"x"` or `{"foldersMap":42}` is answered 200 with that JSON. Checked against the reader
   and it is not a defect: the client guards every shape the reviewer named (`useSessionFoldersStore.ts:540-556`
