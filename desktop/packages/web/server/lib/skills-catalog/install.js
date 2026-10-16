@@ -213,12 +213,24 @@ export async function installSkillsFromRepository({
 
     const installed = []
     const skipped = []
+    // One target directory per skill name: two selected directories whose basename matches share it, and the
+    // copy below only overwrites same-named files — the two skills merged into one directory holding files from
+    // neither while `installed` listed both.
+    const claimedSkillNames = new Set()
 
     for (const plan of skillPlans) {
       if (!plan.installable) {
         skipped.push({ skillName: plan.skillName, reason: "Invalid skill name (directory basename)" })
         continue
       }
+      if (claimedSkillNames.has(plan.skillName)) {
+        skipped.push({
+          skillName: plan.skillName,
+          reason: "Another selected directory installs to the same skill name",
+        })
+        continue
+      }
+      claimedSkillNames.add(plan.skillName)
 
       const srcDir = toRepoFsPath(tempBase, plan.skillDirPosix)
       const skillMdPath = path.join(srcDir, "SKILL.md")
@@ -260,7 +272,16 @@ export async function installSkillsFromRepository({
         continue
       }
 
+      let backupDir = null
+      let backupSkillDir = null
       if (exists && decision === "overwrite") {
+        // The installed copy goes only once the replacement has landed. `copyDirectoryNoSymlinks` refuses a
+        // source that contains a symlink, and that failure used to delete the old copy, fail the copy, delete
+        // the target again and report the skill as merely skipped: the user had neither. The ClawdHub path
+        // documents the same rule.
+        backupDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "openchamber-skills-replaced-"))
+        backupSkillDir = path.join(backupDir, "skill")
+        await fs.promises.cp(targetDir, backupSkillDir, { recursive: true })
         await safeRm(targetDir)
       }
 
@@ -271,11 +292,20 @@ export async function installSkillsFromRepository({
         await copyDirectoryNoSymlinks(srcDir, targetDir)
         installed.push({ skillName: plan.skillName, scope, source: targetSource === "agents" ? "agents" : "ax-code" })
       } catch (error) {
-        await safeRm(targetDir)
+        if (backupSkillDir) {
+          await safeRm(targetDir)
+          await fs.promises.cp(backupSkillDir, targetDir, { recursive: true }).catch(() => {})
+        } else {
+          await safeRm(targetDir)
+        }
         skipped.push({
           skillName: plan.skillName,
           reason: error instanceof Error ? error.message : "Failed to copy skill files",
         })
+      } finally {
+        if (backupDir) {
+          await safeRm(backupDir)
+        }
       }
     }
 
