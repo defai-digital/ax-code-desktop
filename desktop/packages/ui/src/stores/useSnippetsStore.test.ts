@@ -116,4 +116,41 @@ describe("useSnippetsStore", () => {
     expect(useSnippetsStore.getState().snippets).toEqual([snippet("new-snippet", "new-project")])
     expect(useSnippetsStore.getState().isLoading).toBe(false)
   })
+
+  test("publishes the load for the directory that was requested last", async () => {
+    const firstLoad = createDeferred<Response>()
+    const secondLoad = createDeferred<Response>()
+    queuedResponses = [firstLoad.promise, secondLoad.promise]
+
+    const useSnippetsStore = await loadStore()
+
+    activeProjectPath = "/workspace/project-a"
+    const loadA = useSnippetsStore.getState().loadSnippets()
+    activeProjectPath = "/workspace/project-b"
+    const loadB = useSnippetsStore.getState().loadSnippets()
+    await Promise.resolve()
+
+    // Back to A before either answer lands: this joins A's in-flight load instead of starting a third
+    // request, and it is what makes A the requested directory again.
+    activeProjectPath = "/workspace/project-a"
+    const loadABack = useSnippetsStore.getState().loadSnippets()
+    await Promise.resolve()
+
+    expect(fetchCalls.map(String)).toEqual([
+      "/api/config/snippets?directory=%2Fworkspace%2Fproject-a",
+      "/api/config/snippets?directory=%2Fworkspace%2Fproject-b",
+    ])
+
+    secondLoad.resolve(jsonResponse([snippet("b-snippet", "project-b")]))
+    await loadB
+    // The newest request is for A, so B's answer is the one that must not be published.
+    expect(useSnippetsStore.getState().snippets).toEqual([])
+
+    firstLoad.resolve(jsonResponse([snippet("a-snippet", "project-a")]))
+    await loadA
+    await loadABack
+
+    expect(useSnippetsStore.getState().snippets).toEqual([snippet("a-snippet", "project-a")])
+    expect(useSnippetsStore.getState().isLoading).toBe(false)
+  })
 })
