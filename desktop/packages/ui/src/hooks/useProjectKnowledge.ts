@@ -13,7 +13,26 @@ type ProjectKnowledgeState = {
 
 const EMPTY: ProjectKnowledgeState = { exists: false, agentsMd: false, claudeMd: false, isLoading: false }
 
-const cache = new Map<string, ProjectKnowledgeState>()
+// A positive probe is cached so a remount does not flash "checking" over a file that is still there. It
+// expires, because the file can be deleted — or the directory can be switched to a branch without it — while
+// the app stays open, and the chip would go on claiming knowledge the project no longer has.
+const POSITIVE_CACHE_TTL_MS = 30_000
+
+type CachedProjectKnowledge = { state: ProjectKnowledgeState; cachedAt: number }
+
+const cache = new Map<string, CachedProjectKnowledge>()
+
+const readCachedProjectKnowledge = (directory: string): ProjectKnowledgeState | undefined => {
+  const entry = cache.get(directory)
+  if (!entry) {
+    return undefined
+  }
+  if (Date.now() - entry.cachedAt > POSITIVE_CACHE_TTL_MS) {
+    cache.delete(directory)
+    return undefined
+  }
+  return entry.state
+}
 
 /**
  * Detects whether project knowledge files exist in the given workspace
@@ -24,7 +43,7 @@ export function useProjectKnowledge(directory: string | null | undefined): Proje
   const { files } = useRuntimeAPIs()
   const [state, setState] = React.useState<ProjectKnowledgeState>(() => {
     if (!directory) return EMPTY
-    return cache.get(directory) ?? { ...EMPTY, isLoading: true }
+    return readCachedProjectKnowledge(directory) ?? { ...EMPTY, isLoading: true }
   })
 
   React.useEffect(() => {
@@ -34,7 +53,7 @@ export function useProjectKnowledge(directory: string | null | undefined): Proje
       return
     }
 
-    const cached = cache.get(directory)
+    const cached = readCachedProjectKnowledge(directory)
     if (cached) {
       setState(cached)
       return
@@ -61,7 +80,7 @@ export function useProjectKnowledge(directory: string | null | undefined): Proje
       // knowledge file the "create" chip then adds — the next mount must
       // re-probe instead.
       if (next.exists) {
-        cache.set(directory, next)
+        cache.set(directory, { state: next, cachedAt: Date.now() })
       }
       setState(next)
     })
