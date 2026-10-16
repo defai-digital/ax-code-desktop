@@ -236,14 +236,30 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const ready = phase === "ready" && Boolean(browserId)
   const canEnable = ready && nativeAvailable && runtimeCompatible !== false
   const enableRequests = useWebMcpBrowserStore((state) => state.enableRequests)
+  const enableConsumed = useWebMcpBrowserStore((state) => state.enableConsumed)
   const consumeEnableRequest = useWebMcpBrowserStore((state) => state.consumeEnableRequest)
+  const hasPendingEnableRequest = enableRequests > enableConsumed
   React.useEffect(() => {
-    if (!canEnable || enabled || busy) return
-    if (!consumeEnableRequest()) return
+    if (!canEnable || enabled || busy || !hasPendingEnableRequest) return
     // Bounds reach the native view a frame after the browser reports ready; give it that frame.
-    const timer = window.setTimeout(() => void command("enable"), 150)
+    // The request is consumed as the command goes out, not when this timer is armed: a dependency
+    // that changed inside the window used to cancel the timer and leave the request consumed, so
+    // the user's "enable" never reached the browser and nothing armed another attempt.
+    const timer = window.setTimeout(() => {
+      if (!consumeEnableRequest()) return
+      void command("enable")
+    }, 150)
     return () => window.clearTimeout(timer)
-  }, [busy, canEnable, command, consumeEnableRequest, enableRequests, enabled])
+  }, [
+    busy,
+    canEnable,
+    command,
+    consumeEnableRequest,
+    enabled,
+    enableConsumed,
+    enableRequests,
+    hasPendingEnableRequest,
+  ])
   const error = useWebMcpBrowserStore((state) => state.error)
   const showErrorBanner = Boolean(browserId) && error !== null && error !== "session-required"
 

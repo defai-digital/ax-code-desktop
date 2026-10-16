@@ -281,6 +281,22 @@ export const ProjectActionsButton = ({
   }, [loadActions, projectId])
 
   React.useEffect(() => {
+    return () => {
+      // The terminal streams and the preview waits belong to this button, so they are released on
+      // unmount exactly as they are at the end of a run: a stream left behind keeps the shared
+      // socket delivering into a component that is gone.
+      for (const cleanup of Object.values(streamCleanupByRunKeyRef.current)) {
+        cleanup()
+      }
+      streamCleanupByRunKeyRef.current = {}
+      for (const timer of Object.values(previewWaitTimeoutByRunKeyRef.current)) {
+        window.clearTimeout(timer)
+      }
+      previewWaitTimeoutByRunKeyRef.current = {}
+    }
+  }, [])
+
+  React.useEffect(() => {
     if (!selectedActionId) {
       return
     }

@@ -333,7 +333,8 @@ export const GitView: React.FC = () => {
   const openContextDiff = useUIStore((state) => state.openContextDiff)
   const navigateToDiff = useUIStore((state) => state.navigateToDiff)
   const setRightSidebarOpen = useUIStore((state) => state.setRightSidebarOpen)
-  const previousBootstrapStatusRef = React.useRef<"pending" | "ready" | "failed" | null>(null)
+  const previousBootstrapStatusRef = React.useRef<{ directory: string; status: string | null } | null>(null)
+  const bootstrapWaitRef = React.useRef<{ directory: string; timer: number | null }>({ directory: "", timer: null })
   const gitReconcileTimeoutRef = React.useRef<number | null>(null)
   const gitMutationFlushTimeoutRef = React.useRef<number | null>(null)
   const flushQueuedGitMutationsRef = React.useRef<(() => void) | null>(null)
@@ -482,17 +483,42 @@ export const GitView: React.FC = () => {
   }, [currentDirectory])
 
   React.useEffect(() => {
+    const directory = currentDirectory ?? ""
     const previous = previousBootstrapStatusRef.current
-    previousBootstrapStatusRef.current = worktreeBootstrapStatus
+    previousBootstrapStatusRef.current = currentDirectory
+      ? { directory: currentDirectory, status: worktreeBootstrapStatus }
+      : null
 
-    if (!currentDirectory || !git) {
+    // Both the wait and its timer belong to one directory: a status carried over from another
+    // directory is not a transition of this one, and the old directory's timer must not end this
+    // one's wait — it used to clear the flag for whatever directory was open when it fired.
+    const wait = bootstrapWaitRef.current
+    if (wait.directory !== directory) {
+      if (wait.timer !== null) {
+        window.clearTimeout(wait.timer)
+      }
+      bootstrapWaitRef.current = { directory, timer: null }
+      setIsWaitingForGitRefreshAfterBootstrap(false)
+    }
+
+    if (!directory || !git) {
       return
     }
 
-    if (previous === "pending" && worktreeBootstrapStatus === "ready") {
+    if (previous?.directory === directory && previous.status === "pending" && worktreeBootstrapStatus === "ready") {
       setIsWaitingForGitRefreshAfterBootstrap(true)
-      void fetchAll(currentDirectory, git).finally(() => {
-        window.setTimeout(() => {
+      void fetchAll(directory, git).finally(() => {
+        if (bootstrapWaitRef.current.directory !== directory) {
+          return
+        }
+        if (bootstrapWaitRef.current.timer !== null) {
+          window.clearTimeout(bootstrapWaitRef.current.timer)
+        }
+        bootstrapWaitRef.current.timer = window.setTimeout(() => {
+          bootstrapWaitRef.current.timer = null
+          if (bootstrapWaitRef.current.directory !== directory) {
+            return
+          }
           setIsWaitingForGitRefreshAfterBootstrap(false)
         }, 1200)
       })
@@ -503,6 +529,16 @@ export const GitView: React.FC = () => {
       setIsWaitingForGitRefreshAfterBootstrap(false)
     }
   }, [currentDirectory, fetchAll, git, setDraftBootstrapPendingDirectory, worktreeBootstrapStatus])
+
+  React.useEffect(
+    () => () => {
+      if (bootstrapWaitRef.current.timer !== null) {
+        window.clearTimeout(bootstrapWaitRef.current.timer)
+        bootstrapWaitRef.current.timer = null
+      }
+    },
+    [],
+  )
 
   const normalizedDraftBootstrapPendingDirectory = normalizePath(newSessionDraft?.bootstrapPendingDirectory ?? null)
   const isDraftBootstrapPendingForCurrentDirectory = Boolean(
