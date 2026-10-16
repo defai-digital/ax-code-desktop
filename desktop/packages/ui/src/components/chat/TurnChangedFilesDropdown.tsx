@@ -9,7 +9,6 @@ import {
   type ChangedFileEntry,
   FILE_EDIT_TOOLS,
   extractChangedFiles,
-  isAbsoluteChangedFilePath,
   isGitFile,
   isSyntheticDiffFile,
   toRelativePath,
@@ -17,6 +16,7 @@ import {
 import { ChangedFilesList } from "./ChangedFilesList"
 import { changedFilesPopoverClassName, changedFilesPopoverStyle } from "./changedFilesPopover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { toAbsoluteToolPath } from "./message/parts/toolPathDisplay"
 import { Icon } from "@/components/icon/Icon"
 import type { TurnActivityRecord } from "./lib/turns/types"
 
@@ -60,9 +60,11 @@ export const TurnChangedFilesDropdown: React.FC<TurnChangedFilesDropdownProps> =
     if (isGitFile(file)) return
     if (isSyntheticDiffFile(file)) return
 
-    const absolutePath = isAbsoluteChangedFilePath(file.path)
-      ? file.path
-      : (currentDirectory.endsWith("/") ? currentDirectory : currentDirectory + "/") + file.path
+    // A tool reports its path as it wrote it — a Windows drive path with or without backslashes — while
+    // `isAbsoluteChangedFilePath` reads the *git* shape `extractGitChangedFiles` produces: forward slashes and an
+    // uppercase drive. The tool-path helper normalizes and checks the same shapes, so `D:/repo` and
+    // `C:\repo\a.ts` are not joined into `D:/repo/C:\repo\a.ts`.
+    const absolutePath = toAbsoluteToolPath(currentDirectory, file.path)
 
     const editor = runtime?.editor
     if (editor) {
