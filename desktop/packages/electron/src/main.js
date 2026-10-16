@@ -61,7 +61,7 @@ const { loadUrlWithTimeout } = require("./load-url-timeout")
 const { shouldCheckForUpdatesOnStartup } = require("./startup-update-policy")
 const { sendUpdateProgressToWindows } = require("./update-progress")
 const { resolveDesktopUpdateFeed } = require("./desktop-update-feed")
-const { normalizeInstalledAppsCache } = require("./installed-apps-cache")
+const { createInstalledAppsRefresher, normalizeInstalledAppsCache } = require("./installed-apps-cache")
 const {
   reloadLocalRendererWindowsAfterServerRestart,
   resolveServerRestartReloadUrl,
@@ -2852,15 +2852,17 @@ handleCommand("desktop_get_installed_apps", async (args) => {
   if (process.platform !== "darwin" && process.platform !== "win32") {
     return { apps: [], hasCache: true, isCacheStale: false }
   }
-  const refresh = async () => {
-    const apps =
+  const refresh = createInstalledAppsRefresher({
+    build: () =>
       process.platform === "win32"
-        ? await buildWindowsInstalledApps(args.apps)
-        : await buildInstalledApps(Array.isArray(args.apps) ? args.apps : [])
-    await fsp.mkdir(path.dirname(cachePath), { recursive: true })
-    await fsp.writeFile(cachePath, JSON.stringify({ updatedAt: now, apps }, null, 2))
-    emitToAllWindows("openchamber:installed-apps-updated", apps)
-  }
+        ? buildWindowsInstalledApps(args.apps)
+        : buildInstalledApps(Array.isArray(args.apps) ? args.apps : []),
+    writeCache: async (apps) => {
+      // Atomic, like every other persisted JSON here: a reader must never see a partial file.
+      await writeJsonFile(cachePath, { updatedAt: now, apps })
+      emitToAllWindows("openchamber:installed-apps-updated", apps)
+    },
+  })
   if (!cacheState.hasCache || cacheState.isCacheStale || args.force === true) {
     void refresh().catch((error) => {
       console.warn("[electron] failed to refresh installed apps cache", error)
