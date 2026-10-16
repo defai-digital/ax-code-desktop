@@ -22,8 +22,9 @@ have, and the same defects can be found by comparing rather than by reading.
    not have (mobile, spaces, guests, VS Code/JetBrains, relay/tunnel), and cases
    where our code already handles it a different way.
 
-That produced 29 confirmed defects in our tree. The twenty-one entries below are fixed; the 8
-that remain are listed with the shape of their fix so they can be picked up.
+That produced 29 confirmed defects in our tree, and one more was found while fixing them.
+The twenty-four entries below are fixed; the 6 that remain are listed with the shape of
+their fix so they can be picked up.
 
 ## Fixed
 
@@ -85,35 +86,39 @@ that remain are listed with the shape of their fix so they can be picked up.
 - `0413cd6f` **The Zhipu coding plan's `CREDIT_LIMIT` is read**, and a failure the
   monitor API reports inside an HTTP 200 body is answered as an error with its own
   message, instead of an empty card with no reason.
+- `55bc0ba2d` **A collapsed user message can be expanded without a click.** Its only
+  control was the clipped text itself, which a keyboard or a screen reader never
+  reaches.
+- `9282df961` **The @ list drops recent files that are gone.** A file deleted or renamed
+  after it was opened kept its tab, so the list went on offering it and choosing it
+  inserted a path that is gone. Each candidate is checked once per project: a path whose
+  entry is no longer a regular file, or whose stat fails because the file is missing, is
+  dropped; any other failure keeps it.
+- `a1f1156c1` **A missing or deleted file keeps its tab and reports the failure**
+  (upstream issue 4477). A failed read closed the tab, so the editor fell back to another
+  open file while the panel still named the failed path, and nothing was reported at all.
 
 ## Confirmed in our tree, not yet fixed
 
 Ordered by severity. Line numbers are where the defect lives today.
 
-1. **Recent files are offered without checking they still exist**
-   (`ui/src/components/chat/FileMentionAutocomplete.tsx:127`): deleting or renaming a
-   file that is still open in a Files tab leaves it in the @ list, and choosing it
-   inserts a path that is gone.
-2. **The editor's Find panel covers the first lines of the document**
+1. **The editor's Find panel covers the first lines of the document**
    (`ui/src/components/ui/CodeMirrorEditor.tsx:426`): the theme positions the panel
    out of flow and nothing reserves its height.
-3. **The editor reconfigures all six compartments on every render**
+2. **The editor reconfigures all six compartments on every render**
     (`ui/src/components/ui/CodeMirrorEditor.tsx:461`): a config object built inline
     upstream re-runs the effect and re-parses the document. Upstream diffs each
     compartment against the last applied one.
-4. **A collapsed user message has no keyboard-accessible expand control**
-    (`ui/src/components/chat/message/parts/UserTextPart.tsx:243`): the only way to
-    read a long message is to click the clipped text.
-5. **The context meter shows the compaction request's fill**
+3. **The context meter shows the compaction request's fill**
     (`ui/src/lib/messages/assistantTokens.ts:25`): after `/compact` the newest
     token-bearing assistant message is the summarising request itself.
-6. **Staged and unstaged line counts are merged into one number**
+4. **Staged and unstaged line counts are merged into one number**
     (`web/server/lib/git/service.js:1642`): a half-staged file shows the same total
     on both its Staged and Changes rows.
-7. **The worktree start command is read from a legacy file the runtime does not
+5. **The worktree start command is read from a legacy file the runtime does not
     write** (`web/server/lib/git/service.js:1221`), so a new worktree runs no project
     start command at all.
-8. **The worktree branch rename field silently renames to a different name**
+6. **The worktree branch rename field silently renames to a different name**
     (`ui/src/components/views/git/WorktreeBranchDisplay.tsx`): covered by the branch
     name fix above for the character set; what remains is that a sanitized name equal
     to the current one closes the editor without saying so.
