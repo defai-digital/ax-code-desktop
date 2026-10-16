@@ -254,23 +254,15 @@ create_and_push_tag() {
 find_release_run() {
   local tag="$1"
   local head_sha="$2"
+  local pushed_at="$3"
   local run_id
   local runs_json
 
   for _ in {1..60}; do
     runs_json="$(gh run list --workflow desktop-release.yml --limit 30 --json databaseId,headBranch,headSha,event,status,conclusion,createdAt)"
     run_id="$(
-      RUNS_JSON="$runs_json" TAG="$tag" HEAD_SHA="$head_sha" node <<'NODE'
-      const runs = JSON.parse(process.env.RUNS_JSON);
-      const tag = process.env.TAG;
-      const headSha = process.env.HEAD_SHA;
-      const run = runs.find((candidate) =>
-        candidate.headBranch === tag || candidate.headSha === headSha
-      );
-      if (run) {
-        console.log(run.databaseId);
-      }
-NODE
+      RUNS_JSON="$runs_json" TAG="$tag" HEAD_SHA="$head_sha" PUSHED_AT="$pushed_at" \
+        node "$SCRIPT_DIR/release-run-selection.mjs"
     )"
 
     if [[ -n "$run_id" ]]; then
@@ -503,6 +495,9 @@ if [[ "$PUBLISH" != true ]]; then
 fi
 
 HEAD_SHA="$(git rev-parse HEAD)"
+# Captured before the push so the run the tag triggers is identifiable: a workflow run
+# on the same commit from an earlier push already finished and is not this release's.
+TAG_PUSHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 create_and_push_tag "$TAG"
 
 if [[ "$WATCH" != true ]]; then
@@ -510,7 +505,7 @@ if [[ "$WATCH" != true ]]; then
   exit 0
 fi
 
-RUN_ID="$(find_release_run "$TAG" "$HEAD_SHA")"
+RUN_ID="$(find_release_run "$TAG" "$HEAD_SHA" "$TAG_PUSHED_AT")"
 log "Watching release workflow run $RUN_ID"
 gh run watch "$RUN_ID" --exit-status
 
