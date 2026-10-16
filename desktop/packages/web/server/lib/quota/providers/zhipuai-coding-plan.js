@@ -4,7 +4,7 @@
  * API: https://open.bigmodel.cn/api/monitor/usage/quota/limit
  *
  * Response limits:
- * - TOKENS_LIMIT: Token usage (5-hour rolling window)
+ * - TOKENS_LIMIT / CREDIT_LIMIT: plan budget usage (rolling window)
  * - TIME_LIMIT: MCP tools usage (monthly window)
  *
  * @typedef {Object} TokensLimit
@@ -65,6 +65,25 @@ function getApiKey() {
   return null
 }
 
+/**
+ * The business failure the monitor API reports inside an HTTP 200 body, if any.
+ *
+ * It answers `{code, msg, success:false}` for a rejected key, which used to read as a successful
+ * empty card: the panel showed no windows and no reason.
+ */
+export const readEnvelopeError = (payload) => {
+  if (!payload || typeof payload !== "object") {
+    return null
+  }
+  const code = typeof payload.code === "number" ? payload.code : null
+  const failed = payload.success === false || (code !== null && code !== 200)
+  if (!failed) {
+    return null
+  }
+  const message = typeof payload.msg === "string" ? payload.msg.trim() : ""
+  return message || `Usage request failed${code !== null ? ` (${code})` : ""}`
+}
+
 export const isConfigured = () => {
   return Boolean(getApiKey())
 }
@@ -97,20 +116,35 @@ export const fetchQuota = async () => {
     }
 
     const payload = await response.json()
+    const envelopeError = readEnvelopeError(payload)
+    if (envelopeError) {
+      return buildResult({
+        providerId,
+        providerName,
+        ok: false,
+        configured: true,
+        error: envelopeError,
+      })
+    }
+
     const limits = Array.isArray(payload?.data?.limits) ? payload.data.limits : []
 
-    const tokensLimit = limits.find((limit) => limit?.type === "TOKENS_LIMIT")
+    // The coding plan reports its budget as CREDIT_LIMIT (the token entry was renamed), so
+    // matching only TOKENS_LIMIT left the card with no windows at all.
+    const tokensLimit = limits.find(
+      (limit) => limit?.type === "TOKENS_LIMIT" || limit?.type === "CREDIT_LIMIT",
+    )
     const mcpToolsTimeLimit = limits.find((limit) => limit?.type === "TIME_LIMIT")
 
     const windows = {}
 
-    // Handle TOKENS_LIMIT (5-hour window for token usage)
+    // Handle TOKENS_LIMIT / CREDIT_LIMIT (rolling window for the plan's budget)
     if (tokensLimit) {
       const windowSeconds = resolveWindowSeconds(tokensLimit)
       const resetAt = tokensLimit?.nextResetTime ? normalizeTimestamp(tokensLimit.nextResetTime) : null
       const usedPercent = typeof tokensLimit?.percentage === "number" ? tokensLimit.percentage : null
 
-      windows["Tokens"] = toUsageWindow({
+      windows[tokensLimit?.type === "CREDIT_LIMIT" ? "Credits" : "Tokens"] = toUsageWindow({
         usedPercent,
         windowSeconds,
         resetAt,
