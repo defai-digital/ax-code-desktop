@@ -19,6 +19,8 @@ type FilesViewTabsActions = {
   addOpenPath: (root: string, path: string) => void
   removeOpenPath: (root: string, path: string) => void
   removeOpenPathsByPrefix: (root: string, prefixPath: string) => void
+  /** Drops a stale open path. The path on screen stays, so its tab keeps showing its own error. */
+  removeUnselectedOpenPath: (root: string, path: string) => void
   setSelectedPath: (root: string, path: string | null) => void
   ensureSelectedPath: (root: string) => void
   toggleExpandedPath: (root: string, path: string) => void
@@ -272,6 +274,24 @@ export const useFilesViewTabsStore = create<FilesViewTabsStore>()(
 
             return { byRoot: clampRoots(byRoot, 20) }
           })
+        },
+
+        removeUnselectedOpenPath: (root, path) => {
+          const normalizedRoot = normalizePath((root || "").trim())
+          const comparablePath = toComparablePath(normalizePath((path || "").trim()))
+          const current = get().byRoot[normalizedRoot]
+          if (!normalizedRoot || !comparablePath || !current) {
+            return
+          }
+
+          // With nothing selected the editor shows the first open path, so that one is on
+          // screen too and its tab has to stay to report the failure.
+          const shownPath = current.selectedPath ?? current.openPaths[0] ?? null
+          if (shownPath && toComparablePath(shownPath) === comparablePath) {
+            return
+          }
+
+          get().removeOpenPath(normalizedRoot, path)
         },
 
         setSelectedPath: (root, path) => {

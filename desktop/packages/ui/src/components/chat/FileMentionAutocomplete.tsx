@@ -6,6 +6,7 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useFilesViewTabsStore } from "@/stores/useFilesViewTabsStore"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useChatSearchDirectory } from "@/hooks/useChatSearchDirectory"
+import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
 import type { ProjectFileSearchHit } from "@/lib/ax-code/client"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { Icon } from "@/components/icon/Icon"
@@ -17,6 +18,7 @@ import {
   getFilesViewDisplayPath,
   normalizeFilesViewPath,
 } from "@/components/views/filesViewPathUtils"
+import { collectUnverifiedPaths, filterStaleRecentPaths, findStaleRecentPaths } from "./mentionRecentFiles"
 
 type FileInfo = ProjectFileSearchHit
 type AgentInfo = {
@@ -69,6 +71,8 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
     // effect below never re-ran and the mention list kept the agents of the directory that was
     // loaded when the popup opened - offering an agent that does not belong to this project.
     const configAgents = useAgentsStore((state) => state.agents)
+    const removeUnselectedOpenPath = useFilesViewTabsStore((state) => state.removeUnselectedOpenPath)
+    const { files: filesApi } = useRuntimeAPIs()
     const searchFiles = useFileSearchStore((state) => state.searchFiles)
     const debouncedQuery = useDebouncedValue(searchQuery, 180)
     const showHidden = useDirectoryShowHidden()
@@ -83,6 +87,8 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
     const [marqueeWidth, setMarqueeWidth] = React.useState(360)
     const [overflowMap, setOverflowMap] = React.useState<Record<number, boolean>>({})
     const [marqueeDurations, setMarqueeDurations] = React.useState<Record<number, number>>({})
+    const [staleRecentPaths, setStaleRecentPaths] = React.useState<ReadonlySet<string>>(() => new Set())
+    const verifiedPathsRef = React.useRef<Set<string>>(new Set())
     const itemRefs = React.useRef<(HTMLDivElement | null)[]>([])
     const labelRefs = React.useRef<(HTMLSpanElement | null)[]>([])
     const measureRefs = React.useRef<(HTMLSpanElement | null)[]>([])
@@ -122,12 +128,64 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
 
       return mapped
     }, [normalizedSearchQuery, projectRoot, projectTabs])
+
+    const recentCandidatePathsKey = React.useMemo(
+      () => recentFiles.map((file) => file.path).join("\n"),
+      [recentFiles],
+    )
+
+    // Drop what went away since the tabs were opened. A rename is a deletion of the old path,
+    // so it lands here too.
+    React.useEffect(() => {
+      setStaleRecentPaths(new Set())
+      verifiedPathsRef.current.clear()
+    }, [projectRoot])
+
+    React.useEffect(() => {
+      if (!projectRoot || !filesApi?.statFile || recentCandidatePathsKey.length === 0) {
+        return
+      }
+
+      const candidatePaths = recentCandidatePathsKey.split("\n")
+      const unverified = collectUnverifiedPaths(candidatePaths, verifiedPathsRef.current)
+      if (unverified.length === 0) {
+        return
+      }
+
+      let cancelled = false
+      const statFile = filesApi.statFile
+
+      void findStaleRecentPaths(unverified, (path) => statFile(path)).then((stale) => {
+        if (cancelled) {
+          return
+        }
+        for (const path of unverified) {
+          verifiedPathsRef.current.add(path)
+        }
+        if (stale.size === 0) {
+          return
+        }
+
+        setStaleRecentPaths((prev) => new Set([...prev, ...stale]))
+        for (const path of stale) {
+          removeUnselectedOpenPath(projectRoot, path)
+        }
+      })
+
+      return () => {
+        cancelled = true
+      }
+    }, [filesApi, projectRoot, recentCandidatePathsKey, removeUnselectedOpenPath])
+
     const visibleAgents = React.useMemo(
       () => (normalizedSearchQuery.length > 0 ? agents : agents.slice(0, 2)),
       [agents, normalizedSearchQuery.length],
     )
     const visibleDirectories = directories
-    const visibleRecentFiles = recentFiles
+    const visibleRecentFiles = React.useMemo(
+      () => filterStaleRecentPaths(recentFiles, staleRecentPaths),
+      [recentFiles, staleRecentPaths],
+    )
     const visibleFiles = files
 
     React.useEffect(() => {
@@ -177,7 +235,7 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
             return
           }
 
-          const recentSet = new Set(recentFiles.map((file) => file.path))
+          const recentSet = new Set(visibleRecentFiles.map((file) => file.path))
           setFiles(hits.filter((hit) => !recentSet.has(hit.path)).slice(0, 15))
         })
         .catch(() => {
@@ -205,7 +263,7 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
           }
         }
       }
-    }, [currentDirectory, debouncedQuery, recentFiles, searchFiles, showHidden, showGitignored])
+    }, [currentDirectory, debouncedQuery, visibleRecentFiles, searchFiles, showHidden, showGitignored])
 
     React.useEffect(() => {
       if (!currentDirectory) {
