@@ -606,7 +606,6 @@ export const useChatTimelineController = ({
         return false
       }
 
-      releaseAutoFollow()
       setPendingRevealWork(true)
 
       try {
@@ -618,6 +617,11 @@ export const useChatTimelineController = ({
         if (typeof turnIndex !== "number") {
           return false
         }
+
+        // Released only once the target is known to exist: doing it before these checks turned
+        // the follow off for a navigation that then did nothing - a hash that arrived before
+        // its turn was loaded - leaving the reader un-followed for no reason.
+        releaseAutoFollow()
 
         if (turnIndex < turnStartRef.current) {
           setTurnStart(turnIndex)
@@ -654,7 +658,6 @@ export const useChatTimelineController = ({
         return false
       }
 
-      releaseAutoFollow()
       setPendingRevealWork(true)
 
       try {
@@ -668,6 +671,9 @@ export const useChatTimelineController = ({
         if (typeof turnIndex !== "number") {
           return false
         }
+
+        // Released only once the target is known to exist, for the same reason as scrollToTurn.
+        releaseAutoFollow()
 
         if (turnIndex < turnStartRef.current) {
           setTurnStart(turnIndex)

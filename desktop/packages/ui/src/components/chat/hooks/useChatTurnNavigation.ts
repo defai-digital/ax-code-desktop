@@ -182,14 +182,24 @@ export const useChatTurnNavigation = ({
         return
       }
 
-      appliedHashRef.current = hash
-
       if (target.kind === "turn") {
-        void scrollToTurnId(target.id, { behavior: "auto", updateHash: false })
+        // The model may not hold the target yet on this pass - the effect re-runs when
+        // turnIds.length changes - so the hash is recorded only once it was really reached.
+        // Marking it applied up front meant that later pass skipped it and the view never
+        // navigated to the hash at all.
+        void scrollToTurnId(target.id, { behavior: "auto", updateHash: false }).then((applied) => {
+          if (applied) {
+            appliedHashRef.current = hash
+          }
+        })
         return
       }
 
-      void scrollToMessageId(target.id, { behavior: "auto", updateHash: false })
+      void scrollToMessageId(target.id, { behavior: "auto", updateHash: false }).then((applied) => {
+        if (applied) {
+          appliedHashRef.current = hash
+        }
+      })
     }
 
     applyHash()
