@@ -1283,18 +1283,103 @@ A second pass over the surfaces the earlier rounds read only once, again with re
 not use there: `components/views/**` (Claude Code CLI), the remaining `ui/src/lib/**` (Muse CLI),
 server `{mcp,lsp,plugins,update,sessions}/**` (deepseek-flash), the server's top-level files (glm-5.3),
 `components/chat/**` (MiniMax-M3), `script/**` and workflows (Grok CLI), and `hooks/**`,
-`contexts/**`, `sync/lib/**` (qwen3.8-flash). Launched this round; its findings are read next.
+`contexts/**`, `sync/lib/**` (qwen3.8-flash). All seven runs finished; their findings were read from the
+line each names, and every confirmed one is fixed below.
 
-Four of the seven runs had finished when this was written, with nine confirmed findings and four
-suspected between them, each read next from the line it names:
+| Run | Confirmed | Outcome |
+| --- | --- | --- |
+| `views` (Claude Code CLI) | `useDiffHunkRevert.ts:27-52`, `FilesView-impl.tsx:1968,2034`, `git/IntegrateCommitsSection.tsx:75-103` | fixed |
+| `lib` (Muse CLI) | `gitApiHttp.ts:221`, `modelPrefsAutoSave.ts:70` and `:46`, `scheduledTasksApi.ts:234` | fixed |
+| server `{mcp,lsp,plugins,update,sessions}` (deepseek-flash) | `plugin-routes.js:409-419`, MCP create/update without the field its `type` needs, `session-runtime.js:337-341` | two fixed, MCP not reachable (below) |
+| server top-level (glm-5.3) | `persistSettings` logging the credentials it strips | fixed |
+| `chat` (MiniMax-M3) | `PermissionCard.tsx:164-189`, mermaid `file://` URLs, absolute-path `@`mentions | all three rejected or deferred (below) |
+| `script/**` (Grok CLI) | `runtime-manifest.cjs:84`, `publish-github-release.sh:267`, `docker-entrypoint.sh:78` | two fixed, manifest is a standing decision |
+| `hooks/**` (qwen3.8-flash) | `useSessionAutoCleanup.ts:136-143` | fixed |
 
-| Run | Confirmed |
-| --- | --- |
-| `views` (Claude Code CLI) | `views/useDiffHunkRevert.ts:27-52` — two hunks reverted at once each rebuild from the same snapshot, so the last write wins and one revert is lost; `FilesView-impl.tsx:1968,2034` — a one-shot flag set for a guarded navigation that the paths taking it never reach, disarming a later dirty check; and one whose outcome depends on which async chain finishes first |
-| `lib` (Muse CLI) | `gitApiHttp.ts:221`; `modelPrefsAutoSave.ts:70` and `:46` (two); `scheduledTasksApi.ts:234` |
-| server `{mcp,lsp,plugins,update,sessions}` (deepseek-flash) | `ax-code/plugin-routes.js:409-419` — a plugin file PUT writes `content ?? ""`, truncating the file when the body omits the field, and answers success; the MCP create/update path persists entries missing the field their own `type` requires |
+- **`924946d5`** — reverting a second diff hunk while the first `writeFile` was in flight rebuilt the
+  whole file twice from the same closed-over `modified`, and the later write landed without the earlier
+  revert: one revert silently lost, the first call's `finally` clearing the second's spinner. Only the
+  clicked hunk's own button was disabled. An in-flight ref closes the gap between the click and the
+  re-render, and every hunk button is disabled while a revert runs.
 
-Still running: `chat`, `hooks`, `serverrest`, `scripts`.
+- **`65c36b62`** — `discardAndContinue`/`saveAndContinue` armed the one-shot flag that suppresses the
+  discard dialog for the whole decision, but only `handleSelectFile` reads it. The guarded tab switch
+  navigates after clearing the guard, and closing a tab with no next file navigates nowhere, so nothing
+  consumed it there: the flag stayed set and the next file switch reset it and skipped the prompt,
+  discarding the draft without asking. The flag is now armed immediately before each `handleSelectFile`
+  call that consumes it.
+
+- **`76367512`** — the panel's "an in-flight integrate owns it" guard read `uiKindRef` only before
+  `await computeIntegratePlan`. On mount with a persisted cherry-pick conflict both effects start while
+  the kind is still `idle`, and a plan that resolved last wrote `ready` over the restored `conflict`: the
+  Abort/Continue/Resolve controls vanished, Move became clickable over a worktree still holding the
+  cherry-pick, and the persisted state was never cleared. The kind is re-read after the await.
+
+- **`1b0c002f`** — `invalidateGitStatusCache` dropped the cached status and the in-flight slot, but the
+  request that started before the mutation still wrote its pre-mutation payload into the cache when it
+  resolved, and the refresh the mutation triggered read it back inside the 1.2 s TTL. An invalidation
+  epoch per directory now gates the write.
+
+- **`dcb1a0ba`** — model preference autosave had two of the defects already fixed in the appearance
+  autosave beside it: only the 1200 ms timer flushed, so a favourite toggled and then a closed window
+  lost the change, and `lastSent` was recorded before `updateDesktopSettings` resolved with the rejection
+  swallowed, so a failed save counted as sent and was never retried or reported. It now flushes on
+  pagehide/visibilitychange like its sibling, rolls the baseline back on failure, and surfaces the error.
+
+- **`efd5cefe`** — the reconciliation branch reloads the scheduled-task group before rethrowing so a
+  retry adopts a partial failure; the create branch did not. A fan-out draft whose `pause` failed left
+  active tasks the list never showed, and re-saving created duplicates. It reloads too.
+
+- **`89d5fbdb`** — the plugin file PUT passed `req.body?.content` into a writer that ends in
+  `writeFileSync(path, content ?? "")`, so a body without `content` truncated the file and answered 200.
+  The route now requires a string.
+
+- **`7d029719`** — the hourly cleanup evicted any activity entry older than 24 h, but `updatedAt` only
+  moves when the phase changes. A session that stayed busy aged out of the snapshot and the busy count
+  main reads before honouring the restart grace dropped to zero. Only idle entries are forgotten now.
+
+- **`397407a1`** — the session-cleanup latch was cleared from inside the run, and the disabled/loading/
+  cooldown skips return before the first `await`: an async function that returns before awaiting finishes
+  synchronously, so `finally` cleared the latch before the next line assigned the run to it. The latch
+  held an already-settled promise and every later cleanup replayed that first skip — one click while the
+  session list was loading disabled retention for the rest of the window. It is released from a handler
+  attached after the assignment.
+
+- **`6ee3c372`** — `persistSettings` logged the raw request body before the strip that exists for
+  `desktopUiPassword` and `desktopLocalClientToken`, so those values were printed verbatim to server
+  stdout on every settings write. The log now uses the same redacted view (AGENTS.md forbids raw
+  credentials in logs).
+
+- **`f9e2cbb6`** — the docker entrypoint ran `serve`, which spawns the server detached and exits, then
+  made `cli.js logs` PID 1: a crashed server left the container running and the restart policy never
+  fired, and SIGTERM reached the follower. It now execs `serve --foreground`.
+
+- **`80598ff2`** — `find_release_run` accepted any run whose `headSha` was the release commit, including
+  the run from the push that put that commit there. Watching that already-finished run returned
+  immediately while the tag's own build was still running. A same-commit run is accepted only when it
+  started at or after the tag push, and the selection moved into a tested module.
+
+Suspected, verified by reading, not fixed:
+
+- **MCP entries without the field their `type` requires** — `createMcpConfig`/`updateMcpConfig`
+  persist `{type: "remote"}` with no `url` or `{type: "local"}` with no `command` and answer success,
+  while the code's own comments call those fields required. The UI refuses to submit either shape (`McpPage.tsx:951-957`), so the API-level laxity
+  is not reachable from the app, and `buildMcpEntry` is a normaliser over a hand-editable config file —
+  tightening it is a decision, not a fix.
+- **`script/runtime-manifest.cjs:84`** — native binaries are excluded from the runtime manifest by the
+  generator *and* rejected as entries by the verifier, so replacing the bundled `node` or adding an
+  `addon.node` passes `verifyBundledAxCodeIntegrity` on Linux. Covering them means hashing ~90 MB at
+  startup (or a second signed list) — a security and startup-cost decision, not a local guard.
+- **mermaid `file://` URLs (`ToolOutputDialog.tsx:700-704`)** — `normalizeFilePath` accepts any absolute
+  path. The only production caller passes a `data:` URL today, so the branch is unreachable; it needs the
+  workspace-containment decision below if a caller ever passes a file URL.
+- **absolute-path `@`mentions (`chatInputMentions.ts:311-320`)** — a typed `@/etc/passwd` becomes a
+  server attachment read by the runtime, with no workspace containment; the app's own `/api/fs/*` routes
+  answer "Path is outside of active workspace" for the same path. The user types the path themselves, and
+  attaching a file outside the project may be intended, so whether mentions should be confined is a
+  product decision.
+- **`sync/soft-removal.ts:389`**, **`sync/soft-removal.ts:223`** — unchanged from round seven: both are
+  decisions about who owns the pending-removal slot, and the outcome is benign.
 
 ## Seventh round
 
@@ -1427,22 +1512,23 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
-- Final state, with each command's exit status captured rather than inferred from
-  a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
-  `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 698, web 1 109 (+2 skipped), electron 577, root
-  scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
+- Final state after the eighth round, with each command's exit status captured rather than inferred from
+  a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0.
+- Test totals at that run: ui 2 708, web 1 112 (+2 skipped), electron 586, root scripts 179 (+6 skipped).
+  `pnpm run check:locales` reports 14 locales, 4 692 keys; the eighth round changed no user-facing string
+  (the one new server-side message is an HTTP error body, asserted by its test).
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
   scripts, no sibling dependencies, source ownership, runtime pin, release policy
   and release contract.
 - `pnpm run build` passes (3/3 turbo tasks).
-- One flake observed: `web/server/lib/ax-code/routes.test.js` "deduplicates
+- One flake observed in an earlier round: `web/server/lib/ax-code/routes.test.js` "deduplicates
   concurrent prompt_async requests for the same session message" failed once
   during a run that overlapped a build, and passed both in isolation and on two
   later full runs. The test races two supertest requests against an in-flight
   fetch it releases by hand, so CPU contention can close its window; nothing in
-  this series touches that dedupe path.
+  this series touches that dedupe path. The eighth round added no new sample: the
+  full run after its twelve commits was clean.
 - Two follow-up commits fix defects in this series' own output rather than in the
   product: `1359da50` moves the change list's prefetch effect off a per-render
   array (a hooks-lint warning and a redundant parent notification), and `2b27bd59`
