@@ -8,6 +8,7 @@ import {
   grantableOrigin,
   sortWebMcpApprovals,
   webMcpAllowlistErrorKey,
+  webMcpAllowlistErrorReason,
   webMcpAllowlistScopeTitle,
 } from "./allowlist"
 
@@ -134,5 +135,15 @@ describe("webMcpAllowlistErrorKey", () => {
     )
     expect(webMcpAllowlistErrorKey(new Error("boom"))).toBe("webmcp.allowlist.error.generic")
     expect(webMcpAllowlistErrorKey(undefined)).toBe("webmcp.allowlist.error.generic")
+  })
+})
+
+describe("webMcpAllowlistErrorReason", () => {
+  test("keeps a free-text refusal out of the rejected verdict", () => {
+    // A message is prose: matching "rejected" in it called any unrelated refusal "the grant was
+    // rejected", which the message never said. The structured fields still carry the verdict.
+    expect(webMcpAllowlistErrorReason(new Error("proxy rejected the connection"))).toBe("other")
+    expect(webMcpAllowlistErrorReason({ reason: "rejected" })).toBe("rejected")
+    expect(webMcpAllowlistErrorReason(new Error("not_webmcp"))).toBe("not_webmcp")
   })
 })

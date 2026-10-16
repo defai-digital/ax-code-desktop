@@ -148,26 +148,38 @@ export function grantRowsForOrigin(
 
 export type WebMcpAllowlistErrorReason = "not_connected" | "not_webmcp" | "rejected" | "other"
 
-function reasonFromValue(value: unknown, depth: number): WebMcpAllowlistErrorReason | undefined {
+/**
+ * Classify a value, with `freeText` saying whether a bare string here is prose or a verdict.
+ *
+ * A `reason`/`code`/`name` field carries a verdict, so `rejected` means what it says. A `message` is
+ * prose: matching the word in it turned any unrelated refusal ("Request rejected by proxy") into "the
+ * grant was rejected", which the message never said — the generic message is the honest answer there.
+ * The two tokens that name a state are still read out of prose, because they are not words in a sentence.
+ */
+function reasonFromValue(
+  value: unknown,
+  depth: number,
+  freeText = true,
+): WebMcpAllowlistErrorReason | undefined {
   if (depth > 4 || value === null || value === undefined) return undefined
   if (typeof value === "string") {
     const text = value.toLowerCase()
     if (text.includes("not_connected")) return "not_connected"
     if (text.includes("not_webmcp")) return "not_webmcp"
-    if (text.includes("rejected")) return "rejected"
+    if (!freeText && text.includes("rejected")) return "rejected"
     return undefined
   }
   if (typeof value !== "object") return undefined
   const record = value as Record<string, unknown>
   for (const key of ["reason", "code", "name"]) {
-    const found = reasonFromValue(record[key], depth + 1)
+    const found = reasonFromValue(record[key], depth + 1, false)
     if (found) return found
   }
   for (const key of ["details", "data", "error", "cause"]) {
-    const found = reasonFromValue(record[key], depth + 1)
+    const found = reasonFromValue(record[key], depth + 1, freeText)
     if (found) return found
   }
-  return reasonFromValue(record.message, depth + 1)
+  return reasonFromValue(record.message, depth + 1, true)
 }
 
 /** Classify a runtime API failure into the allowlist error reason. */
