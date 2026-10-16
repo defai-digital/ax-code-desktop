@@ -216,6 +216,7 @@ export async function installSkillsFromClawdHub({
         // cross-device copy out of space, a directory that reappeared under the target), and that was
         // the same loss one step later.
         let backupSkillDir = null
+        let restoredIntoPlace = false
         if (exists && decision === "overwrite") {
           backupDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `clawdhub-replaced-${plan.slug}-`))
           backupSkillDir = path.join(backupDir, "skill")
@@ -241,9 +242,18 @@ export async function installSkillsFromClawdHub({
           }
         } catch (moveError) {
           if (backupSkillDir) {
-            // The failed move may have left a partial copy behind; put the installed copy back.
+            // The failed move may have left a partial copy behind; put the installed copy back. Whether that
+            // worked decides what happens to the backup below — it is the only complete copy until it does.
             await safeRm(targetDir)
-            await fs.promises.cp(backupSkillDir, targetDir, { recursive: true }).catch(() => {})
+            restoredIntoPlace = await fs.promises
+              .cp(backupSkillDir, targetDir, { recursive: true })
+              .then(() => true)
+              .catch(() => false)
+            if (!restoredIntoPlace) {
+              console.warn(
+                `[skills] Restoring the replaced copy of "${plan.slug}" failed; it is kept at ${backupSkillDir}`,
+              )
+            }
           }
           throw moveError
         }
@@ -257,7 +267,9 @@ export async function installSkillsFromClawdHub({
         if (!movedToTarget) {
           await safeRm(tempDir)
         }
-        if (backupDir) {
+        // Kept when restoring the replaced copy failed: it is the user's only complete copy of the skill, and
+        // the finally used to delete it while the restore's rejection was swallowed.
+        if (backupDir && (movedToTarget || restoredIntoPlace)) {
           await safeRm(backupDir)
         }
       }

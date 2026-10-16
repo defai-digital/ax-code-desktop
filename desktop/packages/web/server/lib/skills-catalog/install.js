@@ -230,7 +230,6 @@ export async function installSkillsFromRepository({
         })
         continue
       }
-      claimedSkillNames.add(plan.skillName)
 
       const srcDir = toRepoFsPath(tempBase, plan.skillDirPosix)
       const skillMdPath = path.join(srcDir, "SKILL.md")
@@ -272,8 +271,15 @@ export async function installSkillsFromRepository({
         continue
       }
 
+      // Claimed here rather than when the directory was first seen: a directory that turns out to be
+      // uninstallable — no SKILL.md, non-English metadata, or a conflict it skips — must not hold the name
+      // against a later directory that would have installed.
+      claimedSkillNames.add(plan.skillName)
+
       let backupDir = null
       let backupSkillDir = null
+      let restoredIntoPlace = false
+      let copiedIntoPlace = false
       if (exists && decision === "overwrite") {
         // The installed copy goes only once the replacement has landed. `copyDirectoryNoSymlinks` refuses a
         // source that contains a symlink, and that failure used to delete the old copy, fail the copy, delete
@@ -290,20 +296,28 @@ export async function installSkillsFromRepository({
 
       try {
         await copyDirectoryNoSymlinks(srcDir, targetDir)
+        copiedIntoPlace = true
         installed.push({ skillName: plan.skillName, scope, source: targetSource === "agents" ? "agents" : "ax-code" })
       } catch (error) {
         if (backupSkillDir) {
           await safeRm(targetDir)
-          await fs.promises.cp(backupSkillDir, targetDir, { recursive: true }).catch(() => {})
+          restoredIntoPlace = await fs.promises
+            .cp(backupSkillDir, targetDir, { recursive: true })
+            .then(() => true)
+            .catch(() => false)
         } else {
           await safeRm(targetDir)
         }
         skipped.push({
           skillName: plan.skillName,
           reason: error instanceof Error ? error.message : "Failed to copy skill files",
+          ...(backupSkillDir && !restoredIntoPlace ? { keptCopyAt: backupSkillDir } : {}),
         })
       } finally {
-        if (backupDir) {
+        // The backup is the only complete copy of the skill once the replacement has not landed: it is removed
+        // when the copy succeeded or when the restore did, and kept (with the skip record pointing at it) when
+        // restoring failed too — deleting it there destroyed the last good copy.
+        if (backupDir && (copiedIntoPlace || restoredIntoPlace)) {
           await safeRm(backupDir)
         }
       }

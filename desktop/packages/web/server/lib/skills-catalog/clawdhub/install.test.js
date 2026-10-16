@@ -86,6 +86,59 @@ describe("ClawdHub skill installation", () => {
     }
   })
 
+  test("keeps the replaced copy when restoring it fails", async () => {
+    // The restore's rejection was swallowed and the finally deleted the backup regardless: the user was left with
+    // a half-written directory and no complete copy of the skill they had.
+    const realCp = fsPromises.cp.bind(fsPromises)
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
+    const targetDir = path.join(tempRoot, "review-code")
+    const backups = async () =>
+      (await fsPromises.readdir(os.tmpdir())).filter((name) => name.startsWith("clawdhub-replaced-review-code-"))
+    let renameSpy = null
+    let cpSpy = null
+    try {
+      await fsPromises.mkdir(targetDir, { recursive: true })
+      await fsPromises.writeFile(
+        path.join(targetDir, "SKILL.md"),
+        '---\nname: "Review Code"\ndescription: Review code.\n---\ninstalled\n',
+        "utf8",
+      )
+      downloadClawdHubSkill.mockResolvedValueOnce(
+        zipWithFiles({ "SKILL.md": '---\nname: "Review Code"\ndescription: Review code.\n---\nincoming\n' }),
+      )
+      const backupsBefore = (await backups()).length
+      renameSpy = vi.spyOn(fsPromises, "rename").mockRejectedValue(Object.assign(new Error("ENOTEMPTY"), { code: "ENOTEMPTY" }))
+      let cpCalls = 0
+      cpSpy = vi.spyOn(fsPromises, "cp").mockImplementation(async (...args) => {
+        cpCalls += 1
+        if (cpCalls === 2) {
+          throw new Error("ENOSPC: no space left on device")
+        }
+        return realCp(...args)
+      })
+
+      const result = await installSkillsFromClawdHub({
+        scope: "user",
+        targetSource: "ax-code",
+        userSkillDir: tempRoot,
+        conflictDecisions: { "review-code": "overwrite" },
+        selections: [{ skillDir: "review-code", clawdhub: { slug: "review-code", version: "1.0.0" } }],
+      })
+
+      expect(result.installed).toEqual([])
+      expect(result.skipped.map((entry) => entry.skillName)).toEqual(["review-code"])
+      // The replaced copy is still on disk, which is the only complete one left.
+      expect((await backups()).length).toBe(backupsBefore + 1)
+    } finally {
+      for (const name of await backups()) {
+        await fsPromises.rm(path.join(os.tmpdir(), name), { recursive: true, force: true })
+      }
+      renameSpy?.mockRestore()
+      cpSpy?.mockRestore()
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
   test("replaces the installed skill when the move succeeds", async () => {
     const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
     try {

@@ -87,6 +87,20 @@ describe("git skill installation", () => {
     expect(targetFiles.sort()).toEqual(["SKILL.md", "only-skills.txt"])
   })
 
+  test("does not let an uninstallable directory hold the skill name", async () => {
+    // The name was claimed when the directory was first seen, so a first `review` with no SKILL.md held it and a
+    // second, installable `review` was skipped as a duplicate: neither landed.
+    await fsPromises.mkdir(path.join(cloneDir, "skills/review"), { recursive: true })
+    await writeSkill(cloneDir, "extras/review", "Review Code", "from extras")
+
+    const result = await install(["skills/review", "extras/review"])
+
+    expect(result.installed.map((entry) => entry.skillName)).toEqual(["review"])
+    await expect(fsPromises.readFile(path.join(userSkillDir, "review", "SKILL.md"), "utf8")).resolves.toContain(
+      "from extras",
+    )
+  })
+
   test("keeps the installed skill when the replacement cannot be copied", async () => {
     // A source with a symlink fails `copyDirectoryNoSymlinks`. The overwrite deleted the installed copy first, so
     // the user was left with neither the old skill nor a new one, and the result only said "skipped".
