@@ -149,6 +149,7 @@ app
               wsClients: new Set(),
               isRequestOriginAllowed: async () => true,
               rejectWebSocketUpgrade: (_req, socket) => socket.destroy(),
+              markWebSocketUpgradeClaimed: () => {},
               buildAxCodeUrl: (pathname) => `${origin}${pathname}`,
               getAxCodeAuthHeaders: () => ({ Authorization: authorization }),
               processForwardedEventPayload: () => {},
