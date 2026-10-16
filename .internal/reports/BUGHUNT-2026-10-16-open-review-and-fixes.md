@@ -1285,6 +1285,17 @@ server `{mcp,lsp,plugins,update,sessions}/**` (deepseek-flash), the server's top
 `components/chat/**` (MiniMax-M3), `script/**` and workflows (Grok CLI), and `hooks/**`,
 `contexts/**`, `sync/lib/**` (qwen3.8-flash). Launched this round; its findings are read next.
 
+Four of the seven runs had finished when this was written, with nine confirmed findings and four
+suspected between them, each read next from the line it names:
+
+| Run | Confirmed |
+| --- | --- |
+| `views` (Claude Code CLI) | `views/useDiffHunkRevert.ts:27-52` — two hunks reverted at once each rebuild from the same snapshot, so the last write wins and one revert is lost; `FilesView-impl.tsx:1968,2034` — a one-shot flag set for a guarded navigation that the paths taking it never reach, disarming a later dirty check; and one whose outcome depends on which async chain finishes first |
+| `lib` (Muse CLI) | `gitApiHttp.ts:221`; `modelPrefsAutoSave.ts:70` and `:46` (two); `scheduledTasksApi.ts:234` |
+| server `{mcp,lsp,plugins,update,sessions}` (deepseek-flash) | `ax-code/plugin-routes.js:409-419` — a plugin file PUT writes `content ?? ""`, truncating the file when the body omits the field, and answers success; the MCP create/update path persists entries missing the field their own `type` requires |
+
+Still running: `chat`, `hooks`, `serverrest`, `scripts`.
+
 ## Seventh round
 
 A second pass over the core with reviewers the first pass did not use there: `sync/**` (Claude Code CLI),
