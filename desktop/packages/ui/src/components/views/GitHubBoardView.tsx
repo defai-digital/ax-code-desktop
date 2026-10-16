@@ -203,6 +203,9 @@ export function GitHubBoardView() {
     setPrBundle(null)
     setDetailError(null)
     setPage(1)
+    // This pass supersedes any in-flight "Load more": its own cleanup only clears the flag while it is still the
+    // current list request, so without this the button stayed disabled for the life of the component.
+    setLoadingMore(false)
 
     if (!directory) {
       setLoading(false)
@@ -284,7 +287,13 @@ export function GitHubBoardView() {
   }
 
   React.useEffect(() => {
-    if (!selected || !directory || !github) return
+    if (!selected || !directory || !github) {
+      // Nothing to load — but a response for the previous selection may still be in flight, and this branch used
+      // to leave it valid: switching tabs made the effect run with the old row under the new kind and its
+      // response was applied to state that has no selection.
+      detailRequestRef.current += 1
+      return
+    }
     const requestId = ++detailRequestRef.current
     const sourceRepo = sourceRepoOption(selected)
     setDetailLoading(true)
@@ -350,9 +359,12 @@ export function GitHubBoardView() {
     if (!directory || !github || !selected || commentSending) return
     const body = commentBody.trim()
     if (!body) return
+    // Captured so the response can tell whether it is still the selection it was written for.
+    const targetNumber = selected.number
+    const detailRequestAtCall = detailRequestRef.current
     setCommentSending(true)
     void github
-      .issueComment({ directory, number: selected.number, body, sourceRepo: sourceRepoOption(selected) })
+      .issueComment({ directory, number: targetNumber, body, sourceRepo: sourceRepoOption(selected) })
       .then((result) => {
         if (result.connected === false) {
           setConnected(false)
@@ -360,14 +372,24 @@ export function GitHubBoardView() {
         }
         if (!result.comment) throw new Error(t("githubBoard.error.commentFailed"))
         const created = result.comment
+        // The bundle is the item the comment belongs to: appending it to whatever bundle happens to be current
+        // showed the comment on a different issue, and clearing the draft threw away what the user had typed for it.
         if (kind === "issues") {
-          setIssueBundle((current) => (current ? { ...current, comments: [...current.comments, created] } : current))
+          setIssueBundle((current) =>
+            current && current.issue.number === targetNumber
+              ? { ...current, comments: [...current.comments, created] }
+              : current,
+          )
         } else {
           setPrBundle((current) =>
-            current ? { ...current, issueComments: [...(current.issueComments ?? []), created] } : current,
+            current?.pr && current.pr.number === targetNumber
+              ? { ...current, issueComments: [...(current.issueComments ?? []), created] }
+              : current,
           )
         }
-        setCommentBody("")
+        if (detailRequestRef.current === detailRequestAtCall) {
+          setCommentBody("")
+        }
         toast.success(t("githubBoard.toast.commentAdded"))
       })
       .catch((error: unknown) => {
@@ -380,9 +402,11 @@ export function GitHubBoardView() {
 
   const changeState = (state: "open" | "closed") => {
     if (!directory || !github || !selected || statePending) return
+    const targetNumber = selected.number
+    const targetKey = selected.key
     setStatePending(true)
     void github
-      .issueSetState({ directory, number: selected.number, state, sourceRepo: sourceRepoOption(selected) })
+      .issueSetState({ directory, number: targetNumber, state, sourceRepo: sourceRepoOption(selected) })
       .then((result) => {
         if (result.connected === false) {
           setConnected(false)
@@ -390,12 +414,22 @@ export function GitHubBoardView() {
         }
         const nextState = result.issue?.state
         if (nextState !== "open" && nextState !== "closed") throw new Error(t("githubBoard.error.stateFailed"))
-        setRows((current) => current.map((row) => (row.key === selected.key ? { ...row, state: nextState } : row)))
-        setSelected((current) => (current ? { ...current, state: nextState } : current))
-        if (kind === "issues" && issueBundle) {
-          setIssueBundle({ ...issueBundle, issue: { ...issueBundle.issue, state: nextState } })
-        } else if (prBundle?.pr && nextState) {
-          setPrBundle({ ...prBundle, pr: { ...prBundle.pr, state: nextState } })
+        setRows((current) => current.map((row) => (row.key === targetKey ? { ...row, state: nextState } : row)))
+        // No `setSelected` here. The detail pane reads the state from the bundle, and replacing the selection
+        // object for the same item re-ran the detail effect, which cleared the comment draft, dropped both
+        // bundles and refetched — and its stale-closure write below could then land a different item's bundle.
+        if (kind === "issues") {
+          setIssueBundle((current) =>
+            current && current.issue.number === targetNumber
+              ? { ...current, issue: { ...current.issue, state: nextState } }
+              : current,
+          )
+        } else {
+          setPrBundle((current) =>
+            current?.pr && current.pr.number === targetNumber
+              ? { ...current, pr: { ...current.pr, state: nextState } }
+              : current,
+          )
         }
         toast.success(state === "closed" ? t("githubBoard.toast.closed") : t("githubBoard.toast.reopened"))
       })
