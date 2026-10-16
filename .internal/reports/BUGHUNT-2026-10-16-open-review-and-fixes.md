@@ -1289,6 +1289,99 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Twentieth round
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | an audit of the nineteenth round's own two commits |
+| deepseek-flash | `server/lib/quota/**`, `server/lib/security/**` |
+| Grok CLI | `server/lib/skills-catalog/**`, `magic-prompts/**`, `session-folders/**` |
+| Claude Code CLI | `server/lib/ui-auth/**`, `server/lib/event-stream/**` |
+| Claude Code CLI | `server/lib/scheduled-task-convergence/**` (935 lines, mentioned twice in this report before this round) |
+| glm-5.3 | the server side of a sibling session's six feature commits, read-only and frozen at `8879b747` |
+
+Fixed, in the order they were verified:
+
+- **`7ab7f114`** and **`acdad603`** — the URL boundary, twice. The audit found that `7ab7f114` had put the
+  IDN dot equivalents in the rejected set unconditionally, which cost the preview for the most ordinary
+  Chinese sentence shape: `已啟動 http://localhost:3000。` matched nothing. A dot cannot continue a port, so
+  the two guards now differ there (after a port a dot ends the address; after a bare host the dots continue
+  it only when a name character follows, which keeps `http://localhost。evil.example` unmatched). The same
+  audit showed the userinfo guard only covered an `@` directly after the host: `http://localhost!x@evil.example/`
+  — whose host, by the `@`-splits-the-authority rule, is `evil.example` — still offered `http://localhost/`.
+  The guard now looks for an `@` anywhere in the rest of the token, and rejects a combining mark or a soft
+  hyphen (IDNA drops the latter). `02fc780a` pins the forms Grok named.
+- **`559d8336`**, **`b54bf3fb`** — the startup pipeline's failure path. `724d9f4e` had claimed to stop the
+  managed runtime but only cancelled an in-flight spawn: the process itself is closed by the shutdown
+  runtime's phase-3 teardown, which the pipeline never ran, so a bind failure after the bootstrap published
+  its handle still left the child alive with its port bound. That teardown is now one named function both
+  callers share. The audit also showed the retry loop still spawned when the shutdown landed between the
+  caller's bootstrap and the first attempt (the attempt creates its own abort controller), and that closing
+  the handle without republishing the HMR state put the dead handle back on an in-process re-entry.
+- **`7c6ae05c`** — four ways the one-time desktop→runtime scheduled-task migration could delete a task from
+  the project JSON without creating it in the runtime and without recording a skip: the per-title idempotency
+  map was updated with the task created moments earlier in the same run, so a second desktop task with the
+  same name read as already migrated; `replaceScheduledTasks` handed its updater the *normalized* task list,
+  which drops what its normalization rejects (a task the transform accepts with its
+  `execution.providerID`/`modelID` warning) and gives an id-less task a fresh id per read, so a retry-pending
+  task was erased and a settled one never matched; and the attempts-exhausted cleanup passed a literal `[]`,
+  deleting a task saved while the pass was talking to the runtime.
+- **`27a877aa`** — `quota/utils/auth.js` defaulted the config and data directories to `~/.config` and
+  `~/.local/share` while ax-code resolves both through xdg-basedir, which the sibling readers already mirror.
+  With a customised `XDG_DATA_HOME` the Antigravity accounts file was read from a directory the runtime never
+  writes, so the source silently disappeared from the Google card.
+- **`a26f3769`** — `upstream-reader.js` cleared the reconnect backoff as soon as the response headers
+  arrived, so a runtime that answers `200` and closes the body immediately — a crash loop, or a proxy dropping
+  idle connections — was retried at the base delay for as long as it stayed that way: the storm the backoff
+  was added to prevent. A connection now clears the counter only once it has lasted the backoff cap.
+- **`982fbb77`** — `respondUnauthorized` chose its body with `req.path.startsWith("/api")`, but a mounted
+  middleware sees `req.path` relative to the mount, so under `app.use("/api", …)` it is `/sessions`: the API
+  branch never ran and an API client sending the default `Accept: */*` got `text/plain` instead of
+  `{ error, locked }`.
+- **`f194a96a`**, **`cfbfcda0`**, **`fccd3ab2`** — four defects in `skills-catalog`: the ClawdHub installer
+  deleted the installed copy before a move that could still fail (and a rename cannot land on a directory that
+  exists, which is why the delete is there at all), leaving the user with neither the old skill nor the new
+  one; `rateLimitedFetch` retried a 429/5xx without releasing that response's body, leaving up to nine bodies
+  holding their sockets per call; the git installer wrote two selected directories with the same basename into
+  one target and reported both as installed; the git overwrite deleted the installed copy before a copy that
+  refuses symlinks; and a failed `git ls-tree` was reported as a successful empty scan, which the caller then
+  cached for thirty minutes as "this repository has no skills".
+- **`43b9d489`** — the round-17 `lsof` test could only pass off Windows; it pins the platform now, which the
+  Grok CLI's audit of that commit found.
+- **`5c0ca164`** — `startAxCode` publishes the handle only after the launch resolves, and the teardown closes
+  what it can see, so a shutdown that landed in that window closed nothing and the publish that followed left
+  the child running with its port bound. A launch resolving into a shutdown is closed and reported as
+  cancelled now.
+- **`f36eefa3`** — the Wafer quota provider tested `error.name === "AbortError"` for a signal built by
+  `AbortSignal.timeout()`, which aborts with `"TimeoutError"`: the friendly "Request timed out" message was
+  dead code and the raw abort text reached the card. The repository handles that pairing in two other places;
+  the quota module had no check for it anywhere.
+
+Reported, verified against the source, and not fixed:
+
+- **The Google quota source cannot refresh with an empty OAuth client.** `google/auth.js` reads its client id and
+  secret from `ANTIGRAVITY_GOOGLE_CLIENT_ID`/`_SECRET` and `GEMINI_GOOGLE_CLIENT_ID`/`_SECRET`, defaulting to
+  `""`, and nothing in this repository sets them; the Antigravity source always needs a refresh, so its branch
+  of the Google card is dead. The comparison against `.internal/reference/openchamber` shows why: upstream has
+  the same four values as **literals** in `google/auth.js` and in its vscode package (a public client secret
+  published in that ecosystem), and this port removed them. That removal is the repository's own rule ("never
+  store raw credentials"), so putting them back is a policy decision, not a bug fix — and the remaining
+  options (a configuration path, or a clear "not configured in this build" message instead of the provider's
+  `invalid_client` error) are a product change. Recorded here so the state is not mistaken for a working
+  provider.
+
+Reported and left for their own workstream:
+
+- The glm-5.3 reviewer read the server side of a sibling session's feature commits (hunk staging, the GitHub
+  issues/PRs board, terminal replay) and returned two findings: the hunk-patch validation in
+  `git/service.js` scans every `--- `/`+++ ` line in the patch, including hunk bodies, so a content line that
+  begins with `-- `/`++ ` renders as a header and a valid hunk is rejected with "Patch does not target
+  file.txt" (fail-closed, but a false rejection of valid input); and the board's label filter sends a
+  comma-joined value as one quoted label (`label:"bug,ui"`) although the route takes that path precisely
+  because a comma separates labels, which returns nothing unless the repository has such a label. Neither is
+  fixed here: the code is a sibling session's active feature work, and editing it from this session risks
+  colliding with that workstream. Both are recorded with the reviewers' evidence and regression-test ideas.
+
 ## Nineteenth round
 
 The audit lens that has paid off most often in this series, over everything since `11a54e33` — the six
@@ -1324,6 +1417,15 @@ and asserts the process is closed and its port freed, and the lifecycle test ass
 
 Both findings are the same shape as the two the sixteenth round's falsification pass found: a fix whose
 *reason* was asserted rather than demonstrated. That lens stays in the rotation.
+
+The Grok CLI ran the same audit in parallel and returned later with the same two defects from the authority
+side, plus one of its own: the round-17 test "kills only a listener on the port" asserted that `lsof` had been
+called, but `killProcessOnPort` returns before spawning anything on win32, so the test could only pass off
+Windows. It now pins the platform and asserts the whole argv (`43b9d489`), and the two URL forms Grok named
+are in `url.test.ts` (`02fc780a`). Its reading of the shutdown path agreed with the Claude audit on the
+published handle and disagreed on one detail — it also claimed the failure path latches the
+`gracefulShutdown` gate; `stopAxCodeLifecycle` only sets the lifecycle's own flag
+(`axCodeLifecycleRuntime.shutdown()`), not the `index.js` one that gate reads, so nothing was latched.
 
 ## Eighteenth round
 
@@ -2451,6 +2553,11 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
+- Latest full run, after the twentieth round's fixes (each command's exit status captured, not inferred
+  from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
+  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 878, web 1 258
+  (+2 skipped), 0 `FAIL` lines. The tree also carries another session's feature commits; `ec581ab8` says
+  what they added.
 - Latest full run, after the nineteenth round's fixes (each command's exit status captured, not inferred
   from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 876, web 1 240
