@@ -753,6 +753,12 @@ export function registerGitRoutes(app) {
       if (!branch) {
         return res.status(400).json({ error: "branch is required" })
       }
+      // Git parses a leading "-" as an option: `git branch -d --help` prints usage
+      // and exits 0, so the branch was never deleted and this route still answered
+      // success. Git refs never start with "-".
+      if (isOptionLikeRevision(branch)) {
+        return res.status(400).json({ error: "branch must be a branch name, not an option" })
+      }
 
       const result = await deleteBranch(directory, branch, { force })
       res.json(result)

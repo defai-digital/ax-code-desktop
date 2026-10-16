@@ -11,6 +11,7 @@ const gitLibraries = {
   getCommitFiles: vi.fn(),
   getStatus: vi.fn(),
   isGitRepository: vi.fn(),
+  deleteBranch: vi.fn(),
 }
 
 vi.doMock("./index.js", () => ({
@@ -20,6 +21,7 @@ vi.doMock("./index.js", () => ({
   getCommitFiles: gitLibraries.getCommitFiles,
   getStatus: gitLibraries.getStatus,
   isGitRepository: gitLibraries.isGitRepository,
+  deleteBranch: gitLibraries.deleteBranch,
 }))
 
 const { registerGitRoutes } = await import("./routes.js")
@@ -32,6 +34,23 @@ describe("git routes index mutations", () => {
     gitLibraries.getCommitFiles.mockReset()
     gitLibraries.getStatus.mockReset()
     gitLibraries.isGitRepository.mockReset()
+    gitLibraries.deleteBranch.mockReset()
+  })
+
+  it("rejects an option-like branch name instead of reporting a deletion", async () => {
+    // `git branch -d --help` prints usage and exits 0, so git never deleted
+    // anything while the route answered success.
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("DELETE", "/api/git/branches")(
+      { query: { directory: "/repo" }, body: { branch: "--help" } },
+      response,
+    )
+
+    expect(response.statusCode).toBe(400)
+    expect(gitLibraries.deleteBranch).not.toHaveBeenCalled()
   })
 
   it("accepts legacy stage path payloads", async () => {
