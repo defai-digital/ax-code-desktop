@@ -592,9 +592,18 @@ export const createProjectConfigRuntime = (deps) => {
       // An updater is handed the list as it is *now*, inside the lock. A caller that computed its list
       // from an earlier read — the boot migration reads the file, talks to the runtime for seconds and
       // then writes back — would otherwise replace whatever a task edit added in the meantime.
-      const resolved = Array.isArray(tasksOrUpdater)
-        ? tasksOrUpdater
-        : await tasksOrUpdater((await readProjectConfigFromDisk(projectID)).scheduledTasks)
+      //
+      // The list is the one on disk, not the normalized view: `readProjectConfigFromDisk` drops every task
+      // whose normalization throws and gives a task without an id a fresh one on each read. A caller that
+      // reconciles the tasks it read itself (the migration filters by their identity) therefore either erased
+      // a task it never settled, or failed to match one it had, depending on which of the two it hit.
+      let resolved
+      if (Array.isArray(tasksOrUpdater)) {
+        resolved = tasksOrUpdater
+      } else {
+        const raw = (await readRawProjectConfigFromDisk(projectID)).scheduledTasks
+        resolved = await tasksOrUpdater(Array.isArray(raw) ? raw : [])
+      }
       // Refused, not coerced: an updater that returns something else is a contract violation, and
       // `writeScheduledTasksToDisk` deletes the key for an empty list — so the old fallback answered a
       // broken caller by erasing every scheduled task in the project with nothing logged.

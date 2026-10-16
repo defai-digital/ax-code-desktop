@@ -219,16 +219,18 @@ export const createScheduledTaskConvergence = (deps) => {
         return { outcome: "skipped", reason: error.message, taskLabel, warnings }
       }
       const createdID = typeof created?.id === "string" ? created.id : null
-      existingByTitle.set(payload.title, { id: createdID, status: "active" })
+      // Deliberately not recorded in `existingByTitle`. That map is the resume heuristic — "the runtime already
+      // had a task with this title before this run" — and registering the task created a moment ago made the
+      // next desktop task with the same name read as already migrated: it left the project file with no runtime
+      // task and no skip record. Two desktop tasks may share a name (nothing enforces uniqueness) and the
+      // runtime accepts duplicate titles. Resume still works: the next run lists the runtime tasks.
       if (result.pause) {
         if (createdID) {
           try {
             await pauseRuntimeTask(projectPath, createdID)
-            existingByTitle.set(payload.title, { id: createdID, status: "paused" })
           } catch (error) {
-            // The task was already created (and is tracked in existingByTitle),
-            // so a retry would hit the idempotent "existing" branch above
-            // rather than creating a duplicate.
+            // The task exists in the runtime from here on, so the next run's title check finds it and retries
+            // only the pause.
             if (isRetryableRuntimeError(error)) {
               return { outcome: "retry", reason: error.message, taskLabel, warnings }
             }
@@ -385,7 +387,12 @@ export const createScheduledTaskConvergence = (deps) => {
             reason: `migration attempts exhausted (${maxAttempts})`,
           })
         }
-        await projectConfigRuntime.replaceScheduledTasks(projectID, [])
+        // The recorded tasks are what leaves the file: passing a literal `[]` also deleted a task saved while
+        // the pass was talking to the runtime, and recorded nothing about it.
+        const exhaustedKeys = new Set(remaining.map((task) => scheduledTaskKey(task)))
+        await projectConfigRuntime.replaceScheduledTasks(projectID, (currentTasks) =>
+          currentTasks.filter((task) => !exhaustedKeys.has(scheduledTaskKey(task))),
+        )
       }
       await writeMarker({ migratedAt: Date.now(), attempts, skipped, warnings })
       return { migrated: true, attempts, exhausted: true, skippedCount: skipped.length }

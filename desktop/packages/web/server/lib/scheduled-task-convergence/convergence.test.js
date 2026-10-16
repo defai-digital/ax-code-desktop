@@ -8,7 +8,7 @@ import { createScheduledTaskConvergence } from "./convergence.js"
 
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} }
 
-const createHarness = async ({ runtimeTasks = [], runtimeHandler, listProjects } = {}) => {
+const createHarness = async ({ runtimeTasks = [], runtimeHandler, listProjects, maxAttempts } = {}) => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-scheduled-convergence-"))
   const projectsDir = path.join(tempRoot, "projects")
   const markerPath = path.join(tempRoot, "scheduled-tasks-migrated.json")
@@ -46,6 +46,7 @@ const createHarness = async ({ runtimeTasks = [], runtimeHandler, listProjects }
     expandSnippets: (prompt) => prompt,
     logger: silentLogger,
     fetchImpl,
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
   })
 
   return {
@@ -269,6 +270,132 @@ describe("scheduled task convergence migration", () => {
     const marker = await harness.readMarker()
     expect(marker.migratedAt).toBeUndefined()
     expect(marker.attempts).toBe(1)
+  })
+
+  it("migrates two tasks that share a name instead of dropping the second", async () => {
+    // The per-title map was also updated with the task created a moment earlier in this run, so the second
+    // desktop task read as "already migrated": it left the project file with no runtime task and no skip
+    // record. Nothing enforces unique task names, and the runtime accepts duplicate titles.
+    const harness = await createHarness()
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", {
+      projectPath: "/work/alpha",
+      scheduledTasks: [
+        dailyTask({ id: "task-1", name: "Daily report" }),
+        dailyTask({
+          id: "task-2",
+          name: "Daily report",
+          schedule: { kind: "daily", times: ["17:00"], timezone: "UTC" },
+        }),
+      ],
+    })
+
+    await harness.convergence.start()
+
+    const creates = harness.requests.filter(
+      (request) => request.method === "POST" && request.url.endsWith("/scheduled-task?directory=%2Fwork%2Falpha"),
+    )
+    expect(creates.map((request) => request.body.title)).toEqual(["Daily report", "Daily report"])
+    expect(creates.map((request) => request.body.schedule.time)).toEqual(["09:00", "17:00"])
+
+    const project = await harness.readProject("proj-a.json")
+    expect(project.scheduledTasks).toBeUndefined()
+  })
+
+  it("keeps a retryable task the normalized reader would drop", async () => {
+    // `replaceScheduledTasks` handed its updater the normalized task list, which silently drops every task
+    // whose normalization throws — `execution.providerID`/`modelID` are optional for the transform (it warns
+    // and lets the runtime use its default model) and required by `normalizeTaskForStorage`. The write then
+    // erased a task the pass had only marked for retry.
+    const harness = await createHarness({
+      runtimeHandler: async (url, init = {}) => {
+        const method = init.method || "GET"
+        if (method === "GET") {
+          return new Response(JSON.stringify([]), { status: 200 })
+        }
+        return new Response("boom", { status: 500 })
+      },
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", {
+      projectPath: "/work/alpha",
+      scheduledTasks: [dailyTask({ execution: { prompt: "Summarize" } })],
+    })
+
+    await harness.convergence.start()
+
+    const project = await harness.readProject("proj-a.json")
+    expect(project.scheduledTasks).toHaveLength(1)
+    expect(project.scheduledTasks[0].id).toBe("task-1")
+    const marker = await harness.readMarker()
+    expect(marker.migratedAt).toBeUndefined()
+  })
+
+  it("removes a migrated task that had no id of its own", async () => {
+    // The updater's list came from the normalizing reader, which gives an id-less task a fresh id on every
+    // read: the raw task's key was `name:…` and the list's was `id:<new uuid>`, so the settled task stayed in
+    // the project JSON with a stored random id.
+    const harness = await createHarness()
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", {
+      projectPath: "/work/alpha",
+      scheduledTasks: [dailyTask({ id: undefined })],
+    })
+
+    await harness.convergence.start()
+
+    const creates = harness.requests.filter(
+      (request) => request.method === "POST" && request.url.endsWith("/scheduled-task?directory=%2Fwork%2Falpha"),
+    )
+    expect(creates).toHaveLength(1)
+    const project = await harness.readProject("proj-a.json")
+    expect(project.scheduledTasks).toBeUndefined()
+  })
+
+  it("keeps a task saved during an exhausted pass instead of emptying the list", async () => {
+    // The exhaustion cleanup replaced the whole list with a literal `[]`, which also deleted a task saved
+    // while the pass was talking to the runtime — the case the settle path's in-lock updater was added for.
+    let releaseFirstCreate = () => {}
+    const firstCreateGate = new Promise((resolve) => {
+      releaseFirstCreate = resolve
+    })
+    let createCalls = 0
+    const harness = await createHarness({
+      maxAttempts: 1,
+      runtimeHandler: async (url, init = {}) => {
+        const method = init.method || "GET"
+        if (method === "GET") {
+          return new Response(JSON.stringify([]), { status: 200 })
+        }
+        createCalls += 1
+        if (createCalls === 1) {
+          await firstCreateGate
+        }
+        return new Response("boom", { status: 500 })
+      },
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", {
+      projectPath: "/work/alpha",
+      scheduledTasks: [dailyTask()],
+    })
+
+    const migrating = harness.convergence.start()
+    await vi.waitFor(async () => {
+      expect(createCalls).toBe(1)
+    })
+    await harness.projectConfigRuntime.upsertScheduledTask(
+      "proj-a",
+      dailyTask({ id: "task-saved", name: "Saved meanwhile" }),
+    )
+    releaseFirstCreate()
+    await migrating
+
+    const project = await harness.readProject("proj-a.json")
+    expect((project.scheduledTasks ?? []).map((task) => task.id)).toEqual(["task-saved"])
+    const marker = await harness.readMarker()
+    expect(marker.skipped.map((entry) => entry.task)).toEqual(["Digest"])
+    expect(typeof marker.migratedAt).toBe("number")
   })
 
   it("skips migration entirely once the marker is finalized, but still wakes directories", async () => {
