@@ -9,6 +9,7 @@ import {
   checkoutBranch,
   checkoutCommit,
   cherryPick,
+  commit,
   countStashFiles,
   createWorktree,
   getFileDiff,
@@ -947,5 +948,43 @@ describe("createWorktree start scripts", () => {
       if (previousXdgDataHome === undefined) delete process.env.XDG_DATA_HOME
       else process.env.XDG_DATA_HOME = previousXdgDataHome
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// commit with a selection
+// ---------------------------------------------------------------------------
+
+describe("commit with selected files", () => {
+  it("leaves a file's unstaged edits unstaged when it temporarily unstages it", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "a.txt"), "one\n")
+    fs.writeFileSync(path.join(repo, "b.txt"), "b\n")
+    runGit(repo, ["add", "."])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+
+    // a.txt is staged with one edit and then edited again without staging it, so its index entry and
+    // its worktree differ. b.txt is the file the user asks to commit.
+    fs.writeFileSync(path.join(repo, "a.txt"), "one\nstaged\n")
+    runGit(repo, ["add", "a.txt"])
+    fs.writeFileSync(path.join(repo, "a.txt"), "one\nstaged\nunstaged\n")
+    fs.writeFileSync(path.join(repo, "b.txt"), "b\nchanged\n")
+    runGit(repo, ["add", "b.txt"])
+
+    const stagedBlobBefore = runGit(repo, ["rev-parse", ":a.txt"]).trim()
+
+    const result = await commit(repo, "Only b", { files: ["b.txt"], stageFiles: ["b.txt"] })
+
+    expect(result.success).toBe(true)
+    // `git add` used to restore a.txt, which staged the worktree content: the edits the user left
+    // unstaged were folded into the index and swept into the next commit.
+    expect(runGit(repo, ["rev-parse", ":a.txt"]).trim()).toBe(stagedBlobBefore)
+    expect(runGit(repo, ["status", "--porcelain", "--", "a.txt"]).trim()).toBe("MM a.txt")
+    expect(runGit(repo, ["diff", "--", "a.txt"])).toContain("unstaged")
   })
 })

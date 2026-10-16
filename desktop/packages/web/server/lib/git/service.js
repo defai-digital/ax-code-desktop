@@ -2682,10 +2682,52 @@ export async function unstageFiles(directory, paths) {
   })
 }
 
+/**
+ * The index entry (mode and blob) per path, so a file that was temporarily unstaged can be put back
+ * exactly as it was. `git add` re-stages the *worktree* content instead, which folds edits the user
+ * left unstaged into the next commit and can never restore a staged state that differs from the file.
+ */
+const readStagedIndexEntries = async (git, paths) => {
+  const entries = new Map()
+  try {
+    // -z so a path with quotes or newlines is still one record.
+    const raw = await git.raw(["ls-files", "--stage", "-z", "--", ...paths])
+    for (const record of raw.split("\0")) {
+      if (!record) {
+        continue
+      }
+      const tabIndex = record.indexOf("\t")
+      if (tabIndex < 0) {
+        continue
+      }
+      const [mode, object, stage] = record.slice(0, tabIndex).split(" ")
+      // Stage 0 only: an unmerged path has no single entry to restore.
+      if (stage !== "0" || !mode || !object) {
+        continue
+      }
+      entries.set(record.slice(tabIndex + 1), { mode, object })
+    }
+  } catch (error) {
+    console.error("Failed to read the staged entries that are about to be unstaged:", error)
+  }
+  return entries
+}
+
+const restoreStagedIndexEntries = async (git, paths, entries) => {
+  for (const filePath of paths) {
+    const entry = entries.get(filePath)
+    if (!entry) {
+      continue
+    }
+    await git.raw(["update-index", "--cacheinfo", `${entry.mode},${entry.object},${filePath}`])
+  }
+}
+
 export async function commit(directory, message, options = {}) {
   return withGitIndexMutationQueue(directory, async () => {
     const { directoryPath, directoryGit, repoRoot, git } = await createRepositoryGitContext(directory)
     let temporarilyUnstagedFiles = []
+    let preservedIndexEntries = new Map()
 
     try {
       const requestedFiles = Array.isArray(options.files) ? normalizeFilePathList(options.files) : []
@@ -2739,6 +2781,7 @@ export async function commit(directory, message, options = {}) {
             .map((file) => file.path)
 
           if (temporarilyUnstagedFiles.length > 0) {
+            preservedIndexEntries = await readStagedIndexEntries(git, temporarilyUnstagedFiles)
             await git.raw(["restore", "--staged", "--", ...temporarilyUnstagedFiles])
           }
         }
@@ -2777,9 +2820,11 @@ export async function commit(directory, message, options = {}) {
       }
 
       if (temporarilyUnstagedFiles.length > 0) {
-        await git.raw(["add", "--", ...temporarilyUnstagedFiles]).catch((restoreError) => {
-          console.error("Failed to restore temporarily unstaged files:", restoreError)
-        })
+        await restoreStagedIndexEntries(git, temporarilyUnstagedFiles, preservedIndexEntries).catch(
+          (restoreError) => {
+            console.error("Failed to restore temporarily unstaged files:", restoreError)
+          },
+        )
       }
 
       return {
@@ -2790,9 +2835,11 @@ export async function commit(directory, message, options = {}) {
       }
     } catch (error) {
       if (temporarilyUnstagedFiles.length > 0) {
-        await git.raw(["add", "--", ...temporarilyUnstagedFiles]).catch((restoreError) => {
-          console.error("Failed to restore temporarily unstaged files after commit failure:", restoreError)
-        })
+        await restoreStagedIndexEntries(git, temporarilyUnstagedFiles, preservedIndexEntries).catch(
+          (restoreError) => {
+            console.error("Failed to restore temporarily unstaged files after commit failure:", restoreError)
+          },
+        )
       }
       console.error("Failed to commit:", error)
       throw error
