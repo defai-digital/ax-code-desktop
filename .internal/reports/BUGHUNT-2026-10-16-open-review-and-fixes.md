@@ -769,17 +769,31 @@ was written.
   `http://localhost.evil.example/x` was offered as `http://localhost/`. Removing a plan entry deleted
   whatever path the config named, which a config cloned into a repository can point anywhere.
 
+### More fixed from this round
+
+- **`db1d7741`** — both boundary checkers had a reachable hole: an alias specifier that walked out of
+  its source tree (`@/../electron/src/…`) was normalized before the web-alias rule looked at it, and
+  the store checker walked imports and dynamic imports but not `export … from`, so a module could
+  re-export the connection-state writers while R5 passed. The installer qualification's `finally`
+  also let a failed unmount replace the signature failure it was unwinding.
+- **`bcd580f2`** — a custom provider's ID came from the endpoint's hostname alone, so Ollama on
+  `:11434` and LM Studio on `:1234` both derived `localhost` and the second save upserted over the
+  first, dropping its endpoint, token and models.
+- **`8c271256`** — the settings page cleared a saved `defaultVariant` while the provider list was
+  still loading, where an empty list means "not known yet", and persisted the empty value.
+- **`965d1059`** — a rejected worktree-root probe on every Git view mount, and a rejected tray IPC
+  that kept repeating on every store change and poll.
+
 ### Waiting for a first re-check
 
 Confirmed by a reviewer but not yet verified in the source by me; each names the file and line the
 reviewer linked:
 
-- `sections/providers/customApiProviderFormModel.ts:110`,
-  `sections/ax-code/DefaultsSettings.tsx:182`, `sections/providers/ProvidersPage.tsx:1119` and
-  `:125`, `sections/models/LocalModelsPage.tsx:93` (settings surfaces).
-- `hooks/**` — four confirmed: a cleanup re-entry guard that is per hook instance while the hook is
-  mounted twice, an uncaught async probe on every Git view mount, a skipped manual cleanup reported
-  as "no sessions are eligible", and `useTraySync`'s `void invokeDesktop(...)` without a `.catch`.
+- `sections/providers/ProvidersPage.tsx:1119` (an OAuth method index taken from the filtered list
+  while the server indexes the full one) and `:125`, `sections/models/LocalModelsPage.tsx:93` (a load
+  for the previous directory landing after a switch).
+- `hooks/**` — two remaining: a cleanup re-entry guard that is per hook instance while the hook is
+  mounted twice, and a skipped manual cleanup reported as "no sessions are eligible".
 - `components/{supervision,multirun}` — four confirmed and one suspected.
 - `stores/**` — `useDirectoryStore.setDirectory` runs side effects inside Zustand's updater
   (medium), a snippets cache key that races the in-flight directory (low), and a provider-cache
