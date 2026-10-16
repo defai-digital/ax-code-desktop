@@ -329,6 +329,9 @@ const OverlayScrollbarComponent: React.FC<OverlayScrollbarProps> = ({
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!isDraggingRef.current) return
     isDraggingRef.current = false
+    // The axis belongs to the drag that just ended; leaving it behind made a later disappearance of that axis's
+    // thumb read as an interrupted drag.
+    dragAxisRef.current = null
     event.currentTarget.releasePointerCapture(event.pointerId)
     scheduleHide()
   }
@@ -357,6 +360,12 @@ const OverlayScrollbarComponent: React.FC<OverlayScrollbarProps> = ({
   // drag belongs to one axis, so it is that axis's thumb that has to still be there: the other axis keeping a thumb
   // on screen left the flag set.
   React.useEffect(() => {
+    // Only a drag that is still in progress: `dragAxisRef` outlives a finished drag, and a thumb of that axis
+    // disappearing later would otherwise be read as the interrupted one — clearing the hover flag of a thumb the
+    // pointer is on and hiding the bar under the cursor.
+    if (!isDraggingRef.current) {
+      return
+    }
     const axis = dragAxisRef.current
     const lostThumb = (axis === "vertical" && !showVertical) || (axis === "horizontal" && !showHorizontal)
     if (!lostThumb) {

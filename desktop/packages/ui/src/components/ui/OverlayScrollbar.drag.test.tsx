@@ -213,6 +213,60 @@ describe("OverlayScrollbar drag mapping", () => {
     }
   })
 
+  test("keeps the bar for a thumb that disappears after the drag ended", () => {
+    // `dragAxisRef` outlived the drag, so the next disappearance of that axis's thumb was read as the interrupted
+    // drag: the hover flag of the thumb the pointer was on was cleared and the bar hid under the cursor.
+    vi.useFakeTimers()
+    stubFrameQueue()
+    try {
+      render()
+      const scrollContainer = scrollContainerRef.current
+      if (!scrollContainer) throw new Error("container not rendered")
+
+      let scrollHeight = 3000
+      Object.defineProperty(scrollContainer, "clientHeight", { configurable: true, value: 300 })
+      Object.defineProperty(scrollContainer, "clientWidth", { configurable: true, value: 300 })
+      Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, get: () => scrollHeight })
+      Object.defineProperty(scrollContainer, "scrollWidth", { configurable: true, value: 600 })
+      Object.defineProperty(scrollContainer, "scrollTop", { configurable: true, get: () => 0, set: () => {} })
+      Object.defineProperty(scrollContainer, "scrollLeft", { configurable: true, get: () => 0, set: () => {} })
+
+      act(() => {
+        scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+      runFrames()
+
+      const verticalThumb = container.querySelector('[data-overlay-scrollbar-thumb="vertical"]')
+      if (!(verticalThumb instanceof HTMLElement)) throw new Error("vertical thumb not rendered")
+      act(() => {
+        verticalThumb.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientY: 0, clientX: 0 }))
+        // The release lands on the thumb, which is where the scrollbar's own handler sits (the window listener only
+        // tracks the height), so the drag is over.
+        verticalThumb.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientY: 0, clientX: 0 }))
+      })
+
+      // The pointer rests on the horizontal thumb while the vertical one stops overflowing.
+      const horizontalThumb = container.querySelector('[data-overlay-scrollbar-thumb="horizontal"]')
+      if (!(horizontalThumb instanceof HTMLElement)) throw new Error("horizontal thumb not rendered")
+      scrollHeight = 300
+      act(() => {
+        // React synthesises `onMouseEnter` from `mouseover` with a related target outside the element.
+        horizontalThumb.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body }))
+        scrollContainer.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+      runFrames()
+      act(() => {
+        vi.advanceTimersByTime(2000)
+      })
+
+      const bar = container.querySelector(".overlay-scrollbar")
+      if (!(bar instanceof HTMLElement)) throw new Error("scrollbar not rendered")
+      expect(bar.style.opacity).toBe("1")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   test("drags the thumb over the same travel it is positioned with", () => {
     // The thumb's travel is the track minus its own length, and the track is short by `TRACK_INSET` at both ends.
     // The drag mapped pointer movement over the *full* height, so the content scrolled slower than the pointer and
