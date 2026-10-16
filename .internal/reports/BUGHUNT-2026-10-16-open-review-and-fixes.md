@@ -2076,11 +2076,13 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
-- Latest full run, after the twelfth round's UI-library and shared batches (each command's exit status
-  captured, not inferred from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
-  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 757, web 1 141
+- Latest full run, after the second upstream pass closed (each command's exit status captured, not
+  inferred from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
+  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 765, web 1 157
   (+2 skipped). The lint run's only output is a pre-existing `react-hooks/exhaustive-deps` warning in
   `ui/src/sync/use-sync.ts`.
+- The twelfth round's own run, for the record: typecheck 0, lint 0, test 0, boundaries 0 — root scripts
+  180 (+6 skipped), electron 595, ui 2 757, web 1 141 (+2 skipped).
 - Final state after the ninth round, with each command's exit status captured rather than inferred
   from a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0. `pnpm run test` reported one failure in its last full run — the
