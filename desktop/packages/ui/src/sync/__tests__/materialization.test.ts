@@ -51,6 +51,62 @@ describe("materializeSessionSnapshots", () => {
     expect(merged.time?.completed).toBe(9)
   })
 
+  test("marks a tool a completed message left running as aborted", () => {
+    // The runtime persists a tool part as running while it works, and an interrupted or killed
+    // turn never rewrites it. Nobody is left to settle it, so every later load restored the card
+    // in its active state with a running timer and held the completed message open.
+    const completed = {
+      id: "msg_1",
+      sessionID: "ses_1",
+      role: "assistant",
+      time: { created: 1, completed: 9 },
+      finish: "stop",
+    } as unknown as Message
+    const runningTool = {
+      id: "prt_1",
+      messageID: "msg_1",
+      sessionID: "ses_1",
+      type: "tool",
+      tool: "bash",
+      state: { status: "running", input: {}, time: { start: 3 } },
+    } as unknown as Part
+    const doneTool = {
+      id: "prt_2",
+      messageID: "msg_1",
+      sessionID: "ses_1",
+      type: "tool",
+      tool: "read",
+      state: { status: "completed", input: {}, time: { start: 1, end: 2 } },
+    } as unknown as Part
+
+    const result = materializeSessionSnapshots({ message: {}, part: PartMap.from({}) }, "ses_1", [
+      { info: completed, parts: [runningTool, doneTool] },
+    ])
+
+    const parts = result.part.get("msg_1")!
+    expect((parts[0].state as { status: string; time: { start: number; end: number } }).status).toBe("aborted")
+    expect((parts[0].state as { time: { start: number; end: number } }).time).toEqual({ start: 3, end: 9 })
+    // A tool that already settled, and a message that is still running, are left alone.
+    expect((parts[1].state as { status: string }).status).toBe("completed")
+  })
+
+  test("leaves a running tool alone while its message is still running", () => {
+    const pending = {
+      id: "prt_1",
+      messageID: "msg_1",
+      sessionID: "ses_1",
+      type: "tool",
+      tool: "bash",
+      state: { status: "running", input: {}, time: { start: 3 } },
+    } as unknown as Part
+
+    const result = materializeSessionSnapshots({ message: {}, part: PartMap.from({}) }, "ses_1", [
+      { info: message("msg_1"), parts: [pending] },
+    ])
+
+    expect((result.part.get("msg_1")![0].state as { status: string }).status).toBe("running")
+  })
+
   test("preserves unchanged references", () => {
     const existingMessage = message("msg_1")
     const existingPart = part("prt_1", "msg_1")

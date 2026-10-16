@@ -97,6 +97,43 @@ function hasLiveStreamingField(part: Part): boolean {
   })
 }
 
+const UNSETTLED_TOOL_STATUSES = new Set(["pending", "running", "started"])
+
+const getCompletedAt = (info: MaterializedMessageRecord["info"]): number | undefined => {
+  const completed = (info as { time?: { completed?: unknown } }).time?.completed
+  return typeof completed === "number" && Number.isFinite(completed) ? completed : undefined
+}
+
+/**
+ * Mark tool parts a completed message left running as aborted.
+ *
+ * The runtime persists a tool part as `pending`/`running` while it works, and an interrupted or
+ * killed turn never rewrites it. The assistant message it belongs to is complete, so no further
+ * event will settle it: every later load restored the card in its active state, with a running
+ * timer, holding the message open.
+ */
+function finalizeUnsettledToolParts(parts: Part[], completedAt: number | undefined): Part[] {
+  if (completedAt === undefined) return parts
+
+  let changed = false
+  const finalized = parts.map((part) => {
+    if ((part as { type?: unknown }).type !== "tool") return part
+    const state = (part as { state?: Record<string, unknown> }).state
+    const status = typeof state?.status === "string" ? state.status : undefined
+    if (!status || !UNSETTLED_TOOL_STATUSES.has(status)) return part
+
+    changed = true
+    const time = (state?.time as { start?: unknown } | undefined) ?? undefined
+    const start = typeof time?.start === "number" ? time.start : completedAt
+    return {
+      ...part,
+      state: { ...state, status: "aborted", time: { start, end: completedAt } },
+    } as unknown as Part
+  })
+
+  return changed ? finalized : parts
+}
+
 // The reducer marks a part whose snapshot text extends the live text, so the next delta may drop the
 // overlap it re-sends. That mark describes the *next* delta, so it must survive a merge that replaces
 // the part object — dropping it lets a re-sent overlap append twice.
@@ -181,13 +218,18 @@ export function materializeSessionSnapshots(
     if (isPrepend && nextPartState.has(messageID)) continue
 
     const isAssistant = record.info.role === "assistant"
+    // A tool part the runtime persisted while it was running, in a message that is already
+    // complete, has nobody left to settle it: every later load restored it as live, so its card
+    // kept a running timer and held the message open until the view was thrown away.
+    const completedAt = isAssistant ? getCompletedAt(record.info) : undefined
     const existing = nextPartState.get(messageID)
-    const nextParts = mergeMaterializedParts(
+    const mergedParts = mergeMaterializedParts(
       existing,
       sortPartsById(record.parts ?? [], skipPartTypes),
       skipPartTypes,
       isAssistant,
     )
+    const nextParts = finalizeUnsettledToolParts(mergedParts, completedAt)
     // For non-assistant messages an empty snapshot keeps the old "absent"
     // representation; only assistant messages need the explicit [] marker
     // (getSessionMaterializationStatus checks only assistant messages).
