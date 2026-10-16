@@ -1691,6 +1691,17 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     if (slashCommand) {
       const commandName = slashCommand.name
 
+      // A slash command consumes the composer without sending it: the review comments this submit folded into
+      // the text and the files it cleared are not the command's payload, and the restore paths below only run for
+      // a refused queue entry or a failed send — so they were lost with no trace. The composer was cleared above,
+      // so handing both back restores exactly the state before the submit.
+      if (drafts.length > 0) {
+        restoreConsumedDrafts(drafts)
+      }
+      if (attachedFiles.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
+        useInputStore.getState().setAttachedFiles(attachedFiles)
+      }
+
       if (commandName === "undo" && currentSessionId) {
         // Every other slash branch reports its failure. These two let the rejection out of `handleSubmit`, which
         // clears the composer and drops the promise: a failed revert showed nothing at all.
