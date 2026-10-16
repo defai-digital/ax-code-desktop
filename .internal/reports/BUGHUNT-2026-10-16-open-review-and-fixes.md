@@ -1269,16 +1269,38 @@ Fixed from this round so far:
   while the agent stayed blocked, and the reconnect and poll candidates read from those same slices no
   longer listed it. The per-session path protects those ids; the directory-level path does now.
 
-Read and not yet verified: `r7-stores` (8 KiB), `r7-serversessions` (21 KiB) and `r7-tui` (18 KiB) each
-finished with findings, and `r7-electron` was still running. The three suspected leads in `r7-sync` are
-unread.
+- **`6ba7b35e`** — `clearSessions` invalidated the in-flight rollback refreshes of the sessions it was
+  clearing, with a comment saying a late answer must not repopulate them; `clearSession` pruned the
+  points, loading and error maps but left those request ids alone, so a refresh already in flight applied
+  its answer after the clear and a deleted session showed rollback points again.
+- **`eceefefe`** — `refreshStatus` hands every later call the promise it already holds, and the read it
+  wraps had no timeout: a bridge call or fetch that never settles wedged GitHub auth for the life of the
+  app — every later refresh returned that promise, `isLoading` stayed true, and nothing recovered short
+  of a restart. The read is bounded like the rollback and update stores, and its timeout takes the
+  ordinary failure path so the entry is replaced.
+- **`6c8a92e1`** — `selectApp` applied the selection and then awaited the shared-settings write with no
+  catch. The write rejects its waiters, so the rejection escaped the store and reached its only caller,
+  which awaits `selectApp` before opening the project: the user picked an app and nothing opened. The
+  write is best effort now, since the selection is already local.
+- **`d0825add`** — creating a run and starting it are two round trips, and the store dispatched the
+  prompts in a detached task that returned success before they settled, so a run whose send failed sat as
+  an empty session with its prompt gone and only a console warning to show for it. The dispatch is
+  awaited, the result carries `startedRunCount`, and the launcher's shortfall toast counts that instead
+  of created sessions.
+
+Read and not yet verified: `r7-serversessions` (21 KiB) names six findings —
+`ui-auth/ui-passkeys.js:350-399`, `quota/providers/google/index.js:38-50`,
+`skills-catalog/clawdhub/install.js:165-170` and `skills-catalog/install.js:121-134` as confirmed, and
+`scheduled-task-convergence/convergence.js:277-289` twice as suspected — and `r7-tui` (18 KiB) finished
+with findings that are still unread. `r7-electron` was still running. The three suspected leads in
+`r7-sync` are unread.
 
 ## Verification
 
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 680, web 1 105 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 685, web 1 105 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
