@@ -16,6 +16,7 @@ import {
   createWorktree,
   getCommitFileDiff,
   getCommitFiles,
+  getCommitPatch,
   getFileDiff,
   getStatus,
   getWorktreeBootstrapStatus,
@@ -314,6 +315,44 @@ describe("getStatus", () => {
 // ---------------------------------------------------------------------------
 // checkoutCommit
 // ---------------------------------------------------------------------------
+
+describe("getCommitPatch", () => {
+  it("returns the commit's message and unified patch", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    const filePath = path.join(tmpDir, "file.txt")
+    await fs.promises.writeFile(filePath, "one\ntwo\n", "utf8")
+    await git.add("file.txt")
+    await git.commit("First commit")
+    await fs.promises.writeFile(filePath, "one\nthree\n", "utf8")
+    await git.add("file.txt")
+    const second = await git.commit("Change the second line")
+
+    const result = await getCommitPatch(tmpDir, second.commit)
+    expect(result.truncated).toBe(false)
+    expect(result.patch).toContain("Change the second line")
+    expect(result.patch).toContain("diff --git a/file.txt b/file.txt")
+    expect(result.patch).toContain("-two")
+    expect(result.patch).toContain("+three")
+  })
+
+  it("cuts a large patch on a line boundary and flags it", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    const lines = Array.from({ length: 400 }, (_, index) => `line ${index}`).join("\n")
+    await fs.promises.writeFile(path.join(tmpDir, "big.txt"), `${lines}\n`, "utf8")
+    await git.add("big.txt")
+    const commitResult = await git.commit("Add a big file")
+
+    const result = await getCommitPatch(tmpDir, commitResult.commit, { maxBytes: 600 })
+    expect(result.truncated).toBe(true)
+    expect(Buffer.byteLength(result.patch, "utf8")).toBeLessThanOrEqual(600)
+    expect(result.patch.endsWith("\n")).toBe(true)
+  })
+
+  it("rejects an unknown commit", async () => {
+    const { tmpDir } = await createTempRepo()
+    await expect(getCommitPatch(tmpDir, "deadbeef")).rejects.toThrow()
+  })
+})
 
 describe("checkoutCommit", () => {
   it("checks out a valid commit and puts the repo in detached HEAD state", async () => {

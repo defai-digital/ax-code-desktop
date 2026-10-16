@@ -9,6 +9,7 @@ import {
   createTerminalInputWsControlFrame,
   isRebindRateLimited,
   listTerminalOutputReplayChunksSince,
+  readTerminalOutputReplayText,
   normalizeTerminalInputWsMessageToText,
   parseRequestPathname,
   pruneRebindTimestamps,
@@ -267,6 +268,11 @@ export function createTerminalRuntime({
   }
 
   const terminalSessions = new Map()
+
+  const terminalShellName = (shell) => {
+    const base = path.basename(String(shell || "")).replace(/\.exe$/i, "")
+    return base || "shell"
+  }
   // Session ids with a restart in flight (see the restart route): one replacement per id at a time.
   const restartsInFlight = new Set()
   const terminalWsConnections = new Set()
@@ -707,6 +713,7 @@ export function createTerminalRuntime({
         ptyProcess,
         ptyBackend: pty.backend,
         cwd,
+        shell: terminalShellName(shell),
         lastActivity: Date.now(),
         clients: new Set(),
         outputReplayBuffer: createTerminalOutputReplayBuffer(),
@@ -734,6 +741,22 @@ export function createTerminalRuntime({
     } finally {
       releaseTerminalSlot()
     }
+  })
+
+  app.get("/api/terminal/:sessionId/output", (req, res) => {
+    const { sessionId } = req.params
+    const session = terminalSessions.get(sessionId)
+
+    if (!session) {
+      return res.status(404).json({ error: "Terminal session not found" })
+    }
+
+    session.lastActivity = Date.now()
+    res.json({
+      output: readTerminalOutputReplayText(session.outputReplayBuffer),
+      shell: session.shell || "shell",
+      cwd: session.cwd || "",
+    })
   })
 
   app.get("/api/terminal/:sessionId/stream", (req, res) => {
@@ -1025,6 +1048,7 @@ export function createTerminalRuntime({
           ptyProcess,
           ptyBackend: pty.backend,
           cwd,
+          shell: terminalShellName(shell),
           lastActivity: Date.now(),
           clients: new Set(),
           outputReplayBuffer: createTerminalOutputReplayBuffer(),

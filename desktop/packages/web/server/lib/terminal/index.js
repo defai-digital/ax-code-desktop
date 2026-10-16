@@ -27,6 +27,7 @@ export {
   createTerminalOutputReplayBuffer,
   appendTerminalOutputReplayChunk,
   listTerminalOutputReplayChunksSince,
+  readTerminalOutputReplayText,
   getLatestTerminalOutputReplayChunkId,
 } from "./output-replay-buffer.js"
 

@@ -24,6 +24,7 @@ import type {
   GitLogResponse,
   GitCommitFilesResponse,
   CommitFileDiffResponse,
+  CommitPatchResponse,
   GitIdentityProfile,
   GitIdentitySummary,
   DiscoveredGitCredential,
@@ -846,6 +847,14 @@ export async function getCommitFiles(directory: string, hash: string): Promise<G
   const response = await gitRequest(buildUrl(`${API_BASE}/commit-files`, directory, { hash }))
   if (!response.ok) {
     throw new Error(`Failed to get commit files: ${response.statusText}`)
+  }
+  return response.json()
+}
+
+export async function getCommitPatch(directory: string, hash: string): Promise<CommitPatchResponse> {
+  const response = await gitRequest(buildUrl(`${API_BASE}/commit-patch`, directory, { hash }))
+  if (!response.ok) {
+    throw new Error(`Failed to get commit patch: ${response.statusText}`)
   }
   return response.json()
 }

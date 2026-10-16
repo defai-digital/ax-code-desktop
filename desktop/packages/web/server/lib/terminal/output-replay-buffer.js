@@ -69,6 +69,13 @@ export const listTerminalOutputReplayChunksSince = (bufferState, lastSeenId = 0)
   return bufferState.chunks.filter((chunk) => chunk.id > lastSeenId)
 }
 
+// Concatenate the retained replay, oldest chunk first. Callers that attach the
+// text to a prompt still apply their own line and byte cap.
+export const readTerminalOutputReplayText = (bufferState) =>
+  listTerminalOutputReplayChunksSince(bufferState, 0)
+    .map((chunk) => (typeof chunk?.data === "string" ? chunk.data : ""))
+    .join("")
+
 export const getLatestTerminalOutputReplayChunkId = (bufferState) => {
   if (
     !bufferState ||

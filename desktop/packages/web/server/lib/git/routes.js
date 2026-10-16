@@ -1181,6 +1181,25 @@ export function registerGitRoutes(app, options = {}) {
     }
   })
 
+  app.get("/api/git/commit-patch", async (req, res) => {
+    const { getCommitPatch } = await getGitLibraries()
+    try {
+      const { directory, hash } = req.query
+      if (!directory || typeof directory !== "string") {
+        return res.status(400).json({ error: "directory parameter is required" })
+      }
+      if (!hash || typeof hash !== "string" || !/^[0-9a-fA-F]{7,40}$/.test(hash)) {
+        return res.status(400).json({ error: "hash must be a valid commit SHA" })
+      }
+
+      const result = await getCommitPatch(directory, hash)
+      res.json(result)
+    } catch (error) {
+      console.error("Failed to get commit patch:", error)
+      res.status(500).json({ error: error.message || "Failed to get commit patch" })
+    }
+  })
+
   app.get("/api/git/commit-file-diff", async (req, res) => {
     const { getCommitFileDiff } = await getGitLibraries()
     try {

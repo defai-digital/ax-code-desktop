@@ -6,6 +6,7 @@ import {
   createTerminalOutputReplayBuffer,
   getLatestTerminalOutputReplayChunkId,
   listTerminalOutputReplayChunksSince,
+  readTerminalOutputReplayText,
 } from "./output-replay-buffer.js"
 
 describe("terminal output replay buffer", () => {
@@ -23,6 +24,15 @@ describe("terminal output replay buffer", () => {
     expect(first).toEqual({ id: 1, data: "prompt> ", bytes: 8 })
     expect(second).toEqual({ id: 2, data: "ls\r\n", bytes: 4 })
     expect(getLatestTerminalOutputReplayChunkId(bufferState)).toBe(2)
+  })
+
+  it("reads the retained replay as one string", () => {
+    const bufferState = createTerminalOutputReplayBuffer()
+    appendTerminalOutputReplayChunk(bufferState, "prompt> ")
+    appendTerminalOutputReplayChunk(bufferState, "ls\r\n")
+
+    expect(readTerminalOutputReplayText(bufferState)).toBe("prompt> ls\r\n")
+    expect(readTerminalOutputReplayText(null)).toBe("")
   })
 
   it("lists chunks after a replay cursor", () => {

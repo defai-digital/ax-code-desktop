@@ -611,6 +611,13 @@ async function getCommitFiles(
   return gitHttp.getCommitFiles(directory, hash)
 }
 
+export async function getCommitPatch(
+  directory: string,
+  hash: string,
+): Promise<import("./api/types").CommitPatchResponse> {
+  return gitHttp.getCommitPatch(directory, hash)
+}
+
 export async function getCommitFileDiff(
   directory: string,
   hash: string,

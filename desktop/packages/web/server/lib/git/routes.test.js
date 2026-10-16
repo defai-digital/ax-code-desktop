@@ -9,6 +9,7 @@ const gitLibraries = {
   unstageFiles: vi.fn(),
   getLog: vi.fn(),
   getCommitFiles: vi.fn(),
+  getCommitPatch: vi.fn(),
   getStatus: vi.fn(),
   isGitRepository: vi.fn(),
   deleteBranch: vi.fn(),
@@ -25,6 +26,7 @@ vi.doMock("./index.js", () => ({
   unstageFiles: gitLibraries.unstageFiles,
   getLog: gitLibraries.getLog,
   getCommitFiles: gitLibraries.getCommitFiles,
+  getCommitPatch: gitLibraries.getCommitPatch,
   getStatus: gitLibraries.getStatus,
   isGitRepository: gitLibraries.isGitRepository,
   deleteBranch: gitLibraries.deleteBranch,
@@ -237,6 +239,17 @@ describe("git routes index mutations", () => {
     expect(response.statusCode).toBe(400)
     expect(response.body).toEqual({ error: "hash must be a valid commit SHA" })
     expect(gitLibraries.getCommitFiles).not.toHaveBeenCalled()
+  })
+
+  it("rejects an option-like hash on the commit patch route", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("GET", "/api/git/commit-patch")({ query: { directory: "/repo", hash: "--output=/tmp/x" } }, response)
+
+    expect(response.statusCode).toBe(400)
+    expect(gitLibraries.getCommitPatch).not.toHaveBeenCalled()
   })
 
   it("answers a directory that is not a repository with a full status shape", async () => {

@@ -925,6 +925,30 @@ const applyTerminalTransportCapabilities = (capabilities: TerminalSession["capab
   }
 }
 
+export interface TerminalSessionOutput {
+  output: string
+  shell: string
+  cwd: string
+}
+
+export async function getTerminalSessionOutput(sessionId: string): Promise<TerminalSessionOutput> {
+  const response = await fetch(`${HTTP_DEFAULTS.apiPath.terminal}/${encodeURIComponent(sessionId)}/output`, {
+    headers: HTTP_DEFAULTS.headers.acceptJson,
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: "Failed to read terminal output" }))
+    throw new Error(error.error || "Failed to read terminal output")
+  }
+
+  const payload = (await response.json()) as Partial<TerminalSessionOutput>
+  return {
+    output: typeof payload.output === "string" ? payload.output : "",
+    shell: typeof payload.shell === "string" ? payload.shell : "",
+    cwd: typeof payload.cwd === "string" ? payload.cwd : "",
+  }
+}
+
 const sendTerminalInputHttp = async (sessionId: string, data: string): Promise<void> => {
   const response = await fetch(`${HTTP_DEFAULTS.apiPath.terminal}/${sessionId}/input`, {
     method: HTTP_DEFAULTS.method.post,

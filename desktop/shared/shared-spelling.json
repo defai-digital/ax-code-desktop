@@ -213,7 +213,8 @@
     "splitPane.tab.diff",
     "splitPane.tab.plan",
     "splitPane.tab.terminal",
-    "terminalView.stream.processExitedWithSignal"
+    "terminalView.stream.processExitedWithSignal",
+    "chat.fileMentionAutocomplete.context.commit"
   ],
   "de": [
     "aboutDialog.versionLabel",
@@ -313,7 +314,9 @@
     "sortableTabsStrip.aria.tabs",
     "splitPane.tab.diff",
     "splitPane.tab.plan",
-    "splitPane.tab.terminal"
+    "splitPane.tab.terminal",
+    "chat.fileMentionAutocomplete.context.commit",
+    "chat.fileMentionAutocomplete.context.commitLabel"
   ],
   "id": [
     "agentManager.detail.header.modelCountSingle",
@@ -402,7 +405,9 @@
     "sidebarFilesTree.dialog.rootFallback",
     "snippets.source.global",
     "splitPane.tab.diff",
-    "splitPane.tab.terminal"
+    "splitPane.tab.terminal",
+    "chat.fileMentionAutocomplete.context.commit",
+    "chat.fileMentionAutocomplete.context.commitLabel"
   ],
   "pt-BR": [
     "agentManager.empty.prompt.label",
@@ -477,7 +482,9 @@
     "settings.view.home.cards.plugins.title",
     "snippets.source.global",
     "splitPane.tab.diff",
-    "splitPane.tab.terminal"
+    "splitPane.tab.terminal",
+    "chat.fileMentionAutocomplete.context.commit",
+    "chat.fileMentionAutocomplete.context.commitLabel"
   ],
   "it": [
     "agentManager.empty.prompt.label",
@@ -553,7 +560,9 @@
     "settings.skills.catalog.add.field.repository",
     "settings.skills.catalog.shared.field.repository",
     "settings.view.badge.beta",
-    "splitPane.tab.diff"
+    "splitPane.tab.diff",
+    "chat.fileMentionAutocomplete.context.commit",
+    "chat.fileMentionAutocomplete.context.commitLabel"
   ],
   "ru": [
     "branchPickerDialog.badge.worktree",
@@ -597,7 +606,9 @@
     "settings.view.badge.beta",
     "splitPane.tab.diff",
     "splitPane.tab.plan",
-    "splitPane.tab.terminal"
+    "splitPane.tab.terminal",
+    "chat.fileMentionAutocomplete.context.commit",
+    "chat.fileMentionAutocomplete.context.commitLabel"
   ],
   "vi": [
     "branchPickerDialog.badge.worktree",
@@ -633,7 +644,9 @@
     "settings.providers.page.auth.privateGpuTokenLabel",
     "settings.view.badge.beta",
     "splitPane.tab.diff",
-    "splitPane.tab.terminal"
+    "splitPane.tab.terminal",
+    "chat.fileMentionAutocomplete.context.commit",
+    "chat.fileMentionAutocomplete.context.commitLabel"
   ],
   "es": [
     "branchPickerDialog.badge.worktree",
@@ -705,6 +718,8 @@
     "snippets.source.global",
     "splitPane.tab.diff",
     "splitPane.tab.plan",
-    "splitPane.tab.terminal"
+    "splitPane.tab.terminal",
+    "chat.fileMentionAutocomplete.context.commit",
+    "chat.fileMentionAutocomplete.context.commitLabel"
   ]
 }

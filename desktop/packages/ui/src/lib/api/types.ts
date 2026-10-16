@@ -353,6 +353,12 @@ export interface GitCommitFilesResponse {
   files: CommitFileEntry[]
 }
 
+export interface CommitPatchResponse {
+  /** `git show --stat --patch` output, cut on a line boundary when `truncated`. */
+  patch: string
+  truncated: boolean
+}
+
 export interface CommitFileDiffResponse {
   original: string
   modified: string

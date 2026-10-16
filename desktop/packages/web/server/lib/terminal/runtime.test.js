@@ -824,6 +824,63 @@ describe("terminal body parsing tolerance", () => {
     }
   })
 
+  it("returns the replay buffer for a live session", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const dataHandlers = []
+    const previousShell = process.env.AX_CODE_DESKTOP_TERMINAL_SHELL
+    process.env.AX_CODE_DESKTOP_TERMINAL_SHELL = "/bin/zsh"
+    const runtime = createRuntime(server, {
+      app,
+      isExecutable: () => true,
+      searchPathFor: (name) => name,
+      getPtyProvider: async () => ({
+        backend: "mock",
+        spawn: () => ({
+          onData: (callback) => {
+            dataHandlers.push(callback)
+            return {
+              dispose() {
+                const index = dataHandlers.indexOf(callback)
+                if (index >= 0) dataHandlers.splice(index, 1)
+              },
+            }
+          },
+          onExit: () => ({ dispose() {} }),
+          write() {},
+          kill() {},
+          resize() {},
+        }),
+      }),
+    })
+
+    try {
+      const missing = createMockResponse()
+      await getRoute("GET", "/api/terminal/:sessionId/output")({ params: { sessionId: "missing" } }, missing)
+      expect(missing.statusCode).toBe(404)
+
+      const createRes = createMockResponse()
+      await getRoute("POST", "/api/terminal/create")({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, createRes)
+      const sessionId = createRes.body?.sessionId
+      expect(sessionId).toBeTruthy()
+
+      for (const handler of dataHandlers) handler("\u001b[32mok\u001b[0m\r\n")
+
+      const outputRes = createMockResponse()
+      await getRoute("GET", "/api/terminal/:sessionId/output")({ params: { sessionId } }, outputRes)
+      expect(outputRes.statusCode).toBe(200)
+      expect(outputRes.body).toEqual({
+        output: "\u001b[32mok\u001b[0m\r\n",
+        shell: "zsh",
+        cwd: "/tmp",
+      })
+    } finally {
+      if (previousShell === undefined) delete process.env.AX_CODE_DESKTOP_TERMINAL_SHELL
+      else process.env.AX_CODE_DESKTOP_TERMINAL_SHELL = previousShell
+      await runtime.shutdown()
+    }
+  })
+
   it("answers a force-kill without a parsed body without throwing", async () => {
     const { app, getRoute } = createRouteRegistry()
     const server = new EventEmitter()

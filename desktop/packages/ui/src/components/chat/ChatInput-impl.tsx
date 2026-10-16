@@ -125,6 +125,7 @@ import {
   saveConfirmedMentions,
   toServerFileUrl,
 } from "./chatInputMentions"
+import { removeMentionQueryAtCursor } from "./contextMention"
 import { useChatInputDraftPersistence } from "./hooks/useChatInputDraftPersistence"
 import { importWithChunkRecovery } from "@/lib/chunkLoadRecovery"
 import {
@@ -2825,6 +2826,28 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     textareaRef.current?.focus()
   }
 
+  const handleContextAttachment = (file: File) => {
+    const current = textareaRef.current?.value ?? message
+    const cursor = textareaRef.current?.selectionStart ?? current.length
+    const { newMessage, nextCursor } = removeMentionQueryAtCursor(current, cursor)
+    setMessage(newMessage)
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.selectionStart = nextCursor
+        textareaRef.current.selectionEnd = nextCursor
+      }
+      adjustTextareaHeight()
+      updateAutocompleteState(newMessage, nextCursor)
+    })
+    setShowFileMention(false)
+    setMentionQuery("")
+    void addAttachedFile(file).catch((error) => {
+      console.error("Context attachment failed", error)
+      toast.error(error instanceof Error ? error.message : t("chat.fileMentionAutocomplete.context.attachFailed"))
+    })
+    textareaRef.current?.focus()
+  }
+
   const handleAgentSelect = (agentName: string) => {
     const textarea = textareaRef.current
     const cursorPosition = textarea?.selectionStart ?? message.length
@@ -4141,6 +4164,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                 searchQuery={mentionQuery}
                 onFileSelect={handleFileSelect}
                 onAgentSelect={handleAgentSelect}
+                onContextAttachment={handleContextAttachment}
                 onClose={() => setShowFileMention(false)}
                 style={
                   isDesktopExpanded && autocompleteOverlayPosition

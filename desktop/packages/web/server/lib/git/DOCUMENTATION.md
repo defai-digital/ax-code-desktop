@@ -68,6 +68,7 @@ The following functions are exported and used by the web server:
 
 - `getLog(directory, options)`: Get commit history with stats (supports maxCount, from, to, file filters).
 - `getCommitFiles(directory, commitHash)`: Get file changes for a specific commit.
+- `getCommitPatch(directory, hash, { maxBytes })`: Get one commit as `git show --stat --patch` prints it. Returns `{ patch, truncated }`; the text is cut on a line boundary at `maxBytes` (256 KB by default).
 - `getCommitFileDiff(directory, hash, filePath, isBinary)`: Get before/after content for a specific file in a commit. Returns `{ original, modified, isBinary }`. Runs `git show <hash>^:<path>` and `git show <hash>:<path>` in parallel; returns empty strings on failure (added/deleted/root-commit edge cases).
 
 ### Merge and Rebase Operations

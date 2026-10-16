@@ -4534,6 +4534,33 @@ export async function getConflictDetails(directory) {
   }
 }
 
+const COMMIT_PATCH_MAX_BYTES = 256 * 1024
+
+/**
+ * One commit as `git show` prints it: header, message, stat and unified patch.
+ * The text is cut at `maxBytes` (on a line boundary) so a huge commit cannot
+ * produce an unbounded response; `truncated` says when that happened.
+ */
+export async function getCommitPatch(directory, hash, { maxBytes = COMMIT_PATCH_MAX_BYTES } = {}) {
+  if (!directory || !hash) {
+    throw new Error("directory and hash are required for getCommitPatch")
+  }
+  const { repoRoot } = await createRepositoryGitContext(directory)
+  const result = await runGitCommandOrThrow(
+    repoRoot,
+    ["show", "--no-color", "--no-ext-diff", "--stat", "--patch", "--format=medium", hash, "--"],
+    "Failed to read commit",
+  )
+  const limit = Math.max(1, maxBytes)
+  const buffer = Buffer.from(result.stdout, "utf8")
+  if (buffer.length <= limit) {
+    return { patch: result.stdout, truncated: false }
+  }
+  const head = buffer.subarray(0, limit).toString("utf8")
+  const lastNewline = head.lastIndexOf("\n")
+  return { patch: lastNewline > 0 ? head.slice(0, lastNewline + 1) : head, truncated: true }
+}
+
 export async function getCommitFileDiff(directory, hash, filePath, isBinary) {
   if (!directory || !hash || !filePath) {
     throw new Error("directory, hash, and path are required for getCommitFileDiff")
