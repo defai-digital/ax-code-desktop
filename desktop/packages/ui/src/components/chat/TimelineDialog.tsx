@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Icon } from "@/components/icon/Icon"
 import type { Part, SessionRollbackPoint, SessionRollbackPreview } from "@defai-digital/ax-code-sdk/v2"
 import { useI18n } from "@/lib/i18n"
+import { isIMECompositionEvent } from "@/lib/ime"
 import { useDeviceInfo } from "@/lib/device"
 import { cn } from "@/lib/utils"
 import { truncateToCodeUnits } from "@/lib/textTruncate"
@@ -149,6 +150,12 @@ export const TimelineDialog: React.FC<TimelineDialogProps> = ({
 
   const handleSearchKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
+      // A composition consumes the arrow keys (to move through its candidates) and Enter (to commit them), and the
+      // branches below would move the highlight or navigate to the message the half-typed query matched — closing
+      // the dialog. The app is localized, and `lib/ime` is the shared gate the composer, the question card and the
+      // other search fields already use.
+      if (isIMECompositionEvent(event)) return
+
       const total = filteredMessages.length
       if (total === 0) {
         return
