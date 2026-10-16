@@ -889,6 +889,16 @@ was written.
   while AX Code restarts. The other lead — an epoch check for `loadAgents` against
   `invalidateAllProviderCaches` — is closed under *Reviewed and deliberately not changed*.
 
+- **`d3aef642`** — `PullRequestSection`'s body-hydration flag was left in the waiting list as suspected,
+  because it depended on React flushing a passive effect's cleanup before a promise chain's `.finally`
+  continues. That ordering was settled by experiment rather than by argument: it does — when the chain's
+  own store update is what re-rendered the component. The cleanup cancels the attempt, so `.finally`
+  returned early without clearing the flag, and the re-run returned early because `pr.body` was already
+  filled in, with the empty string the request returned. A pull request with no description is the
+  reachable case, and it left "Loading description…" where "No description" belongs, permanently. The
+  attempt's cleanup clears the flag now, and a test renders the section for exactly that case and fails
+  against the previous code.
+
 ### Waiting for a first re-check
 
 Everything the reviewers of this round reported has been read against the source. The items closed
@@ -1020,11 +1030,13 @@ One gap remains, recorded rather than fixed:
   produce, so a false refusal has to be ruled out first). The reviewer ranked it
   below their reported limit, and a comparison I cannot validate end to end is the
   wrong thing to ship in its place.
-- **`PullRequestSection`'s body-hydration flag may not clear** after a successful
-  fetch when the store update cancels the effect first, which would leave
-  "Loading description…" where "No description" belongs. Suspected: it depends on
-  React flushing that cleanup before `.finally`, which the reviewer could not
-  settle by reading.
+- **`PullRequestSection`'s body-hydration flag** (`views/git/PullRequestSection.tsx:542`) — the reviewer's
+  suspicion was right, and the ordering it depended on is now settled: React runs a passive effect's
+  cleanup *before* that promise chain's `.finally` continues, so the cleanup's `cancelled = true` made
+  `.finally` return without clearing the flag, and the re-run returned early because `pr.body` was
+  already filled in — with the empty string the request returned, for a pull request that has no
+  description. Fixed in `d3aef642`: the attempt's cleanup clears the flag too, with a regression test
+  that renders the section for that case.
 - **`EmbeddedWebMcpBrowser`'s one-shot enable request can be dropped** before its
   150 ms timer when a dependency changes in that window (first, uncached capability
   probe; always under StrictMode in development).
@@ -1036,7 +1048,7 @@ One gap remains, recorded rather than fixed:
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 642, web 1 099 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 643, web 1 099 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
