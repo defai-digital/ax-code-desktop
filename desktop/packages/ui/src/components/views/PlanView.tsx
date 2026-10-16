@@ -471,6 +471,11 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null }) => {
   }, [content, resolvedPath])
 
   React.useEffect(() => {
+    // Restore the flag on every mount of this effect. StrictMode mounts, runs cleanups and
+    // re-runs effects without re-initializing refs, so the false written below latched for
+    // the component's whole life in development: isLatestEntry then suppressed
+    // onLatestError, and a failed plan save reported nothing at all.
+    mountedRef.current = true
     return () => {
       mountedRef.current = false
       flushPendingSave()
