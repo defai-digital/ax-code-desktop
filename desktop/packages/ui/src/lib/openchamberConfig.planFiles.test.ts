@@ -49,6 +49,7 @@ const {
   createProjectPlanFile,
   deleteProjectPlanFile,
   getProjectContextData,
+  parseProjectPlanMarkdown,
   readProjectPlanFile,
 } = await import("./openchamberConfig")
 
@@ -105,6 +106,17 @@ describe("project plan files", () => {
     await expect(readProjectPlanFile(PROJECT, "/etc/passwd")).resolves.toBeNull()
     await expect(readProjectPlanFile(PROJECT, `${plansDirectory}/${"../".repeat(8)}etc/passwd`)).resolves.toBeNull()
     await expect(readProjectPlanFile(PROJECT, `${plansDirectory}-elsewhere/alpha.md`)).resolves.toBeNull()
+  })
+
+  test("keeps the overflow of a plan heading that is longer than the title limit", () => {
+    // The heading line was removed from the body in full while only the first 160 characters became the
+    // title, so the rest of the heading was gone as soon as the plan was written back through
+    // `formatProjectPlanMarkdown` (an imported file, or a saved assistant plan).
+    const heading = "a".repeat(200)
+    const { title, body } = parseProjectPlanMarkdown(`# ${heading}\n\nbody`)
+
+    expect(title).toHaveLength(160)
+    expect(body).toContain(heading)
   })
 
   test("removes a link without deleting what an escaping path points at", async () => {

@@ -543,7 +543,11 @@ export const parseProjectPlanMarkdown = (raw: string): { title: string; body: st
   const match = normalized.match(/^\s*#\s+(.+?)\s*(?:\n+|$)/)
   if (match) {
     const title = sanitizePlanTitle(match[1])
-    const body = normalized.slice(match[0].length).replace(/^\n+/, "")
+    // The heading line leaves the body in full, so a heading longer than the title limit would lose the
+    // overflow: `formatProjectPlanMarkdown` only ever writes the truncated title back. Keep the heading in
+    // the body in that case, so the text survives the round trip.
+    const headingIsTruncated = match[1].trim().length > AX_CODE_DESKTOP_PROJECT_PLAN_TITLE_MAX_LENGTH
+    const body = headingIsTruncated ? normalized.trim() : normalized.slice(match[0].length).replace(/^\n+/, "")
     return {
       title: title || "Plan",
       body,
