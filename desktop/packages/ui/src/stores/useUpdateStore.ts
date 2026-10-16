@@ -40,6 +40,7 @@ interface UpdateStore extends UpdateState {
 const UPDATE_FAILED_MESSAGE = "Update failed. Please try again or open the release page."
 const RESTART_FAILED_MESSAGE = "Failed to restart AX Code."
 let updateCheckRequestId = 0
+let restartInFlight = false
 let updateDownloadRequestId = 0
 
 function detectRuntimeType(): "desktop" | "web" | null {
@@ -168,6 +169,15 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
       return
     }
 
+    // The install can only be started once. A second click while the first is in flight made the
+    // updater refuse the repeat (`handleQuitAndInstall` clears the gate once it sees no install
+    // begin), and that refusal was then reported as "Failed to restart AX Code" although the
+    // first install was already on its way.
+    if (restartInFlight) {
+      return
+    }
+    restartInFlight = true
+
     try {
       const ok = await restartToApplyUpdate()
       if (!ok) {
@@ -178,6 +188,9 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
       set({
         error: RESTART_FAILED_MESSAGE,
       })
+    } finally {
+      // A restart that failed leaves the app running, so the user can try again.
+      restartInFlight = false
     }
   },
 

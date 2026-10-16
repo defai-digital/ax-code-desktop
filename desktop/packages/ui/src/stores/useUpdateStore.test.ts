@@ -218,6 +218,46 @@ describe("useUpdateStore runtime detection", () => {
     }
   })
 
+  test("ignores a second restart while the first install is still in flight", async () => {
+    // The updater accepts one quit-and-install per session; the repeat was refused and reported
+    // as "Failed to restart AX Code" although the first install was already on its way.
+    const installing = createDeferred<unknown>()
+    mockElectronUpdaterWindow(async (command) => {
+      invokedCommands.push(command)
+      if (command === "desktop_check_for_updates") {
+        return {
+          available: true,
+          version: "1.1.2",
+          currentVersion: "1.1.1",
+        }
+      }
+      if (command === "desktop_download_and_install_update") {
+        return null
+      }
+      if (command === "desktop_quit_and_install") {
+        return installing.promise
+      }
+      return null
+    })
+
+    try {
+      await useUpdateStore.getState().checkForUpdates()
+      await useUpdateStore.getState().downloadUpdate()
+
+      const first = useUpdateStore.getState().restartToUpdate()
+      await waitForCommand("desktop_quit_and_install")
+      await useUpdateStore.getState().restartToUpdate()
+
+      expect(invokedCommands.filter((command) => command === "desktop_quit_and_install")).toHaveLength(1)
+
+      installing.resolve({ installed: true })
+      await first
+      expect(useUpdateStore.getState().error).toBeNull()
+    } finally {
+      restoreWindow()
+    }
+  })
+
   test("does not let a concurrent update check strand an active desktop download", async () => {
     const download = createDeferred<unknown>()
     mockElectronUpdaterWindow(async (command) => {
