@@ -84,10 +84,13 @@ describe("materializeSessionSnapshots", () => {
     ])
 
     const parts = result.part.get("msg_1")!
-    expect((parts[0].state as { status: string; time: { start: number; end: number } }).status).toBe("aborted")
-    expect((parts[0].state as { time: { start: number; end: number } }).time).toEqual({ start: 3, end: 9 })
-    // A tool that already settled, and a message that is still running, are left alone.
-    expect((parts[1].state as { status: string }).status).toBe("completed")
+    const toolState = (index: number) =>
+      (parts[index] as unknown as { state: { status: string; time: { start: number; end: number } } }).state
+
+    expect(toolState(0).status).toBe("aborted")
+    expect(toolState(0).time).toEqual({ start: 3, end: 9 })
+    // A tool that already settled is left alone.
+    expect(toolState(1).status).toBe("completed")
   })
 
   test("leaves a running tool alone while its message is still running", () => {
@@ -104,7 +107,8 @@ describe("materializeSessionSnapshots", () => {
       { info: message("msg_1"), parts: [pending] },
     ])
 
-    expect((result.part.get("msg_1")![0].state as { status: string }).status).toBe("running")
+    const runningState = (result.part.get("msg_1")![0] as unknown as { state: { status: string } }).state
+    expect(runningState.status).toBe("running")
   })
 
   test("preserves unchanged references", () => {

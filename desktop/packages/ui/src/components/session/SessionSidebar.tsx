@@ -23,6 +23,7 @@ import { useProjectSessionSelection } from "./sidebar/hooks/useProjectSessionSel
 import { useGroupOrdering } from "./sidebar/hooks/useGroupOrdering"
 import { useSessionGrouping } from "./sidebar/hooks/useSessionGrouping"
 import { useSessionSearchEffects } from "./sidebar/hooks/useSessionSearchEffects"
+import { isSessionSearchActive } from "./sidebar/hooks/sessionSearchActivity"
 import { useSessionActions } from "./sidebar/hooks/useSessionActions"
 import { softBulkArchive, softBulkDelete } from "@/sync/soft-removal"
 import { useSidebarPersistence } from "./sidebar/hooks/useSidebarPersistence"
@@ -286,7 +287,10 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     [debouncedSessionSearchQuery],
   )
 
-  const hasSessionSearchQuery = normalizedSessionSearchQuery.length > 0
+  const hasSessionSearchQuery = isSessionSearchActive({
+    isSessionSearchOpen,
+    normalizedQuery: normalizedSessionSearchQuery,
+  })
 
   // Session Folders store
   const collapsedFolderIds = useSessionFoldersStore((state) => state.collapsedFolderIds)
