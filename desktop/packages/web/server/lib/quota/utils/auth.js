@@ -4,8 +4,15 @@ import os from "os"
 
 import { readAuthFile } from "../../ax-code/auth.js"
 
-const AX_CODE_CONFIG_DIR = process.env.AX_CODE_CONFIG_DIR || path.join(os.homedir(), ".config", "ax-code")
-const AX_CODE_DATA_DIR = process.env.AX_CODE_DATA_DIR || path.join(os.homedir(), ".local", "share", "ax-code")
+const AX_CODE_CONFIG_DIR =
+  process.env.AX_CODE_CONFIG_DIR ||
+  // Same resolution as the sibling readers (`ax-code/shared.js` for config, `ax-code/auth.js` for data):
+  // ax-code resolves both directories through xdg-basedir, so a hardcoded `~/.config` or `~/.local/share`
+  // looks in a different place than the runtime writes whenever the user has customised the XDG paths.
+  path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "ax-code")
+const AX_CODE_DATA_DIR =
+  process.env.AX_CODE_DATA_DIR ||
+  path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"), "ax-code")
 
 export const ANTIGRAVITY_ACCOUNTS_PATHS = [
   path.join(AX_CODE_CONFIG_DIR, "antigravity-accounts.json"),

@@ -52,4 +52,35 @@ describe("quota auth utilities", () => {
     expect(readJsonFile(filePath)).toBeNull()
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("Failed to read JSON file:"), expect.any(SyntaxError))
   })
+
+  it("resolves the antigravity accounts under the configured XDG directories", async () => {
+    // The module defaulted to `~/.config` and `~/.local/share` while ax-code resolves both through
+    // xdg-basedir (`ax-code/shared.js`, `ax-code/auth.js`), so with a customised XDG path the accounts file was
+    // read from the wrong directory and the Antigravity source silently disappeared from the Google card.
+    const previousData = process.env.XDG_DATA_HOME
+    const previousConfig = process.env.XDG_CONFIG_HOME
+    process.env.XDG_DATA_HOME = tempRoot
+    process.env.XDG_CONFIG_HOME = tempRoot
+    fs.mkdirSync(path.join(tempRoot, "ax-code"), { recursive: true })
+    fs.writeFileSync(
+      path.join(tempRoot, "ax-code", "antigravity-accounts.json"),
+      JSON.stringify({ accounts: [{ refreshToken: "refresh-token|project-1" }], activeIndex: 0 }),
+      "utf8",
+    )
+    vi.resetModules()
+
+    try {
+      const { ANTIGRAVITY_ACCOUNTS_PATHS } = await import("./auth.js")
+      expect(ANTIGRAVITY_ACCOUNTS_PATHS).toContain(path.join(tempRoot, "ax-code", "antigravity-accounts.json"))
+
+      const { resolveAntigravityAuth } = await import("../providers/google/auth.js")
+      expect(resolveAntigravityAuth()).toMatchObject({ sourceId: "antigravity", projectId: "project-1" })
+    } finally {
+      if (previousData === undefined) delete process.env.XDG_DATA_HOME
+      else process.env.XDG_DATA_HOME = previousData
+      if (previousConfig === undefined) delete process.env.XDG_CONFIG_HOME
+      else process.env.XDG_CONFIG_HOME = previousConfig
+      vi.resetModules()
+    }
+  })
 })
