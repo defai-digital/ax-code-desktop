@@ -164,6 +164,34 @@ describe("soft-removal S4.5 contract", () => {
     expect(useGlobalSessionsStore.getState().activeSessions.map((s) => s.id)).toEqual(["ses_b"])
   })
 
+  test("keeps the quit-recovery record when a flushed removal fails fast", async () => {
+    // `flushPendingRemovals` runs on beforeunload: it releases the pending flags before the requests
+    // and then persisted the store's map, which that release had already emptied. A removal that
+    // failed fast (the runtime shutting down with it) therefore wrote an empty slot and wiped the
+    // quit-recovery record — the next launch found nothing to finish and resurrected the session the
+    // user had deleted. The function's own contract says those entries are intentionally kept.
+    const session = makeSession("ses_q", { directory: "/repo" } as Partial<Session>)
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+
+    deleteSessionMock.mockResolvedValue(false)
+    softDeleteSession(session)
+
+    const owner = storedSlots()[0]?.split(".").pop() ?? ""
+    expect(owner).not.toBe("")
+    const key = pendingKey(owner)
+    const persistedBefore: Array<{ id: string }> = JSON.parse(window.localStorage.getItem(key) ?? "[]")
+    expect(persistedBefore.map((entry) => entry.id)).toEqual(["ses_q"])
+
+    flushPendingRemovals()
+    await vi.waitFor(() => expect(toastErrorMock).toHaveBeenCalled())
+
+    const persisted: Array<{ id: string; kind: string; directory: string | null }> = JSON.parse(
+      window.localStorage.getItem(key) ?? "[]",
+    )
+    expect(persisted.map((entry) => entry.id)).toEqual(["ses_q"])
+    expect(persisted[0]).toMatchObject({ id: "ses_q", kind: "delete", directory: "/repo" })
+  })
+
   test("a failed commit does not roll a newer event entry back to the pre-removal snapshot", async () => {
     const session = makeSession("ses_r", { directory: "/repo" } as Partial<Session>)
     useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))

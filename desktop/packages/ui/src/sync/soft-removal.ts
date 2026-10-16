@@ -73,11 +73,21 @@ function writeOwnSlot(entries: PersistedRemoval[]): void {
  * Mirror the store's pending-removal map to this window's localStorage slot
  * so removals the user did not undo are still committed if the app quits
  * during the undo window (see recoverPendingRemovals).
+ *
+ * `alsoPersist` covers removals that left the store but still need recovering: `commitRemovals`
+ * releases the pending flags before its requests, so a removal that failed after that is in neither
+ * the store nor the slot unless it is added here.
  */
-function persistPending(): void {
-  const entries = Array.from(useGlobalSessionsStore.getState().pendingRemoval.values())
+function persistPending(alsoPersist: PendingRemovalEntry[] = []): void {
+  const byId = new Map<string, PendingRemovalEntry>()
+  for (const entry of useGlobalSessionsStore.getState().pendingRemoval.values()) {
+    byId.set(entry.session.id, entry)
+  }
+  for (const entry of alsoPersist) {
+    byId.set(entry.session.id, entry)
+  }
   writeOwnSlot(
-    entries.map((entry) => ({
+    Array.from(byId.values()).map((entry) => ({
       id: entry.session.id,
       kind: entry.kind,
       directory: resolveGlobalSessionDirectory(entry.session),
@@ -239,9 +249,11 @@ async function commitRemovals(ids: string[]): Promise<void> {
       if (!ok) failed.push(entry)
     }),
   )
-  // Only now is it safe to drop the persisted entries: a quit while the
-  // requests were in flight is recovered on next launch (idempotent).
-  persistPending()
+  // Only the entries this commit confirmed may leave the slot: it was written for the removals that
+  // still need recovering (a quit while the requests were in flight is recovered on next launch,
+  // idempotent), and the failures have to stay in it — the pending flags were released above, so
+  // persisting the store's map alone dropped them and the next launch resurrected those sessions.
+  persistPending(failed)
 
   if (failed.length > 0) {
     for (const entry of failed) {
