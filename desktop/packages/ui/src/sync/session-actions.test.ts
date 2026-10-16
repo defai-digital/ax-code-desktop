@@ -1232,6 +1232,25 @@ describe("optimisticSend responsiveness", () => {
     expect(store.getState().session_status["session-a"]).toEqual({ type: "busy" })
   })
 
+  test("counts a session's status events without tracking ids forever", async () => {
+    // The count is per session and the map is bounded like the rest of the sync layer's per-session
+    // state: a client naming many sessions must not grow it one entry per id.
+    const { noteServerSessionStatus, serverSessionStatusCount } = await import("./session-status-events")
+
+    noteServerSessionStatus("ses_bounded")
+    expect(serverSessionStatusCount("ses_bounded")).toBeGreaterThan(0)
+    const before = serverSessionStatusCount("ses_bounded")
+
+    for (let index = 0; index < 2_100; index += 1) {
+      noteServerSessionStatus(`ses_filler_${index}`)
+    }
+
+    // The bounded cache evicted the oldest entries, so a long-lived session's count can restart — which
+    // is why the guard compares the value before and after a send rather than requiring a specific one.
+    expect(serverSessionStatusCount("ses_bounded")).toBeLessThanOrEqual(before + 1)
+    expect(serverSessionStatusCount("ses_filler_2099")).toBe(1)
+  })
+
   test("keeps a server busy the reducer deduped while the send was in flight", async () => {
     // The reducer drops an equal `session.status {busy}`, so the store still holds the object this call
     // wrote — identity alone says nothing, and rolling back showed the running turn as idle. The event

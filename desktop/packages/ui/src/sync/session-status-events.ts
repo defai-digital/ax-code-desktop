@@ -1,3 +1,5 @@
+import { setBoundedCacheEntry } from "@/lib/boundedCache"
+
 /**
  * How many session-status events the reducer has seen per session, whether or not they changed the
  * store.
@@ -10,9 +12,13 @@
  */
 const statusEventsBySession = new Map<string, number>()
 
+// Bounded like the other per-session maps in the sync layer: a client that names many sessions
+// (a long list, or fabricated ids) must not grow this one entry per id.
+const MAX_TRACKED_STATUS_SESSIONS = 2000
+
 export const noteServerSessionStatus = (sessionID: string): void => {
   if (!sessionID) return
-  statusEventsBySession.set(sessionID, (statusEventsBySession.get(sessionID) ?? 0) + 1)
+  setBoundedCacheEntry(statusEventsBySession, MAX_TRACKED_STATUS_SESSIONS, sessionID, serverSessionStatusCount(sessionID) + 1)
 }
 
 export const serverSessionStatusCount = (sessionID: string): number => statusEventsBySession.get(sessionID) ?? 0
