@@ -1024,6 +1024,12 @@ Read against the source and confirmed, waiting for a fix rather than a re-check:
 - **`PlanView.tsx:453`** (suspected) — the autosave effect has no dirty check against the content it
   loaded, so merely opening a plan schedules a write of the just-loaded text ~350 ms later; an external
   write landing in that window is overwritten by content the user never edited.
+- **Two reviewers' output is read but not yet verified**: the `components` run reported
+  `mcp/McpDropdown.tsx:182-193`, `onboarding/RecoveryScreen.tsx:57-73` and
+  `model-picker/ModelPickerList.tsx:481-485` as confirmed, and the re-run over `session`/`files` reported
+  `session/SessionDialogs.tsx:735`, `session/sidebar/SessionNodeItem.tsx:351` and `:475`, and
+  `session/ProjectNotesTodoPanel.tsx:492`. Each is listed here so the next pass starts from the lines
+  rather than from the transcripts.
 - **`sync/soft-removal.ts:223`** (confirmed by the sync reviewer) — the undo window's timer commits the
   removal on its own 7-second clock while the toast pauses its own countdown on hover, so Undo after the
   timer fired only rewrites a record the commit already took: the session stays hidden and the delete
