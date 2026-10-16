@@ -45,6 +45,17 @@ describe("buildTraySnapshot", () => {
     expect(snapshot.sessions[0].subtitle).toBe("app · feat/queue")
   })
 
+  test("names the session a child's approval belongs to instead of its id", () => {
+    // The menu rows are root sessions only, but an approval can belong to a child — a subagent asking for a
+    // tool — and the title map was built from the rows, so the tray showed the raw session id.
+    const snapshot = buildTraySnapshot({
+      ...baseInput,
+      approvals: [{ kind: "permission" as const, id: "perm-2", sessionId: "child-1", title: "Bash" }],
+    })
+
+    expect(snapshot.approvals[0].sessionTitle).toBe("Subagent")
+  })
+
   test("marks only permissions with save patterns as rememberable", () => {
     const snapshot = buildTraySnapshot(baseInput)
 

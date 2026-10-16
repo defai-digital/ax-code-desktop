@@ -104,8 +104,11 @@ export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot =
     .filter((session) => Boolean(session?.id) && !session.parentID && !session.archived)
     .sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))
 
+  // Titles come from every session the menu can name, not only the root rows above: an approval can belong
+  // to a child session (a subagent asking for a tool), and the tray would otherwise show its raw id.
   const sessionTitleById = new Map<string, string>()
-  for (const session of ordered) {
+  for (const session of input.sessions) {
+    if (!session?.id) continue
     sessionTitleById.set(session.id, session.title?.trim() || "Untitled Session")
   }
 
