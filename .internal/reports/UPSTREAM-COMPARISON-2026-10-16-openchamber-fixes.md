@@ -23,7 +23,7 @@ have, and the same defects can be found by comparing rather than by reading.
    where our code already handles it a different way.
 
 That produced 29 confirmed defects in our tree, and one more was found while fixing them.
-The twenty-six entries below are fixed; the 4 that remain are listed with the shape of
+The twenty-seven entries below are fixed; the 3 that remain are listed with the shape of
 their fix so they can be picked up.
 
 ## Fixed
@@ -109,6 +109,11 @@ their fix so they can be picked up.
   looking at. While it is open the content carries a top padding as tall as the panel, and
   the space scrolls away with the text.
 
+- `bc798178b` **Staged and unstaged line counts stay in their own scope.** The status
+  returned one combined per-path map, so a file with edits in both the index and the
+  working tree showed the same summed total on its Staged row and its Changes row. The
+  status now reports `{ staged, working }` and each surface reads the scope it shows.
+
 ## Confirmed in our tree, not yet fixed
 
 Ordered by severity. Line numbers are where the defect lives today.
@@ -116,13 +121,10 @@ Ordered by severity. Line numbers are where the defect lives today.
 1. **The context meter shows the compaction request's fill**
     (`ui/src/lib/messages/assistantTokens.ts:25`): after `/compact` the newest
     token-bearing assistant message is the summarising request itself.
-2. **Staged and unstaged line counts are merged into one number**
-    (`web/server/lib/git/service.js:1642`): a half-staged file shows the same total
-    on both its Staged and Changes rows.
-3. **The worktree start command is read from a legacy file the runtime does not
+2. **The worktree start command is read from a legacy file the runtime does not
     write** (`web/server/lib/git/service.js:1221`), so a new worktree runs no project
     start command at all.
-4. **The worktree branch rename field silently renames to a different name**
+3. **The worktree branch rename field silently renames to a different name**
     (`ui/src/components/views/git/WorktreeBranchDisplay.tsx`): covered by the branch
     name fix above for the character set; what remains is that a sanitized name equal
     to the current one closes the editor without saying so.
