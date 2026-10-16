@@ -2,24 +2,12 @@ import React from "react"
 import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
+import { sanitizeBranchNameInput } from "./branchName"
 
 interface WorktreeBranchDisplayProps {
   currentBranch: string | null | undefined
   onRename?: (oldName: string, newName: string) => Promise<void>
   showEditButton?: boolean
-}
-
-const sanitizeBranchNameInput = (value: string): string => {
-  return value
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^A-Za-z0-9._/-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/\/{2,}/g, "/")
-    .replace(/\/-+/g, "/")
-    .replace(/-+\//g, "/")
-    .replace(/^[-/]+/, "")
-    .replace(/[-/]+$/, "")
 }
 
 export const WorktreeBranchDisplay: React.FC<WorktreeBranchDisplayProps> = ({

@@ -13,6 +13,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
+import { sanitizeBranchNameInput } from "./branchName"
 
 interface BranchInfo {
   ahead?: number
@@ -27,19 +28,6 @@ interface GitBranchSelectorProps {
   onCheckout: (branch: string) => void
   onCreate: (name: string) => Promise<void>
   disabled?: boolean
-}
-
-const sanitizeBranchNameInput = (value: string): string => {
-  return value
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^A-Za-z0-9._/-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/\/{2,}/g, "/")
-    .replace(/\/-+/g, "/")
-    .replace(/-+\//g, "/")
-    .replace(/^[-/]+/, "")
-    .replace(/[-/]+$/, "")
 }
 
 export const BranchSelector: React.FC<GitBranchSelectorProps> = ({
