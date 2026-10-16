@@ -23,7 +23,7 @@ import {
   findLatestStepTokenUsage,
 } from "@/lib/messages/assistantTokens"
 import type { SessionContextUsage } from "@/stores/types/sessionTypes"
-import { buildMiniChatMainHandoffPayload } from "./miniChatMainHandoff"
+import { buildMiniChatMainHandoffPayload, focusMainWindowOrKeepOpen } from "./miniChatMainHandoff"
 import { compactMiniChatPath, findMiniChatProjectForDirectory, normalizeMiniChatPath } from "./miniChatPath"
 import type { MiniChatMode } from "./types"
 import { useDesktopWindowFullscreen } from "@/hooks/useDesktopWindowFullscreen"
@@ -94,9 +94,13 @@ const MiniChatHeader: React.FC<{ mode: MiniChatMode }> = ({ mode }) => {
 
   React.useEffect(() => {
     if (!isElectronShell()) return
-    void invokeDesktop<{ pinned?: boolean }>("desktop_get_window_pinned").then((result) => {
-      if (typeof result?.pinned === "boolean") setPinned(result.pinned)
-    })
+    // A rejected read must not surface as an unhandled rejection; the button keeps its
+    // default state if the window's pin state cannot be read.
+    void invokeDesktop<{ pinned?: boolean }>("desktop_get_window_pinned")
+      .then((result) => {
+        if (typeof result?.pinned === "boolean") setPinned(result.pinned)
+      })
+      .catch(() => {})
   }, [])
 
   const title =
@@ -251,12 +255,11 @@ const MiniChatHeader: React.FC<{ mode: MiniChatMode }> = ({ mode }) => {
       currentDirectory,
       draftProjectId,
     })
-    void invokeDesktop<{ focused?: boolean }>("desktop_focus_main_window", payload).then((result) => {
-      if (result?.focused === true) {
-        return invokeDesktop("desktop_close_current_window")
-      }
-      return null
-    })
+    // The hand-off can be refused (the command is not safe for a remote or non-main frame,
+    // and a fresh window reports {focused:false}), so the rejection has to be handled: it
+    // used to escape as an unhandled rejection while the click did nothing at all. Failing
+    // here leaves the mini-chat open, which is the fallback the command documents.
+    void focusMainWindowOrKeepOpen(invokeDesktop, payload)
   }, [currentDirectory, currentSessionId, draftProjectId, openDirectory, session])
 
   return (
