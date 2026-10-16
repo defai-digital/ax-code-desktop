@@ -249,4 +249,18 @@ describe("extractGitChangedFiles", () => {
     expect(files[0]?.path).toBe("C:/Users/Alice/Project/src/app.ts")
     expect(files[0]?.relativePath).toBe("src/app.ts")
   })
+
+  test("adds both scopes up for a file that is staged and edited further", () => {
+    const files = extractGitChangedFiles(
+      [{ path: "src/app.ts", index: "M", working_dir: "M" }],
+      {
+        staged: { "src/app.ts": { insertions: 3, deletions: 1 } },
+        working: { "src/app.ts": { insertions: 2, deletions: 0 } },
+      },
+      "/repo",
+    )
+
+    expect(files[0]?.insertions).toBe(5)
+    expect(files[0]?.deletions).toBe(1)
+  })
 })

@@ -21,6 +21,7 @@ const baseGroups = (entries: GitStatus["files"]) => [
     id: "unstaged",
     title: "Changes",
     entries,
+    statsScope: "working" as const,
     actionSymbol: "+" as const,
     actionAllLabel: "Stage all",
     getActionLabel: () => "+",

@@ -21,6 +21,7 @@ import {
   type FlattenedTreeRow,
 } from "./changesTree"
 import type { GitStatus } from "@/lib/api/types"
+import { diffStatsForPath, type GitDiffStatsScope } from "@/lib/git/diffStats"
 import { cn } from "@/lib/utils"
 import { useUIStore } from "@/stores/useUIStore"
 import { useI18n } from "@/lib/i18n"
@@ -30,6 +31,8 @@ export interface ChangesGroupConfig {
   id: string
   title: string
   entries: GitStatus["files"]
+  /** Which diff stat scope this group's line counts come from. */
+  statsScope: GitDiffStatsScope
   /** Per-file primary action: '+' stages, '-' unstages. */
   actionSymbol: "+" | "-"
   /** aria/title for the bulk header action (stage all / unstage all). */
@@ -48,7 +51,7 @@ interface ChangesPanelProps {
   groups: ChangesGroupConfig[]
   /** Normalized directory whose changes are shown; the auto-expand memory below is scoped to it. */
   scopeKey?: string
-  diffStats: Record<string, { insertions: number; deletions: number }> | undefined
+  diffStats: GitStatus["diffStats"]
   revertingPaths: Set<string>
   isRevertingAll?: boolean
   onVisiblePathsChange?: (paths: string[]) => void
@@ -452,7 +455,7 @@ export const ChangesPanel: React.FC<ChangesPanelProps> = ({
           actionLabel={group.getActionLabel(file.path)}
           actionSymbol={group.actionSymbol}
           onAction={() => group.onActionFile(file.path)}
-          stats={diffStats?.[file.path]}
+          stats={diffStatsForPath(diffStats, file.path, group.statsScope)}
           onViewDiff={() => group.onViewDiff(file.path)}
           onRevert={() => group.onRevertFile(file.path)}
           isReverting={revertingPaths.has(file.path) || isRevertingAll}

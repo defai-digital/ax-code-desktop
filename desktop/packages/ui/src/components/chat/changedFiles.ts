@@ -1,5 +1,8 @@
 import type { ToolPart } from "@defai-digital/ax-code-sdk/v2"
 
+import type { GitStatus } from "@/lib/api/types"
+import { combinedDiffStatsForPath } from "@/lib/git/diffStats"
+
 export interface ChangedFile {
   path: string
   tool: string
@@ -213,7 +216,7 @@ export const extractChangedFiles = (parts: ToolPart[]): ChangedFile[] => {
 
 export const extractGitChangedFiles = (
   files: Array<{ path: string; index: string; working_dir: string }>,
-  diffStats: Record<string, { insertions: number; deletions: number }> | undefined,
+  diffStats: GitStatus["diffStats"],
   directory: string,
 ): GitChangedFile[] => {
   const result: GitChangedFile[] = []
@@ -224,7 +227,7 @@ export const extractGitChangedFiles = (
     const hasWorkingChanges = Boolean(workingStatus || indexStatus === "?")
     const code = workingStatus || indexStatus
     if (!code || code === "!") continue
-    const stats = diffStats?.[file.path]
+    const stats = combinedDiffStatsForPath(diffStats, file.path)
     const normalizedFilePath = normalizeChangedFilePath(file.path)
     const absoluteFilePath = isAbsoluteChangedFilePath(normalizedFilePath)
       ? normalizedFilePath

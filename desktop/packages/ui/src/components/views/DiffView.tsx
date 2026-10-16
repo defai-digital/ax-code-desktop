@@ -6,6 +6,7 @@ import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { useGitStore, useGitStatus, useIsGitRepo, useGitLoadingStatus } from "@/stores/useGitStore"
 import { cn } from "@/lib/utils"
 import type { GitStatus } from "@/lib/api/types"
+import { combinedDiffStatsForPath, diffStatsForPath } from "@/lib/git/diffStats"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1094,18 +1095,28 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
   const changedFiles: FileEntry[] = React.useMemo(() => {
     if (!status?.files) return []
-    const diffStats = status.diffStats ?? {}
+    const diffStats = status.diffStats
     const includeFile =
       diffScope === "staged" ? isStagedStatusFile : diffScope === "working" ? isWorkingStatusFile : () => true
 
+    // Each row reports its own scope; "all" adds the two up.
+    const statsForFile = (filePath: string) => {
+      if (diffScope === "staged") return diffStatsForPath(diffStats, filePath, "staged")
+      if (diffScope === "working") return diffStatsForPath(diffStats, filePath, "working")
+      return combinedDiffStatsForPath(diffStats, filePath)
+    }
+
     return status.files
       .filter(includeFile)
-      .map((file) => ({
-        ...file,
-        insertions: diffStats[file.path]?.insertions ?? 0,
-        deletions: diffStats[file.path]?.deletions ?? 0,
-        isNew: isNewStatusFile(file),
-      }))
+      .map((file) => {
+        const stats = statsForFile(file.path)
+        return {
+          ...file,
+          insertions: stats.insertions,
+          deletions: stats.deletions,
+          isNew: isNewStatusFile(file),
+        }
+      })
       .sort((a, b) => a.path.localeCompare(b.path))
   }, [diffScope, status])
 

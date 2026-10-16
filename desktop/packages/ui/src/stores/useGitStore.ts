@@ -2,6 +2,7 @@ import React from "react"
 import { create } from "zustand"
 import { devtools } from "zustand/middleware"
 import type { GitStatus, GitBranch, GitLogResponse, GitIdentitySummary, GitAPI as RuntimeGitAPI } from "@/lib/api/types"
+import { collectChangedDiffStatPaths, combinedDiffStatsForPath } from "@/lib/git/diffStats"
 
 const LOG_STALE_THRESHOLD = 10000
 const REPO_CHECK_STALE_THRESHOLD = 60_000
@@ -185,19 +186,7 @@ const haveDiffStatsChanged = (previous?: GitStatus["diffStats"], next?: GitStatu
   if (!previous && !next) return false
   if (!previous || !next) return true
 
-  const paths = new Set([...Object.keys(previous), ...Object.keys(next)])
-  for (const path of paths) {
-    const prevEntry = previous[path]
-    const nextEntry = next[path]
-
-    if (!prevEntry && !nextEntry) continue
-    if (!prevEntry || !nextEntry) return true
-    if (prevEntry.insertions !== nextEntry.insertions || prevEntry.deletions !== nextEntry.deletions) {
-      return true
-    }
-  }
-
-  return false
+  return collectChangedDiffStatPaths(previous, next, new Set()).size > 0
 }
 
 const haveRemoteComparisonChanged = (
@@ -278,23 +267,7 @@ const getChangedFilePaths = (oldStatus: GitStatus | null, newStatus: GitStatus |
 
   // Only compare diffStats when light mode provides them (non-undefined)
   if (newStatus.diffStats !== undefined) {
-    const oldStats = oldStatus?.diffStats ?? {}
-    const newStats = newStatus.diffStats ?? {}
-    const allStatPaths = new Set<string>([...Object.keys(oldStats), ...Object.keys(newStats)])
-
-    for (const filePath of allStatPaths) {
-      const oldEntry = oldStats[filePath]
-      const newEntry = newStats[filePath]
-
-      if (!oldEntry || !newEntry) {
-        changed.add(filePath)
-        continue
-      }
-
-      if (oldEntry.insertions !== newEntry.insertions || oldEntry.deletions !== newEntry.deletions) {
-        changed.add(filePath)
-      }
-    }
+    collectChangedDiffStatPaths(oldStatus?.diffStats, newStatus.diffStats, changed)
   }
 
   return changed
@@ -831,8 +804,8 @@ export const useGitStore = create<GitStore>()(
             continue
           }
           // Skip large files during prefetch — they'll be fetched on-demand when user clicks
-          const stats = diffStats?.[filePath]
-          if (stats && stats.insertions + stats.deletions > DIFF_PREFETCH_LARGE_FILE_THRESHOLD) {
+          const stats = combinedDiffStatsForPath(diffStats, filePath)
+          if (stats.insertions + stats.deletions > DIFF_PREFETCH_LARGE_FILE_THRESHOLD) {
             continue
           }
           dedupedPaths.push(filePath)

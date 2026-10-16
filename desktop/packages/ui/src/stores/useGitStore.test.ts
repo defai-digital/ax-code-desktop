@@ -95,7 +95,7 @@ describe("useGitStore", () => {
     ])
 
     requests[0].resolve(createStatus())
-    requests[1].resolve(createStatus({ "src/index.ts": { insertions: 1, deletions: 0 } }))
+    requests[1].resolve(createStatus({ staged: {}, working: { "src/index.ts": { insertions: 1, deletions: 0 } } }))
     await Promise.all([lightPromise, fullPromise])
   })
 
@@ -115,7 +115,7 @@ describe("useGitStore", () => {
 
     expect(statusCalls).toEqual([{ directory: "/repo", options: undefined }])
 
-    requests[0].resolve(createStatus({ "src/index.ts": { insertions: 1, deletions: 0 } }))
+    requests[0].resolve(createStatus({ staged: {}, working: { "src/index.ts": { insertions: 1, deletions: 0 } } }))
     const [fullResult, lightResult] = await Promise.all([fullPromise, lightPromise])
     expect(lightResult).toBe(fullResult)
   })
@@ -133,7 +133,7 @@ describe("useGitStore", () => {
     await Promise.resolve()
 
     requests[1].resolve(
-      createStatus({ "new.ts": { insertions: 2, deletions: 0 } }, [{ path: "new.ts", index: " ", working_dir: "M" }]),
+      createStatus({ staged: {}, working: { "new.ts": { insertions: 2, deletions: 0 } } }, [{ path: "new.ts", index: " ", working_dir: "M" }]),
     )
     await fullPromise
 
@@ -144,7 +144,8 @@ describe("useGitStore", () => {
       { path: "new.ts", index: " ", working_dir: "M" },
     ])
     expect(useGitStore.getState().getDirectoryState("/repo")?.status?.diffStats).toEqual({
-      "new.ts": { insertions: 2, deletions: 0 },
+      staged: {},
+      working: { "new.ts": { insertions: 2, deletions: 0 } },
     })
   })
 
@@ -203,7 +204,7 @@ describe("useGitStore", () => {
   })
 
   test("preserves diff stats during optimistic moves", () => {
-    const diffStats = { "src/index.ts": { insertions: 2, deletions: 1 } }
+    const diffStats = { staged: {}, working: { "src/index.ts": { insertions: 2, deletions: 1 } } }
     setDirectoryStatus(createStatus(diffStats, [{ path: "src/index.ts", index: " ", working_dir: "M" }]))
 
     useGitStore.getState().moveStatusPathsOptimistically("/repo", ["src/index.ts"], "stage")

@@ -1641,7 +1641,10 @@ export async function getStatus(directory, options = {}) {
     // Use -uall to show all untracked files individually, not just directories
     const status = await git.status(["-uall"])
 
-    // Light mode: skip numstat + new-file line counting for faster response
+    // Light mode: skip numstat + new-file line counting for faster response. Staged
+    // (`--cached`: HEAD -> index) and working (`--numstat`: index -> worktree) stay in
+    // separate maps, so a partially staged file shows each row's own scope instead of the
+    // same combined total on both.
     const [stagedStatsRaw, workingStatsRaw] = lightMode
       ? ["", ""]
       : await Promise.all([
@@ -1649,9 +1652,10 @@ export async function getStatus(directory, options = {}) {
           git.raw(["diff-files", "--numstat"]).catch(() => ""),
         ])
 
-    const diffStatsMap = new Map()
+    const stagedDiffStats = {}
+    const workingDiffStats = {}
 
-    const accumulateStats = (raw) => {
+    const accumulateStats = (raw, target) => {
       if (!raw) return
       raw
         .split("\n")
@@ -1672,18 +1676,18 @@ export async function getStatus(directory, options = {}) {
           const insertions = insertionsRaw === "-" ? 0 : parseInt(insertionsRaw, 10) || 0
           const deletions = deletionsRaw === "-" ? 0 : parseInt(deletionsRaw, 10) || 0
 
-          const existing = diffStatsMap.get(path) || { insertions: 0, deletions: 0 }
-          diffStatsMap.set(path, {
+          const existing = target[path] || { insertions: 0, deletions: 0 }
+          target[path] = {
             insertions: existing.insertions + insertions,
             deletions: existing.deletions + deletions,
-          })
+          }
         })
     }
 
-    accumulateStats(stagedStatsRaw)
-    accumulateStats(workingStatsRaw)
+    accumulateStats(stagedStatsRaw, stagedDiffStats)
+    accumulateStats(workingStatsRaw, workingDiffStats)
 
-    const diffStats = Object.fromEntries(diffStatsMap.entries())
+    const diffStats = { staged: stagedDiffStats, working: workingDiffStats }
 
     const MAX_NEW_FILE_STATS = 200
     const MAX_NEW_FILE_STAT_SIZE = 1024 * 1024
@@ -1709,16 +1713,19 @@ export async function getStatus(directory, options = {}) {
           continue
         }
 
-        const existing = diffStats[file.path]
+        // Untracked and working-tree-added files belong to the working scope; a file
+        // whose "A" code is on the index belongs to the staged scope.
+        const target = working === "?" || working === "A" ? workingDiffStats : stagedDiffStats
+        const existing = target[file.path]
         if (existing && existing.insertions > 0) {
           continue
         }
 
-        candidates.push(file)
+        candidates.push({ file, target })
       }
 
-      const estimateNewFileStat = async (file) => {
-        const existing = diffStats[file.path]
+      const estimateNewFileStat = async ({ file, target }) => {
+        const existing = target[file.path]
         let absolutePath
         try {
           absolutePath = resolveRepositoryFilePath(repoRoot, file.path)
@@ -1751,13 +1758,14 @@ export async function getStatus(directory, options = {}) {
             .split(/\t/)
           if (insertionsRaw === "-" || deletionsRaw === "-") {
             return {
+              target,
               path: file.path,
               insertions: existing?.insertions ?? 0,
               deletions: existing?.deletions ?? 0,
             }
           }
 
-          return { path: file.path, insertions: parseInt(insertionsRaw, 10) || 0, deletions: 0 }
+          return { target, path: file.path, insertions: parseInt(insertionsRaw, 10) || 0, deletions: 0 }
         } catch (error) {
           if (error?.code !== "ENOENT") {
             console.warn("Failed to estimate diff stats for new file", file.path, error)
@@ -1778,7 +1786,7 @@ export async function getStatus(directory, options = {}) {
     }
 
     for (const entry of newFileStats) {
-      diffStats[entry.path] = {
+      entry.target[entry.path] = {
         insertions: entry.insertions,
         deletions: entry.deletions,
       }
