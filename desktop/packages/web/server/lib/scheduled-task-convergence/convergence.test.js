@@ -8,7 +8,7 @@ import { createScheduledTaskConvergence } from "./convergence.js"
 
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} }
 
-const createHarness = async ({ runtimeTasks = [], runtimeHandler } = {}) => {
+const createHarness = async ({ runtimeTasks = [], runtimeHandler, listProjects } = {}) => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-scheduled-convergence-"))
   const projectsDir = path.join(tempRoot, "projects")
   const markerPath = path.join(tempRoot, "scheduled-tasks-migrated.json")
@@ -39,7 +39,7 @@ const createHarness = async ({ runtimeTasks = [], runtimeHandler } = {}) => {
     projectsDirPath: projectsDir,
     markerPath,
     projectConfigRuntime,
-    listProjects: async () => [{ id: "proj-a", path: "/work/alpha" }],
+    listProjects: listProjects || (async () => [{ id: "proj-a", path: "/work/alpha" }]),
     buildAxCodeUrl: () => "http://127.0.0.1:4096/",
     getAxCodeAuthHeaders: () => ({ authorization: "Basic test" }),
     waitForAxCodeReady: async () => {},
@@ -80,6 +80,30 @@ describe("scheduled task convergence migration", () => {
   afterEach(async () => {
     await cleanup()
     cleanup = async () => {}
+  })
+
+  it("resolves a project whose id is too long for its config file name", async () => {
+    const harness = await createHarness({
+      listProjects: async () => [{ id: `path_${"b".repeat(180)}`, path: "/work/long" }],
+    })
+    cleanup = harness.cleanup
+    // Written through the runtime, which is what puts the id inside the file and bounds the name.
+    await harness.projectConfigRuntime.upsertScheduledTask(`path_${"b".repeat(180)}`, {
+      name: "Digest",
+      enabled: true,
+      catchUpPolicy: "run_once",
+      schedule: { kind: "daily", times: ["09:00"], timezone: "UTC" },
+      execution: { prompt: "Summarize", providerID: "openai", modelID: "gpt" },
+    })
+
+    await harness.convergence.start()
+
+    const creates = harness.requests.filter(
+      (request) => request.method === "POST" && request.url.endsWith("/scheduled-task?directory=%2Fwork%2Flong"),
+    )
+    expect(creates).toHaveLength(1)
+    const marker = await harness.readMarker()
+    expect(marker.warnings).toEqual([])
   })
 
   it("creates runtime tasks, clears the project JSON key, and writes the marker", async () => {

@@ -281,12 +281,15 @@ export const createScheduledTaskConvergence = (deps) => {
     let retryableRemaining = 0
 
     for (const fileName of files) {
-      const projectID = fileName.slice(0, -".json".length)
+      const fileStem = fileName.slice(0, -".json".length)
       const config = await readProjectConfigFile(fileName)
       if (!config) {
-        warnings.push({ project: projectID, task: null, warning: "project config JSON is unreadable; skipped" })
+        warnings.push({ project: fileStem, task: null, warning: "project config JSON is unreadable; skipped" })
         continue
       }
+      // The file name is the project id only while that id fits in a name: a longer one is written under a
+      // bounded stem with a digest, and the id it belongs to is inside the file.
+      const projectID = asNonEmptyString(config.projectID) || fileStem
       const tasks = Array.isArray(config.scheduledTasks) ? config.scheduledTasks : []
       if (tasks.length === 0) {
         continue

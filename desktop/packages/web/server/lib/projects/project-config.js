@@ -396,6 +396,10 @@ export const createProjectConfigRuntime = (deps) => {
     const merged = {
       ...existing,
       version: PROJECT_CONFIG_VERSION,
+      // The project id, inside the file: a name longer than the filesystem allows is bounded with a digest
+      // (see projectConfigFileStemOf), so a reader that enumerated the directory can no longer derive the
+      // id from the file name — the scheduled-task convergence looks the project's path up by id.
+      projectID: sanitizeProjectID(projectID),
       scheduledTasks: Array.isArray(config?.scheduledTasks) ? config.scheduledTasks : [],
     }
 
@@ -418,6 +422,7 @@ export const createProjectConfigRuntime = (deps) => {
     const merged = {
       ...existing,
       version: PROJECT_CONFIG_VERSION,
+      projectID: sanitizeProjectID(projectID),
     }
     if (tasks.length > 0) {
       merged.scheduledTasks = tasks
