@@ -929,7 +929,7 @@ prompt; two runs ended in a transport failure and produced nothing, and are list
 | Reviewer | Area | Outcome |
 | --- | --- | --- |
 | Claude Code CLI | `components/{auth,desktop,update,ui,icon,icons}` | 5 findings, 4 confirmed |
-| Muse CLI (`--trust-workspace`) | `components/views/**` | finished, not yet read |
+| Muse CLI (`--trust-workspace`) | `components/views/**` | 5 findings, 3 confirmed (2 fixed, 1 verified) |
 | `deepseek-flash` (ax-code) | server `{desktop,notifications,projects,scheduled-task-convergence,skills-catalog,ui-auth}`, `desktop-owned-routes.js`, `index.js` | 2 findings, 1 confirmed |
 | `glm-5.3` (ax-code) | `components/{dashboard,comments,model-picker,notifications,mcp,onboarding}` | finished, not yet read |
 | `qwen3.8-flash` (ax-code) | `components/{session,files,projects,terminal}` | **failed**: transport error after reading |
@@ -955,6 +955,30 @@ prompt; two runs ended in a transport failure and produced nothing, and are list
   the surrogate-pair check never ran on that path: a name with a non-BMP character on the cut boundary
   produced a title ending in a lone high surrogate, which the runtime stores as a replacement character.
   The UI's `truncateToCodeUnits`, which the comment says must stay in sync, already behaved this way.
+- **`a23a8519`** — two more from the views reviewer. The pull request section's focus and visibility
+  handlers decided whether to refresh from a value computed when the effect last ran, and that effect
+  re-runs when the entry's `lastRefreshAt` changes — so once any refresh had happened the answer was
+  "not stale" and stayed there: refocusing the window after any amount of time never refreshed again.
+  The branch-name sanitizer, which promises a name git accepts, left a dot-leading component alone, so
+  `feature/.hidden` came back unchanged and the create failed against git's own check, and it returned
+  `@`, which is not a ref name on its own.
+
+### Verified from this round, not yet fixed
+
+Read against the source and confirmed, waiting for a fix rather than a re-check:
+
+- **`FilesView-impl.tsx:1209` (and 1233, 1265, 1303)** — New File, New Folder, Rename and Delete call
+  `finishDialogOperation()` after the Files API resolves, and `finishDialogOperation` only closes the
+  dialog. A result of `{ success: false }` — which the API's own type allows, and which the editor save
+  and the hunk revert both treat as a failure — therefore closes the dialog with a success toast
+  suppressed and no error at all: the user believes the file was created, renamed or deleted when
+  nothing happened. `failDialogOperation` is only reachable from the rejection path.
+- **`IntegrateCommitsSection.tsx:307`** (suspected) — `handleAbort` toasts "aborted" and clears the
+  persisted conflict state, but `abortIntegrate` swallows both exec failures it performs, so a failed
+  worktree removal leaves the half-finished cherry-pick on disk while the UI reports success.
+- **`PlanView.tsx:453`** (suspected) — the autosave effect has no dirty check against the content it
+  loaded, so merely opening a plan schedules a write of the just-loaded text ~350 ms later; an external
+  write landing in that window is overwritten by content the user never edited.
 
 ### Reviewed and not changed from this round
 
@@ -1104,7 +1128,7 @@ questions rather than local fixes.
 - Final state, with each command's exit status captured rather than inferred from
   a pipeline: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0.
-- Test totals at the last run: ui 2 647, web 1 100 (+2 skipped), electron 574, root
+- Test totals at the last run: ui 2 651, web 1 100 (+2 skipped), electron 574, root
   scripts 179 (+6 skipped). `pnpm run check:locales` reports 14 locales, 4 692 keys.
 - `pnpm run check:boundaries` passes in full: desktop boundaries, store
   boundaries, electron runtime, endpoint contracts, IPC contracts, package test
