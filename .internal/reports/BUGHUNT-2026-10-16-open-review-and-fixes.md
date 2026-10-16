@@ -1339,7 +1339,31 @@ upstream comparison produced). The audit found five things in that work; all fiv
   reached the user. Its two SUSPECTED leads are recorded below.
 - `ui/src/components/{ui,desktop,update,icon,icons,notifications,comments}` (MiniMax-M3): no confirmed
   bugs; two SUSPECTED, recorded below.
-- `ui/src/lib/{i18n,search,router,settings,tray,webmcp,wiki,preview}` (Grok CLI): still running.
+- `ui/src/lib/{i18n,search,router,settings,tray,webmcp,wiki,preview}`: the Grok CLI run for this scope
+  answered its preamble and then nothing for thirteen minutes past the other three reviewers, so it was
+  stopped and the scope re-run with the Claude Code CLI. That found three CONFIRMED and one SUSPECTED,
+  all fixed: the tray's approval title (the copy of the finding fixed in `27d6b446`, which the round's
+  own review of `lib/tray` did not reach), the router's tab list and its omitted-parameter defaults
+  (`a73f9823`), and the WebMCP error verdict read out of a prose message (`63717e46`).
+
+### Fixed from the ui/src/lib review
+
+- **`27d6b446`** — the tray's approval rows come from every session's pending permissions and questions,
+  but the title map was built from the root rows alone, so a subagent's approval reached the tray with
+  its raw session id as the title (this one was found by both this reviewer and the tray review of the
+  same round).
+- **`a73f9823`** — `VALID_TABS` listed five of the eight values `MainTab` can hold while
+  `serializeRoute` writes any non-default tab, so `?tab=wiki`, `?tab=plan` and `?tab=context` were
+  written to the URL and read back as invalid: a reload or a history entry could not restore them. And
+  because serialization omits whatever matches the default, `?session=abc` says nothing about the tab —
+  `parseRoute` answers null for an absent parameter and `applyRoute` read null as "keep the current
+  value", so Back from `?session=A&tab=git` to `?session=A` left the user on the git tab and then
+  rewrote that entry with `tab=git`. `withRouteDefaults` fills what a route from the history or the
+  address bar leaves out; only the popstate and mount paths use it.
+- **`63717e46`** — the WebMCP error classifier scanned a failure's `message` for the same tokens it reads
+  from `reason`/`code`/`name`, and `rejected` is a word in a sentence: any unrelated refusal ("Request
+  rejected by proxy") was reported as "the grant was rejected". Free text is only read for the two tokens
+  that name a state; the rest falls to the generic message, which claims nothing.
 
 ### Suspected leads from this round, verified and not changed
 
@@ -2153,11 +2177,17 @@ Round six and seven are complete: every confirmed finding is fixed.
 
 ## Verification
 
-- Latest full run, after the second upstream pass closed (each command's exit status captured, not
-  inferred from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
-  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 765, web 1 157
+- Latest full run, after the fourteenth round's fixes (each command's exit status captured, not inferred
+  from a pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
+  `pnpm run check:boundaries` 0 — root scripts 180 (+6 skipped), electron 595, ui 2 772, web 1 163
   (+2 skipped). The lint run's only output is a pre-existing `react-hooks/exhaustive-deps` warning in
   `ui/src/sync/use-sync.ts`.
+- Two runs during that round failed one test each, both of the load-related kind below and both green in
+  isolation: `server/lib/ax-code/dev-shutdown-auth.test.js` "refuses an unauthenticated caller…" (a
+  `Parse Error: Expected HTTP/…` from a raw socket) and `plugin-routes.test.js` "DELETE /file/:id unlinks
+  file" (200 expected, 401 answered — the same signature as the `routes.test.js` flake recorded here).
+  Each one failed while a reviewer process was running and passed twice on its own; the run above, with
+  nothing else on the machine, is the one to read.
 - The twelfth round's own run, for the record: typecheck 0, lint 0, test 0, boundaries 0 — root scripts
   180 (+6 skipped), electron 595, ui 2 757, web 1 141 (+2 skipped).
 - Final state after the ninth round, with each command's exit status captured rather than inferred
