@@ -25,7 +25,7 @@ const notAGitRepositoryStatus = () => ({
   rebaseInProgress: null,
 })
 
-export function registerGitRoutes(app) {
+export function registerGitRoutes(app, options = {}) {
   let gitLibraries = null
   const getGitLibraries = async () => {
     if (!gitLibraries) {
@@ -1037,6 +1037,8 @@ export function registerGitRoutes(app) {
       const result = await removeWorktree(directory, {
         directory: worktreeDirectory,
         deleteLocalBranch: req.body?.deleteLocalBranch === true,
+        // Best-effort: the runtime releases the instance that served this worktree.
+        disposeInstance: options.disposeInstance,
       })
       // The worktree is gone even when its local branch could not be deleted, so the
       // call still succeeds and carries why the branch stayed behind.

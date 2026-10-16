@@ -714,6 +714,59 @@ describe("removeWorktree", () => {
     expect(runGit(repo, ["branch", "--list", "feat"])).toContain("feat")
   })
 
+  it("asks the runtime to release the worktree's instance before removing it", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
+    runGit(repo, ["add", "README.md"])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+
+    const target = path.join(repo, ".worktrees", "disposed")
+    runGit(repo, ["worktree", "add", "-b", "disposed", target])
+
+    const disposed = []
+    const result = await removeWorktree(repo, {
+      directory: target,
+      disposeInstance: async (directory) => {
+        // The directory has to still exist when the runtime is asked to release it.
+        disposed.push({ directory, existed: fs.existsSync(directory) })
+      },
+    })
+
+    expect(result).toBe(true)
+    expect(disposed).toEqual([{ directory: target, existed: true }])
+    expect(fs.existsSync(target)).toBe(false)
+  })
+
+  it("removes the worktree even when releasing its instance fails", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
+    runGit(repo, ["add", "README.md"])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+
+    const target = path.join(repo, ".worktrees", "stubborn")
+    runGit(repo, ["worktree", "add", "-b", "stubborn", target])
+
+    const result = await removeWorktree(repo, {
+      directory: target,
+      disposeInstance: async () => {
+        throw new Error("runtime is not running")
+      },
+    })
+
+    expect(result).toBe(true)
+    expect(fs.existsSync(target)).toBe(false)
+  })
+
   it("deletes the branch when it is only checked out in the removed worktree", async () => {
     if (!canRunGit()) return
 

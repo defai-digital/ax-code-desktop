@@ -3466,6 +3466,20 @@ export async function removeWorktree(directory, input = {}) {
     return null
   })()
 
+  // Release the runtime instance that served this worktree while its directory still exists: the
+  // runtime keeps one per directory, and nothing released it when the directory went away.
+  const disposeInstance = typeof input?.disposeInstance === "function" ? input.disposeInstance : null
+  if (disposeInstance) {
+    try {
+      await disposeInstance(targetDirectory)
+    } catch (error) {
+      console.warn(
+        "Failed to dispose the worktree's runtime instance:",
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+  }
+
   if (!matchedEntry?.worktree) {
     // Not (or no longer) a registered `git worktree` entry. Only allow the
     // filesystem cleanup fallback below when the target is actually inside
