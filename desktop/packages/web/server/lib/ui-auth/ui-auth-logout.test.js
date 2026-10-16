@@ -30,7 +30,8 @@ const createResponse = () => {
 
 const sessionTokenFrom = (res) => {
   const header = res.setCookieHeader()
-  const match = /oc_ui_session=([^;]+)/.exec(header)
+  // The cookie carries the request's port in its name when the host has one.
+  const match = /oc_ui_session(?:_\d+)?=([^;]+)/.exec(header)
   return match ? decodeURIComponent(match[1]) : ""
 }
 
@@ -63,12 +64,12 @@ describe("ui auth sign-out", () => {
     const token = sessionTokenFrom(loginRes)
     expect(token).not.toBe("")
 
-    const statusReq = { headers: { host: "127.0.0.1:4096", cookie: `oc_ui_session=${encodeURIComponent(token)}` } }
+    const statusReq = { headers: { host: "127.0.0.1:4096", cookie: `oc_ui_session_4096=${encodeURIComponent(token)}` } }
     const beforeRes = createResponse()
     await auth.handleSessionStatus(statusReq, beforeRes)
     expect(beforeRes.body).toEqual({ authenticated: true })
 
-    const logoutReq = { headers: { host: "127.0.0.1:4096", cookie: `oc_ui_session=${encodeURIComponent(token)}` } }
+    const logoutReq = { headers: { host: "127.0.0.1:4096", cookie: `oc_ui_session_4096=${encodeURIComponent(token)}` } }
     const logoutRes = createResponse()
     await auth.handleSessionLogout(logoutReq, logoutRes)
 
@@ -82,12 +83,43 @@ describe("ui auth sign-out", () => {
     auth.dispose()
   })
 
+  it("treats another port's session cookie as someone else's", async () => {
+    // Browsers key cookies by host, not port, so the instances on :3000 and :3001 used to share
+    // one cookie: the instance logged into last overwrote the other's token.
+    const { createUiAuth } = await import("./ui-auth.js")
+    const auth = createUiAuth({ password: "correct horse battery staple" })
+
+    const loginRes = createResponse()
+    await auth.handleSessionCreate(
+      { body: { password: "correct horse battery staple" }, headers: { host: "127.0.0.1:3000" } },
+      loginRes,
+    )
+    const token = sessionTokenFrom(loginRes)
+    expect(token).not.toBe("")
+
+    const samePort = createResponse()
+    await auth.handleSessionStatus(
+      { headers: { host: "127.0.0.1:3000", cookie: `oc_ui_session_3000=${encodeURIComponent(token)}` } },
+      samePort,
+    )
+    expect(samePort.body).toEqual({ authenticated: true })
+
+    const otherPort = createResponse()
+    await auth.handleSessionStatus(
+      { headers: { host: "127.0.0.1:3001", cookie: `oc_ui_session_3000=${encodeURIComponent(token)}` } },
+      otherPort,
+    )
+    expect(otherPort.body).not.toEqual({ authenticated: true })
+
+    auth.dispose()
+  })
+
   it("still clears the cookie for a caller with no usable session", async () => {
     const { createUiAuth } = await import("./ui-auth.js")
     const auth = createUiAuth({ password: "correct horse battery staple" })
 
     const res = createResponse()
-    await auth.handleSessionLogout({ headers: { host: "127.0.0.1:4096", cookie: "oc_ui_session=not-a-jwt" } }, res)
+    await auth.handleSessionLogout({ headers: { host: "127.0.0.1:4096", cookie: "oc_ui_session_4096=not-a-jwt" } }, res)
 
     expect(res.body).toEqual({ authenticated: false })
     expect(res.setCookieHeader()).toContain("Max-Age=0")

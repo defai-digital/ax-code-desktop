@@ -5,7 +5,9 @@ import path from "path"
 import os from "os"
 import { createUiPasskeys } from "./ui-passkeys.js"
 
-const SESSION_COOKIE_NAME = "oc_ui_session"
+import { UI_SESSION_COOKIE_NAME, resolveUiSessionCookieName } from "./ui-session-cookie.js"
+
+const SESSION_COOKIE_NAME = UI_SESSION_COOKIE_NAME
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000
 const TRUSTED_DEVICE_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -361,7 +363,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
       const secure = isSecureRequest(req)
       const maxAgeSeconds = Math.floor(ttlMs / 1000)
       const header = buildCookie({
-        name: cookieName,
+        name: resolveUiSessionCookieName(req, cookieName),
         value: encodeURIComponent(token),
         maxAge: maxAgeSeconds,
         secure,
@@ -371,8 +373,9 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
 
     const ensureSessionToken = async (req, res) => {
       const cookies = parseCookies(req.headers.cookie)
-      if (cookies[cookieName]) {
-        return cookies[cookieName]
+      const name = resolveUiSessionCookieName(req, cookieName)
+      if (cookies[name]) {
+        return cookies[name]
       }
       const token = crypto.randomBytes(32).toString("base64url")
       setSessionCookie(req, res, token, sessionTtlMs)
@@ -438,8 +441,9 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
 
   const getTokenFromRequest = (req) => {
     const cookies = parseCookies(req.headers.cookie)
-    if (cookies[cookieName]) {
-      return cookies[cookieName]
+    const name = resolveUiSessionCookieName(req, cookieName)
+    if (cookies[name]) {
+      return cookies[name]
     }
     return null
   }
@@ -448,7 +452,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
     const secure = isSecureRequest(req)
     const maxAgeSeconds = Math.floor(ttlMs / 1000)
     const header = buildCookie({
-      name: cookieName,
+      name: resolveUiSessionCookieName(req, cookieName),
       value: encodeURIComponent(token),
       maxAge: maxAgeSeconds,
       secure,
@@ -459,7 +463,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
   const clearSessionCookie = (req, res) => {
     const secure = isSecureRequest(req)
     const header = buildCookie({
-      name: cookieName,
+      name: resolveUiSessionCookieName(req, cookieName),
       value: "",
       maxAge: 0,
       secure,
