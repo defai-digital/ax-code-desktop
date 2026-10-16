@@ -1366,6 +1366,28 @@ describe("stageHunk and unstageHunk", () => {
     expect(fs.readFileSync(filePath, "utf8")).toContain("line26-edited")
   })
 
+  it("stages a hunk of a file whose name git quotes in the patch header", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    const name = "café notes.txt"
+    const lines = Array.from({ length: 30 }, (_, index) => `line${index + 1}`)
+    fs.writeFileSync(path.join(repo, name), `${lines.join("\n")}\n`)
+    runGit(repo, ["add", name])
+    runGit(repo, ["commit", "-m", "base"])
+    const modified = [...lines]
+    modified[1] = "line2-edited"
+    modified[25] = "line26-edited"
+    fs.writeFileSync(path.join(repo, name), `${modified.join("\n")}\n`)
+
+    const diffText = runGit(repo, ["-c", "core.quotePath=true", "diff", "--unified=4", "--", name])
+    expect(diffText).toContain('+++ "b/caf\\303\\251 notes.txt"')
+    await stageHunk(repo, name, extractHunkPatch(diffText, 0))
+
+    const staged = runGit(repo, ["diff", "--cached", "--unified=0", "--", name])
+    expect(staged).toContain("+line2-edited")
+    expect(staged).not.toContain("line26-edited")
+  })
+
   it("unstages a single staged hunk, leaving the other one staged", async () => {
     if (!canRunGit()) return
     const repo = createHunkTestRepo()

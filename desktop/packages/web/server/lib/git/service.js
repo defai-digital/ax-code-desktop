@@ -2788,6 +2788,33 @@ export async function unstageFiles(directory, paths) {
 // The patch names the file it edits; the route validated a declared path, so a patch whose
 // post-image names a different file must be rejected rather than silently editing that one.
 // A deletion patch instead carries the target in its `--- a/<path>` pre-image line.
+// git writes a header path that needs escaping (non-ASCII, quotes, control
+// characters) as a C-style quoted string with octal byte escapes.
+const C_QUOTE_ESCAPES = { a: 7, b: 8, f: 12, n: 10, r: 13, t: 9, v: 11, '"': 34, "\\": 92 }
+const unquoteGitHeaderPath = (value) => {
+  if (!value.startsWith('"') || !value.endsWith('"') || value.length < 2) {
+    return value
+  }
+  const bytes = []
+  const body = value.slice(1, -1)
+  for (let index = 0; index < body.length; index += 1) {
+    const character = body[index]
+    if (character !== "\\") {
+      bytes.push(...Buffer.from(character, "utf8"))
+      continue
+    }
+    const next = body[index + 1]
+    if (/[0-7]/.test(next ?? "")) {
+      bytes.push(parseInt(body.slice(index + 1, index + 4), 8))
+      index += 3
+      continue
+    }
+    bytes.push(C_QUOTE_ESCAPES[next] ?? next.charCodeAt(0))
+    index += 1
+  }
+  return Buffer.from(bytes).toString("utf8")
+}
+
 const patchTargetsDeclaredPath = (patchText, repoPath) => {
   const lines = patchText.split("\n")
   // One file only: a second `---`/`+++` header pair would let the patch edit another file.
@@ -2800,14 +2827,14 @@ const patchTargetsDeclaredPath = (patchText, repoPath) => {
     return false
   }
 
-  const postImagePath = postImage.slice(4).trim()
+  const postImagePath = unquoteGitHeaderPath(postImage.slice(4).trim())
   if (postImagePath === `b/${repoPath}`) {
     return true
   }
 
   if (postImagePath === "/dev/null") {
     const preImage = lines.find((line) => line.startsWith("--- "))
-    return Boolean(preImage) && preImage.slice(4).trim() === `a/${repoPath}`
+    return Boolean(preImage) && unquoteGitHeaderPath(preImage.slice(4).trim()) === `a/${repoPath}`
   }
 
   return false
