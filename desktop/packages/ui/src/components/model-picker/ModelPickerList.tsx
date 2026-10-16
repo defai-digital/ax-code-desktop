@@ -32,6 +32,13 @@ type ModelPickerFavoriteEntry = ModelPickerEntry
 
 type HiddenModel = { providerID: string; modelID: string }
 
+// One shared empty list, so the default prop keeps its identity across renders. A literal `[]`
+// default made `hiddenModels` (and everything computed from it) a new array on every render, and
+// the highlight-reset guard below compares identities: it never matched, so any unrelated re-render
+// of an open picker — the setup-commands fetch landing, a git store update — snapped the highlight
+// back to the first row and the next Enter selected the wrong model.
+const NO_HIDDEN_MODELS: HiddenModel[] = []
+
 const MODEL_COST_DISPLAY_ENABLED = false
 
 type IndexSelectionStore = {
@@ -346,7 +353,7 @@ export const ModelPickerList: React.FC<ModelPickerListProps> = ({
   onSelect,
   labels,
   selectedModel,
-  hiddenModels = [],
+  hiddenModels = NO_HIDDEN_MODELS,
   allowedProviderIds,
   includeNotSelected = false,
   onSelectNone,

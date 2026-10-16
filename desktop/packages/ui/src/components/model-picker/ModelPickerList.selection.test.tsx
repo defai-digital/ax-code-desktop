@@ -52,7 +52,7 @@ describe("ModelPickerList selection", () => {
   // re-render — including the ones a thinking-variant key or a window resize cause. The reset belongs
   // to a change of the list, and firing it there jumped the highlight back to the first row: the next
   // Enter selected the first model instead of the one the user had navigated to.
-  const render = (onSelect: (entry: unknown) => void) => {
+  const render = (onSelect: (entry: unknown) => void, { omitHiddenModels = false } = {}) => {
     act(() => {
       root.render(
         <ModelPickerList
@@ -61,7 +61,7 @@ describe("ModelPickerList selection", () => {
           recentModels={noRecents}
           searchQuery=""
           modelsMetadata={noMetadata}
-          hiddenModels={noHidden}
+          {...(omitHiddenModels ? {} : { hiddenModels: noHidden })}
           onSearchQueryChange={() => {}}
           onSelect={onSelect}
           labels={labels}
@@ -86,6 +86,22 @@ describe("ModelPickerList selection", () => {
     await pressKey("ArrowDown")
     // A parent re-render: same list, new inline callback.
     render(onSelect)
+    await pressKey("Enter")
+
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect.mock.calls[0][0]).toMatchObject({ modelID: "model-b" })
+  })
+
+  test("keeps the highlight across a re-render when hiddenModels is not passed at all", async () => {
+    // The default was a fresh literal, so `hiddenModels` — and every list derived from it — was a new
+    // array on each render and the reset guard never matched. ModelMultiSelect omits the prop, and
+    // its parent re-renders whenever the setup-commands fetch, a git store or the picker's own height
+    // state settles: the highlight jumped back to the first row under the user.
+    const onSelect = vi.fn()
+    render(onSelect, { omitHiddenModels: true })
+
+    await pressKey("ArrowDown")
+    render(onSelect, { omitHiddenModels: true })
     await pressKey("Enter")
 
     expect(onSelect).toHaveBeenCalledTimes(1)
