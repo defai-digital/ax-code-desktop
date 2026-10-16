@@ -1366,6 +1366,37 @@ describe("stageHunk and unstageHunk", () => {
     expect(fs.readFileSync(filePath, "utf8")).toContain("line26-edited")
   })
 
+  it("stages a hunk whose body contains lines that look like file headers", async () => {
+    // A removed `-- old` line directly above the added `++ new` line that replaces it renders as
+    // `--- old` / `+++ new`, which the one-header-pair guard read as a second file header: it rejected a patch
+    // that targets nothing but file.txt with "Patch does not target file.txt".
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    const lines = Array.from({ length: 30 }, (_, index) => `line${index + 1}`)
+    lines[1] = "-- old"
+    fs.writeFileSync(path.join(repo, "file.txt"), `${lines.join("\n")}\n`)
+    runGit(repo, ["add", "file.txt"])
+    runGit(repo, ["commit", "-m", "base"])
+
+    const modified = [...lines]
+    modified[1] = "++ new"
+    modified[25] = "line26-edited"
+    fs.writeFileSync(path.join(repo, "file.txt"), `${modified.join("\n")}\n`)
+
+    const diffText = runGit(repo, ["diff", "--unified=4", "--", "file.txt"])
+    const patch = extractHunkPatch(diffText, 0)
+    expect(patch).toContain("--- old")
+    expect(patch).toContain("+++ new")
+
+    await stageHunk(repo, "file.txt", patch)
+
+    const staged = runGit(repo, ["diff", "--cached", "--unified=0", "--", "file.txt"])
+    expect(staged).toContain("+++ new")
+    expect(staged).not.toContain("line26-edited")
+    const unstaged = runGit(repo, ["diff", "--unified=0", "--", "file.txt"])
+    expect(unstaged).toContain("line26-edited")
+  })
+
   it("stages a hunk of a file whose name git quotes in the patch header", async () => {
     if (!canRunGit()) return
     const repo = createHunkTestRepo()
