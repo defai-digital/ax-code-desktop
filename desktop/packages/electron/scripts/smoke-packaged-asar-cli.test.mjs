@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest"
+import net from "node:net"
 import path from "node:path"
-import { extractAssetPath, packagedPaths, parseSmokeArgs } from "./smoke-packaged-asar-cli.mjs"
+import { extractAssetPath, packagedPaths, parseSmokeArgs, request } from "./smoke-packaged-asar-cli.mjs"
 
 describe("packaged ASAR CLI smoke", () => {
   test("parses builder flags and a bounded timeout", () => {
@@ -28,5 +29,26 @@ describe("packaged ASAR CLI smoke", () => {
       "/assets/app.css",
     )
     expect(extractAssetPath("<html></html>")).toBeUndefined()
+  })
+})
+
+describe("packaged ASAR CLI smoke requests", () => {
+  test("gives up on a server that accepts and then never answers", async () => {
+    // `--timeout-ms` is only checked between readiness attempts, so a socket that was accepted and
+    // then went quiet held the gate — and the packaged CLI process — past its deadline.
+    const sockets = new Set()
+    const server = net.createServer((socket) => {
+      sockets.add(socket)
+      socket.on("close", () => sockets.delete(socket))
+    })
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
+    const port = server.address().port
+    try {
+      await expect(request(port, "/", { timeoutMs: 50 })).rejects.toThrow("did not answer within 50ms")
+    } finally {
+      // The accepted socket stays open on this side, and `close` waits for it.
+      for (const socket of sockets) socket.destroy()
+      await new Promise((resolve) => server.close(resolve))
+    }
   })
 })

@@ -11,6 +11,9 @@ import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 
 const require = createRequire(import.meta.url)
+
+// The readiness probe and the asset fetch both answer within a second when the CLI is healthy.
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000
 const { resolvePackagedTarget, resourcesPathFor } = require("./verify-packaged-electron.cjs")
 const execFileAsync = promisify(execFile)
 const DEFAULT_TIMEOUT_MS = 60_000
@@ -62,7 +65,7 @@ async function reservePort() {
   return port
 }
 
-function request(port, pathname) {
+export function request(port, pathname, { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS } = {}) {
   return new Promise((resolve, reject) => {
     const req = http.get({ hostname: "127.0.0.1", path: pathname, port }, (response) => {
       const chunks = []
@@ -70,6 +73,12 @@ function request(port, pathname) {
       response.on("end", () => {
         resolve({ body: Buffer.concat(chunks).toString("utf8"), status: response.statusCode ?? 0 })
       })
+    })
+    // A server that accepts the socket and then never finishes its response used to hold this
+    // request — and the readiness loop awaiting it — past `--timeout-ms`: that deadline is only
+    // checked between attempts, so `stopChild` never ran and the packaged CLI stayed up.
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Request for ${pathname} did not answer within ${timeoutMs}ms`))
     })
     req.on("error", reject)
   })
@@ -156,7 +165,8 @@ export async function runSmoke(argv = process.argv.slice(2), installedTarget) {
         throw new Error(`Packaged desktop CLI exited before serving ASAR assets: ${logs}`)
       }
       try {
-        page = await request(port, "/")
+        // Bounded by what is left of the deadline, so one silent socket cannot outlive the gate.
+        page = await request(port, "/", { timeoutMs: Math.max(1, deadline - Date.now()) })
         if (page.status === 200) break
       } catch {}
       await new Promise((resolve) => setTimeout(resolve, 250))
