@@ -603,4 +603,115 @@ describe("external preview documents are sandboxed", () => {
 
     expect(String(responseHeaders.get("content-security-policy") ?? "")).not.toContain("sandbox")
   })
+
+  it("replaces a sandbox directive the upstream supplied with its own", async () => {
+    // The flags of that directive belong to whoever sends it, and an external
+    // site is attacker-controlled: `allow-same-origin` in it would keep the
+    // Desktop origin, and a second `sandbox` directive would be ignored.
+    const harness = await buildHarness({ allowExternal: true })
+    const responseHeaders = new Map()
+    // http-proxy-middleware copies the upstream headers onto `res` before the
+    // interceptor runs, so the upstream CSP is already there when it is applied.
+    responseHeaders.set("content-security-policy", "default-src *; sandbox allow-scripts allow-same-origin allow-forms")
+    const res = {
+      statusCode: 200,
+      removeHeader: vi.fn(),
+      getHeader: (name) => responseHeaders.get(name.toLowerCase()),
+      setHeader: (name, value) => responseHeaders.set(name.toLowerCase(), value),
+    }
+
+    await harness.proxyOptions.on.proxyRes(
+      Buffer.from("<html><body>hi</body></html>"),
+      {
+        statusCode: 200,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "content-security-policy": "default-src *; sandbox allow-scripts allow-same-origin allow-forms",
+        },
+      },
+      harness.request,
+      res,
+    )
+
+    const csp = String(responseHeaders.get("content-security-policy") ?? "")
+    expect(csp.match(/sandbox/gi)).toHaveLength(1)
+    expect(csp).not.toContain("allow-same-origin")
+    expect(csp).toContain("default-src *")
+  })
+
+  it("sandboxes a document reached through a cross-origin redirect", async () => {
+    // The redirect target is always a public host (loopback and private
+    // addresses are refused), so its document needs the external sandbox even
+    // when the preview it came from was a local one.
+    let targetRoute = null
+    let proxyOptions = null
+    let randomCounter = 0
+    const app = {
+      post: (_path, ...handlers) => {
+        targetRoute = handlers.at(-1)
+      },
+      use() {},
+    }
+    const runtime = createPreviewProxyRuntime({
+      crypto: {
+        randomBytes: () => Buffer.from(String(++randomCounter).padStart(32, "0"), "hex"),
+      },
+      URL,
+      createProxyMiddleware: (options) => {
+        proxyOptions = options
+        const middleware = vi.fn()
+        middleware.upgrade = vi.fn()
+        return middleware
+      },
+      responseInterceptor: (handler) => handler,
+    })
+    runtime.attach(app, {
+      server: { on: vi.fn() },
+      express: { json: vi.fn(() => vi.fn()) },
+      uiAuthController: null,
+      isRequestOriginAllowed: vi.fn(async () => true),
+      rejectWebSocketUpgrade: vi.fn(),
+    })
+
+    const headers = new Map()
+    const targetResponse = {
+      setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+      json: vi.fn(),
+    }
+    await targetRoute({ body: { url: "http://127.0.0.1:3000" }, secure: false }, targetResponse)
+
+    const [sourceCookie] = String(headers.get("set-cookie")).split(";", 1)
+    const target = targetResponse.json.mock.calls[0][0]
+    const redirectHeaders = new Map()
+    await proxyOptions.on.proxyRes(
+      Buffer.alloc(0),
+      { statusCode: 302, headers: { location: "https://example.com/login" } },
+      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: sourceCookie }, secure: false },
+      {
+        statusCode: 302,
+        removeHeader: vi.fn(),
+        getHeader: (name) => redirectHeaders.get(name.toLowerCase()),
+        setHeader: (name, value) => redirectHeaders.set(name.toLowerCase(), value),
+      },
+    )
+
+    const redirectedLocation = redirectHeaders.get("location")
+    const redirectedCookie = redirectHeaders.get("set-cookie")[0].split(";", 1)[0]
+    const documentHeaders = new Map()
+    await proxyOptions.on.proxyRes(
+      Buffer.from("<html><body>login</body></html>"),
+      { statusCode: 200, headers: { "content-type": "text/html; charset=utf-8" } },
+      { originalUrl: redirectedLocation, headers: { cookie: `${sourceCookie}; ${redirectedCookie}` } },
+      {
+        statusCode: 200,
+        removeHeader: vi.fn(),
+        getHeader: (name) => documentHeaders.get(name.toLowerCase()),
+        setHeader: (name, value) => documentHeaders.set(name.toLowerCase(), value),
+      },
+    )
+
+    const csp = String(documentHeaders.get("content-security-policy") ?? "")
+    expect(csp).toContain("sandbox")
+    expect(csp).not.toContain("allow-same-origin")
+  })
 })

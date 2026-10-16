@@ -1114,9 +1114,9 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     return { ok: true, id, entry, parsed }
   }
 
-  // Strip the `frame-ancestors` directive from a CSP header value while
-  // preserving every other directive. Returns null if no directives remain.
-  const removeFrameAncestorsDirective = (cspValue) => {
+  // Strip one directive from a CSP header value while preserving every other
+  // directive. Returns null if no directives remain.
+  const removeCspDirective = (cspValue, directiveName) => {
     if (typeof cspValue !== "string" || cspValue.length === 0) {
       return cspValue
     }
@@ -1127,7 +1127,7 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
 
     const filtered = directives.filter((directive) => {
       const name = directive.split(/\s+/, 1)[0]?.toLowerCase() ?? ""
-      return name !== "frame-ancestors"
+      return name !== directiveName
     })
 
     if (filtered.length === 0) {
@@ -1135,6 +1135,8 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     }
     return filtered.join("; ")
   }
+
+  const removeFrameAncestorsDirective = (cspValue) => removeCspDirective(cspValue, "frame-ancestors")
 
   // Drop response headers that prevent the dev server from being framed.
   // The proxy itself is same-origin, so embedding is otherwise safe.
@@ -1208,10 +1210,15 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
         if (!normalized.ok) {
           return null
         }
+        // The guard above refuses loopback and private targets, so a redirect
+        // that reaches this branch points at a public host: it has to be
+        // treated as an external preview, or the document would keep the
+        // Desktop origin and its scripts could call the local API as the
+        // signed-in user.
         redirectTarget = createTarget(normalized.origin, resolved.entry.expiresAt - now(), {
           token: resolved.entry.token,
           expiresAt: resolved.entry.expiresAt,
-          external: resolved.entry.external,
+          external: true,
         })
         targetId = redirectTarget.id
       }
@@ -1239,11 +1246,13 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       return
     }
     const existing = typeof res.getHeader === "function" ? res.getHeader("content-security-policy") : null
-    if (typeof existing === "string" && /(^|;\s*)sandbox(\s|;|$)/i.test(existing)) {
-      return
-    }
-    const merged = typeof existing === "string" && existing.trim().length > 0
-      ? `${existing}; ${EXTERNAL_PREVIEW_SANDBOX_CSP}`
+    // A `sandbox` directive the upstream chose the flags for cannot be trusted:
+    // an external site is attacker-controlled, it may ship `allow-same-origin`,
+    // and a second `sandbox` directive after ours would be ignored. Drop theirs
+    // and always add the proxy's own.
+    const upstream = typeof existing === "string" ? removeCspDirective(existing, "sandbox") : null
+    const merged = typeof upstream === "string" && upstream.trim().length > 0
+      ? `${upstream}; ${EXTERNAL_PREVIEW_SANDBOX_CSP}`
       : EXTERNAL_PREVIEW_SANDBOX_CSP
     res.setHeader("content-security-policy", merged)
   }
