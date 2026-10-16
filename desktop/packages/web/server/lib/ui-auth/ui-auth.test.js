@@ -106,6 +106,56 @@ describe("ui auth", () => {
       writeSpy.mockRestore()
     }
   })
+
+  it("allows reset-auth when the env secret is too short to be in use", async () => {
+    // A short env secret is ignored when signing (resolveEnvJwtSecret returns null), so the file
+    // secret is what protects the sessions — but the reset guard only asked whether the variable was
+    // set at all and refused a sign-out that could complete, leaving those sessions valid.
+    const originalDataDir = process.env.AX_CODE_DESKTOP_DATA_DIR
+    const originalSecret = process.env.AX_CODE_JWT_SECRET
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-jwt-short-reset-"))
+    process.env.AX_CODE_DESKTOP_DATA_DIR = dir
+    process.env.AX_CODE_JWT_SECRET = "short"
+    vi.resetModules()
+
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
+    let auth
+    try {
+      const { createUiAuth } = await import("./ui-auth.js")
+      auth = createUiAuth({ password: "correct horse battery staple" })
+
+      const res = {
+        statusCode: 200,
+        body: undefined,
+        status(code) {
+          this.statusCode = code
+          return this
+        },
+        json(payload) {
+          this.body = payload
+          return this
+        },
+        setHeader() {},
+        getHeader() {
+          return ""
+        },
+      }
+
+      await auth.handleResetAuth({ headers: {} }, res)
+
+      expect(res.statusCode).toBe(200)
+      expect(res.body).toMatchObject({ cleared: true, signedOutEverywhere: true })
+    } finally {
+      auth?.dispose?.()
+      log.mockRestore()
+      fs.rmSync(dir, { recursive: true, force: true })
+      if (originalDataDir === undefined) delete process.env.AX_CODE_DESKTOP_DATA_DIR
+      else process.env.AX_CODE_DESKTOP_DATA_DIR = originalDataDir
+      if (originalSecret === undefined) delete process.env.AX_CODE_JWT_SECRET
+      else process.env.AX_CODE_JWT_SECRET = originalSecret
+      vi.resetModules()
+    }
+  })
 })
 
 describe("jwt secret strength", () => {

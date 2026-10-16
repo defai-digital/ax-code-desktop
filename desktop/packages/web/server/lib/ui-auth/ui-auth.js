@@ -714,7 +714,11 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
       // passkey while the reset itself failed and sessions stayed valid. Guard the
       // env-pinned case up front so no passkey is cleared unless the reset can
       // actually complete. (persistJwtSecret keeps the same check as defense in depth.)
-      if (process.env.AX_CODE_JWT_SECRET || process.env.AX_CODE_DESKTOP_JWT_SECRET) {
+      //
+      // The predicate is the one signing uses, not "is the variable set": a secret that is too
+      // short is ignored there, the file secret is what protects the sessions, and refusing on the
+      // variable alone blocked a sign-out that could complete and left those sessions valid.
+      if (resolveEnvJwtSecret()) {
         const error = new Error("Global sign-out is unavailable while AX_CODE_JWT_SECRET is set")
         error.statusCode = 400
         throw error
