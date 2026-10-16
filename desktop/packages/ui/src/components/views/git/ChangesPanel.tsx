@@ -220,21 +220,39 @@ export const ChangesPanel: React.FC<ChangesPanelProps> = ({
   }, [shouldVirtualize, rowVirtualizer])
 
   const totalSize = rowVirtualizer.getTotalSize()
-  const virtualRows = React.useMemo(
-    () => (shouldVirtualize && totalSize >= 0 ? rowVirtualizer.getVirtualItems() : []),
-    [shouldVirtualize, rowVirtualizer, totalSize],
-  )
+  // getVirtualItems() is a function of the scroll offset and the measured viewport, and none
+  // of the other deps move with either: the window was computed on the first render, before
+  // the scroll element was attached (so it was empty), and that value was returned forever -
+  // at 1000+ changed files the panel rendered no rows at all inside a full-height scroll
+  // area. The other virtualizers in this repo read it inline during render for the same
+  // reason; the prefetch effect below compares the paths it reported instead of relying on
+  // the array's identity.
+  const virtualRows = shouldVirtualize && totalSize >= 0 ? rowVirtualizer.getVirtualItems() : []
+  const reportedPathsRef = React.useRef<string[] | null>(null)
 
   React.useEffect(() => {
     if (!onVisiblePathsChange) {
       return
     }
 
+    const report = (paths: string[]) => {
+      const previous = reportedPathsRef.current
+      if (
+        previous &&
+        previous.length === paths.length &&
+        previous.every((path, index) => path === paths[index])
+      ) {
+        return
+      }
+      reportedPathsRef.current = paths
+      onVisiblePathsChange(paths)
+    }
+
     const collectFromRow = (row: PanelRow | undefined): string | null =>
       row && row.type === "file" ? row.file.path : null
 
     if (rowCount === 0) {
-      onVisiblePathsChange([])
+      report([])
       return
     }
 
@@ -246,11 +264,11 @@ export const ChangesPanel: React.FC<ChangesPanelProps> = ({
           if (paths.length >= VISIBLE_PREFETCH_LIMIT) break
         }
       }
-      onVisiblePathsChange(paths)
+      report(paths)
       return
     }
 
-    onVisiblePathsChange(
+    report(
       virtualRows.map((item) => collectFromRow(rows[item.index])).filter((value): value is string => Boolean(value)),
     )
   }, [onVisiblePathsChange, rowCount, rows, shouldVirtualize, virtualRows])
