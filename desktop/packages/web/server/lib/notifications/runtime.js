@@ -435,17 +435,23 @@ let unkeyedPermissionAskSequence = 0
       const requestId = payload.properties?.requestID ?? payload.properties?.requestId ?? payload.properties?.id
       const requestKey = questionRequestKey(sessionId, requestId)
       const pendingNotification = questionNotificationDebounceTimers.get(sessionId)
-      // The key this answer belongs to. A reply with an id carries its own; one without can only be answering the
-      // ask the session has pending, and there is at most one debounce entry per session — so that ask's key is
-      // the one to mark, and an ask that has no id either falls back to the session.
-      const answeredKey = requestKey ?? pendingNotification?.requestKey ?? null
+      // The ask the session has in hand: pending in its debounce window, or already being announced — its entry
+      // outlives the flush for exactly this. There is at most one, and a reply without an id can only be answering
+      // that one.
+      const askKey = pendingNotification ? pendingNotification.requestKey : null
+      // The key this answer belongs to: the reply's own when it carries one, the ask's otherwise. A reply with no
+      // id leaves a keyed ask's mark unset, and a reply with an id leaves an unkeyed ask's unset, so the ask's key
+      // decides both cases.
+      const answeredKey = requestKey ?? askKey
       if (answeredKey) {
         rememberAnsweredQuestionKey(answeredKey)
-      } else {
+      }
+      if (askKey == null) {
+        // Nothing keys the ask being answered, so the session is the only mark its flush consults. The next
+        // unkeyed ask clears it, since that is a different question.
         rememberAnsweredQuestionSession(sessionId)
       }
-      // A flush that has not started yet is called off here. One already in flight finds nothing to cancel — its
-      // entry went at the start of the timer body — and is stopped by the mark above instead.
+      // A flush that has not started yet is called off here; one already awaiting is stopped by the mark above.
       if (pendingNotification) {
         clearTimeout(pendingNotification.timer)
         questionNotificationDebounceTimers.delete(sessionId)
@@ -469,12 +475,6 @@ let unkeyedPermissionAskSequence = 0
         // unreadable or corrupt settings file escaped it as an unhandled rejection, which
         // Node's default turns into a process exit for the whole server.
         void (async () => {
-          // Only this ask's own entry: a new ask that arrived while this flush awaited has already replaced it,
-          // and deleting that one would leave the new ask with no way to call its own flush off.
-          if (questionNotificationDebounceTimers.get(sessionId)?.timer === timer) {
-            questionNotificationDebounceTimers.delete(sessionId)
-          }
-
         const settings = await readSettingsFromDisk()
         if (settings.notifyOnQuestion === false) {
           return
@@ -538,9 +538,17 @@ let unkeyedPermissionAskSequence = 0
             requireHidden: settings.notificationMode !== "always",
           })
         }
-        })().catch((error) => {
-          console.warn("[Notification] Question notification failed:", error?.message || error)
-        })
+        })()
+          .catch((error) => {
+            console.warn("[Notification] Question notification failed:", error?.message || error)
+          })
+          .finally(() => {
+            // The entry outlives the flush so a reply can still be attributed to the ask it belongs to. Only this
+            // ask's own entry is cleared: a new ask for the session replaced it, and that one has its own flush.
+            if (questionNotificationDebounceTimers.get(sessionId)?.timer === timer) {
+              questionNotificationDebounceTimers.delete(sessionId)
+            }
+          })
       }, QUESTION_NOTIFICATION_DEBOUNCE_MS)
 
       questionNotificationDebounceTimers.set(sessionId, { timer, requestKey: askKey })

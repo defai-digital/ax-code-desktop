@@ -447,6 +447,87 @@ describe("notification debounce failure handling", () => {
     }
   })
 
+  it("does not announce a keyed ask answered by a reply that carries no id while its flush was awaiting", async () => {
+    // The mark is keyed by request id, so a reply that omits `requestID` leaves it unset — and the ask's mark has
+    // to come from the ask, which the command's own cancellation cannot supply once its debounce entry has gone at
+    // the start of the flush. The entry now outlives the flush for exactly this.
+    let releaseTemplates = () => {}
+    const runtime = createRuntime({
+      readSettingsFromDisk: vi.fn(async () => ({
+        nativeNotificationsEnabled: true,
+        notificationMode: "always",
+        notifyOnQuestion: true,
+      })),
+      buildTemplateVariables: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseTemplates = () => resolve({})
+          }),
+      ),
+    })
+
+    vi.useFakeTimers()
+    try {
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.asked",
+        properties: { id: "q_1", sessionID: "ses_q", questions: [{ header: "Plan Mode", question: "Continue?" }] },
+      })
+      await vi.advanceTimersByTimeAsync(600)
+
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.replied",
+        properties: { sessionID: "ses_q" },
+      })
+
+      releaseTemplates()
+      await settle()
+
+      expect(runtime.emitted).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("does not announce an unkeyed ask answered by a reply that carries an id while its flush was awaiting", async () => {
+    // The mirror case: the ask has no id, so its flush checks the session-level mark, and a reply that carries one
+    // marked only the keyed set.
+    let releaseTemplates = () => {}
+    const runtime = createRuntime({
+      readSettingsFromDisk: vi.fn(async () => ({
+        nativeNotificationsEnabled: true,
+        notificationMode: "always",
+        notifyOnQuestion: true,
+      })),
+      buildTemplateVariables: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseTemplates = () => resolve({})
+          }),
+      ),
+    })
+
+    vi.useFakeTimers()
+    try {
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.asked",
+        properties: { sessionID: "ses_q", questions: [{ header: "Plan Mode", question: "Continue?" }] },
+      })
+      await vi.advanceTimersByTimeAsync(600)
+
+      await runtime.runtime.maybeDispatchNotificationForTrigger({
+        type: "question.replied",
+        properties: { sessionID: "ses_q", requestID: "q_1" },
+      })
+
+      releaseTemplates()
+      await settle()
+
+      expect(runtime.emitted).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("does not announce an answered question when the session asks another one", async () => {
     // The answered mark was keyed by session and a new ask cleared it, so a question answered while its own flush
     // was awaiting the template variables was announced anyway as soon as the session asked something else.
