@@ -74,6 +74,9 @@ describe("config editors keep unsaved edits across a list reload", () => {
     const saveIndex = source.indexOf("if (success && !isNewAgent")
     expect(saveIndex).toBeGreaterThan(-1)
     expect(source.indexOf("setPermissionBaseline(savedRules)", saveIndex)).toBeGreaterThan(saveIndex)
+    // …and the live list takes the filtered rules, or `isDirty` — which compares the live list against this
+    // baseline — stayed true for a save whose rules include a wildcard override equal to the global.
+    expect(source).toContain("setPermissionRules((current) => (areRulesEqual(current, permissionRules) ? savedRules : current))")
     // …against the global that was submitted. The saved config carries its `*` rule from `globalPermission`, and
     // `permissionRules` structurally excludes that rule, so deriving the global from the rules answered "allow"
     // and a save of an agent whose global is ask or deny flipped the selector.

@@ -667,6 +667,11 @@ export const AgentsPage: React.FC = () => {
         // global is ask or deny.
         const savedRules = filterRulesAgainstGlobal(normalizeRuleset(permissionRules), globalPermission)
         setPermissionBaseline(savedRules)
+        // The live list takes the filtered rules too — a wildcard override equal to the global is in the file but
+        // not in the view a reload of it produces, and `isDirty` compares the live list against this baseline, so
+        // leaving it in place kept the editor dirty for a save that had just written it. A list edited during the
+        // save is left as the user left it.
+        setPermissionRules((current) => (areRulesEqual(current, permissionRules) ? savedRules : current))
         initialStateRef.current = {
           draftName: "",
           draftScope: "user",
