@@ -4,6 +4,7 @@ import path from "path"
 import os from "os"
 import { execFile } from "child_process"
 import { promisify } from "util"
+import { createWorktreeBootstrapGenerations } from "./worktree-bootstrap-generation.js"
 const fsp = fs.promises
 const execFileAsync = promisify(execFile)
 const gpgconfCandidates = ["gpgconf", "/opt/homebrew/bin/gpgconf", "/usr/local/bin/gpgconf"]
@@ -44,6 +45,12 @@ const toBootstrapStateKey = (directory) => {
   return path.resolve(normalized)
 }
 
+// Which bootstrap run owns a worktree directory: a bootstrap is queued behind a timer and then awaits
+// git and the project's start scripts, and the directory can be removed and re-created under the same
+// name before it finishes (the name is preferred), so an earlier run used to reset the new worktree's
+// checkout and report on a worktree it no longer owned.
+const worktreeBootstrapGenerations = createWorktreeBootstrapGenerations()
+
 const setWorktreeBootstrapState = (directory, status, error = null) => {
   const key = toBootstrapStateKey(directory)
   if (!key) {
@@ -62,6 +69,9 @@ const clearWorktreeBootstrapState = (directory) => {
     return
   }
   worktreeBootstrapState.delete(key)
+  // A bootstrap queued for this directory must not keep working on it: the worktree is going away,
+  // and its name is preferred when the next one is created, so the path is often reused.
+  worktreeBootstrapGenerations.invalidate(key)
 }
 
 const isExecutableFile = (candidate) => {
@@ -1328,9 +1338,19 @@ const queueWorktreeBootstrap = (args) => {
     startCommand,
     readProjectStartCommand,
   } = args
+  const bootstrapKey = toBootstrapStateKey(directory)
+  const generation = bootstrapKey ? worktreeBootstrapGenerations.start(bootstrapKey) : 0
+  const isCurrentBootstrap = () =>
+    !bootstrapKey || worktreeBootstrapGenerations.isCurrent(bootstrapKey, generation)
   setTimeout(() => {
+    if (!isCurrentBootstrap()) {
+      return
+    }
     const run = async () => {
       await runGitCommandOrThrow(directory, ["reset", "--hard"], "Failed to populate worktree")
+      if (!isCurrentBootstrap()) {
+        return
+      }
       if (setUpstream) {
         await applyUpstreamConfiguration({
           primaryWorktree,
@@ -1351,10 +1371,16 @@ const queueWorktreeBootstrap = (args) => {
       await runWorktreeStartScripts(directory, projectID, startCommand, readProjectStartCommand).catch((error) => {
         console.warn("Worktree start script task failed:", error instanceof Error ? error.message : String(error))
       })
+      if (!isCurrentBootstrap()) {
+        return
+      }
       setWorktreeBootstrapState(directory, WORKTREE_BOOTSTRAP_READY)
     }
 
     void run().catch((error) => {
+      if (!isCurrentBootstrap()) {
+        return
+      }
       setWorktreeBootstrapState(
         directory,
         WORKTREE_BOOTSTRAP_FAILED,
