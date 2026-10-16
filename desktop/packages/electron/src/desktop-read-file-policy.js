@@ -33,6 +33,11 @@ const DENIED_SEGMENTS = [
   "library/application support/chromium",
   "library/application support/microsoft edge",
   "library/keychains",
+  // The other Apple credential stores in the same tree. Every browser profile is named above; these
+  // hold the same kind of plaintext secret (session cookies) and were reachable: the read handler
+  // returned the cookie jar as base64 while refusing Chrome's own copy of it.
+  "library/cookies",
+  "library/safari",
   "appdata/local/google/chrome",
   "appdata/local/microsoft/edge",
 ]

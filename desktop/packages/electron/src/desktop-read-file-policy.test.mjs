@@ -69,6 +69,10 @@ describe("desktop read file policy", () => {
       // Same class of plaintext or keychain credential store: git tokens, the
       // macOS Keychain, Firefox profiles and the GNOME keyring.
       "/Users/alice/Library/Keychains/login.keychain-db",
+      // Apple's own session-cookie store and Safari data: plaintext secrets in the same tree as the
+      // browser profiles that were already refused.
+      "/Users/alice/Library/Cookies/Cookies.binarycookies",
+      "/Users/alice/Library/Safari/History.db",
       "/Users/alice/Library/Application Support/Firefox/Profiles/abc/logins.json",
       "/Users/alice/.mozilla/firefox/abc/key4.db",
       "/Users/alice/.local/share/keyrings/login.keyring",
