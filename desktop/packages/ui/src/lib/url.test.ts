@@ -145,6 +145,22 @@ describe("extractLoopbackUrls boundaries", () => {
     expect(extractLoopbackUrls("http://127.0.0.1:5173!")).toEqual(["http://127.0.0.1:5173/"])
   })
 
+  test("does not match an authority that continues past the matched host", () => {
+    // A negative lookahead for what *can* continue the authority has to reject every way the two fixed
+    // regressions spelled the longer name, including the userinfo form (`localhost@evil.example` names
+    // `evil.example`), percent-encoded and non-ASCII labels, an IDN dot equivalent, and an unknown port —
+    // the prefix matched and the message offered a preview of a host it never named.
+    expect(extractLoopbackUrls("http://localhost@evil.example/x")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost:3000@evil.example/x")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost%2eevil.example")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost\\evil")).toEqual([])
+    expect(extractLoopbackUrls("http://localhosté.example")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost。evil.example")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost:")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost:abc")).toEqual([])
+    expect(extractLoopbackUrls("http://localhost-x")).toEqual([])
+  })
+
   test("still matches a loopback address with a path, a query and a fragment", () => {
     expect(extractLoopbackUrls("ready at http://127.0.0.2:5173/app?x=1#top")).toEqual([
       "http://127.0.0.2:5173/app?x=1#top",

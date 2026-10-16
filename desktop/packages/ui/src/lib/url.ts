@@ -97,13 +97,14 @@ export const normalizeLoopbackPreviewUrl = (url: string): string | null => {
 // The host and the port have to end where they end: without a trailing boundary the pattern also matched
 // the prefix of a longer name, so text mentioning `http://localhost.evil.example/x` offered
 // `http://localhost/`, and `http://localhost:123456/` offered a port that does not exist. The boundary
-// allows anything that cannot continue the name, which is why it rejects a following name character (with
-// or without an intervening dot) or an unrecognized `:port` instead of listing the characters that may end
-// a sentence: prose like `ready at http://localhost:3000.` or `(http://localhost:3000)` and CJK text such
-// as `已啟動 http://localhost:3000，請開啟` used to offer no preview at all.
+// therefore rejects anything that can still be part of the authority, instead of listing the characters
+// that may end a sentence: a letter, digit, `_` or `-`; a `.` that is followed by one of those; an IDN dot
+// equivalent (U+3002, U+FF0E, U+FF61); or the authority glue `:`, `@`, `%`, `+`, `~`, `\`. Everything else
+// ends the address, which is what a sentence-final `.` or `)`, CJK punctuation such as `已啟動
+// http://localhost:3000，請開啟`, and the old whitelist's own cases all need.
 const LOOPBACK_URL_PATTERN =
   // eslint-disable-next-line no-control-regex
-  /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[(?:::1|::)\])(?::\d{2,5})?(?![.\d]?[A-Za-z0-9_-]|:\d)(?:\/[^\s<>"'`\u0000-\u001f]*)?/gi
+  /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[(?:::1|::)\])(?::\d{2,5})?(?![\p{L}\p{N}_-]|\.(?=[\p{L}\p{N}_-])|[\u3002\uFF0E\uFF61:@%+~\\])(?:\/[^\s<>"'`\u0000-\u001f]*)?/giu
 
 const TRAILING_PUNCT = new Set([".", ",", ";", ":", "!", "?"])
 
