@@ -379,6 +379,22 @@ const pendingToasts = createPendingToastTracker({
   onDismiss: (kind, key) => toast.dismiss(pendingToastId(kind, key)),
 })
 
+// A session that goes away — deleted, or archived, which `event-reducer` treats the same way — while a request is
+// outstanding never reports the reply, so its keys stay for the life of the renderer and the toast points at a
+// session that is gone. `session.deleted` carries `{ info }`, as does an archive.
+const clearPendingToastsForGoneSession = (payload: Event) => {
+  if (payload.type !== "session.deleted" && payload.type !== "session.updated") {
+    return
+  }
+  const info = (payload.properties as { info?: { id?: string; time?: { archived?: number } } }).info
+  if (!info?.id) {
+    return
+  }
+  if (payload.type === "session.deleted" || typeof info.time?.archived === "number") {
+    pendingToasts.clearSession(info.id)
+  }
+}
+
 const getQuestionToastKey = (sessionID?: string, requestID?: string) => {
   if (!sessionID || !requestID) return null
   return `${sessionID}:${requestID}`
@@ -1050,6 +1066,10 @@ function handleEvent(
     }
   }
 
+  // Before the store lookup: a session that goes away takes its pending toasts with it, whether or not this
+  // directory's child store is loaded (the early return below used to skip it).
+  clearPendingToastsForGoneSession(payload)
+
   if (!store) {
     // Try as global event for unknown directories
     const result = reduceGlobalEvent(payload)
@@ -1071,12 +1091,7 @@ function handleEvent(
 
   childStores.mark(resolvedDirectory)
 
-  if (payload.type === "session.deleted") {
-    // A session deleted (or archived) while a request was outstanding never reports the reply, so its keys have to
-    // go with it — and so does the toast, which otherwise points at a session that is gone.
-    const info = (payload.properties as { info?: { id?: string } }).info
-    pendingToasts.clearSession(info?.id)
-  }
+
 
   if (payload.type === "permission.asked") {
     const permission = payload.properties as PermissionRequest
