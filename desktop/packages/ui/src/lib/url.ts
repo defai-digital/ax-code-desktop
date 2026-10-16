@@ -94,12 +94,16 @@ export const normalizeLoopbackPreviewUrl = (url: string): string | null => {
   return parsed.toString()
 }
 
-// The host and the port have to end where they end: without the trailing boundary the pattern also
-// matched the prefix of a longer name, so text mentioning `http://localhost.evil.example/x` offered
-// `http://localhost/`, and `http://localhost:123456/` offered a port that does not exist.
+// The host and the port have to end where they end: without a trailing boundary the pattern also matched
+// the prefix of a longer name, so text mentioning `http://localhost.evil.example/x` offered
+// `http://localhost/`, and `http://localhost:123456/` offered a port that does not exist. The boundary
+// allows anything that cannot continue the name, which is why it rejects a following name character (with
+// or without an intervening dot) or an unrecognized `:port` instead of listing the characters that may end
+// a sentence: prose like `ready at http://localhost:3000.` or `(http://localhost:3000)` and CJK text such
+// as `已啟動 http://localhost:3000，請開啟` used to offer no preview at all.
 const LOOPBACK_URL_PATTERN =
   // eslint-disable-next-line no-control-regex
-  /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[(?:::1|::)\])(?::\d{2,5})?(?=[\s<>"'`\u0000-\u001f]|\/|\?|#|$)(?:\/[^\s<>"'`\u0000-\u001f]*)?/gi
+  /\bhttps?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[(?:::1|::)\])(?::\d{2,5})?(?![.\d]?[A-Za-z0-9_-]|:\d)(?:\/[^\s<>"'`\u0000-\u001f]*)?/gi
 
 const TRAILING_PUNCT = new Set([".", ",", ";", ":", "!", "?"])
 

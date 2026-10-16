@@ -134,6 +134,17 @@ describe("extractLoopbackUrls boundaries", () => {
     expect(extractLoopbackUrls("see http://localhost:123456/")).toEqual([])
   })
 
+  test("matches a URL that is followed by sentence punctuation", () => {
+    // The boundary allowed only whitespace, quotes, control characters, `/`, `?`, `#` and end of input, so the
+    // trailing `.`, `,` or `)` of ordinary prose — or CJK punctuation — made the whole match fail and the
+    // address offered no preview.
+    expect(extractLoopbackUrls("Server ready at http://localhost:3000.")).toEqual(["http://localhost:3000/"])
+    expect(extractLoopbackUrls("(http://localhost:3000)")).toEqual(["http://localhost:3000/"])
+    expect(extractLoopbackUrls("http://localhost:3000, then open it")).toEqual(["http://localhost:3000/"])
+    expect(extractLoopbackUrls("已啟動 http://localhost:3000，請開啟")).toEqual(["http://localhost:3000/"])
+    expect(extractLoopbackUrls("http://127.0.0.1:5173!")).toEqual(["http://127.0.0.1:5173/"])
+  })
+
   test("still matches a loopback address with a path, a query and a fragment", () => {
     expect(extractLoopbackUrls("ready at http://127.0.0.2:5173/app?x=1#top")).toEqual([
       "http://127.0.0.2:5173/app?x=1#top",
