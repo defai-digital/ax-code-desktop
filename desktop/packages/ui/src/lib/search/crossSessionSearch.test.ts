@@ -245,4 +245,13 @@ describe("scanSessionsForQuery", () => {
     expect(hits).toHaveLength(1)
     expect(hits[0].snippet.match).toBe("needle")
   })
+
+  test("finds a text whose own lowercasing is longer than it is", () => {
+    // `İ` lowercases to two characters, so a fixed-width window over the original text can never equal the
+    // lowercased query: searching for the word that *is* the message found nothing.
+    const hits = findSessionHits(session(), [{ messageId: "msg_1", role: "user", created: 1000, text: "İstanbul" }], "i\u0307stanbul")
+
+    expect(hits).toHaveLength(1)
+    expect(hits[0].snippet.match).toBe("İstanbul")
+  })
 })

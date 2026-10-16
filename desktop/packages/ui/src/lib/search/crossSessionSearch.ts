@@ -68,20 +68,29 @@ type SessionMessageRecord = { info: Message; parts: Part[] }
 export const normalizeSearchText = (text: string): string => text.replace(/\s+/g, " ").trim()
 
 /**
- * Index of `needle` (already lowercased) in `text`, or -1. Compared through the same
- * lowercasing the caller uses, so the returned index addresses `text` itself.
+ * Index of `needle` (already lowercased) in `text`, or -1.
+ *
+ * The lowercased text is built code point by code point while remembering where each folded character came
+ * from, because lowercasing can *lengthen* a string (`İ` becomes two characters): a fixed-width window over the
+ * original cannot match `needle` there, and the answer still has to be an index into `text` for the snippet.
  */
 const findCaseInsensitiveIndex = (text: string, needle: string): number => {
-  if (!needle || needle.length > text.length) {
+  if (!needle) {
     return -1
   }
-  const last = text.length - needle.length
-  for (let index = 0; index <= last; index += 1) {
-    if (text.slice(index, index + needle.length).toLowerCase() === needle) {
-      return index
+  let folded = ""
+  const originalIndexes: number[] = []
+  for (let index = 0; index < text.length; ) {
+    const character = String.fromCodePoint(text.codePointAt(index) ?? 0)
+    const lowered = character.toLowerCase()
+    for (let offset = 0; offset < lowered.length; offset += 1) {
+      originalIndexes.push(index)
     }
+    folded += lowered
+    index += character.length
   }
-  return -1
+  const found = folded.indexOf(needle)
+  return found === -1 ? -1 : (originalIndexes[found] ?? -1)
 }
 
 const sessionUpdatedAt = (session: Session): number =>
