@@ -122,6 +122,11 @@ describe("CrossSessionSearchDialog", () => {
   const input = () => document.body.querySelector<HTMLInputElement>('input[placeholder*="all sessions"]')!
   const bodyText = () => document.body.textContent ?? ""
 
+  const pressComposing = (key: string) =>
+    act(() => {
+      input().dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, isComposing: true }))
+    })
+
   const typeQuery = async (value: string) => {
     const element = input()
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!
@@ -192,6 +197,23 @@ describe("CrossSessionSearchDialog", () => {
     expect(setPendingMock).toHaveBeenCalledWith({ sessionId: "ses_1", messageId: "msg_1" })
     expect(openSessionMock).toHaveBeenCalledWith({ sessionId: "ses_1", directory: "/repo" })
     expect(setOpenMock).toHaveBeenCalledWith(false)
+  })
+
+  test("ignores the keys an input method is consuming", async () => {
+    // The search field's handler moves the highlighted hit on the arrow keys and opens it on Enter — the keys a
+    // composition consumes to pick and commit its candidates. The app is localized, so the box is used this way;
+    // the same guard the model picker and the inline comment field needed applies here.
+    await typeQuery("deploy")
+
+    pressComposing("ArrowDown")
+    pressComposing("Enter")
+
+    expect(openSessionMock).not.toHaveBeenCalled()
+    expect(setPendingMock).not.toHaveBeenCalled()
+
+    // The same keys act once the composition is over: Enter opens the hit still selected.
+    press("Enter")
+    expect(openSessionMock).toHaveBeenCalledWith({ sessionId: "ses_2", directory: "/repo" })
   })
 
   test("reports when nothing matches", async () => {

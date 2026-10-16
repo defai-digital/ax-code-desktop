@@ -50,3 +50,15 @@ describe("add project directory browser", () => {
     expect(dialog).toContain('repositoryNames.has(row.name) ? "git-repository" : "folder-6"')
   })
 })
+
+test("lets an input method have the filter field's keys", () => {
+  // The filter field's handler moves the row highlight, opens a row or adds one, and a composition consumes the
+  // arrow keys and Enter for its own candidates first. This file has no mount harness, so the contract is asserted
+  // against the source, as its neighbours are.
+  const guardIndex = dialog.indexOf("if (isIMECompositionEvent(event)) return")
+  const firstKeyIndex = dialog.indexOf('if (event.key === "ArrowDown")')
+
+  expect(guardIndex).toBeGreaterThan(-1)
+  expect(firstKeyIndex).toBeGreaterThan(-1)
+  expect(guardIndex).toBeLessThan(firstKeyIndex)
+})

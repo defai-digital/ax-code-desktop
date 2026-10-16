@@ -2,6 +2,7 @@ import React from "react"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { isIMECompositionEvent } from "@/lib/ime"
 import { Icon } from "@/components/icon/Icon"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
@@ -207,6 +208,10 @@ export const CrossSessionSearchDialog: React.FC = () => {
 
   const handleSearchKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
+      // A composition consumes the arrow keys (to move through its candidates) and Enter (to commit them), and the
+      // branches below would move the highlighted hit or open it. The model picker and the inline comment field
+      // gate the same way, through `lib/ime`.
+      if (isIMECompositionEvent(event)) return
       const total = hits.length
       if (total === 0) return
 

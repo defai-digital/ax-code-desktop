@@ -1,4 +1,5 @@
 import React from "react"
+import { isIMECompositionEvent } from "@/lib/ime"
 import { DIRECTORY_SELECTION_CANCELLED } from "@/lib/desktop"
 import {
   Dialog,
@@ -587,6 +588,10 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
 
   const handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
+      // The filter field's handler moves the row highlight, opens a row or adds one — and a composition consumes the
+      // arrow keys and Enter for its own candidates. The app is localized; the model picker, the session search and
+      // the inline comment field gate the same way, through `lib/ime`.
+      if (isIMECompositionEvent(event)) return
       if (event.key === "ArrowDown") {
         event.preventDefault()
         setHighlightedIndex((index) => Math.min(rows.length - 1, index + 1))
