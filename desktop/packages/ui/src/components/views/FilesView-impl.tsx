@@ -1892,6 +1892,19 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     [addOpenPath, ensurePathVisible, isDirty, isMobile, root, setSelectedPath],
   )
 
+  // The one-shot flag that keeps the discard dialog from reopening is read
+  // synchronously at the top of `handleSelectFile`, so it has to be armed right
+  // before that call. Arming it for the whole dialog decision left it set on the
+  // paths that end at the tab guard or at no navigation at all — nothing consumed
+  // it there, and the flag then silently disarmed the *next* dirty file switch.
+  const selectFileSkippingDirtyGuard = React.useCallback(
+    (nextFile: FileNode) => {
+      skipDirtyOnceRef.current = true
+      return handleSelectFile(nextFile)
+    },
+    [handleSelectFile],
+  )
+
   React.useEffect(() => {
     if (!selectedFile?.path) {
       return
@@ -1964,9 +1977,6 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     pendingTabRef.current = null
     pendingClosePathRef.current = null
 
-    // Allow one guarded navigation (tab/file) without re-opening dialog.
-    skipDirtyOnceRef.current = true
-
     setConfirmDiscardOpen(false)
 
     // Discard draft by reverting back to last loaded content
@@ -1978,7 +1988,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
       }
       if (selectedFile?.path === closePath) {
         if (nextFile) {
-          void handleSelectFile(nextFile)
+          void selectFileSkippingDirtyGuard(nextFile)
         } else {
           if (root) {
             setSelectedPath(root, null)
@@ -1996,7 +2006,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     }
 
     if (nextFile) {
-      void handleSelectFile(nextFile)
+      void selectFileSkippingDirtyGuard(nextFile)
       return
     }
 
@@ -2006,10 +2016,10 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     }
   }, [
     displayedContent,
-    handleSelectFile,
     isMobile,
     removeOpenPath,
     root,
+    selectFileSkippingDirtyGuard,
     selectedFile?.path,
     setMainTabGuard,
     setSelectedPath,
@@ -2030,9 +2040,6 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     pendingTabRef.current = null
     pendingClosePathRef.current = null
 
-    // We'll proceed after saving; suppress guard reopening.
-    skipDirtyOnceRef.current = true
-
     setConfirmDiscardOpen(false)
 
     if (closePath) {
@@ -2041,7 +2048,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
       }
       if (selectedFile?.path === closePath) {
         if (nextFile) {
-          await handleSelectFile(nextFile)
+          await selectFileSkippingDirtyGuard(nextFile)
         } else {
           if (root) {
             setSelectedPath(root, null)
@@ -2059,7 +2066,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     }
 
     if (nextFile) {
-      await handleSelectFile(nextFile)
+      await selectFileSkippingDirtyGuard(nextFile)
       return
     }
 
@@ -2068,11 +2075,11 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
       continueAfterFilesGuard(nextTab)
     }
   }, [
-    handleSelectFile,
     isMobile,
     removeOpenPath,
     root,
     saveDraft,
+    selectFileSkippingDirtyGuard,
     selectedFile?.path,
     setMainTabGuard,
     setSelectedPath,
