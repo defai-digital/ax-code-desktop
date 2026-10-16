@@ -783,6 +783,12 @@ export function registerGitRoutes(app) {
       if (!newName) {
         return res.status(400).json({ error: "newName is required" })
       }
+      // Git keeps parsing options past `-m`: `git branch -m -a <new>` consumes `-a`
+      // as an option, renames the *current* branch and exits 0, so this route would
+      // report renaming a branch that was never named. Git refs never start with "-".
+      if (isOptionLikeRevision(oldName) || isOptionLikeRevision(newName)) {
+        return res.status(400).json({ error: "branch names must be branch names, not options" })
+      }
 
       const result = await renameBranch(directory, oldName, newName)
       res.json(result)

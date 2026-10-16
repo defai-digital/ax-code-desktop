@@ -12,6 +12,7 @@ const gitLibraries = {
   getStatus: vi.fn(),
   isGitRepository: vi.fn(),
   deleteBranch: vi.fn(),
+  renameBranch: vi.fn(),
 }
 
 vi.doMock("./index.js", () => ({
@@ -22,6 +23,7 @@ vi.doMock("./index.js", () => ({
   getStatus: gitLibraries.getStatus,
   isGitRepository: gitLibraries.isGitRepository,
   deleteBranch: gitLibraries.deleteBranch,
+  renameBranch: gitLibraries.renameBranch,
 }))
 
 const { registerGitRoutes } = await import("./routes.js")
@@ -35,6 +37,7 @@ describe("git routes index mutations", () => {
     gitLibraries.getStatus.mockReset()
     gitLibraries.isGitRepository.mockReset()
     gitLibraries.deleteBranch.mockReset()
+    gitLibraries.renameBranch.mockReset()
   })
 
   it("rejects an option-like branch name instead of reporting a deletion", async () => {
@@ -51,6 +54,22 @@ describe("git routes index mutations", () => {
 
     expect(response.statusCode).toBe(400)
     expect(gitLibraries.deleteBranch).not.toHaveBeenCalled()
+  })
+
+  it("rejects an option-like branch name instead of reporting a rename", async () => {
+    // `git branch -m -a <new>` consumes `-a` as an option, renames the current
+    // branch and exits 0, so git never renamed the branch this route named.
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("PUT", "/api/git/branches/rename")(
+      { query: { directory: "/repo" }, body: { oldName: "-a", newName: "feature" } },
+      response,
+    )
+
+    expect(response.statusCode).toBe(400)
+    expect(gitLibraries.renameBranch).not.toHaveBeenCalled()
   })
 
   it("accepts legacy stage path payloads", async () => {
