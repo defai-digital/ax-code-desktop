@@ -134,6 +134,26 @@ describe("extractChangedFiles", () => {
     ])
   })
 
+  test("counts patch content lines that themselves start with ++ or --", () => {
+    const files = extractChangedFiles([
+      toolPart({
+        id: "tool-counters",
+        metadata: {
+          files: [
+            {
+              relativePath: "src/counter.c",
+              patch: ["--- a/src/counter.c", "+++ b/src/counter.c", "@@ -1,2 +1,2 @@", " base", "---count;", "+++count;"].join(
+                "\n",
+              ),
+            },
+          ],
+        },
+      }),
+    ])
+
+    expect(files.map(getFileStats)).toEqual([{ additions: 1, deletions: 1 }])
+  })
+
   test("derives metadata file stats from per-file patches when counts are absent", () => {
     const files = extractChangedFiles([
       toolPart({

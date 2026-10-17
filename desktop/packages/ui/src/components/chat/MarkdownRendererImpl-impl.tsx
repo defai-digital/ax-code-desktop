@@ -495,7 +495,7 @@ const MermaidBlock: React.FC<{ source: string; mode: "svg" | "ascii"; deferRende
     const asciiText = ascii || source
 
     return (
-      <div data-markdown="mermaid-block" className="group">
+      <div data-markdown="mermaid-block" data-mermaid-source={source} className="group">
         <div data-markdown="mermaid-scroll">
           <pre data-markdown="mermaid-ascii">{asciiText}</pre>
         </div>
@@ -514,7 +514,7 @@ const MermaidBlock: React.FC<{ source: string; mode: "svg" | "ascii"; deferRende
 
   if (!svg) {
     return (
-      <div data-markdown="mermaid-block" className="group">
+      <div data-markdown="mermaid-block" data-mermaid-source={source} className="group">
         <div data-markdown="mermaid-scroll">
           <pre data-markdown="mermaid-ascii">{source}</pre>
         </div>
@@ -532,7 +532,7 @@ const MermaidBlock: React.FC<{ source: string; mode: "svg" | "ascii"; deferRende
   }
 
   return (
-    <div data-markdown="mermaid-block" className="group">
+    <div data-markdown="mermaid-block" data-mermaid-source={source} className="group">
       <div data-markdown="mermaid-scroll">
         <div data-markdown="mermaid" dangerouslySetInnerHTML={{ __html: svg }} />
       </div>
@@ -561,21 +561,6 @@ type MermaidControlOptions = {
   copy: boolean
   fullscreen: boolean
   panZoom: boolean
-}
-
-const extractMermaidBlocks = (markdown: string): string[] => {
-  if (!markdown.includes("mermaid")) return []
-  const blocks: string[] = []
-  const regex = /(?:^|\r?\n)(`{3,}|~{3,})mermaid[^\n\r]*\r?\n([\s\S]*?)\r?\n\1(?=\r?\n|$)/gi
-  let match: RegExpExecArray | null = regex.exec(markdown)
-
-  while (match) {
-    const block = (match[2] ?? "").replace(/\s+$/, "")
-    blocks.push(block)
-    match = regex.exec(markdown)
-  }
-
-  return blocks
 }
 
 const stripLeadingFrontmatter = (markdown: string): string => {
@@ -1581,12 +1566,10 @@ const useFileReferenceInteractions = ({
 
 const useMermaidInlineInteractions = ({
   containerRef,
-  mermaidBlocks,
   onShowPopup,
   allowWheelZoom,
 }: {
   containerRef: React.RefObject<HTMLDivElement | null>
-  mermaidBlocks: string[]
   onShowPopup?: (content: ToolPopupContent) => void
   allowWheelZoom?: boolean
 }) => {
@@ -1621,8 +1604,12 @@ const useMermaidInlineInteractions = ({
         return
       }
 
-      const source = mermaidBlocks[blockIndex]
-      if (!source || source.trim().length === 0) {
+      // The source rides on the block element itself: counting fences in the
+      // raw markdown drifts out of sync with the renderer (closing fences may
+      // be longer than the opening one, info strings vary), and an index-based
+      // lookup then opens the wrong diagram.
+      const source = block.getAttribute("data-mermaid-source") ?? ""
+      if (source.trim().length === 0) {
         return
       }
 
@@ -1669,7 +1656,7 @@ const useMermaidInlineInteractions = ({
       container.removeEventListener("click", handleMermaidClick)
       container.removeEventListener("wheel", handleInlineWheel, true)
     }
-  }, [allowWheelZoom, containerRef, mermaidBlocks, onShowPopup])
+  }, [allowWheelZoom, containerRef, onShowPopup])
 }
 
 const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
@@ -1689,8 +1676,7 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
   const { editor } = useRuntimeAPIs()
   const containerRef = React.useRef<HTMLDivElement>(null)
   const effectiveDirectory = useEffectiveDirectory() ?? ""
-  const mermaidBlocks = React.useMemo(() => (isStreaming ? [] : extractMermaidBlocks(content)), [content, isStreaming])
-  useMermaidInlineInteractions({ containerRef, mermaidBlocks, onShowPopup })
+  useMermaidInlineInteractions({ containerRef, onShowPopup })
   useFileReferenceInteractions({
     containerRef,
     effectiveDirectory,
@@ -1796,10 +1782,8 @@ const SimpleMarkdownRendererImpl: React.FC<{
   const currentTheme = useCurrentMermaidTheme()
   const containerRef = React.useRef<HTMLDivElement>(null)
   const effectiveDirectory = useEffectiveDirectory() ?? ""
-  const mermaidBlocks = React.useMemo(() => extractMermaidBlocks(renderedContent), [renderedContent])
   useMermaidInlineInteractions({
     containerRef,
-    mermaidBlocks,
     onShowPopup,
     allowWheelZoom: allowMermaidWheelZoom,
   })

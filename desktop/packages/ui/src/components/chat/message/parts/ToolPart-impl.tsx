@@ -1658,7 +1658,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
 
     let filePath: unknown
     let targetLine: number | undefined
-    if (part.tool === "edit" || part.tool === "multiedit") {
+    if (normalizedPartTool === "edit" || normalizedPartTool === "multiedit") {
       filePath =
         input?.filePath ||
         input?.file_path ||
@@ -1667,12 +1667,12 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
         metadata?.file_path ||
         metadata?.path
       targetLine = getFirstChangedLineFromMetadata(part.tool, metadata)
-    } else if (part.tool === "apply_patch") {
+    } else if (normalizedPartTool === "apply_patch") {
       const files = Array.isArray(metadata?.files) ? metadata?.files : []
       const firstFile = files[0] as { relativePath?: string; filePath?: string } | undefined
       filePath = firstFile?.relativePath || firstFile?.filePath
       targetLine = getFirstChangedLineFromMetadata(part.tool, metadata)
-    } else if (["write", "create", "file_write"].includes(part.tool)) {
+    } else if (["write", "create", "file_write"].includes(normalizedPartTool)) {
       filePath =
         input?.filePath ||
         input?.file_path ||
@@ -1893,7 +1893,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
                 style={{ backgroundColor: "var(--tools-border)" }}
               />
               <ToolExpandedContent
-                part={part}
+                part={normalizedPart}
                 state={state}
                 syntaxTheme={syntaxTheme}
                 currentDirectory={currentDirectory}

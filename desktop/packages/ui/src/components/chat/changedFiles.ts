@@ -67,9 +67,28 @@ const parseCount = (value: unknown): number | undefined => {
 const parsePatchStats = (patch: string): { added: number; removed: number } => {
   let added = 0
   let removed = 0
-  for (const line of patch.split("\n")) {
-    if (line.startsWith("+") && !line.startsWith("+++")) added++
-    if (line.startsWith("-") && !line.startsWith("---")) removed++
+  let inHunk = false
+  const lines = patch.split("\n")
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
+    if (line.startsWith("@@")) {
+      inHunk = true
+      continue
+    }
+    // Headers only appear between file sections, never inside a hunk: a
+    // hunk's own `+++foo`/`---foo` line is added/removed content (e.g. a
+    // `++counter;` edit) and must be counted.
+    if (line.startsWith("diff ") || (line.startsWith("--- ") && lines[index + 1]?.startsWith("+++ "))) {
+      inHunk = false
+      continue
+    }
+    if (inHunk) {
+      if (line.startsWith("+")) added++
+      else if (line.startsWith("-")) removed++
+    } else {
+      if (line.startsWith("+") && !line.startsWith("+++")) added++
+      if (line.startsWith("-") && !line.startsWith("---")) removed++
+    }
   }
   return { added, removed }
 }

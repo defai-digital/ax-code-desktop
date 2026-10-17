@@ -42,6 +42,12 @@ describe("normalizeToolName", () => {
     expect(normalizeToolName("ax.BASH")).toBe("bash")
   })
 
+  test("strips a trailing streaming invocation index", () => {
+    expect(normalizeToolName("apply_patch:3")).toBe("apply_patch")
+    expect(normalizeToolName("server.apply_patch:3")).toBe("apply_patch")
+    expect(normalizeToolName(" Bash:12 ")).toBe("bash")
+  })
+
   test("keeps names that collapse to no dotted segments", () => {
     expect(normalizeToolName("...")).toBe("...")
   })
@@ -84,6 +90,23 @@ describe("parseDiffStats", () => {
     const patch = ["--- a/Makefile", "+++ b/Makefile", "@@ -1,1 +1,2 @@", " base", "+++ hello", "--- gone"].join("\n")
 
     expect(parseDiffStats({ patch })).toEqual({ added: 1, removed: 1 })
+  })
+
+  test("does not count later file headers in a multi-file patch", () => {
+    const patch = [
+      "--- a/src/a.ts",
+      "+++ b/src/a.ts",
+      "@@ -1 +1 @@",
+      "-old",
+      "+new",
+      "--- a/src/b.ts",
+      "+++ b/src/b.ts",
+      "@@ -1 +1 @@",
+      "-old2",
+      "+new2",
+    ].join("\n")
+
+    expect(parseDiffStats({ patch })).toEqual({ added: 2, removed: 2 })
   })
 
   test("falls back to metadata.diff and object-shaped patches", () => {

@@ -23,13 +23,15 @@ export const normalizeToolName = (toolName: string | undefined | null): string =
     return ""
   }
 
-  if (trimmed.includes(".")) {
-    const dotParts = trimmed.split(".").filter(Boolean)
+  // Streaming tool names can carry a trailing invocation index ("apply_patch:3").
+  const withoutIndex = trimmed.replace(/:\d+$/, "")
+  if (withoutIndex.includes(".")) {
+    const dotParts = withoutIndex.split(".").filter(Boolean)
     const last = dotParts[dotParts.length - 1]
     if (last) return last
   }
 
-  return trimmed
+  return withoutIndex
 }
 
 const MAX_DURATION_MS = 5 * 60 * 1000 // 5 minutes cap
@@ -48,28 +50,30 @@ export const parseDiffStats = (metadata?: Record<string, unknown>): { added: num
 
   let added = 0
   let removed = 0
-  let lineStart = 0
   let inHunk = false
 
-  for (let index = 0; index <= diffText.length; index += 1) {
-    if (index < diffText.length && diffText.charCodeAt(index) !== 10) {
-      continue
-    }
-
-    const line = diffText.slice(lineStart, index)
+  const lines = diffText.split("\n")
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
     if (line.startsWith("@@")) {
       inHunk = true
-    } else if (inHunk) {
-      // Inside a hunk every +/- line is content: added text that itself
-      // starts with "++" shows up as "+++" and was silently dropped by the
-      // header exclusion, undercounting (or hiding) the diff stats.
+      continue
+    }
+    // A new file section ends the previous hunk. Headers only ever appear
+    // there, never inside one: a hunk's own `+++foo`/`---foo` line is added or
+    // removed content. Without the reset, a multi-file patch counts every
+    // later file's `--- a/x`/`+++ b/x` header as a removed/added line.
+    if (line.startsWith("diff ") || (line.startsWith("--- ") && lines[index + 1]?.startsWith("+++ "))) {
+      inHunk = false
+      continue
+    }
+    if (inHunk) {
       if (line.startsWith("+")) added++
       else if (line.startsWith("-")) removed++
     } else {
       if (line.startsWith("+") && !line.startsWith("+++")) added++
       if (line.startsWith("-") && !line.startsWith("---")) removed++
     }
-    lineStart = index + 1
   }
 
   if (added === 0 && removed === 0) return null

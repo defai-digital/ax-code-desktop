@@ -37,4 +37,16 @@ describe("parseDiffToUnified", () => {
       { type: "added", content: "new" },
     ])
   })
+
+  test("keeps hunk content lines that start with --- and +++ (e.g. a --count; to ++count; edit)", () => {
+    const diff = ["--- a/counter.c", "+++ b/counter.c", "@@ -1 +1 @@", "---count;", "+++count;"].join("\n")
+
+    const hunks = parseDiffToUnified(diff)
+
+    expect(hunks).toHaveLength(1)
+    expect(hunks[0].lines.map((line) => ({ type: line.type, content: line.content }))).toEqual([
+      { type: "removed", content: "--count;" },
+      { type: "added", content: "++count;" },
+    ])
+  })
 })

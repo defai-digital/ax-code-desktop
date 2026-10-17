@@ -588,7 +588,7 @@ interface UnifiedDiffHunk {
 const isUnifiedFileHeaderPair = (lines: string[], index: number): boolean => {
   const line = lines[index]
   const next = lines[index + 1]
-  return typeof line === "string" && line.startsWith("---") && typeof next === "string" && next.startsWith("+++")
+  return typeof line === "string" && line.startsWith("--- ") && typeof next === "string" && next.startsWith("+++ ")
 }
 
 export const parseDiffToUnified = (diffText: string): UnifiedDiffHunk[] => {
@@ -609,32 +609,43 @@ export const parseDiffToUnified = (diffText: string): UnifiedDiffHunk[] => {
     }
 
     if (line.startsWith("@@")) {
-      const match = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/)
+      const match = line.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/)
       const oldStart = match ? parseInt(match[1]) : 0
-      const newStart = match ? parseInt(match[2]) : 0
+      const newStart = match ? parseInt(match[3]) : 0
+      // git omits the count when it is 1. The counts delimit the hunk body, so
+      // content lines that themselves start with "---"/"+++" (e.g. a
+      // `--count;` → `++count;` edit) are not mistaken for the next file's
+      // header pair and dropped.
+      let oldRemaining = match ? parseInt(match[2] ?? "1") : null
+      let newRemaining = match ? parseInt(match[4] ?? "1") : null
 
       const unifiedLines: UnifiedDiffLine[] = []
       let oldLineNum = oldStart
       let newLineNum = newStart
       let j = i + 1
 
-      while (
-        j < lines.length &&
-        !lines[j].startsWith("@@") &&
-        !lines[j].startsWith("Index:") &&
-        !isUnifiedFileHeaderPair(lines, j)
-      ) {
+      while (j < lines.length && !lines[j].startsWith("@@") && !lines[j].startsWith("Index:")) {
+        if (oldRemaining !== null && newRemaining !== null) {
+          if (oldRemaining <= 0 && newRemaining <= 0) break
+        } else if (isUnifiedFileHeaderPair(lines, j)) {
+          // No counts to go by: fall back to terminating at the next header pair.
+          break
+        }
         const contentLine = lines[j]
         if (contentLine.startsWith("+")) {
           unifiedLines.push({ type: "added", lineNumber: newLineNum, content: contentLine.substring(1) })
           newLineNum++
+          if (newRemaining !== null) newRemaining--
         } else if (contentLine.startsWith("-")) {
           unifiedLines.push({ type: "removed", lineNumber: oldLineNum, content: contentLine.substring(1) })
           oldLineNum++
+          if (oldRemaining !== null) oldRemaining--
         } else if (contentLine.startsWith(" ")) {
           unifiedLines.push({ type: "context", lineNumber: newLineNum, content: contentLine.substring(1) })
           oldLineNum++
           newLineNum++
+          if (oldRemaining !== null) oldRemaining--
+          if (newRemaining !== null) newRemaining--
         }
         j++
       }
