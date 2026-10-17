@@ -1391,7 +1391,7 @@ least (MCP, providers, multirun, auth, supervision, notifications) plus `server/
   that record was missing, so the running instance was stopped and replaced by one with no UI password on a port
   that may have had one. The rule is explicit and exported now: the record, an explicit `--ui-password`, or the
   environment carries it, and with none of them the command refuses and says how to proceed.
-- **`2f9b1d0f`** — `handleStart` in the fusion dialog filtered out the runs whose last assistant message has no
+- **`c43b3bb8`** — `handleStart` in the fusion dialog filtered out the runs whose last assistant message has no
   text and fused the rest while the dialog kept listing every selected run, so the fused answer read as covering
   runs it had silently dropped. It refuses now and asks the user to exclude the run in the dialog's own list; the
   message names no count because that needs a new key in all fourteen locales, which the localization check
