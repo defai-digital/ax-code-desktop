@@ -68,15 +68,17 @@ describe("main-window hand-off readiness", () => {
     expect(click).toContain('handOffToMainWindow("openchamber:open-session"')
   })
 
-  test("an install that never starts brings the app back instead of leaving it torn down", async () => {
+  test("an install that never starts leaves the app usable", async () => {
     const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
-    const handler = mainSource.match(/handleCommand\("desktop_quit_and_install"[\s\S]*?\n\}\)/)?.[0]
+    const handler = mainSource.match(/handleCommand\(\s*"desktop_quit_and_install",[\s\S]*?\n\)/)?.[0]
 
     expect(handler).toBeDefined()
-    // The services are stopped and isQuitting is set before quitAndInstall runs; when it refuses,
-    // the window kept a dead server and window-all-closed would not quit the process.
-    expect(handler).toContain('reason: "install-not-started"')
-    expect(handler).toContain("app.relaunch()")
-    expect(handler).toContain("app.exit(0)")
+    // 7.26.1 moved the refusal and its "install-not-started" result into createUpdateInstaller (pinned in
+    // desktop-renderer-guards.test.mjs). The command no longer stops services first, so nothing has to bring
+    // the app back after a refusal: the window is still on a live server.
+    expect(handler).toContain("createUpdateInstaller(")
+    expect(handler).toContain("isQuitting: () => isQuitting")
+    expect(handler).not.toContain("app.relaunch()")
+    expect(handler).not.toContain("app.exit(0)")
   })
 })
