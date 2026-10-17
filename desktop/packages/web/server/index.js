@@ -699,7 +699,11 @@ const axCodeWatcherRuntime = createAxCodeWatcherRuntime({
   globalEventHub: globalMessageStreamHub,
   onPayload: (payload) => {
     maybeCacheSessionInfoFromEvent(payload)
-    void maybeDispatchNotificationForTrigger(payload)
+    // Fire-and-forget: a rejection here (e.g. a corrupt settings.json failing the
+    // notification settings read) has nowhere to go and would take the server down.
+    void maybeDispatchNotificationForTrigger(payload).catch((error) => {
+      console.warn("[Notification] Trigger dispatch failed:", error?.message || error)
+    })
     sessionRuntime.processAxCodeSsePayload(payload)
   },
 })

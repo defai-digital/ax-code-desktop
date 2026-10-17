@@ -36,6 +36,22 @@ const createRuntime = async (overrides = {}) => {
 }
 
 describe("settings runtime", () => {
+  it("refuses a corrupted settings file instead of overwriting it with migration defaults", async () => {
+    const { runtime, settingsFilePath, cleanup } = await createRuntime()
+    try {
+      const corruptBytes = "{ not json"
+      await fsPromises.writeFile(settingsFilePath, corruptBytes, "utf8")
+
+      await expect(runtime.readSettingsFromDiskMigrated()).rejects.toThrow(/corrupted/i)
+      await expect(runtime.persistSettings({ themeId: "ax-dark" })).rejects.toThrow(/corrupted/i)
+      // The bytes on disk must survive: reading the file as empty and writing the
+      // migrated defaults back used to destroy every stored project and preference.
+      await expect(fsPromises.readFile(settingsFilePath, "utf8")).resolves.toBe(corruptBytes)
+    } finally {
+      await cleanup()
+    }
+  })
+
   it("purges disabled remote endpoints and stored credentials during migration", async () => {
     const { runtime, settingsFilePath, cleanup } = await createRuntime()
     try {

@@ -237,7 +237,10 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
     try {
       if (window.parent && typeof window.parent.postMessage === 'function') {
         const message = Object.assign({ source: SOURCE, version: VERSION }, payload || {});
-        window.parent.postMessage(message, window.location.origin);
+        // Sandboxed external previews run as an opaque origin: location.origin is
+        // the string "null", which postMessage rejects. The parent validates the
+        // sender by event.source (the iframe window), not by origin.
+        window.parent.postMessage(message, '*');
       }
     } catch {}
   };

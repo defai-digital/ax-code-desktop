@@ -537,7 +537,9 @@ const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
         type: "set-inspect-mode",
         enabled: inspectMode,
       },
-      window.location.origin,
+      // Sandboxed external previews are an opaque origin, so a specific target
+      // origin never matches; the bridge validates the sender by event.source.
+      "*",
     )
   }, [bridgeReady, inspectMode])
 
@@ -553,7 +555,9 @@ const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
         type: "set-color-scheme",
         scheme: previewColorScheme,
       },
-      window.location.origin,
+      // Sandboxed external previews are an opaque origin, so a specific target
+      // origin never matches; the bridge validates the sender by event.source.
+      "*",
     )
   }, [bridgeReady, previewColorScheme])
 
@@ -1399,7 +1403,9 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
         type: "set-inspect-mode",
         enabled,
       },
-      window.location.origin,
+      // Sandboxed external previews are an opaque origin, so a specific target
+      // origin never matches; the bridge validates the sender by event.source.
+      "*",
     )
   }, [])
 

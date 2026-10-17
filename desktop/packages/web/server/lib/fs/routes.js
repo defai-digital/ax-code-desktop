@@ -1138,12 +1138,19 @@ export const registerFsRoutes = (app, dependencies) => {
       res.setHeader("X-Content-Type-Options", "nosniff")
 
       const download = req.query.download === "true"
+
+      if (!coreFileAdapter || typeof coreFileAdapter.raw !== "function") {
+        return res.status(503).json({ error: "AX Code core file API is not ready" })
+      }
+      const raw = await coreFileAdapter.raw({ path: canonicalPath, directory: canonicalBase, fallbackMime: mimeType })
       if (download) {
         const fileName = path.basename(canonicalPath)
         // Header values only accept code points up to 0xFF: interpolating the raw
         // name made setHeader throw ERR_INVALID_CHAR for a non-Latin-1 name, and the
         // 500 JSON body was then saved as the user's download. The quoted fallback
         // keeps the header valid; filename* carries the real name (RFC 5987).
+        // This header is only set after the read succeeds: on an error path the
+        // JSON error body must not be downloaded as the requested file.
         const asciiFileName = fileName.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_")
         const encodedFileName = encodeURIComponent(fileName).replace(
           /['()*]/g,
@@ -1154,11 +1161,6 @@ export const registerFsRoutes = (app, dependencies) => {
           `attachment; filename="${asciiFileName}"; filename*=UTF-8''${encodedFileName}`,
         )
       }
-
-      if (!coreFileAdapter || typeof coreFileAdapter.raw !== "function") {
-        return res.status(503).json({ error: "AX Code core file API is not ready" })
-      }
-      const raw = await coreFileAdapter.raw({ path: canonicalPath, directory: canonicalBase, fallbackMime: mimeType })
       res.setHeader("Cache-Control", "no-store")
       return res.type(raw.mimeType || mimeType).send(raw.buffer)
     } catch (error) {

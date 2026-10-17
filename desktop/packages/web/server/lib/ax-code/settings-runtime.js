@@ -520,19 +520,28 @@ export const createSettingsRuntime = (deps) => {
   }
 
   const readSettingsFromDisk = async () => {
+    let raw
     try {
-      const raw = await fsPromises.readFile(SETTINGS_FILE_PATH, "utf8")
-      const parsed = JSON.parse(raw)
-      if (parsed && typeof parsed === "object") {
-        return parsed
-      }
-      return {}
+      raw = await fsPromises.readFile(SETTINGS_FILE_PATH, "utf8")
     } catch (error) {
       if (error && typeof error === "object" && error.code === "ENOENT") {
         return {}
       }
       console.warn("Failed to read settings file:", error)
-      return {}
+      throw error
+    }
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === "object") {
+        return parsed
+      }
+      throw new Error("settings.json does not contain an object")
+    } catch (error) {
+      // A corrupted file is not "no settings": reading it as {} lets the migration
+      // write-back and persistSettings replace every stored project and preference
+      // with defaults (session-folders and magic-prompts refuse for the same reason).
+      // Failing here is what keeps the bytes on disk.
+      throw new Error(`Settings data is corrupted: ${error instanceof Error ? error.message : error}`)
     }
   }
 

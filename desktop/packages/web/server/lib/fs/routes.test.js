@@ -1121,6 +1121,21 @@ describe("fs raw download", () => {
     expect(res.statusCode).toBe(200)
     expect(res.sent).toEqual(content)
   })
+
+  it("does not mark an error response as an attachment", async () => {
+    const coreFileAdapter = { raw: vi.fn(async () => Promise.reject(Object.assign(new Error("gone"), { code: "ENOENT" }))) }
+    const fsPromises = { stat: vi.fn(async () => ({ isDirectory: () => false })) }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, coreFileAdapter)
+
+    const res = await callRoute(getRoute("GET", "/api/fs/raw"), {
+      query: { path: "/repo/missing.pdf", download: "true" },
+    })
+
+    // The attachment header was set before the read ran, so a 404 JSON body was
+    // saved on disk as "missing.pdf" instead of being shown as an error.
+    expect(res.statusCode).toBe(404)
+    expect(res.getHeader("Content-Disposition")).toBeUndefined()
+  })
 })
 
 describe("fs rename", () => {
