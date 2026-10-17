@@ -1428,12 +1428,34 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       res.removeHeader("content-type")
       res.removeHeader("content-length")
       res.removeHeader("content-encoding")
+      res.removeHeader("set-cookie")
       res.statusCode = 502
+      // The middleware copied the upstream reason phrase too; the refusal owns the response now.
+      res.statusMessage = "Bad Gateway"
     }
     if (res && typeof res.setHeader === "function") {
       res.setHeader("content-type", "text/plain; charset=utf-8")
     }
     return Buffer.from("Preview redirect refused")
+  }
+
+  // A preview's cookies keep working for the preview itself, but a Path=/ or a Domain the upstream chose would put
+  // them on the Desktop origin, where the app's own session cookie lives. Scope every cookie to the target prefix.
+  const scopePreviewCookies = (res, proxyBasePath) => {
+    if (!res || typeof res.getHeader !== "function" || typeof res.setHeader !== "function") {
+      return
+    }
+    const value = res.getHeader("set-cookie")
+    if (value == null) {
+      return
+    }
+    const values = Array.isArray(value) ? value : [value]
+    const scoped = values.map((cookie) => {
+      const withoutDomain = String(cookie).replace(/;\s*domain=[^;]*/gi, "")
+      const withoutPath = withoutDomain.replace(/;\s*path=[^;]*/gi, "")
+      return `${withoutPath}; Path=${proxyBasePath}`
+    })
+    res.setHeader("set-cookie", Array.isArray(value) ? scoped : scoped[0])
   }
 
   // Rewrite an upstream 3xx Location so the redirect stays inside the same-origin
@@ -1683,6 +1705,11 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
           stripFrameBustingHeadersOnRes(res)
 
           const resolved = resolveTargetFromRequest(req)
+          // Upstream cookies keep working for the preview but must not land on the Desktop origin itself, where a
+          // guessable session cookie name could be clobbered.
+          if (resolved.ok) {
+            scopePreviewCookies(res, `/api/preview/proxy/${resolved.id}`)
+          }
 
           // Keep redirects inside the same-origin proxy so a cross-origin hop
           // (e.g. google.com -> www.google.com) doesn't escape and get
@@ -1690,16 +1717,15 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
           const statusCode = proxyRes.statusCode || (res && res.statusCode) || 0
           if (statusCode >= 300 && statusCode < 400) {
             // Even a 3xx body can be rendered (a 300, or a redirect block a browser ignores), so it gets the
-            // document protections before anything returns.
+            // document protections before anything returns. An expired entry cannot be sandboxed from its own
+            // record, so it is refused outright instead of shipping the upstream body.
             applyExternalPreviewSandbox(res, resolved)
             applyPreviewNoStoreOnRes(res)
+            if (!resolved.ok) {
+              return refuseRedirect(res)
+            }
             const location = proxyRes.headers?.location
             if (location && res && typeof res.setHeader === "function") {
-              if (!resolved.ok) {
-                // An expired entry or a dropped token makes the second resolve fail; the middleware has already
-                // copied this Location onto the response, so it has to be dropped here too.
-                return refuseRedirect(res)
-              }
               // The request's own upstream path is the base a relative Location resolves
               // against (RFC 9110): `intro` from `/docs/guide` means `/docs/intro`.
               const requestUrl = new URL(req.originalUrl || req.url || "", "http://localhost")
@@ -1729,23 +1755,32 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
             return responseBuffer
           }
 
+          // Node joins two Content-Type lines into "text/html, text/plain". Both the rewriting decisions and the
+          // sandbox decision read the same list of essences, or the loose one would inject the bridge into a page
+          // the strict one left unsandboxed.
           const contentType = String(proxyRes.headers?.["content-type"] || "").toLowerCase()
-          const isHtml = contentType.includes("text/html")
-          const isCss = contentType.includes("text/css")
-          const isJavaScript = contentType.includes("javascript") || contentType.includes("ecmascript")
+          const essenceList = contentType
+            .split(",")
+            .map((part) => part.split(";", 1)[0].trim())
+          const isHtml = essenceList.includes("text/html")
+          const isCss = essenceList.includes("text/css")
+          const isJavaScript = essenceList.some(
+            (essence) => essence.includes("javascript") || essence.includes("ecmascript"),
+          )
           // A document that runs script when it is opened directly. HTML is not the only one: an SVG, XHTML or XML
           // response from an external preview is a document too, and all were served with the app's own policy —
           // which allows inline script — on the Desktop origin. Chrome renders any `*/*+xml` as XML and sniffs a
           // missing content type as HTML, so the essence decides rather than a list of exact types. The
           // project-icon route carries its own policy for the same reason (`60cfcf9c`).
-          const essence = contentType.split(";", 1)[0].trim()
-          const isScriptableDocument =
-            essence === "" ||
-            essence === "text/html" ||
-            essence === "image/svg+xml" ||
-            essence === "application/xml" ||
-            essence === "text/xml" ||
-            essence.endsWith("+xml")
+          const isScriptableDocument = essenceList.some(
+            (essence) =>
+              essence === "" ||
+              essence === "text/html" ||
+              essence === "image/svg+xml" ||
+              essence === "application/xml" ||
+              essence === "text/xml" ||
+              essence.endsWith("+xml"),
+          )
           if (isScriptableDocument) {
             applyExternalPreviewSandbox(res, resolved)
           }

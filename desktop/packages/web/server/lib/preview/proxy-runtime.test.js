@@ -1170,4 +1170,77 @@ describe("preview proxy response hardening", () => {
 
     expect(String(responseHeaders.get("content-security-policy") ?? "")).not.toContain("frame-ancestors")
   })
+
+  it("sandboxes a joined duplicate content-type that the rewriter still treats as HTML", async () => {
+    // Node joins two Content-Type lines into "text/html, text/plain". The rewriter saw text/html and injected the
+    // bridge, while the essence check compared the whole string and skipped the sandbox: an external page rendered
+    // on the Desktop origin without the opaque origin.
+    const { proxyOptions, cookie, target } = await createHarness({ url: "https://example.com", allowExternal: true })
+    const headers = new Map()
+    await proxyOptions.on.proxyRes(
+      Buffer.from("<html><body>x</body></html>"),
+      { statusCode: 200, headers: { "content-type": "text/html, text/plain" } },
+      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+      makeResponse(headers),
+    )
+
+    const csp = String(headers.get("content-security-policy") ?? "")
+    expect(csp).toContain("sandbox")
+    expect(csp).not.toContain("allow-same-origin")
+  })
+
+  it("refuses a body-bearing 3xx without a Location when the target is gone", async () => {
+    const { proxyOptions, target } = await createHarness({ url: "https://example.com", allowExternal: true })
+    const headers = new Map([["content-type", "text/html"]])
+    const response = makeResponse(headers, 300)
+
+    const body = await proxyOptions.on.proxyRes(
+      Buffer.from("<script>alert(1)</script>"),
+      { statusCode: 300, headers: { "content-type": "text/html" } },
+      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: "wrong=1" } },
+      response,
+    )
+
+    expect(response.statusCode).toBe(502)
+    expect(headers.get("content-type")).toContain("text/plain")
+    expect(String(body)).not.toContain("alert")
+  })
+
+  it("scopes upstream cookies to the preview prefix", async () => {
+    // A Set-Cookie with Path=/ became a cookie on the Desktop origin itself, where a guessable session cookie can
+    // be clobbered. The cookie keeps working for the preview but not for the app's own routes.
+    const { proxyOptions, cookie, target } = await createHarness({ url: "https://example.com", allowExternal: true })
+    const headers = new Map([["set-cookie", "session=1; Path=/; Domain=example.com; HttpOnly"]])
+    const response = makeResponse(headers)
+
+    await proxyOptions.on.proxyRes(
+      Buffer.from("<html></html>"),
+      {
+        statusCode: 200,
+        headers: { "content-type": "text/html", "set-cookie": "session=1; Path=/; Domain=example.com; HttpOnly" },
+      },
+      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+      response,
+    )
+
+    const scoped = String(headers.get("set-cookie"))
+    expect(scoped).toContain(`Path=${target.proxyBasePath}`)
+    expect(scoped).not.toContain("Domain=")
+  })
+
+  it("resets the reason phrase on a refused redirect", async () => {
+    const { proxyOptions, cookie, target } = await createHarness()
+    const headers = new Map([["location", "http://169.254.169.254/latest"]])
+    const response = { ...makeResponse(headers, 302), statusMessage: "Found" }
+
+    await proxyOptions.on.proxyRes(
+      Buffer.alloc(0),
+      { statusCode: 302, headers: { location: "http://169.254.169.254/latest" } },
+      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+      response,
+    )
+
+    expect(response.statusCode).toBe(502)
+    expect(response.statusMessage).toBe("Bad Gateway")
+  })
 })
