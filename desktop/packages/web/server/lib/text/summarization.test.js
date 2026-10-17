@@ -39,11 +39,15 @@ describe("text summarization stubs", () => {
     expect(sanitizeForNote("[https://example.com]")).toBe("[]")
   })
 
-  it("does not leave a remnant of a reverse-DNS scheme", () => {
-    // The bounded scheme matched at the last dot, masked `xcode://…` and left `com.` behind.
-    expect(sanitizeForSummary("open com.apple.dt.xcode://host/path now")).toBe(
-      "open com.apple.dt.xcode://host/path now",
-    )
+  it("masks a reverse-DNS scheme whole instead of leaving a remnant or a path", () => {
+    // The bounded scheme used to match at the last dot, mask `xcode://…` and leave `com.`. The bound is wide
+    // enough for the whole run now, so the link — including the absolute path after `///` — goes as one.
+    expect(sanitizeForSummary("open com.apple.dt.xcode://host/path now")).toBe("open a link now")
+    expect(sanitizeForSummary("open com.apple.dt.xcode:///Users/akira/secret/proj now")).toBe("open a link now")
+    // There is no length bound now: the lookbehind makes an unbounded run linear (only its first character can
+    // start a match), so even an absurd scheme is masked whole rather than leaking the path after it.
+    const longScheme = "a".repeat(80)
+    expect(sanitizeForSummary(`open ${longScheme}:///Users/me/x now`)).toBe("open a link now")
   })
 
   it("removes code from summary text before stripping markdown punctuation", () => {

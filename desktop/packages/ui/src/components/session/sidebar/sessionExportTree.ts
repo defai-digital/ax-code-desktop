@@ -48,9 +48,25 @@ export const buildActiveSessionTree = (sessions: readonly Session[], root: Sessi
 export const resolveSessionExportTree = (node: SessionNode, session: Session): SessionNode => {
   if (node.children.length > 0) return node
   const { activeSessions, archivedSessions } = useGlobalSessionsStore.getState()
-  // The row's copy can be stale: take the bucket and the root from the cache when it holds one.
-  const cachedArchived = archivedSessions.find((candidate) => candidate.id === session.id)
-  return cachedArchived
-    ? buildActiveSessionTree(archivedSessions, cachedArchived)
-    : buildActiveSessionTree(activeSessions, session)
+  // The row's copy can be stale, and the cache can hold the same session in both buckets after a restore. Take the
+  // newest copy's bucket; when the cache holds no copy at all, the row's own state still names the bucket (a paged
+  // cache can hold the subtasks without their root).
+  const activeCopy = activeSessions.find((candidate) => candidate.id === session.id)
+  const archivedCopy = archivedSessions.find((candidate) => candidate.id === session.id)
+  const rowArchived = Boolean(session.time?.archived)
+  const updatedAt = (candidate: Session | undefined) =>
+    Number(candidate?.time?.updated ?? candidate?.time?.created ?? 0)
+
+  let bucket = rowArchived ? archivedSessions : activeSessions
+  let root = session
+  if (activeCopy || archivedCopy) {
+    const preferArchived =
+      archivedCopy !== undefined &&
+      (activeCopy === undefined ||
+        updatedAt(archivedCopy) > updatedAt(activeCopy) ||
+        (updatedAt(archivedCopy) === updatedAt(activeCopy) && rowArchived))
+    root = (preferArchived ? archivedCopy : activeCopy) ?? session
+    bucket = preferArchived ? archivedSessions : activeSessions
+  }
+  return buildActiveSessionTree(bucket, root)
 }

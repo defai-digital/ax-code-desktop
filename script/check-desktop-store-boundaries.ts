@@ -300,6 +300,9 @@ export function analyzeConnectionStateWriterImports(
 
     const clause = statement.importClause
     if (!clause) return // side-effect import: no bindings, cannot write
+    // A type-only import carries no runtime value, so it cannot reach the writer. R4 and the export path skip
+    // these too.
+    if (clause.isTypeOnly) return
 
     // Namespace import can reach the write API through the namespace object.
     if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
@@ -320,6 +323,7 @@ export function analyzeConnectionStateWriterImports(
 
     if (!clause.namedBindings || !ts.isNamedImports(clause.namedBindings)) return
     for (const element of clause.namedBindings.elements) {
+      if (element.isTypeOnly) continue
       const imported = (element.propertyName ?? element.name).text
       if (!CONNECTION_STATE_WRITE_API.has(imported)) continue
       importsWriteApi = true

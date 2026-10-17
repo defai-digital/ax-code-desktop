@@ -209,6 +209,10 @@ describe("startup quoting", () => {
     expect(() =>
       assertRestartCanCarryPassword({ ...base, storedOptions: { port: 3999, hasUiPassword: false } }),
     ).not.toThrow()
+    // A record that says "no password" but carries one is still a usable password.
+    expect(() =>
+      assertRestartCanCarryPassword({ ...base, storedOptions: { port: 3999, hasUiPassword: false, uiPassword: "s3cret" } }),
+    ).not.toThrow()
   })
 
   it("refuses a record that claims a password it does not carry", () => {

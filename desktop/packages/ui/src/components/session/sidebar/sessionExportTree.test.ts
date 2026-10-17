@@ -95,6 +95,34 @@ describe("session export tree", () => {
     expect(tree.children.map((child) => child.session.id)).toEqual(["child"])
   })
 
+  test("reads the bucket the newest root copy lives in", () => {
+    // A stale archived copy must not drag a live session's export into the archived bucket.
+    const staleArchivedRoot = { ...session("root", null, true), time: { created: 1, updated: 1 } } as Session
+    const freshActiveRoot = { ...session("root", null), time: { created: 1, updated: 5 } } as Session
+    useGlobalSessionsStore.setState({
+      activeSessions: [freshActiveRoot, session("active-child", "root")],
+      archivedSessions: [staleArchivedRoot, session("archived-child", "root", true)],
+    })
+
+    const tree = resolveSessionExportTree(nodeFor(freshActiveRoot), freshActiveRoot)
+
+    expect(tree.session.time?.archived).toBeFalsy()
+    expect(tree.children.map((child) => child.session.id)).toEqual(["active-child"])
+  })
+
+  test("finds archived children when the row is archived but the cache has no root copy", () => {
+    // A paged cache can hold the subtasks without their root; the row's own archived state still names the bucket.
+    const archivedRoot = session("root", null, true)
+    useGlobalSessionsStore.setState({
+      activeSessions: [],
+      archivedSessions: [session("archived-child", "root", true)],
+    })
+
+    const tree = resolveSessionExportTree(nodeFor(archivedRoot), archivedRoot)
+
+    expect(tree.children.map((child) => child.session.id)).toEqual(["archived-child"])
+  })
+
   test("stops on a parent cycle instead of recursing forever", () => {
     // The cache is merged from snapshots and is not guaranteed to be acyclic; the project tree builder would recurse
     // just as far, but the export path must not take the click handler down with it.

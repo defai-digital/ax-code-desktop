@@ -35,15 +35,13 @@ export const diffPermissionNotifications = (
 }
 
 /**
- * Keep an answered marker only while the server still lists the exact request object that was answered. A
- * re-prompt replaces the object; pruning by id alone would hide the new, genuine request from the bell.
+ * Keep an answered marker while the server still lists the request, and forget it when the request is gone. The
+ * marker exists to stop a second answer while the server has not yet processed the first; a resync can republish
+ * the same pending request with a fresh object, so object identity would clear the marker and reopen the hole.
  */
-export const pruneAnsweredPermissions = (
-  answered: Map<string, PermissionRequest>,
-  permissions: readonly PermissionRequest[],
-): void => {
-  const liveById = new Map(permissions.map((permission) => [permission.id, permission]))
-  for (const [requestId, answeredPermission] of answered) {
-    if (liveById.get(requestId) !== answeredPermission) answered.delete(requestId)
+export const pruneAnsweredRequestIds = (answered: Set<string>, permissions: readonly PermissionRequest[]): void => {
+  const liveRequestIds = new Set(permissions.map((permission) => permission.id))
+  for (const requestId of answered) {
+    if (!liveRequestIds.has(requestId)) answered.delete(requestId)
   }
 }

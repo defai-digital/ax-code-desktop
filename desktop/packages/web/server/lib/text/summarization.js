@@ -7,11 +7,11 @@
  * - note: distilled project note
  */
 
-// One scheme URL. The scheme name is bounded so a long run of scheme characters is not rescanned from every
-// offset, and it may not start inside another scheme-character run (`com.apple.dt.xcode://` is not `xcode://`).
+// One scheme URL. It may not start inside another scheme-character run (`com.apple.dt.xcode://` is not
+// `xcode://`), which also keeps an unbounded scheme linear: only the first character of a run can start a match.
 // The match stops before trailing punctuation and closing brackets, which belong to the sentence rather than the
 // link.
-const SCHEME_URL = /(?<![a-z0-9+.-])[a-z][a-z0-9+.-]{0,15}:\/\/[^\s]*[^\s.,;:!?)\]}]/gi
+const SCHEME_URL = /(?<![a-z0-9+.-])[a-z][a-z0-9+.-]*:\/\/[^\s]*[^\s.,;:!?)\]}]/gi
 
 export function sanitizeForSummary(text) {
   if (!text || typeof text !== "string") return ""

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { diffPermissionNotifications, pruneAnsweredPermissions } from "./permissionNotificationSync"
+import { diffPermissionNotifications, pruneAnsweredRequestIds } from "./permissionNotificationSync"
 import type { PermissionRequest } from "@/types/permission"
 
 const makePermission = (id: string): PermissionRequest => ({
@@ -62,21 +62,21 @@ describe("diffPermissionNotifications", () => {
   })
 })
 
-describe("pruneAnsweredPermissions", () => {
-  test("keeps the marker while the same request object is listed", () => {
-    const pending = makePermission("perm-1")
-    const answered = new Map([["perm-1", pending]])
+describe("pruneAnsweredRequestIds", () => {
+  test("keeps the marker while the request is still listed", () => {
+    // A resync republishes the pending request with a fresh object; the marker has to survive that, or the settled
+    // request is mirrored again with buttons that can answer it twice.
+    const answered = new Set(["perm-1"])
 
-    pruneAnsweredPermissions(answered, [pending])
+    pruneAnsweredRequestIds(answered, [makePermission("perm-1")])
 
-    expect([...answered.keys()]).toEqual(["perm-1"])
+    expect([...answered]).toEqual(["perm-1"])
   })
 
-  test("forgets the marker when the server replaces the request", () => {
-    // A re-prompt with the same id is a new object. Pruning only on absence hid that genuine request from the bell.
-    const answered = new Map([["perm-1", makePermission("perm-1")]])
+  test("forgets the marker once the server drops the request", () => {
+    const answered = new Set(["perm-1"])
 
-    pruneAnsweredPermissions(answered, [makePermission("perm-1")])
+    pruneAnsweredRequestIds(answered, [])
 
     expect(answered.size).toBe(0)
   })

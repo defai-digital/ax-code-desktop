@@ -10,21 +10,20 @@ import { useI18n } from "@/lib/i18n"
 import { useNotificationStore } from "@/stores/useNotificationStore"
 import * as sessionActions from "@/sync/session-actions"
 import { toast } from "@/components/ui"
-import { diffPermissionNotifications, pruneAnsweredPermissions } from "./permissionNotificationSync"
+import { diffPermissionNotifications, pruneAnsweredRequestIds } from "./permissionNotificationSync"
 import type { NotificationPayload } from "@/lib/api/types"
-import type { PermissionRequest } from "@/types/permission"
 
 const PERMISSION_NOTIFY_DEBOUNCE_MS = 2000
 
-// Requests already answered, by session, with the object that was answered. Module scope: the watcher unmounts
-// and remounts with the live-session list, and a per-mount set would re-mirror a settled request on the next mount.
-const answeredPermissionsBySession = new Map<string, Map<string, PermissionRequest>>()
+// Requests already answered, by session. Module scope: the watcher unmounts and remounts with the live-session
+// list, and a per-mount set would re-mirror a settled request on the next mount.
+const answeredRequestIdsBySession = new Map<string, Set<string>>()
 
-const answeredPermissionsFor = (sessionId: string): Map<string, PermissionRequest> => {
-  let answered = answeredPermissionsBySession.get(sessionId)
+const answeredRequestIdsFor = (sessionId: string): Set<string> => {
+  let answered = answeredRequestIdsBySession.get(sessionId)
   if (!answered) {
-    answered = new Map()
-    answeredPermissionsBySession.set(sessionId, answered)
+    answered = new Set()
+    answeredRequestIdsBySession.set(sessionId, answered)
   }
   return answered
 }
@@ -78,9 +77,9 @@ function SessionPermissionWatcher({
         seen.delete(requestId)
       }
     }
-    const answered = answeredPermissionsFor(sessionId)
-    pruneAnsweredPermissions(answered, permissions)
-    const { toAdd, toRemove } = diffPermissionNotifications(seen, permissions, new Set(answered.keys()))
+    const answered = answeredRequestIdsFor(sessionId)
+    pruneAnsweredRequestIds(answered, permissions)
+    const { toAdd, toRemove } = diffPermissionNotifications(seen, permissions, answered)
 
     for (const { requestId, notificationId } of toRemove) {
       store.removeNotification(notificationId)
@@ -102,7 +101,7 @@ function SessionPermissionWatcher({
         }
         // The server may still list the request as pending until its own event arrives. Mark it so this effect
         // does not mirror it again (with fresh buttons) the next time `permissions` changes, and drop the mirror.
-        answeredPermissionsFor(sessionId).set(permission.id, permission)
+        answeredRequestIdsFor(sessionId).add(permission.id)
         for (const [requestId, notificationId] of seen) {
           if (requestId === permission.id) {
             store.removeNotification(notificationId)

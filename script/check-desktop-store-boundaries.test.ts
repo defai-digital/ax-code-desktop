@@ -219,6 +219,23 @@ describe("R5 connection-state writer registry", () => {
     expect(importsWriteApi).toBe(false)
   })
 
+  test("allows type-only imports of the writer name", () => {
+    // Same reasoning on the import side: `import type` and the inline `type` modifier carry no runtime value.
+    const whole = analyzeConnectionStateWriterImports(
+      componentFile("ui", "ReconnectBanner.tsx"),
+      'import type { markStreamConnected } from "@/lib/event-stream/connection-state"',
+    )
+    expect(whole.violations).toEqual([])
+    expect(whole.importsWriteApi).toBe(false)
+
+    const inline = analyzeConnectionStateWriterImports(
+      componentFile("ui", "ReconnectBanner.tsx"),
+      'import { type markStreamConnected } from "@/lib/event-stream/connection-state"',
+    )
+    expect(inline.violations).toEqual([])
+    expect(inline.importsWriteApi).toBe(false)
+  })
+
   test("blocks a whole-module re-export from an unregistered module", () => {
     const { violations, importsWriteApi } = analyzeConnectionStateWriterImports(
       componentFile("ui", "connectionStateFacade.ts"),
