@@ -26,6 +26,7 @@ function createFixture() {
   fs.mkdirSync(bin)
 
   const argsLog = path.join(dir, "node-args.log")
+  const envLog = path.join(dir, "node-env.log")
   const mkdir = path.join(bin, "mkdir")
   const chmod = path.join(bin, "chmod")
   const sshKeygen = path.join(bin, "ssh-keygen")
@@ -35,7 +36,10 @@ function createFixture() {
   fs.writeFileSync(mkdir, `#!/bin/sh\nexit 0\n`)
   fs.writeFileSync(chmod, `#!/bin/sh\nexit 0\n`)
   fs.writeFileSync(sshKeygen, `#!/bin/sh\nexit 0\n`)
-  fs.writeFileSync(node, `#!/bin/sh\nprintf '%s\\n' "$@" > ${shellQuote(argsLog)}\nexit 0\n`)
+  fs.writeFileSync(
+    node,
+    `#!/bin/sh\nprintf '%s\\n' "$@" > ${shellQuote(argsLog)}\nprintf '%s' "\${AX_CODE_DESKTOP_UI_PASSWORD:-}" > ${shellQuote(envLog)}\nexit 0\n`,
+  )
   for (const file of [mkdir, chmod, sshKeygen, node]) {
     fs.chmodSync(file, 0o755)
   }
@@ -46,6 +50,7 @@ function createFixture() {
     argsLog,
     projectRoot: dir,
     readArgs: () => (fs.existsSync(argsLog) ? fs.readFileSync(argsLog, "utf8").trim().split("\n") : []),
+    readEnv: () => (fs.existsSync(envLog) ? fs.readFileSync(envLog, "utf8") : ""),
     cleanup: () => fs.rmSync(dir, { recursive: true, force: true }),
   }
 }
@@ -82,7 +87,7 @@ describe("docker entrypoint", () => {
     }
   })
 
-  test("forwards the UI password to the server it starts", () => {
+  test("forwards the UI password to the server it starts, out of its argv", () => {
     const fixture = createFixture()
     try {
       fs.mkdirSync(path.join(fixture.projectRoot, "packages/web/bin"), { recursive: true })
@@ -91,7 +96,10 @@ describe("docker entrypoint", () => {
       const result = runEntrypoint(fixture, { UI_PASSWORD: "hunter2" })
 
       expect(result.status).toBe(0)
-      expect(fixture.readArgs()).toEqual(["packages/web/bin/cli.js", "serve", "--foreground", "--ui-password", "hunter2"])
+      // In the environment: `--ui-password <secret>` put the password in the process argv, where every process in
+      // the container can read it with `ps`, and the CLI reads the variable.
+      expect(fixture.readArgs()).toEqual(["packages/web/bin/cli.js", "serve", "--foreground"])
+      expect(fixture.readEnv()).toBe("hunter2")
     } finally {
       fixture.cleanup()
     }
