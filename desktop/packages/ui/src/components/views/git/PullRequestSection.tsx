@@ -1150,6 +1150,10 @@ export const PullRequestSection: React.FC<{
     setTitle(snapshot?.title ?? branchToTitle(branch))
     setBody(snapshot?.body ?? "")
     setDraft(snapshot?.draft ?? false)
+    // additionalContext is per-branch snapshot state too: without resetting it,
+    // switching branches carried the previous branch's context into the next
+    // Generate call and overwrote the new branch's saved draft.
+    setAdditionalContext(snapshot?.additionalContext ?? "")
     setTargetBaseBranch(
       snapshot?.targetBaseBranch ? normalizeBranchRef(snapshot.targetBaseBranch) : normalizeBranchRef(baseBranch),
     )

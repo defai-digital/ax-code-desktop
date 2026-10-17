@@ -126,8 +126,11 @@ export const BehaviorPage: React.FC = () => {
   React.useEffect(() => {
     if (isLoading) return
     const last = lastSavedResponseStyleRef.current
+    // Nothing was ever loaded (the GET failed): the current state is the
+    // initial default, and autosaving it would overwrite the user's saved
+    // response-style settings with defaults.
+    if (!last) return
     if (
-      last &&
       last.enabled === responseStyleEnabled &&
       last.preset === responseStylePreset &&
       last.custom === responseStyleCustomInstructions

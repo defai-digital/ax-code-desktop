@@ -514,8 +514,15 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   )
 
   const childrenMap = React.useMemo(() => {
+    // Archived sessions are absent from sortedSessions, but an archived parent
+    // can have archived subagents: deleting it must cascade to them or they
+    // reappear as top-level rows. The bulk-removal path's
+    // includeArchivedDescendants reads the same map.
+    const byId = new Map<string, Session>()
+    archivedSessions.forEach((session) => byId.set(session.id, session))
+    sortedSessions.forEach((session) => byId.set(session.id, session))
     const map = new Map<string, Session[]>()
-    sortedSessions.forEach((session) => {
+    byId.forEach((session) => {
       const parentID = (session as Session & { parentID?: string | null }).parentID
       if (!parentID) {
         return
@@ -526,7 +533,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     })
     map.forEach((list) => list.sort((a, b) => compareSessionsByPinnedAndTime(a, b, pinnedSessionIds)))
     return map
-  }, [sortedSessions, pinnedSessionIds])
+  }, [sortedSessions, archivedSessions, pinnedSessionIds])
 
   const emptyState =
     projects.length === 0 ? (
