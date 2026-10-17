@@ -48,11 +48,15 @@ describe("text summarization stubs", () => {
     // start a match), so even an absurd scheme is masked whole rather than leaking the path after it.
     const longScheme = "a".repeat(80)
     expect(sanitizeForSummary(`open ${longScheme}:///Users/me/x now`)).toBe("open a link now")
-    // A scheme run may also start the string, follow a non-ASCII word, or begin with a digit: the last is not a
-    // legal scheme but the path after `://` must still not reach the summary.
+    // A scheme run may also start the string, follow a non-ASCII word, follow a bracket, or begin with a digit: the
+    // digit is not a legal scheme, but the path after `://` must still not reach the summary.
     expect(sanitizeForSummary("x-code:///Users/me/x")).toBe("a link")
     expect(sanitizeForSummary("café https://x/y 現在")).toBe("café a link 現在")
+    expect(sanitizeForSummary("(x:///Users/me/x)")).toBe("a link")
+    expect(sanitizeForNote("(x:///Users/me/x)")).toBe("()")
     expect(sanitizeForSummary("open 1abc:///Users/me/x now")).toBe("open a link now")
+    // Ordinary times, ratios and percentages have no `//` and stay untouched.
+    expect(sanitizeForSummary("a 12:30 and 3:1 and 50%: ok")).toBe("a 12:30 and 3:1 and 50%: ok")
   })
 
   it("removes code from summary text before stripping markdown punctuation", () => {

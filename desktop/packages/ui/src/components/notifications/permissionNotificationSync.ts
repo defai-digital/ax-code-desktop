@@ -37,5 +37,6 @@ export const diffPermissionNotifications = (
 /*
  * Markers are not pruned. `useSessionPermissions` returns an empty list for one run when the session's directory
  * is not resolved yet, and dropping a marker on that run reopened the double mirror the marker exists to close.
- * The set is one small string per permission answered in the session, and the watcher keeps it for its lifetime.
+ * The set is one small string per permission answered in the session and lives for the process, which is the price
+ * of surviving both a resync and a watcher remount; nothing else removes it.
  */

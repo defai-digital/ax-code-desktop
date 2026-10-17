@@ -1307,8 +1307,9 @@ questions rather than local fixes.
 
 ## Thirty-eighth round
 
-A cross-check of the thirty-seventh round's fixes on a second reviewer (`deepseek-flash`, the same diff). It found
-two regressions and three test gaps; the regressions and the gaps are fixed in `251cf277`.
+A cross-check of the thirty-seventh round's fixes on a second reviewer (`deepseek-flash`, the same diff), after the
+Grok CLI cell for the same diff ran for eighteen minutes and produced nothing but its banner; it was stopped. It
+found two regressions and three test gaps; the regressions and the gaps are fixed in `251cf277`.
 
 ### Fixed
 
