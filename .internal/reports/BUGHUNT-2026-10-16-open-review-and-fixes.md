@@ -1305,6 +1305,94 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Twenty-ninth round
+
+Two audits of the twenty-eighth round's own commits, on two reviewers, plus two scopes this record had never read
+systematically — `ui/src/lib` and `ui/src/hooks`, and the process entry points — and a second review of the four
+small server trees whose first review had run out of time.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | an audit of `git diff f6ea81a4 HEAD` — the twenty-eighth round's own commits |
+| `muse-wonder-full-1.0` (ax-code) | a second, independent audit of the same diff |
+| `MiniMax-M3` (ax-code) | a third, after the first Claude cell ended without writing anything |
+| Claude Code CLI | `ui/src/lib/**` and `ui/src/hooks/**` |
+| ax-code `xiaomi/mimo-v2.6-pro` | `web/bin/cli.js`, `server/index.js`, `server/lib/http/**`, `scripts/docker-entrypoint.sh` |
+| ax-code `glm-5.3` | a second review of `session-folders`, `magic-prompts`, `skills-catalog` and `ui-auth` (round 28's first cell had timed out mid-read; it answered with four findings when it finished) |
+
+The first Claude audit cell exited 0 having written 22 bytes — its marker line and nothing else. It was re-run on
+`MiniMax-M3`, which read every hunk and reported no confirmed bugs; the second audit of the diff found one, in this
+round's own test rather than in the fixes.
+
+### Fixed from the round's own test
+
+- **`87a68016`** — the timeline dialog's composition test asserted `expect(openChangeMock).not.toHaveBeenCalled()`
+  synchronously, and the dialog closes *after* an `await` in `navigateToMessage`: the assertion was true of any
+  Enter, including the one that navigates and closes, so it measured the opposite of its own comment. It now drains
+  the microtask after each press and asserts the plain Enter navigated and closed exactly once while the composing
+  one did neither. The same review noted that `useDefaultDiffViewMode`'s comment promised only that a preview's
+  toggle changes one preview; the callers' reset effects depend on the setting, so a later change applies to the
+  previews already open, and the comment says so now.
+
+### Fixed from the UI trees
+
+- **`8428a5a4`** — the static-preview fallback ran `python3 -m http.server <port>` with no `--bind`, and the server
+  listens on every interface by default: it serves the project directory as it stands — `.git`, `.env` and any
+  credential file in it — to the whole network, while the command's own `previewUrlHint` says `127.0.0.1`.
+- **`10940285`** — the new-worktree guard was read at the top of `createInstantWorktreeDraft` and set after
+  `await checkIsGitRepository`, and neither the shortcut nor the menu item awaits the call: two presses in the same
+  tick both passed it and each created a worktree and a branch, with one draft target between them, while the first
+  call's `finally` cleared the flag under the second.
+- **`6c263e40`** — a resumed integration reported `state.remainingCommits.length` as `moved`, and that is only the
+  tail from the conflict onward: the success toast said "2 commits moved" for a five-commit integration, shrinking
+  again at each further conflict. The state carries the total across the conflict now.
+- **`9e6736ff`** — `appearanceAutoSave` hands its pending payload to `updateDesktopSettings`, which only merges it
+  and arms persistence's own timer; the unload listeners that flush that timer are registered while
+  `persistence.ts` loads, before this module's, so on `pagehide` the payload arrived after the flush had gone and
+  was re-queued behind a timer the unload never reached. A change made inside the 150 ms debounce was still lost
+  when the window closed. Found by tracing the two modules' registration order, which neither shows alone.
+
+### Fixed from the second review of the small server trees
+
+- **`5cc053c8`** — the session-folders GET read `if (!raw)`, conflating "the file is missing" with "the file is
+  there and empty": a zero-byte file answered 200 with the empty snapshot, which the client treats as authoritative
+  and writes back. Only `null` from the `ENOENT` catch means "no folders yet" now; an empty string falls through to
+  the parse and is reported as corrupt, as `magic-prompts`' own store already does.
+- **`7bdbc883`** — the disabled-auth controller returned every handler but `handleSessionLogout`, while
+  `POST /auth/logout` is registered whether or not a password is: signing out rejected with a missing-method
+  TypeError (a 500) and the cookie that branch's own `ensureSessionToken` hands out was never cleared.
+- **`22d3a63d`** — the skills scan cache keyed on `owner/repo` without the host, so a self-hosted source and GitHub
+  naming the same `owner/repo` shared one entry: the second source listed the first one's skills, whose items carry
+  that source's clone URL, so installing "from" it cloned the other host. The parsing already keeps the host apart.
+- **`23d00b59`** — an unvalidated `conflictDecisions` value counted as consent at the conflict gate and then matched
+  neither the skip branch nor the overwrite branch, falling through to a copy over the live directory: same-named
+  files replaced, stale ones left, no backup, reported as installed. The value is one of two words or nothing now,
+  and a target that exists with nothing resolved the conflict is refused rather than merged into.
+- **`5717703e`** — the ClawdHub tree disagreed with the repository tree in two places: its scan mapped every
+  registry item as `installable` while both install paths apply `validateSkillName`, so the UI offered a button
+  whose every press answered "Invalid skill name"; and it had no same-name guard, so a request naming one slug
+  twice installed it once and renamed the second download onto the directory the first had filled — the user saw the
+  raw `ENOTEMPTY` as their second selection's reason.
+- **`4e103795`** — `handleResetAuth` cleared every passkey and *then* rotated the JWT secret, whose file write can
+  fail: the endpoint answered an error with the passkey store already emptied on disk, so the sign-out had not
+  happened and the credential the user still had was gone. The module states this rule for the env-pinned case; the
+  rotate now comes first, and a failure destroys nothing.
+- **`0b8489e6`** — the ClawdHub fetches had no bound while every other external call here is time-boxed, so a
+  registry that accepts the connection and never answers held the catalog request (and the install behind it) for
+  undici's own headers timeout, about five minutes, with the spinner on it. Both calls pass a signal now.
+
+### Reported, verified, and not changed
+
+- **A preview's mode follows the setting while it is open** (SUSPECTED, the second audit): the reset effects in
+  `ToolPart-impl` and `ToolOutputDialog` depend on `defaultDiffViewMode`, so changing the layout setting resets a
+  preview that was toggled by hand. That is what the upstream commit this round ported does, and the alternative —
+  a preview that ignores the setting until it is reopened — is equally defensible; the hook's comment now states
+  which one this is rather than leaving it to be discovered.
+- **The two source-substring assertions this round added** (SUSPECTED, the second audit): both cover wiring inside
+  components that cannot be mounted without the git store, the diff worker and the SDK (`DiffView`,
+  `ToolPart-impl`), which is the seam this record documents for such components. The behaviour they stand for is
+  covered where it can be: the store action has its own test, and the hook has a probe test.
+
 ## Twenty-eighth round
 
 An audit of the twenty-seventh round's own commits, on two reviewers, plus the UI trees this record mentions least
@@ -3439,6 +3527,26 @@ Round six and seven are complete: every confirmed finding is fixed.
 - One of the nine has no behavioural red light and says so: `e02d553f` removes a predicate that could never fire
   (`undefined === 0` on a `Set`'s `length`, in a loop that cannot see a project with nothing to remove). Its test
   passes either way and was written to fail if the invariant behind that goes away.
+- Every fix in this round carries the regression test named in its commit, and each was verified by running that
+  test against the pre-fix source and observing the stated failure, then against the fixed source and observing it
+  pass — twelve defects across eleven fix commits, plus one correction to this round's own test. The assertions are
+  behavioural: the preview command through the detector with the runtime APIs stubbed, the worktree guard through
+  two calls in one tick and a short real timer, the integration count through the resumed flow with `execCommand`
+  mocked, the autosave hand-over through the real module order with persistence mocked, the store read through the
+  route harness, the sign-out through the controller, the reset through a secret write that fails once, the cache
+  key through a round trip, the conflict decision through a fixture skill directory, and the ClawdHub paths through
+  the registry and ZIP fixtures they already had.
+- Latest full run, after the twenty-ninth round's fixes (each command's exit status captured, not inferred from a
+  pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+  `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 971, web 1 309 (+2 skipped),
+  0 `FAIL` lines. The lint run's only output is the pre-existing `react-hooks/exhaustive-deps` warning in
+  `ui/src/sync/use-sync.ts`, and the `401` flake did not appear.
+- Two cells of this round are worth recording for their shape rather than their findings. The first Claude audit
+  exited 0 after writing 22 bytes — its marker and nothing else — which the helper reports as `SUSPECT` rather than
+  as a cell that finished; it was re-run on `MiniMax-M3` and that run read every hunk and reported no confirmed
+  bugs. And the round-28 server cell that had not written its marker for twenty minutes was not dead: it finished
+  its read and answered with four findings, the suite's second review of the same four trees found four more (two
+  of which that first cell had missed), and the whole scope is now clean twice over.
 - Latest full run, after the twenty-eighth round's fixes (each command's exit status captured, not inferred from a
   pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 967, web 1 300 (+2 skipped),
