@@ -1576,6 +1576,14 @@ async function assertTunnelTargetProtected(port) {
   )
 }
 
+function fileSize(filePath) {
+  try {
+    return fs.statSync(filePath).size
+  } catch {
+    return null
+  }
+}
+
 function readTailLines(filePath, lineCount = DEFAULT_TAIL_LINES) {
   if (!fs.existsSync(filePath)) {
     return []
@@ -1588,12 +1596,19 @@ function readTailLines(filePath, lineCount = DEFAULT_TAIL_LINES) {
   return lines.slice(Math.max(0, lines.length - lineCount))
 }
 
-function followFile(filePath, onLine) {
+function followFile(filePath, onLine, { startAt = null } = {}) {
   let position = 0
+  let device = null
+  let inode = null
   try {
     const fd = fs.openSync(filePath, "r")
     try {
-      position = fs.fstatSync(fd).size
+      const stats = fs.fstatSync(fd)
+      // The offset the caller already printed to, when it has one: starting at the current size instead dropped
+      // every line written between its tail read and this call — the run it was invoked on, usually.
+      position = typeof startAt === "number" && startAt >= 0 && startAt <= stats.size ? startAt : stats.size
+      device = stats.dev
+      inode = stats.ino
     } finally {
       fs.closeSync(fd)
     }
@@ -1607,6 +1622,15 @@ function followFile(filePath, onLine) {
     try {
       fd = fs.openSync(filePath, "r")
       const stats = fs.fstatSync(fd)
+      // A rotated log is a different file at the same path, and reading it from the old offset spliced a middle
+      // slice of the new one into the output; a smaller size alone only caught the rotations shorter than the old.
+      const rotated = device !== null && inode !== null && (stats.dev !== device || stats.ino !== inode)
+      if (rotated) {
+        device = stats.dev
+        inode = stats.ino
+        position = 0
+        remainder = ""
+      }
       if (stats.size < position) {
         position = 0
       }
@@ -2658,8 +2682,11 @@ const commands = {
       clackIntro("AX Code Desktop Logs")
     }
 
+    // The size before each tail read: anything appended while it ran is followed from there rather than dropped.
+    const followFromByPort = new Map()
     for (const target of targets) {
       const logPath = getLogFilePath(target.port)
+      followFromByPort.set(target.port, fileSize(logPath))
       const lines = readTailLines(logPath, options.lines)
       if (showFrames) {
         logStatus("info", `port ${target.port}`, logPath)
@@ -2684,13 +2711,17 @@ const commands = {
 
     const unsubs = targets.map((target) => {
       const logPath = getLogFilePath(target.port)
-      return followFile(logPath, (line) => {
-        if (shouldPrefixLines) {
-          console.log(`[${target.port}] ${line}`)
-        } else {
-          console.log(line)
-        }
-      })
+      return followFile(
+        logPath,
+        (line) => {
+          if (shouldPrefixLines) {
+            console.log(`[${target.port}] ${line}`)
+          } else {
+            console.log(line)
+          }
+        },
+        { startAt: followFromByPort.get(target.port) ?? null },
+      )
     })
 
     await new Promise((resolve) => {
@@ -2961,6 +2992,7 @@ if (isCliExecution) {
 export {
   commands,
   parseArgs,
+  followFile,
   assertRestartCanCarryPassword,
   terminateProcessTree,
   hasUiPasswordConfigured,

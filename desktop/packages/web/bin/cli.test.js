@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { spawnSync } from "child_process"
+import fs from "fs"
+import os from "os"
 import path from "path"
 import { pathToFileURL } from "url"
 
@@ -25,6 +27,7 @@ import { isModuleCliExecution, normalizeCliEntryPath } from "./cli-entry.js"
 import {
   assertRestartCanCarryPassword,
   buildTunnelServeOptions,
+  followFile,
   commands,
   parseArgs,
   terminateProcessTree,
@@ -564,5 +567,66 @@ describe("cli entry detection", () => {
     }
 
     expect(normalizeCliEntryPath(unresolvedPath, realpath)).toBe(path.resolve(unresolvedPath))
+  })
+})
+
+describe("logs --follow", () => {
+  const waitFor = async (predicate, timeoutMs = 3000) => {
+    const deadline = Date.now() + timeoutMs
+    while (!predicate() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+  }
+
+  it("starts at the offset the tail read reached, not at the file's end", async () => {
+    // The tail was printed and the follow then started at the current size, so every line written in between —
+    // the ones the followed run was producing — was dropped from the output.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-logs-follow-"))
+    const logPath = path.join(dir, "daemon.log")
+    fs.writeFileSync(logPath, "first\n")
+    const fromOffset = fs.statSync(logPath).size
+    // Written after the tail read and before the follow starts.
+    fs.appendFileSync(logPath, "second\n")
+
+    const seen = []
+    const stop = followFile(logPath, (line) => seen.push(line), { startAt: fromOffset })
+    try {
+      await waitFor(() => seen.includes("second"))
+      expect(seen).toContain("second")
+      // And it keeps following.
+      fs.appendFileSync(logPath, "third\n")
+      await waitFor(() => seen.includes("third"))
+      expect(seen).toContain("third")
+    } finally {
+      stop()
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("does not splice a rotated log into the output", async () => {
+    // A liveness restart replaces the file at the same path: reading the new one from the old offset printed a
+    // middle slice of it. Only a rotation shorter than the old file was caught by the size check.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-logs-rotate-"))
+    const logPath = path.join(dir, "daemon.log")
+    fs.writeFileSync(logPath, "old-line-one\nold-line-two\n")
+    const fromOffset = fs.statSync(logPath).size
+
+    const seen = []
+    const stop = followFile(logPath, (line) => seen.push(line), { startAt: fromOffset })
+    try {
+      // The same path, a new file, longer than the old one.
+      fs.rmSync(logPath, { force: true })
+      fs.writeFileSync(logPath, "rotated-first\nrotated-second\nrotated-third\n")
+      await waitFor(() => seen.includes("rotated-first"))
+
+      expect(seen).toContain("rotated-first")
+      // Nothing that is not a whole line of the new file.
+      for (const line of seen) {
+        expect(line).toMatch(/^(rotated-first|rotated-second|rotated-third)$/)
+      }
+    } finally {
+      stop()
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
