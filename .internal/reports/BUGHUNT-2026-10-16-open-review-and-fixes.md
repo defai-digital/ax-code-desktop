@@ -1411,7 +1411,8 @@ The fresh-scope UI-kit audit (deepseek-flash) reported six items; all were read 
 
 `81ff4b7c`: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
 `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 990, web 1 334 (+2 skipped),
-0 `FAIL` lines.
+0 `FAIL` lines. `pnpm run build` also exits 0 (45.8 s) on this tree, which the earlier rounds of this series did not
+run.
 
 `63b647ef`: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
 `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 987, web 1 333 (+2 skipped),
