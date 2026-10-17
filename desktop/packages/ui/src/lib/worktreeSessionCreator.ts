@@ -152,22 +152,21 @@ const createInstantWorktreeDraft = async (options?: {
     return null
   }
 
-  // Claimed before the first await. The check above and the claim below used to bracket
-  // `await checkIsGitRepository`, and both the new-worktree shortcut and the menu item call this without
-  // awaiting, so two presses in the same tick both passed the guard: two worktrees, two branches, and one draft
-  // target between them. Every early return before the body's own `try`/`finally` releases it.
-  isCreatingWorktreeSession = true
-
   const activeProject = useProjectsStore.getState().getActiveProject()
   if (!activeProject?.path) {
     toast.error(tr("worktreeSessionCreator.error.noActiveProject"), {
       description: tr("worktreeSessionCreator.error.noActiveProjectDescription"),
     })
-    isCreatingWorktreeSession = false
     return null
   }
 
   const projectDirectory = activeProject.path
+
+  // Claimed before the first await, which is what closes the race, and after the checks that can return without
+  // doing anything: taking it above them meant a throw from the store or the toast left this module-level flag
+  // claimed for the life of the renderer, and every later attempt answered `null` from the guard above. Every
+  // early return between here and the body's own `try`/`finally` releases it.
+  isCreatingWorktreeSession = true
 
   let isGitRepo = false
   try {
