@@ -1352,7 +1352,15 @@ Other findings from the two commits above:
   `expected 'in / today' to be 'in today'`.
 - The full run after `f9d0f2e2` failed one web test (`ax-code/core-routes.test.js` > "allows GET requests without an
   Origin header"), which passes alone (29 tests): the wall-clock family this record already groups, now on a fourth
-  file.
+  file. The run after `d724cb6e` lost a different one from the same family — `terminal/runtime.test.js` > "keeps the
+  cap when the replaced session leaves on its own during the spawn", which passes alone too and had flaked once
+  before. Five full runs in this stretch have each lost exactly one wall-clock test, in four different files; the
+  other four gates were 0 every time.
+- **`d724cb6e`** — the second audit found the bypass round 31's group signal left: `stop` asks the server to shut
+  down and, when the leader exits inside that wait, returned success without ever reaching `terminateProcessTree`,
+  so a child in its group that ignored the shutdown outlived a `stop` that reported the instance stopped and then
+  deleted its pid files. The graceful branch runs the same tree call with no grace left. The summarization pattern's
+  `(` alternative is dropped with it: parentheses are stripped earlier in the same function, so it was dead.
 
 ## Thirty-first round
 
