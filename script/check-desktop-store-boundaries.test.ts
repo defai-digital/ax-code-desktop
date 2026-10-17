@@ -234,6 +234,20 @@ describe("R5 connection-state writer registry", () => {
     )
     expect(inline.violations).toEqual([])
     expect(inline.importsWriteApi).toBe(false)
+
+    // A mixed clause still reports the value element.
+    const mixedImport = analyzeConnectionStateWriterImports(
+      componentFile("ui", "ReconnectBanner.tsx"),
+      'import { type markStreamConnected, markStreamDisconnected } from "@/lib/event-stream/connection-state"',
+    )
+    expect(mixedImport.violations).toHaveLength(1)
+    expect(mixedImport.importsWriteApi).toBe(true)
+
+    const mixedExport = analyzeConnectionStateWriterImports(
+      componentFile("ui", "connectionStateFacade.ts"),
+      'export { type markStreamConnected, markStreamDisconnected } from "@/lib/event-stream/connection-state"',
+    )
+    expect(mixedExport.violations).toHaveLength(1)
   })
 
   test("blocks a whole-module re-export from an unregistered module", () => {
