@@ -1305,6 +1305,41 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Thirty-seventh round
+
+An audit of the thirty-sixth round's fixes (Claude Code CLI over `git diff 490d6db3 8e017639`), plus a check of the
+same code while it ran. Four findings and one test gap; all fixed in `1c398e0b`. One of them corrects a decision the
+previous round recorded as deliberate.
+
+### Fixed
+
+- **Pruning the answered markers by request-object identity reopened the double mirror.** The permission resync
+  republishes the same pending request as a fresh object (`merged[sessionID] = permissions`), and a repeated
+  `permission.asked` replaces the entry too; either dropped the marker while the request was still listed, so the
+  settled request was mirrored again — the bug the marker exists to prevent. The marker is kept while the id is
+  listed and dropped when the server stops listing it (the safer side of the re-prompt trade-off), and it stays at
+  module scope so a watcher remount keeps it. Red: the identity case was written as a test and shows the marker
+  surviving the replaced object now.
+- **The scheme bound of 16 left longer reverse-DNS schemes whole, and the absolute path after `///` leaked into the
+  summary** (`com.apple.dt.xcode:///Users/akira/secret/proj`). With the lookbehind, only the first character of a
+  scheme-character run can start a match, so the quantifier is unbounded now and linear (2 ms for 400k characters);
+  the whole link is masked. Red: the path survived verbatim.
+- **The archived bucket was chosen from `archivedSessions` alone.** A stale archived copy dragged a live session's
+  export into the archived tree, and an archived row whose root was missing from a paged cache found no children
+  at all. The newest copy across both buckets decides now, falling back to the row's own state. Red: `[]` instead of
+  `['active-child']` and `['archived-child']`.
+- **R5 skipped type-only exports but still flagged type-only imports**, and a type-only import also set
+  `importsWriteApi`, suppressing the stale-writer warning. Both the whole-clause `type` modifier and the inline one
+  are skipped now. Red: a violation for `import type { markStreamConnected }`.
+- **Test gap:** the guard had no case for `hasUiPassword: false` with a real stored password; it is covered now.
+
+### The previous round's decision, corrected
+
+The thirty-sixth round recorded identity-based pruning as a deliberate way to let a same-id re-prompt through. That
+reading was wrong: a resync is indistinguishable from a re-prompt by object identity, and it fired on the common
+path. The suppression of a genuine same-id re-prompt is the accepted cost, and it is noted in
+`pruneAnsweredRequestIds`.
+
 ## Thirty-sixth round
 
 An audit of the thirty-fifth round's fixes (`muse-wonder-full-1.0` over `git diff d288f1c0 490d6db3`). It reported
@@ -4063,6 +4098,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-seventh round, after `1c398e0b`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
+  electron 600, ui 3 000, web 1 340 (+2 skipped), 0 `FAIL` lines.
 - Latest full run, in the thirty-sixth round, after `8e017639`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 184 (+6 skipped),
   electron 600, ui 2 998, web 1 340 (+2 skipped), 0 `FAIL` lines.
