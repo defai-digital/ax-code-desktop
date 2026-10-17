@@ -1356,6 +1356,11 @@ Other findings from the two commits above:
   cap when the replaced session leaves on its own during the spawn", which passes alone too and had flaked once
   before. Five full runs in this stretch have each lost exactly one wall-clock test, in four different files; the
   other four gates were 0 every time.
+- **`063782f3`** — the guard this series added to the bell's permission entry was a `useState` flag, and `setState`
+  is async: two clicks in the same tick both read it as false and both handlers ran — the reason the sibling
+  `PermissionCard` uses a ref, whose own comment says so. The ref is the gate now; the state remains for `disabled`.
+  The test had hidden it by flushing `await act(...)` between the two clicks; both happen inside one `act` now.
+  Red: `expected "vi.fn()" to not be called at all, but actually been called 1 times`.
 - **`d724cb6e`** — the second audit found the bypass round 31's group signal left: `stop` asks the server to shut
   down and, when the leader exits inside that wait, returned success without ever reaching `terminateProcessTree`,
   so a child in its group that ignored the shutdown outlived a `stop` that reported the instance stopped and then
@@ -3824,6 +3829,10 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-second round, after `063782f3`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
+  electron 600, ui 2 981, web 1 330 (+2 skipped), 0 `FAIL` lines. This is the first run of this stretch without a
+  wall-clock flake.
 - Latest full run, in the thirty-first round, after `b9c76f85` (the last two red lights): `pnpm run typecheck` 0,
   `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts
   180 (+6 skipped), electron 600, ui 2 980, web 1 330 (+2 skipped), 0 `FAIL` lines.
