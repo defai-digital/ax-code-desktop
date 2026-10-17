@@ -252,6 +252,11 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The bundled AX Code runtime pin moves to the signed v7.26.4 and the JSR SDK pin to 2.6.26, the first
+  releases with lifecycle hook inspection (`GET /hooks`, `hook.completed`), the permission request risk class
+  and MCP form elicitation. Artifact sizes and SHA-256 digests were recomputed from the downloaded release
+  assets after their minisign signatures verified against the committed public key; the digests also match
+  the release's trusted comments.
 - The bundled AX Code runtime pin moves to the signed v7.26.0 and the JSR SDK pin to 2.6.22. Artifact
   sizes and SHA-256 digests were recomputed from the downloaded release assets after their minisign
   signatures verified against the committed public key; the digests also match the release's trusted
