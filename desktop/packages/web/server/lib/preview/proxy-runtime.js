@@ -1184,25 +1184,38 @@ export const rewritePreviewBody = ({ bodyText, proxyBasePath, targetOrigin, kind
       const q = quote || ""
       return `url(${q}${rewriteResourceUrl(value)}${q})`
     })
+  const rewriteMetaRefresh = (text) =>
+    text.replace(/<meta\b[^>]*>/gi, (tag) => {
+      if (!/http-equiv\s*=\s*(['"])refresh\1/i.test(tag)) return tag
+      // content="0; url=/next" navigates the iframe; the browser would resolve /next on the Desktop origin.
+      return tag.replace(/(\bcontent\s*=\s*)(['"])([^'"]*)\2/i, (match, head, quote, value) => {
+        const rewritten = value.replace(/(\burl\s*=\s*)(['"]?)([^'";]*)\2/i, (inner, prefix, innerQuote, target) => {
+          return `${prefix}${innerQuote}${rewriteResourceUrl(target)}${innerQuote}`
+        })
+        return `${head}${quote}${rewritten}${quote}`
+      })
+    })
   const rewriteHtml = (text) =>
-    rewriteCssUrlReferences(text)
-      .replace(/\b(src|href|action)=(['"])([^'"]*)\2/gi, (_match, attr, quote, value) => {
-        return `${attr}=${quote}${rewriteResourceUrl(value)}${quote}`
-      })
-      .replace(/\bsrcset=(['"])([^'"]*)\1/gi, (_match, quote, value) => {
-        const rewritten = String(value)
-          .split(",")
-          .map((part) => {
-            const trimmed = part.trim()
-            if (!trimmed) return trimmed
-            const segments = trimmed.split(/\s+/)
-            const url = segments[0] || ""
-            segments[0] = rewriteResourceUrl(url)
-            return segments.join(" ")
-          })
-          .join(", ")
-        return `srcset=${quote}${rewritten}${quote}`
-      })
+    rewriteMetaRefresh(
+      rewriteCssUrlReferences(text)
+        .replace(/\b(src|href|action)=(['"])([^'"]*)\2/gi, (_match, attr, quote, value) => {
+          return `${attr}=${quote}${rewriteResourceUrl(value)}${quote}`
+        })
+        .replace(/\bsrcset=(['"])([^'"]*)\1/gi, (_match, quote, value) => {
+          const rewritten = String(value)
+            .split(",")
+            .map((part) => {
+              const trimmed = part.trim()
+              if (!trimmed) return trimmed
+              const segments = trimmed.split(/\s+/)
+              const url = segments[0] || ""
+              segments[0] = rewriteResourceUrl(url)
+              return segments.join(" ")
+            })
+            .join(", ")
+          return `srcset=${quote}${rewritten}${quote}`
+        }),
+    )
   const rewriteCss = (text) =>
     rewriteCssUrlReferences(text).replace(/@import\s+(['"])\/(?!\/)([^'"]*)\1/gi, (_match, quote, path) => {
       return `@import ${quote}${rewriteResourceUrl(`/${path}`)}${quote}`

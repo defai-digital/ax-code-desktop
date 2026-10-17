@@ -137,6 +137,20 @@ describe("preview body URL rewriting", () => {
     expect(rewrite(input, "html")).toBe(input)
   })
 
+  it("rewrites a meta refresh target so the frame stays inside the proxy", () => {
+    // A meta refresh navigates the iframe itself; left alone, it loads the Desktop origin's /next, not the
+    // previewed app's.
+    const output = rewrite('<meta http-equiv="refresh" content="0;url=/next">', "html")
+
+    expect(output).toContain('content="0;url=/api/preview/proxy/abc123/next"')
+  })
+
+  it("leaves a meta refresh to another origin alone", () => {
+    const input = '<meta http-equiv="refresh" content="0;url=https://example.com/next">'
+
+    expect(rewrite(input, "html")).toBe(input)
+  })
+
   it("rewrites only CSS imports and url references in CSS responses", () => {
     const input = '@import "/theme.css"; .hero { background: url(/hero.png); } .copy::after { content: "/not-a-url"; }'
     const output = rewrite(input, "css")
