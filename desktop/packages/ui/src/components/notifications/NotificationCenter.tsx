@@ -27,16 +27,22 @@ const NotificationEntry: React.FC<{
 
   // The entry leaves only once its answer landed: a reply that failed leaves the permission pending, and removing
   // the entry took away the user's handle on it — the request stayed open somewhere the bell no longer showed.
+  // The guard is synchronous, like the permission card's: without it Allow and Deny could both be submitted for one
+  // request while the first was still in flight.
+  const [responding, setResponding] = React.useState(false)
   const respond = React.useCallback(
     async (handler: (() => void | Promise<void>) | undefined) => {
+      if (responding) return
+      setResponding(true)
       try {
         await handler?.()
       } catch {
+        setResponding(false)
         return
       }
       onRemove(item.id)
     },
-    [item.id, onRemove],
+    [item.id, onRemove, responding],
   )
 
   return (
@@ -61,6 +67,7 @@ const NotificationEntry: React.FC<{
               size="sm"
               variant="default"
               className="h-6 px-2 typography-micro"
+              disabled={responding}
               onClick={() => {
                 void respond(item.onAllow)
               }}
@@ -71,6 +78,7 @@ const NotificationEntry: React.FC<{
               size="sm"
               variant="ghost"
               className="h-6 px-2 typography-micro"
+              disabled={responding}
               onClick={() => {
                 void respond(item.onDeny)
               }}

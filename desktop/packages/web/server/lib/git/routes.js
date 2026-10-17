@@ -496,7 +496,10 @@ export function registerGitRoutes(app, options = {}) {
       // file and leaves stdout empty, and the route answered 200 with a counts map keyed by the option. The other
       // stash routes reject the option form for the same reason.
       const refs = req.body?.refs
-      if (Array.isArray(refs) && refs.some((ref) => isOptionLikeRevision(ref))) {
+      // `countStashFiles` normalizes a non-array into a one-element list, so a bare string is the same hazard as an
+      // array entry and the guard has to look at both.
+      const refList = Array.isArray(refs) ? refs : typeof refs === "string" ? [refs] : []
+      if (refList.some((ref) => isOptionLikeRevision(ref))) {
         return res.status(400).json({ error: "stash ref must be a stash reference, not an option" })
       }
       res.json({ counts: await countStashFiles(directory, refs) })

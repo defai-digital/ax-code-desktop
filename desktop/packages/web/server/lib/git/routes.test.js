@@ -438,6 +438,21 @@ describe("git routes stash references", () => {
     expect(response.statusCode).toBe(400)
   })
 
+  it("rejects an option-like stash ref sent as a bare string", async () => {
+    // `countStashFiles` normalizes a non-array into a one-element list, so the string form reaches `git stash show`
+    // exactly as an array entry does and the guard has to see both.
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("POST", "/api/git/stashes/file-counts")(
+      { query: { directory: "/repo" }, body: { refs: "--output=/tmp/pwned" } },
+      response,
+    )
+
+    expect(response.statusCode).toBe(400)
+  })
+
   it("rejects an option-like start point instead of creating the branch from HEAD", async () => {
     // `git checkout -b <name> <startPoint>` reads a leading "-" as an option, so the branch was created at HEAD
     // (or over local state, with `--force`) and the route answered success for a branch from the wrong commit.

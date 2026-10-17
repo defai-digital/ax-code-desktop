@@ -72,6 +72,28 @@ describe("NotificationCenter permission entry", () => {
     expect(useNotificationStore.getState().notifications).toHaveLength(1)
   })
 
+  test("submits one answer per request", async () => {
+    // Waiting for the reply before removing the entry added no synchronous guard, so Allow and Deny could both be
+    // submitted for one request while the first was in flight.
+    let releaseReply = () => {}
+    const onAllow = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseReply = resolve
+        }),
+    )
+    const onDeny = vi.fn(async () => {})
+    useNotificationStore.getState().addNotification(permissionItem({ onAllow, onDeny }))
+    await render()
+
+    await click(dict["notificationCenter.allow"])
+    await click(dict["notificationCenter.deny"])
+
+    expect(onAllow).toHaveBeenCalledTimes(1)
+    expect(onDeny).not.toHaveBeenCalled()
+    releaseReply()
+  })
+
   test("removes the entry once the answer landed", async () => {
     const onAllow = vi.fn(async () => {})
     useNotificationStore.getState().addNotification(permissionItem({ onAllow, onDeny: onAllow }))
