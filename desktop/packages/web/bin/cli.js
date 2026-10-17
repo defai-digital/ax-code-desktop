@@ -1621,8 +1621,10 @@ function followFile(filePath, onLine, { startAt = null } = {}) {
   let position = 0
   let device = null
   let inode = null
+  let identityFd
   try {
     const fd = fs.openSync(filePath, "r")
+    identityFd = fd
     try {
       const stats = fs.fstatSync(fd)
       // The offset the caller already printed to, when it has one: starting at the current size instead dropped
@@ -1630,8 +1632,10 @@ function followFile(filePath, onLine, { startAt = null } = {}) {
       position = typeof startAt === "number" && startAt >= 0 && startAt <= stats.size ? startAt : stats.size
       device = stats.dev
       inode = stats.ino
-    } finally {
+    } catch (error) {
       fs.closeSync(fd)
+      identityFd = undefined
+      throw error
     }
   } catch {
     position = 0
@@ -1643,12 +1647,19 @@ function followFile(filePath, onLine, { startAt = null } = {}) {
     try {
       fd = fs.openSync(filePath, "r")
       const stats = fs.fstatSync(fd)
+      const readFd = fd
+      // Keep the prior inode alive until the replacement is opened. Closing all
+      // descriptors between polls lets Linux reuse the same dev/ino for a new
+      // file, which otherwise looks like an append and starts at the old offset.
       // A rotated log is a different file at the same path, and reading it from the old offset spliced a middle
       // slice of the new one into the output; a smaller size alone only caught the rotations shorter than the old.
       // A log that did not exist when this started has no identity yet, and reads as a rotation for the same
       // reason: the first file it opens is read from the beginning and becomes the baseline.
       const rotated = device === null || inode === null || stats.dev !== device || stats.ino !== inode
       if (rotated) {
+        if (identityFd !== undefined) fs.closeSync(identityFd)
+        identityFd = fd
+        fd = undefined
         device = stats.dev
         inode = stats.ino
         position = 0
@@ -1656,6 +1667,7 @@ function followFile(filePath, onLine, { startAt = null } = {}) {
       }
       if (stats.size < position) {
         position = 0
+        remainder = ""
       }
       if (stats.size === position) {
         return
@@ -1663,7 +1675,7 @@ function followFile(filePath, onLine, { startAt = null } = {}) {
 
       const length = stats.size - position
       const buffer = Buffer.alloc(length)
-      fs.readSync(fd, buffer, 0, length, position)
+      fs.readSync(readFd, buffer, 0, length, position)
       position = stats.size
       const chunk = remainder + buffer.toString("utf8")
       const parts = chunk.split(/\r?\n/)
@@ -1679,6 +1691,10 @@ function followFile(filePath, onLine, { startAt = null } = {}) {
 
   return () => {
     clearInterval(interval)
+    if (identityFd !== undefined) {
+      fs.closeSync(identityFd)
+      identityFd = undefined
+    }
   }
 }
 
@@ -2875,15 +2891,7 @@ const commands = {
 
 async function main() {
   const parsed = parseArgs()
-  const {
-    command,
-    startupAction,
-    tunnelAction,
-    options,
-    removedFlagErrors,
-    helpRequested,
-    versionRequested,
-  } = parsed
+  const { command, startupAction, tunnelAction, options, removedFlagErrors, helpRequested, versionRequested } = parsed
   activeCommandOptions = options
 
   if (versionRequested) {

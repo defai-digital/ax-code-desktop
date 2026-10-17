@@ -195,7 +195,13 @@ describe("startup quoting", () => {
   it("refuses to restart an instance whose record is missing and gives it no password", () => {
     // The record is what says whether the instance it replaces had a password. Without it the restarted server
     // came up unprotected on a port that may have had one — silently, and especially in quiet mode.
-    const base = { port: 3999, storedOptions: null, explicitUiPassword: false, uiPassword: undefined, envPassword: undefined }
+    const base = {
+      port: 3999,
+      storedOptions: null,
+      explicitUiPassword: false,
+      uiPassword: undefined,
+      envPassword: undefined,
+    }
 
     expect(() => assertRestartCanCarryPassword(base)).toThrow(/instance record is missing/)
 
@@ -211,7 +217,10 @@ describe("startup quoting", () => {
     ).not.toThrow()
     // A record that says "no password" but carries one is still a usable password.
     expect(() =>
-      assertRestartCanCarryPassword({ ...base, storedOptions: { port: 3999, hasUiPassword: false, uiPassword: "s3cret" } }),
+      assertRestartCanCarryPassword({
+        ...base,
+        storedOptions: { port: 3999, hasUiPassword: false, uiPassword: "s3cret" },
+      }),
     ).not.toThrow()
   })
 
@@ -219,7 +228,13 @@ describe("startup quoting", () => {
     // A record with `hasUiPassword: true` and a blank value says the previous instance was protected, but the value
     // the server checks is unset: trusting the record restarted it unprotected without a word.
     const blankRecord = { port: 3999, uiPassword: "", hasUiPassword: true }
-    const base = { port: 3999, storedOptions: blankRecord, explicitUiPassword: false, uiPassword: undefined, envPassword: undefined }
+    const base = {
+      port: 3999,
+      storedOptions: blankRecord,
+      explicitUiPassword: false,
+      uiPassword: undefined,
+      envPassword: undefined,
+    }
 
     expect(() => assertRestartCanCarryPassword(base)).toThrow(/no UI password/)
     // A real password from either explicit source still satisfies it.
@@ -249,7 +264,6 @@ describe("startup quoting", () => {
     expect(() => assertRestartCanCarryPassword({ ...base, storedOptions: { port: 3999 } })).not.toThrow()
   })
 
-
   it.skipIf(process.platform === "win32")("forces the group even when the leader is already gone", async () => {
     // The reason this signals the group is that the leader's children outlive it. The graceful wait asks about the
     // pid only, so a leader that has already exited answers at once — and the survivors were never sent anything.
@@ -273,28 +287,31 @@ describe("startup quoting", () => {
     }
   })
 
-  it.skipIf(process.platform === "win32")("forces the group when the graceful stop already saw the leader go", async () => {
-    // `stop` asks the server to shut down and returns as soon as the leader exits: the group signal lived only in
-    // `terminateProcessTree`, which that path never reached, so a child that ignored the shutdown outlived a `stop`
-    // that reported the instance stopped.
-    const calls = []
-    const killSpy = vi.spyOn(process, "kill").mockImplementation((target, signal) => {
-      calls.push([target, signal])
-      if (target > 0) {
-        const error = new Error("kill ESRCH")
-        error.code = "ESRCH"
-        throw error
-      }
-      return true
-    })
-    try {
-      await expect(stopInstanceProcess(4343, { shutdownWaitMs: 10, forceTimeoutMs: 10 })).resolves.toBe(true)
+  it.skipIf(process.platform === "win32")(
+    "forces the group when the graceful stop already saw the leader go",
+    async () => {
+      // `stop` asks the server to shut down and returns as soon as the leader exits: the group signal lived only in
+      // `terminateProcessTree`, which that path never reached, so a child that ignored the shutdown outlived a `stop`
+      // that reported the instance stopped.
+      const calls = []
+      const killSpy = vi.spyOn(process, "kill").mockImplementation((target, signal) => {
+        calls.push([target, signal])
+        if (target > 0) {
+          const error = new Error("kill ESRCH")
+          error.code = "ESRCH"
+          throw error
+        }
+        return true
+      })
+      try {
+        await expect(stopInstanceProcess(4343, { shutdownWaitMs: 10, forceTimeoutMs: 10 })).resolves.toBe(true)
 
-      expect(calls).toContainEqual([-4343, "SIGKILL"])
-    } finally {
-      killSpy.mockRestore()
-    }
-  })
+        expect(calls).toContainEqual([-4343, "SIGKILL"])
+      } finally {
+        killSpy.mockRestore()
+      }
+    },
+  )
 
   it("escapes Windows task command arguments", () => {
     expect(windowsCommandQuote(String.raw`C:\Program Files\AX "Code"\run.ps1`)).toBe(
@@ -795,6 +812,53 @@ describe("logs --follow", () => {
       expect(seen).toContain("rotated-one")
     } finally {
       stop()
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("drops an unfinished line when the current log is truncated", async () => {
+    vi.useFakeTimers()
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-log-truncate-"))
+    const logPath = path.join(dir, "daemon.log")
+    fs.writeFileSync(logPath, "old-unfinished-line")
+    const seen = []
+    const stop = followFile(logPath, (line) => seen.push(line), { startAt: 0 })
+    try {
+      await vi.advanceTimersByTimeAsync(400)
+      expect(seen).toEqual([])
+      fs.writeFileSync(logPath, "new\n")
+      await vi.advanceTimersByTimeAsync(400)
+      expect(seen).toEqual(["new"])
+    } finally {
+      stop()
+      vi.useRealTimers()
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("releases all log descriptors when following stops", async () => {
+    vi.useFakeTimers()
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-log-descriptors-"))
+    const logPath = path.join(dir, "daemon.log")
+    fs.writeFileSync(logPath, "first\n")
+    const opened = new Set()
+    const originalOpen = fs.openSync.bind(fs)
+    const openSpy = vi.spyOn(fs, "openSync").mockImplementation((file, ...args) => {
+      const fd = originalOpen(file, ...args)
+      if (file === logPath) opened.add(fd)
+      return fd
+    })
+    const stop = followFile(logPath, () => {})
+    try {
+      fs.renameSync(logPath, path.join(dir, "previous.log"))
+      fs.writeFileSync(logPath, "replacement\n")
+      await vi.advanceTimersByTimeAsync(400)
+      stop()
+      for (const fd of opened) expect(() => fs.fstatSync(fd)).toThrow()
+    } finally {
+      stop()
+      openSpy.mockRestore()
+      vi.useRealTimers()
       fs.rmSync(dir, { recursive: true, force: true })
     }
   })

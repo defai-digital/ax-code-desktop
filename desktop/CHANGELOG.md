@@ -64,6 +64,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Log following preserves whole lines when Linux reuses a rotated file inode, discards unfinished text after truncation, and releases held descriptors on stop.
+
 - Wiki Graph opens the official AX Code reading workspace in an isolated window, using the signed runtime export instead of a duplicate Desktop graph renderer.
 - Canonical repository discovery and Git state paths reject metadata symlink escapes; failed file reads no longer inspect unvalidated request paths.
 - Windows native qualification now launches the installed graphical app, checks runtime health and first paint, and tests installation paths containing spaces.
