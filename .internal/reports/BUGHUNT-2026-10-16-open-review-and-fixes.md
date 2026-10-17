@@ -1337,8 +1337,22 @@ on two reviewers, to see whether fixing the first audit's nine findings introduc
 - **The summarization path pattern can leave a trailing slash** (`server/lib/text/summarization.js`). A path written
   with a trailing separator loses the run and keeps the slash.
 
-The second reviewer (`muse-wonder-full-1.0`) was still reading when this section was written; its findings are
-processed in the next entry rather than assumed.
+The second reviewer (`muse-wonder-full-1.0`) then reported five findings of its own. Three of them are the same
+ground this round already covered — the restart guard at `cli.js:2302`, the follower's offset at `cli.js:2704` and
+the summarization pattern at `summarization.js:25`, all from the pre-fix state it was given — and are closed by
+`6f1b775d` and the commit after it. Two are not yet looked at: `cli.js:1358` (`terminateProcessTree`'s signal path,
+CONFIRMED) and `NotificationCenter.tsx:32` (the entry's new `responding` guard, SUSPECTED), and they are the first
+thing the next pass reads.
+
+Other findings from the two commits above:
+
+- **`f9d0f2e2`** — the follower's start offset came from a `stat` taken before the tail read, so a line appended in
+  between printed twice; it comes from the same `readFileSync` now. And the summarization pattern consumed a run of
+  segments while leaving a trailing separator: "in /usr/bin/ today" came back as "in / today". Red:
+  `expected 'in / today' to be 'in today'`.
+- The full run after `f9d0f2e2` failed one web test (`ax-code/core-routes.test.js` > "allows GET requests without an
+  Origin header"), which passes alone (29 tests): the wall-clock family this record already groups, now on a fourth
+  file.
 
 ## Thirty-first round
 
