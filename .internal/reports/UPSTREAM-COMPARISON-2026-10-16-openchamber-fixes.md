@@ -36,15 +36,28 @@ Discarded, with the reason:
 - **Our code already handles it differently**: the usage-credit display and the
   sidebar's sub-agent handling have no counterpart here.
 
-One limitation: the reference clone is fetch-shallow per ref, with 42 boundary
-commits, so a branch tip whose parent object is absent cannot be diffed at all
-(`git show` then reports the whole tree as added). Six of the 29 fixes above are in
-that state — the two chat-composer fixes ("keep typed text when a session moves to
-another worktree", "send the queue again with Enter in an empty message box"), the
-two sidebar sub-agent fixes, "draw assistant images saved anywhere on the machine"
-and the credit-balance one. None of them is reachable from a branch merged into
-upstream's main line in this clone, so none of them is a *released* upstream fix;
-they need a deepened clone to check.
+One limitation remains in the clone itself — it is fetch-shallow per ref, with 42 boundary
+commits, so a branch tip whose parent object is absent cannot be diffed locally. Six of the
+29 fixes above were in that state. Their patches were read from the GitHub API instead
+(`GET /repos/btriapitsyn/openchamber/commits/<sha>`), which needs no local parent:
+
+- `c7bd084b6` **Enter in an empty message box sends the queue.** Our composer already does:
+  `handleSubmit` proceeds when the queue is non-empty even with no input, and the `if (!hasContent)
+  return` the fix removes never existed here. No change.
+- `d3228344e` **Export Markdown from a flat row offers its subtasks.** Our tree had the exact
+  pre-fix shape — the dialog was gated on the rendered node's `children.length`, and Live and
+  recent rows render `{ session, children: [] }`. Fixed in `63b647ef` by resolving the tree from
+  the global sessions cache when the user acts.
+- `e7ffa604a` (move to worktree takes the subagents) and `d15a4dbd5` (the composer keeps typed
+  text when a session moves to another worktree): our sidebar has no move-to-worktree action, so
+  neither applies.
+- `fe644985a` (draw assistant images saved anywhere) and `f53dff3d0` (the credit balance was 100×):
+  both fixes live in the OpenCode runtime's own modules (`markdown-image-grants`,
+  `quota/providers/opencode-go`), which this repository consumes rather than owns. The same
+  applies to `agent-tool/runtime.js` in the first of the two.
+
+So every one of the 29 is now either fixed here or shown not to apply, and no deepened clone is
+needed.
 
 ## Method
 

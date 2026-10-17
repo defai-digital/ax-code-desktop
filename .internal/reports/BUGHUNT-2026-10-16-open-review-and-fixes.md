@@ -1305,6 +1305,82 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Thirty-third round
+
+A third audit of the same ground: the thirteen fixes the thirty-second round made, over `git diff 5159a3c2 HEAD`
+(3 217 lines), on the two reviewers the previous round used. It ran beside a fresh-scope review of the root
+`script/` directory (Grok CLI), which had not reported before this record was written.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | the diff above, described finding by finding in the prompt |
+| `muse-wonder-full-1.0` (ax-code) | the same diff and prompt |
+| Grok CLI | `script/*.{ts,mjs,cjs}` and the `package.json` scripts that drive them (fresh scope) |
+
+### Fixed from the audit — `63b647ef`
+
+- **The bell's answer guard did not survive the panel's close.** The guard was a ref in `NotificationEntry`, and
+  `NotificationCenter` returns `null` while closed: every close unmounted the entry, and the reopen mounted a fresh
+  one with the guard reset while the first answer was still in flight, so Allow and then Deny were both submitted
+  for one request. The claim is module state keyed by notification id now; the entry reads it on mount for
+  `disabled`. Red: `expected "vi.fn()" to not be called at all, but actually been called 1 times` (onDeny).
+- **An OAuth completion that failed to reload left the provider page empty.** The branch drops every project's
+  provider snapshot first, then asks the runtime to reload; when that threw it showed a warning and stopped, so the
+  list stayed `[]` with no error and no selection until something else loaded providers. The sibling API-key path
+  already reloads the active project in its catch; this one does now too, and also after a reload that succeeded.
+  Red: `expected "vi.fn()" to be called at least once` (loadProviders).
+- **The worktree claim outlived a throw from its own refusal.** The flag is taken before the repository check to
+  close the re-entrancy window, and the comment promises every early return releases it — but the not-a-repository
+  return announced itself with a toast while still holding the claim, and a throw from that toast (the kind the
+  comment cites) left the feature answering `null` for the life of the renderer. The release is in a `finally`.
+  Red: `expected "vi.fn()" to be called 2 times, but got 1 times` (checkIsGitRepository).
+- **The log tail's offset was measured on decoded text.** `fs.readFileSync(path, "utf8")` replaces a cut multibyte
+  character with U+FFFD, so `Buffer.byteLength` of the result is larger than the file: the follower clamps such an
+  offset to end-of-file and drops the lines written between the tail and the follow — the race the offset exists to
+  close. It reads a `Buffer`, decodes for the lines, and reports the buffer's length. Red: `expected 5 to be 4`.
+- **A restart accepted an environment password and did not carry it.** With the instance record missing, the guard
+  passes on `AX_CODE_DESKTOP_UI_PASSWORD`, but `serve` received only the record's (absent) password: the new server
+  was protected by inheritance alone and wrote `hasUiPassword: false`, so the next restart from a shell without the
+  variable passed the guard on that record and came up unprotected, silently. The environment password is read once
+  and handed to `serve` when the record has none. Red: `served.uiPassword` was `undefined`.
+- **A summary kept paths attached to punctuation.** Stripping `[](){}` with nothing turned `[docs](/etc/hosts)` into
+  `docs/etc/hosts`, which no path pattern can tell from prose, and a colon is not a boundary either, so
+  `file:/etc/hosts` survived. The punctuation becomes a space, and a slash-run may follow a colon. Red:
+  `'see docs/etc/hosts today'` and `'see file:/etc/hosts today'`.
+- **Export Markdown offered no subtasks from a flat row.** Live and recent rows render a root without children, so
+  `node.children.length === 0` skipped the dialog and exported the session alone, while the project tree offered the
+  same session's subtasks. This is upstream openchamber `d3228344e`, ported: the tree is resolved from the global
+  sessions cache when the user acts. Red: the module did not exist; the new test asserts a flat row resolves `child`
+  and `grandchild` and that the walk stops at an archived child.
+- **Two tests could not pass on Windows.** `terminateProcessTree` and `stopInstanceProcess` tests assert POSIX
+  `[-pid, "SIGKILL"]` calls with no platform gate, while the sibling test in the same file skips on `win32`. Both
+  are gated now. No red light is possible here: this machine is macOS, and the defect is visible by reading the
+  win32 branch, which uses `taskkill` and never calls `process.kill` with a negative pid.
+
+### Reported by this round's audits, examined and not fixed
+
+- **Fusion refuses when any selected run has no output** (`MultiRunFusionDialog.tsx:170`). This is the guard the
+  previous round added on purpose: dropping the empty sources from the payload while the dialog still listed them
+  made the fused answer read as covering every run. Refusing is the deliberate choice; the message is the closest
+  existing key, because saying "N of them had no output" needs a key in all fourteen locales and the localization
+  check rejects one that only English has. The source list could mark the empty run, which is a UX change, not a
+  defect.
+- **The group receives SIGKILL as soon as the leader exits** (`cli.js:1345-1351`, and `stopInstanceProcess` passing
+  `gracefulTimeoutMs: 0`). Also deliberate: the previous round added the group signal because children outlive the
+  leader, and a child that ignores SIGTERM would otherwise keep a loopback port while `stop` reported success. A
+  bounded group-drain wait would be gentler, but on POSIX it means probing `kill(-pid, 0)` against a pgid that may
+  be recycled, and on Windows a tree kill is impossible once the leader is gone. Changing it reopens the leak it
+  was written to close; the trade-off is recorded here instead.
+- **The Windows tree kill early-returns when the leader is already gone** (`cli.js:1291-1306`). This is the same
+  trade-off as the item above: Windows has no process-group id, so once the leader exits there is nothing to name
+  its children by. The test gating is fixed; the behaviour cannot be verified in this environment.
+
+### Verification
+
+`63b647ef`: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+`pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 987, web 1 333 (+2 skipped),
+0 `FAIL` lines.
+
 ## Thirty-second round
 
 A second audit of the same ground the thirty-first round audited — the thirteen fixes made after that round's audit —
@@ -3832,6 +3908,10 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-third round, after `63b647ef`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
+  electron 600, ui 2 987, web 1 333 (+2 skipped), 0 `FAIL` lines. Two findings have no red light here and say so:
+  the Windows test gating (this machine is macOS), and the fusion refusal, which is deliberate.
 - Latest full run, in the thirty-second round, after `167e7457`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
   electron 600, ui 2 981, web 1 331 (+2 skipped), 0 `FAIL` lines. Every finding of the round now carries a
