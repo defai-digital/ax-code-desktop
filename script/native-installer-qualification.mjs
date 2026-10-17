@@ -65,6 +65,38 @@ export function assertHostedRunner(env, target) {
 }
 const command = (tool, args, env = process.env) =>
   execFileSync(tool, args, { encoding: "utf8", timeout: 600000, stdio: "pipe", shell: false, env })
+export function prepareCanonicalAuthFixture(
+  runtimeRoot,
+  authFile,
+  referenceFile,
+  { run = command, env = process.env } = {},
+) {
+  const node = path.join(runtimeRoot, "node", "bin", process.platform === "win32" ? "node.exe" : "node")
+  const args = [
+    "--disable-warning=ExperimentalWarning",
+    path.join(runtimeRoot, "lib", "index-node-tui.js"),
+    "providers",
+    "auth",
+    "export",
+    "--file",
+    referenceFile,
+  ]
+  let canonical
+  for (let read = 0; read < 2; read++) {
+    // Auth's first read migrates plaintext fixtures and creates its encryption canary.
+    // Use the runtime-owned migration, then require readable credentials and stable bytes.
+    run(node, args, env)
+    const references = JSON.parse(fs.readFileSync(referenceFile, "utf8"))
+    assert.deepEqual(
+      references.providers?.qualification,
+      { type: "summary", summary: "api" },
+      "Synthetic credential is not readable",
+    )
+    if (canonical) verifyPreserved([canonical])
+    else canonical = capturePreservedFile(authFile)
+  }
+  return canonical
+}
 export const writeSyntheticIfAbsent = (file, bytes) => {
   const flags = fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY
   let fd
@@ -129,17 +161,21 @@ async function qualify(target, artifacts, output) {
   // Synthetic configuration values, not real provider credentials. Evidence stores hashes only.
   const authDirectory = path.join(os.homedir(), ".local/share/ax-code")
   fs.mkdirSync(authDirectory, { recursive: true })
-  const records = [
+  const syntheticFiles = [
     [path.join(profile, "language-preferences.json"), '{"language":"en"}\n'],
     [
       path.join(authDirectory, "auth.json"),
       JSON.stringify({ qualification: { type: "api", key: crypto.randomBytes(32).toString("hex") } }),
     ],
     [path.join(config, "ax-code.json"), '{"provider":{}}\n'],
-  ].map(([file, bytes]) => {
-    writeSyntheticIfAbsent(file, bytes)
-    return capturePreservedFile(file)
-  })
+  ]
+  for (const [file, bytes] of syntheticFiles) writeSyntheticIfAbsent(file, bytes)
+  prepareCanonicalAuthFixture(
+    fileURLToPath(new URL("../desktop/packages/electron/resources/ax-code/", import.meta.url)),
+    path.join(authDirectory, "auth.json"),
+    path.join(root, "credential-references.json"),
+  )
+  const records = syntheticFiles.map(([file]) => capturePreservedFile(file))
   let installed
   let executable
   let packageName
@@ -202,10 +238,7 @@ async function qualify(target, artifacts, output) {
           // A failed detach (usually a busy volume) must not replace the failure being unwound: the
           // job then reported an unmount problem instead of the signature or copy that broke, and the
           // real cause was lost with it.
-          console.warn(
-            "Failed to detach the installer volume:",
-            error instanceof Error ? error.message : String(error),
-          )
+          console.warn("Failed to detach the installer volume:", error instanceof Error ? error.message : String(error))
         }
       }
       assert.equal(
@@ -234,9 +267,10 @@ async function qualify(target, artifacts, output) {
         arch: process.arch,
         appPath: process.platform === "darwin" ? installed : executable,
       })
-    const installedGui = selection === "candidate" && process.platform === "win32"
-      ? await runWindowsInstalledGuiSmoke(executable)
-      : undefined
+    const installedGui =
+      selection === "candidate" && process.platform === "win32"
+        ? await runWindowsInstalledGuiSmoke(executable)
+        : undefined
     verifyPreserved(records)
     receipts.push({
       step,

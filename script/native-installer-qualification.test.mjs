@@ -13,7 +13,45 @@ import {
   writeSyntheticIfAbsent,
   capturePreservedFile,
   qualificationVersion,
+  prepareCanonicalAuthFixture,
 } from "./native-installer-qualification.mjs"
+
+test.each(["stable", "missing-provider", "rewritten"])(
+  "canonical credential fixture rejects unsafe runtime reads: %s",
+  (behavior) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-canonical-auth-"))
+    const auth = path.join(root, "auth.json")
+    const references = path.join(root, "references.json")
+    let reads = 0
+    try {
+      fs.writeFileSync(auth, "synthetic plaintext", { mode: 0o600 })
+      const prepare = () =>
+        prepareCanonicalAuthFixture(root, auth, references, {
+          run: () => {
+            reads++
+            if (reads === 1 || behavior === "rewritten") fs.writeFileSync(auth, `synthetic canonical ${reads}`)
+            fs.writeFileSync(
+              references,
+              JSON.stringify({
+                providers:
+                  behavior === "missing-provider" ? {} : { qualification: { type: "summary", summary: "api" } },
+              }),
+            )
+          },
+        })
+      if (behavior === "stable") {
+        const record = prepare()
+        expect(reads).toBe(2)
+        expect(record.sha256).toBe(digest(auth))
+        expect(() => verifyPreserved([record])).not.toThrow()
+      } else {
+        expect(prepare).toThrow(behavior === "missing-provider" ? /not readable/ : /changed profile/)
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  },
+)
 
 test("refuses native installation on developer or self-hosted machines", () => {
   expect(() => assertHostedRunner({}, `${process.platform}-${process.arch}`)).toThrow(/disposable/)

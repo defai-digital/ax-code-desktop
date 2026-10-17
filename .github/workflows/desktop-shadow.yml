@@ -305,7 +305,7 @@ jobs:
           grep -F "Authority=Developer ID Application: DEFAI PRIVATE LIMITED" <<< "$dmg_details"
           grep -F "TeamIdentifier=${APPLE_TEAM_ID}" <<< "$dmg_details"
           xcrun notarytool submit "$dmg" --keychain-profile "$APPLE_KEYCHAIN_PROFILE" --keychain "$APPLE_KEYCHAIN" --wait
-          xcrun stapler staple "$dmg"
+          bash desktop/scripts/ci-retry.sh xcrun stapler staple "$dmg"
           xcrun stapler validate "$dmg"
           spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
           codesign --verify --deep --strict --verbose=2 "$app"
