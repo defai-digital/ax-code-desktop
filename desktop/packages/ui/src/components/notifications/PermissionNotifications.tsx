@@ -72,14 +72,16 @@ function SessionPermissionWatcher({
     }
 
     for (const permission of toAdd) {
-      const respond = (response: "once" | "reject") => () => {
-        void sessionActions.respondToPermission(sessionId, permission.id, response).catch((error: unknown) => {
+      const respond = (response: "once" | "reject") => () =>
+        sessionActions.respondToPermission(sessionId, permission.id, response).catch((error: unknown) => {
           console.error("[PermissionNotifications] Failed to respond to permission:", error)
           toast.error(t("chat.permissionCard.responseFailed.title"), {
             description: error instanceof Error ? error.message : t("chat.permissionCard.responseFailed.retry"),
           })
+          // Rethrown for the entry that offers Allow/Deny: it takes the failure as "the request is still pending"
+          // and keeps itself, which is the only handle the user has on it from the bell.
+          throw error
         })
-      }
       const patternPreview = permission.patterns.filter(Boolean).slice(0, 2).join(" · ")
       const notificationId = store.addNotification({
         type: "permission",

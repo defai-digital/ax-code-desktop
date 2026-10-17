@@ -14,8 +14,8 @@ export type NotificationItem = {
   requestId?: string
   toolName?: string
   /** Action callbacks stored as refs (not serialized) */
-  onAllow?: () => void
-  onDeny?: () => void
+  onAllow?: () => void | Promise<void>
+  onDeny?: () => void | Promise<void>
 }
 
 type NotificationState = {

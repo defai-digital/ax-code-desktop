@@ -25,6 +25,20 @@ const NotificationEntry: React.FC<{
     return formatRelativeAge(Date.now() - item.timestamp, t)
   }, [item.timestamp, t])
 
+  // The entry leaves only once its answer landed: a reply that failed leaves the permission pending, and removing
+  // the entry took away the user's handle on it — the request stayed open somewhere the bell no longer showed.
+  const respond = React.useCallback(
+    async (handler: (() => void | Promise<void>) | undefined) => {
+      try {
+        await handler?.()
+      } catch {
+        return
+      }
+      onRemove(item.id)
+    },
+    [item.id, onRemove],
+  )
+
   return (
     <div
       className={cn(
@@ -48,8 +62,7 @@ const NotificationEntry: React.FC<{
               variant="default"
               className="h-6 px-2 typography-micro"
               onClick={() => {
-                item.onAllow?.()
-                onRemove(item.id)
+                void respond(item.onAllow)
               }}
             >
               {t("notificationCenter.allow")}
@@ -59,8 +72,7 @@ const NotificationEntry: React.FC<{
               variant="ghost"
               className="h-6 px-2 typography-micro"
               onClick={() => {
-                item.onDeny?.()
-                onRemove(item.id)
+                void respond(item.onDeny)
               }}
             >
               {t("notificationCenter.deny")}
