@@ -31,13 +31,15 @@ describe("createWorktreeSession re-entrancy", () => {
       throw new Error("the projects store is not loaded")
     })
     getActiveProjectMock.mockReturnValue({ id: "proj_1", path: "/repo" })
-    checkIsGitRepositoryMock.mockImplementation(() => new Promise(() => {}))
+    // Resolves so the attempt that follows settles: a pending one would leave the claim behind and the next test
+    // in this file would start from it.
+    checkIsGitRepositoryMock.mockResolvedValue(false)
     const { createWorktreeSession } = await import("./worktreeSessionCreator")
 
     await expect(createWorktreeSession()).rejects.toThrow("the projects store is not loaded")
 
     // The next attempt reaches the repository check rather than the guard.
-    void createWorktreeSession()
+    await expect(createWorktreeSession()).resolves.toBeNull()
     expect(checkIsGitRepositoryMock).toHaveBeenCalledTimes(1)
   })
 
@@ -46,21 +48,25 @@ describe("createWorktreeSession re-entrancy", () => {
     // keyboard shortcut and the menu item call this without awaiting: two presses in the same tick both passed it
     // and each went on to create a worktree and a branch, with one draft target between them. The second press is
     // now answered immediately.
-    checkIsGitRepositoryMock.mockImplementation(() => new Promise(() => {}))
+    let releaseGitCheck = () => {}
+    checkIsGitRepositoryMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseGitCheck = () => resolve(false)
+        }),
+    )
     getActiveProjectMock.mockReturnValue({ id: "proj_1", path: "/repo" })
     const { createWorktreeSession } = await import("./worktreeSessionCreator")
 
     const first = createWorktreeSession()
-    // A short real timer, not a resolved promise: the point is whether the second call settles while the first is
-    // still waiting on the repository check, and an already-resolved promise would win the race either way.
-    const outcome = await Promise.race([
-      createWorktreeSession().then((value) => `settled:${String(value)}`),
-      new Promise((resolve) => setTimeout(() => resolve("still-running"), 50)),
-    ])
+    const second = createWorktreeSession()
 
-    expect(outcome).toBe("settled:null")
-    // Only the first call reached the repository check.
+    // The second answered from the guard, without a second repository check.
+    await expect(second).resolves.toBeNull()
     expect(checkIsGitRepositoryMock).toHaveBeenCalledTimes(1)
-    void first
+
+    // Let the first finish so the module's claim is released for whatever runs next.
+    releaseGitCheck()
+    await expect(first).resolves.toBeNull()
   })
 })
