@@ -1305,6 +1305,54 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Thirty-first round
+
+An audit of every fix this series made after the thirtieth round's report — `git diff 5159a3c2 HEAD`, 55 commits —
+on two reviewers. The diff was checked before it was handed over (2 941 lines, 58 files), because a truncated or
+empty input is the harness failure this record keeps meeting.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | the diff: the carried-forward fixes and the round-30 work they follow |
+| `muse-wonder-full-1.0` (ax-code) | the same diff |
+
+### Fixed from the audit
+
+- **`6e482e8a`** — `kill(-pid)` with `pid === 1` means "every process this user may signal", not "the group led by
+  pid 1": a foreground server is PID 1 inside its container, and a `stop` run from there would have killed the CLI
+  itself and everything beside it. The group form is skipped for pid 1.
+- **`6e482e8a`** — the restart password guard ran before the foreground branch, so a foreground instance with no
+  record was refused although that branch never starts a server or carries a password (its process manager restarts
+  it with the environment it was given). It moved into the daemon branch, inside the per-instance `try`, so a
+  refusal is recorded like the other per-instance errors.
+- **`6e482e8a`** — the terminal env's comment still described the entrypoint as passing `--ui-password`, which this
+  series removed when it moved the password into the environment.
+- **`9bf02c1e`** — `sanitizeForSummary`'s path pattern matched any `/<word>`, so prose lost its second half:
+  "either/or and TCP/IP" came back as "either and TCP". It matches a run that begins a word now.
+
+### Confirmed by the second audit, not yet fixed
+
+Four regressions in this series' own fixes, each with the reviewer's evidence in
+`.tmp/bughunt/out-r31-audit2.txt`:
+
+- **`git/routes.js:499`** — the stash file-count guard this series added inspects an *array* only, while
+  `countStashFiles` normalizes a non-array value into a one-element list (`service.js:452`) and passes each entry
+  as bare argv: the string form of `--output=<path>` is still reachable.
+- **`cli.js:1601`** — the log follower never learns the file's device and inode when the log does not exist at
+  start: they are assigned only inside the rotation branch, which requires them to be set, so the first file it
+  opens never becomes the baseline and a later rotation is read from the old offset.
+- **`cli.js:1338`** — `terminateProcessTree` returns success when the *leader* exits, without the `SIGKILL` that
+  would reach a surviving group member: `waitForProcessExit` asks about the pid only, so a child holding a loopback
+  port can outlive a `stop` that reported success.
+- **`ui/src/components/notifications/NotificationCenter.tsx:60`** — delaying the entry's removal until its reply
+  settles added no synchronous re-entry guard: Allow and Deny can both be submitted for one request while the first
+  is pending. The sibling `PermissionCard` uses a submitting flag for the same call.
+
+Two further leads from the first audit are recorded rather than acted on: the log-rotation test deletes and
+recreates the file immediately, so a filesystem that reuses inode numbers would defeat it; and the preview sandbox
+covers HTML, SVG and XHTML but not `application/xml`/`text/xml`, which can run script when the root element is in
+the XHTML namespace.
+
 ## Thirtieth round
 
 Two audits of the twenty-ninth round's own commits, the four server trees this record had never read
@@ -3712,6 +3760,10 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-first round, after `6e482e8a` (three of the audit's findings): `pnpm run typecheck`
+  0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts
+  180 (+6 skipped), electron 600, ui 2 979, web 1 327 (+2 skipped), 0 `FAIL` lines. The four findings the second
+  audit confirmed are recorded above and not yet fixed.
 - Latest full run, after the eighth carried-forward fix (`65b4a080`): `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
   electron 600, ui 2 979, web 1 326 (+2 skipped), 0 `FAIL` lines.
