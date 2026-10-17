@@ -1305,6 +1305,50 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Forty-first round
+
+An audit of the preview proxy's server half (`muse-wonder-full-1.0`), separate from the injected script audited in
+the two rounds before it. Five of its six findings are fixed in `4672d23f`; the sixth is pinned as deliberate. The
+same day's full run also exposed the actual cause of one flake-family entry: a test that takes 4.5 seconds against
+vitest's 5-second default, fixed in `5b2af01a`.
+
+### Fixed — `4672d23f`
+
+- **A CSP policy list could smuggle the upstream's sandbox.** A CSP header is a comma-separated list of policies;
+  the merger split only on `;`, so `default-src 'self', sandbox allow-same-origin allow-scripts` kept the
+  attacker's sandbox, and the proxy's own sandbox — appended to the same policy — became a duplicate directive
+  browsers ignore. The external document then kept the Desktop origin and the session cookie. The sandbox is now
+  stripped from every policy and the proxy's appended as a policy of its own. Red: the merged value contained
+  `allow-same-origin`.
+- **`application/xml` and `text/xml` were not sandboxed.** XML executes script when its payload uses the
+  XHTML/SVG namespace; both types were served on the Desktop origin with the app's own policy. Red: no sandbox CSP
+  for either content type.
+- **`Service-Worker-Allowed` passed through**, letting a preview widen a worker's scope from its proxy prefix to the
+  whole Desktop origin — a registration that outlives the target and its token. It is stripped with the frame
+  headers. Red: the header survived on the response.
+- **A redirect the SSRF guard refused was still forwarded.** http-proxy-middleware copies the upstream `location`
+  onto the response before the interceptor runs, so skipping the rewrite left the raw LAN/metadata URL in place and
+  the browser followed it. The refused redirect now drops the header and answers 502. Red: the link-local Location
+  survived on the response.
+- **Protocol-relative URLs were never rewritten** (`//127.0.0.1:3000/app.js`, `<base>`, `url(//…)`, a meta
+  refresh): the root-relative branch skips `//` and `new URL` has no base for it, so they loaded straight from the
+  dev server — and a `<base>` took every relative URL with it. They are parsed with a base and rewritten when they
+  name the target; another host stays as written. Red: the target host remained in the output.
+
+### Examined and not changed
+
+- **A local preview's redirect to another loopback port still creates a target for it**, reusing the token and
+  local trust. The behavior is pinned as deliberate. The proxied page already has full same-origin access to the
+  app (the file's own comment says so), so the read access to another loopback service is a marginal addition, and
+  an external preview can never reach loopback through this path (`allowExternal` is refused for that branch).
+
+### Flake root cause — `5b2af01a`
+
+- **Two restart tests in `terminal/runtime.test.js` take about 4.5 seconds each by design**, against vitest's
+  five-second default: the file failed *alone* at 5005 ms. Both run with an explicit 15-second budget now; the
+  assertions are unchanged. The other files in the recorded flake family need the same check when they next fail —
+  the pattern is a test whose nominal duration approaches a default timeout, not scheduler noise.
+
 ## Fortieth round
 
 An audit of the injected preview bridge (`proxy-runtime.js`, Claude Code CLI). It found that the thirty-ninth
@@ -4211,6 +4255,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the forty-first round, after `4672d23f` and `5b2af01a`: `pnpm run typecheck` 0,
+  `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts
+  185 (+6 skipped), electron 600, ui 3 069, web 1 353 (+2 skipped), 0 `FAIL` lines.
 - Latest full run, in the fortieth round, after `4b36d679`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
   electron 600, ui 3 069, web 1 349 (+2 skipped), 0 `FAIL` lines.
