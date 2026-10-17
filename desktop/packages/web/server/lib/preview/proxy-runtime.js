@@ -268,21 +268,12 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
 
   const notifyColorSchemeListeners = () => {
     for (const listener of Array.from(colorSchemeListeners)) {
-      // A page that drops its MediaQueryList without removeEventListener must not keep the entry (and the page's
-      // closure) alive: the MQL is held weakly, and a dead one is dropped here.
-      let mql = null;
-      try {
-        mql = listener.mqlRef.deref() || null;
-      } catch {}
-      if (!mql) {
-        colorSchemeListeners.delete(listener);
-        continue;
-      }
       try {
         const matches = mediaQueryMatchesPreviewScheme(listener.media);
         if (matches === null) continue;
-        const event = { matches, media: listener.media, type: 'change', target: mql, currentTarget: mql };
-        listener.callback.call(mql, event);
+        const event = { matches, media: listener.media, type: 'change', target: listener.mql, currentTarget: listener.mql };
+        listener.callback.call(listener.mql, event);
+        if (listener.once) listener.removeEntry();
       } catch {}
     }
   };
@@ -305,15 +296,24 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
         // single removeEventListener the page then calls could never reach it. The orphan kept
         // firing — and kept its closure, and the page's DOM, alive — for good.
         if (listenersForMql.has(callback)) return;
-        const entry = {
-          media: query,
-          // Weak so a page that discards the list without removing its listener does not pin the list, the
-          // callback and everything the callback closes over.
-          mqlRef: typeof WeakRef === 'function' ? new WeakRef(mql) : { deref: () => mql },
-          callback,
+        const opts = options && typeof options === 'object' ? options : {};
+        // An aborted signal means the listener is already gone.
+        if (opts.signal && opts.signal.aborted) return;
+        // Strong on purpose: the platform keeps a MediaQueryList alive while it has listeners, so a
+        // matchMedia(...).addEventListener(...) call without keeping a reference must keep working. Holding it
+        // weakly made a collection silently stop the listener, which no page can observe or fix.
+        const removeEntry = function() {
+          const current = listenersForMql.get(callback);
+          if (current) colorSchemeListeners.delete(current);
+          listenersForMql.delete(callback);
         };
+        const entry = { media: query, mql, callback, once: opts.once === true, removeEntry };
         listenersForMql.set(callback, entry);
         colorSchemeListeners.add(entry);
+        // The signal cleanup a React effect relies on has to remove the listener, exactly as the platform does.
+        if (opts.signal && typeof opts.signal.addEventListener === 'function') {
+          opts.signal.addEventListener('abort', removeEntry, { once: true });
+        }
       };
       mql.removeEventListener = function(type, callback, options) {
         if (type !== 'change' || typeof callback !== 'function') return nativeMql.removeEventListener?.(type, callback, options);
@@ -599,13 +599,18 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
     };
 
     const proxiedWebSocketUrl = (value) => {
+      if (typeof URL === 'function' && value instanceof URL) value = value.href;
       if (typeof value !== 'string') return value;
       try {
         const parsed = new URL(value, window.location.href);
         const current = new URL(window.location.href);
         const sameHost = parsed.host === current.host;
         const isWebSocketProtocol = parsed.protocol === 'ws:' || parsed.protocol === 'wss:';
-        if (sameHost && isWebSocketProtocol && shouldProxyPath(parsed.pathname)) {
+        // WebSocket accepts a relative URL and an http(s) URL, upgrading the scheme. Both were left unproxied,
+        // so the socket connected to the Desktop server's own /ws.
+        const isHttpProtocol = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        if (sameHost && (isWebSocketProtocol || isHttpProtocol) && shouldProxyPath(parsed.pathname)) {
+          if (isHttpProtocol) parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
           parsed.pathname = proxyBase + parsed.pathname;
           return parsed.toString();
         }
@@ -628,8 +633,31 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
           try {
             const parsed = new URL(input.url);
             if (parsed.origin === window.location.origin && shouldProxyPath(parsed.pathname)) {
-              const nextUrl = proxyBase + parsed.pathname + parsed.search + parsed.hash;
-              return nativeFetch(new Request(nextUrl, input), init);
+              // Request needs an absolute URL; the proxy base is a path, so joining it with the old relative
+              // string threw and every Request input fell through to the native fetch unproxied.
+              const nextUrl = new URL(proxyBase + parsed.pathname + parsed.search + parsed.hash, window.location.href).toString();
+              // The caller's init overrides the Request's own fields, as it does in fetch.
+              const source = init === undefined ? input : new Request(input, init);
+              const nextInit = {
+                method: source.method,
+                headers: source.headers,
+                mode: source.mode,
+                credentials: source.credentials,
+                cache: source.cache,
+                redirect: source.redirect,
+                referrer: source.referrer,
+                referrerPolicy: source.referrerPolicy,
+                integrity: source.integrity,
+                keepalive: source.keepalive,
+                signal: source.signal,
+              };
+              if (source.body !== null) {
+                // A stream body needs duplex in Chromium; without it the constructor throws and the fallback
+                // below sends the request to the Desktop server instead of the preview origin.
+                nextInit.body = source.body;
+                nextInit.duplex = 'half';
+              }
+              return nativeFetch(new Request(nextUrl, nextInit));
             }
           } catch {}
         }
@@ -643,6 +671,9 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
         const args = Array.prototype.slice.call(arguments);
         if (typeof url === 'string') {
           args[1] = proxiedUrl(url);
+        } else if (typeof URL === 'function' && url instanceof URL) {
+          // XHR.open takes a URL object too; leaving it unproxied sent the request to the Desktop server.
+          args[1] = proxiedUrl(url.href);
         }
         return nativeOpen.apply(this, args);
       };
