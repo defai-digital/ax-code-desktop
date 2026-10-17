@@ -57,6 +57,10 @@ export const mergeExternalPreviewSandboxCsp = (existingHeaderValue, sandboxCsp) 
 // re-registered forever over an upstream's own 404 page).
 export const PREVIEW_REFUSAL_HEADER = "x-openchamber-preview-refusal"
 
+// Exported so the bridge's own patches can be driven in a test: the script is injected into previewed pages, and its
+// behaviour is otherwise only observable through a real browser.
+export const PREVIEW_BRIDGE_SCRIPT_SOURCE = () => PREVIEW_BRIDGE_SCRIPT
+
 const PREVIEW_BRIDGE_SCRIPT_ID = "openchamber-preview-bridge"
 
 const parsePreviewResourcePath = (url) => {
@@ -598,6 +602,11 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
       window.fetch = function(input, init) {
         if (typeof input === 'string') {
           return nativeFetch(proxiedUrl(input), init);
+        }
+        // fetch takes a URL object as well as a string, and this branch did not: fetch(new URL("/api/fs/x",
+        // location.href)) went to the native fetch unproxied, straight at the Desktop server's own routes.
+        if (input instanceof URL) {
+          return nativeFetch(proxiedUrl(input.href), init);
         }
         if (input instanceof Request) {
           try {
