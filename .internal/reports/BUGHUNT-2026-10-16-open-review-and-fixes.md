@@ -1377,21 +1377,25 @@ least (MCP, providers, multirun, auth, supervision, notifications) plus `server/
   and an OAuth completion reloaded only the active project, leaving the others on a pre-auth snapshot, while
   the agent picker read a store method whose identity never changes and so never followed the loaded list.
 
+### Fixed from the carried-forward list (the same round's reviews, later in the day)
+
+- **`1a6f6118`** — the external-preview sandbox was applied when a response was `text/html`, and an SVG or XHTML
+  response from an external preview is a document too: opened directly it ran script under the app's own policy,
+  which allows inline script, on the Desktop origin. The policy now covers all three scriptable document types
+  and is applied before the branch that returns a response whose type is none of html/css/javascript — where the
+  SVG case left earlier. This is the class `60cfcf9c` fixed for project icons.
+- **`5649bb29`** — the preview bridge's `fetch` patch handled a string and a `Request`, and `fetch` takes a `URL`
+  too: one built from `location.href` reached the Desktop server's own routes with the session cookie, unproxied.
+  The bridge script is exported now so a jsdom test can drive its patches — the first coverage that script has had.
+
 ### Confirmed by this round's reviews and not yet fixed
 
 These are carried forward rather than fixed in this round; each has the reviewer's evidence in its cell's
 output and a test idea with it.
 
-- **`preview/proxy-runtime.js:1565-1571, 1601-1602`** — the external-preview sandbox and its CSP are applied
-  to `text/html` documents only, so a script-capable non-HTML document (SVG, XHTML) is served unsandboxed on
-  the Desktop origin. This is the same class as `60cfcf9c`: the project-icon route took its own policy because
-  an SVG is a document when opened directly.
 - **`preview/proxy-runtime.js:1573-1577`** — the cache-busting headers are set on `proxyRes.headers` after
   http-proxy-middleware has copied the upstream headers onto the response, so the `no-store` policy never
   reaches the browser.
-- **`preview/proxy-runtime.js:598-612`** — the preview bridge's `fetch` patch handles string URLs only, so
-  `fetch(new URL("/path", location.href))` escapes the preview proxy and reaches the Desktop server's own
-  routes.
 - **`preview/proxy-runtime.js:224, 287-303`** — the bridge's `matchMedia` patch keeps every listener in a
   page-global `Set` that is never pruned when the `MediaQueryList` is discarded.
 - **`cli.js:2221, 2262-2270`** — `restart` silently drops the stored UI password when the instance record is
