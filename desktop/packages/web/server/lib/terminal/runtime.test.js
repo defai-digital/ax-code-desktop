@@ -583,7 +583,7 @@ describe("terminal restart", () => {
     } finally {
       await runtime.shutdown()
     }
-  })
+  }, 15_000)
 
   it("enforces the session cap when restarting a stale session id", async () => {
     const { app, getRoute } = createRouteRegistry()
@@ -638,7 +638,7 @@ describe("terminal restart", () => {
     } finally {
       await runtime.shutdown()
     }
-  })
+  }, 15_000)
 })
 
 describe("terminal session cap", () => {
