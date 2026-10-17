@@ -52,6 +52,21 @@ describe("ui auth sign-out", () => {
     vi.resetModules()
   })
 
+  it("answers a sign-out with no password configured instead of throwing", async () => {
+    // `POST /auth/logout` is registered whether or not a password is (core-routes.js), and the disabled branch of
+    // the controller returned every other handler but this one: the route answered a missing-method TypeError, so
+    // the cookie that branch's `ensureSessionToken` hands out could never be cleared.
+    const { createUiAuth } = await import("./ui-auth.js")
+    const auth = createUiAuth({})
+
+    const res = createResponse()
+    await auth.handleSessionLogout({ headers: {} }, res)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ authenticated: false })
+    expect(res.setCookieHeader()).toMatch(/Max-Age=0/)
+  })
+
   it("revokes the presented session so the cookie cannot be replayed", async () => {
     const { createUiAuth } = await import("./ui-auth.js")
     const auth = createUiAuth({ password: "correct horse battery staple" })

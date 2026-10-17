@@ -371,6 +371,20 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
       res.setHeader("Set-Cookie", header)
     }
 
+    // The logout route is registered whether or not a UI password is, and this branch is the one that has no
+    // password: it needs the cookie cleared like the enabled branch does, or the random token `ensureSessionToken`
+    // hands out here outlives the sign-out.
+    const clearSessionCookieForDisabledAuth = (req, res) => {
+      const secure = isSecureRequest(req)
+      const header = buildCookie({
+        name: resolveUiSessionCookieName(req, cookieName),
+        value: "",
+        maxAge: 0,
+        secure,
+      })
+      res.setHeader("Set-Cookie", header)
+    }
+
     const ensureSessionToken = async (req, res) => {
       const cookies = parseCookies(req.headers.cookie)
       const name = resolveUiSessionCookieName(req, cookieName)
@@ -390,6 +404,12 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
       },
       handleSessionCreate: (_req, res) => {
         res.status(400).json({ error: "UI password not configured" })
+      },
+      // Every other handler has a stub in this branch; this one was missing while its route is always
+      // registered, so signing out answered a TypeError and the cookie stayed.
+      handleSessionLogout: (req, res) => {
+        clearSessionCookieForDisabledAuth(req, res)
+        res.json({ authenticated: false })
       },
       handlePasskeyStatus: (_req, res) => {
         res.json({ enabled: false, hasPasskeys: false, passkeyCount: 0, rpID: null })
