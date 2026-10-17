@@ -109,6 +109,57 @@ describe("ui auth", () => {
     }
   })
 
+  it("does not clear the passkeys when the sign-out cannot persist its new secret", async () => {
+    // Rotating the secret writes it to disk, and that write can fail (a read-only data directory, no space). The
+    // passkeys were cleared first, so the reset answered an error with the store already emptied on disk: the
+    // promised global sign-out had not happened and the credential the user still had was gone. This is the same
+    // rule the env-pinned guard states — nothing is destroyed unless the reset can complete.
+    process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
+    const secretFile = path.join(tempRoot, "jwt-secret")
+    fs.writeFileSync(secretFile, "persisted-secret-at-least-32-bytes-long", "utf8")
+    vi.resetModules()
+
+    const { createUiAuth } = await import("./ui-auth.js")
+    const auth = createUiAuth({ password: "correct horse battery staple" })
+    const realWrite = fs.writeFileSync
+    const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation((target, ...rest) => {
+      if (String(target) === secretFile) {
+        const error = new Error("EACCES: permission denied")
+        error.code = "EACCES"
+        throw error
+      }
+      return realWrite(target, ...rest)
+    })
+
+    const res = {
+      statusCode: 200,
+      body: undefined,
+      status(code) {
+        this.statusCode = code
+        return this
+      },
+      json(payload) {
+        this.body = payload
+        return this
+      },
+      setHeader() {},
+      getHeader() {
+        return ""
+      },
+    }
+
+    try {
+      await auth.handleResetAuth({ headers: {} }, res)
+
+      expect(res.statusCode).toBeGreaterThanOrEqual(400)
+      // The passkey store was never rewritten.
+      expect(writeSpy.mock.calls.some(([target]) => String(target).includes("ui-passkeys"))).toBe(false)
+    } finally {
+      auth.dispose()
+      writeSpy.mockRestore()
+    }
+  })
+
   it("allows reset-auth when the env secret is too short to be in use", async () => {
     // A short env secret is ignored when signing (resolveEnvJwtSecret returns null), so the file
     // secret is what protects the sessions — but the reset guard only asked whether the variable was

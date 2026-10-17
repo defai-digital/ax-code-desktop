@@ -747,8 +747,13 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
         error.statusCode = 400
         throw error
       }
-      const passkeyResult = await passkeyController.clearAllPasskeys()
+      // The secret is rotated first: `rotateJwtSecret` writes a new secret file, and that write can fail (a
+      // read-only data directory, no space). Clearing the passkeys first meant such a failure answered an error
+      // with an empty passkey store already persisted on disk — the sign-out had not happened and the one
+      // credential the user still had was gone. In this order a failure destroys nothing, and a failure while
+      // clearing afterwards leaves the sessions revoked and the passkeys able to sign the user back in to retry.
       rotateJwtSecret()
+      const passkeyResult = await passkeyController.clearAllPasskeys()
       clearSessionCookie(req, res)
       res.json({
         cleared: true,
