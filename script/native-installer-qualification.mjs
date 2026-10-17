@@ -326,7 +326,7 @@ async function qualify(target, artifacts, output) {
   )
   console.log(`Native installer qualification passed: ${target}`)
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
   qualify(process.argv[2], process.argv[3], path.resolve(process.argv[4])).catch((error) => {
     console.error(error.message)
     process.exitCode = 1

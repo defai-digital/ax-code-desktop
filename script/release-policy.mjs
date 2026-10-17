@@ -87,7 +87,7 @@ export function assertPublicReleaseAuthorized(policy = readReleasePolicy()) {
   return policy
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))
 if (isMain) {
   const [command, ...args] = process.argv.slice(2)
   try {

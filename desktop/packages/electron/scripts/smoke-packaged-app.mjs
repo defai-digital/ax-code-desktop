@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFile, spawn } from "node:child_process"
 import fs from "node:fs/promises"
-import { constants as fsConstants } from "node:fs"
+import { constants as fsConstants, realpathSync } from "node:fs"
 import http from "node:http"
 import os from "node:os"
 import path from "node:path"
@@ -585,7 +585,7 @@ const main = async () => {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   main().catch((error) => {
     console.error(error)
     process.exit(1)

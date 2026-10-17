@@ -259,7 +259,7 @@ find_release_run() {
   local runs_json
 
   for _ in {1..60}; do
-    runs_json="$(gh run list --workflow desktop-release.yml --limit 30 --json databaseId,headBranch,headSha,event,status,conclusion,createdAt)"
+    runs_json="$(gh run list --repo "$REPO" --workflow desktop-release.yml --limit 30 --json databaseId,headBranch,headSha,event,status,conclusion,createdAt)"
     run_id="$(
       RUNS_JSON="$runs_json" TAG="$tag" HEAD_SHA="$head_sha" PUSHED_AT="$pushed_at" \
         node "$SCRIPT_DIR/release-run-selection.mjs"
@@ -501,7 +501,7 @@ TAG_PUSHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # The tag triggers a release workflow, and this script watches for its run. Refusing before the push is the
 # difference between a clear error and a tag left on the remote with no run behind it: the watch below polls
 # for ten minutes, fails, and a second attempt then rejects the tag that already exists.
-if ! gh workflow view desktop-release.yml >/dev/null 2>&1; then
+if ! gh workflow view desktop-release.yml --repo "$REPO" >/dev/null 2>&1; then
   echo "error: the desktop-release workflow is not present on the default branch; refusing to push $TAG" >&2
   exit 1
 fi
@@ -514,7 +514,7 @@ fi
 
 RUN_ID="$(find_release_run "$TAG" "$HEAD_SHA" "$TAG_PUSHED_AT")"
 log "Watching release workflow run $RUN_ID"
-gh run watch "$RUN_ID" --exit-status
+gh run watch "$RUN_ID" --repo "$REPO" --exit-status
 
 release_url="$(verify_release_assets "$TAG" "$REPO")"
 log "GitHub release published: $release_url"

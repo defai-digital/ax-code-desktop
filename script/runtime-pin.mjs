@@ -122,7 +122,7 @@ export function verifyRuntimePin(root = repositoryRoot, fileSystem = fs) {
   return pin
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))
 if (isMain) {
   try {
     const pin = verifyRuntimePin()

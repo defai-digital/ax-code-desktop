@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process"
-import { appendFileSync, rmSync, writeFileSync } from "node:fs"
+import { appendFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { pathToFileURL } from "node:url"
+import { fileURLToPath } from "node:url"
 
 export function resolveNotaryMode(env) {
   if (env.APPLE_TEAM_ID !== "N5ZUZDUJS6") throw new Error("Apple team does not match the frozen signing identity")
@@ -49,7 +49,7 @@ export function configureNotaryProfile(
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   try {
     console.log(
       process.argv.includes("--configure") ? configureNotaryProfile(process.env) : resolveNotaryMode(process.env),

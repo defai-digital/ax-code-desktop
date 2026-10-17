@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto"
-import { constants as fsConstants } from "node:fs"
+import { constants as fsConstants, realpathSync } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -72,6 +72,6 @@ export async function verifyLaunchAnimationAssets(dir = defaultDir) {
   }
   return { pairs: ids.size, clips: files.size, bytes: totalBytes, commit: manifest.producer.commit }
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   console.log("Launch animation assets verified:", await verifyLaunchAnimationAssets())
 }

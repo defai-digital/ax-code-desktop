@@ -2,6 +2,7 @@
 
 import { createRequire } from "node:module"
 import fs from "node:fs/promises"
+import { realpathSync } from "node:fs"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { fileURLToPath } from "node:url"
@@ -135,7 +136,7 @@ async function main() {
   )
 }
 
-if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] ?? "")) {
+if (realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1] ?? "")) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : error)
     process.exit(1)

@@ -16,7 +16,15 @@ if ! chmod 700 "${SSH_DIR}" 2>/dev/null; then
 fi
 
 if [ ! -f "${SSH_PRIVATE_KEY_PATH}" ] || [ ! -f "${SSH_PUBLIC_KEY_PATH}" ]; then
-  if [ ! -w "${SSH_DIR}" ]; then
+  if [ -f "${SSH_PRIVATE_KEY_PATH}" ] && [ ! -f "${SSH_PUBLIC_KEY_PATH}" ]; then
+    # Only the public half is missing: derive it from the mounted private key.
+    # Regenerating would prompt to overwrite (an interactive container hangs)
+    # or clobber the user's mounted private key.
+    echo "[entrypoint] deriving missing SSH public key..."
+    if ! ssh-keygen -y -f "${SSH_PRIVATE_KEY_PATH}" >"${SSH_PUBLIC_KEY_PATH}" 2>/dev/null; then
+      echo "[entrypoint] warning: failed to derive SSH public key, continuing without it" >&2
+    fi
+  elif [ ! -w "${SSH_DIR}" ]; then
     echo "[entrypoint] warning: ssh key missing and ${SSH_DIR} is not writable, continuing without SSH key" >&2
   else
     echo "[entrypoint] generating SSH key..."

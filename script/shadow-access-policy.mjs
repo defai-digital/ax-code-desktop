@@ -1,4 +1,5 @@
 import path from "node:path"
+import { realpathSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 
 export function assertShadowAccess({ confirmed, visibility, signingMode }) {
@@ -9,7 +10,7 @@ export function assertShadowAccess({ confirmed, visibility, signingMode }) {
     throw new Error("Public repositories require signed shadow mode; unsigned candidates must stay private")
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   try {
     assertShadowAccess({
       confirmed: process.env.CONFIRM_SHADOW_ONLY,

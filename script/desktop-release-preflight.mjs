@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process"
 import path from "node:path"
+import { realpathSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { verifyDesktopReleaseContract } from "./desktop-release-contract.mjs"
 
@@ -91,7 +92,7 @@ export function releaseReadiness({
   }
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+const isMain = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
 if (isMain) {
   try {
     const args = process.argv.slice(2).filter((arg) => arg !== "--")

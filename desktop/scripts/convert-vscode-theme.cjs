@@ -90,7 +90,7 @@ function stripJsonComments(jsonString) {
 
 function hexColorLuminance(hex) {
   const value = String(hex || "").trim().replace(/^#/, "").toLowerCase()
-  const expanded = value.length === 3 ? value.split("").map((char) => char + char).join("") : value
+  const expanded = value.length === 3 || value.length === 4 ? value.split("").map((char) => char + char).join("") : value
   const rgb = expanded.length === 8 ? expanded.slice(0, 6) : expanded
   if (!/^[0-9a-f]{6}$/.test(rgb)) {
     return null
@@ -262,7 +262,7 @@ function generateMarkdownColors(primary, surface, syntax) {
     inlineCodeBackground: surface.muted,
     blockquote: surface.mutedForeground,
     blockquoteBorder: surface.subtle,
-    listMarker: primary.base + "99", // 60% opacity
+    listMarker: withAlpha(primary.base, "99"), // 60% opacity
   }
 }
 
@@ -281,9 +281,9 @@ function generateChatColors(surface) {
 // Generate tools colors from theme palette
 function generateToolsColors(surface, status) {
   return {
-    background: surface.muted + "50",
-    border: surface.subtle + "80",
-    headerHover: surface.subtle + "50",
+    background: withAlpha(surface.muted, "50"),
+    border: withAlpha(surface.subtle, "80"),
+    headerHover: withAlpha(surface.subtle, "50"),
     icon: surface.mutedForeground,
     title: surface.foreground,
     description: surface.mutedForeground,
@@ -334,7 +334,7 @@ function extractPrimaryColors(colors, semanticTokenColors) {
     hover: colors["button.hoverBackground"] || adjustBrightness(primary, -10),
     active: adjustBrightness(primary, 20),
     foreground: colors["button.foreground"] || "#FFFFFF",
-    muted: primary + "80", // 50% opacity
+    muted: withAlpha(primary, "80"), // 50% opacity
     emphasis: adjustBrightness(primary, 30),
   }
 }
@@ -350,7 +350,7 @@ function extractSurfaceColors(colors) {
     mutedForeground: colors["editorLineNumber.foreground"] || adjustBrightness(fg, -40),
     elevated: colors["editor.lineHighlightBackground"] || colors["sideBar.background"] || adjustBrightness(bg, 10),
     elevatedForeground: fg,
-    overlay: bg + "80",
+    overlay: withAlpha(bg, "80"),
     subtle: colors["editorWhitespace.foreground"] || adjustBrightness(bg, 30),
   }
 }
@@ -366,9 +366,9 @@ function extractInteractiveColors(colors) {
     selection: selection,
     selectionForeground: colors["editor.foreground"] || "#CECDC3",
     focus: colors["focusBorder"] || "#5A96BC",
-    focusRing: (colors["focusBorder"] || "#5A96BC") + "50",
+    focusRing: withAlpha(colors["focusBorder"] || "#5A96BC", "50"),
     cursor: colors["editorCursor.foreground"] || "#CECDC3",
-    hover: selection + "80",
+    hover: withAlpha(selection, "80"),
     active: selection,
   }
 }
@@ -385,20 +385,20 @@ function extractStatusColors(colors, tokenColors, semanticTokenColors) {
   return {
     error: error,
     errorForeground: bg,
-    errorBackground: error + "20",
-    errorBorder: error + "50",
+    errorBackground: withAlpha(error, "20"),
+    errorBorder: withAlpha(error, "50"),
     warning: warning,
     warningForeground: bg,
-    warningBackground: warning + "20",
-    warningBorder: warning + "50",
+    warningBackground: withAlpha(warning, "20"),
+    warningBorder: withAlpha(warning, "50"),
     success: success,
     successForeground: bg,
-    successBackground: success + "20",
-    successBorder: success + "50",
+    successBackground: withAlpha(success, "20"),
+    successBorder: withAlpha(success, "50"),
     info: info,
     infoForeground: bg,
-    infoBackground: info + "20",
-    infoBorder: info + "50",
+    infoBackground: withAlpha(info, "20"),
+    infoBorder: withAlpha(info, "50"),
   }
 }
 
@@ -418,10 +418,13 @@ function extractSyntaxColors(tokenColors, semanticTokenColors, colors) {
 
   // Get semantic token colors with fallback to TextMate
   const getColor = (semantic, textmateScopes, fallback) => {
-    // Check semantic first
+    // Check semantic first — but only an actual color wins: VS Code allows a
+    // fontStyle-only entry ({ "comment": { "fontStyle": "italic" } }), whose
+    // missing foreground must fall through to TextMate, not become undefined.
     if (semanticTokenColors[semantic]) {
       const stc = semanticTokenColors[semantic]
-      return typeof stc === "string" ? stc : stc.foreground
+      const foreground = typeof stc === "string" ? stc : stc.foreground
+      if (foreground) return foreground
     }
     // Check TextMate scopes
     for (const scope of textmateScopes) {
@@ -485,11 +488,11 @@ function extractSyntaxColors(tokenColors, semanticTokenColors, colors) {
     },
     highlights: {
       diffAdded: colors["gitDecoration.addedResourceForeground"] || "#879A39",
-      diffAddedBackground: (colors["gitDecoration.addedResourceForeground"] || "#879A39") + "20",
+      diffAddedBackground: withAlpha(colors["gitDecoration.addedResourceForeground"] || "#879A39", "20"),
       diffRemoved: colors["gitDecoration.deletedResourceForeground"] || "#D14D41",
-      diffRemovedBackground: (colors["gitDecoration.deletedResourceForeground"] || "#D14D41") + "20",
+      diffRemovedBackground: withAlpha(colors["gitDecoration.deletedResourceForeground"] || "#D14D41", "20"),
       diffModified: colors["editorInfo.foreground"] || "#4385BE",
-      diffModifiedBackground: (colors["editorInfo.foreground"] || "#4385BE") + "20",
+      diffModifiedBackground: withAlpha(colors["editorInfo.foreground"] || "#4385BE", "20"),
       lineNumber: colors["editorLineNumber.foreground"] || "#878580",
       lineNumberActive: colors["editorLineNumber.activeForeground"] || editorFg,
     },
@@ -498,15 +501,32 @@ function extractSyntaxColors(tokenColors, semanticTokenColors, colors) {
   return syntax
 }
 
+// Normalize a CSS hex color to RRGGBB (+ original alpha when present):
+// VS Code themes legally use 3/4/8-digit hex, and appending or splicing on
+// the raw string produced invalid colors for them.
+function normalizeHexColor(value) {
+  let h = String(value).replace("#", "")
+  if (h.length === 3 || h.length === 4) {
+    h = h
+      .split("")
+      .map((c) => c + c)
+      .join("")
+  }
+  return { rgb: h.slice(0, 6), alpha: h.length > 6 ? h.slice(6, 8) : "" }
+}
+
+function withAlpha(hex, alpha) {
+  return `#${normalizeHexColor(hex).rgb}${alpha}`
+}
+
 // Helper: adjust brightness of hex color
 function adjustBrightness(hex, percent) {
-  // Remove # if present
-  hex = hex.replace("#", "")
+  const { rgb, alpha } = normalizeHexColor(hex)
 
   // Parse RGB
-  let r = parseInt(hex.substring(0, 2), 16)
-  let g = parseInt(hex.substring(2, 4), 16)
-  let b = parseInt(hex.substring(4, 6), 16)
+  let r = parseInt(rgb.substring(0, 2), 16)
+  let g = parseInt(rgb.substring(2, 4), 16)
+  let b = parseInt(rgb.substring(4, 6), 16)
 
   // Adjust brightness
   r = Math.min(255, Math.max(0, r + (r * percent) / 100))
@@ -518,7 +538,8 @@ function adjustBrightness(hex, percent) {
     "#" +
     Math.round(r).toString(16).padStart(2, "0") +
     Math.round(g).toString(16).padStart(2, "0") +
-    Math.round(b).toString(16).padStart(2, "0")
+    Math.round(b).toString(16).padStart(2, "0") +
+    alpha
   )
 }
 

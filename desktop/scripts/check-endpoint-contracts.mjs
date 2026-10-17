@@ -49,7 +49,8 @@ for (const target of TARGET_ROOTS) {
   const files = collectFiles(absoluteTarget, [".ts", ".tsx", ".js", ".jsx"])
 
   for (const filePath of files) {
-    const relativeFilePath = path.relative(ROOT, filePath)
+    // path.relative uses the platform separator; the allowlist is written with "/".
+    const relativeFilePath = path.relative(ROOT, filePath).split(path.sep).join("/")
     if (ALLOWLIST.some((pattern) => pattern.test(relativeFilePath))) {
       continue
     }

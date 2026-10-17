@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { appendFileSync } from "node:fs"
+import { appendFileSync, realpathSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -59,7 +59,7 @@ export function resolveScope({ event, base, head, cwd = process.cwd(), git = exe
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const scope = resolveScope({ event: process.env.CI_EVENT, base: process.env.CI_BASE, head: process.env.GITHUB_SHA })
   const outputs =
     Object.entries(scope)
