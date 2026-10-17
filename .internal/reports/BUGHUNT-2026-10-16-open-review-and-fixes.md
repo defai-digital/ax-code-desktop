@@ -1367,15 +1367,17 @@ actually uses.
 
 ### Reported, verified, and not changed
 
-- **Two source-order assertions are weaker than the behaviour they stand for** (SUSPECTED, the first audit):
+- **One source-order assertion is weaker than the behaviour it stands for** (SUSPECTED, the first audit):
   `DirectoryExplorerDialog-browse.test.ts` asserts that the composition guard's line index precedes the first
-  `event.key === "ArrowDown"`, so it would still pass if the guard were wrapped in a condition, and
-  `pendingToastWiring.source.test.ts` compares a call site against a comment string. Neither can be made
-  behavioural cheaply: both handlers live inside components that need the desktop file API, the SDK's message
-  records and the child-store manager before they mount, which is the seam this record documents for such
-  components. What the guard *does* is call `isIMECompositionEvent`, which four dispatch tests in this series
-  exercise with `isComposing: true`, and the pending-toast tracker's own semantics are covered by
-  `pendingToastTracker.test.ts`.
+  `event.key === "ArrowDown"`, so it would still pass if the guard were wrapped in a condition. The other one the
+  audit named, `pendingToastWiring.source.test.ts`, **was tightened** (`a1412bfb`): it compared the clear's index
+  against the comment `// Global events`, and it now matches the two branch statements inside `handleEvent` with the
+  searches starting at the handler, which keeps its sensitivity to the placement it was written for (`b575ecbb^`
+  still fails it) without a comment edit being able to answer it. The directory dialog's handler cannot be made
+  behavioural cheaply: it lives inside a dialog that needs the desktop file API, the projects and git-identity
+  stores and the identity picker before it mounts, which is the seam this record documents for such components.
+  What the guard *does* is call `isIMECompositionEvent`, which four dispatch tests in this series exercise with
+  `isComposing: true`.
 
 ## Twenty-seventh round
 
