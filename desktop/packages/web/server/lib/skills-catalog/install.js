@@ -127,6 +127,15 @@ export async function installSkillsFromRepository({
     return { ok: false, error: { kind: "invalidSource", message: "No skills selected for installation" } }
   }
 
+  // A client-sent decision is one of two words or nothing. Anything else used to pass the conflict gate below
+  // (any truthy value counted as consent) and then reach neither the skip branch nor the overwrite branch, which
+  // left the loop's only remaining path — the plain copy — running with the installed directory still in place:
+  // same-named files replaced, stale ones left, no backup, and the skill reported as installed.
+  const normalizeConflictDecision = (value) => {
+    const trimmed = typeof value === "string" ? value.trim() : ""
+    return trimmed === "skip" || trimmed === "overwrite" ? trimmed : null
+  }
+
   // Validate names early and compute conflicts without mutating.
   const skillPlans = requestedDirs.map((skillDirPosix) => {
     const skillName = path.posix.basename(skillDirPosix)
@@ -147,7 +156,7 @@ export async function installSkillsFromRepository({
       skillName: plan.skillName,
     })
     if (fs.existsSync(targetDir)) {
-      const decision = conflictDecisions?.[plan.skillName]
+      const decision = normalizeConflictDecision(conflictDecisions?.[plan.skillName])
       const hasAutoPolicy = conflictPolicy === "skipAll" || conflictPolicy === "overwriteAll"
       if (!decision && !hasAutoPolicy) {
         conflicts.push({ skillName: plan.skillName, scope, source: targetSource === "agents" ? "agents" : "ax-code" })
@@ -259,11 +268,19 @@ export async function installSkillsFromRepository({
       })
       const exists = fs.existsSync(targetDir)
 
-      let decision = conflictDecisions?.[plan.skillName] || null
+      let decision = normalizeConflictDecision(conflictDecisions?.[plan.skillName])
       if (!decision) {
         if (exists && conflictPolicy === "skipAll") decision = "skip"
         if (exists && conflictPolicy === "overwriteAll") decision = "overwrite"
         if (!exists) decision = "overwrite" // no conflict, proceed
+      }
+
+      if (exists && !decision) {
+        // The directory appeared between the conflict check and here, or nothing resolved the conflict for it.
+        // There is no third outcome: a copy over a live directory is not a replacement, and this path has no
+        // backup. Skip it and let the caller ask again.
+        skipped.push({ skillName: plan.skillName, reason: "Already installed (skipped)" })
+        continue
       }
 
       if (exists && decision === "skip") {

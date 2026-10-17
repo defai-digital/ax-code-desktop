@@ -133,6 +133,28 @@ describe("git skill installation", () => {
     await expect(fsPromises.readFile(path.join(targetDir, "SKILL.md"), "utf8")).resolves.toContain("installed")
   })
 
+  test("refuses an unknown conflict decision instead of copying over the installed skill", async () => {
+    // The decision was passed through unvalidated: any truthy string counted as consent at the conflict gate, and
+    // the loop only had branches for "skip" and "overwrite" — so an unknown word fell through to the plain copy
+    // with the installed directory still in place. Same-named files were replaced, stale ones were left, no backup
+    // was kept and the response reported the skill as installed.
+    const targetDir = path.join(userSkillDir, "review")
+    await fsPromises.mkdir(targetDir, { recursive: true })
+    await fsPromises.writeFile(path.join(targetDir, "SKILL.md"), skillMarkdown("Review Code", "installed"), "utf8")
+    await fsPromises.writeFile(path.join(targetDir, "sentinel.txt"), "keep me", "utf8")
+    await writeSkill(cloneDir, "skills/review", "Review Code", "incoming")
+
+    const result = await install(["skills/review"], { conflictDecisions: { review: "banana" } })
+
+    expect(result.ok).toBe(false)
+    expect(result.error?.kind).toBe("conflicts")
+    expect(result.error?.conflicts?.map((entry) => entry.skillName)).toEqual(["review"])
+    // The installed copy is exactly as it was, and the clone was never even made.
+    await expect(fsPromises.readFile(path.join(targetDir, "SKILL.md"), "utf8")).resolves.toContain("installed")
+    await expect(fsPromises.readFile(path.join(targetDir, "sentinel.txt"), "utf8")).resolves.toBe("keep me")
+    expect(cloneRepo).not.toHaveBeenCalled()
+  })
+
   test("removes the backup directory when the backup copy itself fails", async () => {
     // The backup copy can fail on its own (no space, a permission it cannot read). The installed copy is
     // untouched in that case, so the partial backup is not the only copy of anything — but the `finally` keeps
