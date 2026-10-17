@@ -68,6 +68,17 @@ describe("main-window hand-off readiness", () => {
     expect(click).toContain('handOffToMainWindow("openchamber:open-session"')
   })
 
-  // Installer refusal is exercised through createUpdateInstaller and the real quit coordinator
-  // in desktop-renderer-guards.test.mjs; it no longer tears down services and relaunches.
+  test("an install that never starts leaves the app usable", async () => {
+    const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
+    const handler = mainSource.match(/handleCommand\(\s*"desktop_quit_and_install",[\s\S]*?\n\)/)?.[0]
+
+    expect(handler).toBeDefined()
+    // 7.26.1 moved the refusal and its "install-not-started" result into createUpdateInstaller (pinned in
+    // desktop-renderer-guards.test.mjs). The command no longer stops services first, so nothing has to bring
+    // the app back after a refusal: the window is still on a live server.
+    expect(handler).toContain("createUpdateInstaller(")
+    expect(handler).toContain("isQuitting: () => isQuitting")
+    expect(handler).not.toContain("app.relaunch()")
+    expect(handler).not.toContain("app.exit(0)")
+  })
 })
