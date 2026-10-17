@@ -112,6 +112,10 @@ jobs:
         if: runner.os == 'Windows'
         run: pnpm --filter @ax-code/electron exec vitest run scripts/verify-packaged-electron.test.mjs
 
+      - name: Verify literal Windows launcher paths and Wiki window cleanup
+        if: runner.os == 'Windows'
+        run: pnpm --filter @ax-code/electron exec vitest run src/axcode-runtime-supervisor.test.mjs src/wiki-viewer.test.mjs -t "runs a real batch launcher|official Wiki viewer"
+
       - name: Validate Windows bootstrap and native OS architecture
         if: runner.os == 'Windows'
         run: pnpm exec vitest run --config vitest.config.ts script/desktop-windows-bootstrap.test.mjs script/windows-minisign-acl.test.mjs
