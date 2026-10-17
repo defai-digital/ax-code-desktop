@@ -1305,7 +1305,120 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Thirtieth round
+
+Two audits of the twenty-ninth round's own commits, the four server trees this record had never read
+(`git`, `github`, `quota`, `desktop`), two entry-point reviews of `bin/cli.js`, `server/index.js`,
+`server/lib/http/**` and `scripts/docker-entrypoint.sh`, and the config surfaces and UI trees it mentions
+least (MCP, providers, multirun, auth, supervision, notifications) plus `server/lib/{text,preview}`.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | an audit of `git diff 5159a3c2 HEAD` — the twenty-ninth round's own commits |
+| `muse-wonder-full-1.0` (ax-code) | a second, independent audit of the same diff |
+| ax-code `glm-5.3` | `web/server/lib/{git,github,quota,desktop}/**` (never read before) |
+| Claude Code CLI | `ui/src/components/{auth,multirun,supervision,notifications}/**` |
+| `grok-build-cli/grok-4.6` | `ui/src/components/{mcp,sections/providers,multirun}/**` |
+| ax-code `qwen/qwen3.8-flash` | `web/server/lib/{text,preview}/**` |
+| ax-code `glm-5.3`, `xiaomi/mimo-v2.6-pro` | two reviews of the process entry points |
+
+### Fixed from the round's own commits
+
+- **`c89350fe`** — `4e103795` rotated the session secret before clearing the passkeys, and the rotation
+  rebuilds the passkey controller around a binding derived from the new secret: its first read replaces the
+  store with an empty one, so the count taken after it was always zero (`clearedPasskeys: 0` for a reset that
+  cleared two) and the comment's claim that a failed clear leaves a usable passkey was wrong. The count is
+  taken first now, through a `countPasskeys()` on the controller, and the tests seed a store bound to the
+  current secret so both directions are asserted.
+- **`d9538e79`**, **`8960d0bc`** — the ClawdHub duplicate guard this record added twice more: first it claimed
+  the slug before the download, so a failed download held it and a second selection for the same slug was
+  skipped as a duplicate of an install that never happened; then the claim still preceded the download's
+  validation, whose three `continue`s skip past the `catch` that releases the name. It now claims only once a
+  selection is actually going to install, which is where the repository installer claims.
+- **`c97aea0b`** — `0b8489e6`'s `AbortSignal.timeout(20_000)` stayed armed after the headers, so it also
+  aborted the body read: a valid multi-megabyte archive on a slower link failed where it used to download. The
+  bound now covers the wait for a response (released once it arrives) with a budget for the whole call, and
+  the body stays bounded by size.
+- **`a7fc0222`** — the anchor this record tightened two rounds ago matched the first `if (!store)` after
+  `handleEvent`, which is the recovery scan: it passed for a clear sitting between the two branches, the
+  placement it was written to catch.
+- **`c13125f0`** — the worktree claim moved above the project lookup to close the same-tick race, which put it
+  above a call that can throw: a throw from the store or the toast left the flag claimed for the life of the
+  renderer. It is claimed after the project check, still before the first await.
+
+### Fixed from the trees read for the first time
+
+- **`deac3501`** — three git routes reached git's argv with no option-form guard while every sibling carries
+  one: `POST /api/git/stashes/file-counts` forwarded a `-`-prefixed ref to `git stash show`, which passes
+  options on to `git diff` (`--output=<path>` wrote that file and the route answered 200 with a counts map
+  keyed by the option); `POST /api/git/branches` forwarded `startPoint` into `git checkout -b <name>
+  <startPoint>` (a `--force` there is read as a flag, so the branch was created at HEAD and reported as
+  created from the given commit); and `DELETE /api/git/remote-branches` forwarded `remote` into `git push
+  <remote> <refspec>` (`--force :main` force-deletes main on the default remote).
+- **`deac3501`** — the GitHub OAuth token was written without a mode and chmod'd afterwards with the failure
+  swallowed: the file was 0644 in between and stayed 0644 if the chmod failed. The write carries `mode` now,
+  as the git identities store beside it does, and the storage directory is 0700.
+- **`deac3501`** — two of the three `git diff --no-index` call sites hardcoded `/dev/null`, which does not
+  exist on Windows, while the third selected the null device per platform.
+- **`c23560e2`** — `serve --ui-password` with no value (the next token is another flag) assigned `""` and
+  started the server with no password protection, exit code 0, and under `--quiet` no warning at all:
+  `--port` and `--host` refuse the same input as a usage error.
+- **`5881a58c`** — `terminateProcessTree`'s POSIX branch signalled the daemon's pid alone, and the daemon is
+  spawned as its own process-group leader with the runtime, terminals and preview servers as its children: a
+  daemon that had to be killed left them running, holding their loopback ports, while `stop` reported the
+  instance stopped. The Windows branch of the same function kills the tree.
+- **`e02d553f`** — the attempts-exhausted guard in the scheduled-task migration read `length` off a `Set`
+  (always false) and could not fire for a second reason the review did not check; the guard is gone.
+- **`ec32a918`**, **`b7724c7e`**, **`49fe8674`**, **`2ccde16d`** — four UI defects from the component reviews:
+  a failed unlock showed the network screen instead of the failure the server answered with, and its message
+  survived into the retried form; a permission entry in the bell removed itself before its reply landed, so a
+  failed answer took the user's only handle on a still-pending request; the multi-run setup-command load was
+  keyed on the projects store's object identity, so a reload of that list discarded what the user had typed;
+  and an OAuth completion reloaded only the active project, leaving the others on a pre-auth snapshot, while
+  the agent picker read a store method whose identity never changes and so never followed the loaded list.
+
+### Confirmed by this round's reviews and not yet fixed
+
+These are carried forward rather than fixed in this round; each has the reviewer's evidence in its cell's
+output and a test idea with it.
+
+- **`preview/proxy-runtime.js:1565-1571, 1601-1602`** — the external-preview sandbox and its CSP are applied
+  to `text/html` documents only, so a script-capable non-HTML document (SVG, XHTML) is served unsandboxed on
+  the Desktop origin. This is the same class as `60cfcf9c`: the project-icon route took its own policy because
+  an SVG is a document when opened directly.
+- **`preview/proxy-runtime.js:1573-1577`** — the cache-busting headers are set on `proxyRes.headers` after
+  http-proxy-middleware has copied the upstream headers onto the response, so the `no-store` policy never
+  reaches the browser.
+- **`preview/proxy-runtime.js:598-612`** — the preview bridge's `fetch` patch handles string URLs only, so
+  `fetch(new URL("/path", location.href))` escapes the preview proxy and reaches the Desktop server's own
+  routes.
+- **`preview/proxy-runtime.js:224, 287-303`** — the bridge's `matchMedia` patch keeps every listener in a
+  page-global `Set` that is never pruned when the `MediaQueryList` is discarded.
+- **`cli.js:2221, 2262-2270`** — `restart` silently drops the stored UI password when the instance record is
+  missing, so the restarted server comes up unprotected.
+- **`scripts/docker-entrypoint.sh:84-86`** — the container entrypoint passes the UI password as
+  `--ui-password <secret>` on the process argv, which every terminal-spawned process can read (`ps`), where
+  the same secret is scrubbed from the environment.
+- **`cli.js:2620-2653, 1571-1590`** — `logs --follow` drops the lines written between the tail read and the
+  follow start, and splices stale text after a rotation.
+- **`text/summarization.js:22-23`** — `sanitizeForSummary`'s path-stripping regex deletes ordinary
+  slash-separated prose, not just paths (latent: the summary mode has no production caller).
+- **`sections/providers/ProvidersPage.tsx:198`** — the AX Engine download uses one busy slot (a string), so a
+  second row's click re-enables the first while its request is in flight; the MCP dropdown in the same tree
+  already uses a set.
+- **`multirun/MultiRunFusionDialog.tsx:165`** — fusion silently drops listed sources whose last assistant
+  message has no text, while the dialog keeps showing them, so the payload and the count diverge.
+- **`multirun/MultiRunLauncher`** — the launcher's `@` mentions resolve against the open session rather than
+  the selected project.
+- **`cli.js:1092-1110`** — `startup enable` on Windows hands `schtasks /TR` a string well over its 261
+  character limit (the fixed env-file parsing block alone is ~300), which cannot be verified here and needs a
+  task-XML registration or a launcher script.
+- **`cli.js:1197-1207, 946-953`** — the UI password is persisted in the instance record and in the macOS
+  LaunchAgent plist. Both are deliberate (0600, and `restart`/logon-start read them), so this is recorded as a
+  policy question rather than a defect.
+
 ## Twenty-ninth round
+
 
 Two audits of the twenty-eighth round's own commits, on two reviewers, plus two scopes this record had never read
 systematically — `ui/src/lib` and `ui/src/hooks`, and the process entry points — and a second review of the four
@@ -3536,7 +3649,24 @@ Round six and seven are complete: every confirmed finding is fixed.
   route harness, the sign-out through the controller, the reset through a secret write that fails once, the cache
   key through a round trip, the conflict decision through a fixture skill directory, and the ClawdHub paths through
   the registry and ZIP fixtures they already had.
+- Every fix in this round carries the regression test named in its commit, and each was verified by running that
+  test against the pre-fix source and observing the stated failure, then against the fixed source and observing it
+  pass — with one exception, stated plainly: the multi-run agent picker's subscription has no red-light test, only
+  the reasoning that its sibling selectors were fixed the same way, and its commit says so. The others are
+  behavioural: the passkey count and the reset order through two seeded stores, the ClawdHub slug through the ZIP
+  fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
+  answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
+  password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, after the thirtieth round's fixes (each command's exit status captured, not inferred from a
+  pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+  `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 978, web 1 318 (+2 skipped),
+  0 `FAIL` lines. The lint run's only output is the pre-existing `react-hooks/exhaustive-deps` warning in
+  `ui/src/sync/use-sync.ts`, and the `401` flake did not appear.
+- Two reviewers read the process entry points independently and converged on the same first finding — the
+  `--ui-password` value that could go missing — while the rest of their lists differed; that scope had never been
+  read before, and its remaining confirmed items are carried above rather than fixed blind.
 - Latest full run, after the twenty-ninth round's fixes (each command's exit status captured, not inferred from a
+
   pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 971, web 1 309 (+2 skipped),
   0 `FAIL` lines. The lint run's only output is the pre-existing `react-hooks/exhaustive-deps` warning in
