@@ -39,6 +39,15 @@ export const createApiRequestSecurityMiddleware = () => (req, res, next) => {
     return next()
   }
 
+  // Sandboxed external previews are opaque origins: every request their page makes — including
+  // POSTs to their own proxied app — carries `Origin: null`. The preview proxy mount is gated by
+  // its per-target token cookie, so the generic origin rule would only break the page's own forms
+  // (the sandbox explicitly allows them); a cross-site attacker cannot mint a "null" origin
+  // without sandboxing itself, and still lacks the token.
+  if (originHeader === "null" && typeof req.originalUrl === "string" && req.originalUrl.startsWith("/api/preview/proxy/")) {
+    return next()
+  }
+
   const secFetchSite = asTrimmedHeader(req.headers?.["sec-fetch-site"]).toLowerCase()
   if (secFetchSite === "cross-site") {
     return res.status(403).json({ error: "Forbidden" })

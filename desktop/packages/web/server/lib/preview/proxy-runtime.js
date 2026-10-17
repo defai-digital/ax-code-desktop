@@ -1,3 +1,5 @@
+import { UI_SESSION_COOKIE_NAME } from "../ui-auth/ui-session-cookie.js"
+
 const DEFAULT_TARGET_TTL_MS = 30 * 60 * 1000
 const TOKEN_COOKIE_NAME = "oc_preview_token"
 
@@ -1011,12 +1013,30 @@ export const buildPreviewProxyUpstreamPath = (rawUrl, id) => {
   return `${strippedPath}${removeRawQueryParam(parsed.search, "ocPreview")}`
 }
 
+// The Desktop's own credential cookies must never reach the previewed app; everything else the
+// browser scoped to the proxy prefix (by scopePreviewCookies) is the *previewed app's own* cookie
+// and has to be forwarded, or its login/session flows can never work.
+const isDesktopCredentialCookieName = (name) =>
+  name === TOKEN_COOKIE_NAME || name === UI_SESSION_COOKIE_NAME || name.startsWith(`${UI_SESSION_COOKIE_NAME}_`)
+
 export const removeSensitivePreviewProxyHeaders = (proxyReq) => {
   if (!proxyReq || typeof proxyReq.removeHeader !== "function") {
     return
   }
-  proxyReq.removeHeader("cookie")
-  proxyReq.removeHeader("authorization")
+  const rawCookie = typeof proxyReq.getHeader === "function" ? proxyReq.getHeader("cookie") : undefined
+  const kept = []
+  for (const [name, value] of parseCookieHeader(typeof rawCookie === "string" ? rawCookie : "")) {
+    if (isDesktopCredentialCookieName(name)) continue
+    kept.push(`${name}=${value}`)
+  }
+  if (kept.length > 0 && typeof proxyReq.setHeader === "function") {
+    proxyReq.setHeader("cookie", kept.join("; "))
+  } else {
+    proxyReq.removeHeader("cookie")
+  }
+  // `authorization` is deliberately forwarded: this server never sends WWW-Authenticate (its
+  // session is the oc_ui_session cookie), so the browser holds no credential for this origin —
+  // an Authorization header here was set by the previewed page itself for its own API.
   proxyReq.removeHeader("x-openchamber-ui-session")
 }
 
@@ -1154,6 +1174,61 @@ export const normalizeProxyTargetUrl = (rawUrl, { allowExternal = false } = {}) 
 }
 
 const normalizeLoopbackUrl = (rawUrl) => normalizeProxyTargetUrl(rawUrl, { allowExternal: false })
+
+// Node joins two Content-Type lines into "text/html, text/plain". Both the rewriting decisions and the
+// sandbox decision read the same list of essences, or the loose one would inject the bridge into a page
+// the strict one left unsandboxed.
+const parseContentTypeEssences = (contentType) =>
+  String(contentType || "")
+    .toLowerCase()
+    .split(",")
+    .map((part) => part.split(";", 1)[0].trim())
+
+// A document that runs script when it is opened directly. HTML is not the only one: an SVG, XHTML or XML
+// response from an external preview is a document too, and all were served with the app's own policy —
+// which allows inline script — on the Desktop origin. Chrome renders any `*/*+xml` as XML and sniffs a
+// missing content type as HTML, so the essence decides rather than a list of exact types. The
+// project-icon route carries its own policy for the same reason (`60cfcf9c`).
+const isScriptableDocumentEssence = (essence) =>
+  essence === "" ||
+  essence === "text/html" ||
+  essence === "image/svg+xml" ||
+  essence === "application/xml" ||
+  essence === "text/xml" ||
+  essence.endsWith("+xml")
+
+const isJavaScriptEssence = (essence) => essence.includes("javascript") || essence.includes("ecmascript")
+
+// Only a body that must be rewritten (HTML/CSS/JS, and the scriptable documents sharing their
+// sandbox decision) or a redirect whose Location must stay inside the proxy is buffered. Everything
+// else streams straight through: buffering withheld even the response headers until the upstream
+// closed — an SSE endpoint never delivered a single event, and an endless response grew without bound.
+const shouldBufferProxyResponse = (proxyRes) => {
+  const statusCode = proxyRes?.statusCode || 0
+  if (statusCode >= 300 && statusCode < 400) {
+    return true
+  }
+  const essences = parseContentTypeEssences(proxyRes?.headers?.["content-type"])
+  return essences.some(
+    (essence) => essence === "text/css" || isJavaScriptEssence(essence) || isScriptableDocumentEssence(essence),
+  )
+}
+
+// The Referer of a previewed page is its proxied URL on the Desktop origin; map it back onto the
+// upstream origin so the app's referer-based checks keep working. A referer that is not a proxy
+// URL is left untouched.
+const rewriteProxyReferer = (referer, resolved) => {
+  try {
+    const parsed = new URL(referer)
+    const match = parsed.pathname.match(/^\/api\/preview\/proxy\/[a-f0-9]{16,64}(\/.*)?$/i)
+    if (!match) {
+      return referer
+    }
+    return `${resolved.entry.origin}${match[1] || "/"}${parsed.search}${parsed.hash}`
+  } catch {
+    return referer
+  }
+}
 
 export const rewritePreviewBody = ({ bodyText, proxyBasePath, targetOrigin, kind }) => {
   if (typeof bodyText !== "string" || bodyText.length === 0) {
@@ -1337,6 +1412,18 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     return { ok: true, id, entry, parsed }
   }
 
+  // The mount middleware resolves and authenticates the target before the request is proxied and
+  // stashes it on the request. Response-time code must use that stash: re-resolving then loses the
+  // entry the moment it expires mid-flight, and an external preview's document would be served on
+  // the Desktop origin without its sandbox.
+  const resolveRequestTarget = (req) => {
+    const stashed = req?.previewTarget
+    if (stashed && stashed.ok) {
+      return stashed
+    }
+    return resolveTargetFromRequest(req)
+  }
+
   const removeFrameAncestorsDirective = (cspValue) =>
     String(cspValue)
       .split(",")
@@ -1431,7 +1518,7 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
 
   // A redirect the proxy will not follow. The middleware already copied the upstream headers (and body) onto the
   // response, so both are replaced: a redirect body rendered as a document would run on the Desktop origin.
-  const refuseRedirect = (res) => {
+  const refuseProxiedResponse = (res) => {
     if (res && typeof res.removeHeader === "function") {
       res.removeHeader("location")
       res.removeHeader("content-type")
@@ -1656,6 +1743,57 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       }
     })
 
+    // changeOrigin rewrites Host to the upstream; Origin and Referer must follow, or the
+    // previewed app's own CSRF check (Django/Rails compare them against Host) rejects every
+    // POST the page makes. A sandboxed external preview sends `Origin: null`; the upstream
+    // sees its own origin instead, exactly as if the user browsed it directly.
+    const rewritePreviewOriginHeaders = (proxyReq, req) => {
+      if (!proxyReq || typeof proxyReq.getHeader !== "function" || typeof proxyReq.setHeader !== "function") {
+        return
+      }
+      const resolved = resolveRequestTarget(req)
+      if (!resolved.ok) {
+        return
+      }
+      const targetOrigin = resolved.entry.origin
+      const origin = proxyReq.getHeader("origin")
+      if (typeof origin === "string" && origin.length > 0) {
+        proxyReq.setHeader("origin", targetOrigin)
+      }
+      const referer = proxyReq.getHeader("referer")
+      if (typeof referer === "string" && referer.length > 0) {
+        proxyReq.setHeader("referer", rewriteProxyReferer(referer, resolved))
+      }
+    }
+
+    // Non-rewritable responses are piped to the client as they arrive. With
+    // `selfHandleResponse: true` nothing else copies status or headers, so this path owns
+    // both — minus the hop-by-hop framing Node manages on the downstream side.
+    const streamProxyResponse = (proxyRes, req, res) => {
+      const resolved = resolveRequestTarget(req)
+      res.statusCode = proxyRes.statusCode || 502
+      if (proxyRes.statusMessage) {
+        res.statusMessage = proxyRes.statusMessage
+      }
+      for (const key of Object.keys(proxyRes.headers || {})) {
+        const lowerKey = key.toLowerCase()
+        if (lowerKey === "transfer-encoding" || lowerKey === "connection") {
+          continue
+        }
+        res.setHeader(key, proxyRes.headers[key])
+      }
+      stripFrameBustingHeadersOnRes(res)
+      if (resolved.ok) {
+        scopePreviewCookies(res, `/api/preview/proxy/${resolved.id}`)
+      }
+      proxyRes.on("error", () => {
+        if (typeof res.destroy === "function") {
+          res.destroy()
+        }
+      })
+      proxyRes.pipe(res)
+    }
+
     const proxy = createProxyMiddleware({
       target: "http://127.0.0.1",
       changeOrigin: true,
@@ -1681,14 +1819,14 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
         return target.startsWith("/api/preview/proxy/")
       },
       router: (req) => {
-        const resolved = resolveTargetFromRequest(req)
+        const resolved = resolveRequestTarget(req)
         if (!resolved.ok) {
           return "http://127.0.0.1"
         }
         return resolved.entry.origin
       },
       pathRewrite: (pathValue, req) => {
-        const resolved = resolveTargetFromRequest(req)
+        const resolved = resolveRequestTarget(req)
         if (!resolved.ok) {
           return pathValue
         }
@@ -1697,135 +1835,127 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
         return buildPreviewProxyUpstreamPath(req.originalUrl || req.url || "", resolved.id)
       },
       on: {
-        proxyReq: (proxyReq) => {
-          // Keep local dev servers from receiving OpenChamber credentials.
+        proxyReq: (proxyReq, req) => {
+          // Keep local dev servers from receiving OpenChamber credentials; the previewed
+          // app's own cookies and page-set Authorization still reach it.
           removeSensitivePreviewProxyHeaders(proxyReq)
+          rewritePreviewOriginHeaders(proxyReq, req)
           proxyReq.setHeader("accept-encoding", "identity")
         },
-        proxyReqWs: (proxyReq) => {
+        proxyReqWs: (proxyReq, req) => {
           removeSensitivePreviewProxyHeaders(proxyReq)
+          rewritePreviewOriginHeaders(proxyReq, req)
         },
-        proxyRes: responseInterceptor(async (responseBuffer, proxyRes, req, res) => {
-          // Allow the site to be framed inside OpenChamber even if it sets
-          // X-Frame-Options or a CSP frame-ancestors rule. The proxy is
-          // same-origin so embedding is otherwise safe. Strip on `res` (not
-          // proxyRes.headers) — see stripFrameBustingHeadersOnRes for why.
-          stripFrameBustingHeaders(proxyRes.headers)
-          stripFrameBustingHeadersOnRes(res)
+        proxyRes: (() => {
+          const bufferedProxyResponse = responseInterceptor(async (responseBuffer, proxyRes, req, res) => {
+            // Allow the site to be framed inside OpenChamber even if it sets
+            // X-Frame-Options or a CSP frame-ancestors rule. The proxy is
+            // same-origin so embedding is otherwise safe. Strip on `res` (not
+            // proxyRes.headers) — see stripFrameBustingHeadersOnRes for why.
+            stripFrameBustingHeaders(proxyRes.headers)
+            stripFrameBustingHeadersOnRes(res)
 
-          const resolved = resolveTargetFromRequest(req)
-          // Upstream cookies keep working for the preview but must not land on the Desktop origin itself, where a
-          // guessable session cookie name could be clobbered.
-          if (resolved.ok) {
-            scopePreviewCookies(res, `/api/preview/proxy/${resolved.id}`)
-          }
-
-          // Keep redirects inside the same-origin proxy so a cross-origin hop
-          // (e.g. google.com -> www.google.com) doesn't escape and get
-          // frame-blocked by the target's own X-Frame-Options.
-          const statusCode = proxyRes.statusCode || (res && res.statusCode) || 0
-          if (statusCode >= 300 && statusCode < 400) {
-            // Even a 3xx body can be rendered (a 300, or a redirect block a browser ignores), so it gets the
-            // document protections before anything returns. An expired entry cannot be sandboxed from its own
-            // record, so it is refused outright instead of shipping the upstream body.
-            applyExternalPreviewSandbox(res, resolved)
-            applyPreviewNoStoreOnRes(res)
-            if (!resolved.ok) {
-              return refuseRedirect(res)
+            const resolved = resolveRequestTarget(req)
+            // Upstream cookies keep working for the preview but must not land on the Desktop origin itself, where a
+            // guessable session cookie name could be clobbered.
+            if (resolved.ok) {
+              scopePreviewCookies(res, `/api/preview/proxy/${resolved.id}`)
             }
-            const location = proxyRes.headers?.location
-            if (location && res && typeof res.setHeader === "function") {
-              // The request's own upstream path is the base a relative Location resolves
-              // against (RFC 9110): `intro` from `/docs/guide` means `/docs/intro`.
-              const requestUrl = new URL(req.originalUrl || req.url || "", "http://localhost")
-              const rewritten = rewriteProxyRedirectLocation(
-                location,
-                resolved,
-                `${stripProxyPrefix(requestUrl.pathname, resolved.id)}${requestUrl.search}`,
-              )
-              if (rewritten) {
-                res.setHeader("location", rewritten.location)
-                if (rewritten.redirectTarget) {
-                  const cookie = buildCookie({
-                    name: TOKEN_COOKIE_NAME,
-                    value: rewritten.redirectTarget.token,
-                    path: `/api/preview/proxy/${rewritten.redirectTarget.id}`,
-                    maxAgeSeconds: Math.max(0, Math.round((rewritten.redirectTarget.expiresAt - now()) / 1000)),
-                    secure: Boolean(req.secure),
-                  })
-                  const existing = res.getHeader?.("set-cookie")
-                  const values = existing == null ? [] : Array.isArray(existing) ? existing : [existing]
-                  res.setHeader("set-cookie", [...values, cookie])
-                }
-              } else {
-                return refuseRedirect(res)
+
+            // Keep redirects inside the same-origin proxy so a cross-origin hop
+            // (e.g. google.com -> www.google.com) doesn't escape and get
+            // frame-blocked by the target's own X-Frame-Options.
+            const statusCode = proxyRes.statusCode || (res && res.statusCode) || 0
+            if (statusCode >= 300 && statusCode < 400) {
+              // Even a 3xx body can be rendered (a 300, or a redirect block a browser ignores), so it gets the
+              // document protections before anything returns.
+              applyExternalPreviewSandbox(res, resolved)
+              applyPreviewNoStoreOnRes(res)
+              if (!resolved.ok) {
+                // The mount guard resolved and stashed the target before proxying, so an
+                // unresolvable target here means the request never carried one — nothing it
+                // produced may reach the Desktop origin.
+                return refuseProxiedResponse(res)
               }
+              const location = proxyRes.headers?.location
+              if (location && res && typeof res.setHeader === "function") {
+                // The request's own upstream path is the base a relative Location resolves
+                // against (RFC 9110): `intro` from `/docs/guide` means `/docs/intro`.
+                const requestUrl = new URL(req.originalUrl || req.url || "", "http://localhost")
+                const rewritten = rewriteProxyRedirectLocation(
+                  location,
+                  resolved,
+                  `${stripProxyPrefix(requestUrl.pathname, resolved.id)}${requestUrl.search}`,
+                )
+                if (rewritten) {
+                  res.setHeader("location", rewritten.location)
+                  if (rewritten.redirectTarget) {
+                    const cookie = buildCookie({
+                      name: TOKEN_COOKIE_NAME,
+                      value: rewritten.redirectTarget.token,
+                      path: `/api/preview/proxy/${rewritten.redirectTarget.id}`,
+                      maxAgeSeconds: Math.max(0, Math.round((rewritten.redirectTarget.expiresAt - now()) / 1000)),
+                      secure: Boolean(req.secure),
+                    })
+                    const existing = res.getHeader?.("set-cookie")
+                    const values = existing == null ? [] : Array.isArray(existing) ? existing : [existing]
+                    res.setHeader("set-cookie", [...values, cookie])
+                  }
+                } else {
+                  return refuseProxiedResponse(res)
+                }
+              }
+              return responseBuffer
             }
-            return responseBuffer
-          }
 
-          // Node joins two Content-Type lines into "text/html, text/plain". Both the rewriting decisions and the
-          // sandbox decision read the same list of essences, or the loose one would inject the bridge into a page
-          // the strict one left unsandboxed.
-          const contentType = String(proxyRes.headers?.["content-type"] || "").toLowerCase()
-          const essenceList = contentType
-            .split(",")
-            .map((part) => part.split(";", 1)[0].trim())
-          const isHtml = essenceList.includes("text/html")
-          const isCss = essenceList.includes("text/css")
-          const isJavaScript = essenceList.some(
-            (essence) => essence.includes("javascript") || essence.includes("ecmascript"),
-          )
-          // A document that runs script when it is opened directly. HTML is not the only one: an SVG, XHTML or XML
-          // response from an external preview is a document too, and all were served with the app's own policy —
-          // which allows inline script — on the Desktop origin. Chrome renders any `*/*+xml` as XML and sniffs a
-          // missing content type as HTML, so the essence decides rather than a list of exact types. The
-          // project-icon route carries its own policy for the same reason (`60cfcf9c`).
-          const isScriptableDocument = essenceList.some(
-            (essence) =>
-              essence === "" ||
-              essence === "text/html" ||
-              essence === "image/svg+xml" ||
-              essence === "application/xml" ||
-              essence === "text/xml" ||
-              essence.endsWith("+xml"),
-          )
-          if (isScriptableDocument) {
-            applyExternalPreviewSandbox(res, resolved)
-          }
-          if (!isHtml && !isCss && !isJavaScript) {
-            return responseBuffer
-          }
+            const essenceList = parseContentTypeEssences(proxyRes.headers?.["content-type"])
+            const isHtml = essenceList.includes("text/html")
+            const isCss = essenceList.includes("text/css")
+            const isJavaScript = essenceList.some(isJavaScriptEssence)
+            if (essenceList.some(isScriptableDocumentEssence)) {
+              applyExternalPreviewSandbox(res, resolved)
+            }
+            if (!isHtml && !isCss && !isJavaScript) {
+              return responseBuffer
+            }
 
-          applyPreviewNoStoreOnRes(res)
+            applyPreviewNoStoreOnRes(res)
 
-          if (!resolved.ok) {
-            return responseBuffer
-          }
+            if (!resolved.ok) {
+              return refuseProxiedResponse(res)
+            }
 
-          const proxyBasePath = `/api/preview/proxy/${resolved.id}`
-          const parsed = new URL(req.originalUrl || req.url || "", "http://localhost")
-          const upstreamPath = stripProxyPrefix(parsed.pathname, resolved.id)
-          if (isJavaScript && upstreamPath === "/@vite/client") {
-            return rewritePreviewBody({
-              bodyText: rewriteViteClientHmr(responseBuffer.toString("utf8"), proxyBasePath),
+            const proxyBasePath = `/api/preview/proxy/${resolved.id}`
+            const parsed = new URL(req.originalUrl || req.url || "", "http://localhost")
+            const upstreamPath = stripProxyPrefix(parsed.pathname, resolved.id)
+            if (isJavaScript && upstreamPath === "/@vite/client") {
+              return rewritePreviewBody({
+                bodyText: rewriteViteClientHmr(responseBuffer.toString("utf8"), proxyBasePath),
+                proxyBasePath,
+                targetOrigin: resolved.entry.origin,
+                kind: "javascript",
+              })
+            }
+
+            const rewrittenBody = rewritePreviewBody({
+              bodyText: responseBuffer.toString("utf8"),
               proxyBasePath,
               targetOrigin: resolved.entry.origin,
-              kind: "javascript",
+              kind: isHtml ? "html" : isCss ? "css" : "javascript",
             })
-          }
-
-          const rewrittenBody = rewritePreviewBody({
-            bodyText: responseBuffer.toString("utf8"),
-            proxyBasePath,
-            targetOrigin: resolved.entry.origin,
-            kind: isHtml ? "html" : isCss ? "css" : "javascript",
+            if (isHtml) {
+              return injectPreviewBridge(rewrittenBody, resolved.entry.origin)
+            }
+            return rewrittenBody
           })
-          if (isHtml) {
-            return injectPreviewBridge(rewrittenBody, resolved.entry.origin)
+
+          return (proxyRes, req, res) => {
+            if (shouldBufferProxyResponse(proxyRes)) {
+              return bufferedProxyResponse(proxyRes, req, res)
+            }
+            return streamProxyResponse(proxyRes, req, res)
           }
-          return rewrittenBody
-        }),
+        })(),
         error: (err, _req, res) => {
           const isDev =
             typeof process !== "undefined" && process && process.env && process.env.NODE_ENV !== "production"
@@ -1865,6 +1995,10 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
           res.setHeader(PREVIEW_REFUSAL_HEADER, "1")
           return res.status(resolved.status).json({ error: resolved.error })
         }
+        // Keep the authenticated resolution for everything downstream: the response can
+        // outlive the entry's expiry, and re-resolving then would serve an external
+        // document without its sandbox.
+        req.previewTarget = resolved
         next()
       },
       proxy,
@@ -1884,13 +2018,18 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
         rejectWebSocketUpgrade(socket, resolved.status, resolved.error)
         return
       }
+      req.previewTarget = resolved
 
       const handleUpgrade = async () => {
         try {
           // Origin validation is independent of UI auth (see the other
           // WebSocket upgrade paths); it must run even when no UI password
-          // is set.
-          const originAllowed = await isRequestOriginAllowed(req)
+          // is set. A sandboxed external preview is an opaque origin whose
+          // sockets carry `Origin: null` — the token cookie check above has
+          // already gated this upgrade, so the loopback-origin rule would
+          // only break the previewed app's own WebSocket.
+          const originHeader = typeof req.headers?.origin === "string" ? req.headers.origin.trim() : ""
+          const originAllowed = originHeader === "null" ? true : await isRequestOriginAllowed(req)
           if (!originAllowed) {
             rejectWebSocketUpgrade(socket, 403, "Invalid origin")
             return

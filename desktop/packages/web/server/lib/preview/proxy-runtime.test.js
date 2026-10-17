@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
+import { Readable, Writable } from "node:stream"
+import { responseInterceptor } from "http-proxy-middleware"
 
 import {
   buildPreviewProxyUpstreamPath,
@@ -10,6 +12,45 @@ import {
   removeSensitivePreviewProxyHeaders,
   rewritePreviewBody,
 } from "./proxy-runtime.js"
+
+// The proxyRes handler dispatches between the buffered interceptor (rewritable bodies) and
+// straight-through streaming. Drive it the way http-proxy-middleware does: a readable proxyRes
+// in, an Express-like res out, capturing what the client would receive.
+const callProxyRes = ({
+  proxyOptions,
+  body = Buffer.alloc(0),
+  statusCode = 200,
+  statusMessage,
+  headers = {},
+  req,
+}) =>
+  new Promise((resolve) => {
+    const proxyRes = Readable.from(body.length > 0 ? [body] : [])
+    proxyRes.statusCode = statusCode
+    if (statusMessage !== undefined) {
+      proxyRes.statusMessage = statusMessage
+    }
+    proxyRes.headers = headers
+    const responseHeaders = new Map()
+    const chunks = []
+    const res = {
+      statusCode,
+      statusMessage,
+      removeHeader: (name) => responseHeaders.delete(name.toLowerCase()),
+      getHeader: (name) => responseHeaders.get(name.toLowerCase()),
+      setHeader: (name, value) => responseHeaders.set(name.toLowerCase(), value),
+      write: (chunk) => {
+        chunks.push(Buffer.from(chunk))
+        return true
+      },
+      end: (chunk) => {
+        if (chunk) chunks.push(Buffer.from(chunk))
+        resolve({ responseHeaders, res, body: Buffer.concat(chunks) })
+      },
+      destroy: () => resolve({ responseHeaders, res, body: Buffer.concat(chunks) }),
+    }
+    proxyOptions.on.proxyRes(proxyRes, req, res)
+  })
 
 const rewrite = (bodyText, kind) =>
   rewritePreviewBody({
@@ -418,15 +459,38 @@ describe("preview proxy upstream request hygiene", () => {
     ).toBe("/ws?%E0%A4%A=1&x=2")
   })
 
-  it("removes Desktop credentials from proxied HTTP and WebSocket requests", () => {
+  it("strips Desktop credentials but forwards the previewed app's own cookies and Authorization", () => {
+    const headers = new Map([
+      ["cookie", "oc_preview_token=tok; oc_ui_session=ses; oc_ui_session_3000=ses2; app_session=abc; theme=dark"],
+      ["authorization", "Bearer page-token"],
+      ["x-openchamber-ui-session", "internal"],
+    ])
+    const proxyReq = {
+      getHeader: (name) => headers.get(name.toLowerCase()),
+      setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+      removeHeader: (name) => headers.delete(name.toLowerCase()),
+    }
+    removeSensitivePreviewProxyHeaders(proxyReq)
+
+    // The upstream's own cookies (scoped to the proxy prefix on the way out) must come back
+    // to it, or the previewed app's login can never work.
+    expect(headers.get("cookie")).toBe("app_session=abc; theme=dark")
+    // A bearer token the page set itself is the previewed app's credential, not the Desktop's.
+    expect(headers.get("authorization")).toBe("Bearer page-token")
+    expect(headers.has("x-openchamber-ui-session")).toBe(false)
+  })
+
+  it("drops the cookie header entirely when only Desktop credentials were present", () => {
     const removed = []
     removeSensitivePreviewProxyHeaders({
+      getHeader: (name) => (name.toLowerCase() === "cookie" ? "oc_preview_token=tok; oc_ui_session=ses" : undefined),
+      setHeader: () => {},
       removeHeader: (name) => {
         removed.push(name)
       },
     })
 
-    expect(removed).toEqual(["cookie", "authorization", "x-openchamber-ui-session"])
+    expect(removed).toEqual(["cookie", "x-openchamber-ui-session"])
   })
 
   it("registers the same credential scrubber for WebSocket proxy requests", () => {
@@ -442,7 +506,7 @@ describe("preview proxy upstream request hygiene", () => {
         middleware.upgrade = vi.fn()
         return middleware
       },
-      responseInterceptor: (handler) => handler,
+      responseInterceptor,
     })
 
     runtime.attach(
@@ -463,7 +527,7 @@ describe("preview proxy upstream request hygiene", () => {
       },
     })
 
-    expect(removed).toEqual(["cookie", "authorization", "x-openchamber-ui-session"])
+    expect(removed).toEqual(["cookie", "x-openchamber-ui-session"])
   })
 
   it("rejects preview target creation from disallowed origins even when UI auth is disabled", async () => {
@@ -484,7 +548,7 @@ describe("preview proxy upstream request hygiene", () => {
         middleware.upgrade = vi.fn()
         return middleware
       },
-      responseInterceptor: (handler) => handler,
+      responseInterceptor,
     })
     runtime.attach(app, {
       server: { on: vi.fn() },
@@ -533,7 +597,7 @@ describe("preview proxy upstream request hygiene", () => {
         middleware.upgrade = vi.fn()
         return middleware
       },
-      responseInterceptor: (handler) => handler,
+      responseInterceptor,
     })
     runtime.attach(app, {
       server: { on: vi.fn() },
@@ -557,20 +621,13 @@ describe("preview proxy upstream request hygiene", () => {
       headers: { cookie: sourceCookie },
       secure: false,
     }
-    const redirectHeaders = new Map()
-    const redirectResponse = {
-      statusCode: 302,
-      removeHeader: vi.fn(),
-      getHeader: (name) => redirectHeaders.get(name.toLowerCase()),
-      setHeader: (name, value) => redirectHeaders.set(name.toLowerCase(), value),
-    }
 
-    await proxyOptions.on.proxyRes(
-      Buffer.alloc(0),
-      { statusCode: 302, headers: { location: "https://example.com/assets/style.css" } },
-      request,
-      redirectResponse,
-    )
+    const { responseHeaders: redirectHeaders } = await callProxyRes({
+      proxyOptions,
+      statusCode: 302,
+      headers: { location: "https://example.com/assets/style.css" },
+      req: request,
+    })
 
     expect(proxyOptions.router(request)).toBe("http://127.0.0.1:3000")
     const redirectedLocation = redirectHeaders.get("location")
@@ -608,7 +665,7 @@ describe("preview proxy upstream request hygiene", () => {
         middleware.upgrade = upgradeMiddleware
         return middleware
       },
-      responseInterceptor: (handler) => handler,
+      responseInterceptor,
     })
 
     const rejectWebSocketUpgrade = vi.fn()
@@ -691,7 +748,7 @@ describe("external preview documents are sandboxed", () => {
         middleware.upgrade = vi.fn()
         return middleware
       },
-      responseInterceptor: (handler) => handler,
+      responseInterceptor,
     })
     runtime.attach(app, {
       server: { on: vi.fn() },
@@ -720,22 +777,13 @@ describe("external preview documents are sandboxed", () => {
     return { proxyOptions, request, target }
   }
 
-  const runProxyRes = async ({ proxyOptions, request }, contentType) => {
-    const responseHeaders = new Map()
-    const res = {
-      statusCode: 200,
-      removeHeader: vi.fn(),
-      getHeader: (name) => responseHeaders.get(name.toLowerCase()),
-      setHeader: (name, value) => responseHeaders.set(name.toLowerCase(), value),
-    }
-    const body = await proxyOptions.on.proxyRes(
-      Buffer.from("<html><head></head><body>hi</body></html>"),
-      { statusCode: 200, headers: { "content-type": contentType } },
-      request,
-      res,
-    )
-    return { responseHeaders, body }
-  }
+  const runProxyRes = async ({ proxyOptions, request }, contentType) =>
+    callProxyRes({
+      proxyOptions,
+      body: Buffer.from("<html><head></head><body>hi</body></html>"),
+      headers: { "content-type": contentType },
+      req: request,
+    })
 
   it("adds a sandbox policy without allow-same-origin to an external HTML document", async () => {
     const harness = await buildHarness({ allowExternal: true })
@@ -800,29 +848,16 @@ describe("external preview documents are sandboxed", () => {
     // site is attacker-controlled: `allow-same-origin` in it would keep the
     // Desktop origin, and a second `sandbox` directive would be ignored.
     const harness = await buildHarness({ allowExternal: true })
-    const responseHeaders = new Map()
-    // http-proxy-middleware copies the upstream headers onto `res` before the
-    // interceptor runs, so the upstream CSP is already there when it is applied.
-    responseHeaders.set("content-security-policy", "default-src *; sandbox allow-scripts allow-same-origin allow-forms")
-    const res = {
-      statusCode: 200,
-      removeHeader: vi.fn(),
-      getHeader: (name) => responseHeaders.get(name.toLowerCase()),
-      setHeader: (name, value) => responseHeaders.set(name.toLowerCase(), value),
-    }
 
-    await harness.proxyOptions.on.proxyRes(
-      Buffer.from("<html><body>hi</body></html>"),
-      {
-        statusCode: 200,
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "content-security-policy": "default-src *; sandbox allow-scripts allow-same-origin allow-forms",
-        },
+    const { responseHeaders } = await callProxyRes({
+      proxyOptions: harness.proxyOptions,
+      body: Buffer.from("<html><body>hi</body></html>"),
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "content-security-policy": "default-src *; sandbox allow-scripts allow-same-origin allow-forms",
       },
-      harness.request,
-      res,
-    )
+      req: harness.request,
+    })
 
     const csp = String(responseHeaders.get("content-security-policy") ?? "")
     expect(csp.match(/sandbox/gi)).toHaveLength(1)
@@ -854,7 +889,7 @@ describe("external preview documents are sandboxed", () => {
         middleware.upgrade = vi.fn()
         return middleware
       },
-      responseInterceptor: (handler) => handler,
+      responseInterceptor,
     })
     runtime.attach(app, {
       server: { on: vi.fn() },
@@ -873,33 +908,21 @@ describe("external preview documents are sandboxed", () => {
 
     const [sourceCookie] = String(headers.get("set-cookie")).split(";", 1)
     const target = targetResponse.json.mock.calls[0][0]
-    const redirectHeaders = new Map()
-    await proxyOptions.on.proxyRes(
-      Buffer.alloc(0),
-      { statusCode: 302, headers: { location: "https://example.com/login" } },
-      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: sourceCookie }, secure: false },
-      {
-        statusCode: 302,
-        removeHeader: vi.fn(),
-        getHeader: (name) => redirectHeaders.get(name.toLowerCase()),
-        setHeader: (name, value) => redirectHeaders.set(name.toLowerCase(), value),
-      },
-    )
+    const { responseHeaders: redirectHeaders } = await callProxyRes({
+      proxyOptions,
+      statusCode: 302,
+      headers: { location: "https://example.com/login" },
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: sourceCookie }, secure: false },
+    })
 
     const redirectedLocation = redirectHeaders.get("location")
     const redirectedCookie = redirectHeaders.get("set-cookie")[0].split(";", 1)[0]
-    const documentHeaders = new Map()
-    await proxyOptions.on.proxyRes(
-      Buffer.from("<html><body>login</body></html>"),
-      { statusCode: 200, headers: { "content-type": "text/html; charset=utf-8" } },
-      { originalUrl: redirectedLocation, headers: { cookie: `${sourceCookie}; ${redirectedCookie}` } },
-      {
-        statusCode: 200,
-        removeHeader: vi.fn(),
-        getHeader: (name) => documentHeaders.get(name.toLowerCase()),
-        setHeader: (name, value) => documentHeaders.set(name.toLowerCase(), value),
-      },
-    )
+    const { responseHeaders: documentHeaders } = await callProxyRes({
+      proxyOptions,
+      body: Buffer.from("<html><body>login</body></html>"),
+      headers: { "content-type": "text/html; charset=utf-8" },
+      req: { originalUrl: redirectedLocation, headers: { cookie: `${sourceCookie}; ${redirectedCookie}` } },
+    })
 
     const csp = String(documentHeaders.get("content-security-policy") ?? "")
     expect(csp).toContain("sandbox")
@@ -907,18 +930,12 @@ describe("external preview documents are sandboxed", () => {
 
     // XML documents execute script when the payload uses the XHTML/SVG namespace, so they are documents too.
     for (const contentType of ["application/xml", "text/xml"]) {
-      const xmlHeaders = new Map()
-      await proxyOptions.on.proxyRes(
-        Buffer.from("<x/>"),
-        { statusCode: 200, headers: { "content-type": contentType } },
-        { originalUrl: redirectedLocation, headers: { cookie: `${sourceCookie}; ${redirectedCookie}` } },
-        {
-          statusCode: 200,
-          removeHeader: (name) => xmlHeaders.delete(name.toLowerCase()),
-          getHeader: (name) => xmlHeaders.get(name.toLowerCase()),
-          setHeader: (name, value) => xmlHeaders.set(name.toLowerCase(), value),
-        },
-      )
+      const { responseHeaders: xmlHeaders } = await callProxyRes({
+        proxyOptions,
+        body: Buffer.from("<x/>"),
+        headers: { "content-type": contentType },
+        req: { originalUrl: redirectedLocation, headers: { cookie: `${sourceCookie}; ${redirectedCookie}` } },
+      })
 
       const xmlCsp = String(xmlHeaders.get("content-security-policy") ?? "")
       expect(xmlCsp).toContain("sandbox")
@@ -951,7 +968,7 @@ describe("external preview documents are sandboxed", () => {
         middleware.upgrade = vi.fn()
         return middleware
       },
-      responseInterceptor: (handler) => handler,
+      responseInterceptor,
     })
     runtime.attach(app, {
       server: { on: vi.fn() },
@@ -971,19 +988,13 @@ describe("external preview documents are sandboxed", () => {
     const [sourceCookie] = String(headers.get("set-cookie")).split(";", 1)
     const target = targetResponse.json.mock.calls[0][0]
     const redirect = async (location, requestPath = "/") => {
-      const redirectHeaders = new Map()
-      await proxyOptions.on.proxyRes(
-        Buffer.alloc(0),
-        { statusCode: 302, headers: { location } },
-        { originalUrl: `${target.proxyBasePath}${requestPath}`, headers: { cookie: sourceCookie }, secure: false },
-        {
-          statusCode: 302,
-          removeHeader: vi.fn(),
-          getHeader: (name) => redirectHeaders.get(name.toLowerCase()),
-          setHeader: (name, value) => redirectHeaders.set(name.toLowerCase(), value),
-        },
-      )
-      return redirectHeaders
+      const { responseHeaders } = await callProxyRes({
+        proxyOptions,
+        statusCode: 302,
+        headers: { location },
+        req: { originalUrl: `${target.proxyBasePath}${requestPath}`, headers: { cookie: sourceCookie }, secure: false },
+      })
+      return responseHeaders
     }
 
     // Another name for the same origin: the entry is reused, so no second target
@@ -1046,7 +1057,7 @@ describe("preview proxy response hardening", () => {
         middleware.upgrade = vi.fn()
         return middleware
       },
-      responseInterceptor: (handler) => handler,
+      responseInterceptor,
     })
     runtime.attach(app, {
       server: { on: vi.fn() },
@@ -1067,36 +1078,21 @@ describe("preview proxy response hardening", () => {
     return { proxyOptions, cookie, target }
   }
 
-  const makeResponse = (headers, statusCode = 200) => ({
-    statusCode,
-    removeHeader: (name) => headers.delete(name.toLowerCase()),
-    getHeader: (name) => headers.get(name.toLowerCase()),
-    setHeader: (name, value) => headers.set(name.toLowerCase(), value),
-  })
-
   it("strips Service-Worker-Allowed and Clear-Site-Data from proxied responses", async () => {
     // Both act on the shared Desktop origin. The first widens a worker's scope; the second wipes the app's
     // cookies, storage and cache from an untrusted page's response.
     const { proxyOptions, cookie, target } = await createHarness()
-    const responseHeaders = new Map([
-      ["service-worker-allowed", "/"],
-      ["clear-site-data", '"cookies", "storage"'],
-      ["refresh", "0;url=http://169.254.169.254/"],
-    ])
-    await proxyOptions.on.proxyRes(
-      Buffer.from("<html></html>"),
-      {
-        statusCode: 200,
-        headers: {
-          "content-type": "text/html",
-          "service-worker-allowed": "/",
-          "clear-site-data": '"cookies", "storage"',
-          refresh: "0;url=http://169.254.169.254/",
-        },
+    const { responseHeaders } = await callProxyRes({
+      proxyOptions,
+      body: Buffer.from("<html></html>"),
+      headers: {
+        "content-type": "text/html",
+        "service-worker-allowed": "/",
+        "clear-site-data": '"cookies", "storage"',
+        refresh: "0;url=http://169.254.169.254/",
       },
-      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
-      makeResponse(responseHeaders),
-    )
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+    })
 
     expect(responseHeaders.get("service-worker-allowed")).toBeUndefined()
     expect(responseHeaders.get("clear-site-data")).toBeUndefined()
@@ -1108,44 +1104,35 @@ describe("preview proxy response hardening", () => {
     // rewrite left the raw LAN/metadata Location; the fix must also stop the redirect's HTML body from rendering
     // as a document on the Desktop origin.
     const { proxyOptions, cookie, target } = await createHarness()
-    const responseHeaders = new Map([
-      ["location", "http://169.254.169.254/latest/meta-data/"],
-      ["content-type", "text/html"],
-    ])
-    const response = makeResponse(responseHeaders, 302)
 
-    const body = await proxyOptions.on.proxyRes(
-      Buffer.from("<script>alert(1)</script>"),
-      {
-        statusCode: 302,
-        headers: { location: "http://169.254.169.254/latest/meta-data/", "content-type": "text/html" },
-      },
-      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
-      response,
-    )
+    const { responseHeaders, res, body } = await callProxyRes({
+      proxyOptions,
+      statusCode: 302,
+      body: Buffer.from("<script>alert(1)</script>"),
+      headers: { location: "http://169.254.169.254/latest/meta-data/", "content-type": "text/html" },
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+    })
 
     expect(responseHeaders.get("location")).toBeUndefined()
-    expect(response.statusCode).toBe(502)
+    expect(res.statusCode).toBe(502)
     expect(responseHeaders.get("content-type")).toContain("text/plain")
     expect(String(body)).not.toContain("alert")
   })
 
   it("drops a Location even when the target cannot be resolved", async () => {
-    // An expired entry or a dropped token makes resolveTargetFromRequest fail after the router already proxied;
-    // the guard skipped Location handling on that branch and forwarded the raw header.
+    // An entry whose token no longer matches makes the resolution fail; the guard skipped Location
+    // handling on that branch and forwarded the raw header.
     const { proxyOptions, target } = await createHarness()
-    const responseHeaders = new Map([["location", "http://169.254.169.254/latest/meta-data/"]])
-    const response = makeResponse(responseHeaders, 302)
 
-    await proxyOptions.on.proxyRes(
-      Buffer.alloc(0),
-      { statusCode: 302, headers: { location: "http://169.254.169.254/latest/meta-data/" } },
-      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: "wrong=1" } },
-      response,
-    )
+    const { responseHeaders, res } = await callProxyRes({
+      proxyOptions,
+      statusCode: 302,
+      headers: { location: "http://169.254.169.254/latest/meta-data/" },
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: "wrong=1" } },
+    })
 
     expect(responseHeaders.get("location")).toBeUndefined()
-    expect(response.statusCode).toBe(502)
+    expect(res.statusCode).toBe(502)
   })
 
   it("sandboxes every XML document type, including one with no content type", async () => {
@@ -1153,15 +1140,14 @@ describe("preview proxy response hardening", () => {
     // script in the XHTML/SVG namespace on the Desktop origin.
     const { proxyOptions, cookie, target } = await createHarness({ url: "https://example.com", allowExternal: true })
     for (const contentType of ["application/rss+xml", "application/xslt+xml", "application/xml; charset=utf-8", ""]) {
-      const headers = new Map()
-      await proxyOptions.on.proxyRes(
-        Buffer.from("<x/>"),
-        { statusCode: 200, headers: contentType ? { "content-type": contentType } : {} },
-        { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
-        makeResponse(headers),
-      )
+      const { responseHeaders } = await callProxyRes({
+        proxyOptions,
+        body: Buffer.from("<x/>"),
+        headers: contentType ? { "content-type": contentType } : {},
+        req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+      })
 
-      const csp = String(headers.get("content-security-policy") ?? "")
+      const csp = String(responseHeaders.get("content-security-policy") ?? "")
       expect(csp).toContain("sandbox")
       expect(csp).not.toContain("allow-same-origin")
     }
@@ -1172,15 +1158,13 @@ describe("preview proxy response hardening", () => {
     // not be framed at all.
     const { proxyOptions, cookie, target } = await createHarness()
     const upstream = "default-src 'self', frame-ancestors 'none'"
-    const responseHeaders = new Map([["content-security-policy", upstream]])
-    const response = makeResponse(responseHeaders)
 
-    await proxyOptions.on.proxyRes(
-      Buffer.from("<html></html>"),
-      { statusCode: 200, headers: { "content-type": "text/html", "content-security-policy": upstream } },
-      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
-      response,
-    )
+    const { responseHeaders } = await callProxyRes({
+      proxyOptions,
+      body: Buffer.from("<html></html>"),
+      headers: { "content-type": "text/html", "content-security-policy": upstream },
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+    })
 
     expect(String(responseHeaders.get("content-security-policy") ?? "")).not.toContain("frame-ancestors")
   })
@@ -1190,33 +1174,48 @@ describe("preview proxy response hardening", () => {
     // bridge, while the essence check compared the whole string and skipped the sandbox: an external page rendered
     // on the Desktop origin without the opaque origin.
     const { proxyOptions, cookie, target } = await createHarness({ url: "https://example.com", allowExternal: true })
-    const headers = new Map()
-    await proxyOptions.on.proxyRes(
-      Buffer.from("<html><body>x</body></html>"),
-      { statusCode: 200, headers: { "content-type": "text/html, text/plain" } },
-      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
-      makeResponse(headers),
-    )
+    const { responseHeaders } = await callProxyRes({
+      proxyOptions,
+      body: Buffer.from("<html><body>x</body></html>"),
+      headers: { "content-type": "text/html, text/plain" },
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+    })
 
-    const csp = String(headers.get("content-security-policy") ?? "")
+    const csp = String(responseHeaders.get("content-security-policy") ?? "")
     expect(csp).toContain("sandbox")
     expect(csp).not.toContain("allow-same-origin")
   })
 
   it("refuses a body-bearing 3xx without a Location when the target is gone", async () => {
     const { proxyOptions, target } = await createHarness({ url: "https://example.com", allowExternal: true })
-    const headers = new Map([["content-type", "text/html"]])
-    const response = makeResponse(headers, 300)
 
-    const body = await proxyOptions.on.proxyRes(
-      Buffer.from("<script>alert(1)</script>"),
-      { statusCode: 300, headers: { "content-type": "text/html" } },
-      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: "wrong=1" } },
-      response,
-    )
+    const { responseHeaders, res, body } = await callProxyRes({
+      proxyOptions,
+      statusCode: 300,
+      body: Buffer.from("<script>alert(1)</script>"),
+      headers: { "content-type": "text/html" },
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: "wrong=1" } },
+    })
 
-    expect(response.statusCode).toBe(502)
-    expect(headers.get("content-type")).toContain("text/plain")
+    expect(res.statusCode).toBe(502)
+    expect(responseHeaders.get("content-type")).toContain("text/plain")
+    expect(String(body)).not.toContain("alert")
+  })
+
+  it("refuses a scriptable document when no target was ever resolved", async () => {
+    // The mount guard resolves and stashes the target before proxying; a response that arrives
+    // without it must not put an unsandboxed document on the Desktop origin.
+    const { proxyOptions, target } = await createHarness({ url: "https://example.com", allowExternal: true })
+
+    const { responseHeaders, res, body } = await callProxyRes({
+      proxyOptions,
+      body: Buffer.from("<script>alert(1)</script>"),
+      headers: { "content-type": "text/html" },
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: "wrong=1" } },
+    })
+
+    expect(res.statusCode).toBe(502)
+    expect(responseHeaders.get("content-type")).toContain("text/plain")
     expect(String(body)).not.toContain("alert")
   })
 
@@ -1224,37 +1223,159 @@ describe("preview proxy response hardening", () => {
     // A Set-Cookie with Path=/ became a cookie on the Desktop origin itself, where a guessable session cookie can
     // be clobbered. The cookie keeps working for the preview but not for the app's own routes.
     const { proxyOptions, cookie, target } = await createHarness({ url: "https://example.com", allowExternal: true })
-    const headers = new Map([["set-cookie", "session=1; Path=/; Domain=example.com; HttpOnly"]])
-    const response = makeResponse(headers)
 
-    await proxyOptions.on.proxyRes(
-      Buffer.from("<html></html>"),
-      {
-        statusCode: 200,
-        headers: { "content-type": "text/html", "set-cookie": "session=1; Path=/; Domain=example.com; HttpOnly" },
-      },
-      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
-      response,
-    )
+    const { responseHeaders } = await callProxyRes({
+      proxyOptions,
+      body: Buffer.from("<html></html>"),
+      headers: { "content-type": "text/html", "set-cookie": "session=1; Path=/; Domain=example.com; HttpOnly" },
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+    })
 
-    const scoped = String(headers.get("set-cookie"))
+    const scoped = String(responseHeaders.get("set-cookie"))
     expect(scoped).toContain(`Path=${target.proxyBasePath}`)
     expect(scoped).not.toContain("Domain=")
   })
 
   it("resets the reason phrase on a refused redirect", async () => {
     const { proxyOptions, cookie, target } = await createHarness()
-    const headers = new Map([["location", "http://169.254.169.254/latest"]])
-    const response = { ...makeResponse(headers, 302), statusMessage: "Found" }
 
-    await proxyOptions.on.proxyRes(
-      Buffer.alloc(0),
-      { statusCode: 302, headers: { location: "http://169.254.169.254/latest" } },
-      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
-      response,
-    )
+    const { res } = await callProxyRes({
+      proxyOptions,
+      statusCode: 302,
+      statusMessage: "Found",
+      headers: { location: "http://169.254.169.254/latest" },
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+    })
 
-    expect(response.statusCode).toBe(502)
-    expect(response.statusMessage).toBe("Bad Gateway")
+    expect(res.statusCode).toBe(502)
+    expect(res.statusMessage).toBe("Bad Gateway")
+  })
+
+  it("streams a non-rewritable response as it arrives instead of buffering it to the end", async () => {
+    // An SSE endpoint never closes: the buffered path withheld even the response headers until
+    // the upstream finished, so EventSource in a previewed app never saw a single event.
+    const { proxyOptions, cookie, target } = await createHarness()
+    const proxyRes = new Readable({ read() {} })
+    proxyRes.statusCode = 200
+    proxyRes.headers = { "content-type": "text/event-stream", "cache-control": "no-cache" }
+
+    const responseHeaders = new Map()
+    const chunks = []
+    const res = new Writable({
+      write: (chunk, _encoding, callback) => {
+        chunks.push(Buffer.from(chunk))
+        callback()
+      },
+    })
+    res.statusCode = 200
+    res.removeHeader = (name) => responseHeaders.delete(name.toLowerCase())
+    res.getHeader = (name) => responseHeaders.get(name.toLowerCase())
+    res.setHeader = (name, value) => responseHeaders.set(name.toLowerCase(), value)
+
+    proxyOptions.on.proxyRes(proxyRes, { originalUrl: `${target.proxyBasePath}/events`, headers: { cookie } }, res)
+
+    // Headers are on their way immediately, before a single byte of body.
+    expect(responseHeaders.get("content-type")).toBe("text/event-stream")
+    expect(responseHeaders.get("cache-control")).toBe("no-cache")
+    expect(res.writableEnded).toBe(false)
+
+    proxyRes.push("data: one\n\n")
+    await vi.waitFor(() => expect(chunks.length).toBe(1))
+    expect(String(chunks[0])).toBe("data: one\n\n")
+    expect(res.writableEnded).toBe(false)
+
+    proxyRes.push(null)
+    await vi.waitFor(() => expect(res.writableEnded).toBe(true))
+  })
+
+  it("rewrites Origin and Referer to the upstream and forwards the app's own cookies", async () => {
+    // changeOrigin already rewrites Host; leaving Origin/Referer on the Desktop origin made the
+    // previewed app's own CSRF check reject every form POST the page sent.
+    const { proxyOptions, cookie, target } = await createHarness()
+    const sent = new Map([
+      ["origin", "null"],
+      ["referer", `http://127.0.0.1:57123${target.proxyBasePath}/login?next=/dashboard`],
+      ["cookie", `${cookie}; app_session=xyz`],
+    ])
+    const proxyReq = {
+      getHeader: (name) => sent.get(name.toLowerCase()),
+      setHeader: (name, value) => sent.set(name.toLowerCase(), value),
+      removeHeader: (name) => sent.delete(name.toLowerCase()),
+    }
+
+    proxyOptions.on.proxyReq(proxyReq, { originalUrl: `${target.proxyBasePath}/login`, headers: { cookie } })
+
+    expect(sent.get("origin")).toBe("http://127.0.0.1:3000")
+    expect(sent.get("referer")).toBe("http://127.0.0.1:3000/login?next=/dashboard")
+    // The preview token is the Desktop's own credential and stays behind; the app's cookie goes.
+    expect(sent.get("cookie")).toBe("app_session=xyz")
+    expect(sent.get("accept-encoding")).toBe("identity")
+  })
+
+  it("sandboxes an external document whose target expired while the response was in flight", async () => {
+    // The mount guard resolves and authenticates the target when the request starts; the
+    // response must use that resolution. Re-resolving after the upstream answered (possibly
+    // after the entry expired) dropped the sandbox and served the raw document on the
+    // Desktop origin.
+    let targetRoute = null
+    let proxyOptions = null
+    let mountGuard = null
+    let randomCounter = 0
+    const app = {
+      post: (_path, ...handlers) => {
+        targetRoute = handlers.at(-1)
+      },
+      use: (_path, ...handlers) => {
+        mountGuard = handlers[0]
+      },
+    }
+    const runtime = createPreviewProxyRuntime({
+      crypto: { randomBytes: () => Buffer.from(String(++randomCounter).padStart(32, "0"), "hex") },
+      URL,
+      createProxyMiddleware: (options) => {
+        proxyOptions = options
+        const middleware = vi.fn()
+        middleware.upgrade = vi.fn()
+        return middleware
+      },
+      responseInterceptor,
+    })
+    runtime.attach(app, {
+      server: { on: vi.fn() },
+      express: { json: vi.fn(() => vi.fn()) },
+      uiAuthController: null,
+      isRequestOriginAllowed: vi.fn(async () => true),
+      rejectWebSocketUpgrade: vi.fn(),
+    })
+
+    const headers = new Map()
+    const targetResponse = {
+      setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+      json: vi.fn(),
+    }
+    await targetRoute({ body: { url: "https://example.com", allowExternal: true }, secure: false }, targetResponse)
+    const target = targetResponse.json.mock.calls[0][0]
+    const [sourceCookie] = String(headers.get("set-cookie")).split(";", 1)
+
+    const req = { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: sourceCookie }, secure: false }
+    const next = vi.fn()
+    mountGuard(req, {}, next)
+    expect(next).toHaveBeenCalledTimes(1)
+    expect(req.previewTarget?.ok).toBe(true)
+
+    // By response time the request no longer resolves (here: a mangled cookie stands in for
+    // the expired entry; both fail resolveTargetFromRequest the same way).
+    req.headers = { cookie: "wrong=1" }
+    const { responseHeaders, body } = await callProxyRes({
+      proxyOptions,
+      body: Buffer.from("<html><body>hi</body></html>"),
+      headers: { "content-type": "text/html" },
+      req,
+    })
+
+    const csp = String(responseHeaders.get("content-security-policy") ?? "")
+    expect(csp).toContain("sandbox")
+    expect(csp).not.toContain("allow-same-origin")
+    expect(String(body)).toContain("openchamber-preview-bridge")
   })
 })

@@ -656,11 +656,15 @@ const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
       }
 
       if (data.type === "hover") {
+        // The bridge only sends hover/select in inspect mode, but a previewed page can forge the
+        // same message shape — honor them only while this pane actually has inspect mode on.
+        if (!inspectMode) return
         setHoverTarget(isPreviewElementMetadata(data.target) ? data.target : null)
         return
       }
 
       if (data.type === "select" && isPreviewElementMetadata(data.target)) {
+        if (!inspectMode) return
         setHoverTarget(data.target)
         setInspectMode(false)
         attachPreviewAnnotation(data.target)
@@ -684,7 +688,7 @@ const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
     return () => {
       window.removeEventListener("message", handler)
     }
-  }, [attachPreviewAnnotation, isLoopback, onNavigate, t])
+  }, [attachPreviewAnnotation, inspectMode, isLoopback, onNavigate, t])
 
   const consoleErrorCount = consoleEvents.filter(
     (event) => event.level === "error" || event.level === "runtime" || event.level === "resource",
@@ -1499,11 +1503,15 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
       }
 
       if (data.type === "hover") {
+        // The bridge only sends hover/select in inspect mode, but a previewed page can forge the
+        // same message shape — honor them only while this pane actually has inspect mode on.
+        if (!isInspecting) return
         setHoverTarget(isPreviewElementMetadata(data.target) ? data.target : null)
         return
       }
 
       if (data.type === "select" && isPreviewElementMetadata(data.target)) {
+        if (!isInspecting) return
         setHoverTarget(null)
         setIsInspecting(false)
         postInspectMode(false)
@@ -1532,6 +1540,7 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
     currentUrl,
     getCurrentUrlFromFrameUrl,
     getUpstreamUrlFromLocalFrameUrl,
+    isInspecting,
     postInspectMode,
   ])
 

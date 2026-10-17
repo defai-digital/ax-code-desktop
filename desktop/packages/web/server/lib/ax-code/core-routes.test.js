@@ -492,6 +492,31 @@ describe("createApiRequestSecurityMiddleware", () => {
     await request(createApp()).get("/api/ok").set("Host", "desktop.example.com").expect(403)
   })
 
+  it("accepts a fully-qualified loopback Host with its root dot", async () => {
+    // URL and Host parsing keep the root dot (`localhost.`), the resolver reads it as the same
+    // loopback host, and refusing it 403'd every API call for a UI opened that way.
+    await request(createApp()).get("/api/ok").set("Host", "localhost.").expect(200)
+    await request(createApp()).get("/api/ok").set("Host", "127.0.0.1.").expect(200)
+  })
+
+  it("lets a sandboxed external preview POST to its own proxied app with Origin: null", async () => {
+    // An opaque origin (the external preview's CSP sandbox) sends `Origin: null` on every
+    // request, including its own app's forms. The preview proxy path is gated by its
+    // per-target token cookie, so the generic origin rule only broke the page itself.
+    const app = express()
+    app.use("/api", createApiRequestSecurityMiddleware())
+    app.use("/api/preview/proxy", (_req, res) => res.json({ ok: true }))
+
+    await request(app)
+      .post("/api/preview/proxy/f4af70b4261d77706743959516f9cecc/login")
+      .set("Origin", "null")
+      .expect(200)
+  })
+
+  it("still rejects Origin: null away from the preview proxy", async () => {
+    await request(createApp()).post("/api/ok").set("Origin", "null").expect(403)
+  })
+
   it("does not guard non-/api paths", async () => {
     const app = express()
     app.use("/api", createApiRequestSecurityMiddleware())

@@ -141,4 +141,35 @@ describe("ui auth sign-out", () => {
 
     auth.dispose()
   })
+
+  it("keeps a signed-out token revoked across a process restart", async () => {
+    // The JWT secret is persisted, so a revocation that lives only in memory resurrects the
+    // signed-out token on the next launch.
+    const password = "correct horse battery staple"
+    const { createUiAuth } = await import("./ui-auth.js")
+    const first = createUiAuth({ password })
+
+    const loginRes = createResponse()
+    await first.handleSessionCreate({ body: { password }, headers: { host: "127.0.0.1:4096" } }, loginRes)
+    const token = sessionTokenFrom(loginRes)
+    const sessionReq = () => ({
+      headers: { host: "127.0.0.1:4096", cookie: `oc_ui_session_4096=${encodeURIComponent(token)}` },
+    })
+
+    const logoutRes = createResponse()
+    await first.handleSessionLogout(sessionReq(), logoutRes)
+    expect(logoutRes.body).toEqual({ authenticated: false })
+    first.dispose()
+
+    // A fresh module registry with the same data directory is the restart.
+    vi.resetModules()
+    const { createUiAuth: createUiAuthAfterRestart } = await import("./ui-auth.js")
+    const second = createUiAuthAfterRestart({ password })
+
+    const afterRes = createResponse()
+    await second.handleSessionStatus(sessionReq(), afterRes)
+    expect(afterRes.body).toMatchObject({ authenticated: false, locked: true })
+
+    second.dispose()
+  })
 })

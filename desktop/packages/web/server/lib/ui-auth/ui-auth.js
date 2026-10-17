@@ -24,6 +24,43 @@ const RATE_LIMIT_NO_IP_MAX_ATTEMPTS = Number(process.env.AX_CODE_DESKTOP_RATE_LI
 const REVOKED_SESSION_MAX = 500
 const revokedSessionIds = new Set()
 
+// The signing secret is persisted across restarts, so a revocation that lives only in
+// memory resurrects a signed-out token the moment the process restarts. Persist the ids
+// (never the tokens) next to the secret, bounded the same way as the in-memory set.
+let revokedSessionIdsLoaded = false
+
+const loadRevokedSessionIds = () => {
+  if (revokedSessionIdsLoaded) {
+    return
+  }
+  revokedSessionIdsLoaded = true
+  try {
+    const raw = fs.readFileSync(path.join(AX_CODE_DESKTOP_DATA_DIR, "revoked-sessions.json"), "utf8")
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      for (const id of parsed) {
+        if (typeof id === "string" && id) {
+          revokedSessionIds.add(id)
+        }
+      }
+    }
+  } catch {
+    // No revocation file yet (or unreadable): nothing persisted to restore.
+  }
+}
+
+const persistRevokedSessionIds = () => {
+  try {
+    fs.mkdirSync(AX_CODE_DESKTOP_DATA_DIR, { recursive: true })
+    const file = path.join(AX_CODE_DESKTOP_DATA_DIR, "revoked-sessions.json")
+    const tmp = `${file}.${process.pid}.tmp`
+    fs.writeFileSync(tmp, JSON.stringify([...revokedSessionIds]), { mode: 0o600 })
+    fs.renameSync(tmp, file)
+  } catch (error) {
+    console.warn("[JWT] Failed to persist revoked sessions:", error?.message || error)
+  }
+}
+
 const loginRateLimiter = new Map()
 let rateLimitCleanupTimer = null
 
@@ -443,6 +480,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
   const salt = crypto.randomBytes(16)
   const expectedHash = crypto.scryptSync(normalizedPassword, salt, 64)
   let jwtSecret = getOrCreateJwtSecret()
+  loadRevokedSessionIds()
   let passwordBinding = derivePasswordBinding(normalizedPassword, jwtSecret)
   const resolveSessionTtlMs = (trustDevice) => (trustDevice ? TRUSTED_DEVICE_SESSION_TTL_MS : sessionTtlMs)
   let passkeyController = createUiPasskeys({ passwordBinding })
@@ -720,6 +758,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
             }
           }
           revokedSessionIds.add(tokenId)
+          persistRevokedSessionIds()
         }
       } catch {
         // An expired or malformed token has nothing to revoke.
@@ -757,6 +796,9 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
       // the user still had was gone. In this order a failed rotation destroys nothing; a rotation that succeeds
       // invalidates every passkey through that binding whether or not the clear runs afterwards.
       rotateJwtSecret()
+      // Every token signed by the old secret is dead now, so the revocation list is obsolete.
+      revokedSessionIds.clear()
+      persistRevokedSessionIds()
       await passkeyController.clearAllPasskeys()
       clearSessionCookie(req, res)
       res.json({
