@@ -1364,7 +1364,10 @@ Other findings from the two commits above:
 - **`d724cb6e`** — the second audit found the bypass round 31's group signal left: `stop` asks the server to shut
   down and, when the leader exits inside that wait, returned success without ever reaching `terminateProcessTree`,
   so a child in its group that ignored the shutdown outlived a `stop` that reported the instance stopped and then
-  deleted its pid files. The graceful branch runs the same tree call with no grace left. The summarization pattern's
+  deleted its pid files. The graceful branch runs the same tree call with no grace left. Its red light came in `167e7457`: `stopInstanceProcess` is
+  exported for it, as `terminateProcessTree` already is, and the test stubs `process.kill` to answer ESRCH for the
+  pid — a leader that is already gone — and asserts the group still receives `SIGKILL` (red:
+  `expected [ [ 4343, +0 ] ] to deep equally contain [ -4343, 'SIGKILL' ]`). The summarization pattern's
   `(` alternative is dropped with it: parentheses are stripped earlier in the same function, so it was dead.
 
 ## Thirty-first round
@@ -3829,6 +3832,10 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-second round, after `167e7457`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
+  electron 600, ui 2 981, web 1 331 (+2 skipped), 0 `FAIL` lines. Every finding of the round now carries a
+  red-light test.
 - Latest full run, in the thirty-second round, after `063782f3`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
   electron 600, ui 2 981, web 1 330 (+2 skipped), 0 `FAIL` lines. This is the first run of this stretch without a
