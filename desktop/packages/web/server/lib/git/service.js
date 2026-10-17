@@ -513,8 +513,7 @@ const resolveGitInternalPath = async (repoRoot, git, gitPath) => {
   const absolutePath = path.isAbsolute(rawPath) ? path.resolve(rawPath) : path.resolve(repoRoot, rawPath)
   const gitDirRaw = await git.raw(["rev-parse", "--absolute-git-dir"]).catch(() => "")
   const gitDir = gitDirRaw.trim()
-    ? path.resolve(repoRoot, gitDirRaw.trim())
-    : resolveRepositoryFilePath(repoRoot, ".git")
+  if (!path.isAbsolute(gitDir)) throw new Error("Git did not return an absolute metadata directory")
 
   const relative = path.relative(gitDir, absolutePath)
   if (relative.startsWith("..") || path.isAbsolute(relative)) {

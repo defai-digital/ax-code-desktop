@@ -1,0 +1,15 @@
+**1. `change` fires when `matches` stays the same**
+
+`applyPreviewColorScheme` stores the scheme and always calls `notifyColorSchemeListeners`. While `previewColorScheme` is still null, `matches` follows the native query. The notify path does not keep that previous boolean.
+
+**Trigger:** Native scheme is `dark`. The page calls `matchMedia('(prefers-color-scheme: dark)')`, reads `matches === true`, and subscribes to `change`. The parent then applies `dark`. `matches` remains `true`, and the listener still runs. The same happens for the `light` query: it stayed `false`. Listeners that reload, animate, or count transitions run on preview startup whenever the preview matches the OS.
+
+**Regression:** Stub native `matchMedia` so `(prefers-color-scheme: dark)` has `matches: true`. Add a `change` listener that increments `fired`. Call `applyPreviewColorScheme('dark')`. Expect `fired === 0` and `matches === true`. Then `applyPreviewColorScheme('light')` should give `fired === 1` and `matches === false`.
+
+**2. AbortSignal survives `removeEventListener`**
+
+`addEventListener(..., { signal })` registers `removeEntry` on `abort`. `removeEventListener` deletes the map entry and leaves that abort listener in place. `removeEntry` deletes whatever registration currently belongs to that function.
+
+**Trigger:** `addEventListener('change', fn, { signal })`, then `removeEventListener('change', fn)`, then `addEventListener('change', fn)` again, then `abort()`. The second registration is removed. The next scheme change does not call `fn`.
+
+**Regression:** With preview `light`, add `fn` with an `AbortController` signal, remove it, add `fn` with no signal, abort, then `applyPreviewColorScheme('dark')`. Expect one call. Actual: zero.

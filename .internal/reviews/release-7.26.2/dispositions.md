@@ -1,0 +1,13 @@
+# Review dispositions
+
+Muse and Grok were run as bounded independent CLI reviews, without write, shell, web or subagent work. Their leads were checked against source and regression tests. Completed process exits and nonempty final results, not initialization output, count as completed reviews.
+
+- Muse preview review: complete IPv6 link-local rejection and trailing-dot localhost normalization reproduced and fixed. Tests cover every fe80::/10 first hextet and same-origin redirect reuse.
+- Grok preview review: stale AbortSignal replacement removal and spurious unchanged matchMedia events reproduced and fixed. Also remove once listeners before throwing callbacks and skip listeners removed during notification.
+- Muse integration review: no concrete mismatch found between SDK 2.6.26/runtime 7.26.4 Wiki maintenance/visualization or native `desktop.webmcp.v1` provider contracts. This limited finding does not prove arbitrary provider execution.
+- User-approved official Wiki viewer: consume canonical runtime HTML export in a separate sandboxed window. Remove duplicate Desktop visualization source. Direct Node argv avoids Windows command interpretation; bounded export cancellation and serialized/retried cleanup cover window shutdown.
+- Muse Windows review: percent expansion in raw .cmd launcher paths fixed through a single environment-variable lookup and disabled delayed expansion. A Windows-only real cmd.exe regression checks both the failing prior invocation and the corrected one. Windows PATH no longer selects extensionless Unix shims and now includes batch launchers. Nonzero taskkill status now reaches the existing fallback. Forced Windows process-tree termination remains the existing platform shutdown policy; no POSIX graceful-signal claim is made.
+- Muse cleanup leads: installer temporary cleanup no longer masks success/original failure, and Wiki export deletion waits for window closure, runs once, and retries transient Windows file locks. PowerShell and Electron lifecycle regressions cover these contracts.
+- Concurrent main preview hardening was merged before release qualification, retaining scoped preview cookies, consistent content-type classification and owned redirect refusals. The current main updater handoff regression replaces the obsolete pre-shutdown expectation.
+
+Windows user feedback did not include an error message, Windows build, CPU architecture, or failing stage. The identified defects are reproducible path/cleanup problems; they are not asserted to be the exact unknown user incident. Fresh signed Windows x64 installer transitions now also require real installed GUI runtime readiness and first paint. Interactive wizard/SmartScreen behavior and Windows ARM64 support are not claimed.

@@ -140,7 +140,10 @@ function createSupervision({ clock = createFakeClock(), fetchQueue = [], setting
       return { status: 0, error: null }
     },
     fetch: fakeFetch.fetch,
-    isExecutable: (candidate) => candidate === "/custom/ax-code" || candidate === "/usr/bin/ax-code",
+    isExecutable: (candidate) =>
+      candidate === "/custom/ax-code" ||
+      candidate === "/usr/bin/ax-code" ||
+      (rest.platform === "win32" && candidate === require("path").join("/usr/bin", "ax-code.exe")),
     probeVersion: () => "ax-code 7.7.9",
     reservePort: async () => RESERVED_PORT,
     fsmFactory: (options) => {
@@ -245,6 +248,18 @@ describe("resolveRuntimeBinary", () => {
       platform: "win32",
     })
     expect(resolved).toEqual({ binary: path.join("/win/tools", "ax-code.cmd"), source: "path" })
+  })
+
+  test("on Windows ignores extensionless shims and discovers batch launchers", () => {
+    const path = require("path")
+    const resolved = resolveRuntimeBinary({
+      env: { PATH: "/win/tools" },
+      settings: {},
+      platform: "win32",
+      isExecutable: (candidate) =>
+        [path.join("/win/tools", "ax-code"), path.join("/win/tools", "ax-code.bat")].includes(candidate),
+    })
+    expect(resolved?.binary).toBe(path.join("/win/tools", "ax-code.bat"))
   })
 
   test("returns null when nothing executable is found", () => {
@@ -543,7 +558,13 @@ describe("resolveSpawnInvocation", () => {
     expect(result.command).toBe("C:\\Windows\\System32\\cmd.exe")
     // Wrapped in a pair of its own: `/s` strips the leading quote and the last quote character of the `/c` string,
     // so without the extra pair the quotes around the binary are the ones that go.
-    expect(result.args).toEqual(["/d", "/s", "/c", '""C:\\tools\\ax-code.cmd" serve --port 4096"'])
+    expect(result.args).toEqual([
+      "/d",
+      "/v:off",
+      "/s",
+      "/c",
+      '""%AX_CODE_DESKTOP_RUNTIME_LAUNCHER%" serve --port 4096"',
+    ])
     expect(result.windowsVerbatimArguments).toBe(true)
   })
 
@@ -560,10 +581,52 @@ describe("resolveSpawnInvocation", () => {
 
     expect(result.args).toEqual([
       "/d",
+      "/v:off",
       "/s",
       "/c",
-      '""C:\\Program Files\\AX Code\\resources\\ax-code\\bin\\ax-code.cmd" serve --port 4096"',
+      '""%AX_CODE_DESKTOP_RUNTIME_LAUNCHER%" serve --port 4096"',
     ])
+  })
+
+  test("keeps percent and delayed-expansion characters out of the cmd command text", () => {
+    const binary = "C:\\%OS%\\AX Code ! literal & path\\ax-code.cmd"
+    const result = resolveSpawnInvocation(binary, ["--version"], "win32", {})
+    expect(result.env.AX_CODE_DESKTOP_RUNTIME_LAUNCHER).toBe(binary)
+    expect(result.args).toContain("/v:off")
+    expect(result.args.at(-1)).not.toContain(binary)
+  })
+
+  test.skipIf(process.platform !== "win32")("runs a real batch launcher under a literal percent/ampersand path", () => {
+    const fs = require("fs")
+    const path = require("path")
+    const childProcess = require("child_process")
+    const root = fs.mkdtempSync(path.join(require("os").tmpdir(), "ax-launch-%OS% & !-"))
+    try {
+      const binary = path.join(root, "ax-code.cmd")
+      fs.writeFileSync(binary, "@echo off\r\necho launcher-ok\r\n")
+      const oldResult = childProcess.spawnSync(
+        process.env.ComSpec || "cmd.exe",
+        ["/d", "/s", "/c", `""${binary}" --version"`],
+        {
+          env: { ...process.env, OS: "AX_MISSING_EXPANDED_DIRECTORY" },
+          windowsVerbatimArguments: true,
+          encoding: "utf8",
+          windowsHide: true,
+        },
+      )
+      expect(oldResult.status).not.toBe(0)
+      const invocation = resolveSpawnInvocation(binary, ["--version"], "win32", process.env)
+      const result = childProcess.spawnSync(invocation.command, invocation.args, {
+        env: invocation.env,
+        windowsVerbatimArguments: true,
+        encoding: "utf8",
+        windowsHide: true,
+      })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.stdout.trim()).toBe("launcher-ok")
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 
   test("honors COMSPEC when ComSpec is unset and falls back to cmd.exe", () => {
@@ -847,6 +910,17 @@ describe("supervision restart with re-resolution", () => {
 })
 
 describe("runtime process termination", () => {
+  test("falls back to a direct signal when taskkill reports a nonzero exit", async () => {
+    const ctx = createSupervision({ platform: "win32", spawnSync: () => ({ status: 1 }) })
+    await startHealthy(ctx)
+    const child = ctx.fakeSpawn.children[0]
+    const stopped = ctx.supervision.stop()
+    await flushMicrotasks()
+    expect(child.killSignals).toEqual(["SIGTERM"])
+    child.emitExit(0)
+    await stopped
+  })
+
   test("kills the whole process tree on Windows, where the runtime runs behind cmd.exe", async () => {
     const ctx = createSupervision({ platform: "win32" })
     await startHealthy(ctx)

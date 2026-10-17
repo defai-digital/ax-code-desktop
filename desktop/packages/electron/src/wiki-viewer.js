@@ -32,6 +32,8 @@ function createWikiViewer({
     if (!runtime) throw new Error("The bundled AX Code runtime is unavailable")
     const temporary = await io.mkdtemp(path.join(os.tmpdir(), "ax-code-wiki-viewer-"))
     let window
+    let closed
+    const removeExport = () => io.rm(temporary, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
     try {
       // Spawn Node directly: cmd.exe must never interpret project/export paths,
       // including spaces, percent signs, ampersands and non-ASCII usernames.
@@ -71,20 +73,33 @@ function createWikiViewer({
       window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
       window.webContents.session.setPermissionCheckHandler(() => false)
       window.webContents.session.on("will-download", (event) => event.preventDefault())
-      windows.set(window, temporary)
+      closed = new Promise((resolve, reject) => {
+        window.once("closed", () => {
+          removeExport().then(
+            () => {
+              windows.delete(window)
+              resolve()
+            },
+            (error) => {
+              windows.delete(window)
+              reject(error)
+            },
+          )
+        })
+      })
+      // Closing a viewer normally has no caller awaiting its cleanup.
+      void closed.catch(() => {})
+      windows.set(window, closed)
       window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
       window.webContents.on("will-navigate", (event) => event.preventDefault())
       window.webContents.on("will-attach-webview", (event) => event.preventDefault())
-      window.once("closed", () => {
-        windows.delete(window)
-        void io.rm(temporary, { recursive: true, force: true }).catch(() => {})
-      })
       await window.loadFile(path.join(temporary, "snapshot.html"))
       if (!window.isDestroyed()) window.show()
       return { opened: true }
     } catch {
       if (window && !window.isDestroyed()) window.destroy()
-      await io.rm(temporary, { recursive: true, force: true })
+      if (closed) await closed
+      else await removeExport()
       // Child output can contain paths/configuration. Keep it out of IPC errors.
       throw new Error("The official Wiki viewer could not be opened. Build the project wiki and try again.")
     }
@@ -104,11 +119,12 @@ function createWikiViewer({
   const closeAll = async () => {
     stopping = true
     for (const controller of controllers) controller.abort()
-    await Promise.allSettled(Array.from(jobs))
     const records = Array.from(windows)
     for (const [window] of records) if (!window.isDestroyed()) window.destroy()
-    await Promise.all(records.map(([, temporary]) => io.rm(temporary, { recursive: true, force: true })))
+    await Promise.allSettled(Array.from(jobs))
+    await Promise.all(records.map(([, closed]) => closed))
   }
+
   return { open, closeAll }
 }
 

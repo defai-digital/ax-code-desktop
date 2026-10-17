@@ -91,5 +91,7 @@ try {
     if ($Process.ExitCode -notin @(0, 3010)) { throw "NSIS installation failed: $($Process.ExitCode)" }
     Write-Output "Installed AX Code Desktop $Version. User data and credentials were preserved."
 } finally {
-    Remove-Item -LiteralPath $Temporary -Recurse -Force
+    # Antivirus can briefly hold verified installer files. Cleanup must not replace
+    # installation success or the original verification/installer error.
+    Remove-Item -LiteralPath $Temporary -Recurse -Force -ErrorAction SilentlyContinue
 }

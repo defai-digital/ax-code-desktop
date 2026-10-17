@@ -80,6 +80,23 @@ describe.skipIf(!available)("Windows bootstrap validation in PowerShell (mocked 
     expect(result.status, result.stderr).toBe(0)
     expect(fs.readFileSync(installed, "utf8")).toContain("win-x64.exe")
   })
+  it("preserves installation success and verification failure when cleanup is temporarily denied", () => {
+    const { run, files } = fixture()
+    const denyCleanup = (source) =>
+      `
+function Remove-Item {
+  param([string]$LiteralPath, [switch]$Recurse, [switch]$Force, [string]$ErrorAction)
+  Write-Error 'Simulated installer file lock' -ErrorAction $ErrorAction
+}
+` + source
+    expect(run(denyCleanup).status).toBe(0)
+    fs.writeFileSync(path.join(files, "latest.txt.minisig"), "invalid")
+    const failed = run(denyCleanup)
+    expect(failed.status).not.toBe(0)
+    expect(failed.stderr).toContain("Invalid release signature")
+    expect(failed.stderr).not.toContain("Simulated installer file lock")
+  })
+
   it("rejects Windows ARM64, including emulated x64 processes", () => {
     const { run, installed } = fixture()
     const result = run((source) =>

@@ -138,18 +138,25 @@ const defaultIsExecutable = (candidate) => {
 // so the command has to be wrapped in a pair of its own: `"C:\Program Files\…\ax-code.cmd" serve` loses the quotes
 // around the binary and cmd then tries to run `C:\Program`, and an `&`, `|` or `^` that the quotes were holding
 // becomes a command separator. The staged launcher lives under the install directory, which has a space on Windows.
+// Expand the launcher through one environment lookup: literal percent pairs in
+// a user-selected installation path must not be expanded as cmd variables.
 function resolveSpawnInvocation(binary, args, platform, env) {
   if (platform === "win32" && /\.(cmd|bat)$/i.test(binary)) {
     const comspec = trim(env.ComSpec) || trim(env.COMSPEC) || "cmd.exe"
-    const quoted = [`"${binary}"`, ...args].join(" ")
-    return { command: comspec, args: ["/d", "/s", "/c", `"${quoted}"`], windowsVerbatimArguments: true }
+    const quoted = ['"%AX_CODE_DESKTOP_RUNTIME_LAUNCHER%"', ...args].join(" ")
+    return {
+      command: comspec,
+      args: ["/d", "/v:off", "/s", "/c", `"${quoted}"`],
+      windowsVerbatimArguments: true,
+      env: { ...env, AX_CODE_DESKTOP_RUNTIME_LAUNCHER: binary },
+    }
   }
   return { command: binary, args, windowsVerbatimArguments: false }
 }
 
 function searchPathFor(name, envPath, isExecutable, platform) {
   const dirs = typeof envPath === "string" ? envPath.split(path.delimiter).filter(Boolean) : []
-  const names = platform === "win32" ? [`${name}.exe`, `${name}.cmd`, name] : [name]
+  const names = platform === "win32" ? [`${name}.exe`, `${name}.cmd`, `${name}.bat`, `${name}.com`] : [name]
   for (const dir of dirs) {
     for (const candidate of names) {
       const full = path.join(dir, candidate)
@@ -192,6 +199,7 @@ function defaultProbeVersion(binary, platform = process.platform, env = process.
     const invocation = resolveSpawnInvocation(binary, ["--version"], platform, env)
     const result = childProcess.spawnSync(invocation.command, invocation.args, {
       encoding: "utf8",
+      env: invocation.env || env,
       timeout: VERSION_PROBE_TIMEOUT_MS,
       windowsHide: true,
       windowsVerbatimArguments: invocation.windowsVerbatimArguments,
@@ -322,7 +330,7 @@ function createAxCodeRuntimeSupervision(options = {}) {
       let child
       try {
         child = spawnImpl(invocation.command, invocation.args, {
-          env: childEnv,
+          env: invocation.env || childEnv,
           stdio: ["ignore", "pipe", "pipe"],
           windowsHide: true,
           windowsVerbatimArguments: invocation.windowsVerbatimArguments,
@@ -462,7 +470,7 @@ function createAxCodeRuntimeSupervision(options = {}) {
     if (platform === "win32" && child.pid) {
       try {
         const result = spawnSyncImpl("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true })
-        if (!result || !result.error) return
+        if (result?.status === 0 && !result.error) return
       } catch {
         /* fall through to the direct kill */
       }

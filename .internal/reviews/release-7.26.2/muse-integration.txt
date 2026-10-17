@@ -1,0 +1,7 @@
+Top finding: no concrete API incompatibilities found in the provided Desktop/runtime contracts.
+
+Wiki: `wiki.visualization({directory})` and `wiki.maintenance({directory})` match the GET `/wiki-visualization` and `/wiki-maintenance` routes with optional `directory` query; both runtime handlers are read-only and do not generate. `wiki.refresh({directory, agent:"build", active:false})` matches POST `/wiki-maintenance/refresh` body `{agent, active?, sessionID?}`, with `directory` as client instance selection, not a body field. Generation therefore remains explicit.
+
+Native WebMCP: the Electron-main transport calls `/desktop/browser/capability` and `/desktop/browser/provider`, sends `x-ax-desktop-browser-token` and `Authorization` from main only, and consumes `{capability, browserMode:"embedded"}` and `connection.providerID`, matching the runtime routes and responses.
+
+Excluded per scope: nodes/edges-only Wiki rendering is a product-surface difference, not a protocol failure.
