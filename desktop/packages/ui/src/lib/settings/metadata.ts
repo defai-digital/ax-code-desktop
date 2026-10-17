@@ -9,6 +9,7 @@ export type SettingsPageSlug =
   | "behavior"
   | "commands"
   | "mcp"
+  | "hooks"
   | "skills.installed"
   | "git"
   | "appearance"
@@ -103,6 +104,13 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
     group: "ax-code",
     kind: "split",
     keywords: ["mcp", "model context protocol", "servers", "tools", "remote", "stdio"],
+  },
+  {
+    slug: "hooks",
+    title: "Hooks",
+    group: "ax-code",
+    kind: "single",
+    keywords: ["hooks", "lifecycle", "PreToolUse", "automation"],
   },
   {
     slug: "skills.installed",

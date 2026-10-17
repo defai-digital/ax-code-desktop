@@ -28,6 +28,8 @@ export function getSettingsNavIcon(slug: SettingsPageSlug): IconName | null {
       return "slash-commands-2"
     case "mcp":
       return "plug-2"
+    case "hooks":
+      return "terminal-box"
 
     case "skills.installed":
       return "book-open"

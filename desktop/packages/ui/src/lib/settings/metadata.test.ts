@@ -32,6 +32,17 @@ describe("settings metadata", () => {
     expect(resolveAvailableSettingsSlug("skills.catalog", { isDesktop: true, isWeb: false })).toBe("skills.installed")
   })
 
+  it("registers the read-only hooks page with the AX Code automation pages", () => {
+    const page = SETTINGS_PAGE_METADATA.find((entry) => entry.slug === "hooks")
+    expect(page).toMatchObject({
+      group: "ax-code",
+      kind: "single",
+      keywords: expect.arrayContaining(["hooks", "lifecycle", "PreToolUse", "automation"]),
+    })
+    expect(resolveSettingsSlug("hooks")).toBe("hooks")
+    expect(getSettingsNavIcon("hooks")).toBe("terminal-box")
+  })
+
   it("keeps legacy sidebar section slugs resolvable", () => {
     expect(resolveSettingsSlug("sessions")).toBe("sessions")
     expect(resolveSettingsSlug("agents")).toBe("agents")

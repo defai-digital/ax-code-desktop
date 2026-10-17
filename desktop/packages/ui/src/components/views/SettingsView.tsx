@@ -18,6 +18,7 @@ import { CommandsSidebar } from "@/components/sections/commands/CommandsSidebar"
 import { CommandsPage } from "@/components/sections/commands/CommandsPage"
 import { McpSidebar } from "@/components/sections/mcp/McpSidebar"
 import { McpPage } from "@/components/sections/mcp/McpPage"
+import { HooksPage } from "@/components/sections/hooks/HooksPage"
 import { SkillsSidebar } from "@/components/sections/skills/SkillsSidebar"
 import { SkillsPage } from "@/components/sections/skills/SkillsPage"
 import { ProjectsSidebar } from "@/components/sections/projects/ProjectsSidebar"
@@ -80,6 +81,7 @@ const pageOrder: SettingsPageSlug[] = [
   "behavior",
   "commands",
   "mcp",
+  "hooks",
   "providers",
   "skills.installed",
 ]
@@ -383,6 +385,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
           return t("settings.page.commands.title")
         case "mcp":
           return t("settings.page.mcp.title")
+        case "hooks":
+          return t("settings.page.hooks.title")
         case "skills.installed":
           return t("settings.page.skills.title")
         case "git":
@@ -437,6 +441,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
         return <CommandsSidebar onItemSelect={opts.onItemSelect} />
       case "mcp":
         return <McpSidebar onItemSelect={opts.onItemSelect} />
+      case "hooks":
+        return null
       case "skills.installed":
         return (
           <SkillsSidebar
@@ -476,6 +482,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
           return <CommandsPage />
         case "mcp":
           return <McpPage />
+        case "hooks":
+          return <HooksPage />
         case "skills.installed":
           return <SkillsPage view={skillsPane} onShowInstalled={() => setSkillsPane("installed")} />
         case "providers":

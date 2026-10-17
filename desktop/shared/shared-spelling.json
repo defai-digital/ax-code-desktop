@@ -216,7 +216,10 @@
     "splitPane.tab.terminal",
     "terminalView.stream.processExitedWithSignal",
     "chat.fileMentionAutocomplete.context.commit",
-    "githubBoard.tab.pulls"
+    "githubBoard.tab.pulls",
+    "settings.page.hooks.title",
+    "settings.hooks.list.badge.protocol",
+    "settings.hooks.list.source.pack"
   ],
   "de": [
     "aboutDialog.versionLabel",
@@ -320,7 +323,9 @@
     "chat.fileMentionAutocomplete.context.commit",
     "chat.fileMentionAutocomplete.context.commitLabel",
     "githubBoard.tab.issues",
-    "githubBoard.filter.labelPlaceholder"
+    "githubBoard.filter.labelPlaceholder",
+    "settings.page.hooks.title",
+    "settings.hooks.list.badge.protocol"
   ],
   "id": [
     "agentManager.detail.header.modelCountSingle",
@@ -412,7 +417,9 @@
     "splitPane.tab.terminal",
     "chat.fileMentionAutocomplete.context.commit",
     "chat.fileMentionAutocomplete.context.commitLabel",
-    "githubBoard.filter.labelPlaceholder"
+    "githubBoard.filter.labelPlaceholder",
+    "settings.hooks.file.status.valid",
+    "settings.hooks.list.badge.protocol"
   ],
   "pt-BR": [
     "agentManager.empty.prompt.label",
@@ -491,7 +498,9 @@
     "chat.fileMentionAutocomplete.context.commit",
     "chat.fileMentionAutocomplete.context.commitLabel",
     "githubBoard.tab.issues",
-    "githubBoard.tab.pulls"
+    "githubBoard.tab.pulls",
+    "settings.page.hooks.title",
+    "settings.hooks.list.badge.protocol"
   ],
   "it": [
     "agentManager.empty.prompt.label",
@@ -569,7 +578,8 @@
     "settings.view.badge.beta",
     "splitPane.tab.diff",
     "chat.fileMentionAutocomplete.context.commit",
-    "chat.fileMentionAutocomplete.context.commitLabel"
+    "chat.fileMentionAutocomplete.context.commitLabel",
+    "settings.hooks.list.badge.protocol"
   ],
   "ru": [
     "branchPickerDialog.badge.worktree",
@@ -581,7 +591,8 @@
     "sessions.scheduledTasks.editor.time.period.am",
     "sessions.scheduledTasks.editor.time.period.pm",
     "sidebarFilesTree.dialog.rootFallback",
-    "splitPane.tab.diff"
+    "splitPane.tab.diff",
+    "settings.hooks.list.badge.protocol"
   ],
   "tr": [
     "agentManager.detail.header.modelCountSingle",
@@ -615,7 +626,8 @@
     "splitPane.tab.plan",
     "splitPane.tab.terminal",
     "chat.fileMentionAutocomplete.context.commit",
-    "chat.fileMentionAutocomplete.context.commitLabel"
+    "chat.fileMentionAutocomplete.context.commitLabel",
+    "settings.hooks.list.badge.protocol"
   ],
   "vi": [
     "branchPickerDialog.badge.worktree",
@@ -653,7 +665,8 @@
     "splitPane.tab.diff",
     "splitPane.tab.terminal",
     "chat.fileMentionAutocomplete.context.commit",
-    "chat.fileMentionAutocomplete.context.commitLabel"
+    "chat.fileMentionAutocomplete.context.commitLabel",
+    "settings.hooks.list.badge.protocol"
   ],
   "es": [
     "branchPickerDialog.badge.worktree",
@@ -728,6 +741,20 @@
     "splitPane.tab.terminal",
     "chat.fileMentionAutocomplete.context.commit",
     "chat.fileMentionAutocomplete.context.commitLabel",
-    "githubBoard.tab.pulls"
+    "githubBoard.tab.pulls",
+    "settings.page.hooks.title",
+    "settings.hooks.list.badge.protocol"
+  ],
+  "zh-TW": [
+    "settings.hooks.list.badge.protocol"
+  ],
+  "zh-CN": [
+    "settings.hooks.list.badge.protocol"
+  ],
+  "ja": [
+    "settings.hooks.list.badge.protocol"
+  ],
+  "ko": [
+    "settings.hooks.list.badge.protocol"
   ]
 }
