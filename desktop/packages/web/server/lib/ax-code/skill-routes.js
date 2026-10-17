@@ -346,6 +346,8 @@ export const registerSkillRoutes = (app, dependencies) => {
 
       const effectiveSubpath = src.defaultSubpath || parsed.effectiveSubpath || null
       const cacheKey = getCacheKey({
+        // The host too: the cache is shared by every source, and two of them can name the same `owner/repo`.
+        host: parsed.host,
         normalizedRepo: parsed.normalizedRepo,
         subpath: effectiveSubpath || "",
         identityId: src.gitIdentityId || "",

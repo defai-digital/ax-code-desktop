@@ -16,11 +16,16 @@ const pruneExpired = (now) => {
   }
 }
 
-export function getCacheKey({ normalizedRepo, subpath, identityId }) {
+export function getCacheKey({ host, normalizedRepo, subpath, identityId }) {
+  // The host is part of the key: a source may name the same `owner/repo` on another host — a self-hosted instance
+  // and GitHub, or a custom source sharing a curated one's path — and those are different repositories with
+  // different clone targets and different skill lists. Without it the second source was answered from the first
+  // one's entry for the whole TTL, and installing "from" it cloned the other host.
+  const safeHost = String(host || "").trim().toLowerCase()
   const safeRepo = String(normalizedRepo || "").trim()
   const safeSubpath = String(subpath || "").trim()
   const safeIdentity = String(identityId || "").trim()
-  return `${safeRepo}::${safeSubpath}::${safeIdentity}`
+  return `${safeHost}::${safeRepo}::${safeSubpath}::${safeIdentity}`
 }
 
 export function getCachedScan(key) {
