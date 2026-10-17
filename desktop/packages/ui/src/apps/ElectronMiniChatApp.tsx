@@ -16,6 +16,7 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useGitStore } from "@/stores/useGitStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { SyncProvider, useSessions } from "@/sync/sync-context"
+import { resolveGlobalSessionDirectory, useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { SyncRuntimeEffects } from "./AppEffects"
 import { MINI_CHAT_PRESENCE_CHANNEL, type MiniChatPresenceMessage } from "./miniChatPresence"
 import { useAppFontEffects } from "./useAppFontEffects"
@@ -57,6 +58,15 @@ const MiniChatBootstrap: React.FC<{ config: MiniChatConfig }> = ({ config }) => 
     return state.newSessionDraft.bootstrapPendingDirectory ?? state.newSessionDraft.directoryOverride ?? ""
   })
   const setCurrentSession = useSessionUIStore((state) => state.setCurrentSession)
+  // Archived sessions are deliberately absent from the directory's active list,
+  // so the URL session must also be resolvable through the global index.
+  const urlSessionInGlobalIndex = useGlobalSessionsStore((state) =>
+    config.sessionId
+      ? (state.activeSessions.find((entry) => entry.id === config.sessionId) ??
+        state.archivedSessions.find((entry) => entry.id === config.sessionId) ??
+        null)
+      : null,
+  )
   const openNewSessionDraft = useSessionUIStore((state) => state.openNewSessionDraft)
   const initializeApp = useConfigStore((state) => state.initializeApp)
   const isInitialized = useConfigStore((state) => state.isInitialized)
@@ -130,11 +140,20 @@ const MiniChatBootstrap: React.FC<{ config: MiniChatConfig }> = ({ config }) => 
       return
     }
     const session = sessions.find((entry) => entry.id === config.sessionId)
-    if (!session) return
+    if (!session) {
+      // An archived session is not in the directory's active list; the sidebar
+      // still offers "Open in Mini Chat Window" for it, so resolve it through
+      // the global index instead of declaring it unavailable after 5 s.
+      if (!urlSessionInGlobalIndex) return
+      const directory = resolveGlobalSessionDirectory(urlSessionInGlobalIndex) ?? config.directory
+      setCurrentSession(config.sessionId, directory)
+      sessionBootstrappedRef.current = true
+      return
+    }
     const directory = (session as { directory?: string | null }).directory ?? config.directory
     setCurrentSession(config.sessionId, directory)
     sessionBootstrappedRef.current = true
-  }, [config, currentSessionId, sessions, setCurrentSession])
+  }, [config, currentSessionId, sessions, setCurrentSession, urlSessionInGlobalIndex])
 
   React.useEffect(() => {
     if (config.mode !== "draft" || draftOpen || currentSessionId) return

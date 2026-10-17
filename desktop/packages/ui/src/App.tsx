@@ -215,7 +215,9 @@ const EmbeddedSessionChatContent: React.FC<{
 
   return (
     <>
-      <SyncAppEffects embeddedBackgroundWorkEnabled={embeddedBackgroundWorkEnabled} />
+      {/* A background realm must not run global housekeeping: its cleanup and
+          tray snapshot only see this window's sessions. */}
+      <SyncAppEffects embeddedBackgroundWorkEnabled={embeddedBackgroundWorkEnabled} globalHousekeepingEnabled={false} />
       <AxCodeUpdateToast />
       <ChatView readOnly={embeddedSessionChat.readOnly} />
       <Toaster />

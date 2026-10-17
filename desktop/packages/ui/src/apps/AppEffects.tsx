@@ -63,7 +63,9 @@ export function SyncRuntimeEffects({
    * Retention cleanup archives/deletes expired sessions globally, and its
    * "the user is looking at this session" guard only sees this window. Only the
    * primary window runs it, so a background window can never delete a session the
-   * other window is viewing (and the work is not done twice).
+   * other window is viewing (and the work is not done twice). The tray/dock
+   * snapshot is window-global the same way: published by the primary window, or
+   * a mini-chat's realm-local (empty) snapshot flaps the badge and approval list.
    */
   globalHousekeepingEnabled?: boolean
 }) {
@@ -71,14 +73,20 @@ export function SyncRuntimeEffects({
   useQueuedMessageAutoSend(embeddedBackgroundWorkEnabled)
   // Streams the session/approval snapshot to the Electron tray and keeps the dock
   // badge in step. No-op outside the desktop shell.
-  useTraySync(embeddedBackgroundWorkEnabled)
+  useTraySync(embeddedBackgroundWorkEnabled && globalHousekeepingEnabled)
   useSupervisionRowsPublisher()
   useRunTransitionNotifications(embeddedBackgroundWorkEnabled)
 
   return <SyncOptimisticBridge />
 }
 
-export function SyncAppEffects({ embeddedBackgroundWorkEnabled }: { embeddedBackgroundWorkEnabled: boolean }) {
+export function SyncAppEffects({
+  embeddedBackgroundWorkEnabled,
+  globalHousekeepingEnabled,
+}: {
+  embeddedBackgroundWorkEnabled: boolean
+  globalHousekeepingEnabled?: boolean
+}) {
   useWindowControlsOverlayLayout()
   useKeyboardShortcuts()
   useSupervisionShortcuts()
@@ -86,7 +94,10 @@ export function SyncAppEffects({ embeddedBackgroundWorkEnabled }: { embeddedBack
 
   return (
     <>
-      <SyncRuntimeEffects embeddedBackgroundWorkEnabled={embeddedBackgroundWorkEnabled} />
+      <SyncRuntimeEffects
+        embeddedBackgroundWorkEnabled={embeddedBackgroundWorkEnabled}
+        globalHousekeepingEnabled={globalHousekeepingEnabled}
+      />
       <MiniChatPresenceBridge />
     </>
   )
