@@ -93,10 +93,14 @@ describe("layoutWikiGraph", () => {
       edges.push({ from: nodes[index].id, to: nodes[(index + 1) % count].id })
       edges.push({ from: nodes[index].id, to: nodes[(index + 17) % count].id })
     }
-    const started = performance.now()
-    const points = layoutWikiGraph(nodes, edges)
-    const elapsed = performance.now() - started
-    expect(points).toHaveLength(count)
-    expect(elapsed).toBeLessThan(100)
+    // Best of three: a run preempted by the rest of the suite says nothing about the layout, while a real
+    // algorithmic regression makes every run slow. A single wall-clock sample flaked under full-suite load.
+    const runs = Array.from({ length: 3 }, () => {
+      const started = performance.now()
+      const points = layoutWikiGraph(nodes, edges)
+      return { points, elapsed: performance.now() - started }
+    })
+    expect(runs[0].points).toHaveLength(count)
+    expect(Math.min(...runs.map((run) => run.elapsed))).toBeLessThan(100)
   })
 })

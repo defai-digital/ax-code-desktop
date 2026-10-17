@@ -13,12 +13,17 @@ type PermissionNotificationDiff = {
  * answered elsewhere (e.g. the in-chat permission card) drop out of the sync
  * array, so their mirrored notifications must be removed to keep every item in
  * the notification center actionable.
+ *
+ * `answered` holds requests whose answer already settled while the server still
+ * listed them as pending. Without it the next run saw an unmapped request and
+ * mirrored it again, with buttons that answered a settled request a second time.
  */
 export const diffPermissionNotifications = (
   seen: ReadonlyMap<string, string>,
   permissions: readonly PermissionRequest[],
+  answered: ReadonlySet<string> = new Set(),
 ): PermissionNotificationDiff => {
-  const toAdd = permissions.filter((permission) => !seen.has(permission.id))
+  const toAdd = permissions.filter((permission) => !seen.has(permission.id) && !answered.has(permission.id))
   const liveRequestIds = new Set(permissions.map((permission) => permission.id))
   const toRemove: PermissionNotificationDiff["toRemove"] = []
   for (const [requestId, notificationId] of seen) {

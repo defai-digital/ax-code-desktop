@@ -369,8 +369,8 @@ export function analyzeConnectionStateWriterImports(
     if (resolveUiModule(file, moduleSpecifier.text) !== CONNECTION_STATE_MODULE) return
 
     const clause = statement.exportClause
-    // `export * from …,`: the whole module, like a namespace import.
-    const reExportsEverything = !clause
+    // `export * from …` and `export * as ns from …` both hand out the whole module, like a namespace import.
+    const reExportsEverything = !clause || ts.isNamespaceExport(clause)
     const writtenNames: ts.Node[] = []
     if (reExportsEverything) {
       writtenNames.push(moduleSpecifier)

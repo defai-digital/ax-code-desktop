@@ -47,4 +47,17 @@ describe("diffPermissionNotifications", () => {
     expect(toAdd).toEqual([])
     expect(toRemove).toEqual([{ requestId: "perm-1", notificationId: "notif-1" }])
   })
+
+  test("does not re-add a request whose answer already settled", () => {
+    // The answer removes every mirror for the request while the server still lists it as pending; the next effect
+    // run then saw the request as unmapped and mirrored it again, with buttons that could answer it a second time.
+    const seen = new Map<string, string>()
+    const { toAdd } = diffPermissionNotifications(
+      seen,
+      [makePermission("perm-1"), makePermission("perm-2")],
+      new Set(["perm-1"]),
+    )
+
+    expect(toAdd.map((p) => p.id)).toEqual(["perm-2"])
+  })
 })

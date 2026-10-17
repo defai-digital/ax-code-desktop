@@ -10,12 +10,13 @@ import type { SessionNode } from "./types"
  * tree, which a flat row does not render.
  */
 export const buildActiveSessionTree = (sessions: readonly Session[], root: Session): SessionNode => {
+  // The cache is merged from snapshots and can repeat an entry. Keep the later copy, as `dedupeSessionsById` does
+  // for the project tree, or the export can carry a stale title and timestamp.
+  const byId = new Map<string, Session>()
+  for (const session of sessions) byId.set(session.id, session)
+
   const childrenByParentId = new Map<string, Session[]>()
-  const knownIds = new Set<string>()
-  for (const session of sessions) {
-    // The cache is merged from snapshots and can repeat an entry; exporting it twice would list the subtask twice.
-    if (knownIds.has(session.id)) continue
-    knownIds.add(session.id)
+  for (const session of byId.values()) {
     const parentId = (session as Session & { parentID?: string | null }).parentID
     if (!parentId) continue
     const siblings = childrenByParentId.get(parentId) ?? []

@@ -69,14 +69,17 @@ describe("session export tree", () => {
     expect(tree.children.map((child) => child.session.id)).toEqual(["archived-child"])
   })
 
-  test("exports a duplicated cache entry once", () => {
-    useGlobalSessionsStore.setState({
-      activeSessions: [session("root", null), session("child", "root"), session("child", "root")],
-    })
+  test("exports a duplicated cache entry once, from the newest copy", () => {
+    // The store merges snapshots; when the same session appears twice, the project tree's dedupe keeps the later
+    // entry. Keeping the first exported a stale title and timestamp.
+    const stale = { ...session("child", "root"), title: "stale" } as Session
+    const fresh = { ...session("child", "root"), title: "fresh" } as Session
+    useGlobalSessionsStore.setState({ activeSessions: [session("root", null), stale, fresh] })
 
     const tree = buildActiveSessionTree(useGlobalSessionsStore.getState().activeSessions, session("root", null))
 
     expect(tree.children.map((child) => child.session.id)).toEqual(["child"])
+    expect(tree.children[0].session.title).toBe("fresh")
   })
 
   test("stops on a parent cycle instead of recursing forever", () => {

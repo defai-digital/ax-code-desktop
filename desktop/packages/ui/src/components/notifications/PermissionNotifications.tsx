@@ -49,6 +49,8 @@ function SessionPermissionWatcher({
   const notifiedRef = React.useRef(false)
   // requestId → notificationId for items mirrored into the notification center.
   const mirroredNotificationIdsRef = React.useRef<Map<string, string>>(new Map())
+  // Requests whose answer already landed while the server still lists them: they must not be mirrored again.
+  const answeredPermissionIdsRef = React.useRef<Set<string>>(new Set())
 
   // Mirror pending permission requests into the in-app notification center so
   // the header bell shows actionable Allow/Deny items. Requests answered
@@ -64,7 +66,11 @@ function SessionPermissionWatcher({
         seen.delete(requestId)
       }
     }
-    const { toAdd, toRemove } = diffPermissionNotifications(seen, permissions)
+    const liveRequestIds = new Set(permissions.map((permission) => permission.id))
+    for (const requestId of answeredPermissionIdsRef.current) {
+      if (!liveRequestIds.has(requestId)) answeredPermissionIdsRef.current.delete(requestId)
+    }
+    const { toAdd, toRemove } = diffPermissionNotifications(seen, permissions, answeredPermissionIdsRef.current)
 
     for (const { requestId, notificationId } of toRemove) {
       store.removeNotification(notificationId)
@@ -72,8 +78,10 @@ function SessionPermissionWatcher({
     }
 
     for (const permission of toAdd) {
-      const respond = (response: "once" | "reject") => () =>
-        sessionActions.respondToPermission(sessionId, permission.id, response).catch((error: unknown) => {
+      const respond = (response: "once" | "reject") => async () => {
+        try {
+          await sessionActions.respondToPermission(sessionId, permission.id, response)
+        } catch (error) {
           console.error("[PermissionNotifications] Failed to respond to permission:", error)
           toast.error(t("chat.permissionCard.responseFailed.title"), {
             description: error instanceof Error ? error.message : t("chat.permissionCard.responseFailed.retry"),
@@ -81,7 +89,17 @@ function SessionPermissionWatcher({
           // Rethrown for the entry that offers Allow/Deny: it takes the failure as "the request is still pending"
           // and keeps itself, which is the only handle the user has on it from the bell.
           throw error
-        })
+        }
+        // The server may still list the request as pending until its own event arrives. Mark it so this effect
+        // does not mirror it again (with fresh buttons) the next time `permissions` changes, and drop the mirror.
+        answeredPermissionIdsRef.current.add(permission.id)
+        for (const [requestId, notificationId] of seen) {
+          if (requestId === permission.id) {
+            store.removeNotification(notificationId)
+            seen.delete(requestId)
+          }
+        }
+      }
       const patternPreview = permission.patterns.filter(Boolean).slice(0, 2).join(" · ")
       const notificationId = store.addNotification({
         type: "permission",

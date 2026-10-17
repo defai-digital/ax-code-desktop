@@ -1199,12 +1199,17 @@ function removePidFile(pidFilePath) {
  * caller answers the throw by passing the password.
  */
 function assertRestartCanCarryPassword({ port, storedOptions, explicitUiPassword, uiPassword, envPassword }) {
-  if (storedOptions) return
+  // A record that says it had a password must also carry a usable one: `hasUiPassword: true` with a blank value
+  // passed this guard and started the server unprotected, because the server's own predicate reads blank as unset.
+  const recordExplainsItself =
+    storedOptions != null &&
+    (storedOptions.hasUiPassword !== true || hasUiPasswordConfigured(storedOptions.uiPassword))
+  if (recordExplainsItself) return
   if (explicitUiPassword && hasUiPasswordConfigured(uiPassword)) return
   if (hasUiPasswordConfigured(envPassword)) return
   throw new Error(
-    `Cannot restart port ${port}: its instance record is missing, so there is no UI password to carry over. ` +
-      `Pass --ui-password (or set AX_CODE_DESKTOP_UI_PASSWORD) to restart it protected.`,
+    `Cannot restart port ${port}: the instance record is missing or carries no UI password, so there is none to ` +
+      `carry over. Pass --ui-password (or set AX_CODE_DESKTOP_UI_PASSWORD) to restart it protected.`,
   )
 }
 

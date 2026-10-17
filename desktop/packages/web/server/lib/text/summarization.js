@@ -7,6 +7,10 @@
  * - note: distilled project note
  */
 
+// One scheme URL. The scheme name is bounded so a long run of scheme characters is not rescanned from every
+// offset, and the match stops before trailing punctuation, which belongs to the sentence rather than the link.
+const SCHEME_URL = /\b[a-z][a-z0-9+.-]{0,15}:\/\/[^\s]*[^\s.,;:!?)]/gi
+
 export function sanitizeForSummary(text) {
   if (!text || typeof text !== "string") return ""
 
@@ -17,9 +21,10 @@ export function sanitizeForSummary(text) {
     .replace(/^\s*[$#>]\s*/gm, "")
     .replace(/[|&;<>]/g, " ")
     .replace(/\\/g, "")
-    // Any scheme, not just http(s): the path pass below accepts a colon before the slash, so `ssh://git@host/r`
-    // otherwise lost `//git` and kept a scheme-shaped remnant.
-    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s]+/gi, " a link ")
+    // A scheme URL is one link, not a path: the path pass below accepts a colon before the slash, so
+    // `ssh://git@host/r` otherwise lost `//git` and kept a scheme-shaped remnant. No trailing space: the
+    // punctuation just after the match belongs to the sentence.
+    .replace(SCHEME_URL, " a link")
     // The path pass runs before the brackets go, and lets the punctuation that can precede a path stand in for the
     // word boundary: `[label](/etc)` and `file:/etc` are paths even though no whitespace comes before the slash.
     // Inside a word a slash is not a path — `either/or` and `TCP/IP` keep both halves — so a word character before
@@ -62,7 +67,7 @@ export function sanitizeForNote(text) {
     .replace(/\*(.*?)\*/g, "$1")
     .replace(/_(.*?)_/g, "$1")
     .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
-    .replace(/https?:\/\/[^\s]+/g, "")
+    .replace(SCHEME_URL, "")
     .replace(/["']/g, "")
     .replace(/\s+/g, " ")
     .trim()

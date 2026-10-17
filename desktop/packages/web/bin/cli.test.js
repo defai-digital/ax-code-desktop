@@ -211,6 +211,20 @@ describe("startup quoting", () => {
     ).not.toThrow()
   })
 
+  it("refuses a record that claims a password it does not carry", () => {
+    // A record with `hasUiPassword: true` and a blank value says the previous instance was protected, but the value
+    // the server checks is unset: trusting the record restarted it unprotected without a word.
+    const blankRecord = { port: 3999, uiPassword: "", hasUiPassword: true }
+    const base = { port: 3999, storedOptions: blankRecord, explicitUiPassword: false, uiPassword: undefined, envPassword: undefined }
+
+    expect(() => assertRestartCanCarryPassword(base)).toThrow(/no UI password/)
+    // A real password from either explicit source still satisfies it.
+    expect(() => assertRestartCanCarryPassword({ ...base, envPassword: "s3cret" })).not.toThrow()
+    expect(() =>
+      assertRestartCanCarryPassword({ ...base, explicitUiPassword: true, uiPassword: "s3cret" }),
+    ).not.toThrow()
+  })
+
 
   it.skipIf(process.platform === "win32")("forces the group even when the leader is already gone", async () => {
     // The reason this signals the group is that the leader's children outlive it. The graceful wait asks about the

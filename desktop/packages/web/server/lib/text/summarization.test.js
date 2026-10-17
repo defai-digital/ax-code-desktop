@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { sanitizeForSummary, summarizeText } from "./summarization.js"
+import { sanitizeForNote, sanitizeForSummary, summarizeText } from "./summarization.js"
 
 describe("text summarization stubs", () => {
   it("keeps a slash inside a word, and still drops a path", () => {
@@ -27,6 +27,13 @@ describe("text summarization stubs", () => {
     // scheme-shaped remnant. Only the http(s) form was rewritten as a link.
     expect(sanitizeForSummary("clone ssh://git@host/repo.git now")).toBe("clone a link now")
     expect(sanitizeForSummary("open file:///tmp/report now")).toBe("open a link now")
+    // A link followed by punctuation keeps that punctuation: the match stops before it.
+    expect(sanitizeForSummary("see https://example.com, then")).toBe("see a link, then")
+  })
+
+  it("strips a scheme URL from note text too", () => {
+    // Note mode only knew the http(s) form, so a clone URL survived there verbatim.
+    expect(sanitizeForNote("clone ssh://git@host/repo.git now")).toBe("clone now")
   })
 
   it("removes code from summary text before stripping markdown punctuation", () => {

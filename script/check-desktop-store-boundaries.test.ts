@@ -194,6 +194,19 @@ describe("R5 connection-state writer registry", () => {
     expect(violations[0].rule).toBe("R5")
   })
 
+  test("blocks a namespace re-export from an unregistered module", () => {
+    // `export * as ns from` hands out the whole module object, the same reach as a namespace import, but its
+    // exportClause is a NamespaceExport — neither absent nor named, so the check passed it through.
+    const { violations, importsWriteApi } = analyzeConnectionStateWriterImports(
+      componentFile("ui", "connectionStateFacade.ts"),
+      'export * as connectionState from "@/lib/event-stream/connection-state"',
+    )
+
+    expect(importsWriteApi).toBe(true)
+    expect(violations).toHaveLength(1)
+    expect(violations[0].rule).toBe("R5")
+  })
+
   test("blocks a whole-module re-export from an unregistered module", () => {
     const { violations, importsWriteApi } = analyzeConnectionStateWriterImports(
       componentFile("ui", "connectionStateFacade.ts"),

@@ -95,7 +95,7 @@ describe("ProvidersPage OAuth flows", () => {
   let container: HTMLDivElement
   let root: Root
 
-  beforeEach(() => {
+  beforeEach(async () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement("div")
     document.body.appendChild(container)
@@ -111,6 +111,10 @@ describe("ProvidersPage OAuth flows", () => {
     toastWarning.mockReset()
     fetchProviderAuthMethods.mockResolvedValue(OAUTH_METHODS)
     fetchProviderJsonWithRetry.mockResolvedValue({ url: "https://example.test/authorize" })
+    const configState = (await import("@/stores/useConfigStore")).useConfigStore.getState() as unknown as {
+      providers: unknown[]
+    }
+    configState.providers = [provider]
   })
 
   afterEach(() => {
@@ -206,5 +210,27 @@ describe("ProvidersPage OAuth flows", () => {
 
     expect(reloadAxCodeConfiguration).toHaveBeenCalledTimes(1)
     expect(loadProviders).not.toHaveBeenCalled()
+  })
+
+  test("reads the providers back when the reload left the list empty", async () => {
+    // The other half of the guard: a reload whose own refresh failed quietly leaves the list empty, and that is
+    // exactly when the read-back has to run.
+    await renderPage()
+    await revealAuthPanel()
+    await act(async () => {
+      connectButtons()[0].click()
+    })
+    const configState = (await import("@/stores/useConfigStore")).useConfigStore.getState() as unknown as {
+      providers: unknown[]
+    }
+    configState.providers = []
+
+    const complete = buttonByText(dict["settings.providers.page.actions.complete"])
+    await act(async () => {
+      complete?.click()
+    })
+
+    expect(reloadAxCodeConfiguration).toHaveBeenCalledTimes(1)
+    expect(loadProviders).toHaveBeenCalledTimes(1)
   })
 })
