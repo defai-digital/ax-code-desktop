@@ -21,6 +21,9 @@ const gitLibraries = {
   stashPop: vi.fn(),
   stashDrop: vi.fn(),
   checkoutBranch: vi.fn(),
+  countStashFiles: vi.fn(),
+  createBranch: vi.fn(),
+  deleteRemoteBranch: vi.fn(),
 }
 
 vi.doMock("./index.js", () => ({
@@ -40,6 +43,9 @@ vi.doMock("./index.js", () => ({
   stashPop: gitLibraries.stashPop,
   stashDrop: gitLibraries.stashDrop,
   checkoutBranch: gitLibraries.checkoutBranch,
+  countStashFiles: gitLibraries.countStashFiles,
+  createBranch: gitLibraries.createBranch,
+  deleteRemoteBranch: gitLibraries.deleteRemoteBranch,
 }))
 
 const { registerGitRoutes } = await import("./routes.js")
@@ -61,6 +67,9 @@ describe("git routes index mutations", () => {
     gitLibraries.stashPop.mockReset()
     gitLibraries.stashDrop.mockReset()
     gitLibraries.checkoutBranch.mockReset()
+    gitLibraries.countStashFiles.mockReset()
+    gitLibraries.createBranch.mockReset()
+    gitLibraries.deleteRemoteBranch.mockReset()
   })
 
   it("rejects an option-like branch name instead of reporting a deletion", async () => {
@@ -413,4 +422,50 @@ describe("git routes stash references", () => {
     expect(response.statusCode).toBe(400)
     expect(gitLibraries[libraryName]).not.toHaveBeenCalled()
   })
+
+  it("rejects an option-like stash ref instead of writing the file it names", async () => {
+    // The refs reach `git stash show`, which forwards options to `git diff`: `--output=<path>` is honoured, so the
+    // stash's file list was written to that file and the route answered 200 with a counts map keyed by the option.
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("POST", "/api/git/stashes/file-counts")(
+      { query: { directory: "/repo" }, body: { refs: ["stash@{0}", "--output=/tmp/pwned"] } },
+      response,
+    )
+
+    expect(response.statusCode).toBe(400)
+  })
+
+  it("rejects an option-like start point instead of creating the branch from HEAD", async () => {
+    // `git checkout -b <name> <startPoint>` reads a leading "-" as an option, so the branch was created at HEAD
+    // (or over local state, with `--force`) and the route answered success for a branch from the wrong commit.
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("POST", "/api/git/branches")(
+      { query: { directory: "/repo" }, body: { name: "feature", startPoint: "--force" } },
+      response,
+    )
+
+    expect(response.statusCode).toBe(400)
+  })
+
+  it("rejects an option-like remote instead of pushing with it as a flag", async () => {
+    // The remote and the branch reach `git push <remote> <refspec>` as bare argv: `--force :main` force-deletes
+    // main on the default remote, and the route reported success for deleting a branch on a remote named that way.
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("DELETE", "/api/git/remote-branches")(
+      { query: { directory: "/repo" }, body: { branch: "feature", remote: "--force" } },
+      response,
+    )
+
+    expect(response.statusCode).toBe(400)
+  })
+
 })

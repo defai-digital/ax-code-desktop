@@ -15,7 +15,8 @@ const DEFAULT_GITHUB_CLIENT_ID = "Ov23lizomPOC3eFYo56r"
 const DEFAULT_GITHUB_SCOPES = "repo read:org workflow read:user user:email"
 
 function ensureStorageDir() {
-  fs.mkdirSync(STORAGE_DIR, { recursive: true })
+  // 0700 like the git identities store beside it: this directory holds the OAuth token.
+  fs.mkdirSync(STORAGE_DIR, { recursive: true, mode: 0o700 })
 }
 
 function readJsonFile() {
@@ -62,7 +63,10 @@ function writeJsonFile(payload) {
 
   // Atomic write so multiple OpenChamber instances can safely share the same file.
   const tmpFile = `${STORAGE_FILE}.${process.pid}.${Date.now()}.tmp`
-  fs.writeFileSync(tmpFile, JSON.stringify(payload, null, 2), "utf8")
+  // Created 0600 rather than written and then chmod'd: this file holds the OAuth access token, the chmod is
+  // best-effort (its failure was swallowed), and a 0644 window is readable by every other local user. The git
+  // identities store beside it passes `mode` for the same reason.
+  fs.writeFileSync(tmpFile, JSON.stringify(payload, null, 2), { encoding: "utf8", mode: 0o600 })
   try {
     fs.chmodSync(tmpFile, 0o600)
   } catch {

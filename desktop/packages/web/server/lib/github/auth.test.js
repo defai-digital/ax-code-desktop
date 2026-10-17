@@ -169,4 +169,24 @@ describe("github auth storage", () => {
       existsSync.mockRestore()
     }
   })
+
+  it("creates the token file unreadable to other local users even when chmod fails", async () => {
+    // The OAuth access token was written without a mode and chmod'd afterwards, with the chmod failure swallowed:
+    // between the two the file was 0644, and if the chmod failed it stayed that way — the git identities store
+    // beside it passes `mode` to `writeFileSync` for exactly this reason.
+    vi.resetModules()
+    const chmod = vi.spyOn(fs, "chmodSync").mockImplementation(() => {
+      throw Object.assign(new Error("EPERM"), { code: "EPERM" })
+    })
+    try {
+      const { setGitHubAuth, GITHUB_AUTH_FILE } = await import("./auth.js")
+      setGitHubAuth({ accessToken: "gho_secret", scope: "repo", tokenType: "bearer", user: { login: "octocat" } })
+
+      const mode = fs.statSync(GITHUB_AUTH_FILE).mode & 0o777
+      expect(mode).toBe(0o600)
+    } finally {
+      chmod.mockRestore()
+    }
+  })
+
 })

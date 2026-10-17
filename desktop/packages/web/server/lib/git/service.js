@@ -7,6 +7,9 @@ import { promisify } from "util"
 import { createWorktreeBootstrapGenerations } from "./worktree-bootstrap-generation.js"
 const fsp = fs.promises
 const execFileAsync = promisify(execFile)
+// The null device `git diff --no-index` is asked to compare against. One of the three call sites selected it per
+// platform and the other two hardcoded the POSIX path, which does not exist on Windows.
+const NULL_DEVICE_PATH = process.platform === "win32" ? "NUL" : "/dev/null"
 const gpgconfCandidates = ["gpgconf", "/opt/homebrew/bin/gpgconf", "/usr/local/bin/gpgconf"]
 let resolvedGitBinary = null
 const worktreeBootstrapState = new Map()
@@ -1829,7 +1832,7 @@ export async function getStatus(directory, options = {}) {
 
         try {
           const repoPath = toGitPath(path.relative(repoRoot, absolutePath))
-          const emptyPath = process.platform === "win32" ? "NUL" : "/dev/null"
+          const emptyPath = NULL_DEVICE_PATH
           const diff = await execFileAsync(
             getGitBinary(),
             ["diff", "--numstat", "--no-index", "--", emptyPath, repoPath],
@@ -2040,7 +2043,7 @@ export async function getDiff(directory, { path: filePath, staged = false, conte
       if (typeof contextLines === "number" && !Number.isNaN(contextLines)) {
         noIndexArgs.push(`-U${Math.max(0, contextLines)}`)
       }
-      noIndexArgs.push("--no-index", "--", "/dev/null", fileContext.repoPath)
+      noIndexArgs.push("--no-index", "--", NULL_DEVICE_PATH, fileContext.repoPath)
       try {
         const noIndexDiff = await git.raw(noIndexArgs)
         return noIndexDiff
@@ -2211,7 +2214,7 @@ const isBinaryDiff = async (directoryPath, filePath, staged) => {
     return true
   }
 
-  // Fallback for untracked files (diff output is empty): use --no-index against /dev/null
+  // Fallback for untracked files (diff output is empty): use --no-index against the platform's null device
   if (!staged) {
     const tracked = await runGitCommand(directoryPath, ["ls-files", "--error-unmatch", "--", filePath]).then(
       (r) => r.success,
@@ -2222,7 +2225,7 @@ const isBinaryDiff = async (directoryPath, filePath, staged) => {
         "--no-index",
         "--numstat",
         "--",
-        "/dev/null",
+        NULL_DEVICE_PATH,
         filePath,
       ])
       if (

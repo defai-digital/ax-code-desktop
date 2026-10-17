@@ -492,7 +492,14 @@ export function registerGitRoutes(app, options = {}) {
     try {
       const directory = req.query.directory
       if (!directory) return res.status(400).json({ error: "directory parameter is required" })
-      res.json({ counts: await countStashFiles(directory, req.body?.refs) })
+      // The refs reach `git stash show`, which forwards its options to `git diff`: `--output=<path>` writes that
+      // file and leaves stdout empty, and the route answered 200 with a counts map keyed by the option. The other
+      // stash routes reject the option form for the same reason.
+      const refs = req.body?.refs
+      if (Array.isArray(refs) && refs.some((ref) => isOptionLikeRevision(ref))) {
+        return res.status(400).json({ error: "stash ref must be a stash reference, not an option" })
+      }
+      res.json({ counts: await countStashFiles(directory, refs) })
     } catch (error) {
       console.error("Failed to count stash files:", error)
       res.status(500).json({ error: error.message || "Failed to count stash files" })
@@ -783,6 +790,12 @@ export function registerGitRoutes(app, options = {}) {
       if (!name) {
         return res.status(400).json({ error: "name is required" })
       }
+      // `createBranch` runs `git checkout -b <name> <startPoint>`: a leading "-" makes git read the start point as
+      // an option, so the branch is created from HEAD (or, with `--force`, over local state) and the route still
+      // answers success. The branch-mutating siblings all reject the option form.
+      if (isOptionLikeRevision(startPoint)) {
+        return res.status(400).json({ error: "startPoint must be a revision, not an option" })
+      }
 
       const result = await createBranch(directory, name, { startPoint })
       res.json(result)
@@ -859,6 +872,15 @@ export function registerGitRoutes(app, options = {}) {
       const { branch, remote } = req.body
       if (!branch) {
         return res.status(400).json({ error: "branch is required" })
+      }
+      // These reach `git push <remote> <refspec>` as bare argv: a "-"-prefixed remote is read as a push option
+      // (`--force :main` force-deletes main on the default remote) and the route reports success for deleting a
+      // branch on a remote named that way.
+      if (isOptionLikeRevision(remote)) {
+        return res.status(400).json({ error: "remote must be a remote name, not an option" })
+      }
+      if (isOptionLikeRevision(branch)) {
+        return res.status(400).json({ error: "branch must be a branch name, not an option" })
       }
 
       const result = await deleteRemoteBranch(directory, { branch, remote })
