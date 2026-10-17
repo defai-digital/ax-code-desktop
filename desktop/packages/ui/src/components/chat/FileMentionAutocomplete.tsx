@@ -53,6 +53,11 @@ export interface FileMentionHandle {
 
 interface FileMentionAutocompleteProps {
   searchQuery: string
+  /**
+   * The directory to search, when the caller is not the open chat: the multi-run launcher works on the project it
+   * has selected, and without this the mention list came from whatever session the chat happened to be showing.
+   */
+  directoryOverride?: string
   onFileSelect: (file: FileInfo) => void
   onAgentSelect?: (agentName: string) => void
   /** Attach terminal output, a git diff, or a commit as a text file chip. */
@@ -67,9 +72,10 @@ type ContextMenuEntry =
   | { type: "commit" }
 
 export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileMentionAutocompleteProps>(
-  ({ searchQuery, onFileSelect, onAgentSelect, onContextAttachment, onClose, style }, ref) => {
+  ({ searchQuery, directoryOverride, onFileSelect, onAgentSelect, onContextAttachment, onClose, style }, ref) => {
     const { t } = useI18n()
-    const currentDirectory = useChatSearchDirectory() ?? ""
+    const chatDirectory = useChatSearchDirectory() ?? ""
+    const currentDirectory = directoryOverride ?? chatDirectory
     const activeProjectId = useProjectsStore((state) => state.activeProjectId)
     const activeProjectPath = useProjectsStore(
       React.useCallback(

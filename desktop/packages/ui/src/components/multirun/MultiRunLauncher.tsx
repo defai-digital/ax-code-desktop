@@ -725,6 +725,7 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
                 canRemove={runGroups.length > 1}
                 onUpdate={updateGroup}
                 onRemove={removeGroup}
+                projectDirectory={projectRefPath ?? undefined}
               />
             ))}
 
@@ -784,9 +785,18 @@ interface RunGroupCardProps {
   canRemove: boolean
   onUpdate: (groupId: string, updates: Partial<RunGroupState>) => void
   onRemove: (groupId: string) => void
+  /** The selected project, so the group's `@` mentions search it rather than the open chat's session. */
+  projectDirectory?: string
 }
 
-const RunGroupCard: React.FC<RunGroupCardProps> = ({ group, groupIndex, canRemove, onUpdate, onRemove }) => {
+const RunGroupCard: React.FC<RunGroupCardProps> = ({
+  group,
+  groupIndex,
+  canRemove,
+  onUpdate,
+  onRemove,
+  projectDirectory,
+}) => {
   const { t } = useI18n()
   const [showFileMention, setShowFileMention] = React.useState(false)
   const [mentionQuery, setMentionQuery] = React.useState("")
@@ -1058,6 +1068,7 @@ const RunGroupCard: React.FC<RunGroupCardProps> = ({ group, groupIndex, canRemov
             <FileMentionAutocomplete
               ref={mentionRef}
               searchQuery={mentionQuery}
+              directoryOverride={projectDirectory}
               onFileSelect={handleFileSelect}
               onAgentSelect={handleAgentSelect}
               onClose={() => setShowFileMention(false)}

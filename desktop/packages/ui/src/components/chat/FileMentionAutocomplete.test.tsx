@@ -533,4 +533,32 @@ describe("FileMentionAutocomplete context mentions", () => {
     expect(onContextAttachment).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith("This terminal has no output yet")
   })
+
+  test("searches the directory its caller names, not the open chat's", async () => {
+    // The multi-run launcher works on the project it has selected, and the hook answers with the app's current chat
+    // directory: without the override the mention list came from whatever session the chat happened to show.
+    const searchFiles = vi.fn(async () => [])
+    useFileSearchStore.setState({ searchFiles: searchFiles as never })
+
+    await act(async () => {
+      root.render(
+        <I18nProvider>
+          <FileMentionAutocomplete
+            ref={mentionRef}
+            searchQuery="app"
+            directoryOverride="/selected-project"
+            onFileSelect={vi.fn()}
+            onClose={vi.fn()}
+          />
+        </I18nProvider>,
+      )
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300))
+    })
+
+    expect(searchFiles).toHaveBeenCalled()
+    expect(searchFiles.mock.calls[0]?.[0]).toBe("/selected-project")
+  })
+
 })
