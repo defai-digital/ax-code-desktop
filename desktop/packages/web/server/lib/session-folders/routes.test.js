@@ -28,6 +28,53 @@ describe("session folders routes", () => {
     expect(response.body.error).toMatch(/corrupt/i)
   })
 
+  it("treats a zero-byte stored file as corrupt rather than as no folders", async () => {
+    // `!raw` conflated "the file is missing" with "the file is there and empty": a file truncated by a
+    // non-atomic writer answered 200 with the empty snapshot, which the client treats as authoritative and
+    // writes back — the same data-loss cascade the branch above refuses for unparseable JSON.
+    const { app, getRoute } = createRouteRegistry()
+    const fsPromises = {
+      readFile: vi.fn(async () => ""),
+    }
+
+    registerSessionFoldersRoutes(app, {
+      fsPromises,
+      path,
+      openchamberDataDir: "/tmp/openchamber-test",
+    })
+
+    const handler = getRoute("GET", "/api/session-folders")
+    const response = createMockResponse()
+    await handler({}, response)
+
+    expect(response.statusCode).toBe(500)
+    expect(response.body.error).toMatch(/corrupt/i)
+  })
+
+  it("still answers the empty snapshot when the file is not there yet", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    const fsPromises = {
+      readFile: vi.fn(async () => {
+        const error = new Error("ENOENT: no such file or directory")
+        error.code = "ENOENT"
+        throw error
+      }),
+    }
+
+    registerSessionFoldersRoutes(app, {
+      fsPromises,
+      path,
+      openchamberDataDir: "/tmp/openchamber-test",
+    })
+
+    const handler = getRoute("GET", "/api/session-folders")
+    const response = createMockResponse()
+    await handler({}, response)
+
+    expect(response.statusCode).toBe(200)
+    expect(response.body).toEqual({ version: 1, foldersMap: {}, collapsedFolderIds: [], updatedAt: 0 })
+  })
+
   it("uses unique temp files for concurrent saves", async () => {
     const { app, getRoute } = createRouteRegistry()
     const tempPaths = []

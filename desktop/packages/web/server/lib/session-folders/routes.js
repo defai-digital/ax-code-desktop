@@ -15,7 +15,10 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
         if (error && error.code === "ENOENT") return null
         throw error
       })
-      if (!raw) {
+      // Only a missing file is "no folders yet": a file that exists and is empty is not valid JSON, and an
+      // empty snapshot is authoritative to the client, so it would replace the user's layout with nothing. It
+      // falls through to the parse below and is reported the same way as any other corrupt file.
+      if (raw === null) {
         return res.json({ version: 1, foldersMap: {}, collapsedFolderIds: [], updatedAt: 0 })
       }
       try {
