@@ -590,14 +590,12 @@ let unkeyedPermissionAskSequence = 0
         return
       }
 
-      // Client may be in Permission Auto-Accept for this session (or any
-      // ancestor). Skip the whole notification path — the client responds
-      // directly and the user has opted out of approval prompts.
-      if (await isSessionAutoAccepting(sessionId)) {
-        rememberNotifiedPermissionRequest(requestKey)
-        return
-      }
-
+      // Register the debounce entry BEFORE any await: the auto-accept check used
+      // to run first, and a permission.replied (which can carry no requestID)
+      // landing in that window found no pending entry and left nothing behind —
+      // the flush then still notified for an already-answered ask. The flush
+      // below performs the same auto-accept check, so no prompt is lost either
+      // way.
       const existing = permissionNotificationDebounceTimers.get(sessionId)
       if (existing) {
         clearTimeout(existing.timer)

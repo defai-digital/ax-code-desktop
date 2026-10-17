@@ -47,8 +47,11 @@ export function loadProfiles() {
     if (error && error.code === "ENOENT") {
       return { profiles: [] }
     }
+    // A corrupted file is not "no profiles": reading it as empty lets the next
+    // create/update/delete write that empty base back and destroy every stored
+    // identity (the settings file refused the same way).
     console.error("Failed to load git identity profiles:", error)
-    return { profiles: [] }
+    throw error
   }
 }
 

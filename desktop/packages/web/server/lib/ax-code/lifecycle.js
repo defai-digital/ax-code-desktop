@@ -796,6 +796,13 @@ export const createAxCodeLifecycleRuntime = (deps) => {
   let activeStartSlot = null
 
   const startAxCode = async () => {
+    // Join a start already in flight: bootstrap and a config-change restart
+    // reach this function concurrently (the restart saw currentStartPromise as
+    // null only because bootstrap had not called startAxCode yet), and two
+    // concurrent spawns left the loser orphaned with its port still bound.
+    if (activeStartSlot) {
+      return activeStartSlot.promise
+    }
     // Publish the in-flight start so restartAxCode can await it: bootstrap
     // calls startAxCode() without the restart mutex, and a config-change
     // restart racing that window used to see axCodeProcess === null, skip

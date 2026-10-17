@@ -372,6 +372,13 @@ const buildGitEnv = async () => {
   // command the user runs in a terminal fail with "Unable to create
   // index.lock". Required locks are still taken, so mutations keep working.
   env.GIT_OPTIONAL_LOCKS = "0"
+  // Server-side git must never block on a credential prompt: an HTTPS remote
+  // without a helper (or an ssh askpass with no tty) would otherwise hang the
+  // HTTP request and strand the git child forever. An explicit user setting
+  // still wins.
+  if (env.GIT_TERMINAL_PROMPT === undefined) {
+    env.GIT_TERMINAL_PROMPT = "0"
+  }
   return env
 }
 
@@ -799,11 +806,30 @@ const normalizeStartRef = (value) => {
   if (!trimmed) {
     return "HEAD"
   }
+  // The start ref is positional in `git worktree add <dir> <commit-ish>`: an
+  // option-looking value ("--force", "--detach") is eaten by git's option
+  // parser and the intended ref is silently dropped.
+  if (trimmed.startsWith("-")) {
+    throw new Error(`Invalid start ref: ${trimmed}`)
+  }
   return trimmed
 }
 
 function isValidCommitHash(hash) {
   return typeof hash === "string" && /^[0-9a-fA-F]{7,40}$/.test(hash)
+}
+
+/** Reject values git's option parser would read as flags instead of positional args. */
+/** A repo-relative path as a literal git pathspec: names containing [ * ? would
+ * otherwise glob sibling files (restore/clean/add affect them too). */
+const literalPathspec = (repoPath) => `:(literal)${repoPath}`
+
+const rejectOptionLikeValue = (value, label) => {
+  const text = String(value || "").trim()
+  if (text.startsWith("-")) {
+    throw new Error(`Invalid ${label}: ${text}`)
+  }
+  return text
 }
 
 const parseRemoteBranchRef = (value) => {
@@ -1024,8 +1050,8 @@ const runGitCommand = async (cwd, args, options = {}) => {
 const resolveGitCommitFilePath = async (repoRoot, hash, candidates) => {
   for (const candidate of candidates) {
     const [originalTreeResult, modifiedTreeResult] = await Promise.all([
-      runGitCommand(repoRoot, ["ls-tree", "--name-only", `${hash}^`, "--", candidate]),
-      runGitCommand(repoRoot, ["ls-tree", "--name-only", hash, "--", candidate]),
+      runGitCommand(repoRoot, ["ls-tree", "--name-only", `${hash}^`, "--", literalPathspec(candidate)]),
+      runGitCommand(repoRoot, ["ls-tree", "--name-only", hash, "--", literalPathspec(candidate)]),
     ])
 
     if (
@@ -2041,7 +2067,7 @@ export async function getDiff(directory, { path: filePath, staged = false, conte
     }
 
     if (fileContext) {
-      args.push("--", fileContext.repoPath)
+      args.push("--", literalPathspec(fileContext.repoPath))
     }
 
     const diff = await git.raw(args)
@@ -2058,7 +2084,7 @@ export async function getDiff(directory, { path: filePath, staged = false, conte
     }
 
     try {
-      await git.raw(["ls-files", "--error-unmatch", "--", fileContext.repoPath])
+      await git.raw(["ls-files", "--error-unmatch", "--", literalPathspec(fileContext.repoPath)])
       return diff
     } catch {
       const noIndexArgs = ["diff", "--no-color"]
@@ -2111,7 +2137,7 @@ export async function getRangeDiff(directory, { base, head, path: filePath, cont
   args.push(`${resolvedBase}...${headRef}`)
   if (filePath) {
     const fileContext = await resolveGitFileContext(directoryPath, directoryGit, filePath, repoRoot)
-    args.push("--", fileContext.repoPath)
+    args.push("--", literalPathspec(fileContext.repoPath))
   }
   const diff = await git.raw(args)
   return diff
@@ -2229,7 +2255,7 @@ const isBinaryDiff = async (directoryPath, filePath, staged) => {
   if (staged) {
     args.push("--cached")
   }
-  args.push("--", filePath)
+  args.push("--", literalPathspec(filePath))
 
   const result = await runGitCommand(directoryPath, args)
   if (parseIsBinaryFromNumstat(result.stdout)) {
@@ -2238,7 +2264,7 @@ const isBinaryDiff = async (directoryPath, filePath, staged) => {
 
   // Fallback for untracked files (diff output is empty): use --no-index against the platform's null device
   if (!staged) {
-    const tracked = await runGitCommand(directoryPath, ["ls-files", "--error-unmatch", "--", filePath]).then(
+    const tracked = await runGitCommand(directoryPath, ["ls-files", "--error-unmatch", "--", literalPathspec(filePath)]).then(
       (r) => r.success,
     )
     if (!tracked) {
@@ -2374,13 +2400,13 @@ export async function revertFile(directory, filePath, options = {}) {
     const git = await createGit(repoRoot)
 
     const isTracked = await git
-      .raw(["ls-files", "--error-unmatch", "--", repoPath])
+      .raw(["ls-files", "--error-unmatch", "--", literalPathspec(repoPath)])
       .then(() => true)
       .catch(() => false)
 
     if (!isTracked) {
       try {
-        await git.raw(["clean", "-f", "-d", "--", repoPath])
+        await git.raw(["clean", "-f", "-d", "--", literalPathspec(repoPath)])
         return
       } catch (cleanError) {
         try {
@@ -2398,17 +2424,17 @@ export async function revertFile(directory, filePath, options = {}) {
 
     if (scope === "all") {
       try {
-        await git.raw(["restore", "--staged", "--", repoPath])
+        await git.raw(["restore", "--staged", "--", literalPathspec(repoPath)])
       } catch (error) {
-        await git.raw(["reset", "HEAD", "--", repoPath]).catch(() => {})
+        await git.raw(["reset", "HEAD", "--", literalPathspec(repoPath)]).catch(() => {})
       }
     }
 
     try {
-      await git.raw(["restore", "--", repoPath])
+      await git.raw(["restore", "--", literalPathspec(repoPath)])
     } catch (error) {
       try {
-        await git.raw(["checkout", "--", repoPath])
+        await git.raw(["checkout", "--", literalPathspec(repoPath)])
       } catch (fallbackError) {
         console.error("Failed to revert git file:", fallbackError)
         throw fallbackError
@@ -2434,6 +2460,9 @@ export async function collectDiffs(directory, files = []) {
 
 export async function pull(directory, options = {}) {
   const { git } = await createRepositoryGitContext(directory)
+  // Positional for git pull, same option-injection guard as push.
+  rejectOptionLikeValue(options.remote, "remote name")
+  rejectOptionLikeValue(options.branch, "branch name")
   const pullOptions =
     options.rebase === true
       ? {
@@ -2554,6 +2583,12 @@ export async function stashPop(directory, options = {}) {
 
 export async function push(directory, options = {}) {
   const { git } = await createRepositoryGitContext(directory)
+
+  // remote/branch are positional for git push: option-looking values
+  // ("--mirror", "--force") would be parsed as flags — and `--mirror` deletes
+  // every remote ref the local repo does not have.
+  rejectOptionLikeValue(options.remote, "remote name")
+  rejectOptionLikeValue(options.branch, "branch name")
 
   const describePushError = (error) => {
     const fromNestedGit =
@@ -2704,8 +2739,9 @@ export async function fetch(directory, options = {}) {
   const { git } = await createRepositoryGitContext(directory)
 
   try {
-    const remote = String(options.remote || "").trim()
-    const branch = String(options.branch || "").trim()
+    // Positional for git fetch, same option-injection guard as push/pull.
+    const remote = rejectOptionLikeValue(options.remote, "remote name")
+    const branch = rejectOptionLikeValue(options.branch, "branch name")
     const fetchOptions = options.options || {}
 
     if (remote && !branch) {
@@ -2750,7 +2786,7 @@ export async function stageFiles(directory, paths) {
       ),
     )
     validateRepositoryFilePaths(repoRoot, repoPaths)
-    await git.raw(["add", "--", ...repoPaths]).catch(async (error) => {
+    await git.raw(["add", "--", ...repoPaths.map(literalPathspec)]).catch(async (error) => {
       const gitErrorText = parseGitErrorText(error)
       const isPathspecError = gitErrorText.includes("pathspec") && gitErrorText.includes("did not match any files")
       if (!isPathspecError) {
@@ -2763,7 +2799,7 @@ export async function stageFiles(directory, paths) {
       // on a single unmatched pathspec, so retry per-path and skip the ones already
       // in their target state rather than failing the entire "stage all".
       for (const repoPath of repoPaths) {
-        await git.raw(["add", "--", repoPath]).catch((perPathError) => {
+        await git.raw(["add", "--", literalPathspec(repoPath)]).catch((perPathError) => {
           const perPathText = parseGitErrorText(perPathError)
           const perPathIsPathspecError =
             perPathText.includes("pathspec") && perPathText.includes("did not match any files")
@@ -2804,8 +2840,8 @@ export async function unstageFiles(directory, paths) {
       ),
     )
     validateRepositoryFilePaths(repoRoot, repoPaths)
-    await git.raw(["restore", "--staged", "--", ...repoPaths]).catch(async () => {
-      await git.raw(["reset", "HEAD", "--", ...repoPaths])
+    await git.raw(["restore", "--staged", "--", ...repoPaths.map(literalPathspec)]).catch(async () => {
+      await git.raw(["reset", "HEAD", "--", ...repoPaths.map(literalPathspec)])
     })
   })
 }
@@ -2964,7 +3000,7 @@ const readStagedIndexEntries = async (git, paths) => {
   const entries = new Map()
   try {
     // -z so a path with quotes or newlines is still one record.
-    const raw = await git.raw(["ls-files", "--stage", "-z", "--", ...paths])
+    const raw = await git.raw(["ls-files", "--stage", "-z", "--", ...paths.map(literalPathspec)])
     for (const record of raw.split("\0")) {
       if (!record) {
         continue
@@ -2983,7 +3019,7 @@ const readStagedIndexEntries = async (git, paths) => {
     // A staged deletion has no index entry at all — `ls-files --stage` lists nothing for a path that is
     // gone — so the loop above records nothing for it and the path came back unstaged after the commit.
     // HEAD is what distinguishes "deleted" from "never tracked".
-    const headRaw = await git.raw(["ls-tree", "--full-tree", "-z", "HEAD", "--", ...paths]).catch(() => "")
+    const headRaw = await git.raw(["ls-tree", "--full-tree", "-z", "HEAD", "--", ...paths.map(literalPathspec)]).catch(() => "")
     for (const record of String(headRaw || "").split("\0")) {
       if (!record) {
         continue
@@ -3080,7 +3116,7 @@ export async function commit(directory, message, options = {}) {
 
           if (temporarilyUnstagedFiles.length > 0) {
             preservedIndexEntries = await readStagedIndexEntries(git, temporarilyUnstagedFiles)
-            await git.raw(["restore", "--staged", "--", ...temporarilyUnstagedFiles])
+            await git.raw(["restore", "--staged", "--", ...temporarilyUnstagedFiles.map(literalPathspec)])
           }
         }
 
@@ -3097,7 +3133,7 @@ export async function commit(directory, message, options = {}) {
             })
 
         if (filesNeedingAdd.length > 0) {
-          await git.raw(["add", "--", ...filesNeedingAdd])
+          await git.raw(["add", "--", ...filesNeedingAdd.map(literalPathspec)])
         }
       }
 
@@ -3303,6 +3339,12 @@ export async function checkoutCommit(directory, hash) {
     throw new Error("Invalid commit hash")
   }
   const { git } = await createRepositoryGitContext(directory)
+  // A hex-looking value that names no commit falls through to git's pathspec
+  // semantics: `git checkout deadbeef` restores a tracked file with that name
+  // and discards its uncommitted changes instead of failing.
+  if (!(await isCheckoutableRevision(git, hash))) {
+    throw new Error("Invalid commit hash")
+  }
   try {
     await git.checkout(hash)
     return { success: true }
@@ -3658,7 +3700,7 @@ export async function createWorktree(directory, input = {}) {
   const worktreeAddArgs = ["worktree", "add", "--no-checkout"]
 
   if (mode === "existing") {
-    const requestedExistingBranch = String(input?.existingBranch || "").trim()
+    const requestedExistingBranch = rejectOptionLikeValue(input?.existingBranch, "branch name")
     const parsedExistingRemote = await resolveRemoteBranchRef(context.primaryWorktree, requestedExistingBranch)
     if (
       parsedExistingRemote &&
@@ -3829,11 +3871,14 @@ export async function removeWorktree(directory, input = {}) {
   })()
 
   // Release the runtime instance that served this worktree while its directory still exists: the
-  // runtime keeps one per directory, and nothing released it when the directory went away.
+  // runtime keeps one per directory, and nothing released it when the directory went away. Only
+  // after the target is confirmed to belong to this project — disposing first released another
+  // project's runtime instance when a stale request named a foreign directory.
   const disposeInstance = typeof input?.disposeInstance === "function" ? input.disposeInstance : null
-  if (disposeInstance) {
+  const disposeTargetInstance = async (target) => {
+    if (!disposeInstance) return
     try {
-      await disposeInstance(targetDirectory)
+      await disposeInstance(target)
     } catch (error) {
       console.warn(
         "Failed to dispose the worktree's runtime instance:",
@@ -3856,6 +3901,7 @@ export async function removeWorktree(directory, input = {}) {
 
     const targetExists = await checkPathExists(targetDirectory)
     if (targetExists) {
+      await disposeTargetInstance(targetDirectory)
       await fsp.rm(targetDirectory, { recursive: true, force: true })
     }
 
@@ -3873,6 +3919,7 @@ export async function removeWorktree(directory, input = {}) {
     return true
   }
 
+  await disposeTargetInstance(targetDirectory)
   await runGitCommandOrThrow(
     context.primaryWorktree,
     ["worktree", "remove", "--force", matchedEntry.worktree],
@@ -4055,7 +4102,7 @@ export async function getLog(directory, options = {}) {
     }
 
     if (filePath) {
-      logArgs.push("--", filePath)
+      logArgs.push("--", literalPathspec(filePath))
     }
 
     const rawLog = await git.raw(logArgs)
@@ -4773,6 +4820,17 @@ export async function getCommitPatch(directory, hash, { maxBytes = COMMIT_PATCH_
   return { patch: lastNewline > 0 ? head.slice(0, lastNewline + 1) : head, truncated: true }
 }
 
+/** The source path of a rename in this commit, or null when `displayPath` was not renamed. */
+const resolveCommitRenameSourcePath = async (repoRoot, hash, displayPath) => {
+  const nameStatus = await runGitCommand(repoRoot, ["show", "--name-status", "-M", "--format=", hash])
+  if (!nameStatus.success) return null
+  for (const line of nameStatus.stdout.trim().split("\n").filter(Boolean)) {
+    const match = line.match(/^R\d*\t(.+)\t(.+)$/)
+    if (match && match[2] === displayPath) return match[1]
+  }
+  return null
+}
+
 export async function getCommitFileDiff(directory, hash, filePath, isBinary) {
   if (!directory || !hash || !filePath) {
     throw new Error("directory, hash, and path are required for getCommitFileDiff")
@@ -4788,10 +4846,11 @@ export async function getCommitFileDiff(directory, hash, filePath, isBinary) {
       toGitPath(path.relative(repoRoot, path.resolve(repoRoot, filePath))),
       toGitPath(path.relative(repoRoot, path.resolve(directoryPath, filePath))),
     ]),
-  ).filter((candidate) => candidate && !candidate.startsWith("..") && !path.isAbsolute(candidate))
+  ).filter((candidate) => candidate && !leavesRepositoryRoot(candidate))
 
   let originalResult = null
   let modifiedResult = null
+  let usedPath = null
 
   for (const candidate of candidates) {
     const [candidateOriginalResult, candidateModifiedResult] = await Promise.all([
@@ -4802,16 +4861,28 @@ export async function getCommitFileDiff(directory, hash, filePath, isBinary) {
     if (candidateOriginalResult.success || candidateModifiedResult.success) {
       originalResult = candidateOriginalResult
       modifiedResult = candidateModifiedResult
+      usedPath = candidate
       break
     }
   }
 
   if (!originalResult || !modifiedResult) {
     const resolvedPath = await resolveGitCommitFilePath(repoRoot, hash, candidates)
+    usedPath = resolvedPath
     ;[originalResult, modifiedResult] = await Promise.all([
       runGitCommand(repoRoot, ["show", `${hash}^:${resolvedPath}`]),
       runGitCommand(repoRoot, ["show", `${hash}:${resolvedPath}`]),
     ])
+  }
+
+  // A pure rename reads as "file added" with this lookup: the destination path
+  // does not exist in the parent commit. Find the rename's source path and read
+  // the original from there instead of reporting the whole file as new.
+  if (originalResult && !originalResult.success && modifiedResult?.success && usedPath) {
+    const renameSource = await resolveCommitRenameSourcePath(repoRoot, hash, usedPath)
+    if (renameSource) {
+      originalResult = await runGitCommand(repoRoot, ["show", `${hash}^:${renameSource}`])
+    }
   }
 
   const original = originalResult.success ? originalResult.stdout : ""
