@@ -1,7 +1,7 @@
 # Cold-start critical path: measurements and fixes
 
 Date: 2026-10-17
-Status: Implemented and tested; packaged-build timing of the integrity change not re-measured end to end
+Status: Implemented, tested, and measured in a packaged build
 
 ## Question
 
@@ -86,6 +86,27 @@ free (an earlier version that buffered whole files across 16 lanes took 400-470 
 held up to one file per lane in memory). It overlaps with the shell capture instead of preceding it.
 A signed packaged build was not produced for this report, so the combined packaged improvement is
 expected to be larger than the dev delta but is not measured.
+
+## Packaged-build measurement
+
+An unsigned `--dir` build of the final code (macOS arm64, real minisign-verified runtime v7.26.5 staged,
+2,837 manifest entries, signing and notarization explicitly disabled, re-signed ad hoc locally so macOS
+would run it) against the installed signed 7.26.1 release, launched the same way with animations off and
+an isolated user-data directory, interleaved, machine load average 13 to 25. ms since process start:
+
+| Milestone                      | installed 7.26.1 p50 (n=7) | this change p50 (n=5) |
+| ------------------------------ | -------------------------: | --------------------: |
+| `runtime.supervision.prepared` |                        635 |                   447 |
+| `web.server.ready`             |                       1835 |                  1099 |
+| `renderer.did-finish-load`     |                       1872 |                  1188 |
+| `renderer.first-paint`         |                       2060 |                  1233 |
+
+Per run, the installed build ranged 1594-2444 ms for `web.server.ready` and the new build 1031-1188 ms,
+so the ranges do not overlap. That is about 40% less time to first paint. The new build is bound by the
+login-shell capture (`login-shell-env.captured` 857-1015 ms). `runtime.integrity.verified` is logged
+later than before (441 against 360 ms) because it now runs concurrently with everything else instead
+of blocking it, which is the point of the change. The two builds differ in version (7.26.1 against
+7.26.2) and in signature, so this is a good estimate rather than a controlled A/B of one commit.
 
 ## Review follow-ups
 
