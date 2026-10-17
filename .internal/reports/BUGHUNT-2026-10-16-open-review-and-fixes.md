@@ -3664,7 +3664,7 @@ Round six and seven are complete: every confirmed finding is fixed.
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
 - Latest full run, after the three carried-forward fixes (`1a6f6118`, `5649bb29`, `9f5dda5c`) and the test
-  robustness change (`8b6a50cd`): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
+  robustness change (`1efed504`): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600,
   ui 2 978, web 1 323 (+2 skipped), 0 `FAIL` lines. The run before it failed five ui tests, and two of them were
   this series' own: the re-entrancy tests passed alone and were order- and load-dependent together (one left a
