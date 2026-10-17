@@ -683,7 +683,8 @@ export async function deleteSession(sessionId: string, options?: { notify?: bool
   }
 
   const ui = useSessionUIStore.getState()
-  if (ui.currentSessionId === sessionId) {
+  const clearedCurrentSelection = ui.currentSessionId === sessionId
+  if (clearedCurrentSelection) {
     ui.setCurrentSession(null)
   }
   try {
@@ -709,6 +710,12 @@ export async function deleteSession(sessionId: string, options?: { notify?: bool
         // child store may have been disposed since — ignore rollback
       }
     }
+    // The optimistic removal also cleared the selection; with the session back
+    // in the list the chat must not stay on the empty state. Only restore when
+    // the user has not picked another session in the meantime.
+    if (clearedCurrentSelection && useSessionUIStore.getState().currentSessionId === null) {
+      useSessionUIStore.getState().setCurrentSession(sessionId, sessionDirectory)
+    }
     return false
   }
 }
@@ -717,7 +724,8 @@ export async function archiveSession(sessionId: string, options?: { notify?: boo
   const sessionDirectory = getSessionDirectory(sessionId)
   const removed = optimisticRemoveSession(sessionId, sessionDirectory)
   const ui = useSessionUIStore.getState()
-  if (ui.currentSessionId === sessionId) {
+  const clearedCurrentSelection = ui.currentSessionId === sessionId
+  if (clearedCurrentSelection) {
     ui.setCurrentSession(null)
   }
   try {
@@ -743,6 +751,12 @@ export async function archiveSession(sessionId: string, options?: { notify?: boo
       } catch {
         // child store may have been disposed since — ignore rollback
       }
+    }
+    // The optimistic removal also cleared the selection; with the session back
+    // in the list the chat must not stay on the empty state. Only restore when
+    // the user has not picked another session in the meantime.
+    if (clearedCurrentSelection && useSessionUIStore.getState().currentSessionId === null) {
+      useSessionUIStore.getState().setCurrentSession(sessionId, sessionDirectory)
     }
     return false
   }
@@ -945,12 +959,23 @@ export async function optimisticSend(input: {
     await input.send(messageID)
     scheduleAcceptedPromptWatchdog(input.sessionId, messageID)
   } catch (error) {
-    // Rollback via optimistic infrastructure
-    _optimisticRemove({
-      sessionID: input.sessionId,
-      messageID,
-      directory: sessionDirectory,
-    })
+    // Roll back only when the runtime shows no sign of having accepted the turn:
+    // the POST can reach it and start the turn (its events arrive over the
+    // stream) while the HTTP response is lost — removing the optimistic user
+    // message then deletes one the runtime did accept, while the assistant
+    // reply parented on it keeps streaming. The status restore below guards
+    // the same race for the status slice.
+    const storedMessage = store
+      .getState()
+      .message[input.sessionId]?.find((message) => message.id === messageID)
+    const serverTookOverMessage = storedMessage !== undefined && storedMessage !== optimisticMessage
+    if (serverSessionStatusStamp(input.sessionId) === statusEventsBeforeSend && !serverTookOverMessage) {
+      _optimisticRemove({
+        sessionID: input.sessionId,
+        messageID,
+        directory: sessionDirectory,
+      })
+    }
     const s = store.getState()
     // Restore the status snapshot taken before the optimistic busy write instead of forcing idle —
     // the server-side turn may still be running — and only when the store still holds *this* call's

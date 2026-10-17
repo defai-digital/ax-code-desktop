@@ -1,6 +1,6 @@
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
-import { mergeMessages } from "./optimistic"
-import { areMessagesEqual } from "./event-reducer"
+import { mergeMessages, keepCompletedMessageOnMerge } from "./optimistic"
+import { shouldPreserveExistingPart } from "./event-reducer"
 import { compareIds, sortPartsById } from "./part-ordering"
 import type { PartMap } from "./part-map"
 
@@ -144,7 +144,13 @@ function carryDedupeMarker(existing: Part | undefined, part: Part): Part {
 }
 
 function mergeMaterializedPart(existing: Part | undefined, next: Part): Part {
-  if (!existing || getValidPartEndTime(next) !== undefined) return carryDedupeMarker(existing, next)
+  if (!existing) return carryDedupeMarker(existing, next)
+  // The reducer's "final tool beats a non-final update" rule applies here too:
+  // an older HTTP snapshot fetched before the completion event must not
+  // downgrade a settled tool part back to running — no further part event is
+  // sent for it, so the card would keep a live timer until the next snapshot.
+  if (shouldPreserveExistingPart(existing, next)) return existing
+  if (getValidPartEndTime(next) !== undefined) return carryDedupeMarker(existing, next)
 
   let merged: Part = next
   for (const field of STREAMING_PART_FIELDS) {
@@ -206,7 +212,7 @@ export function materializeSessionSnapshots(
     .sort((left, right) => compareIds(left.info.id, right.info.id))
   const nextMessages = snapshots.map((record) => record.info)
   const currentMessages = state.message[sessionID] ?? []
-  const messages = mergeMessages(currentMessages, nextMessages, areMessagesEqual)
+  const messages = mergeMessages(currentMessages, nextMessages, keepCompletedMessageOnMerge)
   const messagesChanged = messages !== currentMessages
 
   let partsChanged = false

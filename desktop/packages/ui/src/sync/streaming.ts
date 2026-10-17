@@ -195,6 +195,17 @@ export function updateStreamingState(state: State) {
     }
   }
 
+  // Completed sessions keep a `sessionID → null` marker here, and nothing ever
+  // removed one: every session (and subagent session) that ever streamed left an
+  // entry for the app's lifetime. Readers all use `get(...) ?? null`, so a
+  // finished session reads the same with the entry gone.
+  for (const [sessionID, msgId] of nextStreamingIds) {
+    if (msgId === null) {
+      nextStreamingIds.delete(sessionID)
+      changed = true
+    }
+  }
+
   if (changed) {
     useStreamingStore.setState({
       streamingMessageIds: nextStreamingIds,

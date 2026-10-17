@@ -47,7 +47,7 @@ import { flattenAssistantTextParts } from "@/lib/messages/messageText"
 import { EXECUTION_FORK_META_TEXT } from "@/lib/messages/executionMeta"
 import { waitForWorktreeBootstrap } from "@/lib/worktrees/worktreeBootstrap"
 import { waitForPendingDraftWorktreeRequest } from "@/lib/worktrees/pendingDraftWorktree"
-import { resolveProjectForSessionDirectory } from "@/lib/projectResolution"
+import { normalizeProjectPath, resolveProjectForSessionDirectory } from "@/lib/projectResolution"
 import { extractMessageModelRef } from "@/lib/messageModelRef"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 import { getSyncSessions, getAllSyncSessions, getSyncMessages, getSyncParts, getDirectoryState } from "./sync-refs"
@@ -419,14 +419,11 @@ type SessionUIState = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const normalizePath = (value?: string | null): string | null => {
-  if (typeof value !== "string") return null
-  const trimmed = value.trim()
-  if (!trimmed) return null
-  const replaced = trimmed.replace(/\\/g, "/")
-  if (replaced === "/") return "/"
-  return replaced.length > 1 ? replaced.replace(/\/+$/, "") : replaced
-}
+const normalizePath = (value?: string | null): string | null =>
+  // Child stores are keyed by normalizeProjectPath (which canonicalizes the
+  // Windows drive letter and drive roots); a weaker local normalization left
+  // `d:/Repo` resolving to a different key than the canonical `D:/Repo` store.
+  normalizeProjectPath(value)
 
 const resolveDirectoryKey = (session: Session): string | null => {
   const sessionRecord = session as Session & {

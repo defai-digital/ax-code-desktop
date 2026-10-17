@@ -51,6 +51,63 @@ describe("materializeSessionSnapshots", () => {
     expect(merged.time?.completed).toBe(9)
   })
 
+  test("does not downgrade a completed message with a stale in-progress snapshot", () => {
+    // The reverse race of the test above: the completion event landed while the
+    // snapshot response was in flight, so the response still carries the older
+    // in-progress copy. Replacing the live message would re-open the finished
+    // reply for every reader of time.completed.
+    const inProgress = { id: "msg_1", sessionID: "ses_1", role: "assistant", time: { created: 1 } } as Message
+    const completed = {
+      id: "msg_1",
+      sessionID: "ses_1",
+      role: "assistant",
+      time: { created: 1, completed: 9 },
+      finish: "stop",
+    } as unknown as Message
+    const state = { message: { ses_1: [completed] }, part: PartMap.from({ msg_1: [part("prt_1", "msg_1")] }) }
+
+    const result = materializeSessionSnapshots(state, "ses_1", [{ info: inProgress, parts: [part("prt_1", "msg_1")] }])
+
+    expect(result.messagesChanged).toBe(false)
+    const merged = result.message.ses_1.find((item) => item.id === "msg_1") as Message & {
+      time?: { completed?: number }
+    }
+    expect(merged.time?.completed).toBe(9)
+  })
+
+  test("does not downgrade a completed tool part with a stale running snapshot", () => {
+    // Same in-flight race one level down: the tool completed over the event
+    // stream while the snapshot response was pending, and no further part
+    // event will arrive — keeping the stale running copy would leave the card
+    // on a live timer until the next snapshot pass.
+    const runningTool = {
+      id: "prt_1",
+      messageID: "msg_1",
+      sessionID: "ses_1",
+      type: "tool",
+      tool: "bash",
+      state: { status: "running", input: {}, time: { start: 3 } },
+    } as unknown as Part
+    const doneTool = {
+      id: "prt_1",
+      messageID: "msg_1",
+      sessionID: "ses_1",
+      type: "tool",
+      tool: "bash",
+      state: { status: "completed", input: {}, output: "ok", time: { start: 3, end: 20 } },
+    } as unknown as Part
+    const inProgress = { id: "msg_1", sessionID: "ses_1", role: "assistant", time: { created: 1 } } as Message
+    const state = { message: { ses_1: [inProgress] }, part: PartMap.from({ msg_1: [doneTool] }) }
+
+    const result = materializeSessionSnapshots(state, "ses_1", [{ info: inProgress, parts: [runningTool] }])
+
+    const merged = result.part.get("msg_1")!.find((item) => item.id === "prt_1") as unknown as {
+      state: { status: string; time?: { end?: number } }
+    }
+    expect(merged.state.status).toBe("completed")
+    expect(merged.state.time?.end).toBe(20)
+  })
+
   test("marks a tool a completed message left running as aborted", () => {
     // The runtime persists a tool part as running while it works, and an interrupted or killed
     // turn never rewrites it. Nobody is left to settle it, so every later load restored the card

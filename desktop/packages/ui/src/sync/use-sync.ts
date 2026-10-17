@@ -1,4 +1,4 @@
-import { useCallback, useRef, useMemo } from "react"
+import { useCallback, useMemo } from "react"
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import { Binary } from "./binary"
 import { retry } from "./retry"
@@ -81,6 +81,13 @@ const optimisticByKey = new Map<string, Map<string, OptimisticItem>>()
 // all request the same session during startup; coalesce them into one HTTP load.
 const syncSessionInflightByKey = new Map<string, Promise<void>>()
 
+// Shared across useSync() instances for the same reason as the caches above:
+// eviction by one instance must also clear the pagination metadata another
+// instance is holding, or an evicted session that later gains an event-built
+// tail reopens through the stale `fetched/complete` meta and can never page
+// its history back in.
+const metaByKey = new Map<string, SyncMeta>()
+
 type SyncMeta = {
   limit: number
   cursor: string | undefined
@@ -136,15 +143,12 @@ export function useSync(directoryOverride?: string | null) {
   const store = useDirectoryChildStore(directoryOverride ?? undefined)
   const childStores = useChildStoreManager()
 
-  // Refs for mutable tracking (no re-renders)
-  const meta = useRef(new Map<string, SyncMeta>())
-
   const keyFor = useCallback((sessionID: string) => `${directory}\n${sessionID}`, [directory])
 
   const getMetaFor = useCallback(
     (sessionID: string) => {
       const key = keyFor(sessionID)
-      return meta.current.get(key) ?? getPrefetchMeta(directory, sessionID) ?? getDefaultMeta()
+      return metaByKey.get(key) ?? getPrefetchMeta(directory, sessionID) ?? getDefaultMeta()
     },
     [directory, keyFor],
   )
@@ -162,8 +166,8 @@ export function useSync(directoryOverride?: string | null) {
       }>,
     ) => {
       const key = keyFor(sessionID)
-      const current = meta.current.get(key) ?? getPrefetchMeta(directory, sessionID) ?? getDefaultMeta()
-      meta.current.set(key, { ...current, ...patch })
+      const current = metaByKey.get(key) ?? getPrefetchMeta(directory, sessionID) ?? getDefaultMeta()
+      metaByKey.set(key, { ...current, ...patch })
     },
     [directory, keyFor],
   )
@@ -181,7 +185,7 @@ export function useSync(directoryOverride?: string | null) {
       // otherwise stale meta/prefetch entries survive and report old limits.
       for (const id of sessionIDs) {
         optimisticByKey.delete(`${dir}\n${id}`)
-        meta.current.delete(`${dir}\n${id}`)
+        metaByKey.delete(`${dir}\n${id}`)
       }
       clearSessionPrefetch(dir, sessionIDs)
 
@@ -237,7 +241,7 @@ export function useSync(directoryOverride?: string | null) {
     }
 
     return created
-  }, [directory, evict])
+  }, [directory, childStores, evict])
 
   // Touch a session — triggers both directory-level and session-level eviction
   const touch = useCallback(

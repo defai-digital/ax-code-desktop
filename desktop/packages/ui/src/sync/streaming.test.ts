@@ -47,7 +47,7 @@ describe("updateStreamingState", () => {
       ]),
     )
 
-    expect(useStreamingStore.getState().streamingMessageIds.get("ses_1")).toBeNull()
+    expect(useStreamingStore.getState().streamingMessageIds.has("ses_1")).toBe(false)
     expect(useStreamingStore.getState().messageStreamStates.get("msg_assistant_1")?.phase).toBe("completed")
   })
 
@@ -79,7 +79,7 @@ describe("updateStreamingState", () => {
         message("msg_user_2", "user"),
       ]),
     )
-    expect(useStreamingStore.getState().streamingMessageIds.get("ses_1")).toBeNull()
+    expect(useStreamingStore.getState().streamingMessageIds.has("ses_1")).toBe(false)
 
     updateStreamingState(
       stateWithMessages([
@@ -103,7 +103,7 @@ describe("updateStreamingState", () => {
       } as SessionStatus),
     )
 
-    expect(useStreamingStore.getState().streamingMessageIds.get("ses_1")).toBeNull()
+    expect(useStreamingStore.getState().streamingMessageIds.has("ses_1")).toBe(false)
     expect(useStreamingStore.getState().messageStreamStates.get("msg_assistant_1")?.phase).toBe("completed")
   })
 

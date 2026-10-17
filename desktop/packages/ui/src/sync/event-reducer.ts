@@ -135,7 +135,7 @@ function getToolStatus(part: Part): string | undefined {
   return typeof status === "string" ? status : undefined
 }
 
-function shouldPreserveExistingPart(previous: Part, next: Part): boolean {
+export function shouldPreserveExistingPart(previous: Part, next: Part): boolean {
   if (previous.type !== "tool" || next.type !== "tool") {
     return false
   }

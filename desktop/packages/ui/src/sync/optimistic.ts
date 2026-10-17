@@ -94,6 +94,25 @@ export function mergeMessages<T extends { id: string }>(
 }
 
 /**
+ * A stale page must not downgrade a completed message to in-progress: a
+ * snapshot fetched before the completion event carries no `time.completed`,
+ * and replacing the live copy re-opens the finished reply (and, through
+ * `hasCompletedAssistantReply`, protects the session from cache eviction
+ * forever). Only that direction is blocked — a completed incoming copy must
+ * still replace a live in-progress one.
+ */
+export const keepCompletedMessageOnMerge = (existing: Message, incoming: Message): boolean => {
+  const existingCompleted = (existing as { time?: { completed?: unknown } }).time?.completed
+  if (typeof existingCompleted === "number" && Number.isFinite(existingCompleted)) {
+    const incomingCompleted = (incoming as { time?: { completed?: unknown } }).time?.completed
+    if (typeof incomingCompleted !== "number" || !Number.isFinite(incomingCompleted)) {
+      return true
+    }
+  }
+  return areMessagesEqual(existing, incoming)
+}
+
+/**
  * A fetched page of a child session merged into what its store already holds.
  *
  * The reads that feed it are bounded — 500 messages on the first one, 160 while the task runs, 80 while it is idle
@@ -104,4 +123,4 @@ export function mergeMessages<T extends { id: string }>(
 export const mergeChildSessionMessages = (
   existing: readonly Message[] | undefined,
   page: readonly Message[],
-): Message[] => mergeMessages(existing ?? [], page, areMessagesEqual)
+): Message[] => mergeMessages(existing ?? [], page, keepCompletedMessageOnMerge)

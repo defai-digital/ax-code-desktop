@@ -781,6 +781,11 @@ async function resyncDirectoryAfterReconnect(
   const candidateSessionIds = getActiveSessionCandidateIds(directory, current)
   if (candidateSessionIds.length === 0) return
 
+  // The per-session fetches below race live events: an archive/rename that
+  // lands while a `session.get` is in flight must not be overwritten by the
+  // stale answer. Remember who was here before they started.
+  const sessionIdsBeforeFetch = new Set(current.session.map((session) => session.id))
+
   await resyncDirectorySessionStatuses(directory, store, candidateSessionIds)
 
   const scopedClient = axCodeClient.getScopedSdkClient(directory)
@@ -826,12 +831,23 @@ async function resyncDirectoryAfterReconnect(
             sessionChanged = true
           }
         } else if (sessionIndex >= 0) {
-          if (!haveEquivalentSyncSnapshots(sessions[sessionIndex], nextSession)) {
+          // A response computed before a concurrent live change (rename, share,
+          // revert) must not overwrite the newer record that change produced.
+          const currentUpdated = sessions[sessionIndex].time?.updated
+          const nextUpdated = nextSession.time?.updated
+          const stale =
+            typeof currentUpdated === "number" &&
+            typeof nextUpdated === "number" &&
+            currentUpdated > nextUpdated
+          if (!stale && !haveEquivalentSyncSnapshots(sessions[sessionIndex], nextSession)) {
             sessions = [...state.session]
             sessions[sessionIndex] = nextSession
             sessionChanged = true
           }
-        } else {
+        } else if (!sessionIdsBeforeFetch.has(nextSession.id)) {
+          // A session that was present before the fetch but is gone now was
+          // removed by a session.updated/deleted event while the request was in
+          // flight; the stale answer must not resurrect it.
           sessions = [...state.session]
           sessions.push(nextSession)
           sessions.sort((a, b) => cmp(a.id, b.id))
