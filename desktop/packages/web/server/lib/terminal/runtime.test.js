@@ -524,6 +524,10 @@ describe("terminal restart", () => {
     // Hold the restart's provider call only: the create that follows has to proceed.
     let holdNextProvider = false
     let releaseProvider = () => {}
+    let enterProvider = () => {}
+    const providerEntered = new Promise((resolve) => {
+      enterProvider = resolve
+    })
     const runtime = createRuntime(server, {
       app,
       getPtyProvider: async () => {
@@ -531,6 +535,7 @@ describe("terminal restart", () => {
           holdNextProvider = false
           await new Promise((resolve) => {
             releaseProvider = resolve
+            enterProvider()
           })
         }
         return { backend: "mock", spawn: () => makeFakePty() }
@@ -554,11 +559,8 @@ describe("terminal restart", () => {
       holdNextProvider = true
       const restartRoute = getRoute("POST", "/api/terminal/:sessionId/restart")
       const restartRes = createMockResponse()
-      const restarting = restartRoute(
-        { params: { sessionId }, body: { cwd: "/tmp", cols: 80, rows: 24 } },
-        restartRes,
-      )
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      const restarting = restartRoute({ params: { sessionId }, body: { cwd: "/tmp", cols: 80, rows: 24 } }, restartRes)
+      await providerEntered
 
       // The replaced session leaves on its own (closed from another window), and a create takes the
       // freed slot.
@@ -581,6 +583,7 @@ describe("terminal restart", () => {
       await createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, third)
       expect(third.statusCode).toBe(429)
     } finally {
+      releaseProvider()
       await runtime.shutdown()
     }
   }, 15_000)
@@ -621,18 +624,12 @@ describe("terminal restart", () => {
 
       // The cap is full: restarting an id nobody holds must not spawn a new session.
       const staleRes = createMockResponse()
-      await restartRoute(
-        { params: { sessionId: "0".repeat(48) }, body: { cwd: "/tmp", cols: 80, rows: 24 } },
-        staleRes,
-      )
+      await restartRoute({ params: { sessionId: "0".repeat(48) }, body: { cwd: "/tmp", cols: 80, rows: 24 } }, staleRes)
       expect(staleRes.statusCode).toBe(429)
 
       // Restarting a live session swaps it in place and stays under the cap.
       const liveRes = createMockResponse()
-      await restartRoute(
-        { params: { sessionId: liveSessionId }, body: { cwd: "/tmp", cols: 80, rows: 24 } },
-        liveRes,
-      )
+      await restartRoute({ params: { sessionId: liveSessionId }, body: { cwd: "/tmp", cols: 80, rows: 24 } }, liveRes)
       expect(liveRes.statusCode).toBe(200)
       expect(liveRes.body?.sessionId).toBeTruthy()
     } finally {
@@ -674,9 +671,7 @@ describe("terminal session cap", () => {
       // The session is only registered at the end of the request (cwd check,
       // node-pty import and the shell startup grace window all await first), so
       // fire the creates together: only as many as the cap allows may succeed.
-      await Promise.all(
-        responses.map((res) => createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, res)),
-      )
+      await Promise.all(responses.map((res) => createRoute({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, res)))
 
       expect(responses.map((res) => res.statusCode).sort()).toEqual([200, 200, 429])
       expect(responses.filter((res) => res.statusCode === 200).map((res) => res.body?.sessionId)).toEqual([
@@ -809,7 +804,6 @@ describe("terminal output backpressure", () => {
     }
   })
 })
-
 
 describe("terminal shell env", () => {
   it("drops secrets and the unpaired embedded-browser marker", () => {

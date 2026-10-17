@@ -69,6 +69,10 @@ describe("createAxCodeWatcherRuntime", () => {
     const fetchLastEventIds = []
     const payloads = []
     let attempt = 0
+    let receiveUpdate = () => {}
+    const updateReceived = new Promise((resolve) => {
+      receiveUpdate = resolve
+    })
 
     const watcher = createAxCodeWatcherRuntime({
       waitForAxCodePort: async () => {},
@@ -78,6 +82,7 @@ describe("createAxCodeWatcherRuntime", () => {
         payloads.push(payload.type)
         if (payload.type === "session.updated") {
           watcher.stop()
+          receiveUpdate()
         }
       },
       fetchImpl: async (_url, options) => {
@@ -101,11 +106,14 @@ describe("createAxCodeWatcherRuntime", () => {
       upstreamReconnectDelayMs: 0,
     })
 
-    await watcher.start()
-    await new Promise((resolve) => setTimeout(resolve, 30))
-
-    expect(payloads).toEqual(["server.connected", "session.updated"])
-    expect(fetchLastEventIds.slice(0, 2)).toEqual([null, "evt-1"])
+    try {
+      await watcher.start()
+      await updateReceived
+      expect(payloads).toEqual(["server.connected", "session.updated"])
+      expect(fetchLastEventIds.slice(0, 2)).toEqual([null, "evt-1"])
+    } finally {
+      watcher.stop()
+    }
   })
 
   it("subscribes to a shared global event hub instead of opening its own upstream stream", async () => {
