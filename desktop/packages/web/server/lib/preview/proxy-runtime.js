@@ -1267,6 +1267,22 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
   // `res` BEFORE the responseInterceptor callback runs, so mutating
   // `proxyRes.headers` afterward is a no-op — the frame-busting headers were
   // already queued on `res`. This is what actually lets a framed site load.
+  // The same ordering `stripFrameBustingHeadersOnRes` exists for: http-proxy-middleware v3 copies the upstream
+  // headers onto `res` before the interceptor callback runs, so a cache policy set on `proxyRes.headers` afterwards
+  // never reached the browser and a rewritten preview body could be cached.
+  const applyPreviewNoStoreOnRes = (res) => {
+    if (!res || typeof res.setHeader !== "function") {
+      return
+    }
+    res.setHeader("cache-control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+    res.setHeader("pragma", "no-cache")
+    res.setHeader("expires", "0")
+    if (typeof res.removeHeader === "function") {
+      res.removeHeader("etag")
+      res.removeHeader("last-modified")
+    }
+  }
+
   const stripFrameBustingHeadersOnRes = (res) => {
     if (!res || typeof res.removeHeader !== "function" || typeof res.getHeader !== "function") {
       return
@@ -1588,11 +1604,7 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
             return responseBuffer
           }
 
-          proxyRes.headers["cache-control"] = "no-store, no-cache, must-revalidate, proxy-revalidate"
-          proxyRes.headers.pragma = "no-cache"
-          proxyRes.headers.expires = "0"
-          delete proxyRes.headers.etag
-          delete proxyRes.headers["last-modified"]
+          applyPreviewNoStoreOnRes(res)
 
           if (!resolved.ok) {
             return responseBuffer

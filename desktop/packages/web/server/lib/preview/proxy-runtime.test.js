@@ -702,6 +702,17 @@ describe("external preview documents are sandboxed", () => {
     expect(String(responseHeaders.get("content-security-policy") ?? "")).toContain("sandbox")
   })
 
+  it("tells the browser not to cache a rewritten preview document", async () => {
+    // The upstream headers are already on `res` when the interceptor callback runs, so setting the policy on
+    // `proxyRes.headers` afterwards never reached the browser — a rewritten preview body could be cached.
+    const harness = await buildHarness({ allowExternal: true })
+
+    const { responseHeaders } = await runProxyRes(harness, "text/html; charset=utf-8")
+
+    expect(String(responseHeaders.get("cache-control") ?? "")).toContain("no-store")
+    expect(String(responseHeaders.get("pragma") ?? "")).toBe("no-cache")
+  })
+
   it("does not sandbox a non-document response", async () => {
     const harness = await buildHarness({ allowExternal: true })
 
