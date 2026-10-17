@@ -42,19 +42,18 @@ const createUpdateInstallGate = () => {
 }
 
 /**
- * Resolves `true` as soon as the updater announces that quitting for the install
- * has begun, and `false` when the deadline passes first.
- *
- * `quitAndInstall()` is fire-and-forget: it can refuse to install without quitting
- * the app (an unsigned build failing native verification, a missing installer, a
- * spawn failure). By then the caller has already stopped every service, so claiming
- * success would leave the app running on a dead runtime with nothing telling the
- * user why. The app's own quit counts as the same signal, so a slow quit is not
- * reported as a failure.
+ * Observe the quit before starting the installer: it may announce the quit
+ * synchronously, emit an error without quitting, or throw before it starts.
+ * Services remain live until the app's normal before-quit coordinator runs.
  */
 const DEFAULT_INSTALL_START_TIMEOUT_MS = 30_000
 
-const waitForInstallStart = ({ updater, app, timeoutMs = DEFAULT_INSTALL_START_TIMEOUT_MS } = {}) =>
+const waitForInstallStart = ({
+  updater,
+  nativeUpdater = updater,
+  start,
+  timeoutMs = DEFAULT_INSTALL_START_TIMEOUT_MS,
+} = {}) =>
   new Promise((resolve) => {
     let settled = false
     let timer = null
@@ -62,19 +61,53 @@ const waitForInstallStart = ({ updater, app, timeoutMs = DEFAULT_INSTALL_START_T
       if (settled) return
       settled = true
       if (timer) clearTimeout(timer)
-      updater?.removeListener?.("before-quit-for-update", onStarted)
-      app?.removeListener?.("before-quit", onStarted)
+      nativeUpdater?.removeListener?.("before-quit-for-update", onStarted)
+      updater?.removeListener?.("error", onFailed)
+      if (nativeUpdater !== updater) nativeUpdater?.removeListener?.("error", onFailed)
       resolve(started)
     }
     const onStarted = () => finish(true)
-    timer = setTimeout(() => finish(false), timeoutMs)
+    const onFailed = () => finish(false)
+    timer = setTimeout(onFailed, timeoutMs)
     // Must not keep the process alive while the app is meant to be quitting.
     timer.unref?.()
-    // Attached before the caller calls `quitAndInstall`: the announcement can
-    // arrive immediately.
-    updater?.once?.("before-quit-for-update", onStarted)
-    app?.once?.("before-quit", onStarted)
+    nativeUpdater?.once?.("before-quit-for-update", onStarted)
+    updater?.once?.("error", onFailed)
+    if (nativeUpdater !== updater) nativeUpdater?.once?.("error", onFailed)
+    try {
+      start?.()
+    } catch {
+      onFailed()
+    } finally {
+      // After handoff, wrapper errors may belong to unrelated background
+      // checks. Native staging errors still arrive on the native updater;
+      // wrapper errors emitted synchronously by quitAndInstall are handled above.
+      if (nativeUpdater !== updater) updater?.removeListener?.("error", onFailed)
+    }
   })
+
+/** Share concurrent IPC requests and leave service cleanup to the actual quit. */
+const createUpdateInstaller = ({ updater, nativeUpdater, gate, isQuitting = () => false, timeoutMs } = {}) => {
+  let inFlight = null
+  return () => {
+    if (inFlight) return inFlight
+    if (isQuitting()) return Promise.resolve({ installed: false, reason: "app-quitting" })
+    if (!gate.canInstall()) return Promise.resolve({ installed: false, reason: "no-downloaded-update" })
+    const version = gate.version()
+    inFlight = waitForInstallStart({ updater, nativeUpdater, timeoutMs, start: () => updater.quitAndInstall() })
+      .then((started) => {
+        if (!started) {
+          gate.onNotInstallable()
+          return { installed: false, reason: "install-not-started" }
+        }
+        return { installed: true, version: version ?? undefined }
+      })
+      .finally(() => {
+        inFlight = null
+      })
+    return inFlight
+  }
+}
 
 /**
  * Blocks every navigation of `webContents` (renderer-initiated AND
@@ -96,6 +129,7 @@ const attachRendererNavigationGuards = (webContents, { isTrustedUrl, onBlocked }
 module.exports = {
   attachRendererNavigationGuards,
   createUpdateInstallGate,
+  createUpdateInstaller,
   quotePowerShellLiteral,
   waitForInstallStart,
 }

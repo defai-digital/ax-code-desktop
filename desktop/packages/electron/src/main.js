@@ -2,6 +2,7 @@
 
 const {
   app,
+  autoUpdater: nativeAutoUpdater,
   BrowserWindow,
   WebContentsView,
   dialog,
@@ -115,7 +116,7 @@ const {
   attachRendererNavigationGuards,
   createUpdateInstallGate,
   quotePowerShellLiteral,
-  waitForInstallStart,
+  createUpdateInstaller,
 } = require("./desktop-renderer-guards")
 const { createTrayController } = require("./tray.mjs")
 const { createLanguageController } = require("../../../shared/localization.mjs")
@@ -928,8 +929,8 @@ autoUpdater.on("download-progress", (p) => {
   sendUpdateProgress("Progress", { downloaded: p.transferred, total: p.total })
 })
 // electron-updater's quitAndInstall() does NOT quit when nothing is downloaded
-// (it emits `error` and returns), and the shell stops its server + runtime
-// before asking — so the gate decides before any shutdown happens.
+// (it emits `error` and returns). Check the gate before starting an install;
+// service cleanup is deferred to the app's actual quit.
 const updateInstallGate = createUpdateInstallGate()
 autoUpdater.on("update-downloaded", (info) => {
   updateInstallGate.onDownloaded(info)
@@ -1096,32 +1097,18 @@ async function shutdownForExit() {
   await stopBackgroundServices()
 }
 
-handleCommand("desktop_quit_and_install", async () => {
-  if (!updateInstallGate.canInstall()) {
-    // Never stop the services for an install that the updater will refuse: the
-    // window would stay open with a dead server and runtime, and isQuitting
-    // blocks re-creating it.
-    return { installed: false, reason: "no-downloaded-update" }
-  }
-  await shutdownForExit()
-  // Attached before the call and awaited after it: `quitAndInstall()` can refuse
-  // the install without quitting, and every service is already stopped here.
-  const installStarted = waitForInstallStart({ updater: autoUpdater, app })
-  autoUpdater.quitAndInstall()
-  if (!(await installStarted)) {
-    // Nothing is installable any more, and the renderer has to hear it: leaving the
-    // gate set would let the user retry straight back into the same dead state.
-    updateInstallGate.onNotInstallable()
-    // The services are already stopped and isQuitting is set, so this process cannot serve the
-    // window it still has: `window-all-closed` refuses to quit and `activate` refuses to re-create
-    // the window, which left a window with a dead server and, without a tray, an unreachable
-    // process. Come back up instead, into a working app that still has the update waiting.
-    app.relaunch()
-    app.exit(0)
-    return { installed: false, reason: "install-not-started" }
-  }
-  return { installed: true, version: updateInstallGate.version() ?? undefined }
-})
+// Only a real quit may stop services. A downloaded installer can still be
+// refused by native verification or fail to spawn; the app must remain usable.
+handleCommand(
+  "desktop_quit_and_install",
+  createUpdateInstaller({
+    updater: autoUpdater,
+    nativeUpdater: nativeAutoUpdater,
+    gate: updateInstallGate,
+    isQuitting: () => isQuitting,
+  }),
+)
+
 
 handleCommand("desktop_restart", async () => {
   await shutdownForExit()
@@ -3614,7 +3601,7 @@ app.on("will-quit", () => {
 
 app.on("before-quit", (event) => {
   // Hold every normal quit request while ending playback and service cleanup
-  // run concurrently. Restart/update paths already set isQuitting and bypass
+  // run concurrently. Explicit restart paths already set isQuitting and bypass
   // artwork. Only the coordinator's final quit may pass its waiting guard.
   if (isQuitting && quitCoordinator.state === "idle") return
   void quitCoordinator.handle(event)

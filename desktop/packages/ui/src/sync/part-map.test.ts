@@ -38,6 +38,49 @@ describe("PartMap", () => {
     expect(draft.has("msg_c")).toBe(true)
   })
 
+  it("isolates a published child from later writes to its mutable parent", () => {
+    const original = [part("original")]
+    const parent = PartMap.EMPTY.fork().set("first_aaa", original).set("second_aaa", [])
+    const child = parent.fork().seal()
+
+    parent.set("first_aaa", [part("replacement")])
+    parent.delete("second_aaa")
+    parent.set("third_aaa", [])
+
+    expect(child.get("first_aaa")).toBe(original)
+    expect(child.has("second_aaa")).toBe(true)
+    expect(child.has("third_aaa")).toBe(false)
+    expect(child.size).toBe([...child.keys()].length)
+  })
+
+  it("preserves untouched buckets in published copies made from a draft", () => {
+    const original = [part("original")]
+    const parent = PartMap.EMPTY.fork().set("first_aaa", original)
+    const added = parent.withEntries([["other_zzz", []]])
+    parent.set("other_zzz", [])
+    const removed = parent.without(["other_zzz"])
+    const last = parent.fork().seal()
+    parent.set("first_aaa", [part("replacement")])
+    expect(added.get("first_aaa")).toBe(original)
+    expect(removed.get("first_aaa")).toBe(original)
+    expect(last.get("first_aaa")).toBe(original)
+  })
+
+  it("keeps sibling snapshots isolated through repeated forks and writes", () => {
+    const parent = PartMap.EMPTY.fork().set("first_aaa", [])
+    const first = parent.withEntries([["child_aaa", []]])
+    parent.set("second_aaa", [])
+    const second = parent.without(["first_aaa"])
+    parent.delete("second_aaa")
+
+    expect([...first.keys()].sort()).toEqual(["child_aaa", "first_aaa"])
+    expect([...second.keys()]).toEqual(["second_aaa"])
+    expect([...parent.keys()]).toEqual(["first_aaa"])
+    expect(first.size).toBe(2)
+    expect(second.size).toBe(1)
+    expect(parent.size).toBe(1)
+  })
+
   it("shares untouched parts and buckets between a draft and its source", () => {
     const untouched = [part("p-untouched")]
     const base = PartMap.from({ msg_a: [part("p1")], "msg_z-other": untouched })

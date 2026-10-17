@@ -1,0 +1,15 @@
+**1. `PartMap.fork` leaves the parent owning shared buckets**
+
+`fork()` copies the 256-slot table and shares the `Map` objects, but it does not clear the parent’s `owned` flags. A later `set` or `delete` on that parent hits `writableBucket` with `owned[index] === 1` and mutates the shared `Map`. A child already `seal()`ed still sees those writes, and its `count` stays stale, so `size` and `keys()` disagree.
+
+Trigger: write on a draft, `fork()` it, `seal()` the child, then write another id in the same bucket on the parent. Same last three characters share a bucket (`"AAAabc"`, `"BBBabc"`).
+
+Regression: `d1.set("AAAabc", [a])`, `d2 = d1.fork(); d2.seal()`, `d1.set("BBBabc", [b])`. Assert `d2.get("BBBabc")` is absent, `d2.size === 1`, and `[...d2.keys()].length === d2.size`. Today `d2` contains `"BBBabc"` and `size` is 1.
+
+**2. `applyPartDeltaBatch` keeps mutations it reports as errors**
+
+The non-delta guard, `applyDirectoryEvent`, and `onResult` sit in one `try`. Any throw is passed to `onError` and the loop continues. Updates already applied to the forked `PartMap` remain. If any event added to `changedMessageIds`, that partial draft is `seal()`ed and returned.
+
+Trigger: batch `[delta, nonDelta, delta]`, or a delta whose `onResult` throws after `applyDirectoryEvent` returns `{changed: true}`.
+
+Regression: one event `set`s parts and returns `{changed: true}`, then `onResult` throws. Assert the throw is not delivered to `onError` and the returned state does not contain that write. Today `onError` runs and the sealed draft still has the write. A non-delta between two deltas is skipped while both deltas are committed.
