@@ -1335,6 +1335,22 @@ found two regressions and three test gaps; the regressions and the gaps are fixe
 - **The per-session marker map is never deleted.** It is strings only, bounded by the permissions answered in the
   session; deleting it on unmount is exactly what reopened the remount hole.
 
+### Follow-up audit of this round's fixes
+
+Claude Code CLI read `git diff 1c398e0b 251cf277` and reported three things; the third full-suite run of the day
+also lost `plugin-routes.test.js` twice in a row (different tests each time, passing alone and in the next run).
+
+- **The "survives an empty permissions run" test cannot fail if pruning comes back.** It exercises
+  `diffPermissionNotifications`, which treats the marker set as read-only; the fix was deleting a prune call inside
+  the watcher effect. Pinning it needs a test that mounts `SessionPermissionWatcher` and drives the effect, which
+  needs the sync context, the directory child store and the session actions. The gap is recorded rather than
+  plumbed; the component-level harness this suite uses elsewhere does not cover `useSessionPermissions`.
+- **Digit-led `://` prose is masked** (`12://30` → `a link`). That is the deliberate trade-off behind accepting a
+  leading digit; the forms that could be confused with it (`12:30`, `3:1`, `50%:`) have no `//` and are pinned as
+  untouched in `3bed167c`.
+- **The marker comment said the watcher keeps the set for its lifetime.** It is module state and lives for the
+  process; the comment is corrected in `3bed167c`.
+
 ## Thirty-seventh round
 
 An audit of the thirty-sixth round's fixes (Claude Code CLI over `git diff 490d6db3 8e017639`), plus a check of the
@@ -4128,6 +4144,11 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-eighth round, after `3bed167c`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
+  electron 600, ui 2 999, web 1 340 (+2 skipped), 0 `FAIL` lines. Two full runs before this one each lost one
+  `plugin-routes.test.js` case (a different one each time); both pass alone, and the next full run was clean — the
+  documented wall-clock family, now on its third appearance for this file.
 - Latest full run, in the thirty-eighth round, after `251cf277`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
   electron 600, ui 2 999, web 1 340 (+2 skipped), 0 `FAIL` lines. `pnpm run build` also exits 0 on this tree.
