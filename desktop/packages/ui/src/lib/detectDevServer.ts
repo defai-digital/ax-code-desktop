@@ -70,7 +70,10 @@ export async function detectDevServerCommand(
     const port = await allocatePreviewPort()
     const resolvedPort = typeof port === "number" && Number.isFinite(port) && port > 0 ? port : 8000
     return {
-      command: `python3 -m http.server ${resolvedPort}`,
+      // `--bind 127.0.0.1` is not optional: without it `http.server` listens on every interface, and this serves
+      // the project directory as it stands — `.git`, `.env` and any credential file in it — to the whole network.
+      // The hint below says loopback, and that is what the command has to do.
+      command: `python3 -m http.server ${resolvedPort} --bind 127.0.0.1`,
       label: "Static preview",
       previewUrlHint: `http://127.0.0.1:${resolvedPort}/`,
     }
