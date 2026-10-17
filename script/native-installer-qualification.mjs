@@ -103,7 +103,7 @@ export const writeSyntheticIfAbsent = (file, bytes) => {
   try {
     fd = fs.openSync(file, flags, 0o600)
   } catch (error) {
-    if (error?.code === "EEXIST") return
+    if (error?.code === "EEXIST") return false
     throw error
   }
   try {
@@ -111,6 +111,21 @@ export const writeSyntheticIfAbsent = (file, bytes) => {
   } finally {
     fs.closeSync(fd)
   }
+  return true
+}
+export function writeSyntheticAuthFixture(file, bytes) {
+  if (writeSyntheticIfAbsent(file, bytes)) return
+  // Earlier GUI smoke can create a canary-only store. It contains no credentials.
+  capturePreservedFile(file)
+  const existing = JSON.parse(fs.readFileSync(file, "utf8"))
+  assert.ok(
+    existing &&
+      typeof existing === "object" &&
+      !Array.isArray(existing) &&
+      Object.keys(existing).every((key) => key === "__canary"),
+    "Refusing to replace a nonempty credential store with a synthetic fixture",
+  )
+  fs.writeFileSync(file, bytes, { mode: 0o600 })
 }
 export function readInstalledVersion(archive) {
   // Every installation replaces this path; ASAR caches headers by pathname.
@@ -167,9 +182,15 @@ async function qualify(target, artifacts, output) {
       path.join(authDirectory, "auth.json"),
       JSON.stringify({ qualification: { type: "api", key: crypto.randomBytes(32).toString("hex") } }),
     ],
-    [path.join(config, "ax-code.json"), '{"provider":{}}\n'],
+    [
+      path.join(config, "ax-code.json"),
+      '{"$schema":"https://ax-code.app/docs-assets/schema/config.schema.json","provider":{}}\n',
+    ],
   ]
-  for (const [file, bytes] of syntheticFiles) writeSyntheticIfAbsent(file, bytes)
+  for (const [file, bytes] of syntheticFiles) {
+    if (file === path.join(authDirectory, "auth.json")) writeSyntheticAuthFixture(file, bytes)
+    else writeSyntheticIfAbsent(file, bytes)
+  }
   prepareCanonicalAuthFixture(
     fileURLToPath(new URL("../desktop/packages/electron/resources/ax-code/", import.meta.url)),
     path.join(authDirectory, "auth.json"),

@@ -14,7 +14,34 @@ import {
   capturePreservedFile,
   qualificationVersion,
   prepareCanonicalAuthFixture,
+  writeSyntheticAuthFixture,
 } from "./native-installer-qualification.mjs"
+
+test("seeds a canary-only store created by an earlier GUI smoke", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-empty-auth-"))
+  const file = path.join(root, "auth.json")
+  try {
+    fs.writeFileSync(file, '{"__canary":{"synthetic":true}}', { mode: 0o600 })
+    const fixture = '{"qualification":{"type":"api","key":"synthetic-only"}}'
+    writeSyntheticAuthFixture(file, fixture)
+    expect(fs.readFileSync(file, "utf8")).toBe(fixture)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test("refuses to replace a preexisting credential store when preparing fixtures", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-existing-auth-"))
+  const file = path.join(root, "auth.json")
+  try {
+    const original = '{"existing-provider":{"type":"api","key":"synthetic-existing"}}'
+    fs.writeFileSync(file, original, { mode: 0o600 })
+    expect(() => writeSyntheticAuthFixture(file, "{}")).toThrow(/Refusing to replace/)
+    expect(fs.readFileSync(file, "utf8")).toBe(original)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
 
 test.each(["stable", "missing-provider", "rewritten"])(
   "canonical credential fixture rejects unsafe runtime reads: %s",
