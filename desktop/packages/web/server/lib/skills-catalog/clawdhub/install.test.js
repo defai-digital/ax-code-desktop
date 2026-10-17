@@ -219,6 +219,36 @@ describe("ClawdHub skill installation", () => {
     }
   })
 
+  test("frees the slug for a later selection when this one installed nothing", async () => {
+    // The claim was taken at the top of the loop and never released, so a selection whose download failed held the
+    // slug: a second entry for it was skipped as a duplicate of an install that never happened, and the user ended
+    // up with neither version.
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
+    try {
+      downloadClawdHubSkill
+        .mockRejectedValueOnce(new Error("ClawdHub download error (404): not found"))
+        .mockResolvedValueOnce(
+          zipWithFiles({ "SKILL.md": '---\nname: "review-code"\ndescription: Review code.\n---\n' }),
+        )
+
+      const result = await installSkillsFromClawdHub({
+        scope: "user",
+        targetSource: "ax-code",
+        userSkillDir: tempRoot,
+        selections: [
+          { clawdhub: { slug: "review-code", version: "1.0.0" } },
+          { clawdhub: { slug: "review-code", version: "2.0.0" } },
+        ],
+      })
+
+      expect(result.installed.map((entry) => entry.skillName)).toEqual(["review-code"])
+      expect(result.skipped.map((entry) => entry.reason)).toEqual(["ClawdHub download error (404): not found"])
+      expect(downloadClawdHubSkill).toHaveBeenCalledTimes(2)
+    } finally {
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
   test("replaces the installed skill when the move succeeds", async () => {
     const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
     try {

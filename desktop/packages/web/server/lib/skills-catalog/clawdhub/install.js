@@ -143,7 +143,6 @@ export async function installSkillsFromClawdHub({
       skipped.push({ skillName: plan.slug, reason: "Another selected directory installs to the same skill name" })
       continue
     }
-    claimedSkillNames.add(plan.slug)
 
     try {
       // Resolve 'latest' version if needed
@@ -180,6 +179,11 @@ export async function installSkillsFromClawdHub({
         skipped.push({ skillName: plan.slug, reason: "Already installed (skipped)" })
         continue
       }
+
+      // Claimed here rather than at the top: a selection this loop decides not to install must not hold the slug
+      // against a later one that would. The repository installer claims at the same point, and releases the name
+      // when nothing landed.
+      claimedSkillNames.add(plan.slug)
 
       // Download the skill ZIP
       const zipBuffer = await downloadClawdHubSkill(plan.slug, resolvedVersion)
@@ -298,6 +302,9 @@ export async function installSkillsFromClawdHub({
       }
     } catch (error) {
       console.error(`Failed to install ClawdHub skill "${plan.slug}":`, error)
+      // Nothing landed, so the slug is free for a later selection that might install it: holding it made a second
+      // entry for the same slug read as a duplicate of an install that failed, and the user got neither version.
+      claimedSkillNames.delete(plan.slug)
       skipped.push({
         skillName: plan.slug,
         reason: error instanceof Error ? error.message : "Failed to download or extract skill",
