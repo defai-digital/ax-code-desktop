@@ -1,5 +1,6 @@
 import type { PendingRequestEntry } from "@/sync/sync-context"
 import type { SupervisionEvidence, SupervisionState } from "@/lib/supervision/sessionState"
+import { orderRequestsByRisk, requestRiskRank } from "@/lib/supervision/requestRisk"
 
 export interface SupervisionRequestRoot {
   sessionId: string
@@ -13,9 +14,11 @@ export interface SupervisionRequestGroup<TRow extends SupervisionRequestRoot> {
 }
 
 /**
- * Pending requests grouped under the root session that owns them.
- * Rows stay in the order given (the supervision ranking). Inside a group, request order is preserved.
- * Requests whose session is in no tree are returned unmatched, in input order.
+ * Pending requests grouped under the root session that owns them, most consequential first.
+ * Inside a group, requests are ordered by risk (must-decide, risky, unclassified, safe), keeping
+ * their input order within a level. Groups are ordered by their most consequential request, and
+ * otherwise keep the row order given (the supervision ranking). Requests whose session is in no
+ * tree are returned unmatched, ordered the same way.
  */
 export function groupRequestsBySupervisionRoot<TRow extends SupervisionRequestRoot>(
   rows: readonly TRow[],
@@ -45,9 +48,13 @@ export function groupRequestsBySupervisionRoot<TRow extends SupervisionRequestRo
   const groups: Array<SupervisionRequestGroup<TRow>> = []
   for (const row of rows) {
     const list = grouped.get(row.sessionId)
-    if (list && list.length > 0) groups.push({ row, requests: list })
+    if (list && list.length > 0) groups.push({ row, requests: orderRequestsByRisk(list) })
   }
-  return { groups, unmatched }
+  const ranked = groups
+    .map((group, index) => ({ group, index, rank: requestRiskRank(group.requests[0]) }))
+    .sort((left, right) => left.rank - right.rank || left.index - right.index)
+    .map(({ group }) => group)
+  return { groups: ranked, unmatched: orderRequestsByRisk(unmatched) }
 }
 
 /** Error and review rows that are not already represented by a pending-request group. */

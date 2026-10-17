@@ -4800,5 +4800,9 @@
   "githubBoard.toast.commentAdded": "Komentar ditambahkan.",
   "githubBoard.toast.closed": "Ditutup.",
   "githubBoard.toast.reopened": "Dibuka kembali.",
-  "githubBoard.author.unknown": "Tidak diketahui"
+  "githubBoard.author.unknown": "Tidak diketahui",
+  "permissionRisk.decide.label": "Keputusan Anda",
+  "permissionRisk.decide.description": "AX Code mengharuskan seseorang menjawab permintaan ini. Tidak ada aturan atau mode otonom yang dapat menyetujuinya, dan permintaan ini tidak dapat selalu diizinkan.",
+  "permissionRisk.risk.label": "Berisiko",
+  "permissionRisk.risk.description": "Izin ini dapat mengubah file, menjalankan perintah, mengakses jaringan, atau memulai agen lain."
 }

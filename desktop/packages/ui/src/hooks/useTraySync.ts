@@ -8,6 +8,7 @@ import { useQuotaStore } from "@/stores/useQuotaStore"
 import { useSyncNotificationStore } from "@/sync/notification-store"
 import { getAllSyncSessions, getSyncChildStores } from "@/sync/sync-refs"
 import { getPermissionAlwaysPatterns } from "@/lib/permissions/permissionPayload"
+import { canAlwaysAllow, requestRiskRank } from "@/lib/supervision/requestRisk"
 
 /**
  * Streams a compact session/approval snapshot to the Electron tray (macOS menu
@@ -75,6 +76,7 @@ const collectApprovals = (sessions: Array<{ id: string; title?: string | null; d
     resource?: string | null
     directory?: string | null
     canSave?: boolean
+    riskRank?: number
   }> = []
 
   let stores: ReturnType<typeof getSyncChildStores> | null = null
@@ -98,8 +100,10 @@ const collectApprovals = (sessions: Array<{ id: string; title?: string | null; d
           title: request.permission ?? null,
           resource: request.patterns?.[0] ?? null,
           directory: directoryBySession.get(sessionId) ?? null,
-          // Only offer "Allow always" when it would actually remember something.
-          canSave: getPermissionAlwaysPatterns(request).length > 0,
+          // Only offer "Allow always" when it would actually remember something,
+          // and never for a must-decide request: the runtime refuses that reply.
+          canSave: canAlwaysAllow(request) && getPermissionAlwaysPatterns(request).length > 0,
+          riskRank: requestRiskRank({ kind: "permission", sessionId, request }),
         })
       }
     }
@@ -111,6 +115,7 @@ const collectApprovals = (sessions: Array<{ id: string; title?: string | null; d
           sessionId,
           title: request.questions?.[0]?.header ?? request.questions?.[0]?.question ?? null,
           directory: directoryBySession.get(sessionId) ?? null,
+          riskRank: requestRiskRank({ kind: "question", sessionId, request }),
         })
       }
     }

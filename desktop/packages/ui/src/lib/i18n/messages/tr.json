@@ -4800,5 +4800,9 @@
   "githubBoard.toast.commentAdded": "Yorum eklendi.",
   "githubBoard.toast.closed": "Kapat\u0131ld\u0131.",
   "githubBoard.toast.reopened": "Yeniden a\u00e7\u0131ld\u0131.",
-  "githubBoard.author.unknown": "Bilinmiyor"
+  "githubBoard.author.unknown": "Bilinmiyor",
+  "permissionRisk.decide.label": "Senin karar\u0131n",
+  "permissionRisk.decide.description": "AX Code bu iste\u011fin bir ki\u015fi taraf\u0131ndan yan\u0131tlanmas\u0131n\u0131 gerektirir. Hi\u00e7bir kural veya otonom mod onu onaylayamaz ve her zaman izin verilemez.",
+  "permissionRisk.risk.label": "Riskli",
+  "permissionRisk.risk.description": "Bu izin dosyalar\u0131 de\u011fi\u015ftirebilir, komut \u00e7al\u0131\u015ft\u0131rabilir, a\u011fa eri\u015febilir veya ba\u015fka ajanlar ba\u015flatabilir."
 }

@@ -16,6 +16,13 @@ export interface PermissionRequest {
     scope: { capability: "list_pages" } | { capability: "navigate" | "read" | "close"; origin: string }
   }
   autoOnceAt?: number
+  /**
+   * The runtime's own classification (AX Code ADR-212, runtime 7.26.4 and later). Descriptive only:
+   * it orders and badges approvals and never decides one. Absent from older runtimes.
+   */
+  riskClass?: "safe" | "risk" | "unknown"
+  /** No rule or autonomous policy may answer this request, and the runtime refuses an "always" reply. */
+  interactiveOnly?: boolean
   tool?: {
     messageID: string
     callID: string

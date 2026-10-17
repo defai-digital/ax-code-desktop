@@ -20,6 +20,8 @@ import {
 } from "@/lib/permissions/permissionPayload"
 import { getPermissionToolPresentation } from "./PermissionCardTools"
 import { withTimeout } from "@/lib/asyncTimeout"
+import { RequestRiskBadge } from "./RequestRiskBadge"
+import { canAlwaysAllow } from "@/lib/supervision/requestRisk"
 
 const PERMISSION_BASH_CUSTOM_STYLE: React.CSSProperties = {
   margin: 0,
@@ -192,6 +194,8 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
   const tool = toolName.toLowerCase()
   const patterns = getPermissionPatterns(permission)
   const alwaysPatterns = getPermissionAlwaysPatterns(permission)
+  // The runtime refuses an "always" reply to a must-decide request (AX Code ADR-212).
+  const canAlways = canAlwaysAllow(permission)
 
   const getMeta = (key: string, fallback: string = ""): string => {
     const val = permission.metadata[key]
@@ -448,6 +452,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
                     {t("chat.permissionCard.header.fromSubagent")}
                   </span>
                 ) : null}
+                <RequestRiskBadge request={permission} />
               </div>
               <div className="flex items-center gap-1.5">
                 {getToolIcon(toolName)}
@@ -520,7 +525,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
               </button>
             )}
 
-            {alwaysPatterns.length > 0 ? (
+            {!canAlways ? null : alwaysPatterns.length > 0 ? (
               <button
                 onClick={() => setShowPatternBuilder(true)}
                 disabled={isResponding}

@@ -4800,5 +4800,9 @@
   "githubBoard.toast.commentAdded": "Kommentar hinzugef\u00fcgt.",
   "githubBoard.toast.closed": "Geschlossen.",
   "githubBoard.toast.reopened": "Wieder ge\u00f6ffnet.",
-  "githubBoard.author.unknown": "Unbekannt"
+  "githubBoard.author.unknown": "Unbekannt",
+  "permissionRisk.decide.label": "Deine Entscheidung",
+  "permissionRisk.decide.description": "AX Code verlangt, dass ein Mensch diese Anfrage beantwortet. Keine Regel und kein autonomer Modus kann sie genehmigen, und sie l\u00e4sst sich nicht dauerhaft erlauben.",
+  "permissionRisk.risk.label": "Riskant",
+  "permissionRisk.risk.description": "Diese Berechtigung kann Dateien \u00e4ndern, Befehle ausf\u00fchren, das Netzwerk erreichen oder andere Agenten starten."
 }

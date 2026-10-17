@@ -11,10 +11,14 @@ import {
   supervisionStatusRows,
 } from "./needsYouSurface"
 
-const permission = (id: string, sessionId: string): PendingRequestEntry => ({
+const permission = (
+  id: string,
+  sessionId: string,
+  risk: Pick<PermissionRequest, "riskClass" | "interactiveOnly"> = {},
+): PendingRequestEntry => ({
   kind: "permission",
   sessionId,
-  request: { id } as PermissionRequest,
+  request: { id, ...risk } as PermissionRequest,
 })
 
 const question = (id: string, sessionId: string): PendingRequestEntry => ({
@@ -29,6 +33,20 @@ describe("groupRequestsBySupervisionRoot", () => {
     { sessionId: "root-b", treeSessionIds: ["root-b"], state: "question" as const },
     { sessionId: "root-c", treeSessionIds: ["root-c"], state: "error" as const },
   ]
+
+  test("puts the most consequential request first, in its group and across groups", () => {
+    const { groups, unmatched } = groupRequestsBySupervisionRoot(rows, [
+      permission("a-safe", "root-a", { riskClass: "safe" }),
+      permission("a-risk", "root-a", { riskClass: "risk" }),
+      permission("b-decide", "root-b", { riskClass: "risk", interactiveOnly: true }),
+      permission("x-safe", "elsewhere", { riskClass: "safe" }),
+      permission("x-decide", "elsewhere", { interactiveOnly: true }),
+    ])
+
+    expect(groups.map((group) => group.row.sessionId)).toEqual(["root-b", "root-a"])
+    expect(groups[1]?.requests.map((entry) => entry.request.id)).toEqual(["a-risk", "a-safe"])
+    expect(unmatched.map((entry) => entry.request.id)).toEqual(["x-decide", "x-safe"])
+  })
 
   test("maps a subagent request onto its root and keeps row order", () => {
     const { groups, unmatched } = groupRequestsBySupervisionRoot(rows, [

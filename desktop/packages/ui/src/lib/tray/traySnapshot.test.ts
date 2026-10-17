@@ -108,4 +108,18 @@ describe("buildTraySnapshot", () => {
     // No usage groups → the tray omits the submenu entirely.
     expect(snapshot.usage.groups).toEqual([])
   })
+
+  test("lists the most consequential approvals first, before the menu limit applies", () => {
+    const snapshot = buildTraySnapshot({
+      ...baseInput,
+      maxApprovals: 2,
+      approvals: [
+        { kind: "permission" as const, id: "safe", sessionId: "root-1", title: "Read", riskRank: 3 },
+        { kind: "question" as const, id: "question", sessionId: "root-3", title: "Which?", riskRank: 2 },
+        { kind: "permission" as const, id: "decide", sessionId: "root-1", title: "Bash", riskRank: 0 },
+        { kind: "permission" as const, id: "legacy", sessionId: "root-1", title: "Edit" },
+      ],
+    })
+    expect(snapshot.approvals.map((approval) => approval.id)).toEqual(["decide", "question"])
+  })
 })

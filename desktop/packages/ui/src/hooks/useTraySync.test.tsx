@@ -15,6 +15,11 @@ const syncSessions: Array<Record<string, unknown>> = [
   { id: "root-1", title: "Tray session", time: { created: 1, updated: 2 } },
 ]
 
+const defaultPermissions = () => [
+  { id: "perm-1", sessionID: "root-1", permission: "Bash", patterns: ["rm -rf x"], always: [] as string[] },
+]
+let trayPermissions: Array<Record<string, unknown>> = defaultPermissions()
+
 vi.doMock("@/sync/sync-refs", () => ({
   getAllSyncSessions: () => syncSessions,
   getSyncChildStores: () => ({
@@ -24,7 +29,7 @@ vi.doMock("@/sync/sync-refs", () => ({
         {
           getState: () => ({
             session_status: { "root-1": { type: "busy" } },
-            permission: { "root-1": [{ id: "perm-1", sessionID: "root-1", permission: "Bash", patterns: ["rm -rf x"], always: [] }] },
+            permission: { "root-1": trayPermissions },
             question: {},
           }),
         },
@@ -65,6 +70,7 @@ describe("useTraySync", () => {
       status: "ready",
     })
     useGitStore.setState({ directories: new Map() })
+    trayPermissions = defaultPermissions()
   })
 
   afterEach(() => {
@@ -99,6 +105,36 @@ describe("useTraySync", () => {
     expect(snapshot.approvals).toHaveLength(1)
 
     expect(invokeCalls().some((call) => call[0] === "desktop_set_badge_count")).toBe(true)
+  })
+
+  test("lists a must-decide approval first and never offers allow-always for it", async () => {
+    trayPermissions = [
+      {
+        id: "risky",
+        sessionID: "root-1",
+        permission: "edit",
+        patterns: ["src/a.ts"],
+        always: ["src/*"],
+        riskClass: "risk",
+      },
+      {
+        id: "decide",
+        sessionID: "root-1",
+        permission: "bash_destructive",
+        patterns: ["rm -rf build"],
+        always: ["rm *"],
+        riskClass: "risk",
+        interactiveOnly: true,
+      },
+    ]
+    await render()
+
+    const trayCall = invokeCalls().find((call) => call[0] === "desktop_tray_update")
+    const approvals = (trayCall?.[1] as { approvals: Array<{ id: string; canSave: boolean }> }).approvals
+    expect(approvals.map((approval) => [approval.id, approval.canSave])).toEqual([
+      ["decide", false],
+      ["risky", true],
+    ])
   })
 
   test("reports a rejected tray update instead of letting it escape", async () => {
@@ -159,9 +195,7 @@ describe("useTraySync", () => {
     syncSessions.push({ id: "root-2", title: "Branched session", directory: "/repo", time: { created: 3, updated: 4 } })
     useGlobalSessionsStore.setState({ sessionsByDirectory: new Map([["/repo", []]]) })
     useGitStore.setState({
-      directories: new Map([
-        ["/repo", { branches: { all: ["main"], current: "main", branches: {} } } as never],
-      ]),
+      directories: new Map([["/repo", { branches: { all: ["main"], current: "main", branches: {} } } as never]]),
     })
 
     await render()

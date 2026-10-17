@@ -53,6 +53,8 @@ export type TraySessionInput = {
   archived?: number | null
 }
 
+const UNCLASSIFIED_RISK_RANK = 2
+
 export type TrayApprovalInput = {
   kind: "permission" | "question"
   id: string
@@ -61,6 +63,11 @@ export type TrayApprovalInput = {
   resource?: string | null
   directory?: string | null
   canSave?: boolean
+  /**
+   * Lower is more consequential (`requestRiskRank`: must-decide 0, risky 1, unclassified 2, safe 3).
+   * Approvals are listed by it before the menu limit applies; missing ranks as unclassified.
+   */
+  riskRank?: number
 }
 
 export type BuildTraySnapshotInput = {
@@ -135,6 +142,10 @@ export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot =
 
   const approvals: TrayApproval[] = input.approvals
     .filter((approval) => Boolean(approval?.id) && Boolean(approval?.sessionId))
+    .map((approval, index) => ({ approval, index, rank: approval.riskRank ?? UNCLASSIFIED_RISK_RANK }))
+    // Most consequential first, so the menu limit never hides a must-decide request behind safe ones.
+    .sort((left, right) => left.rank - right.rank || left.index - right.index)
+    .map(({ approval }) => approval)
     .slice(0, maxApprovals)
     .map((approval) => {
       const head = (approval.title ?? "").trim() || (approval.kind === "permission" ? "Permission" : "Question")

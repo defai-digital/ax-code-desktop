@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import * as sessionActions from "@/sync/session-actions"
 import { isInlineAnswerableQuestion } from "@/lib/supervision/requests"
 import type { PendingRequestEntry } from "@/sync/sync-context"
+import { RequestRiskBadge } from "@/components/chat/RequestRiskBadge"
 
 type RequestActionCardProps = {
   entry: PendingRequestEntry
@@ -88,7 +89,10 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
         />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           {context ? <span className="truncate typography-micro text-muted-foreground">{context}</span> : null}
-          <span className="truncate typography-ui-label font-medium text-foreground">{title}</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate typography-ui-label font-medium text-foreground">{title}</span>
+            {entry.kind === "permission" ? <RequestRiskBadge request={entry.request} /> : null}
+          </span>
           {detail ? (
             <span className={cn("typography-micro text-muted-foreground", compact ? "truncate" : "line-clamp-2")}>
               {detail}
