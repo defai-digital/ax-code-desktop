@@ -285,6 +285,12 @@ export const createUiPasskeys = ({
     }
   }
 
+  // How many are registered, for a caller that has to know before it does something that invalidates them.
+  const countPasskeys = () => {
+    assertEnabled()
+    return loadStore().passkeys.length
+  }
+
   const clearAllPasskeys = () => runLocked(clearAllPasskeysUnlocked)
 
   const clearAllPasskeysUnlocked = () => {
@@ -559,6 +565,7 @@ export const createUiPasskeys = ({
     getStatus,
     listPasskeys,
     revokePasskey,
+    countPasskeys,
     clearAllPasskeys,
     beginRegistration,
     finishRegistration,

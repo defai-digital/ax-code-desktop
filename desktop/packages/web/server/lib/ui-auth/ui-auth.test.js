@@ -109,14 +109,82 @@ describe("ui auth", () => {
     }
   })
 
-  it("does not clear the passkeys when the sign-out cannot persist its new secret", async () => {
+  const seedPasskeyStore = ({ dataDir, secret, password, count }) => {
+    // The store is bound to the current secret: `derivePasswordBinding` is what the module itself uses, and a
+    // binding that did not match would be wiped by the first read instead of counting.
+    const binding = derivePasswordBinding(password, new TextEncoder().encode(secret))
+    const passkeys = Array.from({ length: count }, (unused, index) => ({
+      id: `credential-${index}`,
+      publicKey: Buffer.from([1, 2, 3]).toString("base64url"),
+      counter: 1,
+      transports: ["internal"],
+      deviceType: "singleDevice",
+      backedUp: false,
+      createdAt: 1,
+      lastUsedAt: null,
+      label: `Device ${index}`,
+      rpID: "localhost",
+    }))
+    fs.writeFileSync(
+      path.join(dataDir, "ui-passkeys.json"),
+      JSON.stringify({ version: 1, userID: Buffer.from("user").toString("base64url"), passwordBinding: binding, passkeys }),
+      "utf8",
+    )
+    return passkeys
+  }
+
+  const createResponse = () => ({
+    statusCode: 200,
+    body: undefined,
+    status(code) {
+      this.statusCode = code
+      return this
+    },
+    json(payload) {
+      this.body = payload
+      return this
+    },
+    setHeader() {},
+    getHeader() {
+      return ""
+    },
+  })
+
+  it("reports the passkeys it cleared even though the rotation has already invalidated them", async () => {
+    // The rotation rebuilds the passkey controller around a binding derived from the new secret, so its first read
+    // replaces the store with an empty one — and a count taken after that is always zero.
+    process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
+    const secret = "persisted-secret-at-least-32-bytes-long"
+    fs.writeFileSync(path.join(tempRoot, "jwt-secret"), secret, "utf8")
+    seedPasskeyStore({ dataDir: tempRoot, secret, password: "correct horse battery staple", count: 2 })
+    vi.resetModules()
+
+    const { createUiAuth } = await import("./ui-auth.js")
+    const auth = createUiAuth({ password: "correct horse battery staple" })
+    const res = createResponse()
+
+    try {
+      await auth.handleResetAuth({ headers: {} }, res)
+
+      expect(res.statusCode).toBe(200)
+      expect(res.body).toMatchObject({ cleared: true, clearedPasskeys: 2, signedOutEverywhere: true })
+      const stored = JSON.parse(fs.readFileSync(path.join(tempRoot, "ui-passkeys.json"), "utf8"))
+      expect(stored.passkeys).toEqual([])
+    } finally {
+      auth.dispose()
+    }
+  })
+
+  it("does not touch the passkeys when the sign-out cannot persist its new secret", async () => {
     // Rotating the secret writes it to disk, and that write can fail (a read-only data directory, no space). The
     // passkeys were cleared first, so the reset answered an error with the store already emptied on disk: the
     // promised global sign-out had not happened and the credential the user still had was gone. This is the same
     // rule the env-pinned guard states — nothing is destroyed unless the reset can complete.
     process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
     const secretFile = path.join(tempRoot, "jwt-secret")
-    fs.writeFileSync(secretFile, "persisted-secret-at-least-32-bytes-long", "utf8")
+    const secret = "persisted-secret-at-least-32-bytes-long"
+    fs.writeFileSync(secretFile, secret, "utf8")
+    const seeded = seedPasskeyStore({ dataDir: tempRoot, secret, password: "correct horse battery staple", count: 2 })
     vi.resetModules()
 
     const { createUiAuth } = await import("./ui-auth.js")
@@ -131,29 +199,14 @@ describe("ui auth", () => {
       return realWrite(target, ...rest)
     })
 
-    const res = {
-      statusCode: 200,
-      body: undefined,
-      status(code) {
-        this.statusCode = code
-        return this
-      },
-      json(payload) {
-        this.body = payload
-        return this
-      },
-      setHeader() {},
-      getHeader() {
-        return ""
-      },
-    }
-
     try {
+      const res = createResponse()
       await auth.handleResetAuth({ headers: {} }, res)
 
       expect(res.statusCode).toBeGreaterThanOrEqual(400)
-      // The passkey store was never rewritten.
-      expect(writeSpy.mock.calls.some(([target]) => String(target).includes("ui-passkeys"))).toBe(false)
+      // The passkeys are still there: nothing was destroyed by a reset that did not complete.
+      const stored = JSON.parse(fs.readFileSync(path.join(tempRoot, "ui-passkeys.json"), "utf8"))
+      expect(stored.passkeys).toHaveLength(seeded.length)
     } finally {
       auth.dispose()
       writeSpy.mockRestore()

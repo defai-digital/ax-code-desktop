@@ -747,17 +747,21 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
         error.statusCode = 400
         throw error
       }
+      // The count has to be taken before the rotation: rotating rebuilds the passkey controller around a binding
+      // derived from the new secret, and its first read sees the stored binding differ, so it replaces the store
+      // with an empty one and every later count is zero.
+      const passkeysToClear = passkeyController.countPasskeys()
       // The secret is rotated first: `rotateJwtSecret` writes a new secret file, and that write can fail (a
       // read-only data directory, no space). Clearing the passkeys first meant such a failure answered an error
-      // with an empty passkey store already persisted on disk — the sign-out had not happened and the one
-      // credential the user still had was gone. In this order a failure destroys nothing, and a failure while
-      // clearing afterwards leaves the sessions revoked and the passkeys able to sign the user back in to retry.
+      // with an empty passkey store already persisted on disk — the sign-out had not happened and the credential
+      // the user still had was gone. In this order a failed rotation destroys nothing; a rotation that succeeds
+      // invalidates every passkey through that binding whether or not the clear runs afterwards.
       rotateJwtSecret()
-      const passkeyResult = await passkeyController.clearAllPasskeys()
+      await passkeyController.clearAllPasskeys()
       clearSessionCookie(req, res)
       res.json({
         cleared: true,
-        clearedPasskeys: passkeyResult.clearedCount,
+        clearedPasskeys: passkeysToClear,
         signedOutEverywhere: true,
       })
     } catch (error) {
