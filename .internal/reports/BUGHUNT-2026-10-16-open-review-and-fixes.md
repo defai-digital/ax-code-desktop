@@ -1342,12 +1342,40 @@ vitest's 5-second default, fixed in `5b2af01a`.
   app (the file's own comment says so), so the read access to another loopback service is a marginal addition, and
   an external preview can never reach loopback through this path (`allowExternal` is refused for that branch).
 
-### Flake root cause — `5b2af01a`
+### Flake root cause — `5b2af01a` and `b81ffddb`
 
 - **Two restart tests in `terminal/runtime.test.js` take about 4.5 seconds each by design**, against vitest's
   five-second default: the file failed *alone* at 5005 ms. Both run with an explicit 15-second budget now; the
-  assertions are unchanged. The other files in the recorded flake family need the same check when they next fail —
-  the pattern is a test whose nominal duration approaches a default timeout, not scheduler noise.
+  assertions are unchanged.
+- **The rest of the family was the runner, not the tests.** The root test command let pnpm run the electron, ui and
+  web suites concurrently (`--workspace-concurrency` defaults to 4). Each package passes alone; under the combined
+  load one test in a *different* file failed in three consecutive full runs — terminal restart, github routes, status
+  routes. Running the packages one at a time is two seconds faster here (63 s versus 65–70 s, the concurrency only
+  adding contention), and two consecutive full runs were green with no other change. `package.json` now passes
+  `--workspace-concurrency=1`.
+
+### Follow-up audit of this round's fixes — `590b6057`
+
+Claude read `git diff e0ed8a0f~3 4672d23f` and found six things; all fixed.
+
+- **The refused redirect could still render the upstream body on the Desktop origin.** The middleware had already
+  copied the content-type and body; the branch returned it before the sandbox, so a 502 with the redirect's HTML
+  would run on the app origin. Refusals now answer a fixed plain-text body, and every 3xx gets the document sandbox
+  and no-store before returning — which also covers a 300 or a redirect a browser ignores. Red: the upstream HTML
+  body and content-type survived.
+- **The redirect guard skipped `Location` handling when the target no longer resolved.** An expired entry or a
+  dropped token let the raw header through. Both refusal paths drop it and answer 502. Red: a wrong cookie left the
+  link-local Location in place.
+- **Protocol-relative URLs were parsed as `http:`**, so an https target never matched and the resource loaded
+  straight from the site. The target's scheme is used. Red: the https target's `//example.com/a.js` stayed unproxied.
+- **`isScriptableDocument` matched exact types.** Chrome renders any `*/*+xml` as XML and sniffs a missing content
+  type as HTML; the MIME essence decides now, and an absent type counts as scriptable. Red: no sandbox for
+  `application/rss+xml`, `application/xslt+xml` or a missing content type.
+- **`Clear-Site-Data` and `Refresh` passed through** — an untrusted response could wipe the app origin's
+  cookies/storage/cache or navigate the frame to an internal host. Both are stripped with the frame headers.
+  Red: both survived.
+- **`frame-ancestors` stripping split only on `;`**, so a policy after a comma kept `frame-ancestors 'none'` and the
+  preview could not be framed at all. The helper is policy-list aware now. Red: the directive survived.
 
 ## Fortieth round
 
@@ -4255,6 +4283,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full runs, in the forty-first round, after `590b6057` and `b81ffddb`: two consecutive `pnpm run test` runs
+  green — root scripts 185 (+6 skipped), electron 600, ui 3 069, web 1 357 (+2 skipped) — with `typecheck`, `lint`,
+  `check:boundaries` and `check:locales` at 0. The serialized run takes 63 s, against 65–70 s for the concurrent one.
 - Latest full run, in the forty-first round, after `4672d23f` and `5b2af01a`: `pnpm run typecheck` 0,
   `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts
   185 (+6 skipped), electron 600, ui 3 069, web 1 353 (+2 skipped), 0 `FAIL` lines.
