@@ -1170,7 +1170,9 @@ export const rewritePreviewBody = ({ bodyText, proxyBasePath, targetOrigin, kind
     // its own, so it is parsed with one to decide whether it is the target, then rewritten like any other.
     if (value.startsWith("//")) {
       try {
-        const parsed = new URL(`http:${value}`)
+        // The target's scheme, not a fixed http: an https target's protocol-relative URL never matched
+        // otherwise, and the resource loaded straight from the site.
+        const parsed = new URL(`${target ? target.protocol : "http:"}${value}`)
         if (isSameTargetOrigin(parsed)) {
           return `${prefix}${parsed.pathname}${parsed.search}${parsed.hash}`
         }
@@ -1326,7 +1328,12 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     return { ok: true, id, entry, parsed }
   }
 
-  const removeFrameAncestorsDirective = (cspValue) => removeCspDirective(cspValue, "frame-ancestors")
+  const removeFrameAncestorsDirective = (cspValue) =>
+    String(cspValue)
+      .split(",")
+      .map((policy) => removeCspDirective(policy.trim(), "frame-ancestors"))
+      .filter((policy) => typeof policy === "string" && policy.trim().length > 0)
+      .join(", ")
 
   // Drop response headers that prevent the dev server from being framed.
   // The proxy itself is same-origin, so embedding is otherwise safe.
@@ -1338,9 +1345,15 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     const headerKeys = Object.keys(headers)
     for (const key of headerKeys) {
       const lowerKey = key.toLowerCase()
-      if (lowerKey === "x-frame-options" || lowerKey === "service-worker-allowed") {
-        // The second would let a previewed page register a service worker whose scope reaches the whole Desktop
-        // origin; that registration outlives the preview target and its token.
+      if (
+        lowerKey === "x-frame-options" ||
+        lowerKey === "service-worker-allowed" ||
+        lowerKey === "clear-site-data" ||
+        lowerKey === "refresh"
+      ) {
+        // All four act on the shared Desktop origin rather than the previewed page: a worker scope wider than
+        // the proxy prefix, the app's cookies/storage/cache wiped by an untrusted response, and a navigation to
+        // an internal host.
         delete headers[key]
         continue
       }
@@ -1385,8 +1398,11 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       return
     }
     res.removeHeader("x-frame-options")
-    // A previewed page must not widen its service worker's scope past its own proxy prefix.
+    // A previewed page must not widen its service worker's scope past its own proxy prefix, nor wipe the app
+    // origin's cookies/storage/cache, nor navigate the frame to an internal host.
     res.removeHeader("service-worker-allowed")
+    res.removeHeader("clear-site-data")
+    res.removeHeader("refresh")
     for (const name of ["content-security-policy", "content-security-policy-report-only"]) {
       const value = res.getHeader(name)
       if (value == null) {
@@ -1402,6 +1418,22 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
         res.setHeader(name, Array.isArray(value) ? rewritten : rewritten[0])
       }
     }
+  }
+
+  // A redirect the proxy will not follow. The middleware already copied the upstream headers (and body) onto the
+  // response, so both are replaced: a redirect body rendered as a document would run on the Desktop origin.
+  const refuseRedirect = (res) => {
+    if (res && typeof res.removeHeader === "function") {
+      res.removeHeader("location")
+      res.removeHeader("content-type")
+      res.removeHeader("content-length")
+      res.removeHeader("content-encoding")
+      res.statusCode = 502
+    }
+    if (res && typeof res.setHeader === "function") {
+      res.setHeader("content-type", "text/plain; charset=utf-8")
+    }
+    return Buffer.from("Preview redirect refused")
   }
 
   // Rewrite an upstream 3xx Location so the redirect stays inside the same-origin
@@ -1657,8 +1689,17 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
           // frame-blocked by the target's own X-Frame-Options.
           const statusCode = proxyRes.statusCode || (res && res.statusCode) || 0
           if (statusCode >= 300 && statusCode < 400) {
+            // Even a 3xx body can be rendered (a 300, or a redirect block a browser ignores), so it gets the
+            // document protections before anything returns.
+            applyExternalPreviewSandbox(res, resolved)
+            applyPreviewNoStoreOnRes(res)
             const location = proxyRes.headers?.location
-            if (location && resolved.ok && res && typeof res.setHeader === "function") {
+            if (location && res && typeof res.setHeader === "function") {
+              if (!resolved.ok) {
+                // An expired entry or a dropped token makes the second resolve fail; the middleware has already
+                // copied this Location onto the response, so it has to be dropped here too.
+                return refuseRedirect(res)
+              }
               // The request's own upstream path is the base a relative Location resolves
               // against (RFC 9110): `intro` from `/docs/guide` means `/docs/intro`.
               const requestUrl = new URL(req.originalUrl || req.url || "", "http://localhost")
@@ -1681,11 +1722,8 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
                   const values = existing == null ? [] : Array.isArray(existing) ? existing : [existing]
                   res.setHeader("set-cookie", [...values, cookie])
                 }
-              } else if (typeof res.removeHeader === "function") {
-                // The middleware already copied the upstream Location onto res. Leaving it there let the browser
-                // follow a redirect the SSRF guard refused, straight at the LAN/metadata host.
-                res.removeHeader("location")
-                res.statusCode = 502
+              } else {
+                return refuseRedirect(res)
               }
             }
             return responseBuffer
@@ -1697,15 +1735,17 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
           const isJavaScript = contentType.includes("javascript") || contentType.includes("ecmascript")
           // A document that runs script when it is opened directly. HTML is not the only one: an SVG, XHTML or XML
           // response from an external preview is a document too, and all were served with the app's own policy —
-          // which allows inline script — on the Desktop origin. XML executes script when its payload uses the
-          // XHTML/SVG namespace, the well-known content-type confusion. The project-icon route carries its own
-          // policy for the same reason (`60cfcf9c`), and the sandbox is applied before anything below can return.
+          // which allows inline script — on the Desktop origin. Chrome renders any `*/*+xml` as XML and sniffs a
+          // missing content type as HTML, so the essence decides rather than a list of exact types. The
+          // project-icon route carries its own policy for the same reason (`60cfcf9c`).
+          const essence = contentType.split(";", 1)[0].trim()
           const isScriptableDocument =
-            isHtml ||
-            contentType.includes("image/svg+xml") ||
-            contentType.includes("application/xhtml+xml") ||
-            contentType.includes("application/xml") ||
-            contentType.includes("text/xml")
+            essence === "" ||
+            essence === "text/html" ||
+            essence === "image/svg+xml" ||
+            essence === "application/xml" ||
+            essence === "text/xml" ||
+            essence.endsWith("+xml")
           if (isScriptableDocument) {
             applyExternalPreviewSandbox(res, resolved)
           }

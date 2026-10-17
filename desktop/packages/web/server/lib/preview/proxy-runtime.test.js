@@ -145,6 +145,20 @@ describe("preview body URL rewriting", () => {
     expect(output).toContain('content="0;url=/api/preview/proxy/abc123/next"')
   })
 
+  it("rewrites protocol-relative references to an https target", () => {
+    // The branch parsed every protocol-relative URL as http, so an https target never matched and the resource
+    // loaded straight from the site.
+    const output = rewritePreviewBody({
+      bodyText: '<script src="//example.com/a.js"></script><img src="//EXAMPLE.com:443/b.png">',
+      kind: "html",
+      proxyBasePath: "/api/preview/proxy/abc123",
+      targetOrigin: "https://example.com",
+    })
+
+    expect(output).toContain('src="/api/preview/proxy/abc123/a.js"')
+    expect(output).toContain('src="/api/preview/proxy/abc123/b.png"')
+  })
+
   it("leaves a meta refresh to another origin alone", () => {
     const input = '<meta http-equiv="refresh" content="0;url=https://example.com/next">'
 
@@ -992,7 +1006,7 @@ describe("external preview documents are sandboxed", () => {
 })
 
 describe("preview proxy response hardening", () => {
-  const createHarness = async ({ url = "http://127.0.0.1:3000" } = {}) => {
+  const createHarness = async ({ url = "http://127.0.0.1:3000", allowExternal = false } = {}) => {
     let targetRoute = null
     let proxyOptions = null
     let randomCounter = 0
@@ -1028,52 +1042,64 @@ describe("preview proxy response hardening", () => {
       setHeader: (name, value) => headers.set(name.toLowerCase(), value),
       json: vi.fn(),
     }
-    await targetRoute({ body: { url }, secure: false }, targetResponse)
+    await targetRoute({ body: { url, allowExternal }, secure: false }, targetResponse)
     const cookie = String(headers.get("set-cookie")).split(";", 1)[0]
     const target = targetResponse.json.mock.calls[0][0]
     return { proxyOptions, cookie, target }
   }
 
-  it("strips Service-Worker-Allowed from proxied responses", async () => {
-    // The upstream could widen a service worker's scope from its proxy prefix to the whole Desktop origin, and
-    // that registration outlives the preview target and its token.
+  const makeResponse = (headers, statusCode = 200) => ({
+    statusCode,
+    removeHeader: (name) => headers.delete(name.toLowerCase()),
+    getHeader: (name) => headers.get(name.toLowerCase()),
+    setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+  })
+
+  it("strips Service-Worker-Allowed and Clear-Site-Data from proxied responses", async () => {
+    // Both act on the shared Desktop origin. The first widens a worker's scope; the second wipes the app's
+    // cookies, storage and cache from an untrusted page's response.
     const { proxyOptions, cookie, target } = await createHarness()
-    const responseHeaders = new Map([["service-worker-allowed", "/"]])
+    const responseHeaders = new Map([
+      ["service-worker-allowed", "/"],
+      ["clear-site-data", '"cookies", "storage"'],
+      ["refresh", "0;url=http://169.254.169.254/"],
+    ])
     await proxyOptions.on.proxyRes(
       Buffer.from("<html></html>"),
       {
         statusCode: 200,
-        headers: { "content-type": "text/html", "service-worker-allowed": "/" },
+        headers: {
+          "content-type": "text/html",
+          "service-worker-allowed": "/",
+          "clear-site-data": '"cookies", "storage"',
+          refresh: "0;url=http://169.254.169.254/",
+        },
       },
       { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
-      {
-        statusCode: 200,
-        removeHeader: (name) => responseHeaders.delete(name.toLowerCase()),
-        getHeader: (name) => responseHeaders.get(name.toLowerCase()),
-        setHeader: (name, value) => responseHeaders.set(name.toLowerCase(), value),
-      },
+      makeResponse(responseHeaders),
     )
 
     expect(responseHeaders.get("service-worker-allowed")).toBeUndefined()
+    expect(responseHeaders.get("clear-site-data")).toBeUndefined()
+    expect(responseHeaders.get("refresh")).toBeUndefined()
   })
 
-  it("does not forward a Location the proxy refuses", async () => {
-    // http-proxy-middleware copies the upstream headers onto res before the interceptor runs, so skipping the
-    // rewrite left the raw LAN/metadata Location on the response and the browser followed it.
+  it("does not forward a Location the proxy refuses, nor the body that came with it", async () => {
+    // http-proxy-middleware copies the upstream headers and body before the interceptor runs. Skipping the
+    // rewrite left the raw LAN/metadata Location; the fix must also stop the redirect's HTML body from rendering
+    // as a document on the Desktop origin.
     const { proxyOptions, cookie, target } = await createHarness()
-    const responseHeaders = new Map([["location", "http://169.254.169.254/latest/meta-data/"]])
-    const response = {
-      statusCode: 302,
-      removeHeader: (name) => responseHeaders.delete(name.toLowerCase()),
-      getHeader: (name) => responseHeaders.get(name.toLowerCase()),
-      setHeader: (name, value) => responseHeaders.set(name.toLowerCase(), value),
-    }
+    const responseHeaders = new Map([
+      ["location", "http://169.254.169.254/latest/meta-data/"],
+      ["content-type", "text/html"],
+    ])
+    const response = makeResponse(responseHeaders, 302)
 
-    await proxyOptions.on.proxyRes(
-      Buffer.alloc(0),
+    const body = await proxyOptions.on.proxyRes(
+      Buffer.from("<script>alert(1)</script>"),
       {
         statusCode: 302,
-        headers: { location: "http://169.254.169.254/latest/meta-data/" },
+        headers: { location: "http://169.254.169.254/latest/meta-data/", "content-type": "text/html" },
       },
       { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
       response,
@@ -1081,5 +1107,67 @@ describe("preview proxy response hardening", () => {
 
     expect(responseHeaders.get("location")).toBeUndefined()
     expect(response.statusCode).toBe(502)
+    expect(responseHeaders.get("content-type")).toContain("text/plain")
+    expect(String(body)).not.toContain("alert")
+  })
+
+  it("drops a Location even when the target cannot be resolved", async () => {
+    // An expired entry or a dropped token makes resolveTargetFromRequest fail after the router already proxied;
+    // the guard skipped Location handling on that branch and forwarded the raw header.
+    const { proxyOptions, target } = await createHarness()
+    const responseHeaders = new Map([["location", "http://169.254.169.254/latest/meta-data/"]])
+    const response = makeResponse(responseHeaders, 302)
+
+    await proxyOptions.on.proxyRes(
+      Buffer.alloc(0),
+      { statusCode: 302, headers: { location: "http://169.254.169.254/latest/meta-data/" } },
+      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie: "wrong=1" } },
+      response,
+    )
+
+    expect(responseHeaders.get("location")).toBeUndefined()
+    expect(response.statusCode).toBe(502)
+  })
+
+  it("sandboxes every XML document type, including one with no content type", async () => {
+    // Chrome renders any */*+xml as an XML document, and sniffs a missing content type as HTML; both can run
+    // script in the XHTML/SVG namespace on the Desktop origin.
+    const { proxyOptions, cookie, target } = await createHarness({ url: "https://example.com", allowExternal: true })
+    for (const contentType of [
+      "application/rss+xml",
+      "application/xslt+xml",
+      "application/xml; charset=utf-8",
+      "",
+    ]) {
+      const headers = new Map()
+      await proxyOptions.on.proxyRes(
+        Buffer.from("<x/>"),
+        { statusCode: 200, headers: contentType ? { "content-type": contentType } : {} },
+        { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+        makeResponse(headers),
+      )
+
+      const csp = String(headers.get("content-security-policy") ?? "")
+      expect(csp).toContain("sandbox")
+      expect(csp).not.toContain("allow-same-origin")
+    }
+  })
+
+  it("strips frame-ancestors from every comma-separated policy", async () => {
+    // The helper split only on `;`, so a policy after a comma kept frame-ancestors 'none' and the preview could
+    // not be framed at all.
+    const { proxyOptions, cookie, target } = await createHarness()
+    const upstream = "default-src 'self', frame-ancestors 'none'"
+    const responseHeaders = new Map([["content-security-policy", upstream]])
+    const response = makeResponse(responseHeaders)
+
+    await proxyOptions.on.proxyRes(
+      Buffer.from("<html></html>"),
+      { statusCode: 200, headers: { "content-type": "text/html", "content-security-policy": upstream } },
+      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+      response,
+    )
+
+    expect(String(responseHeaders.get("content-security-policy") ?? "")).not.toContain("frame-ancestors")
   })
 })
