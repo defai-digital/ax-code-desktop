@@ -1377,6 +1377,37 @@ Claude read `git diff e0ed8a0f~3 4672d23f` and found six things; all fixed.
 - **`frame-ancestors` stripping split only on `;`**, so a policy after a comma kept `frame-ancestors 'none'` and the
   preview could not be framed at all. The helper is policy-list aware now. Red: the directive survived.
 
+### Second-pass audit of those fixes — `d5591aa8`
+
+`glm-5.3` read `git diff 4672d23f 590b6057`; four findings, all fixed.
+
+- **The rewriting and the sandbox decisions disagreed on a joined duplicate Content-Type.** Node turns two header
+  lines into `text/html, text/plain`: the rewriter saw `text/html` and injected the bridge, while the essence check
+  compared the whole string, skipped the sandbox, and the browser sniffed the page as HTML on the Desktop origin.
+  A regression from the essence change. Both decisions now read the same list of MIME essences. Red: no sandbox for
+  the joined value.
+- **A 3xx without a `Location` from an expired target shipped the upstream body raw.** The sandbox needs the entry,
+  and no refusal ran without a `Location`. An unresolved target is refused outright in the 3xx branch. Red: the
+  upstream HTML body and content-type reached the response.
+- **Upstream `Set-Cookie` reached the Desktop origin.** A cookie with `Path=/` or a `Domain` became a cookie on the
+  app itself, where the guessable session cookie can be clobbered. Cookies are re-scoped to the target's proxy
+  prefix and their `Domain` is dropped; a refused redirect forwards none. Red: the seeded `Path=/;
+  Domain=example.com` cookie survived.
+- **`refuseRedirect` kept the upstream reason phrase**, so a refusal answered `502 Found` (or any attacker-chosen
+  phrase). It sets `Bad Gateway` now. Red: `statusMessage` stayed `Found`.
+
+`glm`'s remaining checks were clean: the returned buffer does replace the middleware-copied body and its
+`content-length` is recomputed, `HEAD` and `304` are fine, and protocol-relative parsing matches the browser's own
+WHATWG resolution for ports, case and `///` values.
+
+### The 7.26.1 merge, and its stale test — `d52e2d63`
+
+A concurrent writer merged Desktop 7.26.1 into the branch during this round. `renderer-handoff-readiness.test.mjs`
+still matched the old single-line `handleCommand("desktop_quit_and_install", …)` and expected `app.relaunch()` in
+that path; 7.26.1 moved the refusal into `createUpdateInstaller` and stopped tearing services down before
+`quitAndInstall`. The test now asserts the new wiring, and the `install-not-started` result remains pinned in
+`desktop-renderer-guards.test.mjs`.
+
 ## Fortieth round
 
 An audit of the injected preview bridge (`proxy-runtime.js`, Claude Code CLI). It found that the thirty-ninth
@@ -4283,6 +4314,10 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the forty-first round, after `d5591aa8` and `d52e2d63` (on the merged 7.26.1 tree):
+  `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+  `pnpm run check:locales` 0 — root scripts 185 (+6 skipped), electron 609, ui 3 072, web 1 361 (+2 skipped),
+  0 `FAIL` lines.
 - Latest full runs, in the forty-first round, after `590b6057` and `b81ffddb`: three consecutive `pnpm run test`
   runs green — root scripts 185 (+6 skipped), electron 600, ui 3 069, web 1 357 (+2 skipped) — with `typecheck`,
   `lint`, `check:boundaries` and `check:locales` at 0. The serialized run takes 61–63 s, against 65–70 s for the
