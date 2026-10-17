@@ -884,10 +884,19 @@ function createMainWindowShell() {
   })
 
   mainWindow.on("close", (event) => {
+    // Startup is still running: letting the close through destroys the window
+    // under the in-flight loadURL, which then reports a false "failed to
+    // start" (or leaves a headless app when the load settles). Quit cleanly
+    // through the normal path instead.
+    if (!desktopStartupComplete && !isQuitting) {
+      event.preventDefault()
+      app.quit()
+      return
+    }
     // Closing the last window quits on Windows/Linux, but by then the window is
     // gone and the closing artwork has nowhere to play. Route it through the
     // quit coordinator so the artwork plays inside this window first.
-    if (process.platform === "darwin" || isQuitting || !desktopStartupComplete) return
+    if (process.platform === "darwin" || isQuitting) return
     if (!launchAnimations?.enabled()) return
     if (BrowserWindow.getAllWindows().some((win) => win !== mainWindow && !win.isDestroyed())) return
     event.preventDefault()
@@ -1306,7 +1315,13 @@ function flushPendingFocusOpen() {
   if (!rendererReadyForOpenProject || !mainWindow || mainWindow.isDestroyed()) return
   while (pendingFocusOpens.length > 0) {
     const pending = pendingFocusOpens.shift()
-    if (pending.event) {
+    if (pending.event === "openchamber:menu-action") {
+      // The renderer listens for menu actions on both the literal IPC channel
+      // and the DOM-event envelope; the dual send applied every queued action
+      // twice (toggles cancelled out, step navigation skipped two). Match the
+      // direct dispatch path, which sends the literal channel only.
+      mainWindow.webContents.send(pending.event, pending.detail)
+    } else if (pending.event) {
       emitToWindow(mainWindow, pending.event, pending.detail)
     } else if (pending.sessionId) {
       emitToWindow(mainWindow, "openchamber:open-session", { sessionId: pending.sessionId, directory: pending.directory })
@@ -2270,6 +2285,15 @@ const attachWindowStateListeners = (browserWindow) => {
   browserWindow.on("move", onChange)
   browserWindow.on("maximize", onChange)
   browserWindow.on("unmaximize", onChange)
+  // The custom Windows/Linux header button tracks this event: native maximize
+  // paths (drag-region double-click, Aero Snap, Win+Up) never reached it, so
+  // the button state went stale and the next click toggled the wrong way.
+  browserWindow.on("maximize", () =>
+    emitToWindow(browserWindow, "openchamber:window-maximized-changed", { maximized: true }),
+  )
+  browserWindow.on("unmaximize", () =>
+    emitToWindow(browserWindow, "openchamber:window-maximized-changed", { maximized: false }),
+  )
   browserWindow.on("close", () => debounceWindowStatePersist(browserWindow, true))
   // The id is unreadable once the window is destroyed, so capture it up front.
   const key = String(browserWindow.id)
@@ -2398,12 +2422,22 @@ const dispatchCheckForUpdates = () => {
   emitToAllWindows("openchamber:check-for-updates")
 }
 
+// Mini-chat windows (/mini-chat.html) and the wiki viewer (a temp file://
+// export) have no menu-action listener: sending Settings/New Session there
+// dropped the command on the floor while the main window sat unfocused.
+const isMenuCapableWindow = (win) => {
+  if (!win || win.isDestroyed()) return false
+  const url = win.webContents.getURL()
+  // The main window has no committed URL yet during its first load.
+  if (win === mainWindow && !url) return true
+  return Boolean(url) && !url.includes("/mini-chat.html") && !url.startsWith("file:")
+}
+
 const getMenuTargetWindow = () => {
   const focused = BrowserWindow.getFocusedWindow()
-  if (focused && !focused.isDestroyed()) return focused
-  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
-  const [firstWindow] = BrowserWindow.getAllWindows()
-  return firstWindow && !firstWindow.isDestroyed() ? firstWindow : null
+  if (isMenuCapableWindow(focused)) return focused
+  if (isMenuCapableWindow(mainWindow)) return mainWindow
+  return BrowserWindow.getAllWindows().find(isMenuCapableWindow) ?? null
 }
 
 const reloadMenuTargetWindow = () => {

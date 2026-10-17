@@ -24,7 +24,9 @@ export const applyPackagedRendererCorsHeaders = (req, res) => {
   res.setHeader("Access-Control-Allow-Credentials", "true")
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type, Accept, Authorization, x-ax-code-directory, x-opencode-directory",
+    // Last-Event-ID: the SSE transport sends it on every reconnect; without it
+    // the preflight fails and live updates stop after the first reconnect.
+    "Content-Type, Accept, Authorization, Cache-Control, Last-Event-ID, x-ax-code-directory, x-opencode-directory",
   )
   res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS")
   res.setHeader("Vary", "Origin")

@@ -58,6 +58,8 @@ describe("response security headers", () => {
     const allowed = res.getHeader("Access-Control-Allow-Headers").toLowerCase().split(/,\s*/)
     // Both headers are emitted by the pinned SDK's directory-scoped client.
     expect(allowed).toEqual(expect.arrayContaining(["content-type", "x-ax-code-directory", "x-opencode-directory"]))
+    // The SSE transport's reconnect cursor must survive the preflight too.
+    expect(allowed).toEqual(expect.arrayContaining(["last-event-id", "cache-control"]))
     expect(
       applyPackagedRendererCorsHeaders(
         {

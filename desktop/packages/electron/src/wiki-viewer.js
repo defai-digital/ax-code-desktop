@@ -19,6 +19,16 @@ function createWikiViewer({
   const jobs = new Set()
   const controllers = new Set()
   let stopping = false
+  // The stable partition means every viewer shares one cached session: attach
+  // its handlers once, not per opened window.
+  const configuredSessions = new WeakSet()
+  const configureSession = (guestSession) => {
+    if (configuredSessions.has(guestSession)) return
+    configuredSessions.add(guestSession)
+    guestSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+    guestSession.setPermissionCheckHandler(() => false)
+    guestSession.on("will-download", (event) => event.preventDefault())
+  }
 
   const openSnapshot = async (directory, signal) => {
     if (stopping) throw new Error("Wiki viewer is shutting down")
@@ -73,9 +83,7 @@ function createWikiViewer({
           webSecurity: true,
         },
       })
-      window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-      window.webContents.session.setPermissionCheckHandler(() => false)
-      window.webContents.session.on("will-download", (event) => event.preventDefault())
+      configureSession(window.webContents.session)
       closed = new Promise((resolve, reject) => {
         window.once("closed", () => {
           removeExport().then(
