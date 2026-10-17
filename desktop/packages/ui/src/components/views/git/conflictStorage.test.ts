@@ -72,6 +72,7 @@ describe("parseIntegrateConflictState", () => {
           cleanTargetWorktrees: ["/repo-main"],
           remainingCommits: ["abc123"],
           currentCommit: "def456",
+          totalCommits: 4,
         }),
         "/repo",
       ),
@@ -83,7 +84,27 @@ describe("parseIntegrateConflictState", () => {
       cleanTargetWorktrees: ["/repo-main"],
       remainingCommits: ["abc123"],
       currentCommit: "def456",
+      totalCommits: 4,
     })
+  })
+
+  test("falls back to the remaining commits for a state stored before the total was carried", () => {
+    // The state is persisted, so one written by an older build has no `totalCommits`: the run it belongs to
+    // reported the tail as the count moved, and that is the best answer the state can give.
+    expect(
+      parseIntegrateConflictState(
+        JSON.stringify({
+          repoRoot: "/repo",
+          tempWorktreePath: "/tmp/integrate",
+          sourceBranch: "feature",
+          targetBranch: "main",
+          cleanTargetWorktrees: ["/repo-main"],
+          remainingCommits: ["abc123", "def456"],
+          currentCommit: "abc123",
+        }),
+        "/repo",
+      )?.totalCommits,
+    ).toBe(2)
   })
 
   test("rejects stale or malformed integrate conflict state", () => {

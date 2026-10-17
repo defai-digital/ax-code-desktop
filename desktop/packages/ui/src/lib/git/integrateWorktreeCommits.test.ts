@@ -70,3 +70,33 @@ describe("computeIntegratePlan", () => {
     expect(plan.targetBranch).toBe("main")
   })
 })
+
+describe("continueIntegrate", () => {
+  beforeEach(() => {
+    execCommandMock.mockReset()
+  })
+
+  afterEach(() => {
+    vi.resetModules()
+  })
+
+  test("reports every commit the integration moved, not just the tail after the conflict", async () => {
+    // `remainingCommits` is only what was left when the conflict stopped the run, so a resumed five-commit
+    // integration reported two or three. The count is what the success toast shows.
+    execCommandMock.mockImplementation(async (command: string) => ok(command))
+    const { continueIntegrate } = await import("./integrateWorktreeCommits")
+
+    const result = await continueIntegrate({
+      repoRoot: "/repo",
+      tempWorktreePath: "/tmp/wt",
+      sourceBranch: "feat",
+      targetBranch: "main",
+      cleanTargetWorktrees: [],
+      remainingCommits: ["c3", "c4", "c5"],
+      currentCommit: "c3",
+      totalCommits: 5,
+    })
+
+    expect(result).toEqual({ kind: "success", moved: 5 })
+  })
+})

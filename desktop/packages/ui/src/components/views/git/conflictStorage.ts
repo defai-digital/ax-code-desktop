@@ -95,6 +95,13 @@ export function parseIntegrateConflictState(raw: string | null, repoRoot: string
     return null
   }
 
+  // A state written before the run carried the whole count has only the tail. The tail is what that run reported,
+  // so it is what this falls back to rather than refusing a state that is otherwise complete.
+  const totalCommits =
+    typeof parsed.totalCommits === "number" && Number.isFinite(parsed.totalCommits) && parsed.totalCommits > 0
+      ? parsed.totalCommits
+      : remainingCommits.length
+
   return {
     repoRoot,
     tempWorktreePath: parsed.tempWorktreePath,
@@ -103,6 +110,7 @@ export function parseIntegrateConflictState(raw: string | null, repoRoot: string
     cleanTargetWorktrees,
     remainingCommits,
     currentCommit: parsed.currentCommit,
+    totalCommits,
   }
 }
 

@@ -25,6 +25,12 @@ export type IntegrateInProgress = {
   cleanTargetWorktrees: string[]
   remainingCommits: string[]
   currentCommit: string
+  /**
+   * Every commit the integration set out to move, carried across a conflict. `remainingCommits` is only the tail
+   * from the conflict onward, so a resumed run reported that tail as the number moved — "2 commits moved" for a
+   * five-commit integration.
+   */
+  totalCommits: number
 }
 
 type IntegrateResult =
@@ -306,6 +312,7 @@ export async function integrateWorktreeCommits(plan: IntegratePlan): Promise<Int
             cleanTargetWorktrees,
             remainingCommits: remaining,
             currentCommit: sha,
+            totalCommits: plan.commits.length,
           },
           details,
         }
@@ -369,6 +376,7 @@ export async function continueIntegrate(state: IntegrateInProgress): Promise<Int
           cleanTargetWorktrees: state.cleanTargetWorktrees,
           remainingCommits: still,
           currentCommit: sha,
+          totalCommits: state.totalCommits,
         },
         details,
       }
@@ -378,5 +386,5 @@ export async function continueIntegrate(state: IntegrateInProgress): Promise<Int
 
   await removeTempWorktree(state.repoRoot, state.tempWorktreePath)
   await syncCleanTargetWorktrees(state.cleanTargetWorktrees).catch(() => undefined)
-  return { kind: "success", moved: state.remainingCommits.length }
+  return { kind: "success", moved: state.totalCommits }
 }
