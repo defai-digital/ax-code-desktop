@@ -9,7 +9,10 @@ const PROJECT_CONFIG_VERSION = 1
 // read. Ids that fit keep their name; longer ones keep a readable prefix and a digest of the rest.
 const MAX_PROJECT_CONFIG_STEM_LENGTH = 96
 
-const projectConfigFileStemOf = (projectID) =>
+// Exported: settings-runtime's project-storage migration writes into the same directory
+// and must name files identically, or a long project id blows past the filesystem's
+// 255-byte name limit there (ENAMETOOLONG) while this module reads the bounded name.
+export const projectConfigFileStemOf = (projectID) =>
   projectID.length <= MAX_PROJECT_CONFIG_STEM_LENGTH
     ? projectID
     : `${projectID.slice(0, MAX_PROJECT_CONFIG_STEM_LENGTH)}-${createHash("sha256")

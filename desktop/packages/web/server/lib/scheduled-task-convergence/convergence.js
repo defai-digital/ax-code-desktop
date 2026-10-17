@@ -158,12 +158,16 @@ export const createScheduledTaskConvergence = (deps) => {
   }
 
   const readProjectConfigFile = async (fileName) => {
+    let raw
     try {
-      const raw = await fsPromises.readFile(path.join(projectsDirPath, fileName), "utf8")
-      return safeParseJsonObject(raw)
+      raw = await fsPromises.readFile(path.join(projectsDirPath, fileName), "utf8")
     } catch {
-      return null
+      // A transient I/O failure (EACCES, EMFILE, the file vanishing mid-pass) is not a corrupt
+      // file: mark it unreadable so the pass leaves it for next boot instead of finalizing the
+      // marker over tasks it never read.
+      return { config: null, unreadable: true }
     }
+    return { config: safeParseJsonObject(raw), unreadable: false }
   }
 
   const isRetryableRuntimeError = (error) => {
@@ -293,13 +297,21 @@ export const createScheduledTaskConvergence = (deps) => {
 
     for (const fileName of files) {
       const fileStem = fileName.slice(0, -".json".length)
-      const config = await readProjectConfigFile(fileName)
-      if (!config) {
+      const readResult = await readProjectConfigFile(fileName)
+      if (!readResult.config) {
+        if (readResult.unreadable) {
+          // Counted like the runtime-unreachable case below: the file is left untouched and
+          // its tasks retry next boot instead of being skipped past the marker.
+          retryableRemaining += 1
+          warnings.push({ project: fileStem, task: null, warning: "project config could not be read; left for next boot" })
+          continue
+        }
         warnings.push({ project: fileStem, task: null, warning: "project config JSON is unreadable; skipped" })
         continue
       }
       // The file name is the project id only while that id fits in a name: a longer one is written under a
       // bounded stem with a digest, and the id it belongs to is inside the file.
+      const config = readResult.config
       const projectID = asNonEmptyString(config.projectID) || fileStem
       const tasks = Array.isArray(config.scheduledTasks) ? config.scheduledTasks : []
       if (tasks.length === 0) {

@@ -1,4 +1,5 @@
 import { createProjectIdFromPath } from "../projects/project-id.js"
+import { projectConfigFileStemOf } from "../projects/project-config.js"
 
 const DEFAULT_NOTIFICATION_TEMPLATES = {
   completion: { title: "{agent_name} is ready", message: "{model_name} completed the task" },
@@ -137,7 +138,11 @@ export const createSettingsRuntime = (deps) => {
 
   const writeJsonFile = async (filePath, value) => {
     await fsPromises.mkdir(path.dirname(filePath), { recursive: true })
-    await fsPromises.writeFile(filePath, JSON.stringify(value, null, 2), "utf8")
+    // tmp + rename, same as project-config.js: a crash mid-write otherwise leaves a
+    // truncated JSON that every later read treats as corrupt.
+    const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    await fsPromises.writeFile(temporaryPath, JSON.stringify(value, null, 2), "utf8")
+    await fsPromises.rename(temporaryPath, filePath)
   }
 
   const uniqueStrings = (values) =>
@@ -298,9 +303,13 @@ export const createSettingsRuntime = (deps) => {
     }
 
     const oldConfigPath = path.join(PROJECTS_ROOT_DIR, `${oldId}.json`)
-    const newConfigPath = path.join(PROJECTS_ROOT_DIR, `${newId}.json`)
+    // The new id is `path_` + base64url of the whole project path; past ~184 bytes of path the
+    // raw name is longer than the filesystem allows (ENAMETOOLONG), so the bounded stem — the
+    // same one project-config.js reads and writes — names the file and storage directory.
+    const newStem = projectConfigFileStemOf(newId)
+    const newConfigPath = path.join(PROJECTS_ROOT_DIR, `${newStem}.json`)
     const oldStorageDir = path.join(PROJECTS_ROOT_DIR, oldId)
-    const newStorageDir = path.join(PROJECTS_ROOT_DIR, newId)
+    const newStorageDir = path.join(PROJECTS_ROOT_DIR, newStem)
 
     if (
       !isWithinProjectsRoot(oldConfigPath) ||
@@ -489,7 +498,10 @@ export const createSettingsRuntime = (deps) => {
     for (const [projectId, orphansForProject] of matches.entries()) {
       const project = canonicalProjects.find((p) => p.id === projectId)
       if (!project) continue
-      const targetPath = path.join(PROJECTS_ROOT_DIR, `${project.id}.json`)
+      // The bounded stem, same as migrateProjectScopedStorage: the raw id of a long project
+      // path is longer than the filesystem's name limit.
+      const targetStem = projectConfigFileStemOf(project.id)
+      const targetPath = path.join(PROJECTS_ROOT_DIR, `${targetStem}.json`)
 
       for (const orphan of orphansForProject) {
         const targetExisting = (await readJsonFile(targetPath)) || {}
@@ -497,13 +509,13 @@ export const createSettingsRuntime = (deps) => {
           oldConfig: orphan.content,
           newConfig: targetExisting,
           oldStorageDir: path.join(PROJECTS_ROOT_DIR, orphan.orphanId),
-          newStorageDir: path.join(PROJECTS_ROOT_DIR, project.id),
+          newStorageDir: path.join(PROJECTS_ROOT_DIR, targetStem),
           projectPath: project.path,
         })
         await writeJsonFile(targetPath, merged)
         await moveDirectoryContents(
           path.join(PROJECTS_ROOT_DIR, orphan.orphanId),
-          path.join(PROJECTS_ROOT_DIR, project.id),
+          path.join(PROJECTS_ROOT_DIR, targetStem),
         )
         await fsPromises.rm(orphan.filePath, { force: true })
         orphansConsumed.add(orphan.orphanId)
@@ -826,27 +838,47 @@ export const createSettingsRuntime = (deps) => {
     return { settings: changed ? next : settings, changed }
   }
 
-  const readSettingsFromDiskMigrated = async () => {
-    const current = await readSettingsFromDisk()
-    const migration1 = await migrateSettingsFromLegacyLastDirectory(current)
+  const runSettingsMigrations = async (input) => {
+    const migration1 = await migrateSettingsFromLegacyLastDirectory(input)
     const migration2 = await migrateSettingsFromLegacyThemePreferences(migration1.settings)
     const migration3 = await migrateSettingsFromLegacyCollapsedProjects(migration2.settings)
     const migration4 = await migrateSettingsNotificationDefaults(migration3.settings)
     const migration6 = normalizeSettingsPaths(migration4.settings)
     const migration7 = await migrateSettingsToDeterministicProjectIds(migration6.settings)
     const migration8 = removeDisabledRemoteAccessSettings(migration7.settings)
-    if (
-      migration1.changed ||
-      migration2.changed ||
-      migration3.changed ||
-      migration4.changed ||
-      migration6.changed ||
-      migration7.changed ||
-      migration8.changed
-    ) {
-      await writeSettingsToDisk(migration8.settings)
+    return {
+      settings: migration8.settings,
+      changed:
+        migration1.changed ||
+        migration2.changed ||
+        migration3.changed ||
+        migration4.changed ||
+        migration6.changed ||
+        migration7.changed ||
+        migration8.changed,
     }
-    return migration8.settings
+  }
+
+  const readSettingsFromDiskMigrated = async () => {
+    const migrated = await runSettingsMigrations(await readSettingsFromDisk())
+    if (!migrated.changed) {
+      return migrated.settings
+    }
+    // The write-back serializes on the same lock persistSettings uses, and re-reads inside
+    // it: an unlocked write of the pre-migration snapshot could land between a persist's own
+    // read and write and silently discard the persist's changes. The migrations are
+    // idempotent, so re-running them on the fresh content converges both writers.
+    const write = persistSettingsLock
+      .catch(() => undefined)
+      .then(async () => {
+        const remigrated = await runSettingsMigrations(await readSettingsFromDisk())
+        if (remigrated.changed) {
+          await writeSettingsToDisk(remigrated.settings)
+        }
+        return remigrated.settings
+      })
+    persistSettingsLock = write.then(() => undefined)
+    return write
   }
 
   const persistSettings = async (changes) => {

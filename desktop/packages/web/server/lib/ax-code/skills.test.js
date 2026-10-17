@@ -46,9 +46,11 @@ describe("skills", () => {
     expect(readSkillFilePathParam(["references", "guide.md"])).toBe("references/guide.md")
     expect(readSkillFilePathParam(["references/guide.md"])).toBe("references/guide.md")
     expect(readSkillFilePathParam("guide.md")).toBe("guide.md")
-    expect(readSkillFilePathParam(["a%2Fb.md"])).toBe("a/b.md")
-    expect(readSkillFilePathParam([])).toBe("")
-    expect(readSkillFilePathParam(["%"])).toBeNull()
+    // Express 5 decodes each wildcard segment once; a literal percent in the file name must
+    // survive as-is — decoding again turned `a%20b.md` into `a b.md` and 400'd on `100%.md`.
+    expect(readSkillFilePathParam(["a%2Fb.md"])).toBe("a%2Fb.md")
+    expect(readSkillFilePathParam(["100%.md"])).toBe("100%.md")
+    expect(readSkillFilePathParam([])).toBeNull()
   })
 
   it("merges locally discovered skills missing from AX Code live discovery", () => {

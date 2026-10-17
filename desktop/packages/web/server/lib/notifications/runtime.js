@@ -73,6 +73,12 @@ let unkeyedPermissionAskSequence = 0
   // starts awaiting, so a reply that lands mid-flush finds nothing to cancel and the ask would still
   // be announced — seconds after the user answered it.
   const repliedPermissionRequests = new Set()
+  // An unkeyed reply (a permission.replied without request id) cannot be matched to its ask, and
+  // the flush deletes its debounce entry before its first await — so a reply landing mid-flush
+  // found nothing to cancel and the already-answered ask was still announced. The flush marks
+  // its session in flight and such a reply is recorded against it instead.
+  const permissionFlushInFlightSessions = new Set()
+  const repliedDuringPermissionFlushSessions = new Set()
   // Unique request keys accumulate for the life of the process; keep the dedupe
   // window bounded. A request older than the cap is long answered.
   const NOTIFIED_PERMISSION_REQUESTS_MAX = 500
@@ -263,6 +269,11 @@ let unkeyedPermissionAskSequence = 0
     // Checked here as well as in the reply handler: the reply may have arrived while this flush was
     // awaiting the template variables or the settings read.
     if (requestKey && repliedPermissionRequests.has(requestKey)) {
+      return
+    }
+    // An unkeyed ask matches no reply by id: if a reply landed while this flush was in flight,
+    // the ask it answered is in this batch — don't announce it.
+    if (!requestKey && repliedDuringPermissionFlushSessions.has(sessionId)) {
       return
     }
 
@@ -559,6 +570,11 @@ let unkeyedPermissionAskSequence = 0
       const requestId = payload.properties?.requestID ?? payload.properties?.requestId ?? payload.properties?.id
       const requestKey = typeof requestId === "string" ? `${sessionId}:${requestId}` : null
       rememberRepliedPermissionRequest(requestKey)
+      // An unkeyed reply cannot cancel a flush's debounce entry — the flush deletes it before
+      // awaiting — so when one lands mid-flush, record it for the flush's unkeyed asks.
+      if (!requestKey && permissionFlushInFlightSessions.has(sessionId)) {
+        repliedDuringPermissionFlushSessions.add(sessionId)
+      }
       const pendingNotification = permissionNotificationDebounceTimers.get(sessionId)
       if (!pendingNotification) {
         return
@@ -614,17 +630,23 @@ let unkeyedPermissionAskSequence = 0
         // read, and a rejection from inside a timer has nowhere to go.
         void (async () => {
           permissionNotificationDebounceTimers.delete(sessionId)
+          permissionFlushInFlightSessions.add(sessionId)
 
-          if (await isSessionAutoAccepting(sessionId)) {
-            for (const key of pending.keys()) {
-              rememberNotifiedPermissionRequest(key.startsWith("unkeyed:") ? null : key)
+          try {
+            if (await isSessionAutoAccepting(sessionId)) {
+              for (const key of pending.keys()) {
+                rememberNotifiedPermissionRequest(key.startsWith("unkeyed:") ? null : key)
+              }
+              return
             }
-            return
-          }
 
-          for (const [pendingKey, pendingPayload] of pending) {
-            const unkeyed = pendingKey.startsWith("unkeyed:")
-            await flushPermissionAsk(sessionId, unkeyed ? null : pendingKey, pendingPayload, pendingKey)
+            for (const [pendingKey, pendingPayload] of pending) {
+              const unkeyed = pendingKey.startsWith("unkeyed:")
+              await flushPermissionAsk(sessionId, unkeyed ? null : pendingKey, pendingPayload, pendingKey)
+            }
+          } finally {
+            permissionFlushInFlightSessions.delete(sessionId)
+            repliedDuringPermissionFlushSessions.delete(sessionId)
           }
         })().catch((error) => {
           console.warn("[Notification] Permission notification failed:", error?.message || error)

@@ -946,6 +946,10 @@ export const registerFsRoutes = (app, dependencies) => {
         }
       }
 
+      // The clone created a directory the realpath cache may hold as missing (a lookup before
+      // the clone caches ENOENT); drop it so the new repository resolves immediately.
+      invalidateRealpathCache()
+
       return res.json({ success: true, path: resolvedDestination, output })
     } catch (error) {
       console.error("Failed to clone repository:", error)
@@ -1419,12 +1423,11 @@ export const registerFsRoutes = (app, dependencies) => {
             stdio: "ignore",
           })
           child.once("error", reject)
-          child.once("exit", (code) => {
-            if (code === 0) {
-              resolve()
-              return
-            }
-            reject(new Error(`Explorer launch failed with code ${code ?? "unknown"}`))
+          // explorer.exe exits 1 even when it successfully opened the folder
+          // (https://github.com/microsoft/WSL/issues/6565), so only a spawn failure
+          // is an error — rejecting on the exit code answered 500 for a revealed path.
+          child.once("exit", () => {
+            resolve()
           })
         })
       } else {

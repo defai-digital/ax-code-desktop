@@ -4,6 +4,7 @@ import fsPromises from "fs/promises"
 import os from "os"
 import path from "path"
 import { createProjectIdFromPath } from "../projects/project-id.js"
+import { projectConfigFileStemOf } from "../projects/project-config.js"
 import { createSettingsRuntime } from "./settings-runtime.js"
 
 const createRuntime = async (overrides = {}) => {
@@ -92,9 +93,10 @@ describe("settings runtime", () => {
       const projectPath = path.join(tempRoot, "project")
       const oldProjectId = "legacy-project-id"
       const newProjectId = createProjectIdFromPath(projectPath)
+      const newProjectStem = projectConfigFileStemOf(newProjectId)
       const projectsRoot = path.join(path.dirname(settingsFilePath), "projects")
       const oldStorageDir = path.join(projectsRoot, oldProjectId)
-      const newStorageDir = path.join(projectsRoot, newProjectId)
+      const newStorageDir = path.join(projectsRoot, newProjectStem)
       const siblingStorageDir = `${oldStorageDir}-sibling`
 
       await fsPromises.mkdir(projectPath, { recursive: true })
@@ -131,7 +133,7 @@ describe("settings runtime", () => {
         "utf8",
       )
       await fsPromises.writeFile(
-        path.join(projectsRoot, `${newProjectId}.json`),
+        path.join(projectsRoot, `${newProjectStem}.json`),
         JSON.stringify(
           {
             "setup-worktree": ["npm install", "pnpm install"],
@@ -149,7 +151,7 @@ describe("settings runtime", () => {
       await runtime.readSettingsFromDiskMigrated()
 
       const migratedConfig = JSON.parse(
-        await fsPromises.readFile(path.join(projectsRoot, `${newProjectId}.json`), "utf8"),
+        await fsPromises.readFile(path.join(projectsRoot, `${newProjectStem}.json`), "utf8"),
       )
       expect(migratedConfig["setup-worktree"]).toEqual(["pnpm install", "npm install"])
       expect(migratedConfig.projectTodos).toEqual([
@@ -220,20 +222,21 @@ describe("settings runtime", () => {
       const projectsRoot = path.join(path.dirname(settingsFilePath), "projects")
       const oldProjectId = "legacy-project-id"
       const newProjectId = createProjectIdFromPath(projectPath)
+      const newProjectStem = projectConfigFileStemOf(newProjectId)
       await fsPromises.mkdir(projectPath, { recursive: true })
       await fsPromises.mkdir(path.join(projectsRoot, oldProjectId), { recursive: true })
-      await fsPromises.mkdir(path.join(projectsRoot, newProjectId), { recursive: true })
+      await fsPromises.mkdir(path.join(projectsRoot, newProjectStem), { recursive: true })
       await fsPromises.writeFile(
         settingsFilePath,
         JSON.stringify({ projects: [{ id: oldProjectId, path: projectPath, addedAt: 1, lastOpenedAt: 1 }] }, null, 2),
         "utf8",
       )
       await fsPromises.writeFile(path.join(projectsRoot, oldProjectId, "notes.md"), "source", "utf8")
-      await fsPromises.writeFile(path.join(projectsRoot, newProjectId, "notes.md"), "destination", "utf8")
+      await fsPromises.writeFile(path.join(projectsRoot, newProjectStem, "notes.md"), "destination", "utf8")
 
       await runtime.readSettingsFromDiskMigrated().catch(() => {})
 
-      await expect(fsPromises.readFile(path.join(projectsRoot, newProjectId, "notes.md"), "utf8")).resolves.toBe(
+      await expect(fsPromises.readFile(path.join(projectsRoot, newProjectStem, "notes.md"), "utf8")).resolves.toBe(
         "destination",
       )
       await expect(fsPromises.readFile(path.join(projectsRoot, oldProjectId, "notes.md"), "utf8")).resolves.toBe(
@@ -251,20 +254,21 @@ describe("settings runtime", () => {
       const projectsRoot = path.join(path.dirname(settingsFilePath), "projects")
       const oldProjectId = "legacy-project-id"
       const newProjectId = createProjectIdFromPath(projectPath)
+      const newProjectStem = projectConfigFileStemOf(newProjectId)
       await fsPromises.mkdir(projectPath, { recursive: true })
       await fsPromises.mkdir(path.join(projectsRoot, oldProjectId), { recursive: true })
-      await fsPromises.mkdir(path.join(projectsRoot, newProjectId), { recursive: true })
+      await fsPromises.mkdir(path.join(projectsRoot, newProjectStem), { recursive: true })
       await fsPromises.writeFile(
         settingsFilePath,
         JSON.stringify({ projects: [{ id: oldProjectId, path: projectPath, addedAt: 1, lastOpenedAt: 1 }] }, null, 2),
         "utf8",
       )
       await fsPromises.writeFile(path.join(projectsRoot, oldProjectId, "notes.md"), "newer", "utf8")
-      await fsPromises.writeFile(path.join(projectsRoot, newProjectId, "notes.md"), "older", "utf8")
+      await fsPromises.writeFile(path.join(projectsRoot, newProjectStem, "notes.md"), "older", "utf8")
 
       await runtime.readSettingsFromDiskMigrated()
 
-      await expect(fsPromises.readFile(path.join(projectsRoot, newProjectId, "notes.md"), "utf8")).resolves.toBe("newer")
+      await expect(fsPromises.readFile(path.join(projectsRoot, newProjectStem, "notes.md"), "utf8")).resolves.toBe("newer")
       await expect(fsPromises.access(path.join(projectsRoot, oldProjectId))).rejects.toMatchObject({ code: "ENOENT" })
     } finally {
       await cleanup()

@@ -732,6 +732,13 @@ export const registerAxCodeProxy = (app, deps) => {
           error: "ax-code service unavailable",
           restarting: true,
         })
+        return
+      }
+      // The response had already started when the upstream failed: nothing can be
+      // appended gracefully, and leaving it open hung the client until the socket
+      // timeout (an SSE client never even saw the close and could not reconnect).
+      if (res && typeof res.end === "function" && !res.writableEnded) {
+        res.end()
       }
     },
   }

@@ -32,17 +32,14 @@ const [CLAUDE_SKILL_SOURCE, AGENTS_SKILL_SOURCE] = EXTERNAL_SKILL_SOURCES
 
 const normalizedSkillName = (skill) => (typeof skill?.name === "string" ? skill.name.trim() : "")
 
-// Express 5 hands a `*filePath` wildcard over as an array of decoded segments, so a caller that does
-// not percent-encode the separators (curl, older clients) arrives as ["references", "guide.md"].
-// Joining rebuilds the relative path that both forms describe; malformed escapes return null so the
-// route can answer 400 instead of falling through to a 500.
+// Express 5 hands a `*filePath` wildcard over as an array of already-decoded segments, so a caller
+// that does not percent-encode the separators (curl, older clients) arrives as
+// ["references", "guide.md"]. Joining rebuilds the relative path that both forms describe. The
+// segments are decoded exactly once by Express itself — decoding again here double-decoded a
+// literal `%` in a file name (`100%.md` answered 400, and `a%20b.md` read/wrote `a b.md`).
 const readSkillFilePathParam = (value) => {
   const raw = Array.isArray(value) ? value.join("/") : typeof value === "string" ? value : ""
-  try {
-    return decodeURIComponent(raw)
-  } catch {
-    return null
-  }
+  return raw.length > 0 ? raw : null
 }
 
 // Express decodes %2F inside a matched `:name` param, so an unvalidated skill

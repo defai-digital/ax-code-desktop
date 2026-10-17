@@ -435,7 +435,19 @@ function updateAgent(agentName, updates, workingDirectory) {
       const permissionSource = getAgentPermissionSource(agentName, workingDirectory, lookupCache)
       const newPermission = mergePermissionWithNonWildcards(value, permissionSource, agentName)
 
-      if (permissionSource.source === "md") {
+      // When the permission lives in the same file this update is already rewriting, fold the
+      // change into that pending write: a separate read-modify-write here was overwritten by the
+      // final write of the pre-read snapshot below, and the new permission never reached disk.
+      const pendingJsonPath = jsonTarget.path || CONFIG_FILE
+      if (permissionSource.source === "md" && mdData && permissionSource.path === targetPath) {
+        mdData.frontmatter.permission = newPermission
+        mdModified = true
+      } else if (permissionSource.source === "json" && permissionSource.path === pendingJsonPath) {
+        if (!config.agent) config.agent = {}
+        if (!config.agent[agentName]) config.agent[agentName] = {}
+        config.agent[agentName].permission = newPermission
+        jsonModified = true
+      } else if (permissionSource.source === "md") {
         const existingMdData = parseMdFile(permissionSource.path)
         existingMdData.frontmatter.permission = newPermission
         writeMdFile(permissionSource.path, existingMdData.frontmatter, existingMdData.body)

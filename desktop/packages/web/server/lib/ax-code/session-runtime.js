@@ -238,6 +238,14 @@ export const createSessionRuntime = ({ writeSseEvent, getNotificationClients, br
     if (!state) return
 
     const wasNeedsAttention = state.needsAttention
+    // Client ids are caller-supplied (`x-client-id`) and unbounded in variety: cap the set so a
+    // churn of one-shot ids cannot grow it for the life of the attention state.
+    if (state.viewedByClients.size >= 32 && !state.viewedByClients.has(clientId)) {
+      const oldest = state.viewedByClients.values().next().value
+      if (oldest !== undefined) {
+        state.viewedByClients.delete(oldest)
+      }
+    }
     state.viewedByClients.add(clientId)
 
     if (wasNeedsAttention) {

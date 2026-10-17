@@ -38,9 +38,10 @@ export const createAxCodeNetworkRuntime = (deps) => {
           },
           signal: controller.signal,
         })
-        clearTimeout(timeout)
-        timeout = null
 
+        // The abort stays armed until the body is read: a runtime that sends response
+        // headers and then stalls otherwise held the loop until undici's 300s body
+        // timeout, well past the per-attempt 3s and the overall budget.
         if (response.ok) {
           const body = await response.json().catch(() => null)
           if (body?.healthy === true) {
