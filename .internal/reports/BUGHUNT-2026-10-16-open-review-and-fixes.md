@@ -1391,6 +1391,11 @@ least (MCP, providers, multirun, auth, supervision, notifications) plus `server/
   that record was missing, so the running instance was stopped and replaced by one with no UI password on a port
   that may have had one. The rule is explicit and exported now: the record, an explicit `--ui-password`, or the
   environment carries it, and with none of them the command refuses and says how to proceed.
+- **`2f9b1d0f`** — `handleStart` in the fusion dialog filtered out the runs whose last assistant message has no
+  text and fused the rest while the dialog kept listing every selected run, so the fused answer read as covering
+  runs it had silently dropped. It refuses now and asks the user to exclude the run in the dialog's own list; the
+  message names no count because that needs a new key in all fourteen locales, which the localization check
+  enforces.
 - **`da178739`** — `logs --follow` printed the tail and then followed from the file's current size, dropping every
   line written in between — the ones the followed run was producing. The caller records the size before the tail
   read and the follower starts there. It also read a rotated file from the old offset whenever the new one was
@@ -1415,8 +1420,6 @@ output and a test idea with it.
 - **`sections/providers/ProvidersPage.tsx:198`** — the AX Engine download uses one busy slot (a string), so a
   second row's click re-enables the first while its request is in flight; the MCP dropdown in the same tree
   already uses a set.
-- **`multirun/MultiRunFusionDialog.tsx:165`** — fusion silently drops listed sources whose last assistant
-  message has no text, while the dialog keeps showing them, so the payload and the count diverge.
 - **`multirun/MultiRunLauncher`** — the launcher's `@` mentions resolve against the open session rather than
   the selected project.
 - **`cli.js:1092-1110`** — `startup enable` on Windows hands `schtasks /TR` a string well over its 261
@@ -3671,7 +3674,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   electron 600, ui 2 978, web 1 325 (+2 skipped), 0 `FAIL` lines. The run before it failed one web test
   (`terminal/runtime.test.js` > "keeps the cap when the replaced session leaves on its own during the spawn"),
   which passes alone (25 tests) and passed in this run: a timing flake of the shape this record already notes,
-  not a regression from the change under test.
+  not a regression from the change under test. The run after that failed a different web test
+  (`ax-code/plugin-routes.test.js` > "GET /registry forwards refresh true to npm lookup"), which also passes alone
+  (30 tests): two different files in two consecutive full runs, so the flake is not one test's.
 - Latest full run, after the three carried-forward fixes (`1a6f6118`, `5649bb29`, `9f5dda5c`) and the test
   robustness change (`1efed504`): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600,
