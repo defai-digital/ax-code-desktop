@@ -4283,9 +4283,10 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
-- Latest full runs, in the forty-first round, after `590b6057` and `b81ffddb`: two consecutive `pnpm run test` runs
-  green — root scripts 185 (+6 skipped), electron 600, ui 3 069, web 1 357 (+2 skipped) — with `typecheck`, `lint`,
-  `check:boundaries` and `check:locales` at 0. The serialized run takes 63 s, against 65–70 s for the concurrent one.
+- Latest full runs, in the forty-first round, after `590b6057` and `b81ffddb`: three consecutive `pnpm run test`
+  runs green — root scripts 185 (+6 skipped), electron 600, ui 3 069, web 1 357 (+2 skipped) — with `typecheck`,
+  `lint`, `check:boundaries` and `check:locales` at 0. The serialized run takes 61–63 s, against 65–70 s for the
+  concurrent one; CI calls the same `pnpm run test`, so the runner change applies there too.
 - Latest full run, in the forty-first round, after `4672d23f` and `5b2af01a`: `pnpm run typecheck` 0,
   `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts
   185 (+6 skipped), electron 600, ui 3 069, web 1 353 (+2 skipped), 0 `FAIL` lines.
