@@ -23,6 +23,7 @@ vi.mock("child_process", async (importOriginal) => {
 
 import { isModuleCliExecution, normalizeCliEntryPath } from "./cli-entry.js"
 import {
+  assertRestartCanCarryPassword,
   buildTunnelServeOptions,
   commands,
   parseArgs,
@@ -184,6 +185,25 @@ describe("startup quoting", () => {
       } catch {}
       fs.rmSync(fixtureDir, { recursive: true, force: true })
     }
+  })
+
+  it("refuses to restart an instance whose record is missing and gives it no password", () => {
+    // The record is what says whether the instance it replaces had a password. Without it the restarted server
+    // came up unprotected on a port that may have had one — silently, and especially in quiet mode.
+    const base = { port: 3999, storedOptions: null, explicitUiPassword: false, uiPassword: undefined, envPassword: undefined }
+
+    expect(() => assertRestartCanCarryPassword(base)).toThrow(/instance record is missing/)
+
+    // Any of the three sources of a password is enough to carry one over.
+    expect(() => assertRestartCanCarryPassword({ ...base, storedOptions: { port: 3999 } })).not.toThrow()
+    expect(() =>
+      assertRestartCanCarryPassword({ ...base, explicitUiPassword: true, uiPassword: "s3cret" }),
+    ).not.toThrow()
+    expect(() => assertRestartCanCarryPassword({ ...base, envPassword: "s3cret" })).not.toThrow()
+    // An instance that deliberately had no password has a record saying so, and still restarts.
+    expect(() =>
+      assertRestartCanCarryPassword({ ...base, storedOptions: { port: 3999, hasUiPassword: false } }),
+    ).not.toThrow()
   })
 
   it("escapes Windows task command arguments", () => {

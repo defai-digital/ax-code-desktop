@@ -1192,6 +1192,22 @@ function removePidFile(pidFilePath) {
   } catch {}
 }
 
+/**
+ * A restart replaces the instance it stopped, and this command only knows the password the instance had from its
+ * record (or from the flags and environment it was given). With no record and neither of those, the restarted
+ * server comes up unprotected on a port that may have had a password — silently, in quiet mode especially. The
+ * caller answers the throw by passing the password.
+ */
+function assertRestartCanCarryPassword({ port, storedOptions, explicitUiPassword, uiPassword, envPassword }) {
+  if (storedOptions) return
+  if (explicitUiPassword && hasUiPasswordConfigured(uiPassword)) return
+  if (hasUiPasswordConfigured(envPassword)) return
+  throw new Error(
+    `Cannot restart port ${port}: its instance record is missing, so there is no UI password to carry over. ` +
+      `Pass --ui-password (or set AX_CODE_DESKTOP_UI_PASSWORD) to restart it protected.`,
+  )
+}
+
 function readInstanceOptions(instanceFilePath) {
   try {
     return JSON.parse(fs.readFileSync(instanceFilePath, "utf8"))
@@ -2235,7 +2251,15 @@ const commands = {
     }
 
     for (const instance of runningInstances) {
-      const storedOptions = readInstanceOptions(instance.instanceFilePath) || { port: instance.port }
+      const storedOptions = readInstanceOptions(instance.instanceFilePath)
+      assertRestartCanCarryPassword({
+        port: instance.port,
+        storedOptions,
+        explicitUiPassword: options.explicitUiPassword,
+        uiPassword: options.uiPassword,
+        envPassword: process.env.AX_CODE_DESKTOP_UI_PASSWORD || process.env.AX_CODE_UI_PASSWORD,
+      })
+      const restartOptions = storedOptions || { port: instance.port }
       const launchMode = instance.launchMode || "daemon"
       const isForeground = launchMode === "foreground"
 
@@ -2278,9 +2302,9 @@ const commands = {
 
         const restartedPort = await this.serve({
           port: restartPort,
-          host: storedOptions.host,
+          host: restartOptions.host,
           explicitPort: true,
-          uiPassword: options.explicitUiPassword ? options.uiPassword : storedOptions.uiPassword,
+          uiPassword: options.explicitUiPassword ? options.uiPassword : restartOptions.uiPassword,
           suppressStartupSummary: true,
           quiet: true,
           suppressUiPasswordWarning: true,
@@ -2937,6 +2961,7 @@ if (isCliExecution) {
 export {
   commands,
   parseArgs,
+  assertRestartCanCarryPassword,
   terminateProcessTree,
   hasUiPasswordConfigured,
   readDesktopLocalPortFromSettings,
