@@ -17,7 +17,9 @@ export function sanitizeForSummary(text) {
     .replace(/^\s*[$#>]\s*/gm, "")
     .replace(/[|&;<>]/g, " ")
     .replace(/\\/g, "")
-    .replace(/https?:\/\/[^\s]+/g, " a link ")
+    // Any scheme, not just http(s): the path pass below accepts a colon before the slash, so `ssh://git@host/r`
+    // otherwise lost `//git` and kept a scheme-shaped remnant.
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s]+/gi, " a link ")
     // The path pass runs before the brackets go, and lets the punctuation that can precede a path stand in for the
     // word boundary: `[label](/etc)` and `file:/etc` are paths even though no whitespace comes before the slash.
     // Inside a word a slash is not a path — `either/or` and `TCP/IP` keep both halves — so a word character before

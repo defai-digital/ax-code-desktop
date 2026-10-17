@@ -2360,8 +2360,13 @@ const commands = {
           host: restartOptions.host,
           explicitPort: true,
           // The record's password, or the environment one the guard accepted: without the fallback the restarted
-          // instance is protected only by the inherited environment and records `hasUiPassword: false`.
-          uiPassword: options.explicitUiPassword ? options.uiPassword : (restartOptions.uiPassword ?? envPassword),
+          // instance is protected only by the inherited environment and records `hasUiPassword: false`. The record
+          // is judged by the same `hasUiPasswordConfigured` the server uses, so a blank stored value falls through.
+          uiPassword: options.explicitUiPassword
+            ? options.uiPassword
+            : hasUiPasswordConfigured(restartOptions.uiPassword)
+              ? restartOptions.uiPassword
+              : envPassword,
           suppressStartupSummary: true,
           quiet: true,
           suppressUiPasswordWarning: true,

@@ -22,6 +22,13 @@ describe("text summarization stubs", () => {
     expect(sanitizeForSummary("Read a[0] here")).toBe("Read a0 here")
   })
 
+  it("treats a non-http scheme URL as one link", () => {
+    // The path pass accepts a colon before the slash, so `ssh://git@host/repo.git` lost `//git` and kept a
+    // scheme-shaped remnant. Only the http(s) form was rewritten as a link.
+    expect(sanitizeForSummary("clone ssh://git@host/repo.git now")).toBe("clone a link now")
+    expect(sanitizeForSummary("open file:///tmp/report now")).toBe("open a link now")
+  })
+
   it("removes code from summary text before stripping markdown punctuation", () => {
     expect(sanitizeForSummary("Read `const value = 1` aloud")).toBe("Read aloud")
     expect(sanitizeForSummary("Before\n```js\nconst value = 1\n```\nAfter")).toBe("Before After")

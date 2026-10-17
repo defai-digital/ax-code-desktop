@@ -65,7 +65,15 @@ const NotificationEntry: React.FC<{
         return
       }
       answersInFlight.delete(answerKey)
-      onRemove(item.id)
+      // The watcher can hold two notifications for one request (a re-mirror with a fresh id). Removing only the
+      // entry that answered would leave the other answerable once its claim subscription re-enables it.
+      if (item.requestId) {
+        for (const sibling of useNotificationStore.getState().notifications) {
+          if (sibling.requestId === item.requestId) onRemove(sibling.id)
+        }
+      } else {
+        onRemove(item.id)
+      }
     },
     [answerKey, item.id, onRemove],
   )

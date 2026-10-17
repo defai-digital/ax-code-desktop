@@ -186,7 +186,17 @@ describe("NotificationCenter permission entry", () => {
 
     expect(onAllow).toHaveBeenCalledTimes(1)
     expect(onDeny).not.toHaveBeenCalled()
-    releaseReply()
+
+    // Once the answer lands, no notification for that request stays answerable: the surviving mirror would
+    // otherwise re-enable its buttons and send a second answer for a request already settled.
+    await act(async () => {
+      releaseReply()
+    })
+    await act(async () => {})
+
+    expect(useNotificationStore.getState().notifications).toHaveLength(0)
+    await click(dict["notificationCenter.deny"])
+    expect(onDeny).not.toHaveBeenCalled()
   })
 
   test("removes the entry once the answer landed", async () => {

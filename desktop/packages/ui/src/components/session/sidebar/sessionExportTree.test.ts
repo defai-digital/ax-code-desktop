@@ -57,6 +57,28 @@ describe("session export tree", () => {
     expect(resolveSessionExportTree(tree, session("root", null))).toBe(tree)
   })
 
+  test("resolves an archived session's archived subtasks from the archived bucket", () => {
+    // The project tree nests children of the same archived state; the fix read only activeSessions, so an archived
+    // root exported from a flat row came back with no subtasks at all.
+    const archivedRoot = session("archived-root", null, true)
+    const archivedChild = session("archived-child", "archived-root", true)
+    useGlobalSessionsStore.setState({ activeSessions: [], archivedSessions: [archivedRoot, archivedChild] })
+
+    const tree = resolveSessionExportTree(nodeFor(archivedRoot), archivedRoot)
+
+    expect(tree.children.map((child) => child.session.id)).toEqual(["archived-child"])
+  })
+
+  test("exports a duplicated cache entry once", () => {
+    useGlobalSessionsStore.setState({
+      activeSessions: [session("root", null), session("child", "root"), session("child", "root")],
+    })
+
+    const tree = buildActiveSessionTree(useGlobalSessionsStore.getState().activeSessions, session("root", null))
+
+    expect(tree.children.map((child) => child.session.id)).toEqual(["child"])
+  })
+
   test("stops on a parent cycle instead of recursing forever", () => {
     // The cache is merged from snapshots and is not guaranteed to be acyclic; the project tree builder would recurse
     // just as far, but the export path must not take the click handler down with it.

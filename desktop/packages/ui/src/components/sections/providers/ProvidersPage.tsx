@@ -706,9 +706,11 @@ export const ProvidersPage: React.FC = () => {
           scopes: ["providers"],
           mode: "active",
         })
-        // The reload refreshes every project's list, but it can also return with a refresh that failed quietly.
-        // Reading the active project back is cheap and keeps the page populated.
-        await loadProviders({ directory })
+        // The reload refreshes every project's list itself; a second unconditional read here doubled a retrying
+        // fetch. Only an empty list means that refresh failed quietly, so read back in that case.
+        if (useConfigStore.getState().providers.length === 0) {
+          await loadProviders({ directory })
+        }
         toast.success(t("settings.providers.page.toast.oauthCompleted"))
       } catch (reloadError) {
         console.error("OAuth completed, but AX Code reload failed:", reloadError)

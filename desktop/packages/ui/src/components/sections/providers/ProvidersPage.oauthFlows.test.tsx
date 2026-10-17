@@ -189,4 +189,22 @@ describe("ProvidersPage OAuth flows", () => {
     expect(loadProviders).toHaveBeenCalled()
     expect(toastWarning).toHaveBeenCalled()
   })
+
+  test("does not refetch providers after a reload that refreshed them", async () => {
+    // The reload already loads the providers for the active directory; fetching them again afterwards doubles a
+    // retrying read and keeps the Complete button disabled through both.
+    await renderPage()
+    await revealAuthPanel()
+    await act(async () => {
+      connectButtons()[0].click()
+    })
+
+    const complete = buttonByText(dict["settings.providers.page.actions.complete"])
+    await act(async () => {
+      complete?.click()
+    })
+
+    expect(reloadAxCodeConfiguration).toHaveBeenCalledTimes(1)
+    expect(loadProviders).not.toHaveBeenCalled()
+  })
 })

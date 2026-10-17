@@ -402,6 +402,49 @@ describe("tunnel args", () => {
     }
   })
 
+  it("prefers the environment password over an empty stored one", async () => {
+    // The record can hold a password the server treats as unset (empty or whitespace). `??` kept it, so serve
+    // started unprotected while `hasUiPassword` said otherwise, and the environment password was ignored.
+    const fsImpl = await import("node:fs")
+    const os = await import("node:os")
+    const nodePath = await import("node:path")
+    const dataDir = fsImpl.mkdtempSync(nodePath.join(os.tmpdir(), "ax-code-restart-empty-"))
+    const originalDataDir = process.env.AX_CODE_DESKTOP_DATA_DIR
+    const originalEnvPassword = process.env.AX_CODE_DESKTOP_UI_PASSWORD
+    process.env.AX_CODE_DESKTOP_DATA_DIR = dataDir
+    process.env.AX_CODE_DESKTOP_UI_PASSWORD = "env-secret"
+    const runDir = nodePath.join(dataDir, "run")
+    fsImpl.mkdirSync(runDir, { recursive: true })
+    fsImpl.writeFileSync(nodePath.join(runDir, "ax-code-desktop-3100.pid"), String(process.pid))
+    fsImpl.writeFileSync(
+      nodePath.join(runDir, "ax-code-desktop-3100.json"),
+      JSON.stringify({ port: 3100, launchMode: "daemon", uiPassword: "", hasUiPassword: true }),
+    )
+
+    const originalStop = commands.stop
+    const originalServe = commands.serve
+    let served
+    commands.stop = async () => {}
+    commands.serve = async (options) => {
+      served = options
+      return 3100
+    }
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true)
+    try {
+      await commands.restart({ json: true })
+      expect(served?.uiPassword).toBe("env-secret")
+    } finally {
+      commands.stop = originalStop
+      commands.serve = originalServe
+      stdoutWrite.mockRestore()
+      if (originalDataDir === undefined) delete process.env.AX_CODE_DESKTOP_DATA_DIR
+      else process.env.AX_CODE_DESKTOP_DATA_DIR = originalDataDir
+      if (originalEnvPassword === undefined) delete process.env.AX_CODE_DESKTOP_UI_PASSWORD
+      else process.env.AX_CODE_DESKTOP_UI_PASSWORD = originalEnvPassword
+      fsImpl.rmSync(dataDir, { recursive: true, force: true })
+    }
+  })
+
   it("removes the startup env file when the integration is disabled", async () => {
     // The file holds the UI password and a snapshot of the environment (API keys included), and only the
     // macOS *enable* path ever removed it: a disabled integration left those credentials on disk.
