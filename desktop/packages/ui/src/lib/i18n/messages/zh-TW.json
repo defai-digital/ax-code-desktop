@@ -4852,5 +4852,7 @@
   "settings.hooks.packs.description": "\u5957\u4ef6\u7531 .ax-code/hooks.json \u7684 \"packs\" \u6b04\u4f4d\u555f\u7528\u3002",
   "settings.hooks.packs.empty": "\u6c92\u6709\u56de\u5831\u5167\u5efa\u5957\u4ef6\u3002",
   "settings.hooks.packs.enabled": "\u5df2\u555f\u7528",
-  "settings.hooks.packs.disabled": "\u5df2\u505c\u7528"
+  "settings.hooks.packs.disabled": "\u5df2\u505c\u7528",
+  "settings.mcp.page.status.label.needsTrust": "\u9700\u8981\u4fe1\u4efb",
+  "settings.mcp.page.status.description.needsTrust": "\u9019\u500b\u4f3a\u670d\u5668\u4f86\u81ea\u5c08\u6848\u8a2d\u5b9a\uff0c\u53ef\u4ee5\u57f7\u884c\u4efb\u4f55\u6307\u4ee4\uff0c\u56e0\u6b64\u5728\u4f60\u4fe1\u4efb\u5b83\u4e4b\u524d AX Code \u4e0d\u6703\u555f\u52d5\u5b83\u3002\u8acb\u5148\u6aa2\u67e5\uff0c\u518d\u65bc\u5c08\u6848\u8cc7\u6599\u593e\u57f7\u884c `ax-code mcp trust {name}`\uff0c\u7136\u5f8c\u91cd\u65b0\u8f09\u5165 AX Code\u3002"
 }

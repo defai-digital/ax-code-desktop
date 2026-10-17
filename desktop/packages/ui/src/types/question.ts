@@ -8,6 +8,8 @@ export interface QuestionInfo {
   header: string
   options: QuestionOption[]
   multiple?: boolean
+  /** False when only the listed options are valid (default true): the card offers no typed answer. */
+  custom?: boolean
 }
 
 export interface QuestionRequest {

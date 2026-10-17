@@ -111,6 +111,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question }) => {
   )
 
   const isMultiple = Boolean(activeQuestion?.multiple)
+  // MCP form elicitation (AX Code ADR-204) sends enum and boolean fields with custom: false;
+  // a typed answer would be a value the server never offered.
+  const allowsCustom = activeQuestion?.custom !== false
   const selectedForActive = selectedOptions[activeIndex] ?? []
   const isCustomActive = Boolean(customMode[activeIndex])
 
@@ -481,64 +484,68 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question }) => {
                     )
                   })}
 
-                  {/* Custom answer option */}
-                  <button
-                    type="button"
-                    onClick={handleSelectCustom}
-                    disabled={isResponding}
-                    className={cn(
-                      "w-full px-1.5 py-1 text-left rounded transition-colors",
-                      "hover:bg-interactive-hover/30",
-                      isCustomActive ? "bg-interactive-selection/20" : null,
-                      isResponding ? "opacity-60 cursor-not-allowed" : null,
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon
-                        name="edit"
-                        className={cn("h-3.5 w-3.5", isCustomActive ? "text-primary" : "text-muted-foreground")}
-                      />
-                      <span
+                  {allowsCustom ? (
+                    <>
+                      {/* Custom answer option */}
+                      <button
+                        type="button"
+                        onClick={handleSelectCustom}
+                        disabled={isResponding}
                         className={cn(
-                          "typography-meta",
-                          isCustomActive ? "text-foreground font-medium" : "text-muted-foreground",
+                          "w-full px-1.5 py-1 text-left rounded transition-colors",
+                          "hover:bg-interactive-hover/30",
+                          isCustomActive ? "bg-interactive-selection/20" : null,
+                          isResponding ? "opacity-60 cursor-not-allowed" : null,
                         )}
                       >
-                        {t("chat.questionCard.other")}
-                      </span>
-                    </div>
-                  </button>
+                        <div className="flex items-center gap-2">
+                          <Icon
+                            name="edit"
+                            className={cn("h-3.5 w-3.5", isCustomActive ? "text-primary" : "text-muted-foreground")}
+                          />
+                          <span
+                            className={cn(
+                              "typography-meta",
+                              isCustomActive ? "text-foreground font-medium" : "text-muted-foreground",
+                            )}
+                          >
+                            {t("chat.questionCard.other")}
+                          </span>
+                        </div>
+                      </button>
 
-                  {isCustomActive ? (
-                    <div className="pl-6 pr-1 pt-0.5">
-                      <textarea
-                        ref={(el) => {
-                          if (el) {
-                            el.style.height = "auto"
-                            const lineHeight = 20 // approx typography-meta line height
-                            const minHeight = lineHeight * 2
-                            const maxHeight = lineHeight * 4
-                            el.style.height = `${Math.min(Math.max(el.scrollHeight, minHeight), maxHeight)}px`
-                          }
-                        }}
-                        value={customText[activeIndex] ?? ""}
-                        onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => {
-                          const el = event.target
-                          el.style.height = "auto"
-                          const lineHeight = 20
-                          const minHeight = lineHeight * 2
-                          const maxHeight = lineHeight * 4
-                          el.style.height = `${Math.min(Math.max(el.scrollHeight, minHeight), maxHeight)}px`
-                          setCustomText((prev) => ({ ...prev, [activeIndex]: el.value }))
-                        }}
-                        placeholder={t("chat.questionCard.yourAnswer")}
-                        disabled={isResponding}
-                        rows={2}
-                        onKeyDown={handleKeyDown}
-                        className="w-full bg-transparent border border-border/30 focus:border-primary rounded px-2 py-1 outline-none typography-meta text-foreground placeholder:text-muted-foreground transition-colors resize-none overflow-hidden"
-                        autoFocus
-                      />
-                    </div>
+                      {isCustomActive ? (
+                        <div className="pl-6 pr-1 pt-0.5">
+                          <textarea
+                            ref={(el) => {
+                              if (el) {
+                                el.style.height = "auto"
+                                const lineHeight = 20 // approx typography-meta line height
+                                const minHeight = lineHeight * 2
+                                const maxHeight = lineHeight * 4
+                                el.style.height = `${Math.min(Math.max(el.scrollHeight, minHeight), maxHeight)}px`
+                              }
+                            }}
+                            value={customText[activeIndex] ?? ""}
+                            onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => {
+                              const el = event.target
+                              el.style.height = "auto"
+                              const lineHeight = 20
+                              const minHeight = lineHeight * 2
+                              const maxHeight = lineHeight * 4
+                              el.style.height = `${Math.min(Math.max(el.scrollHeight, minHeight), maxHeight)}px`
+                              setCustomText((prev) => ({ ...prev, [activeIndex]: el.value }))
+                            }}
+                            placeholder={t("chat.questionCard.yourAnswer")}
+                            disabled={isResponding}
+                            rows={2}
+                            onKeyDown={handleKeyDown}
+                            className="w-full bg-transparent border border-border/30 focus:border-primary rounded px-2 py-1 outline-none typography-meta text-foreground placeholder:text-muted-foreground transition-colors resize-none overflow-hidden"
+                            autoFocus
+                          />
+                        </div>
+                      ) : null}
+                    </>
                   ) : null}
                 </div>
               </>

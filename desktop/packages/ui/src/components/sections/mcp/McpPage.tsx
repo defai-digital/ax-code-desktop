@@ -40,6 +40,7 @@ import { startSingleFlightInterval } from "@/lib/singleFlightInterval"
 import { runSettingsDeleteMutation } from "../settingsDeleteMutation"
 import { normalizeMcpServerName } from "./mcpServerName"
 import { revealedRowsAfterRemoval } from "./envRowReveal"
+import { getStatusDescription, shouldShowFullStatusCard, statusCardClass } from "./mcpStatus"
 
 // ─────────────────────────────────────────────────────────────
 // CommandTextarea  — one arg per line, paste-friendly
@@ -443,6 +444,7 @@ const StatusBadge: React.FC<{
     failed: { text: "text-[var(--status-error)]", bg: "bg-[var(--status-error)]/10" },
     needs_auth: { text: "text-[var(--status-warning)]", bg: "bg-[var(--status-warning)]/10" },
     needs_client_registration: { text: "text-[var(--status-warning)]", bg: "bg-[var(--status-warning)]/10" },
+    needs_trust: { text: "text-[var(--status-warning)]", bg: "bg-[var(--status-warning)]/10" },
   }
 
   const colors = colorClassMap[status] ?? { text: "text-muted-foreground", bg: "" }
@@ -456,52 +458,6 @@ const StatusBadge: React.FC<{
   }
 
   return <span className={cn("typography-micro font-medium", colors.text)}>● {getStatusLabel(status)}</span>
-}
-
-const getStatusDescription = (
-  status: string | undefined,
-  t: (key: string, params?: Record<string, unknown>) => string,
-  error?: string,
-): string => {
-  switch (status) {
-    case "connected":
-      return t("settings.mcp.page.status.description.connected")
-    case "failed":
-      return error?.trim() || t("settings.mcp.page.status.description.failedDefault")
-    case "needs_auth":
-      return t("settings.mcp.page.status.description.needsAuth")
-    case "needs_client_registration":
-      return error?.trim() || t("settings.mcp.page.status.description.needsClientRegistrationDefault")
-    case "disabled":
-      return t("settings.mcp.page.status.description.disabled")
-    default:
-      return t("settings.mcp.page.status.description.default")
-  }
-}
-
-const statusCardClass = (status: string | undefined): string => {
-  switch (status) {
-    case "failed":
-      return "border-[var(--status-error-border)] bg-[var(--status-error-background)]"
-    case "needs_auth":
-    case "needs_client_registration":
-      return "border-[var(--status-warning-border)] bg-[var(--status-warning-background)]"
-    default:
-      return "border-[var(--interactive-border)] bg-[var(--surface-elevated)]"
-  }
-}
-
-const shouldShowFullStatusCard = (
-  status: string | undefined,
-  authUrl: string | null,
-  needsAuthorization: boolean,
-  isAuthPolling: boolean,
-): boolean => {
-  // Only show full card for error/warning states or when auth is in progress
-  if (status === "failed" || status === "needs_auth" || status === "needs_client_registration") return true
-  if (authUrl) return true
-  if (needsAuthorization || isAuthPolling) return true
-  return false
 }
 
 const buildMcpOAuthRedirectUri = (name?: string | null, directory?: string | null): string | null => {
@@ -1473,6 +1429,7 @@ export const McpPage: React.FC = () => {
     effectiveRuntimeStatus?.status,
     tUnsafe,
     effectiveRuntimeStatus && "error" in effectiveRuntimeStatus ? effectiveRuntimeStatus.error : undefined,
+    selectedMcpNameKey,
   )
   const getStatusLabel = (status: string) => {
     switch (status) {
@@ -1484,6 +1441,8 @@ export const McpPage: React.FC = () => {
         return t("settings.mcp.page.status.label.needsAuth")
       case "needs_client_registration":
         return t("settings.mcp.page.status.label.needsRegistration")
+      case "needs_trust":
+        return t("settings.mcp.page.status.label.needsTrust")
       default:
         return status
     }

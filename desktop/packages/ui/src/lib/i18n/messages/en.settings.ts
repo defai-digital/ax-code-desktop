@@ -1255,9 +1255,12 @@ export const settingsDict = {
   "settings.mcp.page.status.label.connected": "Connected",
   "settings.mcp.page.status.label.failed": "Failed",
   "settings.mcp.page.status.label.needsAuth": "Needs auth",
+  "settings.mcp.page.status.label.needsTrust": "Needs trust",
   "settings.mcp.page.status.label.needsRegistration": "Needs registration",
   "settings.mcp.page.status.description.connected": "Connected and ready for AX Code to discover tools and resources.",
   "settings.mcp.page.status.description.failedDefault": "AX Code could not reach this MCP server.",
+  "settings.mcp.page.status.description.needsTrust":
+    "This server comes from the project's configuration and can run any command, so AX Code does not start it until you trust it. Review it, then run `ax-code mcp trust {name}` in the project folder and reload AX Code.",
   "settings.mcp.page.status.description.needsAuth":
     "This remote MCP server requires authorization before it can connect.",
   "settings.mcp.page.status.description.needsClientRegistrationDefault":

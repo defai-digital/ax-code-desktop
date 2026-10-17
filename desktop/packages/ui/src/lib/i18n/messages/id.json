@@ -4852,5 +4852,7 @@
   "settings.hooks.packs.description": "Paket diaktifkan dari bidang \"packs\" di .ax-code/hooks.json.",
   "settings.hooks.packs.empty": "Tidak ada paket bawaan yang dilaporkan.",
   "settings.hooks.packs.enabled": "Aktif",
-  "settings.hooks.packs.disabled": "Nonaktif"
+  "settings.hooks.packs.disabled": "Nonaktif",
+  "settings.mcp.page.status.label.needsTrust": "Perlu dipercaya",
+  "settings.mcp.page.status.description.needsTrust": "Server ini berasal dari konfigurasi proyek dan dapat menjalankan perintah apa pun, jadi AX Code tidak memulainya sampai Anda memercayainya. Tinjau, lalu jalankan `ax-code mcp trust {name}` di folder proyek dan muat ulang AX Code."
 }

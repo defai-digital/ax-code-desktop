@@ -4852,5 +4852,7 @@
   "settings.hooks.packs.description": "I pacchetti si abilitano dal campo \"packs\" in .ax-code/hooks.json.",
   "settings.hooks.packs.empty": "Nessun pacchetto integrato segnalato.",
   "settings.hooks.packs.enabled": "Attivato",
-  "settings.hooks.packs.disabled": "Disattivato"
+  "settings.hooks.packs.disabled": "Disattivato",
+  "settings.mcp.page.status.label.needsTrust": "Richiede fiducia",
+  "settings.mcp.page.status.description.needsTrust": "Questo server proviene dalla configurazione del progetto e pu\u00f2 eseguire qualsiasi comando, quindi AX Code non lo avvia finch\u00e9 non lo consideri attendibile. Controllalo, poi esegui `ax-code mcp trust {name}` nella cartella del progetto e ricarica AX Code."
 }

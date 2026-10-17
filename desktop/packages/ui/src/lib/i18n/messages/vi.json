@@ -4852,5 +4852,7 @@
   "settings.hooks.packs.description": "C\u00e1c g\u00f3i \u0111\u01b0\u1ee3c b\u1eadt t\u1eeb tr\u01b0\u1eddng \"packs\" trong .ax-code/hooks.json.",
   "settings.hooks.packs.empty": "Kh\u00f4ng c\u00f3 g\u00f3i t\u00edch h\u1ee3p s\u1eb5n n\u00e0o \u0111\u01b0\u1ee3c b\u00e1o c\u00e1o.",
   "settings.hooks.packs.enabled": "\u0110\u00e3 b\u1eadt",
-  "settings.hooks.packs.disabled": "\u0110\u00e3 t\u1eaft"
+  "settings.hooks.packs.disabled": "\u0110\u00e3 t\u1eaft",
+  "settings.mcp.page.status.label.needsTrust": "C\u1ea7n tin c\u1eady",
+  "settings.mcp.page.status.description.needsTrust": "M\u00e1y ch\u1ee7 n\u00e0y \u0111\u1ebfn t\u1eeb c\u1ea5u h\u00ecnh c\u1ee7a d\u1ef1 \u00e1n v\u00e0 c\u00f3 th\u1ec3 ch\u1ea1y b\u1ea5t k\u1ef3 l\u1ec7nh n\u00e0o, n\u00ean AX Code s\u1ebd kh\u00f4ng kh\u1edfi \u0111\u1ed9ng n\u00f3 cho \u0111\u1ebfn khi b\u1ea1n tin c\u1eady. H\u00e3y xem x\u00e9t, sau \u0111\u00f3 ch\u1ea1y `ax-code mcp trust {name}` trong th\u01b0 m\u1ee5c d\u1ef1 \u00e1n v\u00e0 t\u1ea3i l\u1ea1i AX Code."
 }

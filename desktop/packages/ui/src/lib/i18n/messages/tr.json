@@ -4852,5 +4852,7 @@
   "settings.hooks.packs.description": "Paketler .ax-code/hooks.json i\u00e7indeki \"packs\" alan\u0131ndan etkinle\u015ftirilir.",
   "settings.hooks.packs.empty": "Yerle\u015fik paket bildirilmedi.",
   "settings.hooks.packs.enabled": "Etkin",
-  "settings.hooks.packs.disabled": "Devre d\u0131\u015f\u0131"
+  "settings.hooks.packs.disabled": "Devre d\u0131\u015f\u0131",
+  "settings.mcp.page.status.label.needsTrust": "G\u00fcven gerekli",
+  "settings.mcp.page.status.description.needsTrust": "Bu sunucu projenin yap\u0131land\u0131rmas\u0131ndan gelir ve herhangi bir komutu \u00e7al\u0131\u015ft\u0131rabilir; bu y\u00fczden ona g\u00fcvenene kadar AX Code onu ba\u015flatmaz. \u0130nceleyin, ard\u0131ndan proje klas\u00f6r\u00fcnde `ax-code mcp trust {name}` komutunu \u00e7al\u0131\u015ft\u0131r\u0131n ve AX Code'u yeniden y\u00fckleyin."
 }
