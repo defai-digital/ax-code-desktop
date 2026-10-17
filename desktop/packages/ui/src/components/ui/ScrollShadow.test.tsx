@@ -102,4 +102,49 @@ describe("ScrollShadow", () => {
     expect(el.dataset.bottomScroll).toBeUndefined()
     expect(onVisibilityChange).toHaveBeenLastCalledWith("both")
   })
+
+  test("keeps observing and handling scroll when the host element changes", async () => {
+    const onVisibilityChange = vi.fn()
+    await act(async () => {
+      root.render(<ScrollShadow as="div" onVisibilityChange={onVisibilityChange} />)
+    })
+    await act(async () => {
+      root.render(<ScrollShadow as="section" onVisibilityChange={onVisibilityChange} />)
+    })
+    const el = container.querySelector("section")!
+    setGeometry(el, { scrollTop: 0, scrollHeight: 500, clientHeight: 100 })
+    await act(async () => {
+      el.dispatchEvent(new Event("scroll"))
+    })
+    expect(el.dataset.bottomScroll).toBe("true")
+    expect(onVisibilityChange).toHaveBeenLastCalledWith("bottom")
+
+    setGeometry(el, { scrollTop: 200, scrollHeight: 500, clientHeight: 100 })
+    await act(async () => {
+      el.appendChild(document.createElement("span"))
+      await Promise.resolve()
+    })
+    await flushFrames(5)
+    expect(el.dataset.topBottomScroll).toBe("true")
+    expect(onVisibilityChange).toHaveBeenLastCalledWith("both")
+  })
+
+  test("reports disabled shadows and restores visibility when re-enabled", async () => {
+    const onVisibilityChange = vi.fn()
+    const render = (isEnabled: boolean) =>
+      root.render(<ScrollShadow isEnabled={isEnabled} onVisibilityChange={onVisibilityChange} />)
+    await act(async () => render(true))
+    const el = container.firstElementChild as HTMLElement
+    setGeometry(el, { scrollTop: 200, scrollHeight: 500, clientHeight: 100 })
+    await act(async () => el.dispatchEvent(new Event("scroll")))
+    expect(onVisibilityChange).toHaveBeenLastCalledWith("both")
+    await act(async () => render(false))
+    expect(el.dataset.topBottomScroll).toBeUndefined()
+    expect(onVisibilityChange).toHaveBeenLastCalledWith("none")
+    await act(async () => render(true))
+    expect(el.dataset.topBottomScroll).toBe("true")
+    expect(onVisibilityChange.mock.calls.map(([state]) => state)).toEqual(["both", "none", "both"])
+    await flushFrames(10)
+    expect(frameCallbacks).toHaveLength(0)
+  })
 })

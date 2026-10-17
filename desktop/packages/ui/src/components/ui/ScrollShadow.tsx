@@ -96,6 +96,10 @@ export const ScrollShadow = React.forwardRef<HTMLElement, ScrollShadowProps>(
 
       if (!isEnabled) {
         clearAttributes(el)
+        if (visibleRef.current !== "none") {
+          visibleRef.current = "none"
+          onVisibilityChange?.("none")
+        }
         return
       }
 
@@ -189,7 +193,7 @@ export const ScrollShadow = React.forwardRef<HTMLElement, ScrollShadowProps>(
         resizeObserver?.disconnect()
         mutationObserver?.disconnect()
       }
-    }, [checkOverflow, observeMutations])
+    }, [Component, checkOverflow, observeMutations])
 
     return (
       <Component
