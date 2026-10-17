@@ -1391,6 +1391,11 @@ least (MCP, providers, multirun, auth, supervision, notifications) plus `server/
   that record was missing, so the running instance was stopped and replaced by one with no UI password on a port
   that may have had one. The rule is explicit and exported now: the record, an explicit `--ui-password`, or the
   environment carries it, and with none of them the command refuses and says how to proceed.
+- **`fcb5c94d`** — the multi-run launcher's `@` mentions resolved through `useChatSearchDirectory`, which answers
+  with the app's current chat directory: a run started from the launcher proposed files from whatever session the
+  chat happened to show, not from the project it has selected. `FileMentionAutocomplete` takes the directory its
+  caller names now (defaulting to the hook), and the launcher passes its selected project down through the
+  run-group card that renders each prompt.
 - **`03b334f6`** — the container entrypoint passed `--ui-password <secret>`, putting the UI password in the process
   argv where every process in the container can read it with `ps`; it is exported as
   `AX_CODE_DESKTOP_UI_PASSWORD` now, which the CLI reads and which the terminal a user opens drops before the shell
@@ -1424,8 +1429,6 @@ output and a test idea with it.
 - **`sections/providers/ProvidersPage.tsx:198`** — the AX Engine download uses one busy slot (a string), so a
   second row's click re-enables the first while its request is in flight; the MCP dropdown in the same tree
   already uses a set.
-- **`multirun/MultiRunLauncher`** — the launcher's `@` mentions resolve against the open session rather than
-  the selected project.
 - **`cli.js:1092-1110`** — `startup enable` on Windows hands `schtasks /TR` a string well over its 261
   character limit (the fixed env-file parsing block alone is ~300), which cannot be verified here and needs a
   task-XML registration or a launcher script.
@@ -3673,6 +3676,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, after the sixth carried-forward fix (`fcb5c94d`): `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
+  electron 600, ui 2 979, web 1 325 (+2 skipped), 0 `FAIL` lines.
 - Latest full run, after the fifth carried-forward fix (`03b334f6`) and its test update (`06873447`):
   `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 978, web 1 325 (+2 skipped),
