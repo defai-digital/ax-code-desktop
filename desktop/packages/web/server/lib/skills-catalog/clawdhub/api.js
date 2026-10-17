@@ -8,6 +8,11 @@
 const CLAWDHUB_API_BASE = "https://clawdhub.com/api/v1"
 const CLAWDHUB_PAGE_LIMIT = 25
 
+// Every other external call in this tree is bounded (`git.js` time-boxes each subprocess): a registry that accepts
+// the connection and never answers used to hold the catalog request, and the install behind it, for undici's own
+// headers timeout (~300s). This is the bound, and a caller may pass its own signal instead.
+export const CLAWDHUB_FETCH_TIMEOUT_MS = 20_000
+
 // Rate limiting: ClawdHub allows 120 requests/minute
 const RATE_LIMIT_DELAY_MS = 100
 let lastRequestTime = 0
@@ -27,6 +32,7 @@ async function rateLimitedFetch(url, options = {}) {
 
     const response = await fetch(url, {
       ...options,
+      signal: options.signal ?? AbortSignal.timeout(CLAWDHUB_FETCH_TIMEOUT_MS),
       headers: {
         Accept: "application/json",
         "User-Agent": "OpenChamber/1.0",

@@ -4,6 +4,7 @@ const {
   downloadClawdHubSkill,
   fetchClawdHubSkills,
   readBodyWithinLimit,
+  CLAWDHUB_FETCH_TIMEOUT_MS,
   MAX_SKILL_ARCHIVE_BYTES,
 } = await import("./api.js")
 
@@ -121,5 +122,37 @@ describe("clawdhub retry bodies", () => {
 
     expect(result.items).toEqual([{ slug: "review-code" }])
     expect(cancelled).toEqual([1])
+  })
+})
+
+describe("clawdhub request timeout", () => {
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  test("bounds the registry fetch and the download behind it", async () => {
+    // Without one the request waited on undici's own ~300s headers timeout, so one wedged or blackholed registry
+    // hung the catalog page — and an install behind it — for minutes. Every other external call in this tree is
+    // time-boxed; this fetch was not. The abort itself is undici's: what this module has to do is hand it a signal
+    // and let its rejection through, which is what the two calls below pin.
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ items: [], nextCursor: null }), { status: 200 }))
+    globalThis.fetch = fetchMock
+
+    await fetchClawdHubSkills({ cursor: null })
+
+    const options = fetchMock.mock.calls[0]?.[1]
+    expect(options?.signal).toBeInstanceOf(AbortSignal)
+    expect(options.signal.aborted).toBe(false)
+    expect(CLAWDHUB_FETCH_TIMEOUT_MS).toBeGreaterThan(0)
+    expect(CLAWDHUB_FETCH_TIMEOUT_MS).toBeLessThanOrEqual(60_000)
+
+    // The download path is bounded the same way.
+    globalThis.fetch = vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
+    await downloadClawdHubSkill("review-code", "1.0.0")
+
+    const downloadOptions = globalThis.fetch.mock.calls[0]?.[1]
+    expect(downloadOptions?.signal).toBeInstanceOf(AbortSignal)
   })
 })
