@@ -1305,6 +1305,46 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Fortieth round
+
+An audit of the injected preview bridge (`proxy-runtime.js`, Claude Code CLI). It found that the thirty-ninth
+round's change was wrong and that three request patches had the same "URL shape we did not think of" hole; four
+defects are fixed in `66883ff4`, and one suspected item is left unverified.
+
+### Fixed — `66883ff4`
+
+- **The WeakRef listener change was reverted.** The platform keeps a `MediaQueryList` alive while it has listeners,
+  so `matchMedia(...).addEventListener(...)` without keeping a reference must keep working; holding the list weakly
+  let a collection silently stop the callback, which a page cannot observe or fix. The bridge holds it strongly
+  again, and the red light is inverted: a `WeakRef` stub that reports every list collected still notifies the
+  fire-and-forget listener, which the weak implementation did not.
+- **The patched `addEventListener` ignored its options.** `{ once: true }` kept firing and `{ signal }` did not
+  remove the listener on abort, so a React effect's `AbortController` cleanup left the callback running. Both are
+  honored now. Red: `[false, true]` for `once`; a listener fired after `abort()`.
+- **`XMLHttpRequest.open` with a URL object was not proxied** and reached the Desktop server, the same class as the
+  fetch URL-object fix. Red: the spy received the absolute Desktop URL.
+- **`WebSocket` with a relative or http(s) URL was not proxied**, so the socket connected to the Desktop server's
+  own `/ws`. Both are valid WebSocket inputs (the platform upgrades the scheme). Red: `/ws` passed through.
+- **The fetch `Request` branch never worked.** It built `new Request(proxyBase + path, …)` from a relative base,
+  which throws because `Request` needs an absolute URL; the catch fell back to the unproxied request. Rebuilding a
+  body-carrying request from the original as init also throws without `duplex: 'half'`. Both are fixed, caller
+  `init` overrides are preserved, and the body survives. Red: the native fetch received the original Request for a
+  GET and for a POST with a body.
+
+### Examined and not fixed
+
+- **`mql.onchange` and `mql.dispatchEvent` on the `Object.create(nativeMql)` wrapper.** The wrapper inherits the
+  native accessors/methods, which brand-check their receiver; assigning `onchange` or calling `dispatchEvent` may
+  throw `Illegal invocation`. Reported as SUSPECTED and not reproducible in jsdom (no `MediaQueryList`), and it
+  predates this series. Recorded rather than guessed at.
+
+### The thirty-ninth round's entry, corrected
+
+That round recorded the strong set as a leak and the weak entry as its fix. The audit showed the opposite: a
+listener that is still registered keeps its list alive in the platform, and dropping the callback on collection
+changes observable behaviour. The set's growth is the page's own unremoved listeners, exactly as in a normal
+browser.
+
 ## Thirty-ninth round
 
 The last item on the deferred list that was a confirmed defect rather than a platform or product decision: the
@@ -1321,8 +1361,7 @@ the life of the preview.
   while the list is live, marks it dead and notifies again — the live list sees the change, the dead one does not.
   Red: the second dispatch appended `true` after the list was marked dead.
 
-With this, the deferred list holds only the Windows `schtasks` limit (not verifiable here) and the password-at-rest
-policy question.
+*Correction: this round's change was reverted in the fortieth round; see that entry.*
 
 ## Thirty-eighth round
 
@@ -1909,12 +1948,13 @@ written here with the shape of the fix so they can be taken up rather than redis
   starting without input, and dropping the instance copy would make `restart` require the flag — which
   `9f5dda5c` now does explicitly when the record is missing.
 
-Two items stood here and have since been fixed. `sanitizeForSummary`'s pattern deleted the second half of
-`either/or` and `TCP/IP`; it was fixed in `f9d0f2e2` (a slash-run is a path only at a word boundary) and again in
-`63b647ef` (punctuation becomes a space, so `[docs](/etc/hosts)` and `file:/etc/hosts` no longer leak through). The
-preview bridge's `matchMedia` listener leak was fixed in `adc973ce` (a weak reference per entry, pruned while
-notifying) with the red light the old entry said was impossible: a stubbed `WeakRef` in jsdom makes a dead entry
-deterministic. Both stay named so the old entries are not rediscovered as new.
+Two entries stood here and have since been resolved, both by correction rather than by the fix the entry proposed.
+`sanitizeForSummary`'s pattern deleted the second half of `either/or` and `TCP/IP`; it was fixed in `f9d0f2e2` (a
+slash-run is a path only at a word boundary) and again in `63b647ef` (punctuation becomes a space, so
+`[docs](/etc/hosts)` and `file:/etc/hosts` no longer leak through). The preview bridge's `matchMedia` "leak" was not
+one: the platform keeps a list alive while it has listeners, so the strong entry was correct, and the weak entry
+briefly added in `adc973ce` was reverted in `66883ff4` after it silently stopped fire-and-forget listeners. Both
+stay named so the old entries are not rediscovered as new.
 
 ## Twenty-ninth round
 
@@ -4156,6 +4196,10 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the fortieth round, after `66883ff4`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
+  electron 600, ui 3 069, web 1 346 (+2 skipped), 0 `FAIL` lines. UI and locale counts include the concurrent
+  writer's files; the SDK pin had moved to 2.6.26/7.26.4 by then and every gate still passed.
 - Latest full run, in the thirty-ninth round, after `adc973ce`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
   electron 600, ui 3 064, web 1 341 (+2 skipped), 0 `FAIL` lines. The UI count is higher than the previous run
