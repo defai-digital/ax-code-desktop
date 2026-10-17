@@ -356,7 +356,7 @@ export const createScheduledTaskConvergence = (deps) => {
       // What this project still has to hand over: set inside the `try` and corrected by the `catch`, then counted
       // once — counting inside the `try` as well made a project that failed on its file write report its tasks
       // twice.
-      let projectRemaining = tasks
+      let projectRemaining
       try {
         for (const task of tasks) {
           const outcome = await migrateTask({ projectID, projectPath, task, existingByTitle, now })

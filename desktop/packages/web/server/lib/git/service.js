@@ -121,7 +121,9 @@ const isSafeSimpleGitBinary = (candidate) =>
   typeof candidate === "string" && SIMPLE_GIT_SAFE_BINARY_PATTERN.test(candidate)
 
 const isGuardedSimpleGitEnvKey = (key) => {
-  const normalized = String(key || "").toLowerCase().trim()
+  const normalized = String(key || "")
+    .toLowerCase()
+    .trim()
   if (!normalized || SIMPLE_GIT_ALLOWED_ENV_KEY_SET.has(normalized)) {
     return false
   }
@@ -514,10 +516,33 @@ const resolveGitInternalPath = async (repoRoot, git, gitPath) => {
     ? path.resolve(repoRoot, gitDirRaw.trim())
     : resolveRepositoryFilePath(repoRoot, ".git")
 
-  if (!isInsideOrSameDirectory(gitDir, absolutePath)) {
+  const relative = path.relative(gitDir, absolutePath)
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
     throw new Error(`Git internal path is outside git directory: ${gitPath}`)
   }
-  return absolutePath
+  // Git metadata can contain symlinks. Check the filesystem target as well as
+  // the lexical path before reading state or removing operation directories.
+  const canonicalGitDir = await fsp.realpath(gitDir)
+  let canonicalPath
+  try {
+    canonicalPath = await fsp.realpath(absolutePath)
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error
+    // State files may not exist. Resolve the parent so a dangling final link
+    // cannot redirect a later write or removal outside the metadata directory.
+    const entry = await fsp.lstat(absolutePath).catch((failure) => {
+      if (failure?.code !== "ENOENT") throw failure
+      return null
+    })
+    if (entry?.isSymbolicLink()) throw new Error("Git state path is a dangling symlink")
+    const parent = await fsp.realpath(path.dirname(absolutePath))
+    canonicalPath = path.join(parent, path.basename(absolutePath))
+  }
+  const canonicalRelative = path.relative(canonicalGitDir, canonicalPath)
+  if (canonicalRelative.startsWith("..") || path.isAbsolute(canonicalRelative)) {
+    throw new Error(`Git state symlink is outside git directory: ${gitPath}`)
+  }
+  return canonicalPath
 }
 
 const readGitInternalText = async (repoRoot, git, gitPath) => {
@@ -1375,8 +1400,7 @@ const syncProjectSandboxRemove = async (projectID, primaryWorktree, sandboxPath)
 }
 
 const runWorktreeStartScripts = async (directory, projectID, startCommand, readProjectStartCommand) => {
-  const projectStart =
-    typeof readProjectStartCommand === "function" ? await readProjectStartCommand(projectID) : ""
+  const projectStart = typeof readProjectStartCommand === "function" ? await readProjectStartCommand(projectID) : ""
   if (projectStart) {
     const projectResult = await runWorktreeStartCommand(directory, projectStart)
     if (!projectResult.success) {
@@ -1414,8 +1438,7 @@ const queueWorktreeBootstrap = (args) => {
   } = args
   const bootstrapKey = toBootstrapStateKey(directory)
   const generation = bootstrapKey ? worktreeBootstrapGenerations.start(bootstrapKey) : 0
-  const isCurrentBootstrap = () =>
-    !bootstrapKey || worktreeBootstrapGenerations.isCurrent(bootstrapKey, generation)
+  const isCurrentBootstrap = () => !bootstrapKey || worktreeBootstrapGenerations.isCurrent(bootstrapKey, generation)
   setTimeout(() => {
     if (!isCurrentBootstrap()) {
       return
@@ -2961,9 +2984,7 @@ const readStagedIndexEntries = async (git, paths) => {
     // A staged deletion has no index entry at all — `ls-files --stage` lists nothing for a path that is
     // gone — so the loop above records nothing for it and the path came back unstaged after the commit.
     // HEAD is what distinguishes "deleted" from "never tracked".
-    const headRaw = await git
-      .raw(["ls-tree", "--full-tree", "-z", "HEAD", "--", ...paths])
-      .catch(() => "")
+    const headRaw = await git.raw(["ls-tree", "--full-tree", "-z", "HEAD", "--", ...paths]).catch(() => "")
     for (const record of String(headRaw || "").split("\0")) {
       if (!record) {
         continue
@@ -3098,11 +3119,9 @@ export async function commit(directory, message, options = {}) {
       }
 
       if (temporarilyUnstagedFiles.length > 0) {
-        await restoreStagedIndexEntries(git, temporarilyUnstagedFiles, preservedIndexEntries).catch(
-          (restoreError) => {
-            console.error("Failed to restore temporarily unstaged files:", restoreError)
-          },
-        )
+        await restoreStagedIndexEntries(git, temporarilyUnstagedFiles, preservedIndexEntries).catch((restoreError) => {
+          console.error("Failed to restore temporarily unstaged files:", restoreError)
+        })
       }
 
       return {
@@ -3113,11 +3132,9 @@ export async function commit(directory, message, options = {}) {
       }
     } catch (error) {
       if (temporarilyUnstagedFiles.length > 0) {
-        await restoreStagedIndexEntries(git, temporarilyUnstagedFiles, preservedIndexEntries).catch(
-          (restoreError) => {
-            console.error("Failed to restore temporarily unstaged files after commit failure:", restoreError)
-          },
-        )
+        await restoreStagedIndexEntries(git, temporarilyUnstagedFiles, preservedIndexEntries).catch((restoreError) => {
+          console.error("Failed to restore temporarily unstaged files after commit failure:", restoreError)
+        })
       }
       console.error("Failed to commit:", error)
       throw error
@@ -3389,11 +3406,11 @@ export async function getWorktrees(directory) {
     return parseWorktreePorcelain(result.stdout)
       .filter((entry) => !entry.bare)
       .map((entry) => ({
-      head: entry.head || "",
-      name: path.basename(entry.worktree || ""),
-      branch: entry.branch || "",
-      path: entry.worktree,
-    }))
+        head: entry.head || "",
+        name: path.basename(entry.worktree || ""),
+        branch: entry.branch || "",
+        path: entry.worktree,
+      }))
   } catch (error) {
     console.warn("Failed to list worktrees, returning empty list:", error?.message || error)
     return []
@@ -3833,8 +3850,7 @@ export async function removeWorktree(directory, input = {}) {
     // arbitrary path (e.g. via the HTTP API) and have it recursively deleted.
     const worktreeRootCanonical = await canonicalPath(context.worktreeRoot)
     const isInsideWorktreeRoot =
-      targetCanonical === worktreeRootCanonical ||
-      targetCanonical.startsWith(worktreeRootCanonical + path.sep)
+      targetCanonical === worktreeRootCanonical || targetCanonical.startsWith(worktreeRootCanonical + path.sep)
     if (!isInsideWorktreeRoot) {
       throw new Error("Refusing to remove a directory outside the worktree root")
     }

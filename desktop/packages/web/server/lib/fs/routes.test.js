@@ -245,7 +245,12 @@ describe("fs read optional contract", () => {
     // pins that contract so the report's finding stays settled.
     const missing = Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
     const { getRoute } = registerFs(
-      { realpath: async () => { throw missing }, stat: async () => null },
+      {
+        realpath: async () => {
+          throw missing
+        },
+        stat: async () => null,
+      },
       undefined,
       { read: async () => "content" },
     )
@@ -915,7 +920,10 @@ describe("fs core file adapter responses", () => {
 
   it("refuses to let a raw read be sniffed into a document", async () => {
     const coreFileAdapter = {
-      raw: vi.fn(async () => ({ buffer: Buffer.from("<html><script>x</script>"), mimeType: "application/octet-stream" })),
+      raw: vi.fn(async () => ({
+        buffer: Buffer.from("<html><script>x</script>"),
+        mimeType: "application/octet-stream",
+      })),
     }
     const { getRoute } = registerFs(
       { stat: vi.fn(async () => ({ isDirectory: () => false })) },
@@ -947,6 +955,19 @@ describe("fs core file adapter responses", () => {
 
     expect(res.statusCode).toBe(400)
     expect(res.body).toEqual({ error: "Specified path is not a file" })
+  })
+
+  it("does not inspect the raw request path after canonicalization fails", async () => {
+    const stat = vi.fn()
+    const { getRoute } = registerFs({
+      stat,
+      realpath: vi.fn(async () => {
+        throw Object.assign(new Error("not canonical"), { code: "EISDIR" })
+      }),
+    })
+    const res = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: "/repo/source" } })
+    expect(res.statusCode).toBe(500)
+    expect(stat).not.toHaveBeenCalled()
   })
 
   it("answers a directory read without asking the core, so the Files view can list it", async () => {

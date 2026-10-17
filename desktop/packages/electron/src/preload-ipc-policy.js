@@ -32,6 +32,7 @@ const DESKTOP_INVOKE_COMMANDS = new Set([
   "desktop_notify",
   "desktop_open_draft_mini_chat_window",
   "desktop_open_external_url",
+  "desktop_open_wiki_viewer",
   "desktop_open_file_in_app",
   "desktop_open_in_app",
   "desktop_open_path",

@@ -13,6 +13,7 @@
     { "command": "desktop_record_startup_event", "safeForRemote": false, "args": "object" },
     { "command": "desktop_open_path", "safeForRemote": false, "args": "object" },
     { "command": "desktop_reveal_path", "safeForRemote": false, "args": "object" },
+    { "command": "desktop_open_wiki_viewer", "safeForRemote": false, "args": "object" },
     { "command": "desktop_open_external_url", "safeForRemote": false, "args": "object" },
     { "command": "desktop_open_in_app", "safeForRemote": false, "args": "object" },
     { "command": "desktop_open_file_in_app", "safeForRemote": false, "args": "object" },

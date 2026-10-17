@@ -112,10 +112,7 @@ describe("git routes index mutations", () => {
     registerGitRoutes(app)
     const response = createMockResponse()
 
-    await getRoute("POST", "/api/git/checkout")(
-      { query: { directory: "/repo" }, body: { branch: "-f" } },
-      response,
-    )
+    await getRoute("POST", "/api/git/checkout")({ query: { directory: "/repo" }, body: { branch: "-f" } }, response)
 
     expect(response.statusCode).toBe(400)
     expect(gitLibraries.checkoutBranch).not.toHaveBeenCalled()
@@ -371,12 +368,17 @@ describe("git repository hints route", () => {
     expect((await call(path.join(os.tmpdir(), "ax-missing-" + Date.now()))).statusCode).toBe(404)
   })
 
+  it("rejects embedded nulls before filesystem inspection", async () => {
+    expect((await call(path.resolve("bad\0path"))).statusCode).toBe(400)
+  })
+
   it("lists child repositories and stays inside a folder outside the home folder", async () => {
     const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "ax-git-route-"))
     await fsPromises.mkdir(path.join(root, "app", ".git"), { recursive: true })
     await fsPromises.mkdir(path.join(root, "lib", ".git"), { recursive: true })
     const response = await call(root)
     expect(response.statusCode).toBe(200)
+    expect(response.body.directory).toBe(await fsPromises.realpath(root))
     expect(response.body.childRepositories.map((repo) => repo.name)).toEqual(["app", "lib"])
     // The temp folder is outside the home folder, so the search does not walk upward.
     expect(response.body.gitRoot).toBeNull()
@@ -392,10 +394,7 @@ describe("git worktree routes", () => {
     const response = createMockResponse()
     gitLibraries.createWorktree.mockResolvedValue({ directory: "/repo/.worktrees/feat" })
 
-    await getRoute("POST", "/api/git/worktrees")(
-      { query: { directory: "/repo" }, body: { branch: "feat" } },
-      response,
-    )
+    await getRoute("POST", "/api/git/worktrees")({ query: { directory: "/repo" }, body: { branch: "feat" } }, response)
 
     expect(gitLibraries.createWorktree).toHaveBeenCalledWith("/repo", {
       branch: "feat",
@@ -482,5 +481,4 @@ describe("git routes stash references", () => {
 
     expect(response.statusCode).toBe(400)
   })
-
 })

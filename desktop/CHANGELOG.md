@@ -64,6 +64,18 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Wiki Graph opens the official AX Code reading workspace in an isolated window, using the signed runtime export instead of a duplicate Desktop graph renderer.
+- Canonical repository discovery and Git state paths reject metadata symlink escapes; failed file reads no longer inspect unvalidated request paths.
+- Windows native qualification now launches the installed graphical app, checks runtime health and first paint, and tests installation paths containing spaces.
+- Preview color-scheme change callbacks run only when their effective match changes.
+
+- External preview admission rejects the complete IPv6 link-local range, rather than just addresses beginning with `fe80`.
+- Local previews and redirects accept the fully qualified `localhost.` name and normalize it to the same loopback origin, without admitting it as an external target.
+
+- Preview color-scheme listeners registered with `once` are removed before invocation, including when page callbacks throw or dispatch another theme update.
+- Removing a preview color-scheme listener detaches its abort handler, so an old AbortSignal cannot remove a replacement registration of the same callback.
+- A preview color-scheme callback removed or aborted by an earlier callback is skipped during the same notification.
+
 - Keep Desktop services running when a downloaded update cannot start installing. Native staging errors and synchronous installer failures finish promptly, background check errors after handoff do not falsely end installation monitoring, and concurrent install requests share one attempt. Cleanup runs only on an actual quit, and an ordinary quit is no longer treated as proof of an update install.
 - Preserve published message-part snapshots when a mutable PartMap parent is forked and then changed again, including overwrites, deletions and colliding message IDs.
 

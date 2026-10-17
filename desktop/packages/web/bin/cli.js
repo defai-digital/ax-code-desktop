@@ -1597,14 +1597,6 @@ async function assertTunnelTargetProtected(port) {
   )
 }
 
-function fileSize(filePath) {
-  try {
-    return fs.statSync(filePath).size
-  } catch {
-    return null
-  }
-}
-
 function readTailWithSize(filePath, lineCount = DEFAULT_TAIL_LINES) {
   if (!fs.existsSync(filePath)) {
     return { lines: [], size: 0 }

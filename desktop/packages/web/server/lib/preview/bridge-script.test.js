@@ -63,6 +63,73 @@ describe("preview bridge color-scheme listeners", () => {
     )
   }
 
+  const withMediaBridge = (check) => {
+    const original = window.matchMedia
+    window.matchMedia = (query) => Object.assign(new EventTarget(), { media: query, matches: false })
+    const { restore } = install()
+    try {
+      check(window.matchMedia("(prefers-color-scheme: dark)"))
+    } finally {
+      window.matchMedia = original
+      restore()
+    }
+  }
+
+  it("does not emit change when the first parent scheme preserves native matches", () => {
+    withMediaBridge((mql) => {
+      const seen = []
+      mql.addEventListener("change", (event) => seen.push(event.matches))
+      dispatchScheme("light")
+      expect(seen).toEqual([])
+      dispatchScheme("dark")
+      expect(seen).toEqual([true])
+      dispatchScheme("dark")
+      expect(seen).toEqual([true])
+    })
+  })
+
+  it("removes a once listener before invoking a callback that throws", () => {
+    withMediaBridge((mql) => {
+      let calls = 0
+      mql.addEventListener(
+        "change",
+        () => {
+          calls += 1
+          throw new Error("page callback failed")
+        },
+        { once: true },
+      )
+      dispatchScheme("dark")
+      dispatchScheme("light")
+      expect(calls).toBe(1)
+    })
+  })
+
+  it("keeps a replacement registration when an old registration's signal aborts", () => {
+    withMediaBridge((mql) => {
+      const first = new AbortController()
+      const seen = []
+      const callback = (event) => seen.push(event.matches)
+      mql.addEventListener("change", callback, { signal: first.signal })
+      mql.removeEventListener("change", callback)
+      mql.addEventListener("change", callback)
+      first.abort()
+      dispatchScheme("dark")
+      expect(seen).toEqual([true])
+    })
+  })
+
+  it("does not dispatch to a listener removed by an earlier callback", () => {
+    withMediaBridge((mql) => {
+      const seen = []
+      const second = () => seen.push("removed")
+      mql.addEventListener("change", () => mql.removeEventListener("change", second))
+      mql.addEventListener("change", second)
+      dispatchScheme("dark")
+      expect(seen).toEqual([])
+    })
+  })
+
   it("keeps notifying a listener the page never held a reference to", () => {
     // `matchMedia(...).addEventListener(...)` is the common pattern, and the platform keeps the list alive while
     // it has listeners. A WeakRef here made a collection silently stop the callback: no error, no way for the page
@@ -86,8 +153,8 @@ describe("preview bridge color-scheme listeners", () => {
       const seen = []
       window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (event) => seen.push(event.matches))
 
-      dispatchScheme("light")
-      expect(seen).toEqual([false])
+      dispatchScheme("dark")
+      expect(seen).toEqual([true])
     } finally {
       globalThis.WeakRef = realWeakRef
       window.matchMedia = realMatchMedia
@@ -127,12 +194,12 @@ describe("preview bridge color-scheme listeners", () => {
       }).not.toThrow()
       expect(typeof mql.onchange).toBe("function")
 
-      dispatchScheme("light")
-      expect(seen).toEqual([false])
+      dispatchScheme("dark")
+      expect(seen).toEqual([true])
 
       mql.onchange = null
-      dispatchScheme("dark")
-      expect(seen).toEqual([false])
+      dispatchScheme("light")
+      expect(seen).toEqual([true])
     } finally {
       window.matchMedia = realMatchMedia
       delete window.__openchamberPreviewColorSchemePatched
@@ -158,7 +225,7 @@ describe("preview bridge color-scheme listeners", () => {
         .addEventListener("change", (event) => onceSeen.push(event.matches), { once: true })
       dispatchScheme("light")
       dispatchScheme("dark")
-      expect(onceSeen).toEqual([false])
+      expect(onceSeen).toEqual([true])
 
       const controller = new AbortController()
       const signalSeen = []
@@ -207,7 +274,9 @@ describe("preview bridge request patches beyond fetch strings", () => {
     const { restore } = install()
     try {
       new window.WebSocket("/ws")
-      new window.WebSocket(`${window.location.protocol === "https:" ? "https" : "http"}://${window.location.host}/socket`)
+      new window.WebSocket(
+        `${window.location.protocol === "https:" ? "https" : "http"}://${window.location.host}/socket`,
+      )
 
       const expected = new URL(proxyPath("/ws"), window.location.href)
       expected.protocol = expected.protocol === "https:" ? "wss:" : "ws:"
@@ -236,9 +305,7 @@ describe("preview bridge request patches beyond fetch strings", () => {
   it("proxies a Request with a body and keeps the body", async () => {
     const { calls, restore } = install()
     try {
-      await window.fetch(
-        new Request(new URL("/api/x", window.location.href), { method: "POST", body: "{}" }),
-      )
+      await window.fetch(new Request(new URL("/api/x", window.location.href), { method: "POST", body: "{}" }))
       expect(calls[0].url).toBe(new URL(proxyPath("/api/x"), window.location.href).toString())
       expect(await calls[0].clone().text()).toBe("{}")
     } finally {

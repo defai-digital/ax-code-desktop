@@ -1050,16 +1050,16 @@ export const registerFsRoutes = (app, dependencies) => {
       return res.type("text/plain").send(content)
     } catch (error) {
       const err = error
-      if (err && typeof err === "object" && err.code === "EISDIR") {
+      if (err && typeof err === "object" && err.code === "EISDIR" && canonicalPath) {
         // The core reports a directory and a binary file alike, so tell the two apart here: the
         // Files view turns a directory message into a listing, and would otherwise mis-handle a
         // binary file the same way.
         const isDirectory = await fsPromises
-          .stat(canonicalPath || filePath)
+          .stat(canonicalPath)
           .then((entry) => entry.isDirectory())
           .catch(() => false)
         if (isDirectory) {
-          return res.status(400).json({ error: `EISDIR: ${path.basename(canonicalPath || filePath)} is a directory` })
+          return res.status(400).json({ error: `EISDIR: ${path.basename(canonicalPath)} is a directory` })
         }
         return res.status(400).json({ error: err.message || "Path is not a text file" })
       }

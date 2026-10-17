@@ -7,6 +7,7 @@ import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
+import { runWindowsInstalledGuiSmoke } from "./windows-installed-gui-smoke.mjs"
 import { runSmoke } from "../desktop/packages/electron/scripts/smoke-packaged-asar-cli.mjs"
 
 const require = createRequire(new URL("../desktop/packages/electron/package.json", import.meta.url))
@@ -147,7 +148,7 @@ async function qualify(target, artifacts, output) {
     assert.ok(!fs.existsSync(installed), "Runner already has AX Code installed")
     executable = path.join(installed, "Contents/MacOS/AX Code")
   } else if (process.platform === "win32") {
-    installed = path.join(root, "installed")
+    installed = path.join(root, "AX Code installed with spaces")
     executable = path.join(installed, "AX Code.exe")
     command(
       "powershell.exe",
@@ -233,6 +234,10 @@ async function qualify(target, artifacts, output) {
         arch: process.arch,
         appPath: process.platform === "darwin" ? installed : executable,
       })
+    const installedGui = selection === "candidate" && process.platform === "win32"
+      ? await runWindowsInstalledGuiSmoke(executable)
+      : undefined
+    verifyPreserved(records)
     receipts.push({
       step,
       version: expectedVersion,
@@ -240,6 +245,7 @@ async function qualify(target, artifacts, output) {
       configurationPreserved: true,
       ...(process.platform === "win32" ? {} : { posixCredentialMetadataPreserved: true }),
       installedArchiveSha256: digest(archive),
+      ...(installedGui ? { installedGui } : {}),
       installedSmoke: selection === "candidate" ? "passed" : "baseline-not-executed",
     })
   }

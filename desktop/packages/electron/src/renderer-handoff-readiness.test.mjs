@@ -68,15 +68,6 @@ describe("main-window hand-off readiness", () => {
     expect(click).toContain('handOffToMainWindow("openchamber:open-session"')
   })
 
-  test("an install that never starts brings the app back instead of leaving it torn down", async () => {
-    const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
-    const handler = mainSource.match(/handleCommand\("desktop_quit_and_install"[\s\S]*?\n\}\)/)?.[0]
-
-    expect(handler).toBeDefined()
-    // The services are stopped and isQuitting is set before quitAndInstall runs; when it refuses,
-    // the window kept a dead server and window-all-closed would not quit the process.
-    expect(handler).toContain('reason: "install-not-started"')
-    expect(handler).toContain("app.relaunch()")
-    expect(handler).toContain("app.exit(0)")
-  })
+  // Installer refusal is exercised through createUpdateInstaller and the real quit coordinator
+  // in desktop-renderer-guards.test.mjs; it no longer tears down services and relaunches.
 })

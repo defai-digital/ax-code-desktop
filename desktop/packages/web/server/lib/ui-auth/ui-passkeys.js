@@ -377,7 +377,8 @@ export const createUiPasskeys = ({
     assertEnabled()
     cleanupChallengeMap(registrationChallenges)
 
-    let store = loadStore()
+    // Preserve store initialization/password-binding validation before verification.
+    loadStore()
     const requestId = typeof payload?.requestId === "string" ? payload.requestId : ""
     const response = payload?.response
 
@@ -408,7 +409,7 @@ export const createUiPasskeys = ({
 
     // Re-read: this ran across an await, and a plain read helper can also reset the store (a changed
     // password binding clears it). The new credential is added to whatever the store holds now.
-    store = loadStore()
+    const store = loadStore()
 
     const nextPasskeys = store.passkeys.filter((passkey) => passkey.id !== credential.id)
     nextPasskeys.push({

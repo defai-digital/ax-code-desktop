@@ -28,6 +28,7 @@ const fsp = require("fs/promises")
 const { execFile, spawn, spawnSync } = require("child_process")
 const { runOpenSpecChain } = require("./open-app-launcher")
 const { promisify } = require("util")
+const { createWikiViewer } = require("./wiki-viewer")
 const { createStartupDiagnostics } = require("./startup-diagnostics")
 const { assertShellOpenPathSucceeded, collectOpenPathCandidates } = require("./open-paths")
 const { FOCUS_MAIN_WINDOW_ACTION, resolveFocusMainWindowAction } = require("./focus-main-window")
@@ -46,6 +47,14 @@ const { desktopBrowserRuntimeEnv } = require("./browser-runtime-policy")
 const { verifyBundledAxCodeIntegrity } = require("./bundled-ax-code-integrity")
 const { getRuntimeAuthPassword } = require("./runtime-auth-password")
 const { createDesktopWebMcpBrowser, DESKTOP_BROWSER_TOKEN } = require("./desktop-webmcp-browser")
+
+const wikiViewer = createWikiViewer({
+  BrowserWindow,
+  getRuntimeRoot: () => {
+    const binary = bundledAxCodeEnv.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY
+    return binary ? path.dirname(path.dirname(binary)) : null
+  },
+})
 
 // Native WebMCP is supplied by the bundled engine; agent access is separately enrolled.
 app.commandLine.appendSwitch("enable-features", "WebMCP")
@@ -1067,7 +1076,7 @@ handleCommand("desktop_download_and_install_update", async () => {
 const stopBackgroundServices = async () => {
   // Revoke browser access while the runtime can still acknowledge enrollment
   // teardown. This also covers restart/update paths that bypass normal quit.
-  await Promise.allSettled([desktopWebMcpBrowser.closeAll(), stopServer()])
+  await Promise.allSettled([desktopWebMcpBrowser.closeAll(), wikiViewer.closeAll(), stopServer()])
   if (runtimeSupervision) {
     await runtimeSupervision.stop().catch((error) => {
       console.error("[electron] failed to stop runtime supervision:", error)
@@ -2771,6 +2780,8 @@ handleCommand("desktop_reveal_path", async (args) => {
   shell.showItemInFolder(targetPath)
   return null
 })
+
+handleCommand("desktop_open_wiki_viewer", (args) => wikiViewer.open(args.directory))
 
 handleCommand("desktop_open_external_url", async (args) => {
   const target = typeof args.url === "string" ? args.url.trim() : ""

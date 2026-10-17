@@ -312,6 +312,32 @@ describe("getStatus", () => {
       onto: runGit(repo, ["rev-parse", "--short=7", "feature"]).trim(),
     })
   })
+
+  it("does not read rebase metadata through a symlink outside the git directory", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "base\n")
+    runGit(repo, ["add", "f.txt"])
+    runGit(repo, ["commit", "-m", "base"])
+    runGit(repo, ["checkout", "-b", "feature"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "feature\n")
+    runGit(repo, ["commit", "-am", "feature"])
+    runGit(repo, ["checkout", "main"])
+    fs.writeFileSync(path.join(repo, "f.txt"), "main\n")
+    runGit(repo, ["commit", "-am", "main"])
+    expect(() => runGit(repo, ["rebase", "feature"])).toThrow()
+
+    const outside = createTempDir()
+    const state = path.join(repo, ".git", "rebase-merge")
+    fs.renameSync(state, path.join(outside, "state"))
+    fs.symlinkSync(path.join(outside, "state"), state, process.platform === "win32" ? "junction" : "dir")
+    const status = await getStatus(repo)
+    expect(status.rebaseInProgress).toBeNull()
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -960,7 +986,6 @@ describe("getStatus diff stats", () => {
   })
 })
 
-
 // ---------------------------------------------------------------------------
 // createWorktree start scripts
 // ---------------------------------------------------------------------------
@@ -1085,8 +1110,7 @@ describe("createWorktree bootstrap ownership", () => {
     const queue = source.slice(source.indexOf("const queueWorktreeBootstrap = (args) => {"))
     const run = queue.slice(0, queue.indexOf("const ensureRemoteWithUrl"))
 
-    const check = (before, after) =>
-      expect(run.indexOf(before)).toBeLessThan(run.indexOf(after, run.indexOf(before)))
+    const check = (before, after) => expect(run.indexOf(before)).toBeLessThan(run.indexOf(after, run.indexOf(before)))
 
     check("if (!isCurrentBootstrap())", 'runGitCommandOrThrow(directory, ["reset", "--hard"]')
     check("if (!isCurrentBootstrap())", "applyUpstreamConfiguration({")
@@ -1585,11 +1609,7 @@ describe("stageHunk and unstageHunk", () => {
     // patch that targets nothing but file.txt was rejected with "Patch does not target file.txt".
     if (!canRunGit()) return
     const repo = createHunkTestRepo()
-    const fileLines = [
-      ...Array.from({ length: 24 }, (_, index) => `line${index + 1}`),
-      "-- a",
-      "line26",
-    ]
+    const fileLines = [...Array.from({ length: 24 }, (_, index) => `line${index + 1}`), "-- a", "line26"]
     expect(fileLines).toHaveLength(26)
     fs.writeFileSync(path.join(repo, "file.txt"), `${fileLines.join("\n")}\n`)
     runGit(repo, ["add", "file.txt"])

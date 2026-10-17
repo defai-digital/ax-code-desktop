@@ -264,6 +264,22 @@ describe("proxy target normalization (SSRF guard)", () => {
     })
   })
 
+  it("refuses every first-hextet variant of the IPv6 link-local /10", () => {
+    for (let prefix = 0xfe80; prefix <= 0xfebf; prefix += 1) {
+      expect(normalizeProxyTargetUrl(`http://[${prefix.toString(16)}::1]/`, { allowExternal: true }).ok).toBe(false)
+    }
+    expect(normalizeProxyTargetUrl("https://[2606:4700:4700::1111]/", { allowExternal: true }).ok).toBe(true)
+  })
+
+  it("canonicalizes a fully qualified localhost name only on the local path", () => {
+    expect(normalizeProxyTargetUrl("http://localhost.:5173/", {})).toEqual({
+      ok: true,
+      origin: "http://127.0.0.1:5173",
+    })
+    expect(normalizeProxyTargetUrl("http://localhost.:5173/", { allowExternal: true }).ok).toBe(false)
+    expect(normalizeProxyTargetUrl("http://localhost.example:5173/", {}).ok).toBe(false)
+  })
+
   it("rejects non-loopback hosts without allowExternal", () => {
     expect(normalizeProxyTargetUrl("https://example.com/", {}).ok).toBe(false)
   })
@@ -972,12 +988,15 @@ describe("external preview documents are sandboxed", () => {
 
     // Another name for the same origin: the entry is reused, so no second target
     // and no second cookie.
+    const qualifiedLocal = await redirect("http://localhost.:3000/dashboard")
+    expect(qualifiedLocal.get("location")).toBe(`${target.proxyBasePath}/dashboard`)
+    expect(qualifiedLocal.get("set-cookie")).toBeUndefined()
     const sameOrigin = await redirect("http://localhost:3000/dashboard")
     expect(sameOrigin.get("location")).toBe(`${target.proxyBasePath}/dashboard`)
     expect(sameOrigin.get("set-cookie")).toBeUndefined()
-    expect(proxyOptions.router({ originalUrl: `${target.proxyBasePath}/dashboard`, headers: { cookie: sourceCookie } })).toBe(
-      "http://127.0.0.1:3000",
-    )
+    expect(
+      proxyOptions.router({ originalUrl: `${target.proxyBasePath}/dashboard`, headers: { cookie: sourceCookie } }),
+    ).toBe("http://127.0.0.1:3000")
 
     // Another loopback port: a new target that is still proxied, and still local.
     const otherPort = await redirect("http://127.0.0.1:4000/app")
@@ -1133,12 +1152,7 @@ describe("preview proxy response hardening", () => {
     // Chrome renders any */*+xml as an XML document, and sniffs a missing content type as HTML; both can run
     // script in the XHTML/SVG namespace on the Desktop origin.
     const { proxyOptions, cookie, target } = await createHarness({ url: "https://example.com", allowExternal: true })
-    for (const contentType of [
-      "application/rss+xml",
-      "application/xslt+xml",
-      "application/xml; charset=utf-8",
-      "",
-    ]) {
+    for (const contentType of ["application/rss+xml", "application/xslt+xml", "application/xml; charset=utf-8", ""]) {
       const headers = new Map()
       await proxyOptions.on.proxyRes(
         Buffer.from("<x/>"),

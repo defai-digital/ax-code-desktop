@@ -7,6 +7,7 @@ const isLoopbackHost = (hostname) => {
   if (!hostname) return false
   let host = String(hostname).toLowerCase()
   if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1)
+  host = host.replace(/\.$/, "")
 
   if (LOOPBACK_HOSTS.has(host)) return true
 
@@ -271,14 +272,17 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
     return previewColorScheme === scheme;
   };
 
-  const notifyColorSchemeListeners = () => {
-    for (const listener of Array.from(colorSchemeListeners)) {
+  const notifyColorSchemeListeners = (previousMatches) => {
+    for (const [listener, previous] of previousMatches) {
       try {
+        // A preceding callback may have removed or aborted this snapshotted entry.
+        if (!colorSchemeListeners.has(listener)) continue;
         const matches = mediaQueryMatchesPreviewScheme(listener.media);
-        if (matches === null) continue;
+        if (matches === null || matches === previous) continue;
         const event = { matches, media: listener.media, type: 'change', target: listener.mql, currentTarget: listener.mql };
-        listener.callback.call(listener.mql, event);
+        // Remove before invocation: throwing or reentrant callbacks must still run once.
         if (listener.once) listener.removeEntry();
+        listener.callback.call(listener.mql, event);
       } catch {}
     }
   };
@@ -327,9 +331,11 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
         // matchMedia(...).addEventListener(...) call without keeping a reference must keep working. Holding it
         // weakly made a collection silently stop the listener, which no page can observe or fix.
         const removeEntry = function() {
-          const current = listenersForMql.get(callback);
-          if (current) colorSchemeListeners.delete(current);
+          // Cleanup belongs to this registration, never a later reuse of its callback.
+          if (listenersForMql.get(callback) !== entry) return;
+          colorSchemeListeners.delete(entry);
           listenersForMql.delete(callback);
+          opts.signal?.removeEventListener?.('abort', removeEntry);
         };
         const entry = { media: query, mql, callback, once: opts.once === true, removeEntry };
         listenersForMql.set(callback, entry);
@@ -342,8 +348,7 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
       mql.removeEventListener = function(type, callback, options) {
         if (type !== 'change' || typeof callback !== 'function') return nativeMql.removeEventListener?.(type, callback, options);
         const entry = listenersForMql.get(callback);
-        if (entry) colorSchemeListeners.delete(entry);
-        listenersForMql.delete(callback);
+        entry?.removeEntry();
       };
       mql.addListener = function(callback) { mql.addEventListener('change', callback); };
       mql.removeListener = function(callback) { mql.removeEventListener('change', callback); };
@@ -372,6 +377,7 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
   const applyPreviewColorScheme = (scheme) => {
     const next = normalizeColorScheme(scheme);
     if (!next || previewColorScheme === next) return;
+    const previousMatches = Array.from(colorSchemeListeners, (listener) => [listener, listener.mql.matches]);
     previewColorScheme = next;
     try {
       const root = document.documentElement;
@@ -381,7 +387,7 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
         root.dataset.theme = next;
       }
     } catch {}
-    notifyColorSchemeListeners();
+    notifyColorSchemeListeners(previousMatches);
   };
 
   const readElementUrl = (element) => {
@@ -1045,7 +1051,7 @@ const isBlockedExternalHost = (hostname) => {
 
   if (host.includes(":")) {
     if (host === "::1" || host === "::") return true // loopback / unspecified
-    if (host.startsWith("fe80")) return true // link-local
+    if (/^fe[89ab][0-9a-f]:/.test(host)) return true // link-local fe80::/10
     if (host.startsWith("fc") || host.startsWith("fd")) return true // unique local fc00::/7
     // An IPv6 address that carries an IPv4 address reaches it, however it is written:
     // `::ffff:127.0.0.1`, `::ffff:7f00:1` and the expanded `0:0:0:0:0:ffff:7f00:1`. Matching the
@@ -1117,7 +1123,7 @@ export const normalizeProxyTargetUrl = (rawUrl, { allowExternal = false } = {}) 
     return { ok: false, error: "Only http(s) URLs are supported" }
   }
 
-  const hostname = url.hostname
+  const hostname = url.hostname.replace(/\.$/, "")
   if (!allowExternal) {
     if (!isLoopbackHost(hostname)) {
       return { ok: false, error: "Only loopback hosts are supported" }

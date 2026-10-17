@@ -114,12 +114,14 @@ export function registerGitRoutes(app, options = {}) {
   // inside the home folder; outside it only the folder itself is considered.
   app.get("/api/git/repositories", async (req, res) => {
     const directory = typeof req.query.directory === "string" ? req.query.directory.trim() : ""
-    if (!directory || !path.isAbsolute(directory)) {
+    if (!directory || directory.includes("\0") || !path.isAbsolute(directory)) {
       return res.status(400).json({ error: "absolute directory parameter is required" })
     }
     try {
-      const resolved = path.resolve(directory)
-      const home = os.homedir()
+      // Resolve filesystem aliases before deciding the upward scan ceiling.
+      // An alias inside home may point outside it, and must not inherit its scope.
+      const resolved = await fsPromises.realpath(directory)
+      const home = await fsPromises.realpath(os.homedir())
       const relativeToHome = path.relative(home, resolved)
       const insideHome = relativeToHome === "" || (!relativeToHome.startsWith("..") && !path.isAbsolute(relativeToHome))
       const stats = await fsPromises.stat(resolved)
