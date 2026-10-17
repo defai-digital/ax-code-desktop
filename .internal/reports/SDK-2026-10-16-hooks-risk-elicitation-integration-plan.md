@@ -1,7 +1,7 @@
 # Plan: consume hook activity, permission risk and MCP elicitation from the next SDK
 
 Date: 2026-10-16
-Status: WP1 to WP3 implemented on runtime 7.26.4 and SDK 2.6.26; WP4 verification open. See `RUNTIME-2026-10-17-7.26.4-and-sdk-2.6.26.md`.
+Status: WP1 to WP4 done on runtime 7.26.4 and SDK 2.6.26. See `RUNTIME-2026-10-17-7.26.4-and-sdk-2.6.26.md`.
 Inputs: reference review of 2026-10-16 (missing high-value features), AX Code ADR-204, ADR-211, ADR-212.
 
 ## Why
