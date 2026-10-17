@@ -1305,6 +1305,48 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Thirty-fourth round
+
+Two follow-ups. The root `script/` review (Grok CLI) failed as a cell — three consecutive tool errors, then its
+per-call timeout — but its partial narration named two holes in the store boundary check; both were verified in the
+source and fixed in `47255168`. A second audit of the thirty-third round's fixes (AX Code `glm-5.3`) then reported
+six findings; five were fixed in `d288f1c0`.
+
+### Fixed
+
+- **`47255168` — R5 passed an aliased writer re-export.** `export { markStreamConnected as connect } from
+  …/connection-state` was judged on the exported alias, not on the name bound to the module, so a facade could hand
+  the writer out while the check stayed green. The import path already resolved `propertyName ?? name`; the export
+  path does now. Red: `importsWriteApi` false for the aliased re-export.
+- **`47255168` — the store boundary check had no empty-scan guard.** A renamed tree or a typo would report a clean
+  pass over nothing and exit 0; the source-boundary check already guards exactly this failure mode and says why.
+  `assertFilesToScan` throws and `main`'s catch turns that into exit 1. Red: the helper did not exist.
+- **`d288f1c0` — an answered request kept a second answerable notification.** The claim map is keyed by request, but
+  the success path removed only the entry that answered; the watcher's re-mirror re-enabled itself and could answer
+  a settled request again. Every notification for the request is removed now. Red: the sibling survived
+  (`expected 0, got 1`) and its Deny ran.
+- **`d288f1c0` — flat-row export read only the active bucket.** An archived root exported from a childless row
+  resolved no subtasks, while the project tree nests children of the same archived state. The tree now picks the
+  bucket the root belongs to, matches each child's archived state to its parent's, and exports a duplicated cache
+  entry once. Red: `[]` instead of `['archived-child']`; `['child','child']` instead of `['child']`.
+- **`d288f1c0` — the OAuth read-back duplicated the reload's own provider fetch.** `reloadAxCodeConfiguration` with
+  the `providers` scope already loads the active directory; the third round's unconditional read added a second,
+  sequential retrying fetch. It now runs only when the list is empty — the signal that the reload's refresh failed
+  quietly. Red: `loadProviders` called on the success path.
+- **`d288f1c0` — a non-http scheme URL was mangled.** The path pass accepts a colon before the slash, so
+  `ssh://git@host/repo.git` lost `//git` and kept `ssh:@host/repo.git`. The link pass accepts any scheme now.
+  Red: `'clone ssh:@host/repo.git now'`.
+- **`d288f1c0` — restart kept a blank stored password over the environment one.** `??` treats `""` as present, while
+  the server's `hasUiPasswordConfigured` treats it as unset: the instance started unprotected, the record claimed a
+  password, and the environment password the guard accepted was ignored. The same predicate decides now.
+  Red: `served.uiPassword` was `''`.
+
+### Examined and not fixed
+
+- **Export child order differs from the project tree's pinned-then-updated order.** The export lists the cache's
+  order. Matching it needs the pinned-id set, which the export path does not receive; the order of subtasks in an
+  exported document has no behavioural consequence beyond reading order, and duplicate entries are handled above.
+
 ## Thirty-third round
 
 A third audit of the same ground: the thirteen fixes the thirty-second round made, over `git diff 5159a3c2 HEAD`
@@ -3945,6 +3987,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-fourth round, after `d288f1c0`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 182 (+6 skipped),
+  electron 600, ui 2 993, web 1 336 (+2 skipped), 0 `FAIL` lines.
 - Latest full run, in the thirty-third round, after `81ff4b7c` (the audit of this round's own fixes): `pnpm run
   typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 —
   root scripts 180 (+6 skipped), electron 600, ui 2 990, web 1 334 (+2 skipped), 0 `FAIL` lines.
