@@ -98,7 +98,7 @@ describe("TimelineDialog search input", () => {
       input().dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, isComposing }))
     })
 
-  test("leaves the keys an input method is consuming to the composition", () => {
+  test("leaves the keys an input method is consuming to the composition", async () => {
     // Both branches acted on the composition's keys: Enter navigated to the message the half-typed query matched
     // and closed the dialog, and the arrows moved the highlight instead of the candidate list. The app is
     // localized, so the search field is normally used with a composition open.
@@ -106,14 +106,19 @@ describe("TimelineDialog search input", () => {
 
     press("ArrowDown", { isComposing: true })
     press("Enter")
+    // `navigateToMessage` awaits before it closes the dialog, so the microtask has to run before asserting on it:
+    // asserted synchronously, "the dialog was not closed" is true of any Enter, including the one that closes it.
+    await Promise.resolve()
 
-    // The composing ArrowDown did not move the highlight off the first result.
+    // The composing ArrowDown did not move the highlight off the first result, and the plain Enter navigated.
     expect(scrollToMessageMock).toHaveBeenCalledTimes(1)
     expect(scrollToMessageMock.mock.calls[0][0]).toBe("msg_2")
+    expect(openChangeMock).toHaveBeenCalledTimes(1)
 
     // The composing Enter committed the composition, not a navigation.
     press("Enter", { isComposing: true })
+    await Promise.resolve()
     expect(scrollToMessageMock).toHaveBeenCalledTimes(1)
-    expect(openChangeMock).not.toHaveBeenCalled()
+    expect(openChangeMock).toHaveBeenCalledTimes(1)
   })
 })
