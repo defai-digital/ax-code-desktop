@@ -1305,6 +1305,41 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Thirty-sixth round
+
+An audit of the thirty-fifth round's fixes (`muse-wonder-full-1.0` over `git diff d288f1c0 490d6db3`). It reported
+six items; all were real and fixed in `8e017639`, one of them a false positive the round had introduced.
+
+### Fixed
+
+- **The restart guard treated malformed records as "deliberately unprotected".** `hasUiPassword: "true"`, `1`, an
+  array or a bare string all failed the `!== true` test, so the guard returned and the server started without a
+  password. The record is raw `JSON.parse` output and is now judged as data: a usable password, an explicit
+  `false`, or a legacy record with no `uiPassword` field explains itself; anything else needs the flag or the
+  environment. Red: five malformed shapes passed the guard.
+- **The answered-request markers died with the watcher mount.** The watcher unmounts and remounts with the
+  live-session list while the server may still list a settled request (the same event the earlier re-mirror fix
+  cites), so a remount mirrored it again. The markers are module state per session now, and they hold the request
+  *object* that was answered: a re-prompt replaces the object and is mirrored again instead of being suppressed by
+  id alone. Red: the prune helper did not exist; a replaced object now clears the marker, the same object keeps it.
+- **The export tree deduped children but not the root.** The row's own object named the export and chose its
+  bucket, so a stale copy could export a stale title or read the wrong bucket. The cache's copy wins now, and the
+  archived bucket is chosen from it. Red: `'stale root'` instead of `'fresh root'`.
+- **The bounded link pattern could start inside a longer scheme run.** `com.apple.dt.xcode://host/path` lost
+  `xcode://host/path` and kept `com.`; the match also consumed a closing bracket (`[https://x]` in note mode became
+  `[`). The match may no longer start inside a scheme-character run and stops before closing brackets, and the path
+  pass no longer eats `//…` after a colon, so an unmatched scheme is left whole. Red: `'open com. a link now'` and
+  `'['`.
+- **R5 flagged type-only re-exports**, which carry no runtime value. R4 already skipped them; R5 now does too. Red:
+  a violation for `export type { markStreamConnected }`.
+
+### Examined and not fixed
+
+- **A URL whose own path ends in `)` is truncated in note mode** (`https://x/_(bar)` → `a link)`). Excluding the
+  closing parenthesis is what keeps `(https://x)` balanced; the two cases cannot be told apart without parsing the
+  URL. Note mode also leaves a bare bracketed link as `[]` rather than eating one bracket, which is the balanced
+  outcome for its remove-the-link policy.
+
 ## Thirty-fifth round
 
 A second audit of the thirty-fourth round's fixes (Claude Code CLI, over `git diff 81ff4b7c d288f1c0`). It reported
@@ -4028,6 +4063,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-sixth round, after `8e017639`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 184 (+6 skipped),
+  electron 600, ui 2 998, web 1 340 (+2 skipped), 0 `FAIL` lines.
 - Latest full run, in the thirty-fifth round, after `490d6db3`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 183 (+6 skipped),
   electron 600, ui 2 995, web 1 338 (+2 skipped), 0 `FAIL` lines. The first full run of the round lost
