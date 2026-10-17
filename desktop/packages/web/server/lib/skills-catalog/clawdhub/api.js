@@ -10,8 +10,11 @@ const CLAWDHUB_PAGE_LIMIT = 25
 
 // Every other external call in this tree is bounded (`git.js` time-boxes each subprocess): a registry that accepts
 // the connection and never answers used to hold the catalog request, and the install behind it, for undici's own
-// headers timeout (~300s). This is the bound, and a caller may pass its own signal instead.
+// headers timeout (~300s). These are the bounds — one per attempt while waiting for a response, and one for the
+// whole call including retries and back-offs. Neither covers the body: a package may be several megabytes and a
+// slower link is not a failure, so the body is bounded by size (`MAX_SKILL_ARCHIVE_BYTES`) rather than by time.
 export const CLAWDHUB_FETCH_TIMEOUT_MS = 20_000
+export const CLAWDHUB_REQUEST_BUDGET_MS = 60_000
 
 // Rate limiting: ClawdHub allows 120 requests/minute
 const RATE_LIMIT_DELAY_MS = 100
@@ -19,26 +22,47 @@ let lastRequestTime = 0
 
 async function rateLimitedFetch(url, options = {}) {
   const maxAttempts = 10
+  const deadline = Date.now() + CLAWDHUB_REQUEST_BUDGET_MS
 
   let lastResponse = null
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const now = Date.now()
+    const remainingBudget = deadline - now
+    // A registry that hangs on every attempt would otherwise take `maxAttempts` times the per-attempt bound.
+    if (remainingBudget <= 0) {
+      throw new Error(`ClawdHub did not answer within ${CLAWDHUB_REQUEST_BUDGET_MS}ms`)
+    }
+
     const elapsed = now - lastRequestTime
     if (elapsed < RATE_LIMIT_DELAY_MS) {
       await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY_MS - elapsed))
     }
     lastRequestTime = Date.now()
 
-    const response = await fetch(url, {
-      ...options,
-      signal: options.signal ?? AbortSignal.timeout(CLAWDHUB_FETCH_TIMEOUT_MS),
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "OpenChamber/1.0",
-        ...options.headers,
-      },
-    })
+    // Armed only while waiting for the response, and cleared the moment it arrives: a signal that stayed armed also
+    // aborted the body read, so a valid archive on a slow link failed with undici's timeout instead of downloading.
+    const controller = options.signal ? null : new AbortController()
+    const timer = controller
+      ? setTimeout(() => controller.abort(), Math.min(remainingBudget, CLAWDHUB_FETCH_TIMEOUT_MS))
+      : null
+
+    let response
+    try {
+      response = await fetch(url, {
+        ...options,
+        ...(controller ? { signal: controller.signal } : {}),
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "OpenChamber/1.0",
+          ...options.headers,
+        },
+      })
+    } finally {
+      if (timer) {
+        clearTimeout(timer)
+      }
+    }
 
     lastResponse = response
 

@@ -132,7 +132,7 @@ describe("clawdhub request timeout", () => {
     globalThis.fetch = originalFetch
   })
 
-  test("bounds the registry fetch and the download behind it", async () => {
+  test("bounds the wait for a response, and lets go of it once one arrives", async () => {
     // Without one the request waited on undici's own ~300s headers timeout, so one wedged or blackholed registry
     // hung the catalog page — and an install behind it — for minutes. Every other external call in this tree is
     // time-boxed; this fetch was not. The abort itself is undici's: what this module has to do is hand it a signal
@@ -148,11 +148,19 @@ describe("clawdhub request timeout", () => {
     expect(CLAWDHUB_FETCH_TIMEOUT_MS).toBeGreaterThan(0)
     expect(CLAWDHUB_FETCH_TIMEOUT_MS).toBeLessThanOrEqual(60_000)
 
-    // The download path is bounded the same way.
-    globalThis.fetch = vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
-    await downloadClawdHubSkill("review-code", "1.0.0")
+    // The download path is bounded the same way, and the bound is released once the response is in: a signal that
+    // stayed armed also aborted the body read, so a valid multi-megabyte archive on a slow link failed at the same
+    // deadline instead of downloading.
+    const clearSpy = vi.spyOn(globalThis, "clearTimeout")
+    try {
+      globalThis.fetch = vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
+      await downloadClawdHubSkill("review-code", "1.0.0")
 
-    const downloadOptions = globalThis.fetch.mock.calls[0]?.[1]
-    expect(downloadOptions?.signal).toBeInstanceOf(AbortSignal)
+      const downloadOptions = globalThis.fetch.mock.calls[0]?.[1]
+      expect(downloadOptions?.signal).toBeInstanceOf(AbortSignal)
+      expect(clearSpy).toHaveBeenCalled()
+    } finally {
+      clearSpy.mockRestore()
+    }
   })
 })
