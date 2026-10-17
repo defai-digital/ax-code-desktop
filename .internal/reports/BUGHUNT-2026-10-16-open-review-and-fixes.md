@@ -1395,7 +1395,9 @@ least (MCP, providers, multirun, auth, supervision, notifications) plus `server/
   text and fused the rest while the dialog kept listing every selected run, so the fused answer read as covering
   runs it had silently dropped. It refuses now and asks the user to exclude the run in the dialog's own list; the
   message names no count because that needs a new key in all fourteen locales, which the localization check
-  enforces.
+  enforces. No red-light test: that harness renders the dialog with its model picker mocked to `null` and no
+  store selection, so `handleStart` returns at its guard before any source is read — reaching the filtering needs
+  a picker stub that sets a selection and per-session message stubs, which the file does not have.
 - **`da178739`** — `logs --follow` printed the tail and then followed from the file's current size, dropping every
   line written in between — the ones the followed run was producing. The caller records the size before the tail
   read and the follower starts there. It also read a rotated file from the old offset whenever the new one was
