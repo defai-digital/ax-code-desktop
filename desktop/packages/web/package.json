@@ -1,6 +1,6 @@
 {
   "name": "ax-code-desktop",
-  "version": "7.26.2",
+  "version": "7.27.0",
   "description": "AX Code local web runtime.",
   "private": false,
   "license": "Apache-2.0",
@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@openchamber/ui": "workspace:*",
-    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.27",
+    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.29",
     "@clack/prompts": "^1.1.0",
     "@octokit/rest": "^22.0.1",
     "@simplewebauthn/server": "13.3.2",

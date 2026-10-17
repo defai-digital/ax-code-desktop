@@ -1,6 +1,6 @@
 {
   "name": "@ax-code/electron",
-  "version": "7.26.2",
+  "version": "7.27.0",
   "private": true,
   "description": "AX Code \u2014 Electron desktop shell",
   "author": "DEFAI Private Limited",
@@ -22,7 +22,7 @@
   "dependencies": {
     "electron-updater": "^6.3.9",
     "node-pty": "1.1.0",
-    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.27"
+    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.29"
   },
   "devDependencies": {
     "@electron/asar": "catalog:",

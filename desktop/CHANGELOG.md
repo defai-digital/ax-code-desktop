@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [7.27.0] - 2026-10-17
+
+### Changed
+
+- Bundle the signed AX Code runtime 7.27.0 and exact public JSR SDK 2.6.29, including upstream snapshot undo, repository-query caching and asynchronous TLS certificate-loading fixes.
+- Hash the bundled runtime asynchronously, probe its version without blocking Electron, and overlap login-shell environment capture with window startup while preserving the runtime integrity gate.
+- Remove unused Rust experiments, benchmark adapters, scripts and dependencies.
+
+### Fixed
+
+- Stop idle scroll shadows from scheduling animation frames indefinitely.
+- Reattach scroll and content observers when a scroll-shadow container changes its element type.
+- Report hidden shadows when disabled and restore visibility notifications when re-enabled.
+
 ## [Unreleased]
 
 ### Added
