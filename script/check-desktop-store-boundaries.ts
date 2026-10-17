@@ -375,11 +375,11 @@ export function analyzeConnectionStateWriterImports(
     if (reExportsEverything) {
       writtenNames.push(moduleSpecifier)
     } else if (ts.isNamedExports(clause)) {
-      // A re-exported name is bound to what it names in the module, so the exported name is the one
-      // that has to be a writer (the local alias only renames it).
+      // The name bound to the module is what has to be a writer; an alias renames only the exposed binding, so
+      // `export { markStreamConnected as connect }` still hands the writer out.
       for (const element of clause.elements) {
-        if (CONNECTION_STATE_WRITE_API.has(element.name.text)) {
-          writtenNames.push(element.name)
+        if (CONNECTION_STATE_WRITE_API.has((element.propertyName ?? element.name).text)) {
+          writtenNames.push(element.propertyName ?? element.name)
         }
       }
     }
@@ -492,13 +492,25 @@ export type StoreBoundaryReport = {
   warnings: string[]
 }
 
+/**
+ * A glob that stops matching — a renamed tree, a typo — would otherwise report a clean pass over nothing, which is
+ * the one failure mode a scan-based check cannot see in its own output.
+ */
+export function assertFilesToScan<T>(files: T[], label: string): T[] {
+  if (files.length === 0) throw new Error(`${label} found no files to scan`)
+  return files
+}
+
 export async function collectDesktopStoreBoundaryViolations(): Promise<StoreBoundaryReport> {
-  const files = await fg([`${UI_SRC}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}`], {
-    cwd: root,
-    absolute: true,
-    onlyFiles: true,
-    ignore: ["**/node_modules/**", "**/dist/**", "**/out/**"],
-  })
+  const files = assertFilesToScan(
+    await fg([`${UI_SRC}/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}`], {
+      cwd: root,
+      absolute: true,
+      onlyFiles: true,
+      ignore: ["**/node_modules/**", "**/dist/**", "**/out/**"],
+    }),
+    "Desktop store boundary check",
+  )
 
   const violations: StoreBoundaryViolation[] = []
   const warnings: string[] = []

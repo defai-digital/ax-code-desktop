@@ -8,6 +8,7 @@ import {
   analyzeEventTransportClientImports,
   analyzeStoreToStoreImports,
   analyzeSyncInternalImports,
+  assertFilesToScan,
   collectDesktopStoreBoundaryViolations,
   collectExportedHookNames,
   findDuplicateHookNames,
@@ -19,6 +20,15 @@ const uiSrc = path.join(root, "desktop/packages/ui/src")
 const storeFile = (...segments: string[]) => path.join(uiSrc, "stores", ...segments)
 const syncFile = (...segments: string[]) => path.join(uiSrc, "sync", ...segments)
 const componentFile = (...segments: string[]) => path.join(uiSrc, "components", ...segments)
+
+describe("scan guard", () => {
+  test("refuses to pass when the scanned tree is empty", () => {
+    // A renamed tree or a typo in the glob would otherwise report a clean pass over nothing, which is the one
+    // failure mode this check cannot see in its own output.
+    expect(() => assertFilesToScan([], "Desktop store boundary check")).toThrow("found no files to scan")
+    expect(assertFilesToScan(["a"], "Desktop store boundary check")).toEqual(["a"])
+  })
+})
 
 describe("resolveUiModule", () => {
   test("resolves the @/ alias and relative specifiers into ui/src", () => {
@@ -169,6 +179,19 @@ describe("R5 connection-state writer registry", () => {
     expect(importsWriteApi).toBe(true)
     expect(violations).toHaveLength(2)
     expect(violations.every((violation) => violation.rule === "R5")).toBe(true)
+  })
+
+  test("blocks a re-export that renames the writer", () => {
+    // The name bound to the module is the writer; the alias only renames the exposed binding. Reading the
+    // exported alias instead of the imported name let `export { markStreamConnected as connect }` through.
+    const { violations, importsWriteApi } = analyzeConnectionStateWriterImports(
+      componentFile("ui", "connectionStateFacade.ts"),
+      'export { markStreamConnected as connectStream } from "@/lib/event-stream/connection-state"',
+    )
+
+    expect(importsWriteApi).toBe(true)
+    expect(violations).toHaveLength(1)
+    expect(violations[0].rule).toBe("R5")
   })
 
   test("blocks a whole-module re-export from an unregistered module", () => {
