@@ -1331,6 +1331,13 @@ defects are fixed in `66883ff4`, and one suspected item is left unverified.
   `init` overrides are preserved, and the body survives. Red: the native fetch received the original Request for a
   GET and for a POST with a body.
 
+### Follow-up: a meta refresh kept inside the proxy — `4b36d679`
+
+- **The HTML rewriter left `<meta http-equiv="refresh" content="0;url=/next">` alone.** A meta refresh navigates
+  the iframe itself, so it loaded the Desktop origin's `/next` instead of the previewed app's route. The refresh
+  target now goes through the same resource rewriting, and a refresh to another origin is untouched. Red: the
+  proxied path was absent from the content attribute; the other-origin case passed before and after.
+
 ### Follow-up: the suspected `onchange` break, fixed — `025f7062`
 
 - **Assigning `mql.onchange` threw `Illegal invocation`.** The wrapper is `Object.create(nativeMql)`, so the
@@ -4204,6 +4211,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the fortieth round, after `4b36d679`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
+  electron 600, ui 3 069, web 1 349 (+2 skipped), 0 `FAIL` lines.
 - Latest full run, in the fortieth round, after `025f7062`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
   electron 600, ui 3 069, web 1 347 (+2 skipped), 0 `FAIL` lines. The first run after the onchange fix lost
