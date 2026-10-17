@@ -1326,10 +1326,15 @@ async function terminateProcessTree(pid, options = {}) {
   // kills the tree for the same reason. A pid that is not a group leader has no group to signal, which is what the
   // fallback is for.
   const signalProcess = (signal) => {
-    try {
-      process.kill(-pid, signal)
-      return
-    } catch {}
+    // Not for pid 1: `kill(-1, …)` means "every process this user may signal", not "the group led by pid 1". A
+    // foreground server is PID 1 inside its container, and a `stop` run from there would have killed the CLI itself
+    // and everything beside it before it ever reached the server.
+    if (pid > 1) {
+      try {
+        process.kill(-pid, signal)
+        return
+      } catch {}
+    }
     try {
       process.kill(pid, signal)
     } catch {}
@@ -2276,13 +2281,6 @@ const commands = {
 
     for (const instance of runningInstances) {
       const storedOptions = readInstanceOptions(instance.instanceFilePath)
-      assertRestartCanCarryPassword({
-        port: instance.port,
-        storedOptions,
-        explicitUiPassword: options.explicitUiPassword,
-        uiPassword: options.uiPassword,
-        envPassword: process.env.AX_CODE_DESKTOP_UI_PASSWORD || process.env.AX_CODE_UI_PASSWORD,
-      })
       const restartOptions = storedOptions || { port: instance.port }
       const launchMode = instance.launchMode || "daemon"
       const isForeground = launchMode === "foreground"
@@ -2323,6 +2321,17 @@ const commands = {
         }
 
         await new Promise((resolve) => setTimeout(resolve, 500))
+
+        // Only the branch that starts a server needs a password: a foreground instance is restarted by its process
+        // manager, which already has the environment it was started with, and refusing it here would stop it for
+        // nothing. Inside the per-instance `try`, so a refusal is recorded like the other per-instance errors.
+        assertRestartCanCarryPassword({
+          port: instance.port,
+          storedOptions,
+          explicitUiPassword: options.explicitUiPassword,
+          uiPassword: options.uiPassword,
+          envPassword: process.env.AX_CODE_DESKTOP_UI_PASSWORD || process.env.AX_CODE_UI_PASSWORD,
+        })
 
         const restartedPort = await this.serve({
           port: restartPort,
