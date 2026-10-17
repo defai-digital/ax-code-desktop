@@ -1387,6 +1387,10 @@ least (MCP, providers, multirun, auth, supervision, notifications) plus `server/
 - **`5649bb29`** — the preview bridge's `fetch` patch handled a string and a `Request`, and `fetch` takes a `URL`
   too: one built from `location.href` reached the Desktop server's own routes with the session cookie, unproxied.
   The bridge script is exported now so a jsdom test can drive its patches — the first coverage that script has had.
+- **`9f5dda5c`** — `restart` built the replacement from the instance record and fell back to `{ port }` alone when
+  that record was missing, so the running instance was stopped and replaced by one with no UI password on a port
+  that may have had one. The rule is explicit and exported now: the record, an explicit `--ui-password`, or the
+  environment carries it, and with none of them the command refuses and says how to proceed.
 
 ### Confirmed by this round's reviews and not yet fixed
 
@@ -1398,8 +1402,6 @@ output and a test idea with it.
   reaches the browser.
 - **`preview/proxy-runtime.js:224, 287-303`** — the bridge's `matchMedia` patch keeps every listener in a
   page-global `Set` that is never pruned when the `MediaQueryList` is discarded.
-- **`cli.js:2221, 2262-2270`** — `restart` silently drops the stored UI password when the instance record is
-  missing, so the restarted server comes up unprotected.
 - **`scripts/docker-entrypoint.sh:84-86`** — the container entrypoint passes the UI password as
   `--ui-password <secret>` on the process argv, which every terminal-spawned process can read (`ps`), where
   the same secret is scrubbed from the environment.
@@ -3661,6 +3663,13 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, after the three carried-forward fixes (`1a6f6118`, `5649bb29`, `9f5dda5c`) and the test
+  robustness change (`8b6a50cd`): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
+  `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600,
+  ui 2 978, web 1 323 (+2 skipped), 0 `FAIL` lines. The run before it failed five ui tests, and two of them were
+  this series' own: the re-entrancy tests passed alone and were order- and load-dependent together (one left a
+  fire-and-forget attempt holding the module's claim, the other raced a 50 ms timer against it), which only the
+  full run shows. They release what they arm now.
 - Latest full run, after the thirtieth round's fixes (each command's exit status captured, not inferred from a
   pipeline): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
   `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 978, web 1 318 (+2 skipped),
