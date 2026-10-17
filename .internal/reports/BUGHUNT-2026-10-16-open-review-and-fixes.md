@@ -1391,6 +1391,11 @@ least (MCP, providers, multirun, auth, supervision, notifications) plus `server/
   that record was missing, so the running instance was stopped and replaced by one with no UI password on a port
   that may have had one. The rule is explicit and exported now: the record, an explicit `--ui-password`, or the
   environment carries it, and with none of them the command refuses and says how to proceed.
+- **`da178739`** — `logs --follow` printed the tail and then followed from the file's current size, dropping every
+  line written in between — the ones the followed run was producing. The caller records the size before the tail
+  read and the follower starts there. It also read a rotated file from the old offset whenever the new one was
+  longer, splicing a middle slice of it into the output (the test captured `'nd'` of the first line); it tracks
+  the device and inode now and restarts from the beginning when either changes.
 
 ### Confirmed by this round's reviews and not yet fixed
 
@@ -1405,8 +1410,6 @@ output and a test idea with it.
 - **`scripts/docker-entrypoint.sh:84-86`** — the container entrypoint passes the UI password as
   `--ui-password <secret>` on the process argv, which every terminal-spawned process can read (`ps`), where
   the same secret is scrubbed from the environment.
-- **`cli.js:2620-2653, 1571-1590`** — `logs --follow` drops the lines written between the tail read and the
-  follow start, and splices stale text after a rotation.
 - **`text/summarization.js:22-23`** — `sanitizeForSummary`'s path-stripping regex deletes ordinary
   slash-separated prose, not just paths (latent: the summary mode has no production caller).
 - **`sections/providers/ProvidersPage.tsx:198`** — the AX Engine download uses one busy slot (a string), so a
@@ -3663,6 +3666,12 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, after the fourth carried-forward fix (`da178739`): `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
+  electron 600, ui 2 978, web 1 325 (+2 skipped), 0 `FAIL` lines. The run before it failed one web test
+  (`terminal/runtime.test.js` > "keeps the cap when the replaced session leaves on its own during the spawn"),
+  which passes alone (25 tests) and passed in this run: a timing flake of the shape this record already notes,
+  not a regression from the change under test.
 - Latest full run, after the three carried-forward fixes (`1a6f6118`, `5649bb29`, `9f5dda5c`) and the test
   robustness change (`1efed504`): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600,
