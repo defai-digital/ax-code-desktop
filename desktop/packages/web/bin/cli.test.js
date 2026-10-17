@@ -29,6 +29,7 @@ import {
   buildTunnelServeOptions,
   stopInstanceProcess,
   followFile,
+  readTailWithSize,
   commands,
   parseArgs,
   terminateProcessTree,
@@ -211,7 +212,7 @@ describe("startup quoting", () => {
   })
 
 
-  it("forces the group even when the leader is already gone", async () => {
+  it.skipIf(process.platform === "win32")("forces the group even when the leader is already gone", async () => {
     // The reason this signals the group is that the leader's children outlive it. The graceful wait asks about the
     // pid only, so a leader that has already exited answers at once — and the survivors were never sent anything.
     const calls = []
@@ -234,7 +235,7 @@ describe("startup quoting", () => {
     }
   })
 
-  it("forces the group when the graceful stop already saw the leader go", async () => {
+  it.skipIf(process.platform === "win32")("forces the group when the graceful stop already saw the leader go", async () => {
     // `stop` asks the server to shut down and returns as soon as the leader exits: the group signal lived only in
     // `terminateProcessTree`, which that path never reached, so a child that ignored the shutdown outlived a `stop`
     // that reported the instance stopped.
@@ -355,6 +356,48 @@ describe("tunnel args", () => {
       stdoutWrite.mockRestore()
       if (originalDataDir === undefined) delete process.env.AX_CODE_DESKTOP_DATA_DIR
       else process.env.AX_CODE_DESKTOP_DATA_DIR = originalDataDir
+      fsImpl.rmSync(dataDir, { recursive: true, force: true })
+    }
+  })
+
+  it("carries an environment password into the restarted instance", async () => {
+    // The guard accepts a password from the environment when the record is missing, but the restart then handed
+    // `serve` only the record's (absent) password. The first server was protected by the inherited environment
+    // alone, and its new record said `hasUiPassword: false` — so the next restart, from a shell without the
+    // variable, passed the guard on that record and came up unprotected without a word.
+    const fsImpl = await import("node:fs")
+    const os = await import("node:os")
+    const nodePath = await import("node:path")
+    const dataDir = fsImpl.mkdtempSync(nodePath.join(os.tmpdir(), "ax-code-restart-env-"))
+    const originalDataDir = process.env.AX_CODE_DESKTOP_DATA_DIR
+    const originalEnvPassword = process.env.AX_CODE_DESKTOP_UI_PASSWORD
+    process.env.AX_CODE_DESKTOP_DATA_DIR = dataDir
+    process.env.AX_CODE_DESKTOP_UI_PASSWORD = "env-secret"
+    const runDir = nodePath.join(dataDir, "run")
+    fsImpl.mkdirSync(runDir, { recursive: true })
+    fsImpl.writeFileSync(nodePath.join(runDir, "ax-code-desktop-3100.pid"), String(process.pid))
+    // No instance record beside the pid file: the environment is the only password source.
+
+    const originalStop = commands.stop
+    const originalServe = commands.serve
+    let served
+    commands.stop = async () => {}
+    commands.serve = async (options) => {
+      served = options
+      return 3100
+    }
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true)
+    try {
+      await commands.restart({ json: true })
+      expect(served?.uiPassword).toBe("env-secret")
+    } finally {
+      commands.stop = originalStop
+      commands.serve = originalServe
+      stdoutWrite.mockRestore()
+      if (originalDataDir === undefined) delete process.env.AX_CODE_DESKTOP_DATA_DIR
+      else process.env.AX_CODE_DESKTOP_DATA_DIR = originalDataDir
+      if (originalEnvPassword === undefined) delete process.env.AX_CODE_DESKTOP_UI_PASSWORD
+      else process.env.AX_CODE_DESKTOP_UI_PASSWORD = originalEnvPassword
       fsImpl.rmSync(dataDir, { recursive: true, force: true })
     }
   })
@@ -698,6 +741,22 @@ describe("logs --follow", () => {
       }
     } finally {
       stop()
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("reports the bytes it read as the offset, not the bytes of the decoded text", async () => {
+    // A write cut a multibyte character in half. Decoding replaced it with U+FFFD, which is three UTF-8 bytes, so
+    // the reported offset ran past the file's real size. The follower then clamped to the size it saw at open and
+    // dropped every line written between the tail and the follow — the race the offset was added to close.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-logs-bytes-"))
+    const logPath = path.join(dir, "daemon.log")
+    fs.writeFileSync(logPath, Buffer.from([0x61, 0x0a, 0xe2, 0x82]))
+    try {
+      const tail = readTailWithSize(logPath)
+      expect(tail.size).toBe(4)
+      expect(tail.size).toBe(fs.statSync(logPath).size)
+    } finally {
       fs.rmSync(dir, { recursive: true, force: true })
     }
   })

@@ -4,11 +4,24 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
 
-const { fetchProviderAuthMethods, fetchProviderJsonWithRetry, openExternalUrl, toastMessage } = vi.hoisted(() => ({
+const {
+  fetchProviderAuthMethods,
+  fetchProviderJsonWithRetry,
+  loadProviders,
+  openExternalUrl,
+  reloadAxCodeConfiguration,
+  toastError,
+  toastMessage,
+  toastWarning,
+} = vi.hoisted(() => ({
   fetchProviderAuthMethods: vi.fn(),
   fetchProviderJsonWithRetry: vi.fn(),
+  loadProviders: vi.fn(async () => {}),
   openExternalUrl: vi.fn(),
+  reloadAxCodeConfiguration: vi.fn(async () => {}),
+  toastError: vi.fn(),
   toastMessage: vi.fn(),
+  toastWarning: vi.fn(),
 }))
 
 vi.mock("@/lib/ax-code/providerApi", async () => {
@@ -30,8 +43,10 @@ vi.mock("@/lib/ax-code/providerApi", async () => {
 vi.mock("@/lib/url", () => ({ openExternalUrl }))
 vi.mock("@/lib/clipboard", () => ({ copyTextToClipboard: vi.fn(async () => true) }))
 vi.mock("@/components/ui", () => ({
-  toast: { message: toastMessage, success: vi.fn(), error: vi.fn() },
+  toast: { message: toastMessage, success: vi.fn(), error: toastError, warning: toastWarning },
 }))
+
+vi.mock("@/stores/useAgentsStore", () => ({ reloadAxCodeConfiguration, waitForQueuedAxCodeReload: vi.fn() }))
 
 const stubStore = <State,>(state: State) => {
   const useStore = ((selector?: (value: State) => unknown) => (selector ? selector(state) : state)) as unknown as {
@@ -50,7 +65,8 @@ vi.mock("@/stores/useConfigStore", () => ({
     providersLoading: false,
     providersError: null,
     selectedProviderId: "demo",
-    loadProviders: vi.fn(async () => {}),
+    invalidateAllProviderCaches: vi.fn(),
+    loadProviders,
     setSelectedProvider: vi.fn(),
     getModelMetadata: vi.fn(() => undefined),
   }),
@@ -86,8 +102,13 @@ describe("ProvidersPage OAuth flows", () => {
     root = createRoot(container)
     fetchProviderAuthMethods.mockReset()
     fetchProviderJsonWithRetry.mockReset()
+    loadProviders.mockClear()
     openExternalUrl.mockReset()
+    reloadAxCodeConfiguration.mockReset()
+    reloadAxCodeConfiguration.mockResolvedValue(undefined)
+    toastError.mockReset()
     toastMessage.mockReset()
+    toastWarning.mockReset()
     fetchProviderAuthMethods.mockResolvedValue(OAUTH_METHODS)
     fetchProviderJsonWithRetry.mockResolvedValue({ url: "https://example.test/authorize" })
   })
@@ -145,5 +166,27 @@ describe("ProvidersPage OAuth flows", () => {
 
     expect(codeInputs()).toHaveLength(2)
     expect(fetchProviderJsonWithRetry).toHaveBeenCalledTimes(2)
+  })
+
+  test("reloads the provider list after an OAuth completion whose reload fails", async () => {
+    // The caches are dropped before the reload, which clears every project's provider list. Before this, a reload
+    // that threw left the page showing an empty list with no error and no selection; the sibling API-key path
+    // reloads the providers in its catch for exactly that reason.
+    reloadAxCodeConfiguration.mockRejectedValue(new Error("reload refused"))
+    await renderPage()
+    await revealAuthPanel()
+    await act(async () => {
+      connectButtons()[0].click()
+    })
+
+    const complete = buttonByText(dict["settings.providers.page.actions.complete"])
+    expect(complete).toBeTruthy()
+    await act(async () => {
+      complete?.click()
+    })
+
+    expect(reloadAxCodeConfiguration).toHaveBeenCalledTimes(1)
+    expect(loadProviders).toHaveBeenCalled()
+    expect(toastWarning).toHaveBeenCalled()
   })
 })

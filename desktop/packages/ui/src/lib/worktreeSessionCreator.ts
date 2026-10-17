@@ -176,10 +176,13 @@ const createInstantWorktreeDraft = async (options?: {
   }
 
   if (!isGitRepo) {
-    toast.error(tr("worktreeSessionCreator.error.notGitRepository"), {
-      description: tr("worktreeSessionCreator.error.notGitRepositoryDescription"),
-    })
-    isCreatingWorktreeSession = false
+    try {
+      toast.error(tr("worktreeSessionCreator.error.notGitRepository"), {
+        description: tr("worktreeSessionCreator.error.notGitRepositoryDescription"),
+      })
+    } finally {
+      isCreatingWorktreeSession = false
+    }
     return null
   }
 

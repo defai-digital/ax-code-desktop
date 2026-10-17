@@ -1600,14 +1600,16 @@ function readTailWithSize(filePath, lineCount = DEFAULT_TAIL_LINES) {
   if (!fs.existsSync(filePath)) {
     return { lines: [], size: 0 }
   }
-  const raw = fs.readFileSync(filePath, "utf8")
-  const lines = raw.split(/\r?\n/)
+  const raw = fs.readFileSync(filePath)
+  const lines = raw.toString("utf8").split(/\r?\n/)
   if (lines.length && lines[lines.length - 1] === "") {
     lines.pop()
   }
   // The offset comes from the same read that produced the lines: a stat taken before it let a line appended in
-  // between print twice, once in the tail and once as the follower's first output.
-  return { lines: lines.slice(Math.max(0, lines.length - lineCount)), size: Buffer.byteLength(raw) }
+  // between print twice, once in the tail and once as the follower's first output. It is the byte count of what was
+  // read, not of the decoded text: a cut multibyte character decodes to U+FFFD, three bytes, and an offset past the
+  // file's size made the follower clamp to it and drop everything written in between.
+  return { lines: lines.slice(Math.max(0, lines.length - lineCount)), size: raw.length }
 }
 
 function readTailLines(filePath, lineCount = DEFAULT_TAIL_LINES) {
@@ -2301,6 +2303,9 @@ const commands = {
       const isForeground = launchMode === "foreground"
 
       const restartPort = options.explicitPort ? options.port : instance.port
+      // One reading of the environment for both the guard and the record: the guard accepting an env password only
+      // means something if the instance it starts is given that password and records it.
+      const envPassword = process.env.AX_CODE_DESKTOP_UI_PASSWORD || process.env.AX_CODE_UI_PASSWORD
 
       const restartSpin = showOutput ? createSpinner(options) : null
       if (showOutput && !restartSpin) {
@@ -2317,7 +2322,7 @@ const commands = {
             storedOptions,
             explicitUiPassword: options.explicitUiPassword,
             uiPassword: options.uiPassword,
-            envPassword: process.env.AX_CODE_DESKTOP_UI_PASSWORD || process.env.AX_CODE_UI_PASSWORD,
+            envPassword,
           })
         }
 
@@ -2354,7 +2359,9 @@ const commands = {
           port: restartPort,
           host: restartOptions.host,
           explicitPort: true,
-          uiPassword: options.explicitUiPassword ? options.uiPassword : restartOptions.uiPassword,
+          // The record's password, or the environment one the guard accepted: without the fallback the restarted
+          // instance is protected only by the inherited environment and records `hasUiPassword: false`.
+          uiPassword: options.explicitUiPassword ? options.uiPassword : (restartOptions.uiPassword ?? envPassword),
           suppressStartupSummary: true,
           quiet: true,
           suppressUiPasswordWarning: true,
@@ -3020,6 +3027,7 @@ export {
   commands,
   parseArgs,
   followFile,
+  readTailWithSize,
   assertRestartCanCarryPassword,
   terminateProcessTree,
   stopInstanceProcess,

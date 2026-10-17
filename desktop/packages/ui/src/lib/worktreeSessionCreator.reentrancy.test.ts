@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 
-const { checkIsGitRepositoryMock, getActiveProjectMock } = vi.hoisted(() => ({
+const { checkIsGitRepositoryMock, getActiveProjectMock, toastErrorMock } = vi.hoisted(() => ({
   checkIsGitRepositoryMock: vi.fn(),
   getActiveProjectMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+}))
+
+vi.mock("@/components/ui", () => ({
+  toast: { error: (...args: unknown[]) => toastErrorMock(...args), success: vi.fn(), warning: vi.fn(), message: vi.fn() },
 }))
 
 vi.mock("@/lib/gitApi", () => ({
@@ -20,6 +25,7 @@ afterEach(() => {
   vi.resetModules()
   checkIsGitRepositoryMock.mockReset()
   getActiveProjectMock.mockReset()
+  toastErrorMock.mockReset()
 })
 
 describe("createWorktreeSession re-entrancy", () => {
@@ -41,6 +47,24 @@ describe("createWorktreeSession re-entrancy", () => {
     // The next attempt reaches the repository check rather than the guard.
     await expect(createWorktreeSession()).resolves.toBeNull()
     expect(checkIsGitRepositoryMock).toHaveBeenCalledTimes(1)
+  })
+
+  test("does not stay claimed when the not-a-repository toast throws", async () => {
+    // The claim is taken before the repository check to close the re-entrancy window, and the comment says every
+    // early return releases it. This early return announced itself with a toast while still holding the claim, so a
+    // throw from that announcement — the same store-and-toast throw the comment cites — left every later attempt
+    // answered `null` from the guard.
+    getActiveProjectMock.mockReturnValue({ id: "proj_1", path: "/repo" })
+    checkIsGitRepositoryMock.mockResolvedValue(false)
+    toastErrorMock.mockImplementationOnce(() => {
+      throw new Error("the toast store is not loaded")
+    })
+    const { createWorktreeSession } = await import("./worktreeSessionCreator")
+
+    await expect(createWorktreeSession()).rejects.toThrow("the toast store is not loaded")
+
+    await expect(createWorktreeSession()).resolves.toBeNull()
+    expect(checkIsGitRepositoryMock).toHaveBeenCalledTimes(2)
   })
 
   test("refuses a second press while the first is still checking the repository", async () => {

@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { formatRelativeAge } from "@/lib/supervision/relativeAge"
 
+// Answers in flight, by notification id. Module scope so the claim survives the entry's unmount when the panel
+// closes; the entry itself is remounted with the panel.
+const answeringNotificationIds = new Set<string>()
+
 const NotificationEntry: React.FC<{
   item: NotificationItem
   onRemove: (id: string) => void
@@ -27,22 +31,23 @@ const NotificationEntry: React.FC<{
 
   // The entry leaves only once its answer landed: a reply that failed leaves the permission pending, and removing
   // the entry took away the user's handle on it — the request stayed open somewhere the bell no longer showed.
-  // The guard is a ref, like the permission card's: `setState` is async, so two clicks in the same tick both read
-  // the state as false and both handlers run. The state is there for the buttons' disabled attribute.
-  const respondingRef = React.useRef(false)
-  const [responding, setResponding] = React.useState(false)
+  // The guard is module-level, not a ref: the panel returns null while closed, so every close unmounts the entry and
+  // the reopen would mount a fresh one with a per-entry guard reset while the first answer was still in flight.
+  // The state is there for the buttons' disabled attribute.
+  const [responding, setResponding] = React.useState(() => answeringNotificationIds.has(item.id))
   const respond = React.useCallback(
     async (handler: (() => void | Promise<void>) | undefined) => {
-      if (respondingRef.current) return
-      respondingRef.current = true
+      if (answeringNotificationIds.has(item.id)) return
+      answeringNotificationIds.add(item.id)
       setResponding(true)
       try {
         await handler?.()
       } catch {
-        respondingRef.current = false
+        answeringNotificationIds.delete(item.id)
         setResponding(false)
         return
       }
+      answeringNotificationIds.delete(item.id)
       onRemove(item.id)
     },
     [item.id, onRemove],

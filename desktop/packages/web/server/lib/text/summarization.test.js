@@ -9,6 +9,10 @@ describe("text summarization stubs", () => {
     expect(sanitizeForSummary("see /usr/local/bin for details")).toBe("see for details")
     // A trailing separator goes with the path rather than being left behind.
     expect(sanitizeForSummary("in /usr/bin/ today")).toBe("in today")
+    // A path attached to a label or a scheme is still a path. Stripping the punctuation glued it to the word before
+    // it, where the whitespace-anchored pattern no longer saw a boundary.
+    expect(sanitizeForSummary("see [docs](/etc/hosts) today")).toBe("see docs today")
+    expect(sanitizeForSummary("see file:/etc/hosts today")).toBe("see file: today")
   })
 
   it("removes code from summary text before stripping markdown punctuation", () => {

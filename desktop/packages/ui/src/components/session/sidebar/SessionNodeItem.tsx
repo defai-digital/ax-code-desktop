@@ -46,6 +46,7 @@ import { useSync } from "@/sync/use-sync"
 import { loadAllSessionRecords } from "./sessionExportRecords"
 import { useViewportStore } from "@/sync/viewport-store"
 import { DraggableSessionRow } from "./sessionFolderDnd"
+import { resolveSessionExportTree } from "./sessionExportTree"
 import type { SessionNode, SessionSummaryMeta } from "./types"
 import {
   formatSessionCompactDateLabel,
@@ -376,6 +377,9 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
 
   const [exportDialogOpen, setExportDialogOpen] = React.useState(false)
   const [exportIncludeSubtasks, setExportIncludeSubtasks] = React.useState(true)
+  // The tree the open dialog offers. A flat row's own node has no children, so the tree is resolved when the user
+  // picks Export Markdown rather than reread from the render.
+  const [exportTree, setExportTree] = React.useState<SessionNode | null>(null)
   const [moveDialogOpen, setMoveDialogOpen] = React.useState(false)
 
   const menuInstanceKey = `${renderContext}:${archivedBucket ? "archived" : "active"}:${session.id}`
@@ -428,7 +432,10 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
   )
   const [fusionDialogOpen, setFusionDialogOpen] = React.useState(false)
 
-  const descendantCount = React.useMemo(() => collectNodeDescendantIds(node).length, [collectNodeDescendantIds, node])
+  const descendantCount = React.useMemo(
+    () => (exportTree ? collectNodeDescendantIds(exportTree).length : 0),
+    [collectNodeDescendantIds, exportTree],
+  )
 
   const collectChildExports = React.useCallback(
     async (children: SessionNode[]): Promise<{ children: ChildSessionExport[]; skipped: number }> => {
@@ -473,7 +480,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
   )
 
   const doExportSession = React.useCallback(
-    async (includeSubtasks: boolean) => {
+    async (includeSubtasks: boolean, tree: SessionNode) => {
       if (!sessionDirectory) {
         toast.error(t("sessions.sidebar.session.export.nothingToExport"))
         return
@@ -491,8 +498,8 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
 
         let childExports: ChildSessionExport[] | undefined
         let skippedSubtaskCount = 0
-        if (includeSubtasks && node.children.length > 0) {
-          const collected = await collectChildExports(node.children)
+        if (includeSubtasks && tree.children.length > 0) {
+          const collected = await collectChildExports(tree.children)
           childExports = collected.children
           skippedSubtaskCount = collected.skipped
         }
@@ -538,7 +545,6 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
     [
       collectChildExports,
       directoryStore,
-      node.children,
       resolvedSession.title,
       session.id,
       sessionDirectory,
@@ -548,13 +554,15 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
     ],
   )
   const handleExportSession = React.useCallback(async () => {
-    if (node.children.length > 0) {
+    const tree = resolveSessionExportTree(node, resolvedSession)
+    if (tree.children.length > 0) {
+      setExportTree(tree)
       setExportIncludeSubtasks(true)
       setExportDialogOpen(true)
       return
     }
-    await doExportSession(false)
-  }, [doExportSession, node.children.length])
+    await doExportSession(false, tree)
+  }, [doExportSession, node, resolvedSession])
 
   const handleOpenMiniChatWindow = React.useCallback(() => {
     if (!sessionDirectory) return
@@ -1367,7 +1375,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
               type="button"
               onClick={() => {
                 setExportDialogOpen(false)
-                void doExportSession(exportIncludeSubtasks)
+                void doExportSession(exportIncludeSubtasks, exportTree ?? node)
               }}
               size="sm"
             >

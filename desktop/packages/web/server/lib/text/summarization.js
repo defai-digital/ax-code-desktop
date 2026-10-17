@@ -17,13 +17,15 @@ export function sanitizeForSummary(text) {
     .replace(/^\s*[$#>]\s*/gm, "")
     .replace(/[|&;<>]/g, " ")
     .replace(/\\/g, "")
-    .replace(/[\[\]{}()]/g, "")
+    // A space, not nothing: `[docs](/etc/hosts)` lost its bracket and left `docs/etc/hosts`, which no path pattern
+    // can tell from prose.
+    .replace(/[\[\]{}()]/g, " ")
     .replace(/["']/g, "")
     .replace(/https?:\/\/[^\s]+/g, " a link ")
-    // A slash-run is a path only when it starts a word: `/usr/local/bin`, `/etc`. Inside one it is not — the old
-    // pattern matched any `/<word>`, so `either/or` and `TCP/IP` lost their second half. The whole run goes,
-    // trailing separator included; a parenthesis cannot precede it here, because they are stripped above.
-    .replace(/(^|\s)\/[\w\-./]+/g, "$1")
+    // A slash-run is a path only when no word character precedes it: `/usr/local/bin`, `/etc`, and `file:/etc` or
+    // `[label](/etc)` once the punctuation above is a space. Inside a word it is not — `either/or` and `TCP/IP`
+    // keep both halves. The whole run goes, trailing separator included.
+    .replace(/(^|[\s:])\/[\w\-./]+/g, "$1")
     .replace(/\s+/g, " ")
     .trim()
 }

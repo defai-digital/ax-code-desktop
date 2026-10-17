@@ -103,6 +103,36 @@ describe("NotificationCenter permission entry", () => {
     releaseReply()
   })
 
+  test("does not answer again after the panel is closed and reopened", async () => {
+    // The guard lived in the entry, and the panel returns null while closed, so every close unmounted the entry and
+    // the reopen mounted a fresh one with the guard reset — while the first answer was still in flight.
+    let releaseReply = () => {}
+    const onAllow = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseReply = resolve
+        }),
+    )
+    const onDeny = vi.fn(async () => {})
+    useNotificationStore.getState().addNotification(permissionItem({ onAllow, onDeny }))
+    await render()
+
+    await click(dict["notificationCenter.allow"])
+    // Each toggle gets its own commit: the panel has to actually return null between them, which is what unmounts
+    // the entry and resets a per-entry guard.
+    await act(async () => {
+      useNotificationStore.setState({ isOpen: false })
+    })
+    await act(async () => {
+      useNotificationStore.setState({ isOpen: true })
+    })
+    await click(dict["notificationCenter.deny"])
+
+    expect(onAllow).toHaveBeenCalledTimes(1)
+    expect(onDeny).not.toHaveBeenCalled()
+    releaseReply()
+  })
+
   test("removes the entry once the answer landed", async () => {
     const onAllow = vi.fn(async () => {})
     useNotificationStore.getState().addNotification(permissionItem({ onAllow, onDeny: onAllow }))
