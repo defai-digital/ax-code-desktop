@@ -1330,23 +1330,28 @@ empty input is the harness failure this record keeps meeting.
 - **`9bf02c1e`** — `sanitizeForSummary`'s path pattern matched any `/<word>`, so prose lost its second half:
   "either/or and TCP/IP" came back as "either and TCP". It matches a run that begins a word now.
 
-### Confirmed by the second audit, not yet fixed
+### Fixed from the second audit
 
-Four regressions in this series' own fixes, each with the reviewer's evidence in
-`.tmp/bughunt/out-r31-audit2.txt`:
+Four regressions in this series' own fixes, all from `82b7a710`:
 
-- **`git/routes.js:499`** — the stash file-count guard this series added inspects an *array* only, while
-  `countStashFiles` normalizes a non-array value into a one-element list (`service.js:452`) and passes each entry
-  as bare argv: the string form of `--output=<path>` is still reachable.
-- **`cli.js:1601`** — the log follower never learns the file's device and inode when the log does not exist at
-  start: they are assigned only inside the rotation branch, which requires them to be set, so the first file it
-  opens never becomes the baseline and a later rotation is read from the old offset.
-- **`cli.js:1338`** — `terminateProcessTree` returns success when the *leader* exits, without the `SIGKILL` that
-  would reach a surviving group member: `waitForProcessExit` asks about the pid only, so a child holding a loopback
-  port can outlive a `stop` that reported success.
-- **`ui/src/components/notifications/NotificationCenter.tsx:60`** — delaying the entry's removal until its reply
-  settles added no synchronous re-entry guard: Allow and Deny can both be submitted for one request while the first
-  is pending. The sibling `PermissionCard` uses a submitting flag for the same call.
+- **`git/routes.js`** — the stash file-count guard inspected an *array* only, while `countStashFiles` normalizes a
+  non-array value into a one-element list (`service.js:452`) and passes each entry as bare argv: the string form of
+  `--output=<path>` was still reachable. The guard looks at both forms.
+- **`cli.js`, `followFile`** — when the log did not exist at start, the device and inode were never established:
+  they were assigned only inside the rotation branch, which requires them. The first file opened is the baseline
+  now, so a later rotation is recognised instead of read from the old offset.
+- **`cli.js`, `terminateProcessTree`** — it returned success as soon as the *leader* exited, without the `SIGKILL`
+  that reaches a surviving group member, so a child holding a loopback port outlived a `stop` that said it worked.
+  The force signal goes to the group before success is reported.
+- **`ui/src/components/notifications/NotificationCenter.tsx`** — delaying the entry's removal until the reply
+  settled added no guard against a second answer: Allow and Deny could both be submitted for one request while the
+  first was pending. Both buttons are disabled while it is, and the handler refuses a re-entry.
+
+Two of the four carry a red-light test (`git/routes.test.js` and
+`NotificationCenter.respond.test.tsx`); the follower's identity and the process group's force signal are covered by
+reading and by the process-group test that already drives a real detached leader and its child, and their own red
+lights need a log file created mid-follow and a leader that exits ahead of its child — both worth adding when the
+suite next grows a fake for either.
 
 Two further leads from the first audit are recorded rather than acted on: the log-rotation test deletes and
 recreates the file immediately, so a filesystem that reuses inode numbers would defeat it; and the preview sandbox
@@ -3760,6 +3765,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-first round, after `82b7a710` (four more of the audit's findings): `pnpm run
+  typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 —
+  root scripts 180 (+6 skipped), electron 600, ui 2 980, web 1 328 (+2 skipped), 0 `FAIL` lines.
 - Latest full run, in the thirty-first round, after `6e482e8a` (three of the audit's findings): `pnpm run typecheck`
   0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts
   180 (+6 skipped), electron 600, ui 2 979, web 1 327 (+2 skipped), 0 `FAIL` lines. The four findings the second
