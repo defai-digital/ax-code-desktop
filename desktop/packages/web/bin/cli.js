@@ -1631,15 +1631,11 @@ function followFile(filePath, onLine, { startAt = null } = {}) {
     try {
       fd = fs.openSync(filePath, "r")
       const stats = fs.fstatSync(fd)
-      if (device === null || inode === null) {
-        // The log did not exist when this started: the first file it opens is the baseline, and without one a later
-        // rotation had nothing to be compared against and was read from the old offset.
-        device = stats.dev
-        inode = stats.ino
-      }
       // A rotated log is a different file at the same path, and reading it from the old offset spliced a middle
       // slice of the new one into the output; a smaller size alone only caught the rotations shorter than the old.
-      const rotated = stats.dev !== device || stats.ino !== inode
+      // A log that did not exist when this started has no identity yet, and reads as a rotation for the same
+      // reason: the first file it opens is read from the beginning and becomes the baseline.
+      const rotated = device === null || inode === null || stats.dev !== device || stats.ino !== inode
       if (rotated) {
         device = stats.dev
         inode = stats.ino

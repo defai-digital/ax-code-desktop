@@ -209,6 +209,30 @@ describe("startup quoting", () => {
     ).not.toThrow()
   })
 
+
+  it("forces the group even when the leader is already gone", async () => {
+    // The reason this signals the group is that the leader's children outlive it. The graceful wait asks about the
+    // pid only, so a leader that has already exited answers at once — and the survivors were never sent anything.
+    const calls = []
+    const killSpy = vi.spyOn(process, "kill").mockImplementation((target, signal) => {
+      calls.push([target, signal])
+      if (target > 0) {
+        const error = new Error("kill ESRCH")
+        error.code = "ESRCH"
+        throw error
+      }
+      return true
+    })
+    try {
+      await expect(terminateProcessTree(4242, { gracefulTimeoutMs: 10, forceTimeoutMs: 10 })).resolves.toBe(true)
+
+      expect(calls).toContainEqual([-4242, "SIGTERM"])
+      expect(calls).toContainEqual([-4242, "SIGKILL"])
+    } finally {
+      killSpy.mockRestore()
+    }
+  })
+
   it("escapes Windows task command arguments", () => {
     expect(windowsCommandQuote(String.raw`C:\Program Files\AX "Code"\run.ps1`)).toBe(
       String.raw`"C:\\Program Files\\AX \"Code\"\\run.ps1"`,
@@ -597,6 +621,30 @@ describe("logs --follow", () => {
       fs.appendFileSync(logPath, "third\n")
       await waitFor(() => seen.includes("third"))
       expect(seen).toContain("third")
+    } finally {
+      stop()
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("treats the first file it opens after a missing log as the baseline", async () => {
+    // The follower can start before the daemon has written its log. The identity it compares against was only set
+    // when the file existed at start, so the later rotation had nothing to be compared with and was read from the
+    // old offset — the new file's beginning was lost.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-logs-late-"))
+    const logPath = path.join(dir, "daemon.log")
+    const seen = []
+    const stop = followFile(logPath, (line) => seen.push(line))
+    try {
+      fs.writeFileSync(logPath, "first\n")
+      await waitFor(() => seen.includes("first"))
+
+      fs.rmSync(logPath, { force: true })
+      fs.writeFileSync(logPath, "rotated-one\nrotated-two\nrotated-three\n")
+      await waitFor(() => seen.includes("rotated-one"))
+
+      expect(seen).toContain("first")
+      expect(seen).toContain("rotated-one")
     } finally {
       stop()
       fs.rmSync(dir, { recursive: true, force: true })
