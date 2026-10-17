@@ -3682,8 +3682,14 @@ Round six and seven are complete: every confirmed finding is fixed.
   entry below that makes three files, all in the web package, all passing alone and all failing only inside the
   full run — a suite-under-load family rather than three bugs. The web package configures no pool or isolation of
   its own, so vitest's defaults (isolated forks) apply; what the three share has not been reproduced outside a
-  full run, and the honest next step is to bisect the run (`--no-file-parallelism`, then a split by directory)
-  rather than to re-run each file until it passes.
+  full run. The bisect that settles it was run: the web package alone, twice in a row, is green both times
+  (135 files, 1 325 tests, exit 0) and takes about 30 seconds a run — where the same suite inside the four-package
+  turbo run has the electron and ui packages compiling and running beside it. So the family is not cross-file
+  state: it is wall-clock margin. Each of the three has a bounded wait in it (the terminal one arms a spawn and
+  waits for the replaced session to leave; the registry one arms a cache and asserts the refresh that follows; the
+  `401` one waits on a mutation that is answered by a mounted guard), and under CPU saturation one of them loses
+  its race to `testTimeout`. What that asks for is the fix this record applies elsewhere: assert on the observable
+  effect instead of sleeping, or drive the clock — not a re-run.
 - Latest full run, after the three carried-forward fixes (`1a6f6118`, `5649bb29`, `9f5dda5c`) and the test
   robustness change (`1efed504`): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600,
