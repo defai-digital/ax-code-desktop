@@ -86,8 +86,17 @@ describe("NotificationCenter permission entry", () => {
     useNotificationStore.getState().addNotification(permissionItem({ onAllow, onDeny }))
     await render()
 
-    await click(dict["notificationCenter.allow"])
-    await click(dict["notificationCenter.deny"])
+    // Both in one act, with no flush between them: the state guard alone let both through because `setState` is
+    // async, which is what the permission card's ref exists for.
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .filter((button) => button.textContent === dict["notificationCenter.allow"])
+        .forEach((button) => button.click())
+      Array.from(container.querySelectorAll("button"))
+        .filter((button) => button.textContent === dict["notificationCenter.deny"])
+        .forEach((button) => button.click())
+    })
+    await act(async () => {})
 
     expect(onAllow).toHaveBeenCalledTimes(1)
     expect(onDeny).not.toHaveBeenCalled()
