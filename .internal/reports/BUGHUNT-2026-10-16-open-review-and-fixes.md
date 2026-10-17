@@ -3676,7 +3676,12 @@ Round six and seven are complete: every confirmed finding is fixed.
   which passes alone (25 tests) and passed in this run: a timing flake of the shape this record already notes,
   not a regression from the change under test. The run after that failed a different web test
   (`ax-code/plugin-routes.test.js` > "GET /registry forwards refresh true to npm lookup"), which also passes alone
-  (30 tests): two different files in two consecutive full runs, so the flake is not one test's.
+  (30 tests): two different files in two consecutive full runs, so the flake is not one test's. With the `401`
+  entry below that makes three files, all in the web package, all passing alone and all failing only inside the
+  full run — a suite-under-load family rather than three bugs. The web package configures no pool or isolation of
+  its own, so vitest's defaults (isolated forks) apply; what the three share has not been reproduced outside a
+  full run, and the honest next step is to bisect the run (`--no-file-parallelism`, then a split by directory)
+  rather than to re-run each file until it passes.
 - Latest full run, after the three carried-forward fixes (`1a6f6118`, `5649bb29`, `9f5dda5c`) and the test
   robustness change (`1efed504`): `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0,
   `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600,
