@@ -163,7 +163,7 @@ export const ProvidersPage: React.FC = () => {
     try {
       const next = await fetchAxEngineModels(directory)
       setAxEngineCatalog(next)
-      downloadToastTracker.reconcile(next.jobs)
+      downloadToastTracker.reconcile(next.jobs, directory)
     } catch (error) {
       console.error("Failed to load AX Engine model catalog:", error)
     } finally {

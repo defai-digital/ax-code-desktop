@@ -225,7 +225,12 @@ const buildAxCodeStatusReport = async (): Promise<string> => {
 
   const buildProbeUrl = (pathname: string, includeDirectory = true): string | null => {
     if (!apiBase) return null
-    const url = new URL(pathname.replace(/^\/+/, ""), apiBase)
+    // Debug targets are absolute API paths ("/api/config"): resolving them whole
+    // against the "/api/" base doubled the prefix into "/api/api/*" and every
+    // probe but "/global/health" 404'd. Strip one prefix; the runtime path
+    // ("/global/health") is reached through the same /api proxy hop.
+    const relative = pathname.startsWith(`${API_PATHS.base}/`) ? pathname.slice(API_PATHS.base.length) : pathname
+    const url = new URL(relative.replace(/^\/+/, ""), apiBase)
     if (includeDirectory && directory) {
       url.searchParams.set("directory", directory)
     }

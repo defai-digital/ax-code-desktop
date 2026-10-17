@@ -228,7 +228,11 @@ export function resolveSettingsSlug(value: string | null | undefined): SettingsP
     return "skills.installed"
   }
 
-  const legacy = (LEGACY_SIDEBAR_SECTION_TO_SETTINGS_SLUG as Record<string, SettingsPageSlug>)[normalized]
+  // hasOwnProperty, not a bare lookup: "?settings=constructor" would otherwise
+  // read Object through the prototype chain and hand a function back as a slug.
+  const legacy = Object.prototype.hasOwnProperty.call(LEGACY_SIDEBAR_SECTION_TO_SETTINGS_SLUG, normalized)
+    ? LEGACY_SIDEBAR_SECTION_TO_SETTINGS_SLUG[normalized as SidebarSection]
+    : undefined
   if (legacy) {
     return legacy
   }

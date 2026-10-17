@@ -67,8 +67,13 @@ export function createDownloadToastTracker(deps: DownloadToastDeps) {
     ensureTimer()
   }
 
-  function reconcile(jobs: AxEngineModelJobSummary[]) {
+  function reconcile(jobs: AxEngineModelJobSummary[], directory?: string | null) {
     for (const [jobId, info] of announced) {
+      // A caller's job list is only authoritative for the directory it was
+      // fetched from: pages pass their current project's list, and without this
+      // a job running in another project read as "gone" and got a false
+      // "interrupted" toast (and its completion was never reported).
+      if (directory !== undefined && info.directory !== directory) continue
       const job = jobs.find((entry) => entry.id === jobId)
       if (!job) {
         if (deps.now() - info.announcedAt > MISSING_JOB_GRACE_MS) {
@@ -143,8 +148,12 @@ export function createDownloadToastTracker(deps: DownloadToastDeps) {
       // reconciled and eventually get misreported as "interrupted".
       const directories = new Set<string | null>()
       for (const info of announced.values()) directories.add(info.directory)
-      const jobLists = await Promise.all(Array.from(directories, (directory) => deps.fetchJobs(directory)))
-      reconcile(jobLists.flat())
+      const jobLists = await Promise.all(
+        Array.from(directories, async (directory) => ({ directory, jobs: await deps.fetchJobs(directory) })),
+      )
+      for (const { directory, jobs } of jobLists) {
+        reconcile(jobs, directory)
+      }
     } catch {
       // Transient (e.g. the CLI is restarting) — keep polling; the toast stays
       // "Downloading…" until a terminal state can actually be observed.

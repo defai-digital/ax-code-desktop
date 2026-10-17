@@ -339,6 +339,20 @@ const applyDesktopUiPreferences = (settings: DesktopSettings) => {
   if (settings.notificationTemplates && typeof settings.notificationTemplates === "object") {
     store.setNotificationTemplates(settings.notificationTemplates)
   }
+  // Server-persisted shortcut overrides must be applied too: a client with an
+  // empty local store (new profile, cleared site data, another device) used to
+  // keep its empty map and write that back over the server's saved overrides on
+  // the next shortcut edit.
+  if (settings.shortcutOverrides && typeof settings.shortcutOverrides === "object") {
+    const parsed = parseStringRecord(settings.shortcutOverrides) ?? {}
+    const current = store.shortcutOverrides
+    const unchanged =
+      Object.keys(parsed).length === Object.keys(current).length &&
+      Object.entries(parsed).every(([actionId, combo]) => current[actionId] === combo)
+    if (!unchanged) {
+      useUIStore.setState({ shortcutOverrides: parsed })
+    }
+  }
   if (
     typeof settings.summarizeLastMessage === "boolean" &&
     settings.summarizeLastMessage !== store.summarizeLastMessage
@@ -1236,6 +1250,11 @@ const _flushSettingsUpdateOnUnload = (): void => {
     resolveSettingsWaiters(waiters)
     return
   }
+  // This write supersedes any still-in-flight regular flush: without bumping the
+  // sequence, the older request's response passes the freshness check when it
+  // lands and puts its stale payload back in the store (and the auto-save
+  // watchers then write that stale value back to the server).
+  _settingsFlushSequence += 1
   try {
     const runtimeSettings = getRuntimeSettingsAPI()
     const write = runtimeSettings

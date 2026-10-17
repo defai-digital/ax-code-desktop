@@ -160,7 +160,7 @@ export const LocalModelsPage: React.FC = () => {
   // toast; reconciling here as well just applies fresh poll data sooner.
   React.useEffect(() => {
     if (!data) return
-    downloadToastTracker.reconcile(data.jobs)
+    downloadToastTracker.reconcile(data.jobs, directory)
   }, [data])
 
   const handleDownload = async (model: AxEngineModelCatalogEntry) => {

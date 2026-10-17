@@ -741,7 +741,11 @@ async function updateOpenChamberConfig(
  */
 export async function getWorktreeSetupCommands(project: ProjectRef): Promise<string[]> {
   const config = await readOpenChamberConfig(project)
-  return config?.["setup-worktree"] ?? []
+  const value = config?.["setup-worktree"]
+  // The raw value is user-editable JSON: a string or a sparse/null entry used
+  // to reach `.trim()`/`.map()` on the creation path and crash it.
+  if (!Array.isArray(value)) return []
+  return value.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.trim()).filter(Boolean)
 }
 
 export async function saveWorktreeSetupCommands(project: ProjectRef, commands: string[]): Promise<boolean> {
