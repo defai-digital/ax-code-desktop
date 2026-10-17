@@ -17,7 +17,7 @@
     "build": "turbo run build:shell --filter=@ax-code/electron",
     "typecheck": "pnpm --filter \"./desktop/packages/*\" --if-present run type-check",
     "lint": "pnpm --filter \"./desktop/packages/*\" --if-present run lint",
-    "test": "pnpm run test:scripts && pnpm --filter \"./desktop/packages/*\" --if-present run test",
+    "test": "pnpm run test:scripts && pnpm --filter \"./desktop/packages/*\" --workspace-concurrency=1 --if-present run test",
     "test:scripts": "vitest run --config vitest.config.ts",
     "bench:sync-transport": "pnpm --dir desktop/packages/ui exec tsx scripts/benchmark-sync-transport.mts",
     "bench:sync-hotpath": "pnpm --dir desktop/packages/ui exec tsx src/sync/__tests__/streaming-hotpath.bench.ts",
