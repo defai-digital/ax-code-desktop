@@ -15,9 +15,6 @@ onlyBuiltDependencies:
   - esbuild
   - node-pty
 
-ignoredBuiltDependencies:
-  - "@ibm/plex"
-
 overrides:
   "@babel/core@<7.29.6": "7.29.6"
   "@simple-git/argv-parser@<2.0.1": "2.0.1"

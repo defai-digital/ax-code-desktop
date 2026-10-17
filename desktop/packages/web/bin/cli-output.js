@@ -79,10 +79,6 @@ function createSpinner(options) {
   return canPrompt(options) ? spinner() : null
 }
 
-async function createProgress(options, config) {
-  return canPrompt(options) ? progress(config) : null
-}
-
 function printJson(payload) {
   const base = payload && typeof payload === "object" && !Array.isArray(payload) ? { ...payload } : { data: payload }
 
@@ -126,7 +122,6 @@ export {
   shouldRenderHumanOutput,
   canPrompt,
   createSpinner,
-  createProgress,
   printJson,
   logStatus,
 }

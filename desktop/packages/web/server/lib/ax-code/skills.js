@@ -166,28 +166,6 @@ function getSkillScope(skillName, workingDirectory) {
   return { scope: null, path: null, source: null }
 }
 
-function getSkillWritePath(skillName, workingDirectory, requestedScope) {
-  const existing = getSkillScope(skillName, workingDirectory)
-  if (existing.path) {
-    return existing
-  }
-
-  const scope = requestedScope || SKILL_SCOPE.USER
-  if (scope === SKILL_SCOPE.PROJECT && workingDirectory) {
-    return {
-      scope: SKILL_SCOPE.PROJECT,
-      path: getProjectSkillPath(workingDirectory, skillName),
-      source: "ax-code",
-    }
-  }
-
-  return {
-    scope: SKILL_SCOPE.USER,
-    path: getUserSkillPath(skillName),
-    source: "ax-code",
-  }
-}
-
 function discoverSkills(workingDirectory) {
   const skills = new Map()
 
@@ -645,7 +623,6 @@ function deleteSkill(skillName, workingDirectory) {
 export {
   getSkillSources,
   getSkillScope,
-  getSkillWritePath,
   discoverSkills,
   mergeDiscoveredSkills,
   createSkill,

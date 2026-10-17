@@ -158,7 +158,6 @@ export const fetchCopilotAddonQuota = copilot.fetchQuotaAddon
 export const fetchKimiQuota = kimi.fetchQuota
 export const fetchOpenRouterQuota = openrouter.fetchQuota
 export const fetchZaiQuota = zai.fetchQuota
-export const fetchZhipuaiCodingPlanQuota = zhipuaiCodingPlan.fetchQuota
 export const fetchNanoGptQuota = nanogpt.fetchQuota
 export const fetchMinimaxCodingPlanQuota = minimaxCodingPlan.fetchQuota
 export const fetchMinimaxCnCodingPlanQuota = minimaxCnCodingPlan.fetchQuota

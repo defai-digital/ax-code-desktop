@@ -17,10 +17,6 @@ const NATIVE_MAGICS = new Set([
   "feedfacf", // Mach-O 64-bit (big endian)
 ])
 
-function isPeFile(relativePath) {
-  return PE_EXTENSIONS.has(path.extname(relativePath).toLowerCase())
-}
-
 function isNativeBinary(relativePath, filePath) {
   if (NATIVE_EXTENSIONS.has(path.extname(relativePath).toLowerCase())) return true
   const descriptor = fs.openSync(filePath, "r")
@@ -188,7 +184,6 @@ module.exports = {
   PE_EXTENSIONS,
   createRuntimeManifest,
   isNativeBinary,
-  isPeFile,
   verifyRuntimeManifest,
   walkEntries,
   walkFiles,

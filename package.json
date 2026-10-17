@@ -72,9 +72,6 @@
       "electron-winstaller",
       "esbuild",
       "node-pty"
-    ],
-    "ignoredBuiltDependencies": [
-      "@ibm/plex"
     ]
   }
 }

@@ -10,6 +10,4 @@ export const DESKTOP_OWNED_FS_MUTATION_ROUTES = [
   "POST /api/fs/exec",
 ]
 
-export const DESKTOP_ONLY_ADAPTER_PREFIXES = ["/api/git", "/api/github", "/api/quota", "/api/terminal", "/api/notifications"]
-
 export const isCoreBackedFsRoute = (method, routePath) => CORE_BACKED_FS_ROUTES.includes(`${method} ${routePath}`)
