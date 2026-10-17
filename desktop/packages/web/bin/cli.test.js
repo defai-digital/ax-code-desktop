@@ -76,6 +76,16 @@ describe("cli args", () => {
     expect(parsed.options.force).toBe(true)
   })
 
+  it("refuses --ui-password with no value instead of starting unprotected", () => {
+    // `consumeValue` answers `undefined` when the next token is another flag, and the case assigned `""`: the
+    // server started without password protection and reported success, and under `--quiet` nothing said so.
+    expect(() => parseArgs(["serve", "--ui-password", "--port", "3100"])).toThrow(/Missing value for --ui-password/)
+    expect(() => parseArgs(["serve", "--ui-password"])).toThrow(/Missing value for --ui-password/)
+    // A value is still taken, inline or as the next token.
+    expect(parseArgs(["serve", "--ui-password", "s3cret"]).options.uiPassword).toBe("s3cret")
+    expect(parseArgs(["serve", "--ui-password=s3cret"]).options.uiPassword).toBe("s3cret")
+  })
+
   it("rejects non-loopback bind hosts", () => {
     expect(() => parseArgs(["serve", "--host", "0.0.0.0"])).toThrow("local-only")
   })

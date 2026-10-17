@@ -301,7 +301,13 @@ function parseArgs(argv = process.argv.slice(2)) {
       case "ui-password": {
         const { value, nextIndex } = consumeValue(i, inlineValue)
         i = nextIndex
-        options.uiPassword = typeof value === "string" ? value : ""
+        // An explicitly requested password must not degrade to "no password": a missing value fell through to
+        // `""`, the server started unprotected, and in `--quiet` mode nothing said so — the port was printed and
+        // the UI was open. `--port` and `--host` refuse the same input as a usage error.
+        if (typeof value !== "string" || value.trim().length === 0) {
+          throw new CliError("Missing value for --ui-password.", EXIT_CODE.USAGE_ERROR)
+        }
+        options.uiPassword = value
         options.explicitUiPassword = true
         break
       }
