@@ -189,7 +189,12 @@ export const useKeyboardShortcuts = () => {
         setSessionSwitcherOpen(false)
 
         if (matchedWorktreeShortcut) {
-          createWorktreeSession()
+          // Fire-and-forget, but the promise can still reject (a throwing store
+          // or toast before the creator's own try/catch) — don't let that escape
+          // as an unhandled rejection.
+          void createWorktreeSession().catch((error) => {
+            console.warn("[shortcuts] failed to create a worktree session", error)
+          })
           return
         }
 

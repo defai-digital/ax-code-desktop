@@ -20,7 +20,12 @@ const createId = (): string => `worktree_${Date.now()}_${Math.random().toString(
 
 export const createPendingDraftWorktreeRequest = (): string => {
   const id = createId()
-  requests.set(id, createDeferred())
+  const deferred = createDeferred()
+  // The request is only awaited when the user actually sends in the draft; a
+  // rejection that arrives before then (e.g. worktree creation failed) must
+  // not surface as an unhandled promise rejection.
+  void deferred.promise.catch(() => {})
+  requests.set(id, deferred)
   return id
 }
 

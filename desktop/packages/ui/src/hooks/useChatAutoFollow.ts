@@ -45,6 +45,7 @@ interface UseChatAutoFollowResult {
   getAnimationHandlers: (messageId: string) => AnimationHandlers
   goToBottom: (mode?: "instant" | "smooth", options?: GoToBottomOptions) => void
   releaseAutoFollow: () => void
+  notePrependedMessages: (prependedCount: number) => void
   saveSnapshotNow: () => void
   restoreSnapshot: () => Promise<boolean>
 }
@@ -383,6 +384,14 @@ export const useChatAutoFollow = ({
     setStateValue("released")
   }, [setStateValue, stopFollowLoop, stopSettleBurst])
 
+  // History paging grows the message count from the top; those prepended
+  // messages are not unseen new ones, so keep the baseline in step.
+  const notePrependedMessages = React.useCallback((prependedCount: number) => {
+    if (prependedCount > 0) {
+      unseenBaseRef.current += prependedCount
+    }
+  }, [])
+
   const releaseFromUserIntent = React.useCallback(() => {
     if (stateRef.current === "following") {
       stopFollowLoop()
@@ -496,6 +505,10 @@ export const useChatAutoFollow = ({
     const currentMaxScroll = Math.max(0, container.scrollHeight - container.clientHeight)
     const targetTop = Math.round(ratio * currentMaxScroll)
 
+    // The baseline is (re)taken now: for an uncached session the switch effect
+    // ran before hydration (count 0), and without this the first page loaded
+    // during hydration would all be reported as unseen.
+    unseenBaseRef.current = sessionMessageCountRef.current
     setStateValue("released")
     writeScrollTopInstant(targetTop)
 
@@ -852,6 +865,7 @@ export const useChatAutoFollow = ({
     getAnimationHandlers,
     goToBottom,
     releaseAutoFollow,
+    notePrependedMessages,
     saveSnapshotNow,
     restoreSnapshot,
   }

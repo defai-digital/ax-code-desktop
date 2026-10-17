@@ -159,6 +159,31 @@ describe("useChatAutoFollow collapsed activity", () => {
     expect(scrollContainer.scrollTop).toBe(300)
   })
 
+  test("does not count prepended history as unseen messages", () => {
+    render()
+    setLayout(300)
+    flushFrames()
+    expect(result?.state).toBe("released")
+    expect(result?.unseenCount).toBe(0)
+
+    // Paging older history in at the top grows the count without new activity.
+    sessionMessageCount = 202
+    React.act(() => {
+      result?.notePrependedMessages(200)
+    })
+    React.act(() => {
+      root.render(React.createElement(Probe))
+    })
+    expect(result?.unseenCount).toBe(0)
+
+    // A genuinely new message afterwards still counts.
+    sessionMessageCount = 203
+    React.act(() => {
+      root.render(React.createElement(Probe))
+    })
+    expect(result?.unseenCount).toBe(1)
+  })
+
   test("does not stop again at a consumed section after the reader returns to bottom", () => {
     render()
     const scrollContainer = setLayout(300)

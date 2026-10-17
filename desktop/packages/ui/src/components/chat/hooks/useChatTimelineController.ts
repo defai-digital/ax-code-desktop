@@ -41,6 +41,7 @@ interface UseChatTimelineControllerOptions {
   loadMoreMessages: (sessionId: string, direction: "up" | "down") => Promise<void>
   goToBottom: (mode?: "instant" | "smooth", options?: GoToBottomOptions) => void
   releaseAutoFollow: () => void
+  notePrependedMessages?: (prependedCount: number) => void
   isPinned: boolean
   showScrollButton: boolean
 }
@@ -92,6 +93,7 @@ export const useChatTimelineController = ({
   loadMoreMessages,
   goToBottom,
   releaseAutoFollow,
+  notePrependedMessages,
   isPinned,
   showScrollButton,
 }: UseChatTimelineControllerOptions): UseChatTimelineControllerResult => {
@@ -466,8 +468,10 @@ export const useChatTimelineController = ({
       beginHistoryInteraction()
       setIsLoadingOlder(true)
 
+      let fetchTargetSessionId: string | null = null
       try {
         const targetSessionId = sessionIdRef.current
+        fetchTargetSessionId = targetSessionId
         if (!targetSessionId) {
           return false
         }
@@ -521,6 +525,14 @@ export const useChatTimelineController = ({
         if (capturedSnap && prePrependScrollRef.current === capturedSnap) {
           prePrependScrollRef.current = null
         }
+        // Keep the auto-follow unseen baseline in step with what was prepended:
+        // older history arriving at the top is not new unread activity.
+        if (sessionIdRef.current === fetchTargetSessionId) {
+          const prependedCount = messagesRef.current.length - beforeMessageCount
+          if (prependedCount > 0) {
+            notePrependedMessages?.(prependedCount)
+          }
+        }
         setIsLoadingOlder(false)
         settleHistoryInteraction()
       }
@@ -529,6 +541,7 @@ export const useChatTimelineController = ({
       beginHistoryInteraction,
       captureViewportAnchor,
       loadMoreMessages,
+      notePrependedMessages,
       scrollRef,
       settleHistoryInteraction,
       waitForNextRenderCommitOrTimeout,

@@ -1,5 +1,5 @@
 import { useUIStore } from "@/stores/useUIStore"
-import { updateDesktopSettings } from "@/lib/persistence"
+import { flushDesktopSettingsNow, updateDesktopSettings } from "@/lib/persistence"
 import { toast } from "@/components/ui"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 
@@ -98,6 +98,10 @@ export const startModelPrefsAutoSave = () => {
       timer = null
     }
     flush()
+    // `flush` hands the payload to `updateDesktopSettings`, which only arms a timer of its own, and the unload
+    // listeners in persistence.ts run before this module's (it is imported first): without this flush the payload
+    // is re-queued behind a timer the unload never reaches, and the change is lost on a real unload.
+    flushDesktopSettingsNow()
   }
   const handleVisibilityChange = () => {
     if (document.visibilityState === "hidden") {

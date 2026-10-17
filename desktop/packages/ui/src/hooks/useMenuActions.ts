@@ -217,7 +217,12 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
         case "new-worktree-session":
           setActiveMainTab("chat")
           setSessionSwitcherOpen(false)
-          createWorktreeSession()
+          // Fire-and-forget, but the promise can still reject (a throwing store
+          // or toast before the creator's own try/catch) — don't let that escape
+          // as an unhandled rejection.
+          void createWorktreeSession().catch((error) => {
+            console.warn("[menu-actions] failed to create a worktree session", error)
+          })
           break
 
         case "change-workspace":

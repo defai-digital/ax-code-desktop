@@ -268,7 +268,9 @@ export const CommandPalette: React.FC = () => {
         shortcutId: "new_chat_worktree",
         searchText: t("commandPalette.item.newWorktreeDraft"),
         onSelect: run(() => {
-          void createWorktreeSession()
+          void createWorktreeSession().catch((error) => {
+            console.warn("[command-palette] failed to create a worktree session", error)
+          })
         }),
       },
       {

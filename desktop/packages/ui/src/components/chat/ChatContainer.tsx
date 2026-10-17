@@ -640,6 +640,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
     getAnimationHandlers,
     goToBottom,
     releaseAutoFollow,
+    notePrependedMessages,
     restoreSnapshot,
     isPinned,
     isFollowingProgrammatically,
@@ -664,6 +665,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
     loadMoreMessages,
     goToBottom,
     releaseAutoFollow,
+    notePrependedMessages,
     isPinned,
     showScrollButton,
   })
