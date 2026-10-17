@@ -1305,6 +1305,41 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Thirty-second round
+
+A second audit of the same ground the thirty-first round audited — the thirteen fixes made after that round's audit —
+on two reviewers, to see whether fixing the first audit's nine findings introduced anything new.
+
+| Reviewer | Scope |
+| --- | --- |
+| Claude Code CLI | `git diff 5159a3c2 HEAD`, 3 103 lines, described finding by finding in the prompt |
+| `muse-wonder-full-1.0` (ax-code) | the same diff and prompt |
+
+### Fixed from the audit
+
+- **`6f1b775d`** — round 31 moved the restart password guard into the daemon branch so it would stop refusing
+  foreground instances, and placed it *after* `this.stop(...)`: the refusal took the running server down and then
+  declined to start it, where every input it reads was known before the stop. It runs before the stop now, guarded
+  by `!isForeground`.
+- **`6f1b775d`** — round 31 made `errorMessage` visible on the auth error screen as its detail and cleared it only in
+  the status check's `ok` and `401` branches: a retry that failed with a 5xx, or a transport error, showed the
+  previous attempt's text as the reason for a different failure. It is cleared when the check starts.
+
+### Reported by this round's audit, not yet fixed
+
+- **The log follower's start offset is taken before the tail read** (`bin/cli.js`). A line appended between
+  `fileSize()` and the `readFileSync` inside `readTailLines` is printed by the tail and printed again by the
+  follower; a partially written last line is split between the two. The fix is to take the offset from the same read
+  that produced the tail (`Buffer.byteLength` of what `readFileSync` returned) rather than from a separate stat.
+- **The worktree-draft claim precedes a call the comment says must not run while it is held**
+  (`ui/src/lib/worktreeSessionCreator.ts`). Reported as suspected; the claim sits above `checkIsGitRepository`, and a
+  rejection from that path releases it only through the two early returns the round-31 fix added.
+- **The summarization path pattern can leave a trailing slash** (`server/lib/text/summarization.js`). A path written
+  with a trailing separator loses the run and keeps the slash.
+
+The second reviewer (`muse-wonder-full-1.0`) was still reading when this section was written; its findings are
+processed in the next entry rather than assumed.
+
 ## Thirty-first round
 
 An audit of every fix this series made after the thirtieth round's report — `git diff 5159a3c2 HEAD`, 55 commits —
