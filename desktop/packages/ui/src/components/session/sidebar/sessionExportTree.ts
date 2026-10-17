@@ -38,7 +38,7 @@ export const buildActiveSessionTree = (sessions: readonly Session[], root: Sessi
     }
   }
 
-  return build(root, new Set())
+  return build(byId.get(root.id) ?? root, new Set())
 }
 
 /**
@@ -48,5 +48,9 @@ export const buildActiveSessionTree = (sessions: readonly Session[], root: Sessi
 export const resolveSessionExportTree = (node: SessionNode, session: Session): SessionNode => {
   if (node.children.length > 0) return node
   const { activeSessions, archivedSessions } = useGlobalSessionsStore.getState()
-  return buildActiveSessionTree(session.time?.archived ? archivedSessions : activeSessions, session)
+  // The row's copy can be stale: take the bucket and the root from the cache when it holds one.
+  const cachedArchived = archivedSessions.find((candidate) => candidate.id === session.id)
+  return cachedArchived
+    ? buildActiveSessionTree(archivedSessions, cachedArchived)
+    : buildActiveSessionTree(activeSessions, session)
 }

@@ -33,3 +33,17 @@ export const diffPermissionNotifications = (
   }
   return { toAdd, toRemove }
 }
+
+/**
+ * Keep an answered marker only while the server still lists the exact request object that was answered. A
+ * re-prompt replaces the object; pruning by id alone would hide the new, genuine request from the bell.
+ */
+export const pruneAnsweredPermissions = (
+  answered: Map<string, PermissionRequest>,
+  permissions: readonly PermissionRequest[],
+): void => {
+  const liveById = new Map(permissions.map((permission) => [permission.id, permission]))
+  for (const [requestId, answeredPermission] of answered) {
+    if (liveById.get(requestId) !== answeredPermission) answered.delete(requestId)
+  }
+}

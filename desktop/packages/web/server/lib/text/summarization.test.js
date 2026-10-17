@@ -34,6 +34,16 @@ describe("text summarization stubs", () => {
   it("strips a scheme URL from note text too", () => {
     // Note mode only knew the http(s) form, so a clone URL survived there verbatim.
     expect(sanitizeForNote("clone ssh://git@host/repo.git now")).toBe("clone now")
+    // A bracketed link keeps its brackets balanced: the match stops before them instead of consuming the closing
+    // one. Note mode drops the link itself, so the pair stays empty.
+    expect(sanitizeForNote("[https://example.com]")).toBe("[]")
+  })
+
+  it("does not leave a remnant of a reverse-DNS scheme", () => {
+    // The bounded scheme matched at the last dot, masked `xcode://…` and left `com.` behind.
+    expect(sanitizeForSummary("open com.apple.dt.xcode://host/path now")).toBe(
+      "open com.apple.dt.xcode://host/path now",
+    )
   })
 
   it("removes code from summary text before stripping markdown punctuation", () => {

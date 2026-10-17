@@ -225,6 +225,26 @@ describe("startup quoting", () => {
     ).not.toThrow()
   })
 
+  it("does not trust a malformed record's password claim", () => {
+    // The record is raw JSON.parse output. A truthy non-boolean flag, or a record that is not an object at all,
+    // read as "deliberately no password" and restarted the server unprotected.
+    const base = { port: 3999, explicitUiPassword: false, uiPassword: undefined, envPassword: undefined }
+    const malformed = [
+      { port: 3999, uiPassword: "", hasUiPassword: "true" },
+      { port: 3999, uiPassword: "", hasUiPassword: 1 },
+      { port: 3999, uiPassword: "" },
+      { port: 3999, uiPassword: "   ", hasUiPassword: true },
+      [],
+      "garbage",
+    ]
+
+    for (const storedOptions of malformed) {
+      expect(() => assertRestartCanCarryPassword({ ...base, storedOptions })).toThrow(/no UI password/)
+    }
+    // A record without the flag is legacy, not malformed: it keeps its old meaning.
+    expect(() => assertRestartCanCarryPassword({ ...base, storedOptions: { port: 3999 } })).not.toThrow()
+  })
+
 
   it.skipIf(process.platform === "win32")("forces the group even when the leader is already gone", async () => {
     // The reason this signals the group is that the leader's children outlive it. The graceful wait asks about the

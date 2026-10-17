@@ -364,6 +364,8 @@ export function analyzeConnectionStateWriterImports(
   // as an import does: without this the module a component imports from could hand out the whole
   // write API while R5 passed, and the connection state it guards could be written from anywhere.
   const checkExportDeclaration = (statement: ts.ExportDeclaration) => {
+    // A type-only declaration carries no runtime value, so it cannot hand the writer out. R4 skips these too.
+    if (statement.isTypeOnly) return
     const moduleSpecifier = statement.moduleSpecifier
     if (!moduleSpecifier || !ts.isStringLiteralLike(moduleSpecifier)) return
     if (resolveUiModule(file, moduleSpecifier.text) !== CONNECTION_STATE_MODULE) return
@@ -378,6 +380,7 @@ export function analyzeConnectionStateWriterImports(
       // The name bound to the module is what has to be a writer; an alias renames only the exposed binding, so
       // `export { markStreamConnected as connect }` still hands the writer out.
       for (const element of clause.elements) {
+        if (element.isTypeOnly) continue
         if (CONNECTION_STATE_WRITE_API.has((element.propertyName ?? element.name).text)) {
           writtenNames.push(element.propertyName ?? element.name)
         }

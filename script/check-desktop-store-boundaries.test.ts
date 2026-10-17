@@ -207,6 +207,18 @@ describe("R5 connection-state writer registry", () => {
     expect(violations[0].rule).toBe("R5")
   })
 
+  test("allows a type-only re-export of the writer name", () => {
+    // A type-only export carries no runtime value, so it cannot hand the writer out. R4 already skips type-only
+    // declarations; R5 judged them as values.
+    const { violations, importsWriteApi } = analyzeConnectionStateWriterImports(
+      componentFile("ui", "connectionStateFacade.ts"),
+      'export type { markStreamConnected } from "@/lib/event-stream/connection-state"',
+    )
+
+    expect(violations).toEqual([])
+    expect(importsWriteApi).toBe(false)
+  })
+
   test("blocks a whole-module re-export from an unregistered module", () => {
     const { violations, importsWriteApi } = analyzeConnectionStateWriterImports(
       componentFile("ui", "connectionStateFacade.ts"),

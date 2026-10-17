@@ -82,6 +82,19 @@ describe("session export tree", () => {
     expect(tree.children[0].session.title).toBe("fresh")
   })
 
+  test("takes the root from the newest copy too", () => {
+    // The row passes its own object; when the cache holds a newer copy of the same root, the export's title and
+    // archived-state decisions have to come from that copy, not from the row's stale one.
+    const staleRoot = { ...session("root", null), title: "stale root" } as Session
+    const freshRoot = { ...session("root", null), title: "fresh root" } as Session
+    useGlobalSessionsStore.setState({ activeSessions: [staleRoot, freshRoot, session("child", "root")] })
+
+    const tree = resolveSessionExportTree(nodeFor(staleRoot), staleRoot)
+
+    expect(tree.session.title).toBe("fresh root")
+    expect(tree.children.map((child) => child.session.id)).toEqual(["child"])
+  })
+
   test("stops on a parent cycle instead of recursing forever", () => {
     // The cache is merged from snapshots and is not guaranteed to be acyclic; the project tree builder would recurse
     // just as far, but the export path must not take the click handler down with it.

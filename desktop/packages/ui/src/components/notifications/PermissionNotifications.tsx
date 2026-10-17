@@ -10,10 +10,24 @@ import { useI18n } from "@/lib/i18n"
 import { useNotificationStore } from "@/stores/useNotificationStore"
 import * as sessionActions from "@/sync/session-actions"
 import { toast } from "@/components/ui"
-import { diffPermissionNotifications } from "./permissionNotificationSync"
+import { diffPermissionNotifications, pruneAnsweredPermissions } from "./permissionNotificationSync"
 import type { NotificationPayload } from "@/lib/api/types"
+import type { PermissionRequest } from "@/types/permission"
 
 const PERMISSION_NOTIFY_DEBOUNCE_MS = 2000
+
+// Requests already answered, by session, with the object that was answered. Module scope: the watcher unmounts
+// and remounts with the live-session list, and a per-mount set would re-mirror a settled request on the next mount.
+const answeredPermissionsBySession = new Map<string, Map<string, PermissionRequest>>()
+
+const answeredPermissionsFor = (sessionId: string): Map<string, PermissionRequest> => {
+  let answered = answeredPermissionsBySession.get(sessionId)
+  if (!answered) {
+    answered = new Map()
+    answeredPermissionsBySession.set(sessionId, answered)
+  }
+  return answered
+}
 
 const isAppFocused = (): boolean => {
   if (typeof document === "undefined") return true
@@ -49,8 +63,6 @@ function SessionPermissionWatcher({
   const notifiedRef = React.useRef(false)
   // requestId → notificationId for items mirrored into the notification center.
   const mirroredNotificationIdsRef = React.useRef<Map<string, string>>(new Map())
-  // Requests whose answer already landed while the server still lists them: they must not be mirrored again.
-  const answeredPermissionIdsRef = React.useRef<Set<string>>(new Set())
 
   // Mirror pending permission requests into the in-app notification center so
   // the header bell shows actionable Allow/Deny items. Requests answered
@@ -66,11 +78,9 @@ function SessionPermissionWatcher({
         seen.delete(requestId)
       }
     }
-    const liveRequestIds = new Set(permissions.map((permission) => permission.id))
-    for (const requestId of answeredPermissionIdsRef.current) {
-      if (!liveRequestIds.has(requestId)) answeredPermissionIdsRef.current.delete(requestId)
-    }
-    const { toAdd, toRemove } = diffPermissionNotifications(seen, permissions, answeredPermissionIdsRef.current)
+    const answered = answeredPermissionsFor(sessionId)
+    pruneAnsweredPermissions(answered, permissions)
+    const { toAdd, toRemove } = diffPermissionNotifications(seen, permissions, new Set(answered.keys()))
 
     for (const { requestId, notificationId } of toRemove) {
       store.removeNotification(notificationId)
@@ -92,7 +102,7 @@ function SessionPermissionWatcher({
         }
         // The server may still list the request as pending until its own event arrives. Mark it so this effect
         // does not mirror it again (with fresh buttons) the next time `permissions` changes, and drop the mirror.
-        answeredPermissionIdsRef.current.add(permission.id)
+        answeredPermissionsFor(sessionId).set(permission.id, permission)
         for (const [requestId, notificationId] of seen) {
           if (requestId === permission.id) {
             store.removeNotification(notificationId)

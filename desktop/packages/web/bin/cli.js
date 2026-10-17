@@ -1199,12 +1199,16 @@ function removePidFile(pidFilePath) {
  * caller answers the throw by passing the password.
  */
 function assertRestartCanCarryPassword({ port, storedOptions, explicitUiPassword, uiPassword, envPassword }) {
-  // A record that says it had a password must also carry a usable one: `hasUiPassword: true` with a blank value
-  // passed this guard and started the server unprotected, because the server's own predicate reads blank as unset.
-  const recordExplainsItself =
-    storedOptions != null &&
-    (storedOptions.hasUiPassword !== true || hasUiPasswordConfigured(storedOptions.uiPassword))
-  if (recordExplainsItself) return
+  // The record is raw JSON.parse output. A record that says it had a password must also carry a usable one, and a
+  // record that is not an object, or carries a password field it cannot use, is malformed rather than a statement
+  // that the instance was deliberately unprotected. `hasUiPassword: true` with a blank value passed this guard and
+  // started the server unprotected, because the server's own predicate reads blank as unset.
+  const isRecord = storedOptions !== null && typeof storedOptions === "object" && !Array.isArray(storedOptions)
+  const flag = isRecord ? storedOptions.hasUiPassword : undefined
+  const carriesUsablePassword = Boolean(isRecord && hasUiPasswordConfigured(storedOptions.uiPassword))
+  const claimsNoPassword = flag === false
+  const isLegacyWithoutAField = isRecord && flag === undefined && !Object.hasOwn(storedOptions, "uiPassword")
+  if (carriesUsablePassword || claimsNoPassword || isLegacyWithoutAField) return
   if (explicitUiPassword && hasUiPasswordConfigured(uiPassword)) return
   if (hasUiPasswordConfigured(envPassword)) return
   throw new Error(

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { diffPermissionNotifications } from "./permissionNotificationSync"
+import { diffPermissionNotifications, pruneAnsweredPermissions } from "./permissionNotificationSync"
 import type { PermissionRequest } from "@/types/permission"
 
 const makePermission = (id: string): PermissionRequest => ({
@@ -59,5 +59,25 @@ describe("diffPermissionNotifications", () => {
     )
 
     expect(toAdd.map((p) => p.id)).toEqual(["perm-2"])
+  })
+})
+
+describe("pruneAnsweredPermissions", () => {
+  test("keeps the marker while the same request object is listed", () => {
+    const pending = makePermission("perm-1")
+    const answered = new Map([["perm-1", pending]])
+
+    pruneAnsweredPermissions(answered, [pending])
+
+    expect([...answered.keys()]).toEqual(["perm-1"])
+  })
+
+  test("forgets the marker when the server replaces the request", () => {
+    // A re-prompt with the same id is a new object. Pruning only on absence hid that genuine request from the bell.
+    const answered = new Map([["perm-1", makePermission("perm-1")]])
+
+    pruneAnsweredPermissions(answered, [makePermission("perm-1")])
+
+    expect(answered.size).toBe(0)
   })
 })

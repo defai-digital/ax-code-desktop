@@ -75,7 +75,7 @@ const NotificationEntry: React.FC<{
         onRemove(item.id)
       }
     },
-    [answerKey, item.id, onRemove],
+    [answerKey, item.id, item.requestId, onRemove],
   )
 
   return (

@@ -8,8 +8,10 @@
  */
 
 // One scheme URL. The scheme name is bounded so a long run of scheme characters is not rescanned from every
-// offset, and the match stops before trailing punctuation, which belongs to the sentence rather than the link.
-const SCHEME_URL = /\b[a-z][a-z0-9+.-]{0,15}:\/\/[^\s]*[^\s.,;:!?)]/gi
+// offset, and it may not start inside another scheme-character run (`com.apple.dt.xcode://` is not `xcode://`).
+// The match stops before trailing punctuation and closing brackets, which belong to the sentence rather than the
+// link.
+const SCHEME_URL = /(?<![a-z0-9+.-])[a-z][a-z0-9+.-]{0,15}:\/\/[^\s]*[^\s.,;:!?)\]}]/gi
 
 export function sanitizeForSummary(text) {
   if (!text || typeof text !== "string") return ""
@@ -28,8 +30,9 @@ export function sanitizeForSummary(text) {
     // The path pass runs before the brackets go, and lets the punctuation that can precede a path stand in for the
     // word boundary: `[label](/etc)` and `file:/etc` are paths even though no whitespace comes before the slash.
     // Inside a word a slash is not a path — `either/or` and `TCP/IP` keep both halves — so a word character before
-    // it rules the run out. The whole run goes, trailing separator included.
-    .replace(/(^|[\s:([{"'])\/[\w\-./]+/g, "$1")
+    // it rules the run out. A double slash after a colon is a scheme that the link pass left alone, not a path.
+    // The whole run goes, trailing separator included.
+    .replace(/(^|[\s:([{"'])\/(?!\/)[\w\-./]+/g, "$1")
     .replace(/[\[\]{}()]/g, "")
     .replace(/["']/g, "")
     .replace(/\s+/g, " ")
