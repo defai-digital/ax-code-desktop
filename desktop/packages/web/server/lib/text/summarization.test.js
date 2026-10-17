@@ -7,6 +7,8 @@ describe("text summarization stubs", () => {
     // The path pattern matched any `/<word>`, so prose that uses a slash lost its second half.
     expect(sanitizeForSummary("either/or and TCP/IP and/or UDP")).toBe("either/or and TCP/IP and/or UDP")
     expect(sanitizeForSummary("see /usr/local/bin for details")).toBe("see for details")
+    // A trailing separator goes with the path rather than being left behind.
+    expect(sanitizeForSummary("in /usr/bin/ today")).toBe("in today")
   })
 
   it("removes code from summary text before stripping markdown punctuation", () => {

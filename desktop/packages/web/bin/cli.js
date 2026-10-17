@@ -1593,16 +1593,22 @@ function fileSize(filePath) {
   }
 }
 
-function readTailLines(filePath, lineCount = DEFAULT_TAIL_LINES) {
+function readTailWithSize(filePath, lineCount = DEFAULT_TAIL_LINES) {
   if (!fs.existsSync(filePath)) {
-    return []
+    return { lines: [], size: 0 }
   }
   const raw = fs.readFileSync(filePath, "utf8")
   const lines = raw.split(/\r?\n/)
   if (lines.length && lines[lines.length - 1] === "") {
     lines.pop()
   }
-  return lines.slice(Math.max(0, lines.length - lineCount))
+  // The offset comes from the same read that produced the lines: a stat taken before it let a line appended in
+  // between print twice, once in the tail and once as the follower's first output.
+  return { lines: lines.slice(Math.max(0, lines.length - lineCount)), size: Buffer.byteLength(raw) }
+}
+
+function readTailLines(filePath, lineCount = DEFAULT_TAIL_LINES) {
+  return readTailWithSize(filePath, lineCount).lines
 }
 
 function followFile(filePath, onLine, { startAt = null } = {}) {
@@ -2703,8 +2709,9 @@ const commands = {
     const followFromByPort = new Map()
     for (const target of targets) {
       const logPath = getLogFilePath(target.port)
-      followFromByPort.set(target.port, fileSize(logPath))
-      const lines = readTailLines(logPath, options.lines)
+      const tail = readTailWithSize(logPath, options.lines)
+      followFromByPort.set(target.port, tail.size)
+      const lines = tail.lines
       if (showFrames) {
         logStatus("info", `port ${target.port}`, logPath)
       }

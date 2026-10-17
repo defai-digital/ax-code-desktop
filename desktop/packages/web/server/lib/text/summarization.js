@@ -22,7 +22,7 @@ export function sanitizeForSummary(text) {
     .replace(/https?:\/\/[^\s]+/g, " a link ")
     // A slash-run is a path only when it starts a word: `/usr/local/bin`, `/etc`. Inside one it is not — the old
     // pattern matched any `/<word>`, so `either/or` and `TCP/IP` lost their second half.
-    .replace(/(^|[\s(])\/[\w\-.]+(?:\/[\w\-.]+)*/g, "$1")
+    .replace(/(^|[\s(])\/[\w\-./]+/g, "$1")
     .replace(/\s+/g, " ")
     .trim()
 }
