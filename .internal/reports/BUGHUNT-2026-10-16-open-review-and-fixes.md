@@ -1391,6 +1391,11 @@ least (MCP, providers, multirun, auth, supervision, notifications) plus `server/
   that record was missing, so the running instance was stopped and replaced by one with no UI password on a port
   that may have had one. The rule is explicit and exported now: the record, an explicit `--ui-password`, or the
   environment carries it, and with none of them the command refuses and says how to proceed.
+- **`65b4a080`** — the preview's no-store policy was set on `proxyRes.headers` after http-proxy-middleware had
+  already copied the upstream headers onto `res`, which the file itself documents for `x-frame-options` and CSP —
+  it strips those on `res` for exactly that reason. So the policy never reached the browser and a document the
+  proxy had just rewritten could be served from the browser's cache. It goes through `applyPreviewNoStoreOnRes`,
+  beside the frame-busting strip.
 - **`6e178590`** — `ProvidersPage` tracked one `axEngineBusyKey` for the whole panel, so starting a second AX Engine
   download replaced the first row's entry and the first row's `finally` cleared the second's: a row's button came
   back while its request was still in flight and a second click started a duplicate. The busy state is a set of
@@ -1424,9 +1429,6 @@ least (MCP, providers, multirun, auth, supervision, notifications) plus `server/
 These are carried forward rather than fixed in this round; each has the reviewer's evidence in its cell's
 output and a test idea with it.
 
-- **`preview/proxy-runtime.js:1573-1577`** — the cache-busting headers are set on `proxyRes.headers` after
-  http-proxy-middleware has copied the upstream headers onto the response, so the `no-store` policy never
-  reaches the browser.
 - **`preview/proxy-runtime.js:224, 287-303`** — the bridge's `matchMedia` patch keeps every listener in a
   page-global `Set` that is never pruned when the `MediaQueryList` is discarded.
 - **`text/summarization.js:22-23`** — `sanitizeForSummary`'s path-stripping regex deletes ordinary
@@ -3678,6 +3680,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, after the eighth carried-forward fix (`65b4a080`): `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
+  electron 600, ui 2 979, web 1 326 (+2 skipped), 0 `FAIL` lines.
 - Latest full run, after the seventh carried-forward fix (`6e178590`): `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
   electron 600, ui 2 979, web 1 325 (+2 skipped), 0 `FAIL` lines.
