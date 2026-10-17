@@ -1304,17 +1304,28 @@ async function terminateProcessTree(pid, options = {}) {
     return waitForProcessExit(pid, forceTimeoutMs)
   }
 
-  try {
-    process.kill(pid, "SIGTERM")
-  } catch {}
+  // The daemon is spawned as its own process-group leader (`detached: true`), and the runtime, the terminal
+  // sessions and the preview servers it starts are its children: signalling the pid alone left the group running —
+  // still holding their loopback ports — while `stop` reported the instance stopped. The Windows branch above
+  // kills the tree for the same reason. A pid that is not a group leader has no group to signal, which is what the
+  // fallback is for.
+  const signalProcess = (signal) => {
+    try {
+      process.kill(-pid, signal)
+      return
+    } catch {}
+    try {
+      process.kill(pid, signal)
+    } catch {}
+  }
+
+  signalProcess("SIGTERM")
 
   if (await waitForProcessExit(pid, gracefulTimeoutMs)) {
     return true
   }
 
-  try {
-    process.kill(pid, "SIGKILL")
-  } catch {}
+  signalProcess("SIGKILL")
 
   return waitForProcessExit(pid, forceTimeoutMs)
 }
@@ -2926,6 +2937,7 @@ if (isCliExecution) {
 export {
   commands,
   parseArgs,
+  terminateProcessTree,
   hasUiPasswordConfigured,
   readDesktopLocalPortFromSettings,
   getPidFilePath,

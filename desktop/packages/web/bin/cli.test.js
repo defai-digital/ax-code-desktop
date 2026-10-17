@@ -26,6 +26,7 @@ import {
   buildTunnelServeOptions,
   commands,
   parseArgs,
+  terminateProcessTree,
   resolveAvailablePort,
   resolveTunnelProviderAndMode,
   toModuleUrl,
@@ -126,6 +127,65 @@ describe("update command", () => {
 })
 
 describe("startup quoting", () => {
+  it.skipIf(process.platform === "win32")("takes the daemon's process group with it, not just its leader", async () => {
+    // The daemon is spawned as its own process-group leader (`detached: true`) and starts the runtime, the terminal
+    // sessions and the preview servers as its children. Signalling the leader's pid alone left them running — still
+    // holding their loopback ports — while `stop` reported the instance stopped; the Windows branch kills the tree.
+    const { spawn } = await import("child_process")
+    const fs = await import("fs")
+    const os = await import("os")
+    const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-stop-tree-"))
+    const fixturePath = path.join(fixtureDir, "leader.js")
+    fs.writeFileSync(
+      fixturePath,
+      [
+        'const { spawn } = require("child_process")',
+        'const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" })',
+        "console.log(child.pid)",
+        "setInterval(() => {}, 1000)",
+      ].join("\n"),
+    )
+
+    const leader = spawn(process.execPath, [fixturePath], { detached: true, stdio: ["ignore", "pipe", "ignore"] })
+    const isAlive = (pid) => {
+      try {
+        process.kill(pid, 0)
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    try {
+      const childPid = await new Promise((resolve, reject) => {
+        let buffered = ""
+        leader.stdout.on("data", (chunk) => {
+          buffered += String(chunk)
+          const first = buffered.split("\n")[0]
+          if (/^\d+$/.test(first)) {
+            resolve(Number(first))
+          }
+        })
+        leader.on("error", reject)
+        setTimeout(() => reject(new Error("the fixture never printed its child pid")), 5000)
+      })
+      expect(isAlive(childPid)).toBe(true)
+
+      expect(await terminateProcessTree(leader.pid, { gracefulTimeoutMs: 1500, forceTimeoutMs: 2000 })).toBe(true)
+
+      const deadline = Date.now() + 3000
+      while (isAlive(childPid) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      expect(isAlive(childPid)).toBe(false)
+    } finally {
+      try {
+        process.kill(-leader.pid, "SIGKILL")
+      } catch {}
+      fs.rmSync(fixtureDir, { recursive: true, force: true })
+    }
+  })
+
   it("escapes Windows task command arguments", () => {
     expect(windowsCommandQuote(String.raw`C:\Program Files\AX "Code"\run.ps1`)).toBe(
       String.raw`"C:\\Program Files\\AX \"Code\"\\run.ps1"`,
