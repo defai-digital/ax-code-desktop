@@ -1305,6 +1305,25 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Thirty-ninth round
+
+The last item on the deferred list that was a confirmed defect rather than a platform or product decision: the
+preview bridge kept each page's `MediaQueryList` strongly, so a page that discarded the list without calling
+`removeEventListener` kept its entry — the list, the callback and everything the callback closed over — alive for
+the life of the preview.
+
+### Fixed — `adc973ce`
+
+- **The entry holds the list through a `WeakRef`** (`server/lib/preview/proxy-runtime.js`, `colorSchemeListeners`)
+  and the notifier drops an entry whose `deref()` answers undefined before notifying the rest. Platforms without
+  `WeakRef` keep the old strong reference. The previous record claimed no deterministic red light was possible; a
+  stubbed `WeakRef` makes one: `bridge-script.test.js` installs the bridge with a controllable stub, notifies once
+  while the list is live, marks it dead and notifies again — the live list sees the change, the dead one does not.
+  Red: the second dispatch appended `true` after the list was marked dead.
+
+With this, the deferred list holds only the Windows `schtasks` limit (not verifiable here) and the password-at-rest
+policy question.
+
 ## Thirty-eighth round
 
 A cross-check of the thirty-seventh round's fixes on a second reviewer (`deepseek-flash`, the same diff), after the
@@ -1877,15 +1896,6 @@ output and a test idea with it.
 Each of these is confirmed as a defect in the code, and none can be verified where this series runs. They are
 written here with the shape of the fix so they can be taken up rather than rediscovered.
 
-- **The preview bridge's `matchMedia` patch leaks a listener per discarded `MediaQueryList`**
-  (`server/lib/preview/proxy-runtime.js`, the `colorSchemeListeners` set). An entry is removed only when the page
-  calls the bridged `removeEventListener`; a page that drops the MQL without one leaves the entry, its callback and
-  the page's closures in the set for good, and the bridge keeps calling it on a scheme change. The fix is to hold
-  the MQL through a `WeakRef` in the entry and drop the entry when `deref()` answers undefined while notifying.
-  There is no deterministic red light: the pruning needs a collection, and this suite has no `--expose-gc` hook. A
-  test can at least pin the structure (the entry holds a weak reference, and a dead one is pruned when the
-  notifier runs) by seeding the set through the exported bridge script — which is what `bridge-script.test.js`
-  already does for the fetch patch.
 - **`schtasks /TR` cannot take the command `startup enable` builds on Windows** (`packages/web/bin/cli.js`,
   `enableStartupService`). The fixed env-file parsing block alone is ~300 characters against a documented 261, and
   the whole action is ~550-650 for any real install path. It needs registering through task XML, or a launcher
@@ -1899,10 +1909,12 @@ written here with the shape of the fix so they can be taken up rather than redis
   starting without input, and dropping the instance copy would make `restart` require the flag — which
   `9f5dda5c` now does explicitly when the record is missing.
 
-A fourth item stood here — `sanitizeForSummary`'s pattern deleted the second half of `either/or` and `TCP/IP`. It
-was fixed in `f9d0f2e2` (a slash-run is a path only at a word boundary) and again in `63b647ef` (punctuation
-becomes a space, so `[docs](/etc/hosts)` and `file:/etc/hosts` no longer leak through). It stays named here so the
-old entry is not rediscovered as new.
+Two items stood here and have since been fixed. `sanitizeForSummary`'s pattern deleted the second half of
+`either/or` and `TCP/IP`; it was fixed in `f9d0f2e2` (a slash-run is a path only at a word boundary) and again in
+`63b647ef` (punctuation becomes a space, so `[docs](/etc/hosts)` and `file:/etc/hosts` no longer leak through). The
+preview bridge's `matchMedia` listener leak was fixed in `adc973ce` (a weak reference per entry, pruned while
+notifying) with the red light the old entry said was impossible: a stubbed `WeakRef` in jsdom makes a dead entry
+deterministic. Both stay named so the old entries are not rediscovered as new.
 
 ## Twenty-ninth round
 
@@ -4144,6 +4156,11 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-ninth round, after `adc973ce`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
+  electron 600, ui 3 064, web 1 341 (+2 skipped), 0 `FAIL` lines. The UI count is higher than the previous run
+  because a concurrent writer added test files to the tree during this session; they pass and are not part of this
+  series' commits.
 - Latest full run, in the thirty-eighth round, after `3bed167c`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
   electron 600, ui 2 999, web 1 340 (+2 skipped), 0 `FAIL` lines. Two full runs before this one each lost one
