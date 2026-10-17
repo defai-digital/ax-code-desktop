@@ -64,6 +64,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Bundle signed AX Code runtime 7.26.5 and exact SDK 2.6.27, including upstream MCP cancellation, permission-path and OSV cache fixes.
+
 - Log following preserves whole lines when Linux reuses a rotated file inode, discards unfinished text after truncation, and releases held descriptors on stop.
 
 - Wiki Graph opens the official AX Code reading workspace in an isolated window, using the signed runtime export instead of a duplicate Desktop graph renderer.

@@ -22,7 +22,7 @@
   "dependencies": {
     "electron-updater": "^6.3.9",
     "node-pty": "1.1.0",
-    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.26"
+    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.27"
   },
   "devDependencies": {
     "@electron/asar": "catalog:",

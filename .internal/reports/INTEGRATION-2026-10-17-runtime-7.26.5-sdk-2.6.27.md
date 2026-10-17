@@ -1,0 +1,11 @@
+# Public runtime 7.26.5 and SDK 2.6.27 consumption
+
+The user requested a live GitHub check of the latest AX Code version while the Desktop 7.26.2 candidate was being qualified. GitHub's latest public stable release is 7.26.5, published at 2026-10-17T07:39:05Z, with companion JSR SDK 2.6.27. Its annotated tag resolves to `d6a5d0dfce33802ce1890c998948faaac8726df5`.
+
+The producer release fixes MCP elicitation cancellation, permission path-rule symlink containment, OSV cache serialization and write-capable plan-agent shell classification, and adds SDK MCP trust/untrust routes and elicitation-resolution event types. These fixes directly affect the runtime Desktop consumes, so the candidate advances from runtime 7.26.4/SDK 2.6.26 to the published signed runtime 7.26.5 and exact JSR SDK 2.6.27. No sibling source or producer release is modified.
+
+All four public runtime archives and detached signatures were downloaded, matched against GitHub asset sizes and SHA-256 digests, and verified against the unchanged pinned Minisign key before updating the runtime manifest. The SDK is available from the public JSR npm compatibility registry; its exact package integrity is captured in the frozen pnpm lockfile. The SDK pin records the public producer tag commit. No workspace links or private packages are introduced.
+
+The public 7.26.4-to-7.26.5 comparison contains no Wiki viewer/visualization or native Desktop browser/WebMCP contract changes. The official viewer remains runtime-owned; the new SDK is an additive contract update. Typechecking, integration tests, frozen installation, official-viewer native smoke, fresh exact-source CI/CodeQL and four signed native installer transitions must qualify the updated pair. Previous 7.26.4 receipts and successful workflows do not qualify this newer candidate.
+
+Native development Electron 44.7.0 successfully opened the unchanged official Wiki export from verified runtime 7.26.5. The Guide page rendered, Node integration was unavailable, the canonical script-hash CSP and `connect-src none` remained intact, and the resulting screenshot was inspected. Two Electron script tests with stale 7.26.4 expectations were updated to the reviewed 7.26.5 pin.

@@ -1,8 +1,8 @@
 {
   "schema": "ax-coder.ax-code-runtime.v1",
-  "version": "7.26.4",
+  "version": "7.26.5",
   "repository": "defai-digital/ax-code",
-  "releaseTag": "v7.26.4",
+  "releaseTag": "v7.26.5",
   "minisign": {
     "publicKey": "resources/keys/ax-minisign.pub",
     "keyId": "CF42FC69BEEF0EA5",
@@ -12,31 +12,31 @@
   "artifacts": {
     "darwin-arm64": {
       "filename": "ax-code-darwin-arm64.zip",
-      "size": 79662250,
-      "sha256": "dbb68a2f94959fa0a840a1fe9cef5cd6181eb448b232a134cf40e5ccb969a37c",
+      "size": 79667357,
+      "sha256": "8296ec84795c251769e3da1437b0d9baff65404ff13ceecd4eccb9c447f28f0e",
       "signatureSize": 377,
-      "signatureSha256": "c569e7cd5c99e5ddce25a7a20165c7b9c1a9561a1f375893f706bf9b6349ee61"
+      "signatureSha256": "56664338744bf1b5841e423e925da583f730197aaf1cc4cd4f7c7a08095c8558"
     },
     "linux-arm64": {
       "filename": "ax-code-linux-arm64.tar.gz",
-      "size": 86050573,
-      "sha256": "b49d1d561ff45d6dd2b9c64fac8e5eb7b98a0ad129e304e594ae8053b02186da",
+      "size": 86056907,
+      "sha256": "c9d2ac1f2e0538de1cca661975b34655a29db8599ba36e1775edb62cc4bfff6f",
       "signatureSize": 379,
-      "signatureSha256": "a2038f5b9e66566d9aaa896b75b24bcfba1d36fe549fb0b5dbaa59251e382f07"
+      "signatureSha256": "110d6138e4ff93baeb1bbec8e0044130cefaa526bf0f2d4094149cf23c3d78ca"
     },
     "linux-x64": {
       "filename": "ax-code-linux-x64.tar.gz",
-      "size": 87791625,
-      "sha256": "60aae1c37f10fc51f42f70d4221537b787b19c8d9360f2eb5bcdb3ef0ef9ee0e",
+      "size": 87794666,
+      "sha256": "cd6e1c9718750865ccd85bcdcf300045cb78b64983eb1f2328c606d100322f94",
       "signatureSize": 377,
-      "signatureSha256": "fe907e9c3815c7df88c5a5e6c32f3aa64832a47b99ded286ea766c6ad7926604"
+      "signatureSha256": "f9a293208457becaaf87215f6ec42ef22213b158618b0bbee1e03b4344394020"
     },
     "win32-x64": {
       "filename": "ax-code-windows-x64.zip",
-      "size": 94163739,
-      "sha256": "293c7e1542dda081856eee7752563a0957f213827daaf9b39921e731de3d3dc7",
+      "size": 94224344,
+      "sha256": "e1ccd55bb96fd3fe46ebe4f2bb41ee676651be82c633631401e85f9775c96319",
       "signatureSize": 376,
-      "signatureSha256": "a4ecfb8c6e54b9d3608e2ed50f07e8cc5ed27755a0eba3be82a33c7aa4d8b849"
+      "signatureSha256": "3f59512b6e035e08d260e91ba77efb622b77ed04237fa471e3f6cf11e219cdce"
     }
   }
 }
