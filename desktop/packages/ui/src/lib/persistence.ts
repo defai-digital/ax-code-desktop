@@ -1287,6 +1287,18 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
   })
 }
 
+/**
+ * Flush whatever `updateDesktopSettings` is holding, now.
+ *
+ * `updateDesktopSettings` only arms a timer, so anything that is about to lose the document has to hand its
+ * changes over first and then call this. The unload listeners below are registered while this module loads, which
+ * is before any module that imports it adds its own — so a caller's payload used to arrive *after* those had
+ * already fired and was re-queued behind a timer the unload never reached.
+ */
+export const flushDesktopSettingsNow = (): void => {
+  _flushSettingsUpdateOnUnload()
+}
+
 export const initializeAppearancePreferences = async (): Promise<void> => {
   if (typeof window === "undefined") {
     return

@@ -1,5 +1,5 @@
 import { useUIStore } from "@/stores/useUIStore"
-import { updateDesktopSettings } from "@/lib/persistence"
+import { flushDesktopSettingsNow, updateDesktopSettings } from "@/lib/persistence"
 import type { DesktopSettings } from "@/lib/desktop"
 import { FONT_DEFAULTS_REVISION, type MonoFontOption, type UiFontOption } from "@/lib/fontOptions"
 import { toast } from "@/components/ui"
@@ -116,6 +116,11 @@ export const startAppearanceAutoSave = (): void => {
       timer = null
     }
     flush()
+    // `flush` hands the payload to `updateDesktopSettings`, which only arms a timer of its own, and the unload
+    // listeners in persistence.ts run before this module's (it is imported first): the payload arrived after that
+    // flush had gone and was re-queued behind a timer the unload never reached, so the change made inside the
+    // debounce was still lost on a real unload.
+    flushDesktopSettingsNow()
   }
   if (typeof document !== "undefined") {
     // "hidden" typically precedes termination, pagehide covers real unloads.

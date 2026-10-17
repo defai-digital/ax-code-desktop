@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
-const { updateDesktopSettings } = vi.hoisted(() => ({
+const { updateDesktopSettings, flushDesktopSettingsNow } = vi.hoisted(() => ({
   updateDesktopSettings: vi.fn<(changes: Record<string, unknown>) => Promise<void>>(async () => {}),
+  flushDesktopSettingsNow: vi.fn(),
 }))
 
-vi.mock("@/lib/persistence", () => ({ updateDesktopSettings }))
+vi.mock("@/lib/persistence", () => ({ updateDesktopSettings, flushDesktopSettingsNow }))
 vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 vi.mock("@/lib/i18n/store", () => ({ useI18nStore: { getState: () => ({ dictionary: {} }) }, formatMessage: () => "" }))
 
@@ -21,6 +22,7 @@ describe("appearance autosave", () => {
     vi.resetModules()
     vi.useFakeTimers()
     updateDesktopSettings.mockClear()
+    flushDesktopSettingsNow.mockClear()
     setVisibility("visible")
     ;({ useUIStore } = await import("@/stores/useUIStore"))
   })
@@ -53,6 +55,14 @@ describe("appearance autosave", () => {
     document.dispatchEvent(new Event("visibilitychange"))
 
     expect(updateDesktopSettings).toHaveBeenCalledWith({ padding: 120 })
+    // The hand-over only queues the change behind persistence's own 200ms timer, and that timer does not survive
+    // the unload: the write has to be asked for now, after the payload arrived. Compared as the last pair because
+    // this module registers its listeners on import and `resetModules` between tests leaves the earlier instances'
+    // listeners attached, so an event can be handled more than once.
+    expect(flushDesktopSettingsNow).toHaveBeenCalled()
+    expect(updateDesktopSettings.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      flushDesktopSettingsNow.mock.invocationCallOrder.at(-1)!,
+    )
   })
 
   test("flushes a pending change on pagehide", async () => {
@@ -63,5 +73,9 @@ describe("appearance autosave", () => {
     window.dispatchEvent(new Event("pagehide"))
 
     expect(updateDesktopSettings).toHaveBeenCalledWith({ cornerRadius: 7 })
+    expect(flushDesktopSettingsNow).toHaveBeenCalled()
+    expect(updateDesktopSettings.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      flushDesktopSettingsNow.mock.invocationCallOrder.at(-1)!,
+    )
   })
 })
