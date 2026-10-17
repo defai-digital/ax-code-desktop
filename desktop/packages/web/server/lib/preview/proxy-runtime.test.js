@@ -681,6 +681,27 @@ describe("external preview documents are sandboxed", () => {
     expect(String(responseHeaders.get("content-security-policy") ?? "")).not.toContain("sandbox")
   })
 
+  it("sandboxes an external SVG document, which runs script too", async () => {
+    // `text/html` was the only content type the sandbox covered, and an SVG from an external preview is a document
+    // when it is opened directly: it ran script under the app's own policy — which allows inline script — on the
+    // Desktop origin. The project-icon route carries its own policy for the same reason.
+    const harness = await buildHarness({ allowExternal: true })
+
+    const { responseHeaders } = await runProxyRes(harness, "image/svg+xml")
+
+    const csp = String(responseHeaders.get("content-security-policy") ?? "")
+    expect(csp).toContain("sandbox")
+    expect(csp).not.toContain("allow-same-origin")
+  })
+
+  it("sandboxes an external XHTML document too", async () => {
+    const harness = await buildHarness({ allowExternal: true })
+
+    const { responseHeaders } = await runProxyRes(harness, "application/xhtml+xml; charset=utf-8")
+
+    expect(String(responseHeaders.get("content-security-policy") ?? "")).toContain("sandbox")
+  })
+
   it("does not sandbox a non-document response", async () => {
     const harness = await buildHarness({ allowExternal: true })
 

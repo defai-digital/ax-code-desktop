@@ -1355,8 +1355,8 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
   const EXTERNAL_PREVIEW_SANDBOX_CSP =
     "sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-pointer-lock allow-presentation"
 
-  const applyExternalPreviewSandbox = (res, resolved, isHtml) => {
-    if (!isHtml || !resolved?.entry?.external || !res || typeof res.setHeader !== "function") {
+  const applyExternalPreviewSandbox = (res, resolved) => {
+    if (!resolved?.entry?.external || !res || typeof res.setHeader !== "function") {
       return
     }
     const existing = typeof res.getHeader === "function" ? res.getHeader("content-security-policy") : null
@@ -1566,6 +1566,15 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
           const isHtml = contentType.includes("text/html")
           const isCss = contentType.includes("text/css")
           const isJavaScript = contentType.includes("javascript") || contentType.includes("ecmascript")
+          // A document that runs script when it is opened directly. HTML is not the only one: an SVG or an XHTML
+          // response from an external preview is a document too, and both were served with the app's own policy —
+          // which allows inline script — on the Desktop origin. The project-icon route carries its own policy for
+          // the same reason (`60cfcf9c`), and the sandbox is applied before anything below can return.
+          const isScriptableDocument =
+            isHtml || contentType.includes("image/svg+xml") || contentType.includes("application/xhtml+xml")
+          if (isScriptableDocument) {
+            applyExternalPreviewSandbox(res, resolved)
+          }
           if (!isHtml && !isCss && !isJavaScript) {
             return responseBuffer
           }
@@ -1599,7 +1608,6 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
             kind: isHtml ? "html" : isCss ? "css" : "javascript",
           })
           if (isHtml) {
-            applyExternalPreviewSandbox(res, resolved, isHtml)
             return injectPreviewBridge(rewrittenBody, resolved.entry.origin)
           }
           return rewrittenBody
