@@ -9,9 +9,9 @@ with muse and grok, AX Code ADR-254 and ADR-255.
 
 | Commit | Contract |
 | --- | --- |
-| `7eac7f4a0` | `mcp.elicitation.resolved`: server, session, call, mode, action, closed `category`, field count, up to 8 field names, URL host. No values, labels, message, URL path or query. |
-| `c6935f8ce` | `needs_trust` status `review`; `POST /mcp/{name}/trust` `{ fingerprint }` (404, 409 `not_pending` / `fingerprint_mismatch`); `POST /mcp/{name}/untrust` (404, 409 `trusted_by_source`); `mcp.trust.changed`. |
-| `7bfcf8dc6` | Review hardening: WebMCP profile and launched argv, argv secret redaction with `redacted`, remote `queryKeys` and `hasCredentials`, check-and-write under the connect lock, events only on real changes, schema bounds. |
+| `80617c446` | `mcp.elicitation.resolved`: server, session, call, mode, action, closed `category`, field count, up to 8 field names, URL host. No values, labels, message, URL path or query. |
+| `3848050a3` | `needs_trust` status `review`; `POST /mcp/{name}/trust` `{ fingerprint }` (404, 409 `not_pending` / `fingerprint_mismatch`); `POST /mcp/{name}/untrust` (404, 409 `trusted_by_source`); `mcp.trust.changed`. |
+| `deb20dca4` | Review hardening: WebMCP profile and launched argv, argv secret redaction with `redacted`, remote `queryKeys` and `hasCredentials`, check-and-write under the connect lock, events only on real changes, schema bounds. |
 
 ## Agreed design (muse and grok)
 
