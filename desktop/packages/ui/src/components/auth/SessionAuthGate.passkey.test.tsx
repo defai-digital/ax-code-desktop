@@ -24,7 +24,7 @@ vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn(), m
 
 const { SessionAuthGate } = await import("./SessionAuthGate")
 
-describe("SessionAuthGate passkey setup", () => {
+describe("SessionAuthGate", () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -79,6 +79,69 @@ describe("SessionAuthGate passkey setup", () => {
       input.dispatchEvent(new Event("input", { bubbles: true }))
     })
   }
+
+  const clickUnlock = async () => {
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .filter((button) => button.getAttribute("aria-label") === dict["sessionAuth.actions.unlockAria"])
+        .forEach((button) => button.click())
+    })
+    await act(async () => {})
+  }
+
+  const clickButtonWithText = async (label: string) => {
+    await act(async () => {
+      buttonByText(label)?.click()
+    })
+    await act(async () => {})
+  }
+
+  test("reports the failure the server answered with instead of a network screen", async () => {
+    // A 500 (or any refusal that is neither a wrong password nor a rate limit) put the gate on the generic network
+    // screen, whose copy tells the user to check their connection, and the message the gate had just localized for
+    // this case was dropped because the screen takes no detail.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (_url: string, init?: RequestInit) =>
+          new Response(JSON.stringify({}), {
+            status: init?.method === "POST" ? 500 : 401,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    )
+    await render()
+    await typePassword("hunter2")
+    await clickUnlock()
+
+    expect(document.body.textContent ?? "").toContain(dict["sessionAuth.error.unexpectedResponse"])
+  })
+
+  test("does not carry a failed attempt's message back to the form", async () => {
+    // The locked form renders the message, and the status check that brings it back never cleared it: after a
+    // failure and a retry the field showed the previous attempt's text — "check your connection" while the session
+    // was simply expired.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (_url: string, init?: RequestInit) =>
+          new Response(JSON.stringify({}), {
+            status: init?.method === "POST" ? 500 : 401,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    )
+    await render()
+    await typePassword("hunter2")
+    await clickUnlock()
+    expect(document.body.textContent ?? "").toContain(dict["sessionAuth.error.unexpectedResponse"])
+
+    await clickButtonWithText(dict["sessionAuth.error.retry"])
+
+    const passwordInput = container.querySelector<HTMLInputElement>('input[type="password"]')
+    expect(passwordInput).not.toBeNull()
+    expect(document.body.textContent ?? "").not.toContain(dict["sessionAuth.error.unexpectedResponse"])
+  })
 
   // The register ceremony runs inside the password unlock, so the button kept its disabled state for
   // the whole OS prompt: the label said "Cancel passkey setup" while clicking it did nothing, and the

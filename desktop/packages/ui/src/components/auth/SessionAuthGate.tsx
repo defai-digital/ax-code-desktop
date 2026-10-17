@@ -87,7 +87,7 @@ const LoadingScreen: React.FC = () => (
   </div>
 )
 
-const ErrorScreen: React.FC<ErrorScreenProps> = ({ onRetry, errorType = "network", retryAfter }) => {
+const ErrorScreen: React.FC<ErrorScreenProps> = ({ onRetry, errorType = "network", retryAfter, detail }) => {
   const { t } = useI18n()
   const isRateLimit = errorType === "rate-limit"
   const minutes = retryAfter ? Math.ceil(retryAfter / 60) : 1
@@ -106,6 +106,7 @@ const ErrorScreen: React.FC<ErrorScreenProps> = ({ onRetry, errorType = "network
                 : t("sessionAuth.error.rateLimitDescriptionSingle", { minutes })
               : t("sessionAuth.error.networkDescription")}
           </p>
+          {detail ? <p className="typography-meta text-muted-foreground max-w-xs">{detail}</p> : null}
         </div>
         <Button type="button" onClick={onRetry} className="w-full max-w-xs">
           {t("sessionAuth.error.retry")}
@@ -125,6 +126,12 @@ interface ErrorScreenProps {
   onRetry: () => void
   errorType?: "network" | "rate-limit"
   retryAfter?: number
+  /**
+   * What failed, when the caller knows. The title and description are the network copy, which is wrong for a
+   * refusal the server answered — a 500 was reported as "check your connection", and the message the gate had
+   * just localized for it was dropped because the screen takes no detail.
+   */
+  detail?: string
 }
 
 export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) => {
@@ -215,6 +222,9 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
       if (response.status === 401) {
         setPasskeyStatus(latestPasskeyStatus)
         setState("locked")
+        // The message belongs to the attempt that failed, and the locked form renders it: leaving it there put the
+        // previous failure's text under the field — "check your connection" while the session was simply expired.
+        setErrorMessage("")
         setRetryAfter(undefined)
         return
       }
@@ -460,7 +470,7 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   }
 
   if (state === "error") {
-    return <ErrorScreen onRetry={() => void checkStatus()} errorType="network" />
+    return <ErrorScreen onRetry={() => void checkStatus()} errorType="network" detail={errorMessage} />
   }
 
   if (state === "rate-limited") {
