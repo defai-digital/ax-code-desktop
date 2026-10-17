@@ -537,7 +537,11 @@ describe("FileMentionAutocomplete context mentions", () => {
   test("searches the directory its caller names, not the open chat's", async () => {
     // The multi-run launcher works on the project it has selected, and the hook answers with the app's current chat
     // directory: without the override the mention list came from whatever session the chat happened to show.
-    const searchFiles = vi.fn(async () => [])
+    const searched: string[] = []
+    const searchFiles = vi.fn(async (directory: string, query: string) => {
+      searched.push(`${directory}::${query}`)
+      return []
+    })
     useFileSearchStore.setState({ searchFiles: searchFiles as never })
 
     await act(async () => {
@@ -558,7 +562,8 @@ describe("FileMentionAutocomplete context mentions", () => {
     })
 
     expect(searchFiles).toHaveBeenCalled()
-    expect(searchFiles.mock.calls[0]?.[0]).toBe("/selected-project")
+    // The directory the caller named, not the chat's (the hook answers "/repo").
+    expect(searched[0]?.split("::")[0]).toBe("/selected-project")
   })
 
 })

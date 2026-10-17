@@ -147,7 +147,10 @@ export const ProvidersPage: React.FC = () => {
   // Local AX Engine catalog (download status / jobs). Only loaded when the
   // selected provider is ax-engine so Providers can start weight downloads.
   const [axEngineCatalog, setAxEngineCatalog] = React.useState<AxEngineModelsResponse | null>(null)
-  const [axEngineBusyKey, setAxEngineBusyKey] = React.useState<string | null>(null)
+  // One entry per download, not one for the whole panel: with a single key, starting a second row's download
+  // replaced the first row's and its `finally` cleared the second's, so the first row's button came back while its
+  // request was still in flight and a second click started a duplicate.
+  const [axEngineBusyKeys, setAxEngineBusyKeys] = React.useState<ReadonlySet<string>>(() => new Set())
   const axEngineInFlightRef = React.useRef(false)
 
   React.useEffect(() => {
@@ -195,8 +198,19 @@ export const ProvidersPage: React.FC = () => {
       (job) => job.modelID === modelId && (job.status === "queued" || job.status === "running"),
     )
 
+  const markAxEngineBusy = (key: string) =>
+    setAxEngineBusyKeys((current) => new Set(current).add(key))
+
+  const releaseAxEngineBusy = (key: string) =>
+    setAxEngineBusyKeys((current) => {
+      if (!current.has(key)) return current
+      const next = new Set(current)
+      next.delete(key)
+      return next
+    })
+
   const handleAxEngineDownload = async (modelId: string, modelName: string) => {
-    setAxEngineBusyKey(modelId)
+    markAxEngineBusy(modelId)
     try {
       const job = await startAxEngineModelDownload(modelId, directory)
       downloadToastTracker.announce(job, modelName, directory)
@@ -204,12 +218,12 @@ export const ProvidersPage: React.FC = () => {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("localModels.toast.downloadStartFailed"))
     } finally {
-      setAxEngineBusyKey(null)
+      releaseAxEngineBusy(modelId)
     }
   }
 
   const handleAxEngineCancel = async (job: AxEngineModelJobSummary) => {
-    setAxEngineBusyKey(job.id)
+    markAxEngineBusy(job.id)
     try {
       const result = await cancelAxEngineModelDownload(job.id, directory)
       if (result?.status === "complete") toast.success(t("localModels.toast.downloadAlreadyFinished"))
@@ -218,7 +232,7 @@ export const ProvidersPage: React.FC = () => {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("localModels.toast.actionFailed"))
     } finally {
-      setAxEngineBusyKey(null)
+      releaseAxEngineBusy(job.id)
     }
   }
 
@@ -1628,7 +1642,7 @@ export const ProvidersPage: React.FC = () => {
                   size="xs"
                   className="!font-normal"
                   onClick={() => void loadAxEngineCatalog()}
-                  disabled={axEngineBusyKey !== null}
+                  disabled={axEngineBusyKeys.size > 0}
                 >
                   <Icon name="refresh" className="h-3.5 w-3.5" />
                   {t("settings.providers.page.actions.refreshLocal")}
@@ -1697,7 +1711,7 @@ export const ProvidersPage: React.FC = () => {
                   const activeJob = modelId ? axEngineActiveJob(modelId) : undefined
                   const downloadBusy =
                     Boolean(modelId) &&
-                    (axEngineBusyKey === modelId || (activeJob ? axEngineBusyKey === activeJob.id : false))
+                    (axEngineBusyKeys.has(modelId) || (activeJob ? axEngineBusyKeys.has(activeJob.id) : false))
 
                   const contextTokens = formatTokens(metadata?.limit?.context)
                   const outputTokens = formatTokens(metadata?.limit?.output)
