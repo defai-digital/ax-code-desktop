@@ -16,9 +16,13 @@ describe("pending toast wiring", () => {
     const source = await readSource()
 
     const clearIndex = source.indexOf("clearPendingToastsForGoneSession(payload)")
-    // The global branch and the store lookup, in the order the handler reaches them.
-    const globalBranchIndex = source.indexOf("// Global events")
-    const storeLookupIndex = source.indexOf("// Try as global event for unknown directories")
+    // The global branch and the store lookup, in the order the handler reaches them — matched on the branches
+    // themselves inside the handler, since a comment edit is not a behaviour change and the file has other copies
+    // of both shapes.
+    const handlerIndex = source.indexOf("function handleEvent(")
+    const globalBranchIndex = source.indexOf('if (directory === "global" || !directory) {', handlerIndex)
+    const storeLookupIndex = source.indexOf("if (!store) {", handlerIndex)
+    expect(handlerIndex).toBeGreaterThan(-1)
     expect(clearIndex).toBeGreaterThan(-1)
     expect(globalBranchIndex).toBeGreaterThan(-1)
     expect(storeLookupIndex).toBeGreaterThan(-1)
