@@ -9,7 +9,7 @@ type SessionStub = { id: string; title: string; time?: { created?: number; updat
 // in place to simulate live session updates arriving from the sync layer.
 const { liveSessions } = vi.hoisted(() => ({ liveSessions: { current: [] as SessionStub[] } }))
 
-vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }))
 
 vi.mock("@/components/ui/dialog", () => ({
   Dialog: ({ children, open = true }: React.PropsWithChildren<{ open?: boolean }>) => (open ? <>{children}</> : null),

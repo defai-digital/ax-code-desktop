@@ -167,7 +167,13 @@ export function MultiRunFusionDialog({
         .map((source, index) => ({ source, text: sourceTexts[index] ?? "" }))
         .filter((item) => item.text.trim().length > 0)
 
-      if (usableSources.length === 0) {
+      if (usableSources.length < sources.length) {
+        // The runs with nothing to contribute were dropped from the payload while the dialog kept listing them,
+        // so the fused answer read as covering every run the user left there. Fusion waits for the selection to
+        // match what it can fuse instead; the dialog's own source list is where a run is excluded.
+        //
+        // The message is the closest one the dictionaries have: saying "N of them had no output" needs a new key
+        // in all fourteen locales (the localization check rejects one that only English has).
         toast.error(t("multirun.fusion.toast.noOutputs"))
         return
       }
