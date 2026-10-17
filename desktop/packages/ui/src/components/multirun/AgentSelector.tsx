@@ -2,7 +2,7 @@ import React from "react"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { useConfigStore } from "@/stores/useConfigStore"
-import { useAgentsStore } from "@/stores/useAgentsStore"
+import { filterVisibleAgents, useAgentsStore } from "@/stores/useAgentsStore"
 import { useI18n } from "@/lib/i18n"
 import { agentLabel } from "@/lib/agents"
 
@@ -23,7 +23,8 @@ interface MultirunAgentSelectorProps {
 
 /**
  * Agent selector dropdown for selecting an agent for multi-run sessions.
- * Uses getVisibleAgents from useAgentsStore (single agents home, S4.6).
+ * Reads the agents from useAgentsStore and filters them with the store's own visibility rule (single agents
+ * home, S4.6).
  */
 export const AgentSelector: React.FC<MultirunAgentSelectorProps> = ({
   value,
@@ -34,10 +35,13 @@ export const AgentSelector: React.FC<MultirunAgentSelectorProps> = ({
   portalToBody,
 }) => {
   const { t } = useI18n()
-  const getVisibleAgents = useAgentsStore((state) => state.getVisibleAgents)
+  // The store's own list, not its `getVisibleAgents` method: a method's identity never changes, so subscribing to
+  // it re-rendered nothing when `loadAgents` finished and the dropdown stayed empty (the mention autocomplete and
+  // the commands selector already select the state for this reason).
+  const storedAgents = useAgentsStore((state) => state.agents)
   const loadAgents = useConfigStore((state) => state.loadAgents)
   const defaultAgentName = useConfigStore((state) => state.currentAgentName)
-  const agents = getVisibleAgents()
+  const agents = React.useMemo(() => filterVisibleAgents(storedAgents), [storedAgents])
   const selectableAgents = React.useMemo(() => agents.filter((agent) => agent.mode !== "subagent"), [agents])
 
   // Load agents on mount

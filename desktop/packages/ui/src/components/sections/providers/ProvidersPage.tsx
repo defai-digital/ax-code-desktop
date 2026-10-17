@@ -682,6 +682,10 @@ export const ProvidersPage: React.FC = () => {
         next.delete(codeKey)
         return next
       })
+      // Credentials are global across projects, and every other auth path in this file drops the project-scoped
+      // provider snapshots first (see `reloadAfterProviderAuthSave`): an OAuth completion that only reloaded the
+      // active project left the others showing the provider as missing until something forced a full cache drop.
+      useConfigStore.getState().invalidateAllProviderCaches()
       try {
         await reloadAxCodeConfiguration({
           message: "Restarting AX Code to load provider credentials...",
