@@ -27,6 +27,7 @@ import { isModuleCliExecution, normalizeCliEntryPath } from "./cli-entry.js"
 import {
   assertRestartCanCarryPassword,
   buildTunnelServeOptions,
+  stopInstanceProcess,
   followFile,
   commands,
   parseArgs,
@@ -228,6 +229,29 @@ describe("startup quoting", () => {
 
       expect(calls).toContainEqual([-4242, "SIGTERM"])
       expect(calls).toContainEqual([-4242, "SIGKILL"])
+    } finally {
+      killSpy.mockRestore()
+    }
+  })
+
+  it("forces the group when the graceful stop already saw the leader go", async () => {
+    // `stop` asks the server to shut down and returns as soon as the leader exits: the group signal lived only in
+    // `terminateProcessTree`, which that path never reached, so a child that ignored the shutdown outlived a `stop`
+    // that reported the instance stopped.
+    const calls = []
+    const killSpy = vi.spyOn(process, "kill").mockImplementation((target, signal) => {
+      calls.push([target, signal])
+      if (target > 0) {
+        const error = new Error("kill ESRCH")
+        error.code = "ESRCH"
+        throw error
+      }
+      return true
+    })
+    try {
+      await expect(stopInstanceProcess(4343, { shutdownWaitMs: 10, forceTimeoutMs: 10 })).resolves.toBe(true)
+
+      expect(calls).toContainEqual([-4343, "SIGKILL"])
     } finally {
       killSpy.mockRestore()
     }

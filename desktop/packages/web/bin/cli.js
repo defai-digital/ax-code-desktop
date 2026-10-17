@@ -3022,6 +3022,7 @@ export {
   followFile,
   assertRestartCanCarryPassword,
   terminateProcessTree,
+  stopInstanceProcess,
   hasUiPasswordConfigured,
   readDesktopLocalPortFromSettings,
   getPidFilePath,
