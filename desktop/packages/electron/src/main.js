@@ -52,8 +52,26 @@ const { createDesktopWebMcpBrowser, DESKTOP_BROWSER_TOKEN } = require("./desktop
 const wikiViewer = createWikiViewer({
   BrowserWindow,
   getRuntimeRoot: () => {
-    const binary = bundledAxCodeEnv.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY
-    return binary ? path.dirname(path.dirname(binary)) : null
+    // Resolve the runtime the same way the supervisor does (settings > env >
+    // bundled > PATH): in dev there is no staged bundle, and the viewer used
+    // to report the runtime as unavailable there even though the app was
+    // talking to a PATH-installed ax-code the whole time.
+    const resolved = resolveRuntimeBinary({
+      env: applyBundledAxCodeEnv(process.env, bundledAxCodeEnv),
+      settings: readSettingsRoot(),
+    })
+    if (!resolved) return null
+    // A PATH hit is usually a symlinked launcher (~/.local/bin/ax-code ->
+    // versions/<runtime>/bin/ax-code); the tree root must be derived from the
+    // real file, not the link.
+    let binary = resolved.binary
+    try {
+      binary = fs.realpathSync(binary)
+    } catch {}
+    const root = path.dirname(path.dirname(binary))
+    // The viewer spawns <root>/node/bin/node <root>/lib/index-node-tui.js, so
+    // only a full runtime tree qualifies — a bare launcher shim has neither.
+    return fs.existsSync(path.join(root, "lib", "index-node-tui.js")) ? root : null
   },
 })
 
@@ -62,6 +80,7 @@ app.commandLine.appendSwitch("enable-features", "WebMCP")
 const {
   createAxCodeRuntimeSupervision,
   defaultIsExecutable,
+  resolveRuntimeBinary,
   RUNTIME_NOT_FOUND_CODE,
   RUNTIME_START_CANCELLED_CODE,
 } = require("./axcode-runtime-supervisor")

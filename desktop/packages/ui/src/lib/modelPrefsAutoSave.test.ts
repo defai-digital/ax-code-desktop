@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
-const { updateDesktopSettings } = vi.hoisted(() => ({
+const { updateDesktopSettings, flushDesktopSettingsNow } = vi.hoisted(() => ({
   updateDesktopSettings: vi.fn<(changes: Record<string, unknown>) => Promise<void>>(async () => {}),
+  flushDesktopSettingsNow: vi.fn<() => void>(() => {}),
 }))
 
-vi.mock("@/lib/persistence", () => ({ updateDesktopSettings }))
+vi.mock("@/lib/persistence", () => ({ updateDesktopSettings, flushDesktopSettingsNow }))
 vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 vi.mock("@/lib/i18n/store", () => ({ useI18nStore: { getState: () => ({ dictionary: {} }) }, formatMessage: () => "" }))
 
