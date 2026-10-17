@@ -1305,6 +1305,47 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Thirty-fifth round
+
+A second audit of the thirty-fourth round's fixes (Claude Code CLI, over `git diff 81ff4b7c d288f1c0`). It reported
+six items; five were defects or gaps and were fixed in `490d6db3`. The full suite also lost the wiki layout's
+wall-clock test once (it passes alone) — the sixth file in the flake family this record tracks.
+
+### Fixed
+
+- **R5 also missed `export * as ns from`.** Its `exportClause` is a `NamespaceExport` — neither absent nor a named
+  export — so the whole-module reach the rule exists for passed unjudged. It is treated as a whole-module re-export
+  now. Red: `importsWriteApi` false for the namespace re-export.
+- **A settled answer could be mirrored again and answered twice.** The success path removed every mirror, but the
+  permission watcher still listed the request as pending; its next effect run saw an unmapped request and mirrored
+  it with fresh buttons while the answer claim was gone. The watcher now records answered request ids, skips them in
+  the diff, and clears the record once the server stops listing the request. Red: `toAdd` contained the answered
+  request.
+- **Restart trusted a record that claimed a password it did not carry.** With `hasUiPassword: true` and a blank
+  `uiPassword`, the guard returned and `serve` read the blank as unset: the instance started unprotected while the
+  record said otherwise. A record must now either claim no password or carry a usable one; otherwise the explicit
+  or environment password is required. Red: the guard did not throw.
+- **The export tree kept the first of two copies of a session.** The project tree's `dedupeSessionsById` keeps the
+  later copy, so a duplicated cache entry could export a stale title and timestamp. Red: `'stale'` instead of
+  `'fresh'`.
+- **The summary link pass dropped the punctuation after a link, and note mode still only knew http(s).** The link
+  match now stops before trailing punctuation, the scheme name is bounded (a long run of scheme characters was
+  rescanning from every offset), and `sanitizeForNote` uses the same pattern. Red: `'see a link then'` (comma lost);
+  note mode returned the ssh URL unchanged.
+- **The 500-node layout test sampled one wall-clock run.** It passed alone in 4 ms and failed inside the full
+  suite; the assertion now takes the best of three, which still catches an algorithmic regression. This is the
+  sixth file in the flake family, and the first of them fixed rather than only recorded.
+
+### Reported, examined and not fixed
+
+- **The scan guard checks only that the UI tree matched something, not each of `stores/` and `sync/`.** A rename of
+  one subtree would leave R1/R2/R4/R5 silently scanning nothing for it. Renaming either tree breaks the build long
+  before this check runs, so a per-subtree guard was judged not worth the extra failure mode. `assertFilesToScan`'s
+  wiring is exercised by the collector test; the empty case is unit-tested directly.
+- **The OAuth read-back reads the store's active provider snapshot but loads the page's directory.** After the
+  invalidation both resolve to the active directory in the normal flow; the snapshot is the only signal available
+  for "the reload's refresh failed quietly". Recorded rather than plumbed.
+
 ## Thirty-fourth round
 
 Two follow-ups. The root `script/` review (Grok CLI) failed as a cell — three consecutive tool errors, then its
@@ -3987,6 +4028,10 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-fifth round, after `490d6db3`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 183 (+6 skipped),
+  electron 600, ui 2 995, web 1 338 (+2 skipped), 0 `FAIL` lines. The first full run of the round lost
+  `layout.test.ts`'s wall-clock case; the rerun after the best-of-three change was clean.
 - Latest full run, in the thirty-fourth round, after `d288f1c0`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 182 (+6 skipped),
   electron 600, ui 2 993, web 1 336 (+2 skipped), 0 `FAIL` lines.
