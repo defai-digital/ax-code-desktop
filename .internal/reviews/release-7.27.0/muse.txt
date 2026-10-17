@@ -1,0 +1,5 @@
+No supported finding.
+
+From the code shown, I cannot identify a concrete correctness defect with a valid trigger. The settlement guard prevents late `execFile` callbacks from resolving twice or clearing a later candidate’s state. Cancellation sets `cancelled`, kills the active child, settles the pending candidate, and the loop checks `cancelled` before trying another shell. The separate hard timer bounds the wait even if descendants keep inherited stdio open. The 48 KiB raw limit also leaves room for base64 expansion to about 64 KiB, below the stated 128 KiB single-string concern.
+
+Behavior depending on the omitted caller or server-side decoder—such as how a cancelled `null` result is subsequently handled—remains unknown and is not counted as a defect.

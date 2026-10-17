@@ -147,4 +147,29 @@ describe("ScrollShadow", () => {
     await flushFrames(10)
     expect(frameCallbacks).toHaveLength(0)
   })
+
+  test("clears the previous axis when the scroll direction changes", async () => {
+    await act(async () => root.render(<ScrollShadow orientation="vertical" />))
+    const el = container.firstElementChild as HTMLElement
+    setGeometry(el, { scrollTop: 200, scrollHeight: 500, clientHeight: 100 })
+    Object.defineProperties(el, {
+      scrollLeft: { configurable: true, value: 200 },
+      scrollWidth: { configurable: true, value: 500 },
+      clientWidth: { configurable: true, value: 100 },
+    })
+    await act(async () => el.dispatchEvent(new Event("scroll")))
+    expect(el.dataset.topBottomScroll).toBe("true")
+    await act(async () => root.render(<ScrollShadow orientation="horizontal" />))
+    expect(el.dataset.leftRightScroll).toBe("true")
+    expect(el.dataset.topBottomScroll).toBeUndefined()
+    expect(el.dataset.topScroll).toBeUndefined()
+    expect(el.dataset.bottomScroll).toBeUndefined()
+    await act(async () => root.render(<ScrollShadow orientation="vertical" />))
+    expect(el.dataset.topBottomScroll).toBe("true")
+    expect(el.dataset.leftRightScroll).toBeUndefined()
+    expect(el.dataset.leftScroll).toBeUndefined()
+    expect(el.dataset.rightScroll).toBeUndefined()
+    await flushFrames(10)
+    expect(frameCallbacks).toHaveLength(0)
+  })
 })

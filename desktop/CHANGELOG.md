@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - Stop idle scroll shadows from scheduling animation frames indefinitely.
 - Reattach scroll and content observers when a scroll-shadow container changes its element type.
 - Report hidden shadows when disabled and restore visibility notifications when re-enabled.
+- Clear stale shadow attributes when switching between vertical and horizontal scrolling.
 
 ## [Unreleased]
 

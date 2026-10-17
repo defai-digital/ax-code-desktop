@@ -1,0 +1,7 @@
+Both earlier claims fail against this source.
+
+The cleanup cancels the frame while `rafId` is still set. The callback clears `rafId` only once it has started, then runs `checkOverflow` to completion on that same turn. Disabling changes `checkOverflow`, so React runs the previous cleanup and the new effect in one commit: the queued frame is cancelled, and the new `checkOverflow` calls `clearAttributes` and emits `"none"`. A frame that already started finishes before that commit. A `MutationObserver` frame scheduled by those attribute updates calls the new `checkOverflow`, which stays on the disabled path. Shadows are not restored.
+
+A fresh `as` function changes `Component` every render. The effect re-subscribes and calls `checkOverflow`. It never writes React state, so that dependency does not loop. Host remounts come from React’s element type, which already changes when `as` is a new function.
+
+One remaining bug: an orientation change only calls `setAttributes`. After vertical → horizontal, `data-top-scroll`, `data-bottom-scroll`, and `data-top-bottom-scroll` are left in place. The reverse leaves the left/right attributes. `clearAttributes` runs only when `isEnabled` is false.

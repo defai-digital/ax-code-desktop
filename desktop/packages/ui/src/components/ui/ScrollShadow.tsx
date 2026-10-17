@@ -60,6 +60,8 @@ export const ScrollShadow = React.forwardRef<HTMLElement, ScrollShadowProps>(
     const setAttributes = React.useCallback(
       (el: HTMLElement, hasBefore: boolean, hasAfter: boolean, prefix: "top" | "left", suffix: "bottom" | "right") => {
         const bothKey = `${prefix}${suffix.charAt(0).toUpperCase()}${suffix.slice(1)}Scroll` as const
+        const inactiveEdges = prefix === "top" ? ["left", "right", "left-right"] : ["top", "bottom", "top-bottom"]
+        for (const edge of inactiveEdges) el.removeAttribute(`data-${edge}-scroll`)
 
         // Only write a data attribute whose value changed. Setting an attribute to
         // its current value still queues a mutation record, and this component's

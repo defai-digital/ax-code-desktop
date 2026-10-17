@@ -1,0 +1,5 @@
+The `Component` dependency is right for a `div` to `section` switch only when `as` is a stable type. A new function `as` each render retriggers the effect forever.
+
+The disabled path can still lose to a `requestAnimationFrame` already queued by `checkOverflow`. That frame can write shadow attributes and visibility after the branch clears them, sets `visibleRef` to `none`, and emits `onVisibilityChange(none)`.
+
+Reproduce: scroll so a frame is queued, then disable `checkOverflow` before it runs. Re-enable only recomputes the next pass. It does not cancel that in-flight frame.
