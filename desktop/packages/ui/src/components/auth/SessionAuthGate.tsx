@@ -203,6 +203,9 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   }, [skipAuth])
 
   const checkStatus = React.useCallback(async () => {
+    // The message belongs to the attempt that produced it. The error screen renders it as the detail, and only the
+    // `ok` and `401` branches used to clear it, so a 429 or a transport failure showed the previous failure's text.
+    setErrorMessage("")
     if (skipAuth) {
       setState("authenticated")
       return

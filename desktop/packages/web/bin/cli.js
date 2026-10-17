@@ -2299,6 +2299,19 @@ const commands = {
       }
       restartSpin?.start(`Restarting AX Code Desktop on port ${instance.port}...`)
       try {
+        // Before the stop, not after it: the inputs are all known here, and refusing after stopping would take the
+        // running server down over a check that could have been answered first. A foreground instance is skipped —
+        // its process manager restarts it with the environment it was given, and this command starts nothing.
+        if (!isForeground) {
+          assertRestartCanCarryPassword({
+            port: instance.port,
+            storedOptions,
+            explicitUiPassword: options.explicitUiPassword,
+            uiPassword: options.uiPassword,
+            envPassword: process.env.AX_CODE_DESKTOP_UI_PASSWORD || process.env.AX_CODE_UI_PASSWORD,
+          })
+        }
+
         await this.stop({
           explicitPort: true,
           port: instance.port,
@@ -2327,17 +2340,6 @@ const commands = {
         }
 
         await new Promise((resolve) => setTimeout(resolve, 500))
-
-        // Only the branch that starts a server needs a password: a foreground instance is restarted by its process
-        // manager, which already has the environment it was started with, and refusing it here would stop it for
-        // nothing. Inside the per-instance `try`, so a refusal is recorded like the other per-instance errors.
-        assertRestartCanCarryPassword({
-          port: instance.port,
-          storedOptions,
-          explicitUiPassword: options.explicitUiPassword,
-          uiPassword: options.uiPassword,
-          envPassword: process.env.AX_CODE_DESKTOP_UI_PASSWORD || process.env.AX_CODE_UI_PASSWORD,
-        })
 
         const restartedPort = await this.serve({
           port: restartPort,

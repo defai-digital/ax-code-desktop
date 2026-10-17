@@ -143,6 +143,34 @@ describe("SessionAuthGate", () => {
     expect(document.body.textContent ?? "").not.toContain(dict["sessionAuth.error.unexpectedResponse"])
   })
 
+  test("does not show the previous failure's message when the retry fails differently", async () => {
+    // The error screen renders the message as its detail, and only the `ok` and `401` branches of the status check
+    // cleared it: a retry that hit a 5xx showed the previous attempt's text as the reason for a different failure.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async (_url: string, init?: RequestInit) =>
+          new Response(JSON.stringify({}), {
+            status: init?.method === "POST" ? 500 : 401,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    )
+    await render()
+    await typePassword("hunter2")
+    await clickUnlock()
+    expect(document.body.textContent ?? "").toContain(dict["sessionAuth.error.unexpectedResponse"])
+
+    // Retry, with the status check itself answering a server error.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({}), { status: 500, headers: { "Content-Type": "application/json" } })),
+    )
+    await clickButtonWithText(dict["sessionAuth.error.retry"])
+
+    expect(document.body.textContent ?? "").not.toContain(dict["sessionAuth.error.unexpectedResponse"])
+  })
+
   // The register ceremony runs inside the password unlock, so the button kept its disabled state for
   // the whole OS prompt: the label said "Cancel passkey setup" while clicking it did nothing, and the
   // cancel branch was short-circuited by the same flag.
