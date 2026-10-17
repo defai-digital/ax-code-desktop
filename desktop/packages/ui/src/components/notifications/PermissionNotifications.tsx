@@ -10,7 +10,7 @@ import { useI18n } from "@/lib/i18n"
 import { useNotificationStore } from "@/stores/useNotificationStore"
 import * as sessionActions from "@/sync/session-actions"
 import { toast } from "@/components/ui"
-import { diffPermissionNotifications, pruneAnsweredRequestIds } from "./permissionNotificationSync"
+import { diffPermissionNotifications } from "./permissionNotificationSync"
 import type { NotificationPayload } from "@/lib/api/types"
 
 const PERMISSION_NOTIFY_DEBOUNCE_MS = 2000
@@ -78,7 +78,6 @@ function SessionPermissionWatcher({
       }
     }
     const answered = answeredRequestIdsFor(sessionId)
-    pruneAnsweredRequestIds(answered, permissions)
     const { toAdd, toRemove } = diffPermissionNotifications(seen, permissions, answered)
 
     for (const { requestId, notificationId } of toRemove) {

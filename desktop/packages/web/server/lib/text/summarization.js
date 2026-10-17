@@ -9,9 +9,10 @@
 
 // One scheme URL. It may not start inside another scheme-character run (`com.apple.dt.xcode://` is not
 // `xcode://`), which also keeps an unbounded scheme linear: only the first character of a run can start a match.
-// The match stops before trailing punctuation and closing brackets, which belong to the sentence rather than the
-// link.
-const SCHEME_URL = /(?<![a-z0-9+.-])[a-z][a-z0-9+.-]*:\/\/[^\s]*[^\s.,;:!?)\]}]/gi
+// A leading digit is accepted even though it is not a legal scheme, because the point is to stop the path after
+// `://` from reaching the summary. The match stops before trailing punctuation and closing brackets, which belong
+// to the sentence rather than the link.
+const SCHEME_URL = /(?<![a-z0-9+.-])[a-z0-9][a-z0-9+.-]*:\/\/[^\s]*[^\s.,;:!?)\]}]/gi
 
 export function sanitizeForSummary(text) {
   if (!text || typeof text !== "string") return ""

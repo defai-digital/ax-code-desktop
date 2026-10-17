@@ -248,6 +248,28 @@ describe("R5 connection-state writer registry", () => {
       'export { type markStreamConnected, markStreamDisconnected } from "@/lib/event-stream/connection-state"',
     )
     expect(mixedExport.violations).toHaveLength(1)
+
+    // Whole-clause and namespace type-only forms, and an aliased mixed element.
+    const typeNamespaceImport = analyzeConnectionStateWriterImports(
+      componentFile("ui", "ReconnectBanner.tsx"),
+      'import type * as connectionState from "@/lib/event-stream/connection-state"',
+    )
+    expect(typeNamespaceImport.violations).toEqual([])
+    expect(typeNamespaceImport.importsWriteApi).toBe(false)
+
+    const typeWholeExport = analyzeConnectionStateWriterImports(
+      componentFile("ui", "connectionStateFacade.ts"),
+      'export type * from "@/lib/event-stream/connection-state"',
+    )
+    expect(typeWholeExport.violations).toEqual([])
+    expect(typeWholeExport.importsWriteApi).toBe(false)
+
+    const aliasedMixed = analyzeConnectionStateWriterImports(
+      componentFile("ui", "ReconnectBanner.tsx"),
+      'import { type markStreamConnected as connected, markStreamDisconnected as disconnected } from "@/lib/event-stream/connection-state"',
+    )
+    expect(aliasedMixed.violations).toHaveLength(1)
+    expect(aliasedMixed.importsWriteApi).toBe(true)
   })
 
   test("blocks a whole-module re-export from an unregistered module", () => {

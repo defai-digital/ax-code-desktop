@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { diffPermissionNotifications, pruneAnsweredRequestIds } from "./permissionNotificationSync"
+import { diffPermissionNotifications } from "./permissionNotificationSync"
 import type { PermissionRequest } from "@/types/permission"
 
 const makePermission = (id: string): PermissionRequest => ({
@@ -62,22 +62,16 @@ describe("diffPermissionNotifications", () => {
   })
 })
 
-describe("pruneAnsweredRequestIds", () => {
-  test("keeps the marker while the request is still listed", () => {
-    // A resync republishes the pending request with a fresh object; the marker has to survive that, or the settled
-    // request is mirrored again with buttons that can answer it twice.
+describe("answered markers", () => {
+  test("survive an empty permissions run", () => {
+    // `useSessionPermissions` returns an empty list for one run while the session's directory is unresolved.
+    // Dropping the marker then reopened the double mirror; nothing prunes it now.
     const answered = new Set(["perm-1"])
 
-    pruneAnsweredRequestIds(answered, [makePermission("perm-1")])
+    diffPermissionNotifications(new Map(), [], answered)
+    const { toAdd } = diffPermissionNotifications(new Map(), [makePermission("perm-1")], answered)
 
+    expect(toAdd).toEqual([])
     expect([...answered]).toEqual(["perm-1"])
-  })
-
-  test("forgets the marker once the server drops the request", () => {
-    const answered = new Set(["perm-1"])
-
-    pruneAnsweredRequestIds(answered, [])
-
-    expect(answered.size).toBe(0)
   })
 })
