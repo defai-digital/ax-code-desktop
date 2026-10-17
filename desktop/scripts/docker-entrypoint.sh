@@ -82,7 +82,10 @@ fi
 # serves inline, keeps its output on this process's stdout, and handles SIGTERM.
 set -- node "$CLI_ENTRY" serve --foreground
 if [ -n "${UI_PASSWORD:-}" ]; then
-  set -- "$@" --ui-password "$UI_PASSWORD"
+  # Handed over in the environment, not as an argument: `--ui-password <secret>` put the container's UI password
+  # in the process argv, where every process in the container can read it with `ps`. The CLI reads this variable,
+  # and the terminal a user opens drops both names before the shell sees them.
+  export AX_CODE_DESKTOP_UI_PASSWORD="$UI_PASSWORD"
 fi
 
 exec "$@"
