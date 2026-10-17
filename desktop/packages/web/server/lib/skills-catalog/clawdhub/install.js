@@ -128,12 +128,22 @@ export async function installSkillsFromClawdHub({
 
   const installed = []
   const skipped = []
+  // One target directory per slug: a request that names the same slug twice used to install it once and then
+  // rename the second download onto the directory the first had just filled, which answers with the raw
+  // `ENOTEMPTY` the rename throws (or installs it twice under `overwriteAll`). The repository installer carries
+  // the same guard for the same reason.
+  const claimedSkillNames = new Set()
 
   for (const plan of skillPlans) {
     if (!plan.installable) {
       skipped.push({ skillName: plan.slug, reason: "Invalid skill name" })
       continue
     }
+    if (claimedSkillNames.has(plan.slug)) {
+      skipped.push({ skillName: plan.slug, reason: "Another selected directory installs to the same skill name" })
+      continue
+    }
+    claimedSkillNames.add(plan.slug)
 
     try {
       // Resolve 'latest' version if needed

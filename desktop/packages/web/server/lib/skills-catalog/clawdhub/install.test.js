@@ -189,6 +189,36 @@ describe("ClawdHub skill installation", () => {
     }
   })
 
+  test("installs a slug named twice in one request only once", async () => {
+    // One target directory per slug, so the second download was renamed onto the directory the first had just
+    // filled: the rename answered `ENOTEMPTY` and the user saw that raw error as their second selection's reason
+    // (or, under `overwriteAll`, the same skill was downloaded and installed twice).
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
+    try {
+      downloadClawdHubSkill.mockResolvedValue(
+        zipWithFiles({ "SKILL.md": '---\nname: "review-code"\ndescription: Review code.\n---\n' }),
+      )
+
+      const result = await installSkillsFromClawdHub({
+        scope: "user",
+        targetSource: "ax-code",
+        userSkillDir: tempRoot,
+        selections: [
+          { clawdhub: { slug: "review-code", version: "1.0.0" } },
+          { clawdhub: { slug: "review-code", version: "1.0.0" } },
+        ],
+      })
+
+      expect(result.installed.map((entry) => entry.skillName)).toEqual(["review-code"])
+      expect(result.skipped).toEqual([
+        { skillName: "review-code", reason: "Another selected directory installs to the same skill name" },
+      ])
+      expect(downloadClawdHubSkill).toHaveBeenCalledTimes(1)
+    } finally {
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
   test("replaces the installed skill when the move succeeds", async () => {
     const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
     try {

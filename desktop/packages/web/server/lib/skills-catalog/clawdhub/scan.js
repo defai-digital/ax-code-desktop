@@ -6,7 +6,7 @@
  */
 
 import { fetchClawdHubSkills } from "./api.js"
-import { isEnglishOnlyCatalogItem } from "../shared.js"
+import { isEnglishOnlyCatalogItem, validateSkillName } from "../shared.js"
 
 const MAX_PAGES = 20 // Safety limit to prevent infinite loops
 const CLAWDHUB_PAGE_LIMIT = 25
@@ -24,7 +24,10 @@ const mapClawdHubItem = (item) => {
     skillName: item.slug,
     frontmatterName: item.displayName || item.slug,
     description: item.summary || null,
-    installable: true,
+    // The registry is not a name validator: a slug that the installer refuses (`validateSkillName`, which both
+    // install paths apply) must not reach the UI as installable, or the button is offered for a skill that can
+    // never install — and the user only finds out by clicking, every time.
+    installable: validateSkillName(item.slug),
     warnings: [],
     // ClawdHub-specific metadata
     clawdhub: {

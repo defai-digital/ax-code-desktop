@@ -46,6 +46,23 @@ describe("ClawdHub skills catalog scan", () => {
     expect(result.items.map((item) => item.skillName)).toEqual(["english-skill"])
   })
 
+  test("does not offer a skill whose slug the installer refuses", async () => {
+    // The registry is not a name validator. Both install paths apply `validateSkillName` to every slug they are
+    // handed, so a slug like `pdf.tools` reached the catalog as installable and the UI offered a button whose
+    // every press answered "Invalid skill name".
+    fetchClawdHubSkills.mockResolvedValueOnce({
+      items: [skill({ slug: "pdf.tools" }), skill()],
+      nextCursor: null,
+    })
+
+    const result = await scanClawdHubPage()
+
+    expect(result.items.map((item) => [item.skillName, item.installable])).toEqual([
+      ["pdf.tools", false],
+      ["review-code", true],
+    ])
+  })
+
   test("skips empty non-English pages before returning a page", async () => {
     fetchClawdHubSkills
       .mockResolvedValueOnce({
