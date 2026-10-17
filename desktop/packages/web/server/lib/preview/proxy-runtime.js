@@ -289,6 +289,25 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
       const mql = Object.create(nativeMql);
       Object.defineProperty(mql, 'matches', { get: () => mediaQueryMatchesPreviewScheme(query) ?? nativeMql.matches });
       Object.defineProperty(mql, 'media', { get: () => nativeMql.media });
+      // The wrapper inherits the platform's onchange accessor, which brand-checks its receiver and throws for an
+      // Object.create receiver. Pages that use the old property would break on assignment, so the wrapper keeps the
+      // handler itself and registers an internal listener for it.
+      let onChangeHandler = null;
+      const invokeOnChange = function(event) {
+        if (typeof onChangeHandler === 'function') onChangeHandler.call(mql, event);
+      };
+      Object.defineProperty(mql, 'onchange', {
+        get: () => onChangeHandler,
+        set: (handler) => {
+          const next = typeof handler === 'function' ? handler : null;
+          onChangeHandler = next;
+          if (next && !listenersForMql.has(invokeOnChange)) {
+            mql.addEventListener('change', invokeOnChange);
+          } else if (!next && listenersForMql.has(invokeOnChange)) {
+            mql.removeEventListener('change', invokeOnChange);
+          }
+        },
+      });
       mql.addEventListener = function(type, callback, options) {
         if (type !== 'change' || typeof callback !== 'function') return nativeMql.addEventListener?.(type, callback, options);
         // Adding a callback that is already registered is a no-op in the platform, and it has to

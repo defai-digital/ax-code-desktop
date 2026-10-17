@@ -96,6 +96,50 @@ describe("preview bridge color-scheme listeners", () => {
     }
   })
 
+  it("supports the onchange handler without an illegal invocation", () => {
+    // The wrapper is Object.create(nativeMql): assigning onchange ran the platform's setter with the wrapper as
+    // receiver, which brand-checks and throws, breaking pages that use the old handler property.
+    const realMatchMedia = window.matchMedia
+    window.matchMedia = (query) => {
+      let native
+      native = new EventTarget()
+      native.media = query
+      native.matches = false
+      let handler = null
+      Object.defineProperty(native, "onchange", {
+        get() {
+          if (this !== native) throw new TypeError("Illegal invocation")
+          return handler
+        },
+        set(value) {
+          if (this !== native) throw new TypeError("Illegal invocation")
+          handler = typeof value === "function" ? value : null
+        },
+      })
+      return native
+    }
+    const { restore } = install()
+    try {
+      const mql = window.matchMedia("(prefers-color-scheme: dark)")
+      const seen = []
+      expect(() => {
+        mql.onchange = (event) => seen.push(event.matches)
+      }).not.toThrow()
+      expect(typeof mql.onchange).toBe("function")
+
+      dispatchScheme("light")
+      expect(seen).toEqual([false])
+
+      mql.onchange = null
+      dispatchScheme("dark")
+      expect(seen).toEqual([false])
+    } finally {
+      window.matchMedia = realMatchMedia
+      delete window.__openchamberPreviewColorSchemePatched
+      restore()
+    }
+  })
+
   it("honours once and an aborted signal", () => {
     // The bridge's addEventListener accepted options and ignored them: `once` kept firing and a signal cleanup did
     // not remove the listener, so a React effect's AbortController cleanup left the callback running.
