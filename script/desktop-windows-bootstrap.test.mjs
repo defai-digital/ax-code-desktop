@@ -5,6 +5,9 @@ import { spawnSync } from "node:child_process"
 import { afterEach, describe, it, expect } from "vitest"
 import { hash, installers } from "../.internal/deploy/distribution.mjs"
 
+// A case can run two bounded PowerShell processes; cold startup can exceed Vitest's 5s default.
+const POWERSHELL_TIMEOUT_MS = 30_000
+const BOOTSTRAP_TEST_TIMEOUT_MS = 2 * POWERSHELL_TIMEOUT_MS + 5_000
 const pwsh = process.env.AX_DESKTOP_TEST_PWSH || "pwsh"
 const available = spawnSync(pwsh, ["-NoProfile", "-NonInteractive", "-Command", "exit 0"]).status === 0
 const original = fs.readFileSync(new URL("../.internal/deploy/install.ps1", import.meta.url), "utf8")
@@ -68,64 +71,87 @@ function Start-Process { param([string]$FilePath, [switch]$Wait, [switch]$PassTh
   const script = path.join(directory, "install.ps1")
   const run = (transform = (value) => value) => {
     fs.writeFileSync(script, transform(harness + source))
-    return spawnSync(pwsh, ["-NoProfile", "-NonInteractive", "-File", script], { encoding: "utf8", timeout: 30000 })
+    return spawnSync(pwsh, ["-NoProfile", "-NonInteractive", "-File", script], {
+      encoding: "utf8",
+      timeout: POWERSHELL_TIMEOUT_MS,
+    })
   }
   return { files, installed, run }
 }
 
 describe.skipIf(!available)("Windows bootstrap validation in PowerShell (mocked OS and signatures)", () => {
-  it("launches NSIS only after consistent metadata and artifact verification", () => {
-    const { run, installed } = fixture()
-    const result = run()
-    expect(result.status, result.stderr).toBe(0)
-    expect(fs.readFileSync(installed, "utf8")).toContain("win-x64.exe")
-  })
-  it("preserves installation success and verification failure when cleanup is temporarily denied", () => {
-    const { run, files } = fixture()
-    const denyCleanup = (source) =>
-      `
+  it(
+    "launches NSIS only after consistent metadata and artifact verification",
+    () => {
+      const { run, installed } = fixture()
+      const result = run()
+      expect(result.status, result.stderr).toBe(0)
+      expect(fs.readFileSync(installed, "utf8")).toContain("win-x64.exe")
+    },
+    BOOTSTRAP_TEST_TIMEOUT_MS,
+  )
+  it(
+    "preserves installation success and verification failure when cleanup is temporarily denied",
+    () => {
+      const { run, files } = fixture()
+      const denyCleanup = (source) =>
+        `
 function Remove-Item {
   param([string]$LiteralPath, [switch]$Recurse, [switch]$Force, [string]$ErrorAction)
   Write-Error 'Simulated installer file lock' -ErrorAction $ErrorAction
 }
 ` + source
-    expect(run(denyCleanup).status).toBe(0)
-    fs.writeFileSync(path.join(files, "latest.txt.minisig"), "invalid")
-    const failed = run(denyCleanup)
-    expect(failed.status).not.toBe(0)
-    expect(failed.stderr).toContain("Invalid release signature")
-    expect(failed.stderr).not.toContain("Simulated installer file lock")
-  })
+      expect(run(denyCleanup).status).toBe(0)
+      fs.writeFileSync(path.join(files, "latest.txt.minisig"), "invalid")
+      const failed = run(denyCleanup)
+      expect(failed.status).not.toBe(0)
+      expect(failed.stderr).toContain("Invalid release signature")
+      expect(failed.stderr).not.toContain("Simulated installer file lock")
+    },
+    BOOTSTRAP_TEST_TIMEOUT_MS,
+  )
 
-  it("rejects Windows ARM64, including emulated x64 processes", () => {
-    const { run, installed } = fixture()
-    const result = run((source) =>
-      source.replace("$env:PROCESSOR_ARCHITEW6432 = ''", "$env:PROCESSOR_ARCHITEW6432 = 'ARM64'"),
-    )
-    expect(result.status).not.toBe(0)
-    expect(result.stderr).toContain("Windows ARM64")
-    expect(result.stderr).toContain("unsupported")
-    expect(fs.existsSync(installed)).toBe(false)
-  })
-  it("rejects a different Authenticode certificate", () => {
-    const { run, installed } = fixture()
-    const result = run((source) =>
-      source.replace("Thumbprint = 'FC40F1109912C025E751E804AA9BD1538A2D12EF'", "Thumbprint = 'untrusted'"),
-    )
-    expect(result.stderr).toContain("Unexpected Windows Authenticode signature")
-    expect(fs.existsSync(installed)).toBe(false)
-  })
-  it("rejects altered payloads and stale readiness before starting NSIS", () => {
-    const { run, files, installed } = fixture()
-    const file = path.join(files, installers("7.24.5")["win32-x64"])
-    const originalContent = fs.readFileSync(file)
-    const altered = Buffer.from(originalContent)
-    altered[0] = 0
-    fs.writeFileSync(file, altered)
-    expect(run().stderr).toContain("SHA-256 mismatch")
-    fs.writeFileSync(file, originalContent)
-    fs.writeFileSync(path.join(files, "release-ready.txt"), "old-marker")
-    expect(run().stderr).toContain("not ready")
-    expect(fs.existsSync(installed)).toBe(false)
-  })
+  it(
+    "rejects Windows ARM64, including emulated x64 processes",
+    () => {
+      const { run, installed } = fixture()
+      const result = run((source) =>
+        source.replace("$env:PROCESSOR_ARCHITEW6432 = ''", "$env:PROCESSOR_ARCHITEW6432 = 'ARM64'"),
+      )
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain("Windows ARM64")
+      expect(result.stderr).toContain("unsupported")
+      expect(fs.existsSync(installed)).toBe(false)
+    },
+    BOOTSTRAP_TEST_TIMEOUT_MS,
+  )
+  it(
+    "rejects a different Authenticode certificate",
+    () => {
+      const { run, installed } = fixture()
+      const result = run((source) =>
+        source.replace("Thumbprint = 'FC40F1109912C025E751E804AA9BD1538A2D12EF'", "Thumbprint = 'untrusted'"),
+      )
+      expect(result.stderr).toContain("Unexpected Windows Authenticode signature")
+      expect(fs.existsSync(installed)).toBe(false)
+    },
+    BOOTSTRAP_TEST_TIMEOUT_MS,
+  )
+  it(
+    "rejects altered payloads and stale readiness before starting NSIS",
+    () => {
+      const { run, files, installed } = fixture()
+      const file = path.join(files, installers("7.24.5")["win32-x64"])
+      const originalContent = fs.readFileSync(file)
+      const altered = Buffer.from(originalContent)
+      altered[0] = 0
+      fs.writeFileSync(file, altered)
+      expect(run().stderr).toContain("SHA-256 mismatch")
+      fs.writeFileSync(file, originalContent)
+      fs.writeFileSync(path.join(files, "release-ready.txt"), "old-marker")
+      expect(run().stderr).toContain("not ready")
+      expect(fs.existsSync(installed)).toBe(false)
+    },
+    BOOTSTRAP_TEST_TIMEOUT_MS,
+  )
 })
