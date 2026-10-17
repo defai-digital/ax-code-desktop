@@ -4804,5 +4804,20 @@
   "permissionRisk.decide.label": "\uc9c1\uc811 \uacb0\uc815 \ud544\uc694",
   "permissionRisk.decide.description": "AX Code\ub294 \uc774 \uc694\uccad\uc5d0 \uc0ac\ub78c\uc774 \uc9c1\uc811 \uc751\ub2f5\ud574\uc57c \ud569\ub2c8\ub2e4. \uc5b4\ub5a4 \uaddc\uce59\uc774\ub098 \uc790\uc728 \ubaa8\ub4dc\ub3c4 \uc2b9\uc778\ud560 \uc218 \uc5c6\uc73c\uba70 \ud56d\uc0c1 \ud5c8\uc6a9\uc73c\ub85c \uc124\uc815\ud560 \uc218\ub3c4 \uc5c6\uc2b5\ub2c8\ub2e4.",
   "permissionRisk.risk.label": "\uc704\ud5d8",
-  "permissionRisk.risk.description": "\uc774 \uad8c\ud55c\uc740 \ud30c\uc77c \ubcc0\uacbd, \uba85\ub839 \uc2e4\ud589, \ub124\ud2b8\uc6cc\ud06c \uc811\uadfc \ub610\ub294 \ub2e4\ub978 \uc5d0\uc774\uc804\ud2b8 \uc2dc\uc791\uc744 \ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4."
+  "permissionRisk.risk.description": "\uc774 \uad8c\ud55c\uc740 \ud30c\uc77c \ubcc0\uacbd, \uba85\ub839 \uc2e4\ud589, \ub124\ud2b8\uc6cc\ud06c \uc811\uadfc \ub610\ub294 \ub2e4\ub978 \uc5d0\uc774\uc804\ud2b8 \uc2dc\uc791\uc744 \ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+  "chat.hookActivity.blocked": "\ud6c5\uc774 {tool}\uc744(\ub97c) \ucc28\ub2e8\ud588\uc2b5\ub2c8\ub2e4",
+  "chat.hookActivity.blockedGeneric": "\ud6c5\uc774 \ucc28\ub2e8\ud588\uc2b5\ub2c8\ub2e4",
+  "chat.hookActivity.asked": "\ud6c5\uc774 {tool} \ud655\uc778\uc744 \uc694\uccad\ud588\uc2b5\ub2c8\ub2e4",
+  "chat.hookActivity.askedGeneric": "\ud6c5\uc774 \ud655\uc778\uc744 \uc694\uccad\ud588\uc2b5\ub2c8\ub2e4",
+  "chat.hookActivity.more": "+{count}\uac1c \ub354",
+  "chat.hookActivity.dismiss": "\ub2eb\uae30",
+  "chat.hookActivity.sourceProject": "\ud504\ub85c\uc81d\ud2b8",
+  "chat.hookActivity.sourcePack": "\ud329: {pack}",
+  "supervision.sinceYouLeft.hookBlocks": "\ud6c5 \ucc28\ub2e8 {count}\uac74",
+  "supervision.hookOutcome.ok": "OK",
+  "supervision.hookOutcome.failed": "\uc2e4\ud328",
+  "supervision.hookOutcome.blocked": "\ucc28\ub2e8\ub428",
+  "supervision.hookOutcome.ask": "\ud655\uc778 \uc694\uccad",
+  "supervision.hookOutcome.rewritten": "\ub2e4\uc2dc \uc4f0\uc784",
+  "supervision.missionControl.peek.hookRunsTitle": "\ucd5c\uadfc \ud6c5"
 }

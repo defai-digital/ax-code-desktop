@@ -4804,5 +4804,20 @@
   "permissionRisk.decide.label": "Sua decis\u00e3o",
   "permissionRisk.decide.description": "O AX Code exige que uma pessoa responda a esta solicita\u00e7\u00e3o. Nenhuma regra ou modo aut\u00f4nomo pode aprov\u00e1-la, e ela n\u00e3o pode ser sempre permitida.",
   "permissionRisk.risk.label": "Arriscado",
-  "permissionRisk.risk.description": "Esta permiss\u00e3o pode alterar arquivos, executar comandos, acessar a rede ou iniciar outros agentes."
+  "permissionRisk.risk.description": "Esta permiss\u00e3o pode alterar arquivos, executar comandos, acessar a rede ou iniciar outros agentes.",
+  "chat.hookActivity.blocked": "O hook bloqueou {tool}",
+  "chat.hookActivity.blockedGeneric": "Bloqueado pelo hook",
+  "chat.hookActivity.asked": "O hook pediu confirma\u00e7\u00e3o de {tool}",
+  "chat.hookActivity.askedGeneric": "O hook pediu confirma\u00e7\u00e3o",
+  "chat.hookActivity.more": "+{count} mais",
+  "chat.hookActivity.dismiss": "Dispensar",
+  "chat.hookActivity.sourceProject": "projeto",
+  "chat.hookActivity.sourcePack": "pacote: {pack}",
+  "supervision.sinceYouLeft.hookBlocks": "{count} bloqueios de hook",
+  "supervision.hookOutcome.ok": "OK",
+  "supervision.hookOutcome.failed": "Falhou",
+  "supervision.hookOutcome.blocked": "Bloqueado",
+  "supervision.hookOutcome.ask": "Confirma\u00e7\u00e3o pedida",
+  "supervision.hookOutcome.rewritten": "Reescrito",
+  "supervision.missionControl.peek.hookRunsTitle": "Hooks recentes"
 }

@@ -300,6 +300,19 @@ different store, so it is intentionally OUTSIDE the child-store slice-clone
 contract above: the cloned-slice set per event type is unchanged and the
 `event-coverage.test.ts` fixture needs no new rows for it.
 
+Note (hook activity): `hook.completed` is handled by a side channel in
+`sync-context-impl.tsx`'s `onEvent`, beside the scheduled-task fan-out. It
+feeds `stores/useHookActivityStore.ts` (a per-session ring buffer plus
+per-directory blocked/failed counters) via `ingestHookCompletedEvent` and
+returns before `handleEvent`, so it never reaches the reducer or any
+directory `State` slice. Hook runs are frequent and purely observational, so
+— like the S4.4 write — this is intentionally OUTSIDE the child-store
+slice-clone contract above: the event clones no slices and the
+`event-coverage.test.ts` fixture needs no row for it. `getSessionIdFromPayload`
+in `event-routing.ts` does resolve its `properties.sessionID`, so the
+pipeline routes the event to the session's directory before the side channel
+records it.
+
 ## Adding a new event type
 
 1. Add the case to the event reducer (`event-reducer.ts`)

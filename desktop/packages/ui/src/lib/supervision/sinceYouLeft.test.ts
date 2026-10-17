@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest"
 import {
   SINCE_YOU_LEFT_GRACE_MS,
   shouldShowSinceYouLeft,
+  sinceYouLeftHookBlocks,
   sinceYouLeftRelativeParts,
   sinceYouLeftStateLabel,
 } from "./sinceYouLeft"
@@ -45,6 +46,14 @@ describe("sinceYouLeftStateLabel", () => {
     expect(sinceYouLeftStateLabel("question")).toBe("question")
     expect(sinceYouLeftStateLabel("idle")).toBe("idle")
     expect(sinceYouLeftStateLabel("running")).toBeNull()
+  })
+})
+
+describe("sinceYouLeftHookBlocks", () => {
+  test("shows the count only when hooks blocked something", () => {
+    expect(sinceYouLeftHookBlocks(0)).toBeNull()
+    expect(sinceYouLeftHookBlocks(1)).toBe(1)
+    expect(sinceYouLeftHookBlocks(12)).toBe(12)
   })
 })
 

@@ -4804,5 +4804,20 @@
   "permissionRisk.decide.label": "Keputusan Anda",
   "permissionRisk.decide.description": "AX Code mengharuskan seseorang menjawab permintaan ini. Tidak ada aturan atau mode otonom yang dapat menyetujuinya, dan permintaan ini tidak dapat selalu diizinkan.",
   "permissionRisk.risk.label": "Berisiko",
-  "permissionRisk.risk.description": "Izin ini dapat mengubah file, menjalankan perintah, mengakses jaringan, atau memulai agen lain."
+  "permissionRisk.risk.description": "Izin ini dapat mengubah file, menjalankan perintah, mengakses jaringan, atau memulai agen lain.",
+  "chat.hookActivity.blocked": "Hook memblokir {tool}",
+  "chat.hookActivity.blockedGeneric": "Diblokir hook",
+  "chat.hookActivity.asked": "Hook meminta konfirmasi untuk {tool}",
+  "chat.hookActivity.askedGeneric": "Hook meminta konfirmasi",
+  "chat.hookActivity.more": "+{count} lainnya",
+  "chat.hookActivity.dismiss": "Tutup",
+  "chat.hookActivity.sourceProject": "proyek",
+  "chat.hookActivity.sourcePack": "paket: {pack}",
+  "supervision.sinceYouLeft.hookBlocks": "{count} pemblokiran hook",
+  "supervision.hookOutcome.ok": "OK",
+  "supervision.hookOutcome.failed": "Gagal",
+  "supervision.hookOutcome.blocked": "Diblokir",
+  "supervision.hookOutcome.ask": "Diminta",
+  "supervision.hookOutcome.rewritten": "Ditulis ulang",
+  "supervision.missionControl.peek.hookRunsTitle": "Hook terbaru"
 }

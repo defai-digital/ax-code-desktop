@@ -4804,5 +4804,20 @@
   "permissionRisk.decide.label": "Senin karar\u0131n",
   "permissionRisk.decide.description": "AX Code bu iste\u011fin bir ki\u015fi taraf\u0131ndan yan\u0131tlanmas\u0131n\u0131 gerektirir. Hi\u00e7bir kural veya otonom mod onu onaylayamaz ve her zaman izin verilemez.",
   "permissionRisk.risk.label": "Riskli",
-  "permissionRisk.risk.description": "Bu izin dosyalar\u0131 de\u011fi\u015ftirebilir, komut \u00e7al\u0131\u015ft\u0131rabilir, a\u011fa eri\u015febilir veya ba\u015fka ajanlar ba\u015flatabilir."
+  "permissionRisk.risk.description": "Bu izin dosyalar\u0131 de\u011fi\u015ftirebilir, komut \u00e7al\u0131\u015ft\u0131rabilir, a\u011fa eri\u015febilir veya ba\u015fka ajanlar ba\u015flatabilir.",
+  "chat.hookActivity.blocked": "Kanca {tool} arac\u0131n\u0131 engelledi",
+  "chat.hookActivity.blockedGeneric": "Kanca engelledi",
+  "chat.hookActivity.asked": "Kanca {tool} i\u00e7in onay istedi",
+  "chat.hookActivity.askedGeneric": "Kanca onay istedi",
+  "chat.hookActivity.more": "+{count} tane daha",
+  "chat.hookActivity.dismiss": "Kapat",
+  "chat.hookActivity.sourceProject": "proje",
+  "chat.hookActivity.sourcePack": "paket: {pack}",
+  "supervision.sinceYouLeft.hookBlocks": "{count} kanca engellemesi",
+  "supervision.hookOutcome.ok": "Tamam",
+  "supervision.hookOutcome.failed": "Ba\u015far\u0131s\u0131z",
+  "supervision.hookOutcome.blocked": "Engellendi",
+  "supervision.hookOutcome.ask": "Onay istendi",
+  "supervision.hookOutcome.rewritten": "Yeniden yaz\u0131ld\u0131",
+  "supervision.missionControl.peek.hookRunsTitle": "Son kancalar"
 }

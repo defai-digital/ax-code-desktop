@@ -62,7 +62,8 @@ export const getSessionIdFromPayload = (event: Event): string | null => {
     event.type === "permission.replied" ||
     event.type === "question.asked" ||
     event.type === "question.replied" ||
-    event.type === "question.rejected"
+    event.type === "question.rejected" ||
+    event.type === "hook.completed"
   ) {
     const sessionID = props.sessionID
     return typeof sessionID === "string" && sessionID.length > 0 ? sessionID : null

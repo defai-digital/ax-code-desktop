@@ -89,6 +89,12 @@ describe("getSessionIdFromPayload", () => {
     expect(getSessionIdFromPayload(createEvent("session.status", { sessionID: 42 }))).toBeNull()
   })
 
+  test("extracts hook.completed session from properties.sessionID, null without one", () => {
+    expect(getSessionIdFromPayload(createEvent("hook.completed", { sessionID: "s-hook" }))).toBe("s-hook")
+    expect(getSessionIdFromPayload(createEvent("hook.completed", { event: "SessionStart" }))).toBeNull()
+    expect(getSessionIdFromPayload(createEvent("hook.completed", { sessionID: "" }))).toBeNull()
+  })
+
   test("extracts message.part.updated session from part.sessionID", () => {
     expect(getSessionIdFromPayload(createEvent("message.part.updated", { part: { sessionID: "s3" } }))).toBe("s3")
     expect(getSessionIdFromPayload(createEvent("message.part.updated", { part: null }))).toBeNull()
@@ -273,6 +279,25 @@ describe("resolveDirectoryFromRoutingIndex", () => {
     expect(
       resolveDirectoryFromRoutingIndex(index, "global", createEvent("session.status", { sessionID: "sx" }), manager),
     ).toBe("/only")
+  })
+
+  test("routes hook.completed through the session index and directory-less fallback", () => {
+    const manager = createManagerWithStore("/repo", { session: [createSession("s1")] })
+    const index = createEventRoutingIndex()
+    setIndexedSessionDirectory(index, "s1", "/repo")
+
+    // Known session, empty event directory: the index resolves it.
+    expect(
+      resolveDirectoryFromRoutingIndex(index, "", createEvent("hook.completed", { sessionID: "s1" }), manager),
+    ).toBe("/repo")
+    // No sessionID: nothing to look up, the event's own directory stands.
+    expect(resolveDirectoryFromRoutingIndex(index, "/elsewhere/", createEvent("hook.completed", {}), manager)).toBe(
+      "/elsewhere",
+    )
+    // Unknown session with a single child store: the single-store fallback applies.
+    expect(
+      resolveDirectoryFromRoutingIndex(index, "global", createEvent("hook.completed", { sessionID: "sx" }), manager),
+    ).toBe("/repo")
   })
 
   test("returns the normalized directory when nothing matches", () => {

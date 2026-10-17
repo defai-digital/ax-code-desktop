@@ -4804,5 +4804,20 @@
   "permissionRisk.decide.label": "Votre d\u00e9cision",
   "permissionRisk.decide.description": "AX Code exige qu'une personne r\u00e9ponde \u00e0 cette demande. Aucune r\u00e8gle ni le mode autonome ne peuvent l'approuver, et elle ne peut pas \u00eatre toujours autoris\u00e9e.",
   "permissionRisk.risk.label": "Risqu\u00e9",
-  "permissionRisk.risk.description": "Cette autorisation peut modifier des fichiers, ex\u00e9cuter des commandes, acc\u00e9der au r\u00e9seau ou lancer d'autres agents."
+  "permissionRisk.risk.description": "Cette autorisation peut modifier des fichiers, ex\u00e9cuter des commandes, acc\u00e9der au r\u00e9seau ou lancer d'autres agents.",
+  "chat.hookActivity.blocked": "Le hook a bloqu\u00e9 {tool}",
+  "chat.hookActivity.blockedGeneric": "Bloqu\u00e9 par le hook",
+  "chat.hookActivity.asked": "Le hook a demand\u00e9 de confirmer {tool}",
+  "chat.hookActivity.askedGeneric": "Le hook a demand\u00e9 une confirmation",
+  "chat.hookActivity.more": "+{count} de plus",
+  "chat.hookActivity.dismiss": "Ignorer",
+  "chat.hookActivity.sourceProject": "projet",
+  "chat.hookActivity.sourcePack": "pack : {pack}",
+  "supervision.sinceYouLeft.hookBlocks": "{count} blocages de hook",
+  "supervision.hookOutcome.ok": "OK",
+  "supervision.hookOutcome.failed": "\u00c9chec",
+  "supervision.hookOutcome.blocked": "Bloqu\u00e9",
+  "supervision.hookOutcome.ask": "Confirmation demand\u00e9e",
+  "supervision.hookOutcome.rewritten": "R\u00e9\u00e9crit",
+  "supervision.missionControl.peek.hookRunsTitle": "Hooks r\u00e9cents"
 }

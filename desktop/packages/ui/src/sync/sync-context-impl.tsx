@@ -36,6 +36,7 @@ import { createPendingToastTracker, pendingToastId } from "./pendingToastTracker
 import { ChildStoreManager, type DirectoryStore } from "./child-store"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 import { ingestScheduledTaskRuntimeEvent, isScheduledTaskRuntimeEventType } from "@/lib/scheduledTaskEvents"
+import { ingestHookCompletedEvent } from "@/stores/useHookActivityStore"
 import {
   aggregateLiveSessions,
   aggregateLiveSessionStatuses,
@@ -1494,6 +1495,13 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
           // S2.6: runtime scheduled-task events fan out to the dialog/sidebar
           // via the shared registry (no dedicated EventSource).
           ingestScheduledTaskRuntimeEvent(payload)
+        }
+        if (payload.type === "hook.completed") {
+          // Hook runs are frequent and observational: they feed the hook
+          // activity store through this side channel and never go through
+          // the reducer / directory State (see sync/DOCUMENTATION.md).
+          ingestHookCompletedEvent(payload, directory)
+          return
         }
         if (payload.type === "provider.updated") {
           // Dedicated private GPU models (PAI-EAS, etc.) arrive from background

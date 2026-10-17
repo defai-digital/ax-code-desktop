@@ -4804,5 +4804,20 @@
   "permissionRisk.decide.label": "Deine Entscheidung",
   "permissionRisk.decide.description": "AX Code verlangt, dass ein Mensch diese Anfrage beantwortet. Keine Regel und kein autonomer Modus kann sie genehmigen, und sie l\u00e4sst sich nicht dauerhaft erlauben.",
   "permissionRisk.risk.label": "Riskant",
-  "permissionRisk.risk.description": "Diese Berechtigung kann Dateien \u00e4ndern, Befehle ausf\u00fchren, das Netzwerk erreichen oder andere Agenten starten."
+  "permissionRisk.risk.description": "Diese Berechtigung kann Dateien \u00e4ndern, Befehle ausf\u00fchren, das Netzwerk erreichen oder andere Agenten starten.",
+  "chat.hookActivity.blocked": "Hook hat {tool} blockiert",
+  "chat.hookActivity.blockedGeneric": "Hook hat blockiert",
+  "chat.hookActivity.asked": "Hook bat um Best\u00e4tigung f\u00fcr {tool}",
+  "chat.hookActivity.askedGeneric": "Hook bat um Best\u00e4tigung",
+  "chat.hookActivity.more": "+{count} weitere",
+  "chat.hookActivity.dismiss": "Ausblenden",
+  "chat.hookActivity.sourceProject": "Projekt",
+  "chat.hookActivity.sourcePack": "Pack: {pack}",
+  "supervision.sinceYouLeft.hookBlocks": "{count} Hook-Blockierungen",
+  "supervision.hookOutcome.ok": "OK",
+  "supervision.hookOutcome.failed": "Fehlgeschlagen",
+  "supervision.hookOutcome.blocked": "Blockiert",
+  "supervision.hookOutcome.ask": "Best\u00e4tigung angefragt",
+  "supervision.hookOutcome.rewritten": "Umschrieben",
+  "supervision.missionControl.peek.hookRunsTitle": "Aktuelle Hooks"
 }

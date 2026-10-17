@@ -7,9 +7,11 @@ import { useI18n } from "@/lib/i18n"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import {
   shouldShowSinceYouLeft,
+  sinceYouLeftHookBlocks,
   sinceYouLeftRelativeParts,
   sinceYouLeftStateLabel,
 } from "@/lib/supervision/sinceYouLeft"
+import { useDirectoryHookCounters, useHookActivityStore } from "@/stores/useHookActivityStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { EvidenceText } from "./EvidenceText"
 
@@ -28,6 +30,7 @@ export const SinceYouLeftStrip: React.FC<SinceYouLeftStripProps> = ({ sessionId 
   const snapshot = React.useMemo(() => useSupervisionStore.getState().lastViewedAt[sessionId] ?? null, [sessionId])
 
   const row = useSupervisionRow(sessionId)
+  const hookCounters = useDirectoryHookCounters(row?.directory)
   if (!row) return null
   if (dismissedFor === sessionId) return null
   if (!shouldShowSinceYouLeft({ snapshot, updatedAt: row.updatedAt, state: row.state })) return null
@@ -35,6 +38,13 @@ export const SinceYouLeftStrip: React.FC<SinceYouLeftStripProps> = ({ sessionId 
   if (!label) return null
 
   const parts = sinceYouLeftRelativeParts(row.updatedAt, Date.now())
+  const hookBlocks = sinceYouLeftHookBlocks(hookCounters.blocked)
+
+  const handleDismiss = () => {
+    setDismissedFor(sessionId)
+    // Dismissing acknowledges the "since you left" items, hook blocks included.
+    if (row.directory) useHookActivityStore.getState().clearDirectoryCounters(row.directory)
+  }
 
   return (
     <div
@@ -46,6 +56,14 @@ export const SinceYouLeftStrip: React.FC<SinceYouLeftStripProps> = ({ sessionId 
         {t(`supervision.sinceYouLeft.state.${label}` as Parameters<typeof t>[0])}
       </span>
       <EvidenceText evidence={row.evidence} fallback="none" className="typography-meta text-muted-foreground" />
+      {hookBlocks !== null ? (
+        <span
+          data-hook-blocks-chip="true"
+          className="rounded border border-border/60 px-1 typography-micro text-muted-foreground"
+        >
+          {t("supervision.sinceYouLeft.hookBlocks", { count: hookBlocks })}
+        </span>
+      ) : null}
       <span className="typography-meta text-muted-foreground">{relativeTime(parts.value, parts.unit)}</span>
       <span className="flex-1" />
       {row.evidence ? (
@@ -55,7 +73,7 @@ export const SinceYouLeftStrip: React.FC<SinceYouLeftStripProps> = ({ sessionId 
       ) : null}
       <button
         type="button"
-        onClick={() => setDismissedFor(sessionId)}
+        onClick={handleDismiss}
         aria-label={t("supervision.sinceYouLeft.dismiss")}
         className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--interactive-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
       >

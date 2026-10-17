@@ -6,6 +6,7 @@ import { SinceYouLeftStrip } from "@/components/supervision/SinceYouLeftStrip"
 import { shouldAutoOpenChatDraft } from "./chatDraftState"
 import { DraftPresetChips } from "./DraftPresetChips"
 import { ActivityBreadcrumb } from "./ActivityBreadcrumb"
+import { HookActivityRows } from "./HookActivityRows"
 import { useInputStore } from "@/sync/input-store"
 import { useUIStore } from "@/stores/useUIStore"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -1087,6 +1088,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
           />
         )}
         {currentSessionId && !isDesktopExpandedInput && <ActivityBreadcrumb sessionId={currentSessionId} />}
+        {currentSessionId && !isDesktopExpandedInput && <HookActivityRows sessionId={currentSessionId} />}
         {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
       </div>
 

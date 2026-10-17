@@ -3,6 +3,7 @@ import React from "react"
 import { Button } from "@/components/ui/button"
 import type { SupervisionRow } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
+import { recentHookRuns, useSessionHookRuns } from "@/stores/useHookActivityStore"
 import type { WorkingSet } from "@/stores/useSupervisionStore"
 import type { PendingRequestEntry } from "@/sync/sync-context"
 import { EvidenceText } from "../EvidenceText"
@@ -38,6 +39,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
   onCancelCreateSet,
 }) => {
   const { t } = useI18n()
+  const recentRuns = recentHookRuns(useSessionHookRuns(row.sessionId))
 
   const handleOpenClick = () => {
     onOpen(row)
@@ -90,6 +92,22 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
           </p>
         )}
         <EvidenceText evidence={row.evidence} className="typography-micro text-muted-foreground" />
+        {recentRuns.length ? (
+          <div className="flex flex-col gap-1">
+            <p className="typography-micro text-muted-foreground">
+              {t("supervision.missionControl.peek.hookRunsTitle")}
+            </p>
+            {recentRuns.map((run) => (
+              <p key={run.id} data-hook-run="true" className="truncate typography-micro text-muted-foreground">
+                <span className="text-foreground/80">
+                  {t(`supervision.hookOutcome.${run.outcome}` as Parameters<typeof t>[0])}
+                </span>{" "}
+                {run.event}
+                {run.tool ? ` · ${run.tool}` : ""}
+              </p>
+            ))}
+          </div>
+        ) : null}
         {row.directory ? (
           <p className="truncate typography-micro text-muted-foreground" title={row.directory}>
             {row.directory}

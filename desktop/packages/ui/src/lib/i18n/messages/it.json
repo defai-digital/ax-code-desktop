@@ -4804,5 +4804,20 @@
   "permissionRisk.decide.label": "Decidi tu",
   "permissionRisk.decide.description": "AX Code richiede che una persona risponda a questa richiesta. Nessuna regola n\u00e9 la modalit\u00e0 autonoma pu\u00f2 approvarla, e non pu\u00f2 essere consentita sempre.",
   "permissionRisk.risk.label": "Rischioso",
-  "permissionRisk.risk.description": "Questa autorizzazione pu\u00f2 modificare file, eseguire comandi, accedere alla rete o avviare altri agenti."
+  "permissionRisk.risk.description": "Questa autorizzazione pu\u00f2 modificare file, eseguire comandi, accedere alla rete o avviare altri agenti.",
+  "chat.hookActivity.blocked": "L'hook ha bloccato {tool}",
+  "chat.hookActivity.blockedGeneric": "Bloccato dall'hook",
+  "chat.hookActivity.asked": "L'hook ha chiesto di confermare {tool}",
+  "chat.hookActivity.askedGeneric": "L'hook ha chiesto una conferma",
+  "chat.hookActivity.more": "+{count} altri",
+  "chat.hookActivity.dismiss": "Ignora",
+  "chat.hookActivity.sourceProject": "progetto",
+  "chat.hookActivity.sourcePack": "pacchetto: {pack}",
+  "supervision.sinceYouLeft.hookBlocks": "{count} blocchi degli hook",
+  "supervision.hookOutcome.ok": "OK",
+  "supervision.hookOutcome.failed": "Non riuscito",
+  "supervision.hookOutcome.blocked": "Bloccato",
+  "supervision.hookOutcome.ask": "Conferma richiesta",
+  "supervision.hookOutcome.rewritten": "Riscritto",
+  "supervision.missionControl.peek.hookRunsTitle": "Hook recenti"
 }

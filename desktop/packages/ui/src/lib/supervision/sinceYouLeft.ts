@@ -36,6 +36,11 @@ export function sinceYouLeftStateLabel(state: SupervisionState): SinceYouLeftSta
   }
 }
 
+/** Blocked-hook count for the strip chip, or null when there is nothing to show. */
+export function sinceYouLeftHookBlocks(blockedCount: number): number | null {
+  return blockedCount > 0 ? blockedCount : null
+}
+
 export interface RelativeTimeParts {
   value: number
   unit: Intl.RelativeTimeFormatUnit

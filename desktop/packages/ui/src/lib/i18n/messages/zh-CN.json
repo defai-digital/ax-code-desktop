@@ -4804,5 +4804,20 @@
   "permissionRisk.decide.label": "\u9700\u7531\u4f60\u51b3\u5b9a",
   "permissionRisk.decide.description": "AX Code \u8981\u6c42\u7531\u4eba\u56de\u5e94\u6b64\u8bf7\u6c42\u3002\u4efb\u4f55\u89c4\u5219\u6216\u81ea\u52a8\u6a21\u5f0f\u90fd\u65e0\u6cd5\u6279\u51c6\u5b83\uff0c\u4e5f\u4e0d\u80fd\u8bbe\u4e3a\u59cb\u7ec8\u5141\u8bb8\u3002",
   "permissionRisk.risk.label": "\u6709\u98ce\u9669",
-  "permissionRisk.risk.description": "\u6b64\u6743\u9650\u53ef\u4ee5\u4fee\u6539\u6587\u4ef6\u3001\u8fd0\u884c\u547d\u4ee4\u3001\u8bbf\u95ee\u7f51\u7edc\u6216\u542f\u52a8\u5176\u4ed6\u4ee3\u7406\u3002"
+  "permissionRisk.risk.description": "\u6b64\u6743\u9650\u53ef\u4ee5\u4fee\u6539\u6587\u4ef6\u3001\u8fd0\u884c\u547d\u4ee4\u3001\u8bbf\u95ee\u7f51\u7edc\u6216\u542f\u52a8\u5176\u4ed6\u4ee3\u7406\u3002",
+  "chat.hookActivity.blocked": "Hook \u5df2\u963b\u6b62 {tool}",
+  "chat.hookActivity.blockedGeneric": "Hook \u5df2\u963b\u6b62",
+  "chat.hookActivity.asked": "Hook \u8981\u6c42\u786e\u8ba4 {tool}",
+  "chat.hookActivity.askedGeneric": "Hook \u8981\u6c42\u786e\u8ba4",
+  "chat.hookActivity.more": "+{count} \u6761\u66f4\u591a",
+  "chat.hookActivity.dismiss": "\u5173\u95ed",
+  "chat.hookActivity.sourceProject": "\u9879\u76ee",
+  "chat.hookActivity.sourcePack": "\u5305\uff1a{pack}",
+  "supervision.sinceYouLeft.hookBlocks": "{count} \u6b21 Hook \u963b\u6b62",
+  "supervision.hookOutcome.ok": "OK",
+  "supervision.hookOutcome.failed": "\u5931\u8d25",
+  "supervision.hookOutcome.blocked": "\u5df2\u963b\u6b62",
+  "supervision.hookOutcome.ask": "\u5df2\u8be2\u95ee",
+  "supervision.hookOutcome.rewritten": "\u5df2\u6539\u5199",
+  "supervision.missionControl.peek.hookRunsTitle": "\u6700\u8fd1\u7684 Hook"
 }
