@@ -621,6 +621,7 @@ const axCodeEnvRuntime = createAxCodeEnvRuntime({
 })
 
 const ensureLoginShellEnvSnapshotAsync = (...args) => axCodeEnvRuntime.ensureLoginShellEnvSnapshotAsync(...args)
+const seedLoginShellEnvSnapshotFromHost = (...args) => axCodeEnvRuntime.seedLoginShellEnvSnapshotFromHost(...args)
 const getLoginShellEnvSnapshot = (...args) => axCodeEnvRuntime.getLoginShellEnvSnapshot(...args)
 const ensureAxCodeCliEnv = (...args) => axCodeEnvRuntime.ensureAxCodeCliEnv(...args)
 const applyAxCodeBinaryFromSettings = (...args) => axCodeEnvRuntime.applyAxCodeBinaryFromSettings(...args)
@@ -1277,6 +1278,18 @@ async function main(options = {}) {
   // Apply login shell environment asynchronously (non-blocking).
   // Must complete before ax-code is spawned so PATH and other env vars
   // are available for binary resolution and process launch.
+  // The Electron main process captures the same snapshot at start-up and hands
+  // it over so this does not wait on a second shell init. Consume it first and
+  // remove it, so it is never inherited by the runtime or its tools
+  // (server-process.js already removed it before this bundle loaded).
+  const hostLoginShellEnv = options.hostLoginShellEnv ?? process.env.AX_CODE_DESKTOP_LOGIN_SHELL_ENV
+  delete process.env.AX_CODE_DESKTOP_LOGIN_SHELL_ENV
+  const adoptedHostLoginShellEnv = seedLoginShellEnvSnapshotFromHost(hostLoginShellEnv)
+  recordStartupEvent(
+    "web.server.login-shell-env",
+    { source: adoptedHostLoginShellEnv ? "host" : "self" },
+    { source: "web-server" },
+  )
   await ensureLoginShellEnvSnapshotAsync()
 
   const app = express()

@@ -5,11 +5,16 @@ import path from "node:path"
 import { createRequire } from "node:module"
 
 const require = createRequire(import.meta.url)
-const { writeRuntimeManifest } = require("../../../../script/runtime-manifest.cjs")
+const {
+  createRuntimeManifest,
+  createRuntimeManifestAsync,
+  writeRuntimeManifest,
+} = require("../../../../script/runtime-manifest.cjs")
 const {
   EMBEDDED_MANIFEST_NAME,
   PLACEHOLDER_SCHEMA,
   verifyBundledAxCodeIntegrity,
+  verifyBundledAxCodeIntegrityAsync,
 } = require("./bundled-ax-code-integrity.js")
 const tempDirs = []
 
@@ -108,5 +113,80 @@ describe("bundled ax-code runtime integrity", () => {
         resourcesPath: paths.resourcesPath,
       }),
     ).toThrow("trusted ASAR manifest authorizes only a placeholder")
+  })
+})
+
+describe("bundled ax-code runtime integrity (async)", () => {
+  const options = (paths) => ({
+    platform: "darwin",
+    isPackaged: true,
+    appPath: paths.appPath,
+    resourcesPath: paths.resourcesPath,
+  })
+
+  test("verifies the external runtime against the ASAR-trusted manifest", async () => {
+    const paths = makePackagedRuntime()
+    await expect(verifyBundledAxCodeIntegrityAsync(options(paths))).resolves.toMatchObject({
+      status: "verified",
+      entries: 3,
+    })
+  })
+
+  test("rejects modified sidecar JavaScript", async () => {
+    const paths = makePackagedRuntime()
+    fs.appendFileSync(path.join(paths.runtimeRoot, "lib", "index-node-tui.js"), "modified\n")
+    await expect(verifyBundledAxCodeIntegrityAsync(options(paths))).rejects.toThrow(
+      "Runtime manifest mismatch: lib/index-node-tui.js",
+    )
+  })
+
+  test("rejects a file added to the runtime tree", async () => {
+    const paths = makePackagedRuntime()
+    fs.writeFileSync(path.join(paths.runtimeRoot, "lib", "extra.js"), "evil\n")
+    await expect(verifyBundledAxCodeIntegrityAsync(options(paths))).rejects.toThrow(
+      "Runtime file is not listed in manifest: lib/extra.js",
+    )
+  })
+
+  test("fails closed when a required packaged runtime is removed", async () => {
+    const paths = makePackagedRuntime()
+    fs.rmSync(path.join(paths.runtimeRoot, "bin", "ax-code"))
+    await expect(verifyBundledAxCodeIntegrityAsync(options(paths))).rejects.toThrow(
+      "required by the trusted ASAR manifest is incomplete",
+    )
+  })
+
+  test("skips a placeholder build and rejects a runtime inserted into one", async () => {
+    const paths = makePackagedRuntime({ staged: false })
+    await expect(verifyBundledAxCodeIntegrityAsync(options(paths))).resolves.toMatchObject({
+      status: "skipped",
+      reason: "runtime-not-staged",
+    })
+    fs.mkdirSync(path.join(paths.runtimeRoot, "bin"), { recursive: true })
+    fs.writeFileSync(path.join(paths.runtimeRoot, "bin", "ax-code"), "#!/bin/sh\n")
+    await expect(verifyBundledAxCodeIntegrityAsync(options(paths))).rejects.toThrow(
+      "trusted ASAR manifest authorizes only a placeholder",
+    )
+  })
+
+  test("produces exactly the synchronous manifest, including symlinks and native-binary omission", async () => {
+    const paths = makePackagedRuntime()
+    fs.symlinkSync("package.json", path.join(paths.runtimeRoot, "link.json"))
+    // Mach-O 64-bit magic without a native extension must be omitted, like the sync path.
+    fs.writeFileSync(path.join(paths.runtimeRoot, "bin", "helper"), Buffer.from("cffaedfe0000", "hex"))
+    fs.writeFileSync(path.join(paths.runtimeRoot, "lib", "tool.node"), "native-by-extension")
+    const sync = createRuntimeManifest(paths.runtimeRoot)
+    const asyncManifest = await createRuntimeManifestAsync(paths.runtimeRoot)
+    expect(asyncManifest).toEqual(sync)
+    expect(asyncManifest.files.map((file) => file.path)).not.toContain("bin/helper")
+    expect(asyncManifest.files.map((file) => file.path)).not.toContain("lib/tool.node")
+    expect(asyncManifest.files.find((file) => file.path === "link.json")).toMatchObject({ type: "symlink" })
+  })
+
+  test("rejects an external symlink like the synchronous walk", async () => {
+    const paths = makePackagedRuntime()
+    fs.symlinkSync("/etc/hosts", path.join(paths.runtimeRoot, "escape"))
+    await expect(createRuntimeManifestAsync(paths.runtimeRoot)).rejects.toThrow("external symlink: escape")
+    expect(() => createRuntimeManifest(paths.runtimeRoot)).toThrow("external symlink: escape")
   })
 })

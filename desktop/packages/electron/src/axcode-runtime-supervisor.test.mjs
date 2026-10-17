@@ -6,6 +6,7 @@ import { describe, expect, test, vi } from "vitest"
 const require = createRequire(import.meta.url)
 const {
   createAxCodeRuntimeSupervision,
+  defaultProbeVersion,
   resolveRuntimeBinary,
   resolveSpawnInvocation,
   computeInitialStartRetryDelayMs,
@@ -532,6 +533,70 @@ describe("ax-code runtime supervision", () => {
     // resolution was checked; now only a fully successful prepare is pinned.
     await expect(ctx.supervision.prepare()).resolves.toEqual({ port: RESERVED_PORT, origin: FIXED_ORIGIN })
     expect(reserveCalls).toBe(2)
+  })
+})
+
+describe("defaultProbeVersion", () => {
+  test.skipIf(process.platform === "win32")(
+    "resolves the first output line without blocking the event loop",
+    async () => {
+      const fs = require("node:fs")
+      const os = require("node:os")
+      const path = require("node:path")
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-probe-"))
+      try {
+        const binary = path.join(dir, "ax-code")
+        fs.writeFileSync(binary, "#!/bin/sh\nsleep 0.2\nprintf '\\n7.9.1\\nextra\\n'\n", { mode: 0o755 })
+        let ticks = 0
+        const timer = setInterval(() => ticks++, 10)
+        const version = await defaultProbeVersion(binary, { platform: process.platform, env: process.env })
+        clearInterval(timer)
+        expect(version).toBe("7.9.1")
+        expect(ticks).toBeGreaterThan(5)
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    },
+  )
+
+  test.skipIf(process.platform === "win32")("an aborted signal kills a slow probe and resolves null", async () => {
+    const fs = require("node:fs")
+    const os = require("node:os")
+    const path = require("node:path")
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-probe-abort-"))
+    try {
+      const binary = path.join(dir, "ax-code")
+      fs.writeFileSync(binary, "#!/bin/sh\nsleep 5\necho 1.0.0\n", { mode: 0o755 })
+      const controller = new AbortController()
+      const started = Date.now()
+      setTimeout(() => controller.abort(), 50)
+      await expect(defaultProbeVersion(binary, { signal: controller.signal })).resolves.toBeNull()
+      expect(Date.now() - started).toBeLessThan(2000)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test("supervision stop() aborts a probe that is still running", async () => {
+    let probeSignal = null
+    const ctx = createSupervision({
+      probeVersion: (_binary, { signal }) => {
+        probeSignal = signal
+        return new Promise(() => {})
+      },
+    })
+    await ctx.supervision.prepare()
+    await flushMicrotasks()
+    expect(probeSignal).toBeInstanceOf(AbortSignal)
+    expect(probeSignal.aborted).toBe(false)
+    await ctx.supervision.stop()
+    expect(probeSignal.aborted).toBe(true)
+  })
+
+  test("resolves null when the binary cannot run", async () => {
+    await expect(
+      defaultProbeVersion("/nonexistent/ax-code", { platform: process.platform, env: process.env }),
+    ).resolves.toBeNull()
   })
 })
 

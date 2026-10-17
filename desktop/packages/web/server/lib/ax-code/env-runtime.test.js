@@ -166,6 +166,68 @@ describe("AX Code env runtime", () => {
     expect(state.cachedLoginShellEnvSnapshot).toBeNull()
   })
 
+  it("adopts a login-shell snapshot handed over by the host without spawning a shell", async () => {
+    const calls = []
+    const { runtime, state } = createRuntime(
+      {},
+      {
+        state: { cachedLoginShellEnvSnapshot: undefined },
+        deps: { execFile: (...args) => calls.push(args) },
+      },
+    )
+    const savedPath = process.env.PATH
+    const savedMarker = process.env.AX_SEEDED_MARKER
+    delete process.env.AX_SEEDED_MARKER
+    try {
+      const encoded = Buffer.from("AX_SEEDED_MARKER=from-login-shell\0PATH=/opt/seeded/bin\0PWD=/ignored\0").toString(
+        "base64",
+      )
+
+      expect(runtime.seedLoginShellEnvSnapshotFromHost(encoded)).toBe(true)
+      await runtime.ensureLoginShellEnvSnapshotAsync()
+
+      expect(calls).toHaveLength(0)
+      expect(state.cachedLoginShellEnvSnapshot).toMatchObject({ AX_SEEDED_MARKER: "from-login-shell" })
+      expect(process.env.AX_SEEDED_MARKER).toBe("from-login-shell")
+      expect(process.env.PATH.split(path.delimiter)).toContain("/opt/seeded/bin")
+      expect(process.env.PWD).not.toBe("/ignored")
+    } finally {
+      process.env.PATH = savedPath
+      if (savedMarker === undefined) delete process.env.AX_SEEDED_MARKER
+      else process.env.AX_SEEDED_MARKER = savedMarker
+    }
+  })
+
+  it("skips its own capture when the host reports that every shell candidate failed", async () => {
+    const calls = []
+    const { runtime, state } = createRuntime(
+      {},
+      {
+        state: { cachedLoginShellEnvSnapshot: undefined },
+        deps: { execFile: (...args) => calls.push(args) },
+      },
+    )
+
+    expect(runtime.seedLoginShellEnvSnapshotFromHost("unavailable")).toBe(true)
+    await runtime.ensureLoginShellEnvSnapshotAsync()
+
+    expect(calls).toHaveLength(0)
+    expect(state.cachedLoginShellEnvSnapshot).toBeNull()
+  })
+
+  it("ignores empty, malformed, and late host snapshots so startup falls back to its own capture", () => {
+    const fresh = () => createRuntime({}, { state: { cachedLoginShellEnvSnapshot: undefined } })
+    for (const value of [undefined, "", "not base64!!", Buffer.from("no-equals-here").toString("base64")]) {
+      const { runtime, state } = fresh()
+      expect(runtime.seedLoginShellEnvSnapshotFromHost(value)).toBe(false)
+      expect(state.cachedLoginShellEnvSnapshot).toBeUndefined()
+    }
+    const { runtime, state } = createRuntime({}, { state: { cachedLoginShellEnvSnapshot: { EXISTING: "1" } } })
+    const encoded = Buffer.from("X=1\0").toString("base64")
+    expect(runtime.seedLoginShellEnvSnapshotFromHost(encoded)).toBe(false)
+    expect(state.cachedLoginShellEnvSnapshot).toEqual({ EXISTING: "1" })
+  })
+
   it("throws a specific error for a missing configured AX Code binary in strict mode", async () => {
     const { runtime } = createRuntime({ axCodeBinary: "/missing/ax-code" })
 

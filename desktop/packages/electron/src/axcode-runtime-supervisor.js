@@ -191,28 +191,41 @@ function resolveRuntimeBinary({ env, settings, isExecutable = defaultIsExecutabl
   return null
 }
 
-// Best-effort `<binary> --version` for diagnostics; null on any failure.
+// Best-effort `<binary> --version` for diagnostics; resolves null on any failure.
 // Routed through the same ComSpec wrapping as the runtime spawn so a .cmd
-// launcher resolves on Windows too.
-function defaultProbeVersion(binary, platform = process.platform, env = process.env) {
-  try {
-    const invocation = resolveSpawnInvocation(binary, ["--version"], platform, env)
-    const result = childProcess.spawnSync(invocation.command, invocation.args, {
-      encoding: "utf8",
-      env: invocation.env || env,
-      timeout: VERSION_PROBE_TIMEOUT_MS,
-      windowsHide: true,
-      windowsVerbatimArguments: invocation.windowsVerbatimArguments,
-    })
-    if (result.error || result.status !== 0) return null
-    const firstLine = String(result.stdout || "")
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)[0]
-    return firstLine || null
-  } catch {
-    return null
-  }
+// launcher resolves on Windows too. Asynchronous: a synchronous spawn here
+// blocked the Electron main thread for the whole probe during startup.
+function defaultProbeVersion(binary, { platform = process.platform, env = process.env, signal } = {}) {
+  return new Promise((resolve) => {
+    try {
+      const invocation = resolveSpawnInvocation(binary, ["--version"], platform, env)
+      childProcess.execFile(
+        invocation.command,
+        invocation.args,
+        {
+          encoding: "utf8",
+          env: invocation.env || env,
+          timeout: VERSION_PROBE_TIMEOUT_MS,
+          windowsHide: true,
+          windowsVerbatimArguments: invocation.windowsVerbatimArguments,
+          signal,
+        },
+        (error, stdout) => {
+          if (error) {
+            resolve(null)
+            return
+          }
+          const firstLine = String(stdout || "")
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)[0]
+          resolve(firstLine || null)
+        },
+      )
+    } catch {
+      resolve(null)
+    }
+  })
 }
 
 // Reserve a free loopback port by binding :0 and releasing it. The TOCTOU
@@ -251,6 +264,8 @@ function createAxCodeRuntimeSupervision(options = {}) {
   const fetchImpl = typeof options.fetch === "function" ? options.fetch : (...args) => fetch(...args)
   const isExecutable = typeof options.isExecutable === "function" ? options.isExecutable : defaultIsExecutable
   const probeVersion = typeof options.probeVersion === "function" ? options.probeVersion : defaultProbeVersion
+  // Aborted by stop() so a version probe in flight cannot outlive supervision.
+  const probeAbort = new AbortController()
   const reservePort = typeof options.reservePort === "function" ? options.reservePort : defaultReservePort
   const platform = typeof options.platform === "string" ? options.platform : process.platform
   const listeningTimeoutMs =
@@ -572,11 +587,11 @@ function createAxCodeRuntimeSupervision(options = {}) {
     }
     resolution = { ...resolved, version: null }
     logger.log(`[electron] supervising ax-code runtime: ${resolution.binary} (source: ${resolution.source})`)
-    // The version probe spawns the binary synchronously (up to
-    // VERSION_PROBE_TIMEOUT_MS); fire it off prepare()'s critical path and
-    // attach the result to the diagnostics payload when it lands.
+    // The version probe runs the binary asynchronously (up to
+    // VERSION_PROBE_TIMEOUT_MS) off prepare()'s critical path and attaches
+    // the result to the diagnostics payload when it lands.
     void Promise.resolve()
-      .then(() => probeVersion(resolution.binary))
+      .then(() => probeVersion(resolution.binary, { signal: probeAbort.signal }))
       .then(
         (version) => {
           if (!resolution || resolution.binary !== resolved.binary || !version) return
@@ -728,6 +743,7 @@ function createAxCodeRuntimeSupervision(options = {}) {
   // running when the quit landed.
   async function stop() {
     terminated = true
+    probeAbort.abort()
     await stopRuntime()
   }
 
@@ -802,6 +818,7 @@ function createAxCodeRuntimeSupervision(options = {}) {
 module.exports = {
   createAxCodeRuntimeSupervision,
   defaultIsExecutable,
+  defaultProbeVersion,
   RUNTIME_NOT_FOUND_CODE,
   resolveRuntimeBinary,
   resolveSpawnInvocation,

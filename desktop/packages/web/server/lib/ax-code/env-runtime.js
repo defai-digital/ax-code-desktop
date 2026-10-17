@@ -4,6 +4,9 @@ import os from "node:os"
 import path from "node:path"
 import { mergePathValues } from "./path-utils.js"
 
+// Must match electron/src/login-shell-env.js LOGIN_SHELL_ENV_UNAVAILABLE.
+const HOST_LOGIN_SHELL_ENV_UNAVAILABLE = "unavailable"
+
 export const createAxCodeEnvRuntime = (deps) => {
   const {
     state,
@@ -318,6 +321,36 @@ export const createAxCodeEnvRuntime = (deps) => {
     }
 
     state.cachedLoginShellEnvSnapshot = null
+  }
+
+  /**
+   * Adopts a login-shell snapshot captured by the Electron main process at
+   * start-up (base64 of `env -0` output) instead of spawning the shell again.
+   * Applies it with exactly the rules of the in-process capture. The marker
+   * "unavailable" records that the host's capture failed outright. Returns false
+   * (leaving state untouched) when the value is empty, malformed, or a snapshot
+   * was already taken, so the caller falls back to ensureLoginShellEnvSnapshotAsync().
+   */
+  const seedLoginShellEnvSnapshotFromHost = (encoded) => {
+    if (process.platform === "win32" || state.cachedLoginShellEnvSnapshot !== undefined) {
+      return false
+    }
+    // The host already tried every shell candidate and none produced output;
+    // repeating the same slow failures here would only delay the server.
+    if (encoded === HOST_LOGIN_SHELL_ENV_UNAVAILABLE) {
+      state.cachedLoginShellEnvSnapshot = null
+      return true
+    }
+    if (typeof encoded !== "string" || encoded.length === 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) {
+      return false
+    }
+    const parsed = parseNullSeparatedEnvSnapshot(Buffer.from(encoded, "base64").toString("utf8"))
+    if (!parsed) {
+      return false
+    }
+    state.cachedLoginShellEnvSnapshot = parsed
+    applyLoginShellEnvSnapshot()
+    return true
   }
 
   const isWslExecutableValue = (value) => {
@@ -1279,6 +1312,7 @@ export const createAxCodeEnvRuntime = (deps) => {
   return {
     applyLoginShellEnvSnapshot,
     ensureLoginShellEnvSnapshotAsync,
+    seedLoginShellEnvSnapshotFromHost,
     ensureAxCodeCliEnv,
     applyAxCodeBinaryFromSettings,
     getLoginShellEnvSnapshot,

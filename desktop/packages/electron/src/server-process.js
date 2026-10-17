@@ -10,6 +10,12 @@
 // (AX_CODE_DESKTOP_DIST_DIR, AX_CODE_DESKTOP_RUNTIME, AX_CODE_DESKTOP_ELECTRON_SERVER_PORT)
 // are supplied by the parent's utilityProcess.fork({ env }) call.
 
+// Login-shell snapshot captured by the main process at start-up. Taken out of
+// the environment before the server bundle loads so nothing it (or the runtime
+// and tools it spawns) starts can inherit the variable.
+const hostLoginShellEnv = process.env.AX_CODE_DESKTOP_LOGIN_SHELL_ENV
+delete process.env.AX_CODE_DESKTOP_LOGIN_SHELL_ENV
+
 // Bundled server (dist/server.js produced by bundle-main.mjs). Kept as an
 // external require so esbuild does not inline the 5 MB server into this entry.
 const { startWebUiServer } = require("./server.js")
@@ -46,6 +52,7 @@ async function boot() {
   serverHandle = await startWebUiServer({
     port: Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 0,
     startupDiagnosticsSnapshot: parseStartupSnapshot(),
+    hostLoginShellEnv,
     onStartupDiagnostic: (event) => {
       try {
         process.parentPort.postMessage({ type: "startup-event", event })

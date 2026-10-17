@@ -44,7 +44,8 @@ const { createSupervisionFsm } = require("./supervision-fsm")
 const { buildComputerUseServerEnv } = require("./computer-use-server-env")
 const { applyBundledAxCodeEnv, buildBundledAxCodeEnv } = require("./bundled-ax-code-env")
 const { desktopBrowserRuntimeEnv } = require("./browser-runtime-policy")
-const { verifyBundledAxCodeIntegrity } = require("./bundled-ax-code-integrity")
+const { verifyBundledAxCodeIntegrityAsync } = require("./bundled-ax-code-integrity")
+const { LOGIN_SHELL_ENV_VAR, resolveForwardedLoginShellEnv, startLoginShellEnvCapture } = require("./login-shell-env")
 const { getRuntimeAuthPassword } = require("./runtime-auth-password")
 const { createDesktopWebMcpBrowser, DESKTOP_BROWSER_TOKEN } = require("./desktop-webmcp-browser")
 
@@ -294,6 +295,13 @@ const bundledAxCodeEnv = buildBundledAxCodeEnv({
   isPackaged: app.isPackaged,
   resourcesPath: process.resourcesPath,
 })
+// The web server needs the user's login-shell environment (PATH and friends)
+// before it can listen, and capturing it costs ~1 s of shell init. Start it now
+// so it overlaps Chromium start-up, integrity verification and runtime
+// preparation; the encoded result is handed to the server fork below. Main
+// itself never applies it. POSIX only: Windows has no login shell to capture.
+const loginShellEnvCapture = startLoginShellEnvCapture()
+let loginShellEnvEncoded = null
 // Created unless the S2.5 escape hatch is set; the supervision owns the
 // runtime origin/exhausted state in that mode.
 let runtimeSupervision = null
@@ -393,6 +401,10 @@ function spawnServerProcess(wire) {
     env: applyBundledAxCodeEnv(
       {
         ...process.env,
+        // Login-shell snapshot captured at process start (see
+        // loginShellEnvCapture). Always set, empty when absent, so a value
+        // inherited from the parent environment can never be mistaken for one.
+        [LOGIN_SHELL_ENV_VAR]: loginShellEnvEncoded || "",
         // The server reads these at module-init time; previously set on the
         // main process before require, now passed into the forked process.
         AX_CODE_DESKTOP_DIST_DIR: getWebDistPath(),
@@ -1074,6 +1086,7 @@ handleCommand("desktop_download_and_install_update", async () => {
 // Shutdown order (S2.5): the web server first (it may still be proxying to
 // the runtime), then the main-supervised runtime.
 const stopBackgroundServices = async () => {
+  loginShellEnvCapture.cancel()
   // Revoke browser access while the runtime can still acknowledge enrollment
   // teardown. This also covers restart/update paths that bypass normal quit.
   await Promise.allSettled([desktopWebMcpBrowser.closeAll(), wikiViewer.closeAll(), stopServer()])
@@ -3426,16 +3439,19 @@ app.whenReady().then(async () => {
   browserSession.setPermissionCheckHandler((_webContents, permission) => WEBVIEW_ALLOWED_PERMISSIONS.has(permission))
 
   try {
-    const bundledIntegrity = verifyBundledAxCodeIntegrity({
+    // Hash the staged runtime off the main thread while the shell and opening
+    // artwork come up. The result is awaited below, before anything can execute
+    // the bundled runtime (the supervisor's prepare() runs `--version` on it) or
+    // fork the web server, so a modified tree still fails closed before use.
+    const bundledIntegrityCheck = verifyBundledAxCodeIntegrityAsync({
       platform: process.platform,
       isPackaged: app.isPackaged,
       appPath: app.getAppPath(),
       resourcesPath: process.resourcesPath,
     })
-    if (bundledIntegrity.status === "verified") {
-      console.log(`[electron] verified bundled ax-code runtime integrity (${bundledIntegrity.entries} entries)`)
-      recordStartupEvent("runtime.integrity.verified", { entries: bundledIntegrity.entries })
-    }
+    // The rejection is surfaced where it is awaited; this only keeps an early
+    // failure from being reported as unhandled while the shell is created.
+    bundledIntegrityCheck.catch(() => {})
     // The mini-chat and secondary windows never host the artwork. Only a
     // visible main window does, so a hidden or minimized app skips it.
     createMainWindowShell()
@@ -3464,6 +3480,14 @@ app.whenReady().then(async () => {
     // hidden until the renderer is ready, as before.
     if (launchAnimations.enabled()) mainWindow.show()
     openingAnimation = launchAnimations.playOpening()
+    // Settle integrity before anything else touches persistent state or the
+    // runtime, so a tampered tree still fails before any side effect.
+    const bundledIntegrity = await bundledIntegrityCheck
+    if (bundledIntegrity.status === "verified") {
+      console.log(`[electron] verified bundled ax-code runtime integrity (${bundledIntegrity.entries} entries)`)
+      recordStartupEvent("runtime.integrity.verified", { entries: bundledIntegrity.entries })
+    }
+    if (isQuitting) return
     await purgeDisabledRemoteAccessSettings().catch((error) => {
       // Runtime paths already ignore these values, so a read-only legacy
       // settings file must not prevent the local app from starting.
@@ -3546,6 +3570,12 @@ app.whenReady().then(async () => {
           error: error instanceof Error ? error.message : String(error),
         })
       })
+    }
+    loginShellEnvEncoded = resolveForwardedLoginShellEnv(await loginShellEnvCapture.promise)
+    recordStartupEvent("login-shell-env.captured", { forwarded: loginShellEnvEncoded !== null })
+    if (isQuitting) {
+      await stopBackgroundServices()
+      return
     }
     await launchServer()
     if (isQuitting) {
