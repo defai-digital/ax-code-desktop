@@ -1375,7 +1375,43 @@ A third audit of the same ground: the thirteen fixes the thirty-second round mad
   trade-off as the item above: Windows has no process-group id, so once the leader exits there is nothing to name
   its children by. The test gating is fixed; the behaviour cannot be verified in this environment.
 
+### Fixed from the audit of this round's own fixes — `81ff4b7c`
+
+- **The claim re-enabled only the instance that started the answer.** The reopened entry seeded its `responding`
+  state from the claim, but the release ran in the *unmounted* instance's setter, so a failed answer left the live
+  entry disabled for good while the permission stayed pending. The claim is a promise now and every mounted entry
+  subscribes to it. Red: the reopened entry's Allow button stayed disabled.
+- **The answer claim was keyed by notification id, not by request.** The permission watcher drops its notifications
+  on unmount and adds a new one — with a new id — for the same request when it remounts, so the second notification
+  answered again. The key is `requestId ?? id`. Red: two notifications for `req_same`, Allow then Deny, onDeny
+  called once.
+- **Brackets became spaces.** That fixed `[label](/path)` but put a space before every comma and period following a
+  parenthesis: `Done (ok), then (maybe).` → `Done ok , then maybe .`. The path pass now runs before the brackets are
+  removed and lets `(`, `[`, quotes and a colon stand in for the word boundary. Red:
+  `expected 'Done ok , then maybe .' to be 'Done ok, then maybe.'`.
+- **The export walk had no visited set.** A parent cycle in the merged cache recursed until the stack ran out, from
+  the click handler. Red: `RangeError: Maximum call stack size exceeded`.
+
+The fresh-scope UI-kit audit (deepseek-flash) reported six items; all were read against the source and rejected:
+
+- `NumberInput`'s empty draft calling `onClear` is the component's clear contract, and the draft keeps `-5` while it
+  is typed; the "minus is impossible" claim does not reproduce.
+- `DropdownMenuItem.onSelect` is typed as base-ui's `onClick` and documented as such; base-ui's item has no
+  `onSelect` event, so wiring it to the click is the adapter, not a bug.
+- `ScrollShadow` deletes the key from `...rest`, which the rest destructuring already copied; React's props object
+  is never touched.
+- The dialog counter adds and removes the document class in the same effect pair React orders for one commit;
+  the interleaving the report describes does not produce a stale count.
+- The mobile `NumberInput` wrapper's `disabled:` classes cannot match, but the buttons carry real `disabled`, which
+  is what blocks the action; the classes are dead styling, not a behaviour.
+- The tooltip's long-press is cancelled by `pointercancel`, which scrolling fires; a stationary finger plus a second
+  finger scrolling is a gesture the bridge does not model, and no observable click loss reproduces from it.
+
 ### Verification
+
+`81ff4b7c`: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+`pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 990, web 1 334 (+2 skipped),
+0 `FAIL` lines.
 
 `63b647ef`: `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
 `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 987, web 1 333 (+2 skipped),
@@ -1636,7 +1672,7 @@ output and a test idea with it.
   LaunchAgent plist. Both are deliberate (0600, and `restart`/logon-start read them), so this is recorded as a
   policy question rather than a defect.
 
-### The four items left, and why they are left
+### The items left, and why they are left
 
 Each of these is confirmed as a defect in the code, and none can be verified where this series runs. They are
 written here with the shape of the fix so they can be taken up rather than rediscovered.
@@ -1650,11 +1686,6 @@ written here with the shape of the fix so they can be taken up rather than redis
   test can at least pin the structure (the entry holds a weak reference, and a dead one is pruned when the
   notifier runs) by seeding the set through the exported bridge script — which is what `bridge-script.test.js`
   already does for the fetch patch.
-- **`sanitizeForSummary`'s path-stripping regex deletes ordinary prose** (`server/lib/text/summarization.js:22-23`).
-  It matches `/<word>` anywhere, so "either/or" or "TCP/IP" lose their second half — and the function is exported
-  and documented as a public surface. Latent today: its only caller asks for `mode: "notification"`, which does not
-  strip paths. The fix is a path-shaped precondition (two segments, or a segment with an extension) and the test is
-  a sentence with a slash-word and a real path in it.
 - **`schtasks /TR` cannot take the command `startup enable` builds on Windows** (`packages/web/bin/cli.js`,
   `enableStartupService`). The fixed env-file parsing block alone is ~300 characters against a documented 261, and
   the whole action is ~550-650 for any real install path. It needs registering through task XML, or a launcher
@@ -1667,6 +1698,11 @@ written here with the shape of the fix so they can be taken up rather than redis
   until `startup disable`. This is a product decision rather than a local fix: keeping the plist copy is the cost of
   starting without input, and dropping the instance copy would make `restart` require the flag — which
   `9f5dda5c` now does explicitly when the record is missing.
+
+A fourth item stood here — `sanitizeForSummary`'s pattern deleted the second half of `either/or` and `TCP/IP`. It
+was fixed in `f9d0f2e2` (a slash-run is a path only at a word boundary) and again in `63b647ef` (punctuation
+becomes a space, so `[docs](/etc/hosts)` and `file:/etc/hosts` no longer leak through). It stays named here so the
+old entry is not rediscovered as new.
 
 ## Twenty-ninth round
 
@@ -3908,6 +3944,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-third round, after `81ff4b7c` (the audit of this round's own fixes): `pnpm run
+  typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 —
+  root scripts 180 (+6 skipped), electron 600, ui 2 990, web 1 334 (+2 skipped), 0 `FAIL` lines.
 - Latest full run, in the thirty-third round, after `63b647ef`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
   electron 600, ui 2 987, web 1 333 (+2 skipped), 0 `FAIL` lines. Two findings have no red light here and say so:
