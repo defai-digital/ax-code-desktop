@@ -249,6 +249,35 @@ describe("ClawdHub skill installation", () => {
     }
   })
 
+  test("frees the slug when a selection is skipped for its own package", async () => {
+    // The claim sat before the download's validation, and the three checks that skip a package continue past the
+    // catch that releases the name: a first selection whose ZIP had no SKILL.md held the slug, so the second one
+    // for it was skipped as a duplicate and neither version installed.
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
+    try {
+      downloadClawdHubSkill
+        .mockResolvedValueOnce(zipWithFiles({ "README.md": "no skill here" }))
+        .mockResolvedValueOnce(
+          zipWithFiles({ "SKILL.md": '---\nname: "review-code"\ndescription: Review code.\n---\n' }),
+        )
+
+      const result = await installSkillsFromClawdHub({
+        scope: "user",
+        targetSource: "ax-code",
+        userSkillDir: tempRoot,
+        selections: [
+          { clawdhub: { slug: "review-code", version: "1.0.0" } },
+          { clawdhub: { slug: "review-code", version: "2.0.0" } },
+        ],
+      })
+
+      expect(result.installed.map((entry) => entry.skillName)).toEqual(["review-code"])
+      expect(result.skipped.map((entry) => entry.reason)).toEqual(["SKILL.md not found in downloaded package"])
+    } finally {
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
   test("replaces the installed skill when the move succeeds", async () => {
     const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
     try {

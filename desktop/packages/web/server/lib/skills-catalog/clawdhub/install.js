@@ -180,11 +180,6 @@ export async function installSkillsFromClawdHub({
         continue
       }
 
-      // Claimed here rather than at the top: a selection this loop decides not to install must not hold the slug
-      // against a later one that would. The repository installer claims at the same point, and releases the name
-      // when nothing landed.
-      claimedSkillNames.add(plan.slug)
-
       // Download the skill ZIP
       const zipBuffer = await downloadClawdHubSkill(plan.slug, resolvedVersion)
 
@@ -224,6 +219,12 @@ export async function installSkillsFromClawdHub({
           skipped.push({ skillName: plan.slug, reason: "Skill catalog metadata must be English-only" })
           continue
         }
+
+        // Claimed only once this selection is actually going to install: every check above can skip it, and a slug
+        // held by a selection that installed nothing made a later one for the same slug read as a duplicate of an
+        // install that never happened. The repository installer claims at its own equivalent point — after its
+        // SKILL.md and English-only checks — and releases the name when nothing landed.
+        claimedSkillNames.add(plan.slug)
 
         // The installed copy is only removed once the replacement is downloaded, extracted and
         // validated: removing it before the download meant a network error, a yanked version or a bad
