@@ -45,11 +45,16 @@ const removeCspDirective = (cspValue, directiveName) => {
 export const mergeExternalPreviewSandboxCsp = (existingHeaderValue, sandboxCsp) => {
   const values =
     existingHeaderValue == null ? [] : Array.isArray(existingHeaderValue) ? existingHeaderValue : [existingHeaderValue]
-  const upstream = values
-    .map((value) => removeCspDirective(String(value), "sandbox"))
-    .filter((value) => typeof value === "string" && value.trim().length > 0)
-    .join("; ")
-  return upstream.length > 0 ? `${upstream}; ${sandboxCsp}` : sandboxCsp
+  // A CSP header is a comma-separated list of policies, and each policy keeps enforcing its own directives. The
+  // upstream's sandbox has to be removed from *every* policy, and ours appended as a policy of its own: joined
+  // onto the end of the upstream's last policy it was a duplicate directive, which browsers ignore.
+  const policies = values
+    .flatMap((value) => String(value).split(","))
+    .map((policy) => policy.trim())
+    .filter((policy) => policy.length > 0)
+    .map((policy) => removeCspDirective(policy, "sandbox"))
+    .filter((policy) => typeof policy === "string" && policy.trim().length > 0)
+  return [...policies, sandboxCsp].join(", ")
 }
 
 // Set on a response the proxy refuses itself, so a client can tell it apart from a 403/404 the
@@ -1161,7 +1166,18 @@ export const rewritePreviewBody = ({ bodyText, proxyBasePath, targetOrigin, kind
   }
   const rewriteResourceUrl = (value) => {
     if (typeof value !== "string" || value.length === 0) return value
-    if (value.startsWith("/") && !value.startsWith("//")) {
+    // A protocol-relative URL resolves against the app's scheme straight to the dev server. It carries no base of
+    // its own, so it is parsed with one to decide whether it is the target, then rewritten like any other.
+    if (value.startsWith("//")) {
+      try {
+        const parsed = new URL(`http:${value}`)
+        if (isSameTargetOrigin(parsed)) {
+          return `${prefix}${parsed.pathname}${parsed.search}${parsed.hash}`
+        }
+      } catch {}
+      return value
+    }
+    if (value.startsWith("/")) {
       if (value.startsWith("/api/preview/proxy/")) return value
       return `${prefix}${value}`
     }
@@ -1322,7 +1338,9 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     const headerKeys = Object.keys(headers)
     for (const key of headerKeys) {
       const lowerKey = key.toLowerCase()
-      if (lowerKey === "x-frame-options") {
+      if (lowerKey === "x-frame-options" || lowerKey === "service-worker-allowed") {
+        // The second would let a previewed page register a service worker whose scope reaches the whole Desktop
+        // origin; that registration outlives the preview target and its token.
         delete headers[key]
         continue
       }
@@ -1367,6 +1385,8 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       return
     }
     res.removeHeader("x-frame-options")
+    // A previewed page must not widen its service worker's scope past its own proxy prefix.
+    res.removeHeader("service-worker-allowed")
     for (const name of ["content-security-policy", "content-security-policy-report-only"]) {
       const value = res.getHeader(name)
       if (value == null) {
@@ -1661,6 +1681,11 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
                   const values = existing == null ? [] : Array.isArray(existing) ? existing : [existing]
                   res.setHeader("set-cookie", [...values, cookie])
                 }
+              } else if (typeof res.removeHeader === "function") {
+                // The middleware already copied the upstream Location onto res. Leaving it there let the browser
+                // follow a redirect the SSRF guard refused, straight at the LAN/metadata host.
+                res.removeHeader("location")
+                res.statusCode = 502
               }
             }
             return responseBuffer
@@ -1670,12 +1695,17 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
           const isHtml = contentType.includes("text/html")
           const isCss = contentType.includes("text/css")
           const isJavaScript = contentType.includes("javascript") || contentType.includes("ecmascript")
-          // A document that runs script when it is opened directly. HTML is not the only one: an SVG or an XHTML
-          // response from an external preview is a document too, and both were served with the app's own policy —
-          // which allows inline script — on the Desktop origin. The project-icon route carries its own policy for
-          // the same reason (`60cfcf9c`), and the sandbox is applied before anything below can return.
+          // A document that runs script when it is opened directly. HTML is not the only one: an SVG, XHTML or XML
+          // response from an external preview is a document too, and all were served with the app's own policy —
+          // which allows inline script — on the Desktop origin. XML executes script when its payload uses the
+          // XHTML/SVG namespace, the well-known content-type confusion. The project-icon route carries its own
+          // policy for the same reason (`60cfcf9c`), and the sandbox is applied before anything below can return.
           const isScriptableDocument =
-            isHtml || contentType.includes("image/svg+xml") || contentType.includes("application/xhtml+xml")
+            isHtml ||
+            contentType.includes("image/svg+xml") ||
+            contentType.includes("application/xhtml+xml") ||
+            contentType.includes("application/xml") ||
+            contentType.includes("text/xml")
           if (isScriptableDocument) {
             applyExternalPreviewSandbox(res, resolved)
           }

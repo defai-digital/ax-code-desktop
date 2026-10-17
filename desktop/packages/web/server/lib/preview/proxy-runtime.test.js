@@ -151,6 +151,24 @@ describe("preview body URL rewriting", () => {
     expect(rewrite(input, "html")).toBe(input)
   })
 
+  it("rewrites protocol-relative references to the target", () => {
+    // The root-relative branch explicitly skips `//`, and `new URL("//host/x")` needs a base, so these escaped
+    // the proxy and loaded straight from the dev server — for `<base>`, everything relative escaped with them.
+    const input =
+      '<script src="//127.0.0.1:3000/app.js"></script><style>a{background:url(//127.0.0.1:3000/x.png)}</style>' +
+      '<meta http-equiv="refresh" content="0;url=//127.0.0.1:3000/next"><base href="//127.0.0.1:3000/docs/">'
+    const output = rewrite(input, "html")
+
+    expect(output).not.toContain("//127.0.0.1:3000")
+    expect(output).toContain('src="/api/preview/proxy/abc123/app.js"')
+    expect(output).toContain("url(/api/preview/proxy/abc123/x.png)")
+    expect(output).toContain('content="0;url=/api/preview/proxy/abc123/next"')
+    expect(output).toContain('href="/api/preview/proxy/abc123/docs/"')
+
+    // Another host is not the target and stays as written.
+    expect(rewrite('<img src="//cdn.example.com/x.png">', "html")).toContain('src="//cdn.example.com/x.png"')
+  })
+
   it("rewrites only CSS imports and url references in CSS responses", () => {
     const input = '@import "/theme.css"; .hero { background: url(/hero.png); } .copy::after { content: "/not-a-url"; }'
     const output = rewrite(input, "css")
@@ -308,13 +326,13 @@ describe("external preview sandbox CSP", () => {
 
   it("keeps the upstream's directives and adds the proxy's sandbox", () => {
     expect(mergeExternalPreviewSandboxCsp("default-src 'none'; img-src 'self'", SANDBOX)).toBe(
-      "default-src 'none'; img-src 'self'; sandbox allow-scripts",
+      "default-src 'none'; img-src 'self', sandbox allow-scripts",
     )
   })
 
   it("drops only the upstream's own sandbox directive", () => {
     expect(mergeExternalPreviewSandboxCsp("sandbox allow-same-origin; img-src 'self'", SANDBOX)).toBe(
-      "img-src 'self'; sandbox allow-scripts",
+      "img-src 'self', sandbox allow-scripts",
     )
   })
 
@@ -322,13 +340,25 @@ describe("external preview sandbox CSP", () => {
     // Express hands an upstream that sent the header twice an array; reading only the string form
     // replaced the site's whole policy with ours.
     expect(mergeExternalPreviewSandboxCsp(["default-src 'none'", "img-src 'self'"], SANDBOX)).toBe(
-      "default-src 'none'; img-src 'self'; sandbox allow-scripts",
+      "default-src 'none', img-src 'self', sandbox allow-scripts",
     )
   })
 
   it("adds the proxy's sandbox when the upstream sent none", () => {
     expect(mergeExternalPreviewSandboxCsp(null, SANDBOX)).toBe(SANDBOX)
     expect(mergeExternalPreviewSandboxCsp("sandbox allow-same-origin", SANDBOX)).toBe(SANDBOX)
+  })
+
+  it("does not let a comma-separated policy list smuggle the upstream sandbox", () => {
+    // A CSP header is a comma-separated list of policies. The attacker's `sandbox allow-same-origin` lived in
+    // the second policy; appending ours to the same policy made it a duplicate, which browsers ignore.
+    const merged = mergeExternalPreviewSandboxCsp(
+      "default-src 'self', sandbox allow-same-origin allow-scripts",
+      SANDBOX,
+    )
+
+    expect(merged).not.toContain("allow-same-origin")
+    expect(merged.split(",").map((policy) => policy.trim())).toEqual(["default-src 'self'", SANDBOX])
   })
 })
 
@@ -844,6 +874,26 @@ describe("external preview documents are sandboxed", () => {
     const csp = String(documentHeaders.get("content-security-policy") ?? "")
     expect(csp).toContain("sandbox")
     expect(csp).not.toContain("allow-same-origin")
+
+    // XML documents execute script when the payload uses the XHTML/SVG namespace, so they are documents too.
+    for (const contentType of ["application/xml", "text/xml"]) {
+      const xmlHeaders = new Map()
+      await proxyOptions.on.proxyRes(
+        Buffer.from("<x/>"),
+        { statusCode: 200, headers: { "content-type": contentType } },
+        { originalUrl: redirectedLocation, headers: { cookie: `${sourceCookie}; ${redirectedCookie}` } },
+        {
+          statusCode: 200,
+          removeHeader: (name) => xmlHeaders.delete(name.toLowerCase()),
+          getHeader: (name) => xmlHeaders.get(name.toLowerCase()),
+          setHeader: (name, value) => xmlHeaders.set(name.toLowerCase(), value),
+        },
+      )
+
+      const xmlCsp = String(xmlHeaders.get("content-security-policy") ?? "")
+      expect(xmlCsp).toContain("sandbox")
+      expect(xmlCsp).not.toContain("allow-same-origin")
+    }
   })
 
   it("keeps a local preview's redirect inside loopback within the proxy", async () => {
@@ -938,5 +988,98 @@ describe("external preview documents are sandboxed", () => {
     const doubleSlash = await redirect("intro", "//evil.example/x")
     expect(doubleSlash.get("location")).toBe(`${target.proxyBasePath}//evil.example/intro`)
     expect(doubleSlash.get("set-cookie")).toBeUndefined()
+  })
+})
+
+describe("preview proxy response hardening", () => {
+  const createHarness = async ({ url = "http://127.0.0.1:3000" } = {}) => {
+    let targetRoute = null
+    let proxyOptions = null
+    let randomCounter = 0
+    const app = {
+      post: (_path, ...handlers) => {
+        targetRoute = handlers.at(-1)
+      },
+      use() {},
+    }
+    const runtime = createPreviewProxyRuntime({
+      crypto: {
+        randomBytes: () => Buffer.from(String(++randomCounter).padStart(32, "0"), "hex"),
+      },
+      URL,
+      createProxyMiddleware: (options) => {
+        proxyOptions = options
+        const middleware = vi.fn()
+        middleware.upgrade = vi.fn()
+        return middleware
+      },
+      responseInterceptor: (handler) => handler,
+    })
+    runtime.attach(app, {
+      server: { on: vi.fn() },
+      express: { json: vi.fn(() => vi.fn()) },
+      uiAuthController: null,
+      isRequestOriginAllowed: vi.fn(async () => true),
+      rejectWebSocketUpgrade: vi.fn(),
+    })
+
+    const headers = new Map()
+    const targetResponse = {
+      setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+      json: vi.fn(),
+    }
+    await targetRoute({ body: { url }, secure: false }, targetResponse)
+    const cookie = String(headers.get("set-cookie")).split(";", 1)[0]
+    const target = targetResponse.json.mock.calls[0][0]
+    return { proxyOptions, cookie, target }
+  }
+
+  it("strips Service-Worker-Allowed from proxied responses", async () => {
+    // The upstream could widen a service worker's scope from its proxy prefix to the whole Desktop origin, and
+    // that registration outlives the preview target and its token.
+    const { proxyOptions, cookie, target } = await createHarness()
+    const responseHeaders = new Map([["service-worker-allowed", "/"]])
+    await proxyOptions.on.proxyRes(
+      Buffer.from("<html></html>"),
+      {
+        statusCode: 200,
+        headers: { "content-type": "text/html", "service-worker-allowed": "/" },
+      },
+      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+      {
+        statusCode: 200,
+        removeHeader: (name) => responseHeaders.delete(name.toLowerCase()),
+        getHeader: (name) => responseHeaders.get(name.toLowerCase()),
+        setHeader: (name, value) => responseHeaders.set(name.toLowerCase(), value),
+      },
+    )
+
+    expect(responseHeaders.get("service-worker-allowed")).toBeUndefined()
+  })
+
+  it("does not forward a Location the proxy refuses", async () => {
+    // http-proxy-middleware copies the upstream headers onto res before the interceptor runs, so skipping the
+    // rewrite left the raw LAN/metadata Location on the response and the browser followed it.
+    const { proxyOptions, cookie, target } = await createHarness()
+    const responseHeaders = new Map([["location", "http://169.254.169.254/latest/meta-data/"]])
+    const response = {
+      statusCode: 302,
+      removeHeader: (name) => responseHeaders.delete(name.toLowerCase()),
+      getHeader: (name) => responseHeaders.get(name.toLowerCase()),
+      setHeader: (name, value) => responseHeaders.set(name.toLowerCase(), value),
+    }
+
+    await proxyOptions.on.proxyRes(
+      Buffer.alloc(0),
+      {
+        statusCode: 302,
+        headers: { location: "http://169.254.169.254/latest/meta-data/" },
+      },
+      { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+      response,
+    )
+
+    expect(responseHeaders.get("location")).toBeUndefined()
+    expect(response.statusCode).toBe(502)
   })
 })
