@@ -957,6 +957,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
     return null
   }
 
+  // Hook runs that blocked or asked. Every layout shows them: a hook that blocks the first prompt
+  // leaves the session empty, and that is exactly when the user needs to learn why.
+  const hookActivityRows =
+    currentSessionId && !isDesktopExpandedInput ? <HookActivityRows sessionId={currentSessionId} /> : null
+
   if (isSessionHydrating && sessionMessages.length === 0 && !sessionIsWorking) {
     return (
       <div className="relative flex flex-col h-full bg-background">
@@ -1007,6 +1012,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
           )}
         >
           <PinnedRequestDock sessionQuestions={sessionQuestions} sessionPermissions={sessionPermissions} />
+          {hookActivityRows}
           {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
         </div>
       </div>
@@ -1037,6 +1043,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
           )}
         >
           <PinnedRequestDock sessionQuestions={sessionQuestions} sessionPermissions={sessionPermissions} />
+          {hookActivityRows}
           {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
         </div>
       </div>
@@ -1088,7 +1095,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
           />
         )}
         {currentSessionId && !isDesktopExpandedInput && <ActivityBreadcrumb sessionId={currentSessionId} />}
-        {currentSessionId && !isDesktopExpandedInput && <HookActivityRows sessionId={currentSessionId} />}
+        {hookActivityRows}
         {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
       </div>
 

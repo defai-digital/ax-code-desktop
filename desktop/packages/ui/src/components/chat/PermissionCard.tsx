@@ -441,8 +441,8 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
         <div className="-mt-1 border border-border/30 rounded-xl bg-muted/10">
           {}
           <div className="px-2 py-1.5 border-b border-border/20 bg-muted/5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 <Icon name="question" className="h-3.5 w-3.5 text-[var(--status-warning)]" />
                 <span className="typography-meta font-medium text-muted-foreground">
                   {t("chat.permissionCard.header.title")}
@@ -454,9 +454,9 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
                 ) : null}
                 <RequestRiskBadge request={permission} />
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex min-w-0 shrink items-center gap-1.5">
                 {getToolIcon(toolName)}
-                <span className="typography-meta text-muted-foreground font-medium">{displayToolName}</span>
+                <span className="truncate typography-meta text-muted-foreground font-medium">{displayToolName}</span>
               </div>
             </div>
           </div>

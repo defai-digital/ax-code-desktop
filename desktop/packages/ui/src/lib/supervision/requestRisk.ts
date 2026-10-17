@@ -41,6 +41,16 @@ export function orderRequestsByRisk<T extends PendingRequestEntry>(entries: read
     .map(({ entry }) => entry)
 }
 
+/** The same order for a plain list of one session's permission requests. Stable. */
+export function orderPermissionsByRisk<T extends Pick<PermissionRequest, "riskClass" | "interactiveOnly">>(
+  requests: readonly T[],
+): T[] {
+  return requests
+    .map((request, index) => ({ request, index, rank: RANK[permissionRiskLevel(request)] }))
+    .sort((left, right) => left.rank - right.rank || left.index - right.index)
+    .map(({ request }) => request)
+}
+
 /** A must-decide request cannot be pre-approved: the runtime refuses an "always" reply for it. */
 export function canAlwaysAllow(request: Pick<PermissionRequest, "interactiveOnly">): boolean {
   return request.interactiveOnly !== true

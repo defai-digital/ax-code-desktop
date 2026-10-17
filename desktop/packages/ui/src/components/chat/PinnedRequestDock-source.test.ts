@@ -13,7 +13,11 @@ describe("PinnedRequestDock source guards", () => {
     expect(source).toContain("max-h-[45vh] shrink-0 overflow-y-auto")
     expect(source).toContain("<QuestionCard key={question.id} question={question} />")
     expect(source).toContain("<PermissionCard key={permission.id} permission={permission} />")
-    expect(source.indexOf("sessionQuestions.map")).toBeLessThan(source.indexOf("sessionPermissions.map"))
+    // Permissions are listed most consequential first (AX Code ADR-212 risk class).
+    expect(source).toContain("orderPermissionsByRisk(sessionPermissions).map")
+    expect(source.indexOf("sessionQuestions.map")).toBeLessThan(
+      source.indexOf("orderPermissionsByRisk(sessionPermissions).map"),
+    )
     expect(source).toContain("if (sessionQuestions.length === 0 && sessionPermissions.length === 0)")
   })
 
@@ -26,5 +30,13 @@ describe("PinnedRequestDock source guards", () => {
     // The dock must not be skipped for the expanded composer.
     expect(source).not.toContain("!isDesktopExpandedInput && (sessionQuestions.length > 0")
     expect(source).not.toContain("!isDesktopExpandedInput && (sessionPermissions.length > 0")
+  })
+
+  test("every session composer branch shows hook runs, so a blocked first prompt explains itself", async () => {
+    const source = await readFile(chatContainerPath, "utf8")
+
+    expect(source).toContain("<HookActivityRows sessionId={currentSessionId} />")
+    // Hydrating, empty, and main transcript branches.
+    expect(source.match(/\{hookActivityRows\}/g)).toHaveLength(3)
   })
 })

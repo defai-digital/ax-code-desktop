@@ -49,18 +49,20 @@ export const HookActivityRows: React.FC<HookActivityRowsProps> = ({ sessionId, c
             key={run.id}
             data-hook-row="true"
             data-hook-outcome={run.outcome}
-            className="flex items-center gap-1.5 px-4 py-1 typography-micro text-muted-foreground"
+            className="flex min-w-0 items-center gap-1.5 overflow-hidden px-4 py-1 typography-micro text-muted-foreground"
           >
             <Icon name={blocked ? "shield-warning" : "shield"} className="h-3 w-3 shrink-0 opacity-70" />
             <span className="shrink-0 text-foreground/80">{title}</span>
-            <span className="shrink-0 opacity-80">{run.event}</span>
-            {sourceLabel ? <span className="shrink-0 opacity-60">{sourceLabel}</span> : null}
+            <span className="min-w-0 truncate opacity-80">{run.event}</span>
+            {sourceLabel ? <span className="min-w-0 truncate opacity-60">{sourceLabel}</span> : null}
             {run.reason ? (
               <span className="min-w-0 truncate opacity-80" title={run.reason}>
                 {run.reason}
               </span>
             ) : null}
-            <span className="ml-auto shrink-0 opacity-60">{relativeTime(parts.value, parts.unit)}</span>
+            <span className="ml-auto shrink-0 whitespace-nowrap opacity-60">
+              {relativeTime(parts.value, parts.unit)}
+            </span>
             <button
               type="button"
               onClick={() => dismiss(run.id)}

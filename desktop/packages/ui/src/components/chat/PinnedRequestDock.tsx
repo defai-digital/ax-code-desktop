@@ -5,6 +5,7 @@ import type { QuestionRequest } from "@/types/question"
 
 import { PermissionCard } from "./PermissionCard"
 import { QuestionCard } from "./QuestionCard"
+import { orderPermissionsByRisk } from "@/lib/supervision/requestRisk"
 
 type PinnedRequestDockProps = {
   sessionQuestions: QuestionRequest[]
@@ -27,7 +28,7 @@ export const PinnedRequestDock: React.FC<PinnedRequestDockProps> = ({ sessionQue
       {sessionQuestions.map((question) => (
         <QuestionCard key={question.id} question={question} />
       ))}
-      {sessionPermissions.map((permission) => (
+      {orderPermissionsByRisk(sessionPermissions).map((permission) => (
         <PermissionCard key={permission.id} permission={permission} />
       ))}
     </div>
