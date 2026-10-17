@@ -1305,6 +1305,35 @@ maps in `useGitStore` still have no eviction beyond each directory's own diff ca
 branches still receive no callbacks from their only production caller, and the rest are policy or design
 questions rather than local fixes.
 
+## Thirty-eighth round
+
+A cross-check of the thirty-seventh round's fixes on a second reviewer (`deepseek-flash`, the same diff). It found
+two regressions and three test gaps; the regressions and the gaps are fixed in `251cf277`.
+
+### Fixed
+
+- **A transient empty permission list dropped the answered marker.** `useSessionPermissions` returns
+  `EMPTY_PERMISSION_REQUESTS` when the session's directory is not resolved yet, and the round's prune-on-absence
+  rule read that as "the server stopped listing it": the marker went, and the resync-republished request was
+  mirrored again with live buttons. Nothing prunes the markers now — the set holds one small string per permission
+  answered in the session's lifetime, and the watcher keeps it across remounts. This supersedes the
+  "dropped when the server stops listing it" rule of the previous round.
+- **A link whose prefix starts with a digit leaked its path.** `1abc:///Users/akira/secret/proj` matched no scheme
+  (a scheme starts with a letter) and the path pass refuses `//` after a colon, so the absolute path reached the
+  summary verbatim. The link pattern accepts a leading digit now, even though that is not a legal scheme: what
+  matters is that nothing after `://` survives. Red: the token was unchanged, path included.
+- **Test gaps closed:** `import type * as ns`, `export type * from`, an aliased mixed import and an aliased mixed
+  export in R5; a scheme at the start of the string, a non-ASCII word before a link, and the digit-prefixed link in
+  the summarizer.
+
+### Examined and not fixed
+
+- **Equal-timestamp copies in both session buckets** resolve to the row's own archived state. The row's session
+  comes from the live list, which is the freshest source available; the cache copies cannot be ordered by anything
+  more precise without a version. Recorded as a deliberate tie-break.
+- **The per-session marker map is never deleted.** It is strings only, bounded by the permissions answered in the
+  session; deleting it on unmount is exactly what reopened the remount hole.
+
 ## Thirty-seventh round
 
 An audit of the thirty-sixth round's fixes (Claude Code CLI over `git diff 490d6db3 8e017639`), plus a check of the
@@ -4098,6 +4127,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-eighth round, after `251cf277`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
+  electron 600, ui 2 999, web 1 340 (+2 skipped), 0 `FAIL` lines. `pnpm run build` also exits 0 on this tree.
 - Latest full run, in the thirty-seventh round, after `1c398e0b`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
   electron 600, ui 3 000, web 1 340 (+2 skipped), 0 `FAIL` lines.
