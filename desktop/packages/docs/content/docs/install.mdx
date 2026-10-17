@@ -1,85 +1,105 @@
 ---
 title: Install
-description: Install AX Code Desktop on macOS, Windows, or Linux.
+description: Install AX Code Desktop, or choose the separate AX Code CLI and terminal UI.
 ---
 
 # Install
 
-Supported Desktop install paths:
+AX Code Desktop is the graphical app for local AX Code sessions. The signed app includes a pinned
+AX Code runtime, so a normal installation needs neither a separate CLI on `PATH` nor a Node.js installation.
+Use the supported installation commands from the [Desktop README](https://github.com/defai-digital/ax-code-desktop#install).
 
-- macOS Apple Silicon app through Homebrew or DMG
-- Windows x64 / ARM64 app through installer or portable ZIP
-- Linux x64 / arm64 app through `.deb` or AppImage (Ubuntu 24.04+ glibc)
+Close **AX Code** before installing. The installer verifies the signed release and keeps existing user
+data and credentials. On macOS and Ubuntu it may ask for an administrator password.
 
-Desktop source history has moved to the AX Code Desktop repository. During the release-ownership safety window, Desktop
-release artifacts continue to be published from the main
-[AX Code GitHub releases page](https://github.com/defai-digital/ax-code/releases).
-The CLI formula and Desktop cask share the DefAI Digital Homebrew tap.
+## macOS (Apple Silicon)
 
-## Runtime Requirement
-
-AX Code Desktop needs the local AX Code CLI/runtime for coding sessions. The
-root [AX Code README](https://github.com/defai-digital/ax-code#readme) shows
-the paired CLI and Desktop install commands. After installation, verify the CLI:
+macOS 13 or newer on Apple Silicon:
 
 ```bash
-ax-code --version
+curl -fsSL https://download.automatosx.com/ax-code-desktop/install | bash
 ```
 
-If `ax-code` is not found, install the AX Code CLI before starting Desktop
-coding sessions.
-
-## macOS
-
-Homebrew is the recommended macOS path. Install the CLI runtime and Desktop app together on a new machine:
-
-```bash
-brew install defai-digital/tap/ax-code                  # CLI/runtime
-brew install --cask defai-digital/tap/ax-code-desktop   # Desktop app
-```
-
-If the CLI is already installed, only run the cask command. The Desktop cask token is `ax-code-desktop` —
-it intentionally differs from the `ax-code` CLI formula, because Homebrew refuses to link a formula while an
-installed cask shares its token (which used to leave the `ax-code` command missing after upgrades). Installs
-of the short-lived `ax-code` cask token migrate to `ax-code-desktop` automatically on their next
-`brew upgrade`.
-
-You can also download the latest macOS DMG from the [GitHub releases page](https://github.com/defai-digital/ax-code/releases). Open it, drag **AX Code** into **Applications**, and launch it from Applications.
+Open **AX Code** from `/Applications/AX Code.app` after installation. Homebrew is not required.
 
 ## Windows
 
-Download the latest Windows installer from the [GitHub releases page](https://github.com/defai-digital/ax-code/releases) and run it. For portable use, download the Windows ZIP, extract the full folder, and run `AX Code.exe` from the extracted folder.
+Windows x64 (AMD64), PowerShell 5.1 or newer:
 
-## Linux (Ubuntu Desktop 24.04+)
-
-Install the paired CLI first, then download a Desktop package from a `desktop-v*` release:
-
-- amd64: `AX-Code-<version>-linux-amd64.deb` or `AX-Code-<version>-linux-x86_64.AppImage`
-- arm64: `AX-Code-<version>-linux-arm64.deb` or `AX-Code-<version>-linux-arm64.AppImage`
-
-```bash
-# CLI
-curl -fsSL -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/defai-digital/ax-code/contents/install?ref=main" | bash
-
-# Desktop .deb
-sudo apt install ./AX-Code-<version>-linux-amd64.deb
-
-# or portable AppImage
-chmod +x AX-Code-<version>-linux-x86_64.AppImage
-./AX-Code-<version>-linux-x86_64.AppImage
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://download.automatosx.com/ax-code-desktop/install.ps1 | iex"
 ```
 
-AppImage is the Linux auto-update channel. Musl distros are not supported.
+The bootstrap checks the Authenticode signature before opening the installer. Confirm that the publisher
+is **DEFAI Private Limited**. Open **AX Code** from the Start menu under **DeFAI Digital** or from the desktop shortcut.
 
-## Platform capabilities
+## Ubuntu Desktop 24.04+
 
-| Capability               | macOS Apple Silicon                      | Windows x64 / ARM64 | Linux x64 / arm64 |
-| ------------------------ | ---------------------------------------- | ------------------- | ----------------- |
-| Desktop app              | Supported                                | Supported           | Supported         |
-| Hosted providers         | Supported                                | Supported           | Supported         |
-| AX Engine local provider | Supported on eligible Apple Silicon Macs | Not supported       | Not supported     |
+Ubuntu Desktop 24.04 or newer on amd64 or arm64:
 
-AX Engine is a local MLX/Apple Silicon provider. On Windows and Linux, use hosted providers or an OpenAI-compatible model provider; remote AX Code servers are unavailable.
+```bash
+curl -fsSL https://download.automatosx.com/ax-code-desktop/install | bash
+```
+
+Launch **AX Code** from the app menu, or run `ax-code-desktop`.
+
+## After installation
+
+1. Open **AX Code**.
+2. Add a project folder.
+3. Configure a model provider in the app.
+4. Start or select a session, then review the diff, Git state, files and terminal.
+
+Desktop updates its bundled runtime when the app updates. It does not install the standalone `ax-code`
+command on `PATH`. A separately installed CLI has its own version and installation channel; see [Updates](/updates/).
+
+## CLI and terminal UI only
+
+If you prefer terminal, SSH or headless workflows on a supported host, install the standalone CLI using
+its [README installation method](https://ax-code.app/en/docs/getting-started/install-runtime/).
+This installation is optional for Desktop users. Its installers include the required Node.js runtime.
+
+macOS Apple Silicon and Ubuntu 24.04+ (amd64 or arm64):
+
+```bash
+curl -fsSL https://download.automatosx.com/ax-code/install | bash
+```
+
+Windows x64:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://download.automatosx.com/ax-code/install.ps1 | iex"
+```
+
+After installation, run `ax-code` in a project folder, then connect a provider with `/connect`.
+Installing or updating Desktop does not install or update this separate CLI, or vice versa.
+
+## Manual packages and verification
+
+Manual Desktop packages belong to the
+[AX Code Desktop releases](https://github.com/defai-digital/ax-code-desktop/releases),
+not the runtime repository. Each installer has a detached `.minisig` signature.
+The supported commands above verify the signature, size and hash before installing.
+A direct download does not perform those bootstrap checks automatically; follow the
+[manual verification instructions](https://github.com/defai-digital/ax-code-desktop/blob/main/desktop/docs/MINISIGN.md).
+
+| Platform            | Installer                           | Portable package                          |
+| ------------------- | ----------------------------------- | ----------------------------------------- |
+| macOS Apple Silicon | `AX-Code-<version>-mac-arm64.dmg`    | `AX-Code-<version>-mac-arm64.zip`          |
+| Windows x64         | `AX-Code-<version>-win-x64.exe`      | `AX-Code-<version>-win-x64.zip`            |
+| Ubuntu amd64        | `AX-Code-<version>-linux-amd64.deb`  | `AX-Code-<version>-linux-x86_64.AppImage`   |
+| Ubuntu arm64        | `AX-Code-<version>-linux-arm64.deb`  | `AX-Code-<version>-linux-arm64.AppImage`   |
+
+## Supported platforms
+
+Current Desktop installers support macOS 13+ Apple Silicon, Windows x64, and Ubuntu Desktop 24.04+
+(amd64 and arm64). There is no current installer for Intel Macs or Windows ARM64. Alpine and other
+musl-based distributions are outside the supported set. The CLI also has no current Intel Mac or
+Windows ARM64 installer, so it is not an automatic fallback for those architectures.
+
+AX Engine local inference is available on eligible Apple Silicon Macs. On Windows and Ubuntu, use a
+hosted provider or a supported OpenAI-compatible model endpoint. Desktop's UI, managed runtime and native
+bridges listen on loopback; SSH instance switching, LAN binding and public tunnels are disabled.
 
 ## Development checkout
 
