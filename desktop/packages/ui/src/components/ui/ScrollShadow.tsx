@@ -61,13 +61,23 @@ export const ScrollShadow = React.forwardRef<HTMLElement, ScrollShadowProps>(
       (el: HTMLElement, hasBefore: boolean, hasAfter: boolean, prefix: "top" | "left", suffix: "bottom" | "right") => {
         const bothKey = `${prefix}${suffix.charAt(0).toUpperCase()}${suffix.slice(1)}Scroll` as const
 
+        // Only write a data attribute whose value changed. Setting an attribute to
+        // its current value still queues a mutation record, and this component's
+        // MutationObserver watches its own attributes: unconditional writes made
+        // every check schedule the next one, a requestAnimationFrame loop that ran
+        // at the display refresh rate for as long as the element was mounted.
+        const dataset = el.dataset as Record<string, string | undefined>
+        const write = (key: string, value: string) => {
+          if (dataset[key] !== value) dataset[key] = value
+        }
+
         if (hasBefore && hasAfter) {
-          ;(el.dataset as Record<string, string>)[bothKey] = "true"
+          write(bothKey, "true")
           el.removeAttribute(`data-${prefix}-scroll`)
           el.removeAttribute(`data-${suffix}-scroll`)
         } else {
-          el.dataset[`${prefix}Scroll`] = String(hasBefore)
-          el.dataset[`${suffix}Scroll`] = String(hasAfter)
+          write(`${prefix}Scroll`, String(hasBefore))
+          write(`${suffix}Scroll`, String(hasAfter))
           el.removeAttribute(`data-${prefix}-${suffix}-scroll`)
         }
       },
