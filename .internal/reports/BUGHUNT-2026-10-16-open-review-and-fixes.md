@@ -1331,12 +1331,20 @@ defects are fixed in `66883ff4`, and one suspected item is left unverified.
   `init` overrides are preserved, and the body survives. Red: the native fetch received the original Request for a
   GET and for a POST with a body.
 
+### Follow-up: the suspected `onchange` break, fixed — `025f7062`
+
+- **Assigning `mql.onchange` threw `Illegal invocation`.** The wrapper is `Object.create(nativeMql)`, so the
+  platform's brand-checked setter ran with the wrapper as receiver. The wrapper keeps the handler itself and
+  registers an internal change listener, so assignment, read-back and clearing behave as on the platform. jsdom has
+  no `MediaQueryList`, so the test builds a native-like one whose `onchange` accessor throws for any other receiver.
+  Red: `TypeError: Illegal invocation` on assignment. `mql.dispatchEvent` is left as inherited; nothing in the
+  preview surfaces dispatches synthetic events on the list, and emulating the full EventTarget contract here was
+  judged more risk than value.
+
 ### Examined and not fixed
 
-- **`mql.onchange` and `mql.dispatchEvent` on the `Object.create(nativeMql)` wrapper.** The wrapper inherits the
-  native accessors/methods, which brand-check their receiver; assigning `onchange` or calling `dispatchEvent` may
-  throw `Illegal invocation`. Reported as SUSPECTED and not reproducible in jsdom (no `MediaQueryList`), and it
-  predates this series. Recorded rather than guessed at.
+- **`mql.dispatchEvent` on the wrapper.** Inherited from the native object, so it brand-checks its receiver. No
+  preview surface dispatches synthetic events on a media list; recorded rather than emulated.
 
 ### The thirty-ninth round's entry, corrected
 
@@ -4196,6 +4204,11 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the fortieth round, after `025f7062`: `pnpm run typecheck` 0, `pnpm run lint` 0,
+  `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
+  electron 600, ui 3 069, web 1 347 (+2 skipped), 0 `FAIL` lines. The first run after the onchange fix lost
+  `openchamber-routes.test.js` > "strips model cost metadata…", which passes alone and passed on the rerun — a
+  seventh file in the wall-clock family, and new code from the concurrent writer.
 - Latest full run, in the fortieth round, after `66883ff4`: `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 185 (+6 skipped),
   electron 600, ui 3 069, web 1 346 (+2 skipped), 0 `FAIL` lines. UI and locale counts include the concurrent
