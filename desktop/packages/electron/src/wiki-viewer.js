@@ -4,7 +4,6 @@ const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
 const { execFile } = require("node:child_process")
-const { randomUUID } = require("node:crypto")
 const { promisify } = require("node:util")
 
 // Consume the signed runtime's offline export. Desktop never renders or copies
@@ -63,7 +62,11 @@ function createWikiViewer({
         height: 800,
         show: false,
         webPreferences: {
-          partition: `wiki-viewer-${randomUUID()}`,
+          // One stable, in-memory partition for every wiki window: Electron
+          // caches a Session per partition string for the app's lifetime, so a
+          // UUID per open leaked a session (cookie jar, caches, network
+          // context) per window.
+          partition: "wiki-viewer",
           sandbox: true,
           contextIsolation: true,
           nodeIntegration: false,

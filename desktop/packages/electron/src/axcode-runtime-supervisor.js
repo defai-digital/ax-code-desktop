@@ -61,6 +61,7 @@ const { getRuntimeAuthPassword } = require("./runtime-auth-password")
 const RUNTIME_HOSTNAME = "127.0.0.1"
 // Error code on the failure thrown when no runtime binary resolves, so callers can offer recovery.
 const RUNTIME_NOT_FOUND_CODE = "AX_CODE_RUNTIME_NOT_FOUND"
+const RUNTIME_START_CANCELLED_CODE = "AX_CODE_RUNTIME_START_CANCELLED"
 // Legacy-tolerant listening-line extraction (old lifecycle.js:284-301): any
 // line carrying the listening marker yields its URL via this regex, so log
 // prefixes and colorized output still parse. ANSI escapes are stripped first.
@@ -696,7 +697,9 @@ function createAxCodeRuntimeSupervision(options = {}) {
       // stop() called while prepare() was in flight: never create the FSM or
       // spawn anything.
       if (stopRequested) {
-        throw new Error("ax-code runtime start cancelled by stop()")
+        throw Object.assign(new Error("ax-code runtime start cancelled by stop()"), {
+          code: RUNTIME_START_CANCELLED_CODE,
+        })
       }
       if (!fsm) fsm = createFsm()
       // Initial-start retry (see module header): up to maxAttempts total
@@ -719,6 +722,14 @@ function createAxCodeRuntimeSupervision(options = {}) {
           await waitStartBackoff(delayMs)
           if (stopRequested) break
         }
+      }
+      // A restart()/stop() cancellation is not a start failure: tag it so the
+      // caller's terminal-failure handling (retry-exhausted state and dialog)
+      // can tell it apart from a real boot failure.
+      if (stopRequested) {
+        throw Object.assign(new Error("ax-code runtime start cancelled by stop()"), {
+          code: RUNTIME_START_CANCELLED_CODE,
+        })
       }
       throw lastError || new Error("ax-code runtime failed to start")
     })()
@@ -820,6 +831,7 @@ module.exports = {
   defaultIsExecutable,
   defaultProbeVersion,
   RUNTIME_NOT_FOUND_CODE,
+  RUNTIME_START_CANCELLED_CODE,
   resolveRuntimeBinary,
   resolveSpawnInvocation,
   computeInitialStartRetryDelayMs,

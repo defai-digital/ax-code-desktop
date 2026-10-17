@@ -11,6 +11,7 @@ const {
   resolveSpawnInvocation,
   computeInitialStartRetryDelayMs,
   RUNTIME_READINESS,
+  RUNTIME_START_CANCELLED_CODE,
   START_RETRY,
 } = require("./axcode-runtime-supervisor.js")
 const { createSupervisionFsm } = require("./supervision-fsm.js")
@@ -751,7 +752,12 @@ describe("initial-start retry", () => {
   test("stop() during the retry backoff cancels the pending retry", async () => {
     const ctx = createSupervision({ startRetry: { maxAttempts: 3, baseDelayMs: 30_000, capDelayMs: 60_000 } })
     const started = ctx.supervision.start()
-    const assertion = expect(started).rejects.toThrow("exited before ready (code 1)")
+    // The cancellation is tagged (not the last boot error) so a restart()'s
+    // cancelled start is not mistaken for a terminal boot failure upstream.
+    const assertion = expect(started).rejects.toMatchObject({
+      message: "ax-code runtime start cancelled by stop()",
+      code: RUNTIME_START_CANCELLED_CODE,
+    })
     await flushMicrotasks()
     ctx.fakeSpawn.children[0].emitExit(1)
     await flushMicrotasks() // first attempt failed; the 30 s backoff is pending

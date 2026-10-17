@@ -86,6 +86,8 @@ async function resolveDesktopUpdateFeed(options = {}) {
       Accept: "application/vnd.github+json",
       "User-Agent": "ax-code-desktop-updater",
     },
+    // A stalled connection must not leave the update check pending forever.
+    signal: options.signal ?? AbortSignal.timeout(options.timeoutMs ?? 15_000),
   })
   if (!response || !response.ok) {
     const status = response ? `HTTP ${response.status}` : "no response"

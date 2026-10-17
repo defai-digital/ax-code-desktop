@@ -63,6 +63,7 @@ const {
   createAxCodeRuntimeSupervision,
   defaultIsExecutable,
   RUNTIME_NOT_FOUND_CODE,
+  RUNTIME_START_CANCELLED_CODE,
 } = require("./axcode-runtime-supervisor")
 const { recoverFromMissingRuntime } = require("./runtime-missing-recovery")
 const { createRuntimeRestartRequestHandler } = require("./runtime-restart-request")
@@ -1111,12 +1112,30 @@ const quitCoordinator = createQuitCoordinator({
 let quickDispatchShortcutRegistered = false
 let syncQuickDispatchGlobalShortcutFromSettings = (_settings) => {}
 let releaseQuickDispatchGlobalShortcut = () => {}
+// Non-null while shutdownForExit's async cleanup is still running.
+let shutdownCleanupPromise = null
 
 async function shutdownForExit() {
   isQuitting = true
   releaseQuickDispatchGlobalShortcut()
   launchAnimations?.dispose()
-  await stopBackgroundServices()
+  // before-quit treats `isQuitting && coordinator idle` as "cleanup already
+  // finished", so a second quit landing during this await used to exit before
+  // the runtime child was stopped. Track the in-flight cleanup so the guard
+  // can hold the quit until it settles.
+  const cleanup = stopBackgroundServices()
+  // Observed in both directions: a bare `finally` would leave a rejected
+  // derived promise unhandled, and before-quit only needs to know it settled.
+  const tracked = cleanup.then(
+    () => {
+      if (shutdownCleanupPromise === tracked) shutdownCleanupPromise = null
+    },
+    () => {
+      if (shutdownCleanupPromise === tracked) shutdownCleanupPromise = null
+    },
+  )
+  shutdownCleanupPromise = tracked
+  await cleanup
 }
 
 // Only a real quit may stop services. A downloaded installer can still be
@@ -2850,6 +2869,9 @@ handleCommand("desktop_open_file_in_app", async (args) => {
   return null
 })
 
+// One installed-apps refresh at a time across all windows and requests.
+let installedAppsRefreshInFlight = null
+
 handleCommand("desktop_get_installed_apps", async (args) => {
   const cachePath = buildInstalledAppsCachePath()
   const now = Math.floor(Date.now() / 1000)
@@ -2875,7 +2897,15 @@ handleCommand("desktop_get_installed_apps", async (args) => {
     },
   })
   if (!cacheState.hasCache || cacheState.isCacheStale || args.force === true) {
-    void refresh().catch((error) => {
+    // The single-flight lives at module scope, not per request: per-request
+    // refreshers scanned independently and the slower, older one wrote the
+    // cache last with its stale list.
+    if (!installedAppsRefreshInFlight) {
+      installedAppsRefreshInFlight = refresh().finally(() => {
+        installedAppsRefreshInFlight = null
+      })
+    }
+    void installedAppsRefreshInFlight.catch((error) => {
       console.warn("[electron] failed to refresh installed apps cache", error)
     })
   }
@@ -3554,6 +3584,9 @@ app.whenReady().then(async () => {
       recordStartupEvent("runtime.supervision.prepared", { port: runtimePort }, { once: false })
       if (isQuitting) return
       runtimeSupervision.start().catch((error) => {
+        // A restart() cancels the in-flight initial start on purpose; that is
+        // not a boot failure, and the new start reports its own outcome.
+        if (error?.code === RUNTIME_START_CANCELLED_CODE) return
         // A quitting app stops the FSM before readiness, which rejects
         // start() — that is normal shutdown, not a boot failure.
         if (isQuitting) return
@@ -3644,6 +3677,16 @@ app.on("before-quit", (event) => {
   // Hold every normal quit request while ending playback and service cleanup
   // run concurrently. Explicit restart paths already set isQuitting and bypass
   // artwork. Only the coordinator's final quit may pass its waiting guard.
-  if (isQuitting && quitCoordinator.state === "idle") return
+  if (isQuitting && quitCoordinator.state === "idle") {
+    const cleanup = shutdownCleanupPromise
+    if (cleanup) {
+      // shutdownForExit is still stopping the background services (the runtime
+      // child among them): exiting now would strand it. Re-quit once it settles.
+      event.preventDefault()
+      void cleanup.then(() => app.quit())
+      return
+    }
+    return
+  }
   void quitCoordinator.handle(event)
 })

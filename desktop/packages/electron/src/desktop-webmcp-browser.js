@@ -398,6 +398,9 @@ function createDesktopWebMcpBrowser({
       const active = () =>
         !entry.closed &&
         entry.attached &&
+        // A dead adapter (detached debugger, crashed renderer) enrolls a
+        // connection whose every later call fails on a stale lifetime.
+        entry.adapter.available &&
         entry.owner.isVisible() &&
         !entry.owner.isMinimized() &&
         entry.revision === revision

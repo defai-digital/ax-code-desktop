@@ -159,7 +159,10 @@ class NativeWebMcp {
     }
   }
   snapshot() {
-    const origin = agentOrigin(this.contents.getURL())
+    // A destroyed WebContents throws on getURL(); callers (e.g. the status
+    // path) deliberately read a torn-down pane and must get a blank snapshot.
+    const destroyed = typeof this.contents.isDestroyed === "function" && this.contents.isDestroyed()
+    const origin = destroyed ? null : agentOrigin(this.contents.getURL())
     return {
       generation: this.generation,
       origin,
