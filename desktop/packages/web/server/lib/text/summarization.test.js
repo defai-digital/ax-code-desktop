@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest"
 import { sanitizeForSummary, summarizeText } from "./summarization.js"
 
 describe("text summarization stubs", () => {
+  it("keeps a slash inside a word, and still drops a path", () => {
+    // The path pattern matched any `/<word>`, so prose that uses a slash lost its second half.
+    expect(sanitizeForSummary("either/or and TCP/IP and/or UDP")).toBe("either/or and TCP/IP and/or UDP")
+    expect(sanitizeForSummary("see /usr/local/bin for details")).toBe("see for details")
+  })
+
   it("removes code from summary text before stripping markdown punctuation", () => {
     expect(sanitizeForSummary("Read `const value = 1` aloud")).toBe("Read aloud")
     expect(sanitizeForSummary("Before\n```js\nconst value = 1\n```\nAfter")).toBe("Before After")
