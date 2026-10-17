@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-10-17T04:35:06.598Z",
+  "evidence_level": "L1 isolated local behavior",
+  "status": "all four observations reproduced",
+  "source_path": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code/packages/remote-control/src/remote-control.ts",
+  "source_sha256": "30c4ed90ed00f0e4c567a940214207e3c8ec31fe4db81d022fe68d5e518e00a9",
+  "harness_sha256": "a41a89744dd1ca82f42093d60e48259a8dc04b9b54de48d744dcbf9c61fe8267",
+  "node_version": "v26.12.0",
+  "typescript_version": "6.0.3",
+  "public_network_requests": 0,
+  "loopback_http_servers": 1,
+  "reference_source_modified": false,
+  "upstream_package_tests_run": false,
+  "limitations": [
+    "Unused OAuth and lock dependencies are stubbed; no real credentials are read.",
+    "The WebSocket constructor is stubbed; no public or real relay connection is opened.",
+    "The observations do not establish cloud behavior, an authentication bypass, or product-wide test success."
+  ],
+  "observations": [
+    {
+      "id": "RC01",
+      "behavior": "Non-loopback HTTP relay override becomes plaintext WebSocket",
+      "observed_url": "ws://relay.example.invalid/v1/remote/create",
+      "qualification": "The production default is HTTPS; this tests custom-configuration hardening only."
+    },
+    {
+      "id": "RC02",
+      "behavior": "HTTP forwarding buffers SSE until response end",
+      "initial_event_delivered_before_end": false,
+      "qualification": "Kimi uses a separate application WebSocket transport; this does not show its own UI is broken."
+    },
+    {
+      "id": "RC03",
+      "behavior": "Repeating a completed HTTP request ID forwards again",
+      "forwards": 2,
+      "qualification": "Application-level prompt deduplication is outside this isolated transport test."
+    },
+    {
+      "id": "RC04",
+      "behavior": "Bridge forwards despite a simulated large queued-byte count",
+      "forwarded_frames": 100,
+      "pause_calls": 0,
+      "qualification": "The local Kimi application server has separate backpressure checks; this tests the additional bridge."
+    }
+  ]
+}

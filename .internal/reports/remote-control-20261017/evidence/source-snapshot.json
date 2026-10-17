@@ -1,0 +1,461 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-10-17T04:34:21.485186+00:00",
+  "purpose": "Source inventory for the AX Code remote-control research and proposed plan.",
+  "limitations": [
+    "Working trees can change concurrently; this is an observation, not a lock or release receipt.",
+    "Older snapshot rows in REFERENCE-REVIEW.md retain their original review time.",
+    "Git HEAD availability does not prove a released or usable integration contract.",
+    "No product code, reference source, Headscale configuration, cloud resource or account was changed by the report-writing task."
+  ],
+  "initial_report_write_baseline": {
+    "desktop_tracked_status": "clean",
+    "runtime_tracked_status": "clean",
+    "headscale_dirty_file": "hscontrol/types/config.go",
+    "headscale_dirty_file_sha256": "f9514d9c387190e31239da60631484e1f6d2a2b7a6f9da435a422859be6cd62a"
+  },
+  "checkouts": {
+    "desktop": {
+      "path": "/Users/akiralam/code/ax-code-desktop",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-code-desktop",
+      "head": "c223933e0a01f939ca89b60fdb90d6d3976403c2",
+      "tracked_status": ""
+    },
+    "runtime": {
+      "path": "/Users/akiralam/code/ax-code",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-code",
+      "head": "9d553d6290ad6d33b6cf94befbf1e612b6e4bb3f",
+      "tracked_status": ""
+    },
+    "headscale": {
+      "path": "/Users/akiralam/code/headscale",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/headscale",
+      "head": "b7d04f47a2f3269ea9f69589804ee10fcd34363c",
+      "tracked_status": ""
+    },
+    "openchamber": {
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/openchamber",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-code/.internal/reference/openchamber",
+      "head": "d648bdedfc2e360fbd6bc21bbe6b5a7cfed544d2",
+      "tracked_status": ""
+    },
+    "codex": {
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/codex",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-code/.internal/reference/codex",
+      "head": "e7de1f444089c29ac002e3df08d940f6de8a2613",
+      "tracked_status": ""
+    },
+    "kimi-code": {
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code",
+      "head": "18c6d64272952503baccf706bff455bb6a2c488e",
+      "tracked_status": ""
+    },
+    "herdr": {
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/herdr",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-code/.internal/reference/herdr",
+      "head": "143bf5fd4781d164260c63fe28e7dc08054ad32f",
+      "tracked_status": ""
+    },
+    "cline": {
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/cline",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-code/.internal/reference/cline",
+      "head": "b549ceb4bb4247284c975f6d6ca0979decec097c",
+      "tracked_status": ""
+    },
+    "hermes-agent": {
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/hermes-agent",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-code/.internal/reference/hermes-agent",
+      "head": "521f4dc2a1a4e19d56419a899f779d60efa01716",
+      "tracked_status": ""
+    },
+    "opencode": {
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/opencode",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-code/.internal/reference/opencode",
+      "head": "bc5ebf00a4c169ece10f276e6ce02eaf18c326e6",
+      "tracked_status": ""
+    },
+    "deepseek-harness": {
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/deepseek-harness",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-code/.internal/reference/deepseek-harness",
+      "head": "1517a4dbca0a2789ff1d41ba439600f8547d23fa",
+      "tracked_status": ""
+    },
+    "ax-trust": {
+      "path": "/Users/akiralam/code/ax-trust",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-trust",
+      "head": "fc9139c90a30c96d36c80c72597aa74b58fe25ff",
+      "tracked_status": ""
+    },
+    "ax-agent": {
+      "path": "/Users/akiralam/code/ax-agent",
+      "exists": true,
+      "git_root": "/Users/akiralam/code/ax-agent",
+      "head": null,
+      "tracked_status": ""
+    },
+    "ax-telemetry": {
+      "path": "/Users/akiralam/code/ax-telemetry",
+      "exists": true,
+      "git_root": null,
+      "head": null,
+      "tracked_status": null
+    }
+  },
+  "sources": [
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/AGENTS.md",
+      "bytes": 6915,
+      "sha256": "76845d6373ddd110ea76a09da5dbffff59eb3fd1a0260fdedf19739487ab9d1c"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/.internal/adr/ADR-002-product-and-source-boundary.md",
+      "bytes": 2645,
+      "sha256": "3c6cd336211c01e64d3d33ed9375543d2e416ee73f9346dd445b1bc79367cd8c"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/.internal/adr/ADR-004-sdk-runtime-and-release-order.md",
+      "bytes": 2767,
+      "sha256": "5c8a7d7180ac2f5c92133e08bd5510333ac4798cba6cd3c2feb745d35458f801"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/.internal/adr/ADR-005-persistent-portfolio-service.md",
+      "bytes": 2679,
+      "sha256": "c6dc5670962932b2b5c3f428680c198b8d8659f7a29994bcb0171d03131f838e"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/.internal/adr/ADR-007-defer-ax-agent-manager-integration.md",
+      "bytes": 2022,
+      "sha256": "4fab027320d758e18bd822fd84184cfa9b67812d2eee6ed4a2e1c7cfb079f1b3"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/.internal/adr/ADR-015-product-name-ax-code.md",
+      "bytes": 1480,
+      "sha256": "3659fa9a82bf3e1f8efe09255afa8876be185bbf167b60457940fcd7c420a865"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/.internal/spec/SPEC-2026-09-02-desktop-process-model.md",
+      "bytes": 2662,
+      "sha256": "e0c45e1e4c402cb366f382ad7f884f81429ee5a46c271e04bbe2ecbcef223ecb"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/.internal/spec/SPEC-2026-09-02-ax-code-worker-contract.md",
+      "bytes": 2813,
+      "sha256": "c4b11fbabcefc4382e5833148bd4816121cf7abf01c0efd84bca7d08a74d3b35"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/desktop/packages/electron/src/server-process.js",
+      "bytes": 3828,
+      "sha256": "61cced54fac4d93f7568386994f560742e5f930c9a040c4baaa2dbc22ed278e0"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/desktop/packages/electron/src/axcode-runtime-supervisor.js",
+      "bytes": 34514,
+      "sha256": "efe3744f5e7a999c61f433b805c15f0a1098abc94c7405f55a81a0852de9cd64"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/desktop/packages/electron/src/runtime-auth-password.js",
+      "bytes": 2287,
+      "sha256": "33506f424ba448abbf8ca5bf2190727f59a77b2545914894ee34d182afe685f3"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/desktop/packages/web/server/lib/security/local-only.js",
+      "bytes": 1339,
+      "sha256": "488995d0c53c84ff112bb3c783d766d7de0355ec9d6d160fa008bd0ad6358ec7"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/desktop/packages/web/server/lib/ax-code/server-startup-runtime.js",
+      "bytes": 3185,
+      "sha256": "a71cf014bb022ed1da24a91d31f16445c9fac4c61a9df10971b015f8965a069a"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/desktop/packages/web/server/lib/ax-code/proxy.js",
+      "bytes": 27719,
+      "sha256": "67ff196223120f65a5b71bbea4511e9d536fe7892fba4f66ef94cbea6b7d73b2"
+    },
+    {
+      "checkout": "desktop",
+      "path": "/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/lib/event-stream/connection-state.ts",
+      "bytes": 2950,
+      "sha256": "334abd8d31662fe2200ea32c0fab3eea79cc986b8ca6c18969407e9cd6220bff"
+    },
+    {
+      "checkout": "runtime",
+      "path": "/Users/akiralam/code/ax-code/AGENTS.md",
+      "bytes": 17525,
+      "sha256": "94f79f0586daefd8b8479951a977d031bb81782206ebe641db8611d921df0d42"
+    },
+    {
+      "checkout": "runtime",
+      "path": "/Users/akiralam/code/ax-code/.internal/adr/ADR-106-persistent-coding-workspace.md",
+      "bytes": 4133,
+      "sha256": "e1d182cf236ca7f51329917a17328de28da3f5c2e711da2bf8da0401a69a31fd"
+    },
+    {
+      "checkout": "runtime",
+      "path": "/Users/akiralam/code/ax-code/packages/ax-code/src/util/listen-security.ts",
+      "bytes": 1546,
+      "sha256": "73a2b3467bef822c2e86f60f4d6281c305951c37c6f784851992ebfcd1638cd6"
+    },
+    {
+      "checkout": "runtime",
+      "path": "/Users/akiralam/code/ax-code/packages/ax-code/src/server/routes/event.ts",
+      "bytes": 1599,
+      "sha256": "25bba33080b759f5d3372fd3d8d8d9becbbe4a8722dc339019dc47bd1e90023f"
+    },
+    {
+      "checkout": "runtime",
+      "path": "/Users/akiralam/code/ax-code/packages/sdk/js/src/protocol.ts",
+      "bytes": 4187,
+      "sha256": "ab1250eae54e880058e99969a3249dc3bc50616caa478dd04c5cc895726e33ef"
+    },
+    {
+      "checkout": "kimi-code",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code/packages/remote-control/src/remote-control.ts",
+      "bytes": 46102,
+      "sha256": "30c4ed90ed00f0e4c567a940214207e3c8ec31fe4db81d022fe68d5e518e00a9"
+    },
+    {
+      "checkout": "kimi-code",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code/packages/remote-control/src/manager.ts",
+      "bytes": 8918,
+      "sha256": "29a33307a7d43462998f0fc7157d38d4ee4093850a81305e62cac834f472fe9f"
+    },
+    {
+      "checkout": "kimi-code",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code/packages/remote-control/src/lock.ts",
+      "bytes": 5320,
+      "sha256": "da220636c6f58575f8c76cb355b0fb0f7435607c1d9cf840abe0e5c9f5ff0d83"
+    },
+    {
+      "checkout": "kimi-code",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code/packages/remote-control/src/device-client.ts",
+      "bytes": 10308,
+      "sha256": "3d33506a822110fbcac2d07c46ea0c662a771204f52a3a65f37d212b67c05b2e"
+    },
+    {
+      "checkout": "kimi-code",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code/packages/remote-control/test/remote-control.test.ts",
+      "bytes": 86350,
+      "sha256": "6109506f56766c3bb5d5702a28eaae20ede9b8d09bfa69504886c08e9ac5ea84"
+    },
+    {
+      "checkout": "kimi-code",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code/packages/kap-server/src/routes/approvals.ts",
+      "bytes": 6574,
+      "sha256": "f52ebc6fffaec4b2049db8d8c9e4f4108a4b4c1008256740d107b4031168faac"
+    },
+    {
+      "checkout": "kimi-code",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code/packages/kap-server/src/routes/oauth.ts",
+      "bytes": 10455,
+      "sha256": "cb84226867b0762d323aa1f2658d8782da2545ed9a4d593138d482cf48626236"
+    },
+    {
+      "checkout": "kimi-code",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code/apps/kimi-code/src/cli/sub/web/run.ts",
+      "bytes": 20683,
+      "sha256": "49fbe9a6a96a3bbf79990abeb7fdbda46c48db24a6511bf16e211f42ddd82c3b"
+    },
+    {
+      "checkout": "kimi-code",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/kimi-code/docs/en/guides/remote-control.md",
+      "bytes": 10004,
+      "sha256": "21d0388e04f6cdd9349b739c64ce40555162c58027f9c3e1d9ae891a403449d5"
+    },
+    {
+      "checkout": "openchamber",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/openchamber/packages/web/server/lib/relay/DOCUMENTATION.md",
+      "bytes": 24904,
+      "sha256": "af9a1644fc92d799eabce908c94412bccea08c3216f40039e69727e6a7163ca4"
+    },
+    {
+      "checkout": "openchamber",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/openchamber/packages/web/server/lib/relay/e2ee.js",
+      "bytes": 12680,
+      "sha256": "57e33a951eae1f8a6b37bd2bfd8609d65f23493a212a737c040b159f55b1af40"
+    },
+    {
+      "checkout": "openchamber",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/openchamber/packages/web/server/lib/relay/tunnel-host.js",
+      "bytes": 27511,
+      "sha256": "6d806b34c0daf13495356f984eeebfbe26db26f11ddf5b17c881da75864bc046"
+    },
+    {
+      "checkout": "openchamber",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/openchamber/packages/web/server/lib/client-auth/pairing.js",
+      "bytes": 12036,
+      "sha256": "aa19d4228af807e2398a918416baf9567f6ec8153b05fc3224bcb72ee259d58e"
+    },
+    {
+      "checkout": "openchamber",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/openchamber/packages/web/server/lib/client-auth/remote-clients.js",
+      "bytes": 11441,
+      "sha256": "a0c62f8fba35bb949819a87f415c27584af48a46f8bd427acbb7cae4a942b108"
+    },
+    {
+      "checkout": "codex",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/codex/codex-rs/app-server-transport/src/transport/remote_control/protocol.rs",
+      "bytes": 14187,
+      "sha256": "cccb55dab130b019724dc7db2bbd68e8f1ec0f24e1106e510446e7dbe67fa81d"
+    },
+    {
+      "checkout": "codex",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/codex/codex-rs/app-server-transport/src/transport/remote_control/auth.rs",
+      "bytes": 10711,
+      "sha256": "5fdfbaeaf1340719fee5d6a38c7d679b1b76269e62817253df165ff58c789330"
+    },
+    {
+      "checkout": "codex",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/codex/codex-rs/app-server-transport/src/transport/remote_control/websocket.rs",
+      "bytes": 144271,
+      "sha256": "43b6cec814b594337594e6f25e0bc7dd77bb5688a392bc03145dbb78986c072d"
+    },
+    {
+      "checkout": "codex",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/codex/codex-rs/cli/src/remote_control_cmd.rs",
+      "bytes": 30390,
+      "sha256": "8baf41638339d280937c63b9fa9fadbd3a9e879c71113f21be1c0fe44747079e"
+    },
+    {
+      "checkout": "herdr",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/herdr/docs/preview/website/src/content/docs/connecting-machines.mdx",
+      "bytes": 15116,
+      "sha256": "121adb9f30be4061db2b3f41b07f8b2be3b93a17e2de91999ba7fb9380362839"
+    },
+    {
+      "checkout": "herdr",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/herdr/docs/preview/website/src/content/docs/persistence-remote.mdx",
+      "bytes": 8899,
+      "sha256": "e86aca5eb273634ce0a68ce3d335f5be00d89598ceac48fab041c8c37505e478"
+    },
+    {
+      "checkout": "herdr",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/herdr/src/platform/remote_bridge.rs",
+      "bytes": 4217,
+      "sha256": "30109a63a6c069e859d37ab859401f0b5ce9d82c08273caecd82f9a98bb0255e"
+    },
+    {
+      "checkout": "cline",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/cline/apps/cli/src/connectors/adapters/telegram.md",
+      "bytes": 5964,
+      "sha256": "8a103c4586b1637e43b876421d6a702687b63e346ae737a673a33112752c5ed7"
+    },
+    {
+      "checkout": "cline",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/cline/apps/cli/src/connectors/hooks.ts",
+      "bytes": 3770,
+      "sha256": "e11cbd379e4b2c566de79e36048502821253f7fb0d3704e2d1221bfde01bafc3"
+    },
+    {
+      "checkout": "hermes-agent",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/hermes-agent/website/docs/developer-guide/gateway-internals.md",
+      "bytes": 53504,
+      "sha256": "04432cd67b54b2c7d84ec90b6513976f7d1326b3782d0223dda9929064894d80"
+    },
+    {
+      "checkout": "opencode",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/opencode/packages/server/src/auth.ts",
+      "bytes": 2601,
+      "sha256": "d2184b996991631490d7e82c19a7bd3310576c16fa2da2678819cac0a50f55c2"
+    },
+    {
+      "checkout": "deepseek-harness",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/deepseek-harness/docs/subsystems/web-server.md",
+      "bytes": 16332,
+      "sha256": "cc2035d44abc5a29b3beb4355d4e169ed9b12e03731233e37cddfe695628b89b"
+    },
+    {
+      "checkout": "deepseek-harness",
+      "path": "/Users/akiralam/code/ax-code/.internal/reference/deepseek-harness/docs/defensive-patterns/remote-and-api.md",
+      "bytes": 11518,
+      "sha256": "76e591c4e26d6a7f34ea58487c8e39838d6c1d2a48ab6f24612e789682c81d81"
+    },
+    {
+      "checkout": "headscale",
+      "path": "/Users/akiralam/code/headscale/README.md",
+      "bytes": 6520,
+      "sha256": "1f8b0b523e685dede505cabc08eeb42b6278e3fd4440e284cc698ef3fc54e299"
+    },
+    {
+      "checkout": "headscale",
+      "path": "/Users/akiralam/code/headscale/docs/about/features.md",
+      "bytes": 3109,
+      "sha256": "be35e21919997942f0e4f397981da771f8f3fb5fc3c0776a085dc73fee50fd7d"
+    },
+    {
+      "checkout": "headscale",
+      "path": "/Users/akiralam/code/headscale/docs/ref/policy.md",
+      "bytes": 9926,
+      "sha256": "a4f7a765256622485723fd605537defe3d2893bf0b92bcf2dc5c060eb83cbbbf"
+    },
+    {
+      "checkout": "headscale",
+      "path": "/Users/akiralam/code/headscale/docs/ref/registration.md",
+      "bytes": 6213,
+      "sha256": "1426616ebb25c0419af64aea05fd258c07768f82d418b17ace68eaa2b74dbf39"
+    },
+    {
+      "checkout": "headscale",
+      "path": "/Users/akiralam/code/headscale/docs/ref/derp.md",
+      "bytes": 6907,
+      "sha256": "752453cfd643389be79b577acf74f2a11b0b40ff93d8ae0b930220e61f20dd27"
+    },
+    {
+      "checkout": "headscale",
+      "path": "/Users/akiralam/code/headscale/docs/ref/oidc.md",
+      "bytes": 17250,
+      "sha256": "551a927ba093f252cba257662c7b02923f9510389536c4b82b94e3e9bdb7ffef"
+    },
+    {
+      "checkout": "headscale",
+      "path": "/Users/akiralam/code/headscale/docs/usage/connect/apple.md",
+      "bytes": 2290,
+      "sha256": "5717078a30a3b6049ece9945ce4c114f13b1735225d29fddaa53f66d00869229"
+    },
+    {
+      "checkout": "headscale",
+      "path": "/Users/akiralam/code/headscale/hscontrol/derp/server/derp_server.go",
+      "bytes": 13122,
+      "sha256": "2e5edc06f7b292afa8b306e86f2ddece4bddbd090efc6be6d85657dd536d5e7b"
+    },
+    {
+      "checkout": "ax-trust",
+      "path": "/Users/akiralam/code/ax-trust/README.md",
+      "bytes": 6500,
+      "sha256": "9fde3aea2535aeae154dbeb8d17c7ced74030985a564a649a92cfe48ffe58e82"
+    },
+    {
+      "checkout": "ax-agent",
+      "path": "/Users/akiralam/code/ax-agent/README.md",
+      "bytes": 2994,
+      "sha256": "d963b907404818a3bf74c48debd93b0efbec90ed3d0da66839cb46425d3fbbbe"
+    }
+  ]
+}
