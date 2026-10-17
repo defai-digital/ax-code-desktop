@@ -18,15 +18,20 @@ export const buildActiveSessionTree = (sessions: readonly Session[], root: Sessi
     childrenByParentId.set(parentId, siblings)
   }
 
-  const build = (session: Session): SessionNode => ({
-    session,
-    children: (childrenByParentId.get(session.id) ?? [])
-      .filter((child) => !child.time?.archived)
-      .map((child) => build(child)),
-    worktree: null,
-  })
+  // The cache is merged from snapshots and is not guaranteed to be acyclic. A visited set bounds the walk even if a
+  // session names an ancestor as its parent.
+  const build = (session: Session, visited: Set<string>): SessionNode => {
+    visited.add(session.id)
+    return {
+      session,
+      children: (childrenByParentId.get(session.id) ?? [])
+        .filter((child) => !child.time?.archived && !visited.has(child.id))
+        .map((child) => build(child, visited)),
+      worktree: null,
+    }
+  }
 
-  return build(root)
+  return build(root, new Set())
 }
 
 /**

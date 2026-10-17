@@ -15,6 +15,13 @@ describe("text summarization stubs", () => {
     expect(sanitizeForSummary("see file:/etc/hosts today")).toBe("see file: today")
   })
 
+  it("keeps ordinary parentheses and their punctuation", () => {
+    // Replacing brackets with a space fixed the label above but injected a space before every comma and period that
+    // followed a parenthesis.
+    expect(sanitizeForSummary("Done (ok), then (maybe).")).toBe("Done ok, then maybe.")
+    expect(sanitizeForSummary("Read a[0] here")).toBe("Read a0 here")
+  })
+
   it("removes code from summary text before stripping markdown punctuation", () => {
     expect(sanitizeForSummary("Read `const value = 1` aloud")).toBe("Read aloud")
     expect(sanitizeForSummary("Before\n```js\nconst value = 1\n```\nAfter")).toBe("Before After")

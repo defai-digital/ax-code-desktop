@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { formatRelativeAge } from "@/lib/supervision/relativeAge"
 
-// Answers in flight, by notification id. Module scope so the claim survives the entry's unmount when the panel
-// closes; the entry itself is remounted with the panel.
-const answeringNotificationIds = new Set<string>()
+// Answers in flight, by request (falling back to the notification id). Module scope so the claim survives the
+// entry's unmount when the panel closes, and the promise lets the remounted entry learn when the claim is released.
+// Keyed by request because the permission watcher adds a fresh notification id for the same pending request when it
+// remounts.
+const answersInFlight = new Map<string, Promise<void>>()
 
 const NotificationEntry: React.FC<{
   item: NotificationItem
@@ -31,26 +33,41 @@ const NotificationEntry: React.FC<{
 
   // The entry leaves only once its answer landed: a reply that failed leaves the permission pending, and removing
   // the entry took away the user's handle on it — the request stayed open somewhere the bell no longer showed.
-  // The guard is module-level, not a ref: the panel returns null while closed, so every close unmounts the entry and
-  // the reopen would mount a fresh one with a per-entry guard reset while the first answer was still in flight.
-  // The state is there for the buttons' disabled attribute.
-  const [responding, setResponding] = React.useState(() => answeringNotificationIds.has(item.id))
+  // The claim is module-level, not a ref: the panel returns null while closed, so every close unmounts the entry and
+  // the reopen would mount a fresh one with a per-entry guard reset while the first answer was still in flight. The
+  // remounted entry subscribes to the claim's promise so a failure re-enables its buttons; the state is there for
+  // the buttons' disabled attribute.
+  const answerKey = item.requestId ?? item.id
+  const inheritedClaim = answersInFlight.get(answerKey)
+  const [responding, setResponding] = React.useState(Boolean(inheritedClaim))
+  React.useEffect(() => {
+    if (!inheritedClaim) return
+    let active = true
+    const settle = () => {
+      if (active) setResponding(false)
+    }
+    void inheritedClaim.then(settle, settle)
+    return () => {
+      active = false
+    }
+  }, [inheritedClaim])
   const respond = React.useCallback(
     async (handler: (() => void | Promise<void>) | undefined) => {
-      if (answeringNotificationIds.has(item.id)) return
-      answeringNotificationIds.add(item.id)
+      if (answersInFlight.has(answerKey)) return
+      const answer = Promise.resolve().then(() => handler?.())
+      answersInFlight.set(answerKey, answer)
       setResponding(true)
       try {
-        await handler?.()
+        await answer
       } catch {
-        answeringNotificationIds.delete(item.id)
+        answersInFlight.delete(answerKey)
         setResponding(false)
         return
       }
-      answeringNotificationIds.delete(item.id)
+      answersInFlight.delete(answerKey)
       onRemove(item.id)
     },
-    [item.id, onRemove],
+    [answerKey, item.id, onRemove],
   )
 
   return (

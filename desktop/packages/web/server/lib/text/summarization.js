@@ -17,15 +17,14 @@ export function sanitizeForSummary(text) {
     .replace(/^\s*[$#>]\s*/gm, "")
     .replace(/[|&;<>]/g, " ")
     .replace(/\\/g, "")
-    // A space, not nothing: `[docs](/etc/hosts)` lost its bracket and left `docs/etc/hosts`, which no path pattern
-    // can tell from prose.
-    .replace(/[\[\]{}()]/g, " ")
-    .replace(/["']/g, "")
     .replace(/https?:\/\/[^\s]+/g, " a link ")
-    // A slash-run is a path only when no word character precedes it: `/usr/local/bin`, `/etc`, and `file:/etc` or
-    // `[label](/etc)` once the punctuation above is a space. Inside a word it is not — `either/or` and `TCP/IP`
-    // keep both halves. The whole run goes, trailing separator included.
-    .replace(/(^|[\s:])\/[\w\-./]+/g, "$1")
+    // The path pass runs before the brackets go, and lets the punctuation that can precede a path stand in for the
+    // word boundary: `[label](/etc)` and `file:/etc` are paths even though no whitespace comes before the slash.
+    // Inside a word a slash is not a path — `either/or` and `TCP/IP` keep both halves — so a word character before
+    // it rules the run out. The whole run goes, trailing separator included.
+    .replace(/(^|[\s:([{"'])\/[\w\-./]+/g, "$1")
+    .replace(/[\[\]{}()]/g, "")
+    .replace(/["']/g, "")
     .replace(/\s+/g, " ")
     .trim()
 }

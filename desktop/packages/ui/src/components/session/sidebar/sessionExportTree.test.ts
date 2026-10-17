@@ -56,4 +56,15 @@ describe("session export tree", () => {
 
     expect(resolveSessionExportTree(tree, session("root", null))).toBe(tree)
   })
+
+  test("stops on a parent cycle instead of recursing forever", () => {
+    // The cache is merged from snapshots and is not guaranteed to be acyclic; the project tree builder would recurse
+    // just as far, but the export path must not take the click handler down with it.
+    useGlobalSessionsStore.setState({ activeSessions: [session("a", "b"), session("b", "a")] })
+
+    const tree = buildActiveSessionTree(useGlobalSessionsStore.getState().activeSessions, session("a", "b"))
+
+    expect(tree.children.map((child) => child.session.id)).toEqual(["b"])
+    expect(tree.children[0].children).toEqual([])
+  })
 })

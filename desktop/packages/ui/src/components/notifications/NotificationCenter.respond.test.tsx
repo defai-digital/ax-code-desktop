@@ -133,6 +133,62 @@ describe("NotificationCenter permission entry", () => {
     releaseReply()
   })
 
+  test("re-enables a reopened entry when the inherited answer fails", async () => {
+    // The reopened entry seeds `responding` from the claim, but the failure lands in the unmounted instance's
+    // setter: the entry stayed disabled forever, and the pending permission had no handle left in the bell.
+    let rejectReply: (error: Error) => void = () => {}
+    const onAllow = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectReply = reject
+        }),
+    )
+    useNotificationStore.getState().addNotification(permissionItem({ onAllow, onDeny: vi.fn(async () => {}) }))
+    await render()
+
+    await click(dict["notificationCenter.allow"])
+    await act(async () => {
+      useNotificationStore.setState({ isOpen: false })
+    })
+    await act(async () => {
+      useNotificationStore.setState({ isOpen: true })
+    })
+
+    await act(async () => {
+      rejectReply(new Error("Failed to respond"))
+    })
+    await act(async () => {})
+
+    const allow = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === dict["notificationCenter.allow"],
+    )
+    expect(allow?.disabled).toBe(false)
+    expect(useNotificationStore.getState().notifications).toHaveLength(1)
+  })
+
+  test("answers a request once even when two notifications name it", async () => {
+    // The permission watcher drops its notifications when it unmounts and adds a fresh one — with a new id — for
+    // the same request when it comes back. Keyed by notification id, the second entry answered again.
+    let releaseReply = () => {}
+    const onAllow = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseReply = resolve
+        }),
+    )
+    const onDeny = vi.fn(async () => {})
+    useNotificationStore.getState().addNotification(permissionItem({ requestId: "req_same", onAllow, onDeny }))
+    useNotificationStore.getState().addNotification(permissionItem({ requestId: "req_same", onAllow, onDeny }))
+    await render()
+
+    await click(dict["notificationCenter.allow"])
+    await click(dict["notificationCenter.deny"])
+
+    expect(onAllow).toHaveBeenCalledTimes(1)
+    expect(onDeny).not.toHaveBeenCalled()
+    releaseReply()
+  })
+
   test("removes the entry once the answer landed", async () => {
     const onAllow = vi.fn(async () => {})
     useNotificationStore.getState().addNotification(permissionItem({ onAllow, onDeny: onAllow }))
