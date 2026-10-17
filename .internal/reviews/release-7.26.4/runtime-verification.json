@@ -1,0 +1,54 @@
+{
+ "version": "7.26.4",
+ "releaseTag": "v7.26.4",
+ "publishedAt": "2026-10-17T04:17:56Z",
+ "publicKey": {
+  "path": "resources/keys/ax-minisign.pub",
+  "sha256": "41de2e31510ccfc6f3450d8de1e8ed59481413d00f8a58d65bddbc05042397b2",
+  "releaseCopyIdentical": true
+ },
+ "artifacts": {
+  "darwin-arm64": {
+   "filename": "ax-code-darwin-arm64.zip",
+   "size": 79662250,
+   "sha256": "dbb68a2f94959fa0a840a1fe9cef5cd6181eb448b232a134cf40e5ccb969a37c",
+   "signatureSize": 377,
+   "signatureSha256": "c569e7cd5c99e5ddce25a7a20165c7b9c1a9561a1f375893f706bf9b6349ee61"
+  },
+  "linux-arm64": {
+   "filename": "ax-code-linux-arm64.tar.gz",
+   "size": 86050573,
+   "sha256": "b49d1d561ff45d6dd2b9c64fac8e5eb7b98a0ad129e304e594ae8053b02186da",
+   "signatureSize": 379,
+   "signatureSha256": "a2038f5b9e66566d9aaa896b75b24bcfba1d36fe549fb0b5dbaa59251e382f07"
+  },
+  "linux-x64": {
+   "filename": "ax-code-linux-x64.tar.gz",
+   "size": 87791625,
+   "sha256": "60aae1c37f10fc51f42f70d4221537b787b19c8d9360f2eb5bcdb3ef0ef9ee0e",
+   "signatureSize": 377,
+   "signatureSha256": "fe907e9c3815c7df88c5a5e6c32f3aa64832a47b99ded286ea766c6ad7926604"
+  },
+  "win32-x64": {
+   "filename": "ax-code-windows-x64.zip",
+   "size": 94163739,
+   "sha256": "293c7e1542dda081856eee7752563a0957f213827daaf9b39921e731de3d3dc7",
+   "signatureSize": 376,
+   "signatureSha256": "a4ecfb8c6e54b9d3608e2ed50f07e8cc5ed27755a0eba3be82a33c7aa4d8b849"
+  }
+ },
+ "minisignVerifiedTargets": [
+  "darwin-arm64",
+  "linux-arm64",
+  "linux-x64",
+  "win32-x64"
+ ],
+ "trustedCommentDigestsMatch": true,
+ "githubAssetDigestsMatch": true,
+ "bootCheck": {
+  "target": "darwin-arm64",
+  "version": "7.26.4",
+  "health": "healthy",
+  "hooksRoute": "GET /hooks answered (trusted=false, file valid)"
+ }
+}
