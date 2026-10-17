@@ -32,13 +32,15 @@ vi.mock("@/components/ui", () => ({ toast: { error: toastError, success: vi.fn()
 vi.mock("@/stores/useDirectoryStore", () => ({
   useDirectoryStore: stubStore({ currentDirectory: "/repo", homeDirectory: "/home/user" }),
 }))
-vi.mock("@/stores/useProjectsStore", () => ({
-  useProjectsStore: stubStore({
+const { projectsState } = vi.hoisted(() => ({
+  projectsState: {
     activeProjectId: null as string | null,
     setActiveProjectIdOnly: vi.fn(),
     projects: [] as { id: string; path: string }[],
-  }),
+  },
 }))
+
+vi.mock("@/stores/useProjectsStore", () => ({ useProjectsStore: stubStore(projectsState) }))
 vi.mock("@/stores/useMultiRunStore", () => ({
   useMultiRunStore: stubStore({ createMultiRun, error: null, clearError: vi.fn() }),
 }))
@@ -109,7 +111,7 @@ const setReactValue = (element: HTMLTextAreaElement | HTMLInputElement, value: s
 const buttonByText = (container: HTMLElement, label: string) =>
   Array.from(container.querySelectorAll("button")).find((button) => button.textContent === label)
 
-describe("MultiRunLauncher Escape handling", () => {
+describe("MultiRunLauncher", () => {
   let container: HTMLDivElement
   let root: Root
   let onCancel: () => void
@@ -120,6 +122,8 @@ describe("MultiRunLauncher Escape handling", () => {
     document.body.appendChild(container)
     root = createRoot(container)
     onCancel = vi.fn()
+    projectsState.activeProjectId = null
+    projectsState.projects = []
   })
 
   afterEach(() => {
@@ -300,4 +304,44 @@ describe("MultiRunLauncher run count", () => {
     expect(toastError).not.toHaveBeenCalled()
     expect(onCreated).toHaveBeenCalledTimes(1)
   })
+
+  test("keeps the typed setup commands when the projects store rebuilds its entries", async () => {
+    // The projects store rebuilds every entry from the stored list, so the same project arrives as a new object
+    // whenever that list is reloaded. The load effect was keyed on that object: a reload reset the commands and
+    // discarded what the user had typed, though the project itself had not changed.
+    projectsState.activeProjectId = "proj_1"
+    projectsState.projects = [{ id: "proj_1", path: "/repo" }]
+    await renderLauncher()
+
+    const setupTrigger = Array.from(container.querySelectorAll("button")).find((button) =>
+      (button.textContent ?? "").includes(dict["multirun.launcher.setupCommands.label"]),
+    )
+    expect(setupTrigger).toBeDefined()
+    await act(async () => {
+      setupTrigger?.click()
+    })
+
+    await act(async () => {
+      buttonByText(container, dict["multirun.launcher.setupCommands.addCommand"])?.click()
+    })
+    const input = byPlaceholder(container, dict["multirun.launcher.setupCommands.commandPlaceholder"], "input")
+    expect(input).not.toBeNull()
+    await act(async () => {
+      setReactValue(input!, "pnpm build")
+    })
+
+    // The same project, handed over as a new object.
+    projectsState.projects = [{ id: "proj_1", path: "/repo" }]
+    await act(async () => {
+      buttonByText(container, dict["multirun.launcher.setupCommands.addCommand"])?.click()
+    })
+
+    const values = Array.from(
+      container.querySelectorAll<HTMLInputElement>(
+        `input[placeholder="${dict["multirun.launcher.setupCommands.commandPlaceholder"]}"]`,
+      ),
+    ).map((element) => element.value)
+    expect(values).toContain("pnpm build")
+  })
+
 })

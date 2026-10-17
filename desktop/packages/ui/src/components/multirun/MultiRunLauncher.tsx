@@ -201,6 +201,12 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
     return { id: `path:${base}`, path: base }
   }, [selectedProject, currentDirectory])
 
+  // What the load below is really keyed on. The projects store rebuilds its entries from the stored list, so the
+  // same project arrives as a new object whenever that list is reloaded — and the effect reset the commands on
+  // that, discarding what the user had typed while the identity of the project had not changed at all.
+  const projectRefId = projectRef?.id ?? null
+  const projectRefPath = projectRef?.path ?? null
+
   const [isDesktopApp] = React.useState(() => (typeof window !== "undefined" ? isDesktopShell() : false))
 
   const isMacPlatform = React.useMemo(() => {
@@ -309,7 +315,7 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
     // project's worktrees (the load below is asynchronous, and `isValid` did not wait for it), which
     // ran shell commands from one project inside another's worktrees.
     setSetupCommands([])
-    if (!projectRef) {
+    if (!projectRefId || !projectRefPath) {
       setIsLoadingSetupCommands(false)
       return
     }
@@ -317,7 +323,7 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
     setIsLoadingSetupCommands(true)
     ;(async () => {
       try {
-        const commands = await getWorktreeSetupCommands(projectRef)
+        const commands = await getWorktreeSetupCommands({ id: projectRefId, path: projectRefPath })
         if (!cancelled) setSetupCommands(commands)
       } catch {
         // Ignore
@@ -328,7 +334,7 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
     return () => {
       cancelled = true
     }
-  }, [projectRef])
+  }, [projectRefId, projectRefPath])
 
   const updateGroup = React.useCallback((groupId: string, updates: Partial<RunGroupState>) => {
     setRunGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, ...updates } : g)))
