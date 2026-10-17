@@ -152,11 +152,18 @@ const createInstantWorktreeDraft = async (options?: {
     return null
   }
 
+  // Claimed before the first await. The check above and the claim below used to bracket
+  // `await checkIsGitRepository`, and both the new-worktree shortcut and the menu item call this without
+  // awaiting, so two presses in the same tick both passed the guard: two worktrees, two branches, and one draft
+  // target between them. Every early return before the body's own `try`/`finally` releases it.
+  isCreatingWorktreeSession = true
+
   const activeProject = useProjectsStore.getState().getActiveProject()
   if (!activeProject?.path) {
     toast.error(tr("worktreeSessionCreator.error.noActiveProject"), {
       description: tr("worktreeSessionCreator.error.noActiveProjectDescription"),
     })
+    isCreatingWorktreeSession = false
     return null
   }
 
@@ -173,10 +180,9 @@ const createInstantWorktreeDraft = async (options?: {
     toast.error(tr("worktreeSessionCreator.error.notGitRepository"), {
       description: tr("worktreeSessionCreator.error.notGitRepositoryDescription"),
     })
+    isCreatingWorktreeSession = false
     return null
   }
-
-  isCreatingWorktreeSession = true
 
   // The preview path is set as the working directory before the worktree exists, so
   // a failed creation has to undo it (the value is also persisted as lastDirectory).
