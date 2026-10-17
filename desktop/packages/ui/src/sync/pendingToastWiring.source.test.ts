@@ -21,8 +21,14 @@ describe("pending toast wiring", () => {
     // of both shapes.
     const handlerIndex = source.indexOf("function handleEvent(")
     const globalBranchIndex = source.indexOf('if (directory === "global" || !directory) {', handlerIndex)
-    const storeLookupIndex = source.indexOf("if (!store) {", handlerIndex)
+    // The first `if (!store)` in the handler is the recovery scan, which does not return; the branch that returns
+    // for an unknown directory is the next one, and that is the one the clear has to precede. Anchoring on the
+    // first would have passed for a clear sitting between them, which is the bug they were written for.
+    const recoveryIndex = source.indexOf("if (!store) {", handlerIndex)
+    const storeLookupIndex = source.indexOf("if (!store) {", recoveryIndex + 1)
     expect(handlerIndex).toBeGreaterThan(-1)
+    expect(recoveryIndex).toBeGreaterThan(-1)
+    expect(storeLookupIndex).toBeGreaterThan(recoveryIndex)
     expect(clearIndex).toBeGreaterThan(-1)
     expect(globalBranchIndex).toBeGreaterThan(-1)
     expect(storeLookupIndex).toBeGreaterThan(-1)
