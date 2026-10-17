@@ -1347,11 +1347,13 @@ Four regressions in this series' own fixes, all from `82b7a710`:
   settled added no guard against a second answer: Allow and Deny could both be submitted for one request while the
   first was pending. Both buttons are disabled while it is, and the handler refuses a re-entry.
 
-Two of the four carry a red-light test (`git/routes.test.js` and
-`NotificationCenter.respond.test.tsx`); the follower's identity and the process group's force signal are covered by
-reading and by the process-group test that already drives a real detached leader and its child, and their own red
-lights need a log file created mid-follow and a leader that exits ahead of its child — both worth adding when the
-suite next grows a fake for either.
+All four carry a red-light test now. The last two arrived in `b9c76f85`: the follower's starts before the log
+exists, creates it, then rotates it (red: `expected [ 'first', 'd-one', …(2) ] to include 'rotated-one'` — the
+"d-one" is the middle slice the old offset read), and the signal sequence is asserted against a stubbed
+`process.kill` that answers ESRCH for the pid, which is what an already-exited leader looks like (red:
+`expected [ [ -4242, 'SIGTERM' ], [ 4242, +0 ] ] to deep equally contain [ -4242, 'SIGKILL' ]`). The process-level
+fixture written first was dropped: the child it spawned never reported a pid in this environment, and a stubbed
+signal sequence asserts the same contract without a process to leak.
 
 Two further leads from the first audit are recorded rather than acted on: the log-rotation test deletes and
 recreates the file immediately, so a filesystem that reuses inode numbers would defeat it; and the preview sandbox
@@ -3765,6 +3767,9 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, in the thirty-first round, after `b9c76f85` (the last two red lights): `pnpm run typecheck` 0,
+  `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts
+  180 (+6 skipped), electron 600, ui 2 980, web 1 330 (+2 skipped), 0 `FAIL` lines.
 - Latest full run, in the thirty-first round, after `82b7a710` (four more of the audit's findings): `pnpm run
   typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 —
   root scripts 180 (+6 skipped), electron 600, ui 2 980, web 1 328 (+2 skipped), 0 `FAIL` lines.
