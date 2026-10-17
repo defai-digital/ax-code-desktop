@@ -16,6 +16,7 @@ const install = () => {
   }
   delete window.__openchamberPreviewBridgeInstalled
   delete window.__openchamberAppRequestProxyPatched
+  delete window.__openchamberPreviewColorSchemePatched
   new Function(PREVIEW_BRIDGE_SCRIPT_SOURCE())()
   return {
     calls,
@@ -47,6 +48,61 @@ describe("preview bridge request patches", () => {
 
       expect(String(calls[0])).toBe("/api/preview/proxy/aaaaaaaaaaaaaaaa/api/fs/list")
     } finally {
+      restore()
+    }
+  })
+})
+
+describe("preview bridge color-scheme listeners", () => {
+  const dispatchScheme = (scheme) => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { source: "openchamber-preview-parent", version: 1, type: "set-color-scheme", scheme },
+        source: window,
+      }),
+    )
+  }
+
+  it("stops notifying a matchMedia list the page has dropped", () => {
+    // A page that discards its MediaQueryList without removeEventListener left the entry, its callback and the
+    // page's closures in the set, and the bridge kept calling them on every scheme change. The entry holds a weak
+    // reference now and a dead one is dropped while notifying.
+    const realWeakRef = globalThis.WeakRef
+    const realMatchMedia = window.matchMedia
+    const refs = []
+    globalThis.WeakRef = class {
+      constructor(value) {
+        this.value = value
+        this.dead = false
+        refs.push(this)
+      }
+      deref() {
+        return this.dead ? undefined : this.value
+      }
+    }
+    // jsdom has no matchMedia; the bridge only patches when the platform provides one.
+    window.matchMedia = (query) => {
+      const native = new EventTarget()
+      native.media = query
+      native.matches = false
+      return native
+    }
+    const { restore } = install()
+    try {
+      const mql = window.matchMedia("(prefers-color-scheme: dark)")
+      const seen = []
+      mql.addEventListener("change", (event) => seen.push(event.matches))
+
+      dispatchScheme("light")
+      expect(seen).toEqual([false])
+
+      for (const ref of refs) ref.dead = true
+      dispatchScheme("dark")
+      expect(seen).toEqual([false])
+    } finally {
+      globalThis.WeakRef = realWeakRef
+      window.matchMedia = realMatchMedia
+      delete window.__openchamberPreviewColorSchemePatched
       restore()
     }
   })

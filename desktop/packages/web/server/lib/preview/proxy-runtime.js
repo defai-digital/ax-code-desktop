@@ -268,11 +268,21 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
 
   const notifyColorSchemeListeners = () => {
     for (const listener of Array.from(colorSchemeListeners)) {
+      // A page that drops its MediaQueryList without removeEventListener must not keep the entry (and the page's
+      // closure) alive: the MQL is held weakly, and a dead one is dropped here.
+      let mql = null;
+      try {
+        mql = listener.mqlRef.deref() || null;
+      } catch {}
+      if (!mql) {
+        colorSchemeListeners.delete(listener);
+        continue;
+      }
       try {
         const matches = mediaQueryMatchesPreviewScheme(listener.media);
         if (matches === null) continue;
-        const event = { matches, media: listener.media, type: 'change', target: listener.mql, currentTarget: listener.mql };
-        listener.callback.call(listener.mql, event);
+        const event = { matches, media: listener.media, type: 'change', target: mql, currentTarget: mql };
+        listener.callback.call(mql, event);
       } catch {}
     }
   };
@@ -295,7 +305,13 @@ const PREVIEW_BRIDGE_SCRIPT = String.raw`(() => {
         // single removeEventListener the page then calls could never reach it. The orphan kept
         // firing — and kept its closure, and the page's DOM, alive — for good.
         if (listenersForMql.has(callback)) return;
-        const entry = { media: query, mql, callback };
+        const entry = {
+          media: query,
+          // Weak so a page that discards the list without removing its listener does not pin the list, the
+          // callback and everything the callback closes over.
+          mqlRef: typeof WeakRef === 'function' ? new WeakRef(mql) : { deref: () => mql },
+          callback,
+        };
         listenersForMql.set(callback, entry);
         colorSchemeListeners.add(entry);
       };
