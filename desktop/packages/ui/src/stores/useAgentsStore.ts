@@ -40,11 +40,16 @@ const agentsLastLoadedAt = new Map<string, number>()
 let agentsLoadedCacheKey: string | null = null
 const agentsLoadInFlight = createSingleFlight<boolean>()
 const runAgentsLoad = (cacheKey: string, start: () => Promise<boolean>) =>
-  withTimeout(agentsLoadInFlight.run(cacheKey, start), AGENTS_LOAD_TIMEOUT_MS, () => {
-    agentsLoadInFlight.clear(cacheKey)
-    useAgentsStore.setState({ isLoading: false })
-    return false
-  })
+  // The timeout lives inside the single-flight start so only the load that owns
+  // the shared promise arms it: a joiner used to wrap the shared promise in its
+  // own timer, which later cleared a *newer* load's slot and loading flag.
+  agentsLoadInFlight.run(cacheKey, () =>
+    withTimeout(start(), AGENTS_LOAD_TIMEOUT_MS, () => {
+      agentsLoadInFlight.clear(cacheKey)
+      useAgentsStore.setState({ isLoading: false })
+      return false
+    }),
+  )
 const agentsLoadRequestIds = new Map<string, number>()
 let agentsLoadSequence = 0
 
@@ -162,6 +167,12 @@ export const useAgentsStore = create<AgentsStore>()(
           const hasCachedAgents = get().agents.length > 0 && agentsLoadedCacheKey === cacheKey
 
           if (hasCachedAgents && now - loadedAt < AGENTS_LOAD_CACHE_TTL_MS) {
+            // A cache hit is the newest word for the store. The sequence only
+            // advances inside the fetch path, so without this an older in-flight
+            // load for another directory still passed isCurrentLoad() when it
+            // settled and wrote its agents over this directory's list.
+            agentsLoadSequence += 1
+            set({ isLoading: false })
             return true
           }
 

@@ -79,6 +79,10 @@ const skillsCatalogLoadInFlight = createSingleFlight<boolean>()
 // Latest loadSource call wins: an older in-flight response must not clear the
 // loading flag (or raise an error) for a newer request.
 let skillsCatalogLoadSourceSeq = 0
+// Latest loadCatalog call wins too: a forced refresh replaces the in-flight
+// load instead of joining it, so without a sequence the displaced load could
+// still write its stale snapshot (or restore its pre-refresh one) last.
+let skillsCatalogLoadSeq = 0
 
 interface SkillsCatalogState {
   sources: SkillsCatalogSource[]
@@ -148,6 +152,8 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
         const now = Date.now()
         const loadedAt = skillsCatalogLastLoadedAt.get(cacheKey) ?? 0
         const hasCachedCatalog = get().sources.length > 0
+        const requestId = ++skillsCatalogLoadSeq
+        const isCurrentLoad = () => skillsCatalogLoadSeq === requestId
         if (!options?.refresh && hasCachedCatalog && now - loadedAt < SKILLS_CATALOG_LOAD_CACHE_TTL_MS) {
           return true
         }
@@ -202,6 +208,11 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
                   ? currentSelected
                   : (sources[0]?.id ?? null)
 
+              // A superseded load (a forced refresh replaced it) must not write
+              // its stale snapshot last.
+              if (!isCurrentLoad()) {
+                return false
+              }
               set({
                 sources,
                 itemsBySource,
@@ -222,18 +233,22 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
               message: error instanceof Error ? error.message : String(error),
             }
 
-            set({
-              sources: previous.sources,
-              itemsBySource: previous.itemsBySource,
-              pageInfoBySource: previous.pageInfoBySource,
-              loadedSourceIds: previous.loadedSourceIds,
-              clawdhubHasMoreBySource: previous.clawdhubHasMoreBySource,
-              lastCatalogError: lastError || { kind: "unknown", message: "Failed to load catalog" },
-            })
+            if (isCurrentLoad()) {
+              set({
+                sources: previous.sources,
+                itemsBySource: previous.itemsBySource,
+                pageInfoBySource: previous.pageInfoBySource,
+                loadedSourceIds: previous.loadedSourceIds,
+                clawdhubHasMoreBySource: previous.clawdhubHasMoreBySource,
+                lastCatalogError: lastError || { kind: "unknown", message: "Failed to load catalog" },
+              })
+            }
 
             return false
           } finally {
-            set({ isLoadingCatalog: false })
+            if (isCurrentLoad()) {
+              set({ isLoadingCatalog: false })
+            }
           }
         })
       },
@@ -281,6 +296,11 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
               return true
             }
 
+            // A superseded request must not raise the global error banner for a
+            // source the user has already moved away from.
+            if (!isCurrentRequest()) {
+              return false
+            }
             set({
               lastCatalogError: payload?.error || {
                 kind: "unknown",

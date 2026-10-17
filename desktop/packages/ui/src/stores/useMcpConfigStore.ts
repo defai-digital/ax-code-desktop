@@ -137,7 +137,11 @@ export const useMcpConfigStore = create<McpConfigStore>()(
           const cachedConfigs = mcpCacheByKey.get(cacheKey)
 
           if (!options?.force && cachedConfigs && now - loadedAt < MCP_LOAD_CACHE_TTL_MS) {
-            set({ mcpServers: cachedConfigs })
+            // A cache hit is the newest word for the store: advance the sequence
+            // so an older in-flight load for another directory cannot write its
+            // result over this list when it settles.
+            mcpLoadSequence += 1
+            set({ mcpServers: cachedConfigs, isLoading: false })
             return true
           }
 

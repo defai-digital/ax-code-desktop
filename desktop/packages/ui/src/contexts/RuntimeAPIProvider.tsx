@@ -93,8 +93,12 @@ function withContentCache(files: FilesAPI): FilesAPI {
       ) {
         return syncCacheEntry(path, retry, retryStat)
       }
-      // Best-effort: file was still changing, cache what we got. Next hit will re-validate.
-      return syncCacheEntry(path, retry, retryStat)
+      // Best-effort: the file was still changing across the retry. Do not cache
+      // it with the post-read stat — the next hit would then match that metadata
+      // and serve this possibly-torn read indefinitely. Drop any stale entry so
+      // the next read goes back to disk.
+      removeCacheEntry(path)
+      return { content: retry.content, path: retry.path }
     }
 
     return syncCacheEntry(path, result, statAfter ?? statBefore)

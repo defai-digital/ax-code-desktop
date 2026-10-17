@@ -459,6 +459,8 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
             if (!current) {
               return
             }
+            // Re-insert so the refresh counts as a touch: object key order drives eviction.
+            delete nextEntries[signatureKey]
             nextEntries[signatureKey] = {
               ...current,
               lastRefreshAt: Date.now(),
@@ -479,6 +481,8 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
               if (!current) {
                 return
               }
+              // Re-insert so the refresh counts as a touch: object key order drives eviction.
+              delete nextEntries[signatureKey]
               nextEntries[signatureKey] = {
                 ...current,
                 status: { connected: false },
@@ -504,6 +508,8 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
               if (!current) {
                 return
               }
+              // Re-insert so the refresh counts as a touch: object key order drives eviction.
+              delete nextEntries[signatureKey]
               nextEntries[signatureKey] = {
                 ...current,
                 status: null,
@@ -568,6 +574,8 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
                 remoteName: params.remoteName ?? null,
               }
 
+              // Re-insert so the refresh counts as a touch: object key order drives eviction.
+              delete nextEntries[signatureKey]
               nextEntries[signatureKey] = {
                 ...current,
                 status,
@@ -596,6 +604,8 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
               if (!current) {
                 return
               }
+              // Re-insert so the refresh counts as a touch: object key order drives eviction.
+              delete nextEntries[signatureKey]
               nextEntries[signatureKey] = {
                 ...current,
                 error: message || "Failed to load PR status",

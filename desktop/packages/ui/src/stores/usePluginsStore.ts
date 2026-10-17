@@ -169,7 +169,11 @@ export const usePluginsStore = create<PluginsStore>()(
           const cached = pluginsCacheByKey.get(cacheKey)
 
           if (!options?.force && cached && now - loadedAt < PLUGINS_LOAD_CACHE_TTL_MS) {
-            set({ entries: cached.entries, files: cached.files })
+            // A cache hit is the newest word for the store: advance the sequence
+            // so an older in-flight load for another directory cannot write its
+            // result over this list when it settles.
+            pluginsLoadSequence += 1
+            set({ entries: cached.entries, files: cached.files, isLoading: false })
             return true
           }
 

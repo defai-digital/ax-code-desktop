@@ -1403,11 +1403,12 @@ export const useConfigStore = create<ConfigStore>()(
                   const settingsAgent = safeAgents.find((agent) => agent.name === openChamberDefaults.defaultAgent)
                   if (settingsAgent) {
                     resolvedAgent = settingsAgent
-                  } else if (safeAgents.length > 0) {
-                    // Agent no longer exists in a loaded agent list - mark for clearing.
-                    // Never erase just because the list has not loaded yet (empty).
-                    invalidSettings.defaultAgent = ""
                   }
+                  // A saved default missing from THIS project's agent list is not
+                  // invalid: the default is a global setting while agents are
+                  // project-scoped, so erasing it here wiped the default the user
+                  // configured from another project's catalogue. The fallback
+                  // chain above already covers projects where it does not exist.
                 }
 
                 // --- Model Selection ---
@@ -1437,15 +1438,14 @@ export const useConfigStore = create<ConfigStore>()(
                       }
                     }
                   } else {
-                    // Only clear settings for malformed or removed models. A
-                    // memory-blocked local model may still be a valid user
-                    // default on another machine, so do not erase it here.
-                    // And never erase a valid saved default just because the provider
-                    // list has not loaded yet (empty) — findModel would spuriously
-                    // return undefined and silently wipe defaultModel from settings.json.
+                    // Only clear settings for malformed models. A missing model is
+                    // not proof of removal: providers are project-scoped (and a
+                    // provider can expose no models while it is still loading), so
+                    // a valid global default from another project's catalogue must
+                    // not be erased here — the fallback chain covers projects
+                    // where it does not resolve. A memory-blocked local model may
+                    // still be a valid user default on another machine either.
                     if (!parsed) {
-                      invalidSettings.defaultModel = ""
-                    } else if (!defaultModel && providers.length > 0) {
                       invalidSettings.defaultModel = ""
                     }
                   }

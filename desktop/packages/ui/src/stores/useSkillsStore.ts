@@ -156,7 +156,11 @@ export const useSkillsStore = create<SkillsStore>()(
           const cachedSkills = skillsCacheByKey.get(cacheKey)
 
           if (cachedSkills && now - loadedAt < SKILLS_LOAD_CACHE_TTL_MS) {
-            set({ skills: cachedSkills })
+            // A cache hit is the newest word for the store: advance the sequence
+            // so an older in-flight load for another directory cannot write its
+            // result over this list when it settles.
+            skillsLoadSequence += 1
+            set({ skills: cachedSkills, isLoading: false })
             return true
           }
 

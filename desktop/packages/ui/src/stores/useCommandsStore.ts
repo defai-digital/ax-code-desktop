@@ -112,7 +112,11 @@ export const useCommandsStore = create<CommandsStore>()(
           const cachedCommands = commandsCacheByKey.get(cacheKey)
 
           if (cachedCommands && now - loadedAt < COMMANDS_LOAD_CACHE_TTL_MS) {
-            set({ commands: cachedCommands })
+            // A cache hit is the newest word for the store: advance the sequence
+            // so an older in-flight load for another directory cannot write its
+            // result over this list when it settles.
+            commandsLoadSequence += 1
+            set({ commands: cachedCommands, isLoading: false })
             return true
           }
 
