@@ -1364,7 +1364,10 @@ async function stopInstanceProcess(pid, options = {}) {
     Number.isFinite(options.shutdownWaitMs) && options.shutdownWaitMs >= 0 ? Math.trunc(options.shutdownWaitMs) : 5000
 
   if (await waitForProcessExit(pid, shutdownWaitMs)) {
-    return true
+    // The leader answered, and its children are in its group: returning here skipped the group signal entirely, so a
+    // child that ignored the shutdown outlived a `stop` that reported success. The tree call with no grace left
+    // sends the force signal to what remains.
+    return terminateProcessTree(pid, { ...options, gracefulTimeoutMs: 0 })
   }
 
   return terminateProcessTree(pid, options)
