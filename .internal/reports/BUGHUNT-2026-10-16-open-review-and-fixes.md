@@ -1391,6 +1391,11 @@ least (MCP, providers, multirun, auth, supervision, notifications) plus `server/
   that record was missing, so the running instance was stopped and replaced by one with no UI password on a port
   that may have had one. The rule is explicit and exported now: the record, an explicit `--ui-password`, or the
   environment carries it, and with none of them the command refuses and says how to proceed.
+- **`03b334f6`** — the container entrypoint passed `--ui-password <secret>`, putting the UI password in the process
+  argv where every process in the container can read it with `ps`; it is exported as
+  `AX_CODE_DESKTOP_UI_PASSWORD` now, which the CLI reads and which the terminal a user opens drops before the shell
+  sees it. `docker-entrypoint.test.mjs` already drove the script with shims and asserted the old argv form
+  (`06873447` updates it: the argv without the password, the variable carrying it).
 - **`c43b3bb8`** — `handleStart` in the fusion dialog filtered out the runs whose last assistant message has no
   text and fused the rest while the dialog kept listing every selected run, so the fused answer read as covering
   runs it had silently dropped. It refuses now and asks the user to exclude the run in the dialog's own list; the
@@ -1414,9 +1419,6 @@ output and a test idea with it.
   reaches the browser.
 - **`preview/proxy-runtime.js:224, 287-303`** — the bridge's `matchMedia` patch keeps every listener in a
   page-global `Set` that is never pruned when the `MediaQueryList` is discarded.
-- **`scripts/docker-entrypoint.sh:84-86`** — the container entrypoint passes the UI password as
-  `--ui-password <secret>` on the process argv, which every terminal-spawned process can read (`ps`), where
-  the same secret is scrubbed from the environment.
 - **`text/summarization.js:22-23`** — `sanitizeForSummary`'s path-stripping regex deletes ordinary
   slash-separated prose, not just paths (latent: the summary mode has no production caller).
 - **`sections/providers/ProvidersPage.tsx:198`** — the AX Engine download uses one busy slot (a string), so a
@@ -3671,6 +3673,12 @@ Round six and seven are complete: every confirmed finding is fixed.
   fixtures, the registry bound through the fetch call, the route guards through the route harness (three of them
   answering 200 before the fix), the token file's mode through a stat with chmod made to fail, the CLI's missing
   password value through `parseArgs`, and the process group through a real detached leader and its child.
+- Latest full run, after the fifth carried-forward fix (`03b334f6`) and its test update (`06873447`):
+  `pnpm run typecheck` 0, `pnpm run lint` 0, `pnpm run test` 0, `pnpm run check:boundaries` 0,
+  `pnpm run check:locales` 0 — root scripts 180 (+6 skipped), electron 600, ui 2 978, web 1 325 (+2 skipped),
+  0 `FAIL` lines. The run before the test update failed the electron package's own entrypoint test, which asserted
+  the argv form the fix removed: a fix that changes a contract a test encodes has to update that test, and the
+  gate is what showed the one that existed (the review had reported the entrypoint as untested).
 - Latest full run, after the fourth carried-forward fix (`da178739`): `pnpm run typecheck` 0, `pnpm run lint` 0,
   `pnpm run test` 0, `pnpm run check:boundaries` 0, `pnpm run check:locales` 0 — root scripts 180 (+6 skipped),
   electron 600, ui 2 978, web 1 325 (+2 skipped), 0 `FAIL` lines. The run before it failed one web test
