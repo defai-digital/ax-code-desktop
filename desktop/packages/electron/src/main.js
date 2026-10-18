@@ -279,7 +279,9 @@ app.on("second-instance", (_event, argv, cwd) => {
     cwd,
     source: "second-instance",
   })
-  focusMainWindowIfPresent()
+  // macOS keeps the app alive after its last window closes; launching the
+  // app bundle again must bring the window back, not focus a destroyed one.
+  void revealMainWindow()
 })
 
 app.on("open-file", (event, filePath) => {
@@ -2463,7 +2465,9 @@ const dispatchCheckForUpdates = async () => {
   if (!getMenuTargetWindow()) {
     await revealMainWindow()
   }
-  emitToAllWindows("openchamber:check-for-updates")
+  // A freshly created window's renderer has not mounted its listeners yet
+  // (see handOffToMainWindow), so a direct emit dropped the click.
+  handOffToMainWindow("openchamber:check-for-updates")
 }
 
 // Mini-chat windows (/mini-chat.html) and the wiki viewer (a temp file://
@@ -2505,8 +2509,10 @@ const buildMacMenu = () => {
     focused?.webContents.copy()
     // The renderer's copy handler re-copies its own selection. Sending it to a
     // window that is not focused (mini-chat, wiki viewer) overwrote what that
-    // window had just copied with the main window's stale selection.
-    if (!focused || focused === getMenuTargetWindow()) dispatchAction("copy")
+    // window had just copied with the main window's stale selection. Copy with
+    // nothing focused does nothing — a menu command it is not, and dispatching
+    // it re-created the main window.
+    if (focused && focused === getMenuTargetWindow()) dispatchAction("copy")
   }
   return buildLocalizedMenu([
     {
@@ -2628,8 +2634,9 @@ const buildNonMacMenu = () => {
   const handleCopyAction = () => {
     const focused = BrowserWindow.getFocusedWindow()
     focused?.webContents.copy()
-    // See buildMacMenu: only the focused window's own handler may run.
-    if (!focused || focused === getMenuTargetWindow()) dispatchAction("copy")
+    // See buildMacMenu: only the focused window's own handler may run, and
+    // copy with nothing focused does nothing instead of re-creating a window.
+    if (focused && focused === getMenuTargetWindow()) dispatchAction("copy")
   }
   const isDev = !app.isPackaged
   return buildLocalizedMenu([
