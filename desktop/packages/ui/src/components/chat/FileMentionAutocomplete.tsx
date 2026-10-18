@@ -761,8 +761,9 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
             keyedFiles.length
           if (total === 0) {
             // Unconsumed: Enter must still send the message when nothing matches the
-            // mention query (`@word` with no hits looked unsendable).
-            return false
+            // mention query (`@word` with no hits looked unsendable). Tab stays consumed so
+            // focus cannot leave the composer while the menu is open.
+            return key === "Tab"
           }
 
           if (key === "ArrowDown") {

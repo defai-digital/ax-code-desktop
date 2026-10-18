@@ -281,13 +281,17 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
             isConfirmedFilePath: (text) =>
               text.includes("/") || text.includes("\\") || text.includes(".") || confirmed.has(text),
           })
-          payload.primaryText = mentioned.sanitizedText
+          // Commit both fields only after every await succeeded: assigning the sanitized
+          // text first left a failure with the @mentions stripped and no attachments.
+          let nextAttachments = payload.primaryAttachments
           if (mentioned.attachments.length > 0) {
-            payload.primaryAttachments = await filterMissingInlineAttachments(
+            nextAttachments = await filterMissingInlineAttachments(
               [...payload.primaryAttachments, ...mentioned.attachments],
               (directory) => axCodeClient.listLocalDirectory(directory),
             )
           }
+          payload.primaryText = mentioned.sanitizedText
+          payload.primaryAttachments = nextAttachments
         }
       } catch (error) {
         console.warn("[queue] queued mention extraction failed:", error)

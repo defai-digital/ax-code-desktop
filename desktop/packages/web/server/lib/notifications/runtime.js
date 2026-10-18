@@ -272,8 +272,9 @@ let unkeyedPermissionAskSequence = 0
       return
     }
     // An unkeyed ask matches no reply by id: if a reply landed while this flush was in flight,
-    // the ask it answered is in this batch — don't announce it.
-    if (!requestKey && repliedDuringPermissionFlushSessions.has(sessionId)) {
+    // the ask it answered is in this batch — don't announce it. The marker is consumed: one
+    // reply answers exactly one ask, so the remaining unkeyed asks still get announced.
+    if (!requestKey && repliedDuringPermissionFlushSessions.delete(sessionId)) {
       return
     }
 

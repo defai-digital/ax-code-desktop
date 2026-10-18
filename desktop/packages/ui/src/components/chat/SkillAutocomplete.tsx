@@ -91,7 +91,9 @@ export const SkillAutocomplete = React.forwardRef<SkillAutocompleteHandle, Skill
           }
 
           if (!filteredSkills.length) {
-            return false
+            // Enter stays unconsumed so the message still sends; Tab must not move focus out
+            // of the composer while the menu is open.
+            return key === "Tab"
           }
 
           if (key === "ArrowDown") {

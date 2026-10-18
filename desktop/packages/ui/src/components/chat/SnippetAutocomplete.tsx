@@ -83,7 +83,7 @@ export const SnippetAutocomplete = React.forwardRef<SnippetAutocompleteHandle, S
             return true
           }
           const itemCount = filteredSnippets.length
-          if (itemCount === 0) return false
+          if (itemCount === 0) return key === "Tab"
           if (key === "ArrowDown") {
             setSelectedIndex((prev) => (prev + 1) % itemCount)
             return true

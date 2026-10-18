@@ -200,8 +200,9 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
 
           if (total === 0) {
             // Nothing to navigate or select: report the key unconsumed so Enter still sends
-            // the message (a path starting with "/" looked unsendable).
-            return false
+            // the message (a path starting with "/" looked unsendable). Tab stays consumed
+            // so focus cannot leave the composer with the menu still open.
+            return key === "Tab"
           }
 
           if (key === "ArrowDown") {

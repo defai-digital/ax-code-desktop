@@ -877,7 +877,13 @@ export const createSettingsRuntime = (deps) => {
         }
         return remigrated.settings
       })
-    persistSettingsLock = write.then(() => undefined)
+    persistSettingsLock = write.then(
+      () => undefined,
+      // The lock must never hold a rejection: the next persistSettings chains off it, and
+      // an unhandled rejection here would surface as an unhandledRejection in the server
+      // process. The caller still receives the failure through `write`.
+      () => undefined,
+    )
     return write
   }
 
