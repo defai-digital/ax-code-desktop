@@ -63,6 +63,8 @@ Public distribution commands require signed exact-inventory qualification; user 
 
 - The AX Code runtime owns the canonical `analysis-output` skill and the static-versus-Streamlit decision. Do not
   copy, fork, or reimplement that skill in Desktop or in a repo-local skill.
+- The installed runtime can predate the canonical skill. Do not add a Desktop copy; when the pinned runtime exposes
+  `analysis-output`, re-check user-level memory and skills and keep only the Desktop-specific capability constraints.
 - Desktop renders a completed assistant `ax-code-app` fence as a Run control. The payload is presentation data only:
   `{"version":1,"kind":"streamlit","entrypoint":"<project-relative>.py"}`. It cannot carry commands, interpreters,
   ports, URLs, environment variables, or setup authority.
