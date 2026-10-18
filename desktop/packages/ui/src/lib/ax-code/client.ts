@@ -336,7 +336,8 @@ class AxCodeService {
   private baseUrl: string
   private scopedClients: Map<string, AxCodeClient> = new Map()
   private currentDirectory: string | undefined = undefined
-  private directoryContextInFlight: { promise: Promise<unknown> } | null = null
+  private directoryContextBusy = false
+  private directoryContextWaiters: Array<() => void> = []
   private listDirectoryInFlight: Map<string, Promise<FilesystemEntry[]>> = new Map()
   private listDirectoryCache: Map<string, { entries: FilesystemEntry[]; expiresAt: number }> = new Map()
   private listDirectoryCacheGeneration = 0
@@ -519,55 +520,64 @@ class AxCodeService {
     // `currentDirectory`, so a second run started while the first is still
     // executing would send the first run's remaining requests to the second
     // run's project, and the first run's `finally` would restore a stale
-    // directory. The slot is therefore claimed synchronously, before any await:
-    // each caller chains onto the entry that was current when it was called, so
-    // two waiters of the same predecessor can never resume side by side. A
-    // predecessor that is still running after the wait deadline fails the waiter
-    // with an explicit error instead of running beside it.
+    // directory. Ownership is handed to exactly one waiter at a time, and only
+    // when the owner finishes; a waiter that gives up removes itself instead of
+    // releasing the slot it never held (that let the next caller run beside the
+    // still-executing owner).
     if (directory === undefined || directory === null) {
       return fn()
     }
 
-    const previous = this.directoryContextInFlight
-    const entry: { promise: Promise<unknown> } = { promise: Promise.resolve() }
-    this.directoryContextInFlight = entry
-
-    const run = (async (): Promise<T> => {
-      if (previous) {
-        let waitTimer: ReturnType<typeof setTimeout> | null = null
-        const timedOut = await Promise.race([
-          previous.promise.then(
-            () => false,
-            () => false,
-          ),
-          new Promise<boolean>((resolve) => {
-            waitTimer = setTimeout(() => resolve(true), DIRECTORY_CONTEXT_WAIT_TIMEOUT_MS)
-          }),
-        ])
-        if (waitTimer) {
-          clearTimeout(waitTimer)
-        }
-        if (timedOut) {
-          console.warn(
-            "[ax-code client] another directory-scoped call is still running after " +
-              `${DIRECTORY_CONTEXT_WAIT_TIMEOUT_MS}ms; refusing to run concurrently with it`,
-          )
-          throw Object.assign(new Error("Timed out waiting for another directory-scoped request to finish"), {
-            name: "DirectoryContextBusyError",
-          })
-        }
-      }
-      return runWithContext()
-    })()
-    entry.promise = run
-
+    await this.acquireDirectoryContext()
     try {
-      return await run
+      return await runWithContext()
     } finally {
-      if (this.directoryContextInFlight === entry) {
-        this.directoryContextInFlight = null
-      }
+      this.releaseDirectoryContext()
     }
+  }
+
+  private acquireDirectoryContext(): Promise<void> {
+    if (!this.directoryContextBusy) {
+      this.directoryContextBusy = true
+      return Promise.resolve()
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | null = null
+      const waiter = () => {
+        if (timer) {
+          clearTimeout(timer)
+          timer = null
+        }
+        resolve()
+      }
+      this.directoryContextWaiters.push(waiter)
+      timer = setTimeout(() => {
+        const index = this.directoryContextWaiters.indexOf(waiter)
+        if (index >= 0) {
+          this.directoryContextWaiters.splice(index, 1)
+        }
+        console.warn(
+          "[ax-code client] another directory-scoped call is still running after " +
+            `${DIRECTORY_CONTEXT_WAIT_TIMEOUT_MS}ms; refusing to run concurrently with it`,
+        )
+        reject(
+          Object.assign(new Error("Timed out waiting for another directory-scoped request to finish"), {
+            name: "DirectoryContextBusyError",
+          }),
+        )
+      }, DIRECTORY_CONTEXT_WAIT_TIMEOUT_MS)
+    })
+  }
+
+  private releaseDirectoryContext(): void {
+    const next = this.directoryContextWaiters.shift()
+    if (next) {
+      // Ownership passes directly to the next waiter; the busy flag stays set.
+      next()
+      return
+    }
+    this.directoryContextBusy = false
   }
 
   // Get the raw API client for direct access

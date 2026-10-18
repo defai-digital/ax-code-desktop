@@ -37,6 +37,15 @@ export const resolveDesktopWindowInstanceLabel = ({
   if (knownLocalOrigin && locationMatchesHost(currentHref, knownLocalOrigin)) {
     return null
   }
+  // The packaged renderer is served from app://ax-code, which cannot match the loopback
+  // origin; it is still the local instance (and there is no remote host list to match).
+  try {
+    if (new URL(currentHref).protocol === "app:") {
+      return null
+    }
+  } catch {
+    // Fall through to the host list.
+  }
 
   const match = hosts.find((host) => locationMatchesHost(currentHref, host.url))
   return match?.label?.trim() ? redactSensitiveUrl(match.label.trim()) : "Instance"

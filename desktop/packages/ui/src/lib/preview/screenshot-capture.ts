@@ -104,7 +104,9 @@ export const formatPreviewAnnotationMarkdown = ({
   const styles = target.computedStyle
   const bounds = target.bounds
   const center = target.center
-  const introLabel = intro.replace(/[.:]+$/g, "")
+  // Also strip full-width terminators (zh/ja intros end with `。`), or the annotation
+  // draft starts with `…。:`. The final colon is added below.
+  const introLabel = intro.replace(/[.:：。！？!?]+$/g, "")
   const ancestry = target.ancestry.map((entry) => entry.selectorPart).join(" > ")
 
   return [

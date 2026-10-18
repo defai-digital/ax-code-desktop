@@ -10,6 +10,13 @@ function fenceFor(code: string): string {
   return "`".repeat(Math.max(3, ...runs.map((run) => run + 1), 3))
 }
 
+/** A code span whose delimiter cannot be closed by a backtick inside the value. */
+function codeSpanFor(value: string): string {
+  const runs = [...value.matchAll(/`+/g)].map((match) => match[0].length)
+  const ticks = "`".repeat(Math.max(1, ...runs.map((run) => run + 1)))
+  return `${ticks}${value}${ticks}`
+}
+
 /**
  * Format a single inline comment draft into the standard message format
  * used by diff, plan, and file viewers
@@ -20,11 +27,11 @@ function formatInlineCommentDraft(draft: InlineCommentDraft): string {
 
   // Diff format includes side (original/modified)
   if (draft.source === "diff" && side) {
-    return `Comment on \`${fileLabel}\` lines ${startLine}-${endLine} (${side}):\n${fence}${language}\n${code}\n${fence}\n\n${text}`
+    return `Comment on ${codeSpanFor(fileLabel)} lines ${startLine}-${endLine} (${side}):\n${fence}${language}\n${code}\n${fence}\n\n${text}`
   }
 
   if (draft.source === "preview-console") {
-    return `Attached preview context from \`${fileLabel}\`:\n${fence}${language}\n${code}\n${fence}\n\n${text}`
+    return `Attached preview context from ${codeSpanFor(fileLabel)}:\n${fence}${language}\n${code}\n${fence}\n\n${text}`
   }
 
   if (draft.source === "preview-annotation") {
@@ -32,7 +39,7 @@ function formatInlineCommentDraft(draft: InlineCommentDraft): string {
   }
 
   // Plan and file format (no side)
-  return `Comment on \`${fileLabel}\` lines ${startLine}-${endLine}:\n${fence}${language}\n${code}\n${fence}\n\n${text}`
+  return `Comment on ${codeSpanFor(fileLabel)} lines ${startLine}-${endLine}:\n${fence}${language}\n${code}\n${fence}\n\n${text}`
 }
 
 /**

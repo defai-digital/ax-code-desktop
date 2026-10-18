@@ -1,4 +1,5 @@
 import { isTauriShell } from "@/lib/desktop"
+import { isLoopbackHostname } from "@/lib/loopback"
 import { isRecord } from "@/lib/record"
 import { getTauriGlobal } from "@/lib/tauriGlobal"
 import type { TauriInvoke } from "@/lib/tauriGlobal"
@@ -99,7 +100,14 @@ export const locationMatchesHost = (locationHref: string, hostUrl: string): bool
     const current = new URL(normalizedCurrent)
     const host = new URL(normalizedHost)
     if (current.origin !== host.origin) {
-      return false
+      // The local server answers as localhost, 127.0.0.1 and [::1]; a window opened under
+      // one of those names is still the configured local host (dev uses 127.0.0.1 while the
+      // stored local origin is localhost, which otherwise never matched).
+      const sameLoopbackService =
+        isLoopbackHostname(current.hostname) && isLoopbackHostname(host.hostname) && current.port === host.port
+      if (!sameLoopbackService) {
+        return false
+      }
     }
 
     // Read the query from the raw values: `normalizeHostUrl` strips it, so this compared an

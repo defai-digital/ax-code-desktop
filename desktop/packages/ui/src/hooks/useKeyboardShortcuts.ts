@@ -265,6 +265,9 @@ export const useKeyboardShortcuts = () => {
             : 0
 
       if (cycleAgentDirection !== 0) {
+        // A key already consumed by a focused control (Tab accepting an autocomplete item,
+        // for instance) must not also switch the primary agent for the next prompt.
+        if (e.defaultPrevented) return
         const {
           isSettingsDialogOpen,
           isCommandPaletteOpen,

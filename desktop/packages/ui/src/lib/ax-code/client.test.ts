@@ -338,6 +338,50 @@ describe("withDirectory queue resilience", () => {
       axCodeClient.setDirectory(undefined)
     }
   })
+
+  test("a timed-out waiter does not free the context for the next caller while the owner runs", async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      let releaseOwner = () => {}
+      let ownerFinished = false
+      const owner = axCodeClient.withDirectory(
+        "/a",
+        () =>
+          new Promise<string>((resolve) => {
+            releaseOwner = () => {
+              ownerFinished = true
+              resolve("owner")
+            }
+          }),
+      )
+      const second = axCodeClient.withDirectory("/b", async () => "second")
+      const secondRejected = expect(second).rejects.toThrow(/Timed out waiting for another directory-scoped request/)
+      await vi.advanceTimersByTimeAsync(60_001)
+      await secondRejected
+
+      // The owner is still executing; the next caller must queue behind it. The timed-out
+      // waiter used to clear the slot it never held, so this call ran beside the owner and
+      // could overwrite its directory context.
+      let thirdRan = false
+      const third = axCodeClient.withDirectory("/c", async () => {
+        thirdRan = true
+        return "third"
+      })
+      await Promise.resolve()
+      expect(thirdRan).toBe(false)
+      expect(ownerFinished).toBe(false)
+
+      releaseOwner()
+      await expect(owner).resolves.toBe("owner")
+      await expect(third).resolves.toBe("third")
+      expect(thirdRan).toBe(true)
+    } finally {
+      warn.mockRestore()
+      vi.useRealTimers()
+      axCodeClient.setDirectory(undefined)
+    }
+  })
 })
 
 describe("directory listing cache", () => {

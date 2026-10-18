@@ -473,10 +473,26 @@ const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
       }
 
       const pageUrl = rawUrl || effectiveSrc || ""
+      // The annotation bounds come from the preview document, so the viewport must too:
+      // reporting the app window size described a narrow pane as the full window, which is
+      // exactly the responsive context the annotation exists to carry.
+      const previewFrame = iframeRef.current
+      const previewRect = previewFrame?.getBoundingClientRect()
+      const previewSize = (() => {
+        try {
+          const frameWindow = previewFrame?.contentWindow
+          const width = Number(frameWindow?.innerWidth)
+          const height = Number(frameWindow?.innerHeight)
+          if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+            return { width, height }
+          }
+        } catch {
+          // Cross-origin frame: fall back to the element size.
+        }
+        return { width: previewRect?.width ?? 0, height: previewRect?.height ?? 0 }
+      })()
       const viewport =
-        typeof window !== "undefined"
-          ? { width: window.innerWidth, height: window.innerHeight }
-          : { width: 0, height: 0 }
+        typeof window !== "undefined" ? previewSize : { width: 0, height: 0 }
       const devicePixelRatio = typeof window !== "undefined" ? window.devicePixelRatio : 1
 
       void (async () => {
