@@ -27,7 +27,7 @@
   "devDependencies": {
     "@electron/asar": "catalog:",
     "@electron/rebuild": "4.2.1",
-    "electron": "44.9.0",
+    "electron": "npm:electron-nightly@46.0.0-nightly.20261015",
     "electron-builder": "catalog:",
     "esbuild": "0.28.1",
     "resedit": "catalog:"
