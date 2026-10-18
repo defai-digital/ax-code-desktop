@@ -45,7 +45,7 @@ describe("runtime restart request handler", () => {
     expect(handler.handleMessage(null)).toBe(false)
   })
 
-  test("requests are serialized: a second request while one is in flight is ignored", async () => {
+  test("requests while one is in flight coalesce into one follow-up restart", async () => {
     let release
     const restarts = []
     const handler = createRuntimeRestartRequestHandler({
@@ -67,13 +67,20 @@ describe("runtime restart request handler", () => {
     handler.handleMessage({ type: "runtime-restart-request" })
     expect(restarts).toHaveLength(1)
 
-    release()
+    const releaseFirst = release
+    releaseFirst()
     await flushMicrotasks()
-    expect(handler.inFlight).toBe(false)
-
-    // After the in-flight restart settles, the next request goes through.
-    handler.handleMessage({ type: "runtime-restart-request" })
+    // The in-flight restart resolved its binary before the later requests
+    // landed, so exactly one follow-up restart runs to pick up the newest
+    // settings — no matter how many requests queued up behind it.
     expect(restarts).toHaveLength(2)
+    expect(handler.inFlight).toBe(true)
+
+    const releaseSecond = release
+    releaseSecond()
+    await flushMicrotasks()
+    expect(restarts).toHaveLength(2)
+    expect(handler.inFlight).toBe(false)
   })
 
   test("a missing supervision (escape-hatch mode) consumes the message without restarting", () => {

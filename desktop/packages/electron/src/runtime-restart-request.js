@@ -8,7 +8,9 @@
 // effect. Main restarts with reprepare so the binary re-resolves.
 //
 // Restarts are serialized: while one is in flight, further requests are
-// ignored (the in-flight restart already re-resolves the latest settings).
+// remembered and one more restart runs when it settles — the in-flight
+// restart resolved the binary before the latest settings change landed, so
+// ignoring the request left the runtime on the old binary indefinitely.
 // Extracted from main.js so the policy is unit-testable without Electron.
 
 function createRuntimeRestartRequestHandler({ getSupervision, logger = console } = {}) {
@@ -16,10 +18,15 @@ function createRuntimeRestartRequestHandler({ getSupervision, logger = console }
     throw new TypeError("createRuntimeRestartRequestHandler requires a getSupervision() function")
   }
   let inFlight = false
+  let pendingRestart = false
 
   function requestRestart() {
     const supervision = getSupervision()
-    if (!supervision || inFlight) return false
+    if (!supervision) return false
+    if (inFlight) {
+      pendingRestart = true
+      return true
+    }
     inFlight = true
     let result
     try {
@@ -38,6 +45,10 @@ function createRuntimeRestartRequestHandler({ getSupervision, logger = console }
       )
       .finally(() => {
         inFlight = false
+        if (pendingRestart) {
+          pendingRestart = false
+          requestRestart()
+        }
       })
     return true
   }
