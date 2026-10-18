@@ -21,15 +21,16 @@ export const getStoredDraft = (sessionId: string | null): string => {
 // were lost. Every keystroke writes here first; the remount reads it before storage.
 const liveDrafts = new Map<string, string>()
 
-export const getLiveDraft = (sessionId: string | null): string | undefined => liveDrafts.get(getDraftKey(sessionId))
+// A present entry — including the empty string — is the authoritative live value. An
+// intentionally emptied composer must not fall back to a stored draft that the debounce has
+// not cleared yet (the remount would resurrect the deleted text).
+export const getLiveDraft = (sessionId: string | null): string | undefined => {
+  const key = getDraftKey(sessionId)
+  return liveDrafts.has(key) ? liveDrafts.get(key) : undefined
+}
 
 export const setLiveDraft = (sessionId: string | null, draft: string): void => {
-  const key = getDraftKey(sessionId)
-  if (draft) {
-    liveDrafts.set(key, draft)
-  } else {
-    liveDrafts.delete(key)
-  }
+  liveDrafts.set(getDraftKey(sessionId), draft)
 }
 
 // Helper to safely write/clear a per-session draft

@@ -93,11 +93,13 @@ describe("chatInputDraftPersistence", () => {
     expect(getStoredDraft("session-1")).toBe("older")
   })
 
-  test("clears the live draft when the stored draft is cleared", () => {
-    saveStoredDraft("session-1", "hello")
-    expect(getLiveDraft("session-1")).toBe("hello")
+  test("remembers an intentionally emptied draft instead of falling back to stale storage", () => {
+    // Deleting the composer text must not let a remount restore the previous stored draft
+    // before the debounce reaches localStorage.
+    saveStoredDraft("session-1", "old text")
+    setLiveDraft("session-1", "")
 
-    saveStoredDraft("session-1", "")
-    expect(getLiveDraft("session-1")).toBeUndefined()
+    expect(getLiveDraft("session-1")).toBe("")
+    expect(getStoredDraft("session-1")).toBe("old text")
   })
 })

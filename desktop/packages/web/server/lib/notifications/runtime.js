@@ -77,7 +77,9 @@ let unkeyedPermissionAskSequence = 0
   // the flush deletes its debounce entry before its first await — so a reply landing mid-flush
   // found nothing to cancel and the already-answered ask was still announced. The flush marks
   // its session in flight and such a reply is recorded against it instead.
-  const permissionFlushInFlightSessions = new Set()
+  // Refcounted per session: a second ask can start a second flush while the first is still
+  // awaiting, and the first one finishing must not clear the second one's reply tracking.
+  const permissionFlushInFlightCounts = new Map()
   const repliedDuringPermissionFlushSessions = new Set()
   // Unique request keys accumulate for the life of the process; keep the dedupe
   // window bounded. A request older than the cap is long answered.
@@ -573,7 +575,7 @@ let unkeyedPermissionAskSequence = 0
       rememberRepliedPermissionRequest(requestKey)
       // An unkeyed reply cannot cancel a flush's debounce entry — the flush deletes it before
       // awaiting — so when one lands mid-flush, record it for the flush's unkeyed asks.
-      if (!requestKey && permissionFlushInFlightSessions.has(sessionId)) {
+      if (!requestKey && permissionFlushInFlightCounts.has(sessionId)) {
         repliedDuringPermissionFlushSessions.add(sessionId)
       }
       const pendingNotification = permissionNotificationDebounceTimers.get(sessionId)
@@ -631,7 +633,7 @@ let unkeyedPermissionAskSequence = 0
         // read, and a rejection from inside a timer has nowhere to go.
         void (async () => {
           permissionNotificationDebounceTimers.delete(sessionId)
-          permissionFlushInFlightSessions.add(sessionId)
+          permissionFlushInFlightCounts.set(sessionId, (permissionFlushInFlightCounts.get(sessionId) ?? 0) + 1)
 
           try {
             if (await isSessionAutoAccepting(sessionId)) {
@@ -646,8 +648,13 @@ let unkeyedPermissionAskSequence = 0
               await flushPermissionAsk(sessionId, unkeyed ? null : pendingKey, pendingPayload, pendingKey)
             }
           } finally {
-            permissionFlushInFlightSessions.delete(sessionId)
-            repliedDuringPermissionFlushSessions.delete(sessionId)
+            const remainingFlushes = (permissionFlushInFlightCounts.get(sessionId) ?? 1) - 1
+            if (remainingFlushes > 0) {
+              permissionFlushInFlightCounts.set(sessionId, remainingFlushes)
+            } else {
+              permissionFlushInFlightCounts.delete(sessionId)
+              repliedDuringPermissionFlushSessions.delete(sessionId)
+            }
           }
         })().catch((error) => {
           console.warn("[Notification] Permission notification failed:", error?.message || error)
