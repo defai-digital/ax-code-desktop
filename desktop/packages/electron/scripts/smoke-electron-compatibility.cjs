@@ -17,7 +17,10 @@ const timeout = setTimeout(() => app.exit(1), 20000)
 app
   .whenReady()
   .then(async () => {
-    const expected = require("../package.json").devDependencies.electron
+    const declared = require("../package.json").devDependencies.electron
+    // An aliased pin (`npm:electron-nightly@…`) names the package, not the version the
+    // runtime reports; compare against the installed package in that case.
+    const expected = declared.startsWith("npm:") ? require("electron/package.json").version : declared
     assert.equal(process.versions.electron, expected)
     for (const locale of locales) {
       const t = createNativeLocalizer(() => locale)
