@@ -353,6 +353,20 @@ const createPackagedRendererProtocolHandler = ({
       return new Response("Bad Request", { status: 400 })
     }
     if (isLoopbackApiPath(pathname)) {
+      // Other origins in this session (a previewed dev server's iframe, for
+      // example) must not exercise the API through this privileged scheme:
+      // the runtime routes below inject main's per-boot Basic credential.
+      // Chromium stamps sec-fetch-site on browser-issued requests and Origin
+      // on cross-origin ones; absence is tolerated for non-browser callers,
+      // but a foreign Origin or a cross-site fetch is refused.
+      const originHeader = request.headers?.get?.("origin") ?? ""
+      const fetchSite = request.headers?.get?.("sec-fetch-site") ?? ""
+      if (
+        (originHeader !== "" && originHeader !== PACKAGED_RENDERER_ORIGIN) ||
+        (fetchSite !== "" && fetchSite !== "same-origin" && fetchSite !== "none")
+      ) {
+        return new Response("Forbidden", { status: 403 })
+      }
       // S2.4a (SPEC-2026-08-29-desktop-process-model-collapse §2 D3):
       // longest-prefix routing. Runtime-shaped prefixes go straight to the
       // ax-code runtime with main-injected auth; everything else keeps the

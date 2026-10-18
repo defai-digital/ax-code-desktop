@@ -161,6 +161,49 @@ describe("packaged renderer protocol policy", () => {
     const response = await handle({ url: "app://ax-code/auth/session", method: "GET", headers: new Headers() })
     expect(response.status).toBe(503)
   })
+
+  test("API paths refuse a foreign origin and a cross-site fetch", async () => {
+    const handle = createPackagedRendererProtocolHandler({
+      webDistPath: "/app/web-dist",
+      getApiOrigin: () => "http://127.0.0.1:50959",
+      readFile: async () => {
+        throw new Error("missing")
+      },
+      fetchImpl: async (url, init) => {
+        if (init?.headers?.get?.("origin") === "http://127.0.0.1:50959") {
+          throw new Error("foreign-origin request must be refused before any fetch")
+        }
+        return new Response(JSON.stringify({ authenticated: true, disabled: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      },
+    })
+    // A previewed dev server's iframe lives at the Desktop web origin while
+    // sharing the session; its requests must not reach the API through the
+    // privileged scheme (runtime routes inject main's credential).
+    const foreignOrigin = await handle({
+      url: "app://ax-code/auth/session",
+      method: "GET",
+      headers: new Headers({ origin: "http://127.0.0.1:50959" }),
+    })
+    expect(foreignOrigin.status).toBe(403)
+
+    const crossSite = await handle({
+      url: "app://ax-code/api/session",
+      method: "POST",
+      headers: new Headers({ "sec-fetch-site": "cross-site" }),
+    })
+    expect(crossSite.status).toBe(403)
+
+    // The renderer's own requests (same-origin, or a user navigation) pass.
+    const sameOrigin = await handle({
+      url: "app://ax-code/auth/session",
+      method: "GET",
+      headers: new Headers({ origin: "app://ax-code", "sec-fetch-site": "same-origin" }),
+    })
+    expect(sameOrigin.status).toBe(200)
+  })
 })
 
 describe("packaged renderer protocol runtime routing (S2.4a)", () => {
