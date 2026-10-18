@@ -19,7 +19,6 @@ import { dispatchProjectScopedEvent } from "@/lib/projectScopedEvents"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { isCurrentProjectOperationTarget } from "./projectOperationTarget"
-import { StreamlitActionForm } from "./StreamlitActionForm"
 
 type EditableProjectAction = OpenChamberProjectAction
 
@@ -47,7 +46,6 @@ export const ProjectActionsSection: React.FC<ProjectActionsSectionProps> = ({ pr
   const [actions, setActions] = React.useState<EditableProjectAction[]>([])
   const [isLoading, setIsLoading] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
-  const [showStreamlit, setShowStreamlit] = React.useState(false)
   const [initialSnapshot, setInitialSnapshot] = React.useState<string | null>(null)
   const [expandedActions, setExpandedActions] = React.useState<Record<string, boolean>>({})
   const projectRefRef = React.useRef(projectRef)
@@ -56,7 +54,6 @@ export const ProjectActionsSection: React.FC<ProjectActionsSectionProps> = ({ pr
   React.useEffect(() => {
     let cancelled = false
     setIsLoading(true)
-    setShowStreamlit(false)
     ;(async () => {
       try {
         const state = await getProjectActionsState(projectRef)
@@ -167,28 +164,12 @@ export const ProjectActionsSection: React.FC<ProjectActionsSectionProps> = ({ pr
           <p className="typography-meta text-muted-foreground">{t("settings.projects.actions.description")}</p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Button type="button" variant="outline" size="xs" disabled={isLoading} onClick={() => setShowStreamlit(true)}>
-            {t("settings.projects.actions.streamlit.add")}
-          </Button>
           <Button type="button" variant="outline" size="xs" className="!font-normal" onClick={handleAddAction}>
             <Icon name="add" className="h-3.5 w-3.5" />
             {t("settings.projects.actions.actions.add")}
           </Button>
         </div>
       </div>
-
-      {showStreamlit ? (
-        <StreamlitActionForm
-          key={projectRef.id}
-          onCancel={() => setShowStreamlit(false)}
-          onAdd={(action) => {
-            const created = { ...action, id: createActionId() }
-            setActions((current) => [...current, created])
-            setExpandedActions((current) => ({ ...current, [created.id]: true }))
-            setShowStreamlit(false)
-          }}
-        />
-      ) : null}
 
       <section className="pb-2 pt-0 space-y-2">
         {isLoading ? (
@@ -300,7 +281,7 @@ export const ProjectActionsSection: React.FC<ProjectActionsSectionProps> = ({ pr
                         <Textarea
                           value={action.command}
                           onChange={(event) =>
-                            updateAction(action.id, (current) => ({ ...current, command: event.target.value, streamlit: undefined }))
+                            updateAction(action.id, (current) => ({ ...current, command: event.target.value }))
                           }
                           placeholder={t("settings.projects.actions.field.commandPlaceholder")}
                           className="min-h-[88px] max-w-[30rem] font-mono typography-micro"

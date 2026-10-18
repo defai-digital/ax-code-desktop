@@ -1,0 +1,22 @@
+The CLI is an unnecessary second stack. The retirement path never calls it. Desktop and the runtime skill reach AX BI through the existing MCP client. Add `Datasets.uploadFile` on the current SDK REST transport. Keep preview on MCP `prompt_to_dashboard` (`dry_run: true`, `save_charts: false`) in AX Code. `ax-bi-client` would add another consent flag, env key, and HTTP/MCP caller, and its package is unpublished. Remove it from the done gate. A later headless bin may wrap `uploadFile` only.
+
+A Streamlit-specific typed recipe is not required. A read-only loader must accept every stored recipe version and write a generic saved action that keeps command, interpreter, port, and preview. The writer emits only the generic action. A second load/save is idempotent and stays generic, with no rediscovery, install, or autostart.
+
+Call it done only with this evidence:
+
+- One golden Desktop project per stored recipe version: open, save, reopen. Old fences render as plain code. Streamlit files stay ordinary files. Generic run, preview, and stop still work.
+- Saved terminal sessions and assistant run events that still hold Streamlit progress, token, or setup fields open cleanly.
+- Skill text routes one-off work to static or Mermaid, governed work to AX BI MCP, and an explicit Streamlit request to generic Python with no dedicated fence. The disabled template uses the live catalog fields: `localhost:31421/mcp`, explicit `allowLoopback`, OAuth off, `Authorization: Bearer {env:AXBI_MCP_API_KEY}`. An unset key yields no request.
+- Local HTTP: one multipart POST, body bytes and returned IDs match, stdout has IDs only, `redirect: 'error'`, exactly one attempt on 401, 403, disconnect, redirect, partial JSON, or malformed JSON, and a non-zero exit.
+- Disposable AX BI: authenticated `tools/list`, one dry-run preview, one consented upload, compact IDs, URLs, and warnings. A missing env blocks the done claim for this journey.
+- Reviewed diff, three worktree branches. Commits leave the pre-existing dirty trees and the AX BI external Streamlit catalog untouched. No release, pin, or new runtime dependency. ADR-016 and ADR-256 stay, marked superseded. The PRD stays outside `.internal`.
+
+Corrections:
+
+1. Treat persisted terminal-store documents and assistant run events as migration inputs, with a fixture per recipe version. Removing the recipe type before that loader lands will crash project open.
+
+2. Leave `ax-bi-client` out. On the SDK POST set `redirect: 'error'`, disable retry, and succeed only when HTTP is OK, the error list is empty, and every ID is present. Cap regular-file reads at a named byte max and reject non-regular paths before POST.
+
+3. Require the disposable AX BI journey for done. Skill text stops at MCP dry-run and names upload as a separate authorized mutation. Copy field names from the existing template schema so the disabled loopback entry cannot turn itself on.
+
+Name the Desktop UI and native suite that must pass. Record the live `prompt_to_dashboard` schema before freezing `save_charts: false`.

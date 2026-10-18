@@ -27,4 +27,6 @@ Reviewed 2026-10-18. Accepted decisions remain authoritative unless a later deci
 
 The duplicate ADR-009 numbers are historical. Use full filenames or the qualified labels above; accepted records were not renumbered. See the [lifecycle review](../reports/GOVERNANCE-2026-10-18-document-lifecycle.md) for evidence and preservation receipts.
 
-- [ADR-016: Analysis app handoff](ADR-016-analysis-app-handoff.md): Accepted; paired AX Code ADR-256.
+- [ADR-016: Analysis app handoff](ADR-016-analysis-app-handoff.md): Historical accepted handoff; execution superseded by ADR-017; paired AX Code ADR-256.
+
+- [ADR-017: Analysis routing without a dedicated Streamlit runtime](ADR-017-analysis-routing-without-streamlit-runtime.md) supersedes ADR-016 for execution; accepted 2026-10-18.

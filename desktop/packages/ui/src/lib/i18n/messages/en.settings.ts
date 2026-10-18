@@ -210,15 +210,6 @@ export const settingsDict = {
   "settings.common.permission.ask": "Ask",
   "settings.common.permission.deny": "Deny",
   "settings.common.state.comingSoon": "Coming soon...",
-  "settings.projects.actions.streamlit.add": "Streamlit action",
-  "settings.projects.actions.streamlit.name": "Start Streamlit",
-  "settings.projects.actions.streamlit.description":
-    "Use an existing Python environment with Streamlit installed. This recipe runs in a bash, zsh, or sh terminal; paths are relative to the project.",
-  "settings.projects.actions.streamlit.interpreter": "Python interpreter",
-  "settings.projects.actions.streamlit.entrypoint": "App file (.py)",
-  "settings.projects.actions.streamlit.port": "Port",
-  "settings.projects.actions.streamlit.invalid":
-    "Enter an interpreter, a .py file, and a port from 1 to 65535. Use single-line paths.",
   "settings.projects.actions.field.waitForUrl": "Wait for the startup URL in output",
   "settings.projects.actions.title": "Actions",
   "settings.projects.actions.description": "Per-project commands shown in header next to project name.",

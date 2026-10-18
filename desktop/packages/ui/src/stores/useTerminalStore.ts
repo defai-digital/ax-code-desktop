@@ -6,7 +6,6 @@ import { normalizeProjectPath } from "@/lib/projectResolution"
 import { isRecord } from "@/lib/record"
 import { getSafeSessionStorage } from "@/stores/utils/safeStorage"
 import type { OpenChamberProjectAction } from "@/lib/openchamberConfig"
-import type { StreamlitProgress } from "@/lib/streamlitRecipe"
 
 export interface TerminalChunk {
   id: number
@@ -41,17 +40,8 @@ type TerminalProjectActionRun = {
   actionId: string
   tabId: string
   sessionId: string
-  status:
-    | "running"
-    | "waiting-for-preview"
-    | "preview-unavailable"
-    | "stopping"
-    | "preparing"
-    | "setup-required"
-    | "failed"
+  status: "running" | "waiting-for-preview" | "preview-unavailable" | "stopping"
   action?: OpenChamberProjectAction
-  token?: string
-  progress?: StreamlitProgress
 }
 
 interface TerminalStore {
@@ -600,9 +590,7 @@ export const useTerminalStore = create<TerminalStore>()(
               existing.tabId === run.tabId &&
               existing.sessionId === run.sessionId &&
               existing.status === run.status &&
-              existing.action === run.action &&
-              existing.token === run.token &&
-              existing.progress === run.progress
+              existing.action === run.action
             ) {
               return state
             }

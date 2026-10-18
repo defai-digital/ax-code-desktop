@@ -12,7 +12,7 @@ const stubFiles = (contents: Record<string, string>) => {
 }
 
 describe("detectDevServerCommand", () => {
-  test("body-read failures do not reject Streamlit detection", async () => {
+  test("body-read failures do not reject static preview detection", async () => {
     vi.doMock("@/contexts/runtimeAPIRegistry", () => ({ getRegisteredRuntimeAPIs: () => undefined }))
     vi.stubGlobal(
       "fetch",
@@ -23,8 +23,8 @@ describe("detectDevServerCommand", () => {
         },
       })),
     )
-    const { detectStreamlitEntrypoints } = await import("./detectDevServer")
-    await expect(detectStreamlitEntrypoints("/project")).resolves.toEqual([])
+    const { detectDevServerCommand } = await import("./detectDevServer")
+    await expect(detectDevServerCommand("/project", [], null)).resolves.toBeNull()
   })
 
   test("preserves a saved action's execution and readiness contract", async () => {
@@ -44,19 +44,10 @@ describe("detectDevServerCommand", () => {
     expect(detected?.previewUrlHint).toBe(action.openUrl)
   })
 
-  test("discovers a single conventional app but asks users to resolve ambiguity", async () => {
-    stubFiles({
-      "/project/streamlit_app.py": "import streamlit as st\nst.write('Hello')",
-      "/project/pages/chart.py": "import streamlit",
-    })
-    const { detectDevServerCommand, detectStreamlitEntrypoints } = await import("./detectDevServer")
-    const detected = await detectDevServerCommand("/project", [], null)
-    expect(detected?.action?.streamlit).toEqual({ version: 1, entrypoint: "streamlit_app.py" })
-    expect(await detectStreamlitEntrypoints("/project")).toEqual(["streamlit_app.py"])
-    vi.resetModules()
-    stubFiles({ "/project/app.py": "import streamlit as st", "/project/main.py": "from streamlit import write" })
-    const multiple = await import("./detectDevServer")
-    expect(await multiple.detectDevServerCommand("/project", [], null)).toBeNull()
+  test("does not discover or run framework-specific Python entrypoints", async () => {
+    stubFiles({ "/project/streamlit_app.py": "import streamlit", "/project/app.py": "import streamlit" })
+    const { detectDevServerCommand } = await import("./detectDevServer")
+    expect(await detectDevServerCommand("/project", [], null)).toBeNull()
   })
   afterEach(() => {
     vi.unstubAllGlobals()

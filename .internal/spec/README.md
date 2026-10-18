@@ -21,3 +21,5 @@
 - [Desktop visual system v1](SPEC-2026-10-13-desktop-visual-system-v1.md) - Proposed on 2026-10-13; records implemented chrome, focus and motion rules and stages the rest.
 
 - [Analysis app handoff v1](SPEC-2026-10-18-analysis-app-handoff-v1.md): Accepted.
+
+- [Analysis routing v2](SPEC-2026-10-18-analysis-routing-v2.md): Accepted; supersedes the executable app-handoff contract in v1.

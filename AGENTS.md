@@ -61,22 +61,22 @@ Public distribution commands require signed exact-inventory qualification; user 
 
 ## Analysis outputs and diagrams
 
-- The AX Code runtime owns the canonical `analysis-output` skill and the static-versus-Streamlit decision. Do not
-  copy, fork, or reimplement that skill in Desktop or in a repo-local skill.
-- The installed runtime can predate the canonical skill. Do not add a Desktop copy; when the pinned runtime exposes
-  `analysis-output`, re-check user-level memory and skills and keep only the Desktop-specific capability constraints.
-- Desktop renders a completed assistant `ax-code-app` fence as a Run control. The payload is presentation data only:
-  `{"version":1,"kind":"streamlit","entrypoint":"<project-relative>.py"}`. It cannot carry commands, interpreters,
-  ports, URLs, environment variables, or setup authority.
-- The project runner owns the terminal, interpreter/port selection, preview, and Stop. Closing a preview leaves the
-  app running; the artifact itself never grants execution or installation.
+- The AX Code runtime owns the canonical `analysis-output` skill and routing between static artifacts,
+  governed analytics through AX BI MCP, and ordinary project development. Do not copy that skill into Desktop.
+- AX BI owns datasets, SQL, charts, dashboards and its existing authorization model. A BI connection is optional;
+  one-off findings, Mermaid and static exports must not require a BI service, credentials or Docker.
+- Historical `ax-code-app` fences render as ordinary inert code. Desktop has no dedicated Streamlit Run/Prepare
+  control, Python installer, framework discovery or progress protocol. Legacy saved recipes migrate to ordinary
+  project actions without executing, installing, deleting user files or stopping existing servers.
+- The general project runner owns the terminal, preview and explicit Stop. Closing a preview leaves its server
+  running. Explicit framework development uses these ordinary project tools.
 - Mermaid's machine-readable capability contract is
   `desktop/packages/ui/src/components/chat/mermaidCapabilities.json`. It distinguishes the pinned worker renderer's
   SVG/ASCII types from the lazily loaded official renderer's SVG-only types. Consult it and the global
   `desktop-mermaid-capability` skill before claiming a diagram type. Changes require matching fixtures, rendered
   verification, and a versioned capability-contract record; do not duplicate the list here or in a project skill.
-- Static analysis results belong in the conversation or a committed report. An analysis app is for reusable inputs,
-  filters, parameters, or repeated use, and its entrypoint must exist in the project before the handoff is emitted.
+- Static analysis results belong in the conversation or actual artifacts. Return AX BI result links through the
+  existing browser flow; do not recreate analytics runtime ownership inside Desktop.
 - Verify UI-only changes with `pnpm --dir desktop/packages/ui run type-check` and the focused Vitest files. Changes
   that touch analysis-app rendering or project actions must also pass the full UI test suite.
 

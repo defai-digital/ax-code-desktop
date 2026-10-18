@@ -27,3 +27,5 @@ Reviewed 2026-10-18. Status below distinguishes active requirements from histori
 See the [lifecycle review](../reports/GOVERNANCE-2026-10-18-document-lifecycle.md) for archive hashes, supersession scope, and intentionally retained deferred decisions.
 
 - [PRD-2026-10-18-analysis-app-handoff-v4.md](PRD-2026-10-18-analysis-app-handoff-v4.md): Accepted; natural-language analysis and app handoff.
+
+- [Analysis routing v5](PRD-2026-10-18-analysis-routing-v5.md): Accepted; supersedes the dedicated Streamlit product path in v3/v4.

@@ -9,3 +9,5 @@ Engineering investigations and proposed implementation plans live here. A report
 | 2026-10-17 | [AX Code remote control](remote-control-20261017/README.md) | Research complete; architecture proposed; implementation and deployment not started |
 
 Existing standalone reports and historical evidence packages remain in their original locations.
+
+- [Analysis routing and Streamlit retirement](ANALYSIS-ROUTING-2026-10-18-retirement.md): implemented, source-qualified, paired runtime/BI commits recorded.
