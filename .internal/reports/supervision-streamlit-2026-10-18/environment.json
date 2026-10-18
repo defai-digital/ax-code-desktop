@@ -1,0 +1,10 @@
+{
+  "recordedAt": "2026-10-18T10:28:49.527804+00:00",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "baseCommit": "d1e538df7496f48a2fa985ef2becb2997aa8f14a",
+  "node": "v26.5.0",
+  "pnpm": "10.33.4",
+  "macOS": "27.0.1",
+  "fixturePython": "Python 3.12.13",
+  "fixtureStreamlit": "1.66.0"
+}

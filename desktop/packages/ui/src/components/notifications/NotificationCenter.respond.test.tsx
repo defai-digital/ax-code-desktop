@@ -5,6 +5,7 @@ import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
 import type { PendingRequestEntry } from "@/sync/sync-context"
 import * as sessionActions from "@/sync/session-actions"
+import { useRequestDecisionStore } from "@/stores/useRequestDecisionStore"
 
 const { NotificationCenter } = await import("./NotificationCenter")
 const { useNotificationStore } = await import("@/stores/useNotificationStore")
@@ -25,6 +26,7 @@ describe("NotificationCenter permission entry", () => {
 
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    useRequestDecisionStore.setState({ records: new Map() })
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -60,10 +62,15 @@ describe("NotificationCenter permission entry", () => {
   }
 
   test.each([
-    ["notificationCenter.allow", "once"],
+    ["supervision.request.allowOnce", "once"],
     ["notificationCenter.deny", "reject"],
   ] as const)("uses the live permission card for %s without SyncProvider", async (label, response) => {
-    const respond = vi.spyOn(sessionActions, "respondToPermission").mockResolvedValue(undefined)
+    const respond = vi.fn().mockResolvedValue(undefined)
+    vi.spyOn(sessionActions, "captureBlockingRequest").mockReturnValue({
+      respond,
+      read: vi.fn(),
+      isPendingLocally: () => true,
+    })
     const fallback = vi.fn(async () => {})
     useNotificationStore.getState().addNotification(permissionItem({ onAllow: fallback, onDeny: fallback }))
     await render([
@@ -86,7 +93,7 @@ describe("NotificationCenter permission entry", () => {
       "Allow always",
     )
     await click(dict[label])
-    expect(respond).toHaveBeenCalledWith("ses_1", "req_1", response)
+    expect(respond).toHaveBeenCalledWith(response)
     expect(fallback).not.toHaveBeenCalled()
   })
 

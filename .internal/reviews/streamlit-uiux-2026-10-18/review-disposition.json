@@ -1,0 +1,117 @@
+{
+  "source_commit": "d1e538df7496f48a2fa985ef2becb2997aa8f14a",
+  "scope": "Advisory source review and final improvement proposal; no product implementation or live Streamlit qualification.",
+  "review_receipts": [
+    {
+      "review": "grok",
+      "returncode": 0,
+      "timedout": false,
+      "seconds": 136.0
+    },
+    {
+      "review": "deepseek",
+      "returncode": 0,
+      "timedout": false,
+      "seconds": 32.0,
+      "status": "completed",
+      "sessionID": "ses_-e5eb197ecbeffeTKCf9ynwqXL",
+      "model": "defai-01-ax-trust-com/deepseek-flash"
+    },
+    {
+      "review": "grok-round2",
+      "returncode": 0,
+      "timedout": false,
+      "seconds": 71.1
+    },
+    {
+      "review": "deepseek-round2",
+      "returncode": 0,
+      "timedout": false,
+      "seconds": 20.2,
+      "status": "completed",
+      "sessionID": "ses_-e5eb1948dfcffeCKUwk2jyzq4",
+      "model": "defai-01-ax-trust-com/deepseek-flash"
+    }
+  ],
+  "decision": {
+    "keep": "Existing React desktop/shared web control surface and canonical AX Code runtime.",
+    "prioritize": "Approval copy and recovery, real Peek rendering evidence, truthful review state and discoverability.",
+    "investigate": "Timeboxed Streamlit project preview through ordinary browser and existing project actions.",
+    "defer": "Full second Streamlit controller; internal read-only diagnostics until a concrete audience/job.",
+    "reject_now": "Replacing React with Streamlit."
+  },
+  "corrections": [
+    "Ordinary preview and Agent Browser are distinct. Ordinary preview uses a persistent shared partition; do not claim project cookie isolation or copy Agent Browser download policy.",
+    "Local Streamlit viewing needs no WebMCP grant or URL allowlist expansion.",
+    "Reuse existing terminal-owned Project Actions, not a new Python process supervisor. Manual URL attachment owns no process. Closing preview must not kill the server.",
+    "Both conflicting decisions remain disabled in flight and while the outcome is unresolved; the UI guard is not authoritative runtime authorization.",
+    "A second thin frontend is not inherently a second runtime. ADR-015 is naming. The objection to a duplicate GUI is demand and maintenance cost.",
+    "Allow is once-only already; clarify copy without changing behavior. Fourteen locale catalogs exist.",
+    "Peek narrow clipping remains a hypothesis because current visual fixtures bypass the real Peek.",
+    "Streamlit supports forms, fragments and streaming; Session State does not establish durable run ownership.",
+    "The project has not established a Python SDK contract; no general claim about worldwide SDK availability is made."
+  ],
+  "independent_post_review_findings": [
+    {
+      "source": "desktop/packages/ui/src/sync/bootstrap.ts:283",
+      "finding": "Canonical sdk.permission.list exists; sdk.question.list exists at line 240. No new runtime endpoint is required merely to inspect pending requests."
+    },
+    {
+      "source": "desktop/packages/ui/src/sync/sync-context-impl.tsx:597",
+      "finding": "resyncBlockingRequestsForDirectory merges concurrent SSE safely, but also performs existing auto-accept behavior at lines 712-740. Do not call the full helper blindly for read-only failure reconciliation; retain routing and event freshness and avoid introducing automatic reply side effects."
+    },
+    {
+      "source": "desktop/packages/ui/src/components/layout/ProjectActionsButton.tsx:609",
+      "finding": "Configured preview URL opens before command submission at line 637. Validate readiness and retry before adding a generic server readiness redesign."
+    }
+  ],
+  "plan_estimates_engineering_days": [
+    {
+      "phase": "P0",
+      "scope": "Render real MissionControlPeek at 420/760/1440 and 200% zoom; keyboard/focus checks; fix layout only if reproduced.",
+      "days": [
+        0.5,
+        1
+      ]
+    },
+    {
+      "phase": "P1",
+      "scope": "Allow once copy; visible sending and uncertain state; inline errors; read-only canonical reconciliation; duplicate/stale/late-response/unmount regressions.",
+      "days": [
+        2,
+        3
+      ]
+    },
+    {
+      "phase": "P2",
+      "scope": "Review copy describes changes awaiting review; keep enums; explicit existing inspector labels preference; locale consistency.",
+      "days": [
+        1,
+        2
+      ]
+    },
+    {
+      "phase": "P3",
+      "scope": "Single-platform Streamlit preview spike with existing project environment/actions; core widgets/forms/streaming, file transfer, reload/reconnect, restart, port collision, two projects, ownership and external fallback.",
+      "days": [
+        2,
+        3
+      ]
+    },
+    {
+      "phase": "P4",
+      "scope": "Conditional project action recipe and evidenced readiness/retry glue; explicit interpreter and entrypoint; reuse existing terminal ownership.",
+      "days": [
+        2,
+        4
+      ]
+    }
+  ],
+  "qualification_limits": [
+    "Estimates are not measurements or release schedules. Cross-platform qualification is additional.",
+    "Core embedded widgets/forms/streaming must work in ordinary preview to claim embedded support. External-browser success alone qualifies only an external-launch workflow.",
+    "Record upload/download/authentication and shared-profile limitations rather than silently weakening CORS/XSRF or agent permissions.",
+    "This review did not run the Streamlit compatibility spike, native end-to-end tests, or accessibility user testing.",
+    "Preserve accepted requirements; any later requirements change is an additive versioned proposal."
+  ]
+}

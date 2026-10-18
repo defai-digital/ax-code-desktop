@@ -1,0 +1,500 @@
+Read-only bounded final review of AX Code Desktop changes. Do not call tools or modify anything. Answer in English, at most 500 words. Report only concrete reproducible bugs with source locations, or no blocking findings. Do not add speculative redesign requirements.
+
+The previous broad Grok implementation review reached its 360-second timeout with no final output. This is a NEW narrower review of the risky boundaries after final fixes, not evidence that the timed-out pass approved anything.
+
+Scope and verified context: React remains the controller. Streamlit is a project action/ordinary Electron preview only, no Python bundle/install/autodiscovery/agent access. Native macOS Electron 44.9.0 with actual DesktopBrowserPane and production webview policy passed widgets, forms, incremental streaming, uploads/downloads, restart/reconnect, two projects, port collision, manual external-open request. Shared browser cookies across ports are documented. Recipe commands round-trip literal shell metacharacters in real sh/bash/zsh. Unsupported shells reject before input. All 14 locale catalogs pass. Full suite 5492 passed/10 skipped before final lifecycle regression additions. All build/typecheck/lint/boundary checks passed before the small connecting-state cleanup below. UI matrix 24 width/zoom/density/locale cases passed native keyboard and layout checks.
+
+Codex implementation finding 1 is rejected: StreamlitActionForm's useId is a draft only. ProjectActionsSection.onAdd always replaces it via createActionId before persisting. Finding 2 was real and fixed: acquiredTerminal identity now guards clearing isConnecting on failed launch; connected event clears it only for the same session. Tests cover unsupported shell and replacement session during shell lookup.
+
+Inspect the following final source for correctness at these boundaries only: request response/reconciliation locks and provenance; generated shell argv/readiness; launch failure cleanup and late manual-preview navigation. Client baseURL is fixed for renderer lifetime, session IDs are runtime-global. Failed reply reconciliation uses a valid scoped canonical list, NOT local/list agreement; stale-event stamps reject races and no canonical store merge or auto-answer occurs. A source without local store is conservatively considered potentially pending for ephemeral record retention; this is not used for enabling retry.
+
+FILE stores/useRequestDecisionStore.ts
+import { create } from "zustand"
+import {
+  captureBlockingRequest,
+  type BlockingRequestDecision,
+  type BlockingRequestIdentity,
+} from "@/sync/session-actions"
+
+export type RequestDecisionPhase = "idle" | "sending" | "checking" | "retry" | "uncertain" | "accepted" | "resolved"
+type RecordEntry = { phase: RequestDecisionPhase; source?: ReturnType<typeof captureBlockingRequest> }
+
+/** Ephemeral presentation state only. The runtime owns permission outcomes; this shares UI locks across cards. */
+export const useRequestDecisionStore = create<{ records: ReadonlyMap<string, RecordEntry> }>(() => ({
+  records: new Map(),
+}))
+const subscribers = new Map<string, number>()
+export const requestDecisionKey = ({ kind, sessionId, requestId }: BlockingRequestIdentity) =>
+  JSON.stringify([kind, sessionId, requestId])
+
+export function retainRequestDecision(key: string) {
+  subscribers.set(key, (subscribers.get(key) ?? 0) + 1)
+  return () => {
+    const count = (subscribers.get(key) ?? 1) - 1
+    if (count) subscribers.set(key, count)
+    else subscribers.delete(key)
+    pruneResolvedDecisions()
+  }
+}
+
+function pruneResolvedDecisions() {
+  const records = new Map(useRequestDecisionStore.getState().records)
+  let changed = false
+  for (const [key, entry] of records) {
+    if (
+      !subscribers.has(key) &&
+      entry.phase !== "sending" &&
+      entry.phase !== "checking" &&
+      entry.source?.isPendingLocally() === false
+    ) {
+      records.delete(key)
+      changed = true
+    }
+  }
+  if (changed) useRequestDecisionStore.setState({ records })
+}
+
+function update(key: string, entry: RecordEntry) {
+  const records = new Map(useRequestDecisionStore.getState().records)
+  records.set(key, entry)
+  useRequestDecisionStore.setState({ records })
+}
+
+async function reconcile(identity: BlockingRequestIdentity, source?: ReturnType<typeof captureBlockingRequest>) {
+  const key = requestDecisionKey(identity)
+  update(key, { phase: "checking", source })
+  try {
+    source ??= captureBlockingRequest(identity)
+    update(key, { phase: "checking", source })
+    const result = await source.read()
+    update(key, { phase: result === "pending" ? "retry" : "resolved", source })
+  } catch {
+    update(key, { phase: "uncertain", source })
+  }
+  pruneResolvedDecisions()
+}
+
+export async function checkRequestDecision(identity: BlockingRequestIdentity) {
+  const entry = useRequestDecisionStore.getState().records.get(requestDecisionKey(identity))
+  if (entry?.phase !== "uncertain") return
+  await reconcile(identity, entry.source)
+}
+
+export async function submitRequestDecision(identity: BlockingRequestIdentity, decision: BlockingRequestDecision) {
+  const key = requestDecisionKey(identity)
+  const previous = useRequestDecisionStore.getState().records.get(key)
+  if (previous && previous.phase !== "idle" && previous.phase !== "retry") return
+  // Synchronous store update guards both same-tick activation and another mounted/remounted surface.
+  let source = previous?.source
+  update(key, { phase: "sending", source })
+  try {
+    source ??= captureBlockingRequest(identity)
+    update(key, { phase: "sending", source })
+    await source.respond(decision)
+    update(key, { phase: "accepted", source })
+  } catch {
+    await reconcile(identity, source)
+  }
+  pruneResolvedDecisions()
+}
+
+FILE lib/streamlitProjectAction.ts
+import type { OpenChamberProjectAction } from "./openchamberConfig"
+
+const hasControlCharacters = (value: string) => {
+  for (const character of value) {
+    const code = character.charCodeAt(0)
+    if (code <= 31 || code === 127) return true
+  }
+  return false
+}
+const quotePosixArgument = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
+
+export function isSupportedRecipeShell(shell: string): boolean {
+  return /(?:^|\/)(?:sh|bash|zsh)$/.test(shell)
+}
+
+/** A user-selected command recipe, never an installer or a second process supervisor. */
+export function createStreamlitProjectAction(input: {
+  id: string
+  name: string
+  interpreter: string
+  entrypoint: string
+  port: string
+}): OpenChamberProjectAction | null {
+  const interpreter = input.interpreter.trim()
+  const entrypoint = input.entrypoint.trim()
+  const port = Number(input.port)
+  if (
+    !interpreter ||
+    !entrypoint ||
+    [input.interpreter, input.entrypoint].some(hasControlCharacters) ||
+    !/^[0-9]+$/.test(input.port) ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535 ||
+    entrypoint.startsWith("-") ||
+    !entrypoint.endsWith(".py")
+  )
+    return null
+  return {
+    id: input.id,
+    name: input.name,
+    command: `${quotePosixArgument(interpreter)} -m streamlit run ${quotePosixArgument(entrypoint)} --server.address=127.0.0.1 --server.port=${port} --server.headless=true`,
+    icon: "server",
+    autoOpenUrl: true,
+    openUrl: `http://127.0.0.1:${port}/`,
+    waitForUrl: true,
+    shell: "posix",
+  }
+}
+
+/** Streamlit prints this after binding; a command echo or an unrelated URL is not readiness. */
+export function readyProjectActionUrl(output: string, expectedUrl: string): string | null {
+  let expected: URL
+  try {
+    expected = new URL(expectedUrl)
+  } catch {
+    return null
+  }
+  if (!/^https?:$/.test(expected.protocol) || expected.username || expected.password) return null
+  const escape = String.fromCharCode(27)
+  const plain = output.replace(new RegExp(`${escape}\\[[0-9;?]*[ -/]*[@-~]`, "g"), "")
+  for (const line of plain.split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:Local URL|URL):\s+(https?:\/\/\S+)\s*$/)
+    if (!match) continue
+    try {
+      const url = new URL(match[1])
+      if (!url.username && !url.password && url.origin === expected.origin) return expected.href
+    } catch {
+      /* Incomplete output is not ready. */
+    }
+  }
+  return null
+}
+
+FILE sync/session-actions.ts
+export type BlockingRequestIdentity = { kind: "permission" | "question"; sessionId: string; requestId: string }
+export type BlockingRequestDecision = "once" | "reject" | string[][]
+
+/** Capture routing before any await. Reconciliation observes this same request without auto-accepting or merging. */
+export function captureBlockingRequest(identity: BlockingRequestIdentity) {
+  const { kind, sessionId, requestId } = identity
+  const directory =
+    resolveDirectoryForBlockingRequest(kind, sessionId, requestId) || getSessionDirectory(sessionId) || dir()
+  const client = getRequestReplyClient(kind, sessionId, requestId)
+  const scope = directory ? { directory } : {}
+  const stores = _childStores
+  return {
+    isPendingLocally: () => {
+      if (!stores || !directory) return true
+      const store = stores.children.get(directory)
+      // An evicted store is not evidence that the runtime resolved the request.
+      if (!store) return true
+      return Boolean(store.getState()[kind][sessionId]?.some((request) => request.id === requestId))
+    },
+    respond: async (decision: BlockingRequestDecision): Promise<void> => {
+      if (
+        kind === "permission"
+          ? decision !== "once" && decision !== "reject"
+          : decision !== "reject" && !Array.isArray(decision)
+      ) {
+        throw new Error("Invalid request decision")
+      }
+      await waitForConnectionOrThrow()
+      const result =
+        kind === "permission"
+          ? await client.permission.reply({ requestID: requestId, reply: decision as "once" | "reject", ...scope })
+          : decision === "reject"
+            ? await client.question.reject({ requestID: requestId, ...scope })
+            : await client.question.reply({ requestID: requestId, answers: decision as string[][], ...scope })
+      if (result.error || !result.data) throw new Error("Request response could not be confirmed")
+    },
+    read: async (): Promise<"pending" | "resolved"> => {
+      if (!directory) throw new Error("Request scope is unavailable")
+      const stamp = blockingRequestStamp(sessionId)
+      const result = kind === "permission" ? await client.permission.list(scope) : await client.question.list(scope)
+      if (result.error || !Array.isArray(result.data)) throw new Error("Request status is unavailable")
+      if (
+        result.data.some(
+          (request) => !request || typeof request.id !== "string" || typeof request.sessionID !== "string",
+        )
+      ) {
+        throw new Error("Invalid pending request response")
+      }
+      if (blockingRequestStamp(sessionId) !== stamp) throw new Error("Request status changed during the read")
+      return result.data.some((request) => request.id === requestId && request.sessionID === sessionId)
+        ? "pending"
+        : "resolved"
+    },
+  }
+}
+
+
+FILE components/layout/ProjectActionsButton.tsx (final launch path)
+  const runAction = React.useCallback(
+    async (action: OpenChamberProjectAction) => {
+      if (!allowMobile && isMobile) {
+        return
+      }
+
+      if (!normalizedDirectory) {
+        toast.error(t("projectActions.error.noActiveDirectoryForAction"))
+        return
+      }
+
+      const runKey = toProjectActionRunKey(normalizedDirectory, action.id)
+      const existingRun = projectActionRuns[runKey]
+      if (existingRun && existingRun.status === "running") {
+        return
+      }
+      // The store only learns about the run at the end of this function's await chain, so the
+      // snapshot above is empty for every click until then: two clicks sent the command into the
+      // same shell twice (dev servers then failed on a taken port). The ref is set synchronously.
+      if (startingRunKeysRef.current.has(runKey)) {
+        return
+      }
+      startingRunKeysRef.current.add(runKey)
+      let acquiredTerminal: { tabId: string; sessionId: string } | undefined
+
+      try {
+        const discovered =
+          action.id === AUTO_DISCOVER_ACTION_ID
+            ? await (async (): Promise<OpenChamberProjectAction> => {
+                const [actionsState, scripts] = await Promise.all([
+                  getProjectActionsState({ id: stableProjectRef?.id ?? "", path: normalizedDirectory }),
+                  readPackageJsonScripts(normalizedDirectory),
+                ])
+                const devServer = await detectDevServerCommand(normalizedDirectory, actionsState.actions, scripts)
+                if (!devServer) {
+                  throw new Error(t("contextPanel.preview.noDevServer"))
+                }
+                return {
+                  id: AUTO_DISCOVER_ACTION_ID,
+                  name: t("projectActions.actions.autoDiscover"),
+                  command: devServer.command,
+                  icon: "search",
+                  autoOpenUrl: true,
+                  openUrl: devServer.previewUrlHint || "",
+                }
+              })()
+            : action
+
+        const hasCustomOpenUrl = discovered.autoOpenUrl === true && (discovered.openUrl || "").trim().length > 0
+        const { key, tabId, sessionId } = await getOrCreateActionTab(discovered, {
+          revealTerminal: !hasCustomOpenUrl && action.id !== AUTO_DISCOVER_ACTION_ID,
+        })
+        let activeSessionId = sessionId
+        let createdSession = false
+
+        if (!activeSessionId) {
+          setConnecting(normalizedDirectory, tabId, true)
+          try {
+            activeSessionId = await ensureClaimedTerminalSession(normalizedDirectory, tabId, {
+              getClaimedSessionId: () =>
+                useTerminalStore
+                  .getState()
+                  .getDirectoryState(normalizedDirectory)
+                  ?.tabs.find((entry) => entry.id === tabId)?.terminalSessionId ?? null,
+              createSession: async () => {
+                const created = await terminal.createSession({ cwd: normalizedDirectory })
+                return created.sessionId
+              },
+              claimSession: (sessionId) => {
+                setTabSessionId(normalizedDirectory, tabId, sessionId)
+                return (
+                  useTerminalStore
+                    .getState()
+                    .getDirectoryState(normalizedDirectory)
+                    ?.tabs.find((entry) => entry.id === tabId)?.terminalSessionId === sessionId
+                )
+              },
+              closeSession: terminal.close,
+            })
+            createdSession = Boolean(activeSessionId)
+          } finally {
+            setConnecting(normalizedDirectory, tabId, false)
+          }
+        }
+
+        if (!activeSessionId) {
+          throw new Error(t("projectActions.error.failedToCreateTerminalSession"))
+        }
+        const runningSessionId = activeSessionId
+        acquiredTerminal = { tabId, sessionId: runningSessionId }
+
+        if (createdSession) {
+          await sleep(350)
+        }
+
+        if (
+          discovered.id === AUTO_DISCOVER_ACTION_ID ||
+          (discovered.autoOpenUrl === true && discovered.waitForUrl === true)
+        ) {
+          streamCleanupByRunKeyRef.current[key]?.()
+          setConnecting(normalizedDirectory, tabId, true)
+          streamCleanupByRunKeyRef.current[key] = connectTerminalStream(
+            runningSessionId,
+            (event) => {
+              if (event.type === "connected") {
+                const tab = useTerminalStore
+                  .getState()
+                  .getDirectoryState(normalizedDirectory)
+                  ?.tabs.find((entry) => entry.id === tabId)
+                if (tab?.terminalSessionId === runningSessionId) {
+                  setConnecting(normalizedDirectory, tabId, false)
+                }
+              }
+              if (event.type === "data" && typeof event.data === "string" && event.data.length > 0) {
+                useTerminalStore.getState().appendToBuffer(normalizedDirectory, tabId, event.data, {
+                  expectedSessionId: runningSessionId,
+                })
+              }
+              if (event.type === "exit") {
+                useTerminalStore.getState().setTabSessionId(normalizedDirectory, tabId, null, {
+                  lifecycle: "exited",
+                  expectedSessionId: runningSessionId,
+                })
+                useTerminalStore.getState().setConnecting(normalizedDirectory, tabId, false)
+                useTerminalStore.getState().removeProjectActionRun(key)
+                delete urlWatchByRunKeyRef.current[key]
+                streamCleanupByRunKeyRef.current[key]?.()
+                delete streamCleanupByRunKeyRef.current[key]
+                window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[key])
+                delete previewWaitTimeoutByRunKeyRef.current[key]
+              }
+            },
+            (_error, fatal) => {
+              useTerminalStore.getState().setConnecting(normalizedDirectory, tabId, false)
+              if (!fatal) {
+                return
+              }
+              useTerminalStore.getState().setTabSessionId(normalizedDirectory, tabId, null, {
+                lifecycle: "exited",
+                expectedSessionId: runningSessionId,
+              })
+              useTerminalStore.getState().removeProjectActionRun(key)
+              delete urlWatchByRunKeyRef.current[key]
+              streamCleanupByRunKeyRef.current[key]?.()
+              delete streamCleanupByRunKeyRef.current[key]
+              window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[key])
+              delete previewWaitTimeoutByRunKeyRef.current[key]
+            },
+            {
+              maxRetries: 60,
+              initialRetryDelay: 250,
+              maxRetryDelay: 2000,
+              connectionTimeout: 5000,
+              consumerKey: terminalStreamConsumerKey(normalizedDirectory, tabId),
+            },
+          )
+        }
+
+        const manualOpenUrl = discovered.autoOpenUrl ? normalizeManualOpenUrl(discovered.openUrl) : null
+        const waitForUrl = discovered.autoOpenUrl === true && discovered.waitForUrl === true && Boolean(manualOpenUrl)
+        if (discovered.shell === "posix") {
+          const { shell } = await getTerminalSessionOutput(runningSessionId)
+          if (!isSupportedRecipeShell(shell)) throw new Error(t("projectActions.error.unsupportedRecipeShell"))
+        }
+
+        setProjectActionRun({
+          key,
+          directory: normalizedDirectory,
+          actionId: discovered.id,
+          tabId,
+          sessionId: runningSessionId,
+          status:
+            waitForUrl || (discovered.id === AUTO_DISCOVER_ACTION_ID && !manualOpenUrl)
+              ? "waiting-for-preview"
+              : "running",
+        })
+        window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[key])
+        delete previewWaitTimeoutByRunKeyRef.current[key]
+        if (waitForUrl || (discovered.id === AUTO_DISCOVER_ACTION_ID && !manualOpenUrl)) {
+          previewWaitTimeoutByRunKeyRef.current[key] = window.setTimeout(() => {
+            const current = useTerminalStore.getState().projectActionRuns[key]
+            if (current?.sessionId === runningSessionId && current.status === "waiting-for-preview") {
+              useTerminalStore
+                .getState()
+                .updateProjectActionRunStatus(key, waitForUrl ? "preview-unavailable" : "running")
+              if (
+                waitForUrl &&
+                mountedRef.current &&
+                normalizeProjectActionDirectory(currentDirectoryRef.current) === normalizedDirectory
+              ) {
+                toast.error(t("projectActions.preview.unavailable"))
+              }
+            }
+            delete previewWaitTimeoutByRunKeyRef.current[key]
+          }, AUTO_DISCOVER_PREVIEW_WAIT_TIMEOUT_MS)
+        }
+
+        // Ignore old terminal output when restarting a configured action.
+        const previousChunks = useTerminalStore
+          .getState()
+          .getDirectoryState(normalizedDirectory)
+          ?.tabs.find((tab) => tab.id === tabId)?.bufferChunks
+        urlWatchByRunKeyRef.current[key] = {
+          lastSeenChunkId: previousChunks?.[previousChunks.length - 1]?.id ?? null,
+          openedUrl: waitForUrl ? false : Boolean(manualOpenUrl) || hasCustomOpenUrl,
+          tail: "",
+          openInPreview: waitForUrl || discovered.id === AUTO_DISCOVER_ACTION_ID,
+        }
+        setTabPreviewUrl(normalizedDirectory, tabId, null, { locked: hasCustomOpenUrl, autoOpened: false })
+
+        const normalizedCommand = stripControlChars(discovered.command.trim().replace(/\r\n|\r/g, "\n"))
+        await terminal.sendInput(runningSessionId, `${normalizedCommand}\r`)
+        const currentRun = useTerminalStore.getState().projectActionRuns[key]
+        if (
+          currentRun?.sessionId === runningSessionId &&
+          currentRun.status !== "stopping" &&
+          mountedRef.current &&
+          normalizeProjectActionDirectory(currentDirectoryRef.current) === normalizedDirectory
+        ) {
+          if (manualOpenUrl && !waitForUrl) {
+            setTabPreviewUrl(normalizedDirectory, tabId, manualOpenUrl, { locked: true, autoOpened: true })
+            openContextPreview(normalizedDirectory, manualOpenUrl)
+            toast.success(t("projectActions.toast.openedActionUrl"))
+          } else if (hasCustomOpenUrl && !manualOpenUrl) {
+            toast.error(t("projectActions.error.invalidCustomUrlFormat"))
+          }
+        }
+      } catch (error) {
+        if (acquiredTerminal) {
+          const tab = useTerminalStore
+            .getState()
+            .getDirectoryState(normalizedDirectory)
+            ?.tabs.find((entry) => entry.id === acquiredTerminal.tabId)
+          if (tab?.terminalSessionId === acquiredTerminal.sessionId) {
+            setConnecting(normalizedDirectory, acquiredTerminal.tabId, false)
+          }
+        }
+        removeProjectActionRun(runKey)
+        delete urlWatchByRunKeyRef.current[runKey]
+        streamCleanupByRunKeyRef.current[runKey]?.()
+        delete streamCleanupByRunKeyRef.current[runKey]
+        window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
+        delete previewWaitTimeoutByRunKeyRef.current[runKey]
+        toast.error(error instanceof Error ? error.message : t("projectActions.error.failedToRunAction"))
+      } finally {
+        // The run is in the store from here on, so the snapshot guard can see it again.
+        startingRunKeysRef.current.delete(runKey)
+      }
+    },
+    [
+      getOrCreateActionTab,
+      allowMobile,
+      isMobile,
+      normalizedDirectory,
+      openContextPreview,
+      projectActionRuns,
+      removeProjectActionRun,
+      setConnecting,
+      setProjectActionRun,
+      setTabPreviewUrl,
+      setTabSessionId,
+      stableProjectRef?.id,
+      t,
+      terminal,
+    ],
+  )

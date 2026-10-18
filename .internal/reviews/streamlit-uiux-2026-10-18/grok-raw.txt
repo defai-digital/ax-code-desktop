@@ -1,0 +1,52 @@
+**Keep React as the only AX Code control surface.** Reject A and B. D has no audience in this evidence. C is a later, user-invoked local preview in the existing project browser, not a Streamlit runtime inside Desktop.
+
+Phase 3 release evidence is in progress. Desktop supervises multiple projects and consumes the pinned signed runtime plus the public JSR SDK. It does not own a second coding runtime. No requirement names a Python-native audience. Aider’s experimental Streamlit GUI (`yes=True` on its capture IO, git-repo only, “experimental” warning) is a reference app, not demand.
+
+### A–D
+
+Ranges below are **estimates**, not measurements. A short prototype is a different cost from parity, release, and upkeep.
+
+| Option | Value | Difficulty | Maintenance | Range (estimate) | Call |
+| --- | --- | --- | --- | --- | --- |
+| A. Replace the React GUI with Streamlit | Negative. Drops the Electron project browser, persisted supervision settings, shared web UI, and the once-vs-standing approval split | Very high for parity | Permanent, and it stalls release evidence | One screen: days. Honest parity: about 9–18 person-months | No-go |
+| B. Second Streamlit app that controls AX Code | Low. A second SDK client splits Allow-once from in-session grants | Medium for a demo; high for safe parity | Every contract change hits two clients | Read-only demo: about 1–2 weeks. Approval-safe parity: about 2–4 person-months, then dual upkeep | No-go |
+| C. Preview a user’s Streamlit app | Narrow and real if they already run one | Low for an explicit URL; higher if Desktop starts Python | Low while generic; high if Desktop owns that process | Allowlisted URL open: about 2–5 days. Launch recipe: about 2–4 weeks | Defer until a named user job |
+| D. Internal read-only diagnostic app | None established. AX Telemetry owns observability; Desktop may show bounded local health | Low to prototype | Open-ended | About 1–2 weeks, then unused upkeep | No-go until a named audience and job |
+
+**Fact:** official docs show Streamlit can stream (`st.write_stream`) and rerun a portion (`st.fragment`, including `run_every`). Forms batch submission. Session State is per WebSocket and resets on reload; it is not durable portfolio storage. Community Cloud embeds public apps and explicitly does not officially support private-app embedding. That is a Community Cloud rule. It does not by itself forbid a self-hosted top-level `WebContentsView`. A loaded URL is not production support.
+
+**Fact, C’s ceiling:** the project browser is a sandboxed Chromium view; agent access starts off; guest permissions are denied; downloads are blocked; navigation is allowlisted; the runtime client allows only `http://127.0.0.1` with no userinfo. A browser sandbox does not sandbox Python. Preview must refuse automatic installs, process starts, broad port scans, credentials in URLs, and inherited agent-control permission. `allowedUrl`’s exact localhost policy is not in this packet.
+
+### UX critique
+
+**Allow vs once.** **Fact:** `RequestActionCard` labels the button with `notificationCenter.allow` and calls `respondToPermission(..., "once")`. The comment states cross-session surfaces send once; standing grants stay on the in-session card. Sending once is specified. **Hypothesis:** the visible word is bare “Allow,” so people infer a standing grant. The locale catalog is not here, so that misreading is not proven. Change copy, and keep the payload `"once"`.
+
+**Busy and toasts.** **Fact:** `disabled={busy}` applies during `run`; `respondingRef` drops a second call; failures go to `toast.error`. **Overstatement:** this is an in-flight lock on this card, not the supervision “pending” state locking the product. **Hypothesis:** a toast is easy to miss. This snippet does not show the card disappearing on failure.
+
+**Peek.** **Fact:** `MissionControlPeek` uses `max-h-80` and `pl-36`. The 420/760/1440 harness renders `MissionControlRow` and, for permission, `RequestActionCard` directly. It does not mount the peek, so those widths say nothing about it. **Hypothesis:** `pl-36` (9rem) crowds a narrow peek. Unverified.
+
+**Review.** **Fact:** `deriveSupervisionState` maps `uncommitted` to `"review"` after permission, question, and running (`busy` or `retry`). The harness string “Review changes” is fixture copy. The state means uncommitted work. It does not mean tests passed. Shipping copy that claims test success is a **hypothesis**; those strings are not in this packet.
+
+**Already shipped.** Inspector labels exist and default to `inspectorLabels: false`. This excerpt shows plan, context, wiki, and terminal; the prior count of eight tools stands as prior evidence. Main navigation, scope disclosure (two patterns / 160 characters, then expand, with `aria-expanded`), six state labels/icons/colors, container-responsive board rows, density, and reduced motion are present. Matching fixture hashes are not a native end-to-end run and not a screen-reader pass.
+
+### Improvement plan
+
+Preserve once, reject, answer, dismiss, no standing grant on this card, `respondingRef`, `mountedRef`, agent access defaulting off, and `t()` for all new copy.
+
+1. **Once-disclosure.** Point the cross-session allow control at copy that states a single grant, in every shipped locale. **Acceptance:** the accessible name states one-time allow; the call remains `"once"`; deny still sends `"reject"`; a second click while busy does not send; always-grants stay on the in-session card.
+2. **Failure stays on the card.** Keep the toast if wanted, and show the error on this card. **Acceptance:** a rejected response re-enables the buttons, shows the error in the card, and allows one later retry; unmount during the request does not `setBusy` after unmount.
+3. **Peek fixture.** Mount real `MissionControlPeek` at 420px and at a comfortable width. **Acceptance:** no horizontal clip; the gutter tracks the row without fixed padding wider than the column; scroll still reaches open-session and the request actions; compact and full density still render.
+4. **Review copy audit.** Leave the six-state derivation unchanged. **Acceptance:** priority stays permission/question, then running, then error, then uncommitted; locale strings for `review` describe uncommitted changes and do not say tests passed or approved.
+5. **Accessibility, still unproven.** Specify names, focus order, and busy/error announcements, then run a screen reader on the real Electron view. **Acceptance** is that run’s notes. This discussion does not satisfy it.
+
+Do phase 1 first. It can change a trust decision. Hold 2–5 behind the release-evidence queue. Do not restyle the board while fixing the peek.
+
+### Streamlit spike
+
+**Go** only if a written requirement names the audience and a job the desktop and shared web UI cannot do, the spike is read-only on the pinned public SDK, it ends in a decision record within three days, and the owner may kill it. Non-goals: installs, spawned processes, port scans, secrets, WebMCP inheritance, Session State as the portfolio store, and any production or private-embed claim.
+
+**Defer** A, B, D, and C’s launch recipe. A generic “open this local URL” action waits for a real request.
+
+### Strongest counterargument
+
+A Python analyst might need a read-only board next week. `st.fragment` and `st.write_stream` could show runtime status in days, while remote deployment and auth for the shared React web UI are not established as qualified. That fails on this evidence. No such audience is named. Streamlit does not qualify auth or private embedding either. A second client would still owe once-only approvals and the signed runtime boundary. The demo is the cheap part. The second product is the expensive part.

@@ -1,0 +1,125 @@
+You are conducting the second and final review round. The parent has actually obtained both Grok CLI and DeepSeek via AX Code reviews; you need not obtain any external review yourself. Remain read-only, use no tools, do not delegate. Answer in English, maximum 650 words. Review the peer output and these verified source corrections, revise your own recommendation where warranted, then identify remaining concrete blockers and acceptance criteria. Distinguish facts from hypotheses and rough estimates. Do not invent audience requirements or policy gates.
+
+Verified additional source facts at HEAD d1e538df:
+1. There are TWO browser modes. ContextPanel-impl.tsx:1159 wraps ordinary DesktopBrowserPane in EmbeddedBrowserChoice; preview is default. Ordinary preview at line 2124 is an Electron webview with partition persist:openchamber-browser. The global browser persists across projects. webview-policy.js forces sandbox=true, contextIsolation=true, nodeIntegration=false, strips preload, enables webSecurity and disables insecure content, blocks guest popups; it admits HTTP/HTTPS. Its cookie partition is persistent and shared, NOT project-isolated. Do not transplant AgentBrowser's denied downloads and in-memory partition claims to this ordinary preview.
+2. Separate Agent Browser uses sandboxed WebContentsView, agent access off initially. native-webmcp.js allowedUrl accepts HTTP/HTTPS without userinfo; agentOrigin additionally restricts HTTP agent access to localhost, 127.0.0.1, [::1]. Viewing local Streamlit does not require enabling WebMCP or widening any allowlist. Agent-origin consent is distinct from preview navigation.
+3. Existing ProjectActionsButton.tsx already starts user-configured commands in canonical terminal sessions, guards double-start, tracks per-project/action session identity, consumes output URL candidates, opens preview, stops via Ctrl-C then owned-session forceKill/close. OpenChamberProjectAction already has command, autoOpenUrl, openUrl, platforms fields. Therefore no new Python process supervisor is needed. detectDevServer currently discovers package.json scripts/static index, not Streamlit. A user-authored Start Streamlit action can precede any auto-detection.
+4. A configured custom preview URL currently opens BEFORE terminal.sendInput at lines 609 and 637; readiness/retry is a real spike question. Process running, HTTP ready, and WebSocket app usable are distinct. Existing ordinary preview has Retry and Open external controls.
+5. RequestActionCard in-flight disables BOTH decisions and respondingRef drops repeats; leave both disabled during in-flight/uncertain outcomes. Keeping the opposite action enabled would introduce conflicting intents and misleading interaction. The UI guard is NOT authoritative authorization/audit; AX Code/AX Trust boundaries remain canonical. Add Sending/Confirming/inline error state and re-read available canonical request state before retry after ambiguous failure; do not invent a new runtime endpoint or retry automatically. Disabling resolves only after definitive outcome or reconciliation.
+6. Actual English labels verified: notificationCenter.allow is Allow; review label is Ready to review. This is copy clarity, not permission escalation or evidence tests passed. Review semantics must describe changes awaiting human review. Preserve persisted enum. There are 14 locale files, not seven. Scope disclosure, inspector labels option, density, reduced motion already exist. Fixed Peek padding concern remains unverified because old fixtures bypass Peek.
+7. ADR-015 is product naming; a second thin UI does NOT inherently violate no-second-runtime. Its objection is cost and demand unless it forks execution. Streamlit supports forms, fragments, streaming; session state lifetime is a design constraint, not proof impossibility. Community Cloud private iframe restrictions do NOT establish native localhost failure. No Python SDK contract has been established; do not assume one exists.
+8. Closing/hiding a preview should not automatically kill its server. Reuse explicit existing Start/Stop for owned terminal action; never kill a manually attached server. Browser sandbox does not sandbox project code. A user's explicit click on configured Start normally provides launch intent, do not introduce an extra consent modal by assumption. No auto-installs/bundled Python.
+
+Candidate revised plan to critique:
+- Do not replace React or add a full second Streamlit controlling GUI now. Keep read-only internal Streamlit diagnostics conditional on a named audience. Support project Streamlit preview as a bounded, useful feasibility spike (user has explicitly asked about support, no separate product approval required to investigate).
+- P0 real MissionControlPeek/component harness at narrow/medium/wide widths, zoom, keyboard/focus; 0.5-1 engineering day estimate, layout fix only after reproducing.
+- P1 clear Allow once, visible in-flight/uncertain state and inline failure recovery while preserving decision guards; regression tests against duplicate sends, stale requests, late response/unmount. 2-3 days estimate.
+- P2 review copy based on uncommitted changes and actual evidence, avoid fabricated tests-passed claims; expose existing inspector labels as first-use/wide-window suggestion while honoring explicit preferences. 1-2 days estimate.
+- P3 Streamlit compatibility spike 1-2 days: use user-started project environment or existing configured action and ordinary preview; test widgets/forms, write_stream, file upload/download, WebSocket reconnect/reload, server restart, port collision, two projects, and external-browser fallback; retain CORS/XSRF defaults. No app controller, runtime adapter, Python SDK, packaging, installs, or agent permission changes.
+- P4 only after spike: reusable project action recipe + any evidenced generic readiness/retry fixes, estimated 2-4 days for recipe/UI glue, not platform-wide production qualification. Reuse existing terminal ownership; manual URL attaches no process ownership. Handle interpreter selection and entrypoint explicitly.
+Return what you agree with, what you changed from your first answer, what you still reject, corrected effort/scope if necessary, and 3 measurable go/no-go criteria. Do not demand impossible exactly-once effects across unknown transport failures; distinguish UI intent count from runtime outcome.
+
+YOUR FIRST ROUND:
+**Method note:** this pass is constrained to supplied evidence — no tools, no delegation, no browser or test runs. I therefore did **not** obtain Grok or DeepSeek transcripts; nothing below is attributed to them, and no cross-model agreement is claimed. Everything is either [fact] from the quoted source, [hypothesis] requiring measurement, or [estimate].
+
+## 1. A/B/C/D
+
+**A — Replace the React desktop GUI with Streamlit: NO.**
+[Fact] The supervision surface is entangled with Electron-only capabilities: `desktop-webmcp-browser.js` creates a sandboxed `WebContentsView`, holds a main-process-only `DESKTOP_BROWSER_TOKEN`, mutates the `allowedUrl`/`agentOrigin` gates, and enforces partition-level permission denial. [Fact] `EmbeddedWebMcpBrowser.tsx` encodes a lifecycle contract (create/close, lifecycle-ref invalidation, reset-on-session-change). Streamlit cannot host that; it would need a companion process anyway, so you would ship Electron **plus** Python. [Fact] Session State is per-WebSocket and resets on reload — that is not durable supervision state, and the store (`useSupervisionStore`) is explicitly persisted. Value: near-zero. Difficulty: very high. [Estimate] 3–6 eng-months to a strictly worse surface, plus a new signed supply chain for a bundled interpreter. This also collides with ADR-015 and the "no second runtime" rule.
+
+**B — Separate Streamlit GUI for controlling AX Code: defer, do not build.**
+[Fact] No Python-native audience is established, and a reference app having a GUI is not demand. The real problem is not rendering — it is that any second surface that can send permission intents duplicates the guard/audit boundary now concentrated in `RequestActionCard` (`respondingRef`, `mountedRef`, `run()` wrapper). [Hypothesis] A Streamlit control panel would reimplement this from scratch and drift. If ever built: read-only first, SDK over loopback with a scoped token, no approval actions. [Estimate] 3–6 weeks to a credible read-mostly MVP, then permanent dual-surface cost (two release trains, two auth stories, two localization sets).
+
+**C — Preview user/project Streamlit apps in the existing project browser: YES, best ratio.**
+The machinery already exists: hardened partition, permission handlers returning `false`, `will-download` prevented, `will-redirect`/`will-navigate` gated by `allowedUrl`, agent access off on every fresh browser. Add a *generic launch recipe*: user-declared command, user-declared port, readiness probe, supervised child process, explicit per-launch consent. [Fact] `allowedUrl` exists and blocks non-allowed navigation, so [hypothesis — verify first] a `localhost:<port>` preview will be refused until that origin is explicitly admitted; that check is the single biggest integration unknown. [Fact] A Chromium sandbox does not sandbox Python — app code runs with the user's privileges; this must be disclosed in the consent copy, not implied by the pane's visual containment. [Estimate] 1–2 weeks recipe + lifecycle, ~1 week hardening (orphans, port collisions, kill-on-close).
+
+**D — Internal read-only diagnostic app: conditional.**
+Only with a named owner/audience (e.g. release-evidence reporting). Keep it outside the shipped artifact — a dev tool, not a product surface. [Estimate] 3–5 days. Do not let it become B by accretion.
+
+## 2. Critique of the UX findings
+
+- **"Allow sends once" is overstated as a defect.** [Fact] The call is `respondToPermission(..., "once")`, and the component docstring states it sends intents only and standing grants stay in-session. So the *behavior* is the documented design; the defect is **label truthfulness**, not permission escalation. Severity: medium copy/disclosure, not security. Frame it as "Allow" vs "Allow once", not "the button lies."
+- **"Pending disables controls" is partially defensible.** [Fact] `respondingRef` already prevents double submission, so disabling both buttons is redundant belt-and-braces — and it removes the user's only escape. [Hypothesis] A better shape: disable only the submitted action, keep the other, and show inline status.
+- **"Errors in toast" understates a lifecycle gap.** [Fact] Failures go to `toast.error`; nothing re-reads the request. [Hypothesis] After failure the card may show a stale request the runtime already resolved. Inline error + revalidation is the real fix; the toast is a symptom.
+- **Fixture-bypass claim is correct and must constrain all conclusions.** [Fact] `renderer.tsx` renders `MissionControlRow` with `fixture-request` children directly, so `MissionControlPeek` (`pl-36`, `max-h-80`) is *never* exercised by the 420/760/1440 set. Therefore any statement that the peek "looks fine" or "is broken" is unsupported in both directions. [Hypothesis] Fixed `pl-36` (144px) at 420px leaves ~276px of content width — likely cramped; unmeasured.
+- **"Review = uncommitted" is correctly read, but the risk is naming inflation.** [Fact] `deriveSupervisionState` maps `uncommitted` → `review`. Users will read "review" as "reviewed/approved". Fix copy ("uncommitted changes"), not the enum — renaming touches persistence and seven locales. [Hypothesis] Non-git directories can never enter "review".
+- **Do not re-propose what exists:** main navigation, permission-scope disclosure (`PREVIEW_PATTERNS=2`, 160-char truncation + expand control), six states with icons/colors, container-responsive rows, density and reduced-motion. [Fact] `inspectorLabels` defaults `false` — compact-by-default is a discoverability tradeoff, not an absence.
+- **Standing caveat:** review state ≠ passed tests; source hashes match but native end-to-end and screen-reader behavior were not exercised.
+
+## 3. Sequenced plan
+
+**Phase 0 — Measure before opining (≈0.5 day).** Add `MissionControlPeek` to the fixture at 420/760/1440 and 200% text zoom. *Acceptance:* fixture renders the peek; DOM assertion records `scrollWidth ≤ clientWidth` and minimum content width at 420; screenshot artifacts captured. No prose claim about peek layout ships before this.
+
+**Phase 1 — Permission-label truthfulness (≈1–2 days).** "Allow" → "Allow once" (or subtitle), across all locales; keep the `"once"` intent and every guard untouched. *Acceptance:* no change to `sessionActions.respondToPermission` arguments; `respondingRef`/`mountedRef` unchanged; a test asserts exactly one call with `"once"`; i18n key parity check passes; existing tests green.
+
+**Phase 2 — Inline failure recovery (≈1–2 days).** Inline error on the card + retry; keep toast; revalidate the request after failure. *Acceptance:* rejected promise → inline message visible, action re-enabled, exactly one network intent recorded (no double-send), zero unhandled rejections, stale-request path covered by a test.
+
+**Phase 3 — Wording + discoverability (≈1–2 days, conditional on Phase 0).** Surface "uncommitted changes" copy; fix peek padding only if Phase 0 shows clipping. *Acceptance:* enum and persisted keys unchanged (backward-compatible reads, no migration); all locales updated; guard/settings tests unchanged.
+
+**Phase 4 — Streamlit preview recipe (C), flagged (≈2–3 weeks, gated).** *Acceptance:* only user-declared commands run; no installs; port collision and readiness handled; child killed on pane close, window close, and crash; agent access defaults `off`; `allowedUrl` change reviewed; consent copy states Python is not sandboxed.
+
+## 4. Spike go/no-go
+
+**GO** if: (a) a named audience with a concrete workflow, (b) scoped to preview-only, no approval intents, (c) can live outside the signed artifact or behind an opt-in flag, (d) deterministic kill and no port scanning, (e) `allowedUrl` origin admission is a one-line, reviewed change.
+**NO-GO** if it requires: bundled Python in the signed bundle, a second approval UI, shared durable session storage, credential-bearing URLs, inherited agent-control permission for the preview, or automatic package installs.
+
+**Defer:** A permanently; B until audience evidence exists; D until an owner appears.
+
+## 5. Strongest counterargument
+
+Streamlit's rerun model makes internal view-building extremely cheap, and a read-only internal console (D) could plausibly ship in days and *earn* its way to B — so rejecting Streamlit wholesale may discard a real speed advantage, especially if AX Code's actual users are Python shops who would treat a Streamlit control panel as a distribution lever rather than a duplicate GUI.
+
+**Rebuttal:** the binding constraint in this codebase is not view-construction speed — it is approval correctness, process lifecycle, and preview isolation, none of which Streamlit improves. Label truthfulness and inline recovery are ~3 days of work here and unblock more trust than a parallel GUI would.
+PEER FIRST ROUND:
+**Keep React as the only AX Code control surface.** Reject A and B. D has no audience in this evidence. C is a later, user-invoked local preview in the existing project browser, not a Streamlit runtime inside Desktop.
+
+Phase 3 release evidence is in progress. Desktop supervises multiple projects and consumes the pinned signed runtime plus the public JSR SDK. It does not own a second coding runtime. No requirement names a Python-native audience. Aider’s experimental Streamlit GUI (`yes=True` on its capture IO, git-repo only, “experimental” warning) is a reference app, not demand.
+
+### A–D
+
+Ranges below are **estimates**, not measurements. A short prototype is a different cost from parity, release, and upkeep.
+
+| Option | Value | Difficulty | Maintenance | Range (estimate) | Call |
+| --- | --- | --- | --- | --- | --- |
+| A. Replace the React GUI with Streamlit | Negative. Drops the Electron project browser, persisted supervision settings, shared web UI, and the once-vs-standing approval split | Very high for parity | Permanent, and it stalls release evidence | One screen: days. Honest parity: about 9–18 person-months | No-go |
+| B. Second Streamlit app that controls AX Code | Low. A second SDK client splits Allow-once from in-session grants | Medium for a demo; high for safe parity | Every contract change hits two clients | Read-only demo: about 1–2 weeks. Approval-safe parity: about 2–4 person-months, then dual upkeep | No-go |
+| C. Preview a user’s Streamlit app | Narrow and real if they already run one | Low for an explicit URL; higher if Desktop starts Python | Low while generic; high if Desktop owns that process | Allowlisted URL open: about 2–5 days. Launch recipe: about 2–4 weeks | Defer until a named user job |
+| D. Internal read-only diagnostic app | None established. AX Telemetry owns observability; Desktop may show bounded local health | Low to prototype | Open-ended | About 1–2 weeks, then unused upkeep | No-go until a named audience and job |
+
+**Fact:** official docs show Streamlit can stream (`st.write_stream`) and rerun a portion (`st.fragment`, including `run_every`). Forms batch submission. Session State is per WebSocket and resets on reload; it is not durable portfolio storage. Community Cloud embeds public apps and explicitly does not officially support private-app embedding. That is a Community Cloud rule. It does not by itself forbid a self-hosted top-level `WebContentsView`. A loaded URL is not production support.
+
+**Fact, C’s ceiling:** the project browser is a sandboxed Chromium view; agent access starts off; guest permissions are denied; downloads are blocked; navigation is allowlisted; the runtime client allows only `http://127.0.0.1` with no userinfo. A browser sandbox does not sandbox Python. Preview must refuse automatic installs, process starts, broad port scans, credentials in URLs, and inherited agent-control permission. `allowedUrl`’s exact localhost policy is not in this packet.
+
+### UX critique
+
+**Allow vs once.** **Fact:** `RequestActionCard` labels the button with `notificationCenter.allow` and calls `respondToPermission(..., "once")`. The comment states cross-session surfaces send once; standing grants stay on the in-session card. Sending once is specified. **Hypothesis:** the visible word is bare “Allow,” so people infer a standing grant. The locale catalog is not here, so that misreading is not proven. Change copy, and keep the payload `"once"`.
+
+**Busy and toasts.** **Fact:** `disabled={busy}` applies during `run`; `respondingRef` drops a second call; failures go to `toast.error`. **Overstatement:** this is an in-flight lock on this card, not the supervision “pending” state locking the product. **Hypothesis:** a toast is easy to miss. This snippet does not show the card disappearing on failure.
+
+**Peek.** **Fact:** `MissionControlPeek` uses `max-h-80` and `pl-36`. The 420/760/1440 harness renders `MissionControlRow` and, for permission, `RequestActionCard` directly. It does not mount the peek, so those widths say nothing about it. **Hypothesis:** `pl-36` (9rem) crowds a narrow peek. Unverified.
+
+**Review.** **Fact:** `deriveSupervisionState` maps `uncommitted` to `"review"` after permission, question, and running (`busy` or `retry`). The harness string “Review changes” is fixture copy. The state means uncommitted work. It does not mean tests passed. Shipping copy that claims test success is a **hypothesis**; those strings are not in this packet.
+
+**Already shipped.** Inspector labels exist and default to `inspectorLabels: false`. This excerpt shows plan, context, wiki, and terminal; the prior count of eight tools stands as prior evidence. Main navigation, scope disclosure (two patterns / 160 characters, then expand, with `aria-expanded`), six state labels/icons/colors, container-responsive board rows, density, and reduced motion are present. Matching fixture hashes are not a native end-to-end run and not a screen-reader pass.
+
+### Improvement plan
+
+Preserve once, reject, answer, dismiss, no standing grant on this card, `respondingRef`, `mountedRef`, agent access defaulting off, and `t()` for all new copy.
+
+1. **Once-disclosure.** Point the cross-session allow control at copy that states a single grant, in every shipped locale. **Acceptance:** the accessible name states one-time allow; the call remains `"once"`; deny still sends `"reject"`; a second click while busy does not send; always-grants stay on the in-session card.
+2. **Failure stays on the card.** Keep the toast if wanted, and show the error on this card. **Acceptance:** a rejected response re-enables the buttons, shows the error in the card, and allows one later retry; unmount during the request does not `setBusy` after unmount.
+3. **Peek fixture.** Mount real `MissionControlPeek` at 420px and at a comfortable width. **Acceptance:** no horizontal clip; the gutter tracks the row without fixed padding wider than the column; scroll still reaches open-session and the request actions; compact and full density still render.
+4. **Review copy audit.** Leave the six-state derivation unchanged. **Acceptance:** priority stays permission/question, then running, then error, then uncommitted; locale strings for `review` describe uncommitted changes and do not say tests passed or approved.
+5. **Accessibility, still unproven.** Specify names, focus order, and busy/error announcements, then run a screen reader on the real Electron view. **Acceptance** is that run’s notes. This discussion does not satisfy it.
+
+Do phase 1 first. It can change a trust decision. Hold 2–5 behind the release-evidence queue. Do not restyle the board while fixing the peek.
+
+### Streamlit spike
+
+**Go** only if a written requirement names the audience and a job the desktop and shared web UI cannot do, the spike is read-only on the pinned public SDK, it ends in a decision record within three days, and the owner may kill it. Non-goals: installs, spawned processes, port scans, secrets, WebMCP inheritance, Session State as the portfolio store, and any production or private-embed claim.
+
+**Defer** A, B, D, and C’s launch recipe. A generic “open this local URL” action waits for a real request.
+
+### Strongest counterargument
+
+A Python analyst might need a read-only board next week. `st.fragment` and `st.write_stream` could show runtime status in days, while remote deployment and auth for the shared React web UI are not established as qualified. That fails on this evidence. No such audience is named. Streamlit does not qualify auth or private embedding either. A second client would still owe once-only approvals and the signed runtime boundary. The demo is the cheap part. The second product is the expensive part.

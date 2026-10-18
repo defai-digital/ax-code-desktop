@@ -39,7 +39,7 @@ type TerminalProjectActionRun = {
   actionId: string
   tabId: string
   sessionId: string
-  status: "running" | "waiting-for-preview" | "stopping"
+  status: "running" | "waiting-for-preview" | "preview-unavailable" | "stopping"
 }
 
 interface TerminalStore {

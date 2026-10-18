@@ -102,12 +102,12 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
         </span>
       ) : null}
       <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
-        <label className="flex items-center gap-2 typography-meta">
+        <label className="flex min-w-0 max-w-full flex-wrap items-center gap-2 typography-meta">
           <span>{t("supervision.missionControl.density")}</span>
           <select
             value={density}
             onChange={(event) => onDensityChange(event.target.value as SupervisionDensity)}
-            className="h-8 rounded-md border border-border bg-background px-2 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-8 min-w-0 max-w-full rounded-md border border-border bg-background px-2 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="comfortable">{t("supervision.missionControl.comfortable")}</option>
             <option value="compact">{t("supervision.missionControl.compact")}</option>

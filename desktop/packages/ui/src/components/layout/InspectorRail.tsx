@@ -138,10 +138,13 @@ export const InspectorRail: React.FC = () => {
         aria-expanded={expanded}
         aria-label={`${t("supervision.inspector.tools")}: ${t(expanded ? "supervision.inspector.hideLabels" : "supervision.inspector.showLabels")}`}
         title={t(expanded ? "supervision.inspector.hideLabels" : "supervision.inspector.showLabels")}
-        className="flex min-h-10 w-full items-center justify-center gap-2 rounded-md px-1 typography-micro text-muted-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn(
+          "flex min-h-10 w-full items-center justify-center rounded-md px-1 py-1 typography-micro text-muted-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          expanded ? "gap-2" : "flex-col gap-0.5",
+        )}
       >
         <Icon name={expanded ? "arrow-right-s" : "arrow-left-s"} className="h-4 w-4 shrink-0" aria-hidden="true" />
-        {expanded ? <span className="min-w-0 [overflow-wrap:anywhere]">{t("supervision.inspector.tools")}</span> : null}
+        <span className="min-w-0 max-w-full [overflow-wrap:anywhere]">{t("supervision.inspector.tools")}</span>
       </button>
       {ENTRIES.map(renderEntry)}
       <div className="my-1 h-px w-5 bg-border/60" aria-hidden="true" />

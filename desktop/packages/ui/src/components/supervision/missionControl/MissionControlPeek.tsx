@@ -75,7 +75,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
   }
 
   return (
-    <div className="max-h-80 overflow-y-auto px-4 pb-3 pl-36">
+    <div className="mission-control-peek max-h-80 min-w-0 overflow-y-auto px-4 pb-3">
       <div className="flex flex-col gap-2">
         {requests.length ? (
           requests.map((entry) => (
@@ -114,14 +114,18 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
           </p>
         ) : null}
         <div className="flex flex-wrap items-center gap-1.5">
-          <Button size="sm" className="h-6 px-2 typography-micro" onClick={handleOpenClick}>
+          <Button
+            size="sm"
+            className="h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 typography-micro"
+            onClick={handleOpenClick}
+          >
             {t("supervision.missionControl.action.openSession")}
           </Button>
           {row.evidence ? (
             <Button
               size="sm"
               variant="outline"
-              className="h-6 px-2 typography-micro"
+              className="h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 typography-micro"
               onClick={handleReviewChangesClick}
             >
               {t("supervision.missionControl.action.reviewChanges")}
@@ -131,7 +135,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
             aria-label={t("supervision.missionControl.action.addToWorkingSet")}
             value=""
             onChange={handleWorkingSetChange}
-            className="h-6 rounded border border-border bg-background px-1.5 typography-micro text-foreground"
+            className="h-6 min-w-0 max-w-full rounded border border-border bg-background px-1.5 typography-micro text-foreground"
           >
             <option value="">{t("supervision.missionControl.action.addToWorkingSet")}</option>
             {workingSets.map((workingSet) => (
@@ -142,7 +146,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
             <option value="__new__">{t("supervision.missionControl.action.newWorkingSetOption")}</option>
           </select>
           {isCreatingSetForRow ? (
-            <span className="flex items-center gap-1">
+            <span className="flex min-w-0 max-w-full flex-wrap items-center gap-1">
               <input
                 autoFocus
                 value={newSetName}
@@ -150,9 +154,13 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
                 onKeyDown={handleNewSetKeyDown}
                 placeholder={t("supervision.missionControl.workingSetNamePlaceholder")}
                 aria-label={t("supervision.missionControl.workingSetNamePlaceholder")}
-                className="h-6 w-32 rounded border border-border bg-background px-1.5 typography-micro text-foreground outline-none"
+                className="h-6 w-32 min-w-0 max-w-full rounded border border-border bg-background px-1.5 typography-micro text-foreground outline-none"
               />
-              <Button size="sm" className="h-6 px-2 typography-micro" onClick={handleCreateSetClick}>
+              <Button
+                size="sm"
+                className="h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 typography-micro"
+                onClick={handleCreateSetClick}
+              >
                 {t("supervision.missionControl.createWorkingSet")}
               </Button>
             </span>

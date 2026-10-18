@@ -1,0 +1,5 @@
+- **P2 — Stale stream callbacks clear a replacement session’s connecting state.** Location: `components/layout/ProjectActionsButton.tsx`, `runAction` → `connectTerminalStream`, both the `exit` handler and error callback.
+
+  Reproduce by replacing session A with session B in the same tab while A’s shell lookup is pending, marking B as connecting, then delivering A’s exit or nonfatal stream error. Both callbacks unconditionally call `setConnecting(..., false)`, clearing B’s state. The `expectedSessionId` option protects only `setTabSessionId`.
+
+  Apply the same session-identity guard already used by the `connected` handler and launch-failure cleanup.

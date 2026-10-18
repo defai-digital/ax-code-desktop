@@ -54,6 +54,8 @@ export interface OpenChamberProjectAction {
   platforms?: OpenChamberProjectActionPlatform[]
   autoOpenUrl?: boolean
   openUrl?: string
+  waitForUrl?: boolean
+  shell?: "posix"
 }
 
 interface OpenChamberProjectActionsState {
@@ -403,6 +405,8 @@ const sanitizeProjectActions = (value: unknown): OpenChamberProjectAction[] => {
       platforms?: unknown
       autoOpenUrl?: unknown
       openUrl?: unknown
+      waitForUrl?: unknown
+      shell?: unknown
     }
 
     const id = typeof record.id === "string" ? record.id.trim() : ""
@@ -432,6 +436,8 @@ const sanitizeProjectActions = (value: unknown): OpenChamberProjectAction[] => {
       icon: iconRaw || null,
       ...(autoOpenUrl ? { autoOpenUrl: true } : {}),
       ...(openUrl ? { openUrl } : {}),
+      ...(record.waitForUrl === true ? { waitForUrl: true } : {}),
+      ...(record.shell === "posix" ? { shell: "posix" as const } : {}),
       ...(platforms.length > 0 ? { platforms } : {}),
     })
   }
@@ -702,7 +708,7 @@ async function writeOpenChamberConfig(project: ProjectRef, config: OpenChamberCo
  */
 const configWriteQueues = new Map<string, Promise<unknown>>()
 
-const runConfigWrite = <T,>(project: ProjectRef, task: () => Promise<T>): Promise<T> => {
+const runConfigWrite = <T>(project: ProjectRef, task: () => Promise<T>): Promise<T> => {
   const key = typeof project?.path === "string" ? project.path.trim() : ""
   const previous = key ? (configWriteQueues.get(key) ?? Promise.resolve()) : Promise.resolve()
   const run = previous.then(task, task)
@@ -729,10 +735,7 @@ const writeConfigMerge = async (project: ProjectRef, updates: Partial<OpenChambe
 /**
  * Update specific keys in the config, preserving other values.
  */
-async function updateOpenChamberConfig(
-  project: ProjectRef,
-  updates: Partial<OpenChamberConfig>,
-): Promise<boolean> {
+async function updateOpenChamberConfig(project: ProjectRef, updates: Partial<OpenChamberConfig>): Promise<boolean> {
   return runConfigWrite(project, () => writeConfigMerge(project, updates))
 }
 
@@ -745,7 +748,10 @@ export async function getWorktreeSetupCommands(project: ProjectRef): Promise<str
   // The raw value is user-editable JSON: a string or a sparse/null entry used
   // to reach `.trim()`/`.map()` on the creation path and crash it.
   if (!Array.isArray(value)) return []
-  return value.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.trim()).filter(Boolean)
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
 }
 
 export async function saveWorktreeSetupCommands(project: ProjectRef, commands: string[]): Promise<boolean> {

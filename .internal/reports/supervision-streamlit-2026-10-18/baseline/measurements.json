@@ -1,0 +1,185 @@
+{
+  "electron": "44.9.0",
+  "results": [
+    {
+      "width": 420,
+      "zoom": 1,
+      "viewport": 420,
+      "boardWidth": 368,
+      "peekWidth": 346,
+      "peekOverflow": false,
+      "cardWidth": 184,
+      "cardOverflow": false,
+      "leftPadding": "144px",
+      "bodyOverflow": false,
+      "actions": [
+        {
+          "text": "Review all 3 permission scopes",
+          "width": 140
+        },
+        {
+          "text": "Allow",
+          "width": 45.953125
+        },
+        {
+          "text": "Deny",
+          "width": 42.5078125
+        },
+        {
+          "text": "Open",
+          "width": 43.1796875
+        }
+      ]
+    },
+    {
+      "width": 420,
+      "zoom": 2,
+      "viewport": 210,
+      "boardWidth": 158,
+      "peekWidth": 160,
+      "peekOverflow": true,
+      "cardWidth": 24,
+      "cardOverflow": true,
+      "leftPadding": "144px",
+      "bodyOverflow": false,
+      "actions": [
+        {
+          "text": "Review all 3 permission scopes",
+          "width": 62.8515625
+        },
+        {
+          "text": "Allow",
+          "width": 45.94921875
+        },
+        {
+          "text": "Deny",
+          "width": 42.50390625
+        },
+        {
+          "text": "Open",
+          "width": 43.17578125
+        }
+      ]
+    },
+    {
+      "width": 760,
+      "zoom": 1,
+      "viewport": 760,
+      "boardWidth": 708,
+      "peekWidth": 686,
+      "peekOverflow": false,
+      "cardWidth": 524,
+      "cardOverflow": false,
+      "leftPadding": "144px",
+      "bodyOverflow": false,
+      "actions": [
+        {
+          "text": "Review all 3 permission scopes",
+          "width": 201.359375
+        },
+        {
+          "text": "Allow",
+          "width": 45.953125
+        },
+        {
+          "text": "Deny",
+          "width": 42.5078125
+        },
+        {
+          "text": "Open",
+          "width": 43.1796875
+        }
+      ]
+    },
+    {
+      "width": 760,
+      "zoom": 2,
+      "viewport": 380,
+      "boardWidth": 328,
+      "peekWidth": 317,
+      "peekOverflow": false,
+      "cardWidth": 155,
+      "cardOverflow": false,
+      "leftPadding": "144px",
+      "bodyOverflow": false,
+      "actions": [
+        {
+          "text": "Review all 3 permission scopes",
+          "width": 111
+        },
+        {
+          "text": "Allow",
+          "width": 45.94921875
+        },
+        {
+          "text": "Deny",
+          "width": 42.50390625
+        },
+        {
+          "text": "Open",
+          "width": 43.17578125
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "zoom": 1,
+      "viewport": 1440,
+      "boardWidth": 1388,
+      "peekWidth": 1377,
+      "peekOverflow": false,
+      "cardWidth": 1215,
+      "cardOverflow": false,
+      "leftPadding": "144px",
+      "bodyOverflow": false,
+      "actions": [
+        {
+          "text": "Review all 3 permission scopes",
+          "width": 201.359375
+        },
+        {
+          "text": "Allow",
+          "width": 45.953125
+        },
+        {
+          "text": "Deny",
+          "width": 42.5078125
+        },
+        {
+          "text": "Open",
+          "width": 43.1796875
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "zoom": 2,
+      "viewport": 720,
+      "boardWidth": 668,
+      "peekWidth": 657,
+      "peekOverflow": false,
+      "cardWidth": 495,
+      "cardOverflow": false,
+      "leftPadding": "144px",
+      "bodyOverflow": false,
+      "actions": [
+        {
+          "text": "Review all 3 permission scopes",
+          "width": 201.35546875
+        },
+        {
+          "text": "Allow",
+          "width": 45.94921875
+        },
+        {
+          "text": "Deny",
+          "width": 42.50390625
+        },
+        {
+          "text": "Open",
+          "width": 43.17578125
+        }
+      ]
+    }
+  ]
+}

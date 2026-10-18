@@ -505,6 +505,9 @@
   gap: 0.25rem 0.75rem;
 }
 @container mission-board (min-width: 44rem) {
+  .mission-control-peek {
+    padding-left: 9rem;
+  }
   .mission-control-row {
     grid-template-columns: minmax(9rem, auto) minmax(0, 1fr) minmax(0, 1fr) auto;
     grid-template-areas: "state title title actions" "state project evidence age";

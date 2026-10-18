@@ -1,0 +1,30 @@
+**Agreement.** I agree with the candidate’s overall call: keep React as the only control surface; reject A and B; keep D conditional on a named audience; treat C as a preview/compatibility spike, not a Streamlit runtime inside Desktop. I also agree that the verified corrections remove most of my first round’s integration fear.
+
+**What I changed from round 1**
+
+- **Withdrawn: `allowedUrl` admission as C’s “biggest unknown.”** [Fact] Ordinary preview is an Electron webview on persistent partition `persist:openchamber-browser`; `webview-policy.js` admits HTTP/HTTPS. [Fact] Agent Browser’s `allowedUrl`/`agentOrigin` gates are separate, and viewing localhost needs neither WebMCP nor allowlist widening. My earlier one-week allowlist allowance is deleted.
+- **Withdrawn: “supervised child process / kill-on-close” as a prerequisite.** [Fact] `ProjectActionsButton.tsx` already starts configured commands in owned terminal sessions, guards double-start, tracks per-project/action identity, opens candidate URLs, and stops via Ctrl-C then owned forceKill. [Fact] Closing preview must not kill a server; only explicit Stop may kill an owned session. No new supervisor.
+- **Reversed: “keep the opposite decision enabled.”** [Fact] In-flight disabling of both buttons plus `respondingRef` prevents conflicting intents. I now endorse both disabled with Sending/Confirming/uncertain/inline-error states. My round-1 “escape hatch” suggestion was wrong.
+- **Corrected copy facts:** labels are `Allow` and `Ready to review`; 14 locales, not seven. [Fact] Persisted enum is `review`; copy must say changes await human review, never tests passed.
+- **Corrected ADR-015 and embedding reasoning:** ADR-015 is naming, not an inherent ban on a thin UI. Community Cloud private-iframe restrictions do not prove localhost failure. [Fact] No Python SDK contract exists; none should be assumed.
+- **Corrected C’s difficulty:** an explicit custom URL largely exists. The remaining work is readiness and UX evidence, not new URL-opening capability. [Estimate] Launch/readiness polish: 2–4 days, not 1–2 weeks.
+
+**Still rejected / scope corrections**
+
+- Replacing React; a second approval-capable GUI; automatic Python installation or bundling; default auto-detection of Streamlit; automatic process start from URL attachment; any inheritance of agent-control permission; any consent modal added merely by assumption.
+- I would not approve P4 as “reusable recipe” until P3 produces evidence. P4’s 2–4 days is plausible for glue only [estimate], not for generic readiness/retry across arbitrary servers.
+- P3’s 1–2 days looks optimistic for the stated matrix; [estimate] 2–3 days, timeboxed with a written decision record.
+- P2 should not flip `inspectorLabels` default. A first-use or wide-window suggestion is acceptable only if explicit user preference always wins and persisted settings remain unchanged absent user action.
+
+**Remaining blockers and acceptance criteria**
+
+1. **P0 — real Peek evidence.** [Fact] Current fixtures bypass `MissionControlPeek`; the fixed `pl-36` concern is unverified. Acceptance: real component mounted at 420/760/1440 and 200% zoom; DOM records `scrollWidth ≤ clientWidth` or an explicitly accepted wrap; request actions and open-session remain reachable; screenshots attached. No layout claim before this.
+2. **P1 — ambiguous outcomes.** [Fact] Failures currently toast; no source evidence establishes a canonical request re-read path. Acceptance: rejected promise yields inline error, both controls re-enable only on definitive or explicitly marked uncertain outcome; one click produces at most one UI send intent; stale request and unmount tests pass; no unhandled rejection. Do **not** require exactly-once runtime effects across unknown transport failures. If no canonical reconciliation read exists, show “outcome unknown — check notifications” rather than inventing an endpoint or auto-retrying.
+3. **P2 — truthful review copy.** Acceptance: all 14 locales describe uncommitted/awaiting-review work; no “approved” or “tests passed” claim; enum and persisted keys unchanged; no test-evidence claim without artifacts.
+4. **P3 — preview spike.** Acceptance: user-started app or existing configured action only; forms, `write_stream`, upload/download, reload/reconnect, restart, port collision, two projects, and external-browser fallback observed; no installs, scanning, CORS/XSRF weakening, or agent permission change; preview close leaves server alive; explicit Stop kills only owned session. [Hypothesis] Configured URL opening before `sendInput` may show a dead page; measure it, do not redesign first.
+
+**Three measurable go/no-go criteria**
+
+- **GO for P0/P1 investment** if the harness reproduces the Peek issue and P1 tests prove one UI intent per click with safe uncertain-state recovery.
+- **GO for P3 only if** the matrix yields a usable ordinary-preview outcome with no policy/permission changes and a clear external-browser fallback for failures.
+- **NO-GO for P4** unless P3 shows a reproducible user job, explicit interpreter/entrypoint handling, owned-process cleanup, and no second runtime, SDK assumption, auto-install, or approval duplication.

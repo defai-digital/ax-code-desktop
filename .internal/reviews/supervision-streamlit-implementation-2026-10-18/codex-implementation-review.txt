@@ -1,0 +1,9 @@
+1. **P2 — Saved recipe IDs can collide after a renderer reload.**
+   Location: [StreamlitActionForm.tsx:19](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/sections/projects/StreamlitActionForm.tsx:19), [openchamberConfig.ts:422](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/lib/openchamberConfig.ts:422).
+   `React.useId()` supplies the persisted action ID. Its generated IDs can repeat when a fresh renderer recreates the same component tree. Saving a recipe, reloading Desktop, and adding another recipe can therefore reuse an existing ID; the sanitizer silently drops the duplicate.
+   **Smallest fix:** Generate a UUID for each new recipe instead of persisting `useId()`.
+
+2. **P2 — Failed recipe launches leave the terminal marked as connecting.**
+   Location: [ProjectActionsButton.tsx:565](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/layout/ProjectActionsButton.tsx:565), [ProjectActionsButton.tsx:684](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/layout/ProjectActionsButton.tsx:684).
+   The launcher sets `connecting` to `true` before subscribing to output. If shell validation subsequently rejects an unsupported shell, or metadata lookup/input sending fails before a stream callback clears it, the catch block disposes the subscription without resetting that flag. The surviving terminal tab retains an abandoned connecting state.
+   **Smallest fix:** Track the acquired tab for failure cleanup and clear its connecting flag when tearing down the launch, guarding against a replacement session.

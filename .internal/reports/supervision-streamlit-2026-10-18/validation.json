@@ -1,0 +1,121 @@
+{
+  "recordedAt": "2026-10-18T10:34:30.534839+00:00",
+  "sourceInventory": "source-inventory.json",
+  "checks": [
+    {
+      "command": [
+        "pnpm",
+        "run",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "log": "validation/typecheck.log"
+    },
+    {
+      "command": [
+        "pnpm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "log": "validation/lint.log"
+    },
+    {
+      "command": [
+        "pnpm",
+        "run",
+        "test"
+      ],
+      "exitCode": 0,
+      "log": "validation/test.log"
+    },
+    {
+      "command": [
+        "pnpm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "log": "validation/build.log"
+    },
+    {
+      "command": [
+        "pnpm",
+        "run",
+        "check:locales"
+      ],
+      "exitCode": 0,
+      "log": "validation/check-locales.log"
+    },
+    {
+      "command": [
+        "pnpm",
+        "run",
+        "check:boundaries"
+      ],
+      "exitCode": 0,
+      "log": "validation/check-boundaries.log"
+    }
+  ],
+  "tests": {
+    "passed": 5501,
+    "skipped": 10,
+    "failed": 0,
+    "packages": {
+      "scripts": {
+        "passed": 195,
+        "skipped": 7
+      },
+      "electron": {
+        "passed": 639,
+        "skipped": 1
+      },
+      "ui": {
+        "passed": 3241,
+        "skipped": 0
+      },
+      "web": {
+        "passed": 1426,
+        "skipped": 2
+      }
+    }
+  },
+  "releaseContract": {
+    "includedIn": "check:boundaries",
+    "app": "7.27.1",
+    "SDK": "2.6.31",
+    "runtime": "7.27.2"
+  },
+  "locales": {
+    "catalogs": 14,
+    "keys": 4892,
+    "translatedEntries": 63596
+  },
+  "nativeUI": {
+    "exitCode": 0,
+    "cases": 24,
+    "measurements": "ui/measurements.json",
+    "keyboardFocusCase": "ui/keyboard-focus-measurements.json"
+  },
+  "nativeStreamlit": {
+    "exitCode": 0,
+    "completed": true,
+    "receipt": "streamlit-native/receipt.json",
+    "platform": "macOS arm64 only"
+  },
+  "reviewRegression": {
+    "before": "validation/stale-stream-before.log",
+    "beforeFailed": 3,
+    "after": "validation/test.log"
+  },
+  "warnings": [
+    "Existing test runner warnings include localStorage, vi.hoisted/vi.mock placement and util._extend deprecation.",
+    "Vite reports large output chunks; build succeeds."
+  ],
+  "unqualified": [
+    "Signed packages and update/rollback",
+    "Windows and Linux native UI",
+    "External OS browser dispatch and native file-picker interaction",
+    "Private remote apps and authentication configurations"
+  ]
+}

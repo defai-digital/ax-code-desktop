@@ -40,6 +40,7 @@ import { sessionEvents } from "@/lib/sessionEvents"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import { toast } from "@/components/ui"
 import { seedSessionAutoAccept } from "@/stores/utils/sessionAutoAcceptSeed"
+import { blockingRequestStamp } from "./blocking-request-events"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 
 const MESSAGE_REFETCH_LIMIT = 200
@@ -59,8 +60,9 @@ const PROMPT_ACCEPTED_BUSY_GRACE_MS = 60_000
 let _sdk: AxCodeClient | null = null
 let _childStores: ChildStoreManager | null = null
 let _getDirectory: () => string = () => ""
-let _optimisticAdd: ((input: { sessionID: string; message: Message; parts: Part[]; directory?: string }) => void) | null =
-  null
+let _optimisticAdd:
+  | ((input: { sessionID: string; message: Message; parts: Part[]; directory?: string }) => void)
+  | null = null
 let _optimisticRemove: ((input: { sessionID: string; messageID: string; directory?: string }) => void) | null = null
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -845,9 +847,7 @@ export async function moveSession(sessionId: string, targetDirectory: string): P
   if (nextDirectory) {
     // The worktree attachment outranks the routing index in getDirectoryForSession: a session
     // moved out of a worktree otherwise kept sending prompts and optimistic parts to it.
-    const attachmentDirectory = getAttachedSessionDirectory(
-      useSessionWorktreeStore.getState().getAttachment(sessionId),
-    )
+    const attachmentDirectory = getAttachedSessionDirectory(useSessionWorktreeStore.getState().getAttachment(sessionId))
     if (attachmentDirectory && normalizeProjectPath(attachmentDirectory) !== normalizeProjectPath(nextDirectory)) {
       useSessionUIStore.getState().setWorktreeMetadata(sessionId, null)
     }
@@ -981,9 +981,7 @@ export async function optimisticSend(input: {
     // message then deletes one the runtime did accept, while the assistant
     // reply parented on it keeps streaming. The status restore below guards
     // the same race for the status slice.
-    const storedMessage = store
-      .getState()
-      .message[input.sessionId]?.find((message) => message.id === messageID)
+    const storedMessage = store.getState().message[input.sessionId]?.find((message) => message.id === messageID)
     const serverTookOverMessage = storedMessage !== undefined && storedMessage !== optimisticMessage
     if (serverSessionStatusStamp(input.sessionId) === statusEventsBeforeSend && !serverTookOverMessage) {
       _optimisticRemove({
@@ -1061,6 +1059,62 @@ export async function abortCurrentOperation(sessionId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 // Permissions
 // ---------------------------------------------------------------------------
+
+export type BlockingRequestIdentity = { kind: "permission" | "question"; sessionId: string; requestId: string }
+export type BlockingRequestDecision = "once" | "reject" | string[][]
+
+/** Capture routing before any await. Reconciliation observes this same request without auto-accepting or merging. */
+export function captureBlockingRequest(identity: BlockingRequestIdentity) {
+  const { kind, sessionId, requestId } = identity
+  const directory =
+    resolveDirectoryForBlockingRequest(kind, sessionId, requestId) || getSessionDirectory(sessionId) || dir()
+  const client = getRequestReplyClient(kind, sessionId, requestId)
+  const scope = directory ? { directory } : {}
+  const stores = _childStores
+  return {
+    isPendingLocally: () => {
+      if (!stores || !directory) return true
+      const store = stores.children.get(directory)
+      // An evicted store is not evidence that the runtime resolved the request.
+      if (!store) return true
+      return Boolean(store.getState()[kind][sessionId]?.some((request) => request.id === requestId))
+    },
+    respond: async (decision: BlockingRequestDecision): Promise<void> => {
+      if (
+        kind === "permission"
+          ? decision !== "once" && decision !== "reject"
+          : decision !== "reject" && !Array.isArray(decision)
+      ) {
+        throw new Error("Invalid request decision")
+      }
+      await waitForConnectionOrThrow()
+      const result =
+        kind === "permission"
+          ? await client.permission.reply({ requestID: requestId, reply: decision as "once" | "reject", ...scope })
+          : decision === "reject"
+            ? await client.question.reject({ requestID: requestId, ...scope })
+            : await client.question.reply({ requestID: requestId, answers: decision as string[][], ...scope })
+      if (result.error || !result.data) throw new Error("Request response could not be confirmed")
+    },
+    read: async (): Promise<"pending" | "resolved"> => {
+      if (!directory) throw new Error("Request scope is unavailable")
+      const stamp = blockingRequestStamp(sessionId)
+      const result = kind === "permission" ? await client.permission.list(scope) : await client.question.list(scope)
+      if (result.error || !Array.isArray(result.data)) throw new Error("Request status is unavailable")
+      if (
+        result.data.some(
+          (request) => !request || typeof request.id !== "string" || typeof request.sessionID !== "string",
+        )
+      ) {
+        throw new Error("Invalid pending request response")
+      }
+      if (blockingRequestStamp(sessionId) !== stamp) throw new Error("Request status changed during the read")
+      return result.data.some((request) => request.id === requestId && request.sessionID === sessionId)
+        ? "pending"
+        : "resolved"
+    },
+  }
+}
 
 export async function respondToPermission(
   sessionId: string,
@@ -1358,9 +1412,7 @@ async function replaceSessionMessagesFromServer(sessionId: string, directory: st
     // The fetch is one page of the newest messages: messages older than the page stay, or a
     // rollback in a long session truncated the visible history (and left a hole under the next
     // older page). Only the messages the page covers are replaced.
-    const olderLocal = oldestFetchedId
-      ? currentMessages.filter((message) => message.id < oldestFetchedId)
-      : []
+    const olderLocal = oldestFetchedId ? currentMessages.filter((message) => message.id < oldestFetchedId) : []
     const keptOlderIds = new Set(olderLocal.map((message) => message.id))
     const droppedIds = currentMessages
       .filter((message) => !fetchedIds.has(message.id) && !keptOlderIds.has(message.id))

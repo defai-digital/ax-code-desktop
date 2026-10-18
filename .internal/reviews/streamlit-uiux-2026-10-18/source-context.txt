@@ -1,0 +1,579 @@
+You are an independent architecture and UI/UX reviewer. Answer in English only. This is a read-only advisory discussion, not implementation. Use only the supplied evidence; do not call tools, delegate, edit files, run commands, or claim browser/testing evidence. Distinguish facts, hypotheses, and estimates. Review snapshot: AX Code Desktop HEAD d1e538df (2026-10-18), React 19 + TypeScript + Vite renderer, Electron shell; exact public TypeScript JSR SDK and pinned signed AX Code runtime. The runtime owns execution/tools/approvals/verification; Desktop owns multi-project supervision. Do not invent a second runtime or require a framework rewrite.
+
+User asks after a source-based reference UI review: "Can we also support Streamlit GUI? Is it too difficult or not worth doing? Discuss with Grok CLI and DeepSeek through AX Code, rethink best practices, give a final improvement plan."
+
+Assess separately: A) replace primary React desktop GUI with Streamlit; B) add a separately maintained Streamlit GUI for controlling AX Code; C) support previewing user/project Streamlit apps in existing project browser, perhaps a small generic launch recipe; D) optional internal read-only diagnostic/report app, if a specific audience exists. Existing web package already shares the React UI: do not assume we lack browser UI or that its remote deployment/auth is qualified. No current requirement has established a Python-native audience. Do not create demand based on a reference app having a GUI.
+
+Verified official Streamlit docs today: default widget interactions rerun the Python script; forms batch submission; st.fragment supports independently rerunning portions, including run_every. st.write_stream supports generators/streams. Session State is per WebSocket and resets on tab reload/navigation; it is not durable run storage. Community Cloud officially supports embedding public apps, explicitly does not officially support private-app embedding. Do not generalize that limitation to every self-hosted or top-level native WebContentsView page. Sources: https://docs.streamlit.io/develop/api-reference/execution-flow ; https://docs.streamlit.io/develop/api-reference/caching-and-state/st.session_state ; https://docs.streamlit.io/develop/api-reference/write-magic/st.write_stream ; https://docs.streamlit.io/deploy/streamlit-community-cloud/share-your-app/embed-your-app . These show Streamlit can stream; do not argue it cannot. Prototype cost and parity/release/maintenance cost must be separated.
+
+Previous review identified: cross-session approval buttons say Allow but send once; pending state disables controls with errors in toast. Actual MissionControlPeek uses fixed pl-36 and max-h-80 while the 420/760/1440 fixture bypasses that component. Review state means finished with uncommitted changes, not passed tests. Inspector has eight tools and optional labels, default false. Main navigation, full permission-scope disclosure, six state labels/icons/colors, container-responsive board rows, density and reduced-motion treatment already exist; do not propose these as absent. The current fixture's source hashes match, but full native end-to-end and screen-reader behavior were not exercised in this discussion.
+
+Deliver: (1) recommendation on A/B/C/D with value, implementation difficulty, maintenance cost, and approximate engineering ranges explicitly estimates; (2) critique of the above UX findings including overstatements; (3) sequenced final improvement plan with 3-5 small phases, exact acceptance checks, preserve existing actions/guards/settings and localization; (4) go/no-go criteria for any Streamlit spike, and what should be deferred; (5) strongest counterargument to your recommendation. At most 1200 words. Do not claim production support just because a URL is accepted. No automatic package installs, process starts, broad port scans, credentials in URLs, or inherited agent-control permission for preview. A browser sandbox does not sandbox Python app execution.
+
+SOURCE AGENTS.md
+5: ## Language
+6:
+7: 1. Reply to the user in Traditional Chinese.
+8: 2. Write all repository files, source, documentation, comments, configuration, commit messages, and release text in English.
+9: 3. Send network and external-service payloads in English.
+10:
+11: ## Product
+12:
+13: The product is AX Code and this desktop app is AX Code Desktop (ADR-015). Do not write "AX Coder" in new text;
+14: older records use that name for this repository.
+15:
+16: AX Code Desktop is the planned persistent desktop experience for supervising multiple coding projects. It owns the
+17: portfolio UI, human-added project registry, desired-state controls, exception inbox, and project-management
+18: experience. It does not own a second coding runtime.
+19:
+20: Canonical boundaries:
+21:
+22: - The AX Code runtime owns coding tools, repository intelligence, coding UX, goal contracts, verification, worktree
+23:   execution, and the worker-facing runtime contract.
+24: - AX Agent owns domain-neutral durable agent runs, tool lifecycle, workflows, approvals, leases, and recovery
+25:   after those capabilities are ready for consumption.
+26: - AX Trust owns enterprise policy, credentials, approvals, grants, and immutable audit.
+27: - AX Telemetry owns the platform observability product. AX Code Desktop may display bounded local health projections.
+28:
+29: ## Current phase
+30:
+31: Phases 1 and 2 are complete, and Phase 3 external release evidence is in progress. The reviewed Desktop source and
+32: its filtered history live under `desktop/`, and the independent workspace consumes the published JSR SDK with a
+33: frozen lockfile and a pinned signed AX Code runtime. Independent CI, CodeQL, and a manual private-repository shadow
+34: workflow are implemented. The local source-ownership cutover is complete under ADR-008: AX Code removed its Desktop
+
+SOURCE desktop/packages/ui/src/components/supervision/RequestActionCard.tsx
+21:
+22: const PREVIEW_PATTERNS = 2
+23: const PREVIEW_CHARACTERS = 160
+24:
+25: /**
+26:  * The one actionable request card for cross-session surfaces (titlebar popover, Needs You queue, Mission
+27:  * Control peek). It sends intents only: allow once, deny, answer, dismiss. Standing "always" grants stay in
+28:  * the in-session permission card, where the patterns they save are shown in full.
+29:  */
+30: export const RequestActionCard: React.FC<RequestActionCardProps> = ({
+31:   entry,
+32:   context,
+33:   density = "full",
+34:   onOpen,
+35:   className,
+36: }) => {
+37:   const { t } = useI18n()
+38:   const [busy, setBusy] = React.useState(false)
+39:   const respondingRef = React.useRef(false)
+40:   const [expandedRequest, setExpandedRequest] = React.useState<string | null>(null)
+41:   const requestKey = `${entry.sessionId}:${entry.kind}:${entry.request.id}`
+42:   const scopeId = React.useId()
+43:   const mountedRef = React.useRef(true)
+44:   React.useEffect(() => {
+45:     mountedRef.current = true
+46:     return () => {
+47:       mountedRef.current = false
+48:     }
+49:   }, [])
+50:
+51:   const run = React.useCallback(
+52:     async (action: () => Promise<void>, failureTitle: string) => {
+53:       if (respondingRef.current) return
+54:       respondingRef.current = true
+55:       setBusy(true)
+56:       try {
+57:         await action()
+58:       } catch (error) {
+59:         toast.error(failureTitle, {
+60:           description: error instanceof Error ? error.message : t("chat.permissionCard.responseFailed.retry"),
+61:         })
+62:       } finally {
+63:         respondingRef.current = false
+64:         if (mountedRef.current) setBusy(false)
+65:       }
+66:     },
+67:     [t],
+68:   )
+69:
+70:   const compact = density === "compact"
+71:   const isPermission = entry.kind === "permission"
+72:   const title = isPermission
+73:     ? t("notificationCenter.permission.requestTitle", { tool: entry.request.permission })
+74:     : entry.request.questions?.[0]?.header?.trim() || entry.request.questions?.[0]?.question || ""
+75:   const patterns = entry.kind === "permission" ? entry.request.patterns.filter(Boolean) : []
+76:   const needsExpansion =
+77:     patterns.length > PREVIEW_PATTERNS || patterns.some((pattern) => pattern.length > PREVIEW_CHARACTERS)
+78:   const expanded = expandedRequest === requestKey
+79:   const detail =
+80:     entry.kind === "question" && entry.request.questions?.[0]?.header ? entry.request.questions[0].question : ""
+81:   const inlineQuestion = isInlineAnswerableQuestion(entry) && entry.kind === "question" ? entry.request : null
+82:
+83:   return (
+84:     <div
+85:       data-request-kind={entry.kind}
+86:       className={cn(
+87:         "flex min-w-0 flex-col gap-1.5 rounded-lg border border-border/60 bg-[var(--surface-elevated)]",
+88:         compact ? "px-2.5 py-2" : "px-3 py-2.5",
+89:         className,
+90:       )}
+91:     >
+92:       <div className="flex min-w-0 items-start gap-2">
+93:         <Icon
+94:           name={isPermission ? "shield-warning" : "question"}
+95:           className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--status-warning)]"
+96:           aria-hidden="true"
+97:         />
+98:         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+99:           {context ? <span className="truncate typography-micro text-muted-foreground">{context}</span> : null}
+100:           <span className="flex min-w-0 items-center gap-1.5">
+101:             <span className="truncate typography-ui-label font-medium text-foreground">{title}</span>
+102:             {entry.kind === "permission" ? <RequestRiskBadge request={entry.request} /> : null}
+103:           </span>
+104:           {detail ? (
+105:             <span className={cn("typography-micro text-muted-foreground", compact ? "truncate" : "line-clamp-2")}>
+106:               {detail}
+107:             </span>
+108:           ) : null}
+109:         </div>
+110:       </div>
+111:       {patterns.length > 0 ? (
+112:         <div className="min-w-0 pl-5 typography-meta">
+113:           {needsExpansion ? (
+114:             <button
+115:               type="button"
+116:               aria-expanded={expanded}
+117:               aria-controls={scopeId}
+118:               onClick={(event) => {
+119:                 event.stopPropagation()
+120:                 setExpandedRequest(expanded ? null : requestKey)
+121:               }}
+122:               className="min-h-8 rounded text-left text-foreground underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+123:             >
+124:               {t("supervision.request.scopeCount", { count: patterns.length })}
+125:               <Icon
+126:                 name={expanded ? "arrow-up-s" : "arrow-down-s"}
+127:                 className="ml-1 inline h-4 w-4"
+128:                 aria-hidden="true"
+129:               />
+130:             </button>
+131:           ) : null}
+132:           <ul id={scopeId} className="space-y-1 text-muted-foreground">
+133:             {(expanded || !needsExpansion ? patterns : patterns.slice(0, PREVIEW_PATTERNS)).map((pattern, index) => (
+134:               <li key={index} className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+135:                 <code>
+136:                   {expanded || !needsExpansion || pattern.length <= PREVIEW_CHARACTERS
+137:                     ? pattern
+138:                     : `${pattern.slice(0, PREVIEW_CHARACTERS)}…`}
+139:                 </code>
+140:               </li>
+141:             ))}
+142:           </ul>
+143:         </div>
+144:       ) : null}
+145:       <div className="flex flex-wrap items-center gap-1.5 pl-5">
+146:         {entry.kind === "permission" ? (
+147:           <>
+148:             <Button
+149:               size="sm"
+150:               variant="default"
+151:               className="min-h-8 px-2 typography-micro"
+152:               disabled={busy}
+153:               onClick={() =>
+154:                 void run(
+155:                   () => sessionActions.respondToPermission(entry.sessionId, entry.request.id, "once"),
+156:                   t("chat.permissionCard.responseFailed.title"),
+157:                 )
+158:               }
+159:             >
+160:               {t("notificationCenter.allow")}
+161:             </Button>
+162:             <Button
+163:               size="sm"
+164:               variant="ghost"
+165:               className="min-h-8 px-2 typography-micro"
+166:               disabled={busy}
+167:               onClick={() =>
+168:                 void run(
+169:                   () => sessionActions.respondToPermission(entry.sessionId, entry.request.id, "reject"),
+170:                   t("chat.permissionCard.responseFailed.title"),
+171:                 )
+172:               }
+173:             >
+174:               {t("notificationCenter.deny")}
+175:             </Button>
+176:           </>
+177:         ) : inlineQuestion ? (
+
+SOURCE desktop/packages/ui/src/components/supervision/missionControl/MissionControlPeek.tsx
+68:       event.stopPropagation()
+69:       onCancelCreateSet()
+70:     }
+71:   }
+72:
+73:   const handleCreateSetClick = () => {
+74:     onSubmitCreateSet(row)
+75:   }
+76:
+77:   return (
+78:     <div className="max-h-80 overflow-y-auto px-4 pb-3 pl-36">
+79:       <div className="flex flex-col gap-2">
+80:         {requests.length ? (
+81:           requests.map((entry) => (
+82:             <RequestActionCard
+83:               key={`${entry.kind}-${entry.request.id}`}
+84:               entry={entry}
+85:               density="full"
+86:               onOpen={handleOpenClick}
+87:             />
+88:           ))
+89:         ) : (
+90:           <p className="typography-micro text-muted-foreground">
+91:             {t("supervision.missionControl.peek.noPendingRequests")}
+92:           </p>
+93:         )}
+94:         <EvidenceText evidence={row.evidence} className="typography-micro text-muted-foreground" />
+95:         {recentRuns.length ? (
+96:           <div className="flex flex-col gap-1">
+97:             <p className="typography-micro text-muted-foreground">
+98:               {t("supervision.missionControl.peek.hookRunsTitle")}
+99:             </p>
+100:             {recentRuns.map((run) => (
+101:               <p key={run.id} data-hook-run="true" className="truncate typography-micro text-muted-foreground">
+102:                 <span className="text-foreground/80">
+103:                   {t(`supervision.hookOutcome.${run.outcome}` as Parameters<typeof t>[0])}
+104:                 </span>{" "}
+105:                 {run.event}
+106:                 {run.tool ? ` · ${run.tool}` : ""}
+107:               </p>
+108:             ))}
+109:           </div>
+110:         ) : null}
+111:         {row.directory ? (
+112:           <p className="truncate typography-micro text-muted-foreground" title={row.directory}>
+113:             {row.directory}
+114:           </p>
+115:         ) : null}
+116:         <div className="flex flex-wrap items-center gap-1.5">
+117:           <Button size="sm" className="h-6 px-2 typography-micro" onClick={handleOpenClick}>
+118:             {t("supervision.missionControl.action.openSession")}
+119:           </Button>
+120:           {row.evidence ? (
+121:             <Button
+122:               size="sm"
+
+SOURCE desktop/packages/ui/src/lib/supervision/sessionState.ts
+1: import { needsYouReason, type NeedsYouSessionInput } from "@/lib/needsYou"
+2:
+3: /**
+4:  * One supervision state per session, shared by the titlebar, the sidebar Live section, Mission Control
+5:  * and the peek. Every input comes from what the runtime reports; nothing here is estimated.
+6:  */
+7: export type SupervisionState = "permission" | "question" | "error" | "review" | "running" | "idle"
+8:
+9: export interface SupervisionStateInput extends NeedsYouSessionInput {
+10:   /** The runtime status type for the session: "busy", "retry" or "idle". */
+11:   statusType?: string | null
+12: }
+13:
+14: /**
+15:  * A blocked request wins. A session that is working again outranks an error the user has not looked at yet:
+16:  * the unseen-error flag is only cleared when the user views the session, so it can be stale.
+17:  */
+18: export function deriveSupervisionState(input: SupervisionStateInput): SupervisionState {
+19:   const reason = needsYouReason(input)
+20:   if (reason === "permission" || reason === "question") return reason
+21:   const running = input.statusType === "busy" || input.statusType === "retry"
+22:   if (running) return "running"
+23:   if (reason === "error") return "error"
+24:   if (reason === "uncommitted") return "review"
+25:   return "idle"
+26: }
+27:
+
+SOURCE desktop/packages/ui/src/stores/useSupervisionStore.ts
+62:   renameWorkingSet: (id: string, name: string) => void
+63:   deleteWorkingSet: (id: string) => void
+64:   addToWorkingSet: (id: string, sessionId: string) => void
+65:   removeFromWorkingSet: (id: string, sessionId: string) => void
+66:   setActiveWorkingSet: (id: string | null) => void
+67: }
+68:
+69: const EMPTY: PersistedSupervision = {
+70:   density: "comfortable",
+71:   inspectorLabels: false,
+72:   recentSessionIds: [],
+73:   lastViewedAt: {},
+74:   workingSets: [],
+75:   activeWorkingSetId: null,
+
+SOURCE desktop/packages/ui/src/components/layout/InspectorRail.tsx
+35:   { view: "plan", icon: "list-check-2", labelKey: "splitPane.tab.plan" },
+36:   { view: "context", icon: "layout-column", labelKey: "splitPane.tab.context" },
+37:   { view: "wiki", icon: "node-tree", labelKey: "wiki.graph.title" },
+38: ]
+39:
+40: const TERMINAL_ENTRY: RailEntry = {
+41:   view: "terminal",
+42:   icon: "terminal-box",
+43:   labelKey: "splitPane.tab.terminal",
+44:   shortcutId: "toggle_terminal",
+45: }
+46:
+47: /** Labeled or compact inspector navigation beside the chat. */
+48: export const InspectorRail: React.FC = () => {
+49:   const { t } = useI18n()
+50:   const toggleRef = React.useRef<HTMLButtonElement>(null)
+51:   const expanded = useSupervisionStore((s) => s.inspectorLabels)
+52:   const setExpanded = useSupervisionStore((s) => s.setInspectorLabels)
+
+SOURCE desktop/packages/ui/src/components/layout/EmbeddedWebMcpBrowser.tsx
+40: const TOOLBAR_BUTTON_CLASS =
+41:   "inline-flex h-7 items-center gap-1 rounded-md px-2 typography-meta text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
+42:
+43: /**
+44:  * The native project browser: a sandboxed Chromium view owned by Electron main.
+45:  * Agent access (native WebMCP) is off for every fresh browser and is only
+46:  * switched here, after the user sees which page would expose tools.
+47:  */
+48: function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl: string }) {
+49:   const { t } = useI18n()
+50:   const sessionID = useSessionUIStore((state) => state.currentSessionId)
+51:   const updateSnapshot = useWebMcpBrowserStore((state) => state.updateSnapshot)
+52:   const resetSnapshot = useWebMcpBrowserStore((state) => state.resetSnapshot)
+53:   const browserId = useWebMcpBrowserStore((state) => state.browserId)
+54:   const phase = useWebMcpBrowserStore((state) => state.phase)
+55:   const enabled = useWebMcpBrowserStore((state) => state.enabled)
+56:   const origin = useWebMcpBrowserStore((state) => state.origin)
+57:   const nativeAvailable = useWebMcpBrowserStore((state) => state.nativeAvailable)
+58:   const runtimeCompatible = useWebMcpBrowserStore((state) => state.runtimeCompatible)
+
+SOURCE desktop/packages/ui/src/components/layout/EmbeddedWebMcpBrowser.tsx
+90:     [updateSnapshot],
+91:   )
+92:
+93:   useWebMcpCapabilityProbe(directory)
+94:
+95:   // A project/session change always creates a fresh browser with agent access off.
+96:   React.useEffect(() => {
+97:     let disposed = false
+98:     let id: string | undefined
+99:     const lifecycle = ++lifecycleRef.current
+100:     resetSnapshot()
+101:     updateSnapshot({ directory, sessionID })
+102:     if (!sessionID) {
+103:       updateSnapshot({ phase: "error", error: "session-required" })
+104:       return () => resetSnapshot()
+105:     }
+106:     updateSnapshot({ phase: "starting" })
+107:     void invoke<BrowserStatus>({ action: "create", directory, sessionID, url: initialUrlRef.current || "about:blank" })
+108:       .then((result) => {
+109:         id = result.id
+110:         if (disposed) void invoke({ action: "close", id }).catch(() => {})
+111:         else applyStatus(result, lifecycle)
+112:       })
+113:       .catch(() => {
+114:         if (!disposed && lifecycleRef.current === lifecycle) updateSnapshot({ phase: "error", error: "start-failed" })
+115:       })
+116:     return () => {
+117:       disposed = true
+118:       if (id) void invoke({ action: "close", id }).catch(() => {})
+119:       // Retire this lifecycle so a command that is still in flight cannot write the closed browser
+120:       // back into the store after the reset below: `command` compares lifecycles, and without this
+121:       // its late reply passed that check and restored `phase: "ready"` with a dead `browserId`.
+122:       lifecycleRef.current += 1
+123:       resetSnapshot()
+124:     }
+125:   }, [applyStatus, directory, resetSnapshot, sessionID, updateSnapshot])
+126:
+
+SOURCE desktop/packages/electron/src/desktop-webmcp-browser.js
+1: "use strict"
+2:
+3: const { randomBytes, randomUUID } = require("node:crypto")
+4: const path = require("node:path")
+5: const { NativeWebMcp, CAPABILITY, agentOrigin, allowedUrl, pageKind } = require("./native-webmcp")
+6: const { loadUrlWithTimeout, DEFAULT_LOAD_URL_TIMEOUT_MS } = require("./load-url-timeout")
+7:
+8: // This secret goes only to the supervised runtime child, never to a renderer or project config.
+9: const DESKTOP_BROWSER_TOKEN = randomBytes(32).toString("base64url")
+10:
+11: function createDesktopWebMcpBrowser({
+12:   BrowserWindow,
+13:   WebContentsView,
+14:   session,
+15:   getRuntime,
+16:   getAuthorization,
+17:   clientFactory,
+18:   providerToken = DESKTOP_BROWSER_TOKEN,
+19:   loadTimeoutMs = DEFAULT_LOAD_URL_TIMEOUT_MS,
+20: }) {
+21:   const views = new Map()
+22:   // Partitions whose guest session already has the hardened handlers attached.
+23:   const guestSessions = new Set()
+24:   // window partition -> in-flight storage clear, so a new pane never loads into a
+25:   // half-cleared profile.
+26:   const pendingGuestClears = new Map()
+27:   // sender id -> in-flight create. Two concurrent creates for the same sender
+28:   // would both pass the `views.has` check before either reaches `views.set`,
+29:   // and the loser's WebContentsView would stay attached but untracked until the
+30:   // window closes. Serialize them instead.
+31:   const pendingCreates = new Map()
+32:   let factory
+33:   async function api(directory, url, method = "GET", body, signal) {
+34:     const origin = getRuntime()
+35:     const target = origin && new URL(origin)
+36:     if (
+37:       !target ||
+38:       target.protocol !== "http:" ||
+39:       target.hostname !== "127.0.0.1" ||
+40:       target.username ||
+41:       target.password ||
+42:       target.pathname !== "/" ||
+43:       target.search ||
+44:       target.hash
+45:     ) {
+46:       throw new Error("The local coding runtime is unavailable")
+47:     }
+48:     factory ??= clientFactory ? clientFactory : (await import("@defai-digital/ax-code-sdk/v2/gen/client")).createClient
+49:     const client = factory({
+50:       baseUrl: origin,
+51:       headers: {
+52:         Authorization: getAuthorization(),
+53:         "x-ax-desktop-browser-token": providerToken,
+54:         "Content-Type": "application/json",
+55:       },
+56:     })
+57:     return client.request({
+58:       url: `/desktop/browser${url}`,
+59:       method,
+60:       query: { directory },
+61:       body,
+62:       bodySerializer: (value) => JSON.stringify(value),
+63:       responseStyle: "data",
+64:       throwOnError: true,
+65:       redirect: "error",
+
+SOURCE desktop/packages/electron/src/desktop-webmcp-browser.js
+240:   }
+241:   async function createView(args, sender, owner) {
+242:     if (views.has(sender.id)) await close(views.get(sender.id))
+243:     // One stable, in-memory partition per window instead of a fresh UUID per open:
+244:     // Electron caches a Session per partition string and offers no way to destroy
+245:     // one, so a UUID per open leaked a session (cookie jar, caches, network
+246:     // context) for every pane the user ever opened. `close()` clears the storage
+247:     // again, so a new pane still starts from a clean profile.
+248:     const partition = `ax-coder-webmcp-${sender.id}`
+249:     await (pendingGuestClears.get(partition) ?? Promise.resolve())
+250:     const guestSession = session.fromPartition(partition)
+251:     if (!guestSessions.has(partition)) {
+252:       guestSessions.add(partition)
+253:       guestSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+254:       guestSession.setPermissionCheckHandler(() => false)
+255:       guestSession.on("will-download", (event) => event.preventDefault())
+256:     }
+257:     const view = new WebContentsView({
+258:       webPreferences: {
+259:         partition,
+260:         sandbox: true,
+261:         contextIsolation: true,
+262:         nodeIntegration: false,
+263:         webSecurity: true,
+264:         allowRunningInsecureContent: false,
+265:       },
+266:     })
+267:     view.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
+268:     view.webContents.on("will-navigate", (event, url) => {
+269:       if (!allowedUrl(url)) event.preventDefault()
+270:     })
+271:     view.webContents.on("will-redirect", (event, url) => {
+272:       if (!allowedUrl(url)) event.preventDefault()
+273:     })
+274:     const entry = {
+275:       id: randomUUID(),
+276:       sender,
+277:       owner,
+278:       view,
+279:       directory: args.directory,
+280:       sessionID: args.sessionID,
+281:       connection: null,
+
+SOURCE .internal/reference/aider/aider/gui.py
+53:     keys = set()
+54:
+55:     def init(self, key, val=None):
+56:         if key in self.keys:
+57:             return
+58:
+59:         self.keys.add(key)
+60:         setattr(self, key, val)
+61:         return True
+62:
+63:
+64: @st.cache_resource
+65: def get_state():
+66:     return State()
+67:
+68:
+69: @st.cache_resource
+70: def get_coder():
+71:     coder = cli_main(return_coder=True)
+72:     if not isinstance(coder, Coder):
+73:         raise ValueError(coder)
+74:     if not coder.repo:
+75:         raise ValueError("GUI can currently only be used inside a git repo")
+76:
+77:     io = CaptureIO(
+78:         pretty=False,
+79:         yes=True,
+80:         dry_run=coder.io.dry_run,
+81:         encoding=coder.io.encoding,
+82:     )
+83:     # coder.io = io # this breaks the input_history
+84:     coder.commands.io = io
+
+SOURCE .internal/reference/aider/aider/gui.py
+145:             with self.last_undo_empty:
+146:                 if self.button(f"Undo commit `{commit_hash}`", key=f"undo_{commit_hash}"):
+147:                     self.do_undo(commit_hash)
+148:
+149:     def do_sidebar(self):
+150:         with st.sidebar:
+151:             st.title("Aider")
+152:             # self.cmds_tab, self.settings_tab = st.tabs(["Commands", "Settings"])
+153:
+154:             # self.do_recommended_actions()
+155:             self.do_add_to_chat()
+156:             self.do_recent_msgs()
+157:             self.do_clear_chat_history()
+158:             # st.container(height=150, border=False)
+159:             # st.write("### Experimental")
+160:
+161:             st.warning(
+162:                 "This browser version of aider is experimental. Please share feedback in [GitHub"
+163:                 " issues](https://github.com/Aider-AI/aider/issues)."
+164:             )
+
+SOURCE .internal/reports/uiux-2026-10-18/harness/renderer.tsx
+96:               />
+97:               <div className="fixture-rows" role="grid" tabIndex={0} aria-label="Fixture sessions">
+98:                 {rows.map((row) => (
+99:                   <MissionControlRow
+100:                     key={row.sessionId}
+101:                     row={row}
+102:                     selected={selected === row.sessionId}
+103:                     expanded={row.state === "permission"}
+104:                     activeWorkingSetId={null}
+105:                     primaryLabel={row.state === "review" ? "Review changes" : "Open"}
+106:                     onSelect={setSelected}
+107:                     onOpen={noop}
+108:                     onPrimary={noop}
+109:                     onCompare={noop}
+110:                     onRemoveFromSet={noop}
+111:                   >
+112:                     {row.state === "permission" ? (
+113:                       <div className="fixture-request">
+114:                         <RequestActionCard entry={entry} density="compact" />
+115:                       </div>
+116:                     ) : null}
+117:                   </MissionControlRow>
+118:                 ))}
+119:               </div>
+120:             </div>
+121:           ) : (

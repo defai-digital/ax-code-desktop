@@ -1,0 +1,42 @@
+
+ RUN  v4.1.11 /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+
+(node:9862) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/layout/ProjectActionsButton.test.tsx (12 tests | 3 failed) 143ms
+     × ignores stale exit callbacks after the tab acquires a replacement session 9ms
+     × ignores stale retryable-error callbacks after the tab acquires a replacement session 8ms
+     × ignores stale fatal-error callbacks after the tab acquires a replacement session 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/layout/ProjectActionsButton.test.tsx > project action preview lifecycle > ignores stale exit callbacks after the tab acquires a replacement session
+ FAIL  src/components/layout/ProjectActionsButton.test.tsx > project action preview lifecycle > ignores stale retryable-error callbacks after the tab acquires a replacement session
+ FAIL  src/components/layout/ProjectActionsButton.test.tsx > project action preview lifecycle > ignores stale fatal-error callbacks after the tab acquires a replacement session
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/components/layout/ProjectActionsButton.test.tsx:172:36
+    170|       const current = useTerminalStore.getState().getDirectoryState("/…
+    171|       expect(current.terminalSessionId).toBe("replacement-session")
+    172|       expect(current.isConnecting).toBe(true)
+       |                                    ^
+    173|       expect(openPreview).not.toHaveBeenCalled()
+    174|     },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 9 passed (12)
+   Start at  06:30:47
+   Duration  766ms (transform 162ms, setup 27ms, import 306ms, tests 143ms, environment 211ms)
+
+undefined
+/Users/akiralam/code/ax-code-desktop/desktop/packages/ui:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run src/components/layout/ProjectActionsButton.test.tsx

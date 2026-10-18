@@ -1,0 +1,50 @@
+**Method note:** this pass is constrained to supplied evidence — no tools, no delegation, no browser or test runs. I therefore did **not** obtain Grok or DeepSeek transcripts; nothing below is attributed to them, and no cross-model agreement is claimed. Everything is either [fact] from the quoted source, [hypothesis] requiring measurement, or [estimate].
+
+## 1. A/B/C/D
+
+**A — Replace the React desktop GUI with Streamlit: NO.**
+[Fact] The supervision surface is entangled with Electron-only capabilities: `desktop-webmcp-browser.js` creates a sandboxed `WebContentsView`, holds a main-process-only `DESKTOP_BROWSER_TOKEN`, mutates the `allowedUrl`/`agentOrigin` gates, and enforces partition-level permission denial. [Fact] `EmbeddedWebMcpBrowser.tsx` encodes a lifecycle contract (create/close, lifecycle-ref invalidation, reset-on-session-change). Streamlit cannot host that; it would need a companion process anyway, so you would ship Electron **plus** Python. [Fact] Session State is per-WebSocket and resets on reload — that is not durable supervision state, and the store (`useSupervisionStore`) is explicitly persisted. Value: near-zero. Difficulty: very high. [Estimate] 3–6 eng-months to a strictly worse surface, plus a new signed supply chain for a bundled interpreter. This also collides with ADR-015 and the "no second runtime" rule.
+
+**B — Separate Streamlit GUI for controlling AX Code: defer, do not build.**
+[Fact] No Python-native audience is established, and a reference app having a GUI is not demand. The real problem is not rendering — it is that any second surface that can send permission intents duplicates the guard/audit boundary now concentrated in `RequestActionCard` (`respondingRef`, `mountedRef`, `run()` wrapper). [Hypothesis] A Streamlit control panel would reimplement this from scratch and drift. If ever built: read-only first, SDK over loopback with a scoped token, no approval actions. [Estimate] 3–6 weeks to a credible read-mostly MVP, then permanent dual-surface cost (two release trains, two auth stories, two localization sets).
+
+**C — Preview user/project Streamlit apps in the existing project browser: YES, best ratio.**
+The machinery already exists: hardened partition, permission handlers returning `false`, `will-download` prevented, `will-redirect`/`will-navigate` gated by `allowedUrl`, agent access off on every fresh browser. Add a *generic launch recipe*: user-declared command, user-declared port, readiness probe, supervised child process, explicit per-launch consent. [Fact] `allowedUrl` exists and blocks non-allowed navigation, so [hypothesis — verify first] a `localhost:<port>` preview will be refused until that origin is explicitly admitted; that check is the single biggest integration unknown. [Fact] A Chromium sandbox does not sandbox Python — app code runs with the user's privileges; this must be disclosed in the consent copy, not implied by the pane's visual containment. [Estimate] 1–2 weeks recipe + lifecycle, ~1 week hardening (orphans, port collisions, kill-on-close).
+
+**D — Internal read-only diagnostic app: conditional.**
+Only with a named owner/audience (e.g. release-evidence reporting). Keep it outside the shipped artifact — a dev tool, not a product surface. [Estimate] 3–5 days. Do not let it become B by accretion.
+
+## 2. Critique of the UX findings
+
+- **"Allow sends once" is overstated as a defect.** [Fact] The call is `respondToPermission(..., "once")`, and the component docstring states it sends intents only and standing grants stay in-session. So the *behavior* is the documented design; the defect is **label truthfulness**, not permission escalation. Severity: medium copy/disclosure, not security. Frame it as "Allow" vs "Allow once", not "the button lies."
+- **"Pending disables controls" is partially defensible.** [Fact] `respondingRef` already prevents double submission, so disabling both buttons is redundant belt-and-braces — and it removes the user's only escape. [Hypothesis] A better shape: disable only the submitted action, keep the other, and show inline status.
+- **"Errors in toast" understates a lifecycle gap.** [Fact] Failures go to `toast.error`; nothing re-reads the request. [Hypothesis] After failure the card may show a stale request the runtime already resolved. Inline error + revalidation is the real fix; the toast is a symptom.
+- **Fixture-bypass claim is correct and must constrain all conclusions.** [Fact] `renderer.tsx` renders `MissionControlRow` with `fixture-request` children directly, so `MissionControlPeek` (`pl-36`, `max-h-80`) is *never* exercised by the 420/760/1440 set. Therefore any statement that the peek "looks fine" or "is broken" is unsupported in both directions. [Hypothesis] Fixed `pl-36` (144px) at 420px leaves ~276px of content width — likely cramped; unmeasured.
+- **"Review = uncommitted" is correctly read, but the risk is naming inflation.** [Fact] `deriveSupervisionState` maps `uncommitted` → `review`. Users will read "review" as "reviewed/approved". Fix copy ("uncommitted changes"), not the enum — renaming touches persistence and seven locales. [Hypothesis] Non-git directories can never enter "review".
+- **Do not re-propose what exists:** main navigation, permission-scope disclosure (`PREVIEW_PATTERNS=2`, 160-char truncation + expand control), six states with icons/colors, container-responsive rows, density and reduced-motion. [Fact] `inspectorLabels` defaults `false` — compact-by-default is a discoverability tradeoff, not an absence.
+- **Standing caveat:** review state ≠ passed tests; source hashes match but native end-to-end and screen-reader behavior were not exercised.
+
+## 3. Sequenced plan
+
+**Phase 0 — Measure before opining (≈0.5 day).** Add `MissionControlPeek` to the fixture at 420/760/1440 and 200% text zoom. *Acceptance:* fixture renders the peek; DOM assertion records `scrollWidth ≤ clientWidth` and minimum content width at 420; screenshot artifacts captured. No prose claim about peek layout ships before this.
+
+**Phase 1 — Permission-label truthfulness (≈1–2 days).** "Allow" → "Allow once" (or subtitle), across all locales; keep the `"once"` intent and every guard untouched. *Acceptance:* no change to `sessionActions.respondToPermission` arguments; `respondingRef`/`mountedRef` unchanged; a test asserts exactly one call with `"once"`; i18n key parity check passes; existing tests green.
+
+**Phase 2 — Inline failure recovery (≈1–2 days).** Inline error on the card + retry; keep toast; revalidate the request after failure. *Acceptance:* rejected promise → inline message visible, action re-enabled, exactly one network intent recorded (no double-send), zero unhandled rejections, stale-request path covered by a test.
+
+**Phase 3 — Wording + discoverability (≈1–2 days, conditional on Phase 0).** Surface "uncommitted changes" copy; fix peek padding only if Phase 0 shows clipping. *Acceptance:* enum and persisted keys unchanged (backward-compatible reads, no migration); all locales updated; guard/settings tests unchanged.
+
+**Phase 4 — Streamlit preview recipe (C), flagged (≈2–3 weeks, gated).** *Acceptance:* only user-declared commands run; no installs; port collision and readiness handled; child killed on pane close, window close, and crash; agent access defaults `off`; `allowedUrl` change reviewed; consent copy states Python is not sandboxed.
+
+## 4. Spike go/no-go
+
+**GO** if: (a) a named audience with a concrete workflow, (b) scoped to preview-only, no approval intents, (c) can live outside the signed artifact or behind an opt-in flag, (d) deterministic kill and no port scanning, (e) `allowedUrl` origin admission is a one-line, reviewed change.
+**NO-GO** if it requires: bundled Python in the signed bundle, a second approval UI, shared durable session storage, credential-bearing URLs, inherited agent-control permission for the preview, or automatic package installs.
+
+**Defer:** A permanently; B until audience evidence exists; D until an owner appears.
+
+## 5. Strongest counterargument
+
+Streamlit's rerun model makes internal view-building extremely cheap, and a read-only internal console (D) could plausibly ship in days and *earn* its way to B — so rejecting Streamlit wholesale may discard a real speed advantage, especially if AX Code's actual users are Python shops who would treat a Streamlit control panel as a distribution lever rather than a duplicate GUI.
+
+**Rebuttal:** the binding constraint in this codebase is not view-construction speed — it is approval correctness, process lifecycle, and preview isolation, none of which Streamlit improves. Label truthfulness and inline recovery are ~3 days of work here and unblock more trust than a parallel GUI would.

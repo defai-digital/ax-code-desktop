@@ -1755,7 +1755,7 @@ const IframeBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dire
   )
 }
 
-const DesktopBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, directory }) => {
+export const DesktopBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, directory }) => {
   const openProjectBrowser = useOpenProjectBrowser()
   const { t } = useI18n()
   const webviewRef = React.useRef<WebviewElement | null>(null)

@@ -1,0 +1,1095 @@
+Review the implemented candidate for AX Code Desktop. User authorized implement/test/commit and requested Grok CLI and Codex CLI collaboration. Read-only advisory review of supplied source only: no tools, network, files, or delegation. Output English <=1200 words. Report only concrete actionable bugs with source locations, severity, scenario and smallest fix; otherwise state no blocking findings. Do not substitute a different product scope.
+
+Implemented: shared cross-session request decision presentation with captured SDK/directory before awaits, canonical read-only recovery with event stamp guard; accepted responses locked across cards/remounts; generic localized status (no raw errors). Peek responsive padding after native measured clipping at420px/200%zoom; persistent Tools caption; review wording; 14 locales. Streamlit user-selected Project Action recipe (no controller/installer/Python bundle), POSIX literal argv with actual shell check; configured URL opens only after matching startup output. Current native fixture (real DesktopBrowserPane, production webview policy/ordinary permissions) passed core widgets/form/streaming, upload/download contents, reload reset, server restart/reconnect, two ports/shared-cookie observation, hide keeps server, collision exit1, external-open routing (intercepted in harness). Native test now also uses the actual command builder. Core targeted suites: 22 card/navigation tests, 51 session-action tests, 22 recipe/config/launcher/form tests passed. Full checks and expanded visual/keyboard matrix ongoing.
+
+Review concerns: shared UI record lifecycle/pruning, request remounts, lookup failures versus missing requests, source provenance, stale canonical reads, late terminal output and project switching, startup URL false positives, existing generic project actions preserved, unsupported shells, command fields quoting. AxCodeService's baseUrl is fixed for a renderer lifetime and scoped client objects hold their directory; IDs are canonical runtime IDs. Do not require exactly-once runtime effects. UI store is not authorization. Do not treat a static fixture as full packaged/native runtime qualification. Do not demand sharing permission lock with every unrelated runtime consumer; this change covers the common cross-session RequestActionCard.
+
+SOURCE desktop/packages/ui/src/components/supervision/RequestActionCard.tsx
+1: import React from "react"
+2:
+3: import { Icon } from "@/components/icon/Icon"
+4: import { Button } from "@/components/ui/button"
+5: import { useI18n } from "@/lib/i18n"
+6: import { cn } from "@/lib/utils"
+7: import {
+8:   checkRequestDecision,
+9:   requestDecisionKey,
+10:   retainRequestDecision,
+11:   submitRequestDecision,
+12:   useRequestDecisionStore,
+13: } from "@/stores/useRequestDecisionStore"
+14: import { isInlineAnswerableQuestion } from "@/lib/supervision/requests"
+15: import type { PendingRequestEntry } from "@/sync/sync-context"
+16: import { RequestRiskBadge } from "@/components/chat/RequestRiskBadge"
+17:
+18: type RequestActionCardProps = {
+19:   entry: PendingRequestEntry
+20:   /** Session title and project shown above the request; omit inside a session. */
+21:   context?: string | null
+22:   density?: "compact" | "full"
+23:   onOpen?: () => void
+24:   className?: string
+25: }
+26:
+27: const PREVIEW_PATTERNS = 2
+28: const PREVIEW_CHARACTERS = 160
+29:
+30: /**
+31:  * The one actionable request card for cross-session surfaces (titlebar popover, Needs You queue, Mission
+32:  * Control peek). It sends intents only: allow once, deny, answer, dismiss. Standing "always" grants stay in
+33:  * the in-session permission card, where the patterns they save are shown in full.
+34:  */
+35: export const RequestActionCard: React.FC<RequestActionCardProps> = ({
+36:   entry,
+37:   context,
+38:   density = "full",
+39:   onOpen,
+40:   className,
+41: }) => {
+42:   const { t } = useI18n()
+43:   const identity = { kind: entry.kind, sessionId: entry.sessionId, requestId: entry.request.id }
+44:   const requestKey = requestDecisionKey(identity)
+45:   const phase = useRequestDecisionStore((state) => state.records.get(requestKey)?.phase ?? "idle")
+46:   const busy = phase !== "idle" && phase !== "retry"
+47:   const [expandedRequest, setExpandedRequest] = React.useState<string | null>(null)
+48:   const scopeId = React.useId()
+49:   React.useEffect(() => retainRequestDecision(requestKey), [requestKey])
+50:
+51:   const compact = density === "compact"
+52:   const isPermission = entry.kind === "permission"
+53:   const title = isPermission
+54:     ? t("notificationCenter.permission.requestTitle", { tool: entry.request.permission })
+55:     : entry.request.questions?.[0]?.header?.trim() || entry.request.questions?.[0]?.question || ""
+56:   const patterns = entry.kind === "permission" ? entry.request.patterns.filter(Boolean) : []
+57:   const needsExpansion =
+58:     patterns.length > PREVIEW_PATTERNS || patterns.some((pattern) => pattern.length > PREVIEW_CHARACTERS)
+59:   const expanded = expandedRequest === requestKey
+60:   const detail =
+61:     entry.kind === "question" && entry.request.questions?.[0]?.header ? entry.request.questions[0].question : ""
+62:   const inlineQuestion = isInlineAnswerableQuestion(entry) && entry.kind === "question" ? entry.request : null
+63:
+64:   return (
+65:     <div
+66:       data-request-kind={entry.kind}
+67:       data-request-status={phase}
+68:       aria-busy={phase === "sending" || phase === "checking"}
+69:       className={cn(
+70:         "flex min-w-0 flex-col gap-1.5 rounded-lg border border-border/60 bg-[var(--surface-elevated)]",
+71:         compact ? "px-2.5 py-2" : "px-3 py-2.5",
+72:         className,
+73:       )}
+74:     >
+75:       <div className="flex min-w-0 items-start gap-2">
+76:         <Icon
+77:           name={isPermission ? "shield-warning" : "question"}
+78:           className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--status-warning)]"
+79:           aria-hidden="true"
+80:         />
+81:         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+82:           {context ? <span className="truncate typography-micro text-muted-foreground">{context}</span> : null}
+83:           <span className="flex min-w-0 items-center gap-1.5">
+84:             <span className="truncate typography-ui-label font-medium text-foreground">{title}</span>
+85:             {entry.kind === "permission" ? <RequestRiskBadge request={entry.request} /> : null}
+86:           </span>
+87:           {detail ? (
+88:             <span className={cn("typography-micro text-muted-foreground", compact ? "truncate" : "line-clamp-2")}>
+89:               {detail}
+90:             </span>
+91:           ) : null}
+92:         </div>
+93:       </div>
+94:       {patterns.length > 0 ? (
+95:         <div className="min-w-0 pl-5 typography-meta">
+96:           {needsExpansion ? (
+97:             <button
+98:               type="button"
+99:               aria-expanded={expanded}
+100:               aria-controls={scopeId}
+101:               onClick={(event) => {
+102:                 event.stopPropagation()
+103:                 setExpandedRequest(expanded ? null : requestKey)
+104:               }}
+105:               className="min-h-8 rounded text-left text-foreground underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+106:             >
+107:               {t("supervision.request.scopeCount", { count: patterns.length })}
+108:               <Icon
+109:                 name={expanded ? "arrow-up-s" : "arrow-down-s"}
+110:                 className="ml-1 inline h-4 w-4"
+111:                 aria-hidden="true"
+112:               />
+113:             </button>
+114:           ) : null}
+115:           <ul id={scopeId} className="space-y-1 text-muted-foreground">
+116:             {(expanded || !needsExpansion ? patterns : patterns.slice(0, PREVIEW_PATTERNS)).map((pattern, index) => (
+117:               <li key={index} className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+118:                 <code>
+119:                   {expanded || !needsExpansion || pattern.length <= PREVIEW_CHARACTERS
+120:                     ? pattern
+121:                     : `${pattern.slice(0, PREVIEW_CHARACTERS)}…`}
+122:                 </code>
+123:               </li>
+124:             ))}
+125:           </ul>
+126:         </div>
+127:       ) : null}
+128:       <p
+129:         role="status"
+130:         aria-live="polite"
+131:         aria-atomic="true"
+132:         className="empty:hidden pl-5 typography-meta text-muted-foreground"
+133:       >
+134:         {phase !== "idle" ? t(`supervision.request.status.${phase}`) : null}
+135:       </p>
+136:       {phase === "uncertain" ? (
+137:         <Button
+138:           type="button"
+139:           size="sm"
+140:           variant="outline"
+141:           className="self-start ml-5 whitespace-normal h-auto min-h-8"
+142:           onClick={() => void checkRequestDecision(identity)}
+143:         >
+144:           {t("supervision.request.checkStatus")}
+145:         </Button>
+146:       ) : null}
+147:       <div className="flex flex-wrap items-center gap-1.5 pl-5">
+148:         {entry.kind === "permission" ? (
+149:           <>
+150:             <Button
+151:               size="sm"
+152:               variant="default"
+153:               className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1 typography-micro"
+154:               disabled={busy}
+155:               onClick={() => void submitRequestDecision(identity, "once")}
+156:             >
+157:               {t("supervision.request.allowOnce")}
+158:             </Button>
+159:             <Button
+160:               size="sm"
+161:               variant="ghost"
+162:               className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1 typography-micro"
+163:               disabled={busy}
+164:               onClick={() => void submitRequestDecision(identity, "reject")}
+165:             >
+166:               {t("notificationCenter.deny")}
+167:             </Button>
+168:           </>
+169:         ) : inlineQuestion ? (
+170:           <>
+171:             {inlineQuestion.questions[0].options.map((option) => (
+172:               <Button
+173:                 key={option.label}
+174:                 size="sm"
+175:                 variant="outline"
+176:                 className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1 typography-micro"
+177:                 title={option.description || option.label}
+178:                 disabled={busy}
+179:                 onClick={() => void submitRequestDecision(identity, [[option.label]])}
+180:               >
+181:                 {option.label}
+182:               </Button>
+183:             ))}
+184:             <Button
+185:               size="sm"
+186:               variant="ghost"
+187:               className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1 typography-micro"
+188:               disabled={busy}
+189:               onClick={() => void submitRequestDecision(identity, "reject")}
+190:             >
+191:               {t("supervision.request.dismiss")}
+192:             </Button>
+193:           </>
+194:         ) : null}
+195:         {onOpen ? (
+196:           <Button
+197:             size="sm"
+198:             variant="ghost"
+199:             className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1 typography-micro"
+200:             onClick={onOpen}
+201:           >
+202:             {t("supervision.request.open")}
+203:           </Button>
+204:         ) : null}
+205:       </div>
+206:     </div>
+207:   )
+208: }
+
+SOURCE desktop/packages/ui/src/stores/useRequestDecisionStore.ts
+1: import { create } from "zustand"
+2: import {
+3:   captureBlockingRequest,
+4:   type BlockingRequestDecision,
+5:   type BlockingRequestIdentity,
+6: } from "@/sync/session-actions"
+7:
+8: export type RequestDecisionPhase = "idle" | "sending" | "checking" | "retry" | "uncertain" | "accepted" | "resolved"
+9: type RecordEntry = { phase: RequestDecisionPhase; source?: ReturnType<typeof captureBlockingRequest> }
+10:
+11: /** Ephemeral presentation state only. The runtime owns permission outcomes; this shares UI locks across cards. */
+12: export const useRequestDecisionStore = create<{ records: ReadonlyMap<string, RecordEntry> }>(() => ({
+13:   records: new Map(),
+14: }))
+15: const subscribers = new Map<string, number>()
+16: export const requestDecisionKey = ({ kind, sessionId, requestId }: BlockingRequestIdentity) =>
+17:   JSON.stringify([kind, sessionId, requestId])
+18:
+19: export function retainRequestDecision(key: string) {
+20:   subscribers.set(key, (subscribers.get(key) ?? 0) + 1)
+21:   return () => {
+22:     const count = (subscribers.get(key) ?? 1) - 1
+23:     if (count) subscribers.set(key, count)
+24:     else subscribers.delete(key)
+25:     pruneResolvedDecisions()
+26:   }
+27: }
+28:
+29: function pruneResolvedDecisions() {
+30:   const records = new Map(useRequestDecisionStore.getState().records)
+31:   let changed = false
+32:   for (const [key, entry] of records) {
+33:     if (
+34:       !subscribers.has(key) &&
+35:       entry.phase !== "sending" &&
+36:       entry.phase !== "checking" &&
+37:       entry.source?.isPendingLocally() === false
+38:     ) {
+39:       records.delete(key)
+40:       changed = true
+41:     }
+42:   }
+43:   if (changed) useRequestDecisionStore.setState({ records })
+44: }
+45:
+46: function update(key: string, entry: RecordEntry) {
+47:   const records = new Map(useRequestDecisionStore.getState().records)
+48:   records.set(key, entry)
+49:   useRequestDecisionStore.setState({ records })
+50: }
+51:
+52: async function reconcile(identity: BlockingRequestIdentity, source?: ReturnType<typeof captureBlockingRequest>) {
+53:   const key = requestDecisionKey(identity)
+54:   update(key, { phase: "checking", source })
+55:   try {
+56:     source ??= captureBlockingRequest(identity)
+57:     update(key, { phase: "checking", source })
+58:     const result = await source.read()
+59:     update(key, { phase: result === "pending" ? "retry" : "resolved", source })
+60:   } catch {
+61:     update(key, { phase: "uncertain", source })
+62:   }
+63:   pruneResolvedDecisions()
+64: }
+65:
+66: export async function checkRequestDecision(identity: BlockingRequestIdentity) {
+67:   const entry = useRequestDecisionStore.getState().records.get(requestDecisionKey(identity))
+68:   if (entry?.phase !== "uncertain") return
+69:   await reconcile(identity, entry.source)
+70: }
+71:
+72: export async function submitRequestDecision(identity: BlockingRequestIdentity, decision: BlockingRequestDecision) {
+73:   const key = requestDecisionKey(identity)
+74:   const previous = useRequestDecisionStore.getState().records.get(key)
+75:   if (previous && previous.phase !== "idle" && previous.phase !== "retry") return
+76:   // Synchronous store update guards both same-tick activation and another mounted/remounted surface.
+77:   let source = previous?.source
+78:   update(key, { phase: "sending", source })
+79:   try {
+80:     source ??= captureBlockingRequest(identity)
+81:     update(key, { phase: "sending", source })
+82:     await source.respond(decision)
+83:     update(key, { phase: "accepted", source })
+84:   } catch {
+85:     await reconcile(identity, source)
+86:   }
+87:   pruneResolvedDecisions()
+88: }
+
+SOURCE desktop/packages/ui/src/sync/session-actions.ts
+1060: // Permissions
+1061: // ---------------------------------------------------------------------------
+1062:
+1063: export type BlockingRequestIdentity = { kind: "permission" | "question"; sessionId: string; requestId: string }
+1064: export type BlockingRequestDecision = "once" | "reject" | string[][]
+1065:
+1066: /** Capture routing before any await. Reconciliation observes this same request without auto-accepting or merging. */
+1067: export function captureBlockingRequest(identity: BlockingRequestIdentity) {
+1068:   const { kind, sessionId, requestId } = identity
+1069:   const directory =
+1070:     resolveDirectoryForBlockingRequest(kind, sessionId, requestId) || getSessionDirectory(sessionId) || dir()
+1071:   const client = getRequestReplyClient(kind, sessionId, requestId)
+1072:   const scope = directory ? { directory } : {}
+1073:   const stores = _childStores
+1074:   return {
+1075:     isPendingLocally: () => {
+1076:       if (!stores || !directory) return true
+1077:       const store = stores.children.get(directory)
+1078:       // An evicted store is not evidence that the runtime resolved the request.
+1079:       if (!store) return true
+1080:       return Boolean(store.getState()[kind][sessionId]?.some((request) => request.id === requestId))
+1081:     },
+1082:     respond: async (decision: BlockingRequestDecision): Promise<void> => {
+1083:       if (
+1084:         kind === "permission"
+1085:           ? decision !== "once" && decision !== "reject"
+1086:           : decision !== "reject" && !Array.isArray(decision)
+1087:       ) {
+1088:         throw new Error("Invalid request decision")
+1089:       }
+1090:       await waitForConnectionOrThrow()
+1091:       const result =
+1092:         kind === "permission"
+1093:           ? await client.permission.reply({ requestID: requestId, reply: decision as "once" | "reject", ...scope })
+1094:           : decision === "reject"
+1095:             ? await client.question.reject({ requestID: requestId, ...scope })
+1096:             : await client.question.reply({ requestID: requestId, answers: decision as string[][], ...scope })
+1097:       if (result.error || !result.data) throw new Error("Request response could not be confirmed")
+1098:     },
+1099:     read: async (): Promise<"pending" | "resolved"> => {
+1100:       if (!directory) throw new Error("Request scope is unavailable")
+1101:       const stamp = blockingRequestStamp(sessionId)
+1102:       const result = kind === "permission" ? await client.permission.list(scope) : await client.question.list(scope)
+1103:       if (result.error || !Array.isArray(result.data)) throw new Error("Request status is unavailable")
+1104:       if (
+1105:         result.data.some(
+1106:           (request) => !request || typeof request.id !== "string" || typeof request.sessionID !== "string",
+1107:         )
+1108:       ) {
+1109:         throw new Error("Invalid pending request response")
+1110:       }
+1111:       if (blockingRequestStamp(sessionId) !== stamp) throw new Error("Request status changed during the read")
+1112:       return result.data.some((request) => request.id === requestId && request.sessionID === sessionId)
+1113:         ? "pending"
+1114:         : "resolved"
+1115:     },
+1116:   }
+1117: }
+1118:
+1119: export async function respondToPermission(
+1120:   sessionId: string,
+1121:   requestId: string,
+1122:   response: "once" | "always" | "reject",
+1123: ): Promise<void> {
+1124:   await waitForConnectionOrThrow()
+1125:   const directory =
+1126:     resolveDirectoryForBlockingRequest("permission", sessionId, requestId) || getSessionDirectory(sessionId) || dir()
+1127:   const result = await getRequestReplyClient("permission", sessionId, requestId).permission.reply({
+1128:     requestID: requestId,
+1129:     reply: response,
+1130:     ...(directory ? { directory } : {}),
+1131:   })
+1132:   if (!result.data) {
+1133:     throw new Error("Permission reply failed")
+1134:   }
+1135: }
+1136:
+1137: export async function saveWebMcpApproval(sessionId: string, requestId: string): Promise<void> {
+1138:   await waitForConnectionOrThrow()
+1139:   const directory =
+1140:     resolveDirectoryForBlockingRequest("permission", sessionId, requestId) || getSessionDirectory(sessionId) || dir()
+1141:   const result = await getRequestReplyClient("permission", sessionId, requestId).permission.saveWebMcpApproval({
+1142:     requestID: requestId,
+1143:     ...(directory ? { directory } : {}),
+1144:   })
+1145:   if (result.error) {
+1146:     throw new Error("WebMCP allowlist save failed")
+1147:   }
+1148: }
+1149:
+
+SOURCE desktop/packages/ui/src/lib/streamlitProjectAction.ts
+1: import type { OpenChamberProjectAction } from "./openchamberConfig"
+2:
+3: const hasControlCharacters = (value: string) => {
+4:   for (const character of value) {
+5:     const code = character.charCodeAt(0)
+6:     if (code <= 31 || code === 127) return true
+7:   }
+8:   return false
+9: }
+10: const quotePosixArgument = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
+11:
+12: export function isSupportedRecipeShell(shell: string): boolean {
+13:   return /(?:^|\/)(?:sh|bash|zsh)$/.test(shell)
+14: }
+15:
+16: /** A user-selected command recipe, never an installer or a second process supervisor. */
+17: export function createStreamlitProjectAction(input: {
+18:   id: string
+19:   name: string
+20:   interpreter: string
+21:   entrypoint: string
+22:   port: string
+23: }): OpenChamberProjectAction | null {
+24:   const interpreter = input.interpreter.trim()
+25:   const entrypoint = input.entrypoint.trim()
+26:   const port = Number(input.port)
+27:   if (
+28:     !interpreter ||
+29:     !entrypoint ||
+30:     [input.interpreter, input.entrypoint].some(hasControlCharacters) ||
+31:     !/^[0-9]+$/.test(input.port) ||
+32:     !Number.isInteger(port) ||
+33:     port < 1 ||
+34:     port > 65535 ||
+35:     entrypoint.startsWith("-") ||
+36:     !entrypoint.endsWith(".py")
+37:   )
+38:     return null
+39:   return {
+40:     id: input.id,
+41:     name: input.name,
+42:     command: `${quotePosixArgument(interpreter)} -m streamlit run ${quotePosixArgument(entrypoint)} --server.address=127.0.0.1 --server.port=${port} --server.headless=true`,
+43:     icon: "server",
+44:     autoOpenUrl: true,
+45:     openUrl: `http://127.0.0.1:${port}/`,
+46:     waitForUrl: true,
+47:     shell: "posix",
+48:   }
+49: }
+50:
+51: /** Streamlit prints this after binding; a command echo or an unrelated URL is not readiness. */
+52: export function readyProjectActionUrl(output: string, expectedUrl: string): string | null {
+53:   let expected: URL
+54:   try {
+55:     expected = new URL(expectedUrl)
+56:   } catch {
+57:     return null
+58:   }
+59:   if (!/^https?:$/.test(expected.protocol) || expected.username || expected.password) return null
+60:   const escape = String.fromCharCode(27)
+61:   const plain = output.replace(new RegExp(`${escape}\\[[0-9;?]*[ -/]*[@-~]`, "g"), "")
+62:   for (const line of plain.split(/\r?\n/)) {
+63:     const match = line.match(/^\s*(?:Local URL|URL):\s+(https?:\/\/\S+)\s*$/)
+64:     if (!match) continue
+65:     try {
+66:       const url = new URL(match[1])
+67:       if (!url.username && !url.password && url.origin === expected.origin) return expected.href
+68:     } catch {
+69:       /* Incomplete output is not ready. */
+70:     }
+71:   }
+72:   return null
+73: }
+
+SOURCE desktop/packages/ui/src/components/sections/projects/StreamlitActionForm.tsx
+1: import React from "react"
+2: import { Button } from "@/components/ui/button"
+3: import { Input } from "@/components/ui/input"
+4: import { useI18n } from "@/lib/i18n"
+5: import type { OpenChamberProjectAction } from "@/lib/openchamberConfig"
+6: import { createStreamlitProjectAction } from "@/lib/streamlitProjectAction"
+7:
+8: export function StreamlitActionForm({
+9:   onAdd,
+10:   onCancel,
+11: }: {
+12:   onAdd: (action: OpenChamberProjectAction) => void
+13:   onCancel: () => void
+14: }) {
+15:   const { t } = useI18n()
+16:   const [interpreter, setInterpreter] = React.useState("python")
+17:   const [entrypoint, setEntrypoint] = React.useState("app.py")
+18:   const [port, setPort] = React.useState("8501")
+19:   const id = React.useId()
+20:   const action = createStreamlitProjectAction({
+21:     id,
+22:     name: t("settings.projects.actions.streamlit.name"),
+23:     interpreter,
+24:     entrypoint,
+25:     port,
+26:   })
+27:   return (
+28:     <form
+29:       className="my-3 max-w-[30rem] space-y-3 rounded-lg border border-border p-3"
+30:       onSubmit={(event) => {
+31:         event.preventDefault()
+32:         if (action) onAdd(action)
+33:       }}
+34:     >
+35:       <p className="typography-meta text-muted-foreground">{t("settings.projects.actions.streamlit.description")}</p>
+36:       {(
+37:         [
+38:           ["interpreter", interpreter, setInterpreter],
+39:           ["entrypoint", entrypoint, setEntrypoint],
+40:           ["port", port, setPort],
+41:         ] as const
+42:       ).map(([field, value, setValue]) => (
+43:         <label key={field} className="flex flex-col gap-1 typography-meta">
+44:           {t(`settings.projects.actions.streamlit.${field}`)}
+45:           <Input
+46:             value={value}
+47:             onChange={(event) => setValue(event.target.value)}
+48:             autoComplete="off"
+49:             spellCheck={false}
+50:           />
+51:         </label>
+52:       ))}
+53:       {action ? (
+54:         <pre className="whitespace-pre-wrap break-all typography-micro">{action.command}</pre>
+55:       ) : (
+56:         <p role="alert" className="typography-meta text-destructive">
+57:           {t("settings.projects.actions.streamlit.invalid")}
+58:         </p>
+59:       )}
+60:       <div className="flex flex-wrap gap-2">
+61:         <Button type="submit" size="sm" disabled={!action}>
+62:           {t("settings.projects.actions.actions.add")}
+63:         </Button>
+64:         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+65:           {t("common.cancel")}
+66:         </Button>
+67:       </div>
+68:     </form>
+69:   )
+70: }
+
+SOURCE desktop/packages/ui/src/components/layout/ProjectActionsButton.tsx
+315:     if (!selectedActionId) {
+316:       return
+317:     }
+318:     if (selectedActionId === AUTO_DISCOVER_ACTION_ID && canUseAutoDiscover) {
+319:       return
+320:     }
+321:     if (!actions.some((entry) => entry.id === selectedActionId)) {
+322:       setSelectedActionId(null)
+323:     }
+324:   }, [actions, canUseAutoDiscover, selectedActionId])
+325:
+326:   React.useEffect(() => {
+327:     for (const [key, entry] of Object.entries(projectActionRuns)) {
+328:       const directoryState = terminalSessions.get(entry.directory)
+329:       const tab = directoryState?.tabs.find((item) => item.id === entry.tabId)
+330:       if (!tab || tab.terminalSessionId !== entry.sessionId) {
+331:         removeProjectActionRun(key)
+332:       }
+333:     }
+334:   }, [projectActionRuns, removeProjectActionRun, terminalSessions])
+335:
+336:   React.useEffect(() => {
+337:     for (const [runKey, entry] of Object.entries(projectActionRuns)) {
+338:       if (entry.directory !== normalizedDirectory || entry.status === "stopping") continue
+339:       const action = displayActions.find((item) => item.id === entry.actionId)
+340:       if (!action) continue
+341:       const watch = urlWatchByRunKeyRef.current[runKey] ?? {
+342:         lastSeenChunkId: null,
+343:         // A remounted launcher did not initiate this run; do not reopen a preview the user left.
+344:         openedUrl: action.waitForUrl === true,
+345:         tail: "",
+346:         openInPreview: false,
+347:       }
+348:       urlWatchByRunKeyRef.current[runKey] = watch
+349:
+350:       const directoryState = terminalSessions.get(entry.directory)
+351:       const tab = directoryState?.tabs.find((item) => item.id === entry.tabId)
+352:       if (!tab || !Array.isArray(tab.bufferChunks) || tab.bufferChunks.length === 0) {
+353:         continue
+354:       }
+355:
+356:       const nextChunks = tab.bufferChunks.filter((chunk) => {
+357:         if (watch.lastSeenChunkId === null) {
+358:           return true
+359:         }
+360:         return chunk.id > watch.lastSeenChunkId
+361:       })
+362:
+363:       if (nextChunks.length === 0) {
+364:         continue
+365:       }
+366:
+367:       const combined = nextChunks.map((chunk) => chunk.data).join("")
+368:       const textForScan = `${watch.tail}${combined}`
+369:       const maybeUrl =
+370:         !watch.openedUrl && action.autoOpenUrl === true
+371:           ? action.waitForUrl
+372:             ? readyProjectActionUrl(textForScan, action.openUrl || "")
+373:             : extractBestUrl(textForScan)
+374:           : null
+375:       const lastChunkId = nextChunks[nextChunks.length - 1]?.id ?? watch.lastSeenChunkId
+376:
+377:       watch.lastSeenChunkId = lastChunkId
+378:       watch.tail = textForScan.slice(-512)
+379:
+380:       if (maybeUrl) {
+381:         watch.openedUrl = true
+382:         if (watch.openInPreview) {
+383:           const run = projectActionRuns[runKey]
+384:           if (run) {
+385:             setTabPreviewUrl(run.directory, run.tabId, maybeUrl, { locked: false, autoOpened: false })
+386:             if (run.status === "waiting-for-preview" || run.status === "preview-unavailable") {
+387:               updateProjectActionRunStatus(runKey, "running")
+388:             }
+389:             window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
+390:             delete previewWaitTimeoutByRunKeyRef.current[runKey]
+391:             openContextPreview(run.directory, maybeUrl)
+392:           }
+393:         } else {
+394:           void openExternal(maybeUrl)
+395:           toast.success(t("projectActions.toast.openedUrlFromOutput"))
+396:         }
+397:       }
+398:       urlWatchByRunKeyRef.current[runKey] = watch
+399:     }
+400:
+401:     for (const runKey of Object.keys(urlWatchByRunKeyRef.current)) {
+402:       if (!projectActionRuns[runKey]) {
+403:         delete urlWatchByRunKeyRef.current[runKey]
+404:         window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
+405:         delete previewWaitTimeoutByRunKeyRef.current[runKey]
+406:       }
+407:     }
+408:   }, [
+409:     displayActions,
+410:     normalizedDirectory,
+411:     openContextPreview,
+412:     openExternal,
+413:     projectActionRuns,
+414:     setTabPreviewUrl,
+415:     t,
+416:     terminalSessions,
+417:     updateProjectActionRunStatus,
+418:   ])
+419:
+420:   const getOrCreateActionTab = React.useCallback(
+421:     async (action: OpenChamberProjectAction, options: { revealTerminal?: boolean } = {}) => {
+422:       if (!normalizedDirectory) {
+423:         throw new Error(t("projectActions.error.noActiveDirectory"))
+424:       }
+425:
+
+SOURCE desktop/packages/ui/src/components/layout/ProjectActionsButton.tsx
+459:       setActiveMainTab,
+460:       setActiveTab,
+461:       setBottomTerminalOpen,
+462:       setTabIconKey,
+463:       setTabLabel,
+464:       t,
+465:     ],
+466:   )
+467:
+468:   const runAction = React.useCallback(
+469:     async (action: OpenChamberProjectAction) => {
+470:       if (!allowMobile && isMobile) {
+471:         return
+472:       }
+473:
+474:       if (!normalizedDirectory) {
+475:         toast.error(t("projectActions.error.noActiveDirectoryForAction"))
+476:         return
+477:       }
+478:
+479:       const runKey = toProjectActionRunKey(normalizedDirectory, action.id)
+480:       const existingRun = projectActionRuns[runKey]
+481:       if (existingRun && existingRun.status === "running") {
+482:         return
+483:       }
+484:       // The store only learns about the run at the end of this function's await chain, so the
+485:       // snapshot above is empty for every click until then: two clicks sent the command into the
+486:       // same shell twice (dev servers then failed on a taken port). The ref is set synchronously.
+487:       if (startingRunKeysRef.current.has(runKey)) {
+488:         return
+489:       }
+490:       startingRunKeysRef.current.add(runKey)
+491:
+492:       try {
+493:         const discovered =
+494:           action.id === AUTO_DISCOVER_ACTION_ID
+495:             ? await (async (): Promise<OpenChamberProjectAction> => {
+496:                 const [actionsState, scripts] = await Promise.all([
+497:                   getProjectActionsState({ id: stableProjectRef?.id ?? "", path: normalizedDirectory }),
+498:                   readPackageJsonScripts(normalizedDirectory),
+499:                 ])
+500:                 const devServer = await detectDevServerCommand(normalizedDirectory, actionsState.actions, scripts)
+501:                 if (!devServer) {
+502:                   throw new Error(t("contextPanel.preview.noDevServer"))
+503:                 }
+504:                 return {
+505:                   id: AUTO_DISCOVER_ACTION_ID,
+506:                   name: t("projectActions.actions.autoDiscover"),
+507:                   command: devServer.command,
+508:                   icon: "search",
+509:                   autoOpenUrl: true,
+510:                   openUrl: devServer.previewUrlHint || "",
+511:                 }
+512:               })()
+513:             : action
+514:
+515:         const hasCustomOpenUrl = discovered.autoOpenUrl === true && (discovered.openUrl || "").trim().length > 0
+516:         const { key, tabId, sessionId } = await getOrCreateActionTab(discovered, {
+517:           revealTerminal: !hasCustomOpenUrl && action.id !== AUTO_DISCOVER_ACTION_ID,
+518:         })
+519:         let activeSessionId = sessionId
+520:         let createdSession = false
+521:
+522:         if (!activeSessionId) {
+523:           setConnecting(normalizedDirectory, tabId, true)
+524:           try {
+525:             activeSessionId = await ensureClaimedTerminalSession(normalizedDirectory, tabId, {
+526:               getClaimedSessionId: () =>
+527:                 useTerminalStore
+528:                   .getState()
+529:                   .getDirectoryState(normalizedDirectory)
+530:                   ?.tabs.find((entry) => entry.id === tabId)?.terminalSessionId ?? null,
+531:               createSession: async () => {
+532:                 const created = await terminal.createSession({ cwd: normalizedDirectory })
+533:                 return created.sessionId
+534:               },
+535:               claimSession: (sessionId) => {
+536:                 setTabSessionId(normalizedDirectory, tabId, sessionId)
+537:                 return (
+538:                   useTerminalStore
+539:                     .getState()
+540:                     .getDirectoryState(normalizedDirectory)
+541:                     ?.tabs.find((entry) => entry.id === tabId)?.terminalSessionId === sessionId
+542:                 )
+543:               },
+544:               closeSession: terminal.close,
+545:             })
+546:             createdSession = Boolean(activeSessionId)
+547:           } finally {
+548:             setConnecting(normalizedDirectory, tabId, false)
+549:           }
+550:         }
+551:
+552:         if (!activeSessionId) {
+553:           throw new Error(t("projectActions.error.failedToCreateTerminalSession"))
+554:         }
+555:         const runningSessionId = activeSessionId
+556:
+557:         if (createdSession) {
+558:           await sleep(350)
+559:         }
+560:
+561:         if (
+562:           discovered.id === AUTO_DISCOVER_ACTION_ID ||
+563:           (discovered.autoOpenUrl === true && discovered.waitForUrl === true)
+564:         ) {
+565:           streamCleanupByRunKeyRef.current[key]?.()
+566:           setConnecting(normalizedDirectory, tabId, true)
+567:           streamCleanupByRunKeyRef.current[key] = connectTerminalStream(
+568:             runningSessionId,
+569:             (event) => {
+570:               if (event.type === "data" && typeof event.data === "string" && event.data.length > 0) {
+571:                 useTerminalStore.getState().appendToBuffer(normalizedDirectory, tabId, event.data, {
+572:                   expectedSessionId: runningSessionId,
+573:                 })
+574:               }
+575:               if (event.type === "exit") {
+576:                 useTerminalStore.getState().setTabSessionId(normalizedDirectory, tabId, null, {
+577:                   lifecycle: "exited",
+578:                   expectedSessionId: runningSessionId,
+579:                 })
+580:                 useTerminalStore.getState().setConnecting(normalizedDirectory, tabId, false)
+581:                 useTerminalStore.getState().removeProjectActionRun(key)
+582:                 delete urlWatchByRunKeyRef.current[key]
+583:                 streamCleanupByRunKeyRef.current[key]?.()
+584:                 delete streamCleanupByRunKeyRef.current[key]
+585:                 window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[key])
+586:                 delete previewWaitTimeoutByRunKeyRef.current[key]
+587:               }
+588:             },
+589:             (_error, fatal) => {
+590:               useTerminalStore.getState().setConnecting(normalizedDirectory, tabId, false)
+591:               if (!fatal) {
+592:                 return
+593:               }
+594:               useTerminalStore.getState().setTabSessionId(normalizedDirectory, tabId, null, {
+595:                 lifecycle: "exited",
+596:                 expectedSessionId: runningSessionId,
+597:               })
+598:               useTerminalStore.getState().removeProjectActionRun(key)
+599:               delete urlWatchByRunKeyRef.current[key]
+600:               streamCleanupByRunKeyRef.current[key]?.()
+601:               delete streamCleanupByRunKeyRef.current[key]
+602:               window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[key])
+603:               delete previewWaitTimeoutByRunKeyRef.current[key]
+604:             },
+605:             {
+606:               maxRetries: 60,
+607:               initialRetryDelay: 250,
+608:               maxRetryDelay: 2000,
+609:               connectionTimeout: 5000,
+610:               consumerKey: terminalStreamConsumerKey(normalizedDirectory, tabId),
+611:             },
+612:           )
+613:         }
+614:
+615:         const manualOpenUrl = discovered.autoOpenUrl ? normalizeManualOpenUrl(discovered.openUrl) : null
+616:         const waitForUrl = discovered.autoOpenUrl === true && discovered.waitForUrl === true && Boolean(manualOpenUrl)
+617:         if (discovered.shell === "posix") {
+618:           const { shell } = await getTerminalSessionOutput(runningSessionId)
+619:           if (!isSupportedRecipeShell(shell)) throw new Error(t("projectActions.error.unsupportedRecipeShell"))
+620:         }
+621:
+622:         setProjectActionRun({
+623:           key,
+624:           directory: normalizedDirectory,
+625:           actionId: discovered.id,
+626:           tabId,
+627:           sessionId: runningSessionId,
+628:           status:
+629:             waitForUrl || (discovered.id === AUTO_DISCOVER_ACTION_ID && !manualOpenUrl)
+630:               ? "waiting-for-preview"
+631:               : "running",
+632:         })
+633:         window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[key])
+634:         delete previewWaitTimeoutByRunKeyRef.current[key]
+635:         if (waitForUrl || (discovered.id === AUTO_DISCOVER_ACTION_ID && !manualOpenUrl)) {
+636:           previewWaitTimeoutByRunKeyRef.current[key] = window.setTimeout(() => {
+637:             const current = useTerminalStore.getState().projectActionRuns[key]
+638:             if (current?.sessionId === runningSessionId && current.status === "waiting-for-preview") {
+639:               useTerminalStore
+640:                 .getState()
+641:                 .updateProjectActionRunStatus(key, waitForUrl ? "preview-unavailable" : "running")
+642:               if (
+643:                 waitForUrl &&
+644:                 mountedRef.current &&
+645:                 normalizeProjectActionDirectory(currentDirectoryRef.current) === normalizedDirectory
+646:               ) {
+647:                 toast.error(t("projectActions.preview.unavailable"))
+648:               }
+649:             }
+650:             delete previewWaitTimeoutByRunKeyRef.current[key]
+651:           }, AUTO_DISCOVER_PREVIEW_WAIT_TIMEOUT_MS)
+652:         }
+653:
+654:         // Ignore old terminal output when restarting a configured action.
+655:         const previousChunks = useTerminalStore
+656:           .getState()
+657:           .getDirectoryState(normalizedDirectory)
+658:           ?.tabs.find((tab) => tab.id === tabId)?.bufferChunks
+659:         urlWatchByRunKeyRef.current[key] = {
+660:           lastSeenChunkId: previousChunks?.[previousChunks.length - 1]?.id ?? null,
+661:           openedUrl: waitForUrl ? false : Boolean(manualOpenUrl) || hasCustomOpenUrl,
+662:           tail: "",
+663:           openInPreview: waitForUrl || discovered.id === AUTO_DISCOVER_ACTION_ID,
+664:         }
+665:         setTabPreviewUrl(normalizedDirectory, tabId, null, { locked: hasCustomOpenUrl, autoOpened: false })
+666:
+667:         const normalizedCommand = stripControlChars(discovered.command.trim().replace(/\r\n|\r/g, "\n"))
+668:         await terminal.sendInput(runningSessionId, `${normalizedCommand}\r`)
+669:         const currentRun = useTerminalStore.getState().projectActionRuns[key]
+670:         if (
+671:           currentRun?.sessionId === runningSessionId &&
+672:           currentRun.status !== "stopping" &&
+673:           mountedRef.current &&
+674:           normalizeProjectActionDirectory(currentDirectoryRef.current) === normalizedDirectory
+675:         ) {
+676:           if (manualOpenUrl && !waitForUrl) {
+677:             setTabPreviewUrl(normalizedDirectory, tabId, manualOpenUrl, { locked: true, autoOpened: true })
+678:             openContextPreview(normalizedDirectory, manualOpenUrl)
+679:             toast.success(t("projectActions.toast.openedActionUrl"))
+680:           } else if (hasCustomOpenUrl && !manualOpenUrl) {
+681:             toast.error(t("projectActions.error.invalidCustomUrlFormat"))
+682:           }
+683:         }
+684:       } catch (error) {
+685:         removeProjectActionRun(runKey)
+686:         delete urlWatchByRunKeyRef.current[runKey]
+687:         streamCleanupByRunKeyRef.current[runKey]?.()
+688:         delete streamCleanupByRunKeyRef.current[runKey]
+689:         window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
+690:         delete previewWaitTimeoutByRunKeyRef.current[runKey]
+691:         toast.error(error instanceof Error ? error.message : t("projectActions.error.failedToRunAction"))
+692:       } finally {
+693:         // The run is in the store from here on, so the snapshot guard can see it again.
+694:         startingRunKeysRef.current.delete(runKey)
+695:       }
+696:     },
+697:     [
+698:       getOrCreateActionTab,
+699:       allowMobile,
+700:       isMobile,
+701:       normalizedDirectory,
+702:       openContextPreview,
+703:       projectActionRuns,
+704:       removeProjectActionRun,
+705:       setConnecting,
+706:       setProjectActionRun,
+707:       setTabPreviewUrl,
+708:       setTabSessionId,
+709:       stableProjectRef?.id,
+710:       t,
+711:       terminal,
+
+SOURCE desktop/packages/ui/src/lib/openchamberConfig.ts
+391:
+392:   const sanitized: OpenChamberProjectAction[] = []
+393:   const seenIds = new Set<string>()
+394:
+395:   for (const entry of value) {
+396:     if (!entry || typeof entry !== "object") {
+397:       continue
+398:     }
+399:
+400:     const record = entry as {
+401:       id?: unknown
+402:       name?: unknown
+403:       command?: unknown
+404:       icon?: unknown
+405:       platforms?: unknown
+406:       autoOpenUrl?: unknown
+407:       openUrl?: unknown
+408:       waitForUrl?: unknown
+409:       shell?: unknown
+410:     }
+411:
+412:     const id = typeof record.id === "string" ? record.id.trim() : ""
+413:     const name = trimToMaxLength(
+414:       typeof record.name === "string" ? record.name.trim() : "",
+415:       AX_CODE_DESKTOP_PROJECT_ACTION_NAME_MAX_LENGTH,
+416:     )
+417:     const command = trimToMaxLength(
+418:       typeof record.command === "string" ? record.command.trim() : "",
+419:       AX_CODE_DESKTOP_PROJECT_ACTION_COMMAND_MAX_LENGTH,
+420:     )
+421:
+422:     if (!id || !name || !command || seenIds.has(id)) {
+423:       continue
+424:     }
+425:     seenIds.add(id)
+426:
+427:     const iconRaw = typeof record.icon === "string" ? record.icon.trim() : ""
+428:     const platforms = sanitizeProjectActionPlatforms(record.platforms)
+429:     const autoOpenUrl = record.autoOpenUrl === true
+430:     const openUrlRaw = typeof record.openUrl === "string" ? record.openUrl.trim() : ""
+431:     const openUrl = trimToMaxLength(openUrlRaw, AX_CODE_DESKTOP_PROJECT_ACTION_OPEN_URL_MAX_LENGTH)
+432:     sanitized.push({
+433:       id,
+434:       name,
+435:       command,
+436:       icon: iconRaw || null,
+437:       ...(autoOpenUrl ? { autoOpenUrl: true } : {}),
+438:       ...(openUrl ? { openUrl } : {}),
+439:       ...(record.waitForUrl === true ? { waitForUrl: true } : {}),
+440:       ...(record.shell === "posix" ? { shell: "posix" as const } : {}),
+441:       ...(platforms.length > 0 ? { platforms } : {}),
+442:     })
+443:   }
+444:
+445:   return sanitized
+446: }
+
+SOURCE desktop/packages/ui/src/components/layout/ProjectActionsButton.test.tsx
+1: import React, { act } from "react"
+2: import { createRoot, type Root } from "react-dom/client"
+3: import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
+4: import type { OpenChamberProjectAction } from "@/lib/openchamberConfig"
+5: import type { TerminalStreamEvent } from "@/lib/api/types"
+6:
+7: const mocks = vi.hoisted(() => ({
+8:   terminal: { createSession: vi.fn(), sendInput: vi.fn(), close: vi.fn(), forceKill: vi.fn() },
+9:   config: vi.fn(),
+10:   output: vi.fn(),
+11:   connect: vi.fn(),
+12:   error: vi.fn(),
+13:   success: vi.fn(),
+14: }))
+15: vi.mock("@/hooks/useRuntimeAPIs", () => ({ useRuntimeAPIs: () => ({ terminal: mocks.terminal }) }))
+16: vi.mock("@/lib/device", () => ({ useDeviceInfo: () => ({ isMobile: true }) }))
+17: vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+18: vi.mock("@/components/ui", () => ({ toast: { error: mocks.error, success: mocks.success } }))
+19: vi.mock("@/lib/openchamberConfig", () => ({ getProjectActionsState: mocks.config }))
+20: vi.mock("@/lib/terminalApi", () => ({
+21:   getTerminalSessionOutput: mocks.output,
+22:   connectTerminalStream: mocks.connect,
+23:   terminalStreamConsumerKey: (dir: string, tab: string) => `${dir}:${tab}`,
+24: }))
+25: import { ProjectActionsButton } from "./ProjectActionsButton"
+26: import { useUIStore } from "@/stores/useUIStore"
+27: import { useTerminalStore } from "@/stores/useTerminalStore"
+28: import { createStreamlitProjectAction } from "@/lib/streamlitProjectAction"
+29:
+30: describe("project action preview lifecycle", () => {
+31:   let root: Root
+32:   let container: HTMLDivElement
+33:   let output: (event: TerminalStreamEvent) => void
+34:   let action: OpenChamberProjectAction
+35:   const openPreview = vi.fn()
+36:   const project = { id: "fixture", path: "/fixture" }
+37:   beforeEach(() => {
+38:     vi.useFakeTimers()
+39:     vi.resetAllMocks()
+40:     globalThis.IS_REACT_ACT_ENVIRONMENT = true
+41:     action = createStreamlitProjectAction({
+42:       id: "streamlit",
+43:       name: "Start Streamlit",
+44:       interpreter: "python",
+45:       entrypoint: "app.py",
+46:       port: "8501",
+47:     })!
+48:     mocks.config.mockImplementation(async () => ({ actions: [action] }))
+49:     mocks.terminal.createSession.mockResolvedValue({ sessionId: "pty-fixture" })
+50:     mocks.terminal.sendInput.mockResolvedValue(undefined)
+51:     mocks.output.mockResolvedValue({ shell: "/bin/zsh", output: "", cwd: "/fixture" })
+52:     mocks.connect.mockImplementation((_id, callback) => {
+53:       output = callback
+54:       return vi.fn()
+55:     })
+56:     useTerminalStore.setState({ sessions: new Map(), projectActionRuns: {} })
+57:     useUIStore.setState({ openContextPreview: openPreview })
+58:     container = document.createElement("div")
+59:     document.body.appendChild(container)
+60:     root = createRoot(container)
+61:   })
+62:   afterEach(() => {
+63:     act(() => root.unmount())
+64:     container.remove()
+65:     vi.useRealTimers()
+66:   })
+67:   const render = async (directory = "/fixture") => {
+68:     await act(async () => root.render(<ProjectActionsButton projectRef={project} directory={directory} allowMobile />))
+69:   }
+70:   const start = async () => {
+71:     await act(async () =>
+72:       container.querySelector<HTMLButtonElement>('[aria-label="projectActions.actions.runNamedAria"]')!.click(),
+73:     )
+74:     await act(async () => vi.advanceTimersByTimeAsync(400))
+75:   }
+76:
+77:   test("waits for the matching startup URL and streams without a visible terminal", async () => {
+78:     await render()
+79:     await start()
+80:     expect(mocks.terminal.sendInput).toHaveBeenCalledExactlyOnceWith("pty-fixture", `${action.command}\r`)
+81:     expect(openPreview).not.toHaveBeenCalled()
+82:     await act(async () => output({ type: "data", data: "Port 8501 is already in use\r\n" }))
+83:     expect(openPreview).not.toHaveBeenCalled()
+84:     await act(async () => output({ type: "data", data: "  URL: http://127.0.0.1:8501/\r\n" }))
+85:     expect(openPreview).toHaveBeenCalledExactlyOnceWith("/fixture", "http://127.0.0.1:8501/")
+86:   })
+87:
+88:   test("a missing startup URL becomes a visible failure without opening an occupied port", async () => {
+89:     await render()
+90:     await start()
+91:     await act(async () => vi.advanceTimersByTimeAsync(15000))
+92:     expect(Object.values(useTerminalStore.getState().projectActionRuns)[0]?.status).toBe("preview-unavailable")
+93:     expect(mocks.error).toHaveBeenCalledWith("projectActions.preview.unavailable")
+94:     expect(container.querySelector('[title="projectActions.preview.unavailable"]')).not.toBeNull()
+95:     expect(openPreview).not.toHaveBeenCalled()
+96:   })
+97:
+98:   test("does not reopen the previous project's preview when output arrives after switching", async () => {
+99:     await render()
+100:     await start()
+101:     await render("/another")
+102:     await act(async () => output({ type: "data", data: "URL: http://127.0.0.1:8501/\n" }))
+103:     expect(openPreview).not.toHaveBeenCalled()
+104:   })
+105:
+106:   test("rejects unsupported shells before sending a generated command", async () => {
+107:     mocks.output.mockResolvedValue({ shell: "cmd.exe" })
+108:     await render()
+109:     await start()
+110:     expect(mocks.terminal.sendInput).not.toHaveBeenCalled()
+111:     expect(mocks.error).toHaveBeenCalledWith("projectActions.error.unsupportedRecipeShell")
+112:     expect(openPreview).not.toHaveBeenCalled()
+113:   })
+114:
+115:   test("manual URLs open only after input succeeds and never after a failed send", async () => {
+116:     action = { ...action, shell: undefined, waitForUrl: undefined }
+117:     mocks.terminal.sendInput.mockRejectedValue(new Error("send failed"))
+118:     await render()
+119:     await start()
+120:     expect(openPreview).not.toHaveBeenCalled()
+121:     expect(useTerminalStore.getState().projectActionRuns).toEqual({})
+122:   })
+123: })

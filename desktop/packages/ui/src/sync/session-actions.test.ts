@@ -6,6 +6,8 @@ import { useConnectionStore } from "@/lib/event-stream/connection-state"
 import { PartMap } from "./part-map"
 
 // Mock SDK client that records permission.reply / question.reply calls
+let pendingListResult: { data?: unknown; error?: { message: string } } = { data: [] }
+const listCalls: Array<{ kind: string; params: Record<string, unknown> }> = []
 const replyCalls: Array<{ method: string; params: Record<string, unknown> }> = []
 const createSessionCalls: Array<{ client: "scoped" | "global"; params: Record<string, unknown> }> = []
 const sessionCalls: Array<{ method: string; params: Record<string, unknown> }> = []
@@ -80,6 +82,10 @@ function resetScopedMessagesResult() {
 
 const mockScopedClient = {
   permission: {
+    list: vi.fn((params: Record<string, unknown>) => {
+      listCalls.push({ kind: "permission", params })
+      return Promise.resolve(pendingListResult)
+    }),
     reply: vi.fn((params: Record<string, unknown>) => {
       replyCalls.push({ method: "permission.reply", params })
       return Promise.resolve({ data: true })
@@ -190,6 +196,10 @@ const mockScopedClient = {
     }),
   },
   question: {
+    list: vi.fn((params: Record<string, unknown>) => {
+      listCalls.push({ kind: "question", params })
+      return Promise.resolve(pendingListResult)
+    }),
     reply: vi.fn((params: Record<string, unknown>) => {
       replyCalls.push({ method: "question.reply", params })
       return Promise.resolve({ data: true })
@@ -357,6 +367,8 @@ function createChildStores(entries: Array<[string, StoreApi<DirectoryStore>]>) {
 beforeEach(() => {
   vi.resetModules()
   resetScopedMessagesResult()
+  pendingListResult = { data: [] }
+  listCalls.length = 0
   sessionCalls.length = 0
   inputCalls.length = 0
   registeredSessionDirectories.length = 0
@@ -561,7 +573,9 @@ describe("session mutations treat an SDK error response as a failure", () => {
     // UI, dropped its persisted state and showed no error.
     const store = createStore({})
     store.setState({
-      session: [{ id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session],
+      session: [
+        { id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session,
+      ],
     })
     mockScopedClient.session.delete.mockImplementationOnce((params: Record<string, unknown>) => {
       sessionCalls.push({ method: "session.delete", params })
@@ -587,7 +601,9 @@ describe("session mutations treat an SDK error response as a failure", () => {
   test("archiveSession rolls back and reports failure when the SDK answers with an error", async () => {
     const store = createStore({})
     store.setState({
-      session: [{ id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session],
+      session: [
+        { id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session,
+      ],
     })
     mockScopedClient.session.update.mockImplementationOnce((params: Record<string, unknown>) => {
       sessionCalls.push({ method: "session.update", params })
@@ -810,7 +826,9 @@ describe("rollback and fork actions use the session directory", () => {
         } as unknown as Session,
       ],
       part: PartMap.from({
-        "msg-b": [{ id: "prt-text", type: "text", messageID: "msg-b", text: "try an alternate path" } as unknown as Part],
+        "msg-b": [
+          { id: "prt-text", type: "text", messageID: "msg-b", text: "try an alternate path" } as unknown as Part,
+        ],
       }),
     })
     mockScopedClient.session.fork.mockImplementationOnce((params: Record<string, unknown>) => {
@@ -942,7 +960,12 @@ describe("rollback and fork actions use the session directory", () => {
       },
     })
     expect(store.getState().message["session-b"].map((message) => message.id)).toEqual(["msg-kept"])
-    expect(store.getState().part.get("msg-kept")?.map((part) => part.id)).toEqual(["prt-kept-new"])
+    expect(
+      store
+        .getState()
+        .part.get("msg-kept")
+        ?.map((part) => part.id),
+    ).toEqual(["prt-kept-new"])
     expect(store.getState().part.get("msg-stale")).toBeUndefined()
   })
 
@@ -987,7 +1010,12 @@ describe("rollback and fork actions use the session directory", () => {
     await applyRollbackPoint("session-b", { step: 2 })
 
     expect(store.getState().message["session-b"].map((message) => message.id)).toEqual(["msg-kept"])
-    expect(store.getState().part.get("msg-kept")?.map((part) => part.id)).toEqual(["prt-kept"])
+    expect(
+      store
+        .getState()
+        .part.get("msg-kept")
+        ?.map((part) => part.id),
+    ).toEqual(["prt-kept"])
   })
 
   test("applyRollbackPoint surfaces a rejected rollback instead of reporting success", async () => {
@@ -1110,7 +1138,12 @@ describe("rollback and fork actions use the session directory", () => {
     expect(sourceStore.getState().session_status["session-b"]).toBeUndefined()
     expect(targetStore.getState().session.map((session) => session.id)).toEqual(["session-b"])
     expect(targetStore.getState().message["session-b"]?.map((message) => message.id)).toEqual(["msg-b"])
-    expect(targetStore.getState().part.get("msg-b")?.map((part) => part.id)).toEqual(["prt-b"])
+    expect(
+      targetStore
+        .getState()
+        .part.get("msg-b")
+        ?.map((part) => part.id),
+    ).toEqual(["prt-b"])
     expect(targetStore.getState().session_status["session-b"]).toEqual({ type: "idle" })
     // S4.5: no manual global-store write — the session.updated event
     // re-buckets the session under its new directory as the writer of record.
@@ -1335,7 +1368,10 @@ describe("optimisticSend responsiveness", () => {
       },
       ({ sessionID, messageID }) => {
         store.setState((state) => ({
-          message: { ...state.message, [sessionID]: (state.message[sessionID] ?? []).filter((m) => m.id !== messageID) },
+          message: {
+            ...state.message,
+            [sessionID]: (state.message[sessionID] ?? []).filter((m) => m.id !== messageID),
+          },
           part: state.part.without([messageID]),
         }))
       },
@@ -2316,11 +2352,7 @@ describe("abortCurrentOperation", () => {
   test("aborts against the session's own project, not the active one", async () => {
     const childStores = createChildStores([["/test/project", createStore({})]])
     const { abortCurrentOperation, setActionRefs } = await import("./session-actions")
-    setActionRefs(
-      mockSdk as unknown as AxCodeClient,
-      childStores,
-      () => "/test/project",
-    )
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
 
     // session-b lives in /other/project while the active directory is
     // /test/project: the runtime rejects an abort for a foreign project with a
@@ -2338,11 +2370,7 @@ describe("abortCurrentOperation", () => {
   test("does not mark an abort flag for an empty session id", async () => {
     const childStores = createChildStores([["/test/project", createStore({})]])
     const { abortCurrentOperation, setActionRefs } = await import("./session-actions")
-    setActionRefs(
-      mockSdk as unknown as AxCodeClient,
-      childStores,
-      () => "/test/project",
-    )
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
     markSessionAbortedMock.mockClear()
 
     await abortCurrentOperation("")
@@ -2390,5 +2418,105 @@ describe("optimisticSend message ids", () => {
     expect(fallbackSend).toHaveBeenCalledTimes(1)
     expect(fallbackSend.mock.calls[0][0]).toMatch(/^msg_/)
     expect(fallbackSend.mock.calls[0][0]).not.toBe("not-a-message-id")
+  })
+})
+
+describe("captured blocking request recovery", () => {
+  const permission: PermissionRequest = {
+    id: "req-recovery",
+    sessionID: "session-a",
+    permission: "bash",
+    patterns: ["git status"],
+    metadata: {},
+    always: [],
+  }
+  beforeEach(() => {
+    resetConfigState()
+    replyCalls.length = 0
+  })
+
+  test("pins reply and read to the original scope even after active action refs change", async () => {
+    const actions = await import("./session-actions")
+    const store = createStore({ "session-a": [permission] })
+    actions.setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/original/project", store]]),
+      () => "/original/project",
+    )
+    const operation = actions.captureBlockingRequest({
+      kind: "permission",
+      sessionId: "session-a",
+      requestId: permission.id,
+    })
+    actions.setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([]), () => "/replacement/project")
+    pendingListResult = { data: [permission] }
+    await operation.respond("once")
+    await expect(operation.read()).resolves.toBe("pending")
+    expect(replyCalls).toEqual([
+      {
+        method: "permission.reply",
+        params: { requestID: permission.id, reply: "once", directory: "/original/project" },
+      },
+    ])
+    expect(listCalls).toEqual([{ kind: "permission", params: { directory: "/original/project" } }])
+    expect(store.getState().permission["session-a"]).toEqual([permission])
+  })
+
+  test.each([{}, { data: null }, { data: [{}] }, { data: [], error: { message: "offline" } }])(
+    "does not mistake a failed or malformed list for resolution: %j",
+    async (result) => {
+      const actions = await import("./session-actions")
+      actions.setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([]), () => "/test/project")
+      pendingListResult = result
+      const operation = actions.captureBlockingRequest({
+        kind: "permission",
+        sessionId: "session-a",
+        requestId: permission.id,
+      })
+      await expect(operation.read()).rejects.toThrow()
+      expect(replyCalls).toHaveLength(0)
+    },
+  )
+
+  test("filters by session and kind and never mutates the request collection", async () => {
+    const actions = await import("./session-actions")
+    actions.setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([]), () => "/test/project")
+    const operation = actions.captureBlockingRequest({ kind: "question", sessionId: "session-a", requestId: "q1" })
+    pendingListResult = { data: [{ id: "q1", sessionID: "other-session" }] }
+    await expect(operation.read()).resolves.toBe("resolved")
+    pendingListResult = { data: [{ id: "q1", sessionID: "session-a" }] }
+    await expect(operation.read()).resolves.toBe("pending")
+    expect(listCalls.every((call) => call.kind === "question")).toBe(true)
+    expect(replyCalls).toHaveLength(0)
+  })
+
+  test("rejects a snapshot superseded by a canonical event during its read", async () => {
+    const actions = await import("./session-actions")
+    const { noteBlockingRequestEvent } = await import("./blocking-request-events")
+    actions.setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([]), () => "/test/project")
+    let resolve!: (value: { data: unknown }) => void
+    mockScopedClient.permission.list.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    )
+    const operation = actions.captureBlockingRequest({
+      kind: "permission",
+      sessionId: "session-a",
+      requestId: permission.id,
+    })
+    const read = operation.read()
+    noteBlockingRequestEvent("session-a")
+    resolve({ data: [permission] })
+    await expect(read).rejects.toThrow("changed during the read")
+  })
+
+  test("cannot infer resolution without a known directory", async () => {
+    const actions = await import("./session-actions")
+    actions.setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([]), () => "")
+    const operation = actions.captureBlockingRequest({ kind: "permission", sessionId: "unknown", requestId: "unknown" })
+    await expect(operation.read()).rejects.toThrow("scope is unavailable")
+    expect(listCalls).toHaveLength(0)
   })
 })

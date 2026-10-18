@@ -1,0 +1,75 @@
+{
+  "platform": "darwin",
+  "arch": "arm64",
+  "electron": "44.9.0",
+  "checks": [
+    {
+      "name": "core-render",
+      "agentEnabled": false,
+      "webPreferences": {
+        "allowRunningInsecureContent": false,
+        "contextIsolation": true,
+        "nodeIntegration": false,
+        "sandbox": true,
+        "webSecurity": true
+      }
+    },
+    {
+      "name": "widget"
+    },
+    {
+      "name": "form"
+    },
+    {
+      "name": "incremental-stream"
+    },
+    {
+      "name": "upload-alpha",
+      "sha256": "1f37a6f7a65f088ea894c358a36cfe65fa9e4a7aad1c3bbb297f7a86310d3e68"
+    },
+    {
+      "name": "download-alpha",
+      "contentVerified": true
+    },
+    {
+      "name": "reload",
+      "sessionStateReset": true
+    },
+    {
+      "name": "two-projects",
+      "sharedCookieObserved": true
+    },
+    {
+      "name": "upload-beta",
+      "sha256": "b83709b137d12f59017c7d0dd468f8b121aa4d8436051f2c93f119ff3c303051"
+    },
+    {
+      "name": "upload-alpha",
+      "sha256": "1f37a6f7a65f088ea894c358a36cfe65fa9e4a7aad1c3bbb297f7a86310d3e68"
+    },
+    {
+      "name": "port-collision",
+      "exitCode": 1
+    },
+    {
+      "name": "server-restart-reconnect"
+    },
+    {
+      "name": "hide-keeps-server"
+    },
+    {
+      "name": "offline-retry-controls",
+      "text": "This page couldn't be loaded\nhttp://127.0.0.1:63679/\nERR_CONNECTION_REFUSED (-102)\nTry loading it again or open the page in your default browser.\nretry\nopen in browser"
+    },
+    {
+      "name": "external-open-request",
+      "url": "http://127.0.0.1:63679/"
+    }
+  ],
+  "errors": [],
+  "origins": [
+    "http://127.0.0.1:63470/",
+    "http://127.0.0.1:63471/"
+  ],
+  "completed": true
+}

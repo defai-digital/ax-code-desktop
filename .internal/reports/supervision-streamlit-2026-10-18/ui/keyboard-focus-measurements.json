@@ -1,0 +1,60 @@
+{
+  "electron": "44.9.0",
+  "results": [
+    {
+      "width": 420,
+      "zoom": 2,
+      "density": "comfortable",
+      "locale": "de",
+      "viewport": 210,
+      "pixelRatio": 4,
+      "boardWidth": 158,
+      "peekWidth": 147,
+      "peekOverflow": false,
+      "cardWidth": 113,
+      "cardOverflow": false,
+      "leftPadding": "16px",
+      "bodyOverflow": false,
+      "actions": [
+        {
+          "text": "Alle 3 Berechtigungsbereiche prüfen",
+          "width": 69
+        },
+        {
+          "text": "Einmal erlauben",
+          "width": 69
+        },
+        {
+          "text": "Ablehnen",
+          "width": 66.34375
+        },
+        {
+          "text": "Öffnen",
+          "width": 49.875
+        }
+      ],
+      "keyboard": {
+        "denyFocused": true,
+        "focusVisible": true,
+        "reachable": true,
+        "rect": {
+          "x": 49,
+          "y": 468,
+          "width": 66.34375,
+          "height": 32
+        }
+      },
+      "accepted": true,
+      "acceptedOverflow": false,
+      "inspector": {
+        "expanded": true,
+        "controlCount": 8,
+        "caption": "Werkzeuge",
+        "overflow": false,
+        "chatWidth": 210,
+        "position": "absolute"
+      },
+      "inspectorEscape": true
+    }
+  ]
+}

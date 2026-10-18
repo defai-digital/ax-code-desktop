@@ -1,0 +1,450 @@
+Review this concrete implementation plan for AX Code Desktop at HEAD d1e538df. User explicitly authorized plan, implement, test, commit and asks for Grok CLI and Codex CLI collaboration. You are an advisory reviewer only: no writes, commands, subagents, network calls or implementation; review only the supplied source. Output English, <=1000 words, actionable blockers and simplifications.
+
+Scope is additive refinement of accepted Supervision Usability v1 and Streamlit project preview, NOT a second Streamlit AX Code controller. Existing React and canonical SDK/runtime remain. New v2 PRD will record current user authorization; no accepted v1 rewrite. Implementation will be done by parent.
+
+P0: Create reproducible native Electron visual harness using real MissionControlPeek/RequestActionCard/InspectorRail at 420/760/1440 and zoom 2. Existing screenshots bypass Peek; measure before changing pl-36. Capture clipping/focus evidence.
+P1: Cross-session card Allow once label; show sending, confirming, uncertain/failure inline with accessible live status. Keep both decisions disabled while in flight or unknown, same-tick ref lock, identity-aware request state, no update from old request/unmount. Successful HTTP reply waits for canonical removal? Need precise recommendation: reply success is definitive, but card may remain briefly before SSE. Prevent re-send until removal. On failure read current canonical pending list (scoped client/directory/session/request) without mutation, auto-grants or auto-retry. Existing sdk.permission.list and question.list available; resyncBlockingRequestsForDirectory is unsafe to call directly because it auto-accepts sessions. If request still pending allow explicit retry; absent mark resolved; read failure stays uncertain with Check status/Open session. Canonical reads must not overwrite fresh SSE. Avoid logging raw error details/secrets in UI. Extend tests for duplicate/conflicting intent, failure/re-read, late resolution, identity switch, unmount, keyboard.
+P2: review label describes changes awaiting review, no tests-passed claim; persisted enum stays. Inspector labels already user toggle; make existing toggle visibly discoverable using concise Tools caption when collapsed or a one-time dismissible first-use hint, prefer smallest effective approach preserving persisted preference and no resize toggling. 14 translated catalogs; update copy consistently.
+P3: Native ordinary preview Streamlit compatibility spike with a disposable development-only venv; not shipped Python/install logic. Existing sandboxed webview policy and persistent shared profile; Agent Browser is separate and must remain off. Start local fixture app bound127.0.0.1 using chosen interpreter. Verify widgets/forms/streaming, upload/download, reload/reconnect, server restart, two projects/ports, collision and external-open fallback. No CORS/XSRF disable. Use real Electron policies and ordinary preview component where possible; distinguish fixture qualification from full app E2E.
+P4 contingent on core preview success: reusable user-selected Streamlit project-action recipe in existing Project Actions settings. Explicit interpreter and entrypoint, existing terminal execution/ownership, ordinary preview; manual URL owns no process. No automatic launch from discovery, no global install, no new supervisor, no kill-on-hide. Fix evidenced readiness (currently configured URL opens before sendInput): show starting/connecting and bounded retry for initial connect failure, cancel on user navigation/unmount, no broad port scan. Generalize only where existing behavior supports it.
+Validation: relevant behavior regressions, local native smoke artifacts, typecheck/lint/test/build/check:locales/check:boundaries/release-contract. Bounded final Grok/Codex read-only diff review. Commit scoped changes and report commit separately from push/release. No publication.
+Review especially failure reconciliation correctness, ordinary preview lifetime, injection-safe interpreter/entrypoint quoting and practical acceptance thresholds. Do not demand unavailable exactly-once runtime guarantees. No Python SDK contract is assumed. Identify what can be simplified without losing requested behavior.
+
+SOURCE desktop/packages/ui/src/components/supervision/RequestActionCard.tsx
+1: import React from "react"
+2:
+3: import { Icon } from "@/components/icon/Icon"
+4: import { toast } from "@/components/ui"
+5: import { Button } from "@/components/ui/button"
+6: import { useI18n } from "@/lib/i18n"
+7: import { cn } from "@/lib/utils"
+8: import * as sessionActions from "@/sync/session-actions"
+9: import { isInlineAnswerableQuestion } from "@/lib/supervision/requests"
+10: import type { PendingRequestEntry } from "@/sync/sync-context"
+11: import { RequestRiskBadge } from "@/components/chat/RequestRiskBadge"
+12:
+13: type RequestActionCardProps = {
+14:   entry: PendingRequestEntry
+15:   /** Session title and project shown above the request; omit inside a session. */
+16:   context?: string | null
+17:   density?: "compact" | "full"
+18:   onOpen?: () => void
+19:   className?: string
+20: }
+21:
+22: const PREVIEW_PATTERNS = 2
+23: const PREVIEW_CHARACTERS = 160
+24:
+25: /**
+26:  * The one actionable request card for cross-session surfaces (titlebar popover, Needs You queue, Mission
+27:  * Control peek). It sends intents only: allow once, deny, answer, dismiss. Standing "always" grants stay in
+28:  * the in-session permission card, where the patterns they save are shown in full.
+29:  */
+30: export const RequestActionCard: React.FC<RequestActionCardProps> = ({
+31:   entry,
+32:   context,
+33:   density = "full",
+34:   onOpen,
+35:   className,
+36: }) => {
+37:   const { t } = useI18n()
+38:   const [busy, setBusy] = React.useState(false)
+39:   const respondingRef = React.useRef(false)
+40:   const [expandedRequest, setExpandedRequest] = React.useState<string | null>(null)
+41:   const requestKey = `${entry.sessionId}:${entry.kind}:${entry.request.id}`
+42:   const scopeId = React.useId()
+43:   const mountedRef = React.useRef(true)
+44:   React.useEffect(() => {
+45:     mountedRef.current = true
+46:     return () => {
+47:       mountedRef.current = false
+48:     }
+49:   }, [])
+50:
+51:   const run = React.useCallback(
+52:     async (action: () => Promise<void>, failureTitle: string) => {
+53:       if (respondingRef.current) return
+54:       respondingRef.current = true
+55:       setBusy(true)
+56:       try {
+57:         await action()
+58:       } catch (error) {
+59:         toast.error(failureTitle, {
+60:           description: error instanceof Error ? error.message : t("chat.permissionCard.responseFailed.retry"),
+61:         })
+62:       } finally {
+63:         respondingRef.current = false
+64:         if (mountedRef.current) setBusy(false)
+65:       }
+66:     },
+67:     [t],
+68:   )
+69:
+70:   const compact = density === "compact"
+71:   const isPermission = entry.kind === "permission"
+72:   const title = isPermission
+73:     ? t("notificationCenter.permission.requestTitle", { tool: entry.request.permission })
+74:     : entry.request.questions?.[0]?.header?.trim() || entry.request.questions?.[0]?.question || ""
+75:   const patterns = entry.kind === "permission" ? entry.request.patterns.filter(Boolean) : []
+76:   const needsExpansion =
+77:     patterns.length > PREVIEW_PATTERNS || patterns.some((pattern) => pattern.length > PREVIEW_CHARACTERS)
+78:   const expanded = expandedRequest === requestKey
+79:   const detail =
+80:     entry.kind === "question" && entry.request.questions?.[0]?.header ? entry.request.questions[0].question : ""
+81:   const inlineQuestion = isInlineAnswerableQuestion(entry) && entry.kind === "question" ? entry.request : null
+82:
+83:   return (
+84:     <div
+85:       data-request-kind={entry.kind}
+86:       className={cn(
+87:         "flex min-w-0 flex-col gap-1.5 rounded-lg border border-border/60 bg-[var(--surface-elevated)]",
+88:         compact ? "px-2.5 py-2" : "px-3 py-2.5",
+89:         className,
+90:       )}
+91:     >
+92:       <div className="flex min-w-0 items-start gap-2">
+93:         <Icon
+94:           name={isPermission ? "shield-warning" : "question"}
+95:           className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--status-warning)]"
+96:           aria-hidden="true"
+97:         />
+98:         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+99:           {context ? <span className="truncate typography-micro text-muted-foreground">{context}</span> : null}
+100:           <span className="flex min-w-0 items-center gap-1.5">
+101:             <span className="truncate typography-ui-label font-medium text-foreground">{title}</span>
+102:             {entry.kind === "permission" ? <RequestRiskBadge request={entry.request} /> : null}
+103:           </span>
+104:           {detail ? (
+105:             <span className={cn("typography-micro text-muted-foreground", compact ? "truncate" : "line-clamp-2")}>
+106:               {detail}
+107:             </span>
+108:           ) : null}
+109:         </div>
+110:       </div>
+111:       {patterns.length > 0 ? (
+112:         <div className="min-w-0 pl-5 typography-meta">
+113:           {needsExpansion ? (
+114:             <button
+115:               type="button"
+116:               aria-expanded={expanded}
+117:               aria-controls={scopeId}
+118:               onClick={(event) => {
+119:                 event.stopPropagation()
+120:                 setExpandedRequest(expanded ? null : requestKey)
+121:               }}
+122:               className="min-h-8 rounded text-left text-foreground underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+123:             >
+124:               {t("supervision.request.scopeCount", { count: patterns.length })}
+125:               <Icon
+126:                 name={expanded ? "arrow-up-s" : "arrow-down-s"}
+127:                 className="ml-1 inline h-4 w-4"
+128:                 aria-hidden="true"
+129:               />
+130:             </button>
+131:           ) : null}
+132:           <ul id={scopeId} className="space-y-1 text-muted-foreground">
+133:             {(expanded || !needsExpansion ? patterns : patterns.slice(0, PREVIEW_PATTERNS)).map((pattern, index) => (
+134:               <li key={index} className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+135:                 <code>
+136:                   {expanded || !needsExpansion || pattern.length <= PREVIEW_CHARACTERS
+137:                     ? pattern
+138:                     : `${pattern.slice(0, PREVIEW_CHARACTERS)}…`}
+139:                 </code>
+140:               </li>
+141:             ))}
+142:           </ul>
+143:         </div>
+144:       ) : null}
+145:       <div className="flex flex-wrap items-center gap-1.5 pl-5">
+146:         {entry.kind === "permission" ? (
+147:           <>
+148:             <Button
+149:               size="sm"
+150:               variant="default"
+151:               className="min-h-8 px-2 typography-micro"
+152:               disabled={busy}
+153:               onClick={() =>
+154:                 void run(
+155:                   () => sessionActions.respondToPermission(entry.sessionId, entry.request.id, "once"),
+156:                   t("chat.permissionCard.responseFailed.title"),
+157:                 )
+158:               }
+159:             >
+160:               {t("notificationCenter.allow")}
+161:             </Button>
+162:             <Button
+163:               size="sm"
+164:               variant="ghost"
+165:               className="min-h-8 px-2 typography-micro"
+166:               disabled={busy}
+167:               onClick={() =>
+168:                 void run(
+169:                   () => sessionActions.respondToPermission(entry.sessionId, entry.request.id, "reject"),
+170:                   t("chat.permissionCard.responseFailed.title"),
+171:                 )
+172:               }
+173:             >
+174:               {t("notificationCenter.deny")}
+175:             </Button>
+176:           </>
+177:         ) : inlineQuestion ? (
+178:           <>
+179:             {inlineQuestion.questions[0].options.map((option) => (
+180:               <Button
+181:                 key={option.label}
+182:                 size="sm"
+183:                 variant="outline"
+184:                 className="min-h-8 max-w-full truncate px-2 typography-micro"
+185:                 title={option.description || option.label}
+186:                 disabled={busy}
+187:                 onClick={() =>
+188:                   void run(
+189:                     () => sessionActions.respondToQuestion(entry.sessionId, entry.request.id, [[option.label]]),
+190:                     t("supervision.request.answerFailed"),
+191:                   )
+192:                 }
+193:               >
+194:                 {option.label}
+195:               </Button>
+196:             ))}
+197:             <Button
+198:               size="sm"
+199:               variant="ghost"
+200:               className="min-h-8 px-2 typography-micro"
+201:               disabled={busy}
+202:               onClick={() =>
+203:                 void run(
+204:                   () => sessionActions.rejectQuestion(entry.sessionId, entry.request.id),
+205:                   t("supervision.request.answerFailed"),
+206:                 )
+207:               }
+208:             >
+209:               {t("supervision.request.dismiss")}
+210:             </Button>
+211:           </>
+212:         ) : null}
+213:         {onOpen ? (
+214:           <Button size="sm" variant="ghost" className="min-h-8 px-2 typography-micro" onClick={onOpen}>
+215:             {t("supervision.request.open")}
+216:           </Button>
+217:         ) : null}
+218:       </div>
+219:     </div>
+220:   )
+221: }
+
+SOURCE desktop/packages/ui/src/sync/session-actions.ts
+1060:
+1061: // ---------------------------------------------------------------------------
+1062: // Permissions
+1063: // ---------------------------------------------------------------------------
+1064:
+1065: export async function respondToPermission(
+1066:   sessionId: string,
+1067:   requestId: string,
+1068:   response: "once" | "always" | "reject",
+1069: ): Promise<void> {
+1070:   await waitForConnectionOrThrow()
+1071:   const directory =
+1072:     resolveDirectoryForBlockingRequest("permission", sessionId, requestId) || getSessionDirectory(sessionId) || dir()
+1073:   const result = await getRequestReplyClient("permission", sessionId, requestId).permission.reply({
+1074:     requestID: requestId,
+1075:     reply: response,
+1076:     ...(directory ? { directory } : {}),
+1077:   })
+1078:   if (!result.data) {
+1079:     throw new Error("Permission reply failed")
+1080:   }
+1081: }
+1082:
+1083: export async function saveWebMcpApproval(sessionId: string, requestId: string): Promise<void> {
+1084:   await waitForConnectionOrThrow()
+1085:   const directory =
+1086:     resolveDirectoryForBlockingRequest("permission", sessionId, requestId) || getSessionDirectory(sessionId) || dir()
+1087:   const result = await getRequestReplyClient("permission", sessionId, requestId).permission.saveWebMcpApproval({
+1088:     requestID: requestId,
+1089:     ...(directory ? { directory } : {}),
+1090:   })
+
+SOURCE desktop/packages/ui/src/components/layout/InspectorRail.tsx
+115:       </Tooltip>
+116:     )
+117:   }
+118:
+119:   return (
+120:     <nav
+121:       aria-label={t("supervision.inspector.tools")}
+122:       data-expanded={expanded}
+123:       onKeyDown={(event) => {
+124:         if (event.key === "Escape" && expanded) {
+125:           event.preventDefault()
+126:           event.stopPropagation()
+127:           setExpanded(false)
+128:           toggleRef.current?.focus()
+129:         }
+130:       }}
+131:       className="inspector-rail flex flex-shrink-0 flex-col items-center gap-1 overflow-y-auto border-l border-border/40 bg-background p-1"
+132:       data-inspector-rail="true"
+133:     >
+134:       <button
+135:         ref={toggleRef}
+136:         type="button"
+137:         onClick={() => setExpanded(!expanded)}
+138:         aria-expanded={expanded}
+139:         aria-label={`${t("supervision.inspector.tools")}: ${t(expanded ? "supervision.inspector.hideLabels" : "supervision.inspector.showLabels")}`}
+140:         title={t(expanded ? "supervision.inspector.hideLabels" : "supervision.inspector.showLabels")}
+141:         className="flex min-h-10 w-full items-center justify-center gap-2 rounded-md px-1 typography-micro text-muted-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+142:       >
+143:         <Icon name={expanded ? "arrow-right-s" : "arrow-left-s"} className="h-4 w-4 shrink-0" aria-hidden="true" />
+144:         {expanded ? <span className="min-w-0 [overflow-wrap:anywhere]">{t("supervision.inspector.tools")}</span> : null}
+145:       </button>
+146:       {ENTRIES.map(renderEntry)}
+147:       <div className="my-1 h-px w-5 bg-border/60" aria-hidden="true" />
+148:       {renderEntry(TERMINAL_ENTRY)}
+149:     </nav>
+150:   )
+151: }
+
+SOURCE desktop/packages/ui/src/components/layout/ProjectActionsButton.tsx
+580:               streamCleanupByRunKeyRef.current[key]?.()
+581:               delete streamCleanupByRunKeyRef.current[key]
+582:               window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[key])
+583:               delete previewWaitTimeoutByRunKeyRef.current[key]
+584:             },
+585:             {
+586:               maxRetries: 60,
+587:               initialRetryDelay: 250,
+588:               maxRetryDelay: 2000,
+589:               connectionTimeout: 5000,
+590:               consumerKey: terminalStreamConsumerKey(normalizedDirectory, tabId),
+591:             },
+592:           )
+593:         }
+594:
+595:         const manualOpenUrl = discovered.autoOpenUrl ? normalizeManualOpenUrl(discovered.openUrl) : null
+596:
+597:         setProjectActionRun({
+598:           key,
+599:           directory: normalizedDirectory,
+600:           actionId: discovered.id,
+601:           tabId,
+602:           sessionId: runningSessionId,
+603:           status: discovered.id === AUTO_DISCOVER_ACTION_ID && !manualOpenUrl ? "waiting-for-preview" : "running",
+604:         })
+605:         window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[key])
+606:         delete previewWaitTimeoutByRunKeyRef.current[key]
+607:         if (discovered.id === AUTO_DISCOVER_ACTION_ID && !manualOpenUrl) {
+608:           previewWaitTimeoutByRunKeyRef.current[key] = window.setTimeout(() => {
+609:             useTerminalStore.getState().updateProjectActionRunStatus(key, "running")
+610:             delete previewWaitTimeoutByRunKeyRef.current[key]
+611:           }, AUTO_DISCOVER_PREVIEW_WAIT_TIMEOUT_MS)
+612:         }
+613:
+614:         if (manualOpenUrl) {
+615:           setTabPreviewUrl(normalizedDirectory, tabId, manualOpenUrl, { locked: true, autoOpened: true })
+616:           openContextPreview(normalizedDirectory, manualOpenUrl)
+617:           toast.success(t("projectActions.toast.openedActionUrl"))
+618:         } else if (hasCustomOpenUrl) {
+619:           setTabPreviewUrl(normalizedDirectory, tabId, null, { locked: true })
+620:           toast.error(t("projectActions.error.invalidCustomUrlFormat"))
+621:         } else {
+622:           setTabPreviewUrl(normalizedDirectory, tabId, null, { locked: false, autoOpened: false })
+623:         }
+624:
+625:         urlWatchByRunKeyRef.current[key] = {
+626:           lastSeenChunkId: null,
+627:           openedUrl: Boolean(manualOpenUrl) || hasCustomOpenUrl,
+628:           tail: "",
+629:           openInPreview: discovered.id === AUTO_DISCOVER_ACTION_ID,
+630:         }
+631:
+632:         const normalizedCommand = stripControlChars(discovered.command.trim().replace(/\r\n|\r/g, "\n"))
+633:         await terminal.sendInput(runningSessionId, `${normalizedCommand}\r`)
+634:       } catch (error) {
+635:         removeProjectActionRun(runKey)
+636:         delete urlWatchByRunKeyRef.current[runKey]
+637:         streamCleanupByRunKeyRef.current[runKey]?.()
+638:         delete streamCleanupByRunKeyRef.current[runKey]
+639:         window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
+640:         delete previewWaitTimeoutByRunKeyRef.current[runKey]
+
+SOURCE desktop/packages/electron/src/webview-policy.js
+1: "use strict"
+2:
+3: const DESKTOP_BROWSER_WEBVIEW_PARTITION = "persist:openchamber-browser"
+4:
+5: function createDesktopRendererWebPreferences(preload, options = {}) {
+6:   const additionalArguments = Array.isArray(options.additionalArguments)
+7:     ? options.additionalArguments.filter((value) => typeof value === "string" && value.length > 0)
+8:     : []
+9:   return {
+10:     preload,
+11:     contextIsolation: true,
+12:     nodeIntegration: false,
+13:     webSecurity: true,
+14:     webviewTag: true,
+15:     ...(additionalArguments.length > 0 ? { additionalArguments } : {}),
+16:   }
+17: }
+18:
+19: function isAllowedDesktopBrowserWebviewSrc(value) {
+20:   if (typeof value !== "string" || value.length === 0) return false
+21:   try {
+22:     const parsed = new URL(value)
+23:     if (parsed.protocol === "about:") return parsed.href === "about:blank"
+24:     return parsed.protocol === "http:" || parsed.protocol === "https:"
+25:   } catch {
+26:     return false
+27:   }
+28: }
+29:
+30: function isAllowedDesktopBrowserWebviewPartition(value) {
+31:   return value === DESKTOP_BROWSER_WEBVIEW_PARTITION
+32: }
+33:
+34: function applyDesktopBrowserWebviewPolicy(event, webPreferences, params) {
+35:   const src = typeof params?.src === "string" ? params.src : ""
+36:   const partition = typeof params?.partition === "string" ? params.partition : ""
+37:
+38:   if (!isAllowedDesktopBrowserWebviewSrc(src) || !isAllowedDesktopBrowserWebviewPartition(partition)) {
+39:     event?.preventDefault?.()
+40:     return false
+41:   }
+42:
+43:   if (webPreferences && typeof webPreferences === "object") {
+44:     delete webPreferences.preload
+45:     delete webPreferences.preloadURL
+46:     webPreferences.partition = DESKTOP_BROWSER_WEBVIEW_PARTITION
+47:     webPreferences.contextIsolation = true
+48:     webPreferences.nodeIntegration = false
+49:     webPreferences.nodeIntegrationInSubFrames = false
+50:     webPreferences.nodeIntegrationInWorker = false
+51:     webPreferences.sandbox = true
+52:     webPreferences.webSecurity = true
+53:     webPreferences.allowRunningInsecureContent = false
+54:   }
+55:
+56:   return true
+57: }
+58:
+59: function attachDesktopBrowserWebviewPolicy(contents) {
+60:   if (!contents || typeof contents.on !== "function") return
+61:   contents.on("will-attach-webview", (event, webPreferences, params) => {
+62:     applyDesktopBrowserWebviewPolicy(event, webPreferences, params)
+63:   })
+64:   // `allowpopups` (or any future guest that opens a window) would otherwise
+65:   // create an unmanaged BrowserWindow outside every navigation guard. The
+66:   // browser panel has its own "open externally" action for that.
+67:   contents.on("did-attach-webview", (_event, guestContents) => {
+68:     if (!guestContents || typeof guestContents.setWindowOpenHandler !== "function") return
+69:     guestContents.setWindowOpenHandler(() => ({ action: "deny" }))
+70:   })
+71: }
+72:
+73: module.exports = {
+74:   DESKTOP_BROWSER_WEBVIEW_PARTITION,
+75:   applyDesktopBrowserWebviewPolicy,
+76:   attachDesktopBrowserWebviewPolicy,
+77:   createDesktopRendererWebPreferences,
+78:   isAllowedDesktopBrowserWebviewSrc,
+79: }

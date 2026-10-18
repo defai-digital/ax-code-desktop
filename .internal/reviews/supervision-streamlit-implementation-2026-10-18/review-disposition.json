@@ -1,0 +1,139 @@
+{
+  "recordedAt": "2026-10-18T10:36:58.024737+00:00",
+  "baseCommit": "d1e538df7496f48a2fa985ef2becb2997aa8f14a",
+  "reviewMode": "Supplied English source packets; tools disabled by Grok flags and forbidden in Codex prompt; Codex read-only sandbox and zero command-execution events verified.",
+  "receipts": [
+    {
+      "file": "codex-final-receipt.json",
+      "reviewer": "codex",
+      "phase": "final",
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 80.0
+    },
+    {
+      "file": "codex-implementation-receipt.json",
+      "reviewer": "codex",
+      "phase": "implementation",
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 224.1
+    },
+    {
+      "file": "codex-locales-receipt.json",
+      "reviewer": "codex",
+      "phase": "locales",
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 118.8
+    },
+    {
+      "file": "codex-plan-receipt.json",
+      "reviewer": "codex",
+      "phase": "plan",
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 113.2
+    },
+    {
+      "file": "grok-final-receipt.json",
+      "reviewer": "grok",
+      "phase": "final",
+      "exitCode": 143,
+      "timedOut": true,
+      "seconds": 360.3
+    },
+    {
+      "file": "grok-implementation-receipt.json",
+      "reviewer": "grok",
+      "phase": "implementation",
+      "exitCode": 143,
+      "timedOut": true,
+      "seconds": 360.3
+    },
+    {
+      "file": "grok-plan-receipt.json",
+      "reviewer": "grok",
+      "phase": "plan",
+      "exitCode": 0,
+      "timedOut": false,
+      "seconds": 261.6
+    },
+    {
+      "file": "grok-recipe-audit-receipt.json",
+      "reviewer": "grok",
+      "phase": "recipe-audit",
+      "exitCode": 143,
+      "timedOut": true,
+      "seconds": 150.3
+    }
+  ],
+  "planDispositions": [
+    {
+      "lead": "Explicit once-only copy, accepted lock, uncertain recovery, and frozen request provenance",
+      "outcome": "adopted",
+      "evidence": "Shared request decision store, captureBlockingRequest, RequestActionCard and session-actions regressions."
+    },
+    {
+      "lead": "Small card-local state only",
+      "outcome": "modified",
+      "reason": "The same canonical request can appear in multiple cards and be remounted. A shared ephemeral UI record prevents duplicate/conflicting sends across those surfaces; runtime remains authoritative."
+    },
+    {
+      "lead": "Require local pending-store/list agreement for resolved outcome",
+      "outcome": "not_adopted",
+      "reason": "A successful valid scoped canonical list can confirm absence even when SSE was missed. Local/list agreement would retain an unnecessary lock. Event revisions reject concurrent stale reads; no list result mutates canonical stores or auto-answers."
+    },
+    {
+      "lead": "Add bounded generic connection polling",
+      "outcome": "replaced_with_observed_need",
+      "reason": "Native embedded Streamlit passed. Generated recipes wait for their matching startup URL and expose a 15-second failure state. Existing ordinary-browser Retry/Open externally controls suffice; no generalized readiness supervisor was added."
+    },
+    {
+      "lead": "Use actual shell dialect and quote structured recipe arguments",
+      "outcome": "adopted",
+      "evidence": "Real sh/bash/zsh literal argv tests, control-character/option/port validation, and actual PTY shell validation before sendInput."
+    },
+    {
+      "lead": "Visible Tools caption, truthful review copy, real Peek layout evidence, shared-profile qualification",
+      "outcome": "adopted",
+      "evidence": "14 catalog check, 24 native UI cases, production-webview-policy Streamlit fixture."
+    }
+  ],
+  "implementationFindings": [
+    {
+      "reviewer": "Codex implementation",
+      "lead": "React.useId recipe IDs could repeat after reload",
+      "outcome": "not_reproduced",
+      "reason": "The parent ProjectActionsSection.onAdd already replaces the draft form ID with createActionId before storing the new action. The abbreviated reviewer packet omitted this parent section. No persisted ID change required.",
+      "source": "desktop/packages/ui/src/components/sections/projects/ProjectActionsSection.tsx"
+    },
+    {
+      "reviewer": "Codex implementation",
+      "lead": "Failed launch leaves terminal connecting",
+      "outcome": "fixed",
+      "reason": "Launch tracks the acquired tab/session, resets connecting only for the same session on failure, and clears the flag on connected events. Unsupported-shell and replacement-session regressions pass."
+    },
+    {
+      "reviewer": "Codex final",
+      "lead": "Stale exit/error callbacks clear a replacement terminal connecting state",
+      "outcome": "reproduced_and_fixed",
+      "before": "Three new cases failed before the fix: exit, retryable error and fatal error.",
+      "after": "All stream callbacks check current terminal identity; late shell metadata cannot send into an abandoned session or erase a replacement run. Final full suite passes.",
+      "evidence": "../../reports/supervision-streamlit-2026-10-18/validation/stale-stream-before.log"
+    },
+    {
+      "reviewer": "Grok implementation and final",
+      "lead": "Broad implementation review availability",
+      "outcome": "unavailable",
+      "reason": "Both 360-second attempts timed out with no final review. Empty/partial output is not treated as approval."
+    },
+    {
+      "reviewer": "Grok recipe-audit",
+      "lead": "Final minimal helper review availability",
+      "outcome": "unavailable",
+      "reason": "A distinct 3424-character helper-only review also timed out after 150 seconds without output. No further attempts were started. Grok supplied a completed planning review; no completed Grok implementation review is claimed."
+    }
+  ],
+  "qualification": "Reviews are advisory leads. Independent source inspection, reproduced regressions, and native evidence determine dispositions. No signed cross-platform or publication approval is claimed."
+}

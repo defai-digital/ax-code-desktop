@@ -1,0 +1,37 @@
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: sans-serif;
+}
+.fixture-frame {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.fixture-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.fixture-board {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.fixture-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.fixture-request {
+  padding: 0.75rem 1rem;
+}
+.fixture-chat {
+  flex: 1;
+  min-width: 0;
+  padding: 1rem;
+}

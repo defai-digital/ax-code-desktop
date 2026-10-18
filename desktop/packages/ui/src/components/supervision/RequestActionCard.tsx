@@ -1,11 +1,16 @@
 import React from "react"
 
 import { Icon } from "@/components/icon/Icon"
-import { toast } from "@/components/ui"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
-import * as sessionActions from "@/sync/session-actions"
+import {
+  checkRequestDecision,
+  requestDecisionKey,
+  retainRequestDecision,
+  submitRequestDecision,
+  useRequestDecisionStore,
+} from "@/stores/useRequestDecisionStore"
 import { isInlineAnswerableQuestion } from "@/lib/supervision/requests"
 import type { PendingRequestEntry } from "@/sync/sync-context"
 import { RequestRiskBadge } from "@/components/chat/RequestRiskBadge"
@@ -35,37 +40,13 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
   className,
 }) => {
   const { t } = useI18n()
-  const [busy, setBusy] = React.useState(false)
-  const respondingRef = React.useRef(false)
+  const identity = { kind: entry.kind, sessionId: entry.sessionId, requestId: entry.request.id }
+  const requestKey = requestDecisionKey(identity)
+  const phase = useRequestDecisionStore((state) => state.records.get(requestKey)?.phase ?? "idle")
+  const busy = phase !== "idle" && phase !== "retry"
   const [expandedRequest, setExpandedRequest] = React.useState<string | null>(null)
-  const requestKey = `${entry.sessionId}:${entry.kind}:${entry.request.id}`
   const scopeId = React.useId()
-  const mountedRef = React.useRef(true)
-  React.useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-    }
-  }, [])
-
-  const run = React.useCallback(
-    async (action: () => Promise<void>, failureTitle: string) => {
-      if (respondingRef.current) return
-      respondingRef.current = true
-      setBusy(true)
-      try {
-        await action()
-      } catch (error) {
-        toast.error(failureTitle, {
-          description: error instanceof Error ? error.message : t("chat.permissionCard.responseFailed.retry"),
-        })
-      } finally {
-        respondingRef.current = false
-        if (mountedRef.current) setBusy(false)
-      }
-    },
-    [t],
-  )
+  React.useEffect(() => retainRequestDecision(requestKey), [requestKey])
 
   const compact = density === "compact"
   const isPermission = entry.kind === "permission"
@@ -83,6 +64,8 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
   return (
     <div
       data-request-kind={entry.kind}
+      data-request-status={phase}
+      aria-busy={phase === "sending" || phase === "checking"}
       className={cn(
         "flex min-w-0 flex-col gap-1.5 rounded-lg border border-border/60 bg-[var(--surface-elevated)]",
         compact ? "px-2.5 py-2" : "px-3 py-2.5",
@@ -119,7 +102,7 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
                 event.stopPropagation()
                 setExpandedRequest(expanded ? null : requestKey)
               }}
-              className="min-h-8 rounded text-left text-foreground underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-h-8 max-w-full whitespace-normal rounded text-left text-foreground underline underline-offset-4 [overflow-wrap:anywhere] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {t("supervision.request.scopeCount", { count: patterns.length })}
               <Icon
@@ -142,34 +125,43 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
           </ul>
         </div>
       ) : null}
+      <p
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="empty:hidden pl-5 typography-meta text-muted-foreground [overflow-wrap:anywhere]"
+      >
+        {phase !== "idle" ? t(`supervision.request.status.${phase}`) : null}
+      </p>
+      {phase === "uncertain" ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="self-start ml-5 whitespace-normal h-auto min-h-8"
+          onClick={() => void checkRequestDecision(identity)}
+        >
+          {t("supervision.request.checkStatus")}
+        </Button>
+      ) : null}
       <div className="flex flex-wrap items-center gap-1.5 pl-5">
         {entry.kind === "permission" ? (
           <>
             <Button
               size="sm"
               variant="default"
-              className="min-h-8 px-2 typography-micro"
+              className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1 typography-micro"
               disabled={busy}
-              onClick={() =>
-                void run(
-                  () => sessionActions.respondToPermission(entry.sessionId, entry.request.id, "once"),
-                  t("chat.permissionCard.responseFailed.title"),
-                )
-              }
+              onClick={() => void submitRequestDecision(identity, "once")}
             >
-              {t("notificationCenter.allow")}
+              {t("supervision.request.allowOnce")}
             </Button>
             <Button
               size="sm"
               variant="ghost"
-              className="min-h-8 px-2 typography-micro"
+              className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1 typography-micro"
               disabled={busy}
-              onClick={() =>
-                void run(
-                  () => sessionActions.respondToPermission(entry.sessionId, entry.request.id, "reject"),
-                  t("chat.permissionCard.responseFailed.title"),
-                )
-              }
+              onClick={() => void submitRequestDecision(identity, "reject")}
             >
               {t("notificationCenter.deny")}
             </Button>
@@ -181,15 +173,10 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
                 key={option.label}
                 size="sm"
                 variant="outline"
-                className="min-h-8 max-w-full truncate px-2 typography-micro"
+                className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1 typography-micro"
                 title={option.description || option.label}
                 disabled={busy}
-                onClick={() =>
-                  void run(
-                    () => sessionActions.respondToQuestion(entry.sessionId, entry.request.id, [[option.label]]),
-                    t("supervision.request.answerFailed"),
-                  )
-                }
+                onClick={() => void submitRequestDecision(identity, [[option.label]])}
               >
                 {option.label}
               </Button>
@@ -197,21 +184,21 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
             <Button
               size="sm"
               variant="ghost"
-              className="min-h-8 px-2 typography-micro"
+              className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1 typography-micro"
               disabled={busy}
-              onClick={() =>
-                void run(
-                  () => sessionActions.rejectQuestion(entry.sessionId, entry.request.id),
-                  t("supervision.request.answerFailed"),
-                )
-              }
+              onClick={() => void submitRequestDecision(identity, "reject")}
             >
               {t("supervision.request.dismiss")}
             </Button>
           </>
         ) : null}
         {onOpen ? (
-          <Button size="sm" variant="ghost" className="min-h-8 px-2 typography-micro" onClick={onOpen}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-auto min-h-8 max-w-full whitespace-normal px-2 py-1 typography-micro"
+            onClick={onOpen}
+          >
             {t("supervision.request.open")}
           </Button>
         ) : null}

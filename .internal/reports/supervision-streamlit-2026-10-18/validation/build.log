@@ -1,0 +1,226 @@
+
+> ax-coder@7.27.1 build /Users/akiralam/code/ax-code-desktop
+> turbo run build:shell --filter=@ax-code/electron
+
+• turbo 2.9.14
+
+   • Packages in scope: @ax-code/electron
+   • Running build:shell in 1 packages
+   • Remote caching disabled
+
+@openchamber/ui:build: cache miss, executing 8bab3438cbc6e76e
+@openchamber/ui:build:
+@openchamber/ui:build: > @openchamber/ui@7.27.1 build /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+@openchamber/ui:build: > tsc --noEmit
+@openchamber/ui:build:
+ax-code-desktop:build: cache miss, executing 0f15544ad53dad60
+ax-code-desktop:build:
+ax-code-desktop:build: > ax-code-desktop@7.27.1 build /Users/akiralam/code/ax-code-desktop/desktop/packages/web
+ax-code-desktop:build: > vite build
+ax-code-desktop:build:
+ax-code-desktop:build: vite v7.3.7 building client environment for production...
+ax-code-desktop:build: transforming...
+ax-code-desktop:build: ✓ 4146 modules transformed.
+ax-code-desktop:build: rendering chunks...
+ax-code-desktop:build: computing gzip size...
+ax-code-desktop:build: dist/mini-chat.html                                             0.98 kB │ gzip:     0.44 kB
+ax-code-desktop:build: dist/assets/KaTeX_Size3-Regular-CTq5MqoE.woff                   4.42 kB
+ax-code-desktop:build: dist/assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2                  4.93 kB
+ax-code-desktop:build: dist/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2                  5.21 kB
+ax-code-desktop:build: dist/assets/KaTeX_Size1-Regular-mCD8mA8B.woff2                  5.47 kB
+ax-code-desktop:build: dist/assets/KaTeX_Size4-Regular-BF-4gkZK.woff                   5.98 kB
+ax-code-desktop:build: dist/assets/KaTeX_Size2-Regular-oD1tc_U0.woff                   6.19 kB
+ax-code-desktop:build: dist/assets/KaTeX_Size1-Regular-C195tn64.woff                   6.50 kB
+ax-code-desktop:build: dist/assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2            6.91 kB
+ax-code-desktop:build: dist/assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2               6.91 kB
+ax-code-desktop:build: dist/assets/KaTeX_Size3-Regular-DgpXs0kz.ttf                    7.59 kB
+ax-code-desktop:build: dist/assets/KaTeX_Caligraphic-Regular-CTRA-rTL.woff             7.66 kB
+ax-code-desktop:build: dist/assets/KaTeX_Caligraphic-Bold-BEiXGLvX.woff                7.72 kB
+ax-code-desktop:build: dist/index.html                                                 9.43 kB │ gzip:     2.68 kB
+ax-code-desktop:build: dist/assets/KaTeX_Script-Regular-D3wIWfF6.woff2                 9.64 kB
+ax-code-desktop:build: dist/assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2             10.34 kB
+ax-code-desktop:build: dist/assets/KaTeX_Size4-Regular-DWFBv043.ttf                   10.36 kB
+ax-code-desktop:build: dist/assets/KaTeX_Script-Regular-D5yQViql.woff                 10.59 kB
+ax-code-desktop:build: dist/assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2               11.32 kB
+ax-code-desktop:build: dist/assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2                  11.35 kB
+ax-code-desktop:build: dist/assets/KaTeX_Size2-Regular-B7gKUWhC.ttf                   11.51 kB
+ax-code-desktop:build: dist/assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2              12.03 kB
+ax-code-desktop:build: dist/assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2                12.22 kB
+ax-code-desktop:build: dist/assets/KaTeX_Size1-Regular-Dbsnue_I.ttf                   12.23 kB
+ax-code-desktop:build: dist/assets/KaTeX_SansSerif-Regular-CS6fqUqJ.woff              12.32 kB
+ax-code-desktop:build: dist/assets/KaTeX_Caligraphic-Regular-wX97UBjC.ttf             12.34 kB
+ax-code-desktop:build: dist/assets/KaTeX_Caligraphic-Bold-ATXxdsX0.ttf                12.37 kB
+ax-code-desktop:build: dist/assets/ibm-plex-mono-latin-400-normal-CvHOgSBP.woff       13.14 kB
+ax-code-desktop:build: dist/assets/ibm-plex-mono-latin-500-normal-CB9ihrfo.woff       13.16 kB
+ax-code-desktop:build: dist/assets/ibm-plex-mono-latin-600-normal-DWFSQ4vo.woff       13.21 kB
+ax-code-desktop:build: dist/assets/KaTeX_Fraktur-Regular-Dxdc4cR9.woff                13.21 kB
+ax-code-desktop:build: dist/assets/KaTeX_Fraktur-Bold-BsDP51OF.woff                   13.30 kB
+ax-code-desktop:build: dist/assets/ax-engine-logo-CenZu-3I.png                        13.41 kB
+ax-code-desktop:build: dist/assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2            13.57 kB
+ax-code-desktop:build: dist/assets/KaTeX_SansSerif-Italic-DN2j7dab.woff               14.11 kB
+ax-code-desktop:build: dist/assets/KaTeX_SansSerif-Bold-DbIhKOiC.woff                 14.41 kB
+ax-code-desktop:build: dist/assets/ibm-plex-mono-latin-400-normal-DMJ8VG8y.woff2      14.71 kB
+ax-code-desktop:build: dist/assets/ibm-plex-mono-latin-500-normal-DSY6xOcd.woff2      14.89 kB
+ax-code-desktop:build: dist/assets/ibm-plex-mono-latin-600-normal-BgSNZQsw.woff2      15.62 kB
+ax-code-desktop:build: dist/assets/KaTeX_Typewriter-Regular-C0xS9mPB.woff             16.03 kB
+ax-code-desktop:build: dist/assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2               16.40 kB
+ax-code-desktop:build: dist/assets/KaTeX_Math-Italic-t53AETM-.woff2                   16.44 kB
+ax-code-desktop:build: dist/assets/KaTeX_Script-Regular-C5JkGWo-.ttf                  16.65 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2               16.78 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-Italic-NWA7e6Wa.woff2                   16.99 kB
+ax-code-desktop:build: dist/assets/KaTeX_Math-BoldItalic-iY-2wyZ7.woff                18.67 kB
+ax-code-desktop:build: dist/assets/KaTeX_Math-Italic-DA0__PXp.woff                    18.75 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-BoldItalic-SpSLRI95.woff                19.41 kB
+ax-code-desktop:build: dist/assets/KaTeX_SansSerif-Regular-BNo7hRIc.ttf               19.44 kB
+ax-code-desktop:build: dist/assets/KaTeX_Fraktur-Regular-CB_wures.ttf                 19.57 kB
+ax-code-desktop:build: dist/assets/KaTeX_Fraktur-Bold-BdnERNNW.ttf                    19.58 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-Italic-BMLOBm91.woff                    19.68 kB
+ax-code-desktop:build: dist/assets/jetbrains-mono-latin-400-normal-V6pRDFza.woff2     21.17 kB
+ax-code-desktop:build: dist/assets/jetbrains-mono-latin-500-normal-BWZEU5yA.woff2     21.83 kB
+ax-code-desktop:build: dist/assets/jetbrains-mono-latin-600-normal-C8RAYTDA.woff2     21.86 kB
+ax-code-desktop:build: dist/assets/ibm-plex-sans-latin-400-normal-CYLoc0-x.woff       22.10 kB
+ax-code-desktop:build: dist/assets/KaTeX_SansSerif-Italic-YYjJ1zSn.ttf                22.36 kB
+ax-code-desktop:build: dist/assets/ibm-plex-sans-latin-400-normal-CDDApCn2.woff2      22.59 kB
+ax-code-desktop:build: dist/assets/inter-latin-400-normal-C38fXH4l.woff2              23.66 kB
+ax-code-desktop:build: dist/assets/ibm-plex-sans-latin-600-normal-Cu4Hd6ag.woff       23.88 kB
+ax-code-desktop:build: dist/assets/ibm-plex-sans-latin-500-normal-BgVn5rGT.woff       23.92 kB
+ax-code-desktop:build: dist/assets/ibm-plex-sans-latin-500-normal-6ng42L7E.woff2      24.18 kB
+ax-code-desktop:build: dist/assets/ibm-plex-sans-latin-600-normal-CuJfVYMP.woff2      24.25 kB
+ax-code-desktop:build: dist/assets/inter-latin-500-normal-Cerq10X2.woff2              24.27 kB
+ax-code-desktop:build: dist/assets/inter-latin-600-normal-LgqL8muc.woff2              24.45 kB
+ax-code-desktop:build: dist/assets/KaTeX_SansSerif-Bold-CFMepnvq.ttf                  24.50 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-Bold-Cx986IdX.woff2                     25.32 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-Regular-B22Nviop.woff2                  26.27 kB
+ax-code-desktop:build: dist/assets/jetbrains-mono-latin-400-normal-6-qcROiO.woff      27.50 kB
+ax-code-desktop:build: dist/assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf              27.56 kB
+ax-code-desktop:build: dist/assets/KaTeX_AMS-Regular-BQhdFMY1.woff2                   28.08 kB
+ax-code-desktop:build: dist/assets/jetbrains-mono-latin-600-normal-BfsvjouI.woff      28.18 kB
+ax-code-desktop:build: dist/assets/jetbrains-mono-latin-500-normal-CJOVTJB7.woff      28.21 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-Bold-Jm3AIy58.woff                      29.91 kB
+ax-code-desktop:build: dist/assets/inter-latin-400-normal-CyCys3Eg.woff               30.70 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-Regular-Dr94JaBh.woff                   30.77 kB
+ax-code-desktop:build: dist/assets/KaTeX_Math-BoldItalic-B3XSjfu4.ttf                 31.20 kB
+ax-code-desktop:build: dist/assets/inter-latin-600-normal-CiBQ2DWP.woff               31.26 kB
+ax-code-desktop:build: dist/assets/inter-latin-500-normal-BL9OpVg8.woff               31.28 kB
+ax-code-desktop:build: dist/assets/KaTeX_Math-Italic-flOr_0UB.ttf                     31.31 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-BoldItalic-DzxPMmG6.ttf                 32.97 kB
+ax-code-desktop:build: dist/assets/KaTeX_AMS-Regular-DMm9YOAa.woff                    33.52 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-Italic-3WenGoN9.ttf                     33.58 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-Bold-waoOVXN0.ttf                       51.34 kB
+ax-code-desktop:build: dist/assets/KaTeX_Main-Regular-ypZvNtVU.ttf                    53.58 kB
+ax-code-desktop:build: dist/assets/KaTeX_AMS-Regular-DRggAlZN.ttf                     63.63 kB
+ax-code-desktop:build: dist/assets/markdownParser.worker-y7gEMpC-.js                 206.83 kB
+ax-code-desktop:build: dist/assets/worker-CaVRYMiG.js                                207.87 kB
+ax-code-desktop:build: dist/ghostty-vt.wasm                                          423.05 kB │ gzip:   125.55 kB
+ax-code-desktop:build: dist/assets/wasm-CG6Dc4jp.js                                  622.34 kB
+ax-code-desktop:build: dist/assets/sprite-y0Mgq957.svg                               965.18 kB │ gzip:   248.76 kB
+ax-code-desktop:build: dist/assets/MarkdownRendererImpl-DxqQUoF2.css                  30.19 kB │ gzip:     8.06 kB
+ax-code-desktop:build: dist/assets/latin-600-bq1cD898.css                            215.77 kB │ gzip:    32.71 kB
+ax-code-desktop:build: dist/assets/__vite-browser-external-2447137e-BIHI7g3E.js        0.03 kB │ gzip:     0.05 kB
+ax-code-desktop:build: dist/assets/typographyWatcher-CSTzSItV.js                       0.61 kB │ gzip:     0.43 kB
+ax-code-desktop:build: dist/assets/sessionRemovalCleanup-_R4rKTSI.js                   0.63 kB │ gzip:     0.37 kB
+ax-code-desktop:build: dist/assets/Virtualizer-DknQj8aa.js                             1.08 kB │ gzip:     0.61 kB
+ax-code-desktop:build: dist/assets/miniChat-B3sPqaEr.js                                1.10 kB │ gzip:     0.54 kB
+ax-code-desktop:build: dist/assets/vite-preload-helper-BXl3LOEh.js                     1.11 kB │ gzip:     0.65 kB
+ax-code-desktop:build: dist/assets/appThemeRegistry-CPuRTx0q.js                        1.25 kB │ gzip:     0.72 kB
+ax-code-desktop:build: dist/assets/viewerModePreferences-DmVzzpKb.js                   1.41 kB │ gzip:     0.68 kB
+ax-code-desktop:build: dist/assets/isFilePlainText-q7rTV0eb.js                         1.77 kB │ gzip:     0.89 kB
+ax-code-desktop:build: dist/assets/useSessionMultiSelectStore-IT2WKMLF.js              1.79 kB │ gzip:     0.70 kB
+ax-code-desktop:build: dist/assets/modelPrefsAutoSave-rOQ3_Djk.js                      1.80 kB │ gzip:     0.77 kB
+ax-code-desktop:build: dist/assets/main-BNoQ1fyu.js                                    2.23 kB │ gzip:     1.09 kB
+ax-code-desktop:build: dist/assets/languageByExtension-CSK8HB5H.js                     2.45 kB │ gzip:     0.94 kB
+ax-code-desktop:build: dist/assets/ToolDiffPreview-DUHHAHuy.js                         2.48 kB │ gzip:     1.31 kB
+ax-code-desktop:build: dist/assets/composerCodeHighlight-BA0S5bpG.js                   2.86 kB │ gzip:     1.28 kB
+ax-code-desktop:build: dist/assets/DashboardPanel-CX4QtJj7.js                          3.79 kB │ gzip:     1.85 kB
+ax-code-desktop:build: dist/assets/DiffWorkerProvider-BqUhiDRU.js                      4.21 kB │ gzip:     1.83 kB
+ax-code-desktop:build: dist/assets/usePierreThemeConfig-D3Y6HVYX.js                    5.19 kB │ gzip:     2.09 kB
+ax-code-desktop:build: dist/assets/appearanceAutoSave-B07-79we.js                      5.47 kB │ gzip:     1.43 kB
+ax-code-desktop:build: dist/assets/useSessionRollbackStore-CMBTBt6z.js                 5.89 kB │ gzip:     2.26 kB
+ax-code-desktop:build: dist/assets/WikiGraphView-FPgAFJGx.js                           6.25 kB │ gzip:     2.27 kB
+ax-code-desktop:build: dist/assets/vendor-state-CVYSycUh.js                            8.98 kB │ gzip:     3.82 kB
+ax-code-desktop:build: dist/assets/themes-CICcvgrD.js                                 11.62 kB │ gzip:     2.70 kB
+ax-code-desktop:build: dist/assets/useInlineCommentController-DeHNBUT3.js             11.94 kB │ gzip:     4.84 kB
+ax-code-desktop:build: dist/assets/textMateThemeFromAppTheme-CI_ms8nM.js              13.15 kB │ gzip:     2.93 kB
+ax-code-desktop:build: dist/assets/index-BeoRn2gJ.js                                  13.73 kB │ gzip:     5.41 kB
+ax-code-desktop:build: dist/assets/PlanView-Dqswrn4Y.js                               14.20 kB │ gzip:     5.29 kB
+ax-code-desktop:build: dist/assets/gitIndexMutationQueue-deQPiC0L.js                  15.15 kB │ gzip:     5.52 kB
+ax-code-desktop:build: dist/assets/computeVirtualFileMetrics-CoE8P0VR.js              16.51 kB │ gzip:     6.54 kB
+ax-code-desktop:build: dist/assets/isDiffPlainText-D0qnGEeB.js                        20.32 kB │ gzip:     6.38 kB
+ax-code-desktop:build: dist/assets/flexokiTheme-CyJ26dP-.js                           21.08 kB │ gzip:     6.44 kB
+ax-code-desktop:build: dist/assets/renderElectronMiniChatApp-DJYkHYkz.js              21.49 kB │ gzip:     8.64 kB
+ax-code-desktop:build: dist/assets/GitHubBoardView-CttT0cBL.js                        22.59 kB │ gzip:     7.93 kB
+ax-code-desktop:build: dist/assets/index-oja2jgj9.js                                  22.79 kB │ gzip:     6.24 kB
+ax-code-desktop:build: dist/assets/OnboardingScreen-S7Vv5vMc.js                       27.67 kB │ gzip:     6.62 kB
+ax-code-desktop:build: dist/assets/pierre-dark-Dy3oF52j.js                            30.52 kB │ gzip:     4.75 kB
+ax-code-desktop:build: dist/assets/pierre-light-DhMpYZcV.js                           30.52 kB │ gzip:     4.74 kB
+ax-code-desktop:build: dist/assets/pierre-dark-soft-K7D5SChL.js                       30.53 kB │ gzip:     4.78 kB
+ax-code-desktop:build: dist/assets/pierre-light-soft-cPlVRKcQ.js                      30.53 kB │ gzip:     4.75 kB
+ax-code-desktop:build: dist/assets/MultiRunWindow-KzsVMuOJ.js                         32.42 kB │ gzip:    11.20 kB
+ax-code-desktop:build: dist/assets/latin-600-Dn6UpDr4.js                              34.03 kB │ gzip:     9.12 kB
+ax-code-desktop:build: dist/assets/ToolOutputDialog-BcVIAcM7.js                       35.39 kB │ gzip:    12.72 kB
+ax-code-desktop:build: dist/assets/pierre-dark-vibrant-KQ6p6T2R.js                    44.73 kB │ gzip:     5.31 kB
+ax-code-desktop:build: dist/assets/pierre-light-vibrant-0cUW3kII.js                   44.73 kB │ gzip:     5.29 kB
+ax-code-desktop:build: dist/assets/File-B3ldGug1.js                                   45.37 kB │ gzip:    12.57 kB
+ax-code-desktop:build: dist/assets/DiffView-PJSfR-w6.js                               50.63 kB │ gzip:    15.84 kB
+ax-code-desktop:build: dist/assets/FilesView-DCCM8inQ.js                              65.74 kB │ gzip:    19.31 kB
+ax-code-desktop:build: dist/assets/VirtualizedFileDiff-y1LWzMm-.js                    79.71 kB │ gzip:    20.55 kB
+ax-code-desktop:build: dist/assets/Virtualizer-DBa2xNfR.js                           100.97 kB │ gzip:    21.62 kB
+ax-code-desktop:build: dist/assets/snapdom-SJzqoCHV.js                               163.46 kB │ gzip:    53.80 kB
+ax-code-desktop:build: dist/assets/GitView-D4Sh9LX_.js                               168.88 kB │ gzip:    47.48 kB
+ax-code-desktop:build: dist/assets/vendor-react-Ey55z-1i.js                          222.57 kB │ gzip:    69.37 kB
+ax-code-desktop:build: dist/assets/vendor-ui-CvorFL1c.js                             248.45 kB │ gzip:    83.02 kB
+ax-code-desktop:build: dist/assets/zh-CN-BYiE41DK.js                                 327.81 kB │ gzip:    75.94 kB
+ax-code-desktop:build: dist/assets/zh-TW-BnK9nLg1.js                                 331.08 kB │ gzip:    75.34 kB
+ax-code-desktop:build: dist/assets/id-BQHSkBDw.js                                    339.18 kB │ gzip:    72.41 kB
+ax-code-desktop:build: dist/assets/pt-BR-zri0AWv5.js                                 350.84 kB │ gzip:    75.10 kB
+ax-code-desktop:build: dist/assets/tr-C5NttT00.js                                    352.38 kB │ gzip:    76.58 kB
+ax-code-desktop:build: dist/assets/it-DEFuWNwX.js                                    355.64 kB │ gzip:    75.79 kB
+ax-code-desktop:build: dist/assets/es-dSN5Merb.js                                    356.17 kB │ gzip:    75.88 kB
+ax-code-desktop:build: dist/assets/de-CJVOOMr6.js                                    360.93 kB │ gzip:    78.32 kB
+ax-code-desktop:build: dist/assets/fr-CNlQQIcK.js                                    366.90 kB │ gzip:    77.63 kB
+ax-code-desktop:build: dist/assets/vi-Bnr0sO9h.js                                    368.99 kB │ gzip:    75.45 kB
+ax-code-desktop:build: dist/assets/ko-DLhKV3C_.js                                    369.20 kB │ gzip:    78.21 kB
+ax-code-desktop:build: dist/assets/ja-BQ3pF-ng.js                                    400.08 kB │ gzip:    80.12 kB
+ax-code-desktop:build: dist/assets/vendor-markdown-C-MLYbsN.js                       444.33 kB │ gzip:   137.26 kB
+ax-code-desktop:build: dist/assets/ru-CmGs1O_Y.js                                    449.17 kB │ gzip:    87.36 kB
+ax-code-desktop:build: dist/assets/SettingsWindow-DtCQzp8U.js                        607.62 kB │ gzip:   160.17 kB
+ax-code-desktop:build: dist/assets/TerminalView-Howx9a47.js                          678.97 kB │ gzip:   197.86 kB
+ax-code-desktop:build: dist/assets/app-config-store-B931Ou8N.js                      822.81 kB │ gzip:   200.67 kB
+ax-code-desktop:build: dist/assets/vendor-shiki-core-BQcBBepw.js                     835.19 kB │ gzip:   294.36 kB
+ax-code-desktop:build: dist/assets/main-D5jqynGX.js                                  916.71 kB │ gzip:   270.51 kB
+ax-code-desktop:build: dist/assets/vendor-shiki-themes-DXeCXRFl.js                 1,337.19 kB │ gzip:   165.75 kB
+ax-code-desktop:build: dist/assets/heic2any-Cstqp5bj.js                            1,352.91 kB │ gzip:   341.26 kB
+ax-code-desktop:build: dist/assets/vendor-codemirror-Bve21DNZ.js                   1,606.12 kB │ gzip:   558.86 kB
+ax-code-desktop:build: dist/assets/ThemeProvider-nrsSvT3_.js                       1,634.88 kB │ gzip:   494.82 kB
+ax-code-desktop:build: dist/assets/vendor-syntax-Vq6V5zUr.js                       1,712.42 kB │ gzip:   566.43 kB
+ax-code-desktop:build: dist/assets/MarkdownRendererImpl-BzotizWh.js                1,746.75 kB │ gzip:   536.44 kB
+ax-code-desktop:build: dist/assets/vendor-shiki-langs-Baad6kof.js                  7,995.21 kB │ gzip: 1,275.35 kB
+ax-code-desktop:build:
+ax-code-desktop:build: (!) Some chunks are larger than 2000 kB after minification. Consider:
+ax-code-desktop:build: - Using dynamic import() to code-split the application
+ax-code-desktop:build: - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+ax-code-desktop:build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+ax-code-desktop:build: ✓ built in 1m 31s
+@ax-code/electron:build:shell: cache bypass, force executing 3d855e2c06a53cd5
+@ax-code/electron:build:shell:
+@ax-code/electron:build:shell: > @ax-code/electron@7.27.1 build:shell /Users/akiralam/code/ax-code-desktop/desktop/packages/electron
+@ax-code/electron:build:shell: > node scripts/copy-web-assets.mjs && pnpm run bundle:main && pnpm run rebuild:native
+@ax-code/electron:build:shell:
+@ax-code/electron:build:shell: [electron] web assets → packages/electron/resources/web-dist
+@ax-code/electron:build:shell:
+@ax-code/electron:build:shell: > @ax-code/electron@7.27.1 bundle:main /Users/akiralam/code/ax-code-desktop/desktop/packages/electron
+@ax-code/electron:build:shell: > node scripts/bundle-main.mjs
+@ax-code/electron:build:shell:
+@ax-code/electron:build:shell: [electron] copied tray icons → dist/resources/icons
+@ax-code/electron:build:shell: [electron] bundle → dist/{main,preload,server-process,server}.js + dist/desktop-cli.mjs
+@ax-code/electron:build:shell:
+@ax-code/electron:build:shell: > @ax-code/electron@7.27.1 rebuild:native /Users/akiralam/code/ax-code-desktop/desktop/packages/electron
+@ax-code/electron:build:shell: > node scripts/rebuild-native.mjs
+@ax-code/electron:build:shell:
+@ax-code/electron:build:shell: [rebuild-native] electron 44.9.0, arch arm64
+@ax-code/electron:build:shell: [rebuild-native] modules: node-pty
+@ax-code/electron:build:shell: [rebuild-native] done
+
+ Tasks:    3 successful, 3 total
+Cached:    0 cached, 3 total
+  Time:    1m53.561s

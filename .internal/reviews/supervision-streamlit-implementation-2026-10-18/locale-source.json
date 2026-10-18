@@ -1,0 +1,13 @@
+{
+  "settings.projects.actions.streamlit.add": "Streamlit action",
+  "settings.projects.actions.streamlit.name": "Start Streamlit",
+  "settings.projects.actions.streamlit.description": "Use an existing Python environment with Streamlit installed. This recipe runs in a bash, zsh, or sh terminal; paths are relative to the project.",
+  "settings.projects.actions.streamlit.interpreter": "Python interpreter",
+  "settings.projects.actions.streamlit.entrypoint": "App file (.py)",
+  "settings.projects.actions.streamlit.port": "Port",
+  "settings.projects.actions.streamlit.invalid": "Enter an interpreter, a .py file, and a port from 1 to 65535. Use single-line paths.",
+  "settings.projects.actions.field.waitForUrl": "Wait for the startup URL in output",
+  "projectActions.error.unsupportedRecipeShell": "This recipe needs a bash, zsh, or sh terminal. Check your terminal settings.",
+  "projectActions.preview.unavailable": "Preview URL not received. Check the action\u2019s terminal output.",
+  "projectActions.preview.waiting": "Waiting for preview URL\u2026"
+}

@@ -219,7 +219,8 @@
     "githubBoard.tab.pulls",
     "settings.page.hooks.title",
     "settings.hooks.list.badge.protocol",
-    "settings.hooks.list.source.pack"
+    "settings.hooks.list.source.pack",
+    "settings.projects.actions.streamlit.port"
   ],
   "de": [
     "aboutDialog.versionLabel",
@@ -325,7 +326,8 @@
     "githubBoard.tab.issues",
     "githubBoard.filter.labelPlaceholder",
     "settings.page.hooks.title",
-    "settings.hooks.list.badge.protocol"
+    "settings.hooks.list.badge.protocol",
+    "settings.projects.actions.streamlit.port"
   ],
   "id": [
     "agentManager.detail.header.modelCountSingle",
@@ -419,7 +421,8 @@
     "chat.fileMentionAutocomplete.context.commitLabel",
     "githubBoard.filter.labelPlaceholder",
     "settings.hooks.file.status.valid",
-    "settings.hooks.list.badge.protocol"
+    "settings.hooks.list.badge.protocol",
+    "settings.projects.actions.streamlit.port"
   ],
   "pt-BR": [
     "agentManager.empty.prompt.label",

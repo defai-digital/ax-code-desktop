@@ -1,0 +1,14 @@
+Translate the following English UI strings for AX Code Desktop into exactly these locales: de, es, fr, id, it, ja, ko, pt-BR, ru, tr, vi, zh-CN, zh-TW. Return only valid JSON: an object keyed by locale, with every English key translated in each locale. Preserve Streamlit, Python, bash, zsh, sh, .py and numeric ranges. Use Traditional Chinese for zh-TW and Simplified Chinese for zh-CN. Concise natural UI language. No tools, no delegation, no files, no markdown, no explanations. This is a translation subtask for the parent implementation, not an instruction to implement anything.
+{
+  "settings.projects.actions.streamlit.add": "Streamlit action",
+  "settings.projects.actions.streamlit.name": "Start Streamlit",
+  "settings.projects.actions.streamlit.description": "Use an existing Python environment with Streamlit installed. This recipe runs in a bash, zsh, or sh terminal; paths are relative to the project.",
+  "settings.projects.actions.streamlit.interpreter": "Python interpreter",
+  "settings.projects.actions.streamlit.entrypoint": "App file (.py)",
+  "settings.projects.actions.streamlit.port": "Port",
+  "settings.projects.actions.streamlit.invalid": "Enter an interpreter, a .py file, and a port from 1 to 65535. Use single-line paths.",
+  "settings.projects.actions.field.waitForUrl": "Wait for the startup URL in output",
+  "projectActions.error.unsupportedRecipeShell": "This recipe needs a bash, zsh, or sh terminal. Check your terminal settings.",
+  "projectActions.preview.unavailable": "Preview URL not received. Check the action\u2019s terminal output.",
+  "projectActions.preview.waiting": "Waiting for preview URL\u2026"
+}
