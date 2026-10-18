@@ -68,6 +68,9 @@ describe("useTerminalStore", () => {
             },
           ],
         ],
+        projectActionRuns: {
+          legacy: { status: "setup-required", token: "retired", progress: { stage: "installing" } },
+        },
         nextTabId: 2,
       },
       current,
@@ -76,6 +79,8 @@ describe("useTerminalStore", () => {
     const tab = merged.sessions.get("/repo")?.tabs[0]
     expect(tab?.terminalSessionId).toBeNull()
     expect(tab?.lifecycle).toBe("idle")
+    expect(merged.projectActionRuns).toEqual({})
+    expect(closeTerminal).not.toHaveBeenCalled()
 
     // partialize must also avoid writing session ids or lifecycle back out
     useTerminalStore.setState({

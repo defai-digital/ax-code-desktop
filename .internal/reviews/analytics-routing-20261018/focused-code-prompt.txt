@@ -1,0 +1,167 @@
+Review only the two current boundaries below. English under250 words; no tools, edits or subagents. User authorized removing Desktop Streamlit support and improving AXBI uploads. Identify concrete bugs with input and expected/actual behavior, or say no verified defect in this narrow review. Unknown legacy recipe versions keep original commands; no automatic execution/install. Generated version1recipes convert to ordinary POSIX actions; caller retains previewflags/identity, uses returnedURL as fallback, removes recipe metadata on save. Generic commands max4000chars. Caller trims inputcommand before migration. SDKmultipart body usesFormData, no manualContentType; requestretryfalse,reauthenticatefalse,redirecterror, no secrets printed; all128 tests and realBI/AXCodejourney passed. Review is advisory; no release or wholeappapproval requested.
+
+SOURCE /tmp/ax-desktop-bi-routing/desktop/packages/ui/src/lib/projectActionMigration.ts
+const legacyQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
+const quote = (value: string) => {
+  const single = legacyQuote(value)
+  const double = `"${value.replace(/[\\$`"]/g, (character) => `\\${character}`)}"`
+  return single.length <= double.length ? single : double
+}
+const safeText = (value: string) =>
+  !Array.from(value).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
+
+/** Convert retired version-1 metadata once; never execute or provision anything. */
+type MigratedAction = { command: string; openUrl?: string; shell?: "posix" }
+export function migrateLegacyProjectAction(command: string, metadata: unknown): MigratedAction {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return { command }
+  const recipe = metadata as { version?: unknown; entrypoint?: unknown; interpreter?: unknown; port?: unknown }
+  const entrypoint = recipe.entrypoint
+  if (
+    recipe.version !== 1 ||
+    typeof entrypoint !== "string" ||
+    !safeText(entrypoint) ||
+    !entrypoint.endsWith(".py") ||
+    entrypoint.length > 1000 ||
+    entrypoint.split(/[\\/]/).some((part) => !part || part === "." || part === ".." || part.startsWith("-")) ||
+    /[\\:]/.test(entrypoint) ||
+    (recipe.interpreter !== undefined &&
+      (typeof recipe.interpreter !== "string" || !recipe.interpreter.trim() || !safeText(recipe.interpreter))) ||
+    (recipe.port !== undefined &&
+      (typeof recipe.port !== "number" || !Number.isInteger(recipe.port) || recipe.port < 1 || recipe.port > 65535))
+  )
+    return { command }
+  // User-edited commands are opaque and take precedence over stale metadata.
+  if (command !== `python -m streamlit run ${legacyQuote(entrypoint)}`) return { command }
+  const port = recipe.port ?? 8501
+  const args = `-m streamlit run ${quote(entrypoint)} --server.address=127.0.0.1 --server.headless=true --server.port=${port}`
+  const migrated =
+    typeof recipe.interpreter === "string"
+      ? `${quote(recipe.interpreter.trim())} ${args}`
+      : `(if [ -x .venv/bin/python ]; then ax_project_python=.venv/bin/python; elif [ -x venv/bin/python ]; then ax_project_python=venv/bin/python; else ax_project_python=python3; fi; "$ax_project_python" ${args})`
+  return { command: migrated, openUrl: `http://127.0.0.1:${port}/`, shell: "posix" }
+}
+
+SOURCE /tmp/ax-bi-code-workflow/packages/ax-sdk/src/resources/datasets.ts
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { AxBIError } from '../shared/errors.js';
+import { BaseResource } from './baseResource.js';
+import type {
+  DatasetItem,
+  CreateDatasetInput,
+  UpdateDatasetInput,
+} from './types.js';
+
+/** Bounded transfer limit; larger files can use the existing Upload Data UI. */
+export const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
+export interface UploadedDataset {
+  database_id: number;
+  dataset_id: number;
+  table_name: string;
+}
+
+/** CRUD operations for datasets (tables). */
+export class DatasetsResource extends BaseResource<
+  DatasetItem,
+  CreateDatasetInput,
+  UpdateDatasetInput
+> {
+  protected readonly basePath = '/api/v1/dataset';
+  protected readonly searchColumn = 'table_name';
+
+  /** Upload bytes once through the existing authorized REST endpoint, outside model context. */
+  async uploadFile(file: Blob, filename: string): Promise<UploadedDataset> {
+    if (
+      !filename ||
+      /[\\/\u0000-\u001f\u007f]/.test(filename) ||
+      filename.length > 255 ||
+      file.size === 0 ||
+      file.size > MAX_UPLOAD_BYTES
+    ) {
+      throw new AxBIError('Invalid upload filename or file size');
+    }
+    const form = new FormData();
+    form.append('file', file, filename);
+    const result = await this.http.request<unknown>({
+      method: 'POST',
+      path: '/api/v1/database/auto_upload/',
+      body: form,
+      retry: false,
+      reauthenticate: false,
+      redirect: 'error',
+    });
+    if (!result || typeof result !== 'object' || Array.isArray(result))
+      throw new AxBIError(
+        'Upload result is incomplete; inspect existing datasets before retrying',
+      );
+    const value = result as Record<string, unknown>;
+    if (
+      !Number.isSafeInteger(value.dataset_id) ||
+      Number(value.dataset_id) <= 0 ||
+      !Number.isSafeInteger(value.database_id) ||
+      Number(value.database_id) <= 0 ||
+      typeof value.table_name !== 'string' ||
+      !value.table_name ||
+      value.error ||
+      value.success === false ||
+      (value.status !== undefined &&
+        !['completed', 'success', 'succeeded'].includes(
+          String(value.status),
+        )) ||
+      (value.errors !== undefined &&
+        (!Array.isArray(value.errors) || value.errors.length > 0))
+    ) {
+      throw new AxBIError(
+        'Upload result is incomplete; inspect existing datasets before retrying',
+      );
+    }
+    return {
+      dataset_id: value.dataset_id as number,
+      database_id: value.database_id as number,
+      table_name: value.table_name,
+    };
+  }
+
+  /** Get the columns for a dataset. */
+  async getColumns(
+    id: number | string,
+  ): Promise<NonNullable<DatasetItem['columns']>> {
+    const item = await this.getById(id);
+    return item.columns ?? [];
+  }
+
+  /** Get the metrics for a dataset. */
+  async getMetrics(
+    id: number | string,
+  ): Promise<NonNullable<DatasetItem['metrics']>> {
+    const item = await this.getById(id);
+    return item.metrics ?? [];
+  }
+
+  /** Refresh dataset metadata from the underlying database table. */
+  async refresh(id: number | string): Promise<{ message: string }> {
+    return this.http.put<{ message: string }>(`${this.basePath}/${id}/refresh`);
+  }
+
+  /** Export one or more datasets as ZIP. */
+  async export(ids: number[]): Promise<Blob> {
+    return this.exportZip(ids);
+  }
+}

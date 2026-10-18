@@ -35,8 +35,6 @@ import { PreparedMarkdown } from "./PreparedMarkdown"
 import { StreamingMarkdownBlock } from "./StreamingMarkdownBlock"
 import { areMarkdownRendererPropsEqual } from "@/components/chat/markdownRendererMemo"
 import { useEnteredBlockCount } from "./useEnteredBlockCount"
-import { AnalysisAppCard } from "./AnalysisAppCard"
-import { parseAnalysisAppArtifact } from "@/lib/analysisAppArtifact"
 
 const useCurrentMermaidTheme = () => {
   const themeSystem = useOptionalThemeSystem()
@@ -243,10 +241,14 @@ const TableCopyButton: React.FC<{ tableRef: React.RefObject<HTMLDivElement | nul
 
   const markCopied = React.useCallback(() => {
     setCopied(true)
-    copiedResetTimerRef.current = resetReplaceableTimeout(copiedResetTimerRef.current, () => {
-      setCopied(false)
-      copiedResetTimerRef.current = null
-    }, 2_000)
+    copiedResetTimerRef.current = resetReplaceableTimeout(
+      copiedResetTimerRef.current,
+      () => {
+        setCopied(false)
+        copiedResetTimerRef.current = null
+      },
+      2_000,
+    )
   }, [])
 
   const handleCopy = async (format: "csv" | "tsv") => {
@@ -566,10 +568,14 @@ const MarkdownCodeBlock: React.FC<{
     const result = await copyTextToClipboard(code)
     if (!result.ok) return
     setCopied(true)
-    copiedResetTimerRef.current = resetReplaceableTimeout(copiedResetTimerRef.current, () => {
-      setCopied(false)
-      copiedResetTimerRef.current = null
-    }, 2_000)
+    copiedResetTimerRef.current = resetReplaceableTimeout(
+      copiedResetTimerRef.current,
+      () => {
+        setCopied(false)
+        copiedResetTimerRef.current = null
+      },
+      2_000,
+    )
   }, [code])
 
   const handleDownload = React.useCallback(() => {
@@ -685,14 +691,12 @@ const buildMarkdownComponents = ({
   previewLabel,
   previewTitle,
   isStreaming = false,
-  appSessionId,
 }: {
   syntaxTheme: { [key: string]: React.CSSProperties }
   onPreviewLoopback?: (url: string) => void
   previewLabel?: string
   previewTitle?: string
   isStreaming?: boolean
-  appSessionId?: string
 }): Components => ({
   table({ children, ...props }) {
     return <TableWrapper className={props.className}>{children}</TableWrapper>
@@ -874,10 +878,6 @@ const buildMarkdownComponents = ({
     if (language === "mermaid") {
       return <MermaidBlockWithMode source={code} deferRender={isStreaming} />
     }
-    if (language === "ax-code-app" && appSessionId && !isStreaming) {
-      const artifact = parseAnalysisAppArtifact(code)
-      if (artifact) return <AnalysisAppCard artifact={artifact} sessionId={appSessionId} />
-    }
     return (
       <MarkdownCodeBlock
         code={code}
@@ -967,7 +967,6 @@ const KNOWN_FILE_BASENAMES = new Set(["dockerfile", "makefile", "readme", "licen
 const KNOWN_BASENAME_PATTERN = Array.from(KNOWN_FILE_BASENAMES)
   .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
   .join("|")
-
 
 const trimPathCandidate = (value: string): string => {
   let next = (value || "").trim()
@@ -1150,7 +1149,6 @@ const getResolvedReference = (
     resolvedPath,
   }
 }
-
 
 const getContextDirectory = (effectiveDirectory: string, resolvedPath: string): string => {
   const normalizedDirectory = normalizePath(effectiveDirectory)
@@ -1500,22 +1498,8 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
         previewLabel,
         previewTitle,
         isStreaming,
-        appSessionId:
-          variant === "assistant" && enableFileReferences && part?.type === "text" && part.time?.end !== undefined
-            ? part.sessionID
-            : undefined,
       }),
-    [
-      syntaxTheme,
-      effectiveDirectory,
-      handlePreviewLoopback,
-      previewLabel,
-      previewTitle,
-      isStreaming,
-      variant,
-      enableFileReferences,
-      part,
-    ],
+    [syntaxTheme, effectiveDirectory, handlePreviewLoopback, previewLabel, previewTitle, isStreaming],
   )
   const componentKey = `markdown-${part?.id ? `part-${part.id}` : `message-${messageId}`}`
   const markdownBlocks = useStableMarkdownBlocks(content, isStreaming && !disableStreamAnimation, componentKey)

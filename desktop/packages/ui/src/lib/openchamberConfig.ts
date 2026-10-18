@@ -11,7 +11,7 @@ import { createProjectIdFromPath } from "./projectId"
 import { projectPathIsInsideRoot } from "./projectResolution"
 import { sanitizeStarterRefs, type DraftStarterRef } from "./draftStarters"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
-import { sanitizeStreamlitRecipe, type StreamlitRecipe } from "./streamlitRecipe"
+import { migrateLegacyProjectAction } from "./projectActionMigration"
 
 type ProjectRef = { id: string; path: string }
 
@@ -57,7 +57,6 @@ export interface OpenChamberProjectAction {
   openUrl?: string
   waitForUrl?: boolean
   shell?: "posix"
-  streamlit?: StreamlitRecipe
 }
 
 interface OpenChamberProjectActionsState {
@@ -432,17 +431,16 @@ const sanitizeProjectActions = (value: unknown): OpenChamberProjectAction[] => {
     const autoOpenUrl = record.autoOpenUrl === true
     const openUrlRaw = typeof record.openUrl === "string" ? record.openUrl.trim() : ""
     const openUrl = trimToMaxLength(openUrlRaw, AX_CODE_DESKTOP_PROJECT_ACTION_OPEN_URL_MAX_LENGTH)
-    const streamlit = sanitizeStreamlitRecipe(record.streamlit)
+    const migrated = migrateLegacyProjectAction(command, record.streamlit)
     sanitized.push({
       id,
       name,
-      command,
+      command: migrated.command,
       icon: iconRaw || null,
       ...(autoOpenUrl ? { autoOpenUrl: true } : {}),
-      ...(openUrl ? { openUrl } : {}),
+      ...(openUrl || migrated.openUrl ? { openUrl: openUrl || migrated.openUrl } : {}),
       ...(record.waitForUrl === true ? { waitForUrl: true } : {}),
-      ...(record.shell === "posix" ? { shell: "posix" as const } : {}),
-      ...(streamlit ? { streamlit, shell: "posix" as const, autoOpenUrl: true, waitForUrl: true } : {}),
+      ...(record.shell === "posix" || migrated.shell ? { shell: "posix" as const } : {}),
       ...(platforms.length > 0 ? { platforms } : {}),
     })
   }
