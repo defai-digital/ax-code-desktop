@@ -281,7 +281,9 @@ export const useCommandsStore = create<CommandsStore>()(
             if (loaded) {
               emitConfigChange("commands", { source: CONFIG_EVENT_SOURCE })
             }
-            return loaded
+            // The write landed even if the runtime reload did not: a failed
+            // refresh must not report the mutation itself as failed.
+            return loaded || payload?.reloadFailed === true
           } catch (error) {
             console.error("[CommandsStore] Failed to create command:", error)
             return false
@@ -355,7 +357,9 @@ export const useCommandsStore = create<CommandsStore>()(
             if (loaded) {
               emitConfigChange("commands", { source: CONFIG_EVENT_SOURCE })
             }
-            return loaded
+            // The write landed even if the runtime reload did not: a failed
+            // refresh must not report the mutation itself as failed.
+            return loaded || payload?.reloadFailed === true
           } catch (error) {
             console.error("[CommandsStore] Failed to update command:", error)
             return false
@@ -419,7 +423,9 @@ export const useCommandsStore = create<CommandsStore>()(
               set({ selectedCommandName: null })
             }
 
-            return loaded
+            // The write landed even if the runtime reload did not: a failed
+            // refresh must not report the mutation itself as failed.
+            return loaded || payload?.reloadFailed === true
           } catch (error) {
             console.error("Failed to delete command:", error)
             return false

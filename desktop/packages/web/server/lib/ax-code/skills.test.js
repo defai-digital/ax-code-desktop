@@ -291,6 +291,33 @@ describe("skill name safety", () => {
     }
   })
 
+  it("never treats a SKILL.md at the skills root as its own directory", async () => {
+    const projectRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-project-"))
+    const skillsRoot = path.join(projectRoot, ".ax-code", "skills")
+    const siblingDir = path.join(skillsRoot, "oc-test-sibling-skill-2a8c4f")
+    try {
+      await fsPromises.mkdir(siblingDir, { recursive: true })
+      await fsPromises.writeFile(
+        path.join(skillsRoot, "SKILL.md"),
+        ["---", "name: oc-test-root-skill-2a8c4f", "description: Root", "---", "", "Body.", ""].join("\n"),
+        "utf8",
+      )
+      await fsPromises.writeFile(
+        path.join(siblingDir, "SKILL.md"),
+        ["---", "name: oc-test-sibling-skill-2a8c4f", "description: Sibling", "---", "", "Body.", ""].join("\n"),
+        "utf8",
+      )
+
+      // Discovery sees the root file as a skill whose directory is the whole
+      // root; deleting it must not take the sibling (or the root) with it.
+      expect(() => deleteSkill("oc-test-root-skill-2a8c4f", projectRoot)).toThrow(/not found/)
+      expect(await fsPromises.stat(siblingDir)).toBeTruthy()
+      expect(await fsPromises.stat(path.join(skillsRoot, "SKILL.md"))).toBeTruthy()
+    } finally {
+      await fsPromises.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
   it("validates route skill names the same way as agent and command names", () => {
     expect(readSkillNameParam("safe-skill")).toBe("safe-skill")
     expect(readSkillNameParam("my.skill_2")).toBe("my.skill_2")

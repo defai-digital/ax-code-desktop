@@ -1538,7 +1538,17 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
   // draft, and let the same save/discard dialog decide.
   const externalDirtySelectionRef = React.useRef(false)
   externalDirtySelectionRef.current = Boolean(
-    loadedFilePath && selectedFile?.path && selectedFile.path !== loadedFilePath && isDirty,
+    loadedFilePath &&
+      root &&
+      selectedFile?.path &&
+      selectedFile.path !== loadedFilePath &&
+      isDirty &&
+      // The file must belong to this project and still be an open tab: after a
+      // project switch the old draft is not ours to restore, and a tab that
+      // was deleted or renamed from the sidebar must not be resurrected (a
+      // later save would recreate the deleted path).
+      isPathWithinRoot(loadedFilePath, root) &&
+      openPaths.includes(loadedFilePath),
   )
   // Keeps the reset effect from wiping the draft while the prompt is open,
   // including the re-render that restores the tab to the loaded file.

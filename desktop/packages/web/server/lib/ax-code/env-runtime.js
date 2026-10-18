@@ -145,7 +145,7 @@ export const createAxCodeEnvRuntime = (deps) => {
 
     for (const shellPath of powershellCandidates) {
       try {
-        const result = spawnSync(shellPath, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", psScript], {
+        const result = spawnSync(shellPath, ["-NoLogo", "-NonInteractive", "-Command", psScript], {
           encoding: "utf8",
           stdio: ["ignore", "pipe", "pipe"],
           maxBuffer: 10 * 1024 * 1024,

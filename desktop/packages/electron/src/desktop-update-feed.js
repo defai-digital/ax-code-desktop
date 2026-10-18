@@ -102,9 +102,10 @@ async function resolveDesktopUpdateFeed(options = {}) {
     const releases = await response.json()
     const tag = latestDesktopReleaseTag(releases)
     if (tag) {
-      const candidate = parseDesktopTagVersion(tag)
-      const best = bestTag ? parseDesktopTagVersion(bestTag) : null
-      if (!best || (candidate && compareDesktopTagVersions(candidate, best) > 0)) bestTag = tag
+      // Newest first: the first page that carries a desktop release has the
+      // newest one, and a later page's failure must not discard this answer.
+      bestTag = tag
+      break
     }
     if (!Array.isArray(releases) || releases.length < perPage) break
   }

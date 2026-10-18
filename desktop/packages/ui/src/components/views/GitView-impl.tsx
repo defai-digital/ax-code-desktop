@@ -719,6 +719,10 @@ export const GitView: React.FC = () => {
   const [conflictDialogOpen, setConflictDialogOpen] = React.useState(false)
   const [conflictFiles, setConflictFiles] = React.useState<string[]>([])
   const [conflictOperation, setConflictOperation] = React.useState<"merge" | "rebase">("merge")
+  // The project the open dialog belongs to. The view survives a project switch,
+  // and aborting against whatever directory is now on screen would run the
+  // wrong git operation.
+  const [conflictDirectory, setConflictDirectory] = React.useState<string | null>(null)
   const [graphLog, setGraphLog] = React.useState<import("@/lib/api/types").GitLogResponse | null>(null)
   const [graphLogLoading, setGraphLogLoading] = React.useState(false)
   const [graphLogMaxCount, setGraphLogMaxCount] = React.useState(100)
@@ -748,17 +752,21 @@ export const GitView: React.FC = () => {
 
     const state = readBranchConflictState(currentSessionId, currentDirectory)
     if (!state) {
-      // This directory has no conflict: the dialog may be left over from the
-      // project the user was looking at before the switch.
-      setConflictDialogOpen(false)
-      setConflictFiles([])
+      // Only close a dialog that belongs to another project: an unpersisted
+      // conflict (stash-and-retry, banner resolve) is valid for this one, and
+      // the state key is session-scoped, so a session switch says nothing.
+      if (conflictDirectory && conflictDirectory !== currentDirectory) {
+        setConflictDialogOpen(false)
+        setConflictFiles([])
+      }
       return
     }
 
     setConflictFiles(state.conflictFiles)
     setConflictOperation(state.operation)
+    setConflictDirectory(currentDirectory)
     setConflictDialogOpen(true)
-  }, [currentDirectory, currentSessionId])
+  }, [conflictDirectory, currentDirectory, currentSessionId])
   const [stashDialogOpen, setStashDialogOpen] = React.useState(false)
   const [stashDialogOperation, setStashDialogOperation] = React.useState<"merge" | "rebase">("merge")
   const [stashDialogBranch, setStashDialogBranch] = React.useState("")
@@ -2020,6 +2028,7 @@ export const GitView: React.FC = () => {
           updateLastLog("error", `Merge conflicts detected`)
           setConflictFiles(result.conflictFiles ?? [])
           setConflictOperation("merge")
+          setConflictDirectory(currentDirectory)
           setConflictDialogOpen(true)
           persistConflictState(currentDirectory, result.conflictFiles ?? [], "merge")
         } else {
@@ -2083,6 +2092,7 @@ export const GitView: React.FC = () => {
           updateLastLog("error", `Rebase conflicts detected`)
           setConflictFiles(result.conflictFiles ?? [])
           setConflictOperation("rebase")
+          setConflictDirectory(currentDirectory)
           setConflictDialogOpen(true)
           persistConflictState(currentDirectory, result.conflictFiles ?? [], "rebase")
         } else {
@@ -2126,7 +2136,7 @@ export const GitView: React.FC = () => {
     if (!currentDirectory) return
     // The dialog can outlive a project switch; aborting here would run against
     // the project now on screen instead of the one that has the conflict.
-    if (!readBranchConflictState(currentSessionId, currentDirectory)) {
+    if (conflictDirectory && conflictDirectory !== currentDirectory) {
       setConflictDialogOpen(false)
       return
     }
@@ -2148,7 +2158,7 @@ export const GitView: React.FC = () => {
     }
   }, [
     currentDirectory,
-    currentSessionId,
+    conflictDirectory,
     git,
     conflictOperation,
     refreshStatusAndBranches,
@@ -2181,6 +2191,7 @@ export const GitView: React.FC = () => {
         if (result.conflict) {
           setConflictFiles(result.conflictFiles ?? [])
           setConflictOperation("merge")
+          setConflictDirectory(currentDirectory)
           setConflictDialogOpen(true)
           persistConflictState(currentDirectory, result.conflictFiles ?? [], "merge")
           toast.error(t("gitView.toast.mergeConflictsDetected"))
@@ -2195,6 +2206,7 @@ export const GitView: React.FC = () => {
         if (result.conflict) {
           setConflictFiles(result.conflictFiles ?? [])
           setConflictOperation("rebase")
+          setConflictDirectory(currentDirectory)
           setConflictDialogOpen(true)
           persistConflictState(currentDirectory, result.conflictFiles ?? [], "rebase")
           toast.error(t("gitView.toast.rebaseConflictsDetected"))
@@ -2248,6 +2260,7 @@ export const GitView: React.FC = () => {
       setConflictFiles(filesWithConflicts)
     }
     setConflictOperation(operation)
+    setConflictDirectory(currentDirectory)
     setConflictDialogOpen(true)
   }, [currentDirectory, status])
 
@@ -2286,6 +2299,7 @@ export const GitView: React.FC = () => {
             hasConflict = true
             setConflictFiles(result.conflictFiles ?? [])
             setConflictOperation("merge")
+            setConflictDirectory(currentDirectory)
             setConflictDialogOpen(true)
           } else {
             operationSucceeded = true
@@ -2297,6 +2311,7 @@ export const GitView: React.FC = () => {
             hasConflict = true
             setConflictFiles(result.conflictFiles ?? [])
             setConflictOperation("rebase")
+            setConflictDirectory(currentDirectory)
             setConflictDialogOpen(true)
           } else {
             operationSucceeded = true
@@ -2396,6 +2411,7 @@ export const GitView: React.FC = () => {
 
       setConflictFiles(result.conflictFiles ?? [])
       setConflictOperation(result.operation)
+      setConflictDirectory(currentDirectory ?? null)
       setConflictDialogOpen(true)
       if (currentDirectory) {
         persistConflictState(currentDirectory, result.conflictFiles ?? [], result.operation)

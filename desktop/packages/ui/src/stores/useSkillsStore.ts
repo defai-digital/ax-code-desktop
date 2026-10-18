@@ -287,7 +287,9 @@ export const useSkillsStore = create<SkillsStore>()(
             if (loaded) {
               emitConfigChange("skills", { source: CONFIG_EVENT_SOURCE })
             }
-            return loaded
+            // The write landed even if the runtime reload did not: a failed
+            // refresh must not report the mutation itself as failed.
+            return loaded || payload?.reloadFailed === true
           } catch {
             return false
           } finally {
@@ -339,7 +341,9 @@ export const useSkillsStore = create<SkillsStore>()(
             if (loaded) {
               emitConfigChange("skills", { source: CONFIG_EVENT_SOURCE })
             }
-            return loaded
+            // The write landed even if the runtime reload did not: a failed
+            // refresh must not report the mutation itself as failed.
+            return loaded || payload?.reloadFailed === true
           } catch {
             return false
           } finally {
@@ -394,7 +398,9 @@ export const useSkillsStore = create<SkillsStore>()(
               set({ selectedSkillName: null })
             }
 
-            return loaded
+            // The write landed even if the runtime reload did not: a failed
+            // refresh must not report the mutation itself as failed.
+            return loaded || payload?.reloadFailed === true
           } catch {
             return false
           } finally {

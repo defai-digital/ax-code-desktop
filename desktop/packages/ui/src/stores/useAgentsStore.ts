@@ -333,7 +333,9 @@ export const useAgentsStore = create<AgentsStore>()(
             if (loaded) {
               emitConfigChange("agents", { source: CONFIG_EVENT_SOURCE })
             }
-            return loaded
+            // The write landed even if the runtime reload did not: a failed
+            // refresh must not report the mutation itself as failed.
+            return loaded || payload?.reloadFailed === true
           } catch (error) {
             console.error("Failed to create agent:", error)
             return false
@@ -402,7 +404,9 @@ export const useAgentsStore = create<AgentsStore>()(
             if (loaded) {
               emitConfigChange("agents", { source: CONFIG_EVENT_SOURCE })
             }
-            return loaded
+            // The write landed even if the runtime reload did not: a failed
+            // refresh must not report the mutation itself as failed.
+            return loaded || payload?.reloadFailed === true
           } catch (error) {
             console.error("Failed to update agent:", error)
             throw error
@@ -461,7 +465,9 @@ export const useAgentsStore = create<AgentsStore>()(
             if (get().selectedAgentName === name) {
               set({ selectedAgentName: null })
             }
-            return loaded
+            // The write landed even if the runtime reload did not: a failed
+            // refresh must not report the mutation itself as failed.
+            return loaded || payload?.reloadFailed === true
           } catch {
             return false
           } finally {
