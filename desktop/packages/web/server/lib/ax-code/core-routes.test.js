@@ -510,7 +510,22 @@ describe("createApiRequestSecurityMiddleware", () => {
     await request(app)
       .post("/api/preview/proxy/f4af70b4261d77706743959516f9cecc/login")
       .set("Origin", "null")
+      .set("Cookie", "oc_preview_token=abc")
       .expect(200)
+  })
+
+  it("refuses Origin: null on the preview path without the preview token cookie", async () => {
+    // The exemption covers exactly what the mount guard gates; without the token cookie the
+    // request never reaches the proxy anyway, and a future handler under the same prefix
+    // must not inherit an unchecked exemption.
+    const app = express()
+    app.use("/api", createApiRequestSecurityMiddleware())
+    app.use("/api/preview/proxy", (_req, res) => res.json({ ok: true }))
+
+    await request(app)
+      .post("/api/preview/proxy/f4af70b4261d77706743959516f9cecc/login")
+      .set("Origin", "null")
+      .expect(403)
   })
 
   it("still rejects Origin: null away from the preview proxy", async () => {

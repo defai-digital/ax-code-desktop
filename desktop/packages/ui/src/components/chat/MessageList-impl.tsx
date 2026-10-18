@@ -1696,11 +1696,11 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
           if (!located) {
             const targetIsTail = trailingStreamingEntry !== undefined && index >= historyEntries.length
             if (targetIsTail) return false
-            scrollHistoryIndexIntoView(index, behavior)
             // Aligning the TURN start can leave the requested message below the viewport in
             // a turn taller than the screen. Retry the message itself once the virtualizer
             // has mounted the turn; the old branch reported success immediately, so search
             // navigation looked like it did nothing useful.
+            if (!scrollHistoryIndexIntoView(index, behavior)) return false
             return (async () => {
               for (let attempt = 0; attempt < MESSAGE_NAVIGATION_ATTEMPTS; attempt += 1) {
                 await nextFrame()

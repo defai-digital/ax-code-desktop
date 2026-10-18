@@ -1019,24 +1019,39 @@ export const buildPreviewProxyUpstreamPath = (rawUrl, id) => {
 const isDesktopCredentialCookieName = (name) =>
   name === TOKEN_COOKIE_NAME || name === UI_SESSION_COOKIE_NAME || name.startsWith(`${UI_SESSION_COOKIE_NAME}_`)
 
-export const removeSensitivePreviewProxyHeaders = (proxyReq) => {
+export const removeSensitivePreviewProxyHeaders = (
+  proxyReq,
+  { forwardAuthorization = false } = {},
+) => {
   if (!proxyReq || typeof proxyReq.removeHeader !== "function") {
     return
   }
   const rawCookie = typeof proxyReq.getHeader === "function" ? proxyReq.getHeader("cookie") : undefined
-  const kept = []
-  for (const [name, value] of parseCookieHeader(typeof rawCookie === "string" ? rawCookie : "")) {
-    if (isDesktopCredentialCookieName(name)) continue
-    kept.push(`${name}=${value}`)
-  }
+  // Filter the raw ordered segments instead of round-tripping through a name-keyed map:
+  // a browser legitimately sends the same cookie name twice for different paths
+  // (`sid=…; Path=/` and `sid=…; Path=/admin`), and a map kept only the last one.
+  const kept = (typeof rawCookie === "string" ? rawCookie : "")
+    .split(";")
+    .map((segment) => segment.trim())
+    .filter((segment) => {
+      if (!segment) return false
+      const index = segment.indexOf("=")
+      const name = index > 0 ? segment.slice(0, index).trim() : ""
+      return !isDesktopCredentialCookieName(name)
+    })
   if (kept.length > 0 && typeof proxyReq.setHeader === "function") {
     proxyReq.setHeader("cookie", kept.join("; "))
   } else {
     proxyReq.removeHeader("cookie")
   }
-  // `authorization` is deliberately forwarded: this server never sends WWW-Authenticate (its
-  // session is the oc_ui_session cookie), so the browser holds no credential for this origin —
-  // an Authorization header here was set by the previewed page itself for its own API.
+  // A page-set bearer token must reach the previewed app, but the browser can also attach
+  // ITS OWN credential for the Desktop origin: with the supported Basic-auth reverse proxy
+  // (desktop/docs/REVERSE_PROXY.md) it caches that credential and sends it on every
+  // same-origin request. External previews are attacker-controlled, so they never get it;
+  // a local preview (the user's own dev server) may receive page-set Authorization.
+  if (!forwardAuthorization) {
+    proxyReq.removeHeader("authorization")
+  }
   proxyReq.removeHeader("x-openchamber-ui-session")
 }
 
@@ -1791,6 +1806,17 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
           res.destroy()
         }
       })
+      // A truncated upstream (dev server killed, TCP reset) ends the response without
+      // `end` and without necessarily emitting `error`; `pipe` never closes the
+      // destination, so the client waited for its own timeout. `complete` is false then.
+      const endTruncated = () => {
+        if (proxyRes.complete) return
+        if (typeof res.destroy === "function") {
+          res.destroy()
+        }
+      }
+      proxyRes.on("aborted", endTruncated)
+      proxyRes.on("close", endTruncated)
       proxyRes.pipe(res)
     }
 
@@ -1836,14 +1862,20 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
       },
       on: {
         proxyReq: (proxyReq, req) => {
+          const resolved = resolveRequestTarget(req)
           // Keep local dev servers from receiving OpenChamber credentials; the previewed
           // app's own cookies and page-set Authorization still reach it.
-          removeSensitivePreviewProxyHeaders(proxyReq)
+          removeSensitivePreviewProxyHeaders(proxyReq, {
+            forwardAuthorization: resolved.ok && !resolved.entry.external,
+          })
           rewritePreviewOriginHeaders(proxyReq, req)
           proxyReq.setHeader("accept-encoding", "identity")
         },
         proxyReqWs: (proxyReq, req) => {
-          removeSensitivePreviewProxyHeaders(proxyReq)
+          const resolved = resolveRequestTarget(req)
+          removeSensitivePreviewProxyHeaders(proxyReq, {
+            forwardAuthorization: resolved.ok && !resolved.entry.external,
+          })
           rewritePreviewOriginHeaders(proxyReq, req)
         },
         proxyRes: (() => {

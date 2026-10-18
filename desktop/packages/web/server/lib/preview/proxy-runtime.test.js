@@ -459,7 +459,7 @@ describe("preview proxy upstream request hygiene", () => {
     ).toBe("/ws?%E0%A4%A=1&x=2")
   })
 
-  it("strips Desktop credentials but forwards the previewed app's own cookies and Authorization", () => {
+  it("strips Desktop credentials but forwards the previewed app's own cookies", () => {
     const headers = new Map([
       ["cookie", "oc_preview_token=tok; oc_ui_session=ses; oc_ui_session_3000=ses2; app_session=abc; theme=dark"],
       ["authorization", "Bearer page-token"],
@@ -470,7 +470,7 @@ describe("preview proxy upstream request hygiene", () => {
       setHeader: (name, value) => headers.set(name.toLowerCase(), value),
       removeHeader: (name) => headers.delete(name.toLowerCase()),
     }
-    removeSensitivePreviewProxyHeaders(proxyReq)
+    removeSensitivePreviewProxyHeaders(proxyReq, { forwardAuthorization: true })
 
     // The upstream's own cookies (scoped to the proxy prefix on the way out) must come back
     // to it, or the previewed app's login can never work.
@@ -478,6 +478,33 @@ describe("preview proxy upstream request hygiene", () => {
     // A bearer token the page set itself is the previewed app's credential, not the Desktop's.
     expect(headers.get("authorization")).toBe("Bearer page-token")
     expect(headers.has("x-openchamber-ui-session")).toBe(false)
+  })
+
+  it("strips Authorization by default (external previews never receive the browser credential)", () => {
+    // With the Basic-auth reverse proxy the browser caches a credential for the Desktop
+    // origin and attaches it to every same-origin request; external previews are
+    // attacker-controlled, so the default must drop it.
+    const headers = new Map([["authorization", "Basic ZGVzay1jcmVk"]])
+    removeSensitivePreviewProxyHeaders({
+      getHeader: (name) => headers.get(name.toLowerCase()),
+      setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+      removeHeader: (name) => headers.delete(name.toLowerCase()),
+    })
+
+    expect(headers.has("authorization")).toBe(false)
+  })
+
+  it("keeps same-name cookies scoped to different paths", () => {
+    // Browsers send `sid=…; Path=/` and `sid=…; Path=/admin` as two segments; a name-keyed
+    // map kept only one and silently broke the app's session for the other path.
+    const headers = new Map([["cookie", "sid=root; sid=admin; oc_preview_token=tok"]])
+    removeSensitivePreviewProxyHeaders({
+      getHeader: (name) => headers.get(name.toLowerCase()),
+      setHeader: (name, value) => headers.set(name.toLowerCase(), value),
+      removeHeader: (name) => headers.delete(name.toLowerCase()),
+    })
+
+    expect(headers.get("cookie")).toBe("sid=root; sid=admin")
   })
 
   it("drops the cookie header entirely when only Desktop credentials were present", () => {
@@ -490,7 +517,7 @@ describe("preview proxy upstream request hygiene", () => {
       },
     })
 
-    expect(removed).toEqual(["cookie", "x-openchamber-ui-session"])
+    expect(removed).toEqual(["cookie", "authorization", "x-openchamber-ui-session"])
   })
 
   it("registers the same credential scrubber for WebSocket proxy requests", () => {
@@ -527,7 +554,7 @@ describe("preview proxy upstream request hygiene", () => {
       },
     })
 
-    expect(removed).toEqual(["cookie", "x-openchamber-ui-session"])
+    expect(removed).toEqual(["cookie", "authorization", "x-openchamber-ui-session"])
   })
 
   it("rejects preview target creation from disallowed origins even when UI auth is disabled", async () => {
@@ -1286,6 +1313,30 @@ describe("preview proxy response hardening", () => {
 
     proxyRes.push(null)
     await vi.waitFor(() => expect(res.writableEnded).toBe(true))
+  })
+
+  it("destroys the downstream response when the upstream aborts mid-stream", async () => {
+    // A truncated upstream emits close without end; pipe never closes the destination, so
+    // the client waited for its own timeout (the same class of hang fixed in the ax-code
+    // proxy, reintroduced on the new streaming fast path).
+    const { proxyOptions, cookie, target } = await createHarness()
+    const proxyRes = new Readable({ read() {} })
+    proxyRes.statusCode = 200
+    proxyRes.complete = false
+    proxyRes.headers = { "content-type": "application/json" }
+
+    const res = new Writable({ write: (_chunk, _encoding, callback) => callback() })
+    res.statusCode = 200
+    res.removeHeader = () => {}
+    res.getHeader = () => undefined
+    res.setHeader = () => {}
+    const destroySpy = vi.spyOn(res, "destroy")
+
+    proxyOptions.on.proxyRes(proxyRes, { originalUrl: `${target.proxyBasePath}/data`, headers: { cookie } }, res)
+    proxyRes.push('{"partial":')
+    proxyRes.destroy()
+
+    await vi.waitFor(() => expect(destroySpy).toHaveBeenCalled())
   })
 
   it("rewrites Origin and Referer to the upstream and forwards the app's own cookies", async () => {

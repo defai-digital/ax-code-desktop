@@ -59,6 +59,7 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
   let wsFallbackUntil = 0
   let consecutiveFailures = 0
   let attempt: AbortController | undefined
+  let retryWake: AbortController | null = null
   let attemptKind: "ws" | "sse" = mode === "ws" ? "ws" : "sse"
   let pendingInterrupt: PendingInterrupt | null = null
   let disconnectedCycle = false
@@ -299,7 +300,9 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
       }
       if (retryDelayMs > 0) {
         setState("backoff")
-        await waitForRetry(retryDelayMs, abort.signal, { interruptSignals })
+        retryWake = new AbortController()
+        await waitForRetry(retryDelayMs, abort.signal, { interruptSignals, wakeSignal: retryWake.signal })
+        retryWake = null
       }
     }
   })()
@@ -386,13 +389,11 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
   }
 
   const reconnect = (reason = "manual") => {
-    // Wake an inter-attempt backoff wait first (it only listens for the DOM event), then
-    // set the interrupt — the listener's generic detail must not overwrite the reason.
-    if (interruptSignals && typeof globalThis.window !== "undefined") {
-      globalThis.window.dispatchEvent(new Event(SYNC_RETRY_NOW_EVENT))
-    }
     pendingInterrupt = { code: "manual_retry", detail: reason }
     attempt?.abort()
+    // Wake only this transport's backoff sleep: the global retry-now event reaches every
+    // transport in the window and would abort their healthy attempts.
+    retryWake?.abort()
   }
 
   const close = () => {

@@ -699,6 +699,47 @@ describe("createEventTransport — short-lived connections", () => {
     expect(FakeWebSocket.instances).toHaveLength(1)
     transport.close()
   })
+
+  it("wakes its own backoff sleep on reconnect()", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    const openedAt: number[] = []
+    let calls = 0
+    const driver: SdkSseDriver = {
+      kind: "sse-sdk",
+      open: async () => {
+        openedAt.push(Date.now())
+        calls += 1
+        if (calls === 1) {
+          throw new Error("boom")
+        }
+        return {
+          stream: (async function* () {
+            await new Promise(() => {})
+            yield undefined
+          })(),
+        }
+      },
+    }
+    const transport = createEventTransport(
+      {
+        drivers: { primary: driver },
+        transport: "sse",
+        backoff: { baseMs: 5_000, capVisibleMs: 5_000, capHiddenMs: 5_000, maxExponent: 1 },
+      },
+      noopHooks,
+    )
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(openedAt).toHaveLength(1)
+
+    // The failure parks the loop on a 5s backoff; reconnect() must wake it immediately
+    // without dispatching a global event that would bounce other transports.
+    transport.reconnect("manual")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(openedAt).toHaveLength(2)
+    transport.close()
+  })
 })
 
 describe("createEventTransport — lifecycle interrupts", () => {

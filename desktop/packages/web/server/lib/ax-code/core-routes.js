@@ -9,6 +9,19 @@ const API_SECURITY_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"])
 
 const asTrimmedHeader = (value) => (typeof value === "string" ? value.trim() : "")
 
+// Keep in sync with TOKEN_COOKIE_NAME in ../preview/proxy-runtime.js. Importing that module for
+// one string would pull the whole proxy runtime into the route table.
+const PREVIEW_TOKEN_COOKIE_NAME = "oc_preview_token"
+const hasPreviewTokenCookie = (req) => {
+  const cookieHeader = req?.headers?.cookie
+  if (typeof cookieHeader !== "string" || cookieHeader.length === 0) {
+    return false
+  }
+  return cookieHeader
+    .split(";")
+    .some((segment) => segment.trim().startsWith(`${PREVIEW_TOKEN_COOKIE_NAME}=`))
+}
+
 // CSRF / DNS-rebinding guard for the local API. The server binds loopback and
 // (unless a UI password is set) treats loopback clients as trusted, so the
 // threats to block centrally are (a) cross-site requests from arbitrary
@@ -41,10 +54,17 @@ export const createApiRequestSecurityMiddleware = () => (req, res, next) => {
 
   // Sandboxed external previews are opaque origins: every request their page makes — including
   // POSTs to their own proxied app — carries `Origin: null`. The preview proxy mount is gated by
-  // its per-target token cookie, so the generic origin rule would only break the page's own forms
-  // (the sandbox explicitly allows them); a cross-site attacker cannot mint a "null" origin
-  // without sandboxing itself, and still lacks the token.
-  if (originHeader === "null" && typeof req.originalUrl === "string" && req.originalUrl.startsWith("/api/preview/proxy/")) {
+  // its per-target token cookie, so requiring that cookie here keeps the exemption exactly as
+  // narrow as the route it serves: a cross-site attacker cannot mint a "null" origin without
+  // sandboxing itself, and cannot obtain the unguessable token cookie. Without the cookie the
+  // request is refused by the mount guard anyway; checking it here keeps a future handler under
+  // the same prefix from inheriting an unchecked exemption.
+  if (
+    originHeader === "null" &&
+    typeof req.originalUrl === "string" &&
+    req.originalUrl.startsWith("/api/preview/proxy/") &&
+    hasPreviewTokenCookie(req)
+  ) {
     return next()
   }
 

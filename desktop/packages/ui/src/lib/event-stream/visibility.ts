@@ -24,6 +24,11 @@ type InterruptibleWaitOptions = {
    * consumers that never subscribed to browser lifecycle events.
    */
   interruptSignals: boolean
+  /**
+   * Transport-local wake signal: `reconnect()` aborts it so a backoff sleep ends without
+   * dispatching the global retry-now event (which would bounce every other stream).
+   */
+  wakeSignal?: AbortSignal
 }
 
 /**
@@ -37,7 +42,7 @@ type InterruptibleWaitOptions = {
  */
 export function waitForRetry(ms: number, abort: AbortSignal, options: InterruptibleWaitOptions): Promise<void> {
   return new Promise<void>((resolve) => {
-    if (ms <= 0 || abort.aborted) {
+    if (ms <= 0 || abort.aborted || options.wakeSignal?.aborted) {
       resolve()
       return
     }
@@ -47,6 +52,7 @@ export function waitForRetry(ms: number, abort: AbortSignal, options: Interrupti
         clearTimeout(timer)
         timer = undefined
       }
+      options.wakeSignal?.removeEventListener("abort", onInterrupt)
       if (options.interruptSignals && typeof globalThis.window !== "undefined") {
         globalThis.window.removeEventListener("online", onInterrupt)
         globalThis.window.removeEventListener("pageshow", onPageShowInterrupt)
@@ -75,6 +81,7 @@ export function waitForRetry(ms: number, abort: AbortSignal, options: Interrupti
     }
 
     let timer: ReturnType<typeof setTimeout> | undefined = setTimeout(onInterrupt, ms)
+    options.wakeSignal?.addEventListener("abort", onInterrupt, { once: true })
     if (options.interruptSignals && typeof globalThis.window !== "undefined") {
       globalThis.window.addEventListener("online", onInterrupt, { once: true })
       globalThis.window.addEventListener("pageshow", onPageShowInterrupt)

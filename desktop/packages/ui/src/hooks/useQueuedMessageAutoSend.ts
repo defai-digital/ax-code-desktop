@@ -293,6 +293,24 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         console.warn("[queue] queued mention extraction failed:", error)
       }
 
+      // The extraction above awaits a directory listing, so the caller's checks predate it.
+      // Re-check before claiming: the session may have gone busy, an abort or unseen-error
+      // hold may have landed, or the user may have deleted the chip meanwhile.
+      if (isAutoSendDeferred(sessionId)) {
+        return
+      }
+      if ((getGlobalSyncSessionStatus(sessionId)?.type ?? "idle") !== "idle") {
+        return
+      }
+      if (
+        !useMessageQueueStore
+          .getState()
+          .getQueueForSession(sessionId)
+          .some((message) => message.id === payload.queuedMessageId)
+      ) {
+        return
+      }
+
       if (!payload.primaryText && payload.primaryAttachments.length === 0) {
         return
       }
