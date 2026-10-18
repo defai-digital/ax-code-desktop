@@ -238,6 +238,26 @@ describe("session-worktree-store worktree routing", () => {
     }
   })
 
+  test("leaves the selected session's abort and dismissal state intact when a draft submit is refused", async () => {
+    const abortFlags = new Map([["ses_other", { timestamp: 1, acknowledged: false }]])
+    const dismissed = new Map([["ses_other", "changes-signature"]])
+    useSessionUIStore.setState({
+      currentSessionId: "ses_other",
+      sessionAbortFlags: abortFlags,
+      pendingChangesBarDismissed: dismissed,
+    })
+
+    await expect(
+      useSessionUIStore.getState().sendMessage(
+        "hello", "provider-id", "model-id", undefined, undefined, undefined, undefined, undefined, "normal",
+        { fromNewSessionDraft: true },
+      ),
+    ).rejects.toThrow("Cannot send message without an active session or draft")
+
+    expect(useSessionUIStore.getState().sessionAbortFlags).toEqual(abortFlags)
+    expect(useSessionUIStore.getState().pendingChangesBarDismissed).toEqual(dismissed)
+  })
+
   test("restores the persisted active session target after reload", () => {
     const session = {
       id: "ses_restore",

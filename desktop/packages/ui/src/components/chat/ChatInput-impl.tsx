@@ -1717,6 +1717,50 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       textareaRef.current?.blur()
     }
 
+    const restoreConsumedInput = (error: unknown) => {
+      // The session this send belonged to. A new-chat draft is sent as a session the store
+      // creates mid-flight, and the store annotates the failure with its id: comparing
+      // against the captured null treated the created session as some other session, so
+      // the text was neither restored nor saved to it.
+      const failedSessionId =
+        (typeof (error as { sessionId?: unknown } | null)?.sessionId === "string"
+          ? (error as { sessionId: string }).sessionId
+          : null) ?? currentSessionId
+      const viewingFailedSession = useSessionUIStore.getState().currentSessionId === failedSessionId
+
+      // Restore the composed text so a failed send doesn't destroy user input. The live
+      // composer only takes it back while it is empty (the user may have typed something
+      // new); the sending session's stored draft is a different slot, so text typed in
+      // another session must not block persisting it there.
+      if (consumedInputSnapshot) {
+        if (viewingFailedSession && messageRef.current.trim().length === 0) {
+          setMessage(consumedInputSnapshot)
+          saveStoredDraft(failedSessionId, consumedInputSnapshot)
+          for (const mention of consumedConfirmedMentions) {
+            confirmedMentionsRef.current.add(mention)
+          }
+          saveConfirmedMentions(failedSessionId, confirmedMentionsRef.current)
+        } else if (!viewingFailedSession) {
+          // Only write when the sending session's stored draft is still empty
+          // or unchanged: a follow-up typed there since (and persisted by the
+          // session switch) must not be replaced by the older sent text.
+          const storedDraft = getStoredDraft(failedSessionId)
+          if (storedDraft.length === 0 || storedDraft === consumedInputSnapshot) {
+            saveStoredDraft(failedSessionId, consumedInputSnapshot)
+            // Persist the snapshot, not the live set — it belongs to the session on screen.
+            saveConfirmedMentions(failedSessionId, consumedConfirmedMentions)
+          }
+        }
+      }
+      return { failedSessionId, viewingFailedSession }
+    }
+
+    // Capture the target before any command renders a prompt or waits for a connection.
+    const sendTarget = {
+      sessionId: currentSessionId ?? undefined,
+      fromNewSessionDraft: !currentSessionId && newSessionDraftOpen,
+    }
+
     const slashCommand = composerSlashCommand
     if (slashCommand) {
       const commandName = slashCommand.name
@@ -1744,6 +1788,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           await useSessionUIStore.getState().handleSlashUndo(currentSessionId)
           scrollToBottom?.()
         } catch (error) {
+          restoreConsumedInput(error)
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.undoFailed"))
         }
         return
@@ -1753,6 +1798,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           await useSessionUIStore.getState().handleSlashRedo(currentSessionId)
           scrollToBottom?.()
         } catch (error) {
+          restoreConsumedInput(error)
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.redoFailed"))
         }
         return
@@ -1772,6 +1818,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             providerID: configState.currentProviderId || "",
           })
         } catch (error) {
+          restoreConsumedInput(error)
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.compactFailed"))
         }
         return
@@ -1798,10 +1845,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             [{ text: instructionsText, synthetic: true }],
             variantToSend,
             inputMode,
-            { sessionId: currentSessionId ?? undefined },
+            sendTarget,
           )
           scrollToBottom?.()
         } catch (error) {
+          restoreConsumedInput(error)
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.summaryFailed"))
         }
         return
@@ -1821,10 +1869,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             [{ text: instructionsText, synthetic: true }],
             variantToSend,
             inputMode,
-            { sessionId: currentSessionId ?? undefined },
+            sendTarget,
           )
           scrollToBottom?.()
         } catch (error) {
+          restoreConsumedInput(error)
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.reviewFailed"))
         }
         return
@@ -1847,10 +1896,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             [{ text: instructionsText, synthetic: true }],
             variantToSend,
             inputMode,
-            { sessionId: currentSessionId ?? undefined },
+            sendTarget,
           )
           scrollToBottom?.()
         } catch (error) {
+          restoreConsumedInput(error)
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.planFeatureFailed"))
         }
         return
@@ -1870,10 +1920,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             [{ text: instructionsText, synthetic: true }],
             variantToSend,
             inputMode,
-            { sessionId: currentSessionId ?? undefined },
+            sendTarget,
           )
           scrollToBottom?.()
         } catch (error) {
+          restoreConsumedInput(error)
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.catchUpFailed"))
         }
         return
@@ -1893,10 +1944,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             [{ text: instructionsText, synthetic: true }],
             variantToSend,
             inputMode,
-            { sessionId: currentSessionId ?? undefined },
+            sendTarget,
           )
           scrollToBottom?.()
         } catch (error) {
+          restoreConsumedInput(error)
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.debugFailed"))
         }
         return
@@ -1916,10 +1968,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             [{ text: instructionsText, synthetic: true }],
             variantToSend,
             inputMode,
-            { sessionId: currentSessionId ?? undefined },
+            sendTarget,
           )
           scrollToBottom?.()
         } catch (error) {
+          restoreConsumedInput(error)
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.weighFailed"))
         }
         return
@@ -1939,10 +1992,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             [{ text: instructionsText, synthetic: true }],
             variantToSend,
             inputMode,
-            { sessionId: currentSessionId ?? undefined },
+            sendTarget,
           )
           scrollToBottom?.()
         } catch (error) {
+          restoreConsumedInput(error)
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.exploreFailed"))
         }
         return
@@ -2011,10 +2065,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       // command in the project directory.
       queuedOnly ? "normal" : inputMode,
       {
-        sessionId: currentSessionId ?? undefined,
-        // Decided before the awaits above: the draft may be closed by a session
-        // switch while this submit is in flight.
-        fromNewSessionDraft: !currentSessionId && newSessionDraftOpen,
+        ...sendTarget,
         // A queued entry keeps one id across its attempts, so a manual send racing the
         // auto-sender (or a retry) is deduplicated by the server instead of delivering
         // the same prompt twice.
@@ -2053,40 +2104,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
         console.error("Message send failed:", rawMessage || error)
 
-        // The session this send belonged to. A new-chat draft is sent as a session the store
-        // creates mid-flight, and the store annotates the failure with its id: comparing
-        // against the captured null treated the created session as some other session, so
-        // the text was neither restored nor saved to it.
-        const failedSessionId =
-          (typeof (error as { sessionId?: unknown } | null)?.sessionId === "string"
-            ? (error as { sessionId: string }).sessionId
-            : null) ?? currentSessionId
-        const viewingFailedSession = useSessionUIStore.getState().currentSessionId === failedSessionId
-
-        // Restore the composed text so a failed send doesn't destroy user input. The live
-        // composer only takes it back while it is empty (the user may have typed something
-        // new); the sending session's stored draft is a different slot, so text typed in
-        // another session must not block persisting it there.
-        if (consumedInputSnapshot) {
-          if (viewingFailedSession && messageRef.current.trim().length === 0) {
-            setMessage(consumedInputSnapshot)
-            saveStoredDraft(failedSessionId, consumedInputSnapshot)
-            for (const mention of consumedConfirmedMentions) {
-              confirmedMentionsRef.current.add(mention)
-            }
-            saveConfirmedMentions(failedSessionId, confirmedMentionsRef.current)
-          } else if (!viewingFailedSession) {
-            // Only write when the sending session's stored draft is still empty
-            // or unchanged: a follow-up typed there since (and persisted by the
-            // session switch) must not be replaced by the older sent text.
-            const storedDraft = getStoredDraft(failedSessionId)
-            if (storedDraft.length === 0 || storedDraft === consumedInputSnapshot) {
-              saveStoredDraft(failedSessionId, consumedInputSnapshot)
-              // Persist the snapshot, not the live set — it belongs to the session on screen.
-              saveConfirmedMentions(failedSessionId, consumedConfirmedMentions)
-            }
-          }
-        }
+        const { failedSessionId, viewingFailedSession } = restoreConsumedInput(error)
 
         // The snapshot above is the composer text before the review comments were appended,
         // so restoring the comments is what recovers them: with an empty composer the text

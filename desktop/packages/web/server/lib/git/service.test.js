@@ -125,6 +125,53 @@ describe("deleteRemoteBranch", () => {
 
     await expect(deleteRemoteBranch(tmpDir, { branch: "feature" })).rejects.toThrow(/no configured remote/)
   })
+
+  it("deletes the tracked remote branch when its name differs from the local branch", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    const remoteDir = createTempDir()
+    initBare(remoteDir)
+    await git.commit("init", undefined, { "--allow-empty": null })
+    await git.addRemote("origin", remoteDir)
+    await git.raw(["push", "origin", "main:feature", "main:review-target"])
+    await git.raw(["config", "branch.feature.remote", "origin"])
+    await git.raw(["config", "branch.feature.merge", "refs/heads/review-target"])
+
+    await deleteRemoteBranch(tmpDir, { branch: "feature" })
+
+    expect(runGit(remoteDir, ["branch", "--list", "feature"])).toContain("feature")
+    expect(runGit(remoteDir, ["branch", "--list", "review-target"]).trim()).toBe("")
+  })
+
+  it("refuses a local upstream instead of deleting a local branch", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    await git.commit("init", undefined, { "--allow-empty": null })
+    await git.branch(["feature"])
+    await git.raw(["config", "branch.feature.remote", "."])
+    await git.raw(["config", "branch.feature.merge", "refs/heads/feature"])
+
+    await expect(deleteRemoteBranch(tmpDir, { branch: "feature" })).rejects.toThrow(/local repository/)
+    expect(runGit(tmpDir, ["branch", "--list", "feature"])).toContain("feature")
+  })
+
+  it("refuses to guess a branch when the configured upstream is incomplete", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    await git.raw(["config", "branch.feature.remote", "origin"])
+
+    await expect(deleteRemoteBranch(tmpDir, { branch: "feature" })).rejects.toThrow(/configured upstream branch/)
+  })
+
+  it("honors an explicitly selected remote and branch without upstream configuration", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    const remoteDir = createTempDir()
+    initBare(remoteDir)
+    await git.commit("init", undefined, { "--allow-empty": null })
+    await git.addRemote("origin", remoteDir)
+    await git.raw(["push", "origin", "main:feature"])
+
+    await deleteRemoteBranch(tmpDir, { branch: "refs/heads/feature", remote: "origin" })
+
+    expect(runGit(remoteDir, ["branch", "--list", "feature"]).trim()).toBe("")
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -159,6 +206,33 @@ describe("revertFile", () => {
     await revertFile(tmpDir, "new.txt", { scope: "all" })
 
     await expect(fs.promises.stat(path.join(tmpDir, "new.txt"))).rejects.toThrow()
+    expect((await git.status()).files).toHaveLength(0)
+  })
+
+  it("preserves a directory replacing a staged addition and leaves the index intact", async () => {
+    const { tmpDir, git } = await repoWithFile()
+    const addedPath = path.join(tmpDir, "new.txt")
+    await fs.promises.writeFile(addedPath, "staged\n")
+    await git.add("new.txt")
+    await fs.promises.unlink(addedPath)
+    await fs.promises.mkdir(addedPath)
+    await fs.promises.writeFile(path.join(addedPath, "keep.txt"), "untracked sentinel\n")
+
+    await expect(revertFile(tmpDir, "new.txt", { scope: "all" })).rejects.toThrow(/directory/)
+
+    expect(await fs.promises.readFile(path.join(addedPath, "keep.txt"), "utf8")).toBe("untracked sentinel\n")
+    expect(await git.raw(["show", ":new.txt"])).toBe("staged\n")
+  })
+
+  it("removes a staged addition before the first commit without leaving an index entry", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    const addedPath = path.join(tmpDir, "new.txt")
+    await fs.promises.writeFile(addedPath, "staged\n")
+    await git.add("new.txt")
+
+    await revertFile(tmpDir, "new.txt", { scope: "all" })
+
+    expect(fs.existsSync(addedPath)).toBe(false)
     expect((await git.status()).files).toHaveLength(0)
   })
 

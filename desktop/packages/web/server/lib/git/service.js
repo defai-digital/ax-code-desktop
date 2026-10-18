@@ -2441,6 +2441,16 @@ export async function revertFile(directory, filePath, options = {}) {
     }
 
     if (scope === "all") {
+      if (!existsInHead) {
+        const worktreeEntry = await fsp.lstat(absolutePath).catch((error) => {
+          if (error?.code === "ENOENT") return null
+          throw error
+        })
+        if (worktreeEntry?.isDirectory()) {
+          throw new Error("Refusing to revert a staged file replaced by a directory")
+        }
+      }
+
       try {
         await git.raw(["restore", "--staged", "--", literalPathspec(repoPath)])
       } catch (error) {
@@ -2450,7 +2460,8 @@ export async function revertFile(directory, filePath, options = {}) {
       if (!existsInHead) {
         // A staged addition has no HEAD version to restore; reverting it means
         // removing the file instead of failing with a checkout error.
-        await fsp.rm(absolutePath, { recursive: true, force: true }).catch((error) => {
+        // Do not recursively remove a directory created after the type check.
+        await fsp.rm(absolutePath, { force: true }).catch((error) => {
           if (error && typeof error === "object" && error.code === "ENOENT") return
           throw error
         })
@@ -2782,6 +2793,7 @@ export async function deleteRemoteBranch(directory, options = {}) {
 
   const { git } = await createRepositoryGitContext(directory)
   const targetBranch = branch.startsWith("refs/heads/") ? branch.substring("refs/heads/".length) : branch
+  let targetRef = `refs/heads/${targetBranch}`
 
   // Defaulting to origin deleted an unrelated same-named branch when the
   // worktree branch tracked another remote (upstream/fork). Delete from the
@@ -2790,6 +2802,15 @@ export async function deleteRemoteBranch(directory, options = {}) {
   if (!remoteName) {
     const configured = await git.getConfig(`branch.${targetBranch}.remote`).catch(() => null)
     remoteName = typeof configured?.value === "string" ? configured.value.trim() : ""
+    if (remoteName) {
+      const upstream = await git.getConfig(`branch.${targetBranch}.merge`).catch(() => null)
+      const upstreamRef = typeof upstream?.value === "string" ? upstream.value.trim() : ""
+      if (!upstreamRef.startsWith("refs/heads/")) {
+        throw new Error(`Branch "${targetBranch}" has no configured upstream branch; refusing to guess`)
+      }
+      // A local branch can track a differently named remote branch.
+      targetRef = upstreamRef
+    }
   }
   if (!remoteName) {
     throw new Error(`Branch "${targetBranch}" has no configured remote; refusing to delete a remote branch`)
@@ -2797,9 +2818,13 @@ export async function deleteRemoteBranch(directory, options = {}) {
   if (remoteName.startsWith("-")) {
     throw new Error(`Invalid remote name: ${remoteName}`)
   }
+  if (remoteName === ".") {
+    throw new Error("Refusing to delete a remote branch from the local repository")
+  }
 
   try {
-    await git.push(remoteName, `:${targetBranch}`)
+    await git.raw(["check-ref-format", targetRef])
+    await git.push(remoteName, `:${targetRef}`)
     return { success: true, remote: remoteName }
   } catch (error) {
     console.error("Failed to delete remote branch:", error)

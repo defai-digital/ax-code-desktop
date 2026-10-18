@@ -15,7 +15,7 @@ describe("Desktop release contract", () => {
     expect(contract.sdk).toMatchObject({
       name: "@defai-digital/ax-code-sdk",
       version: "2.6.31",
-      producerCommit: "f065aca7eafbb2129d520ac309a9b6c4e6cdc4b3",
+      producerCommit: "1f8b3bbb560c4f3264d74090b328a5ddd71da6b5",
     })
     expect(contract.runtime).toMatchObject({ version: "7.27.2", releaseTag: "v7.27.2" })
     expect(contract.lockfile.sha256).toMatch(/^[a-f0-9]{64}$/)

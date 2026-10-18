@@ -975,8 +975,17 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     inputMode?: "normal" | "shell",
     options?: SendMessageOptions,
   ) => {
+    const draft = get().newSessionDraft
+    const startedFromDraft = options?.fromNewSessionDraft ?? (!options?.sessionId && Boolean(draft?.open))
+    if (startedFromDraft && !draft?.open) {
+      // Validate the captured draft target before touching the now-selected
+      // session's abort flags or changed-files dismissal state.
+      set({ error: INVALID_SEND_TARGET_MESSAGE })
+      throw new Error(INVALID_SEND_TARGET_MESSAGE)
+    }
+
     // Clear non-Git changed-files bar on new user message for current session
-    const sid = normalizeSessionId(options?.sessionId ?? get().currentSessionId)
+    const sid = startedFromDraft ? null : normalizeSessionId(options?.sessionId ?? get().currentSessionId)
     if (sid) {
       const map = new Map(get().pendingChangesBarDismissed)
       map.delete(sid)
@@ -987,19 +996,10 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       get().acknowledgeSessionAbort(sid)
     }
 
-    const draft = get().newSessionDraft
-    const startedFromDraft = options?.fromNewSessionDraft ?? (!options?.sessionId && Boolean(draft?.open))
     const trimmedAgent = typeof agent === "string" && agent.trim().length > 0 ? agent.trim() : undefined
 
     // ---- New session from draft ----
     if (startedFromDraft) {
-      if (!draft?.open) {
-        // The draft was closed (a session was selected) while the submit was in
-        // flight. Sending to the now-current session would deliver the prompt to
-        // a target the user never chose; the caller restores the text instead.
-        set({ error: INVALID_SEND_TARGET_MESSAGE })
-        throw new Error(INVALID_SEND_TARGET_MESSAGE)
-      }
       const draftTargetFolderId = draft.targetFolderId
       let draftDirectoryOverride = draft.bootstrapPendingDirectory ?? draft.directoryOverride ?? null
       const draftProjectId = draft.selectedProjectId ?? null
