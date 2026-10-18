@@ -16,6 +16,9 @@ const ScrollToBottomButton: React.FC<ScrollToBottomButtonProps> = ({ visible, on
   const hasUnseen = unseenCount > 0
   return (
     <div
+      // Hidden with opacity only (for the transition), so it must leave the tab order and
+      // the accessibility tree too: keyboard users could Tab to an invisible control.
+      aria-hidden={!visible}
       className={cn(
         "absolute bottom-full left-1/2 z-40 -translate-x-1/2 mb-2 transition-all duration-150",
         visible
@@ -32,6 +35,7 @@ const ScrollToBottomButton: React.FC<ScrollToBottomButtonProps> = ({ visible, on
           hasUnseen ? "h-7 gap-1 px-2.5" : "size-8",
         )}
         aria-label={t("chat.scrollToBottom.aria")}
+        tabIndex={visible ? undefined : -1}
       >
         <Icon name="arrow-down" className="h-4 w-4 shrink-0" />
         {hasUnseen && (

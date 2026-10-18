@@ -10,7 +10,7 @@ import { toast } from "@/components/ui"
 import { Icon } from "@/components/icon/Icon"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { useI18n } from "@/lib/i18n"
-import { fileReferenceExists, normalizePath } from "./markdownFileReferences"
+import { fileReferenceExists, isAbsolutePath, normalizePath, toAbsolutePath } from "./markdownFileReferences"
 
 import {
   getExternalFaviconUrl,
@@ -1123,63 +1123,11 @@ type ParsedFileReference = {
   column?: number
 }
 
-const WINDOWS_DRIVE_PATH_PATTERN = /^[A-Za-z]:[\\/]/
-const WINDOWS_UNC_PATH_PATTERN = /^\\\\[^\\]+\\[^\\]+/
 const KNOWN_FILE_BASENAMES = new Set(["dockerfile", "makefile", "readme", "license", ".env", ".gitignore", ".npmrc"])
 const KNOWN_BASENAME_PATTERN = Array.from(KNOWN_FILE_BASENAMES)
   .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
   .join("|")
 
-
-const isAbsolutePath = (value: string): boolean => {
-  return (
-    value.startsWith("/") ||
-    WINDOWS_DRIVE_PATH_PATTERN.test(value) ||
-    WINDOWS_UNC_PATH_PATTERN.test(value) ||
-    value.startsWith("//")
-  )
-}
-
-const toAbsolutePath = (basePath: string, targetPath: string): string => {
-  const normalizedTarget = normalizePath(targetPath)
-  if (!normalizedTarget) {
-    return normalizePath(basePath)
-  }
-
-  if (isAbsolutePath(normalizedTarget)) {
-    return normalizedTarget
-  }
-
-  const normalizedBase = normalizePath(basePath)
-  if (!normalizedBase) {
-    return normalizedTarget
-  }
-
-  const isWindowsDriveBase = /^[A-Za-z]:/.test(normalizedBase)
-  const prefix = isWindowsDriveBase ? normalizedBase.slice(0, 2) : ""
-  const baseRemainder = isWindowsDriveBase ? normalizedBase.slice(2) : normalizedBase
-
-  const stack = baseRemainder.split("/").filter(Boolean)
-  const parts = normalizedTarget.split("/").filter(Boolean)
-  for (const part of parts) {
-    if (part === ".") {
-      continue
-    }
-    if (part === "..") {
-      if (stack.length > 0) {
-        stack.pop()
-      }
-      continue
-    }
-    stack.push(part)
-  }
-
-  if (isWindowsDriveBase) {
-    return `${prefix}/${stack.join("/")}`
-  }
-
-  return `/${stack.join("/")}`
-}
 
 const trimPathCandidate = (value: string): string => {
   let next = (value || "").trim()
@@ -1330,8 +1278,11 @@ const isLikelyFilePath = (value: string): boolean => {
 const extractPathCandidateFromElement = (element: HTMLElement): string => {
   if (element.tagName.toLowerCase() === "a") {
     const href = element.getAttribute("href")?.trim()
-    if (href && isLikelyFilePath(href)) {
-      return href
+    // An anchor with an href is a real link; its text is the link label, not a path. Falling
+    // back to textContent hijacked safe external links (a GitHub blob URL labeled
+    // `src/app.ts`) into the local file opener merely because the workspace had that file.
+    if (href) {
+      return isLikelyFilePath(href) ? href : ""
     }
   }
 
@@ -1546,6 +1497,10 @@ const useFileReferenceInteractions = ({
     observer.observe(container, {
       childList: true,
       subtree: true,
+      // A reused node whose text changes in place (preview switching between two files, a
+      // tool body updating) keeps its old data-openchamber-file-* attributes without this:
+      // clicking inline code opened the previous path and never annotated the new one.
+      characterData: true,
     })
 
     container.addEventListener("click", handleClick)

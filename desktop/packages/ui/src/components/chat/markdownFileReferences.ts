@@ -98,3 +98,64 @@ export const fileReferenceExists = (resolvedPath: string): Promise<boolean> => {
   statCache.set(normalizedPath, request)
   return request
 }
+
+const WINDOWS_DRIVE_PATH_PATTERN = /^[A-Za-z]:[\\/]/
+const WINDOWS_UNC_PATH_PATTERN = /^\\\\[^\\]+\\[^\\]+/
+
+export const isAbsolutePath = (value: string): boolean => {
+  return (
+    value.startsWith("/") ||
+    WINDOWS_DRIVE_PATH_PATTERN.test(value) ||
+    WINDOWS_UNC_PATH_PATTERN.test(value) ||
+    value.startsWith("//")
+  )
+}
+
+export const toAbsolutePath = (basePath: string, targetPath: string): string => {
+  const normalizedTarget = normalizePath(targetPath)
+  if (!normalizedTarget) {
+    return normalizePath(basePath)
+  }
+
+  if (isAbsolutePath(normalizedTarget)) {
+    return normalizedTarget
+  }
+
+  const normalizedBase = normalizePath(basePath)
+  if (!normalizedBase) {
+    return normalizedTarget
+  }
+
+  const isWindowsDriveBase = /^[A-Za-z]:/.test(normalizedBase)
+  const prefix = isWindowsDriveBase ? normalizedBase.slice(0, 2) : ""
+  // A UNC base (`//server/share/...`) must keep both its leading slashes: rebuilding it as
+  // `/server/share/...` names a different path, and a `..` could pop the share segment.
+  const isUncBase = !isWindowsDriveBase && normalizedBase.startsWith("//")
+  const baseRemainder = isWindowsDriveBase || isUncBase ? normalizedBase.slice(2) : normalizedBase
+
+  const stack = baseRemainder.split("/").filter(Boolean)
+  const minStackDepth = isUncBase ? Math.min(2, stack.length) : 0
+  const parts = normalizedTarget.split("/").filter(Boolean)
+  for (const part of parts) {
+    if (part === ".") {
+      continue
+    }
+    if (part === "..") {
+      if (stack.length > minStackDepth) {
+        stack.pop()
+      }
+      continue
+    }
+    stack.push(part)
+  }
+
+  if (isWindowsDriveBase) {
+    return `${prefix}/${stack.join("/")}`
+  }
+
+  if (isUncBase) {
+    return `//${stack.join("/")}`
+  }
+
+  return `/${stack.join("/")}`
+}

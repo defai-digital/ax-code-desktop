@@ -22,7 +22,11 @@ export type LiveMarkdownLexCache = {
 }
 
 const hasReferenceDefinitions = (text: string): boolean => {
-  return /^\[[^\]]+\]:\s+\S+/m.test(text) || /^\[\^[^\]]+\]:\s+/m.test(text)
+  // Up to three leading spaces are allowed (CommonMark), the space after the colon is
+  // optional, and the destination may sit on the following (indented) line. Missing a
+  // definition split it into a block of its own, so an earlier `[docs]` link rendered as
+  // literal text until the message finalized.
+  return /^[ \t]{0,3}\[[^\]]+\]:[ \t]*(?:\S|$)/m.test(text)
 }
 
 const hasOpenFence = (raw: string): boolean => {
@@ -127,7 +131,15 @@ export const buildLiveMarkdownBlocks = (
     const raw = token.raw ?? ""
     if (token.type !== "space") {
       const mode: "full" | "live" = index === lastMeaningfulIndex ? "live" : "full"
-      const src = mode === "live" && token.type === "code" && hasOpenFence(raw) ? raw : healMarkdown(raw)
+      // A "full" block is already complete: healing it rewrote literal text in finished
+      // paragraphs (`array[0` lost its bracket, `**` was appended, image-like text was
+      // deleted). Only the live tail needs healing.
+      const src =
+        mode === "live"
+          ? token.type === "code" && hasOpenFence(raw)
+            ? raw
+            : healMarkdown(raw)
+          : raw
       blocks.push({
         key: buildMarkdownCacheKey(baseKey, raw, blockIndex, mode),
         raw,

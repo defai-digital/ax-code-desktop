@@ -1694,9 +1694,22 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
 
           const located = activityMessageLocation.get(messageId)
           if (!located) {
-            return trailingStreamingEntry !== undefined && index >= historyEntries.length
-              ? false
-              : scrollHistoryIndexIntoView(index, behavior)
+            const targetIsTail = trailingStreamingEntry !== undefined && index >= historyEntries.length
+            if (targetIsTail) return false
+            scrollHistoryIndexIntoView(index, behavior)
+            // Aligning the TURN start can leave the requested message below the viewport in
+            // a turn taller than the screen. Retry the message itself once the virtualizer
+            // has mounted the turn; the old branch reported success immediately, so search
+            // navigation looked like it did nothing useful.
+            return (async () => {
+              for (let attempt = 0; attempt < MESSAGE_NAVIGATION_ATTEMPTS; attempt += 1) {
+                await nextFrame()
+                await nextFrame()
+                if (scrollMessageElementIntoView(messageId, behavior)) return true
+              }
+              // The turn is at least in view; keep the previous best-effort result.
+              return true
+            })()
           }
 
           // The fold mounts only a window of its steps, and a collapsed fold
@@ -1881,6 +1894,11 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
                 />
                 {trailingStreamingEntry ? (
                   <StreamingTailContent
+                    // Keyed by entry: React otherwise reuses the tail section for the next
+                    // turn (only its data-turn-id changes), so the scroll spy never sees the
+                    // new turn — turn navigation then calculated from the previous one — and
+                    // per-message UI state leaked for a commit.
+                    key={trailingStreamingEntry.key}
                     entry={trailingStreamingEntry}
                     onMessageContentChange={stableTailContentChange}
                     getAnimationHandlers={stableGetAnimationHandlers}

@@ -127,4 +127,31 @@ describe("buildLiveMarkdownBlocks", () => {
     expect(blocks[0]?.mode).toBe("live")
     expect(blocks[0]?.raw).toBe(text)
   })
+
+  test("does not heal completed blocks", () => {
+    // Healing a finished paragraph rewrote literal text: `price 2 ** 3` gained a trailing
+    // `**`, `array[0` lost its bracket and image-like text was deleted. Only the live tail
+    // may be healed.
+    const { blocks } = buildLiveMarkdownBlocks("price 2 ** 3\n\nstill streaming", BASE_KEY, null)
+    const full = blocks[0]
+    expect(full?.mode).toBe("full")
+    expect(full?.src).toBe(full?.raw)
+    expect(full?.src).not.toContain("3**")
+  })
+
+  test("detects reference definitions however CommonMark allows them to be written", () => {
+    // Up to three leading spaces, no space after the colon, or the destination on the
+    // following line: missing them split the definition into its own block, so an earlier
+    // `[docs]` rendered literally until the message finalized.
+    for (const text of [
+      "See [docs].\n\n[docs]:https://example.com",
+      "See [docs].\n\n   [docs]: https://example.com",
+      "See [docs].\n\n[docs]:\n  https://example.com",
+      "See [docs].\n\n[^docs]: footnote text",
+    ]) {
+      const { blocks } = buildLiveMarkdownBlocks(text, BASE_KEY, null)
+      expect(blocks).toHaveLength(1)
+      expect(blocks[0]?.mode).toBe("live")
+    }
+  })
 })
