@@ -109,8 +109,9 @@ function createWikiViewer({
       return { opened: true }
     } catch {
       if (window && !window.isDestroyed()) window.destroy()
-      if (closed) await closed
-      else await removeExport()
+      // Cleanup must not replace the actionable message with a raw fs error.
+      if (closed) await closed.catch(() => {})
+      else await removeExport().catch(() => {})
       // Child output can contain paths/configuration. Keep it out of IPC errors.
       throw new Error("The official Wiki viewer could not be opened. Build the project wiki and try again.")
     }

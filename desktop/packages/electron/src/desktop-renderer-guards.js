@@ -123,7 +123,13 @@ const attachRendererNavigationGuards = (webContents, { isTrustedUrl, onBlocked }
     onBlocked?.(url)
   }
   webContents.on("will-navigate", guard)
-  webContents.on("will-redirect", guard)
+  // A subframe redirect is not the renderer navigating (the preload bridge only
+  // belongs to the top-level document), and treating it as one opened an
+  // external browser tab for every third-party embed that redirected.
+  webContents.on("will-redirect", (event, url, _isInPlace, isMainFrame) => {
+    if (isMainFrame === false || event?.isMainFrame === false) return
+    guard(event, url)
+  })
 }
 
 module.exports = {

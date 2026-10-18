@@ -61,6 +61,13 @@ function attachDesktopBrowserWebviewPolicy(contents) {
   contents.on("will-attach-webview", (event, webPreferences, params) => {
     applyDesktopBrowserWebviewPolicy(event, webPreferences, params)
   })
+  // `allowpopups` (or any future guest that opens a window) would otherwise
+  // create an unmanaged BrowserWindow outside every navigation guard. The
+  // browser panel has its own "open externally" action for that.
+  contents.on("did-attach-webview", (_event, guestContents) => {
+    if (!guestContents || typeof guestContents.setWindowOpenHandler !== "function") return
+    guestContents.setWindowOpenHandler(() => ({ action: "deny" }))
+  })
 }
 
 module.exports = {

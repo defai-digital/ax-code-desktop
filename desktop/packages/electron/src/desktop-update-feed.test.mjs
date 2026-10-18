@@ -110,7 +110,7 @@ describe("resolveDesktopUpdateFeed", () => {
   test("resolves the generic feed URL for the newest published desktop release", async () => {
     const feed = await resolveDesktopUpdateFeed({
       fetchImpl: async (url, init) => {
-        expect(url).toBe("https://api.github.com/repos/defai-digital/ax-code-desktop/releases?per_page=30")
+        expect(url).toBe("https://api.github.com/repos/defai-digital/ax-code-desktop/releases?per_page=100")
         expect(init.headers["User-Agent"]).toBe("ax-code-desktop-updater")
         return jsonResponse([cliRelease("7.9.14"), desktopRelease("7.9.14", { draft: true }), desktopRelease("7.9.12")])
       },
@@ -119,6 +119,22 @@ describe("resolveDesktopUpdateFeed", () => {
       tag: "v7.9.12",
       url: "https://github.com/defai-digital/ax-code-desktop/releases/download/v7.9.12",
     })
+  })
+
+  test("pages past a page full of CLI-only releases", async () => {
+    const urls = []
+    const feed = await resolveDesktopUpdateFeed({
+      fetchImpl: async (url) => {
+        urls.push(url)
+        // A full page means there may be more; the desktop release is on the next one.
+        return urls.length === 1
+          ? jsonResponse(Array.from({ length: 100 }, (_, index) => cliRelease(`7.9.${index}`)))
+          : jsonResponse([desktopRelease("7.9.12")])
+      },
+    })
+    expect(feed.tag).toBe("v7.9.12")
+    expect(urls).toHaveLength(2)
+    expect(urls[1]).toContain("page=2")
   })
 
   test("fails loudly when the releases API errors", async () => {

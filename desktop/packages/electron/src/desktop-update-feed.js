@@ -78,27 +78,41 @@ async function resolveDesktopUpdateFeed(options = {}) {
   if (typeof fetchImpl !== "function") {
     throw new Error("No fetch implementation available to resolve the desktop update feed")
   }
-  // CLI and desktop releases interleave roughly 1:1, so one page covers many
-  // desktop versions back — far more than the updater ever needs to span.
-  const perPage = options.perPage ?? 30
-  const response = await fetchImpl(`${RELEASES_API_URL}?per_page=${perPage}`, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "ax-code-desktop-updater",
-    },
-    // A stalled connection must not leave the update check pending forever.
-    signal: options.signal ?? AbortSignal.timeout(options.timeoutMs ?? 15_000),
-  })
-  if (!response || !response.ok) {
-    const status = response ? `HTTP ${response.status}` : "no response"
-    throw new Error(`Failed to list GitHub releases while resolving the desktop update feed (${status})`)
+  // CLI and desktop releases interleave roughly 1:1. A burst of CLI-only
+  // releases could push the newest desktop release off the first page, so keep
+  // paging (bounded) until one is found.
+  const perPage = options.perPage ?? 100
+  const maxPages = Number.isInteger(options.maxPages) && options.maxPages > 0 ? options.maxPages : 2
+
+  let bestTag = null
+  for (let page = 1; page <= maxPages; page += 1) {
+    const pageQuery = page > 1 ? `&page=${page}` : ""
+    const response = await fetchImpl(`${RELEASES_API_URL}?per_page=${perPage}${pageQuery}`, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "ax-code-desktop-updater",
+      },
+      // A stalled connection must not leave the update check pending forever.
+      signal: options.signal ?? AbortSignal.timeout(options.timeoutMs ?? 15_000),
+    })
+    if (!response || !response.ok) {
+      const status = response ? `HTTP ${response.status}` : "no response"
+      throw new Error(`Failed to list GitHub releases while resolving the desktop update feed (${status})`)
+    }
+    const releases = await response.json()
+    const tag = latestDesktopReleaseTag(releases)
+    if (tag) {
+      const candidate = parseDesktopTagVersion(tag)
+      const best = bestTag ? parseDesktopTagVersion(bestTag) : null
+      if (!best || (candidate && compareDesktopTagVersions(candidate, best) > 0)) bestTag = tag
+    }
+    if (!Array.isArray(releases) || releases.length < perPage) break
   }
-  const releases = await response.json()
-  const tag = latestDesktopReleaseTag(releases)
-  if (!tag) {
+
+  if (!bestTag) {
     throw new Error("No published AX Code Desktop release found while resolving the update feed")
   }
-  return { tag, url: desktopUpdateFeedUrl(tag) }
+  return { tag: bestTag, url: desktopUpdateFeedUrl(bestTag) }
 }
 
 module.exports = {

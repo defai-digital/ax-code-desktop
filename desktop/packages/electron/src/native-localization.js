@@ -23,6 +23,7 @@ const ROLE_LABELS = {
   hideOthers: "Hide Others",
   unhide: "Show All",
   quit: "Quit AX Code",
+  reload: "Reload",
   togglefullscreen: "Fullscreen",
   undo: "Undo",
   redo: "Redo",

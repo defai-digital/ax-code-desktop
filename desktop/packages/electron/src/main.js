@@ -1013,7 +1013,9 @@ autoUpdater.on("error", (err) => {
 let desktopUpdateFeed = null
 async function ensureDesktopUpdateFeed({ force = false } = {}) {
   if (desktopUpdateFeed && !force) return desktopUpdateFeed
-  const feed = await resolveDesktopUpdateFeed()
+  // Node's fetch ignores the app's proxy and certificate configuration; net.fetch
+  // uses the same Chromium network stack the updater's own downloads use.
+  const feed = await resolveDesktopUpdateFeed({ fetchImpl: (url, init) => electronNet.fetch(url, init) })
   // setFeedURL replaces the updater's provider client; only swap it when the
   // target release actually changed so an in-flight download keeps its
   // resolved provider.
@@ -2481,8 +2483,12 @@ const DISCORD_INVITE_URL = "https://discord.gg/gf9UyPxaN2"
 const buildMacMenu = () => {
   const dispatchAction = (action) => dispatchMenuAction(action)
   const handleCopyAction = () => {
-    BrowserWindow.getFocusedWindow()?.webContents.copy()
-    dispatchAction("copy")
+    const focused = BrowserWindow.getFocusedWindow()
+    focused?.webContents.copy()
+    // The renderer's copy handler re-copies its own selection. Sending it to a
+    // window that is not focused (mini-chat, wiki viewer) overwrote what that
+    // window had just copied with the main window's stale selection.
+    if (!focused || focused === getMenuTargetWindow()) dispatchAction("copy")
   }
   return buildLocalizedMenu([
     {
@@ -2602,8 +2608,10 @@ const buildMacMenu = () => {
 const buildNonMacMenu = () => {
   const dispatchAction = (action) => dispatchMenuAction(action)
   const handleCopyAction = () => {
-    BrowserWindow.getFocusedWindow()?.webContents.copy()
-    dispatchAction("copy")
+    const focused = BrowserWindow.getFocusedWindow()
+    focused?.webContents.copy()
+    // See buildMacMenu: only the focused window's own handler may run.
+    if (!focused || focused === getMenuTargetWindow()) dispatchAction("copy")
   }
   const isDev = !app.isPackaged
   return buildLocalizedMenu([

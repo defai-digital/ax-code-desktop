@@ -2125,7 +2125,6 @@ const DesktopBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dir
           ref={webviewRef}
           src={currentUrl || "about:blank"}
           partition="persist:openchamber-browser"
-          allowpopups
           style={{ width: "100%", height: "100%", border: "none" }}
         />
         {loadFailure && currentUrl ? (
