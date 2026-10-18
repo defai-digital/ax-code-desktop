@@ -203,7 +203,7 @@ a public GitHub issue for a security report.
 
 ## Development
 
-Contributor checkouts need Node.js 24 or newer and pnpm 10.33.4 through Corepack. The workspace
+Contributor checkouts need Node.js 26 or newer and pnpm 10.33.4 through Corepack. The workspace
 does not build AX Code from a sibling checkout. Development uses `AX_CODE_BINARY` or an `ax-code`
 binary on `PATH`. Packaged builds use the signed runtime pinned in `config/ax-code-runtime.json`.
 

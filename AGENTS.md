@@ -40,7 +40,7 @@ the independent release target without enabling publication or changing the acti
 
 ## Environment and commands
 
-- Node.js 24 or newer.
+- Node.js 26 or newer.
 - pnpm 10.33.4 through Corepack. Do not use npm or Yarn for this workspace.
 - Install with `pnpm install`; committed CI must use `pnpm install --frozen-lockfile`.
 

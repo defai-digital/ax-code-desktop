@@ -3,7 +3,7 @@ packages:
 
 catalog:
   "@electron/asar": "3.4.1"
-  "@types/node": "24.13.2"
+  "@types/node": "26.6.5"
   "electron-builder": "26.15.3"
   "fast-glob": "3.3.3"
   "resedit": "1.7.2"

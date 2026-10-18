@@ -8,7 +8,7 @@
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.33.4",
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "scripts": {
     "preinstall": "node script/require-pnpm.cjs",
