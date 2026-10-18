@@ -26,7 +26,8 @@ export const dict = {
   "settings.language.formatHint": "Uses your system region when following the system language.",
 
   "settings.page.hooks.title": "Hooks",
-  "settings.hooks.page.description": "Lifecycle hooks in effect for this project. This page does not edit hooks or change trust.",
+  "settings.hooks.page.description":
+    "Lifecycle hooks in effect for this project. This page does not edit hooks or change trust.",
   "settings.hooks.page.refresh": "Refresh",
   "settings.hooks.page.refreshAria": "Refresh hooks",
   "settings.hooks.page.loading": "Loading hooks",
@@ -2895,8 +2896,10 @@ export const dict = {
   "axCodeUpdate.cli.toast.upgrading.description": "This can take a few minutes.",
   "axCodeUpdate.cli.toast.updated.title": "AX Code CLI updated",
   "axCodeUpdate.cli.toast.updated.description": "Version {version} installed.",
-  "axCodeUpdate.cli.toast.updated.shadowed": "Version {version} installed, but your terminal runs {path} first on PATH.",
-  "axCodeUpdate.cli.toast.updated.restartFailed": "Version {version} installed, but AX Code Desktop couldn't restart on it. Reload AX Code to use it.",
+  "axCodeUpdate.cli.toast.updated.shadowed":
+    "Version {version} installed, but your terminal runs {path} first on PATH.",
+  "axCodeUpdate.cli.toast.updated.restartFailed":
+    "Version {version} installed, but AX Code Desktop couldn't restart on it. Reload AX Code to use it.",
   "axCodeUpdate.cli.toast.failed.title": "Couldn't update the AX Code CLI",
   "axCodeUpdate.cli.toast.failed.description": "Run it in a terminal: {command}",
   "axCodeUpdate.cli.toast.failed.descriptionNoCommand": "Update it with the installer you used.",
@@ -2986,9 +2989,11 @@ export const dict = {
   "notificationCenter.sessions": "Sessions",
   "notificationCenter.system": "System",
   "permissionRisk.decide.label": "Your decision",
-  "permissionRisk.decide.description": "AX Code requires a person to answer this request. No rule or autonomous mode can approve it, and it cannot be allowed always.",
+  "permissionRisk.decide.description":
+    "AX Code requires a person to answer this request. No rule or autonomous mode can approve it, and it cannot be allowed always.",
   "permissionRisk.risk.label": "Risky",
-  "permissionRisk.risk.description": "This permission can change files, run commands, reach the network or start other agents.",
+  "permissionRisk.risk.description":
+    "This permission can change files, run commands, reach the network or start other agents.",
   "notificationCenter.allow": "Allow",
   "notificationCenter.deny": "Deny",
   "notificationCenter.permission.requestTitle": "Approval needed: {tool}",
@@ -3030,6 +3035,15 @@ export const dict = {
   "desktop.native.disableAnimations": "Disable animations",
   "desktop.native.startingDesktop": "Starting desktop\u2026",
   "desktop.native.closingDesktop": "Closing desktop\u2026",
+  "supervision.request.scopeCount": "Review all {count} permission scopes",
+  "supervision.missionControl.density": "Density",
+  "supervision.missionControl.comfortable": "Comfortable",
+  "supervision.missionControl.compact": "Compact",
+  "supervision.missionControl.filterLabel": "Session filters",
+  "supervision.inspector.tools": "Tools",
+  "supervision.inspector.showLabels": "Show tool labels",
+  "supervision.inspector.hideLabels": "Hide tool labels",
+  "supervision.navigation.workspace": "Workspace",
   "supervision.request.open": "Open",
   "supervision.request.dismiss": "Dismiss",
   "supervision.request.answerFailed": "Answer failed",
@@ -3086,7 +3100,7 @@ export const dict = {
   "supervision.missionControl.empty.workingSet": "No sessions in this working set yet",
   "supervision.missionControl.renameWorkingSet": "Rename working set",
   "supervision.missionControl.deleteWorkingSet": "Delete working set",
-  "supervision.missionControl.deleteWorkingSetConfirm": "Delete working set \"{name}\"? Sessions are not deleted.",
+  "supervision.missionControl.deleteWorkingSetConfirm": 'Delete working set "{name}"? Sessions are not deleted.',
   "supervision.evidence.summary": "+{additions} \u2212{deletions} \u00b7 {files} files",
   "supervision.missionControl.boardLabel": "Mission Control board",
   "supervision.needsYou.pill": "Needs you \u00b7 {count}",
@@ -3132,7 +3146,8 @@ export const dict = {
   "supervision.dispatch.recentHint": "A prompt sends into the session. An empty prompt opens it.",
   "supervision.dispatch.noProjects": "Add a project before dispatching.",
   "supervision.settings.quickDispatch.label": "Global quick dispatch shortcut",
-  "supervision.settings.quickDispatch.description": "Off by default. When enabled, Alt+Space brings this window forward and opens quick dispatch.",
+  "supervision.settings.quickDispatch.description":
+    "Off by default. When enabled, Alt+Space brings this window forward and opens quick dispatch.",
   "webmcp.allowlist.title": "WebMCP allowlist",
   "webmcp.allowlist.description":
     "Sites this project lets the browser bridge use without asking. Applies to Chrome-bridge servers, not the built-in project browser.",
@@ -3144,7 +3159,8 @@ export const dict = {
   "webmcp.allowlist.remove": "Remove approval",
   "webmcp.allowlist.clearAll": "Clear all",
   "webmcp.allowlist.confirmRemove": "Remove this approval ({scope})? The bridge will ask again next time.",
-  "webmcp.allowlist.confirmClearAll": "Remove every saved approval for this bridge? The bridge will ask again for each site.",
+  "webmcp.allowlist.confirmClearAll":
+    "Remove every saved approval for this bridge? The bridge will ask again for each site.",
   "webmcp.allowlist.addTitle": "Add approval",
   "webmcp.allowlist.originPlaceholder": "https://example.com",
   "webmcp.allowlist.originHint": "Use an https:// origin, or http://localhost with an optional port.",
@@ -3165,8 +3181,10 @@ export const dict = {
   "webmcp.allowlist.alwaysAllowOnSite": "Always allow on this site",
   "supervision.needsYou.unknownSession": "Unknown session",
   "wiki.graph.openViewer": "Open official Wiki viewer",
-  "wiki.graph.viewerDescription": "Open the AX Code Wiki viewer in its own window. Reopen it after a wiki refresh to view the latest snapshot.",
-  "wiki.graph.viewerFailed": "The Wiki viewer could not be opened. Check that the bundled runtime is available and try again.",
+  "wiki.graph.viewerDescription":
+    "Open the AX Code Wiki viewer in its own window. Reopen it after a wiki refresh to view the latest snapshot.",
+  "wiki.graph.viewerFailed":
+    "The Wiki viewer could not be opened. Check that the bundled runtime is available and try again.",
   "wiki.graph.title": "Wiki graph",
   "wiki.graph.searchPlaceholder": "Search by name or path",
   "wiki.graph.kind.page": "Pages",

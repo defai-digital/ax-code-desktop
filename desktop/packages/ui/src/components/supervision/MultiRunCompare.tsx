@@ -6,34 +6,14 @@ import { MultiRunFusionDialog } from "@/components/multirun/MultiRunFusionDialog
 import { RequestActionCard } from "@/components/supervision/RequestActionCard"
 import { useSupervisionRows, type SupervisionRow } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
-import type { I18nKey } from "@/lib/i18n/messages/en"
 import { parseMultiRunSessionTitle } from "@/lib/multirun/title"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { groupMultiRunRows, type MultiRunLane } from "@/lib/supervision/multiRunGroups"
 import { requestsForSessionTree } from "@/lib/supervision/requests"
-import type { SupervisionState } from "@/lib/supervision/sessionState"
-import { cn } from "@/lib/utils"
+import { SupervisionStateBadge } from "./SupervisionStateBadge"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useAllLiveSessions, useAllPendingRequests } from "@/sync/sync-context"
-
-const STATE_LABEL: Record<SupervisionState, I18nKey> = {
-  permission: "supervision.state.permission",
-  question: "supervision.state.question",
-  error: "supervision.state.error",
-  review: "supervision.state.review",
-  running: "supervision.state.running",
-  idle: "supervision.state.idle",
-}
-
-const STATE_TONE: Record<SupervisionState, string> = {
-  permission: "bg-[var(--status-warning)]/10 text-[var(--status-warning)]",
-  question: "bg-[var(--status-warning)]/10 text-[var(--status-warning)]",
-  error: "bg-[var(--status-error)]/10 text-[var(--status-error)]",
-  review: "bg-[var(--status-success)]/10 text-[var(--status-success)]",
-  running: "bg-[var(--status-info)]/10 text-[var(--status-info)]",
-  idle: "bg-muted text-muted-foreground",
-}
 
 const formatAge = (updatedAt: number, t: ReturnType<typeof useI18n>["t"]): string | null => {
   if (!updatedAt) return null
@@ -158,14 +138,7 @@ const LaneCard: React.FC<{
     <article className="flex min-w-0 flex-col gap-3 rounded-xl border border-border/60 p-3 surface-inset">
       <div className="flex min-w-0 items-start justify-between gap-2">
         <h3 className="min-w-0 truncate typography-ui-label font-medium text-foreground">{lane.laneLabel}</h3>
-        <span
-          className={cn(
-            "typography-micro inline-flex shrink-0 items-center rounded-full px-2 py-0.5",
-            STATE_TONE[lane.state],
-          )}
-        >
-          {t(STATE_LABEL[lane.state])}
-        </span>
+        <SupervisionStateBadge state={lane.state} />
       </div>
       <div className="flex min-w-0 items-center gap-2 typography-micro text-muted-foreground">
         {evidence ? <span className="min-w-0 truncate">{evidence}</span> : null}

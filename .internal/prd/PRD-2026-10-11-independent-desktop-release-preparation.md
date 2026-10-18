@@ -1,13 +1,7 @@
-# PRD: Independent Desktop Release Preparation
+# Record location updated on 2026-10-18
 
-Status: Accepted for preparation under the user's 2026-10-11 instruction to correct release problems.
-Production cutover remains blocked until the existing signed-shadow, continuity, rollback, and human gates pass.
+Historical preparation phase. ADR-012 supersedes the independent-release freeze only; signing and continuity requirements remain applicable.
 
-The Desktop repository must prepare releases for `defai-digital/ax-code-desktop` using `v<desktop-version>`.
-Desktop versions are independent of the separately verified AX Code runtime pin. Existing application identity,
-credentials, source provenance, data paths, public runtime verification, and prior release tags remain intact.
-Preparation must expose missing evidence instead of marking an unsigned candidate as an official release.
+The [original record](archive/PRD-2026-10-11-independent-desktop-release-preparation.md) is preserved byte-for-byte. This navigation stub does not amend its requirements.
 
-Acceptance: stable exact Electron pin, coherent Desktop package versions, explicit future release target,
-read-only release readiness report, working independent workspace validation commands, cross-platform shadow
-packaging evidence, and no public publication or active updater change before qualified cutover.
+See the [governance review](../reports/GOVERNANCE-2026-10-18-document-lifecycle.md) for evidence and surviving decisions.

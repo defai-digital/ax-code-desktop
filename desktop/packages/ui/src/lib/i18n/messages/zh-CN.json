@@ -4862,5 +4862,14 @@
   "settings.hooks.packs.enabled": "\u5df2\u542f\u7528",
   "settings.hooks.packs.disabled": "\u5df2\u505c\u7528",
   "settings.mcp.page.status.label.needsTrust": "\u9700\u8981\u4fe1\u4efb",
-  "settings.mcp.page.status.description.needsTrust": "\u6b64\u670d\u52a1\u5668\u6765\u81ea\u9879\u76ee\u914d\u7f6e\uff0c\u53ef\u4ee5\u8fd0\u884c\u4efb\u4f55\u547d\u4ee4\uff0c\u56e0\u6b64\u5728\u4f60\u4fe1\u4efb\u5b83\u4e4b\u524d AX Code \u4e0d\u4f1a\u542f\u52a8\u5b83\u3002\u8bf7\u5148\u68c0\u67e5\uff0c\u518d\u5728\u9879\u76ee\u6587\u4ef6\u5939\u4e2d\u8fd0\u884c `ax-code mcp trust {name}`\uff0c\u7136\u540e\u91cd\u65b0\u52a0\u8f7d AX Code\u3002"
+  "settings.mcp.page.status.description.needsTrust": "\u6b64\u670d\u52a1\u5668\u6765\u81ea\u9879\u76ee\u914d\u7f6e\uff0c\u53ef\u4ee5\u8fd0\u884c\u4efb\u4f55\u547d\u4ee4\uff0c\u56e0\u6b64\u5728\u4f60\u4fe1\u4efb\u5b83\u4e4b\u524d AX Code \u4e0d\u4f1a\u542f\u52a8\u5b83\u3002\u8bf7\u5148\u68c0\u67e5\uff0c\u518d\u5728\u9879\u76ee\u6587\u4ef6\u5939\u4e2d\u8fd0\u884c `ax-code mcp trust {name}`\uff0c\u7136\u540e\u91cd\u65b0\u52a0\u8f7d AX Code\u3002",
+  "supervision.request.scopeCount": "\u67e5\u770b\u5168\u90e8 {count} \u9879\u6743\u9650\u8303\u56f4",
+  "supervision.missionControl.density": "\u663e\u793a\u5bc6\u5ea6",
+  "supervision.missionControl.comfortable": "\u5bbd\u677e",
+  "supervision.missionControl.compact": "\u7d27\u51d1",
+  "supervision.missionControl.filterLabel": "\u4f1a\u8bdd\u7b5b\u9009",
+  "supervision.inspector.tools": "\u5de5\u5177",
+  "supervision.inspector.showLabels": "\u663e\u793a\u5de5\u5177\u540d\u79f0",
+  "supervision.inspector.hideLabels": "\u9690\u85cf\u5de5\u5177\u540d\u79f0",
+  "supervision.navigation.workspace": "\u5de5\u4f5c\u533a"
 }

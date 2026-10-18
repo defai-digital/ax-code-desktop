@@ -74,3 +74,29 @@ describe("navigation history", () => {
     expect(state.activeWorkingSetId).toBeNull()
   })
 })
+
+describe("supervision display preferences", () => {
+  test("old or malformed storage defaults to comfortable rows and collapsed labels", () => {
+    expect(readPersistedSupervision(storageWith("{}"))).toMatchObject({
+      density: "comfortable",
+      inspectorLabels: false,
+    })
+    expect(readPersistedSupervision(storageWith('{"density":"tiny","inspectorLabels":"true"}'))).toMatchObject({
+      density: "comfortable",
+      inspectorLabels: false,
+    })
+    expect(readPersistedSupervision(storageWith('{"density":"compact","inspectorLabels":true}'))).toMatchObject({
+      density: "compact",
+      inspectorLabels: true,
+    })
+  })
+  test("display changes survive unrelated working-set updates without changing board selection", () => {
+    useSupervisionStore.setState({ boardFocusSessionId: "focused" })
+    useSupervisionStore.getState().setDensity("compact")
+    useSupervisionStore.getState().setInspectorLabels(true)
+    const id = useSupervisionStore.getState().createWorkingSet("Review")
+    expect(readPersistedSupervision(localStorage)).toMatchObject({ density: "compact", inspectorLabels: true })
+    expect(useSupervisionStore.getState().boardFocusSessionId).toBe("focused")
+    useSupervisionStore.getState().deleteWorkingSet(id)
+  })
+})

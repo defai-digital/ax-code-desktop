@@ -1,3 +1,4 @@
+import { SUPERVISION_PRESENTATION } from "@/lib/supervision/presentation"
 import React from "react"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import {
@@ -680,7 +681,10 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
       case "running":
         return (
           <span
-            className="h-1.5 w-1.5 rounded-full bg-primary animate-busy-pulse"
+            className={cn(
+              "h-1.5 w-1.5 rounded-full motion-safe:animate-busy-pulse",
+              SUPERVISION_PRESENTATION.running.dot,
+            )}
             aria-label={t("sessions.sidebar.session.status.active")}
             title={t("sessions.sidebar.session.status.active")}
           />
@@ -696,7 +700,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
       case "done_with_uncommitted":
         return (
           <span
-            className="h-1.5 w-1.5 rounded-full bg-[var(--status-warning)]/60"
+            className={cn("h-1.5 w-1.5 rounded-full", SUPERVISION_PRESENTATION.review.dot)}
             aria-label={t("sessions.sidebar.session.status.doneWithUncommitted")}
             title={t("sessions.sidebar.session.status.doneWithUncommitted")}
           />
@@ -1048,7 +1052,11 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
               </DropdownMenuItem>
             ) : null}
             {moreMenuActions.has("open-mini-chat") && canOpenMiniChat ? (
-              <DropdownMenuItem disabled={!sessionDirectory} onClick={handleOpenMiniChatWindow} className="[&>svg]:mr-1">
+              <DropdownMenuItem
+                disabled={!sessionDirectory}
+                onClick={handleOpenMiniChatWindow}
+                className="[&>svg]:mr-1"
+              >
                 <Icon name="window" className="mr-1 h-4 w-4" />
                 <span className="truncate">{t("sessions.sidebar.session.menu.openMiniChatWindow")}</span>
               </DropdownMenuItem>

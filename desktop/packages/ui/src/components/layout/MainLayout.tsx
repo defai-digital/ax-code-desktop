@@ -5,6 +5,7 @@ import { Sidebar, SIDEBAR_CONTENT_WIDTH } from "./Sidebar"
 import { RightSidebar, RIGHT_SIDEBAR_CONTENT_WIDTH } from "./RightSidebar"
 import { ProjectContextPanel, RightSidebarTabs } from "./RightSidebarTabs"
 import { ContextPanel } from "./ContextPanel"
+import { WorkspaceNavigation } from "@/components/supervision/WorkspaceNavigation"
 import { SupervisionMainOverlay } from "@/components/supervision/SupervisionOverlays"
 import { QuickDispatchDialog } from "@/components/supervision/QuickDispatchDialog"
 import { InspectorRail } from "./InspectorRail"
@@ -474,7 +475,7 @@ export const MainLayout: React.FC = () => {
             </Sidebar>
             <div
               className={cn(
-                "relative flex flex-1 min-w-0 flex-row overflow-hidden",
+                "relative flex flex-1 min-w-0 flex-col overflow-hidden",
                 "bg-background",
                 "border border-border/50 rounded-[10px]",
                 !isSidebarOpen && "border-l-transparent",
@@ -482,51 +483,57 @@ export const MainLayout: React.FC = () => {
               )}
               data-page-scroll-lock="true"
             >
-              <SupervisionMainOverlay />
-              <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-                <SplitPaneLayout rightContent={splitRightContent}>
-                  <div className="flex flex-1 min-h-0 overflow-hidden" data-page-scroll-lock="true">
-                    <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden" data-page-scroll-lock="true">
-                      <main className="flex-1 overflow-hidden bg-background relative" data-page-scroll-lock="true">
-                        <div className={cn("absolute inset-0", !isChatActive && "invisible")}>
-                          <ErrorBoundary>
-                            <ChatView />
-                          </ErrorBoundary>
-                        </div>
-                        {isMobile && secondaryView && (
-                          <div className="absolute inset-0 flex flex-col">
-                            <div className="flex h-8 flex-shrink-0 items-center border-b border-border/40 bg-sidebar px-2">
-                              <button
-                                type="button"
-                                onClick={() => setActiveMainTab("chat")}
-                                aria-label={t("layout.backToChat")}
-                                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 typography-meta text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
-                              >
-                                <Icon name="arrow-left" className="h-3.5 w-3.5" aria-hidden="true" />
-                                {t("layout.backToChat")}
-                              </button>
-                            </div>
-                            <div className="relative min-h-0 flex-1">
-                              <ErrorBoundary>{secondaryView}</ErrorBoundary>
-                            </div>
+              {!isMobile ? <WorkspaceNavigation /> : null}
+              <div className="workspace-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+                <SupervisionMainOverlay />
+                <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
+                  <SplitPaneLayout rightContent={splitRightContent}>
+                    <div className="flex flex-1 min-h-0 overflow-hidden" data-page-scroll-lock="true">
+                      <div
+                        className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden"
+                        data-page-scroll-lock="true"
+                      >
+                        <main className="flex-1 overflow-hidden bg-background relative" data-page-scroll-lock="true">
+                          <div className={cn("absolute inset-0", !isChatActive && "invisible")}>
+                            <ErrorBoundary>
+                              <ChatView />
+                            </ErrorBoundary>
                           </div>
-                        )}
-                      </main>
-                      <ContextPanel />
+                          {isMobile && secondaryView && (
+                            <div className="absolute inset-0 flex flex-col">
+                              <div className="flex h-8 flex-shrink-0 items-center border-b border-border/40 bg-sidebar px-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveMainTab("chat")}
+                                  aria-label={t("layout.backToChat")}
+                                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 typography-meta text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
+                                >
+                                  <Icon name="arrow-left" className="h-3.5 w-3.5" aria-hidden="true" />
+                                  {t("layout.backToChat")}
+                                </button>
+                              </div>
+                              <div className="relative min-h-0 flex-1">
+                                <ErrorBoundary>{secondaryView}</ErrorBoundary>
+                              </div>
+                            </div>
+                          )}
+                        </main>
+                        <ContextPanel />
+                      </div>
                     </div>
-                  </div>
-                </SplitPaneLayout>
-                <BottomTerminalDock isOpen={isBottomTerminalOpen} isMobile={isMobile}>
-                  {isBottomTerminalOpen ? (
-                    <ErrorBoundary>
-                      <React.Suspense fallback={null}>
-                        <TerminalView />
-                      </React.Suspense>
-                    </ErrorBoundary>
-                  ) : null}
-                </BottomTerminalDock>
+                  </SplitPaneLayout>
+                  <BottomTerminalDock isOpen={isBottomTerminalOpen} isMobile={isMobile}>
+                    {isBottomTerminalOpen ? (
+                      <ErrorBoundary>
+                        <React.Suspense fallback={null}>
+                          <TerminalView />
+                        </React.Suspense>
+                      </ErrorBoundary>
+                    ) : null}
+                  </BottomTerminalDock>
+                </div>
+                <InspectorRail />
               </div>
-              <InspectorRail />
             </div>
             <RightSidebar isOpen={isRightSidebarOpen} className="border-0">
               <ErrorBoundary>

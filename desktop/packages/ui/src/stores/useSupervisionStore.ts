@@ -16,7 +16,11 @@ export type WorkingSet = {
   sessionIds: string[]
 }
 
+export type SupervisionDensity = "comfortable" | "compact"
+
 type PersistedSupervision = {
+  density: SupervisionDensity
+  inspectorLabels: boolean
   recentSessionIds: string[]
   lastViewedAt: Record<string, number>
   workingSets: WorkingSet[]
@@ -25,6 +29,8 @@ type PersistedSupervision = {
 
 export type SupervisionStore = PersistedSupervision & {
   /** Ranked root-session rows, published once per window by useSupervisionRowsPublisher. */
+  setDensity: (density: SupervisionDensity) => void
+  setInspectorLabels: (visible: boolean) => void
   rows: SupervisionRow[]
   setRows: (rows: SupervisionRow[]) => void
   /** Browser-style back/forward history of viewed sessions for this app run. */
@@ -61,6 +67,8 @@ export type SupervisionStore = PersistedSupervision & {
 }
 
 const EMPTY: PersistedSupervision = {
+  density: "comfortable",
+  inspectorLabels: false,
   recentSessionIds: [],
   lastViewedAt: {},
   workingSets: [],
@@ -93,6 +101,8 @@ export const readPersistedSupervision = (storage: Storage): PersistedSupervision
         ? parsed.activeWorkingSetId
         : null
     return {
+      density: parsed.density === "compact" ? "compact" : "comfortable",
+      inspectorLabels: parsed.inspectorLabels === true,
       recentSessionIds: isStringArray(parsed.recentSessionIds) ? parsed.recentSessionIds.slice(0, RECENT_LIMIT) : [],
       lastViewedAt,
       workingSets,
@@ -108,6 +118,8 @@ const persist = (storage: Storage, state: PersistedSupervision): void => {
     storage.setItem(
       STORAGE_KEY,
       JSON.stringify({
+        density: state.density,
+        inspectorLabels: state.inspectorLabels,
         recentSessionIds: state.recentSessionIds,
         lastViewedAt: state.lastViewedAt,
         workingSets: state.workingSets,
@@ -136,11 +148,20 @@ export const useSupervisionStore = defineStore(
   create<SupervisionStore>((set, get) => {
     const update = (patch: Partial<PersistedSupervision>) => {
       set(patch)
-      const { recentSessionIds, lastViewedAt, workingSets, activeWorkingSetId } = get()
-      persist(safeStorage, { recentSessionIds, lastViewedAt, workingSets, activeWorkingSetId })
+      const { density, inspectorLabels, recentSessionIds, lastViewedAt, workingSets, activeWorkingSetId } = get()
+      persist(safeStorage, {
+        density,
+        inspectorLabels,
+        recentSessionIds,
+        lastViewedAt,
+        workingSets,
+        activeWorkingSetId,
+      })
     }
     return {
       ...readPersistedSupervision(safeStorage),
+      setDensity: (density) => update({ density }),
+      setInspectorLabels: (inspectorLabels) => update({ inspectorLabels }),
       rows: [],
       setRows: (rows) => set({ rows }),
       navHistory: [],

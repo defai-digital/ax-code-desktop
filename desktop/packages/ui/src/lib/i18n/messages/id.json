@@ -4862,5 +4862,14 @@
   "settings.hooks.packs.enabled": "Aktif",
   "settings.hooks.packs.disabled": "Nonaktif",
   "settings.mcp.page.status.label.needsTrust": "Perlu dipercaya",
-  "settings.mcp.page.status.description.needsTrust": "Server ini berasal dari konfigurasi proyek dan dapat menjalankan perintah apa pun, jadi AX Code tidak memulainya sampai Anda memercayainya. Tinjau, lalu jalankan `ax-code mcp trust {name}` di folder proyek dan muat ulang AX Code."
+  "settings.mcp.page.status.description.needsTrust": "Server ini berasal dari konfigurasi proyek dan dapat menjalankan perintah apa pun, jadi AX Code tidak memulainya sampai Anda memercayainya. Tinjau, lalu jalankan `ax-code mcp trust {name}` di folder proyek dan muat ulang AX Code.",
+  "supervision.request.scopeCount": "Tinjau semua {count} cakupan izin",
+  "supervision.missionControl.density": "Kepadatan",
+  "supervision.missionControl.comfortable": "Longgar",
+  "supervision.missionControl.compact": "Ringkas",
+  "supervision.missionControl.filterLabel": "Filter sesi",
+  "supervision.inspector.tools": "Alat",
+  "supervision.inspector.showLabels": "Tampilkan nama alat",
+  "supervision.inspector.hideLabels": "Sembunyikan nama alat",
+  "supervision.navigation.workspace": "Ruang kerja"
 }

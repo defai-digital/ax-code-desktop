@@ -4862,5 +4862,14 @@
   "settings.hooks.packs.enabled": "Activado",
   "settings.hooks.packs.disabled": "Desactivado",
   "settings.mcp.page.status.label.needsTrust": "Requiere confianza",
-  "settings.mcp.page.status.description.needsTrust": "Este servidor proviene de la configuraci\u00f3n del proyecto y puede ejecutar cualquier comando, as\u00ed que AX Code no lo inicia hasta que conf\u00edes en \u00e9l. Rev\u00edsalo, ejecuta `ax-code mcp trust {name}` en la carpeta del proyecto y recarga AX Code."
+  "settings.mcp.page.status.description.needsTrust": "Este servidor proviene de la configuraci\u00f3n del proyecto y puede ejecutar cualquier comando, as\u00ed que AX Code no lo inicia hasta que conf\u00edes en \u00e9l. Rev\u00edsalo, ejecuta `ax-code mcp trust {name}` en la carpeta del proyecto y recarga AX Code.",
+  "supervision.request.scopeCount": "Revisar los {count} \u00e1mbitos de permiso",
+  "supervision.missionControl.density": "Densidad",
+  "supervision.missionControl.comfortable": "C\u00f3moda",
+  "supervision.missionControl.compact": "Compacta",
+  "supervision.missionControl.filterLabel": "Filtros de sesiones",
+  "supervision.inspector.tools": "Herramientas",
+  "supervision.inspector.showLabels": "Mostrar nombres de herramientas",
+  "supervision.inspector.hideLabels": "Ocultar nombres de herramientas",
+  "supervision.navigation.workspace": "Espacio de trabajo"
 }

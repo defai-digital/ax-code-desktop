@@ -1,0 +1,56 @@
+{
+  "baseline": "0ab190dab446b6c150b2a171a6f6e382f9960559",
+  "environment": {
+    "node": "26.12.0",
+    "pnpm": "10.33.4",
+    "electron": "44.9.0"
+  },
+  "checks": [
+    {
+      "command": "pnpm run test",
+      "exitCode": 0,
+      "logSha256": "c752cb065a45f7da33ada42abb9a6de5b322d10bdf575b78794c5831aded9e23"
+    },
+    {
+      "command": "pnpm run typecheck",
+      "exitCode": 0,
+      "logSha256": "c3e63968cdfdc7cd4ad2ae328fc401a4211338d44bca6422fefbdd305fedd8b2"
+    },
+    {
+      "command": "pnpm run lint",
+      "exitCode": 0,
+      "logSha256": "c4f659c76d3339f5485f36321afe046a58114c0b5464c678ab51350cf3d68b6c"
+    },
+    {
+      "command": "pnpm run build",
+      "exitCode": 0,
+      "logSha256": "af2b8880c04d3903b674c35bb4ebce8d5625c891a1f094c34364e9cebf7c42b8"
+    },
+    {
+      "command": "pnpm run check:boundaries",
+      "exitCode": 0,
+      "logSha256": "2059fb8730cf519f6666784754806ff3a9edba0709f06cbc00f3b6c1f8bdece5"
+    },
+    {
+      "command": "pnpm run check:locales",
+      "exitCode": 0,
+      "logSha256": "906b61e78224cae4d46d5344977d4741a6e8f97f9adbdeec886540836459dfa4"
+    },
+    {
+      "command": "Electron renderer fixture",
+      "exitCode": 0,
+      "logSha256": "497bea581b962ad707a34e14feaa1d37a6a3c210bff47d72fee4590b095e8f61"
+    }
+  ],
+  "tests": {
+    "passed": 5427,
+    "skipped": 10
+  },
+  "reviewers": {
+    "grok": "completed",
+    "deepseek": "completed",
+    "glm": "completed",
+    "muse": "quota exhausted; user requested skip"
+  },
+  "qualification": "Isolated local source, test, build and renderer verification; no signed package, live runtime or release qualification."
+}

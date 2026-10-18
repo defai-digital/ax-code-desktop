@@ -21,6 +21,8 @@ import { MissionControlRow } from "./missionControl/MissionControlRow"
 export const MissionControl: React.FC = () => {
   const { t } = useI18n()
   const rows = useSupervisionRows()
+  const density = useSupervisionStore((s) => s.density)
+  const setDensity = useSupervisionStore((s) => s.setDensity)
   const allPending = useAllPendingRequests()
   const workingSets = useSupervisionStore((s) => s.workingSets)
   const activeWorkingSetId = useSupervisionStore((s) => s.activeWorkingSetId)
@@ -133,7 +135,7 @@ export const MissionControl: React.FC = () => {
     const target = event.target as HTMLElement
 
     if (event.key === "Escape") {
-      const isInEditable = target.closest("input, textarea") !== null
+      const isInEditable = target.closest("input, textarea, select") !== null
       if (isInEditable) {
         return
       }
@@ -153,7 +155,7 @@ export const MissionControl: React.FC = () => {
 
     const lowerKeyEarly = event.key.toLowerCase()
     const isBoardShortcut = event.key === " " || event.key === "Enter" || lowerKeyEarly === "j" || lowerKeyEarly === "k"
-    const isOnInteractiveControl = target.closest("button, a[href]") !== null
+    const isOnInteractiveControl = target.closest("button, a[href], summary") !== null
     if (isOnInteractiveControl && isBoardShortcut) {
       return
     }
@@ -276,9 +278,12 @@ export const MissionControl: React.FC = () => {
       aria-label={t("supervision.missionControl.boardLabel")}
       aria-activedescendant={effectiveSelectedId ? `mission-row-${effectiveSelectedId}` : undefined}
       onKeyDown={handleKeyDown}
-      className="flex min-h-0 flex-1 flex-col outline-none"
+      className="mission-control-board flex min-h-0 flex-1 flex-col outline-none"
+      data-density={density}
     >
       <MissionControlHeader
+        density={density}
+        onDensityChange={setDensity}
         wip={wip}
         mode={mode}
         workingSets={workingSets}

@@ -4862,5 +4862,14 @@
   "settings.hooks.packs.enabled": "Etkin",
   "settings.hooks.packs.disabled": "Devre d\u0131\u015f\u0131",
   "settings.mcp.page.status.label.needsTrust": "G\u00fcven gerekli",
-  "settings.mcp.page.status.description.needsTrust": "Bu sunucu projenin yap\u0131land\u0131rmas\u0131ndan gelir ve herhangi bir komutu \u00e7al\u0131\u015ft\u0131rabilir; bu y\u00fczden ona g\u00fcvenene kadar AX Code onu ba\u015flatmaz. \u0130nceleyin, ard\u0131ndan proje klas\u00f6r\u00fcnde `ax-code mcp trust {name}` komutunu \u00e7al\u0131\u015ft\u0131r\u0131n ve AX Code'u yeniden y\u00fckleyin."
+  "settings.mcp.page.status.description.needsTrust": "Bu sunucu projenin yap\u0131land\u0131rmas\u0131ndan gelir ve herhangi bir komutu \u00e7al\u0131\u015ft\u0131rabilir; bu y\u00fczden ona g\u00fcvenene kadar AX Code onu ba\u015flatmaz. \u0130nceleyin, ard\u0131ndan proje klas\u00f6r\u00fcnde `ax-code mcp trust {name}` komutunu \u00e7al\u0131\u015ft\u0131r\u0131n ve AX Code'u yeniden y\u00fckleyin.",
+  "supervision.request.scopeCount": "T\u00fcm {count} izin kapsam\u0131n\u0131 incele",
+  "supervision.missionControl.density": "Yo\u011funluk",
+  "supervision.missionControl.comfortable": "Rahat",
+  "supervision.missionControl.compact": "S\u0131k\u0131\u015f\u0131k",
+  "supervision.missionControl.filterLabel": "Oturum filtreleri",
+  "supervision.inspector.tools": "Ara\u00e7lar",
+  "supervision.inspector.showLabels": "Ara\u00e7 adlar\u0131n\u0131 g\u00f6ster",
+  "supervision.inspector.hideLabels": "Ara\u00e7 adlar\u0131n\u0131 gizle",
+  "supervision.navigation.workspace": "\u00c7al\u0131\u015fma alan\u0131"
 }

@@ -774,10 +774,12 @@ function urlRequestsMainView(): boolean {
 
 export const Header: React.FC = () => {
   const { t } = useI18n()
+  const isMobile = useUIStore((state) => state.isMobile)
+  const missionControlOpen = useSupervisionStore((state) => state.missionControlOpen)
   const toggleSidebar = useUIStore((state) => state.toggleSidebar)
+  const isRightSidebarOpen = useUIStore((state) => state.isRightSidebarOpen)
   const toggleBottomTerminal = useUIStore((state) => state.toggleBottomTerminal)
   const isBottomTerminalOpen = useUIStore((state) => state.isBottomTerminalOpen)
-  const isRightSidebarOpen = useUIStore((state) => state.isRightSidebarOpen)
   const toggleSplitPane = useUIStore((state) => state.toggleSplitPane)
   const splitPaneEnabled = useUIStore((state) => state.splitPaneEnabled)
   const toggleRightSidebar = useUIStore((state) => state.toggleRightSidebar)
@@ -791,7 +793,6 @@ export const Header: React.FC = () => {
   const unreadNotificationCount = useNotificationStore((s) =>
     s.notifications.reduce((count, item) => (item.read ? count : count + 1), 0),
   )
-  const missionControlOpen = useSupervisionStore((state) => state.missionControlOpen)
 
   const getCurrentModel = useConfigStore((state) => state.getCurrentModel)
   const runtimeApis = useRuntimeAPIs()
@@ -1758,16 +1759,16 @@ export const Header: React.FC = () => {
       />
       <SyncStatusIndicator />
       <NeedsYouButton />
-      <HeaderIconActionButton
-        title={t("supervision.missionControl.toggleWithShortcut", {
-          shortcut: shortcutLabel("open_mission_control"),
-        })}
-        ariaLabel={t("supervision.missionControl.toggleAria")}
-        label={t("supervision.missionControl.title")}
-        onClick={() => useSupervisionStore.getState().toggleMissionControl()}
-        pressed={missionControlOpen}
-        Icon={"equalizer-2"}
-      />
+      {isMobile ? (
+        <HeaderIconActionButton
+          title={t("supervision.missionControl.toggleAria")}
+          ariaLabel={t("supervision.missionControl.toggleAria")}
+          label={t("supervision.missionControl.title")}
+          onClick={() => useSupervisionStore.getState().toggleMissionControl()}
+          pressed={missionControlOpen}
+          Icon={"equalizer-2"}
+        />
+      ) : null}
       <span className="relative inline-flex">
         <HeaderIconActionButton
           title={t("notificationCenter.title")}

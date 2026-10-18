@@ -1,0 +1,114 @@
+{
+  "electron": "44.9.0",
+  "chrome": "152.0.7977.167",
+  "results": [
+    {
+      "width": 420,
+      "density": "comfortable",
+      "before": {
+        "bodyOverflow": false,
+        "boardOverflow": false,
+        "rowOverflow": false,
+        "projectVisible": true,
+        "rows": 6
+      },
+      "rail": {
+        "expanded": "true",
+        "buttons": 8,
+        "chatWidth": 420,
+        "bodyOverflow": false
+      },
+      "errors": []
+    },
+    {
+      "width": 420,
+      "density": "compact",
+      "before": {
+        "bodyOverflow": false,
+        "boardOverflow": false,
+        "rowOverflow": false,
+        "projectVisible": true,
+        "rows": 6
+      },
+      "rail": {
+        "expanded": "true",
+        "buttons": 8,
+        "chatWidth": 420,
+        "bodyOverflow": false
+      },
+      "errors": []
+    },
+    {
+      "width": 760,
+      "density": "comfortable",
+      "before": {
+        "bodyOverflow": false,
+        "boardOverflow": false,
+        "rowOverflow": false,
+        "projectVisible": true,
+        "rows": 6
+      },
+      "rail": {
+        "expanded": "true",
+        "buttons": 8,
+        "chatWidth": 600,
+        "bodyOverflow": false
+      },
+      "errors": []
+    },
+    {
+      "width": 760,
+      "density": "compact",
+      "before": {
+        "bodyOverflow": false,
+        "boardOverflow": false,
+        "rowOverflow": false,
+        "projectVisible": true,
+        "rows": 6
+      },
+      "rail": {
+        "expanded": "true",
+        "buttons": 8,
+        "chatWidth": 600,
+        "bodyOverflow": false
+      },
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "density": "comfortable",
+      "before": {
+        "bodyOverflow": false,
+        "boardOverflow": false,
+        "rowOverflow": false,
+        "projectVisible": true,
+        "rows": 6
+      },
+      "rail": {
+        "expanded": "true",
+        "buttons": 8,
+        "chatWidth": 1280,
+        "bodyOverflow": false
+      },
+      "errors": []
+    },
+    {
+      "width": 1440,
+      "density": "compact",
+      "before": {
+        "bodyOverflow": false,
+        "boardOverflow": false,
+        "rowOverflow": false,
+        "projectVisible": true,
+        "rows": 6
+      },
+      "rail": {
+        "expanded": "true",
+        "buttons": 8,
+        "chatWidth": 1280,
+        "bodyOverflow": false
+      },
+      "errors": []
+    }
+  ]
+}

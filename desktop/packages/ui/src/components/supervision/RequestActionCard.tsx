@@ -19,7 +19,8 @@ type RequestActionCardProps = {
   className?: string
 }
 
-const MAX_PATTERNS = 2
+const PREVIEW_PATTERNS = 2
+const PREVIEW_CHARACTERS = 160
 
 /**
  * The one actionable request card for cross-session surfaces (titlebar popover, Needs You queue, Mission
@@ -35,17 +36,22 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
 }) => {
   const { t } = useI18n()
   const [busy, setBusy] = React.useState(false)
+  const respondingRef = React.useRef(false)
+  const [expandedRequest, setExpandedRequest] = React.useState<string | null>(null)
+  const requestKey = `${entry.sessionId}:${entry.kind}:${entry.request.id}`
+  const scopeId = React.useId()
   const mountedRef = React.useRef(true)
-  React.useEffect(
-    () => () => {
+  React.useEffect(() => {
+    mountedRef.current = true
+    return () => {
       mountedRef.current = false
-    },
-    [],
-  )
+    }
+  }, [])
 
   const run = React.useCallback(
     async (action: () => Promise<void>, failureTitle: string) => {
-      if (busy) return
+      if (respondingRef.current) return
+      respondingRef.current = true
       setBusy(true)
       try {
         await action()
@@ -54,10 +60,11 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
           description: error instanceof Error ? error.message : t("chat.permissionCard.responseFailed.retry"),
         })
       } finally {
+        respondingRef.current = false
         if (mountedRef.current) setBusy(false)
       }
     },
-    [busy, t],
+    [t],
   )
 
   const compact = density === "compact"
@@ -65,11 +72,12 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
   const title = isPermission
     ? t("notificationCenter.permission.requestTitle", { tool: entry.request.permission })
     : entry.request.questions?.[0]?.header?.trim() || entry.request.questions?.[0]?.question || ""
-  const detail = isPermission
-    ? entry.request.patterns.filter(Boolean).slice(0, MAX_PATTERNS).join(" · ")
-    : entry.request.questions?.[0]?.header
-      ? entry.request.questions[0].question
-      : ""
+  const patterns = entry.kind === "permission" ? entry.request.patterns.filter(Boolean) : []
+  const needsExpansion =
+    patterns.length > PREVIEW_PATTERNS || patterns.some((pattern) => pattern.length > PREVIEW_CHARACTERS)
+  const expanded = expandedRequest === requestKey
+  const detail =
+    entry.kind === "question" && entry.request.questions?.[0]?.header ? entry.request.questions[0].question : ""
   const inlineQuestion = isInlineAnswerableQuestion(entry) && entry.kind === "question" ? entry.request : null
 
   return (
@@ -100,13 +108,47 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
           ) : null}
         </div>
       </div>
+      {patterns.length > 0 ? (
+        <div className="min-w-0 pl-5 typography-meta">
+          {needsExpansion ? (
+            <button
+              type="button"
+              aria-expanded={expanded}
+              aria-controls={scopeId}
+              onClick={(event) => {
+                event.stopPropagation()
+                setExpandedRequest(expanded ? null : requestKey)
+              }}
+              className="min-h-8 rounded text-left text-foreground underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {t("supervision.request.scopeCount", { count: patterns.length })}
+              <Icon
+                name={expanded ? "arrow-up-s" : "arrow-down-s"}
+                className="ml-1 inline h-4 w-4"
+                aria-hidden="true"
+              />
+            </button>
+          ) : null}
+          <ul id={scopeId} className="space-y-1 text-muted-foreground">
+            {(expanded || !needsExpansion ? patterns : patterns.slice(0, PREVIEW_PATTERNS)).map((pattern, index) => (
+              <li key={index} className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+                <code>
+                  {expanded || !needsExpansion || pattern.length <= PREVIEW_CHARACTERS
+                    ? pattern
+                    : `${pattern.slice(0, PREVIEW_CHARACTERS)}…`}
+                </code>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-1.5 pl-5">
         {entry.kind === "permission" ? (
           <>
             <Button
               size="sm"
               variant="default"
-              className="h-6 px-2 typography-micro"
+              className="min-h-8 px-2 typography-micro"
               disabled={busy}
               onClick={() =>
                 void run(
@@ -120,7 +162,7 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
             <Button
               size="sm"
               variant="ghost"
-              className="h-6 px-2 typography-micro"
+              className="min-h-8 px-2 typography-micro"
               disabled={busy}
               onClick={() =>
                 void run(
@@ -139,7 +181,7 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
                 key={option.label}
                 size="sm"
                 variant="outline"
-                className="h-6 max-w-full truncate px-2 typography-micro"
+                className="min-h-8 max-w-full truncate px-2 typography-micro"
                 title={option.description || option.label}
                 disabled={busy}
                 onClick={() =>
@@ -155,7 +197,7 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
             <Button
               size="sm"
               variant="ghost"
-              className="h-6 px-2 typography-micro"
+              className="min-h-8 px-2 typography-micro"
               disabled={busy}
               onClick={() =>
                 void run(
@@ -169,7 +211,7 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
           </>
         ) : null}
         {onOpen ? (
-          <Button size="sm" variant="ghost" className="h-6 px-2 typography-micro" onClick={onOpen}>
+          <Button size="sm" variant="ghost" className="min-h-8 px-2 typography-micro" onClick={onOpen}>
             {t("supervision.request.open")}
           </Button>
         ) : null}

@@ -7,21 +7,9 @@ import { useI18n } from "@/lib/i18n"
 import { parseMultiRunSessionTitle } from "@/lib/multirun/title"
 import { multiRunGroupKeyFromParsed } from "@/lib/supervision/multiRunGroups"
 import { formatRelativeAge } from "@/lib/supervision/relativeAge"
-import type { SupervisionState } from "@/lib/supervision/sessionState"
+import { SupervisionStateBadge } from "../SupervisionStateBadge"
 import { cn } from "@/lib/utils"
 import { EvidenceText } from "../EvidenceText"
-
-const STATE_META: Record<
-  SupervisionState,
-  { icon: "shield-warning" | "question" | "error-warning" | "file-check" | null; className: string }
-> = {
-  permission: { icon: "shield-warning", className: "text-[var(--status-warning)] border-[var(--status-warning)]/40" },
-  question: { icon: "question", className: "text-[var(--status-warning)] border-[var(--status-warning)]/40" },
-  error: { icon: "error-warning", className: "text-destructive border-destructive/40" },
-  review: { icon: "file-check", className: "text-[var(--status-info)] border-[var(--status-info)]/40" },
-  running: { icon: null, className: "text-foreground border-border" },
-  idle: { icon: null, className: "text-muted-foreground border-border" },
-}
 
 export interface MissionControlRowProps {
   row: SupervisionRowData
@@ -51,7 +39,6 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   children,
 }) => {
   const { t } = useI18n()
-  const meta = STATE_META[row.state]
   const groupSlug = multiRunGroupKeyFromParsed(parseMultiRunSessionTitle(row.title))
 
   const handleSelectClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -93,71 +80,66 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
         aria-expanded={expanded}
         onClick={handleSelectClick}
         onDoubleClick={handleDoubleClick}
-        className={cn("flex cursor-pointer items-center gap-3 px-4 py-2", selected && "bg-interactive-hover/50")}
+        className={cn("mission-control-row cursor-pointer", selected && "bg-interactive-hover/50")}
       >
-        <span
-          className={cn(
-            "flex w-28 shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 typography-micro",
-            meta.className,
-          )}
-        >
-          {row.state === "running" ? (
-            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[var(--status-success)]" />
-          ) : row.state === "idle" ? (
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
-          ) : meta.icon ? (
-            <Icon name={meta.icon} className="h-3 w-3 shrink-0" aria-hidden="true" />
-          ) : null}
-          <span className="truncate">
-            {t(`supervision.missionControl.state.${row.state}` as Parameters<typeof t>[0])}
-          </span>
+        <span role="gridcell" className="mission-state">
+          <SupervisionStateBadge state={row.state} />
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate typography-ui-label text-foreground" title={row.title}>
+        <span role="gridcell" className="mission-title min-w-0">
+          <span className="block typography-ui-label text-foreground [overflow-wrap:anywhere]" title={row.title}>
             {row.title}
           </span>
           {row.state === "error" && row.errorMessage ? (
-            <span className="block truncate typography-micro text-muted-foreground">{row.errorMessage}</span>
+            <span className="block typography-meta text-muted-foreground [overflow-wrap:anywhere]">
+              {row.errorMessage}
+            </span>
           ) : null}
         </span>
-        {groupSlug ? (
-          <button
-            type="button"
-            onClick={handleCompareClick}
-            className="shrink-0 typography-micro text-[var(--status-info)] hover:underline"
-          >
-            {t("supervision.missionControl.action.compare")}
-          </button>
-        ) : null}
-        <span className="hidden w-36 shrink-0 truncate typography-micro text-muted-foreground sm:block">
+        <span
+          role="gridcell"
+          className="mission-project min-w-0 typography-meta text-muted-foreground [overflow-wrap:anywhere]"
+        >
           {row.projectLabel ?? "\u2014"}
         </span>
-        <EvidenceText
-          evidence={row.evidence}
-          className="w-32 shrink-0 truncate typography-micro text-muted-foreground"
-        />
-        <span className="w-16 shrink-0 text-right typography-micro text-muted-foreground">
+        <span
+          role="gridcell"
+          className="mission-evidence min-w-0 typography-meta text-muted-foreground [overflow-wrap:anywhere]"
+        >
+          <EvidenceText evidence={row.evidence} />
+        </span>
+        <span role="gridcell" className="mission-age typography-meta text-muted-foreground">
           {row.updatedAt ? formatRelativeAge(Date.now() - row.updatedAt, t) : "\u2014"}
         </span>
-        <Button
-          size="sm"
-          className="h-6 shrink-0 px-2 typography-micro"
-          onClick={handlePrimaryClick}
-          aria-label={`${primaryLabel} \u2014 ${row.title}`}
-        >
-          {primaryLabel}
-        </Button>
-        {activeWorkingSetId ? (
-          <button
-            type="button"
-            aria-label={t("supervision.missionControl.action.removeFromSet")}
-            title={t("supervision.missionControl.action.removeFromSet")}
-            onClick={handleRemoveClick}
-            className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
+        <span role="gridcell" className="mission-actions flex min-w-0 flex-wrap items-center gap-2">
+          {groupSlug ? (
+            <button
+              type="button"
+              onClick={handleCompareClick}
+              className="shrink-0 typography-micro text-[var(--status-info)] hover:underline"
+            >
+              {t("supervision.missionControl.action.compare")}
+            </button>
+          ) : null}
+          <Button
+            size="sm"
+            className="min-h-8 h-auto whitespace-normal px-3 py-1 typography-meta"
+            onClick={handlePrimaryClick}
+            aria-label={`${primaryLabel} \u2014 ${row.title}`}
           >
-            <Icon name="close" className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-        ) : null}
+            {primaryLabel}
+          </Button>
+          {activeWorkingSetId ? (
+            <button
+              type="button"
+              aria-label={t("supervision.missionControl.action.removeFromSet")}
+              title={t("supervision.missionControl.action.removeFromSet")}
+              onClick={handleRemoveClick}
+              className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
+            >
+              <Icon name="close" className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          ) : null}
+        </span>
       </div>
       {expanded ? children : null}
     </div>

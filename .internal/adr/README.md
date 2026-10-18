@@ -1,19 +1,28 @@
 # AX Code Desktop ADR index
 
-| ADR                                                              | Title                                                          | Status   | Implementation                         | Date       |
-| ---------------------------------------------------------------- | -------------------------------------------------------------- | -------- | -------------------------------------- | ---------- |
-| [ADR-001](ADR-001-ax-code-jsr-sdk-consumption.md)                | Consume the AX Code SDK from JSR                               | Accepted | Implemented and verified               | 2026-09-02 |
-| [ADR-002](ADR-002-product-and-source-boundary.md)                | Establish the AX Code Desktop product and source boundary             | Accepted | Phases 1-2 complete; Phase 3 active    | 2026-09-02 |
-| [ADR-003](ADR-003-history-preserving-desktop-extraction.md)      | Extract Desktop with filtered Git history                      | Accepted | Complete                               | 2026-09-02 |
-| [ADR-004](ADR-004-sdk-runtime-and-release-order.md)              | Pin SDK and runtime with producer-first releases               | Accepted | Initial pair implemented and verified  | 2026-09-02 |
-| [ADR-005](ADR-005-persistent-portfolio-service.md)               | Use a separate local portfolio service                         | Accepted | Deferred to read-only portfolio slice  | 2026-09-02 |
-| [ADR-006](ADR-006-application-identity-and-release-ownership.md) | Preserve application identity during source transfer           | Accepted | Guards ready; shadow execution pending | 2026-09-02 |
-| [ADR-007](ADR-007-defer-ax-agent-manager-integration.md)         | Defer manager execution until AX Agent has a released contract | Accepted | Deferred                               | 2026-09-02 |
-| [ADR-008](ADR-008-source-cutover-with-release-freeze.md)         | Separate Desktop source cutover from public release cutover    | Accepted | Implemented and verified               | 2026-09-02 |
-| [ADR-011](ADR-011-public-signed-shadow-qualification.md) | Public signed shadow qualification | Accepted | Local implementation verified; platform execution pending | 2026-10-12 |
-| [ADR-012](ADR-012-public-desktop-release-cutover.md) | Public Desktop release cutover | Accepted | Implementation and native qualification in progress | 2026-10-12 |
+Reviewed 2026-10-18. Accepted decisions remain authoritative unless a later decision explicitly supersedes a clause. Implementation dates and old release versions in accepted records are historical, not live deployment evidence.
 
-ADRs must identify the decision owner, contracts, superseded records, rollout, and rollback.
+| ADR | Standing and supersession scope |
+| --- | --- |
+| [ADR-001: JSR SDK](ADR-001-ax-code-jsr-sdk-consumption.md) | Active exact published SDK consumption boundary; historical version is not the current pin |
+| [ADR-002: Product/source boundary](ADR-002-product-and-source-boundary.md) | Active; source-removal ordering amended by ADR-008; naming interpreted through ADR-015 |
+| [ADR-003: History-preserving extraction](ADR-003-history-preserving-desktop-extraction.md) | Completed extraction decision; history/provenance remain protected |
+| [ADR-004: Producer-first release order](ADR-004-sdk-runtime-and-release-order.md) | Active SDK/runtime and qualification order |
+| [ADR-005: Portfolio service](ADR-005-persistent-portfolio-service.md) | Deferred; renderer projections do not constitute service delivery |
+| [ADR-006: Identity and release ownership](ADR-006-application-identity-and-release-ownership.md) | Active identity/continuity requirements; ordering partially superseded by ADR-008 |
+| [ADR-007: AX Agent integration](ADR-007-defer-ax-agent-manager-integration.md) | Deferred pending the released canonical contract |
+| [ADR-008: Source cutover](ADR-008-source-cutover-with-release-freeze.md) | Implemented source ownership; subsequent publication authority is ADR-012 |
+| [ADR-009 (release): Independent preparation](ADR-009-independent-desktop-release-preparation.md) | Historical preparation; release freeze superseded by ADR-012 only |
+| [ADR-009 (WebMCP): Embedded provider](ADR-009-embedded-native-webmcp-provider-v1.md) | Active provider boundary; extended by ADR-013 and ADR-014 |
+| [ADR-010: Distribution](ADR-010-desktop-download-distribution.md) | Active distribution invariants; private-source qualification assumption superseded by ADR-011, updater freeze by ADR-012 |
+| [ADR-011: Signed shadow qualification](ADR-011-public-signed-shadow-qualification.md) | Active public-repository signing and qualification requirements |
+| [ADR-012: Public release cutover](ADR-012-public-desktop-release-cutover.md) | Active publication authority with exact-inventory native qualification gates |
+| [ADR-013: Browser routing](ADR-013-browser-entrypoint-routing.md) | Active CLI/Desktop browser separation |
+| [ADR-014: Agent page interaction](ADR-014-agent-page-interaction.md) | Active page-interaction boundary; paired producer ADR-198 exists |
+| [ADR-015: Product naming](ADR-015-product-name-ax-code.md) | Active product name and compatibility identity requirements |
 
-| [ADR-013](ADR-013-browser-entrypoint-routing.md) | Browser Entrypoint Routing | Accepted | Source validated; signed producer rollout pending | 2026-10-13 |
-| [ADR-015](ADR-015-product-name-ax-code.md) | Product name is AX Code | Accepted | Implemented | 2026-10-15 |
+## Archived proposals
+
+[Embedded provider producer proposal](archive/AX-CODE-ADR-PROPOSAL-2026-10-11-embedded-webmcp-transport-v1.md): historical draft, now represented by accepted AX Code ADR-184. It is not an outstanding approval request.
+
+The duplicate ADR-009 numbers are historical. Use full filenames or the qualified labels above; accepted records were not renumbered. See the [lifecycle review](../reports/GOVERNANCE-2026-10-18-document-lifecycle.md) for evidence and preservation receipts.

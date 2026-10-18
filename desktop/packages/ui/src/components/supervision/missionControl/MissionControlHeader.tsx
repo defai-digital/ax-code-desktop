@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/lib/i18n"
 import { HIGH_TOUCH_SOFT_LIMIT } from "@/lib/supervision/sessionState"
 import { cn } from "@/lib/utils"
-import type { WorkingSet } from "@/stores/useSupervisionStore"
+import type { SupervisionDensity, WorkingSet } from "@/stores/useSupervisionStore"
 
 export interface MissionControlHeaderProps {
+  density: SupervisionDensity
+  onDensityChange: (density: SupervisionDensity) => void
   wip: { needsYou: number; running: number; overSoftLimit: boolean }
   mode: "live" | "recent"
   workingSets: readonly WorkingSet[]
@@ -34,6 +36,8 @@ export interface MissionControlHeaderProps {
 }
 
 export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
+  density,
+  onDensityChange,
   wip,
   mode,
   workingSets,
@@ -85,7 +89,7 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
   }
 
   return (
-    <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
+    <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-2">
       <span className="shrink-0 typography-ui-label font-semibold text-foreground">
         {t("supervision.missionControl.title")}
       </span>
@@ -97,13 +101,25 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
           {t("supervision.missionControl.overLimit", { limit: HIGH_TOUCH_SOFT_LIMIT })}
         </span>
       ) : null}
-      <div className="ml-auto flex min-w-0 items-center gap-2">
+      <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2 typography-meta">
+          <span>{t("supervision.missionControl.density")}</span>
+          <select
+            value={density}
+            onChange={(event) => onDensityChange(event.target.value as SupervisionDensity)}
+            className="h-8 rounded-md border border-border bg-background px-2 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="comfortable">{t("supervision.missionControl.comfortable")}</option>
+            <option value="compact">{t("supervision.missionControl.compact")}</option>
+          </select>
+        </label>
         <Button size="sm" onClick={onDispatch}>
           {t("supervision.dispatch.title")}
         </Button>
         <div
           className="flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-md border border-border p-0.5"
-          role="tablist"
+          role="group"
+          aria-label={t("supervision.missionControl.filterLabel")}
         >
           {(["live", "recent"] as const).map((filterMode) => {
             const isSelected = !activeWorkingSetId && mode === filterMode
@@ -114,8 +130,7 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
               <button
                 key={filterMode}
                 type="button"
-                role="tab"
-                aria-selected={isSelected}
+                aria-pressed={isSelected}
                 onClick={handleClick}
                 className={cn(
                   "shrink-0 rounded px-2 py-1 typography-micro",
@@ -139,8 +154,7 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
               <button
                 key={workingSet.id}
                 type="button"
-                role="tab"
-                aria-selected={isSelected}
+                aria-pressed={isSelected}
                 onClick={handleClick}
                 className={cn(
                   "max-w-32 shrink-0 truncate rounded px-2 py-1 typography-micro",
